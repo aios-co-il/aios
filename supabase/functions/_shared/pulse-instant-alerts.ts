@@ -11,6 +11,7 @@ import {
   isNoDataWithoutTable,
   isRealConnectionLoss,
 } from "./pulse/connection-loss.ts";
+import { withoutPhonesAlertedElsewhere } from "./pulse/cross-tenant-recipients.ts";
 import { isInstantAlertSuppressed } from "./pulse/instant-alert-dedupe.ts";
 import {
   connectionLostFingerprint,
@@ -453,7 +454,7 @@ export async function deliverInstantPulseAlerts(input: {
       candidate.evidence = confirmed.evidence;
     }
 
-    const recipients = await resolveInstantAlertRecipients(
+    const tenantRecipients = await resolveInstantAlertRecipients(
       input.supabase,
       input.tenantId,
       candidate.client_id,
@@ -462,6 +463,13 @@ export async function deliverInstantPulseAlerts(input: {
       )?.agency_id,
       input.pulsePhone,
       input.tenantSlug,
+    );
+    const recipients = await withoutPhonesAlertedElsewhere(
+      input,
+      candidate,
+      tenantRecipients,
+      throttleHours,
+      now,
     );
     if (!recipients.length) {
       skipped += 1;
