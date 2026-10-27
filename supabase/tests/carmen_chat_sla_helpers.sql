@@ -71,6 +71,9 @@ BEGIN
     jsonb_build_array(jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag, 'resolution', 'answered')));
   IF v_n <> 0 THEN RAISE EXCEPTION 'resolve: another collector''s finding must stay open'; END IF;
   SELECT count(*) INTO v_n FROM public.carmen_finding_resolve(v_tenant, v_round, 'qa_chat',
+    jsonb_build_array(jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag, 'resolution', 'dismissed')));
+  IF v_n <> 0 THEN RAISE EXCEPTION 'resolve: a resolution other than answered is skipped'; END IF;
+  SELECT count(*) INTO v_n FROM public.carmen_finding_resolve(v_tenant, v_round, 'qa_chat',
     jsonb_build_array(jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag,
       'resolution', 'answered', 'details', jsonb_build_object('response_minutes', 42))));
   IF v_n <> 1 THEN RAISE EXCEPTION 'resolve: the finding must close'; END IF;

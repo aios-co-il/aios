@@ -28,57 +28,8 @@
 -- 5. carmen_finding_resolve: closes live findings a collector saw end
 --    ('answered'), with the details (response time) on the 'resolved' event.
 --
--- Indexes: none added; chat_messages is a hot webhook table. The function
--- bodies are SECURITY DEFINER with a fixed search_path, so PostgreSQL never
--- inlines them and EXPLAIN of a call shows only a Function Scan. Before
--- merge, run this read-only check on Production with real literals and
--- attach the output to the PR:
---   SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'chat_messages';
---   SELECT pg_size_pretty(pg_total_relation_size('public.chat_messages'));
---   -- (a) The activity read (messages CTE): expect an Index Scan or Bitmap
---   --     Index Scan on idx_chat_messages_provider (tenant_id, provider,
---   --     created_at DESC), never a Seq Scan on chat_messages.
---   EXPLAIN SELECT cm.id FROM public.chat_messages AS cm
---   WHERE cm.tenant_id = '<tenant>' AND cm.provider = 'green_api'
---     AND cm.connection_user_id = ANY ('{<green line owner>}'::uuid[])
---     AND cm.created_at >= now() - interval '7 days' AND cm.is_blocked = false;
---   -- (b) The shared-group check (group_threads NOT EXISTS), for a group of
---   --     the client's own tenant: expect an Index Scan on
---   --     idx_chat_messages_group or idx_chat_messages_group_id, or on
---   --     idx_chat_messages_provider, never a Seq Scan.
---   EXPLAIN SELECT 1 FROM public.chat_messages AS ocm
---   WHERE ocm.group_id = '<whatsapp_groups.id>' AND ocm.tenant_id = '<client tenant>'
---     AND ocm.provider = 'green_api' AND ocm.created_at >= now() - interval '7 days'
---   LIMIT 1;
---   -- (c) The direct-chat client lookup (key_clients): expect a Seq Scan or
---   --     index scan of clients for the tenant only (idx_clients_tenant_*),
---   --     and of client_contacts by client_id; it runs once per call.
---   EXPLAIN SELECT public.phone_match_key(c.phone) FROM public.clients AS c
---   WHERE c.tenant_id = '<tenant>' AND c.status NOT IN ('ended', 'inactive');
---   -- (d) get_unlinked_client_groups (traffic CTE): expect
---   --     idx_chat_messages_provider as in (a).
---   EXPLAIN SELECT cm.group_id, count(*) FROM public.chat_messages AS cm
---   WHERE cm.tenant_id = '<tenant>' AND cm.provider = 'green_api'
---     AND cm.connection_user_id = ANY ('{<green line owner>}'::uuid[])
---     AND cm.group_id IS NOT NULL AND cm.created_at >= now() - interval '7 days'
---     AND cm.is_blocked = false
---   GROUP BY cm.group_id;
---   -- (e) The round's call read (collectors/chat/calls.ts): expect an Index
---   --     Scan on idx_call_logs_tenant; AIO-253 plans a (tenant_id,
---   --     client_id, created_at) index after its own size check.
---   EXPLAIN SELECT client_id, created_at FROM public.call_logs
---   WHERE tenant_id IN ('<tenant>') AND status = 'completed' AND client_id IS NOT NULL
---     AND created_at >= now() - interval '7 days';
---   -- (f) carmen_round_llm_spend's month sums: Index Scans on
---   --     idx_ai_usage_log_created; agent_action_log and marketing_runs have no
---   --     created_at-first index, so a Seq Scan there is expected (the health
---   --     probe reads the same rows hourly) and fine while they stay small.
---   EXPLAIN SELECT sum(cost_usd) FROM public.agent_action_log
---   WHERE created_at >= date_trunc('month', now());
--- Plans as expected keep this as is. A Seq Scan on chat_messages in (a),
--- (b) or (d) means a new index, shipped alone in its own migration as
--- CREATE INDEX CONCURRENTLY IF NOT EXISTS (one statement, outside a
--- transaction), or as a plain CREATE INDEX merged at a low-traffic hour.
+-- Indexes: none added; chat_messages is a hot webhook table. The read-only
+-- plan check for these reads is supabase/ops/verify_carmen_chat_sla_plans.sql.
 
 -- ─── 1. carmen_chat_thread_reviews ──────────────────────────────────────────
 
@@ -100,7 +51,6 @@ ALTER TABLE public.carmen_chat_thread_reviews ENABLE ROW LEVEL SECURITY;
 
 -- Verdicts summarise threads of the operator's own line: no policies, so
 -- only the service role (the round) reads or writes them (plan C6).
-DROP POLICY IF EXISTS "Carmen chat reviews for the tenant owner level" ON public.carmen_chat_thread_reviews;
 REVOKE ALL ON public.carmen_chat_thread_reviews FROM PUBLIC, anon, authenticated;
 GRANT ALL ON public.carmen_chat_thread_reviews TO service_role;
 
@@ -444,9 +394,10 @@ GRANT EXECUTE ON FUNCTION public.carmen_round_llm_spend(uuid, timestamptz, times
 -- ─── 5. carmen_finding_resolve ──────────────────────────────────────────────
 
 -- Close live findings the collector p_collector raised and saw end. Item
--- keys: kind, fingerprint, resolution ('answered' only), details (an object
--- logged on the 'resolved' event, e.g. the response time). Planned messages
--- of a closed finding are cancelled. Returns the findings closed.
+-- keys: kind, fingerprint, resolution ('answered' only; any other item is
+-- skipped with a NOTICE), details (an object logged on the 'resolved' event,
+-- e.g. the response time). Planned messages of a closed finding are
+-- cancelled. Returns the findings closed.
 CREATE OR REPLACE FUNCTION public.carmen_finding_resolve(
   p_tenant_id uuid,
   p_round_id uuid,
@@ -459,7 +410,19 @@ RETURNS TABLE (finding_id uuid, short_code integer)
   SET search_path TO ''
 AS $$
 #variable_conflict use_column
+DECLARE
+  v_skipped integer;
 BEGIN
+  SELECT count(*) INTO v_skipped
+  FROM jsonb_to_recordset(
+    CASE WHEN jsonb_typeof(p_items) = 'array' THEN p_items ELSE '[]'::jsonb END
+  ) AS x(resolution text)
+  WHERE x.resolution IS DISTINCT FROM 'answered';
+  IF v_skipped > 0 THEN
+    RAISE NOTICE 'carmen_finding_resolve: tenant %, collector %: % item(s) skipped, resolution is not answered',
+      p_tenant_id, p_collector, v_skipped;
+  END IF;
+
   RETURN QUERY
   WITH items AS (
     SELECT x.kind, x.fingerprint, x.resolution,
@@ -483,7 +446,8 @@ BEGIN
     UPDATE public.carmen_finding_deliveries AS d
     SET status = 'cancelled'
     FROM closed AS c
-    WHERE d.finding_id = c.id AND d.status = 'planned'
+    WHERE d.tenant_id = p_tenant_id AND d.finding_id = c.id
+      AND d.status = 'planned'
   ), logged AS (
     INSERT INTO public.carmen_finding_events (tenant_id, finding_id, event, details)
     SELECT p_tenant_id, c.id, 'resolved',
