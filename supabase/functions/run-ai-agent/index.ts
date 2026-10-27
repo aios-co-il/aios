@@ -5701,6 +5701,8 @@ async function executeTool(
   approval: {
     turnId?: string | null;
     userText?: string | null;
+    /** Carmen's previous message; the workshop reads the taps that answer it. */
+    lastAssistant?: string | null;
     outOfBand?: boolean;
   } = {},
 ): Promise<any> {
@@ -5761,6 +5763,7 @@ async function executeTool(
       {
         turnId: approval.turnId ?? null,
         userText: approval.userText ?? null,
+        lastAssistant: approval.lastAssistant ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         imageEngines: async () => {
           const { data } = await supabase
@@ -16007,7 +16010,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
-              { turnId, userText: String(command_text ?? "") },
+              {
+                turnId,
+                userText: String(command_text ?? ""),
+                lastAssistant: lastAssistantText(conversation_history),
+              },
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);

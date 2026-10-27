@@ -6,7 +6,11 @@
  */
 
 import { approveFromMessage } from "./budget-approve.ts";
-import { briefAnswersOf, withBriefAnswers } from "./brief-answers.ts";
+import {
+  answerFor,
+  briefAnswersOf,
+  withBriefAnswers,
+} from "./brief-answers.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { failStalePictures } from "./stale-pictures.ts";
 
@@ -138,7 +142,7 @@ export async function workshopTurnNote(
           "יש כבר סטוריבורד: אל תכתבי אותו מחדש אלא אם המשתמש ביקש לשנות אותו.",
         );
       lines.push(`השלב הבא: ${nextFilmStep(state)}.`);
-      if (/קריאה לפעולה/.test(briefAnswersOf(payload)["סיום"] ?? ""))
+      if (/קריאה לפעולה/.test(answerFor(briefAnswersOf(payload), "סיום")))
         lines.push(
           "הסיום שנבחר כולל קריאה לפעולה: בהפקה העבירי cta_text קצר (עד 6 מילים).",
         );

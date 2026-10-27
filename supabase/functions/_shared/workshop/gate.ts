@@ -53,6 +53,8 @@ export interface WorkshopDeps {
   turnId?: string | null;
   /** The user's own message in this turn; a paid confirm needs the approval code in it. */
   userText?: string | null;
+  /** Carmen's previous message: its tap-to-answer questions are what userText answers. */
+  lastAssistant?: string | null;
   /** Makes (or finds) a short sample of a narration voice; returns its creative-video path. */
   voiceSample?: (voiceId: string) => Promise<{ path?: string; error?: string }>;
   /** David approved this exact call in the approvals queue. */
