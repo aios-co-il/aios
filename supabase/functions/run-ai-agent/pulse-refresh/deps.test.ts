@@ -18,12 +18,24 @@ type Query = {
   limit?: number;
 };
 
-/** A Supabase stand-in whose every query answers `answer`; it records queries and RPCs. */
-function fakeSupabase(answer: { data: unknown; error: unknown }) {
+/** The row each table answers; a table left out answers no row. */
+type FakeRows = {
+  clients?: { id: string };
+  campaign_pulse_snapshots?: { calculated_at: string };
+};
+
+/**
+ * A Supabase stand-in that answers `rows`, or `error` with no row; it records
+ * queries and RPCs.
+ */
+function fakeSupabase(
+  rows: FakeRows,
+  error: { message: string } | null = null,
+) {
   const queries: Query[] = [];
   const rpcs: Array<[string, unknown]> = [];
   const supabase = {
-    from(table: string) {
+    from<T extends keyof FakeRows>(table: T) {
       const q: Query = { table, eq: [], in: [] };
       queries.push(q);
       const chain = {
@@ -41,7 +53,7 @@ function fakeSupabase(answer: { data: unknown; error: unknown }) {
           chain
         ),
         limit: (n: number) => ((q.limit = n), chain),
-        maybeSingle: async () => answer,
+        maybeSingle: async () => ({ data: rows[table] ?? null, error }),
       };
       return chain;
     },
@@ -68,8 +80,7 @@ Deno.test("createPulseRefreshDeps", async (t) => {
     "Supabase deps: tenant-scoped reads, the claim RPC and a service-role POST",
     async () => {
       const { supabase, queries, rpcs } = fakeSupabase({
-        data: { calculated_at: "2026-10-26T04:00:00Z" },
-        error: null,
+        campaign_pulse_snapshots: { calculated_at: "2026-10-26T04:00:00Z" },
       });
       const fetched: Array<[string, RequestInit]> = [];
       const deps = createPulseRefreshDeps({
@@ -129,7 +140,7 @@ Deno.test("createPulseRefreshDeps", async (t) => {
     async () => {
       const scopeChecks: string[] = [];
       const accessibleTenantIds = [TENANT, OTHER_TENANT];
-      const found = fakeSupabase({ data: { id: CLIENT }, error: null });
+      const found = fakeSupabase({ clients: { id: CLIENT } });
       const visible = createPulseRefreshDeps({
         supabase: found.supabase,
         tenantId: TENANT,
@@ -168,7 +179,7 @@ Deno.test("createPulseRefreshDeps", async (t) => {
       // A client outside every accessible tenant never reaches the scope check.
       scopeChecks.length = 0;
       const missing = createPulseRefreshDeps({
-        supabase: fakeSupabase({ data: null, error: null }).supabase,
+        supabase: fakeSupabase({}).supabase,
         tenantId: TENANT,
         accessibleTenantIds,
         assertCallerCanAccessClient: async (clientId) => {
@@ -198,10 +209,10 @@ Deno.test("createPulseRefreshDeps", async (t) => {
     async () => {
       const scopeChecks: string[] = [];
       const deps = createPulseRefreshDeps({
-        supabase: fakeSupabase({
-          data: null,
-          error: { message: "permission denied for table clients" },
-        }).supabase,
+        supabase: fakeSupabase(
+          {},
+          { message: "permission denied for table clients" },
+        ).supabase,
         tenantId: TENANT,
         assertCallerCanAccessClient: async (clientId) => {
           scopeChecks.push(clientId);
@@ -227,7 +238,7 @@ Deno.test("createPulseRefreshDeps", async (t) => {
   await t.step("a snapshot call without URL or key never fetches", async () => {
     let fetches = 0;
     const deps = createPulseRefreshDeps({
-      supabase: fakeSupabase({ data: null, error: null }).supabase,
+      supabase: fakeSupabase({}).supabase,
       tenantId: TENANT,
       fetchImpl: async () => {
         fetches += 1;

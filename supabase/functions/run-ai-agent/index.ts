@@ -38,13 +38,14 @@ import {
 } from "./pulse-refresh/routing.ts";
 import {
   appendCarmenPulseRules,
-  CARMEN_PULSE_RULES_VERSION,
+  carmenPulseRulesVersion,
 } from "./pulse-refresh/rules-block.ts";
 import {
   executeRefreshCampaignPulse,
   REFRESH_CAMPAIGN_PULSE_TOOL,
 } from "./pulse-refresh/tool.ts";
-import { keepPulseRefreshTool } from "./pulse-refresh/tool-pool.ts";
+import { keepCarmenPulseTools } from "./pulse-refresh/tool-pool.ts";
+import { missingEnabledTools } from "./missing-enabled-tools.ts";
 import {
   classifyDirectTool,
   directToolPool,
@@ -14148,7 +14149,7 @@ async function handleRunAgent(
     // Keeps V1 behavior as default; zero risk to existing agents
     let systemPrompt: string;
     console.log(
-      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${isCarmen ? CARMEN_PULSE_RULES_VERSION : "none"}`,
+      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })}`,
     );
     if (shouldUseV2Prompt(agent)) {
       // Build V2 prompt using the new modular builder
@@ -14876,7 +14877,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !disabledTools.includes(t.name),
       );
     }
-    filteredTools = keepPulseRefreshTool(filteredTools, ALL_TOOLS, {
+    filteredTools = keepCarmenPulseTools(filteredTools, ALL_TOOLS, {
       isCarmen,
       disabledTools,
     });
@@ -15199,14 +15200,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         _matchedSkills.flatMap((s) => s.tools || []),
       );
       if (skillToolNames.size > 0 && !pinSkillsOnly) {
-        const present = new Set(filteredTools.map((t) => t.name));
-        const missing = ALL_TOOLS.filter(
-          (t) =>
-            skillToolNames.has(t.name) &&
-            !present.has(t.name) &&
-            !disabledTools.includes(t.name) &&
-            isDevEscalationToolAllowed(t.name, devEscalationTier),
-        );
+        const missing = missingEnabledTools(
+          filteredTools,
+          ALL_TOOLS,
+          skillToolNames,
+          disabledTools,
+        ).filter((t) => isDevEscalationToolAllowed(t.name, devEscalationTier));
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
           for (const t of missing) promotedToolNames.add(t.name);
@@ -15239,15 +15238,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const pinned = (
           await resolveSkillsBySlug(task_skills as string[], skillTenantId)
         ).filter((s) => !disabledSkins.includes(s.id));
-        const pinnedTools = new Set(pinned.flatMap((s) => s.tools || []));
-        const present = new Set(filteredTools.map((t) => t.name));
-        const missing = ALL_TOOLS.filter(
-          (t) =>
-            pinnedTools.has(t.name) &&
-            !present.has(t.name) &&
-            !disabledTools.includes(t.name) &&
-            isDevEscalationToolAllowed(t.name, devEscalationTier),
-        );
+        const missing = missingEnabledTools(
+          filteredTools,
+          ALL_TOOLS,
+          pinned.flatMap((s) => s.tools || []),
+          disabledTools,
+        ).filter((t) => isDevEscalationToolAllowed(t.name, devEscalationTier));
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
           for (const t of missing) promotedToolNames.add(t.name);
@@ -16175,15 +16171,21 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
     .maybeSingle();
   if (!agent) return json({ error: "No active Carmen agent for tenant" }, 404);
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
-  const pool = directToolPool(ALL_TOOLS as any[], {
-    allowedTools: agent.allowed_tools || [],
-    disabledTools: agent.disabled_tools || [],
-    isManager:
-      !!scope.role &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        scope.role,
-      ),
-  });
+  const disabledTools: string[] = agent.disabled_tools || [];
+  // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
+  const pool = keepCarmenPulseTools(
+    directToolPool(ALL_TOOLS, {
+      allowedTools: agent.allowed_tools || [],
+      disabledTools,
+      isManager:
+        !!scope.role &&
+        ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
+          scope.role,
+        ),
+    }),
+    ALL_TOOLS,
+    { isCarmen: true, disabledTools },
+  );
 
   if (req.action === "list") {
     return json({

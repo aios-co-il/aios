@@ -1,48 +1,75 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import { directToolPool } from "../../_shared/carmen-direct-tools.mjs";
 import { REFRESH_CAMPAIGN_PULSE_TOOL } from "./tool.ts";
-import { keepPulseRefreshTool } from "./tool-pool.ts";
+import { keepCarmenPulseTools } from "./tool-pool.ts";
 
 const LATEST = { name: "get_latest_campaign_pulse" };
 const ANALYZE = { name: "analyze_campaign_performance" };
 const ALL_TOOLS = [LATEST, ANALYZE, REFRESH_CAMPAIGN_PULSE_TOOL];
 
-/** An agent whose allowed_tools predates refresh_campaign_pulse. */
-const narrowPool = () =>
-  ALL_TOOLS.filter((t) => ["get_latest_campaign_pulse"].includes(t.name));
+/** The pool of an agent whose allowed_tools lists only `allowed`. */
+const poolOf = (...allowed: string[]) =>
+  ALL_TOOLS.filter((t) => allowed.includes(t.name));
 
 const names = (tools: { name: string }[]) => tools.map((t) => t.name);
 
-Deno.test("keepPulseRefreshTool", async (t) => {
+Deno.test("keepCarmenPulseTools", async (t) => {
   await t.step(
-    "Carmen keeps the refresh tool when allowed_tools omits it",
+    "Carmen keeps both pulse tools when allowed_tools omits them",
     () => {
-      const pool = keepPulseRefreshTool(narrowPool(), ALL_TOOLS, {
-        isCarmen: true,
-        disabledTools: [],
-      });
+      const pool = keepCarmenPulseTools(
+        poolOf("analyze_campaign_performance"),
+        ALL_TOOLS,
+        { isCarmen: true, disabledTools: [] },
+      );
+      assertEquals(names(pool), [
+        "analyze_campaign_performance",
+        "get_latest_campaign_pulse",
+        "refresh_campaign_pulse",
+      ]);
+      assertStrictEquals(pool[2], REFRESH_CAMPAIGN_PULSE_TOOL);
+    },
+  );
+
+  await t.step(
+    "an allowed_tools list that predates the refresh tool gets it",
+    () => {
+      const pool = keepCarmenPulseTools(
+        poolOf("get_latest_campaign_pulse"),
+        ALL_TOOLS,
+        { isCarmen: true, disabledTools: [] },
+      );
       assertEquals(names(pool), [
         "get_latest_campaign_pulse",
         "refresh_campaign_pulse",
       ]);
-      assertStrictEquals(pool[1], REFRESH_CAMPAIGN_PULSE_TOOL);
     },
   );
 
-  await t.step("disabled_tools still turns the refresh tool off", () => {
-    const pool = narrowPool();
+  await t.step("disabled_tools still turns a pulse tool off", () => {
+    const pool = poolOf("get_latest_campaign_pulse");
     assertStrictEquals(
-      keepPulseRefreshTool(pool, ALL_TOOLS, {
+      keepCarmenPulseTools(pool, ALL_TOOLS, {
         isCarmen: true,
         disabledTools: ["refresh_campaign_pulse"],
       }),
       pool,
     );
+    assertEquals(
+      names(
+        keepCarmenPulseTools(poolOf(), ALL_TOOLS, {
+          isCarmen: true,
+          disabledTools: ["get_latest_campaign_pulse"],
+        }),
+      ),
+      ["refresh_campaign_pulse"],
+    );
   });
 
   await t.step("other agents keep their allowed_tools as is", () => {
-    const pool = narrowPool();
+    const pool = poolOf("get_latest_campaign_pulse");
     assertStrictEquals(
-      keepPulseRefreshTool(pool, ALL_TOOLS, {
+      keepCarmenPulseTools(pool, ALL_TOOLS, {
         isCarmen: false,
         disabledTools: [],
       }),
@@ -50,13 +77,32 @@ Deno.test("keepPulseRefreshTool", async (t) => {
     );
   });
 
-  await t.step("a pool that already offers the tool is unchanged", () => {
+  await t.step("a pool that already offers both tools is unchanged", () => {
     assertStrictEquals(
-      keepPulseRefreshTool(ALL_TOOLS, ALL_TOOLS, {
+      keepCarmenPulseTools(ALL_TOOLS, ALL_TOOLS, {
         isCarmen: true,
         disabledTools: [],
       }),
       ALL_TOOLS,
     );
   });
+
+  await t.step(
+    "the direct_tool pool offers the same pulse tools as chat",
+    () => {
+      const options = {
+        allowedTools: ["analyze_campaign_performance"],
+        disabledTools: ["get_latest_campaign_pulse"],
+      };
+      const pool = keepCarmenPulseTools(
+        directToolPool(ALL_TOOLS, options),
+        ALL_TOOLS,
+        { isCarmen: true, disabledTools: options.disabledTools },
+      );
+      assertEquals(names(pool), [
+        "analyze_campaign_performance",
+        "refresh_campaign_pulse",
+      ]);
+    },
+  );
 });

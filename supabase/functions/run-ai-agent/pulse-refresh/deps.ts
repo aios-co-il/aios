@@ -1,11 +1,9 @@
-import type { DbClient } from "../../_shared/supabase-clients.ts";
+import type { RefreshClient } from "./refresh-client.ts";
 import type { PulseRefreshDeps } from "./run.ts";
 import type { PulseRefreshRequestBody, SnapshotResponse } from "./snapshot.ts";
 
 /** How long a chat turn waits for campaign-pulse-snapshot. */
 const PULSE_REFRESH_TIMEOUT_MS = 120_000;
-
-type RefreshClient = Pick<DbClient, "from" | "rpc">;
 
 /** Where and how the refresh calls campaign-pulse-snapshot. */
 type SnapshotEndpoint = {
@@ -120,7 +118,8 @@ async function claimRefresh(
   const { data, error } = await supabase.rpc("claim_campaign_pulse_refresh", {
     p_tenant_id: claim.tenantId,
     p_min_interval_seconds: claim.minIntervalSeconds,
-    p_requested_by: claim.requestedBy,
+    // The argument defaults to NULL, so an unknown caller omits it.
+    p_requested_by: claim.requestedBy ?? undefined,
   });
   if (error) {
     throw error;

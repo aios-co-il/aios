@@ -2,8 +2,9 @@
 --
 -- 1. campaign_pulse_refresh_claims + claim_campaign_pulse_refresh(): the rate
 --    limit behind run-ai-agent's refresh_campaign_pulse tool. At most one
---    refresh per tenant per interval (the tool asks for 600 seconds); a caller
---    that loses the claim gets the stored snapshot. The refresh itself calls
+--    refresh per tenant per interval (the tool passes
+--    PULSE_REFRESH_MIN_INTERVAL_SECONDS); a caller that loses the claim gets
+--    the stored snapshot. The refresh itself calls
 --    campaign-pulse-snapshot with deliver:false, skip_instant_alerts:true and
 --    preview_only:true, so it sends no digest and no instant alert.
 -- 2. The global pulse_check and ecommerce_pulse skins get their canonical text
@@ -16,8 +17,10 @@
 --    which do not exist.
 --    Tenant override rows (scope = 'tenant') for these slugs are left
 --    untouched on purpose: they win over the global row, so a tenant that has
---    one keeps its own text until it is edited or deactivated in the UI. The
---    NOTICE below counts them so the deploy log shows whether any exist.
+--    one keeps its own text until it is edited or deactivated in the UI.
+--    run-ai-agent appends its versioned pulse rules block after every skin, so
+--    the block's refresh rules still win over such a row. The NOTICE below
+--    counts them so the deploy log shows whether any exist.
 --
 -- Nothing here sends a message or replays an old notification.
 
@@ -94,7 +97,7 @@ VALUES (
   $$הצגת בדיקת הדופק האחרונה שנשמרה, או רענון שלה כשמבקשים דופק עדכני.$$,
   $$למסור את מצב הקמפיינים של הלקוחות מתוך בדיקת הדופק, בלי לשלוח הודעות ובלי להמציא נתונים.$$,
   $$בקשה ל"דופק" או ל"בדיקת דופק" בלי בקשה לרענן — קראי ל-get_latest_campaign_pulse והציגי את הבדיקה האחרונה שנשמרה.
-"רענני דופק", "דופק עדכני" או "בדיקת דופק מלאה ועדכנית" — קראי ל-refresh_campaign_pulse. הכלי מחשב את הדופק מחדש מהנתונים שכבר סונכרנו, לא שולח הודעות, ומרענן לכל היותר פעם ב-10 דקות לארגון; אחרת הוא מחזיר את הבדיקה הקיימת עם זמן החישוב.
+"רענני דופק", "דופק עדכני" או "בדיקת דופק מלאה ועדכנית" — קראי ל-refresh_campaign_pulse. הכלי מחשב את הדופק מחדש מהנתונים שכבר סונכרנו ולא שולח הודעות. אם הדופק של הארגון רוענן ממש לאחרונה, הוא מחזיר את הבדיקה הקיימת עם זמן החישוב.
 הבדיקה כוללת את מועד השיחה הטלפונית האחרונה עם הלקוח שתועדה בכרטיס הלקוח ומי תיעד אותה, והתראה כשלא תועדה שיחה ב-14 הימים האחרונים. עדכון שבועי שאומר בחיוב שהקמפיינר דיבר עם הלקוח בטלפון נחשב שיחה; ניסוח שלילי כמו "לא הצלחתי לדבר" לא נחשב.
 הבדיקה כוללת גם התראות קריטיות פתוחות (קמפיין שנעצר, מודעה שנדחתה) ללקוחות שטבלת הקמפיין שלהם פעילה.
 לקמפיינרים הכלים מסננים אוטומטית ללקוחות המשויכים להם.

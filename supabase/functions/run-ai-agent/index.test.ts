@@ -29,9 +29,10 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "appended exactly once",
       );
       assert(!runAiAgent.includes("📱 === בדיקת דופק בוואטסאפ (חובה) ==="));
+      // The log names the block version only for runs that get the block.
       assertMatch(
         runAiAgent,
-        /pulse_rules=\$\{isCarmen \? CARMEN_PULSE_RULES_VERSION : "none"\}/,
+        /pulse_rules=\$\{carmenPulseRulesVersion\(\{ isCarmen, pinSkillsOnly \}\)\}/,
       );
       // Routing gets the resolved caller; round 0 and the shortcut use it.
       assertMatch(
@@ -69,6 +70,9 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       const append = runAiAgent.indexOf(
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
+      const systemMessage = runAiAgent.indexOf(
+        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+      );
       // Every place a skin's text joins the prompt. Tenant pulse_check and
       // ecommerce_pulse overrides (DMM, MarketingCaptain) that say not to
       // refresh arrive as trigger-matched skins in activeSkillsBlock.
@@ -81,10 +85,32 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         assert(at > 0, `${skinText} is in run-ai-agent`);
         assert(at < append, `${skinText} comes before the pulse block`);
       }
-      // A narrow allowed_tools still offers refresh_campaign_pulse to Carmen,
-      // before the router picks this message's tools.
+      // After the block only the approval flow adds to the prompt, so any
+      // other text added there later (a skin, a memory) fails here.
+      const approvalFlowAdds = [
+        "systemPrompt += `\\n\\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית",
+        "systemPrompt += buildApprovalConfirmPromptRule(pendingForConfirm);",
+        "systemPrompt += `\\n\\n${recoveryPayload.instruction_for_carmen}`;",
+        "systemPrompt += `\\n[recovery_json]=",
+        "systemPrompt += `\\n\\n🚫 המשתמש דחה.",
+      ];
+      const addsAfterBlock = runAiAgent
+        .slice(append, systemMessage)
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => /^systemPrompt\s*(\+=|=)/.test(line))
+        .slice(1);
+      assertStrictEquals(addsAfterBlock.length, approvalFlowAdds.length);
+      for (const line of addsAfterBlock) {
+        assert(
+          approvalFlowAdds.some((allowed) => line.startsWith(allowed)),
+          `added after the pulse block: ${line}`,
+        );
+      }
+      // A narrow allowed_tools still offers both pulse tools to Carmen,
+      // before the router picks this message's tools, and on direct_tool.
       const keep = runAiAgent.indexOf(
-        "filteredTools = keepPulseRefreshTool(filteredTools, ALL_TOOLS, {",
+        "filteredTools = keepCarmenPulseTools(filteredTools, ALL_TOOLS, {",
       );
       assert(
         keep >
@@ -94,6 +120,10 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "the refresh tool is kept after allowed_tools narrows the pool",
       );
       assert(keep < runAiAgent.indexOf("await selectRelevantToolsForMessage("));
+      assertMatch(
+        runAiAgent,
+        /const pool = keepCarmenPulseTools\(\s*directToolPool\(ALL_TOOLS, \{/,
+      );
     },
   );
 

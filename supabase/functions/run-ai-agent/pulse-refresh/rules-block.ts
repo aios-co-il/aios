@@ -2,34 +2,36 @@
 // run-ai-agent appends after the V1/V2 prompt and every skin's text, outside
 // the identity, so it reaches V1 with an empty or a custom
 // ai_agents.system_prompt and V2 alike, and a tenant pulse skin cannot
-// override it. Bump CARMEN_PULSE_RULES_VERSION whenever the rules change.
+// override it. Bump CARMEN_PULSE_RULES_VERSION whenever the rules or their
+// place in the prompt change.
 import { pulseSurfacePrefersWhatsAppDigest } from "../../_shared/campaign-pulse.ts";
 import { PULSE_REFRESH_MIN_INTERVAL_SECONDS } from "./snapshot.ts";
 
-export const CARMEN_PULSE_RULES_VERSION = "2026-10-26.2";
+export const CARMEN_PULSE_RULES_VERSION = "2026-10-27.1";
+
+/** Which run gets the block: Carmen, outside isolated pin_skills_only sessions. */
+type PulseRulesRun = { isCarmen?: boolean; pinSkillsOnly?: boolean };
 
 /**
- * Appends the pulse block to a finished Carmen prompt. Non-Carmen agents,
- * isolated pin_skills_only sessions (they have no tools) and a prompt that
- * already carries the block come back unchanged.
+ * Appends the pulse block to a finished Carmen prompt. Non-Carmen agents and
+ * isolated pin_skills_only sessions (they have no tools) come back unchanged.
+ * Earlier text that quotes the block header (a skin, a memory) does not stop
+ * the append: the block must stay the last pulse rule Carmen reads.
  */
 export function appendCarmenPulseRules(
   systemPrompt: string | null | undefined,
-  {
-    isCarmen,
-    surface,
-    pinSkillsOnly = false,
-  }: {
-    isCarmen?: boolean;
-    surface?: string | null;
-    pinSkillsOnly?: boolean;
-  } = {},
+  { surface, ...run }: PulseRulesRun & { surface?: string | null } = {},
 ): string {
   const base = systemPrompt ?? "";
-  if (!isCarmen || pinSkillsOnly || base.includes(BLOCK_MARKER)) {
+  if (!getsPulseRules(run)) {
     return base;
   }
   return `${base}\n\n${buildCarmenPulseRulesBlock({ surface })}`;
+}
+
+/** The block version a run gets, for the run log; "none" when it gets no block. */
+export function carmenPulseRulesVersion(run: PulseRulesRun): string {
+  return getsPulseRules(run) ? CARMEN_PULSE_RULES_VERSION : "none";
 }
 
 /** The pulse rules every Carmen prompt ends with. */
@@ -53,6 +55,14 @@ export function buildCarmenPulseRulesBlock({
     );
   }
   return lines.join("\n");
+}
+
+/** True when appendCarmenPulseRules adds the block for this run. */
+function getsPulseRules({
+  isCarmen,
+  pinSkillsOnly = false,
+}: PulseRulesRun): boolean {
+  return Boolean(isCarmen) && !pinSkillsOnly;
 }
 
 const BLOCK_MARKER = "=== כללי דופק קמפיינים";

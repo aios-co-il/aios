@@ -7,7 +7,7 @@ import {
 } from "./tool.ts";
 
 /** Answers per table: the client exists, the stored snapshot is stale. */
-const ROWS: Record<string, unknown> = {
+const ROWS = {
   clients: { id: CLIENT },
   campaign_pulse_snapshots: { calculated_at: "2026-10-26T04:00:00Z" },
 };
@@ -17,7 +17,7 @@ function fakeSupabase() {
   const seen: { tables: string[]; tenantFilters: unknown[]; rpcs: unknown[] } =
     { tables: [], tenantFilters: [], rpcs: [] };
   const supabase = {
-    from(table: string) {
+    from<T extends keyof typeof ROWS>(table: T) {
       seen.tables.push(table);
       const chain = {
         select: () => chain,
@@ -28,7 +28,7 @@ function fakeSupabase() {
         ),
         order: () => chain,
         limit: () => chain,
-        maybeSingle: async () => ({ data: ROWS[table] ?? null, error: null }),
+        maybeSingle: async () => ({ data: ROWS[table], error: null }),
       };
       return chain;
     },

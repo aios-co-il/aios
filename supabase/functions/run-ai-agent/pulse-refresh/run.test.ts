@@ -4,7 +4,7 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { fakeDeps, NOW, refreshOf, TENANT } from "./fake-deps.ts";
+import { fakeDeps, NOW, pulseOf, refreshOf, TENANT } from "./fake-deps.ts";
 import { type PulseRefreshDeps, runCampaignPulseRefresh } from "./run.ts";
 import { PULSE_REFRESH_MIN_INTERVAL_SECONDS } from "./snapshot.ts";
 
@@ -26,7 +26,9 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
     "a stale snapshot is refreshed for the caller's tenant, then read back",
     async () => {
       const { deps, calls } = fakeDeps();
-      const result = await runCampaignPulseRefresh({ tenantId: TENANT }, deps);
+      const result = pulseOf(
+        await runCampaignPulseRefresh({ tenantId: TENANT }, deps),
+      );
       assertStrictEquals(calls.invoke.length, 1);
       assertStrictEquals(calls.invoke[0].tenant_id, TENANT);
       assertStrictEquals(calls.invoke[0].deliver, false);
@@ -58,7 +60,9 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
       const { deps, calls } = fakeDeps({
         latestCalculatedAt: async () => "2026-10-26T09:55:00Z",
       });
-      const result = await runCampaignPulseRefresh({ tenantId: TENANT }, deps);
+      const result = pulseOf(
+        await runCampaignPulseRefresh({ tenantId: TENANT }, deps),
+      );
       assertStrictEquals(calls.claim.length, 0);
       assertStrictEquals(calls.invoke.length, 0);
       assertStrictEquals(calls.loadPulse, 1);
@@ -75,7 +79,9 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
     "a lost claim (another refresh in the last 10 minutes) returns the stored snapshot",
     async () => {
       const { deps, calls } = fakeDeps({ claimRefresh: async () => false });
-      const result = await runCampaignPulseRefresh({ tenantId: TENANT }, deps);
+      const result = pulseOf(
+        await runCampaignPulseRefresh({ tenantId: TENANT }, deps),
+      );
       assertStrictEquals(calls.invoke.length, 0);
       assertStrictEquals(refreshOf(result).status, "rate_limited");
       assertStrictEquals(result.auto_refreshed, false);
@@ -173,7 +179,9 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
           throw error;
         },
       });
-      const result = await runCampaignPulseRefresh({ tenantId: TENANT }, deps);
+      const result = pulseOf(
+        await runCampaignPulseRefresh({ tenantId: TENANT }, deps),
+      );
       assertStrictEquals(refreshOf(result).status, "refresh_timeout");
       assertStrictEquals(result.auto_refreshed, false);
     },
@@ -191,7 +199,9 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
           freshness: "2026-10-26T04:00:00Z",
         }),
       });
-      const result = await runCampaignPulseRefresh({ tenantId: TENANT }, deps);
+      const result = pulseOf(
+        await runCampaignPulseRefresh({ tenantId: TENANT }, deps),
+      );
       assertStrictEquals(refreshOf(result).status, "rate_limited");
       assertStrictEquals(
         result.refresh_note,
@@ -210,24 +220,28 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
         instructions_to_agent:
           "לא נמצא Snapshot שמור. אמרי שאין בדיקת דופק זמינה. אסור ליצור בדיקה חדשה, להריץ כלי חלופי או להמציא נתונים.",
       };
-      const refreshed = await runCampaignPulseRefresh(
-        { tenantId: TENANT },
-        fakeDeps({ loadPulse: async () => ({ ...empty }) }).deps,
+      const refreshed = pulseOf(
+        await runCampaignPulseRefresh(
+          { tenantId: TENANT },
+          fakeDeps({ loadPulse: async () => ({ ...empty }) }).deps,
+        ),
       );
       const refreshedRules = String(refreshed.instructions_to_agent);
       assertStrictEquals(refreshOf(refreshed).status, "refreshed");
       assert(!refreshedRules.includes("אסור ליצור בדיקה חדשה"));
       assertMatch(refreshedRules, /הרענון רץ, אבל לא נמצאה/);
-      const notConfigured = await runCampaignPulseRefresh(
-        { tenantId: TENANT },
-        fakeDeps({
-          invokeSnapshot: async () => ({
-            ok: true,
-            status: 200,
-            body: { results: [] },
-          }),
-          loadPulse: async () => ({ ...empty }),
-        }).deps,
+      const notConfigured = pulseOf(
+        await runCampaignPulseRefresh(
+          { tenantId: TENANT },
+          fakeDeps({
+            invokeSnapshot: async () => ({
+              ok: true,
+              status: 200,
+              body: { results: [] },
+            }),
+            loadPulse: async () => ({ ...empty }),
+          }).deps,
+        ),
       );
       const notConfiguredRules = String(notConfigured.instructions_to_agent);
       assertStrictEquals(refreshOf(notConfigured).status, "not_configured");

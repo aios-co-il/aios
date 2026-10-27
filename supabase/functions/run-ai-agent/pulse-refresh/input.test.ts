@@ -1,5 +1,6 @@
 import {
   assertEquals,
+  assertFalse,
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
@@ -86,7 +87,7 @@ Deno.test("pulseRefreshCallerRefusal", async (t) => {
       );
       assertStrictEquals(result.error, "caller_not_identified");
       assertMatch(String(result.message), /אנשי צוות/);
-      assertStrictEquals(result.whatsapp_digest, undefined);
+      assertFalse("whatsapp_digest" in result, "a refusal carries no pulse");
       assertStrictEquals(callCount(calls), 0);
       for (const surface of ["whatsapp", "task"]) {
         for (const caller of [
@@ -124,7 +125,7 @@ Deno.test("pulseRefreshCallerRefusal", async (t) => {
         deps,
       );
       assertStrictEquals(result.error, "caller_not_identified");
-      assertStrictEquals(result.whatsapp_digest, undefined);
+      assertFalse("whatsapp_digest" in result, "a refusal carries no pulse");
       assertStrictEquals(callCount(calls), 0);
       // A task a staff member created runs as that user and still refreshes.
       const staffTask = await runCampaignPulseRefresh(

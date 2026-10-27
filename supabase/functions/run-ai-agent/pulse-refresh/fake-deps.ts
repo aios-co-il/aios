@@ -1,5 +1,7 @@
 // In-memory deps for the Deno tests of runCampaignPulseRefresh: a stale
 // snapshot, a free claim and a snapshot call that refreshes 12 clients.
+import type { PulseRefreshRefusal } from "./input.ts";
+import type { PulsePayload } from "./result.ts";
 import type { PulseRefreshDeps } from "./run.ts";
 import type { PulseRefreshRequestBody } from "./snapshot.ts";
 
@@ -74,4 +76,14 @@ export function refreshOf(
 ): Record<string, unknown> {
   const refresh = result.refresh;
   return typeof refresh === "object" && refresh !== null ? { ...refresh } : {};
+}
+
+/** The pulse of a tool result; a refusal fails the test. */
+export function pulseOf(
+  result: PulseRefreshRefusal | PulsePayload,
+): PulsePayload {
+  if ("error" in result) {
+    throw new Error(`expected a pulse, got ${JSON.stringify(result)}`);
+  }
+  return result;
 }
