@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  chatParts,
   needsChatApproval,
   parseSseBuffer,
   parseUiAction,
@@ -62,6 +63,22 @@ test("every tool shows a progress line, other tools a generic one", () => {
   expect(studioToolLine("get_carmen_skins")).toBe("בודקת את הסקינים שלה");
   expect(studioToolLine("list_clients")).toBe("כרמן עובדת…");
   expect(studioToolLine(undefined)).toBe("כרמן עובדת…");
+});
+
+test("a skin portrait in Carmen's answer is shown as a picture", () => {
+  const url = "https://aios.co.il/brand/carmen/designer.png";
+  expect(chatParts(`הנה הסקינים:\n![המעצבת](${url})\nזהו`)).toStrictEqual([
+    { kind: "text", text: "הנה הסקינים:\n" },
+    { kind: "image", alt: "המעצבת", url },
+    { kind: "text", text: "\nזהו" },
+  ]);
+  // Only a web link becomes a picture; anything else stays text as written.
+  expect(chatParts("![x](javascript:alert(1))")).toStrictEqual([
+    { kind: "text", text: "![x](javascript:alert(1))" },
+  ]);
+  expect(chatParts("בלי תמונות")).toStrictEqual([
+    { kind: "text", text: "בלי תמונות" },
+  ]);
 });
 
 test("the chat stops waiting after two silent minutes and says how to retry", () => {

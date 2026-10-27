@@ -8,7 +8,7 @@
 export function selfQuestionsStanding(opts: {
   /** The caller's dev-escalation tier (dev-escalation-auth.mjs). */
   tier: "full" | "bugfix" | null;
-  /** The chat renders Markdown images (AIOS web chats); WhatsApp and the video studio do not. */
+  /** The chat renders Markdown images (AIOS web chats, the video studio's too); WhatsApp does not. */
   markdownImages: boolean;
   /** The workshop chat, where an offered dev task waits for the user's yes in the next message. */
   inWorkshop?: boolean;

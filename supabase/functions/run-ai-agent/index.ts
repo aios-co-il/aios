@@ -15428,13 +15428,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
         {
           tier: devEscalationTier,
-          // WhatsApp and the video studio chat show assistant text as plain text.
-          markdownImages:
-            surface !== "whatsapp" &&
-            !(
-              Array.isArray(requestedTaskSkills) &&
-              requestedTaskSkills.includes("creative_studio")
-            ),
+          // WhatsApp shows assistant text as plain text; the AIOS chats (the video studio's
+          // included) show a Markdown picture as an image.
+          markdownImages: surface !== "whatsapp",
           inWorkshop,
         },
       )}`;

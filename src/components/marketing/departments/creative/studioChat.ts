@@ -208,5 +208,26 @@ export function studioContextAddon(context: StudioContext): string {
   return lines.join("\n");
 }
 
+export type ChatPart =
+  { kind: "text"; text: string } | { kind: "image"; alt: string; url: string };
+
+/** A Markdown picture with a web link: ![name](https://…). */
+const MARKDOWN_IMAGE = /!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/g;
+
+/** Carmen's answer as text and pictures, so the skin portraits she shows appear as images. */
+export function chatParts(text: string): ChatPart[] {
+  const parts: ChatPart[] = [];
+  let last = 0;
+  for (const match of text.matchAll(MARKDOWN_IMAGE)) {
+    const start = match.index ?? 0;
+    if (start > last)
+      parts.push({ kind: "text", text: text.slice(last, start) });
+    parts.push({ kind: "image", alt: match[1], url: match[2] });
+    last = start + match[0].length;
+  }
+  if (last < text.length) parts.push({ kind: "text", text: text.slice(last) });
+  return parts;
+}
+
 export const fileLine = (name: string, url: string) =>
   `[קובץ שהעליתי: ${name}](${url})`;
