@@ -11,6 +11,7 @@
 --
 -- tenant_heartbeat_settings.campaign_pulse_phone is carried into the list once
 -- and stays readable (never cleared here); nothing reads it any more.
+-- Removing the column is AIO-276.
 
 create table if not exists public.carmen_report_recipients (
   id uuid primary key default gen_random_uuid(),
@@ -233,7 +234,8 @@ grant all on table public.carmen_report_recipients to service_role;
 -- follows their card and warns when they leave; otherwise it is an extra phone
 -- labelled with the matching campaigner's name. Organizations that already
 -- have a list, phones that are not E.164 after normalising, and client phones
--- are skipped; campaign_pulse_phone itself is left as it is.
+-- are skipped; campaign_pulse_phone itself is left as it is until AIO-276
+-- removes it.
 do $carry$
 declare
   v_found integer;
@@ -299,4 +301,4 @@ end
 $carry$;
 
 comment on column public.tenant_heartbeat_settings.campaign_pulse_phone is
-  'Deprecated (AIO-260): carried into carmen_report_recipients once; the app no longer reads or edits it.';
+  'Deprecated (AIO-260): carried into carmen_report_recipients once; the app no longer reads or edits it. Removal: AIO-276.';
