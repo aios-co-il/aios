@@ -35,12 +35,11 @@ import {
 } from "../_shared/pulse-delivery.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
 import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
-import type { PulseExceptionWording } from "../_shared/pulse-instant-alerts.ts";
+import { phraseException } from "./phrase-exception.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
 } from "../_shared/pulse-campaign-goals.mjs";
-import { aiChatJSON } from "../_shared/ai.ts";
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -911,20 +910,7 @@ Deno.serve(async (req) => {
           rules: setting.pulse_alert_rules,
           queueWhatsApp: (message, chatId) =>
             queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, chatId),
-          // Wording only (AIO-243): the deterministic checks already decided
-          // to send this alert; the model may add a short summary and check.
-          phraseException: async (candidate, { signal }) =>
-            await aiChatJSON<PulseExceptionWording>(
-              [
-                "את מנסחת תוספת קצרה להתראת דופק שהקוד כבר החליט לשלוח לפי כללים קבועים. ההתראה תישלח בכל מקרה: אל תשפטי אם היא מוצדקת ואל תבטלי אותה.",
-                "אל תכתבי מספרים, אחוזים, סכומים או תאריכים. הנתונים כבר מופיעים בהודעה, ואל תוסיפי נתון שלא מופיע בה.",
-                'החזירי JSON בלבד בעברית: {"summary":"משפט אחד קצר שמסביר מה קורה בקמפיין","recommended_check":"בדיקה אחת קונקרטית שכדאי לעשות בקמפיין"}.',
-                `הודעת ההתראה:\n${candidate.message}`,
-                `ראיות: ${JSON.stringify(candidate.evidence || {})}`,
-              ].join("\n"),
-              undefined,
-              { signal },
-            ),
+          phraseException,
         });
       } catch (instantAlertError) {
         console.warn(
