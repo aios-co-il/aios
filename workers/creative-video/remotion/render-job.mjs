@@ -97,6 +97,30 @@ const envelopeOf = (env) => {
   return { frames, volumes };
 };
 
+/** Copies of the music track that cover the film: each inside it, fades within its length. */
+const musicLoopsOf = (list) => {
+  if (list === undefined || list === null) return null;
+  assert(Array.isArray(list) && list.length <= 50, "Invalid music loops");
+  return list.map((loop) => {
+    assert(
+      frameNo(loop?.startFrame) &&
+        Number.isInteger(loop?.frameCount) &&
+        loop.frameCount > 0 &&
+        loop.startFrame + loop.frameCount <= totalFrames &&
+        [loop.fadeInFrames, loop.fadeOutFrames].every(
+          (n) => Number.isInteger(n) && n >= 0 && n <= loop.frameCount,
+        ),
+      "Invalid music loop",
+    );
+    return {
+      startFrame: loop.startFrame,
+      frameCount: loop.frameCount,
+      fadeInFrames: loop.fadeInFrames,
+      fadeOutFrames: loop.fadeOutFrames,
+    };
+  });
+};
+
 /** Karaoke lines: frame-timed words, at most 2000 lines of 12 words. */
 const captionsOf = (list) => {
   if (!Array.isArray(list)) return [];
@@ -246,6 +270,7 @@ if (manifest.schemaVersion === 1) {
   props = {
     narration,
     music,
+    musicLoops: v3 && music ? musicLoopsOf(manifest.musicLoops) : null,
     musicEnvelope: v3 ? envelopeOf(manifest.musicEnvelope) : null,
     effects,
     effectsEnvelope:

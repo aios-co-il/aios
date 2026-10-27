@@ -21,6 +21,7 @@ import {
 import { synthesizeGeminiSpeech } from "../providers/geminiTts.mjs";
 import { synthesizeOpenRouterSpeech } from "../providers/openrouterTts.mjs";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.mjs";
+import { MUSIC_MAX_MS, MUSIC_MIN_MS, musicLengthMs } from "./music-length.mjs";
 
 const BUCKET = "creative-video";
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
@@ -248,17 +249,50 @@ export async function generateVoice({
   };
 }
 
-/** One music bed for the whole storyboard. */
-export async function generateMusic({ db, run, apiKey, log = console.log }) {
+/**
+ * The bed's length. The run's music_length_ms is the storyboard's planned total; the bed is
+ * sized to the film that will be rendered instead (music-length.mjs), unless that cannot be read.
+ * A bed already paid for keeps the length it was made at.
+ */
+async function bedLength({ db, run, path, sizeMusic, log }) {
+  const planned = Math.min(
+    MUSIC_MAX_MS,
+    Math.max(MUSIC_MIN_MS, Number(run.input?.music_length_ms) || 0),
+  );
+  if (run.output?.audio_path === path)
+    return {
+      ms: Number(run.output.audio_meta?.music_length_ms) || planned,
+      basis: run.output.audio_meta?.music_basis ?? "stored",
+    };
+  try {
+    const sized = await sizeMusic({ db, run, log });
+    log(
+      `[music] ${run.id} ${sized.ms} ms for a ${sized.filmS} s film (${sized.basis}; planned ${planned} ms)`,
+    );
+    return sized;
+  } catch (error) {
+    log(
+      `[music] ${run.id} film length unknown (${error instanceof Error ? error.message : error}); using the planned ${planned} ms`,
+    );
+    return { ms: planned, basis: "run" };
+  }
+}
+
+/** One music bed for the whole film. */
+export async function generateMusic({
+  db,
+  run,
+  apiKey,
+  sizeMusic = musicLengthMs,
+  log = console.log,
+}) {
   const item = await loadRunItem(db, run);
   const prompt = String(run.input?.prompt ?? "").trim();
-  const musicLengthMs = Math.min(
-    300_000,
-    Math.max(3_000, Number(run.input?.music_length_ms) || 0),
-  );
   if (!prompt || !Number(run.input?.music_length_ms))
     throw finalError("music run: prompt and music_length_ms are required");
   const path = assetPath(run, item.folder, "music");
+  const length = await bedLength({ db, run, path, sizeMusic, log });
+  const musicLengthMs = length.ms;
   await generateOnce({
     db,
     run,
@@ -271,7 +305,11 @@ export async function generateMusic({ db, run, apiKey, log = console.log }) {
           "אין מפתח ElevenLabs למוזיקה. הסרט יורכב בלי מיטת מוזיקה",
         );
       try {
-        return { bytes: await composeMusic({ apiKey, prompt, musicLengthMs }) };
+        return {
+          bytes: await composeMusic({ apiKey, prompt, musicLengthMs }),
+          // Kept on the run, so a retry after the payment records the length it paid for.
+          meta: { music_length_ms: musicLengthMs, music_basis: length.basis },
+        };
       } catch (error) {
         if (isPaidPlanError(error)) {
           throw finalError(

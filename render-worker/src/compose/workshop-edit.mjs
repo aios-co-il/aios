@@ -9,9 +9,113 @@ export const MIX = {
   musicDucked: 0.06,
   clipSolo: 0.9,
   clipUnderSpeech: 0.15,
-  effects: 0.5,
-  effectsDucked: 0.14,
+  // Each effect arrives normalized to EFFECT_LUFS (sound-prep.mjs): its hit lands just under
+  // the voice between lines and about 6 dB lower under a line.
+  effects: 0.7,
+  effectsDucked: 0.35,
 };
+
+/**
+ * Integrated loudness the music bed is brought to before the gains. A typical ElevenLabs
+ * track sits here, so a film without sound design keeps the level it had.
+ */
+export const MUSIC_LUFS = -17;
+/** Each sound effect's loudest moment (momentary LUFS) after normalization. */
+export const EFFECT_LUFS = -14;
+/** The narration's loudness when it cannot be measured (an ElevenLabs take reads about -19). */
+export const VOICE_LUFS = -19;
+
+/**
+ * The trailer mix of a film with sound design: the bed comes up to about -21.5 LUFS when
+ * nobody speaks (title, long pauses, end card) and sits 13.5 dB under the voice while she
+ * speaks. A pause shorter than a second keeps the bed down, so it does not pump.
+ */
+export const TRAILER = {
+  bedLufs: -21.5,
+  underVoiceDb: 13.5,
+  attack: 6,
+  release: 12,
+  hold: 12,
+};
+
+const dbGain = (db) => Math.round(10 ** (db / 20) * 1000) / 1000;
+
+/**
+ * The film's mix: today's MIX for an ordinary film, the trailer profile when the film has
+ * sound design. `voiceLufs` (the measured narration) sets how far the bed dips under it.
+ */
+export function mixProfile({ trailer = false, voiceLufs = null } = {}) {
+  const base = { ...MIX, trailer: false, attack: 8, release: 14, hold: 0 };
+  if (!trailer) return base;
+  const voice = Number.isFinite(voiceLufs)
+    ? Math.min(-12, Math.max(-30, voiceLufs))
+    : VOICE_LUFS;
+  const music = dbGain(TRAILER.bedLufs - MUSIC_LUFS);
+  return {
+    ...base,
+    trailer: true,
+    music,
+    musicDucked: Math.min(
+      music,
+      dbGain(voice - TRAILER.underVoiceDb - MUSIC_LUFS),
+    ),
+    attack: TRAILER.attack,
+    release: TRAILER.release,
+    hold: TRAILER.hold,
+  };
+}
+
+/** Frames over which one copy of a looped music bed hands over to the next. */
+export const MUSIC_CROSSFADE = 45;
+/** Frames of the film's closing fade, where the music bed fades out with the picture. */
+export const MUSIC_END_FADE = 45;
+
+/**
+ * Copies of the music laid end to end until the bed covers the whole film. Each copy plays the
+ * track from its start; a copy that hands over ends at the track's musical end (`bodyFrames`,
+ * before its outro dies away) with an equal-power crossfade into the next one. The last copy
+ * runs to the film's end, where the film's own fade takes it out; up to `outro` frames of the
+ * track's own ending may play before that fade instead of a new copy starting. A track that
+ * already covers the film is one copy, as before.
+ */
+export function musicLoops(
+  musicFrames,
+  totalFrames,
+  {
+    bodyFrames = musicFrames,
+    crossfade = MUSIC_CROSSFADE,
+    endFade = MUSIC_END_FADE,
+    outro = 30,
+  } = {},
+) {
+  if (!(musicFrames > 0) || !(totalFrames > 0)) return [];
+  const body = Math.max(
+    1,
+    Math.min(musicFrames, Math.round(bodyFrames) || musicFrames),
+  );
+  const fade = Math.max(0, Math.min(crossfade, Math.floor(body / 3)));
+  const ending = Math.min(outro, musicFrames - body);
+  const loops = [];
+  let start = 0;
+  for (;;) {
+    // The last copy reaches the film's fade with its body (or a short outro) and lasts to the
+    // film's final frame.
+    const last =
+      (start + body + ending >= totalFrames - endFade &&
+        start + musicFrames >= totalFrames) ||
+      loops.length >= 49;
+    loops.push({
+      startFrame: start,
+      frameCount: last
+        ? Math.min(Math.floor(musicFrames), totalFrames - start)
+        : body,
+      fadeInFrames: loops.length ? fade : 0,
+      fadeOutFrames: last ? 0 : fade,
+    });
+    if (last) return loops;
+    start += body - fade;
+  }
+}
 
 /** Seconds a whoosh plays before the cut it marks: its swell passes at the cut. */
 export const WHOOSH_LEAD = 0.4;
@@ -106,18 +210,30 @@ export function speechSpans(spans, gap = 18) {
 /**
  * Music volume keyframes ({ frames, volumes }, strictly increasing frames): the bed dips
  * under every speaking span and comes back up between them. Fades are applied on top.
+ * Pauses shorter than the ramps (plus `hold`) keep the bed down.
  */
 export function musicEnvelope(
   spans,
   totalFrames,
-  { base = MIX.music, ducked = MIX.musicDucked, attack = 8, release = 14 } = {},
+  {
+    base = MIX.music,
+    ducked = MIX.musicDucked,
+    attack = 8,
+    release = 14,
+    hold = 0,
+  } = {},
 ) {
   const points = [[0, base]];
-  for (const [start, end] of speechSpans(spans, attack + release)) {
+  for (const [start, end] of speechSpans(spans, attack + release + hold)) {
     const s = Math.max(0, start);
     const e = Math.min(totalFrames, end);
     if (e <= s) continue;
-    points.push([Math.max(0, s - attack), base], [s, ducked], [e, ducked]);
+    // Speech from the first frames: the film opens already under the voice.
+    points.push(
+      s - attack > 0 ? [s - attack, base] : [0, ducked],
+      [s, ducked],
+      [e, ducked],
+    );
     points.push([e + release, base]);
   }
   points.push([totalFrames, base]);

@@ -114,6 +114,7 @@ test.skipIf(!hasFfmpeg)(
       await rm(dir, { recursive: true, force: true });
     }
   },
+  60_000,
 );
 
 test.skipIf(!hasFfmpeg)(
@@ -170,6 +171,7 @@ test.skipIf(!hasFfmpeg)(
       await rm(dir, { recursive: true, force: true });
     }
   },
+  60_000,
 );
 
 test.skipIf(!hasFfmpeg)(
@@ -223,4 +225,5 @@ test.skipIf(!hasFfmpeg)(
       await rm(dir, { recursive: true, force: true });
     }
   },
+  60_000,
 );

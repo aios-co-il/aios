@@ -124,10 +124,23 @@ export type WorkshopEffect = {
   startFrame: number;
   frameCount: number;
 };
+/**
+ * One copy of the music track on the film: it plays the track from its start at `startFrame`
+ * for `frameCount` frames, fading in and out over the given frames (equal power), so a track
+ * shorter than the film is looped with a crossfade.
+ */
+export type WorkshopMusicLoop = {
+  startFrame: number;
+  frameCount: number;
+  fadeInFrames: number;
+  fadeOutFrames: number;
+};
 export type WorkshopFilmProps = {
   scenes: WorkshopScene[];
   narration?: string | null;
   music?: string | null;
+  /** Copies of the music that cover the film; without them the track simply loops. */
+  musicLoops?: WorkshopMusicLoop[] | null;
   musicEnvelope?: WorkshopEnvelope | null;
   effects?: WorkshopEffect[];
   /** Effect levels over the film, ducked under the voice like the music bed. */

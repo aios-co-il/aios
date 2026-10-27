@@ -10,7 +10,15 @@ import {
   endCardTextFilters,
   hasEndCard,
 } from "./end-card.mjs";
-import { MIX, WHOOSH_LEAD } from "./workshop-edit.mjs";
+import { wordsFromAlignment } from "./captions.mjs";
+import { prepareSound } from "./sound-prep.mjs";
+import {
+  MIX,
+  WHOOSH_LEAD,
+  mixProfile,
+  musicEnvelope,
+  musicLoops,
+} from "./workshop-edit.mjs";
 
 const ffmpeg = (args) =>
   new Promise((resolve, reject) => {
@@ -299,30 +307,159 @@ export function effectsGraph(cues, index, { narration = false } = {}) {
 
 /**
  * Seconds each scene lasts. Speech is never cut: a scene runs as long as its voice (plus a short
- * tail) or its lip-synced clip, and a narration longer than the scenes holds the last one.
+ * tail) or its lip-synced clip, and a narration longer than the scenes holds the last one. Also
+ * returns when someone speaks ([start, end] seconds), for the trailer mix's music bed.
  */
 async function sceneLengths(timeline) {
   const seconds = async (file) =>
     file ? (await probe(file).catch(() => null))?.duration || 0 : 0;
   const lengths = [];
+  const spoken = [];
   for (const scene of timeline.scenes) {
     const voiceS = await seconds(scene.voicePath);
     const clipS = scene.lipsync ? await seconds(scene.clipPath) : 0;
     lengths.push(Math.max(scene.durationS, voiceS && voiceS + TAIL_S, clipS));
+    spoken.push(Math.max(voiceS, clipS));
   }
   const narrationS = await seconds(timeline.narrationPath);
   const total = lengths.reduce((sum, length) => sum + length, 0);
   if (narrationS && narrationS + TAIL_S > total)
     lengths[lengths.length - 1] += narrationS + TAIL_S - total;
-  return lengths;
+  const words = wordsFromAlignment(timeline.narrationAlignment);
+  const spans = words.length
+    ? words.map((word) => [word.start, word.end])
+    : narrationS
+      ? [[0, narrationS]]
+      : [];
+  let at = 0;
+  for (const [index, length] of lengths.entries()) {
+    if (spoken[index]) spans.push([at, at + spoken[index]]);
+    at += length;
+  }
+  return { lengths, spans };
 }
 
+const FADE_OUT_S = 1.5;
+const round3 = (value) => Math.round(value * 1000) / 1000;
+
+/**
+ * An ffmpeg `volume` expression of t that follows the envelope's keyframes (frames at `fps`),
+ * straight lines between them: the ffmpeg counterpart of the Remotion bed's level.
+ */
+export function envelopeExpression({ frames, volumes }, fps) {
+  const times = frames.map((frame) => round3(frame / fps));
+  const parts = [];
+  for (let i = 0; i + 1 < times.length; i++) {
+    const [from, to] = [times[i], times[i + 1]];
+    const [a, b] = [volumes[i], volumes[i + 1]];
+    if (to <= from) continue;
+    const value =
+      a === b
+        ? `${a}`
+        : `(${a}+${round3(b - a)}*(t-${from})/${round3(to - from)})`;
+    parts.push(`gte(t,${from})*lt(t,${to})*${value}`);
+  }
+  parts.push(`gte(t,${times.at(-1)})*${volumes.at(-1)}`);
+  return parts.join("+");
+}
+
+/**
+ * The filters that make the music bed `[m]` from input `input`: copies of the track laid end to
+ * end until the film is covered (musicLoops; each hand-over an equal-power crossfade at the
+ * track's musical end), set to `volume` (a level, or an expression of t), and faded out with the
+ * film's last 1.5 s.
+ */
+export function musicBedFilters({
+  input,
+  musicS,
+  bodyS = null,
+  filmS,
+  volume,
+  fps = 25,
+}) {
+  const loops = musicLoops(Math.floor(musicS * fps), Math.ceil(filmS * fps), {
+    bodyFrames: bodyS ? Math.floor(bodyS * fps) : undefined,
+    crossfade: Math.round(FADE_OUT_S * fps),
+    endFade: Math.round(FADE_OUT_S * fps),
+    outro: fps,
+  });
+  const filters = [];
+  if (loops.length > 1) {
+    const copies = loops.map((_, i) => `[mloop${i}]`);
+    filters.push(
+      `[${input}:a]${STEREO},asplit=${loops.length}${copies.join("")}`,
+    );
+    for (const [i, loop] of loops.entries()) {
+      const length = round3(loop.frameCount / fps);
+      const fade = [
+        loop.fadeInFrames
+          ? `,afade=t=in:d=${round3(loop.fadeInFrames / fps)}:curve=qsin`
+          : "",
+        loop.fadeOutFrames
+          ? `,afade=t=out:st=${round3(length - loop.fadeOutFrames / fps)}:d=${round3(loop.fadeOutFrames / fps)}:curve=qsin`
+          : "",
+      ].join("");
+      filters.push(
+        `${copies[i]}atrim=0:${length},asetpts=PTS-STARTPTS${fade},adelay=${Math.round((loop.startFrame / fps) * 1000)}:all=1[mpart${i}]`,
+      );
+    }
+    filters.push(
+      `${loops.map((_, i) => `[mpart${i}]`).join("")}amix=inputs=${loops.length}:duration=longest:dropout_transition=0:normalize=0[mbed]`,
+    );
+  } else filters.push(`[${input}:a]${STEREO}[mbed]`);
+  const level =
+    typeof volume === "number"
+      ? `volume=${volume}`
+      : `volume='${volume}':eval=frame`;
+  // Sample-count timestamps after the mix, so the level's t and the fade see film time.
+  filters.push(
+    `[mbed]apad=whole_dur=${round3(filmS)},atrim=0:${round3(filmS)},asetpts=N/SR/TB,${level},afade=t=out:st=${round3(Math.max(0, filmS - FADE_OUT_S))}:d=${FADE_OUT_S}[m]`,
+  );
+  return { filters, loops };
+}
+
+/**
+ * The bed's level in the ffmpeg edit: the trailer mix ducks it under every spoken span like the
+ * Remotion edit; an ordinary film keeps its steady level under the voice.
+ */
+function bedVolume(timeline, spans, filmS, fps) {
+  const mix = mixProfile({
+    trailer: timeline.soundDesign === true || Boolean(timeline.effects),
+    voiceLufs: timeline.voiceLufs ?? null,
+  });
+  if (!mix.trailer) return MUSIC_STEADY;
+  const envelope = musicEnvelope(
+    spans.map(([start, end]) => [
+      Math.round(start * fps),
+      Math.round(end * fps),
+    ]),
+    Math.ceil(filmS * fps),
+    {
+      base: mix.music,
+      ducked: mix.musicDucked,
+      attack: mix.attack,
+      release: mix.release,
+      hold: mix.hold,
+    },
+  );
+  return envelopeExpression(envelope, fps);
+}
+
+/** The ffmpeg edit's music level for a film without sound design (unchanged). */
+const MUSIC_STEADY = 0.18;
+
 /** Concatenates the segments and lays the music bed under the voice. */
-export async function assembleFilm(timeline, outputPath) {
-  if (!timeline.scenes.length) throw new Error("render: no approved clips");
+export async function assembleFilm(
+  source,
+  outputPath,
+  { prepare = prepareSound } = {},
+) {
+  if (!source.scenes.length) throw new Error("render: no approved clips");
   const dir = join(outputPath, "..", "segments");
   await mkdir(dir, { recursive: true });
-  const lengths = await sceneLengths(timeline);
+  // Music and effects levelled first (sound-prep.mjs), like the Remotion edit.
+  const timeline = await prepare(source, join(dir, "sound"));
+  const { lengths, spans } = await sceneLengths(timeline);
   const segments = [];
   for (const [index, scene] of timeline.scenes.entries()) {
     segments.push(
@@ -381,9 +518,9 @@ export async function assembleFilm(timeline, outputPath) {
     ]);
     return outputPath;
   }
-  const duration = (
-    scenesS + (endCard ? endCardSeconds(ctaLines(timeline.brand.ctaText)) : 0)
-  ).toFixed(3);
+  const filmS =
+    scenesS + (endCard ? endCardSeconds(ctaLines(timeline.brand.ctaText)) : 0);
+  const duration = filmS.toFixed(3);
   const inputs = ["-i", picture];
   const filters = [];
   const beds = [];
@@ -396,8 +533,18 @@ export async function assembleFilm(timeline, outputPath) {
   }
   if (timeline.musicPath) {
     inputs.push("-i", timeline.musicPath);
+    // A track shorter than the film is looped, so the film never ends in silence.
+    const musicS = (await probe(timeline.musicPath).catch(() => null))
+      ?.duration;
     filters.push(
-      `[${beds.length + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.18[m]`,
+      ...musicBedFilters({
+        input: beds.length + 1,
+        musicS: musicS || filmS,
+        bodyS: timeline.musicBodyS,
+        filmS,
+        volume: bedVolume(timeline, spans, filmS, timeline.fps),
+        fps: timeline.fps,
+      }).filters,
     );
     beds.push("[m]");
   }

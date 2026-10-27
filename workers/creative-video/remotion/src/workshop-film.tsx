@@ -17,6 +17,7 @@ import {
   WORKSHOP_ACCENT,
   type WorkshopFilmProps,
   type WorkshopMove,
+  type WorkshopMusicLoop,
   type WorkshopScene,
 } from "./manifest";
 import { KaraokeCaptions } from "./workshop-captions";
@@ -178,10 +179,30 @@ const Picture: React.FC<{
 
 const END_TRANSITION = 12;
 
+/** One music copy's own fade (equal power) at frame f of the copy. */
+const loopGain = (loop: WorkshopMusicLoop, f: number) => {
+  const part = (value: number) => Math.min(1, Math.max(0, value));
+  const fadeIn =
+    loop.fadeInFrames > 0
+      ? Math.sin((Math.PI / 2) * part(f / loop.fadeInFrames))
+      : 1;
+  const fadeOut =
+    loop.fadeOutFrames > 0
+      ? Math.cos(
+          (Math.PI / 2) *
+            part(
+              (f - (loop.frameCount - loop.fadeOutFrames)) / loop.fadeOutFrames,
+            ),
+        )
+      : 1;
+  return fadeIn * fadeOut;
+};
+
 export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   scenes,
   narration,
   music,
+  musicLoops,
   musicEnvelope,
   effects,
   effectsEnvelope,
@@ -282,7 +303,25 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
         }}
       />
       {narration ? <Audio src={staticFile(narration)} /> : null}
-      {music ? (
+      {music && musicLoops?.length ? (
+        // Copies of the track cover the film (a render cannot rely on `loop`, which needs the
+        // browser to have read the track's length first).
+        musicLoops.map((loop, index) => (
+          <Sequence
+            key={`music-${index}`}
+            from={loop.startFrame}
+            durationInFrames={loop.frameCount}
+            layout="none"
+          >
+            <Audio
+              src={staticFile(music)}
+              volume={(f) =>
+                musicVolume(loop.startFrame + f) * loopGain(loop, f)
+              }
+            />
+          </Sequence>
+        ))
+      ) : music ? (
         <Audio src={staticFile(music)} loop volume={musicVolume} />
       ) : null}
       {(effects ?? []).map((cue, index) => (

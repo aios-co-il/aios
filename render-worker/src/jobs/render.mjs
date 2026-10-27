@@ -349,6 +349,8 @@ export async function renderFilm({
       narrationAlignment: sources.narrationAlignment,
       brand: brand ? { ...brand, logoPath } : null,
       effects: effectFiles,
+      // A trailer brief gets the trailer mix, also when its effects could not be made.
+      soundDesign: settings.soundDesign,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

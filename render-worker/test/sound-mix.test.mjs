@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { effectsGraph, fallbackEffectCues } from "../src/compose/assemble.mjs";
-import { effectCues } from "../src/compose/workshop-edit.mjs";
+import { MIX, effectCues } from "../src/compose/workshop-edit.mjs";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 
 test("cues: an impact on the title and the end card, a whoosh into every cut", () => {
@@ -83,8 +83,9 @@ test("the Remotion edit stages the effects and ducks them under the voice", () =
     return volumes[at];
   };
   // Under the opening line the effects dip; between lines they come back up.
-  expect(level(20)).toBeLessThan(0.2);
-  expect(level(manifest.endCard.startFrame)).toBe(0.5);
+  expect(level(20)).toBe(MIX.effectsDucked);
+  expect(level(manifest.endCard.startFrame)).toBe(MIX.effects);
+  expect(MIX.effectsDucked).toBeLessThan(MIX.effects);
   // A film without sound design keeps its manifest as it was.
   const plain = buildWorkshopManifest({ aspect: "9:16", scenes: [still("a")] });
   expect("effects" in plain.manifest).toBe(false);
@@ -110,7 +111,7 @@ test("the ffmpeg edit lays each cue as a delayed copy ducked under the speech", 
   const text = graph.filters.join(";");
   expect(text).toContain("[a0][n]amix=inputs=2");
   expect(text).toContain(
-    "[3:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.5,asplit=2[whoosh0][whoosh1]",
+    `[3:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${MIX.effects},asplit=2[whoosh0][whoosh1]`,
   );
   expect(text).toContain("[whoosh1]adelay=5100:all=1[whooshd1]");
   expect(text).toContain("[impact1]adelay=9300:all=1[impactd1]");

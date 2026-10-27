@@ -9,6 +9,10 @@ export const FRAME_SIZE = {
 
 export const frameSize = (aspect) => FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
 
+/** A scene's planned seconds: the storyboard length, 3 s when unset, within 0.5–120 s. */
+export const sceneSeconds = (value) =>
+  Math.min(120, Math.max(0.5, Number(value) || 3));
+
 /**
  * Approved scenes, in storyboard order. A scene without a clip is skipped.
  * Duration is the scene length the editor saved, not the provider clip length.
@@ -23,6 +27,7 @@ export function buildTimeline(
     brand = null,
     clipAudio = true,
     effects = null,
+    soundDesign = false,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -48,7 +53,7 @@ export function buildTimeline(
       muteClip: scene.muteClip === true,
       transition: scene.transition || null,
       overlayText: String(scene.overlayText ?? "").trim(),
-      durationS: Math.min(120, Math.max(0.5, Number(scene.durationS) || 3)),
+      durationS: sceneSeconds(scene.durationS),
     }));
   const [width, height] = frameSize(aspect);
   const totalS = frames.reduce((sum, frame) => sum + frame.durationS, 0);
@@ -70,6 +75,9 @@ export function buildTimeline(
             impactPath: effects.impactPath || null,
           }
         : null,
+    // The brief asked for trailer sound design: the film gets the trailer mix (workshop-edit.mjs),
+    // also when its effects could not be made.
+    soundDesign: soundDesign === true,
     totalS: Math.round(totalS * 100) / 100,
     scenes: frames,
   };

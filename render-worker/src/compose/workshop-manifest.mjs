@@ -13,7 +13,9 @@ import {
   MIX,
   effectCues,
   fitScenes,
+  mixProfile,
   musicEnvelope,
+  musicLoops,
   sceneTransition,
   speaks,
   speechSpans,
@@ -51,7 +53,41 @@ const extension = (path) => {
 };
 
 const seconds = (value) => (Number(value) > 0 ? Number(value) : 0);
-const lastEnd = (words) => words.reduce((n, w) => Math.max(n, w.end), 0);
+export const lastEnd = (words) => words.reduce((n, w) => Math.max(n, w.end), 0);
+
+/**
+ * A scene's shortest length in frames. Speech is never cut: a scene lasts as long as its own
+ * voice (plus a short tail) or its lip-synced clip.
+ */
+export function sceneMinFrames(
+  { durationS = 0, voiceS = 0, clipFrames = null, lipsync = false },
+  fps = WORKSHOP_FPS,
+) {
+  return Math.max(
+    15,
+    Math.round(seconds(durationS) * fps),
+    voiceS ? Math.ceil(voiceS * fps) + TAIL_FRAMES : 0,
+    lipsync && clipFrames ? clipFrames : 0,
+  );
+}
+
+/**
+ * Scene lengths in frames under one continuous narration take: each scene starts with its own
+ * line (line-sync.mjs), else the scenes stretch evenly, so the take is never cut. The music job
+ * sizes the bed with the same rule (jobs/music-length.mjs).
+ */
+export function narratedSceneFrames(
+  minFrames,
+  { lines = [], words = [], narrationS = 0, fps = WORKSHOP_FPS } = {},
+) {
+  const takeFrames =
+    narrationS > 0 ? Math.ceil(narrationS * fps) + TAIL_FRAMES : 0;
+  return (
+    (takeFrames &&
+      lineFrames(lines, wordsToFrames(words, fps), minFrames, takeFrames)) ||
+    fitScenes(minFrames, takeFrames)
+  );
+}
 
 function brandOf(brand, files) {
   if (!brand) return null;
@@ -105,12 +141,14 @@ export function buildWorkshopManifest(timeline) {
       !useStill && seconds(scene.clipDurationS)
         ? Math.floor(seconds(scene.clipDurationS) * fps)
         : null;
-    // Speech is never cut: a scene lasts as long as its voice or its lip-synced clip.
-    const frames = Math.max(
-      15,
-      Math.round(seconds(scene.durationS) * fps),
-      voiceS ? Math.ceil(voiceS * fps) + TAIL_FRAMES : 0,
-      scene.lipsync && clipFrames ? clipFrames : 0,
+    const frames = sceneMinFrames(
+      {
+        durationS: scene.durationS,
+        voiceS,
+        clipFrames,
+        lipsync: scene.lipsync,
+      },
+      fps,
     );
     picked.push({
       index,
@@ -128,30 +166,29 @@ export function buildWorkshopManifest(timeline) {
 
   let narration = null;
   let narrationWords = [];
-  let narrationFrames = 0;
+  let narrationS = 0;
   if (timeline.narrationPath) {
     narration = `narration.${extension(timeline.narrationPath)}`;
     files.push({ from: timeline.narrationPath, to: narration });
     narrationWords = wordsFromAlignment(timeline.narrationAlignment);
-    const narrationS = Math.max(
+    narrationS = Math.max(
       seconds(timeline.narrationDurationS),
       lastEnd(narrationWords),
     );
-    if (narrationS) narrationFrames = Math.ceil(narrationS * fps) + TAIL_FRAMES;
   }
+  const narrationFrames = narrationS
+    ? Math.ceil(narrationS * fps) + TAIL_FRAMES
+    : 0;
   // One continuous take: each scene starts with its own line, else scenes stretch evenly.
-  const counts =
-    (narration &&
-      lineFrames(
-        picked.map((p) => p.scene.narrationText ?? ""),
-        wordsToFrames(narrationWords, fps),
-        picked.map((p) => p.frames),
-        narrationFrames,
-      )) ||
-    fitScenes(
-      picked.map((p) => p.frames),
-      narrationFrames,
-    );
+  const counts = narratedSceneFrames(
+    picked.map((p) => p.frames),
+    {
+      lines: picked.map((p) => p.scene.narrationText ?? ""),
+      words: narrationWords,
+      narrationS,
+      fps,
+    },
+  );
 
   let cursor = 0;
   let framed = wordsToFrames(narrationWords, fps);
@@ -236,10 +273,23 @@ export function buildWorkshopManifest(timeline) {
   const totalFrames = scenesEnd + (endCard?.frameCount ?? 0);
 
   let music = null;
+  let loops = [];
   if (timeline.musicPath) {
     music = `music.${extension(timeline.musicPath)}`;
     files.push({ from: timeline.musicPath, to: music });
+    // A track shorter than the film is looped, so the film never ends in silence.
+    const musicFrames = Math.floor(seconds(timeline.musicDurationS) * fps);
+    const bodyFrames = Math.floor(seconds(timeline.musicBodyS) * fps);
+    if (musicFrames)
+      loops = musicLoops(musicFrames, totalFrames, {
+        bodyFrames: bodyFrames || musicFrames,
+      });
   }
+  // A film with trailer sound design gets the trailer mix; every other film keeps MIX.
+  const mix = mixProfile({
+    trailer: timeline.soundDesign === true || Boolean(timeline.effects),
+    voiceLufs: timeline.voiceLufs ?? null,
+  });
 
   // Trailer sound design, mixed under the voice: ducked like the music bed.
   const fx = timeline.effects;
@@ -273,13 +323,20 @@ export function buildWorkshopManifest(timeline) {
       totalFrames,
       narration,
       music,
-      musicEnvelope: musicEnvelope(speech, totalFrames),
+      ...(loops.length ? { musicLoops: loops } : {}),
+      musicEnvelope: musicEnvelope(speech, totalFrames, {
+        base: mix.music,
+        ducked: mix.musicDucked,
+        attack: mix.attack,
+        release: mix.release,
+        hold: mix.hold,
+      }),
       ...(effects.length
         ? {
             effects,
             effectsEnvelope: musicEnvelope(speech, totalFrames, {
-              base: MIX.effects,
-              ducked: MIX.effectsDucked,
+              base: mix.effects,
+              ducked: mix.effectsDucked,
             }),
           }
         : {}),

@@ -3,6 +3,7 @@ import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { probe } from "../ffmpeg.mjs";
+import { prepareSound } from "./sound-prep.mjs";
 import { buildWorkshopManifest } from "./workshop-manifest.mjs";
 
 const remotionDir = () =>
@@ -53,6 +54,7 @@ async function measured(timeline, probeFile) {
   const narration = timeline.narrationPath
     ? await read(timeline.narrationPath)
     : null;
+  const music = timeline.musicPath ? await read(timeline.musicPath) : null;
   const effects = timeline.effects
     ? {
         ...timeline.effects,
@@ -69,6 +71,8 @@ async function measured(timeline, probeFile) {
     scenes,
     effects,
     narrationDurationS: narration?.duration || timeline.narrationDurationS || 0,
+    // The bed's length, so a track shorter than the film is looped (musicLoops).
+    musicDurationS: music?.duration || timeline.musicDurationS || 0,
   };
 }
 
@@ -80,11 +84,13 @@ export async function assembleWithRemotion(
   timeline,
   outputPath,
   workDir,
-  { probeFile = probe } = {},
+  { probeFile = probe, prepare = prepareSound } = {},
 ) {
-  const plan = buildWorkshopManifest(await measured(timeline, probeFile));
   const stage = join(workDir, "remotion");
   await mkdir(stage, { recursive: true });
+  // Music and effects levelled first (sound-prep.mjs), then measured for the edit.
+  const levelled = await prepare(timeline, join(workDir, "sound"));
+  const plan = buildWorkshopManifest(await measured(levelled, probeFile));
   for (const file of plan.files)
     await copyFile(file.from, join(stage, file.to));
   const manifestPath = join(stage, "manifest.json");
