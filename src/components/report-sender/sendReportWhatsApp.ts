@@ -1,5 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import type { SendKind } from "../../../supabase/functions/_shared/client-card/send-kind.ts";
 import { reportSenderFunction } from "../../../supabase/functions/_shared/report-sender/routes.ts";
 import {
   pickErrorKey,
@@ -9,7 +10,10 @@ import {
 import type { ReportSenderChoicePick } from "./useReportSenderChoice";
 
 /** The kinds a browser report send may stamp (client card, AIO-242). */
-export type ReportSendKind = "report" | "dashboard_share" | "meeting_summary";
+export type ReportSendKind = Extract<
+  SendKind,
+  "report" | "dashboard_share" | "meeting_summary"
+>;
 
 type ReportSendBase = {
   tenantId: string;
