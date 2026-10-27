@@ -54,12 +54,13 @@ begin
     return;
   end if;
 
-  -- Share agency DMM-MC both ways between DMM and MarketingCaptain.
+  -- Share DMM's agency DMM-MC both ways between DMM and MarketingCaptain.
   select t.id into v_mc_tenant from public.tenants t where t.name = 'MarketingCaptain';
   select count(*), min(a.id::text)::uuid
     into v_agencies, v_agency
   from public.agencies a
-  where a.name = 'DMM-MC';
+  where a.name = 'DMM-MC'
+    and a.tenant_id = v_tenant;
 
   if v_mc_tenant is null or v_agencies <> 1 then
     raise notice 'merge tavnicol: tenant MarketingCaptain found: %, % DMM-MC agenc(ies); share not added',
@@ -96,7 +97,8 @@ begin
     and c.website ilike '%tavnicol.co.il%';
 
   if v_dups <> 1 or v_targets <> 1 then
-    raise notice 'merge tavnicol: found % duplicate(s) and % target(s), nothing to do', v_dups, v_targets;
+    raise notice 'merge tavnicol: added % share(s); found % duplicate(s) and % target(s), nothing to merge',
+      v_shared, v_dups, v_targets;
     return;
   end if;
 
