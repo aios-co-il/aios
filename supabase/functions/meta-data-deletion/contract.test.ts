@@ -39,5 +39,9 @@ Deno.test(
       readDeletionRequestStatus({ ...ROW, confirmation_code: 1 }),
       null,
     );
+    assertStrictEquals(
+      readDeletionRequestStatus({ ...ROW, created_at: "not a date" }),
+      null,
+    );
   },
 );

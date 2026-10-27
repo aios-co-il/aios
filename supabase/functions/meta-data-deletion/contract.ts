@@ -35,7 +35,8 @@ export function readDeletionRequestStatus(
   if (
     typeof confirmation_code !== "string" ||
     !isDeletionRequestStatusValue(status) ||
-    typeof created_at !== "string"
+    typeof created_at !== "string" ||
+    Number.isNaN(Date.parse(created_at))
   ) {
     return null;
   }

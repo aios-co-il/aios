@@ -13,9 +13,9 @@ export function EnglishInstructionsSection() {
       <ul className="list-disc pl-6 space-y-2">
         <li>
           Disconnect the integration under Settings → Integrations. This stops
-          Carmen Marketing OS from using the account right away; stored
-          credentials and imported data are deleted only when a deletion request
-          below is processed.
+          Carmen Marketing OS from using the account right away, but some stored
+          credentials (such as page tokens and refresh tokens) and imported data
+          remain until a deletion request below is processed.
         </li>
         <li>
           Email <PrivacyEmailLink /> from your Carmen Marketing OS account

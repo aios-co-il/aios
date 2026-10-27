@@ -143,7 +143,6 @@ export function fbUserIdFrom(value: unknown): string | null {
 }
 
 export function newConfirmationCode(): string {
-  // Short, URL-safe, unique enough for a human-visible status code.
   return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
 }
 
