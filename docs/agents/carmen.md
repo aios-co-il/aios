@@ -68,6 +68,12 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - Also checked: `run-agent-task` (a user starting a task) and new runs in `run-ai-agent-v2`. A member with Carmen off may only list brains, read health and cancel a parliament round.
 - "View as" is client-only: the UI previews the viewed user's access from their row, the tenant's full brain list, and `carmen_member_has_personal_key` (a manager-only RPC). The server still answers for the signed-in user.
 
+## Chat tools scope (get_chat_history, search_conversation_history, get_recent_inbound_messages)
+
+- `run-ai-agent` reads `chat_messages` with the service role and scopes it itself (`run-ai-agent/chat-scope/`), from the verified caller and the WhatsApp chat of the turn, never from tool args.
+- owner/super_admin in this tenant (or a global role) read every chat. A group turn by anyone else reads only that group. Other staff read the client/lead threads they are responsible for plus their own private chat with Carmen. Unknown senders and runs with no user read nothing.
+- `green_api` rows follow the Chat page rule: `chat_allowed_connection_user_ids` = `get_chat_contacts` (own, org-wide and shared lines).
+
 ## Carmen → Cursor bridge (preferred escalation for complex work)
 
 - Carmen talks to **Cursor Cloud Agents** over MCP via the `cursor-mcp` edge function. It exposes `request_dev_task` + `ask_cursor`, and each call creates a real Cloud Agent via `POST https://api.cursor.com/v1/agents`. See `supabase/functions/cursor-mcp/README.md`.

@@ -9,7 +9,7 @@
 // or task.
 
 /** Request fields only service-to-service callers may set. */
-export const SERVICE_ONLY_RUN_FIELDS = Object.freeze([
+export const SERVICE_ONLY_RUN_FIELDS: readonly string[] = Object.freeze([
   // Per-task engine override (agent_tasks.engine_model).
   "model_override",
   // Admin-authored per-automation Carmen instructions.
@@ -24,14 +24,27 @@ export const SERVICE_ONLY_RUN_FIELDS = Object.freeze([
  * Bind a run-ai-agent request body to the verified caller, in place.
  * A user JWT always runs as that user, without the service-only fields, and never
  * on the whatsapp surface. Service callers keep the body as sent.
- * @param {Record<string, any>} body
- * @param {{ kind: 'user'|'service', userId: string|null }} auth
  */
-export function bindRunAgentCaller(body, auth) {
-  if (!body || typeof body !== "object") return body;
-  if (auth?.kind === "service") return body;
+export function bindRunAgentCaller(
+  body: Record<string, unknown>,
+  auth: { kind: "user" | "service"; userId: string | null } | null,
+): Record<string, unknown> {
+  if (!body || typeof body !== "object") {
+    return body;
+  }
+
+  if (auth?.kind === "service") {
+    return body;
+  }
+
   body.user_id = auth?.kind === "user" ? auth.userId : null;
-  for (const field of SERVICE_ONLY_RUN_FIELDS) delete body[field];
-  if (body.surface === "whatsapp") body.surface = "internal_chat";
+  for (const field of SERVICE_ONLY_RUN_FIELDS) {
+    delete body[field];
+  }
+
+  if (body.surface === "whatsapp") {
+    body.surface = "internal_chat";
+  }
+
   return body;
 }

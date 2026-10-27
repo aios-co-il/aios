@@ -42,15 +42,11 @@ import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
-import {
-  applyChatScope,
-  chatContactRefusal,
-  chatScopeMeta,
-  chatScopeRefusal,
-  keepVisibleChatRows,
-  resolveChatScope,
-  withChatScopeColumns,
-} from "../_shared/carmen/chat-scope.ts";
+import { withChatScopeColumns } from "./chat-scope/filters.ts";
+import { chatReadRefusal, chatScopeMeta } from "./chat-scope/responses.ts";
+import { resolveChatScope } from "./chat-scope/resolve.ts";
+import { readScopedChatRows } from "./chat-scope/rows.ts";
+import type { ChatHistoryRow, InboundChatRow } from "./chat-scope/types.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
@@ -5691,10 +5687,12 @@ async function executeTool(
     managedAgencyIds,
     accessibleTenantIds,
   };
-  // Chat readers (AIO-231): scope from the verified caller and the WhatsApp
-  // chat of this turn, never from tool arguments (_shared/carmen/chat-scope.ts).
-  // It reads the caller's role in this tenant itself: callerRole here is the
-  // highest role across all of the user's tenants.
+  /**
+   * Chat readers (AIO-231): scope from the verified caller and the WhatsApp
+   * chat of this turn, never from tool arguments (./chat-scope/). It reads the
+   * caller's role in this tenant itself: callerRole here is the highest role
+   * across all of the user's tenants.
+   */
   const chatScopeFor = () =>
     resolveChatScope(supabase, {
       tenantId,
@@ -9860,18 +9858,20 @@ async function executeTool(
     // CHAT HISTORY
     case "get_chat_history": {
       const chatScope = await chatScopeFor();
-      if (chatScope.mode === "none") return chatScopeRefusal(chatScope);
-      const contactRefusal = await chatContactRefusal(
+      const refusal = await chatReadRefusal(
         supabase,
         chatScope,
-        args.contact_type,
-        args.contact_id,
+        { type: args.contact_type, id: args.contact_id },
         accessibleTenantIds,
       );
-      if (contactRefusal) return contactRefusal;
+      if (refusal) {
+        return refusal;
+      }
+
       const filterCol =
         args.contact_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await applyChatScope(
+      const visible = await readScopedChatRows<ChatHistoryRow>(
+        supabase,
         supabase
           .from("chat_messages")
           .select(
@@ -9884,17 +9884,11 @@ async function executeTool(
           .order("created_at", { ascending: false })
           .limit(args.limit || 20),
         chatScope,
-      );
-      if (error) throw error;
-      const visible = await keepVisibleChatRows(
-        supabase,
-        data,
-        chatScope,
         accessibleTenantIds,
       );
       return {
         count: visible.length,
-        messages: visible.reverse().map((m: any) => ({
+        messages: visible.reverse().map((m) => ({
           id: m.id,
           message_text: m.message_text,
           direction: m.direction,
@@ -9906,7 +9900,16 @@ async function executeTool(
     }
     case "search_conversation_history": {
       const chatScope = await chatScopeFor();
-      if (chatScope.mode === "none") return chatScopeRefusal(chatScope);
+      const refusal = await chatReadRefusal(
+        supabase,
+        chatScope,
+        null,
+        accessibleTenantIds,
+      );
+      if (refusal) {
+        return refusal;
+      }
+
       const rawQuery = String(args.query || "").trim();
       // AND semantics: every token must appear in the message. Up to 4 tokens.
       // No query = browse mode: chronological slice of the window, which then
@@ -9980,11 +9983,9 @@ async function executeTool(
           .is("group_id", null)
           .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
       else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const { data: scopedRows, error } = await applyChatScope(q, chatScope);
-      if (error) throw error;
-      const data = await keepVisibleChatRows(
+      const data = await readScopedChatRows(
         supabase,
-        scopedRows,
+        q,
         chatScope,
         accessibleTenantIds,
       );
@@ -10018,12 +10019,22 @@ async function executeTool(
     }
     case "get_recent_inbound_messages": {
       const chatScope = await chatScopeFor();
-      if (chatScope.mode === "none") return chatScopeRefusal(chatScope);
+      const refusal = await chatReadRefusal(
+        supabase,
+        chatScope,
+        null,
+        accessibleTenantIds,
+      );
+      if (refusal) {
+        return refusal;
+      }
+
       const hoursAgo = args.hours || 24;
       const since = new Date(
         Date.now() - hoursAgo * 60 * 60 * 1000,
       ).toISOString();
-      const { data: scopedRows, error } = await applyChatScope(
+      const data = await readScopedChatRows<InboundChatRow>(
+        supabase,
         supabase
           .from("chat_messages")
           .select(
@@ -10037,12 +10048,6 @@ async function executeTool(
           .order("created_at", { ascending: false })
           .limit(args.limit || 30),
         chatScope,
-      );
-      if (error) throw error;
-      const data = await keepVisibleChatRows(
-        supabase,
-        scopedRows,
-        chatScope,
         accessibleTenantIds,
       );
       return {
@@ -10054,7 +10059,7 @@ async function executeTool(
             provider: _provider,
             group_id: _group,
             ...m
-          }: any) => ({
+          }) => ({
             ...m,
             contact_name:
               m.clients?.name ||
@@ -13657,7 +13662,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
-import { bindRunAgentCaller } from "../_shared/run-agent-trust.mjs";
+import { bindRunAgentCaller } from "./caller-trust.ts";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -16370,7 +16375,7 @@ Deno.serve(async (req) => {
   // Never trust a browser-supplied identity. A user JWT runs as that user, without
   // the caller phone (lead_data), WhatsApp target (wa_notify), whatsapp surface or
   // admin config — approvals are bound to the identity those fields would set.
-  // Service-to-service calls keep their explicit user (_shared/run-agent-trust.mjs).
+  // Service-to-service calls keep their explicit user (./caller-trust.ts).
   bindRunAgentCaller(bodyJson, auth);
 
   if (bodyJson.direct_tool) {
