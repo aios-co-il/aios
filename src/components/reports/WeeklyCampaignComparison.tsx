@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -7,7 +6,8 @@ import {
   type WeeklyAdsRecord,
   type WeeklyAdsSource,
 } from "@/lib/weeklyAdsComparison";
-import { googleCampaignGoalsForRecords } from "@/lib/googleAdsReport";
+import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
+import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 
 type Props = {
   records: WeeklyAdsRecord[];
@@ -15,12 +15,7 @@ type Props = {
   defaultSource?: WeeklyAdsSource;
   sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
   /** The report's tables: Google campaigns then show by their own goal. */
-  tables?: Array<{
-    id: string;
-    integration_type?: string | null;
-    integration_settings?: Record<string, unknown> | null;
-    category?: string | null;
-  }>;
+  tables?: GoogleReportTable[];
   isLoading?: boolean;
 };
 
@@ -41,17 +36,10 @@ export function WeeklyCampaignComparison({
   tables,
   isLoading = false,
 }: Props) {
-  const googleCampaignGoals = useMemo(
-    () =>
-      tables
-        ? googleCampaignGoalsForRecords(
-            records.filter(
-              (record) => (record._source ?? defaultSource) === "google_ads",
-            ),
-            tables,
-          )
-        : undefined,
-    [records, tables, defaultSource],
+  const googleCampaignGoals = useWeeklyGoogleCampaignGoals(
+    records,
+    tables,
+    defaultSource,
   );
   const weeks = buildWeeklyCampaignSections(records, {
     defaultSource,
@@ -108,8 +96,9 @@ export function WeeklyCampaignComparison({
                 ? "עלות לקליק"
                 : "עלות לליד"
             : "עלות לתוצאה";
-        // Revenue and ROAS only when the week has an ecommerce campaign.
-        const showRevenue = week.rows.some((row) => row.kind === "ecommerce");
+        const showRevenue = week.rows.some(
+          (row) => row.kind === "ecommerce" || row.revenue > 0,
+        );
 
         return (
           <Card key={week.key} className="overflow-hidden">

@@ -2,7 +2,7 @@ import { assertStrictEquals } from "jsr:@std/assert@1";
 import {
   conversionCategorySide,
   googleCampaignConversionGoal,
-} from "./google-ads-conversion-goal.mjs";
+} from "./conversion-goal.ts";
 
 Deno.test("conversion categories map to a pulse side", () => {
   assertStrictEquals(conversionCategorySide("PURCHASE"), "ecommerce");

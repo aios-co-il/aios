@@ -1,3 +1,9 @@
+import { campaignGoalOverride } from "./pulse/campaign-goal-override.ts";
+import { classifyGoogleCampaignGoal } from "./pulse/google-campaign-goal.ts";
+import {
+  resolveCampaignGoals,
+  voteSpend,
+} from "./pulse/resolve-campaign-goals.ts";
 import {
   evaluateTargetlessCostTrend,
   resolvePulseCostRules,
@@ -401,61 +407,22 @@ function hasExplicitLeadSignals(data = {}, context = {}) {
   return goalFromExplicitLeadSignals(data, context) === "leads";
 }
 
-const PULSE_GOAL_SET = new Set(PULSE_CAMPAIGN_GOALS);
-
-/** A goal set by hand for one campaign in the report settings (`pulse_campaign_goals`). */
-function goalFromCampaignOverride(data = {}, settings = {}) {
-  const overrides = settings.pulse_campaign_goals;
-  if (!overrides || typeof overrides !== "object") return null;
-  const id = String(data.campaign_id || data.campaignId || "");
-  const name = String(data.campaign_name || data.campaignName || "").trim();
-  const goal = String((id && overrides[id]) || (name && overrides[name]) || "")
-    .trim()
-    .toLowerCase();
-  return PULSE_GOAL_SET.has(goal) ? goal : null;
-}
-
-/**
- * Google Ads campaigns (Performance Max, Search, Shopping) have no objective.
- * The sync stamps `conversion_goal` from what each campaign converts on; without
- * it the report's own type decides. Conversion value or a clicks-only day never
- * does: lead accounts often give leads a value, and quiet days have no conversions.
- */
-function classifyGoogleCampaignGoal(data = {}, ctx = {}) {
-  const stamped = String(data.conversion_goal || "")
-    .trim()
-    .toLowerCase();
-  if (stamped === "ecommerce" || stamped === "leads")
-    return { goal: stamped, source: "platform_goal" };
-
-  // Legacy Make/webhook rows carry the table type per row and `purchases` only on ecommerce tables.
-  const derived = goalFromDerivedCampaignType(data.campaign_type);
-  if (derived === "ecommerce" || derived === "leads")
-    return { goal: derived, source: "explicit_mapping" };
-  if (data.purchases !== undefined && data.purchases !== null)
-    return { goal: "ecommerce", source: "explicit_mapping" };
-
-  if (String(data.campaign_channel_type || "").toUpperCase() === "SHOPPING")
-    return { goal: "ecommerce", source: "platform_goal" };
-
-  const nameGoal = goalFromCampaignName(data.campaign_name);
-  if (nameGoal) return { goal: nameGoal, source: "explicit_mapping" };
-
-  return {
-    goal: isEcommerceReportTable(ctx) ? "ecommerce" : "leads",
-    source: "table_report_type",
-  };
-}
-
 /** Classify by campaign objective first; fall back to report type only when unknown. */
 export function classifyPulseCampaignGoal(data = {}, context = {}) {
   const ctx = classificationContext(context);
 
-  const override = goalFromCampaignOverride(data, ctx.integration_settings);
-  if (override) return { goal: override, source: "explicit_mapping" };
+  const override = campaignGoalOverride(data, ctx.integration_settings);
+  if (PULSE_CAMPAIGN_GOALS.includes(override)) {
+    return { goal: override, source: "explicit_mapping" };
+  }
 
-  if (ctx.integration_type === "google_ads")
-    return classifyGoogleCampaignGoal(data, ctx);
+  if (ctx.integration_type === "google_ads") {
+    return classifyGoogleCampaignGoal(data, {
+      legacyGoal: goalFromDerivedCampaignType(data.campaign_type),
+      nameGoal: goalFromCampaignName(data.campaign_name),
+      reportIsEcommerce: isEcommerceReportTable(ctx),
+    });
+  }
 
   const messagingLeadGoal = goalFromMessagingLeadSignals(data);
   if (messagingLeadGoal)
@@ -1028,78 +995,6 @@ function datesBetween(start, end) {
   return dates;
 }
 
-const GOAL_SOURCE_RANK = {
-  platform_goal: 2,
-  explicit_mapping: 1,
-  table_report_type: 0,
-  unclassified: -1,
-};
-
-/**
- * One goal per campaign from its classified daily rows. The strongest signal wins
- * (what the platform says, then a mapping, then the report's type), then the goal
- * backed by the most spend; 'unknown' only when nothing else is known. Rows synced
- * before a campaign's goal was stamped therefore never outvote the stamped rows.
- * @param {{ key: string, goal: string, source?: string, spend?: number }[]} votes
- * @returns {Map<string, string>}
- */
-export function resolveCampaignGoals(votes = []) {
-  const byKey = new Map();
-  for (const vote of votes) {
-    const goals = byKey.get(vote.key) || {};
-    const entry = goals[vote.goal] || { rank: -1, spend: 0 };
-    entry.rank = Math.max(entry.rank, GOAL_SOURCE_RANK[vote.source] ?? 0);
-    entry.spend += (Number(vote.spend) || 0) + 1e-6;
-    goals[vote.goal] = entry;
-    byKey.set(vote.key, goals);
-  }
-  const result = new Map();
-  for (const [key, goals] of byKey) {
-    const [best] = Object.entries(goals).sort(
-      ([goalA, a], [goalB, b]) =>
-        (goalA === "unknown") - (goalB === "unknown") ||
-        b.rank - a.rank ||
-        b.spend - a.spend,
-    );
-    result.set(key, best[0]);
-  }
-  return result;
-}
-
-/**
- * Goal per Google Ads campaign for reports, using the same rules as the pulse check
- * so the report shows each campaign by the goal the pulse measures it on.
- * Keyed by campaign id (name when the id is missing).
- * @returns {Map<string, "ecommerce" | "leads" | "engagement">}
- */
-export function googleReportCampaignGoals({ records = [], tables = [] } = {}) {
-  const tableMap = new Map(tables.map((table) => [table.id, table]));
-  const votes = [];
-  for (const record of records) {
-    const data = record.data || {};
-    const table = tableMap.get(record.table_id);
-    if (!table || table.integration_type !== "google_ads") continue;
-    const key = googleReportCampaignKey(data);
-    if (!key) continue;
-    const classification = classifyPulseCampaignGoal(data, {
-      integration_type: table.integration_type,
-      integration_settings: table.integration_settings || {},
-      category: table.category,
-    });
-    votes.push({
-      key,
-      goal: classification.goal,
-      source: classification.source,
-      spend: Number(data.spend ?? data.cost) || 0,
-    });
-  }
-  return resolveCampaignGoals(votes);
-}
-
-export function googleReportCampaignKey(data = {}) {
-  return String(data.campaign_id || data.campaign_name || "");
-}
-
 /**
  * One row per campaign with its 3/7-day numbers, baseline, target and status.
  * `alertRules` is the tenant's tenant_heartbeat_settings.pulse_alert_rules: the
@@ -1162,7 +1057,7 @@ export function buildPulseCampaignRows({
       key: campaignOf(item),
       goal: item.goal,
       source: item.source,
-      spend: Number(item.record.data.spend ?? item.record.data.cost) || 0,
+      spend: voteSpend(item.record.data),
     })),
   );
 

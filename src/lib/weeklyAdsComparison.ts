@@ -1,3 +1,6 @@
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import { earnsRevenue, weeklyRoas } from "@/lib/weeklyAdsRevenue";
+
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
 export type WeeklyCampaignKind = "leads" | "ecommerce" | "traffic";
@@ -117,9 +120,8 @@ function campaignKind(
     campaignType?: string;
   },
   sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
-  googleGoal?: "leads" | "ecommerce",
+  googleGoal?: GoogleCampaignGoal,
 ): WeeklyCampaignKind {
-  // Google: each campaign by its own goal; the report's type only when unknown.
   if (source === "google_ads")
     return (
       googleGoal ??
@@ -142,7 +144,7 @@ export function buildWeeklyCampaignSections(
     defaultSource?: WeeklyAdsSource;
     sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
     /** Goal per Google campaign id (name when missing), from the report's rules. */
-    googleCampaignGoals?: Map<string, "leads" | "ecommerce">;
+    googleCampaignGoals?: Map<string, GoogleCampaignGoal>;
   } = {},
 ): WeeklyCampaignSection[] {
   const now = options.now ?? new Date();
@@ -265,8 +267,9 @@ export function buildWeeklyCampaignSections(
             sourceModes,
             options.googleCampaignGoals?.get(campaign.campaignId),
           );
-          // A lead campaign's conversion value (often ₪1 per lead) is not revenue.
-          const revenue = kind === "ecommerce" ? campaign.revenue : 0;
+          const revenue = earnsRevenue(campaign.source, kind)
+            ? campaign.revenue
+            : 0;
           const results =
             kind === "ecommerce"
               ? campaign.purchases
@@ -315,11 +318,7 @@ export function buildWeeklyCampaignSections(
       );
       totals.costPerResult =
         totals.results > 0 ? totals.spend / totals.results : 0;
-      // ROAS over ecommerce campaigns only: lead spend earns no revenue.
-      const ecommerceSpend = rows
-        .filter((row) => row.kind === "ecommerce")
-        .reduce((sum, row) => sum + row.spend, 0);
-      totals.roas = ecommerceSpend > 0 ? totals.revenue / ecommerceSpend : 0;
+      totals.roas = weeklyRoas(rows, totals.revenue);
 
       return {
         key: utcDateString(start),
