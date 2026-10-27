@@ -16261,6 +16261,31 @@ export type Database = {
         Args: { p_data: Json; p_table_id: string };
         Returns: boolean;
       };
+      workshop_assign_client: {
+        Args: { p_client_id?: string; p_item_id: string };
+        Returns: {
+          client_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          current_stage_id: string | null;
+          id: string;
+          links: Json;
+          payload: Json;
+          pipeline_id: string | null;
+          scheduled_date: string | null;
+          status: Database["public"]["Enums"]["marketing_item_status"];
+          target_channel: string | null;
+          tenant_id: string;
+          title: string | null;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_work_items";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       workshop_list_projects: {
         Args: { p_client?: string; p_limit?: number; p_tenant_id: string };
         Returns: {
