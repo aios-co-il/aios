@@ -80,11 +80,14 @@ const APPROVAL_TOOL_SET = new Set(APPROVAL_TOOLS);
  * send, publish or change things, and none of them goes through the workshop's approval.
  */
 const MCP_TOOL_PREFIX = "mcp_";
+/** Hand-offs to subagents and outside agents (Manus, the GitHub agent) run outside the board. */
+const DELEGATE_TOOL_PREFIX = "delegate_";
 
 export const isBlockedInWorkshop = (toolName: string, inWorkshop: boolean) =>
   inWorkshop &&
   (WORKSHOP_BLOCKED_TOOLS.has(toolName) ||
-    toolName.startsWith(MCP_TOOL_PREFIX));
+    toolName.startsWith(MCP_TOOL_PREFIX) ||
+    toolName.startsWith(DELEGATE_TOOL_PREFIX));
 
 /** The tool result Carmen gets when she calls a blocked tool from the workshop. */
 export function workshopBlockedResult(toolName: string) {

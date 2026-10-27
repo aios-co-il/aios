@@ -4,6 +4,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
+  aboutCarmen,
   roleOfPersona,
   ROLE_TOOLS,
   toolsForRole,
@@ -169,5 +170,69 @@ Deno.test(
       assertStrictEquals(workshopRole(text, null, null), "producer", text);
     for (const text of ["פוסט על הסרט", "סטורי שמכריז על הסרט החדש"])
       assertStrictEquals(workshopRole(text, null, null), "designer", text);
+  },
+);
+
+const DAVID = "יש לך גישה לתמונות של הסקינים שלך?";
+
+Deno.test("questions about Carmen herself are recognised", () => {
+  for (const text of [
+    DAVID,
+    "איזה סקינים יש לך?",
+    "תראי לי את התמונות של הסקינים",
+    "תראי לי את הפרסונות שלך",
+    "מה הדמויות שלך?",
+    "את יכולה לגשת לתמונות של הפרסונות שלך?",
+    "יש לך גישה לקרסר?",
+    "יש לך הרשאה לערוך את האתר?",
+    "מה את יודעת לעשות?",
+    "מה את יכולה לעשות בסדנה?",
+    "מה היכולות שלך?",
+    "אילו כלים יש לך?",
+    "כרמן, מי את?",
+    "איך את נראית?",
+    "what can you do?",
+    "do you have access to your skins images?",
+  ])
+    assertStrictEquals(aboutCarmen(text), true, text);
+});
+
+Deno.test("work requests are not questions about Carmen", () => {
+  for (const text of [
+    "תכיני לי פוסט לאינסטגרם על המבצע",
+    "תעשי לי תמונה של המוצר על רקע לבן",
+    "את יכולה ליצור תמונה של חתול?",
+    "יש לך רעיון לתמונה לפוסט?",
+    "תשני את התמונה בסצנה 2",
+    "תבני פרסונה ללקוח החדש",
+    "מי אתם בתור מותג? תכתבי על זה פוסט",
+    "סרטון על הערכים של המותג",
+    "כן, מאשרת",
+  ])
+    assertStrictEquals(aboutCarmen(text), false, text);
+});
+
+Deno.test(
+  "a question about Carmen does not switch to the designer's brief",
+  () => {
+    // No current role: the workshop's own persona answers.
+    assertStrictEquals(workshopRole(DAVID, null), null);
+    assertStrictEquals(
+      workshopRole(DAVID, null, { video: false, edit: false }),
+      null,
+    );
+    assertStrictEquals(
+      workshopRole("תראי לי את התמונות של הסקינים", null),
+      null,
+    );
+    // A current role is kept, even in a film project.
+    assertStrictEquals(workshopRole(DAVID, "video_director"), "producer");
+    assertStrictEquals(
+      workshopRole(DAVID, "video_editor", { video: true, edit: true }),
+      "editor",
+    );
+    assertStrictEquals(workshopRole(DAVID, "creative_direct"), "designer");
+    // A real picture request still goes to the designer.
+    assertStrictEquals(workshopRole("תעשי לי תמונה למבצע", null), "designer");
   },
 );

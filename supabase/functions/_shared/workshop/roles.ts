@@ -70,6 +70,21 @@ const STATIC_DELIVERABLE =
 /** Picture words: the designer's only when the open project is not a film. */
 const STATIC_HINT = /(תמונ|קריאייטיב|לוגו|גרפיק|עיצוב|\bstatic\b|\bimage\b)/i;
 
+/**
+ * Questions about Carmen herself: her skins or personas and their images, what she can do, what
+ * she has access to, who she is. "תמונ" in such a question is not a picture to design.
+ */
+const ABOUT_HER_SKINS =
+  /(סקינ|סקין|(?<![א-ת])ה?פרסונות\s+שלך|(?<![א-ת])ה?דמויות\s+שלך|(?<![א-ת])ה?תפקידים\s+שלך|\bskins?\b|\byour\s+personas?\b)/i;
+const ABOUT_HER_ABILITIES =
+  /(יש\s+לך\s+(גישה|הרשאה|אפשרות\s+לגשת)|(?<![א-ת])את\s+(יכולה\s+לגשת|מסוגלת\s+לגשת|רואה\s+את\s+התמונות)|מה\s+את\s+(יודעת|יכולה|מסוגלת)\s+לעשות|(?<![א-ת])ה?יכולות\s+שלך|(?<![א-ת])ה?כלים\s+שלך|(?:אילו|איזה)\s+כלים\s+(יש\s+לך|את)|(?<![א-ת])מי\s+את(?![א-ת])|איך\s+את\s+(נראית|עובדת)|\bwhat\s+can\s+you\s+do\b|\bdo\s+you\s+have\s+access\b)/i;
+
+/** The message asks about Carmen herself, not for work to be made. */
+export function aboutCarmen(message: string | null | undefined): boolean {
+  const text = String(message ?? "");
+  return ABOUT_HER_SKINS.test(text) || ABOUT_HER_ABILITIES.test(text);
+}
+
 /** The role a persona slug (the chat's current skin) stands for, if any. */
 export function roleOfPersona(slug: string | null | undefined) {
   const entry = Object.entries(ROLE_PERSONA).find(
@@ -83,13 +98,16 @@ export function roleOfPersona(slug: string | null | undefined) {
  * The role for this message. Editing words win (a film from materials), then film words, then a
  * new static deliverable. Otherwise the open project decides (a film stays with its producer or
  * editor, so "תשני את התמונה בסצנה 2" does not go to the designer), then the current role.
+ * A question about Carmen herself keeps the current role, or none (the workshop's own persona):
+ * it is answered, not briefed.
  */
 export function workshopRole(
   message: string,
   current: string | null | undefined,
   project: ProjectKind | null = null,
-): WorkshopRole {
+): WorkshopRole | null {
   const text = String(message ?? "");
+  if (aboutCarmen(text)) return roleOfPersona(current);
   if (EDITOR.test(text)) return "editor";
   if (VIDEO.test(text)) return project?.edit ? "editor" : "producer";
   // "סרט לסטורי" is a film, "פוסט על הסרט" a post: the word that comes first is the deliverable.

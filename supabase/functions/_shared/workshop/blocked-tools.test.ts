@@ -8,6 +8,9 @@ import {
   stripServerOnlyPayloadKeys,
   workshopBlockedResult,
 } from "./blocked-tools.ts";
+import { ROLE_TOOLS, toolsForRole, type WorkshopRole } from "./roles.ts";
+import { isWorkshopTool } from "./tool-definitions.ts";
+import { NATIVE_DEV_TASK_TOOLS } from "../dev-escalation-auth.ts";
 
 Deno.test("approval tools are blocked inside the workshop only", () => {
   for (const name of [
@@ -137,3 +140,40 @@ Deno.test("an ordinary payload patch passes through unchanged", () => {
   assertEquals(patch, { notes: "x", channel: "facebook" });
   assertEquals(dropped, []);
 });
+
+Deno.test(
+  "Carmen's self-description and native dev-task tools stay offered in the workshop",
+  () => {
+    const kept = [
+      "get_carmen_skins",
+      "recall_skills",
+      ...NATIVE_DEV_TASK_TOOLS,
+    ];
+    for (const name of kept)
+      assertStrictEquals(isBlockedInWorkshop(name, true), false, name);
+    const tools = [...kept, "workshop_start_project"].map((name) => ({ name }));
+    for (const role of Object.keys(ROLE_TOOLS) as WorkshopRole[]) {
+      const offered = toolsForRole(tools, role, isWorkshopTool).map(
+        (t) => t.name,
+      );
+      for (const name of kept)
+        assertStrictEquals(offered.includes(name), true, `${role}: ${name}`);
+    }
+  },
+);
+
+Deno.test(
+  "coding-agent connectors and delegation stay blocked in the workshop",
+  () => {
+    for (const name of [
+      "mcp_Cursor__request_dev_task",
+      "mcp_Cursor__ask_cursor",
+      "mcp_Claude__request_dev_task",
+      "delegate_to_subagent",
+      "delegate_parallel",
+      "delegate_to_manus",
+      "delegate_to_github_agent",
+    ])
+      assertStrictEquals(isBlockedInWorkshop(name, true), true, name);
+  },
+);

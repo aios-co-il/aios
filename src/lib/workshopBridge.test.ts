@@ -32,6 +32,18 @@ test("an open project goes to Carmen with its id, a new board tells her to start
   expect(blank!.promptAddon).not.toMatch(/artifact_id/);
 });
 
+test("on a new board a question about Carmen is answered without a project", () => {
+  const blank = workshopRequestParts({
+    projectId: null,
+    title: null,
+    selectedArtifactId: null,
+  })!.promptAddon;
+  expect(blank).toMatch(/בקשת עבודה חדשה .*workshop_start_project/);
+  expect(blank).toMatch(
+    /שאלה עלייך או על המערכת מקבלת תשובה ישירה, בלי פרויקט/,
+  );
+});
+
 test("only well-formed workshop stream events reach the board", () => {
   expect(
     workshopEventFrom({

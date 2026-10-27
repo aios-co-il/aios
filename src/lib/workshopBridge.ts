@@ -72,7 +72,7 @@ export function workshopRequestParts(ctx: WorkshopContext | null) {
     "המשתמש בלוח הסדנה ורואה כל מה שאת מפיקה.",
     ctx.projectId
       ? `פרויקט פתוח: item_id=${ctx.projectId}${ctx.title ? ` (${ctx.title})` : ""}. עבדי עליו, ואל תפתחי פרויקט חדש אלא אם ביקשו.`
-      : "אין פרויקט פתוח. בקשה חדשה: workshop_start_project.",
+      : "אין פרויקט פתוח. בקשת עבודה חדשה (מודעה, סרטון, קופי...) פותחת פרויקט עם workshop_start_project. שאלה עלייך או על המערכת מקבלת תשובה ישירה, בלי פרויקט.",
   ];
   if (ctx.selectedArtifactId)
     lines.push(
