@@ -91,6 +91,11 @@
 --    panel and meeting summary dialog, which now record a report_deliveries
 --    row instead). Every system_send entry is written by these triggers, so
 --    nobody can forge one or claim its dedupe key ahead of the trigger.
+--    Because every reader of a client sees every entry on it, anyone but a
+--    super admin inserts only as themselves, in their own tenant, on a client
+--    they can see that their tenant may write: its own client, or an agency
+--    client it has read_write access to (record_client_card_entry's rule).
+--    A former or read-only agency partner cannot add an entry to the card.
 --
 -- 6. One chat row per Green API message. A Green API send stored by its
 --    sender with send_kind carmen or automation (trigger-automation, Carmen's
@@ -760,8 +765,12 @@ CREATE TRIGGER chat_messages_merge_green_api_send_echo
 -- the meeting summary dialog; both now record a report_deliveries row and the
 -- triggers above write the entry. A browser system_send row could only forge
 -- an entry or claim a trigger's dedupe key ahead of it.
--- Checks: human rows only, in the caller's tenant (any tenant for a super
--- admin).
+-- Checks: human rows only; a super admin anywhere; anyone else as themselves,
+-- in their own tenant, on a client they can see (the clients subquery runs
+-- under their own clients policies) that is their tenant's own or of an
+-- agency shared with it read_write. Same tenant rule as
+-- record_client_card_entry: the shared card shows this row to the client's
+-- org, so a tenant that may not write the card cannot put text on it.
 DROP POLICY IF EXISTS "Users can create client updates in their tenant" ON public.client_updates;
 CREATE POLICY "Users can create client updates in their tenant"
   ON public.client_updates
@@ -770,6 +779,25 @@ CREATE POLICY "Users can create client updates in their tenant"
     source = 'human'
     AND (
       public.is_super_admin(auth.uid())
-      OR tenant_id = public.get_user_tenant_id(auth.uid())
+      OR (
+        tenant_id = public.get_user_tenant_id(auth.uid())
+        AND user_id = auth.uid()
+        AND EXISTS (
+          SELECT 1
+          FROM public.clients AS c
+          WHERE c.id = client_updates.client_id
+            AND (
+              c.tenant_id = client_updates.tenant_id
+              OR EXISTS (
+                SELECT 1
+                FROM public.agency_tenant_access AS ata
+                WHERE ata.accessing_tenant_id = client_updates.tenant_id
+                  AND ata.source_tenant_id = c.tenant_id
+                  AND ata.agency_id = c.agency_id
+                  AND ata.access_level = 'read_write'
+              )
+            )
+        )
+      )
     )
   );

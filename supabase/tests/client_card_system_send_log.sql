@@ -35,6 +35,7 @@ DO $test$
 DECLARE
   v_tenant uuid;
   v_other_tenant uuid;
+  v_other_owner uuid;
   v_owner uuid;
   v_member uuid;
   v_super uuid;
@@ -100,21 +101,26 @@ BEGIN
     AND ur.tenant_id IS NULL
   LIMIT 1;
 
-  -- A second tenant with no agency access to or from the first one.
-  SELECT t.id INTO v_other_tenant
-  FROM public.tenants AS t
-  WHERE t.id <> v_tenant
+  -- A second tenant, with an owner (not a super admin) at home in it, and no
+  -- agency access to or from the first one.
+  SELECT ur.tenant_id, ur.user_id INTO v_other_tenant, v_other_owner
+  FROM public.user_roles AS ur
+  JOIN public.profiles AS p ON p.id = ur.user_id
+  WHERE ur.role = 'owner'::public.app_role
+    AND ur.tenant_id <> v_tenant
+    AND public.get_user_tenant_id(ur.user_id) = ur.tenant_id
+    AND NOT public.is_super_admin(ur.user_id)
     AND NOT EXISTS (
       SELECT 1
       FROM public.agency_tenant_access AS ata
-      WHERE (ata.accessing_tenant_id = t.id AND ata.source_tenant_id = v_tenant)
-        OR (ata.accessing_tenant_id = v_tenant AND ata.source_tenant_id = t.id)
+      WHERE (ata.accessing_tenant_id = ur.tenant_id AND ata.source_tenant_id = v_tenant)
+        OR (ata.accessing_tenant_id = v_tenant AND ata.source_tenant_id = ur.tenant_id)
     )
   LIMIT 1;
 
   IF v_owner IS NULL OR v_client_b IS NULL OR v_member IS NULL
-    OR v_super IS NULL OR v_other_tenant IS NULL THEN
-    RAISE EXCEPTION 'Requires an owner tenant with an agency client and a second client, another member, a super admin and a second tenant';
+    OR v_super IS NULL OR v_other_owner IS NULL THEN
+    RAISE EXCEPTION 'Requires an owner tenant with an agency client and a second client, another member, a super admin and a second tenant with its own owner';
   END IF;
 
   -- Grants: none of the new functions is callable through the API.
@@ -340,16 +346,23 @@ BEGIN
     RAISE EXCEPTION 'Echo then send left % rows or no single logged entry', v_count;
   END IF;
 
-  -- RLS: the browser inserts human rows only, super admins included.
+  -- RLS: the browser inserts human rows only, super admins included, and
+  -- anyone else only as themselves.
   PERFORM set_config('request.jwt.claims',
-    json_build_object('sub', v_member, 'role', 'authenticated')::text, true);
+    json_build_object('sub', v_owner, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
-  VALUES (v_client, v_tenant, v_member, v_tag || ' member human', 'human');
+  VALUES (v_client, v_tenant, v_owner, v_tag || ' owner human', 'human');
   BEGIN
     INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
-    VALUES (v_client, v_tenant, v_member, v_tag || ' member system', 'system_send');
-    RAISE EXCEPTION 'A member inserted a system_send row';
+    VALUES (v_client, v_tenant, v_owner, v_tag || ' owner system', 'system_send');
+    RAISE EXCEPTION 'An owner inserted a system_send row';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
+    VALUES (v_client, v_tenant, v_member, v_tag || ' owner as member', 'human');
+    RAISE EXCEPTION 'An owner inserted a row attributed to another person';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   RESET ROLE;
@@ -366,8 +379,52 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   RESET ROLE;
+
+  -- RLS on the shared card: another org writes a human row on the client only
+  -- with read_write agency access, never with read_only access or after the
+  -- access is revoked (the chat section above granted read_write).
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_other_owner, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source, update_type)
+  VALUES (v_client, v_other_tenant, v_other_owner, v_tag || ' read_write partner', 'human', 'call');
+  BEGIN
+    INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source, update_type)
+    VALUES (v_client, v_other_tenant, v_owner, v_tag || ' partner as owner', 'human', 'call');
+    RAISE EXCEPTION 'A partner inserted a row attributed to the client org''s person';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RESET ROLE;
+
+  UPDATE public.agency_tenant_access AS ata
+  SET access_level = 'read_only'
+  WHERE ata.accessing_tenant_id = v_other_tenant
+    AND ata.source_tenant_id = v_tenant
+    AND ata.agency_id = v_agency;
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source, update_type)
+    VALUES (v_client, v_other_tenant, v_other_owner, v_tag || ' read_only partner', 'human', 'call');
+    RAISE EXCEPTION 'A read_only agency partner inserted a row on the shared card';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RESET ROLE;
+
+  DELETE FROM public.agency_tenant_access AS ata
+  WHERE ata.accessing_tenant_id = v_other_tenant
+    AND ata.source_tenant_id = v_tenant
+    AND ata.agency_id = v_agency;
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source, update_type)
+    VALUES (v_client, v_other_tenant, v_other_owner, v_tag || ' revoked partner', 'human', 'call');
+    RAISE EXCEPTION 'A tenant whose access was revoked inserted a row on the client''s card';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RESET ROLE;
+
   PERFORM set_config('request.jwt.claims', '', true);
 END;
 $test$;
-SELECT 'Grants, switch, report deliveries, broadcast, chat counts, groups, browser tokens, Green API echo merge and insert RLS passed' AS result;
+SELECT 'Grants, switch, report deliveries, broadcast, chat counts, groups, browser tokens, Green API echo merge and insert RLS (author, read_write, read_only, revoked) passed' AS result;
 ROLLBACK;
