@@ -69,6 +69,7 @@ src/components/carmen-command/
 - **טבלאות:** `dev_tasks` + `dev_task_events` (מיגרציה `20260831170000`).
 - **API:** edge function `dev-task-center` (JWT).
 - **כלי כרמן:** `find_dev_task_duplicates`, `create_dev_task`, `approve_dev_task`, `dispatch_dev_task`, `list_dev_tasks`, `update_dev_task`, `attach_dev_task_session`.
+- **אישור (שרת):** `approve_dev_task` מצליח רק כשההודעה של המשתמש בתור הנוכחי היא אישור מפורש ("כן", "מאשר", "תשלחי לקרסר") והמשימה נפתחה בתור קודם (`_shared/dev-task-approval.ts`). `dispatchDevTask` שולח רק משימה בסטטוס `approved` עם `approved_by`; "שלח" על טיוטה ב-Command Center מאשר אותה בשם המשתמש המחובר.
 - **דדופ:** חיפוש כותרות דומות במשימות פתוחות לפני יצירה/שליחה.
 - **reconcile:** `dispatch_dev_task` בודק אוטומטית `cursor_dispatches` / `cursor_task_sessions` אחרי שגיאת כלי; אם `delivered=true` — לדווח נשלח. אחרת — `attach_dev_task_session` ידני.
 - **אין הגבלת מקביליות** — ניהול לפי עדיפות, סטטוס, דדופ וקישורים בלבד.

@@ -194,6 +194,10 @@ import {
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
 import {
+  devTaskApprovalDecision,
+  DevTaskNotApprovedError,
+} from "../_shared/dev-task-approval.ts";
+import {
   addGoalBlocker,
   addGoalMilestone,
   createUnifiedGoal,
@@ -5694,6 +5698,8 @@ async function executeTool(
   conversationId?: string | null,
   approval: {
     turnId?: string | null;
+    /** When the user's message of this turn arrived; a dev task must be older to be approved. */
+    turnStartedAt?: string | null;
     userText?: string | null;
     outOfBand?: boolean;
   } = {},
@@ -10709,6 +10715,24 @@ async function executeTool(
       return { task, possible_duplicates: duplicates.slice(0, 5) };
     }
     case "approve_dev_task": {
+      // The user's own yes, in a later message than the one that made the task, approves it.
+      const { data: pending } = await supabase
+        .from("dev_tasks")
+        .select("id, status, created_at")
+        .eq("id", String(args.dev_task_id))
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      const decision = devTaskApprovalDecision({
+        task: pending,
+        userText: approval.userText ?? null,
+        turnStartedAt: approval.turnStartedAt ?? null,
+        outOfBand: approval.outOfBand === true,
+      });
+      if (!decision.ok)
+        return {
+          error: `dev_task_approval_${decision.reason}`,
+          message: decision.message,
+        };
       const approverId =
         actorUserId ||
         (await resolveDevTaskActorUserId(supabase, {
@@ -10728,12 +10752,18 @@ async function executeTool(
       return { task };
     }
     case "dispatch_dev_task": {
-      const result = await dispatchDevTask(supabase, {
-        tenantId,
-        taskId: String(args.dev_task_id),
-        actorUserId,
-      });
-      return result;
+      // dispatchDevTask refuses a task that is not approved (status and approver).
+      try {
+        return await dispatchDevTask(supabase, {
+          tenantId,
+          taskId: String(args.dev_task_id),
+          actorUserId,
+        });
+      } catch (e) {
+        if (e instanceof DevTaskNotApprovedError)
+          return { error: e.code, message: e.message };
+        throw e;
+      }
     }
     case "list_dev_tasks": {
       let q = supabase
@@ -13858,6 +13888,7 @@ async function handleRunAgent(
     let serverConversationId: string | null = null;
     // A paid workshop confirm must arrive in a later user message than the quote it confirms.
     const turnId = crypto.randomUUID();
+    const turnStartedAt = new Date().toISOString();
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -14817,7 +14848,7 @@ async function handleRunAgent(
         "David is chatting from the persistent sidecar while viewing a live AIOS screen.\n" +
         "Use the screen context in system_prompt_addon / context_metadata to understand what he sees.\n" +
         "Respond normally. For dev/system/code work use the Dev Task Command Center workflow:\n" +
-        '1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) ask David for approval unless he said "תעבירי לפיתוח"/"שלחי לפיתוח" explicitly → 4) approve_dev_task + dispatch_dev_task.\n' +
+        "1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) tell David what the task is and ask to send it → 4) only after his explicit yes in a later message: approve_dev_task + dispatch_dev_task (the server refuses an approval in the turn that created the task).\n" +
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
         "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable.\n" +
         "Always include path + entity context in any dev task you create.\n" +
@@ -14832,10 +14863,10 @@ async function handleRunAgent(
       systemPrompt +=
         "\n\n📱 === משימות פיתוח מ-WhatsApp (מורשה) ===\n" +
         'כשמבקשים "תעבירי לפיתוח" / "שלחי לקרסר" / תיקון מערכת:\n' +
-        '1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אם הבקשה מפורשת ("שלחי"/"תעבירי") — approve_dev_task + dispatch_dev_task מיד.\n' +
-        "4) דווחי לפי delivered/userStatus + bc- URL. אם delivered=true — נשלח (גם עם dispatchToolError).\n" +
-        '5) אם timeout / delivery_unconfirmed / verificationFailed — אמרי שלא אומתה הגעה; אסור להגיד "קרסר לא קיבל". בדקי list_dev_tasks או attach_dev_task_session.\n' +
-        "אל תבקשי אישור נוסף כשהמשתמש כבר אמר לשלוח.";
+        "1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אמרי במשפט מה המשימה ולמי היא תישלח, ושאלי אם לשלוח → 4) אחרי 'כן' מפורש בהודעה הבאה — approve_dev_task + dispatch_dev_task. השרת לא מאשר באותה הודעה שבה נפתחה המשימה.\n" +
+        "5) דווחי לפי delivered/userStatus + bc- URL. אם delivered=true — נשלח (גם עם dispatchToolError).\n" +
+        '6) אם timeout / delivery_unconfirmed / verificationFailed — אמרי שלא אומתה הגעה; אסור להגיד "קרסר לא קיבל". בדקי list_dev_tasks או attach_dev_task_session.\n' +
+        "אחרי ה'כן' אל תבקשי אישור נוסף.";
     }
 
     // Voice capability (both prompt versions): answer from 🎤 / explicit failure markers.
@@ -15991,7 +16022,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
-              { turnId, userText: String(command_text ?? "") },
+              { turnId, turnStartedAt, userText: String(command_text ?? "") },
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);

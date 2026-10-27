@@ -159,6 +159,15 @@ serve(async (req) => {
     }
 
     if (action === "dispatch") {
+      // A signed-in user pressing "send" on a draft in the Command Center approves it.
+      const { data: current } = await supabase
+        .from("dev_tasks")
+        .select("status")
+        .eq("id", String(body.id))
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (current?.status === "draft" && userId)
+        await approveDevTask(supabase, tenantId, String(body.id), userId);
       const result = await dispatchDevTask(supabase, {
         tenantId,
         taskId: String(body.id),

@@ -5,6 +5,10 @@
 
 import { mcpRequestDevTask } from "./cursor-task-queue.ts";
 import {
+  DevTaskNotApprovedError,
+  dispatchRefusal,
+} from "./dev-task-approval.ts";
+import {
   trackCursorTaskSession,
   cursorSessionDisplayName,
 } from "./cursor-session-tracker.ts";
@@ -617,6 +621,13 @@ export async function dispatchDevTask(
   }
 
   const agent = String(task.assigned_agent || "cursor").toLowerCase();
+  // Only an approved task goes out; one Claude already has is reported, not sent again.
+  const withClaude =
+    agent === "claude" &&
+    !!task.cursor_session_url &&
+    task.status === "in_progress";
+  const refusal = withClaude ? null : dispatchRefusal(task);
+  if (refusal) throw new DevTaskNotApprovedError(refusal.message);
   if (agent === "claude") {
     return await dispatchDevTaskToClaude(supabase, task as DevTaskRow, args);
   }
