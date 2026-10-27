@@ -160,5 +160,3 @@ export async function refundMissing(
     // Keeping the reservation is the safe side of a refund that could not be written.
   }
 }
-
-/** Board pages for voice samples, and saving the chosen voice on the project. */

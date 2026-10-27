@@ -287,10 +287,6 @@ export function productionEstimate(
 }
 
 /**
- * The price to approve. The worker moves a clip that a paid engine refuses to OpenRouter when
- * the tenant has it (render-worker/src/clip-fallback.mjs), so the quote covers the dearer one.
- */
-/**
  * A talking scene on an engine that cannot speak goes through the worker's lip-sync chain, which
  * ends at OpenRouter Veo when the tenant has it (render-worker providers/lipsync.mjs): quote that.
  */
@@ -355,9 +351,11 @@ export function relipEstimate(
 }
 
 /**
- * The quote for the scenes produce_video animates, plus `relip`: talking scenes kept as they are
- * that only need a new voice line and lip sync (relipEstimate). The narration and music it makes
- * are priced for `options.film` when given (the workshop passes the whole storyboard).
+ * The price to approve: the scenes produce_video animates, plus `relip`, talking scenes kept as
+ * they are that only need a new voice line and lip sync (relipEstimate). The narration and music
+ * it makes are priced for `options.film` when given (the workshop passes the whole storyboard).
+ * The worker moves a clip that a paid engine refuses to OpenRouter when the tenant has it
+ * (render-worker/src/clip-fallback.mjs), so the quote covers the dearer one.
  */
 export function quotedProductionEstimate(
   engine: SceneEngine,
