@@ -86,7 +86,7 @@ import { SHARED_TABLE_DATE_FILTERS } from "@/lib/dashboardDateFilters";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
-import { getCurrencySymbol } from "@/lib/currency";
+import { formatUnitCost, getCurrencySymbol } from "@/lib/currency";
 import {
   ADS_ENTITY_LEVEL_LABELS,
   aggregateFacebookRecordsAtLevel,
@@ -277,6 +277,8 @@ export default function SharedTable() {
       makeFormatCurrency((data?.table?.integration_settings as any)?.currency),
     [data?.table?.integration_settings],
   );
+  const formatTableUnitCost = (num: number) =>
+    formatUnitCost(num, data?.table?.integration_settings?.currency);
 
   // Deterministic table mode based on integration type + campaign_type setting
   const tableCampaignType = String(
@@ -1258,6 +1260,7 @@ export default function SharedTable() {
               rows={campaignSummary.traffic}
               entityColumnLabel={campaignSummary.entityColumnLabel || "קמפיין"}
               formatCurrency={formatCurrency}
+              formatUnitCost={formatTableUnitCost}
               formatNumber={formatNumber}
             />
           )}

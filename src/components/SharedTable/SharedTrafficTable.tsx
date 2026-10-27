@@ -42,6 +42,11 @@ type Props = {
   rows: TrafficRow[];
   entityColumnLabel: string;
   formatCurrency: (value: number) => string;
+  /**
+   * Cost per click and per follower. Both are often under one currency unit,
+   * which the whole-unit `formatCurrency` would round to 0.
+   */
+  formatUnitCost: (value: number) => string;
   formatNumber: (value: number) => string;
   /** Card heading; the shared report's goal title unless a page names its own. */
   title?: ReactNode;
@@ -56,6 +61,7 @@ export function SharedTrafficTable({
   rows,
   entityColumnLabel,
   formatCurrency,
+  formatUnitCost,
   formatNumber,
   title = CAMPAIGN_GOAL_TITLES.traffic,
 }: Props) {
@@ -67,7 +73,7 @@ export function SharedTrafficTable({
       <TableCell>{formatNumber(metrics.clicks)}</TableCell>
       <TableCell>{ctr(metrics.clicks, metrics.impressions)}</TableCell>
       <TableCell>
-        {formatCurrency(
+        {formatUnitCost(
           metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0,
         )}
       </TableCell>
@@ -77,7 +83,7 @@ export function SharedTrafficTable({
             {formatFollowerCell(metrics.newFollowers, formatNumber)}
           </TableCell>
           <TableCell>
-            {formatFollowerCell(metrics.costPerFollower, formatCurrency)}
+            {formatFollowerCell(metrics.costPerFollower, formatUnitCost)}
           </TableCell>
         </>
       )}

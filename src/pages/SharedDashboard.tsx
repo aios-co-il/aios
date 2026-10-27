@@ -1846,6 +1846,7 @@ export default function SharedDashboard({
                   <FacebookDashboardTrafficCard
                     rows={facebookCampaignGroups.traffic}
                     formatCurrency={formatCurrency}
+                    formatUnitCost={formatUnitCost}
                     formatNumber={formatNumber}
                   />
                 )}

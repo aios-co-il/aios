@@ -4,6 +4,7 @@ import {
   aggregateFacebookCampaignsFromRecords,
   groupFacebookCampaigns,
 } from "@/lib/adsMetrics";
+import { formatCurrency, formatUnitCost } from "@/lib/currency";
 import { FacebookDashboardTrafficCard } from "./FacebookDashboardTrafficCard";
 
 const day = (campaign: string, data: Record<string, unknown>) => ({
@@ -29,15 +30,17 @@ function renderDashboardTraffic(
   render(
     <FacebookDashboardTrafficCard
       rows={traffic}
-      formatCurrency={(value) => `₪${value}`}
+      formatCurrency={(value) => formatCurrency(value, "ILS")}
+      formatUnitCost={(value) => formatUnitCost(value, "ILS")}
       formatNumber={(value) => String(value)}
     />,
   );
 }
 
+/** A row's cell texts, without the bidi marks and no-break space of he-IL. */
 const cells = (name: string) =>
-  [...(screen.getByText(name).closest("tr")?.children ?? [])].map(
-    (cell) => cell.textContent,
+  [...(screen.getByText(name).closest("tr")?.children ?? [])].map((cell) =>
+    cell.textContent?.replace(/\u200f/g, "").replace(/\u00a0/g, " "),
   );
 
 describe("FacebookDashboardTrafficCard", () => {
@@ -45,7 +48,7 @@ describe("FacebookDashboardTrafficCard", () => {
     renderDashboardTraffic([
       day("Profile", {
         destination_type: "INSTAGRAM_PROFILE",
-        spend: 120,
+        spend: 12,
         new_followers: 30,
       }),
       day("Blog", { destination_type: "WEBSITE", spend: 300 }),
@@ -57,8 +60,9 @@ describe("FacebookDashboardTrafficCard", () => {
         .map((cell) => cell.textContent)
         .slice(-2),
     ).toStrictEqual(["עוקבים חדשים", "עלות לעוקב"]);
-    expect(cells("Profile").slice(-2)).toStrictEqual(["30", "₪4"]);
-    expect(cells('סה"כ').slice(-2)).toStrictEqual(["30", "₪4"]);
+    // The dashboards' whole-unit currency would round ₪0.40 to "0 ₪".
+    expect(cells("Profile").slice(-2)).toStrictEqual(["30", "0.40 ₪"]);
+    expect(cells('סה"כ').slice(-2)).toStrictEqual(["30", "0.40 ₪"]);
   });
 
   it("website traffic keeps the click columns only", () => {

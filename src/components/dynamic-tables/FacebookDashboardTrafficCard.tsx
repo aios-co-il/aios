@@ -5,6 +5,7 @@ import type { FacebookCampaignRow } from "@/lib/adsMetrics";
 type Props = {
   rows: FacebookCampaignRow[];
   formatCurrency: (value: number) => string;
+  formatUnitCost: (value: number) => string;
   formatNumber: (value: number) => string;
 };
 
@@ -16,6 +17,7 @@ type Props = {
 export function FacebookDashboardTrafficCard({
   rows,
   formatCurrency,
+  formatUnitCost,
   formatNumber,
 }: Props) {
   return (
@@ -23,6 +25,7 @@ export function FacebookDashboardTrafficCard({
       rows={rows}
       entityColumnLabel="קמפיין"
       formatCurrency={formatCurrency}
+      formatUnitCost={formatUnitCost}
       formatNumber={formatNumber}
       title={
         <>

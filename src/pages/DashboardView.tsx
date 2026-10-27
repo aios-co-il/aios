@@ -2511,6 +2511,7 @@ export default function DashboardView() {
                       <FacebookDashboardTrafficCard
                         rows={facebookCampaignGroups.traffic}
                         formatCurrency={formatCurrency}
+                        formatUnitCost={formatUnitCost}
                         formatNumber={formatNumber}
                       />
                     )}
