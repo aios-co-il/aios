@@ -1,4 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import {
+  sendScheduledWhatsApp,
+  type WhatsAppSenderDetail,
+  workerWhatsAppDeps,
+} from "./whatsapp-channel.ts";
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
@@ -31,6 +37,11 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const admin = createClient(supabaseUrl, serviceRoleKey);
+  const whatsappDeps = workerWhatsAppDeps(
+    serviceClient(),
+    supabaseUrl,
+    serviceRoleKey,
+  );
   const staleLockCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   await admin
     .from("report_schedules")
@@ -112,43 +123,22 @@ Deno.serve(async (req) => {
       const message = `${schedule.message?.trim() || `הדוח החדש של ${clientName} מוכן לצפייה`}\n\n📊 ${shareUrl}`;
       const channels: string[] = schedule.channels || [];
 
+      let whatsappSender: WhatsAppSenderDetail | undefined;
       if (channels.includes("whatsapp")) {
-        try {
-          if (!schedule.created_by) throw new Error("Missing schedule owner");
-          const response = await fetch(
-            `${supabaseUrl}/functions/v1/send-green-api-message`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${serviceRoleKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                clientId: schedule.client_id,
-                tenantId: schedule.tenant_id,
-                groupId:
-                  schedule.whatsapp_group_id ||
-                  schedule.clients?.whatsapp_group_id,
-                phoneNumber: schedule.phone || schedule.clients?.phone,
-                message,
-                senderUserId: schedule.created_by,
-                // Logged on the client card once, from report_deliveries.
-                sendKind: "report",
-                sendRef: schedule.id,
-              }),
-            },
-          );
-          if (!response.ok) throw new Error(await response.text());
-          channelResults.whatsapp = { ok: true };
-        } catch (channelError) {
-          channelResults.whatsapp = {
-            ok: false,
-            error:
-              channelError instanceof Error
-                ? channelError.message
-                : String(channelError),
-          };
-        }
+        const whatsapp = await sendScheduledWhatsApp(
+          whatsappDeps,
+          schedule,
+          message,
+        ).catch((channelError) => ({
+          ok: false,
+          error:
+            channelError instanceof Error
+              ? channelError.message
+              : String(channelError),
+          sender: undefined,
+        }));
+        channelResults.whatsapp = { ok: whatsapp.ok, error: whatsapp.error };
+        whatsappSender = whatsapp.sender;
       }
 
       if (channels.includes("email")) {
@@ -204,7 +194,11 @@ Deno.serve(async (req) => {
         target_id: targetId,
         channels,
         status,
-        details: { share_url: shareUrl, channels: channelResults },
+        details: {
+          share_url: shareUrl,
+          channels: channelResults,
+          ...(whatsappSender ? { whatsapp_sender: whatsappSender } : {}),
+        },
       });
       await admin
         .from("report_schedules")

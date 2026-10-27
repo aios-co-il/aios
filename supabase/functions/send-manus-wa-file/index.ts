@@ -1,247 +1,126 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+// Sends an image or a document through the Manus WhatsApp gateway, to a
+// private chat or a group: report screenshots and documents from the browser
+// (multipart, AIO-255) and broadcast images (JSON with a URL).
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { sendKindColumns } from "../_shared/send-kind.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-const BASE_URL = "https://whatsappgw-pzpyrrww.manus.space";
-
-function toGatewayPhone(input: string, defaultCc = "972"): string {
-  let d = (input || "").replace(/[^0-9]/g, "");
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith(defaultCc)) return d;
-  if (d.startsWith("0")) return defaultCc + d.slice(1);
-  return defaultCc + d;
-}
+import {
+  internalError,
+  json,
+  preflight,
+} from "../_shared/telephony/response.ts";
+import {
+  deliverManusMedia,
+  type GatewayOutcome,
+  type MediaToSend,
+} from "./gateway.ts";
+import { prepareSend, type SendContext } from "./prepare.ts";
+import { uploadReportMedia } from "./upload.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
-    return new Response(null, { headers: corsHeaders });
-
+  if (req.method === "OPTIONS") {
+    return preflight();
+  }
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    const send = await prepareSend(req);
+    if (send instanceof Response) {
+      return send;
     }
-
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const token = authHeader.replace("Bearer ", "");
-    const isServiceRole = token === SERVICE_ROLE_KEY;
-
-    let userId = "";
-    if (!isServiceRole) {
-      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: authHeader } },
-        auth: { persistSession: false },
-      });
-      const {
-        data: { user },
-        error,
-      } = await userClient.auth.getUser(token);
-      if (error || !user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      userId = user.id;
-    }
-
-    const supabase = createClient(
-      SUPABASE_URL,
-      isServiceRole ? SERVICE_ROLE_KEY : SUPABASE_ANON_KEY,
-      isServiceRole
-        ? { auth: { persistSession: false } }
-        : {
-            global: { headers: { Authorization: authHeader } },
-            auth: { persistSession: false },
-          },
-    );
-
-    const body = await req.json();
-    const {
-      clientId,
-      leadId,
-      phoneNumber,
-      tenantId: providedTenantId,
-      integrationId,
-      fileUrl,
-      imageUrl,
-      mimeType,
-      filename,
-      caption,
-      senderUserId,
-      sendKind,
-      sendRef,
-    } = body;
-
-    if (isServiceRole && senderUserId) userId = senderUserId;
-
-    const urlToSend = imageUrl || fileUrl;
-    if (!urlToSend) {
-      return new Response(
-        JSON.stringify({ error: "Missing fileUrl or imageUrl" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Resolve tenant
-    let tenantId: string | undefined = providedTenantId;
-    if (!tenantId && clientId) {
-      const { data } = await supabase
-        .from("clients")
-        .select("tenant_id")
-        .eq("id", clientId)
-        .single();
-      tenantId = data?.tenant_id;
-    } else if (!tenantId && leadId) {
-      const { data } = await supabase
-        .from("leads")
-        .select("tenant_id")
-        .eq("id", leadId)
-        .single();
-      tenantId = data?.tenant_id;
-    }
-    if (!tenantId && userId) {
-      const { data } = await supabase
-        .from("user_active_tenant")
-        .select("tenant_id")
-        .eq("user_id", userId)
-        .single();
-      tenantId = data?.tenant_id;
-    }
-    if (!tenantId) {
-      return new Response(JSON.stringify({ error: "Tenant not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let integ: any = null;
-    if (integrationId) {
-      const { data } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      integ = data;
-    } else {
-      const { data } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .eq("integration_type", "manus_wa")
-        .eq("is_active", true)
-        .order("created_at", { ascending: true })
-        .limit(1);
-      integ = data?.[0] || null;
-    }
-
-    if (!integ?.api_key || !(integ?.settings as any)?.instance_id) {
-      return new Response(
-        JSON.stringify({ error: "Manus WhatsApp not configured" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const settings = integ.settings as any;
-    const instanceId = settings.instance_id;
-    const apiKey = integ.api_key;
-    const cc = (settings.country_code || "972").toString();
-    const phone = toGatewayPhone(
-      String(phoneNumber || ""),
-      /^\d{1,3}$/.test(cc) ? cc : "972",
-    );
-
-    // Choose endpoint: image if imageUrl provided or mimeType starts with image/
-    const isImage = !!imageUrl || (mimeType || "").startsWith("image/");
-    const endpoint = isImage ? "send/image" : "send/file";
-    const url = `${BASE_URL}/api/v1/instances/${instanceId}/${endpoint}`;
-
-    const payload: Record<string, unknown> = {
-      to: phone,
-      caption: caption || undefined,
-      filename: filename || undefined,
-    };
-    if (isImage) payload.imageUrl = urlToSend;
-    else {
-      payload.fileUrl = urlToSend;
-      payload.mimeType = mimeType || "application/octet-stream";
-    }
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const media = await mediaToSend(send);
+    const outcome = await deliverManusMedia(fetch, {
+      instanceId: lineSetting(send.line.settings, "instance_id") ?? "",
+      apiKey: send.line.api_key ?? "",
+      to: send.target.to,
+      isGroup: send.target.isGroup,
+      media,
+      caption: send.request.caption,
+      captionFallback: send.request.captionFallback,
     });
-    const respText = await res.text();
-    let respData: any;
-    try {
-      respData = JSON.parse(respText);
-    } catch {
-      respData = { raw: respText };
+    if (outcome.status !== "sent") {
+      return notSentResponse(outcome);
     }
-    if (!res.ok || respData?.success === false) {
-      throw new Error(
-        `Manus WA error [${res.status}]: ${JSON.stringify(respData)}`,
-      );
-    }
-
-    const messageText =
-      caption || (isImage ? "[תמונה]" : `[קובץ: ${filename || "file"}]`);
-    await supabase.from("chat_messages").insert({
-      client_id: clientId || null,
-      lead_id: leadId || null,
-      tenant_id: tenantId,
-      connection_user_id: integ.user_id || userId,
-      message_text: messageText,
-      direction: "outbound",
-      channel: "whatsapp",
-      provider: "manus_wa",
-      sent_by_user_id: userId,
-      raw_provider_data: {
-        ...respData,
-        fileUrl: urlToSend,
-        mimeType,
-        filename,
-        isImage,
-      },
-      sender_phone: phone,
-      // What kind of system send this is (client card auto-log, AIO-242).
-      ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
+    await recordSend(send, media, outcome);
+    return json({
+      success: true,
+      messageId: outcome.messageId,
+      delivered_as: outcome.deliveredAs,
     });
-
-    return new Response(
-      JSON.stringify({ success: true, messageId: respData.messageId }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    console.error("send-manus-wa-file error:", msg);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (error) {
+    return internalError("send-manus-wa-file", error);
   }
 });
+
+/** The media URL the gateway fetches; an uploaded file gets a signed URL. */
+async function mediaToSend(send: SendContext): Promise<MediaToSend> {
+  const { media } = send.request;
+  if (media.kind === "url") {
+    return media;
+  }
+  return {
+    url: await uploadReportMedia(send.admin, send.tenantId, media.file),
+    isImage: media.isImage,
+    mimeType: media.file.type || "application/octet-stream",
+    filename: media.file.name || null,
+  };
+}
+
+/**
+ * 202 when delivery is unknown (a timeout): the file may have arrived, so the
+ * caller must not retry. 502 when the gateway refused or failed.
+ */
+function notSentResponse(
+  outcome: Exclude<GatewayOutcome, { status: "sent" }>,
+): Response {
+  if (outcome.status === "unknown") {
+    return json(
+      {
+        success: false,
+        delivered: "unknown",
+        error:
+          "Manus gateway did not answer in time; the file may have been delivered. Not retried.",
+      },
+      202,
+    );
+  }
+  console.error("[send-manus-wa-file] gateway", outcome.status, outcome.detail);
+  return json({ error: `Manus WA error ${outcome.detail}` }, 502);
+}
+
+/** Stores the send on the chat, stamped with its kind (client card, AIO-242). */
+async function recordSend(
+  send: SendContext,
+  media: MediaToSend,
+  outcome: Extract<GatewayOutcome, { status: "sent" }>,
+): Promise<void> {
+  const { request, isServiceRole, target } = send;
+  const { sendKind, sendRef } = request;
+  const label = media.isImage
+    ? "[תמונה]"
+    : `[קובץ: ${media.filename || "file"}]`;
+  const { error } = await send.admin.from("chat_messages").insert({
+    client_id: request.clientId,
+    lead_id: request.leadId,
+    group_id: target.isGroup ? request.groupId : null,
+    tenant_id: send.tenantId,
+    connection_user_id: send.line.user_id || send.userId,
+    integration_id: send.line.id,
+    message_text: request.caption || label,
+    direction: "outbound",
+    channel: "whatsapp",
+    provider: "manus_wa",
+    sent_by_user_id: send.userId,
+    raw_provider_data: {
+      messageId: outcome.messageId,
+      delivered_as: outcome.deliveredAs,
+      // A signed upload URL expires and is not kept; a broadcast's URL is.
+      fileUrl: request.media.kind === "url" ? media.url : null,
+      mimeType: media.mimeType,
+      filename: media.filename,
+      isImage: media.isImage,
+    },
+    sender_phone: target.isGroup ? null : target.to,
+    ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
+  });
+  if (error) {
+    console.error("[send-manus-wa-file] chat_messages insert failed", error);
+  }
+}

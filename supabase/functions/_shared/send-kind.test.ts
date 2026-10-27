@@ -165,7 +165,7 @@ Deno.test(
       );
       assertMatch(
         src,
-        /\bsendKind,\s+sendRef,/,
+        /\bsendKind,\s+sendRef\b/,
         `${fn} reads sendKind/sendRef`,
       );
       assertMatch(
@@ -189,7 +189,7 @@ Deno.test(
 Deno.test("server callers name their kind", () => {
   const stamps: Array<[string, RegExp]> = [
     [
-      "supabase/functions/scheduled-report-worker/index.ts",
+      "supabase/functions/scheduled-report-worker/whatsapp-channel.ts",
       /sendKind: "report"/,
     ],
     [
@@ -619,7 +619,8 @@ Deno.test(
       assert(USER_SEND_KINDS.includes(kind), kind);
     }
     // ... every report sender stamps that kind on each WhatsApp send, records a
-    // delivery and writes no client_updates row of its own.
+    // delivery and writes no client_updates row of its own. Each send goes
+    // through sendReportWhatsApp (AIO-255), never a direct function call.
     const senders: Array<[string, string]> = [
       ["src/components/clients/ClientReportPanel.tsx", "report"],
       ["src/components/dynamic-tables/SendReportDialog.tsx", "report"],
@@ -630,21 +631,33 @@ Deno.test(
       const src = repoFile(path);
       assertNotMatch(src, /from\("client_updates"\)/, path);
       assertMatch(src, /from\("report_deliveries"\)/, path);
-      const stamps = [
-        ...src.matchAll(
-          /append\("sendKind", "([a-z_]+)"\)|sendKind: "([a-z_]+)"/g,
-        ),
-      ].map((m) => m[1] || m[2]);
+      assertNotMatch(
+        src,
+        /functions\/v1\/send-(?:green-api|manus-wa)/,
+        `${path}: no direct WhatsApp send`,
+      );
+      const stamps = [...src.matchAll(/sendKind: "([a-z_]+)"/g)].map(
+        (m) => m[1],
+      );
       assert(stamps.length > 0, path);
       for (const stamp of stamps) assertStrictEquals(stamp, kind, path);
-      const waSends =
-        src.match(/functions\/v1\/send-green-api-(?:file|message)/g) ?? [];
+      const waSends = src.match(/await sendReportWhatsApp\(\{/g) ?? [];
       assertStrictEquals(
         stamps.length,
         waSends.length,
         `${path}: every WhatsApp send is stamped`,
       );
     }
+    // The helper forwards the kind and reference on both body shapes.
+    const helper = repoFile(
+      "src/components/report-sender/sendReportWhatsApp.ts",
+    );
+    assertMatch(helper, /form\.append\("sendKind", input\.sendKind\);/);
+    assertMatch(helper, /form\.append\("sendRef", input\.sendRef\);/);
+    assertMatch(
+      helper,
+      /sendKind: input\.sendKind,\s+sendRef: input\.sendRef,/,
+    );
     const worker = repoFile(
       "supabase/functions/scheduled-report-worker/index.ts",
     );
