@@ -492,7 +492,8 @@ async function dispatchDevTaskToClaude(
   task: DevTaskRow,
   args: { tenantId: string; taskId: string; actorUserId?: string | null },
 ): Promise<DispatchDevTaskResult> {
-  if (task.cursor_session_url && task.status === "in_progress") {
+  // A task Claude already has a session for is reported, never sent again (whatever its status).
+  if (task.cursor_session_url) {
     const sessionUrl = String(task.cursor_session_url);
     return {
       task,
@@ -622,10 +623,7 @@ export async function dispatchDevTask(
 
   const agent = String(task.assigned_agent || "cursor").toLowerCase();
   // Only an approved task goes out; one Claude already has is reported, not sent again.
-  const withClaude =
-    agent === "claude" &&
-    !!task.cursor_session_url &&
-    task.status === "in_progress";
+  const withClaude = agent === "claude" && !!task.cursor_session_url;
   const refusal = withClaude ? null : dispatchRefusal(task);
   if (refusal) throw new DevTaskNotApprovedError(refusal.message);
   if (agent === "claude") {

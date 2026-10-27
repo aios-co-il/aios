@@ -113,6 +113,8 @@ export function isDevEscalationTool(toolName) {
     return true;
   }
   if (n === "delegate_to_github_agent") return true;
+  // Hands a CRM task to Cursor and runs dispatch-cursor-tasks at once.
+  if (n === "assign_task_to_cursor") return true;
   if (NATIVE_DEV_TASK_TOOL_SET.has(n)) return true;
   // Defensive: unprefixed remote names if ever executed without mcp_ prefix.
   if (/^(request_dev_task|ask_cursor|ask_claude|ask_manus|ask_grok)$/i.test(n))
@@ -212,13 +214,17 @@ export function buildDevEscalationPromptRule(tier) {
   if (tier === "full") {
     return (
       "\n\n🛠️ **תיקוני מערכת (מורשה — דיוויד):** המשתמש הנוכחי מורשה לבקש תיקוני מערכת / משימות פיתוח. " +
-      "מותר להשתמש ב-mcp_Cursor__* / mcp_Claude__* / mcp_Manus__* / mcp_Grok__* / delegate_to_github_agent כשצריך."
+      "מותר להשתמש ב-mcp_Cursor__* / mcp_Claude__* / mcp_Manus__* / mcp_Grok__* / delegate_to_github_agent כשצריך. " +
+      "שליחת משימה ל-Cursor או ל-Claude: create_dev_task, שאלה אם לשלוח, ורק אחרי 'כן' בהודעה הבאה approve_dev_task + dispatch_dev_task."
     );
   }
   if (tier === "bugfix") {
     return (
       "\n\n🐛 **תיקוני באגים (מורשה — אנה):** המשתמש הנוכחי מורשה לשלוח **תיקוני באגים בלבד** ל-Cursor " +
-      "דרך `mcp_Cursor__request_dev_task`. לפני השליחה: ודאי שיש באג ברור, צעדי שחזור, התנהגות צפויה מול בפועל, " +
+      "דרך משימת פיתוח: create_dev_task עם assigned_agent=cursor, ספרי במשפט מה תשלחי ושאלי אם לשלוח; " +
+      "רק אחרי 'כן' שלה בהודעה הבאה — approve_dev_task ואז dispatch_dev_task " +
+      "(`mcp_Cursor__request_dev_task` רק אם משימות הפיתוח לא זמינות, וגם אז רק אחרי ה'כן'). " +
+      "לפני השליחה: ודאי שיש באג ברור, צעדי שחזור, התנהגות צפויה מול בפועל, " +
       "ולקוח/מסך רלוונטי. אסור: פיצ'רים חדשים, שינויי הרשאות/roles, שינויי סכמת DB, שינויי קונפיג רחבים, " +
       "או ask_cursor / Claude / Manus / Grok / delegate_to_github_agent. " +
       "ב-task/context צייני במפורש: «Requested by Ana — BUG FIX ONLY» + צעדי שחזור. " +

@@ -110,8 +110,9 @@ export function CarmenSidecar({
             contextBlock,
             "",
             devTier === "bugfix"
-              ? "Use mcp_Cursor__request_dev_task only — BUG FIX with repro steps."
-              : "Use mcp_Cursor__request_dev_task for code/system fixes on develop branch.",
+              ? "Open a Cursor dev task (create_dev_task, assigned_agent cursor) — BUG FIX with repro steps."
+              : "Open a dev task (create_dev_task) for code/system fixes on develop branch.",
+            "Tell me what it is and ask to send it; send (approve_dev_task + dispatch_dev_task) only after my yes in the next message.",
           ].join("\n")
         : [
             trimmed,

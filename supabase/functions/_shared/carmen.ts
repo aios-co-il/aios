@@ -1060,6 +1060,8 @@ export async function runCarmenAI(
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
   automationCtx?: CarmenAutomationContext | null,
+  /** The sender's own words, before the group, identity and isolation notes. */
+  rawUserText?: string | null,
 ): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -1088,6 +1090,8 @@ export async function runCarmenAI(
   const body = JSON.stringify({
     agent_id: agentId,
     command_text: userMessage,
+    // A "כן" to a dev task is read from the raw message: the notes above make it long.
+    ...(rawUserText ? { user_text: rawUserText } : {}),
     conversation_history: cleanHistory,
     tenant_id: tenantId,
     user_name: senderName || "WhatsApp",
@@ -2205,6 +2209,7 @@ export async function handleCarmenMessage(
         // Only the automation that routes this session may contribute
         // instructions — never another automation's.
         routingAutomationId === earlyAutomation?.id ? automationCtx : null,
+        messageText,
       );
     } catch (err) {
       // AI failed twice (with retry). Stay silent — don't send "מצטערת..." to the user.
@@ -2519,6 +2524,7 @@ export async function handleCarmenMessage(
       senderName,
       waNotify,
       automationCtx,
+      contentAfterKeyword,
     );
 
     if (carmenResponse.includes(DUAL_CARMEN_SKIP)) {

@@ -197,6 +197,10 @@ import {
 import {
   devTaskApprovalDecision,
   DevTaskNotApprovedError,
+  devTaskUpdatePatch,
+  directDevSendRefusal,
+  isExplicitDevTaskApproval,
+  pickOfferedDevTask,
 } from "../_shared/dev-task-approval.ts";
 import {
   carmenSkinEntries,
@@ -10700,6 +10704,15 @@ async function executeTool(
         requested_by: args.requested_by,
       };
       if (!brief.title) throw new Error("title required");
+      // A bug-fix caller (Ana) opens Cursor bug fixes only.
+      if (
+        devEscalationTier === "bugfix" &&
+        String(args.assigned_agent || "cursor").toLowerCase() !== "cursor"
+      )
+        return {
+          error: "dev_escalation_forbidden",
+          message: DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE,
+        };
       const devActorId =
         actorUserId ||
         (await resolveDevTaskActorUserId(supabase, {
@@ -10733,21 +10746,10 @@ async function executeTool(
       // The user's own yes, in a later message than the one that made the task, approves it.
       const { data: pending } = await supabase
         .from("dev_tasks")
-        .select("id, status, created_at")
+        .select("id, status, created_at, assigned_agent, requested_by_user_id")
         .eq("id", String(args.dev_task_id))
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      const decision = devTaskApprovalDecision({
-        task: pending,
-        userText: approval.userText ?? null,
-        turnStartedAt: approval.turnStartedAt ?? null,
-        outOfBand: approval.outOfBand === true,
-      });
-      if (!decision.ok)
-        return {
-          error: `dev_task_approval_${decision.reason}`,
-          message: decision.message,
-        };
       const approverId =
         actorUserId ||
         (await resolveDevTaskActorUserId(supabase, {
@@ -10757,6 +10759,18 @@ async function executeTool(
           phone: callerPhone || null,
           devEscalationTier,
         }));
+      const decision = devTaskApprovalDecision({
+        task: pending,
+        userText: approval.userText ?? null,
+        turnStartedAt: approval.turnStartedAt ?? null,
+        outOfBand: approval.outOfBand === true,
+        approver: { id: approverId, tier: devEscalationTier },
+      });
+      if (!decision.ok)
+        return {
+          error: `dev_task_approval_${decision.reason}`,
+          message: decision.message,
+        };
       if (!approverId) throw new Error("user auth required");
       const task = await approveDevTask(
         supabase,
@@ -10795,19 +10809,23 @@ async function executeTool(
     }
     case "update_dev_task": {
       const id = String(args.dev_task_id || "");
-      const patch: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      for (const key of [
+      // Approval is never set here, and an edit to what will be sent asks for a new yes.
+      const { data: current } = await supabase
+        .from("dev_tasks")
+        .select("status")
+        .eq("id", id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      const update = devTaskUpdatePatch(current, args, [
         "pr_url",
         "status",
         "priority",
         "problem",
         "acceptance_criteria",
         "title",
-      ]) {
-        if (args[key] !== undefined) patch[key] = args[key];
-      }
+      ]);
+      if (!update.ok) return { error: update.error, message: update.message };
+      const patch = update.patch;
       const { data, error } = await supabase
         .from("dev_tasks")
         .update(patch)
@@ -13928,6 +13946,13 @@ async function handleRunAgent(
     // A paid workshop confirm must arrive in a later user message than the quote it confirms.
     const turnId = crypto.randomUUID();
     const turnStartedAt = new Date().toISOString();
+    // What the user typed this turn. WhatsApp appends group, identity and isolation notes to
+    // command_text and sends the raw message as user_text (service calls only), so a "כן" stays
+    // a "כן" for the dev-task approval gate.
+    const approvalUserText =
+      typeof bodyJson.user_text === "string" && bodyJson.user_text.trim()
+        ? bodyJson.user_text
+        : String(command_text ?? "");
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -14889,7 +14914,7 @@ async function handleRunAgent(
         "Respond normally. For dev/system/code work use the Dev Task Command Center workflow:\n" +
         "1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) tell David what the task is and ask to send it → 4) only after his explicit yes in a later message: approve_dev_task + dispatch_dev_task (the server refuses an approval in the turn that created the task).\n" +
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
-        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable.\n" +
+        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his explicit yes in a later message (the server refuses it otherwise).\n" +
         "Always include path + entity context in any dev task you create.\n" +
         `context_metadata: ${JSON.stringify(ctxMeta).slice(0, 4000)}`;
     }
@@ -15426,13 +15451,48 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
+    // A yes to the dev task Carmen offered in this conversation a moment ago approves that
+    // task; it is not a yes to the newest row of the approvals queue below.
+    let offeredDevTask: {
+      id: string;
+      title?: string | null;
+      assigned_agent?: string | null;
+    } | null = null;
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      !inWorkshopRequest &&
+      canEscalateDevFixes &&
+      isExplicitDevTaskApproval(approvalUserText)
+    ) {
+      const since = new Date(
+        Date.parse(turnStartedAt) - 30 * 60 * 1000,
+      ).toISOString();
+      const { data: drafts } = await supabase
+        .from("dev_tasks")
+        .select(
+          "id, title, status, assigned_agent, created_at, source_conversation_id, requested_by_user_id",
+        )
+        .eq("tenant_id", resolvedTenantId)
+        .eq("status", "draft")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      offeredDevTask = pickOfferedDevTask(drafts || [], {
+        conversationId: serverConversationId,
+        userId: callerUserId || asUuidOrNull(resolvedUserId),
+        turnStartedAt,
+      });
+      if (offeredDevTask)
+        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת: "${String(offeredDevTask.title || "").slice(0, 120)}" (dev_task_id=${offeredDevTask.id}, ל-${offeredDevTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח. זה לא אישור לפעולה אחרת שמחכה בתור.`;
+    }
+
     // ─── WhatsApp Meta approval flow (smooth confirm → execute) ───
     // When the user explicitly confirms ("כן" / "מאשר" / …), resolve the latest
     // pending approval and either (a) execute it deterministically for short
     // confirms, or (b) inject a hard prompt so the model must call execute_pending_approval.
-    const userSaidApprove = isExplicitApprovalPhrase(
-      String(command_text || ""),
-    );
+    const userSaidApprove =
+      !offeredDevTask && isExplicitApprovalPhrase(String(command_text || ""));
     const userSaidReject = isExplicitRejectionPhrase(
       String(command_text || ""),
     );
@@ -16050,6 +16110,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
+          } else if (directDevSendRefusal(toolName, approvalUserText)) {
+            // Straight to Cursor or Claude only after the user's own yes in this message.
+            result = directDevSendRefusal(toolName, approvalUserText);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {
@@ -16068,7 +16131,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
-              { turnId, turnStartedAt, userText: String(command_text ?? "") },
+              { turnId, turnStartedAt, userText: approvalUserText },
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);
@@ -16561,6 +16624,8 @@ Deno.serve(async (req) => {
     delete bodyJson.model_override;
     // Per-automation Carmen instructions are admin config: service-to-service only.
     delete bodyJson.carmen_automation;
+    // The user's own words apart from the notes a webhook adds (approvals read them).
+    delete bodyJson.user_text;
   }
 
   if (bodyJson.direct_tool) {

@@ -127,6 +127,11 @@ Deno.test("isDevEscalationTool covers MCP + github agent", () => {
   assertStrictEquals(isDevEscalationTool("delegate_to_github_agent"), true);
   assertStrictEquals(isDevEscalationTool("request_dev_task"), true);
   assertStrictEquals(isDevEscalationTool("ask_grok"), true);
+  assertStrictEquals(isDevEscalationTool("assign_task_to_cursor"), true);
+  assertStrictEquals(
+    isDevEscalationToolAllowed("assign_task_to_cursor", "bugfix"),
+    false,
+  );
 
   assertStrictEquals(isDevEscalationTool("list_clients"), false);
   assertStrictEquals(isDevEscalationTool("toggle_facebook_campaign"), false);
@@ -160,7 +165,8 @@ Deno.test(
 Deno.test("prompt rules differ by tier", () => {
   assertMatch(buildDevEscalationPromptRule("full"), /דיוויד/);
   assertMatch(buildDevEscalationPromptRule("bugfix"), /אנה/);
-  assertMatch(buildDevEscalationPromptRule("bugfix"), /request_dev_task/);
+  assertMatch(buildDevEscalationPromptRule("bugfix"), /create_dev_task/);
+  assertMatch(buildDevEscalationPromptRule("bugfix"), /בהודעה הבאה/);
   assertMatch(buildDevEscalationPromptRule(null), /חסום/);
   assertMatch(DEV_ESCALATION_REFUSAL_HE, /דיוויד/);
   assertMatch(DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE, /באג/);

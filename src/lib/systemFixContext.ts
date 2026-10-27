@@ -76,7 +76,7 @@ export function systemFixPromptAddon(meta: SystemFixContextMetadata): string {
   lines.push(
     "",
     "David is viewing this screen and may ask for fixes, corrections, or dev work on what he sees.",
-    "Answer normally. Route to Cursor (mcp_Cursor__request_dev_task) ONLY when David explicitly asks — e.g. 'שלחי לפיתוח', 'תריצי דרך קרסר', 'פתחי משימת פיתוח'.",
+    "Answer normally. Open a dev task for Cursor ONLY when David explicitly asks — e.g. 'שלחי לפיתוח', 'תריצי דרך קרסר', 'פתחי משימת פיתוח': create_dev_task, say what it is and ask to send; only after his yes in a later message approve_dev_task + dispatch_dev_task.",
     "Include this screen context in any dev task you dispatch.",
   );
   return lines.join("\n");
