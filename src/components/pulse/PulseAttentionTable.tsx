@@ -9,16 +9,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatPulseMoney } from "@/lib/pulseDashboard";
 import type {
   PulseAttentionIssue,
   PulseAttentionRow,
 } from "@/lib/pulseAttentionMatrix";
 import type { PulseCampaignGoal } from "@/lib/pulseCampaignGoals";
 import { formatPulseTargetValue } from "@/components/pulse/formatPulseTargetValue";
+import { pulsePlatformName } from "../../../supabase/functions/_shared/pulse/platforms.ts";
 import {
   pulseTargetKindLabel,
+  pulseTargetKindsForGoal,
   pulseTargetSourceLabel,
+  type PulseTargetKind,
 } from "../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 type PulseAttentionTableProps = {
@@ -28,14 +30,10 @@ type PulseAttentionTableProps = {
   onEditTargets: (row: PulseAttentionRow) => void;
 };
 
-const platformLabel = (platform: PulseAttentionRow["platform"]) =>
-  platform === "meta" ? "Meta" : "Google Ads";
-
-const targetKindLabel = (goal: PulseCampaignGoal) => {
-  if (goal === "ecommerce") return "ROAS";
-  if (goal === "engagement") return "עלות לתוצאה";
-  return "CPL";
-};
+/** The kind a platform is measured on without a target: its goal's default, CPL for an unknown goal. */
+function goalKind(goal: PulseCampaignGoal): PulseTargetKind {
+  return pulseTargetKindsForGoal(goal)[0] ?? "cpl";
+}
 
 function IssueCell({ issue }: { issue: PulseAttentionIssue | null }) {
   if (!issue) {
@@ -55,15 +53,6 @@ function IssueCell({ issue }: { issue: PulseAttentionIssue | null }) {
       {issue.label}
     </Badge>
   );
-}
-
-function formatTargetValue(
-  goal: PulseCampaignGoal,
-  value: number | null | undefined,
-) {
-  if (value === null || value === undefined) return "—";
-  if (goal === "ecommerce") return value.toFixed(2);
-  return formatPulseMoney(value);
 }
 
 export function PulseAttentionTable({
@@ -141,7 +130,7 @@ export function PulseAttentionTable({
                           <circle cx="6" cy="18" r="3.5" fill="#34A853" />
                         </svg>
                       )}
-                      <span>{platformLabel(row.platform)}</span>
+                      <span>{pulsePlatformName(row.platform)}</span>
                     </div>
                   </TableCell>
                   <TableCell className="align-top">
@@ -162,12 +151,12 @@ export function PulseAttentionTable({
                           </Badge>
                         ) : null}
                         <div className="text-[11px] text-muted-foreground">
-                          {row.target
-                            ? pulseTargetKindLabel(row.target.kind)
-                            : targetKindLabel(row.primaryGoal)}
+                          {pulseTargetKindLabel(
+                            row.target?.kind ?? goalKind(row.primaryGoal),
+                          )}
                           {row.currentEfficiency !== null &&
                           row.target?.kind !== "cpa"
-                            ? ` · נוכחי ${formatTargetValue(row.primaryGoal, row.currentEfficiency)}`
+                            ? ` · נוכחי ${formatPulseTargetValue(goalKind(row.primaryGoal), row.currentEfficiency)}`
                             : ""}
                         </div>
                       </div>

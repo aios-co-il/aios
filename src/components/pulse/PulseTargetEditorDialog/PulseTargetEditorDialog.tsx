@@ -12,7 +12,7 @@ import type {
   PulseCampaignGoal,
   PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
-import type { PulseTargetSaveInput } from "@/lib/pulseTargetSave";
+import type { PulseTargetSaveInput } from "@/components/pulse/pulseTargetSave";
 import {
   pulsePlatformName,
   type PulsePlatform,

@@ -2,7 +2,7 @@ import { goalLabel } from "@/lib/pulseDashboard";
 import {
   pulseTargetSaveKey,
   type PulseTargetSaveInput,
-} from "@/lib/pulseTargetSave";
+} from "@/components/pulse/pulseTargetSave";
 import { formatPulseTargetValue } from "@/components/pulse/formatPulseTargetValue";
 import { pulsePlatformName } from "../../../../supabase/functions/_shared/pulse/platforms.ts";
 import {

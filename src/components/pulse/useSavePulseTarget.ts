@@ -5,33 +5,40 @@ import {
   pulseTargetSaveKey,
   savePulseTargetToTables,
   type PulseTargetSaveInput,
-} from "@/lib/pulseTargetSave";
+} from "./pulseTargetSave";
 
 /**
  * Saves an approved target (platform or one campaign) on the tenant's report
- * tables, then refreshes the pulse tables and records. `savingKey` is the
- * pulseTargetSaveKey of the row being saved, for its spinner.
+ * tables, then refreshes the pulse tables and records, after a failed save too,
+ * so the editor shows what is stored. `savingKey` is the pulseTargetSaveKey of
+ * the row being saved, for its spinner.
  */
 export function useSavePulseTarget(tenantId: string | null | undefined) {
   const queryClient = useQueryClient();
+  const refreshPulseTables = async () => {
+    // The records query is keyed by the table ids, so the tables come first.
+    await queryClient.invalidateQueries({ queryKey: ["pulse-dash-tables"] });
+    void queryClient.invalidateQueries({ queryKey: ["pulse-dash-records"] });
+  };
   const mutation = useMutation({
     mutationFn: async (input: PulseTargetSaveInput) => {
       if (!tenantId) {
         throw new Error("שמירת היעד נכשלה");
       }
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      await savePulseTargetToTables(input, tenantId, user?.id ?? null);
+      // set_by records who approved the target, so a failed lookup stops the save.
+      const { data, error } = await supabase.auth.getUser();
+      if (error) {
+        throw error;
+      }
+      await savePulseTargetToTables(input, tenantId, data.user.id);
     },
     onSuccess: async (_saved, input) => {
       toast.success(input.value === null ? "היעד הוסר" : "היעד נשמר");
-      // The records query is keyed by the table ids, so the tables come first.
-      await queryClient.invalidateQueries({ queryKey: ["pulse-dash-tables"] });
-      void queryClient.invalidateQueries({ queryKey: ["pulse-dash-records"] });
+      await refreshPulseTables();
     },
-    onError: (error) => {
+    onError: async (error) => {
       toast.error(error?.message ?? "שמירת היעד נכשלה");
+      await refreshPulseTables();
     },
   });
   return {

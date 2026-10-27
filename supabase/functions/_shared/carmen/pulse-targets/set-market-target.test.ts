@@ -123,7 +123,7 @@ Deno.test(
     });
     assertStrictEquals(at(result, "success"), false);
     assertStrictEquals(at(result, "error"), "crm_tables update failed");
-    assertEquals(at(result, "written_before_error"), []);
+    assertEquals(at(result, "still_written"), []);
   },
 );
 
@@ -141,6 +141,29 @@ Deno.test(
     });
     assertStrictEquals(at(result, "success"), false);
     assertStrictEquals(at(result, "error"), TABLE_NOT_WRITTEN);
-    assertEquals(at(result, "written_before_error"), []);
+    assertEquals(at(result, "still_written"), []);
+  },
+);
+
+Deno.test(
+  "a platform estimate a later table refuses is taken back from the earlier one",
+  async () => {
+    const db = fakeDb(seed(), {
+      table: "crm_tables",
+      op: "update",
+      id: "t-meta-2",
+    });
+    db.tables.crm_tables.push({
+      ...db.tables.crm_tables[0],
+      id: "t-meta-2",
+      integration_settings: {},
+    });
+    const result = await setMarketTarget(db, ctx(), {
+      ...LEADS_TARGET,
+      value: 60,
+    });
+    assertStrictEquals(at(result, "success"), false);
+    assertEquals(at(result, "still_written"), []);
+    assertEquals(settingsOf(db, "t-meta"), { last_sync_at: "2026-10-26" });
   },
 );

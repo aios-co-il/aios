@@ -443,7 +443,7 @@ export function PulseCampaignGoalCard({
           <div className="mt-1 text-xs text-muted-foreground">
             {row.target_value === null
               ? "אין יעד — המגמה מוצגת מול 4 השבועות הקודמים"
-              : `${pulseTargetSourceLabel(row.target_source)}: ${String(row.target_kind || "יעד").toUpperCase()} ${row.target_value}`}
+              : `${pulseTargetSourceLabel(row.target_source)}: ${(row.target_kind || "יעד").toUpperCase()} ${row.target_value}`}
           </div>
         </div>
 

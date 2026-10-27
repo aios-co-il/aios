@@ -89,9 +89,7 @@ export function campaignTargetFields(
     target_rationale: target?.rationale ?? null,
     // Every table the campaign is read from (its target is resolved over these),
     // so Carmen's set_market_target checks the same tables.
-    read_table_ids: [
-      ...new Set(places.map(({ table }) => String(table.id))),
-    ].sort(),
+    read_table_ids: [...new Set(places.map(({ table }) => table.id))].sort(),
   };
 }
 
@@ -109,10 +107,10 @@ export function compareCampaignItems(
     b.score - a.score ||
     pulseTableTypeRank(a.table.integration_type, goal) -
       pulseTableTypeRank(b.table.integration_type, goal) ||
-    String(a.table.id).localeCompare(String(b.table.id)) ||
+    a.table.id.localeCompare(b.table.id) ||
     String(b.record.data.date || "").localeCompare(
       String(a.record.data.date || ""),
     ) ||
-    String(a.identity.id ?? "").localeCompare(String(b.identity.id ?? ""))
+    (a.identity.id ?? "").localeCompare(b.identity.id ?? "")
   );
 }

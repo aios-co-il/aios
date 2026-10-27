@@ -1,11 +1,10 @@
 import type { Json, Tables } from "../_shared/database.types.ts";
 import type { PulseTargetDb } from "../_shared/carmen/pulse-targets/context.ts";
 import { parseTargetInput } from "../_shared/carmen/pulse-targets/parse-target-input.ts";
-import { writeTableSettings } from "../_shared/carmen/pulse-targets/write-table-settings.ts";
+import { writeTargetToTables } from "../_shared/carmen/pulse-targets/write-target-tables.ts";
 import { isJsonObject } from "../_shared/pulse/json.ts";
 import { PULSE_PLATFORM_INTEGRATION_TYPES } from "../_shared/pulse/platforms.ts";
 import { pulseTargetKindLabel } from "../_shared/pulse/targets/kinds.ts";
-import { buildPulseTargetPatch } from "../_shared/pulse/targets/patch.ts";
 
 /** The fields of an agent_approval_queue row the pulse-target step reads. */
 type ApprovalRow = Pick<
@@ -62,8 +61,9 @@ export async function handlePulseTargetApproval(
 
 /**
  * Writes the approved target to the tables named in the request, and only those
- * that still belong to the client in the row's tenant. A table that fails or
- * takes no write fails the request, naming the tables already written.
+ * that still belong to the client in the row's tenant: to all of them or to none
+ * (writeTargetToTables). A table that fails or takes no write fails the request,
+ * naming any table whose restore failed too and so keeps the new target.
  */
 export async function applyApprovedPulseTarget(
   db: PulseTargetDb,
@@ -97,10 +97,10 @@ export async function applyApprovedPulseTarget(
   if (!tables?.length) {
     return { ok: false, result: { error: "no matching campaign table" } };
   }
-  const setAt = now().toISOString();
-  const written: string[] = [];
-  for (const table of tables) {
-    const next = buildPulseTargetPatch(table.integration_settings || {}, {
+  const written = await writeTargetToTables(db, {
+    tables,
+    tenantIds: [row.tenant_id],
+    patch: {
       goal: parsed.goal,
       kind: parsed.kind,
       value: parsed.value,
@@ -110,20 +110,14 @@ export async function applyApprovedPulseTarget(
         typeof input.campaign_name === "string" ? input.campaign_name : null,
       setBy: row.requested_by ?? null,
       approvedBy,
-      setAt,
-    });
-    const updateError = await writeTableSettings(db, {
-      tableId: table.id,
-      tenantIds: [row.tenant_id],
-      settings: next,
-    });
-    if (updateError) {
-      return {
-        ok: false,
-        result: { error: updateError, written_before_error: written },
-      };
-    }
-    written.push(table.id);
+      setAt: now().toISOString(),
+    },
+  });
+  if (!written.ok) {
+    return {
+      ok: false,
+      result: { error: written.error, still_written: written.stillWritten },
+    };
   }
   return {
     ok: true,
@@ -134,7 +128,7 @@ export async function applyApprovedPulseTarget(
       platform: parsed.platform,
       goal: parsed.goal,
       campaign_id: parsed.campaignId,
-      tables: written,
+      tables: tables.map((table) => table.id),
     },
   };
 }

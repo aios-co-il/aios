@@ -83,10 +83,12 @@ export async function setMarketTarget(
     tables: targetTables,
   });
   if (!written.ok) {
+    // The tables written before the failure were restored; still_written names
+    // any whose restore failed too.
     return {
       success: false,
       error: written.error,
-      written_before_error: written.written,
+      still_written: written.stillWritten,
     };
   }
   return {

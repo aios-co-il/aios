@@ -29,17 +29,21 @@ type Query = {
 /**
  * One table operation the fake answers with a database error or, with
  * `noMatch`, with success and no row (an update of a row deleted since it was
- * read, or one RLS hides).
+ * read, or one RLS hides). With `id`, only queries filtered on that id fail.
  */
-export type FailOn = { table: string; op: Op; noMatch?: boolean };
+export type FailOn = { table: string; op: Op; noMatch?: boolean; id?: string };
 
 /**
  * crm_tables, snapshots, clients and the approval queue in memory. Updates and
  * inserts are applied and recorded with the columns they filtered on.
  */
-export function fakeDb(seed: Record<string, Row[]>, failOn?: FailOn) {
+export function fakeDb(
+  seed: Record<string, Row[]>,
+  failOn: FailOn | FailOn[] = [],
+) {
   const tables: Record<string, Row[]> = structuredClone(seed);
   const writes: Write[] = [];
+  const failures = [failOn].flat();
   let nextId = 1;
   function from(name: string): Query {
     tables[name] ??= [];
@@ -48,9 +52,16 @@ export function fakeDb(seed: Record<string, Row[]>, failOn?: FailOn) {
     let op: Op = "select";
     let payload: Row = {};
     let returning = false;
+    let idFilter: unknown;
     const run = (): Result => {
-      if (failOn?.table === name && failOn.op === op) {
-        if (!failOn.noMatch) {
+      const failure = failures.find(
+        (f) =>
+          f.table === name &&
+          f.op === op &&
+          (f.id === undefined || f.id === idFilter),
+      );
+      if (failure) {
+        if (!failure.noMatch) {
           // supabase-js reports a database error as an Error (PostgrestError).
           return { data: null, error: new Error(`${name} ${op} failed`) };
         }
@@ -71,9 +82,14 @@ export function fakeDb(seed: Record<string, Row[]>, failOn?: FailOn) {
         }
         writes.push({ table: name, op, rows: matched, filters: filtered });
         // supabase-js returns the updated rows only when .select() asks for them.
-        return { data: returning ? matched : null, error: null };
+        return {
+          data: returning ? structuredClone(matched) : null,
+          error: null,
+        };
       }
-      return { data: matched, error: null };
+      // Copies, as from the database: a caller holding a row read earlier must
+      // not see later writes through it.
+      return { data: structuredClone(matched), error: null };
     };
     const first = (): Result => {
       const result = run();
@@ -88,6 +104,9 @@ export function fakeDb(seed: Record<string, Row[]>, failOn?: FailOn) {
       order: () => api,
       limit: () => api,
       eq(column, value) {
+        if (column === "id") {
+          idFilter = value;
+        }
         filtered.push(column);
         filters.push((row) => row[column] === value);
         return api;

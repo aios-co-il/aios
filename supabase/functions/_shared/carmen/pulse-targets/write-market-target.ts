@@ -1,23 +1,20 @@
-import { buildPulseTargetPatch } from "../../pulse/targets/patch.ts";
 import type { PulseTargetDb, PulseTargetToolContext } from "./context.ts";
 import type { TargetInput } from "./parse-target-input.ts";
 import type { PlatformTable } from "./platform-tables.ts";
 import type { PulseCampaignMatch } from "./snapshot-rows.ts";
-import { writeTableSettings } from "./write-table-settings.ts";
+import { writeTargetToTables } from "./write-target-tables.ts";
 
-/** What a market-target write did: the tables written, or the error that stopped it. */
+/**
+ * What a market-target write did: every table written, or none and the error
+ * that stopped it, with any table whose restore failed and keeps the estimate.
+ */
 export type MarketTargetWrite =
   | { ok: true; written: WrittenTable[]; setAt: string }
-  | { ok: false; error: string; written: WrittenTable[] };
+  | { ok: false; error: string; stillWritten: string[] };
 
 type WrittenTable = { table_id: string; integration_type: string | null };
 
-/**
- * Writes Carmen's market estimate to each table, one at a time. A failed write,
- * or one that matched no table, stops the loop and says which tables were
- * already written; the settings JSON has no multi-row transaction to roll them
- * back.
- */
+/** Writes Carmen's market estimate to every table, or to none (writeTargetToTables). */
 export async function writeMarketTarget(
   db: PulseTargetDb,
   ctx: PulseTargetToolContext,
@@ -34,9 +31,10 @@ export async function writeMarketTarget(
   },
 ): Promise<MarketTargetWrite> {
   const setAt = (ctx.now?.() ?? new Date()).toISOString();
-  const written: WrittenTable[] = [];
-  for (const table of tables) {
-    const next = buildPulseTargetPatch(table.integration_settings || {}, {
+  const result = await writeTargetToTables(db, {
+    tables,
+    tenantIds: ctx.accessibleTenantIds,
+    patch: {
       goal: input.goal,
       kind: input.kind,
       value: input.value,
@@ -46,22 +44,17 @@ export async function writeMarketTarget(
       campaignName: campaign?.campaignName ?? null,
       setBy: "carmen",
       setAt,
-    });
-    // Read-modify-write of integration_settings: a sync writing the same JSON
-    // between the read and this update can lose one side's change. An atomic
-    // jsonb_set RPC would need a migration; targets are rare manual writes.
-    const error = await writeTableSettings(db, {
-      tableId: table.id,
-      tenantIds: ctx.accessibleTenantIds,
-      settings: next,
-    });
-    if (error) {
-      return { ok: false, error, written };
-    }
-    written.push({
+    },
+  });
+  if (!result.ok) {
+    return result;
+  }
+  return {
+    ok: true,
+    setAt,
+    written: tables.map((table) => ({
       table_id: table.id,
       integration_type: table.integration_type,
-    });
-  }
-  return { ok: true, written, setAt };
+    })),
+  };
 }

@@ -15,7 +15,7 @@ export function alertTargetText(campaign: AlertCampaign): string {
     campaign.target_source === "carmen_market"
       ? ` · ${pulseTargetSourceLabel("carmen_market")}`
       : "";
-  return `${String(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}${market}`;
+  return `${(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}${market}`;
 }
 
 /**

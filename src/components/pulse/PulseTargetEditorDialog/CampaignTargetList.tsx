@@ -2,7 +2,7 @@ import { formatPulseMoney, goalLabel } from "@/lib/pulseDashboard";
 import {
   pulseTargetSaveKey,
   type PulseTargetSaveInput,
-} from "@/lib/pulseTargetSave";
+} from "@/components/pulse/pulseTargetSave";
 import { formatPulseTargetValue } from "@/components/pulse/formatPulseTargetValue";
 import { TargetRow } from "./TargetRow";
 import type { CampaignTargetRow } from "./useCampaignTargetRows";

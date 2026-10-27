@@ -64,6 +64,32 @@ export function buildPulseTargetPatch(
   };
 }
 
+/**
+ * Undoes buildPulseTargetPatch, for a save that failed on a later table. The one
+ * key the patch wrote (pulse_targets for a campaign, pulse_platform_targets for
+ * a platform) gets its value from `previousSettings` back, or is removed when it
+ * had none. Every other key keeps what `currentSettings` holds, so a sync that
+ * wrote the table after the patch is not undone.
+ */
+export function revertPulseTargetPatch(
+  currentSettings: unknown,
+  previousSettings: unknown,
+  input: Pick<PulseTargetPatchInput, "campaignId" | "campaignName">,
+): JsonObject {
+  const settings = isJsonObject(currentSettings) ? { ...currentSettings } : {};
+  const previous = isJsonObject(previousSettings) ? previousSettings : {};
+  const key = campaignSlotKey(input)
+    ? "pulse_targets"
+    : "pulse_platform_targets";
+  const value = previous[key];
+  if (value === undefined) {
+    delete settings[key];
+  } else {
+    settings[key] = value;
+  }
+  return settings;
+}
+
 /** The stored entry: value, source, Carmen's rationale and who set it when. */
 function targetEntry(
   input: PulseTargetPatchInput,
@@ -75,7 +101,7 @@ function targetEntry(
     [kind]: value,
     source,
     rationale:
-      source === "carmen_market" ? String(input.rationale || "").trim() : null,
+      source === "carmen_market" ? (input.rationale || "").trim() : null,
     set_at: input.setAt || new Date().toISOString(),
     set_by: input.setBy || null,
     approved_by: source === "approved" ? input.approvedBy || null : null,
@@ -94,7 +120,7 @@ function campaignSlotPatch(
   const targets = { ...campaignTargets(settings) };
   // The readers try the id before the name, so an entry under the name is stale
   // once the id holds one, and removing must clear both.
-  const name = String(input.campaignName || "").trim();
+  const name = (input.campaignName || "").trim();
   if (name && name !== slot && name !== "default") {
     delete targets[name];
   }

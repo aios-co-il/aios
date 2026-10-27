@@ -2,26 +2,39 @@
  * An in-memory crm_tables behind the supabase client module, for tests of the
  * dashboard's target save: only the calls savePulseTargetToTables and
  * useSavePulseTarget make. Tests swap it in with
- * `vi.mock("@/integrations/supabase/client", () => import("@/lib/pulseTargetSaveFake"))`.
+ * `vi.mock("@/integrations/supabase/client", () => import("@/test/pulseTargetSaveFake"))`.
  */
 
 /** One crm_tables row; RLS lets the user read a readOnly row but not update it. */
 export type FakeCrmTable = {
   tenant_id: string;
   settings: unknown;
+  name?: string;
   readOnly?: boolean;
 };
 
 type Result = { data: unknown; error: null };
 
-/** The rows by id, and every read and write in order. */
-export const crmTables: { rows: Record<string, FakeCrmTable>; log: string[] } =
-  { rows: {}, log: [] };
+/**
+ * The rows by id, every read and write in order, and a hook that runs after each
+ * write a row took (a sync or a role change landing between two steps).
+ */
+export const crmTables: {
+  rows: Record<string, FakeCrmTable>;
+  log: string[];
+  afterWrite?: (id: string) => void;
+} = { rows: {}, log: [] };
+
+/** The signed-in user's lookup: set `error` to make it fail. */
+export const auth: { error: Error | null } = { error: null };
 
 /** The signed-in user, and crm_tables. */
 export const supabase = {
   auth: {
-    getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+    getUser: async () =>
+      auth.error
+        ? { data: { user: null }, error: auth.error }
+        : { data: { user: { id: "user-1" } }, error: null },
   },
   from: () => ({
     select: () => readQuery(),
@@ -51,7 +64,12 @@ function readQuery() {
       crmTables.log.push(`read ${query.values.id}`);
       const found = query.row();
       return {
-        data: found ? { integration_settings: found.settings } : null,
+        data: found
+          ? {
+              name: found.name ?? String(query.values.id),
+              integration_settings: found.settings,
+            }
+          : null,
         error: null,
       };
     },
@@ -64,13 +82,15 @@ function updateQuery(patch: { integration_settings: unknown }) {
   const query = filters();
   /** Writes where RLS allows it: a readOnly row matches nothing, with no error. */
   const apply = () => {
-    crmTables.log.push(`write ${query.values.id}`);
+    const id = String(query.values.id);
+    crmTables.log.push(`write ${id}`);
     const found = query.row();
     if (!found || found.readOnly) {
       return [];
     }
     found.settings = patch.integration_settings;
-    return [{ id: query.values.id }];
+    crmTables.afterWrite?.(id);
+    return [{ id }];
   };
   const chain = {
     eq: (column: string, value: unknown) => {

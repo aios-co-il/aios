@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { pulseTargetSaveKey, savePulseTargetToTables } from "./pulseTargetSave";
-import { crmTables } from "./pulseTargetSaveFake";
+import { crmTables } from "@/test/pulseTargetSaveFake";
+import {
+  pulseTargetSaveKey,
+  savePulseTargetToTables,
+  TABLE_NOT_UPDATED,
+} from "./pulseTargetSave";
 
 vi.mock(
   "@/integrations/supabase/client",
-  () => import("./pulseTargetSaveFake"),
+  () => import("@/test/pulseTargetSaveFake"),
 );
 
 type Settings = Record<string, Record<string, Record<string, unknown>>>;
@@ -15,34 +19,40 @@ function settingsOf(id: string): Settings {
   return settings && typeof settings === "object" ? { ...settings } : {};
 }
 
+/** Carmen's market CPL on the platform, as a sync left the table. */
+const MARKET_SETTINGS = {
+  last_sync_at: "2026-10-26T05:00:00Z",
+  pulse_platform_targets: {
+    leads: { cpl: 90, source: "carmen_market", rationale: "בנצ׳מרק" },
+  },
+};
+
+/** A platform CPL of 70 saved to both Meta tables of the client. */
+function savePlatformCpl() {
+  return savePulseTargetToTables(
+    { tableIds: ["g1", "g2"], goal: "leads", kind: "cpl", value: 70 },
+    "tenant-1",
+    "user-1",
+  );
+}
+
 beforeEach(() => {
   crmTables.rows = {};
   crmTables.log = [];
+  crmTables.afterWrite = undefined;
 });
 
 describe("savePulseTargetToTables", () => {
   it("writes an approved target over the stored settings of each table", async () => {
     // Stored settings, as a sync just wrote them (not the dashboard's cached copy).
     crmTables.rows = {
-      g1: {
-        tenant_id: "tenant-1",
-        settings: {
-          last_sync_at: "2026-10-26T05:00:00Z",
-          pulse_platform_targets: {
-            leads: { cpl: 90, source: "carmen_market", rationale: "בנצ׳מרק" },
-          },
-        },
-      },
+      g1: { tenant_id: "tenant-1", settings: MARKET_SETTINGS },
       g2: {
         tenant_id: "tenant-1",
         settings: { last_sync_at: "2026-10-26T05:01:00Z" },
       },
     };
-    await savePulseTargetToTables(
-      { tableIds: ["g1", "g2"], goal: "leads", kind: "cpl", value: 70 },
-      "tenant-1",
-      "user-1",
-    );
+    await savePlatformCpl();
     expect(crmTables.log).toEqual([
       "read g1",
       "write g1",
@@ -111,9 +121,9 @@ describe("savePulseTargetToTables", () => {
     expect(settingsOf("t1")).toEqual({ keep: true });
   });
 
-  it("rejects a table the org may only read and keeps its settings", async () => {
-    // A report table shared from another org: RLS lets the read through, and
-    // the update matches no row without an error.
+  it("rejects a table the user may only read and keeps its settings", async () => {
+    // RLS lets a read-only role read the table; the update matches no row
+    // without an error.
     crmTables.rows = {
       t1: { tenant_id: "tenant-1", settings: { keep: true }, readOnly: true },
     };
@@ -123,9 +133,56 @@ describe("savePulseTargetToTables", () => {
         "tenant-1",
         null,
       ),
-    ).rejects.toThrow("אין לך הרשאה לעדכן את היעד בטבלה הזו");
+    ).rejects.toThrow(TABLE_NOT_UPDATED);
     expect(crmTables.log).toEqual(["read t1", "write t1"]);
     expect(settingsOf("t1")).toEqual({ keep: true });
+  });
+
+  it("puts the old target back on the tables written before a later table refused", async () => {
+    crmTables.rows = {
+      g1: { tenant_id: "tenant-1", settings: MARKET_SETTINGS },
+      g2: { tenant_id: "tenant-1", settings: {}, readOnly: true },
+    };
+    // A sync writes g1 right after the save did; the restore keeps its change.
+    let synced = false;
+    crmTables.afterWrite = (id) => {
+      if (id === "g1" && !synced) {
+        synced = true;
+        crmTables.rows.g1.settings = {
+          ...settingsOf("g1"),
+          last_sync_at: "2026-10-26T06:00:00Z",
+        };
+      }
+    };
+    await expect(savePlatformCpl()).rejects.toThrow(TABLE_NOT_UPDATED);
+    expect(crmTables.log).toEqual([
+      "read g1",
+      "write g1",
+      "read g2",
+      "write g2",
+      "read g1",
+      "write g1",
+    ]);
+    expect(settingsOf("g1")).toEqual({
+      ...MARKET_SETTINGS,
+      last_sync_at: "2026-10-26T06:00:00Z",
+    });
+  });
+
+  it("names the tables that keep the new target when restoring them fails too", async () => {
+    crmTables.rows = {
+      g1: { tenant_id: "tenant-1", settings: {}, name: "Meta ראשית" },
+      g2: { tenant_id: "tenant-1", settings: {}, readOnly: true },
+    };
+    // The user loses update rights on g1 between the save and the restore.
+    crmTables.afterWrite = (id) => {
+      crmTables.rows[id].readOnly = true;
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(savePlatformCpl()).rejects.toThrow(
+      `${TABLE_NOT_UPDATED}. היעד החדש נשאר בטבלאות: Meta ראשית`,
+    );
+    expect(settingsOf("g1").pulse_platform_targets.leads.cpl).toBe(70);
   });
 
   it("keys a platform save by its tables and a campaign save by its slot", () => {

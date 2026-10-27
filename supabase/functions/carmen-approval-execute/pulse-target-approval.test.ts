@@ -1,4 +1,8 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertStrictEquals,
+  assertStringIncludes,
+} from "jsr:@std/assert@1";
 
 import { fakeDb } from "../_shared/carmen/pulse-targets/fake-db.ts";
 import {
@@ -155,7 +159,7 @@ Deno.test(
     const body = await response.json();
     assertStrictEquals(body.success, false);
     assertStrictEquals(at(body, "result", "error"), TABLE_NOT_WRITTEN);
-    assertEquals(at(body, "result", "written_before_error"), []);
+    assertEquals(at(body, "result", "still_written"), []);
     assertStrictEquals(db.tables.agent_approval_queue[0].status, "failed");
   },
 );
@@ -176,4 +180,66 @@ Deno.test("a status write that fails answers 500", async () => {
     approval_id: "approval-1",
   });
   assertStrictEquals(db.tables.agent_approval_queue[0].status, "pending");
+});
+
+Deno.test(
+  "a table that fails after another took the target restores it and records failed",
+  async () => {
+    const db = dbWithQueuedRow({
+      table: "crm_tables",
+      op: "update",
+      id: "t-meta-2",
+    });
+    db.tables.crm_tables.push({
+      ...db.tables.crm_tables[0],
+      id: "t-meta-2",
+      integration_settings: {},
+    });
+    const twoTables = queuedRow({
+      tool_input: {
+        ...queuedRow().tool_input,
+        table_ids: ["t-meta", "t-meta-2"],
+      },
+    });
+    const response = await handlePulseTargetApproval(
+      db,
+      twoTables,
+      "approval-1",
+      "owner-1",
+      HEADERS,
+      () => NOW,
+    );
+    assertStrictEquals(response.status, 400);
+    assertEquals(at(await response.json(), "result"), {
+      error: "crm_tables update failed",
+      still_written: [],
+    });
+    assertEquals(at(settingsOf(db, "t-meta"), "pulse_targets", "c1"), {
+      cpl: 60,
+      source: "carmen_market",
+      rationale: RATIONALE,
+    });
+    assertStrictEquals(db.tables.agent_approval_queue[0].status, "failed");
+  },
+);
+
+/**
+ * AIO-230 adds CARMEN_EXECUTOR_TOOLS, the tools the approvals page and Carmen's
+ * "כן" may run, and refuses any other row. Its source, or null before it lands.
+ */
+const EXECUTOR_TOOLS_SOURCE = await Deno.readTextFile(
+  new URL("../_shared/carmen/approvals/executor-tools.ts", import.meta.url),
+).catch((error) => {
+  if (error instanceof Deno.errors.NotFound) {
+    return null;
+  }
+  throw error;
+});
+
+Deno.test({
+  name: "set_pulse_target is listed in CARMEN_EXECUTOR_TOOLS once AIO-230 adds it",
+  ignore: EXECUTOR_TOOLS_SOURCE === null,
+  fn: () => {
+    assertStringIncludes(EXECUTOR_TOOLS_SOURCE ?? "", '"set_pulse_target"');
+  },
 });
