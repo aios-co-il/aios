@@ -3,29 +3,56 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
+import type { PulseSnapshotAlertInput } from "../pulse-instant-alerts.ts";
 import {
-  DEFAULT_PULSE_ALERT_RULES,
-  evaluatePulseInstantAlerts,
-  type PulseSnapshotAlertInput,
-} from "../pulse-instant-alerts.ts";
-import { fakeSupabase, run, WEDNESDAY } from "./fake-alert-log.ts";
+  fakeSupabase,
+  healthy,
+  NO_CONTACT_OFF,
+  run,
+  WEDNESDAY,
+} from "./fake-alert-log.ts";
+import { isPulseAlertHeldForShabbat } from "./instant-alert-shabbat.ts";
 
 const SATURDAY_11 = new Date("2026-10-31T09:00:00Z"); // 11:00 Israel
 const SUNDAY_06 = new Date("2026-11-01T04:00:00Z"); // 06:00 Israel
-const NO_CONTACT_OFF = {
-  ...DEFAULT_PULSE_ALERT_RULES,
-  no_contact_enabled: false,
-};
-const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
-  client_id: "c1",
-  client_name: "Acme",
-  status: "warning",
-  flags,
-  last_client_call_at: WEDNESDAY.toISOString(),
-});
 type Issue = { clientId: string; alertType: string };
 
-Deno.test("Shabbat hold of pulse instant alerts", async (t) => {
+Deno.test("isPulseAlertHeldForShabbat", async (t) => {
+  await t.step(
+    "on Saturday only a Shabbat-critical connection_lost goes out",
+    () => {
+      const lost = { rule_type: "connection_lost" as const };
+      assertStrictEquals(
+        isPulseAlertHeldForShabbat(
+          { ...lost, shabbat_critical: true },
+          SATURDAY_11,
+        ),
+        false,
+      );
+      assertStrictEquals(
+        isPulseAlertHeldForShabbat(
+          { ...lost, shabbat_critical: false },
+          SATURDAY_11,
+        ),
+        true,
+      );
+      assertStrictEquals(isPulseAlertHeldForShabbat(lost, SATURDAY_11), true);
+      assertStrictEquals(
+        isPulseAlertHeldForShabbat(
+          { rule_type: "cpl_spike", shabbat_critical: true },
+          SATURDAY_11,
+        ),
+        true,
+      );
+      assertStrictEquals(
+        isPulseAlertHeldForShabbat({ rule_type: "no_contact" }, WEDNESDAY),
+        false,
+      );
+    },
+  );
+});
+
+Deno.test("deliverInstantPulseAlerts on Shabbat", async (t) => {
   await t.step(
     "on Saturday only connection_lost goes out; the rest is sent once after Shabbat",
     async () => {
@@ -149,30 +176,6 @@ Deno.test("Shabbat hold of pulse instant alerts", async (t) => {
         assertStrictEquals(sat.result.held, 0, label);
         assertMatch(sat.sends[0].message, /חיבור\/קמפיין/, label);
       }
-    },
-  );
-
-  await t.step(
-    "connection_lost marks only real connection loss as Shabbat-critical",
-    () => {
-      const evaluate = (flags: string[], issues: Issue[] = []) =>
-        evaluatePulseInstantAlerts([healthy(flags)], issues, NO_CONTACT_OFF)[0]
-          ?.shabbat_critical;
-      assertStrictEquals(evaluate(["סנכרון ישן: Meta"]), true);
-      assertStrictEquals(evaluate(["אין טבלת קמפיין מחוברת"]), true);
-      assertStrictEquals(
-        evaluate([], [{ clientId: "c1", alertType: "account_disabled" }]),
-        true,
-      );
-      assertStrictEquals(evaluate(["קמפיין נעצר"]), false);
-      assertStrictEquals(
-        evaluate([], [{ clientId: "c1", alertType: "ad_disapproved" }]),
-        false,
-      );
-      assertStrictEquals(
-        evaluate([], [{ clientId: "c1", alertType: "campaign_stopped" }]),
-        false,
-      );
     },
   );
 });

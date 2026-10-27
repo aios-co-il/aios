@@ -1,8 +1,7 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  CRITICAL_ALERT_KINDS,
-  criticalAlertKind,
   isAlertHeldForShabbat,
+  isShabbatCriticalAlert,
 } from "./critical-alerts.ts";
 
 const FRIDAY_2359 = new Date("2026-10-30T21:59:00Z"); // IST, UTC+2
@@ -10,34 +9,21 @@ const SATURDAY_0000 = new Date("2026-10-30T22:00:00Z");
 const SATURDAY_2359 = new Date("2026-10-31T21:59:00Z");
 const SUNDAY_0000 = new Date("2026-10-31T22:00:00Z");
 
-Deno.test("criticalAlertKind", async (t) => {
+Deno.test("isShabbatCriticalAlert", async (t) => {
   await t.step(
     "only ad-account stops, lost connections and undelivered leads are critical",
     () => {
-      assertEquals(
-        [...CRITICAL_ALERT_KINDS],
-        ["ad_account_stopped", "connection_lost", "lead_alert_failure"],
-      );
-      assertStrictEquals(
-        criticalAlertKind("account_disabled"),
+      for (const kind of [
         "ad_account_stopped",
-      );
-      assertStrictEquals(
-        criticalAlertKind("ad_account_blocked"),
-        "ad_account_stopped",
-      );
-      assertStrictEquals(
-        criticalAlertKind("integration_disconnected"),
+        "account_disabled",
+        "ad_account_blocked",
+        "integration_disconnected",
         "connection_lost",
-      );
-      assertStrictEquals(
-        criticalAlertKind("connection_lost"),
-        "connection_lost",
-      );
-      assertStrictEquals(
-        criticalAlertKind("lead_alert_failure"),
         "lead_alert_failure",
-      );
+        " Account_Disabled ",
+      ]) {
+        assertStrictEquals(isShabbatCriticalAlert(kind), true, kind);
+      }
       for (const kind of [
         "campaign_stopped",
         "ad_disapproved",
@@ -45,10 +31,11 @@ Deno.test("criticalAlertKind", async (t) => {
         "no_contact",
         "cpl_spike",
         "campaign_exception",
+        "constructor",
         "",
         null,
       ]) {
-        assertStrictEquals(criticalAlertKind(kind), null, String(kind));
+        assertStrictEquals(isShabbatCriticalAlert(kind), false, String(kind));
       }
     },
   );

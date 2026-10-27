@@ -1,13 +1,32 @@
 /** Dedupe of pulse instant alerts against pulse_instant_alert_log (AIO-226). */
-import type {
-  PulseAlertRuleType,
-  PulseInstantAlertCandidate,
-} from "../pulse-instant-alerts.ts";
+import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
+import type { DbClient } from "../supabase-clients.ts";
 
-export type InstantAlertLogRow = {
+type InstantAlertLogRow = {
   fingerprint?: string | null;
   severity_score?: number | string | null;
 };
+
+/**
+ * True when this candidate must not go out: a matching log row inside the
+ * rule's throttle window, or a failed lookup. A failed dedupe lookup must not
+ * turn into a resend.
+ */
+export async function isInstantAlertSuppressed(
+  input: { supabase: Pick<DbClient, "from">; tenantId: string },
+  candidate: PulseInstantAlertCandidate,
+  throttleHours: number,
+  now: Date,
+): Promise<boolean> {
+  const recent = await recentAlertDeliveries(
+    input.supabase,
+    input.tenantId,
+    candidate,
+    throttleHours,
+    now,
+  );
+  return recent === null || !decideInstantAlertDelivery(candidate, recent).send;
+}
 
 /**
  * Decide against the log rows of this client + rule (+ campaign) inside the
@@ -55,13 +74,36 @@ export function isSameInstantAlertFinding(
 }
 
 /**
- * Deterministic fingerprint for the client-level rules (rule:client:bucket).
- * campaign_exception keeps its own campaign/reason/target fingerprint.
+ * Up to 50 log rows of this client + rule (+ campaign) sent inside the
+ * throttle window, newest first, so a flap back to an earlier finding still
+ * matches; null when the lookup failed.
  */
-export function legacyRuleFingerprint(
-  ruleType: Exclude<PulseAlertRuleType, "campaign_exception">,
-  clientId: string,
-  bucket: string,
-): string {
-  return `${ruleType}:${clientId}:${bucket}`;
+async function recentAlertDeliveries(
+  supabase: Pick<DbClient, "from">,
+  tenantId: string,
+  candidate: PulseInstantAlertCandidate,
+  throttleHours: number,
+  now: Date,
+): Promise<InstantAlertLogRow[] | null> {
+  const since = new Date(
+    now.getTime() - throttleHours * 60 * 60 * 1000,
+  ).toISOString();
+  let query = supabase
+    .from("pulse_instant_alert_log")
+    .select("fingerprint, severity_score")
+    .eq("tenant_id", tenantId)
+    .eq("client_id", candidate.client_id)
+    .eq("rule_type", candidate.rule_type)
+    .gte("sent_at", since)
+    .order("sent_at", { ascending: false })
+    .limit(50);
+  if (candidate.campaign_key) {
+    query = query.eq("campaign_key", candidate.campaign_key);
+  }
+  const { data, error } = await query;
+  if (error) {
+    console.warn("[pulse-instant-alerts] dedupe lookup failed", error.message);
+    return null;
+  }
+  return data || [];
 }

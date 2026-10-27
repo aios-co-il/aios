@@ -7,7 +7,6 @@ import {
 import { postTriggerAutomation } from "./post-trigger-automation.ts";
 import { releaseHeldTaskNotifications } from "./release-held.ts";
 import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
-import { jerusalemShabbatHoldUntil } from "../_shared/shabbat/quiet-window.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -398,11 +397,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    // Claim nothing on Shabbat: task markers stay NULL, so the first run after
-    // the window sends each held notification once.
-    const heldUntil = jerusalemShabbatHoldUntil();
-    if (heldUntil) {
-      return shabbatHeldResponse(heldUntil, corsHeaders);
+    // Task markers stay NULL while held, so the run after Shabbat sends each once.
+    const shabbatHold = shabbatHeldResponse(corsHeaders);
+    if (shabbatHold) {
+      return shabbatHold;
     }
     let tasks: TaskRow[] = [];
 

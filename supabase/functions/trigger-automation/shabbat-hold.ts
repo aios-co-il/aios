@@ -1,25 +1,26 @@
 /**
- * Shabbat hold for task WhatsApp notifications (AIO-226).
- *
- * David's rule: no task notifications from Saturday 00:00 until Sunday 08:30
- * (Asia/Jerusalem). Worker-driven notifications (assignment, reminders,
- * overdue, completion, self reminder) are simply not claimed in the window;
- * their task markers stay NULL and the worker's next run after it sends them.
- * Peer notifications come straight from the app, so they are stored in
- * task_notification_holds and the worker replays each once with the service
- * role (task-notification-worker/release-held.ts).
+ * Shabbat hold for task WhatsApp notifications (AIO-226), for the window in
+ * _shared/shabbat/quiet-window.ts. Worker-driven notifications (assignment,
+ * reminders, overdue, completion, self reminder) are not claimed in the
+ * window, so their task markers stay NULL and the worker's next run after it
+ * sends them. Peer notifications come straight from the app, so they are
+ * stored in task_notification_holds and the worker replays each once with the
+ * service role (task-notification-worker/release-held.ts).
  */
 import type { DirectRunDecision } from "../_shared/automation-run-auth.ts";
-import {
-  type HeldPeerNotification,
-  PEER_TASK_NOTIFICATION_TYPES,
-} from "../_shared/shabbat/held-peer-notification.ts";
+import type { HeldPeerNotification } from "../_shared/shabbat/held-peer-notification.ts";
 import { jerusalemShabbatHoldUntil } from "../_shared/shabbat/quiet-window.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { taskUpdateEventKey } from "../_shared/task-notification-dedupe.ts";
 import { holdTenantId } from "./shabbat-hold-tenant.ts";
 
-export type ShabbatHoldResponse = {
+/** Task notifications the app sends itself; held ones are queued for replay. */
+const PEER_TASK_NOTIFICATION_TYPES = new Set([
+  "task_collaborator_added",
+  "task_update_added",
+]);
+
+type ShabbatHoldResponse = {
   handled: true;
   sent: false;
   held: true;
@@ -32,7 +33,7 @@ export type ShabbatHoldResponse = {
   notification_type?: string;
 };
 
-export type ShabbatHoldResult =
+type ShabbatHoldResult =
   | { status: 202; body: ShabbatHoldResponse }
   | { status: 400 | 401 | 403; body: { error: string; queued: false } };
 

@@ -1,5 +1,5 @@
 /** The fields task-notification-worker reads from trigger-automation's answer. */
-export type TriggerAutomationReply = {
+type TriggerAutomationReply = {
   sent?: boolean;
   handled?: boolean;
   success?: boolean;

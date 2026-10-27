@@ -33,6 +33,21 @@ export const ACME: PulseSnapshotAlertInput = {
 
 export const WEDNESDAY = new Date("2026-10-28T07:00:00Z"); // 09:00 Israel
 
+/** Pulse rules without no_contact, so a run checks the other rules alone. */
+export const NO_CONTACT_OFF = {
+  ...DEFAULT_PULSE_ALERT_RULES,
+  no_contact_enabled: false,
+};
+
+/** Client c1, contacted on WEDNESDAY, with these snapshot flags. */
+export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
+  client_id: "c1",
+  client_name: "Acme",
+  status: "warning",
+  flags,
+  last_client_call_at: WEDNESDAY.toISOString(),
+});
+
 /** pulse_instant_alert_log in memory; inserts are stamped with `clock`. */
 export function fakeSupabase(log: Row[] = []) {
   const db: Record<string, Row[]> = { pulse_instant_alert_log: log };

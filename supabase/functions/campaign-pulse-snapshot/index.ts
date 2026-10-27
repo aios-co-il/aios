@@ -33,11 +33,8 @@ import {
   scopeSnapshotsForPlan,
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
-import {
-  instantPulseAlertsGate,
-  runGatedInstantPulseAlerts,
-  type InstantPulseAlertResult,
-} from "./instant-alerts-gate.ts";
+import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
+import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -271,12 +268,12 @@ Deno.serve(async (req) => {
     return json(retention, retention.error ? 500 : 200);
   }
   // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
-  // Instant alerts: see instantPulseAlertsGate.
+  // Instant alerts: see gatedInstantAlerts.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
-    body.force_delivery === true && body.source === "approved_manual_trigger";
+    body.force_delivery === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const previewOnlyDelivery =
-    body.preview_only === true && body.source === "approved_manual_trigger";
+    body.preview_only === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const campaignerNameFilter =
     manualDeliveryBypass && typeof body.campaigner_name === "string"
       ? body.campaigner_name.trim()
@@ -900,21 +897,10 @@ Deno.serve(async (req) => {
       .eq("id", tenantId)
       .maybeSingle();
     const tenantSlug = tenantRow?.slug || tenantId;
-    let instantAlerts: InstantPulseAlertResult = {
-      sent: 0,
-      skipped: 0,
-      candidates: 0,
-      analyzed: 0,
-      held: 0,
-    };
-    const instantGate = instantPulseAlertsGate({
-      campaignPulseEnabled: setting.campaign_pulse_enabled,
-      rules: setting.pulse_alert_rules,
-      body,
-    });
+    let instantAlerts = noInstantAlerts();
     if (snapshots.length) {
       try {
-        instantAlerts = await runGatedInstantPulseAlerts(instantGate, {
+        instantAlerts = await gatedInstantAlerts(setting, body, {
           supabase,
           tenantId,
           tenantSlug,

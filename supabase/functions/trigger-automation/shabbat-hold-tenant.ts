@@ -1,7 +1,5 @@
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
-type HoldDb = Pick<DbClient, "from">;
-
 type HoldTenant =
   | { tenantId: string; refused?: undefined }
   | { refused: "task_not_found" | "foreign_tenant"; tenantId?: undefined };
@@ -12,7 +10,7 @@ type HoldTenant =
  * passed the tenant check for `bodyTenantId`.
  */
 export async function holdTenantId(
-  supabase: HoldDb,
+  supabase: Pick<DbClient, "from">,
   taskId: string,
   bodyTenantId: string | null,
 ): Promise<HoldTenant> {
@@ -43,7 +41,7 @@ export async function holdTenantId(
 
 /** clients.tenant_id first (the Carmen routing tenant), then tasks.tenant_id. */
 async function taskTenantIds(
-  supabase: HoldDb,
+  supabase: Pick<DbClient, "from">,
   taskId: string,
 ): Promise<{ tenantIds: string[]; agencyId: string | null } | null> {
   const { data: task, error } = await supabase
@@ -86,7 +84,7 @@ async function taskTenantIds(
  * the same grant the "Shared-agency cross-tenant task view" policy uses).
  */
 async function tenantSharesTaskAgency(
-  supabase: HoldDb,
+  supabase: Pick<DbClient, "from">,
   tenantId: string,
   agencyId: string | null,
 ): Promise<boolean> {

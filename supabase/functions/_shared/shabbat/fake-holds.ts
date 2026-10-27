@@ -9,7 +9,7 @@ type Result = {
 };
 
 /** The builder calls the hold and release paths make. */
-export type FakeHoldsQuery = {
+type FakeHoldsQuery = {
   select: () => FakeHoldsQuery;
   is: (col: string, val: unknown) => FakeHoldsQuery;
   eq: (col: string, val: unknown) => FakeHoldsQuery;

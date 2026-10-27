@@ -1,38 +1,44 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import {
-  DEFAULT_PULSE_ALERT_RULES,
-  evaluatePulseInstantAlerts,
-} from "../pulse-instant-alerts.ts";
 import { ACME, fakeSupabase, run, WEDNESDAY } from "./fake-alert-log.ts";
 import {
   decideInstantAlertDelivery,
+  isInstantAlertSuppressed,
   isSameInstantAlertFinding,
 } from "./instant-alert-dedupe.ts";
 
-Deno.test("legacyRuleFingerprint", async (t) => {
-  await t.step("client-level rules get deterministic fingerprints", () => {
-    const rows = evaluatePulseInstantAlerts(
-      [ACME],
-      [],
-      DEFAULT_PULSE_ALERT_RULES,
-      WEDNESDAY.getTime(),
-    );
-    const byRule = Object.fromEntries(
-      rows.map((row) => [row.rule_type, row.fingerprint]),
-    );
-    assertStrictEquals(byRule.no_contact, "no_contact:c1:missing");
-    assertStrictEquals(byRule.connection_lost, "connection_lost:c1:open");
-    const again = evaluatePulseInstantAlerts(
-      [ACME],
-      [],
-      DEFAULT_PULSE_ALERT_RULES,
-      WEDNESDAY.getTime() + 3600e3,
-    );
-    assertEquals(
-      again.map((row) => row.fingerprint),
-      rows.map((row) => row.fingerprint),
-    );
-  });
+/** A pulse_instant_alert_log whose every read fails. */
+function failingLog() {
+  const builder = {
+    select: () => builder,
+    eq: () => builder,
+    gte: () => builder,
+    order: () => builder,
+    limit: () => builder,
+    then: (resolve: (value: unknown) => void) =>
+      resolve({ data: null, error: { message: "connection reset" } }),
+  };
+  return { from: () => builder };
+}
+
+Deno.test("isInstantAlertSuppressed", async (t) => {
+  await t.step(
+    "a failed dedupe lookup suppresses the send instead of resending",
+    async () => {
+      const suppressed = await isInstantAlertSuppressed(
+        { supabase: failingLog(), tenantId: "t1" },
+        {
+          client_id: "c1",
+          client_name: "Acme",
+          rule_type: "connection_lost",
+          message: "",
+          fingerprint: "connection_lost:c1:open",
+        },
+        24,
+        WEDNESDAY,
+      );
+      assertStrictEquals(suppressed, true);
+    },
+  );
 });
 
 Deno.test("isSameInstantAlertFinding", async (t) => {

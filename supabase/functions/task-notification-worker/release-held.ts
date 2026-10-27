@@ -7,9 +7,9 @@ import type { HeldPeerNotification } from "../_shared/shabbat/held-peer-notifica
 import { jerusalemShabbatHoldUntil } from "../_shared/shabbat/quiet-window.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
-export const HELD_TASK_NOTIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const HELD_TASK_NOTIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-export type HeldReleaseResult = {
+type HeldReleaseResult = {
   hold_id: string;
   task_id?: string;
   notification_type?: string;
@@ -25,14 +25,12 @@ type Deliver = (
   requestBody: HeldPeerNotification["request_body"],
 ) => Promise<unknown>;
 
-type HoldsDb = Pick<DbClient, "from">;
-
 /**
  * Delivers each due hold once. The claim (released_at) happens before the
  * send, so overlapping worker runs cannot both deliver it.
  */
 export async function releaseHeldTaskNotifications(
-  supabase: HoldsDb,
+  supabase: Pick<DbClient, "from">,
   deliver: Deliver,
   now: Date = new Date(),
   limit = 25,
@@ -102,7 +100,7 @@ export async function releaseHeldTaskNotifications(
 
 /** Sends one claimed hold and records the outcome in release_result. */
 async function deliverHold(
-  supabase: HoldsDb,
+  supabase: Pick<DbClient, "from">,
   holdId: string,
   requestBody: HeldPeerNotification["request_body"],
   deliver: Deliver,
@@ -129,7 +127,7 @@ async function deliverHold(
 
 /** Writes release_result; a failure is logged and returned, never thrown. */
 async function recordRelease(
-  supabase: HoldsDb,
+  supabase: Pick<DbClient, "from">,
   holdId: string,
   releaseResult: Record<string, unknown>,
 ): Promise<Pick<HeldReleaseResult, "record_error">> {

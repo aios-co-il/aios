@@ -6,14 +6,18 @@
 
 import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
 import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
-import { jerusalemYmd } from "./calendarTimeZone.ts";
 import {
-  decideInstantAlertDelivery,
-  type InstantAlertLogRow,
-  legacyRuleFingerprint,
-} from "./pulse/instant-alert-dedupe.ts";
+  isLostConnectionFlag,
+  isNoDataWithoutTable,
+  isRealConnectionLoss,
+} from "./pulse/connection-loss.ts";
+import { isInstantAlertSuppressed } from "./pulse/instant-alert-dedupe.ts";
+import {
+  connectionLostFingerprint,
+  cplSpikeFingerprint,
+  noContactFingerprint,
+} from "./pulse/instant-alert-fingerprint.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
-import { isShabbatCriticalAlert } from "./shabbat/critical-alerts.ts";
 
 export type PulseAlertRuleType =
   "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
@@ -45,12 +49,7 @@ export type PulseInstantAlertCandidate = {
   fingerprint?: string | null;
   severity_score?: number | null;
   evidence?: Record<string, unknown>;
-  /**
-   * connection_lost only: true when the cause is a real connection loss
-   * (stale or missing sync, no connected campaign table, an account-level
-   * stop/disable). Only these may go out on Shabbat; a connection_lost made
-   * only of single-campaign issues (stopped campaign, disapproved ad) waits.
-   */
+  /** connection_lost only: may go out on Shabbat (see isRealConnectionLoss). */
   shabbat_critical?: boolean;
 };
 
@@ -248,11 +247,7 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "no_contact",
-          fingerprint: legacyRuleFingerprint(
-            "no_contact",
-            snapshot.client_id,
-            missing ? "missing" : `last:${jerusalemYmd(new Date(lastContact))}`,
-          ),
+          fingerprint: noContactFingerprint(snapshot.client_id, lastContact),
           message: [
             "🟡 *התראת דופק — אין עדכון קשר*",
             `לקוח: ${clientName}`,
@@ -280,11 +275,7 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "cpl_spike",
-          fingerprint: legacyRuleFingerprint(
-            "cpl_spike",
-            snapshot.client_id,
-            "spike",
-          ),
+          fingerprint: cplSpikeFingerprint(snapshot.client_id),
           message: [
             "🔴 *התראת דופק — עליית CPL*",
             `לקוח: ${clientName}`,
@@ -297,9 +288,6 @@ export function evaluatePulseInstantAlerts(
     }
 
     if (rules.disconnected_enabled) {
-      // Real connection loss: no connected table or a stale/missing sync.
-      const isLostConnectionFlag = (flag: string) =>
-        flag.includes("אין טבלת קמפיין") || flag.includes("סנכרון ישן");
       const connectionFlags = flags.filter(
         (flag) =>
           isLostConnectionFlag(flag) ||
@@ -310,24 +298,17 @@ export function evaluatePulseInstantAlerts(
         snapshot.status === "no_data" ||
         snapshot.lead_goal_status === "no_data" ||
         snapshot.ecommerce_goal_status === "no_data";
-      const noDataWithoutTable =
-        statusNoData && flags.some((flag) => flag.includes("אין טבלת"));
       const critical = criticalByClient.get(snapshot.client_id) || [];
       const criticalLabels = critical.map((issue) => {
         if (issue.alertType === "campaign_stopped") return "קמפיין הושהה/נעצר";
         if (issue.alertType === "ad_disapproved") return "מודעה לא מאושרת";
         return issue.alertType || "בעיית קמפיין";
       });
-      // An open account-level stop/disable (e.g. account_disabled) is critical;
-      // campaign_stopped / ad_disapproved are not.
-      const criticalAccountIssue = critical.some((issue) =>
-        isShabbatCriticalAlert(issue.alertType),
-      );
 
       const hasConnectionIssue =
         connectionFlags.length > 0 ||
         criticalLabels.length > 0 ||
-        noDataWithoutTable;
+        isNoDataWithoutTable(statusNoData, flags);
 
       if (hasConnectionIssue) {
         const detail = [
@@ -338,17 +319,8 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "connection_lost",
-          // One open finding per client: the issue mix (stale sync, stopped
-          // campaign, missing table) flaps between runs and must not resend.
-          fingerprint: legacyRuleFingerprint(
-            "connection_lost",
-            snapshot.client_id,
-            "open",
-          ),
-          shabbat_critical:
-            connectionFlags.some(isLostConnectionFlag) ||
-            noDataWithoutTable ||
-            criticalAccountIssue,
+          fingerprint: connectionLostFingerprint(snapshot.client_id),
+          shabbat_critical: isRealConnectionLoss(flags, statusNoData, critical),
           message: [
             "🔴 *התראת דופק — חיבור/קמפיין*",
             `לקוח: ${clientName}`,
@@ -362,34 +334,6 @@ export function evaluatePulseInstantAlerts(
   }
 
   return candidates;
-}
-
-async function recentAlertDeliveries(
-  supabase: any,
-  tenantId: string,
-  clientId: string,
-  ruleType: PulseAlertRuleType,
-  throttleHours: number,
-  nowMs: number,
-  campaignKey?: string | null,
-): Promise<InstantAlertLogRow[] | null> {
-  const since = new Date(nowMs - throttleHours * 60 * 60 * 1000).toISOString();
-  let query = supabase
-    .from("pulse_instant_alert_log")
-    .select("fingerprint, severity_score")
-    .eq("tenant_id", tenantId)
-    .eq("client_id", clientId)
-    .eq("rule_type", ruleType)
-    .gte("sent_at", since)
-    .order("sent_at", { ascending: false })
-    .limit(50);
-  if (campaignKey) query = query.eq("campaign_key", campaignKey);
-  const { data, error } = await query;
-  if (error) {
-    console.warn("[pulse-instant-alerts] dedupe lookup failed", error.message);
-    return null;
-  }
-  return data || [];
 }
 
 async function resolveInstantAlertRecipients(
@@ -479,15 +423,6 @@ export async function deliverInstantPulseAlerts(input: {
     (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
   );
   const held = evaluated.length - candidates.length;
-  if (!candidates.length) {
-    return {
-      sent: 0,
-      skipped: 0,
-      candidates: evaluated.length,
-      analyzed: 0,
-      held,
-    };
-  }
 
   let sent = 0;
   let skipped = 0;
@@ -495,20 +430,7 @@ export async function deliverInstantPulseAlerts(input: {
 
   for (const candidate of candidates) {
     const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
-    const recent = await recentAlertDeliveries(
-      input.supabase,
-      input.tenantId,
-      candidate.client_id,
-      candidate.rule_type,
-      throttleHours,
-      now.getTime(),
-      candidate.campaign_key,
-    );
-    // A failed dedupe lookup must not turn into a resend.
-    if (
-      recent === null ||
-      !decideInstantAlertDelivery(candidate, recent).send
-    ) {
+    if (await isInstantAlertSuppressed(input, candidate, throttleHours, now)) {
       skipped += 1;
       continue;
     }

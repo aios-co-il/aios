@@ -1,7 +1,7 @@
 // Cron: scans all tenants' active Facebook campaigns, detects anomalies, writes to campaign_alerts.
 import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { holdMarker, releaseHeldAlert } from "./shabbat-hold.ts";
+import { upsertCampaignAlert } from "./upsert-alert.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -139,45 +139,12 @@ async function notifyWhatsapp(
     .eq("id", alert_id);
 }
 
+/** Records one detected alert; only NOTIFY_TYPES send a WhatsApp. */
 async function upsertAlert(supabase: any, alert: AlertInput) {
-  const now = new Date();
-  // Avoid duplicates: skip if same open alert exists in last 24h
-  const { data: existing } = await supabase
-    .from("campaign_alerts")
-    .select("id, notified_at, details")
-    .eq("tenant_id", alert.tenant_id)
-    .eq("campaign_id", alert.campaign_id)
-    .eq("alert_type", alert.alert_type)
-    .is("resolved_at", null)
-    .gte(
-      "created_at",
-      new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-    )
-    .limit(1)
-    .maybeSingle();
-  if (existing) {
-    if (NOTIFY_TYPES.has(alert.alert_type)) {
-      await releaseHeldAlert(
-        supabase,
-        existing,
-        (alertId) => notifyWhatsapp(supabase, alert, alertId),
-        now,
-      );
-    }
-    return null;
-  }
-  const heldRow = NOTIFY_TYPES.has(alert.alert_type)
-    ? holdMarker(alert, now)
+  const notify = NOTIFY_TYPES.has(alert.alert_type)
+    ? (alertId: string) => notifyWhatsapp(supabase, alert, alertId)
     : null;
-  const { data } = await supabase
-    .from("campaign_alerts")
-    .insert(heldRow ?? alert)
-    .select("id")
-    .single();
-  if (data?.id && !heldRow) {
-    await notifyWhatsapp(supabase, alert, data.id);
-  }
-  return data;
+  return await upsertCampaignAlert(supabase, alert, notify);
 }
 
 async function scanCampaign(

@@ -1,8 +1,10 @@
+import {
+  jerusalemLocalTimeToUtc,
+  NOTIFICATION_WINDOW_START,
+} from "../_shared/shabbat/quiet-window.ts";
 import { onReminderDay, outsideShabbat } from "./reminder-day.ts";
 
 const ISRAEL_TIME_ZONE = "Asia/Jerusalem";
-const MORNING_HOUR = 8;
-const MORNING_MINUTE = 30;
 const EVENING_CUTOFF_HOUR = 20;
 
 type LocalParts = {
@@ -34,27 +36,10 @@ function localParts(date: Date): LocalParts {
   };
 }
 
+/** Israel wall-clock parts → UTC, through the shared DST-safe converter. */
 function israelLocalToUtc(parts: LocalParts): Date {
-  const target = Date.UTC(
-    parts.year,
-    parts.month - 1,
-    parts.day,
-    parts.hour,
-    parts.minute,
-  );
-  let result = new Date(target);
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const actual = localParts(result);
-    const actualAsUtc = Date.UTC(
-      actual.year,
-      actual.month - 1,
-      actual.day,
-      actual.hour,
-      actual.minute,
-    );
-    result = new Date(result.getTime() + target - actualAsUtc);
-  }
-  return result;
+  const dateYmd = `${parts.year}-${parts.month}-${parts.day}`;
+  return jerusalemLocalTimeToUtc(dateYmd, parts.hour, parts.minute);
 }
 
 function shiftLocalDate(parts: LocalParts, days: number): LocalParts {
@@ -71,10 +56,8 @@ function shiftLocalDate(parts: LocalParts, days: number): LocalParts {
 }
 
 function isBeforeMorning(parts: LocalParts) {
-  return (
-    parts.hour < MORNING_HOUR ||
-    (parts.hour === MORNING_HOUR && parts.minute < MORNING_MINUTE)
-  );
+  const { hour, minute } = NOTIFICATION_WINDOW_START;
+  return parts.hour < hour || (parts.hour === hour && parts.minute < minute);
 }
 
 export function taskOverdueNotifyAt(task: {
@@ -87,11 +70,7 @@ export function taskOverdueNotifyAt(task: {
     1,
   );
   return outsideShabbat(
-    israelLocalToUtc({
-      ...dayAfterDue,
-      hour: MORNING_HOUR,
-      minute: MORNING_MINUTE,
-    }),
+    israelLocalToUtc({ ...dayAfterDue, ...NOTIFICATION_WINDOW_START }),
   );
 }
 
@@ -119,18 +98,10 @@ function plannedReminderAt(task: ReminderTask): Date | null {
     const local = localParts(fiveHoursLater);
     if (local.hour >= EVENING_CUTOFF_HOUR) {
       const nextMorning = shiftLocalDate(local, 1);
-      return israelLocalToUtc({
-        ...nextMorning,
-        hour: MORNING_HOUR,
-        minute: MORNING_MINUTE,
-      });
+      return israelLocalToUtc({ ...nextMorning, ...NOTIFICATION_WINDOW_START });
     }
     if (isBeforeMorning(local)) {
-      return israelLocalToUtc({
-        ...local,
-        hour: MORNING_HOUR,
-        minute: MORNING_MINUTE,
-      });
+      return israelLocalToUtc({ ...local, ...NOTIFICATION_WINDOW_START });
     }
     return fiveHoursLater;
   }

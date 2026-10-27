@@ -3,6 +3,7 @@
  * recorded on Saturday; a non-critical one is stored with a marker and no
  * WhatsApp, and the first run after Shabbat that still sees it open sends it.
  */
+import type { Json } from "../_shared/database.types.ts";
 import { isAlertHeldForShabbat } from "../_shared/shabbat/critical-alerts.ts";
 import { isJerusalemShabbat } from "../_shared/shabbat/quiet-window.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
@@ -12,7 +13,7 @@ export const CAMPAIGN_ALERT_SHABBAT_HOLD = "shabbat";
 
 type CampaignAlertRowLike = {
   notified_at?: string | null;
-  details?: Record<string, unknown> | null;
+  details?: Json | null;
 };
 
 type HoldableAlert = {
@@ -85,8 +86,16 @@ export function shouldReleaseHeldCampaignAlert(
   if (!row || row.notified_at) {
     return false;
   }
-  if (row.details?.whatsapp_hold !== CAMPAIGN_ALERT_SHABBAT_HOLD) {
+  if (whatsappHoldOf(row.details) !== CAMPAIGN_ALERT_SHABBAT_HOLD) {
     return false;
   }
   return !isJerusalemShabbat(now);
+}
+
+/** details.whatsapp_hold when details is a JSON object, else undefined. */
+function whatsappHoldOf(details: Json | null | undefined): Json | undefined {
+  if (!details || typeof details !== "object" || Array.isArray(details)) {
+    return undefined;
+  }
+  return details.whatsapp_hold;
 }

@@ -1,8 +1,18 @@
-/** A worker's answer when it claims nothing during the Shabbat quiet window. */
+import { jerusalemShabbatHoldUntil } from "./quiet-window.ts";
+
+/**
+ * A worker's answer while the Shabbat window holds its sends (AIO-226), or
+ * null outside the window. The worker claims nothing, so the first run after
+ * the window sends each held notification once.
+ */
 export function shabbatHeldResponse(
-  heldUntil: Date,
   headers: Record<string, string>,
-): Response {
+  now: Date = new Date(),
+): Response | null {
+  const heldUntil = jerusalemShabbatHoldUntil(now);
+  if (!heldUntil) {
+    return null;
+  }
   return new Response(
     JSON.stringify({
       ok: true,

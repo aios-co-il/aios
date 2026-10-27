@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { isFollowUpDue } from "./schedule.ts";
 import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
-import { jerusalemShabbatHoldUntil } from "../_shared/shabbat/quiet-window.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -345,11 +344,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    // Claim nothing on Shabbat: the first run after the window sends each held
-    // reminder once (AIO-226).
-    const heldUntil = jerusalemShabbatHoldUntil();
-    if (heldUntil) {
-      return shabbatHeldResponse(heldUntil, corsHeaders);
+    // Follow-up markers stay NULL while held, so the run after Shabbat sends each once.
+    const shabbatHold = shabbatHeldResponse(corsHeaders);
+    if (shabbatHold) {
+      return shabbatHold;
     }
     let clients: ClientRow[] = [];
     const clientColumns =
