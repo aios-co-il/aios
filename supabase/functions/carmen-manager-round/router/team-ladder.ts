@@ -20,19 +20,23 @@ import {
   isUrgent,
   type LadderContext,
   levelRecipients,
-  listTime,
   sendTime,
 } from "./ladder.ts";
-import { isRollupKind, kindEscalationTimes, rollupTime } from "./rollup.ts";
+import {
+  isRollupKind,
+  kindEscalationTimes,
+  levelZeroTime,
+  rollupTime,
+} from "./rollup.ts";
 
-/** Level 0 for a new finding: at once when urgent, else in the next daily list. */
+/** Level 0 for a new finding, at levelZeroTime. */
 export function startLadder(
   finding: FindingRow,
   kind: FindingKind,
   ctx: LadderContext,
 ): RouteDecision {
   const urgent = isUrgent(finding, kind);
-  const start = urgent ? sendTime(finding, ctx) : listTime(ctx);
+  const start = levelZeroTime(finding, kind, ctx);
   const recipients = levelRecipients(0, kind, ctx);
   return decide(finding, ctx, {
     level: 0,

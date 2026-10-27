@@ -7,11 +7,15 @@ import {
   isUrgent,
   type LadderContext,
   levelRecipients,
-  listTime,
   sendTime,
 } from "./ladder.ts";
 import { KIND_POLICY } from "./policy.ts";
-import { isRollupKind, kindEscalationTimes, rollupTime } from "./rollup.ts";
+import {
+  isRollupKind,
+  kindEscalationTimes,
+  levelZeroTime,
+  rollupTime,
+} from "./rollup.ts";
 
 /** Who would hear about it at each level, and when. */
 export function ladderPreview(
@@ -29,7 +33,7 @@ export function ladderPreview(
   if (KIND_POLICY[kind].start === 2) {
     return [toOwner];
   }
-  const start = urgent ? sendTime(finding, ctx) : listTime(ctx);
+  const start = levelZeroTime(finding, kind, ctx);
   const [toManagerAt, toOwnerAt] = kindEscalationTimes(
     start,
     kind,

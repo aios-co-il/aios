@@ -4,7 +4,12 @@ import { notLoggedFindings } from "./not-logged.ts";
 
 // Tuesday 2026-11-03 12:00 Israel time.
 const NOW = new Date("2026-11-03T10:00:00Z");
-const RULES = { logGraceHours: 24, minCallSeconds: 60, noContactDays: 14 };
+const RULES = {
+  logGraceHours: 24,
+  minCallSeconds: 60,
+  noContactEnabled: true,
+  noContactDays: 14,
+};
 const CALL_AT = "2026-11-02T08:00:00Z";
 
 function client(fields: Partial<ContactEvidence> = {}): ContactEvidence {
@@ -74,6 +79,7 @@ Deno.test("notLoggedFindings", async (t) => {
   await t.step("a meeting drafts from its recording summary", () => {
     const meeting = {
       id: "m-1",
+      key: "zoom:zm1",
       at: "2026-11-01T09:00:00Z",
       source: "meeting_bot",
       summary: "## סיכום\n* הוחלט להגדיל **תקציב**",
@@ -85,7 +91,7 @@ Deno.test("notLoggedFindings", async (t) => {
     );
     assertEquals(
       findings.map((f) => f.fingerprint),
-      ["client:c1:meeting:m-1"],
+      ["client:c1:meeting:zoom:zm1"],
     );
     assertEquals(findings[0].owner_user_id, null);
     assertEquals(findings[0].evidence.draft, {
@@ -94,4 +100,28 @@ Deno.test("notLoggedFindings", async (t) => {
     });
     assertStringIncludes(findings[0].summary_he, "יש טיוטה מסיכום ההקלטה");
   });
+
+  await t.step(
+    "a meeting is one finding whichever recording file is read",
+    () => {
+      const file = (id: string) =>
+        notLoggedFindings(
+          [
+            client({
+              unloggedCall: null,
+              unloggedMeeting: {
+                id,
+                key: "zoom:zm1",
+                at: "2026-11-01T09:00:00Z",
+                source: "recording",
+                summary: null,
+              },
+            }),
+          ],
+          RULES,
+          NOW,
+        )[0].fingerprint;
+      assertEquals(file("rec-1"), file("rec-2"));
+    },
+  );
 });

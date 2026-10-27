@@ -15693,6 +15693,16 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      carmen_finding_confirm_contact: {
+        Args: {
+          p_content: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+          p_update_type: string;
+          p_user_id: string;
+        };
+        Returns: { entry_id: string; inserted: boolean; outcome: string }[];
+      };
       carmen_finding_mark_missing: {
         Args: {
           p_after_misses?: number;
@@ -15704,6 +15714,17 @@ export type Database = {
           p_tenant_id: string;
         };
         Returns: { finding_id: string; short_code: number }[];
+      };
+      carmen_finding_may_confirm: {
+        Args: {
+          p_agency_id: string;
+          p_attributed: boolean;
+          p_client_id: string;
+          p_owner_user_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
       };
       carmen_finding_record_brief: {
         Args: {
@@ -15728,15 +15749,6 @@ export type Database = {
           p_tenant_id: string;
         };
         Returns: number;
-      };
-      carmen_finding_resolve_confirmed: {
-        Args: {
-          p_actor_user_id: string;
-          p_finding_id: string;
-          p_note?: string;
-          p_tenant_id: string;
-        };
-        Returns: boolean;
       };
       carmen_finding_set_status: {
         Args: {
@@ -16088,6 +16100,7 @@ export type Database = {
       get_client_contact_evidence: {
         Args: {
           p_client_ids?: string[];
+          p_contact_since?: string;
           p_min_call_seconds?: number;
           p_since: string;
           p_tenant_id: string;
@@ -16107,6 +16120,7 @@ export type Database = {
           unlogged_call_user_name: string;
           unlogged_meeting_at: string;
           unlogged_meeting_id: string;
+          unlogged_meeting_key: string;
           unlogged_meeting_source: string;
           unlogged_meeting_summary: string;
         }[];

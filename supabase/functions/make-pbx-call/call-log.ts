@@ -15,22 +15,32 @@ export interface NewOutboundCall {
 export async function createCallLog(sb: SupabaseClient, call: NewOutboundCall) {
   const { data, error } = await sb
     .from("call_logs")
-    .insert({
-      tenant_id: call.tenantId,
-      lead_id: call.leadId,
-      client_id: call.clientId,
-      caller_user_id: call.userId,
-      from_number: call.callerNumber,
-      to_number: call.toNumber,
-      status: "initiated",
-      provider: "pbx",
-      provider_call_id: call.callId,
-      notes: call.extension ? `שלוחה ${call.extension}` : null,
-    })
+    .insert(newCallRow(call))
     .select()
     .single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * The call_logs row of a call started from AIOS. The person who clicked made
+ * it, so it is attributed to them (caller_resolution click_to_call), and
+ * pbx-webhook's later events never replace them.
+ */
+export function newCallRow(call: NewOutboundCall) {
+  return {
+    tenant_id: call.tenantId,
+    lead_id: call.leadId,
+    client_id: call.clientId,
+    caller_user_id: call.userId,
+    caller_resolution: "click_to_call",
+    from_number: call.callerNumber,
+    to_number: call.toNumber,
+    status: "initiated",
+    provider: "pbx",
+    provider_call_id: call.callId,
+    notes: call.extension ? `שלוחה ${call.extension}` : null,
+  };
 }
 
 export async function markCallFailed(

@@ -1,11 +1,14 @@
 /**
  * The first recipient of owner-first findings (KIND_POLICY.ownerFirst: an
- * unlogged call goes to the caller the PBX extension named). The owner is
- * looked up among the client's campaigners, then the tenant's staff, then
- * the tenant's active campaigner logins. Someone the router cannot reach in
- * this tenant is left out, so the ladder starts with the client's
- * campaigners instead.
+ * unlogged call goes to the person who made it). Only a finding whose
+ * evidence names that person (evidence.attributed) has one: the owner the
+ * router defaults to the client's first campaigner never narrows level 0.
+ * The owner is looked up among the client's campaigners, then the tenant's
+ * staff, then the tenant's active campaigner logins. Someone the router
+ * cannot reach in this tenant is left out, so the ladder starts with the
+ * client's campaigners instead.
  */
+import type { Json } from "../../_shared/database.types.ts";
 import { isFindingKind } from "../../_shared/manager-round/kinds.ts";
 import { normalizeStaffPhone } from "../../_shared/staff-whatsapp.ts";
 import type { FindingRow, Recipient } from "../findings/types.ts";
@@ -64,11 +67,23 @@ export async function resolveOwners(
   return owners;
 }
 
-/** The owner of a finding whose kind goes to its owner first, else null. */
+/** The named owner of a finding whose kind goes to its owner first, else null. */
 function ownerFirstUser(finding: FindingRow): string | null {
-  return isFindingKind(finding.kind) && KIND_POLICY[finding.kind].ownerFirst
+  return isFindingKind(finding.kind) &&
+    KIND_POLICY[finding.kind].ownerFirst &&
+    isAttributed(finding.evidence)
     ? finding.owner_user_id
     : null;
+}
+
+/** evidence.attributed: the collector named the person (e.g. the caller). */
+function isAttributed(evidence: Json): boolean {
+  return (
+    !!evidence &&
+    typeof evidence === "object" &&
+    !Array.isArray(evidence) &&
+    evidence.attributed === true
+  );
 }
 
 /** The owner as one of the client's campaigners or the tenant's staff. */

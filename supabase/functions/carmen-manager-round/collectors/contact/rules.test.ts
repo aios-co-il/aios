@@ -6,6 +6,7 @@ Deno.test("contactRules", async (t) => {
     assertEquals(contactRules(null), {
       logGraceHours: 24,
       minCallSeconds: 60,
+      noContactEnabled: true,
       noContactDays: 14,
     });
   });
@@ -18,7 +19,12 @@ Deno.test("contactRules", async (t) => {
           no_contact_days: 21,
           manager: { contact: { log_grace_hours: 8, min_call_seconds: 90 } },
         }),
-        { logGraceHours: 8, minCallSeconds: 90, noContactDays: 21 },
+        {
+          logGraceHours: 8,
+          minCallSeconds: 90,
+          noContactEnabled: true,
+          noContactDays: 21,
+        },
       );
     },
   );
@@ -29,7 +35,19 @@ Deno.test("contactRules", async (t) => {
         no_contact_days: "x",
         manager: { contact: { log_grace_hours: -1, min_call_seconds: "a" } },
       }),
-      { logGraceHours: 24, minCallSeconds: 60, noContactDays: 14 },
+      {
+        logGraceHours: 24,
+        minCallSeconds: 60,
+        noContactEnabled: true,
+        noContactDays: 14,
+      },
+    );
+  });
+
+  await t.step("the pulse's no_contact_enabled turns no_contact off", () => {
+    assertEquals(
+      contactRules({ no_contact_enabled: false }).noContactEnabled,
+      false,
     );
   });
 });

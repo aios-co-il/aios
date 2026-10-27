@@ -22,7 +22,8 @@ export const contactCollector: Collector = {
   kinds: ["contact_not_logged", "no_contact"],
   detectorVersion: "1",
   schedule: { cron: "5 * * * *" },
-  // The evidence is read whole every run, so one miss means it was fixed.
+  // The evidence is read whole every run, so one miss means it ended: the
+  // contact was logged, or it left the window and the next one took over.
   clearAfterMisses: 1,
   collect: collectContact,
 };
@@ -34,14 +35,21 @@ async function collectContact(ctx: CollectorContext): Promise<CollectorResult> {
   return {
     candidates: [
       ...notLoggedFindings(evidence, rules, ctx.now),
-      ...noContactFindings(evidence, rules, ctx.now),
+      ...(rules.noContactEnabled
+        ? noContactFindings(evidence, rules, ctx.now)
+        : []),
     ],
     watermark: null,
     coverage: { complete: true, clientIds: ctx.clientIds },
   };
 }
 
-/** The no_contact window of evidence, from fixtures when the request has them. */
+/**
+ * Unlogged calls and meetings of the last no_contact_days, and the last
+ * contact over twice that: a silence crosses the threshold no_contact_days
+ * after its last contact, so that contact must still be in view to date it.
+ * From fixtures when the request has them.
+ */
 function contactEvidence(
   ctx: CollectorContext,
   rules: ContactRules,
@@ -50,9 +58,11 @@ function contactEvidence(
   if (fixtures) {
     return Promise.resolve(fixtures);
   }
+  const window = rules.noContactDays * DAY_MS;
   return loadContactEvidence(ctx.db, {
     tenantId: ctx.tenantId,
-    since: new Date(ctx.now.getTime() - rules.noContactDays * DAY_MS),
+    since: new Date(ctx.now.getTime() - window),
+    contactSince: new Date(ctx.now.getTime() - 2 * window),
     minCallSeconds: rules.minCallSeconds,
     clientIds: ctx.clientIds,
   });

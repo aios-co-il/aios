@@ -1,7 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import type { Recipient } from "../findings/types.ts";
 import { finding } from "../tests/fake-world.ts";
-import { avi, ctx, dana, keys, team } from "../tests/route-fixtures.ts";
+import { avi, client, ctx, dana, keys, team } from "../tests/route-fixtures.ts";
 import { routeFinding } from "./route.ts";
 
 const noa: Recipient = {
@@ -76,6 +76,26 @@ Deno.test("contact kinds on the ladder", async (t) => {
         `1:${avi.key}:list:2026-11-08T06:30:00.000Z`,
       ]);
       assertEquals(climbed.next_action_at, null);
+    },
+  );
+
+  await t.step(
+    "no_contact of a client without a campaigner reaches the managers only in the roll-up",
+    () => {
+      const people = { client, campaigners: [], managers: [avi] };
+      const start = routeFinding(
+        finding({ kind: "no_contact" }),
+        ctx(team, { people }),
+      );
+      assertEquals(keys(start), [`0:${avi.key}:list:2026-11-08T06:30:00.000Z`]);
+      const preview = routeFinding(
+        finding({ kind: "no_contact" }),
+        ctx({ mode: "observe" }, { people }),
+      );
+      assertEquals(
+        preview.planned_actions?.[0]?.at,
+        "2026-11-08T06:30:00.000Z",
+      );
     },
   );
 

@@ -67,6 +67,10 @@ import {
   promoteFindingDraftTool,
 } from "./finding-draft/tool.ts";
 import {
+  type FindingDraftReply,
+  findingDraftReplyOf,
+} from "./finding-draft/reply.ts";
+import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
   recallAgentMemoryFTS,
@@ -5590,6 +5594,8 @@ async function executeTool(
   // The person talking to Carmen in this run (resolveHumanRequesterUserId).
   // Omitted = nobody can vouch for a client contact, so calls are not logged.
   humanRequesterUserId?: string | null,
+  // The "תעדי <code>" this run answers (confirm_finding_draft); omitted = none.
+  findingDraftReply?: FindingDraftReply | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5661,13 +5667,7 @@ async function executeTool(
       tenantId,
       args,
       requesterUserId: humanRequesterUserId ?? null,
-      caller: {
-        campaignerId: callerCampaignerId ?? null,
-        isManagerRole,
-        isTeamManager,
-        managedAgencyIds,
-      },
-      now: new Date(),
+      reply: findingDraftReply ?? null,
     });
   }
   switch (name) {
@@ -13755,6 +13755,7 @@ async function handleRunAgent(
       surface,
       automationId: automation_id,
     });
+    const findingDraftReply = findingDraftReplyOf(command_text, wa_notify);
 
     // System/dev-fix escalations (Cursor/Claude/Manus MCP + GitHub agent) —
     // tiered allowlist: David=full, Ana=bugfix→Cursor only. Role alone is not enough.
@@ -15827,6 +15828,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               surface,
               serverConversationId,
               humanRequesterUserId,
+              findingDraftReply,
             );
           }
           console.log(`[AGENT] Tool ${toolName} OK`);

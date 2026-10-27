@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
-import { resolveCaller } from "./caller.ts";
+import { callerUpgrade, resolveCaller } from "./caller.ts";
 import { WebhookError } from "./errors.ts";
 
 const settings = { extensions: [{ extension: "101", user_id: "dana" }] };
@@ -35,4 +35,25 @@ Deno.test("resolveCaller", async (t) => {
       "No tenant user found",
     );
   });
+});
+
+Deno.test("callerUpgrade", async (t) => {
+  await t.step(
+    "a call nobody was named for takes the mapped extension's agent",
+    () => {
+      const named = { caller_user_id: "dana", caller_resolution: "extension" };
+      assertEquals(callerUpgrade(settings, "101", null), named);
+      assertEquals(callerUpgrade(settings, "101", "fallback"), named);
+    },
+  );
+
+  await t.step(
+    "a named caller stays, and an unmapped extension changes nothing",
+    () => {
+      assertEquals(callerUpgrade(settings, "101", "click_to_call"), null);
+      assertEquals(callerUpgrade(settings, "101", "extension"), null);
+      assertEquals(callerUpgrade(settings, "999", "fallback"), null);
+      assertEquals(callerUpgrade(settings, null, null), null);
+    },
+  );
 });

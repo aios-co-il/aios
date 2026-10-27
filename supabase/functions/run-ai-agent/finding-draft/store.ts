@@ -1,13 +1,16 @@
 /**
- * The confirmation tool's database reads and writes, always within the run's
- * tenant: the live finding by its code, the caller's assignment to the
- * client, the card entry (record_client_card_entry) and the resolution.
+ * The confirmation tool's database calls, always within the run's tenant:
+ * the live finding by its code, then carmen_finding_confirm_contact, which
+ * decides in the tenant whether this person may log it and writes the card
+ * entry and the resolution in one transaction.
  */
-import { jerusalemYmd } from "../../_shared/calendarTimeZone.ts";
-import { recordClientCardEntry } from "../../_shared/client-card.ts";
+import type { Database } from "../../_shared/database.types.ts";
 import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import type { FindingDraftPorts } from "./ports.ts";
+import type { ConfirmOutcome, FindingDraftPorts } from "./ports.ts";
+
+type ConfirmRow =
+  Database["public"]["Functions"]["carmen_finding_confirm_contact"]["Returns"][number];
 
 /** The ports over the service-role client. */
 export function findingDraftPorts(db: DbClient): FindingDraftPorts {
@@ -15,9 +18,7 @@ export function findingDraftPorts(db: DbClient): FindingDraftPorts {
     async findLive(tenantId, shortCode) {
       const { data, error } = await db
         .from("carmen_findings")
-        .select(
-          "id, client_id, agency_id, kind, short_code, owner_user_id, evidence",
-        )
+        .select("id, kind, short_code, evidence")
         .eq("tenant_id", tenantId)
         .eq("short_code", shortCode)
         .in("status", [...FINDING_LIVE_STATUSES])
@@ -28,38 +29,29 @@ export function findingDraftPorts(db: DbClient): FindingDraftPorts {
       return data;
     },
 
-    async isAssigned(tenantId, clientId, campaignerId, now) {
-      const { data, error } = await db
-        .from("client_team")
-        .select("start_date, end_date, campaigners!inner(tenant_id, active)")
-        .eq("client_id", clientId)
-        .eq("campaigner_id", campaignerId)
-        .eq("campaigners.tenant_id", tenantId)
-        .eq("campaigners.active", true);
-      if (error) {
-        throw new Error(`client_team: ${error.message}`);
-      }
-      const today = jerusalemYmd(now);
-      return (data ?? []).some(
-        (row) =>
-          (!row.start_date || row.start_date <= today) &&
-          (!row.end_date || row.end_date >= today),
-      );
-    },
-
-    writeCard: (input) => recordClientCardEntry(db, input),
-
-    async resolve(tenantId, findingId, actorUserId, note) {
-      const { data, error } = await db.rpc("carmen_finding_resolve_confirmed", {
-        p_tenant_id: tenantId,
-        p_finding_id: findingId,
-        p_actor_user_id: actorUserId,
-        p_note: note,
+    async confirm(request) {
+      const { data, error } = await db.rpc("carmen_finding_confirm_contact", {
+        p_tenant_id: request.tenantId,
+        p_finding_id: request.findingId,
+        p_user_id: request.userId,
+        p_update_type: request.updateType,
+        p_content: request.content,
       });
       if (error) {
-        throw new Error(`carmen_finding_resolve_confirmed: ${error.message}`);
+        throw new Error(`carmen_finding_confirm_contact: ${error.message}`);
       }
-      return data === true;
+      return outcomeOf(data?.[0]);
     },
   };
+}
+
+/** The function's row as an outcome; a missing or unknown one is not_found. */
+function outcomeOf(row: ConfirmRow | undefined): ConfirmOutcome {
+  if (row?.outcome === "logged") {
+    return { outcome: "logged", entryId: row.entry_id, inserted: row.inserted };
+  }
+  if (row?.outcome === "read_only") {
+    return { outcome: "read_only" };
+  }
+  return { outcome: "not_found" };
 }

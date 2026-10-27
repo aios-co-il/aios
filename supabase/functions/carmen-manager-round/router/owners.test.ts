@@ -13,7 +13,13 @@ const manager = {
 };
 const people = new Map([["c1", { client, campaigners: [dana], managers: [] }]]);
 const call = (owner: string | null, kind = "contact_not_logged") =>
-  finding({ client_id: "c1", kind, owner_user_id: owner, id: `f-${owner}` });
+  finding({
+    client_id: "c1",
+    kind,
+    owner_user_id: owner,
+    id: `f-${owner}`,
+    evidence: { attributed: owner !== null },
+  });
 
 Deno.test("resolveOwners", async (t) => {
   const w = world({
@@ -29,6 +35,7 @@ Deno.test("resolveOwners", async (t) => {
       call("gone"),
       call(null),
       { ...call("dana", "no_contact"), id: "f-other" },
+      { ...call("dana"), id: "f-default", evidence: { attributed: false } },
     ],
     people,
     staff: w.staff,
@@ -50,8 +57,10 @@ Deno.test("resolveOwners", async (t) => {
     "nobody for an unreachable person, an unattributed call or another kind",
     () => {
       assertEquals(
-        ["f-gone", "f-null", "f-other"].map((id) => owners.has(id)),
-        [false, false, false],
+        ["f-gone", "f-null", "f-other", "f-default"].map((id) =>
+          owners.has(id),
+        ),
+        [false, false, false, false],
       );
     },
   );

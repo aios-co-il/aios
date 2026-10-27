@@ -1,10 +1,12 @@
 /**
- * contact_not_logged (plan C19): the oldest call or meeting since the last
- * logged contact, once it is older than log_grace_hours. It stays the same
- * finding until someone logs, however many calls follow. A call belongs to
- * the person its PBX extension named, else to nobody, so the router asks the
- * client's campaigners and never blames the fallback user. Each finding
- * carries the card entry to log on "תעדי <code>".
+ * contact_not_logged (plan C19): the oldest call or meeting no log covers,
+ * once it is older than log_grace_hours. However many calls follow, it stays
+ * the same finding until someone logs or it leaves the no_contact_days
+ * window; then the next unlogged one, if any, is a new finding, so a
+ * campaigner who never logs is still told after go-live. A call belongs to
+ * the person who made it (mapped extension or click-to-call), else to
+ * nobody, so the router asks the client's campaigners and never blames the
+ * fallback user. Each finding carries the card entry to log on "תעדי <code>".
  */
 import type { ContactDraft } from "../../../_shared/manager-round/contact-draft.ts";
 import type { FindingCandidate } from "../types.ts";
@@ -72,7 +74,7 @@ function unloggedMeeting(
   }
   return [
     candidate(client, meeting, {
-      fingerprint: `client:${client.clientId}:meeting:${meeting.id}`,
+      fingerprint: `client:${client.clientId}:meeting:${meeting.key}`,
       summary: meetingSummary(client.clientName, meeting),
       owner: null,
       facts: { evidence_type: "meeting", meeting_source: meeting.source },

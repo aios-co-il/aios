@@ -3,7 +3,12 @@ import type { ContactEvidence } from "./evidence.ts";
 import { noContactFindings } from "./no-contact.ts";
 
 const NOW = new Date("2026-11-03T10:00:00Z");
-const RULES = { logGraceHours: 24, minCallSeconds: 60, noContactDays: 14 };
+const RULES = {
+  logGraceHours: 24,
+  minCallSeconds: 60,
+  noContactEnabled: true,
+  noContactDays: 14,
+};
 
 function client(fields: Partial<ContactEvidence> = {}): ContactEvidence {
   return {

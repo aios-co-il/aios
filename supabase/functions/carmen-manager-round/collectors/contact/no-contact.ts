@@ -1,9 +1,10 @@
 /**
  * no_contact (plan C19): no call, meeting, campaigner message or logged
  * contact for no_contact_days since the client started. The finding's event
- * is the moment the silence crossed the threshold, so a client already
- * silent before the round was switched on stays in the feed and is never
- * alerted about (no replay).
+ * is the moment the silence crossed the threshold (the collector reads the
+ * last contact over twice the threshold, so it is still known then), so a
+ * client already silent before the round was switched on stays in the feed
+ * and is never alerted about (no replay).
  */
 import type { FindingCandidate } from "../types.ts";
 import type { ContactEvidence } from "./evidence.ts";

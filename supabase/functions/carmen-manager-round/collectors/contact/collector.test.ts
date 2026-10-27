@@ -2,6 +2,8 @@ import { assertEquals } from "jsr:@std/assert@1";
 import type { Json } from "../../../_shared/database.types.ts";
 import { resolveManagerSettings } from "../../../_shared/manager-round/settings.ts";
 import { RoundBudget } from "../../budget.ts";
+import { isDeliverable } from "../../router/route.ts";
+import { finding } from "../../tests/fake-world.ts";
 import { type Call, recordingClient } from "../../tests/recording-client.ts";
 import type { CollectorContext } from "../types.ts";
 import { contactCollector } from "./collector.ts";
@@ -22,17 +24,27 @@ const ROW = {
   unlogged_call_user_id: "dana",
   unlogged_call_user_name: "דנה",
   unlogged_meeting_id: null,
+  unlogged_meeting_key: null,
   unlogged_meeting_source: null,
   unlogged_meeting_at: null,
   unlogged_meeting_summary: null,
 };
+const EVIDENCE_BODY = {
+  p_tenant_id: T,
+  p_since: "2026-10-24T10:00:00.000Z",
+  p_contact_since: "2026-10-14T10:00:00.000Z",
+  p_min_call_seconds: 60,
+};
 
-/** Answers the settings read and the evidence RPC like PostgREST would. */
-function respond(call: Call): unknown {
-  if (call.path === "tenant_heartbeat_settings") {
-    return { pulse_alert_rules: { no_contact_days: 10 } };
-  }
-  return [ROW];
+/** Answers the settings read with these rules and the evidence RPC with these rows. */
+function responder(
+  rows: unknown[],
+  pulseAlertRules: Json = { no_contact_days: 10 },
+) {
+  return (call: Call): unknown =>
+    call.path === "tenant_heartbeat_settings"
+      ? { pulse_alert_rules: pulseAlertRules }
+      : rows;
 }
 
 function context(
@@ -53,24 +65,21 @@ function context(
   };
 }
 
+/** The evidence RPC calls a run made. */
+const evidenceCalls = (calls: Call[]) =>
+  calls.filter((c) => c.path.endsWith("get_client_contact_evidence"));
+
 Deno.test("contactCollector", async (t) => {
   await t.step(
     "reads the tenant's rules and evidence, and reports both kinds",
     async () => {
-      const { db, calls } = recordingClient(respond);
+      const { db, calls } = recordingClient(responder([ROW]));
       const result = await contactCollector.collect(context(db));
       const settings = calls.find(
         (c) => c.path === "tenant_heartbeat_settings",
       );
       assertEquals(settings?.query.get("tenant_id"), `eq.${T}`);
-      const rpc = calls.find((c) =>
-        c.path.endsWith("get_client_contact_evidence"),
-      );
-      assertEquals(rpc?.body, {
-        p_tenant_id: T,
-        p_since: "2026-10-24T10:00:00.000Z",
-        p_min_call_seconds: 60,
-      });
+      assertEquals(evidenceCalls(calls)[0]?.body, EVIDENCE_BODY);
       assertEquals(
         result.candidates.map((c) => `${c.kind}:${c.owner_user_id}`),
         ["contact_not_logged:dana"],
@@ -82,25 +91,85 @@ Deno.test("contactCollector", async (t) => {
   await t.step(
     "a one-client run asks for and clears only that client",
     async () => {
-      const { db, calls } = recordingClient(respond);
+      const { db, calls } = recordingClient(responder([ROW]));
       const result = await contactCollector.collect(
         context(db, { clientIds: ["c1"] }),
       );
-      const rpc = calls.find((c) =>
-        c.path.endsWith("get_client_contact_evidence"),
-      );
-      assertEquals(rpc?.body, {
-        p_tenant_id: T,
-        p_since: "2026-10-24T10:00:00.000Z",
-        p_min_call_seconds: 60,
+      assertEquals(evidenceCalls(calls)[0]?.body, {
+        ...EVIDENCE_BODY,
         p_client_ids: ["c1"],
       });
       assertEquals(result.coverage.clientIds, ["c1"]);
     },
   );
 
+  await t.step(
+    "a silence after a contact older than the threshold is dated from it",
+    async () => {
+      // Unlogged call on 10-20 (outside p_since, inside p_contact_since), nothing logged.
+      const silent = {
+        ...ROW,
+        last_log_at: null,
+        last_contact_at: "2026-10-20T10:00:00Z",
+        unlogged_call_id: null,
+      };
+      const { db } = recordingClient(responder([silent]));
+      const [noContact] = (await contactCollector.collect(context(db)))
+        .candidates;
+      assertEquals(noContact.kind, "no_contact");
+      assertEquals(noContact.source_event_at, "2026-10-30T10:00:00.000Z");
+      const settings = resolveManagerSettings({
+        manager: { mode: "team", notify_since: "2026-10-25T00:00:00Z" },
+      });
+      const row = finding({
+        kind: "no_contact",
+        source_event_at: noContact.source_event_at,
+      });
+      assertEquals(isDeliverable(row, "no_contact", settings, {}), true);
+    },
+  );
+
+  await t.step(
+    "pulse_alert_rules.no_contact_enabled off: no no_contact",
+    async () => {
+      const silent = { ...ROW, last_log_at: null, last_contact_at: null };
+      const { db } = recordingClient(
+        responder([silent], { no_contact_days: 10, no_contact_enabled: false }),
+      );
+      const result = await contactCollector.collect(context(db));
+      assertEquals(
+        result.candidates.map((c) => c.kind),
+        ["contact_not_logged"],
+      );
+    },
+  );
+
+  await t.step("reads every page of a large tenant", async () => {
+    const page = Array.from({ length: 1000 }, (_, i) => ({
+      ...ROW,
+      client_id: `c${i}`,
+      unlogged_call_id: null,
+    }));
+    const { db, calls } = recordingClient((call) =>
+      call.path === "tenant_heartbeat_settings"
+        ? { pulse_alert_rules: { no_contact_days: 10 } }
+        : call.query.get("offset") === "1000"
+          ? [ROW]
+          : page,
+    );
+    const result = await contactCollector.collect(context(db));
+    assertEquals(
+      evidenceCalls(calls).map((c) => c.query.get("offset") ?? "0"),
+      ["0", "1000"],
+    );
+    assertEquals(
+      result.candidates.filter((c) => c.kind === "contact_not_logged").length,
+      1,
+    );
+  });
+
   await t.step("fixtures replace the evidence read in a dry run", async () => {
-    const { db, calls } = recordingClient(respond);
+    const { db, calls } = recordingClient(responder([ROW]));
     const fixtures: Json = {
       contact: [
         {
@@ -112,10 +181,7 @@ Deno.test("contactCollector", async (t) => {
       ],
     };
     const result = await contactCollector.collect(context(db, { fixtures }));
-    assertEquals(
-      calls.some((c) => c.path.endsWith("get_client_contact_evidence")),
-      false,
-    );
+    assertEquals(evidenceCalls(calls).length, 0);
     assertEquals(
       result.candidates.map((c) => c.kind),
       ["no_contact"],

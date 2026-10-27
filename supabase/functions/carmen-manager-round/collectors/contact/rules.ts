@@ -1,7 +1,8 @@
 /**
  * Thresholds of the contact collector, from the tenant's pulse_alert_rules:
  * manager.contact.log_grace_hours and min_call_seconds, and the pulse's own
- * no_contact_days, so the legacy pulse alert and the round share one setting.
+ * no_contact_enabled and no_contact_days, so the legacy pulse alert and the
+ * round share one setting.
  */
 import { positive, record } from "../../../_shared/manager-round/settings.ts";
 import { CLIENT_CALL_STALE_DAYS } from "../../../_shared/pulse-client-call.ts";
@@ -14,6 +15,8 @@ export type ContactRules = {
   logGraceHours: number;
   /** Shorter calls (and unanswered ones) are not contact. */
   minCallSeconds: number;
+  /** Off (pulse_alert_rules.no_contact_enabled = false): no no_contact findings. */
+  noContactEnabled: boolean;
   /** Days without contact or a log before a client is no_contact. */
   noContactDays: number;
 };
@@ -39,6 +42,7 @@ export async function loadContactRules(
 /** Contact rules from stored pulse_alert_rules (any shape), with defaults. */
 export function contactRules(pulseAlertRules: unknown): ContactRules {
   const contact = record(record(record(pulseAlertRules).manager).contact);
+  const pulse = parsePulseAlertRules(pulseAlertRules);
   return {
     logGraceHours: positive(
       contact.log_grace_hours,
@@ -48,8 +52,7 @@ export function contactRules(pulseAlertRules: unknown): ContactRules {
       contact.min_call_seconds,
       CONTACT_DEFAULTS.minCallSeconds,
     ),
-    noContactDays:
-      parsePulseAlertRules(pulseAlertRules).no_contact_days ??
-      CLIENT_CALL_STALE_DAYS,
+    noContactEnabled: pulse.no_contact_enabled !== false,
+    noContactDays: pulse.no_contact_days ?? CLIENT_CALL_STALE_DAYS,
   };
 }

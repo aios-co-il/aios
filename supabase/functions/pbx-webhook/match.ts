@@ -10,10 +10,12 @@ export type CallLogRow = {
   status: string;
   recording_url: string | null;
   recording_path: string | null;
+  caller_resolution: string | null;
 };
 export type Owner = { leadId: string | null; clientId: string | null };
 
-const COLUMNS = "id, lead_id, client_id, status, recording_url, recording_path";
+const COLUMNS =
+  "id, lead_id, client_id, status, recording_url, recording_path, caller_resolution";
 // PBXs send the recording and final status minutes after the call; a later
 // event for the same owner belongs to a new call.
 const MATCH_WINDOW_MS = 3 * 60 * 60 * 1000;

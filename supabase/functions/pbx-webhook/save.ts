@@ -1,7 +1,7 @@
 // Writes an incoming PBX event to call_logs.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { PbxEvent, PbxSettings } from "../_shared/telephony/types.ts";
-import { loadFirstTenantUser, resolveCaller } from "./caller.ts";
+import { callerUpgrade, loadFirstTenantUser, resolveCaller } from "./caller.ts";
 import type { CallLogRow, Owner } from "./match.ts";
 import { mapCallStatus } from "./status.ts";
 
@@ -15,17 +15,11 @@ export async function updateCall(
   event: PbxEvent,
   owner: Owner,
   recording: Recording,
+  settings: PbxSettings,
 ): Promise<SavedCall> {
-  const update: Record<string, unknown> = {
-    status: resolveStatus(event, recording, existing),
-    ...recordingColumns(event, recording),
-  };
-  if (!existing.lead_id && owner.leadId) update.lead_id = owner.leadId;
-  if (!existing.client_id && owner.clientId) update.client_id = owner.clientId;
-  if (event.duration !== null) update.duration = event.duration;
   const { error } = await sb
     .from("call_logs")
-    .update(update)
+    .update(callUpdate(existing, event, owner, recording, settings))
     .eq("id", existing.id);
   if (error) throw error;
   return {
@@ -67,6 +61,34 @@ export async function insertCall(
     .single();
   if (error) throw error;
   return { callLogId: data.id, ...owner };
+}
+
+/**
+ * The columns an event changes on the call it continues; a call nobody was
+ * named for takes the agent its extension names (callerUpgrade).
+ */
+export function callUpdate(
+  existing: CallLogRow,
+  event: PbxEvent,
+  owner: Owner,
+  recording: Recording,
+  settings: PbxSettings,
+): Record<string, unknown> {
+  const update: Record<string, unknown> = {
+    status: resolveStatus(event, recording, existing),
+    ...recordingColumns(event, recording),
+    ...callerUpgrade(settings, event.extension, existing.caller_resolution),
+  };
+  if (!existing.lead_id && owner.leadId) {
+    update.lead_id = owner.leadId;
+  }
+  if (!existing.client_id && owner.clientId) {
+    update.client_id = owner.clientId;
+  }
+  if (event.duration !== null) {
+    update.duration = event.duration;
+  }
+  return update;
 }
 
 function hasRecording(recording: Recording): boolean {
