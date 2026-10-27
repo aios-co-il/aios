@@ -1,21 +1,19 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { errorMessageOf } from "./errorMessage.ts";
 
 test("errorMessageOf reads the message of an Error", () => {
-  assert.equal(errorMessageOf(new Error("boom")), "boom");
+  expect(errorMessageOf(new Error("boom"))).toBe("boom");
 });
 
 test("errorMessageOf reads the message of an error-like object", () => {
-  assert.equal(
-    errorMessageOf({ message: "row not found", code: "PGRST116" }),
+  expect(errorMessageOf({ message: "row not found", code: "PGRST116" })).toBe(
     "row not found",
   );
 });
 
 test("errorMessageOf returns undefined without a string message", () => {
-  assert.equal(errorMessageOf("oops"), undefined);
-  assert.equal(errorMessageOf(null), undefined);
-  assert.equal(errorMessageOf({ message: 42 }), undefined);
-  assert.equal(errorMessageOf({}), undefined);
+  expect(errorMessageOf("oops")).toBe(undefined);
+  expect(errorMessageOf(null)).toBe(undefined);
+  expect(errorMessageOf({ message: 42 })).toBe(undefined);
+  expect(errorMessageOf({})).toBe(undefined);
 });

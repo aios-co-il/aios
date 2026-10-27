@@ -1,12 +1,11 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { buildLeadNotes, extractLeads, firstText } from "./parse-leads.ts";
 
-test("firstText returns the first truthy value as text", () => {
-  assert.equal(firstText(undefined, "", "Dana"), "Dana");
-  assert.equal(firstText(0, 1234567), "1234567");
-  assert.equal(firstText(null, undefined), "");
-  assert.equal(firstText({ name: "x" }, "later"), "");
+Deno.test("firstText returns the first truthy value as text", () => {
+  assertStrictEquals(firstText(undefined, "", "Dana"), "Dana");
+  assertStrictEquals(firstText(0, 1234567), "1234567");
+  assertStrictEquals(firstText(null, undefined), "");
+  assertStrictEquals(firstText({ name: "x" }, "later"), "");
 });
 
 const metaWebhook = {
@@ -36,31 +35,34 @@ const metaWebhook = {
   ],
 };
 
-test("extractLeads reads Meta direct webhooks across entry[].changes[]", () => {
-  const leads = extractLeads(metaWebhook);
-  assert.deepEqual(
-    leads.map(({ leadgen_id, form_name, campaign_name }) => ({
-      leadgen_id,
-      form_name,
-      campaign_name,
-    })),
-    [
-      {
-        leadgen_id: "1234567890123456",
-        form_name: "444555666",
-        campaign_name: "120200000000001",
-      },
-      { leadgen_id: "77", form_name: undefined, campaign_name: undefined },
-    ],
-  );
-  assert.equal(leads[0].raw, metaWebhook.entry[0].changes[0].value);
+Deno.test(
+  "extractLeads reads Meta direct webhooks across entry[].changes[]",
+  () => {
+    const leads = extractLeads(metaWebhook);
+    assertEquals(
+      leads.map(({ leadgen_id, form_name, campaign_name }) => ({
+        leadgen_id,
+        form_name,
+        campaign_name,
+      })),
+      [
+        {
+          leadgen_id: "1234567890123456",
+          form_name: "444555666",
+          campaign_name: "120200000000001",
+        },
+        { leadgen_id: "77", form_name: undefined, campaign_name: undefined },
+      ],
+    );
+    assertStrictEquals(leads[0].raw, metaWebhook.entry[0].changes[0].value);
+  },
+);
+
+Deno.test("extractLeads tolerates entries without a changes list", () => {
+  assertEquals(extractLeads({ entry: [{ id: "P" }, null] }), []);
 });
 
-test("extractLeads tolerates entries without a changes list", () => {
-  assert.deepEqual(extractLeads({ entry: [{ id: "P" }, null] }), []);
-});
-
-test("extractLeads reads a Unified.to single lead", () => {
+Deno.test("extractLeads reads a Unified.to single lead", () => {
   const [lead] = extractLeads({
     id: "u1",
     name: "Dana Levi",
@@ -68,11 +70,11 @@ test("extractLeads reads a Unified.to single lead", () => {
     telephones: [{ telephone: "050-1234567" }],
     company_name: "Levi Ltd",
   });
-  assert.equal(lead.name, "Dana Levi");
-  assert.equal(lead.contact_name, "Dana Levi");
-  assert.equal(lead.email, "dana@example.com");
-  assert.equal(lead.phone, "050-1234567");
-  assert.equal(lead.company_name, "Levi Ltd");
+  assertStrictEquals(lead.name, "Dana Levi");
+  assertStrictEquals(lead.contact_name, "Dana Levi");
+  assertStrictEquals(lead.email, "dana@example.com");
+  assertStrictEquals(lead.phone, "050-1234567");
+  assertStrictEquals(lead.company_name, "Levi Ltd");
 });
 
 const genericItem = {
@@ -106,21 +108,21 @@ const genericShapes: Array<[string, unknown]> = [
 ];
 
 for (const [name, body] of genericShapes) {
-  test(`extractLeads parses ${name}`, () => {
+  Deno.test(`extractLeads parses ${name}`, () => {
     const [lead] = extractLeads(body);
     const { raw: _raw, ...fields } = lead;
-    assert.deepEqual(fields, expectedGeneric);
+    assertEquals(fields, expectedGeneric);
   });
 }
 
-test("extractLeads ignores bodies without a known shape", () => {
-  assert.deepEqual(extractLeads({ hello: "world" }), []);
-  assert.deepEqual(extractLeads(null), []);
-  assert.deepEqual(extractLeads("text"), []);
+Deno.test("extractLeads ignores bodies without a known shape", () => {
+  assertEquals(extractLeads({ hello: "world" }), []);
+  assertEquals(extractLeads(null), []);
+  assertEquals(extractLeads("text"), []);
 });
 
-test("buildLeadNotes lists the known Meta identifiers", () => {
-  assert.equal(
+Deno.test("buildLeadNotes lists the known Meta identifiers", () => {
+  assertStrictEquals(
     buildLeadNotes({ form_name: "987", leadgen_id: "1234567890123456" }),
     "מקור: Meta Lead Ads\nטופס: 987\nleadgen_id: 1234567890123456",
   );

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   mergeLeadRelations,
   moveLeadInKanbanCache,
@@ -21,10 +20,10 @@ test("parseStageBuckets reads the object and the array RPC formats", () => {
     new: { leads: [lead("a", "new")], total_count: 3 },
     won: { leads: null, total_count: null },
   });
-  assert.deepEqual(Object.keys(fromObject), ["new", "won"]);
-  assert.equal(fromObject.new.totalCount, 3);
-  assert.equal(fromObject.new.leads[0].id, "a");
-  assert.deepEqual(fromObject.won, { leads: [], totalCount: 0 });
+  expect(Object.keys(fromObject)).toStrictEqual(["new", "won"]);
+  expect(fromObject.new.totalCount).toBe(3);
+  expect(fromObject.new.leads[0].id).toBe("a");
+  expect(fromObject.won).toStrictEqual({ leads: [], totalCount: 0 });
 
   const fromArray = parseStageBuckets([
     {
@@ -33,30 +32,27 @@ test("parseStageBuckets reads the object and the array RPC formats", () => {
       total_count: 1,
     },
   ]);
-  assert.deepEqual(
-    fromArray.new.leads.map((l) => l.id),
-    ["b"],
-  );
-  assert.deepEqual(parseStageBuckets(null), {});
+  expect(fromArray.new.leads.map((l) => l.id)).toStrictEqual(["b"]);
+  expect(parseStageBuckets(null)).toStrictEqual({});
 });
 
 test("parseStageCounts and stageLeadsFromPayload read one stage", () => {
-  assert.deepEqual(parseStageCounts({ new: { total_count: 4 } }), { new: 4 });
-  assert.deepEqual(parseStageCounts([{ stage: "won", total_count: 2 }]), {
+  expect(parseStageCounts({ new: { total_count: 4 } })).toStrictEqual({
+    new: 4,
+  });
+  expect(parseStageCounts([{ stage: "won", total_count: 2 }])).toStrictEqual({
     won: 2,
   });
-  assert.equal(
+  expect(
     stageLeadsFromPayload({ new: { leads: [lead("a", "new")] } }, "new")[0].id,
-    "a",
-  );
-  assert.equal(
+  ).toBe("a");
+  expect(
     stageLeadsFromPayload(
       [{ stage: "new", leads: [lead("c", "new")] }],
       "new",
     )[0].id,
-    "c",
-  );
-  assert.deepEqual(stageLeadsFromPayload({}, "new"), []);
+  ).toBe("c");
+  expect(stageLeadsFromPayload({}, "new")).toStrictEqual([]);
 });
 
 test("mergeLeadRelations overlays relation columns", () => {
@@ -72,10 +68,10 @@ test("mergeLeadRelations overlays relation columns", () => {
       sales_people: null,
     },
   ]);
-  assert.equal(merged.campaign_name, "Spring");
-  assert.equal(merged.response_status, "in_progress");
-  assert.deepEqual(merged.agencies, { name: "Agency" });
-  assert.equal(mergeLeadRelations(leads, null)[0].agencies, null);
+  expect(merged.campaign_name).toBe("Spring");
+  expect(merged.response_status).toBe("in_progress");
+  expect(merged.agencies).toStrictEqual({ name: "Agency" });
+  expect(mergeLeadRelations(leads, null)[0].agencies).toBe(null);
 });
 
 test("kanban cache helpers move and patch a lead", () => {
@@ -83,18 +79,15 @@ test("kanban cache helpers move and patch a lead", () => {
     new: { leads: [lead("a", "new"), lead("b", "new")], total_count: 2 },
   });
   const moved = moveLeadInKanbanCache(cache, "a", "won");
-  assert.deepEqual(
-    moved?.new.leads.map((l: LeadsPageLead) => l.id),
-    ["b"],
-  );
-  assert.equal(moved?.new.totalCount, 1);
-  assert.equal(moved?.won.leads[0].status, "won");
-  assert.equal(moved?.won.totalCount, 1);
-  assert.equal(moveLeadInKanbanCache(undefined, "a", "won"), undefined);
+  expect(moved?.new.leads.map((l: LeadsPageLead) => l.id)).toStrictEqual(["b"]);
+  expect(moved?.new.totalCount).toBe(1);
+  expect(moved?.won.leads[0].status).toBe("won");
+  expect(moved?.won.totalCount).toBe(1);
+  expect(moveLeadInKanbanCache(undefined, "a", "won")).toBe(undefined);
 
   const patched = patchLeadInKanbanCache(cache, "b", {
     response_status: "not_relevant",
   });
-  assert.equal(patched?.new.leads[1].response_status, "not_relevant");
-  assert.equal(cache.new.leads[1].response_status, null);
+  expect(patched?.new.leads[1].response_status).toBe("not_relevant");
+  expect(cache.new.leads[1].response_status).toBe(null);
 });

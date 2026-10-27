@@ -1,11 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { nonEmptyStringOrNull, salesPersonIdsOf } from "./lead-form-mapping.ts";
 
-test("nonEmptyStringOrNull keeps non-empty strings only", () => {
-  assert.equal(nonEmptyStringOrNull("agency-1"), "agency-1");
+Deno.test("nonEmptyStringOrNull keeps non-empty strings only", () => {
+  assertStrictEquals(nonEmptyStringOrNull("agency-1"), "agency-1");
   for (const value of ["", null, undefined, 42, {}, ["a"]]) {
-    assert.equal(nonEmptyStringOrNull(value), null);
+    assertStrictEquals(nonEmptyStringOrNull(value), null);
   }
 });
 
@@ -28,7 +27,7 @@ const cases: Array<[string, Record<string, unknown>, string[]]> = [
 ];
 
 for (const [name, mapping, expected] of cases) {
-  test(`salesPersonIdsOf: ${name}`, () => {
-    assert.deepEqual(salesPersonIdsOf(mapping), expected);
+  Deno.test(`salesPersonIdsOf: ${name}`, () => {
+    assertEquals(salesPersonIdsOf(mapping), expected);
   });
 }
