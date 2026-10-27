@@ -210,7 +210,15 @@ Deno.serve(async (req) => {
           while (next) {
             const r = await fetch(next);
             const d: any = await r.json();
-            if (d.error) break;
+            if (d.error) {
+              // Without ad sets every row loses its result, optimization goal and
+              // destination, so say why instead of syncing on silently.
+              console.error(
+                `[cron-sync-facebook-insights] ad sets fetch failed:`,
+                d.error.message || JSON.stringify(d.error),
+              );
+              break;
+            }
             if (Array.isArray(d.data)) adsets.push(...d.data);
             next = d.paging?.next || null;
           }
