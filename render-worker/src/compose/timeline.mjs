@@ -44,6 +44,8 @@ export function buildTimeline(
       voiceAlignment: narration ? null : scene.voiceAlignment || null,
       // This scene's part of the continuous narration, to cut the scene where it starts.
       narrationText: narration ? String(scene.voiceoverText ?? "").trim() : "",
+      // What the narrator says over this scene (its own title must not just repeat it).
+      voiceoverText: String(scene.voiceoverText ?? "").trim(),
       // A lip-synced clip keeps its own speech and is not moved by the camera.
       lipsync: scene.lipsync === true,
       // What a talking clip says, for its captions.

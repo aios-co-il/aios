@@ -15,6 +15,7 @@ import {
   MIX,
   MUSIC_LUFS,
   TRAILER,
+  kickerTitle,
   mixProfile,
   musicEnvelope,
   musicLoops,
@@ -244,6 +245,30 @@ test("the trailer bed holds down through short pauses and comes up in long ones"
   ).toBe(0.25);
 });
 
+test("a short scene title becomes a kicker unless it repeats the line", () => {
+  expect(kickerTitle("אנליסטית", "היא קוראת את הנתונים")).toBe("אנליסטית");
+  expect(kickerTitle("SEO ו-GEO", "מקדמת אותך בגוגל")).toBe("SEO ו-GEO");
+  // A name inside a longer line is still a title.
+  expect(kickerTitle("כרמן", "הכירו את כרמן. מנהלת השיווק של העסק שלך.")).toBe(
+    "כרמן",
+  );
+  expect(kickerTitle("  כרמן.   מנהלת השיווק שלך. ", "הירשמו")).toBe(
+    "כרמן. מנהלת השיווק שלך.",
+  );
+  // The line itself, most of it, or a title that holds the whole line: no kicker.
+  expect(kickerTitle("הכירו את כרמן!", "הכירו את כרמן")).toBe(null);
+  expect(kickerTitle("מנהלת השיווק שלך", "מנהלת השיווק שלך היום")).toBe(null);
+  expect(kickerTitle("יומן חכם לעסק", "יומן")).toBe(null);
+  // Niqqud, punctuation and case do not hide a repeat.
+  expect(kickerTitle("הַכִּירוּ אֶת כַּרְמֵן", "הכירו את כרמן.")).toBe(null);
+  expect(kickerTitle("SEO, GEO", "seo geo")).toBe(null);
+  // Too long: six words, or more than 32 characters.
+  expect(kickerTitle("אחת שתיים שלוש ארבע חמש שש", "")).toBe(null);
+  expect(kickerTitle("כותרת ארוכה מאוד שלא נכנסת בשורה אחת", "")).toBe(null);
+  expect(kickerTitle("", "x")).toBe(null);
+  expect(kickerTitle("!!!", "")).toBe(null);
+});
+
 const still = (id, extra = {}) => ({
   id,
   clipPath: `/tmp/${id}.mp4`,
@@ -263,7 +288,7 @@ const spoken = (text, from, to) => {
   };
 };
 
-test("the manifest loops a short bed and mixes a trailer", () => {
+test("the manifest loops a short bed, mixes a trailer and sets kickers over karaoke", () => {
   const timeline = {
     aspect: "16:9",
     narrationPath: "/tmp/n.mp3",
@@ -288,6 +313,10 @@ test("the manifest loops a short bed and mixes a trailer", () => {
     ],
   };
   const { manifest } = buildWorkshopManifest(timeline);
+  expect(manifest.scenes.map((s) => s.kicker)).toStrictEqual([
+    "אנליסטית",
+    null,
+  ]);
   const loops = manifest.musicLoops;
   expect(loops.length).toBeGreaterThan(1);
   expect(loops[0]).toMatchObject({ startFrame: 0, frameCount: 54 });

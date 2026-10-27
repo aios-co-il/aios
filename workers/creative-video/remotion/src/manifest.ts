@@ -110,6 +110,8 @@ export type WorkshopScene = {
   clip?: string | null;
   voice?: string | null;
   caption?: string;
+  /** The scene's own short title, shown at the top while karaoke captions run. */
+  kicker?: string | null;
   move?: WorkshopMove;
   transition?: WorkshopTransition;
   transitionFrames?: number;

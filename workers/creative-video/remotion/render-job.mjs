@@ -288,6 +288,8 @@ if (manifest.schemaVersion === 1) {
       ...(v3
         ? {
             voice: scene.voice || null,
+            // The scene's short title over karaoke captions (workshop-edit.mjs kickerTitle).
+            kicker: scene.kicker ? text(scene.kicker, 40) : null,
             transition: scene.transition || "crossfade",
             transitionFrames: scene.transitionFrames ?? 0,
             lipsync: scene.lipsync === true,

@@ -13,6 +13,7 @@ import {
   MIX,
   effectCues,
   fitScenes,
+  kickerTitle,
   mixProfile,
   musicEnvelope,
   musicLoops,
@@ -233,6 +234,11 @@ export function buildWorkshopManifest(timeline) {
       caption: String(p.scene.overlayText ?? "")
         .trim()
         .slice(0, 180),
+      // Over karaoke captions the scene's own short title still shows, at the top.
+      kicker: kickerTitle(
+        p.scene.overlayText,
+        p.scene.voiceoverText || p.scene.spokenText || "",
+      ),
       move: p.scene.lipsync
         ? "static"
         : WORKSHOP_MOVES[p.index % WORKSHOP_MOVES.length],
