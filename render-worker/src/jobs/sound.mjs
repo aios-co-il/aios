@@ -21,7 +21,13 @@ import {
 import { synthesizeGeminiSpeech } from "../providers/geminiTts.mjs";
 import { synthesizeOpenRouterSpeech } from "../providers/openrouterTts.mjs";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.mjs";
-import { MUSIC_MAX_MS, MUSIC_MIN_MS, musicLengthMs } from "./music-length.mjs";
+import {
+  MUSIC_MAX_MS,
+  MUSIC_MIN_MS,
+  musicCostUsd,
+  musicLengthMs,
+  quotedMusicMs,
+} from "./music-length.mjs";
 
 const BUCKET = "creative-video";
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
@@ -251,8 +257,9 @@ export async function generateVoice({
 
 /**
  * The bed's length. The run's music_length_ms is the storyboard's planned total; the bed is
- * sized to the film that will be rendered instead (music-length.mjs), unless that cannot be read.
- * A bed already paid for keeps the length it was made at.
+ * sized to the film that will be rendered instead (music-length.mjs), unless that cannot be read,
+ * and never longer than the run's quote pays for (quotedMusicMs). A bed already paid for keeps
+ * the length it was made at.
  */
 async function bedLength({ db, run, path, sizeMusic, log }) {
   const planned = Math.min(
@@ -266,10 +273,12 @@ async function bedLength({ db, run, path, sizeMusic, log }) {
     };
   try {
     const sized = await sizeMusic({ db, run, log });
+    const quoted = quotedMusicMs(run);
     log(
-      `[music] ${run.id} ${sized.ms} ms for a ${sized.filmS} s film (${sized.basis}; planned ${planned} ms)`,
+      `[music] ${run.id} ${sized.ms} ms for a ${sized.filmS} s film (${sized.basis}; planned ${planned} ms, quoted ${quoted} ms)`,
     );
-    return sized;
+    // Past the quote the render loops the bed instead of the run spending what was not approved.
+    return sized.ms > quoted ? { ms: quoted, basis: "quote" } : sized;
   } catch (error) {
     log(
       `[music] ${run.id} film length unknown (${error instanceof Error ? error.message : error}); using the planned ${planned} ms`,
@@ -291,6 +300,10 @@ export async function generateMusic({
   if (!prompt || !Number(run.input?.music_length_ms))
     throw finalError("music run: prompt and music_length_ms are required");
   const path = assetPath(run, item.folder, "music");
+  // Music has no OpenRouter route: without a working ElevenLabs key the film is assembled
+  // without a music bed, and the run's error says so once, before any wait for the narration.
+  if (!apiKey && run.output?.audio_path !== path)
+    throw finalError("אין מפתח ElevenLabs למוזיקה. הסרט יורכב בלי מיטת מוזיקה");
   const length = await bedLength({ db, run, path, sizeMusic, log });
   const musicLengthMs = length.ms;
   await generateOnce({
@@ -298,12 +311,6 @@ export async function generateMusic({
     run,
     path,
     generate: async () => {
-      // Music has no OpenRouter route: without a working ElevenLabs key the film is
-      // assembled without a music bed, and the run's error says so once.
-      if (!apiKey)
-        throw finalError(
-          "אין מפתח ElevenLabs למוזיקה. הסרט יורכב בלי מיטת מוזיקה",
-        );
       try {
         return {
           bytes: await composeMusic({ apiKey, prompt, musicLengthMs }),
@@ -350,6 +357,7 @@ export async function generateMusic({
     output: { path, provider: "elevenlabs" },
     provider: "elevenlabs",
     credits: 0,
-    costUsd: Number(run.input?.estimate?.usd) || 0,
+    // The length paid for, at the quote's rate: the budget settles on this (budget-settle.ts).
+    costUsd: musicCostUsd(musicLengthMs),
   };
 }

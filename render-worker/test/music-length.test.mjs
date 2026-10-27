@@ -1,11 +1,19 @@
+import { readFileSync } from "node:fs";
 import { expect, test, vi } from "vitest";
-import { endCardSeconds, ctaLines } from "../src/compose/end-card.mjs";
+import {
+  MAX_CTA_LINES,
+  endCardSeconds,
+  ctaLines,
+} from "../src/compose/end-card.mjs";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.mjs";
 import {
   MUSIC_TAIL_S,
+  MUSIC_USD_PER_MINUTE,
   PLANNED_HEADROOM,
   filmSeconds,
+  musicCostUsd,
   musicLengthMs,
+  quotedMusicMs,
 } from "../src/jobs/music-length.mjs";
 import { generateMusic } from "../src/jobs/sound.mjs";
 
@@ -198,36 +206,51 @@ test("filmSeconds counts each scene's own voice in a talking film", () => {
   expect(seconds).toBeCloseTo(3.5 + 6.5 + 3.5, 5);
 });
 
-test("the music run asks ElevenLabs for the film's length and pays once", async () => {
+/** A music run's database: the film above, and the writes generateMusic makes. */
+function musicDb(r, extra = {}) {
+  const inserts = [];
+  return {
+    inserts,
+    ...filmDb({ narration: narrationRow(), ...extra }),
+    async upload() {},
+    async update(_table, _filter, patch) {
+      r.output = patch.output;
+    },
+    async insert(table, row) {
+      inserts.push([table, row]);
+    },
+  };
+}
+
+const stubMusic = () => {
   const bodies = [];
   vi.stubGlobal("fetch", async (_url, init) => {
     bodies.push(JSON.parse(init.body));
     return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
   });
+  return bodies;
+};
+
+test("the music run asks ElevenLabs for the film's length and pays once", async () => {
+  const bodies = stubMusic();
   try {
-    const r = run();
-    const inserts = [];
-    const base = filmDb({ narration: narrationRow() });
-    const db = {
-      ...base,
-      async upload() {},
-      async update(_table, _filter, patch) {
-        r.output = patch.output;
-      },
-      async insert(table, row) {
-        inserts.push([table, row]);
-      },
-    };
+    // A quote of $0.50 buys a minute: more than this film needs.
+    const r = run({ estimate: { usd: 0.5, credits: 0 } });
+    const db = musicDb(r);
+    const { inserts } = db;
     const done = await generateMusic({
       db,
       run: r,
       apiKey: "xi",
       log: () => {},
     });
-    expect(done.costUsd).toBe(0);
     expect(bodies.length).toBe(1);
     const asked = bodies[0].music_length_ms;
     expect(asked).toBeGreaterThan(20_000);
+    // The run records what this length costs, not the quote.
+    expect(done.costUsd).toBe(musicCostUsd(asked));
+    expect(done.costUsd).toBeCloseTo((asked / 60_000) * 0.5, 4);
+    expect(done.costUsd).toBeLessThan(0.5);
     expect(r.output.audio_meta).toStrictEqual({
       music_length_ms: asked,
       music_basis: "narration",
@@ -248,7 +271,7 @@ test("the music run asks ElevenLabs for the film's length and pays once", async 
     expect(sized).toBe(0);
     expect(bodies.length).toBe(1);
     // When the film cannot be read, the run's planned length is used as before.
-    const fallback = run();
+    const fallback = run({ estimate: { usd: 0.5, credits: 0 } });
     await generateMusic({
       db: { ...db, update: async () => {} },
       run: fallback,
@@ -262,4 +285,110 @@ test("the music run asks ElevenLabs for the film's length and pays once", async 
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+test("the bed never costs more than its quote; the render loops the rest", async () => {
+  const bodies = stubMusic();
+  try {
+    // The narration stretches the planned 10.5 s by a third; the quote priced 15% headroom,
+    // the longest end card and the tail: 20.575 s, $0.17 after rounding, so 20.4 s.
+    const quoted = run({ estimate: { usd: 0.17, credits: 0 } });
+    expect(quotedMusicMs(quoted)).toBe(20_400);
+    const done = await generateMusic({
+      db: musicDb(quoted),
+      run: quoted,
+      apiKey: "xi",
+      log: () => {},
+    });
+    expect(bodies[0].music_length_ms).toBe(20_400);
+    expect(quoted.output.audio_meta.music_basis).toBe("quote");
+    expect(done.costUsd).toBe(0.17);
+    // A run without a quote (queued before the bed was sized) asks for its planned length.
+    const old = run();
+    expect(quotedMusicMs(old)).toBe(10_500);
+    const plain = await generateMusic({
+      db: musicDb(old),
+      run: old,
+      apiKey: "xi",
+      log: () => {},
+    });
+    expect(bodies[1].music_length_ms).toBe(10_500);
+    expect(plain.costUsd).toBe(0.0875);
+    // The planned length is the floor, and ElevenLabs' 5 minutes the ceiling.
+    expect(quotedMusicMs(run({ estimate: { usd: 0.01 } }))).toBe(10_500);
+    expect(quotedMusicMs(run({ estimate: { usd: 99 } }))).toBe(300_000);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+test("without an ElevenLabs key the music run fails at once, without waiting for the narration", async () => {
+  const r = run({ estimate: { usd: 0.5 } });
+  let sized = 0;
+  await expect(
+    generateMusic({
+      db: musicDb(r, { pending: [{ id: "voice-run" }] }),
+      run: r,
+      apiKey: null,
+      sizeMusic: async () => {
+        sized += 1;
+        return { ms: 20_000, basis: "narration", filmS: 16 };
+      },
+      log: () => {},
+    }),
+  ).rejects.toMatchObject({ final: true });
+  expect(sized).toBe(0);
+});
+
+test("a talking film is timed by each scene's own voice of its current line only", async () => {
+  const rows = scenes().map((scene, index) => ({
+    ...scene,
+    voice_asset_id: `v${index + 1}`,
+    meta: index === 0 ? { lipsync: true, dialogue: "אני כרמן" } : {},
+  }));
+  const voice = (id, text, to) => ({
+    id,
+    type: "voiceover",
+    meta: { text, alignment: take([[0, to]]) },
+  });
+  const assets = [
+    voice("v1", "אני כרמן", 6),
+    voice("v2", LINES[1], 7),
+    // Made for an older line: the render does not play it, so it does not time the scene.
+    voice("v3", "שורה ישנה", 9),
+  ];
+  const db = filmDb({ rows, payload: {} });
+  const select = db.select;
+  db.select = async (table, query) => {
+    if (!(table === "marketing_assets" && query.startsWith("id=in.")))
+      return select(table, query);
+    db.queries.push([table, query]);
+    return assets;
+  };
+  const sized = await musicLengthMs({ db, run: run(), log: () => {} });
+  expect(sized.basis).toBe("planned");
+  // 6.5 s and 7.5 s (each voice plus its tail), and the stale third scene's planned 3.5 s.
+  expect(sized.filmS).toBeCloseTo(6.5 + 7.5 + 3.5, 1);
+  // Every filter carries the run's tenant.
+  expect(db.queries.length).toBeGreaterThan(3);
+  for (const [, query] of db.queries)
+    expect(query).toContain("tenant_id=eq.t1");
+});
+
+test("the quote prices what the worker may ask for, at the same rate", () => {
+  const prices = readFileSync(
+    new URL(
+      "../../supabase/functions/_shared/workshop/clip-prices.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const constant = (name) =>
+    Number(new RegExp(`export const ${name} = ([0-9.]+);`).exec(prices)?.[1]);
+  expect(constant("MUSIC_USD_PER_MINUTE")).toBe(MUSIC_USD_PER_MINUTE);
+  expect(constant("MUSIC_HEADROOM")).toBe(PLANNED_HEADROOM);
+  // The longest end card (a three-line call to action) and the tail.
+  expect(constant("MUSIC_EXTRA_S")).toBe(
+    endCardSeconds(Array(MAX_CTA_LINES).fill("x")) + MUSIC_TAIL_S,
+  );
 });

@@ -4,7 +4,8 @@
  * the next line starts), and the end card follows the scenes. So the bed is sized with the same
  * fitting the edit uses (workshop-manifest.mjs) on the narration's word timings, plus the end
  * card and a tail. A narration still being made is waited for, for a short while; without it
- * the planned length gets headroom. The render loops a bed that still comes out short.
+ * the planned length gets headroom. The request never passes the run's quote (quotedMusicMs),
+ * and the render loops a bed that still comes out short.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,7 +22,12 @@ import {
 } from "../compose/workshop-manifest.mjs";
 import { assertTenantPath } from "../guard.mjs";
 import { probe } from "../ffmpeg.mjs";
-import { isTalkingScene, joinNarration, narrationLine } from "../narration.mjs";
+import {
+  isTalkingScene,
+  joinNarration,
+  narrationLine,
+  talkingLine,
+} from "../narration.mjs";
 
 const BUCKET = "creative-video";
 /** ElevenLabs music lengths. */
@@ -38,9 +44,33 @@ export const PLANNED_HEADROOM = 0.15;
 /** How long the music run waits for a narration that is being made. */
 export const NARRATION_WAIT_MS = 120_000;
 const POLL_MS = 5_000;
+/**
+ * ElevenLabs music list price, the rate the quote uses (clip-prices.ts MUSIC_USD_PER_MINUTE;
+ * its musicQuoteSeconds prices the PLANNED_HEADROOM, the longest end card and MUSIC_TAIL_S).
+ */
+export const MUSIC_USD_PER_MINUTE = 0.5;
 
 const clampMs = (ms) =>
   Math.min(MUSIC_MAX_MS, Math.max(MUSIC_MIN_MS, Math.round(ms)));
+
+/**
+ * The longest bed this run may pay for: what its quote (`input.estimate.usd`, approved before
+ * any spend) buys at MUSIC_USD_PER_MINUTE, and never less than the planned length the run was
+ * queued with (what it asked for before the bed was sized).
+ */
+export function quotedMusicMs(run) {
+  const planned = clampMs(Number(run?.input?.music_length_ms) || 0);
+  const usd = Number(run?.input?.estimate?.usd);
+  const quoted =
+    usd > 0 ? Math.floor((usd / MUSIC_USD_PER_MINUTE) * 60_000) : 0;
+  return Math.max(planned, Math.min(MUSIC_MAX_MS, quoted));
+}
+
+/** What a bed of `ms` costs, the run's recorded charge. */
+export const musicCostUsd = (ms) =>
+  Math.round(
+    (Math.max(0, Number(ms) || 0) / 60_000) * MUSIC_USD_PER_MINUTE * 10_000,
+  ) / 10_000;
 
 const inList = (ids) => `(${ids.map(encodeURIComponent).join(",")})`;
 
@@ -71,7 +101,7 @@ async function probeStored(db, tenantId, path) {
 
 /** What the film is made of now: its scenes, the narration take, scene voices, pending voices. */
 async function readFilm(db, run, probeNarration) {
-  const item = `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}`;
+  const item = `item_id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}`;
   const scenes =
     (await db.select(
       "marketing_video_scenes",
@@ -95,19 +125,31 @@ async function readFilm(db, run, probeNarration) {
       if (seconds > 0) narration = { words, seconds };
     }
   }
-  const voiceIds = scenes.map((scene) => scene.voice_asset_id).filter(Boolean);
+  // Scene voices only time a talking film, which is narrated scene by scene; any other film
+  // is cut to its continuous take (or still waits for it).
+  const voiceIds = talking
+    ? scenes.map((scene) => scene.voice_asset_id).filter(Boolean)
+    : [];
   const voices = new Map();
   if (voiceIds.length) {
     const rows =
       (await db.select(
         "marketing_assets",
-        `id=in.${inList(voiceIds)}&tenant_id=eq.${run.tenant_id}&select=id,type,meta`,
+        `id=in.${inList(voiceIds)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=id,type,meta`,
       )) ?? [];
     const byId = new Map(rows.map((row) => [row.id, row]));
     for (const scene of scenes) {
       const voice = byId.get(scene.voice_asset_id);
-      // A scene's own voice (a talking film); a continuous take linked here is the whole script.
-      if (voice?.type !== "voiceover") continue;
+      const line = isTalkingScene(scene)
+        ? talkingLine(scene)
+        : narrationLine(scene);
+      // Like the render (render.mjs ownVoice): a scene's own voiceover of its current line.
+      if (
+        voice?.type !== "voiceover" ||
+        !line ||
+        String(metaOf(voice).text ?? "") !== line
+      )
+        continue;
       const seconds = lastEnd(wordsFromAlignment(metaOf(voice).alignment));
       if (seconds > 0) voices.set(scene.id, seconds);
     }

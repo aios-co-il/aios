@@ -1746,10 +1746,11 @@ Deno.test(
     const alone = await ask(false);
     const covered = await ask(true);
     assertStrictEquals(covered.needs_budget, true);
-    // Film $4.19 on OpenRouter instead of $1.95 on Higgsfield, plus the stills, with 20% room.
+    // Film $4.28 on OpenRouter instead of $2.04 on Higgsfield (clips and the $0.24 music bed,
+    // priced for 29.2 s), plus the stills, with 20% room.
     assertStrictEquals(
       covered.proposed_budget_usd,
-      Math.ceil((alone.step_usd + 4.19) * 1.2),
+      Math.ceil((alone.step_usd + 4.28) * 1.2),
     );
     assert(covered.proposed_budget_usd > alone.proposed_budget_usd);
   },

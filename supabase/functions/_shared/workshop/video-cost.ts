@@ -12,6 +12,7 @@ import {
   MUSIC_USD_PER_MINUTE,
   OPENROUTER_USD_PER_SECOND,
   VOICE_USD_PER_1000_CHARS,
+  musicQuoteSeconds,
 } from "./clip-prices.ts";
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
 
@@ -189,10 +190,10 @@ export function voiceEstimate(scenes: CostScene[]): Estimate {
   };
 }
 
+/** The music bed, priced for the film it will cover (musicQuoteSeconds in clip-prices.ts). */
 export function musicEstimate(scenes: CostScene[]): Estimate {
-  const seconds = scenes.reduce(
-    (sum, scene) => sum + (Number(scene.duration_s) || 0),
-    0,
+  const seconds = musicQuoteSeconds(
+    scenes.reduce((sum, scene) => sum + (Number(scene.duration_s) || 0), 0),
   );
   return { usd: roundUsd((seconds / 60) * MUSIC_USD_PER_MINUTE), credits: 0 };
 }
