@@ -77,7 +77,7 @@ export default function CarmenWorkshop() {
             .order("updated_at", { ascending: false })
             .limit(40);
           if (error) throw error;
-          return (data ?? []) as unknown as ProjectRow[];
+          return (data ?? []) as ProjectRow[];
         }
       : skipToken,
   });

@@ -77,7 +77,7 @@ export function useWorkshopArtifacts(
             if (error) throw error;
             const rows = await clearFailures(
               tenantId,
-              (data ?? []) as unknown as WorkshopArtifact[],
+              (data ?? []) as WorkshopArtifact[],
             );
             const paths = storagePathsIn(rows);
             if (paths.length === 0) return rows;

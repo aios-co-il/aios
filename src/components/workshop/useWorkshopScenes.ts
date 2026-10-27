@@ -43,7 +43,7 @@ async function loadScenes(
     .eq("item_id", projectId)
     .order("position");
   if (error) throw error;
-  const rows = (data ?? []) as unknown as SceneRow[];
+  const rows = (data ?? []) as SceneRow[];
   const ids = [
     ...new Set(
       rows
