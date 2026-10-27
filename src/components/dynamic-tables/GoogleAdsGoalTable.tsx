@@ -7,7 +7,7 @@ import {
   formatReportNumber,
   ratio,
   resultCellClass,
-} from "./reportTableFormat";
+} from "@/lib/reportTableFormat";
 
 type Metrics = {
   impressions: number;

@@ -6,15 +6,15 @@ import {
   showsFollowerColumns,
   sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
-import type {
-  FacebookReportCampaign,
-  FacebookReportEntry,
-} from "./facebookReportCampaigns";
 import {
   formatReportNumber,
   ratio,
   resultCellClass,
-} from "./reportTableFormat";
+} from "@/lib/reportTableFormat";
+import type {
+  FacebookReportCampaign,
+  FacebookReportEntry,
+} from "./facebookReportCampaigns";
 
 type Props = {
   rows: FacebookReportEntry[];

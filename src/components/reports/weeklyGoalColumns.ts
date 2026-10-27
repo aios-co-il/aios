@@ -1,4 +1,4 @@
-import { formatReportNumber } from "@/components/dynamic-tables/reportTableFormat";
+import { formatReportNumber } from "@/lib/reportTableFormat";
 import {
   FOLLOWER_COLUMN_LABELS,
   formatFollowerCell,

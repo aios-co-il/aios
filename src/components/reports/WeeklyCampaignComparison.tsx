@@ -11,7 +11,7 @@ import {
 import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
 import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 import { WeeklyGoalTable } from "./WeeklyGoalTable";
-import { formatReportNumber } from "@/components/dynamic-tables/reportTableFormat";
+import { formatReportNumber } from "@/lib/reportTableFormat";
 
 type Props = {
   records: WeeklyAdsRecord[];

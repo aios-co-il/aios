@@ -1,6 +1,6 @@
 import { TableCell, TableRow } from "@/components/ui/table";
 import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
-import { ratio } from "../reportTableFormat";
+import { ratio } from "@/lib/reportTableFormat";
 import type {
   GoogleAdsFormatters,
   GoogleAdsTotals,
