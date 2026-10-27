@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   /** The newest storyboard page of the project, and what was written to pages. */
   page: null as null | { id: string; meta: Record<string, unknown> },
   pageWrites: [] as { meta: Record<string, unknown> }[],
+  /** The scenes' still and clip assets. */
+  assets: [] as { id: string; url: string }[],
 }));
 
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
@@ -37,10 +39,7 @@ vi.mock("@/integrations/supabase/client", () => {
     };
     chain.then = (resolve: (value: unknown) => unknown) =>
       resolve({
-        data:
-          table === "marketing_assets"
-            ? [{ id: "c1", url: "tenant/item/clip.mp4" }]
-            : mocks.rows,
+        data: table === "marketing_assets" ? mocks.assets : mocks.rows,
         error: null,
       });
     return chain;
@@ -58,6 +57,14 @@ vi.mock("@/integrations/supabase/client", () => {
       rpc: mocks.rpc,
       channel: () => channel,
       removeChannel: vi.fn(),
+      storage: {
+        from: (bucket: string) => ({
+          createSignedUrl: async (path: string) => ({
+            data: { signedUrl: `https://signed/${bucket}/${path}` },
+            error: null,
+          }),
+        }),
+      },
     },
   };
 });
@@ -87,6 +94,7 @@ beforeEach(() => {
   mocks.rows = [row("s1", "ישן")];
   mocks.page = null;
   mocks.pageWrites = [];
+  mocks.assets = [{ id: "c1", url: "tenant/item/clip.mp4" }];
 });
 
 test("the grid reads the scenes, signs clip paths and reloads when Carmen changes one", async () => {
@@ -112,6 +120,24 @@ test("the grid reads the scenes, signs clip paths and reloads when Carmen change
   act(() => mocks.realtime?.());
   await waitFor(() =>
     expect(result.current.data?.[0]?.overlayText).toBe("מהעובד"),
+  );
+});
+
+test("a scene of the user's own upload shows it through a signed link", async () => {
+  // workshop_edit_from_assets keeps the upload's address in the private entity-attachments bucket.
+  mocks.assets = [
+    {
+      id: "c1",
+      url: "https://p.supabase.co/storage/v1/object/public/entity-attachments/t-1/workshop/p-1/intro.mp4",
+    },
+  ];
+  const { result } = renderHook(() => useWorkshopScenes("t-1", "p-1"), {
+    wrapper,
+  });
+  await waitFor(() =>
+    expect(result.current.data?.[0]?.clipUrl).toBe(
+      "https://signed/entity-attachments/t-1/workshop/p-1/intro.mp4",
+    ),
   );
 });
 

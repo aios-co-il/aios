@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
+import { resolveCreativeImageUrl } from "@/components/marketing/lib/resolveCreativeImageUrl";
 import { subscribeWorkshopEvents } from "@/lib/workshopBridge";
 import {
   type PageScene,
@@ -59,7 +60,8 @@ async function loadScenes(
       .in("id", ids);
     if (assetError) throw assetError;
     const list = (found ?? []) as SceneAsset[];
-    // Clips live in the private creative-video bucket as paths; pictures are mostly links.
+    // Clips live in the private creative-video bucket as paths; pictures are mostly links, and
+    // the user's own uploads are links to the private entity-attachments bucket.
     const paths = [...new Set(list.map((a) => a.url).filter(isStoragePath))];
     const signed =
       paths.length > 0
@@ -70,7 +72,9 @@ async function loadScenes(
     for (const asset of list)
       assets.set(asset.id, {
         id: asset.id,
-        url: isStoragePath(asset.url) ? (signed[asset.url] ?? null) : asset.url,
+        url: isStoragePath(asset.url)
+          ? (signed[asset.url] ?? null)
+          : await resolveCreativeImageUrl(asset.url),
       });
   }
   return storyboardScenes(rows, assets);

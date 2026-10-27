@@ -37,10 +37,15 @@ function memoryDb(tables: Record<string, Row[]>) {
     rpcs,
     tables,
     storage: {
-      from: () => ({
+      from: (bucket: string) => ({
         createSignedUrl: async (path: string) => ({
           data: { signedUrl: `https://p.supabase.co/storage/v1/sign/${path}` },
           error: null,
+        }),
+        getPublicUrl: (path: string) => ({
+          data: {
+            publicUrl: `https://p.supabase.co/storage/v1/object/public/${bucket}/${path}`,
+          },
         }),
       }),
     },
@@ -666,6 +671,29 @@ Deno.test(
       (row) => row.kind === "storyboard",
     )!;
     assertMatch(page.meta.text, /אומרת למצלמה: אני המעצבת שלך/);
+  },
+);
+
+Deno.test(
+  "each scene keeps the upload's own address, which never expires, not a signed link",
+  async () => {
+    const db = materials();
+    await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_edit_from_assets",
+      editArgs,
+    );
+    // The worker reads these with its own key and the board signs them when it shows them.
+    assertEquals(
+      db.rpcs
+        .filter((call) => call.name === "attach_video_scene_asset")
+        .map((call) => call.args.p_url),
+      skins.map(
+        (skin) =>
+          `https://p.supabase.co/storage/v1/object/public/entity-attachments/tenant-1/workshop/item-1/${skin}.png`,
+      ),
+    );
   },
 );
 
