@@ -32,6 +32,8 @@ export type FakeChatFields = {
   lines?: string[];
   live?: LiveChatFinding[];
   closed?: string[];
+  /** The model's JSON answer (no answer: the model is down). */
+  answer?: string;
 };
 
 /** Sources over `rows`; `asked` holds the prompts, `reads` the sources read. */
@@ -72,7 +74,7 @@ export function fakeChatSources(
       },
       ask: (prompt) => {
         asked.push(prompt);
-        return Promise.resolve({ text: null, costUsd: 0 });
+        return Promise.resolve({ text: fields.answer ?? null, costUsd: 0 });
       },
       meter: () =>
         Promise.resolve(

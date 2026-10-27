@@ -78,6 +78,52 @@ Deno.test("threadFindings", async (t) => {
   );
 
   await t.step(
+    "a complaint without a listed word, answered and thanked before the run, is raised",
+    async () => {
+      const verdict = {
+        needs_reply: false,
+        is_request: false,
+        complaint_lines: [2],
+        urgency: "high",
+        summary_he: "הלקוח שוקל לעזוב",
+        confidence: 0.9,
+      };
+      const found = await find(
+        [
+          staffRow({ message_id: "hi", created_at: il("08:00") }),
+          row({
+            message_id: "c1",
+            created_at: il("12:10"),
+            message_text: "הלידים שלכם זבל, שוקל לעזוב",
+          }),
+          staffRow({
+            message_id: "s1",
+            created_at: il("12:20"),
+            message_text: "נבדוק ונחזור אליך",
+          }),
+          row({
+            message_id: "c2",
+            created_at: il("12:25"),
+            message_text: "תודה",
+          }),
+        ],
+        { answer: JSON.stringify(verdict) },
+      );
+      assertEquals(found.asked.length, 1);
+      assertEquals(
+        found.candidates.map((c) => [c.kind, c.fingerprint, c.evidence.quote]),
+        [
+          [
+            "client_complaint",
+            "chat:group:111@g.us:complaint:c1",
+            "הלידים שלכם זבל, שוקל לעזוב",
+          ],
+        ],
+      );
+    },
+  );
+
+  await t.step(
     "without complaints only waits past the SLA go to the model",
     async () => {
       const team = staffRow({ message_id: "hi", created_at: il("08:00") });

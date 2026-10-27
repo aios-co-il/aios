@@ -22,7 +22,7 @@ const none: Verdicts = new Map();
 const angry: ChatVerdict = {
   needs_reply: false,
   is_request: false,
-  is_complaint: true,
+  complaint_ids: ["c1"],
   urgency: "high",
   summary_he: "הלקוח שוקל לעזוב",
   confidence: 0.9,
@@ -80,10 +80,51 @@ Deno.test("complaintCandidates", async (t) => {
         ],
         ["chat:group:111@g.us:complaint:c1", "llm", "הלקוח שוקל לעזוב"],
       );
-      const stale: Verdicts = new Map([
-        ["group:111@g.us", { messageId: "older", verdict: angry }],
+      const unsure: Verdicts = new Map([
+        [
+          "group:111@g.us",
+          { messageId: "c1", verdict: { ...angry, confidence: 0.4 } },
+        ],
       ]);
-      assertEquals(complaintCandidates([quiet], stale, [], scope), []);
+      assertEquals(complaintCandidates([quiet], unsure, [], scope), []);
+    },
+  );
+
+  await t.step(
+    "the named line's streak is the finding, quoted on that line",
+    () => {
+      const thanked = thread([
+        staffRow({ message_id: "hi", created_at: il("08:00") }),
+        row({
+          message_id: "c0",
+          created_at: il("14:05"),
+          message_text: "בוקר טוב",
+        }),
+        row({
+          message_id: "c1",
+          created_at: il("14:10"),
+          message_text: "הלידים שלכם זבל, שוקל לעזוב",
+        }),
+        staffRow({
+          message_id: "s1",
+          created_at: il("14:20"),
+          message_text: "נבדוק ונחזור אליך",
+        }),
+        row({
+          message_id: "c2",
+          created_at: il("14:25"),
+          message_text: "הבנתי, מחכה",
+        }),
+      ]);
+      const read: Verdicts = new Map([
+        ["group:111@g.us", { messageId: "c2", verdict: angry }],
+      ]);
+      const found = complaintCandidates([thanked], read, [], scope);
+      assertEquals(
+        found.map((c) => [c.fingerprint, c.evidence.quote]),
+        [["chat:group:111@g.us:complaint:c0", "הלידים שלכם זבל, שוקל לעזוב"]],
+      );
+      assert(found[0].summary_he.includes("בשעה 14:10"));
     },
   );
 

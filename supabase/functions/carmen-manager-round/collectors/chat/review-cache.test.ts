@@ -7,7 +7,7 @@ import type { ChatVerdict } from "./verdict.ts";
 const verdict: ChatVerdict = {
   needs_reply: false,
   is_request: false,
-  is_complaint: true,
+  complaint_ids: ["m1"],
   urgency: "high",
   summary_he: "הלקוח לא מרוצה מהלידים",
   confidence: 0.7,

@@ -52,7 +52,7 @@ export async function threadFindings(
   const reviewed = complaints ? threads : threads.filter((t) => due.has(t.key));
   const { verdicts, llm } = await classifyThreads(
     reviewed,
-    due,
+    { dueKeys: due, complaints },
     src.classify,
     ctx,
   );

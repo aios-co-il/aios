@@ -23,7 +23,7 @@ const afterKey = (body: unknown) =>
 
 Deno.test("loadThreadActivity", async (t) => {
   await t.step(
-    "names the tenant, the lines, the provider and the collector",
+    "names the tenant, the lines, the provider, the collector and a person's sends",
     async () => {
       const { db, calls } = recordingClient(() => [row()]);
       const read = await loadThreadActivity(db, query, "chat_sla");
@@ -34,6 +34,12 @@ Deno.test("loadThreadActivity", async (t) => {
         p_connection_user_ids: ["owner"],
         p_since: NOW.toISOString(),
         p_collector: "chat_sla",
+        p_person_send_kinds: [
+          "chat",
+          "report",
+          "dashboard_share",
+          "meeting_summary",
+        ],
         p_provider: "green_api",
         p_per_thread: 15,
       });

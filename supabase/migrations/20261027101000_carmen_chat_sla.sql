@@ -11,9 +11,9 @@
 -- whatsapp_group_link_tenant_ok and chat_messages.send_kind. Merge order:
 -- AIO-242, AIO-251 (20261027100000), then this migration.
 --
--- 1. carmen_chat_thread_reviews: the cached LLM verdict per client thread,
---    valid while the thread's last client message is the one reviewed.
---    Service role only.
+-- 1. carmen_chat_thread_reviews: the last LLM verdict per client group
+--    thread and the last client message the model read, so each client line
+--    is read once (later lines are sent as new). Service role only.
 -- 2. get_client_thread_activity: the recent messages of every client-linked
 --    thread of the given lines (the round passes the tenant's monitored Green
 --    API lines). Groups resolve to one client through
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS public.carmen_chat_thread_reviews (
 );
 
 COMMENT ON TABLE public.carmen_chat_thread_reviews IS
-  'Cached LLM verdict per client group thread of the manager round (AIO-252): reused while last_reviewed_message_id is still the thread''s last client message. Written by carmen-manager-round (service role).';
+  'Last LLM verdict per client group thread of the manager round (AIO-252) and the last client message the model read (last_reviewed_message_id): later client lines are read as new, each once. verdict.complaint_ids names the lines read as complaints. Written by carmen-manager-round (service role).';
 
 ALTER TABLE public.carmen_chat_thread_reviews ENABLE ROW LEVEL SECURITY;
 
@@ -119,16 +119,22 @@ GRANT ALL ON public.carmen_chat_thread_reviews TO service_role;
 -- traffic in the same group (one reader per group_chat_id).
 -- Threads the line owner blocked are skipped. A message stored twice (same
 -- Green idMessage, e.g. on two monitored lines in one group) is returned
--- once, as the copy of the line that sent it. System sends (send_kind other
--- than 'chat': reports, broadcasts, automations) are left out: they are
--- neither a staff reply nor the client's. sender_match_key is the sender's
--- phone match key after mapping an @lid sender through wa_lid_map; an @lid
--- without a mapping returns NULL with sender_lid_unmapped = true.
+-- once, as the copy of the line that sent it. A send AIOS stamped with a
+-- send_kind is returned only when a person made it from AIOS
+-- (p_person_send_kinds, the caller's list: a typed reply, or a report,
+-- dashboard or meeting summary sent on request), since it answers the client
+-- like a typed reply. Broadcasts, automations, Carmen's sends, staff alerts
+-- and scheduled reports (send_ref names one of the tenant's report_schedules)
+-- are left out: they are neither a staff reply nor the client's.
+-- sender_match_key is the sender's phone match key after mapping an @lid
+-- sender through wa_lid_map; an @lid without a mapping returns NULL with
+-- sender_lid_unmapped = true.
 CREATE OR REPLACE FUNCTION public.get_client_thread_activity(
   p_tenant_id uuid,
   p_connection_user_ids uuid[],
   p_since timestamptz,
   p_collector text,
+  p_person_send_kinds text[],
   p_provider public.chat_provider DEFAULT 'green_api',
   p_client_ids uuid[] DEFAULT NULL,
   p_per_thread integer DEFAULT 15,
@@ -182,8 +188,8 @@ AS $$
   ),
   messages AS (
     SELECT cm.id, cm.created_at, cm.direction, cm.group_id, cm.client_id,
-           cm.connection_user_id, cm.sender_phone, cm.sent_by_user_id, cm.send_kind,
-           left(cm.message_text, 500) AS message_text,
+           cm.connection_user_id, cm.sender_phone, cm.sent_by_user_id,
+           cm.send_kind, cm.send_ref, left(cm.message_text, 500) AS message_text,
            coalesce(cm.raw_provider_data ->> 'idMessage', cm.id::text) AS provider_id,
            -- A reply stored from outgoingMessageStatus has no senderData.
            (CASE WHEN cm.group_id IS NULL
@@ -284,7 +290,11 @@ AS $$
     SELECT d.*, row_number() OVER (
       PARTITION BY d.thread_key ORDER BY d.created_at DESC, d.id DESC) AS recency
     FROM deduped AS d
-    WHERE d.send_kind IS NULL OR d.send_kind = 'chat'
+    WHERE d.send_kind IS NULL
+       OR (d.send_kind = ANY (p_person_send_kinds)
+         AND (d.send_ref IS NULL OR d.send_ref NOT IN (
+           SELECT rs.id::text FROM public.report_schedules AS rs
+           WHERE rs.tenant_id = p_tenant_id)))
   )
   SELECT r.thread_key, r.thread_kind, r.thread_client_id, cs.tenant_id, cs.name,
          r.group_id, r.id, r.created_at, r.direction, r.match_key,
@@ -296,9 +306,9 @@ AS $$
   ORDER BY r.thread_key, r.created_at, r.id
 $$;
 
-REVOKE ALL ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer, text)
+REVOKE ALL ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, text, text[], public.chat_provider, uuid[], integer, text)
   FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer, text)
+GRANT EXECUTE ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, text, text[], public.chat_provider, uuid[], integer, text)
   TO service_role;
 
 -- ─── 3. get_unlinked_client_groups ──────────────────────────────────────────

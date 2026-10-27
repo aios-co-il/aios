@@ -1,12 +1,12 @@
 /**
- * LLM verdicts per thread (carmen_chat_thread_reviews), valid while the
- * thread's last client message is the one reviewed, so a thread is sent to
- * the model at most once per new client message.
+ * LLM verdicts per thread (carmen_chat_thread_reviews), with the last client
+ * message the model read, so it reads each client line once: the next call
+ * marks only the lines after it as new.
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { AI_CHAT_MODEL } from "../../../_shared/ai.ts";
 import { throwIf } from "../../db-error.ts";
-import { type ChatVerdict, parseVerdict } from "./verdict.ts";
+import { type ChatVerdict, parseStoredVerdict } from "./verdict.ts";
 
 export type CachedReview = { messageId: string; verdict: ChatVerdict };
 
@@ -34,7 +34,7 @@ export function createReviewCache(db: DbClient, tenantId: string): ReviewCache {
       throwIf(error, "carmen_chat_thread_reviews");
       return new Map(
         (data ?? []).flatMap((row) => {
-          const verdict = parseVerdict(row.verdict);
+          const verdict = parseStoredVerdict(row.verdict);
           return verdict
             ? [
                 [

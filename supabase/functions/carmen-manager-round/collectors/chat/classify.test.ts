@@ -10,10 +10,16 @@ import type { ChatVerdict } from "./verdict.ts";
 const verdict: ChatVerdict = {
   needs_reply: true,
   is_request: true,
-  is_complaint: false,
+  complaint_ids: [],
   urgency: "normal",
   summary_he: "מבקש להעלות מבצע",
   confidence: 0.9,
+};
+
+/** The model's answer for `verdict` naming complaint `lines`. */
+const answer = (lines: number[] = []) => {
+  const { complaint_ids: _ids, ...rest } = verdict;
+  return JSON.stringify({ ...rest, complaint_lines: lines });
 };
 
 function ports(
@@ -24,7 +30,7 @@ function ports(
   } = {},
 ) {
   const prompts: string[] = [];
-  const saved: string[] = [];
+  const saved: CachedReview[] = [];
   const meter = createLlmMeter({
     monthBudgetUsd: null,
     monthSpentUsd: 0,
@@ -34,15 +40,14 @@ function ports(
   const fake: ClassifyPorts = {
     cache: {
       load: () => Promise.resolve(new Map(fields.cached ?? [])),
-      save: (key) => {
-        saved.push(key);
+      save: (_key, review) => {
+        saved.push({ messageId: review.messageId, verdict: review.verdict });
         return Promise.resolve();
       },
     },
     ask: (prompt) => {
       prompts.push(prompt);
-      const text =
-        fields.answer === undefined ? JSON.stringify(verdict) : fields.answer;
+      const text = fields.answer === undefined ? answer() : fields.answer;
       return Promise.resolve({ text, costUsd: 0.002 });
     },
     meter: () => Promise.resolve(meter),
@@ -67,8 +72,10 @@ const group = (text = "יש עדכון", key = "group:111@g.us"): Thread =>
     }),
   ]);
 
+const all = { dueKeys: new Set<string>(), complaints: true };
+
 const classify = (threads: Thread[], p: ClassifyPorts, dryRun = false) =>
-  classifyThreads(threads, new Set(), p, run(dryRun));
+  classifyThreads(threads, all, p, run(dryRun));
 
 Deno.test("classifyThreads", async (t) => {
   await t.step(
@@ -81,8 +88,8 @@ Deno.test("classifyThreads", async (t) => {
         verdict,
       });
       assertEquals(
-        [prompts.length, saved, llm],
-        [1, ["group:111@g.us"], { calls: 1, costUsd: 0.002 }],
+        [prompts.length, saved.length, llm],
+        [1, 1, { calls: 1, costUsd: 0.002 }],
       );
     },
   );
@@ -120,7 +127,7 @@ Deno.test("classifyThreads", async (t) => {
   );
 
   await t.step(
-    "a cached verdict for the same message is reused; a stale one dropped",
+    "a cached verdict for the same message is reused; an older one is kept unasked",
     async () => {
       const cached = new Map([
         ["group:111@g.us", { messageId: "last", verdict }],
@@ -135,10 +142,74 @@ Deno.test("classifyThreads", async (t) => {
         ["group:111@g.us", { messageId: "older", verdict }],
       ]);
       const miss = ports({ cached: stale, dailyCapUsd: 0 });
-      const dropped = await classify([group()], miss.fake);
-      assertEquals([miss.prompts.length, dropped.verdicts.size], [0, 0]);
+      const kept = await classify([group()], miss.fake);
+      assertEquals(miss.prompts.length, 0);
+      assertEquals(kept.verdicts.get("group:111@g.us")?.messageId, "older");
     },
   );
+
+  await t.step(
+    "a complaint answered and thanked before the run is still read and named",
+    async () => {
+      const thanked = thread([
+        staffRow({ message_id: "hi", created_at: il("08:00") }),
+        row({
+          message_id: "c1",
+          created_at: il("14:10"),
+          message_text: "הלידים שלכם זבל, שוקל לעזוב",
+        }),
+        staffRow({ message_id: "s1", created_at: il("14:20") }),
+        row({
+          message_id: "c2",
+          created_at: il("14:25"),
+          message_text: "תודה",
+        }),
+      ]);
+      const { fake, prompts, saved } = ports({ answer: answer([2]) });
+      const { verdicts } = await classify([thanked], fake);
+      assertEquals(prompts.length, 1);
+      assertEquals(
+        prompts[0].includes("[2*] 14:10 לקוח: הלידים שלכם זבל"),
+        true,
+      );
+      assertEquals(verdicts.get("group:111@g.us")?.verdict.complaint_ids, [
+        "c1",
+      ]);
+      assertEquals(
+        saved[0].messageId,
+        "c2",
+        "read up to the latest client line",
+      );
+      const again = ports({ cached: new Map([["group:111@g.us", saved[0]]]) });
+      await classify([thanked], again.fake);
+      assertEquals(again.prompts.length, 0, "each line is read once");
+    },
+  );
+
+  await t.step("only the lines after the last one read are new", async () => {
+    const more = thread([
+      staffRow({ message_id: "hi", created_at: il("08:00") }),
+      row({
+        message_id: "c1",
+        created_at: il("09:00"),
+        message_text: "יש עדכון",
+      }),
+      staffRow({ message_id: "s1", created_at: il("09:10") }),
+      row({
+        message_id: "c2",
+        created_at: il("09:20"),
+        message_text: "זה לא מה שסיכמנו",
+      }),
+    ]);
+    const cached = new Map([["group:111@g.us", { messageId: "c1", verdict }]]);
+    const { fake, prompts } = ports({ cached });
+    await classify([more], fake);
+    assertEquals(prompts[0].includes("[2] 09:00 לקוח: יש עדכון"), true);
+    assertEquals(
+      prompts[0].includes("[4*] 09:20 לקוח: זה לא מה שסיכמנו"),
+      true,
+    );
+  });
 
   await t.step(
     "a dry run never asks; it uses cached verdicts only",
@@ -168,7 +239,7 @@ Deno.test("classifyThreads", async (t) => {
       const later = group("נו", "group:222@g.us");
       const { llm } = await classifyThreads(
         [group(), later],
-        new Set(["group:222@g.us"]),
+        { dueKeys: new Set(["group:222@g.us"]), complaints: true },
         fake,
         run(),
       );

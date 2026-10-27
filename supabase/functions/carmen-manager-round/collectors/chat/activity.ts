@@ -3,6 +3,7 @@
  * service-role SQL functions of 20261027101000_carmen_chat_sla.sql: only
  * client-linked threads of the monitored lines leave the database.
  */
+import { USER_SEND_KINDS } from "../../../_shared/client-card/send-kind.ts";
 import type { Database } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
@@ -66,6 +67,8 @@ export async function loadThreadActivity(
         p_connection_user_ids: query.connectionIds,
         p_since: query.since.toISOString(),
         p_collector: collectorId,
+        // What a person sends from AIOS answers the client like a typed reply.
+        p_person_send_kinds: [...USER_SEND_KINDS],
         p_provider: MONITORED_PROVIDER,
         p_client_ids: query.clientIds ?? undefined,
         p_per_thread: PER_THREAD,

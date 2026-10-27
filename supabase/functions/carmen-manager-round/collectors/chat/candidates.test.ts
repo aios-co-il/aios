@@ -17,7 +17,7 @@ const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/;
 const confident: ChatVerdict = {
   needs_reply: true,
   is_request: true,
-  is_complaint: false,
+  complaint_ids: [],
   urgency: "normal",
   summary_he: "מבקש לעדכן את המבצע",
   confidence: 0.9,

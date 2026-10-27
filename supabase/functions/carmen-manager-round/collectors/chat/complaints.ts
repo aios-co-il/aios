@@ -1,11 +1,12 @@
 /**
  * client_complaint findings, one per client streak that reads as a
- * complaint (the shared complaint words, or a confident verdict on the
- * latest streak), at any age and whether or not staff already answered: a
+ * complaint (the shared complaint words, or a confident verdict that names
+ * one of its lines), at any age and whether or not staff already answered: a
  * reply does not settle a complaint, a person does. The streak's first
- * message names the finding. A complaint stays reported while its message is
- * in the read window, as stored, even after it leaves the thread's last
- * messages; a person acknowledges or resolves it.
+ * message names the finding; the line the model named is the one quoted. A
+ * complaint stays reported while its message is in the read window, as
+ * stored, even after it leaves the thread's last messages; a person
+ * acknowledges or resolves it.
  */
 import type { FindingCandidate } from "../types.ts";
 import { type ChatLink, threadLink } from "./candidates.ts";
@@ -14,8 +15,11 @@ import { type LiveChatFinding, threadPrefix } from "./gate.ts";
 import { readMarkers } from "./markers.ts";
 import { type ClientStreak, clientStreaks } from "./streaks.ts";
 import { complaintSummary, isLowConfidence, quoteOf } from "./summary.ts";
-import type { Thread } from "./threads.ts";
-import { type ChatVerdict, verdictSaysComplaint } from "./verdict.ts";
+import type { Thread, Turn } from "./threads.ts";
+import { verdictComplaints } from "./verdict.ts";
+
+/** The line the model read as a complaint, with its summary of it. */
+type ModelComplaint = { turn: Turn; summary: string };
 
 /** The complaints the threads show, and the open ones still in the read window. */
 export function complaintCandidates(
@@ -26,16 +30,13 @@ export function complaintCandidates(
 ): FindingCandidate[] {
   const open = live.filter((finding) => finding.kind === "client_complaint");
   const found = threads.flatMap((thread) =>
-    clientStreaks(thread).flatMap((streak, index, all) => {
-      const verdict =
-        index === all.length - 1
-          ? modelSaysComplaint(verdicts, thread, streak)
-          : null;
+    clientStreaks(thread).flatMap((streak) => {
+      const model = modelComplaint(verdicts, thread, streak);
       const words = readMarkers(streak.turns.map((t) => t.text)).complaint;
-      if (!(words || verdict) || startedBeforeRead(thread, streak, open)) {
+      if (!(words || model) || startedBeforeRead(thread, streak, open)) {
         return [];
       }
-      return [complaint(thread, streak, words ? null : verdict, scope)];
+      return [complaint(thread, streak, words ? null : model, scope)];
     }),
   );
   const reported = new Set(found.map((c) => c.fingerprint));
@@ -52,18 +53,16 @@ export function complaintPrefix(threadKey: string): string {
   return `${threadPrefix(threadKey)}complaint:`;
 }
 
-/** The verdict on the streak's last message when it confidently reads as a complaint. */
-function modelSaysComplaint(
+/** The streak's latest line a confident verdict read as a complaint, if any. */
+function modelComplaint(
   verdicts: Verdicts,
   thread: Thread,
   streak: ClientStreak,
-): ChatVerdict | null {
-  const cached = verdicts.get(thread.key);
-  return cached &&
-    cached.messageId === streak.turns.at(-1)?.id &&
-    verdictSaysComplaint(cached.verdict)
-    ? cached.verdict
-    : null;
+): ModelComplaint | null {
+  const verdict = verdicts.get(thread.key)?.verdict ?? null;
+  const named = new Set(verdictComplaints(verdict));
+  const turn = streak.turns.findLast((t) => named.has(t.id));
+  return turn && verdict ? { turn, summary: verdict.summary_he } : null;
 }
 
 /**
@@ -86,14 +85,15 @@ function startedBeforeRead(
   );
 }
 
-/** One complaint finding for the streak; `verdict` when only the model saw it. */
+/** One complaint finding for the streak; `model` when only the model saw it. */
 function complaint(
   thread: Thread,
   streak: ClientStreak,
-  verdict: ChatVerdict | null,
+  model: ModelComplaint | null,
   scope: { chatLink: ChatLink },
 ): FindingCandidate {
   const { turns } = streak;
+  const shown = model ? [model.turn] : turns;
   const link = threadLink(thread, scope.chatLink);
   const lowConfidence = isLowConfidence(turns);
   return {
@@ -103,17 +103,17 @@ function complaint(
     client_id: thread.clientId,
     agency_id: null,
     source_event_at: turns[0].at.toISOString(),
-    summary_he: complaintSummary(thread, turns, link),
+    summary_he: complaintSummary(thread, shown, link),
     evidence: {
       thread: thread.kind,
       first_message_at: turns[0].at.toISOString(),
       last_message_at: turns.at(-1)?.at.toISOString(),
       message_count: turns.length,
-      classified_by: verdict ? "llm" : "markers",
+      classified_by: model ? "llm" : "markers",
       low_confidence: lowConfidence,
-      quote: quoteOf(thread, turns, "complaint") ?? undefined,
+      quote: quoteOf(thread, shown, "complaint") ?? undefined,
       llm_summary_he: thread.openToTeam
-        ? verdict?.summary_he || undefined
+        ? model?.summary || undefined
         : undefined,
       chat_link: link ?? undefined,
     },

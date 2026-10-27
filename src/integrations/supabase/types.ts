@@ -16143,6 +16143,7 @@ export type Database = {
           p_collector: string;
           p_connection_user_ids: string[];
           p_per_thread?: number;
+          p_person_send_kinds: string[];
           p_provider?: Database["public"]["Enums"]["chat_provider"];
           p_since: string;
           p_tenant_id: string;
