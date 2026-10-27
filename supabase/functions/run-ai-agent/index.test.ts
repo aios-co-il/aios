@@ -1,4 +1,14 @@
-import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assert,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
+import {
+  ECOMMERCE_PULSE_SKILL_ROW,
+  PULSE_CHECK_SKILL_ROW,
+} from "../_shared/skills/pulse-skill-rows.ts";
+import { REFRESH_CAMPAIGN_PULSE_TOOL } from "./pulse-refresh/tool.ts";
 
 const read = (path: string) =>
   Deno.readTextFileSync(new URL(path, import.meta.url));
@@ -107,6 +117,21 @@ Deno.test("run-ai-agent index.ts", async (t) => {
           `added after the pulse block: ${line}`,
         );
       }
+      // Nor may a later system message or an edit of the first one add
+      // prompt text after the block once the messages array exists.
+      const turn = runAiAgent.slice(
+        systemMessage,
+        runAiAgent.indexOf("async function handleDirectTool("),
+      );
+      assertStrictEquals(
+        turn.match(/role:\s*["'`]system["'`]/g)?.length,
+        1,
+        "the only system message is the one that carries systemPrompt",
+      );
+      assertNotMatch(
+        turn,
+        /messages\s*\[\s*0\s*\]|messages\.(unshift|splice)\(/,
+      );
       // A narrow allowed_tools still offers both pulse tools to Carmen,
       // before the router picks this message's tools, and on direct_tool.
       const keep = runAiAgent.indexOf(
@@ -120,12 +145,45 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "the refresh tool is kept after allowed_tools narrows the pool",
       );
       assert(keep < runAiAgent.indexOf("await selectRelevantToolsForMessage("));
+      // An unidentified WhatsApp or task caller keeps the narrow list.
+      assertMatch(
+        runAiAgent.slice(keep),
+        /^[^}]*caller: \{ surface, callerCampaignerId, callerUserId \},/,
+      );
       assertMatch(
         runAiAgent,
         /const pool = keepCarmenPulseTools\(\s*directToolPool\(ALL_TOOLS, \{/,
       );
     },
   );
+
+  await t.step("pulse skins only name tools that run-ai-agent offers", () => {
+    const toolNames = new Set(
+      [...runAiAgent.matchAll(/^\s{4}name: "([a-z0-9_]+)",$/gm)].map(
+        (m) => m[1],
+      ),
+    );
+    toolNames.add(REFRESH_CAMPAIGN_PULSE_TOOL.name);
+    for (const row of [PULSE_CHECK_SKILL_ROW, ECOMMERCE_PULSE_SKILL_ROW]) {
+      for (const tool of row.allowed_tools) {
+        assert(toolNames.has(tool), `${row.slug} → ${tool}`);
+      }
+      const text = [row.system_prompt, row.constraints, row.steps].join("\n");
+      for (const mentioned of text.match(/\b[a-z]+(?:_[a-z0-9]+)+\b/g) || []) {
+        // Output fields and tool arguments, not tools.
+        const field =
+          /_(7d|pct)$|^is_|^client_(id|name)$|^formatted_markdown$|^whatsapp_digest$|^refresh_note$/;
+        if (field.test(mentioned)) {
+          continue;
+        }
+        assert(toolNames.has(mentioned), `${row.slug} mentions ${mentioned}`);
+      }
+    }
+    assertNotMatch(
+      JSON.stringify(ECOMMERCE_PULSE_SKILL_ROW),
+      /list_shopify_orders|list_woocommerce_orders/,
+    );
+  });
 
   await t.step(
     "V1 and the memory tools no longer send the pulse through recall_recent_action",

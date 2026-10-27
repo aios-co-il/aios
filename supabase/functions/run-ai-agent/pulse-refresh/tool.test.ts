@@ -87,6 +87,22 @@ Deno.test("executeRefreshCampaignPulse", async (t) => {
   );
 
   await t.step(
+    "a campaigner with no user omits p_requested_by, so the SQL default NULL applies",
+    async () => {
+      const { ctx, seen } = context({
+        actorUserId: null,
+        callerCampaignerId: "c-1",
+      });
+      const result = await executeRefreshCampaignPulse(ctx, async () => ({}));
+      // supabase-js posts the arguments as JSON, which drops an undefined key.
+      assertEquals(JSON.parse(JSON.stringify(seen.rpcs)), [
+        { p_tenant_id: TENANT, p_min_interval_seconds: 600 },
+      ]);
+      assertStrictEquals(refreshOf(result).status, "rate_limited");
+    },
+  );
+
+  await t.step(
     "a WhatsApp turn without a user or campaigner is refused",
     async () => {
       const { ctx, seen } = context({ actorUserId: null });

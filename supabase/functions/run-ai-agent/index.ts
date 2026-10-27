@@ -14880,6 +14880,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     filteredTools = keepCarmenPulseTools(filteredTools, ALL_TOOLS, {
       isCarmen,
       disabledTools,
+      caller: { surface, callerCampaignerId, callerUserId },
     });
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.

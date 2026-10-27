@@ -85,6 +85,25 @@ Deno.test("interpretPulseSnapshotResponse", async (t) => {
     );
   });
 
+  await t.step(
+    "a 200 without a results list is a failed refresh, not a missing setting",
+    () => {
+      for (const body of [null, "<html>", { success: true }]) {
+        assertEquals(
+          interpretPulseSnapshotResponse(TENANT, {
+            ok: true,
+            status: 200,
+            body,
+          }),
+          {
+            status: "refresh_failed",
+            error: "campaign-pulse-snapshot answered without results",
+          },
+        );
+      }
+    },
+  );
+
   await t.step("a non-numeric client count reads as unknown", () => {
     assertEquals(
       interpretPulseSnapshotResponse(TENANT, {

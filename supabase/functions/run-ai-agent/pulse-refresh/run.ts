@@ -1,3 +1,4 @@
+import type { PulseRefreshStatus } from "./note.ts";
 import {
   checkRefreshInput,
   type PulseRefreshInput,
@@ -96,7 +97,12 @@ async function storedCalculatedAt(
 async function claimStatus(
   tenantId: string,
   deps: PulseRefreshDeps,
-): Promise<"refreshed" | "rate_limited" | "rate_limit_unavailable"> {
+): Promise<
+  Extract<
+    PulseRefreshStatus,
+    "refreshed" | "rate_limited" | "rate_limit_unavailable"
+  >
+> {
   try {
     const claimed = await deps.claimRefresh(PULSE_REFRESH_MIN_INTERVAL_SECONDS);
     return claimed === true ? "refreshed" : "rate_limited";
@@ -116,7 +122,10 @@ async function runSnapshot(
   deps: PulseRefreshDeps,
 ): Promise<
   | SnapshotOutcome
-  | { status: "refresh_timeout" | "refresh_failed"; error: string }
+  | {
+      status: Extract<PulseRefreshStatus, "refresh_timeout" | "refresh_failed">;
+      error: string;
+    }
 > {
   try {
     const response = await deps.invokeSnapshot(

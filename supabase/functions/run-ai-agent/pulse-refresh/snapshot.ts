@@ -1,4 +1,5 @@
 import { asUuidOrNull } from "../../_shared/uuid.ts";
+import type { PulseRefreshStatus } from "./note.ts";
 
 /** At most one refresh per tenant in this window; a newer snapshot is fresh. */
 export const PULSE_REFRESH_MIN_INTERVAL_SECONDS = 600;
@@ -19,9 +20,9 @@ export type SnapshotResponse = { ok: boolean; status?: number; body: unknown };
 
 /** What the snapshot run means for this tenant. */
 export type SnapshotOutcome =
-  | { status: "refreshed"; clients: number | null }
-  | { status: "refresh_failed"; error: string }
-  | { status: "not_configured" };
+  | { status: Extract<PulseRefreshStatus, "refreshed">; clients: number | null }
+  | { status: Extract<PulseRefreshStatus, "refresh_failed">; error: string }
+  | { status: Extract<PulseRefreshStatus, "not_configured"> };
 
 /** campaign-pulse-snapshot body: one tenant, no digest, no instant alerts. */
 export function buildPulseRefreshRequestBody(
@@ -69,8 +70,8 @@ export function interpretPulseSnapshotResponse(
   response: SnapshotResponse | null | undefined,
 ): SnapshotOutcome {
   const body = isObject(response?.body) ? response.body : {};
-  const results = Array.isArray(body.results) ? body.results : [];
-  const mine = results.find(
+  const results = Array.isArray(body.results) ? body.results : null;
+  const mine = results?.find(
     (row): row is Record<string, unknown> =>
       isObject(row) && row.tenant_id === tenantId,
   );
@@ -90,6 +91,14 @@ export function interpretPulseSnapshotResponse(
     return {
       status: "refresh_failed",
       error: shortError(body.error || `HTTP ${response?.status ?? "?"}`),
+    };
+  }
+  // A 200 without the results list (an unreadable body) says nothing about
+  // this tenant, so it is a failed refresh, not a missing pulse setting.
+  if (!results) {
+    return {
+      status: "refresh_failed",
+      error: "campaign-pulse-snapshot answered without results",
     };
   }
   // No tenant_heartbeat_settings row: the snapshot has nothing to compute.

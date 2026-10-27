@@ -1,9 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertRejects,
-  assertStrictEquals,
-} from "jsr:@std/assert@1";
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { createPulseRefreshDeps } from "./deps.ts";
 import { CLIENT, fakeDeps, OTHER_TENANT, TENANT, USER } from "./fake-deps.ts";
 import { runCampaignPulseRefresh } from "./run.ts";
@@ -234,22 +229,4 @@ Deno.test("createPulseRefreshDeps", async (t) => {
       assertEquals(scopeChecks, []);
     },
   );
-
-  await t.step("a snapshot call without URL or key never fetches", async () => {
-    let fetches = 0;
-    const deps = createPulseRefreshDeps({
-      supabase: fakeSupabase({}).supabase,
-      tenantId: TENANT,
-      fetchImpl: async () => {
-        fetches += 1;
-        return Response.json({});
-      },
-    });
-    await assertRejects(
-      () => deps.invokeSnapshot(buildPulseRefreshRequestBody(TENANT)),
-      Error,
-      "campaign-pulse-snapshot is not configured",
-    );
-    assertStrictEquals(fetches, 0);
-  });
 });

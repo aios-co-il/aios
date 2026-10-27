@@ -1,17 +1,9 @@
 import type { RefreshClient } from "./refresh-client.ts";
 import type { PulseRefreshDeps } from "./run.ts";
-import type { PulseRefreshRequestBody, SnapshotResponse } from "./snapshot.ts";
+import { postSnapshot } from "./snapshot-call.ts";
 
 /** How long a chat turn waits for campaign-pulse-snapshot. */
 const PULSE_REFRESH_TIMEOUT_MS = 120_000;
-
-/** Where and how the refresh calls campaign-pulse-snapshot. */
-type SnapshotEndpoint = {
-  supabaseUrl?: string | null;
-  serviceKey?: string | null;
-  fetchImpl: typeof fetch;
-  timeoutMs: number;
-};
 
 /** run-ai-agent's context for the Supabase-backed deps. */
 export type PulseRefreshDepsOptions = {
@@ -125,46 +117,4 @@ async function claimRefresh(
     throw error;
   }
   return data === true;
-}
-
-/** POSTs the body to campaign-pulse-snapshot as the service role; aborts after timeoutMs. */
-async function postSnapshot(
-  { supabaseUrl, serviceKey, fetchImpl, timeoutMs }: SnapshotEndpoint,
-  body: PulseRefreshRequestBody,
-): Promise<SnapshotResponse> {
-  if (!supabaseUrl || !serviceKey) {
-    throw new Error("campaign-pulse-snapshot is not configured");
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl(
-      `${supabaseUrl.replace(/\/+$/, "")}/functions/v1/campaign-pulse-snapshot`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      },
-    );
-    return {
-      ok: response.ok,
-      status: response.status,
-      body: await jsonOrNull(response),
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** The response body as JSON, or null when it is not JSON. */
-async function jsonOrNull(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
 }

@@ -3,7 +3,8 @@ import { asUuidOrNull } from "../../_shared/uuid.ts";
 /** Who asks for the refresh, for which tenant, and optionally which client. */
 export type PulseRefreshInput = {
   tenantId: string | null | undefined;
-  clientId?: string | null;
+  /** The tool's client_id argument as the model sent it; checked here. */
+  clientId?: unknown;
   surface?: string | null;
   callerCampaignerId?: string | null;
   callerUserId?: string | null;
@@ -31,10 +32,7 @@ export async function checkRefreshInput(
       message: "לא זוהה ארגון, ולכן אי אפשר לרענן את הדופק.",
     };
   }
-  const clientRefusal = await checkClient(
-    input.clientId?.trim() ?? "",
-    assertClientVisible,
-  );
+  const clientRefusal = await checkClient(input.clientId, assertClientVisible);
   return clientRefusal ?? { tenantId };
 }
 
@@ -44,19 +42,10 @@ export async function checkRefreshInput(
  * have no campaigner and no user, so the pulse would not be scoped to them.
  * They may not trigger a refresh of the whole tenant.
  */
-export function pulseRefreshCallerRefusal({
-  surface,
-  callerCampaignerId,
-  callerUserId,
-}: Pick<
-  PulseRefreshInput,
-  "surface" | "callerCampaignerId" | "callerUserId"
-> = {}): PulseRefreshRefusal | null {
-  if (
-    UNVERIFIED_CALLER_SURFACES.has(surface ?? "") &&
-    !callerCampaignerId &&
-    !callerUserId
-  ) {
+export function pulseRefreshCallerRefusal(
+  caller: PulseCallerIdentity = {},
+): PulseRefreshRefusal | null {
+  if (isUnidentifiedPulseCaller(caller)) {
     return {
       error: "caller_not_identified",
       message: "רענון הדופק זמין רק לאנשי צוות שמזוהים במערכת.",
@@ -65,15 +54,35 @@ export function pulseRefreshCallerRefusal({
   return null;
 }
 
+/** The turn's surface and the caller run-ai-agent resolved for it. */
+export type PulseCallerIdentity = Pick<
+  PulseRefreshInput,
+  "surface" | "callerCampaignerId" | "callerUserId"
+>;
+
+/** A WhatsApp or task turn with no campaigner and no user behind it. */
+export function isUnidentifiedPulseCaller({
+  surface,
+  callerCampaignerId,
+  callerUserId,
+}: PulseCallerIdentity = {}): boolean {
+  return (
+    UNVERIFIED_CALLER_SURFACES.has(surface ?? "") &&
+    !callerCampaignerId &&
+    !callerUserId
+  );
+}
+
 /** A client_id must be a uuid the caller may see; no client means the whole tenant. */
 async function checkClient(
-  clientId: string,
+  clientId: unknown,
   assertClientVisible: (clientId: string) => Promise<void>,
 ): Promise<PulseRefreshRefusal | null> {
-  if (!clientId) {
+  const text = typeof clientId === "string" ? clientId.trim() : clientId;
+  if (text == null || text === "") {
     return null;
   }
-  const id = asUuidOrNull(clientId);
+  const id = typeof text === "string" ? asUuidOrNull(text) : null;
   if (!id) {
     return {
       error: "invalid_client_id",

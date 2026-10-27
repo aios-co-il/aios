@@ -1,3 +1,4 @@
+import { REFRESH_PULSE_TOOL_NAME } from "../../_shared/carmen/pulse-tools.ts";
 import {
   createPulseRefreshDeps,
   type PulseRefreshDepsOptions,
@@ -9,7 +10,7 @@ import { PULSE_REFRESH_MIN_INTERVAL_SECONDS } from "./snapshot.ts";
 
 /** refresh_campaign_pulse as run-ai-agent offers it to the model. */
 export const REFRESH_CAMPAIGN_PULSE_TOOL = {
-  name: "refresh_campaign_pulse",
+  name: REFRESH_PULSE_TOOL_NAME,
   description: `רענון בדיקת הדופק: מחשב מחדש את הדופק של הארגון מהנתונים שכבר סונכרנו ומחזיר אותו כמו get_latest_campaign_pulse, עם refresh_note. לא שולח הודעות ולא מריץ סנכרון מול Meta או Google. מרענן לכל היותר פעם ב-${PULSE_REFRESH_MIN_INTERVAL_SECONDS / 60} דקות לארגון; אחרת מחזיר את הבדיקה הקיימת. לבקשות כמו "רענני דופק", "דופק עדכני", "בדיקת דופק מלאה ועדכנית".`,
   parameters: {
     type: "object",
@@ -58,7 +59,7 @@ export function executeRefreshCampaignPulse(
   return runCampaignPulseRefresh(
     {
       tenantId: ctx.tenantId,
-      clientId: args.client_id == null ? null : String(args.client_id),
+      clientId: args.client_id,
       surface: ctx.surface,
       callerCampaignerId: ctx.callerCampaignerId,
       callerUserId: ctx.actorUserId,

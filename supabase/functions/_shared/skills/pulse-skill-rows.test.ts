@@ -1,5 +1,4 @@
 import { assert, assertMatch, assertNotMatch } from "jsr:@std/assert@1";
-import { REFRESH_CAMPAIGN_PULSE_TOOL } from "../../run-ai-agent/pulse-refresh/tool.ts";
 import {
   ECOMMERCE_PULSE_SKILL_ROW,
   PULSE_CHECK_SKILL_ROW,
@@ -64,36 +63,6 @@ Deno.test("pulse skill rows", async (t) => {
       );
     },
   );
-
-  await t.step("pulse skins only name tools that exist", () => {
-    const runAiAgent = read("../../run-ai-agent/index.ts");
-    const toolNames = new Set(
-      [...runAiAgent.matchAll(/^\s{4}name: "([a-z0-9_]+)",$/gm)].map(
-        (m) => m[1],
-      ),
-    );
-    toolNames.add(REFRESH_CAMPAIGN_PULSE_TOOL.name);
-    for (const row of ROWS) {
-      for (const tool of row.allowed_tools) {
-        assert(toolNames.has(tool), `${row.slug} → ${tool}`);
-      }
-      const text = [row.system_prompt, row.constraints, row.steps].join("\n");
-      for (const mentioned of text.match(/\b[a-z]+(?:_[a-z0-9]+)+\b/g) || []) {
-        // Output fields and tool arguments, not tools.
-        const field =
-          /_(7d|pct)$|^is_|^client_(id|name)$|^formatted_markdown$|^whatsapp_digest$|^refresh_note$/;
-        if (field.test(mentioned)) {
-          continue;
-        }
-        assert(toolNames.has(mentioned), `${row.slug} mentions ${mentioned}`);
-      }
-    }
-    const ecommerceText = JSON.stringify(ECOMMERCE_PULSE_SKILL_ROW);
-    assertNotMatch(
-      ecommerceText,
-      /list_shopify_orders|list_woocommerce_orders/,
-    );
-  });
 
   await t.step(
     "pulse_check keeps the client-call details of the live text",

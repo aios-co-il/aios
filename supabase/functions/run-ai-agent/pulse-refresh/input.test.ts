@@ -68,6 +68,12 @@ Deno.test("checkRefreshInput", async (t) => {
       ).error,
       "invalid_client_id",
     );
+    // The model's client_id arrives untyped; a number is not a client.
+    assertStrictEquals(
+      (await runCampaignPulseRefresh({ tenantId: TENANT, clientId: 42 }, deps))
+        .error,
+      "invalid_client_id",
+    );
     assertStrictEquals(
       calls.invoke.length + calls.claim.length + calls.loadPulse,
       0,

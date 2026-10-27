@@ -3,6 +3,7 @@ import {
   isBarePulseRefreshRequest,
   isPulseRefreshRequest,
 } from "./refresh-request.ts";
+import { REFRESH_CAMPAIGN_PULSE_TOOL } from "./tool.ts";
 
 /** The caller run-ai-agent resolved for this turn. */
 export type PulseCaller = {
@@ -61,13 +62,12 @@ export function pulseRefreshToolChoice(
   route: PulseRefreshRoute,
   cappedTools: readonly CappedTool[],
 ): { type: "function"; function: { name: string } } | null {
-  const offered = cappedTools.some(
-    (tool) => tool.function?.name === "refresh_campaign_pulse",
-  );
+  const { name } = REFRESH_CAMPAIGN_PULSE_TOOL;
+  const offered = cappedTools.some((tool) => tool.function?.name === name);
   if (!route.forceRefresh || !offered) {
     return null;
   }
-  return { type: "function", function: { name: "refresh_campaign_pulse" } };
+  return { type: "function", function: { name } };
 }
 
 /**

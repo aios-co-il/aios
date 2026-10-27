@@ -1,4 +1,4 @@
-import { normalizeCommand } from "../../_shared/pulse-request.mjs";
+import { normalizeCommand } from "../../_shared/pulse/command-text.ts";
 
 /**
  * "רענני דופק", "דופק עדכני", the voice "בדיקת דופק מלאה ועדכנית": the caller

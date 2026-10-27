@@ -1,3 +1,5 @@
+import { normalizeCommand } from "./pulse/command-text.ts";
+
 // JavaScript \b does not recognize Hebrew word boundaries.
 export function hasPulseIntent(text) {
   return /(?:^|[^\p{L}\p{N}_])ה?דופק(?=$|[^\p{L}\p{N}_])|\bpulse\s*check\b|בדיקת\s*דוח|מצב\s*קמפיינים|סיכום\s*קמפיינים/iu.test(
@@ -11,12 +13,4 @@ export function isCachedPulseRequest(text) {
   return /^(?:(?:כרמן|קרמן|carmen)[,\s]+)?(?:(?:תני לי|תן לי|הציגי|הצג|אפשר|מה|תראי לי|תראה לי)\s+)?(?:(?:בדיקת\s+)?דופק(?:\s+קמפיינים)?|(?:מצב|סיכום)\s*(?:הקמפיינים|קמפיינים)|pulse\s*check)(?:\s+בבקשה)?$/iu.test(
     normalizeCommand(text),
   );
-}
-
-/** Trims the text and drops trailing sentence punctuation. */
-export function normalizeCommand(text) {
-  return String(text || "")
-    .trim()
-    .replace(/[.!?؟]+$/u, "")
-    .trim();
 }
