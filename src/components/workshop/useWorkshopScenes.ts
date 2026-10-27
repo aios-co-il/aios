@@ -1,0 +1,163 @@
+import { useEffect } from "react";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
+import { subscribeWorkshopEvents } from "@/lib/workshopBridge";
+import {
+  BOARD_SCENE_COLUMNS,
+  applySceneEdit,
+  storyboardScenes,
+  type SceneAsset,
+  type SceneRow,
+  type SceneTextPatch,
+  type StoryboardScene,
+} from "./storyboardScenes";
+
+export const scenesQueryKey = (
+  tenantId: string | undefined,
+  projectId: string | null,
+) => ["workshop-scenes", tenantId, projectId] as const;
+
+const isStoragePath = (url: string | null): url is string =>
+  !!url && !/^(https?:|data:|blob:)/i.test(url);
+
+async function loadScenes(
+  tenantId: string,
+  projectId: string,
+): Promise<StoryboardScene[]> {
+  const { data, error } = await supabase
+    .from("marketing_video_scenes")
+    .select(BOARD_SCENE_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("item_id", projectId)
+    .order("position");
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as SceneRow[];
+  const ids = [
+    ...new Set(
+      rows
+        .flatMap((row) => [row.still_asset_id, row.clip_asset_id])
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const assets = new Map<string, SceneAsset>();
+  if (ids.length > 0) {
+    const { data: found, error: assetError } = await supabase
+      .from("marketing_assets")
+      .select("id,url")
+      .eq("tenant_id", tenantId)
+      .in("id", ids);
+    if (assetError) throw assetError;
+    const list = (found ?? []) as SceneAsset[];
+    // Clips live in the private creative-video bucket as paths; pictures are mostly links.
+    const paths = [...new Set(list.map((a) => a.url).filter(isStoragePath))];
+    const signed =
+      paths.length > 0
+        ? await signCreativeVideoPaths(paths).catch(
+            () => ({}) as Record<string, string>,
+          )
+        : {};
+    for (const asset of list)
+      assets.set(asset.id, {
+        id: asset.id,
+        url: isStoragePath(asset.url) ? (signed[asset.url] ?? null) : asset.url,
+      });
+  }
+  return storyboardScenes(rows, assets);
+}
+
+/**
+ * The open project's storyboard, kept live: a scene Carmen changes (workshop_update_scene, a
+ * new still or clip from the worker) reaches the grid without a refresh.
+ */
+export function useWorkshopScenes(
+  tenantId: string | undefined,
+  projectId: string | null,
+) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!tenantId || !projectId) return;
+    const queryKey = scenesQueryKey(tenantId, projectId);
+    const refresh = () => void queryClient.invalidateQueries({ queryKey });
+    const channel = supabase
+      .channel(`workshop-scenes-${projectId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "marketing_video_scenes",
+          filter: `item_id=eq.${projectId}`,
+        },
+        refresh,
+      )
+      .subscribe();
+    const stop = subscribeWorkshopEvents((event) => {
+      if (event.item_id === projectId) refresh();
+    });
+    return () => {
+      stop();
+      void supabase.removeChannel(channel);
+    };
+  }, [tenantId, projectId, queryClient]);
+
+  return useQuery({
+    queryKey: scenesQueryKey(tenantId, projectId),
+    queryFn:
+      tenantId && projectId ? () => loadScenes(tenantId, projectId) : skipToken,
+  });
+}
+
+/**
+ * Saves the texts the user changed on one scene (on-screen text, narration, dialogue). The card
+ * shows them at once; a failed save puts the old texts back and says so.
+ */
+export function useEditSceneText(
+  tenantId: string | undefined,
+  projectId: string | null,
+) {
+  const queryClient = useQueryClient();
+  const queryKey = scenesQueryKey(tenantId, projectId);
+  return useMutation({
+    mutationFn: async ({
+      sceneId,
+      patch,
+    }: {
+      sceneId: string;
+      patch: SceneTextPatch;
+    }) => {
+      const { error } = await supabase.rpc(
+        "workshop_edit_scene_text" as never,
+        {
+          p_scene_id: sceneId,
+          p_overlay_text: patch.overlay_text ?? null,
+          p_voiceover_text: patch.voiceover_text ?? null,
+          p_dialogue: patch.dialogue ?? null,
+        } as never,
+      );
+      if (error) throw error;
+    },
+    onMutate: async ({ sceneId, patch }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const before = queryClient.getQueryData<StoryboardScene[]>(queryKey);
+      if (before)
+        queryClient.setQueryData(
+          queryKey,
+          applySceneEdit(before, sceneId, patch),
+        );
+      return { before };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.before) queryClient.setQueryData(queryKey, context.before);
+      toast.error("לא הצלחנו לשמור את הטקסט של הסצנה");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
+  });
+}

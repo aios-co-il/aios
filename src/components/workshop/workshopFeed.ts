@@ -97,6 +97,26 @@ export function pagesIn(
 export const foldersOf = (artifacts: WorkshopArtifact[]) =>
   folderTree(artifacts);
 
+/** The folder whose tab shows the storyboard grid (FOLDER_BY_KIND.storyboard). */
+export const SCENES_FOLDER = "video/scenes";
+
+/**
+ * The folder tabs, with the scenes tab counting the storyboard's scenes. A project whose scenes
+ * came from the user's own materials may have no scene pages, so the tab is added for it.
+ */
+export function folderTabs(artifacts: WorkshopArtifact[], sceneCount: number) {
+  const folders = foldersOf(artifacts);
+  if (sceneCount === 0) return folders;
+  const scenes = { folder: SCENES_FOLDER, label: "סצנות", count: sceneCount };
+  return folders.some((entry) => entry.folder === SCENES_FOLDER)
+    ? folders.map((entry) =>
+        entry.folder === SCENES_FOLDER
+          ? { ...entry, count: sceneCount }
+          : entry,
+      )
+    : [...folders, scenes].sort((a, b) => a.folder.localeCompare(b.folder));
+}
+
 /** Whether a new page should pull the board down to it. */
 export function shouldFollow(
   previousCount: number,
