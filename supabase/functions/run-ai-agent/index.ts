@@ -116,6 +116,7 @@ import {
   resolveSkillsBySlug,
 } from "../_shared/skills/registry.ts";
 import { DEV_ENVIRONMENT_STANDING } from "../_shared/environments-standing.ts";
+import { selfQuestionsStanding } from "../_shared/carmen/self-questions.ts";
 import {
   applyToolForceIncludes,
   buildQuickAck,
@@ -197,6 +198,12 @@ import {
   devTaskApprovalDecision,
   DevTaskNotApprovedError,
 } from "../_shared/dev-task-approval.ts";
+import {
+  carmenSkinEntries,
+  carmenSkinsResult,
+  customSkinPaths,
+  pathsToSign,
+} from "../_shared/carmen/skin-gallery.ts";
 import {
   addGoalBlocker,
   addGoalMilestone,
@@ -821,6 +828,8 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  // Questions about Carmen herself: her personas and their portraits, on every surface.
+  "get_carmen_skins",
   ...NATIVE_DEV_TASK_TOOLS,
   // Offered only inside the workshop skin, where they are the main tools.
   ...WORKSHOP_TOOLS.map((tool) => tool.name),
@@ -3674,6 +3683,12 @@ const ALL_TOOLS = [
   // ===========================
   // HERMES SKILLS SYSTEM (self-improving procedural memory)
   // ===========================
+  {
+    name: "get_carmen_skins",
+    description:
+      "הסקינים (הפרסונות) של כרמן ותמונות הדיוקן שלהן: slug, שם בעברית, הסקינים שבכל פרסונה, has_portrait ו-portrait_url. כשהעסק העלה תמונה משלו לסקין מוחזר קישור חתום לשעה (source=custom). portrait_url נפתח בצ׳אט כתמונת Markdown: ![שם](portrait_url). לשאלות על כרמן עצמה, על הסקינים שלה ועל התמונות שלהן. קריאה בלבד.",
+    parameters: { type: "object", properties: {} },
+  },
   {
     name: "recall_skills",
     description:
@@ -11615,16 +11630,40 @@ async function executeTool(
     // ===========================
     // HERMES SKILLS SYSTEM
     // ===========================
+    case "get_carmen_skins": {
+      // The tenant's Carmen agent holds the custom skin images (visual_identity.skins).
+      const { data: carmenAgent } = await supabase
+        .from("ai_agents")
+        .select("metadata")
+        .eq("tenant_id", tenantId)
+        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const paths = customSkinPaths(carmenAgent?.metadata, tenantId);
+      const signed: Record<string, string> = {};
+      await Promise.all(
+        pathsToSign(paths).map(async (path) => {
+          const { data, error } = await supabase.storage
+            .from("entity-attachments")
+            .createSignedUrl(path, 3600);
+          if (!error && data?.signedUrl) signed[path] = data.signedUrl;
+        }),
+      );
+      return carmenSkinsResult(carmenSkinEntries(paths, signed));
+    }
     case "recall_skills": {
       const limit = Math.min(args.limit || 5, 20);
       const q = String(args.query || "").trim();
+      // The tenant's own skills and the global skins every tenant has (scope = 'global').
+      const skillScope = `tenant_id.eq.${tenantId},scope.eq.global`;
       // Try FTS first; fall back to ILIKE
       const { data: matchedSkills, error } = await supabase
         .from("ai_skills")
         .select(
           "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
         )
-        .eq("tenant_id", tenantId)
+        .or(skillScope)
         .eq("is_active", true)
         .textSearch(
           "search_vector",
@@ -11639,7 +11678,7 @@ async function executeTool(
           .select(
             "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
           )
-          .eq("tenant_id", tenantId)
+          .or(skillScope)
           .eq("is_active", true)
           .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
           .limit(limit);
@@ -14947,9 +14986,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
+    // Carmen can always answer about herself (her personas and their portraits), whatever
+    // the agent's allowlist; the settings denylist below still applies.
     let filteredTools =
       allowedTools.length > 0
-        ? ALL_TOOLS.filter((t) => allowedTools.includes(t.name))
+        ? ALL_TOOLS.filter(
+            (t) =>
+              allowedTools.includes(t.name) ||
+              (isCarmen && t.name === "get_carmen_skins"),
+          )
         : ALL_TOOLS;
     const toolPoolBeforeRouting = filteredTools;
 
@@ -15267,6 +15312,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (isCarmen) {
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
       systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${CONNECTIONS_STANDING}`;
+      systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(canEscalateDevFixes)}`;
     }
     if (tokenOptimize) {
       systemPrompt += `\n\n=== אופטימיזציית טוקנים (שלב 2 — פעילה) ===
