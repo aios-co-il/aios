@@ -43,13 +43,17 @@ import {
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
-import { recordClientCardEntry } from "../_shared/client-card.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  CARMEN_CLIENT_UPDATE_TYPES,
+  CLIENT_CARD_SOURCES,
+} from "../_shared/client-card/sources.ts";
 import {
   addClientUpdateFromCarmen,
-  recordCarmenHealthCardEntry,
-} from "../_shared/carmen-client-card-tools.ts";
-import { resolveHumanRequesterUserId } from "../_shared/client-card-contact-policy.ts";
-import { listClientCardEntries } from "../_shared/client-card-list.ts";
+  recordHealthCardEntryAfterUpdate,
+} from "./carmen-client-card-tools.ts";
+import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
@@ -1267,7 +1271,7 @@ const ALL_TOOLS = [
         content: { type: "string" },
         update_type: {
           type: "string",
-          enum: ["note", "call", "meeting", "complaint", "weekly_update"],
+          enum: [...CARMEN_CLIENT_UPDATE_TYPES],
           description:
             "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
         },
@@ -2983,8 +2987,7 @@ const ALL_TOOLS = [
   // UPDATES
   {
     name: "list_updates",
-    description:
-      "רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: human / carmen / carmen_confirmed / system_send / group_digest / automation).",
+    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
     parameters: {
       type: "object",
       properties: {
@@ -7943,8 +7946,8 @@ async function executeTool(
         });
       if (logErr) throw logErr;
 
-      // 3. Also create a client card entry (source carmen) for the updates tab
-      await recordCarmenHealthCardEntry(supabase, {
+      // 3. Card entry as source carmen, so it never counts as client contact.
+      const cardEntryError = await recordHealthCardEntryAfterUpdate(supabase, {
         tenantId,
         clientId: args.client_id,
         note: args.note,
@@ -7959,6 +7962,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
+        ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
       };
     }
     case "get_client_retention_scan": {
@@ -8127,18 +8131,22 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          await recordCarmenHealthCardEntry(supabase, {
-            tenantId,
-            clientId,
-            note,
-            moodStatus: mood,
-            requesterUserId: humanRequesterUserId,
-            tool: "batch_update_client_health",
-          });
+          const cardEntryError = await recordHealthCardEntryAfterUpdate(
+            supabase,
+            {
+              tenantId,
+              clientId,
+              note,
+              moodStatus: mood,
+              requesterUserId: humanRequesterUserId,
+              tool: "batch_update_client_health",
+            },
+          );
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
+            ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
           });
         } catch (err: any) {
           results.push({
@@ -10296,28 +10304,13 @@ async function executeTool(
           args.entity_id,
           callerScope,
         );
-        return await listClientCardEntries(supabase, {
-          clientId: args.entity_id,
-          accessibleTenantIds,
-          limit: args.limit,
-        });
       }
-      const { data: lead } = await supabase
-        .from("leads")
-        .select("id")
-        .eq("id", args.entity_id)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      if (!lead)
-        return { error: "not_found", message: "הליד לא נמצא בארגון הזה" };
-      const { data, error } = await supabase
-        .from("lead_updates")
-        .select("id, content, created_at")
-        .eq("lead_id", args.entity_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      return { count: data.length, updates: data };
+      return await listUpdates(supabase, {
+        entityType: args.entity_type,
+        entityId: args.entity_id,
+        accessibleTenantIds,
+        limit: args.limit,
+      });
     }
     // GOALS
     case "create_goal": {
@@ -12572,7 +12565,12 @@ async function executeTool(
         source: "carmen",
         attributedUserId: effectiveUserId,
         metadata: { tool: "connect_client_meta_ad_account" },
-      }).catch(() => {});
+      }).catch((err) =>
+        console.warn(
+          "[connect_client_meta_ad_account] client card entry failed",
+          err,
+        ),
+      );
 
       return {
         success: true,
@@ -13497,11 +13495,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
-
-// Surface for which the agent is currently invoked.
-// 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
-// but no dialog progress UI). Default for unspecified callers.
-type Surface = "whatsapp" | "aios" | "task" | "internal_chat" | "grok_bot";
+import type { Surface } from "./surface.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.

@@ -7,7 +7,7 @@ import {
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
 import { formatClientFollowUpMessage } from "../_shared/client-follow-up-message.ts";
-import { recordClientCardEntry } from "../_shared/client-card.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
 import {
   dropUnresolvedTemplateLines,
   sanitizeTemplateParameter,
@@ -6915,7 +6915,6 @@ async function executeAddClientUpdate(
   // record_client_card_entry checks the client is in this tenant, marks the
   // row as an automation entry (never counted as client contact) and
   // attributes it to the client's campaigner, else the tenant owner.
-  let entryId: string;
   try {
     const entry = await recordClientCardEntry(supabase, {
       tenantId,
@@ -6923,17 +6922,17 @@ async function executeAddClientUpdate(
       content: updateContent,
       source: "automation",
     });
-    entryId = entry.entryId;
-  } catch (insertError: any) {
+    return {
+      success: true,
+      update_id: entry.entryId,
+      content: updateContent,
+    };
+  } catch (insertError) {
     console.error("Error inserting client update:", insertError);
-    throw new Error(`שגיאה בשמירת עדכון: ${insertError?.message}`);
+    const reason =
+      insertError instanceof Error ? insertError.message : String(insertError);
+    throw new Error(`שגיאה בשמירת עדכון: ${reason}`);
   }
-
-  return {
-    success: true,
-    update_id: entryId,
-    content: updateContent,
-  };
 }
 
 // Execute create task action

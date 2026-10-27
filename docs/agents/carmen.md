@@ -68,6 +68,12 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - Also checked: `run-agent-task` (a user starting a task) and new runs in `run-ai-agent-v2`. A member with Carmen off may only list brains, read health and cancel a parliament round.
 - "View as" is client-only: the UI previews the viewed user's access from their row, the tenant's full brain list, and `carmen_member_has_personal_key` (a manager-only RPC). The server still answers for the signed-in user.
 
+## Client card writes (`client_updates`)
+
+- Every server-side write goes through `recordClientCardEntry` (`supabase/functions/_shared/client-card/entry.ts`), which calls the service-role RPC `record_client_card_entry`: it checks the tenant, dedupes on `source_ref` and attributes the row to a person. Browser writes follow the RLS in `20261026126000_client_card_provenance.sql`.
+- `source` says who wrote a row. The vocabulary, chip labels and the sources that may count as contact live in `_shared/client-card/sources.ts`; the pulse counts contact in `get_latest_client_call_updates`.
+- Carmen's `add_client_update` logs a call or meeting only for a person talking to her right now, on their behalf (`run-ai-agent/client-card-contact-policy.ts`); other runs get `human_requester_required`.
+
 ## Carmen → Cursor bridge (preferred escalation for complex work)
 
 - Carmen talks to **Cursor Cloud Agents** over MCP via the `cursor-mcp` edge function. It exposes `request_dev_task` + `ask_cursor`, and each call creates a real Cloud Agent via `POST https://api.cursor.com/v1/agents`. See `supabase/functions/cursor-mcp/README.md`.
