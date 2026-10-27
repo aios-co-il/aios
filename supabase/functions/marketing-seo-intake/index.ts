@@ -67,6 +67,14 @@ serve(async (req) => {
         .maybeSingle();
       if (!membership) return respond({ error: "Forbidden" }, 403);
     }
+    // The program belongs to the client it was made for: never point it at another one.
+    const { data: program } = await admin
+      .from("seo_geo_programs")
+      .select("client_id")
+      .eq("work_item_id", item.id)
+      .maybeSingle();
+    if (program && program.client_id !== item.client_id)
+      return respond({ error: "תוכנית ה-SEO של הפרויקט שייכת ללקוח אחר" }, 409);
 
     const context = await gatherSeoClientContext(
       admin,

@@ -95,11 +95,13 @@ export function SeoGeoWorkflowStudio({
         .maybeSingle();
       if (error) throw error;
       if (data) return data;
+      // A program belongs to the project's own client; none while the screen shows another one.
+      if (!workItem.client_id || workItem.client_id !== clientId) return null;
       const { data: created, error: insertError } = await seoGeoDb
         .from("seo_geo_programs")
         .insert({
           tenant_id: tenantId,
-          client_id: clientId,
+          client_id: workItem.client_id,
           work_item_id: workItem.id,
           auto_approve: false,
           horizon_months: 3,
@@ -111,13 +113,16 @@ export function SeoGeoWorkflowStudio({
     },
   });
 
+  // Only the project's own client's sites: the program publishes to the site it points at.
   const { data: wpSites = [] } = useQuery({
-    queryKey: ["seo-geo-wp-sites", tenantId],
+    queryKey: ["seo-geo-wp-sites", tenantId, workItem.client_id],
     queryFn: async () => {
+      if (!workItem.client_id) return [];
       const { data } = await supabase
         .from("social_media_wordpress_sites")
         .select("id,site_url,site_name")
         .eq("tenant_id", tenantId)
+        .eq("client_id", workItem.client_id)
         .order("created_at", { ascending: false });
       return data ?? [];
     },
