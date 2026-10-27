@@ -100,8 +100,8 @@ const spanFrames = (spans, fps) =>
 
 /**
  * The effects' level in the ffmpeg edit, an expression of t: the trailer mix's effect gains on
- * the same envelope as the Remotion edit's effects (up between lines, down under every spoken
- * span). Effects play only in a trailer.
+ * the same envelope as the Remotion edit's effects (up with the bed between lines, down under
+ * every spoken span). Effects play only in a trailer.
  */
 export function effectsVolume(timeline, spans, filmS, fps) {
   const mix = mixProfile({
@@ -111,7 +111,7 @@ export function effectsVolume(timeline, spans, filmS, fps) {
   const envelope = musicEnvelope(
     spanFrames(spans, fps),
     Math.ceil(filmS * fps),
-    { base: mix.effects, ducked: mix.effectsDucked },
+    mix.fx,
   );
   return envelopeExpression(envelope, fps);
 }

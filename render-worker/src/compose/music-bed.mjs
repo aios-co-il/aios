@@ -23,8 +23,9 @@ export const VOICE_LUFS = -19;
  * The trailer mix of a film with sound design: the bed comes up to about -21.5 LUFS when
  * nobody speaks (title, long pauses, end card) and sits 13.5 dB under the voice while she
  * speaks. A pause shorter than a second keeps the bed down, so it does not pump. A transition
- * sound's hit is gentle: about 4 LU over the bed when nobody speaks, and 11 LU under the voice
- * while she speaks (there about 2.5 LU over the ducked bed), so it is heard without covering her.
+ * sound's hit is gentle and moves with the bed: about 4 LU over it where it comes up (title,
+ * end card, a pause of a second or more), and while it is down 11 LU under the voice (about
+ * 2.5 LU over the ducked bed), so it is heard without covering her.
  */
 export const TRAILER = {
   bedLufs: -21.5,
@@ -50,7 +51,8 @@ const dbGain = (db) => Math.round(10 ** (db / 20) * 1000) / 1000;
  * sound design. `voiceLufs` (the measured narration) sets how far the bed and the effects dip
  * under it. `bed` is the music bed's envelope options (musicEnvelope in workshop-edit.mjs).
  * `effects` and `effectsDucked` are the effects' gains (they play only in a trailer), set from
- * EFFECT_LUFS, the level each transition sound arrives at.
+ * EFFECT_LUFS, the level each transition sound arrives at; `fx` is their envelope options, on
+ * the bed's ramps, so a pause too short to bring the bed up keeps the effects down too.
  */
 export function mixProfile({ trailer = false, voiceLufs = null } = {}) {
   const ramps = trailer
@@ -79,6 +81,7 @@ export function mixProfile({ trailer = false, voiceLufs = null } = {}) {
     effects,
     effectsDucked,
     bed: { base: music, ducked: musicDucked, ...ramps },
+    fx: { base: effects, ducked: effectsDucked, ...ramps },
   };
 }
 

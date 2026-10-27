@@ -1,7 +1,12 @@
 import { expect, test } from "vitest";
 import { effectsGraph, fallbackEffectCues } from "../src/compose/assemble.mjs";
-import { effectsVolume } from "../src/compose/ffmpeg-bed.mjs";
-import { mixProfile } from "../src/compose/music-bed.mjs";
+import { bedVolume, effectsVolume } from "../src/compose/ffmpeg-bed.mjs";
+import {
+  EFFECT_LUFS,
+  MUSIC_LUFS,
+  TRAILER,
+  mixProfile,
+} from "../src/compose/music-bed.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
 import { cutSoundOrder } from "../src/compose/transition-sounds.mjs";
 import { effectCues } from "../src/compose/workshop-edit.mjs";
@@ -124,7 +129,11 @@ test("the Remotion edit plays a different transition sound at each cut and ducks
     while (at < frames.length - 1 && frames[at + 1] <= frame) at += 1;
     return volumes[at];
   };
-  // Under the opening line the effects dip; between lines they come back up.
+  // Under the opening line the effects dip; between lines they come back up, on the bed's
+  // ramps.
+  expect(manifest.effectsEnvelope.frames).toStrictEqual(
+    manifest.musicEnvelope.frames,
+  );
   const mix = mixProfile({ trailer: true });
   expect(level(20)).toBe(mix.effectsDucked);
   expect(level(manifest.endCard.startFrame)).toBe(mix.effects);
@@ -180,4 +189,49 @@ test("the ffmpeg edit lays each cut's own sound as a delayed copy on the effects
   const mix = mixProfile({ trailer: true, voiceLufs: -19 });
   expect(volume).toContain(`*${mix.effectsDucked}`);
   expect(volume.endsWith(`*${mix.effects}`)).toBe(true);
+});
+
+/** An ffmpeg `volume` expression of t (envelopeExpression) as a function of t. */
+const levelAt = (expression) =>
+  new Function(
+    "t",
+    `const gte = (a, b) => (a >= b ? 1 : 0); const lt = (a, b) => (a < b ? 1 : 0); return ${expression};`,
+  );
+
+test("a transition rises only with the bed: in a short pause it stays far under her voice", () => {
+  const filmS = 8;
+  const db = (gain) => 20 * Math.log10(gain);
+  const ramps = TRAILER.attack + TRAILER.release + TRAILER.hold;
+  // The ffmpeg edit runs at 25 fps, the Remotion edit at 30; the ramps are in frames.
+  for (const fps of [25, 30])
+    for (const voice of [-17, -19, -21]) {
+      const mix = mixProfile({ trailer: true, voiceLufs: voice });
+      for (const pauseS of [0.5, 0.73, 0.77, 0.9, 1, 1.05, 1.25, 1.5, 3]) {
+        // Two lines with a pause between them.
+        const spans = [
+          [0.5, 2.5],
+          [2.5 + pauseS, 5.5],
+        ];
+        const timeline = { soundDesign: true, voiceLufs: voice };
+        const fx = levelAt(effectsVolume(timeline, spans, filmS, fps));
+        const bed = levelAt(bedVolume(timeline, spans, filmS, fps));
+        for (let frame = 0; frame < filmS * fps; frame++) {
+          const t = frame / fps;
+          const effect = EFFECT_LUFS + db(fx(t));
+          const music = MUSIC_LUFS + db(bed(t));
+          // Never more than the trailer's lift over the bed, ramps included.
+          expect(effect - music).toBeLessThanOrEqual(
+            TRAILER.effectOverBedDb + 0.2,
+          );
+          // While the bed is down, 10 LU or more under her voice.
+          if (bed(t) <= mix.musicDucked + 1e-6)
+            expect(voice - effect).toBeGreaterThanOrEqual(10);
+        }
+        // A pause longer than the ramps brings both up; a shorter one keeps both down.
+        const mid = 2.5 + pauseS / 2;
+        const up = Math.round(pauseS * fps) > ramps;
+        expect(fx(mid) === mix.effects).toBe(up);
+        expect(bed(mid) === mix.music).toBe(up);
+      }
+    }
 });

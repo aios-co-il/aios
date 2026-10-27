@@ -347,10 +347,7 @@ export function buildWorkshopManifest(timeline) {
       ...(effects.length
         ? {
             effects,
-            effectsEnvelope: musicEnvelope(speech, totalFrames, {
-              base: mix.effects,
-              ducked: mix.effectsDucked,
-            }),
+            effectsEnvelope: musicEnvelope(speech, totalFrames, mix.fx),
           }
         : {}),
       captions: captionChunks(framed, fps, scenesEnd),
