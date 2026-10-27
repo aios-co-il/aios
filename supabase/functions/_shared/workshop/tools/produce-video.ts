@@ -18,6 +18,7 @@ import {
   isSceneEngine,
   quotedProductionEstimate,
 } from "../video-cost.ts";
+import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
 
@@ -197,6 +198,13 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 60)
       : "";
   const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
+  // Trailer sound design (a whoosh at each cut, a low hit on the title and the end card) and
+  // the music bed both follow the film brief; the render worker reads video.sound_design.
+  const soundDesign = wantsSoundDesign(gate.payload, {
+    choice: args.sound_design,
+    userText: deps.userText,
+  });
+  const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
   try {
     await savePayload(
       supabase,
@@ -209,6 +217,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             ...video,
             scene_engine: engine,
             sound_engine: "elevenlabs",
+            sound_design: soundDesign,
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },
@@ -238,8 +247,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     p_with_voice: withVoice,
     p_with_music: withMusic,
     p_voice_id: voiceId,
-    p_music_prompt:
-      "Instrumental commercial bed matching the storyboard, no vocals and no lyrics.",
+    p_music_prompt: musicPrompt,
     p_generate_audio: false,
   });
   if (produced.error)
@@ -282,6 +290,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     status: state.status ?? "running",
     engine: ENGINE_LABEL[engine],
     client_id: clientId,
+    ...(soundDesign ? { sound_design: true } : {}),
     message:
       "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",
     artifact,

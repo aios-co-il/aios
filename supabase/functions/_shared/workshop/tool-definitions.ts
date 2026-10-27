@@ -413,6 +413,11 @@ export const WORKSHOP_TOOLS = [
         },
         voice_id: { type: "string" },
         music: { type: "boolean", description: "false רק אם ביקשו בלי מוזיקה" },
+        sound_design: {
+          type: "boolean",
+          description:
+            "עיצוב סאונד של טריילר: וושים במעברים בין הסצנות ומכה נמוכה על כותרת הפתיחה ועל הסגיר, מתחת לקול. בלי זה נקבע לפי הבריף (טריילר, קולנועי, סאונד דיזיין). true כשהמשתמש ביקש אפקטים או סאונד של טריילר, false כשביקש בלי.",
+        },
         cta_text: {
           type: "string",
           description:

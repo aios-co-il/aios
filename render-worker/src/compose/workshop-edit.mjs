@@ -9,7 +9,52 @@ export const MIX = {
   musicDucked: 0.06,
   clipSolo: 0.9,
   clipUnderSpeech: 0.15,
+  effects: 0.5,
+  effectsDucked: 0.14,
 };
+
+/** Seconds a whoosh plays before the cut it marks: its swell passes at the cut. */
+export const WHOOSH_LEAD = 0.4;
+
+/**
+ * When each sound effect plays, in frames: a low impact on the opening title and on the end
+ * card, a whoosh building into every cut (centred on the cut's transition). Each cue lasts its
+ * effect's length and never runs past the film.
+ */
+export function effectCues(
+  scenes,
+  {
+    fps,
+    totalFrames,
+    whoosh = null,
+    impact = null,
+    whooshFrames = 0,
+    impactFrames = 0,
+    endCardStart = null,
+  },
+) {
+  const cues = [];
+  const add = (file, start, length) => {
+    const startFrame = Math.max(0, Math.round(start));
+    const frameCount = Math.min(Math.max(1, length), totalFrames - startFrame);
+    if (file && frameCount > 0) cues.push({ file, startFrame, frameCount });
+  };
+  const whooshLength = whooshFrames || Math.round(fps * 1.2);
+  const impactLength = impactFrames || Math.round(fps * 2.5);
+  if (impact) add(impact, 0, impactLength);
+  if (whoosh)
+    for (const scene of scenes.slice(1))
+      add(
+        whoosh,
+        scene.startFrame -
+          Math.round((scene.transitionFrames ?? 0) / 2) -
+          Math.min(Math.round(fps * WHOOSH_LEAD), Math.round(whooshLength / 2)),
+        whooshLength,
+      );
+  if (impact && Number.isInteger(endCardStart))
+    add(impact, endCardStart - Math.round(fps * 0.2), impactLength);
+  return cues.sort((a, b) => a.startFrame - b.startFrame);
+}
 
 /** The transition into scene `index`; the first scene opens from black. */
 export function sceneTransition(index, requested) {

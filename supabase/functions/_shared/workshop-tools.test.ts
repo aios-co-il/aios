@@ -699,6 +699,60 @@ Deno.test(
 );
 
 Deno.test(
+  "a trailer brief reaches the music prompt and turns on the render's sound design",
+  async () => {
+    const run = async (film: string, args: Record<string, unknown> = {}) => {
+      const db = fakeDb({
+        ...videoProject({
+          payload: {
+            format: "9:16",
+            project_type: "video",
+            video: { voice_id: "d4eLZ8u5dfBCsjp4YPyz" },
+            workshop_brief: { asked: true },
+            workshop_look: { film, bible: "warm editorial look" },
+          },
+        }),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        "rpc:produce_video": { status: "running", clips: 1 },
+      });
+      const result = (await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, ...args },
+        async () => {},
+        null,
+        { defaultEngine: async () => "elevenlabs" as const },
+      )) as Record<string, any>;
+      const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
+        ?.value as Record<string, any>;
+      const saved = db.calls
+        .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+        .map((c) => (c.value as Record<string, any>).payload?.video)
+        .filter(Boolean)
+        .pop();
+      return { result, rpc, saved };
+    };
+    const trailer = await run(
+      "סגנון: כרמן מציגה את המערכת. מוזיקה: מוזיקת טריילר אקשן, לא מוגזם.",
+    );
+    assertMatch(trailer.rpc.p_music_prompt, /^Restrained cinematic trailer/);
+    assertStrictEquals(trailer.saved.sound_design, true);
+    assertStrictEquals(trailer.result.sound_design, true);
+
+    const calm = await run("קצב: רגוע ורגשי. מוזיקה: אקוסטית חמה.");
+    assertMatch(calm.rpc.p_music_prompt, /warm acoustic/);
+    assertStrictEquals(calm.saved.sound_design, false);
+    assertStrictEquals(calm.result.sound_design, undefined);
+
+    const asked = await run("קצב: רגוע", { sound_design: true });
+    assertStrictEquals(asked.saved.sound_design, true);
+  },
+);
+
+Deno.test(
   "with no paid keys the film is produced on the free preview engine",
   async () => {
     const asked = (await executeWorkshopTool(

@@ -196,6 +196,33 @@ if (manifest.schemaVersion === 1) {
   if (manifest.narration)
     narration = await stageFile(root, publicDir, manifest.narration);
   if (manifest.music) music = await stageFile(root, publicDir, manifest.music);
+  // Sound design: short effects at set frames, each inside the film.
+  const effects = [];
+  if (v3 && manifest.effects !== undefined) {
+    assert(
+      Array.isArray(manifest.effects) && manifest.effects.length <= 200,
+      "Invalid effects",
+    );
+    const staged = new Set();
+    for (const cue of manifest.effects) {
+      assert(
+        frameNo(cue?.startFrame) &&
+          Number.isInteger(cue?.frameCount) &&
+          cue.frameCount > 0 &&
+          cue.startFrame + cue.frameCount <= totalFrames,
+        "Invalid effect timing",
+      );
+      if (!staged.has(cue.file)) {
+        await stageFile(root, publicDir, cue.file);
+        staged.add(cue.file);
+      }
+      effects.push({
+        file: cue.file,
+        startFrame: cue.startFrame,
+        frameCount: cue.frameCount,
+      });
+    }
+  }
   let brand = null;
   if (v3 && manifest.brand) {
     const b = manifest.brand;
@@ -215,6 +242,9 @@ if (manifest.schemaVersion === 1) {
     narration,
     music,
     musicEnvelope: v3 ? envelopeOf(manifest.musicEnvelope) : null,
+    effects,
+    effectsEnvelope:
+      v3 && effects.length ? envelopeOf(manifest.effectsEnvelope) : null,
     captions: v3 ? captionsOf(manifest.captions) : [],
     brand,
     endCardFrames,

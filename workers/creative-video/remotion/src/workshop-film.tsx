@@ -183,6 +183,8 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   narration,
   music,
   musicEnvelope,
+  effects,
+  effectsEnvelope,
   captions,
   brand,
   endCardFrames,
@@ -205,6 +207,13 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
         ? interpolate(f, env.frames, env.volumes, clamp)
         : 0.16;
     return level * fade;
+  };
+  /** An effect's level at film frame f: under the voice it dips like the music bed. */
+  const effectVolume = (f: number) => {
+    const env = effectsEnvelope;
+    return env && env.frames.length > 1
+      ? interpolate(f, env.frames, env.volumes, clamp)
+      : 0.5;
   };
   let cursor = 0;
   const pictures = scenes.map((scene) => {
@@ -276,6 +285,19 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
       {music ? (
         <Audio src={staticFile(music)} loop volume={musicVolume} />
       ) : null}
+      {(effects ?? []).map((cue, index) => (
+        <Sequence
+          key={`fx-${index}`}
+          from={cue.startFrame}
+          durationInFrames={cue.frameCount}
+          layout="none"
+        >
+          <Audio
+            src={staticFile(cue.file)}
+            volume={(f) => effectVolume(cue.startFrame + f)}
+          />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };

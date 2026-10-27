@@ -10,6 +10,7 @@ import {
 } from "./captions.mjs";
 import {
   MIX,
+  effectCues,
   fitScenes,
   musicEnvelope,
   sceneTransition,
@@ -234,6 +235,29 @@ export function buildWorkshopManifest(timeline) {
     music = `music.${extension(timeline.musicPath)}`;
     files.push({ from: timeline.musicPath, to: music });
   }
+
+  // Trailer sound design, mixed under the voice: ducked like the music bed.
+  const fx = timeline.effects;
+  const stage = (path, name) => {
+    if (!path) return null;
+    const to = `${name}.${extension(path)}`;
+    files.push({ from: path, to });
+    return to;
+  };
+  const whoosh = fx ? stage(fx.whooshPath, "sfx-whoosh") : null;
+  const impact = fx ? stage(fx.impactPath, "sfx-impact") : null;
+  const effects =
+    whoosh || impact
+      ? effectCues(scenes, {
+          fps,
+          totalFrames,
+          whoosh,
+          impact,
+          whooshFrames: Math.ceil(seconds(fx.whooshDurationS) * fps),
+          impactFrames: Math.ceil(seconds(fx.impactDurationS) * fps),
+          endCardStart: endCard?.startFrame ?? null,
+        })
+      : [];
   return {
     manifest: {
       schemaVersion: WORKSHOP_SCHEMA,
@@ -245,6 +269,15 @@ export function buildWorkshopManifest(timeline) {
       narration,
       music,
       musicEnvelope: musicEnvelope(speech, totalFrames),
+      ...(effects.length
+        ? {
+            effects,
+            effectsEnvelope: musicEnvelope(speech, totalFrames, {
+              base: MIX.effects,
+              ducked: MIX.effectsDucked,
+            }),
+          }
+        : {}),
       captions: captionChunks(framed, fps, scenesEnd),
       clipAudio,
       brand,
