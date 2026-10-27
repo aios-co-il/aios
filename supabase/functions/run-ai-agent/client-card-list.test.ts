@@ -1,4 +1,4 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
 import { listClientCardEntries, mapClientCardRow } from "./client-card-list.ts";
 
@@ -40,10 +40,13 @@ Deno.test("mapClientCardRow names the author and labels the source", () => {
   assertStrictEquals(legacy.counts_as_contact, null);
 });
 
-function fakeListSupabase(clientFound: boolean, rows: any[]) {
+function fakeListSupabase(
+  clientFound: boolean,
+  rows: Record<string, unknown>[],
+) {
   const log: Array<{ table: string; op: string; args: unknown[] }> = [];
   const builder = (table: string) => {
-    const chain: any = {};
+    const chain: Record<string, unknown> = {};
     for (const op of ["select", "eq", "in", "order", "limit"]) {
       chain[op] = (...args: unknown[]) => {
         log.push({ table, op, args });
@@ -54,7 +57,8 @@ function fakeListSupabase(clientFound: boolean, rows: any[]) {
       data: clientFound ? { id: CLIENT } : null,
       error: null,
     });
-    chain.then = (resolve: any) => resolve({ data: rows, error: null });
+    chain.then = (resolve: (result: { data: unknown; error: null }) => void) =>
+      resolve({ data: rows, error: null });
     return chain;
   };
   return { supabase: { from: builder }, log };
@@ -78,10 +82,11 @@ Deno.test(
       accessibleTenantIds: [TENANT],
       limit: 500,
     });
+    assert("updates" in result);
     assertStrictEquals(result.count, 1);
-    assertStrictEquals((result.updates as any[])[0].author, "דנה");
-    assertStrictEquals((result.updates as any[])[0].update_type, "call");
-    assertStrictEquals((result.updates as any[])[0].source, "human");
+    assertStrictEquals(result.updates[0].author, "דנה");
+    assertStrictEquals(result.updates[0].update_type, "call");
+    assertStrictEquals(result.updates[0].source, "human");
     const tenantFilters = log.filter(
       (entry) => entry.op === "in" && entry.args[0] === "tenant_id",
     );
@@ -102,10 +107,27 @@ Deno.test(
       clientId: CLIENT,
       accessibleTenantIds: [TENANT],
     });
+    assert("error" in result);
     assertStrictEquals(result.error, "not_found");
     assertStrictEquals(
       log.some((entry) => entry.table === "client_updates"),
       false,
+    );
+  },
+);
+
+Deno.test(
+  "list_updates: the agent hint names every automatic source and no human one",
+  async () => {
+    const { supabase } = fakeListSupabase(true, []);
+    const result = await listClientCardEntries(supabase, {
+      clientId: CLIENT,
+      accessibleTenantIds: [TENANT],
+    });
+    assert("instructions_to_agent" in result);
+    assertStrictEquals(
+      result.instructions_to_agent,
+      "author הוא האדם שהעדכון משויך אליו. כש-source הוא carmen, system_send, group_digest או automation — העדכון נכתב אוטומטית ולא על ידי אותו אדם. carmen_confirmed הוא עדכון שרשמת לבקשתו.",
     );
   },
 );

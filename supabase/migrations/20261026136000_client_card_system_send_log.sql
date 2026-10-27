@@ -1,5 +1,4 @@
--- Client card: log what AIOS sends to a client (AIO-242, plan component C5,
--- with the C4 client <-> WhatsApp group link view it needs).
+-- Client card: log what AIOS sends to a client (AIO-242).
 --
 -- Off by default. Both triggers do nothing until a tenant owner turns on
 -- tenant_heartbeat_settings.pulse_alert_rules -> 'manager' ->
@@ -12,7 +11,7 @@
 --
 -- 1. chat_messages.send_kind / send_ref: what kind of system send a row is.
 --    Nullable, no default, no constraint (metadata-only on this hot table).
---    The values are checked in supabase/functions/_shared/send-kind.ts:
+--    The values are checked in supabase/functions/_shared/client-card/send-kind.ts:
 --    chat, report, dashboard_share, meeting_summary, broadcast, carmen,
 --    automation, staff_alert. A browser send that names no kind is 'chat'; a
 --    service-role send that names no kind stays NULL and is never logged.
@@ -45,7 +44,7 @@
 -- 3. chat_messages AFTER INSERT, for direction 'outbound' with send_kind
 --    chat / broadcast (sent_by_user_id set) or carmen / automation, when the
 --    client resolves: chat_messages.client_id, else a group linked to exactly
---    one client through client_whatsapp_group_links. report, dashboard_share,
+--    one client (resolve_whatsapp_group_client). report, dashboard_share,
 --    meeting_summary and staff_alert are skipped, so a WhatsApp report is
 --    logged once, from report_deliveries, never twice.
 --      broadcast  one entry per broadcast per client,
@@ -74,25 +73,24 @@
 --    acting for that person) logs only chat, attributed to that person
 --    (auth.uid()), never to the sent_by_user_id it names: broadcast, carmen
 --    and automation entries come only from the server. Like every other
---    entry, a chat entry is written in the sending tenant (client_updates
---    is readable only in its own tenant): the client's tenant sees its own
---    sends on the card, an agency read_write tenant sees its own, and
---    neither sees the other's count. The group name is read only from the
---    sending tenant or the client's.
+--    entry, a chat entry is written in the sending tenant; the shared-card
+--    read policy (20261026126000) shows it to everyone who can see the
+--    client, so the client's org and an agency org that shares it see each
+--    other's sends. The group name is read only from the sending tenant or
+--    the client's.
 --
--- 4. client_whatsapp_group_links (C4): which client owns a WhatsApp group,
---    the union of clients.whatsapp_group_id, team_channel_whatsapp_links and
+-- 4. Which client owns a WhatsApp group (resolve_whatsapp_group_client): the
+--    union of clients.whatsapp_group_id, team_channel_whatsapp_links and
 --    carmen_client_group_access. A link counts only when its tenant is the
 --    group's tenant or related to it through agency_tenant_access, so another
---    tenant can neither claim a group nor make it ambiguous. Read-only,
---    service role and SECURITY DEFINER callers only; Carmen's group access
---    code never reads it.
+--    tenant can neither claim a group nor make it ambiguous. Service role and
+--    SECURITY DEFINER callers only; Carmen's group access code never reads it.
 --
--- 5. The browser may insert only human client_updates rows (AIO-232 also
---    allowed system_send for the report panel and meeting summary dialog,
---    which now record a report_deliveries row instead). Every system_send
---    entry is written by these triggers, so nobody can forge one or claim
---    its dedupe key ahead of the trigger.
+-- 5. The browser, super admins included, may insert only human
+--    client_updates rows (AIO-232 also allowed system_send for the report
+--    panel and meeting summary dialog, which now record a report_deliveries
+--    row instead). Every system_send entry is written by these triggers, so
+--    nobody can forge one or claim its dedupe key ahead of the trigger.
 --
 -- 6. One chat row per Green API message. A Green API send stored by its
 --    sender with send_kind carmen or automation (trigger-automation, Carmen's
@@ -114,11 +112,11 @@ ALTER TABLE public.chat_messages
   ADD COLUMN IF NOT EXISTS send_ref text;
 
 COMMENT ON COLUMN public.chat_messages.send_kind IS
-  'System send kind (chat, report, dashboard_share, meeting_summary, broadcast, carmen, automation, staff_alert); checked in _shared/send-kind.ts. NULL: not classified, never logged on the client card.';
+  'System send kind (chat, report, dashboard_share, meeting_summary, broadcast, carmen, automation, staff_alert); checked in _shared/client-card/send-kind.ts. NULL: not classified, never logged on the client card.';
 COMMENT ON COLUMN public.chat_messages.send_ref IS
   'Reference for send_kind: report table, dashboard, recording, schedule or broadcast id.';
 
--- ─── 2. Client <-> WhatsApp group links (C4) ────────────────────────────────
+-- ─── 2. Client <-> WhatsApp group links ─────────────────────────────────────
 
 -- True when a link written in p_link_tenant may speak for a group of
 -- p_group_tenant: the same tenant, or tenants related by agency access.
@@ -199,53 +197,6 @@ GRANT EXECUTE ON FUNCTION public.resolve_whatsapp_group_client(uuid)
 
 COMMENT ON FUNCTION public.resolve_whatsapp_group_client(uuid) IS
   'The single client linked to a WhatsApp group, or NULL when the group has no link or is linked to more than one client.';
-
-CREATE OR REPLACE VIEW public.client_whatsapp_group_links
-WITH (security_invoker = true) AS
-SELECT
-  links.tenant_id,
-  links.client_id,
-  links.group_id,
-  g.group_chat_id,
-  links.source,
-  (
-    SELECT count(*)
-    FROM public.whatsapp_group_client_ids(links.group_id)
-  ) > 1 AS is_ambiguous
-FROM (
-  SELECT
-    c.tenant_id,
-    c.id AS client_id,
-    c.whatsapp_group_id AS group_id,
-    'clients.whatsapp_group_id'::text AS source
-  FROM public.clients AS c
-  WHERE c.whatsapp_group_id IS NOT NULL
-  UNION ALL
-  SELECT
-    l.tenant_id,
-    l.client_id,
-    l.whatsapp_group_id,
-    'team_channel_whatsapp_links'::text
-  FROM public.team_channel_whatsapp_links AS l
-  WHERE l.client_id IS NOT NULL
-    AND l.whatsapp_group_id IS NOT NULL
-  UNION ALL
-  SELECT
-    a.tenant_id,
-    a.client_id,
-    a.whatsapp_group_id,
-    'carmen_client_group_access'::text
-  FROM public.carmen_client_group_access AS a
-) AS links
-JOIN public.whatsapp_groups AS g
-  ON g.id = links.group_id
-  AND public.whatsapp_group_link_tenant_ok(g.tenant_id, links.tenant_id);
-
-REVOKE ALL ON public.client_whatsapp_group_links FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.client_whatsapp_group_links TO service_role;
-
-COMMENT ON VIEW public.client_whatsapp_group_links IS
-  'Which client owns a WhatsApp group (one row per link source). is_ambiguous: the group is linked to more than one client; consumers skip it for card writes and alerts. Read-only; never used for Carmen group access.';
 
 -- ─── 3. Tenant switch ───────────────────────────────────────────────────────
 
@@ -600,14 +551,15 @@ BEGIN
 
     -- chat: one entry per sending tenant per client thread per Israel day,
     -- no message text. The entry lives in the sending tenant, like every
-    -- other entry: client_updates is readable only in its own tenant, so the
-    -- client's tenant and an agency tenant each count their own sends on an
-    -- entry they can see, and neither sees the other's.
+    -- other entry, so the client's org and an agency org that shares it each
+    -- count their own sends; the shared card shows both entries.
     v_day := (v_sent_at AT TIME ZONE 'Asia/Jerusalem')::date;
     v_ref := 'chat:' || NEW.tenant_id::text || ':' || v_client::text || ':'
       || coalesce(NEW.group_id::text, 'dm') || ':'
       || to_char(v_day, 'YYYY-MM-DD');
 
+    -- Not an upsert: record_client_card_entry is the only writer (validation
+    -- and attribution), so the count update follows it.
     SELECT u.id, coalesce(u.metadata, '{}'::jsonb)
     INTO v_entry_id, v_meta
     FROM public.client_updates AS u
@@ -808,14 +760,16 @@ CREATE TRIGGER chat_messages_merge_green_api_send_echo
 -- the meeting summary dialog; both now record a report_deliveries row and the
 -- triggers above write the entry. A browser system_send row could only forge
 -- an entry or claim a trigger's dedupe key ahead of it.
+-- Checks: human rows only, in the caller's tenant (any tenant for a super
+-- admin).
 DROP POLICY IF EXISTS "Users can create client updates in their tenant" ON public.client_updates;
 CREATE POLICY "Users can create client updates in their tenant"
   ON public.client_updates
   FOR INSERT
   WITH CHECK (
-    public.is_super_admin(auth.uid())
-    OR (
-      tenant_id = public.get_user_tenant_id(auth.uid())
-      AND source = 'human'
+    source = 'human'
+    AND (
+      public.is_super_admin(auth.uid())
+      OR tenant_id = public.get_user_tenant_id(auth.uid())
     )
   );

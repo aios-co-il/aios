@@ -9,7 +9,7 @@ import {
   lineSetting,
   lineStore,
 } from "../_shared/report-sender/line-access.ts";
-import { sendKindColumns } from "../_shared/send-kind.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import { prepareGreenFileSend } from "./prepare.ts";
 import { legacyGreenLine } from "./sender.ts";
@@ -111,8 +111,7 @@ Deno.serve(async (req) => {
     const fileType = (formData.get("fileType") as string) || "document";
     // Optional explicit sender instance chosen by the caller (report/dashboard sender picker).
     const chosenIntegrationId = formData.get("integrationId") as string | null;
-    // What kind of system send this is (client card auto-log, AIO-242). This
-    // function only serves signed-in users, so an unnamed kind is "chat".
+    // This function only serves signed-in users, so an unnamed kind is "chat".
     const sendColumns = sendKindColumns({
       sendKind: formData.get("sendKind"),
       sendRef: formData.get("sendRef"),

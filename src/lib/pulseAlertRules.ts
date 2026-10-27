@@ -49,15 +49,10 @@ export type PulseManagerSettings = {
   card_log_system_sends?: boolean;
 };
 
-function asRecord(raw: unknown): Record<string, unknown> {
-  return raw && typeof raw === "object" && !Array.isArray(raw)
-    ? (raw as Record<string, unknown>)
-    : {};
-}
-
 /** Whether the tenant logs system sends on the client card (default false). */
 export function readCardLogSystemSends(raw: unknown): boolean {
-  return asRecord(asRecord(raw).manager).card_log_system_sends === true;
+  const manager = isRecord(raw) ? raw.manager : undefined;
+  return isRecord(manager) && manager.card_log_system_sends === true;
 }
 
 /**
@@ -70,7 +65,7 @@ export function mergePulseAlertRules(
   rules: PulseAlertRules,
   manager: PulseManagerSettings = {},
 ): Record<string, unknown> {
-  const current = asRecord(stored);
+  const current = isRecord(stored) ? stored : {};
   const merged: Record<string, unknown> = {
     ...current,
     ...parsePulseAlertRules({ ...current, ...rules }),
@@ -79,7 +74,13 @@ export function mergePulseAlertRules(
     Object.entries(manager).filter(([, value]) => value !== undefined),
   );
   if (Object.keys(managerPatch).length > 0 || "manager" in current) {
-    merged.manager = { ...asRecord(current.manager), ...managerPatch };
+    const storedManager = isRecord(current.manager) ? current.manager : {};
+    merged.manager = { ...storedManager, ...managerPatch };
   }
   return merged;
+}
+
+/** A JSON object (not an array): the stored rules and their manager settings. */
+function isRecord(raw: unknown): raw is Record<string, unknown> {
+  return typeof raw === "object" && raw !== null && !Array.isArray(raw);
 }

@@ -1,28 +1,33 @@
 // Who may log client contact through Carmen (AIO-232). A call or meeting on
 // the client card must be vouched for by a person talking to Carmen right now;
-// that person owns the entry. Reused by later contact-logging paths (C19).
+// that person owns the entry.
 
-import { asUuidOrNull } from "./uuid.mjs";
+import { asUuidOrNull } from "../_shared/uuid.mjs";
 import {
   CARMEN_CLIENT_UPDATE_TYPES,
   CONTACT_UPDATE_TYPES,
   isCarmenClientUpdateType,
   type CarmenClientUpdateType,
   type ClientCardSource,
-} from "./client-card-sources.ts";
+} from "../_shared/client-card/sources.ts";
+import type { Surface } from "./surface.ts";
 
-// Surfaces where a person is talking to Carmen right now. Scheduled tasks,
-// automations, other agents (grok_bot, agent_direct) and heartbeat runs have
-// nobody who can confirm that a call took place.
-const HUMAN_REQUEST_SURFACES = new Set(["whatsapp", "aios", "internal_chat"]);
-
+/**
+ * The person talking to Carmen in this run, or null. Scheduled tasks,
+ * automations, other agents (grok_bot, agent_direct) and heartbeat runs have
+ * nobody who can confirm that a call took place.
+ */
 export function resolveHumanRequesterUserId(input: {
   userId?: string | null;
   surface?: string | null;
   automationId?: string | null;
 }): string | null {
-  if (input.automationId) return null;
-  if (!input.surface || !HUMAN_REQUEST_SURFACES.has(input.surface)) return null;
+  if (input.automationId) {
+    return null;
+  }
+  if (!input.surface || !HUMAN_REQUEST_SURFACES.has(input.surface)) {
+    return null;
+  }
   return asUuidOrNull(input.userId);
 }
 
@@ -55,21 +60,23 @@ export function planCarmenClientUpdate(input: {
       ? input.updateType.trim().toLowerCase()
       : "";
   const updateType = raw || "note";
-  if (!isCarmenClientUpdateType(updateType))
+  if (!isCarmenClientUpdateType(updateType)) {
     return {
       ok: false,
       error: "invalid_update_type",
       message: `סוג עדכון לא מוכר: ${raw}. אפשר: ${CARMEN_CLIENT_UPDATE_TYPES.join(", ")}`,
     };
+  }
   const requester = asUuidOrNull(input.humanRequesterUserId);
   const isContact = CONTACT_UPDATE_TYPES.includes(updateType);
-  if (isContact && !requester)
+  if (isContact && !requester) {
     return {
       ok: false,
       error: "human_requester_required",
       message: HUMAN_REQUESTER_REQUIRED_HE,
     };
-  if (requester)
+  }
+  if (requester) {
     return {
       ok: true,
       updateType,
@@ -77,6 +84,7 @@ export function planCarmenClientUpdate(input: {
       attributedUserId: requester,
       countsAsContact: isContact ? true : null,
     };
+  }
   return {
     ok: true,
     updateType,
@@ -85,3 +93,10 @@ export function planCarmenClientUpdate(input: {
     countsAsContact: null,
   };
 }
+
+// Surfaces where a person is talking to Carmen right now.
+const HUMAN_REQUEST_SURFACES = new Set<string>([
+  "whatsapp",
+  "aios",
+  "internal_chat",
+] satisfies Surface[]);

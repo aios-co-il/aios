@@ -17,8 +17,9 @@ describe("client card logging switch (pulse_alert_rules.manager)", () => {
       { manager: [] },
       { manager: { card_log_system_sends: "true" } },
       { card_log_system_sends: true },
-    ])
+    ]) {
       expect(readCardLogSystemSends(raw)).toBe(false);
+    }
     expect(
       readCardLogSystemSends({ manager: { card_log_system_sends: true } }),
     ).toBe(true);

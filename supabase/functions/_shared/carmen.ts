@@ -902,13 +902,15 @@ export async function findCarmenSessionAutomation(
   return null;
 }
 
-// Look up the first send action step of a Carmen automation and dispatch the reply through it
-// (Manus or Green API), regardless of which webhook received the inbound message.
-// Returns true when delivery succeeded via the action step; false if no action step is configured
-// or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
-// The send is stamped send_kind "carmen" (client card auto-log, AIO-242): the
-// chat_messages trigger logs it only in a group that belongs to one client.
-// Notifications to team members pass "staff_alert" and are never logged.
+/**
+ * Look up the first send action step of a Carmen automation and dispatch the reply through it
+ * (Manus or Green API), regardless of which webhook received the inbound message.
+ * Returns true when delivery succeeded via the action step; false if no action step is configured
+ * or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
+ * The send is stamped send_kind "carmen": the chat_messages trigger logs it on the client card
+ * only in a group that belongs to one client. Notifications to team members pass "staff_alert"
+ * and are never logged.
+ */
 export async function sendCarmenReplyViaActionStep(args: {
   supabase: any;
   automationId: string;

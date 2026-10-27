@@ -1,12 +1,33 @@
 import { Bot, Send, Users, Workflow, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
-  clientCardSourceLabel,
-  isHumanClientCardSource,
-} from "../../../supabase/functions/_shared/client-card-sources.ts";
+  CLIENT_CARD_SOURCE_LABELS,
+  isClientCardSource,
+  type ClientCardSource,
+} from "../../../supabase/functions/_shared/client-card/sources.ts";
+
+/** Marks a client card entry that no person typed. Human entries get no chip. */
+export function ClientUpdateSourceChip({ source }: { source?: string | null }) {
+  if (!isClientCardSource(source) || source === "human") {
+    return null;
+  }
+  const chip = SOURCE_CHIP[source];
+  const Icon = chip.icon;
+  return (
+    <Badge
+      variant="outline"
+      className={`gap-1 text-xs ${chip.className}`}
+      title={chip.title}
+      data-testid="client-update-source-chip"
+    >
+      <Icon className="h-3 w-3" aria-hidden="true" />
+      {CLIENT_CARD_SOURCE_LABELS[source]}
+    </Badge>
+  );
+}
 
 const SOURCE_CHIP: Record<
-  string,
+  Exclude<ClientCardSource, "human">,
   { icon: LucideIcon; className: string; title: string }
 > = {
   carmen: {
@@ -35,23 +56,3 @@ const SOURCE_CHIP: Record<
     title: "נכתב על ידי אוטומציה",
   },
 };
-
-/** Marks a client card entry that no person typed. Human entries get no chip. */
-export function ClientUpdateSourceChip({ source }: { source?: string | null }) {
-  if (isHumanClientCardSource(source)) return null;
-  const label = clientCardSourceLabel(source);
-  if (!label) return null;
-  const chip = SOURCE_CHIP[source as string];
-  const Icon = chip?.icon ?? Bot;
-  return (
-    <Badge
-      variant="outline"
-      className={`gap-1 text-xs ${chip?.className ?? "bg-card"}`}
-      title={chip?.title ?? label}
-      data-testid="client-update-source-chip"
-    >
-      <Icon className="h-3 w-3" aria-hidden="true" />
-      {label}
-    </Badge>
-  );
-}

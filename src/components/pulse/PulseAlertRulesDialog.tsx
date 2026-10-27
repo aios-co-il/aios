@@ -18,6 +18,7 @@ import {
   type PulseAlertRules,
   type PulseManagerSettings,
 } from "@/lib/pulseAlertRules";
+import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
@@ -50,9 +51,10 @@ export function PulseAlertRulesDialog({
   const [cardLogSystemSends, setCardLogSystemSends] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    setRules(parsePulseAlertRules(value));
-    setCardLogSystemSends(readCardLogSystemSends(value));
+    if (open) {
+      setRules(parsePulseAlertRules(value));
+      setCardLogSystemSends(readCardLogSystemSends(value));
+    }
   }, [open, value]);
 
   return (
@@ -163,24 +165,10 @@ export function PulseAlertRulesDialog({
           </div>
 
           {canManageCardLog && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-              <div>
-                <Label className="text-sm" htmlFor="card-log-system-sends">
-                  תיעוד אוטומטי בכרטיס הלקוח של הודעות שנשלחו מהמערכת
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  דוחות, דשבורדים, סיכומי פגישות, דיוורים והודעות של כרמן
-                  ואוטומציות נרשמים בכרטיס הלקוח. הודעות שנשלחו מהצ׳אט נרשמות
-                  כסיכום יומי, בלי תוכן ההודעות. רישומים אלה לא נחשבים כשיחה עם
-                  הלקוח.
-                </p>
-              </div>
-              <Switch
-                id="card-log-system-sends"
-                checked={cardLogSystemSends}
-                onCheckedChange={setCardLogSystemSends}
-              />
-            </div>
+            <CardLogSystemSendsSwitch
+              checked={cardLogSystemSends}
+              onCheckedChange={setCardLogSystemSends}
+            />
           )}
         </div>
 

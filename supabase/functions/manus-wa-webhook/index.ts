@@ -34,7 +34,7 @@ import {
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
-import { recordCarmenFallbackGroupReply } from "../_shared/automation-client-send.ts";
+import { recordManusFallbackReply } from "./fallback-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1889,30 +1889,14 @@ Deno.serve(async (req) => {
                 ok: res.ok,
                 elapsedMs: Date.now() - started,
               });
-              if (res.ok) {
-                // The body read is bounded too: the message is already out.
-                let bodyTimer: ReturnType<typeof setTimeout> | undefined;
-                const response: any = await Promise.race([
-                  res.json().catch(() => null),
-                  new Promise((resolve) => {
-                    bodyTimer = setTimeout(() => resolve(null), 5000);
-                  }),
-                ]);
-                clearTimeout(bodyTimer);
-                // Logged like a reply through the action step (AIO-242):
-                // only in a client's group, only while the tenant has card
-                // logging on.
-                if (response?.success !== false)
-                  await recordCarmenFallbackGroupReply(supabase, {
-                    tenantId: groupTenantId,
-                    chatId: groupChatId,
-                    message,
-                    provider: "manus_wa",
-                    connectionUserId,
-                    integrationId: integ.id,
-                    providerResponse: response,
-                  });
-              }
+              await recordManusFallbackReply(res, {
+                db: supabase,
+                tenantId: groupTenantId,
+                chatId: groupChatId,
+                message,
+                connectionUserId,
+                integrationId: integ.id,
+              });
               return res.ok;
             } catch (err: any) {
               clearTimeout(timer);
@@ -2130,7 +2114,6 @@ Deno.serve(async (req) => {
                   phoneNumber: carmenTargetPhone,
                   senderUserId: connectionUserId,
                   message,
-                  // Carmen's reply (client card auto-log, AIO-242).
                   sendKind: "carmen",
                 }),
               },

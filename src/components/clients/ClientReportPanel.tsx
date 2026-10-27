@@ -42,10 +42,8 @@ import {
 } from "./ReportEmailSenderSelect";
 import { syncReportTable, waitForSnapshotReady } from "@/lib/reportSync";
 import { downloadReportPdf } from "@/lib/reportPdf";
-import {
-  reportDeliveryOutcome,
-  type ReportDeliveryChannel,
-} from "@/lib/reportDelivery";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { getReportLastSyncAt } from "@/lib/reportQueryOptions";
 import { getAdAccountUrl } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
@@ -153,6 +151,7 @@ export function ClientReportPanel({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const recordDelivery = useRecordReportDelivery();
   const snapshotRef = useRef<HTMLDivElement>(null);
 
   // Screenshot state
@@ -494,48 +493,6 @@ export function ClientReportPanel({
     }
   }, [shareLink, table.id, table.name, tenantId, queryClient]);
 
-  // The send's only client card log: a database trigger writes the "דוח נשלח"
-  // entry from this row when the tenant turned card logging on (AIO-242).
-  // Only the channels that went out are recorded (partial when one failed).
-  const recordReportDelivery = async (
-    sent: ReportDeliveryChannel[],
-    shareUrl: string | null,
-  ) => {
-    const outcome = reportDeliveryOutcome({
-      requested: { whatsapp: sendWhatsApp, email: sendEmail },
-      sent,
-    });
-    if (!outcome) return;
-    try {
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "table",
-          target_id: table.id,
-          channels: outcome.channels,
-          status: outcome.status,
-          details: {
-            source: "manual",
-            title: table.name,
-            share_url: shareUrl,
-            email_recipients: outcome.channels.includes("email")
-              ? emailRecipients
-              : [],
-          },
-        });
-      if (deliveryLogError)
-        console.warn("Failed to log report delivery:", deliveryLogError);
-      else
-        queryClient.invalidateQueries({
-          queryKey: ["client-updates", clientId],
-        });
-    } catch (e) {
-      console.warn("Failed to log report delivery:", e);
-    }
-  };
-
   const handleSend = async () => {
     if (!screenshotBlob) {
       toast.error("לא נוצר צילום מסך");
@@ -551,7 +508,9 @@ export function ClientReportPanel({
     let effectiveShareLink: string | null = shareLink || null;
     try {
       // Auto-create share link if missing
-      if (!effectiveShareLink) effectiveShareLink = await ensureShareLink();
+      if (!effectiveShareLink) {
+        effectiveShareLink = await ensureShareLink();
+      }
 
       if (sendWhatsApp) {
         const hasGroup = selectedGroupId && selectedGroupId !== "__none__";
@@ -688,7 +647,17 @@ export function ClientReportPanel({
         toast.error("שגיאה בשליחת הדוח: " + msg);
       }
     } finally {
-      await recordReportDelivery(sentChannels, effectiveShareLink);
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "table",
+        targetId: table.id,
+        title: table.name,
+        shareUrl: effectiveShareLink,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients,
+      });
       setIsSending(false);
     }
   };

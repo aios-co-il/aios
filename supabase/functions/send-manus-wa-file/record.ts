@@ -1,5 +1,5 @@
 // The chat record of a Manus file that went out.
-import { sendKindColumns } from "../_shared/send-kind.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import type { MediaToSend } from "./gateway.ts";
 import type { SentOutcome } from "./handler.ts";
