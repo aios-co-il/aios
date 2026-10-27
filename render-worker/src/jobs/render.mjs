@@ -20,12 +20,11 @@ import {
   spokenLine,
   talkingLine,
 } from "../narration.mjs";
+import { AUDIO_DRIVEN_LIPSYNC } from "../providers/index.mjs";
 import { inList, metaOf } from "./rows.mjs";
 import { effectsByKind, filmSoundEffects } from "./sound-effects.mjs";
 
 const BUCKET = "creative-video";
-/** Lip-sync providers whose mouth follows the voice file as it is, so its word timings hold. */
-const AUDIO_DRIVEN = new Set(["elevenlabs", "kling", "heygen"]);
 
 const sniffExt = (bytes) => {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
@@ -173,7 +172,8 @@ export async function loadFilmSources(db, run) {
           : null;
       const spokenAlignment =
         lineVoice?.type === "voiceover" &&
-        AUDIO_DRIVEN.has(String(clipMeta.provider)) &&
+        // A lip sync whose mouth follows the voice file keeps the line's word timings.
+        AUDIO_DRIVEN_LIPSYNC.has(String(clipMeta.provider)) &&
         String(metaOf(lineVoice).text ?? "") === talkingLine(scene)
           ? metaOf(lineVoice).alignment || null
           : null;

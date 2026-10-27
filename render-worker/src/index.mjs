@@ -6,7 +6,11 @@ import { failClip, generateClip } from "./jobs/clip.mjs";
 import { generateLipsync } from "./jobs/lipsync.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
-import { getVideoProvider } from "./providers/index.mjs";
+import {
+  getVideoProvider,
+  PREVIEW_PROVIDER,
+  usesVaultKey,
+} from "./providers/index.mjs";
 import { runClipWithFallback } from "./clip-fallback.mjs";
 import { createInFlight } from "./inflight.mjs";
 import { claimableKinds, runSlots } from "./loop.mjs";
@@ -24,10 +28,12 @@ const HANDLERS = {
     run: async (ctx) => {
       const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
       const name =
-        ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
+        ctx.run.input?.provider ||
+        process.env.VIDEO_PROVIDER ||
+        PREVIEW_PROVIDER;
       // Read from Vault only for the engine that needs it: the chosen engine, a saved
       // OpenRouter fallback job being resumed, or the fallback itself (resolved on demand).
-      if (name === "openrouter" || ctx.run.provider === "openrouter")
+      if (usesVaultKey(name) || usesVaultKey(ctx.run.provider))
         keys.openRouterKey = await openRouterKey(ctx.db, ctx.run.tenant_id);
       return runClipWithFallback({
         name,

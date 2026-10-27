@@ -18,6 +18,7 @@ import {
 import {
   getLipsyncProvider,
   lipsyncProviderNames,
+  speaksInOwnVoice,
 } from "../providers/index.mjs";
 import { audioMime } from "../providers/lipsync.mjs";
 import { isPaidPlanError } from "../providers/plan.mjs";
@@ -131,10 +132,10 @@ export async function generateLipsync({
   const clip = await asset(db, run, scene.clip_asset_id, "video_clip");
   const motion = await motionClipOf(db, run, clip);
 
-  // OpenRouter Veo speaks the line in its own voice: never for a line in the chosen voice,
-  // which is assembled as it is (the chosen voice over the picture) when nothing else can.
+  // A provider that speaks in its own voice (Veo) never says a line in the chosen voice, which
+  // is assembled as it is (the chosen voice over the picture) when nothing else can.
   const names = lipsyncProviderNames(run, keys, env).filter(
-    (name) => !(name === "openrouter" && speaksInChosenVoice(scene)),
+    (name) => !(speaksInOwnVoice(name) && speaksInChosenVoice(scene)),
   );
   if (!names.length) throw finalError(NO_LIPSYNC_PROVIDER);
   const durationS = Number(scene.duration_s) || 5;

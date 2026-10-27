@@ -8,8 +8,10 @@ import {
 } from "../guard.mjs";
 import { speaksInChosenVoice, talkingLine } from "../narration.mjs";
 import {
+  clipModel,
   clipPrompt,
   getVideoProvider,
+  PREVIEW_PROVIDER,
   talkingPrompt,
 } from "../providers/index.mjs";
 import { publicStill } from "./still-image.mjs";
@@ -83,7 +85,7 @@ export async function generateClip({
   const estimate = provider.estimate({ durationS, talking: Boolean(talking) });
 
   let jobId =
-    run.provider === provider.name && provider.name !== "mock"
+    run.provider === provider.name && provider.name !== PREVIEW_PROVIDER
       ? run.provider_job_id
       : null;
   if (jobId) {
@@ -187,7 +189,9 @@ async function finishClip({
   // preview makes a new clip on retry, so its failure may be retried.
   if (result.status !== "succeeded") {
     const message = result.error || `${provider.name} job ${jobId} failed`;
-    throw provider.name === "mock" ? new Error(message) : finalError(message);
+    throw provider.name === PREVIEW_PROVIDER
+      ? new Error(message)
+      : finalError(message);
   }
 
   // The provider's own charge when it reports one (OpenRouter), else the estimate.
@@ -204,7 +208,7 @@ async function finishClip({
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const path = await clipPath(db, run, item.folder);
-  const model = (talking && provider.talkingModel) || provider.model;
+  const model = clipModel(provider, Boolean(talking));
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {
     p_scene_id: run.scene_id,
