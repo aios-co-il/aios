@@ -21,15 +21,21 @@ export type GroupInput = TriageInput & {
   capped: boolean;
   /** Already got a message this round (the brief): the rest waits a round. */
   waiting: boolean;
+  /** True once the stored settings differ from `settings`. */
+  settingsChanged: () => Promise<boolean>;
 };
 
-/** Cancels, holds, defers or sends one person's due rows and records each outcome. */
+/**
+ * Cancels, holds, defers or sends one person's due rows and records each
+ * outcome. Resolves true when a settings change stopped the message before
+ * it left; its rows are planned again, due at once.
+ */
 export async function dispatchGroup(
   deps: DispatchDeps,
   input: GroupInput,
   batch: { group: DeliveryRow[]; findings: Map<string, FindingRow> },
   report: DispatchReport,
-): Promise<void> {
+): Promise<boolean> {
   const record = (rows: DeliveryRow[], outcome: SendOutcome) =>
     rows.length
       ? deps.deliveries.recordSend(
@@ -53,7 +59,14 @@ export async function dispatchGroup(
   report.cancelled += cancelled.length;
   report.deferred += held.length + later.length;
   if (!sending.length) {
-    return;
+    return false;
+  }
+  // Checked again after this person's records, so only marking the rows
+  // stands between the check and the send.
+  if (await input.settingsChanged()) {
+    await record(sending, { status: "planned", notBefore: input.now });
+    report.deferred += sending.length;
+    return true;
   }
   const head = sending[0];
   await deps.deliveries.markSending(
@@ -72,6 +85,7 @@ export async function dispatchGroup(
   await record(sending, outcome);
   report.messages += 1;
   report.sent += outcome.status === "sent" ? 1 : 0;
+  return false;
 }
 
 /** Ready rows that did not go, grouped by when they are tried again (ISO time). */

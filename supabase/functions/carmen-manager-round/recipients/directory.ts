@@ -3,6 +3,7 @@
  * (agency_tenant_access) is routed to the routing tenant's own staff only, so
  * one tenant's round never messages another tenant's people.
  */
+import { isCampaignRole } from "../../_shared/client-team/campaign-role.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { throwIf } from "../db-error.ts";
 import { type Contact, loadContacts } from "./contacts.ts";
@@ -97,7 +98,7 @@ export function createPeopleDirectory(db: DbClient): PeopleDirectory {
           user_id: profile?.id ?? null,
           name: profile?.full_name || row.campaigners.full_name,
           phone: profile?.phone || row.campaigners.phone,
-          campaign_role: /campaign|ppc|קמפיינ/i.test(row.role_on_account ?? ""),
+          campaign_role: isCampaignRole(row.role_on_account),
           start_date: row.start_date,
           end_date: row.end_date,
         };

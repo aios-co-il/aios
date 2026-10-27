@@ -39,6 +39,13 @@ export const FINDING_LIVE_STATUSES = [
   "snoozed",
 ] as const;
 
+/** Live statuses the router still acts on (acknowledged stops the ladder). */
+export const FINDING_ROUTABLE_STATUSES = [
+  "open",
+  "notified",
+  "snoozed",
+] as const;
+
 /** Hebrew names for the feed and the settings screen. */
 export const FINDING_KIND_LABELS_HE: Record<FindingKind, string> = {
   cost_spike: "עלייה בעלות",

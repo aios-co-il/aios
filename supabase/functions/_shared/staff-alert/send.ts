@@ -17,15 +17,15 @@
  * reported as such and never retried on another line.
  */
 
-import { normalizeStaffPhone } from "../_shared/staff-whatsapp.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import { normalizeStaffPhone } from "../staff-whatsapp.ts";
+import type { DbClient } from "../supabase-clients.ts";
 import {
   postWaSend,
   SEND_MANUS_FN,
   type WaSendStatus,
-} from "../_shared/whatsapp/send-result.ts";
-import { loadManusLines, type ManusLine } from "./staff-alert-lines.ts";
-import { staffAlertSender } from "./staff-alert-sender.ts";
+} from "../whatsapp/send-result.ts";
+import { loadManusLines, type ManusLine } from "./lines.ts";
+import { staffAlertSender } from "./sender.ts";
 
 export type StaffAlertStatus =
   WaSendStatus | "no_phone" | "no_line" | "no_sender";
@@ -53,7 +53,7 @@ export type StaffAlertInput = {
   tenantId: string;
   phone: string;
   message: string;
-  /** The person Carmen acts for; who actually sends: staff-alert-sender.ts. */
+  /** The person Carmen acts for; who actually sends: sender.ts. */
   requesterUserId?: string | null;
   fetchImpl?: typeof fetch;
 };

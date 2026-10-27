@@ -1,5 +1,6 @@
-/** The heartbeat_logs row of a tenant's round (run_kind 'manager_round'). */
+/** The heartbeat_logs row of a tenant's round (MANAGER_ROUND_RUN_KIND). */
 import type { TablesInsert } from "../_shared/database.types.ts";
+import { MANAGER_ROUND_RUN_KIND } from "../_shared/manager-round/run-kind.ts";
 import type { TenantReport } from "./tenant-run.ts";
 
 /** True when the run collected, routed, briefed, sent or failed. */
@@ -32,7 +33,7 @@ export function roundLog(
     (report.dispatch?.messages ?? 0) + (report.brief?.sent.length ?? 0);
   return {
     tenant_id: report.tenant_id,
-    run_kind: "manager_round",
+    run_kind: MANAGER_ROUND_RUN_KIND,
     status: report.error ? "error" : "ok",
     tasks_reviewed: report.routed ?? 0,
     summary: report.error

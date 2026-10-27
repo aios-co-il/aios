@@ -67,32 +67,45 @@ export async function sendBriefIfDue(
   };
   let content: BriefContent | null = null;
   for (const recipient of await run.recipients()) {
-    if (!run.dryRun && !(await mayStartSend(run))) {
+    if (!run.dryRun && !run.budget.hasTime(SEND_RESERVE_MS)) {
       report.deferred += 1;
       continue;
     }
-    if (
-      !run.dryRun &&
-      !(await deps.state.claimSlot(
-        run.tenantId,
-        `${BRIEF_STATE_PREFIX}${recipient.key}`,
-        slot,
-      ))
-    ) {
-      continue;
-    }
     content ??= await gatherBrief(deps, run);
-    report.sent.push(await briefOne(deps, run, recipient, content));
+    const start = run.dryRun
+      ? "send"
+      : await claimUnlessChanged(deps, run, recipient, slot);
+    if (start === "deferred") {
+      report.deferred += 1;
+    }
+    if (start === "send") {
+      report.sent.push(await briefOne(deps, run, recipient, content));
+    }
   }
   return report.sent.length || report.deferred ? report : null;
 }
 
 /**
- * A send may start while the window has room for it and the owner has not
- * changed the settings since the run read them (a switch to observe mid-run).
+ * Claims the recipient's slot unless the owner changed the settings since
+ * the run read them (a switch to observe mid-run). It runs after the content
+ * is gathered, so only the claim stands between the check and the send; a
+ * changed run claims nothing, and the next call sends under the new settings.
  */
-async function mayStartSend(run: BriefRun): Promise<boolean> {
-  return run.budget.hasTime(SEND_RESERVE_MS) && !(await run.settingsChanged());
+async function claimUnlessChanged(
+  deps: BriefDeps,
+  run: BriefRun,
+  recipient: Recipient,
+  slot: Date,
+): Promise<"send" | "deferred" | "taken"> {
+  if (await run.settingsChanged()) {
+    return "deferred";
+  }
+  const claimed = await deps.state.claimSlot(
+    run.tenantId,
+    `${BRIEF_STATE_PREFIX}${recipient.key}`,
+    slot,
+  );
+  return claimed ? "send" : "taken";
 }
 
 /** People who got this round's brief (sent or possibly sent). */

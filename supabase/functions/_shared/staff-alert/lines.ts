@@ -1,6 +1,6 @@
-import { isPrimaryCarmenLine } from "../_shared/carmen-connection-role.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
-import { MANUS_WA_TYPES } from "../_shared/whatsapp/send-result.ts";
+import { isPrimaryCarmenLine } from "../carmen-connection-role.ts";
+import type { DbClient } from "../supabase-clients.ts";
+import { MANUS_WA_TYPES } from "../whatsapp/send-result.ts";
 
 /** A Manus line a staff alert may leave from, and the user it belongs to. */
 export type ManusLine = { id: string; user_id: string | null };

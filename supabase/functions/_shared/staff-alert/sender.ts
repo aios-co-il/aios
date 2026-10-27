@@ -3,10 +3,10 @@
  * it records as sent_by_user_id and checks against the tenant).
  */
 
-import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
-import { asUuidOrNull } from "../_shared/uuid.ts";
-import type { ManusLine } from "./staff-alert-lines.ts";
+import { tenantUserAccess } from "../auth/tenant-access.ts";
+import type { DbClient } from "../supabase-clients.ts";
+import { asUuidOrNull } from "../uuid.ts";
+import type { ManusLine } from "./lines.ts";
 import { tenantOwnerUserId } from "./tenant-owner.ts";
 
 type SenderInput = {

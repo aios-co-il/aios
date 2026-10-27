@@ -9,6 +9,7 @@ import type { Collector, CollectorContext } from "./types.ts";
 
 const slot = new Date("2026-11-01T08:00:00Z");
 
+/** An hourly contact collector that collects with `collect`. */
 function collector(collect: Collector["collect"]): Collector {
   return {
     id: "contact",
@@ -19,6 +20,7 @@ function collector(collect: Collector["collect"]): Collector {
   };
 }
 
+/** A warning candidate for client c1 with this fingerprint. */
 const candidate = (
   fingerprint: string,
   kind: "no_contact" | "data_gap" = "no_contact",
@@ -34,6 +36,7 @@ const candidate = (
   owner_user_id: null,
 });
 
+/** runCollectors over `w` for these due collectors. */
 function run(
   w: World,
   due: DueCollector[],

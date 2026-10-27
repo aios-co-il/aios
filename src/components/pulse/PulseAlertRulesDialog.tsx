@@ -38,7 +38,9 @@ export function PulseAlertRulesDialog({
   const manager = useManagerModeDraft(open, value, onSave);
 
   useEffect(() => {
-    if (open) setRules(parsePulseAlertRules(value));
+    if (open) {
+      setRules(parsePulseAlertRules(value));
+    }
   }, [open, value]);
 
   return (

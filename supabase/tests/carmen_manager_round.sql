@@ -7,6 +7,7 @@ DECLARE
   v_client uuid;
   v_other_client uuid;
   v_other_agency uuid;
+  v_other_tenant uuid;
   v_member uuid;
   v_planned uuid;
   v_stranger uuid := gen_random_uuid();
@@ -110,6 +111,31 @@ BEGIN
   IF (SELECT status FROM public.carmen_finding_deliveries WHERE id = v_delivery) <> 'sent'
      OR NOT EXISTS (SELECT 1 FROM public.carmen_finding_events WHERE finding_id = v_finding AND event = 'notified') THEN
     RAISE EXCEPTION 'record_send: outcome and notified event expected';
+  END IF;
+
+  -- Delivery keys carry the tenant, and a row can only point at a finding of
+  -- its own tenant, so no writer can plan into or rewrite another tenant's row.
+  IF EXISTS (
+    SELECT 1 FROM pg_index AS i
+    WHERE i.indrelid = 'public.carmen_finding_deliveries'::regclass
+      AND i.indisunique AND NOT i.indisprimary
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_attribute AS a
+        WHERE a.attrelid = i.indrelid AND a.attname = 'tenant_id'
+          AND a.attnum = ANY (i.indkey::smallint[]))) THEN
+    RAISE EXCEPTION 'deliveries: every unique key must include tenant_id';
+  END IF;
+  SELECT t.id INTO v_other_tenant FROM public.tenants AS t
+  WHERE t.id <> v_tenant ORDER BY t.id LIMIT 1;
+  IF v_other_tenant IS NOT NULL THEN
+    BEGIN
+      INSERT INTO public.carmen_finding_deliveries (tenant_id, finding_id, level,
+        recipient_key, channel, slot, status)
+      VALUES (v_other_tenant, v_finding, 0, 'qa:one', 'manus_wa', 'now', 'planned');
+      RAISE EXCEPTION 'deliveries: a row of another tenant must not reference this finding';
+    EXCEPTION WHEN foreign_key_violation THEN
+      NULL;
+    END;
   END IF;
 
   -- Auto-clear after two runs without the fingerprint.

@@ -3,21 +3,13 @@ import {
   FINDING_KIND_LABELS_HE,
   FINDING_KINDS,
   FINDING_LIVE_STATUSES,
+  FINDING_ROUTABLE_STATUSES,
   isFindingKind,
 } from "./kinds.ts";
-
-const MIGRATION = new URL(
-  "../../../migrations/20261027100000_carmen_manager_round.sql",
-  import.meta.url,
-);
-
-/** The quoted values of the first `<marker> ( ... )` list after `anchor`. */
-function quotedList(sql: string, anchor: string, marker: string): string[] {
-  const from = sql.indexOf(anchor);
-  const open = sql.indexOf(marker, from) + marker.length;
-  const close = sql.indexOf(")", open);
-  return [...sql.slice(open, close).matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
-}
+import {
+  MANAGER_ROUND_MIGRATION as MIGRATION,
+  quotedList,
+} from "./migration-lists.ts";
 
 Deno.test("FINDING_KINDS matches the carmen_findings kind CHECK", async () => {
   const sql = await Deno.readTextFile(MIGRATION);
@@ -31,6 +23,14 @@ Deno.test("FINDING_LIVE_STATUSES matches the live dedupe index", async () => {
   assertEquals(
     quotedList(sql, "carmen_findings_live_key", "WHERE status IN ("),
     [...FINDING_LIVE_STATUSES],
+  );
+});
+
+Deno.test("FINDING_ROUTABLE_STATUSES matches the route index", async () => {
+  const sql = await Deno.readTextFile(MIGRATION);
+  assertEquals(
+    quotedList(sql, "carmen_findings_route_idx", "WHERE status IN ("),
+    [...FINDING_ROUTABLE_STATUSES],
   );
 });
 

@@ -35,7 +35,7 @@ export type DispatchInput = {
   briefKeys: () => Promise<Set<string>>;
   /** The call's send window (round.ts). */
   budget: RoundBudget;
-  /** True once the stored settings differ from `settings` (re-checked before each message). */
+  /** True once the stored settings differ from `settings` (checked before each person and again just before their message). */
   settingsChanged: () => Promise<boolean>;
 };
 
@@ -96,12 +96,16 @@ export async function dispatchDue(
     const capped =
       (sentToday.get(key) ?? 0) >=
       input.settings.max_alerts_per_recipient_per_day;
-    await dispatchGroup(
+    const stopped = await dispatchGroup(
       deps,
       { ...input, briefKeys, capped, waiting: input.skip.has(key) },
       { group, findings },
       report,
     );
+    if (stopped) {
+      await putBack(deps, input, groups.slice(index + 1).flat(), report);
+      return report;
+    }
   }
   return report;
 }

@@ -29,6 +29,7 @@ const owner = {
   managed_agency_ids: [],
 };
 
+/** runTenant for TENANT over `w` with these manager settings (null: none stored). */
 function run(
   w: World,
   manager: Parameters<typeof rules>[0] | null,

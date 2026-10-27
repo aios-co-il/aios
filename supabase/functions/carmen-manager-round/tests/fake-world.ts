@@ -1,6 +1,6 @@
 /** The in-memory world the round's fakes read and write, and row builders. */
 import type { Json, TablesInsert } from "../../_shared/database.types.ts";
-import type { StaffAlertStatus } from "../../run-ai-agent/staff-alert.ts";
+import type { StaffAlertStatus } from "../../_shared/staff-alert/send.ts";
 import type {
   DeliveryRow,
   FindingRow,
@@ -45,6 +45,7 @@ export type World = {
 
 export const TENANT = "11111111-1111-4111-8111-111111111111";
 
+/** An empty world at Sunday 2026-11-01 10:00 Israel time; `fields` override any part. */
 export function world(fields: Partial<World> = {}): World {
   return {
     now: new Date("2026-11-01T08:00:00Z"),
@@ -94,6 +95,7 @@ export function finding(fields: Partial<StoredFinding> = {}): StoredFinding {
   };
 }
 
+/** A planned level-0 'now' row of TENANT; `fields` override any column. */
 export function delivery(fields: Partial<DeliveryRow>): DeliveryRow {
   return {
     id: crypto.randomUUID(),

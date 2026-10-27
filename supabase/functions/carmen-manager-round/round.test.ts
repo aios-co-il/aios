@@ -3,6 +3,7 @@ import { runRound, tenantsToRun } from "./round.ts";
 import { deps } from "./tests/fakes.ts";
 import { rules, world } from "./tests/fake-world.ts";
 
+/** A tenant row with this mode (null: no stored settings) and last run. */
 const tenant = (
   tenant_id: string,
   mode: string | null,

@@ -21,6 +21,7 @@ const owner = {
   managed_agency_ids: [],
 };
 
+/** Clients c1 (Dana, two findings) and c2 (no campaigner, one finding) of agency a1, with the owner on staff. */
 function setup(): World {
   return world({
     clients: [
@@ -49,6 +50,7 @@ function setup(): World {
   });
 }
 
+/** routeTenant over `w` in team mode. */
 const route = (w: World, dryRun = false, virtual = undefined) =>
   routeTenant(deps(w), {
     tenantId: TENANT,

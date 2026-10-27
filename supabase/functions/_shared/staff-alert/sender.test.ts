@@ -4,8 +4,8 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 
-import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
-import { staffAlertSender } from "./staff-alert-sender.ts";
+import { fakeSupabase } from "../testing/fake-supabase.ts";
+import { staffAlertSender } from "./sender.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const MEMBER = "33333333-3333-4333-8333-333333333333";

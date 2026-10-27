@@ -6,6 +6,7 @@
  * always make the call a dry run: nothing is written or sent.
  */
 import { isNonProductionAppEnv } from "../_shared/app-env.ts";
+import { bearerToken } from "../_shared/automation-run-auth.ts";
 import type { Json } from "../_shared/database.types.ts";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
@@ -25,11 +26,10 @@ export type ParsedRequest =
 
 /** True when the bearer token is the service-role key (constant-time compare). */
 export function isServiceCaller(req: Request, serviceKey: string): boolean {
-  const header = req.headers.get("Authorization") ?? "";
-  const token = header.toLowerCase().startsWith("bearer ")
-    ? header.slice(7).trim()
-    : "";
-  return isServiceKey(token, serviceKey);
+  return isServiceKey(
+    bearerToken(req.headers.get("Authorization")),
+    serviceKey,
+  );
 }
 
 /** Validates the body; refuses fixtures in Production and makes them a dry run elsewhere. */

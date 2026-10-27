@@ -88,7 +88,9 @@ CREATE TABLE IF NOT EXISTS public.carmen_findings (
   detector_version text NOT NULL DEFAULT '1',
   round_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  -- The target of carmen_finding_deliveries' tenant-keyed foreign key.
+  UNIQUE (tenant_id, id)
 );
 
 COMMENT ON TABLE public.carmen_findings IS
@@ -149,7 +151,7 @@ CREATE INDEX IF NOT EXISTS carmen_finding_events_tenant_idx
 CREATE TABLE IF NOT EXISTS public.carmen_finding_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  finding_id uuid NOT NULL REFERENCES public.carmen_findings(id) ON DELETE CASCADE,
+  finding_id uuid NOT NULL,
   level smallint NOT NULL CHECK (level BETWEEN 0 AND 2),
   recipient_key text NOT NULL,
   recipient_user_id uuid,
@@ -170,7 +172,11 @@ CREATE TABLE IF NOT EXISTS public.carmen_finding_deliveries (
   round_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (finding_id, level, recipient_key)
+  -- A delivery belongs to a finding of its own tenant, and the plan key
+  -- carries the tenant, so no writer can reach another tenant's row.
+  FOREIGN KEY (tenant_id, finding_id)
+    REFERENCES public.carmen_findings (tenant_id, id) ON DELETE CASCADE,
+  UNIQUE (tenant_id, finding_id, level, recipient_key)
 );
 
 COMMENT ON TABLE public.carmen_finding_deliveries IS
@@ -405,7 +411,8 @@ BEGIN
 
     UPDATE public.carmen_finding_deliveries AS d
     SET status = 'cancelled'
-    WHERE d.finding_id = p_finding_id AND d.status = 'planned';
+    WHERE d.tenant_id = v_finding.tenant_id AND d.finding_id = p_finding_id
+      AND d.status = 'planned';
 
     INSERT INTO public.carmen_finding_events
       (tenant_id, finding_id, event, actor_user_id, note)
@@ -638,7 +645,8 @@ BEGIN
 
   UPDATE public.carmen_finding_deliveries AS d
   SET status = 'cancelled'
-  WHERE d.finding_id = ANY (v_missed) AND d.status = 'planned';
+  WHERE d.tenant_id = p_tenant_id AND d.finding_id = ANY (v_missed)
+    AND d.status = 'planned';
 
   RETURN QUERY
   WITH cleared AS (
@@ -715,7 +723,7 @@ AS $$
       level smallint, recipient_key text, recipient_user_id uuid,
       recipient_name text, recipient_phone text, channel text, slot text,
       status text, not_before timestamptz)
-    ON CONFLICT (finding_id, level, recipient_key) DO UPDATE
+    ON CONFLICT (tenant_id, finding_id, level, recipient_key) DO UPDATE
       SET recipient_user_id = EXCLUDED.recipient_user_id,
           recipient_name = EXCLUDED.recipient_name,
           recipient_phone = EXCLUDED.recipient_phone,
@@ -859,7 +867,7 @@ BEGIN
          p_provider_message_id, left(p_error, 500)
   FROM public.carmen_findings AS f
   WHERE f.tenant_id = p_tenant_id AND f.id = ANY (p_finding_ids)
-  ON CONFLICT (finding_id, level, recipient_key)
+  ON CONFLICT (tenant_id, finding_id, level, recipient_key)
   DO UPDATE SET status = EXCLUDED.status, attempted_at = EXCLUDED.attempted_at,
     message_key = EXCLUDED.message_key,
     provider_message_id = EXCLUDED.provider_message_id, error = EXCLUDED.error
@@ -1073,7 +1081,7 @@ BEGIN
   ), ladder AS (
     SELECT f.id,
       (SELECT max(x.level) FROM public.carmen_finding_deliveries AS x
-       WHERE x.finding_id = f.id
+       WHERE x.tenant_id = p_tenant_id AND x.finding_id = f.id
          AND x.status NOT IN ('planned', 'cancelled', 'expired')) AS reached,
       (SELECT min(c.level) FROM cancelled AS c WHERE c.finding_id = f.id) AS first_cancelled
     FROM public.carmen_findings AS f
@@ -1095,6 +1103,9 @@ BEGIN
 END;
 $$;
 
+-- Trigger on tenant_heartbeat_settings.pulse_alert_rules: keeps the stored
+-- manager block when a writer omits it, refuses manager changes from
+-- non-owners, resets ladders on a rollout change and stamps notify_since.
 CREATE OR REPLACE FUNCTION public.carmen_manager_settings_guard()
 RETURNS trigger
   LANGUAGE plpgsql

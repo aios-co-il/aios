@@ -1,6 +1,7 @@
 /** In-memory ports of the round for tests: no database, no network. */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database } from "../../_shared/database.types.ts";
+import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
 import type { Collector } from "../collectors/types.ts";
 import type { RoundDeps } from "../deps.ts";
 import type { DeliveriesStore } from "../dispatch/store.ts";
@@ -9,6 +10,7 @@ import type { RoundStateStore } from "../state/store.ts";
 import { fakeDirectory } from "./fake-directory.ts";
 import { delivery, finding, type World } from "./fake-world.ts";
 
+/** The round's ports over the world `w` (sends land in `w.sent`), with these collectors registered. */
 export function deps(
   w: World,
   collectors: readonly Collector[] = [],
@@ -37,8 +39,9 @@ export function deps(
   };
 }
 
-const LIVE = ["open", "notified", "acknowledged", "snoozed"];
+const LIVE: readonly string[] = FINDING_LIVE_STATUSES;
 
+/** The findings RPCs over `w.findings`. */
 function findingsStore(w: World): FindingsStore {
   return {
     upsert: (_tenant, _round, _collector, candidates) =>
@@ -145,6 +148,7 @@ function findingsStore(w: World): FindingsStore {
   };
 }
 
+/** The delivery RPCs over `w.deliveries`. */
 function deliveriesStore(w: World): DeliveriesStore {
   return {
     claim: () => {
@@ -208,6 +212,7 @@ function deliveriesStore(w: World): DeliveriesStore {
   };
 }
 
+/** Tenants, round state, leases and slots over `w`. */
 function stateStore(w: World): RoundStateStore {
   return {
     listTenants: () => Promise.resolve(w.tenants),

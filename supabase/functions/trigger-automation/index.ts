@@ -8,6 +8,7 @@ import {
 } from "../_shared/carmen-session-identity.ts";
 import { formatClientFollowUpMessage } from "../_shared/client-follow-up-message.ts";
 import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import { isCampaignRole } from "../_shared/client-team/campaign-role.ts";
 import {
   dropUnresolvedTemplateLines,
   sanitizeTemplateParameter,
@@ -1010,7 +1011,7 @@ async function sendTaskNotificationFromTenantCarmen(
       .or(`end_date.is.null,end_date.gte.${today}`)
       .order("created_at", { ascending: true });
     const preferred = (team || []).find((row: any) =>
-      /campaign|ppc|קמפיינ/i.test(String(row.role_on_account || "")),
+      isCampaignRole(row.role_on_account),
     );
     campaignerId = preferred?.campaigner_id || team?.[0]?.campaigner_id || null;
   }

@@ -15,6 +15,7 @@ const team = resolveManagerSettings({
   manager: { mode: "team", notify_since: "2026-10-01T00:00:00Z" },
 });
 
+/** Adds `count` notified findings, each with one due row for the default recipient. */
 function setup(
   w: World,
   count: number,
@@ -32,6 +33,7 @@ function setup(
   }
 }
 
+/** dispatchDue over `w` in team mode unless `settings` says otherwise; `fields` override the run. */
 const run = (
   w: World,
   skip: string[] = [],
@@ -40,6 +42,7 @@ const run = (
     briefKeys?: string[];
     budget?: RoundBudget;
     ports?: ReturnType<typeof deps>;
+    settingsChanged?: () => Promise<boolean>;
   } = {},
 ) =>
   dispatchDue(fields.ports ?? deps(w), {
@@ -50,7 +53,7 @@ const run = (
     floors: {},
     briefKeys: () => Promise.resolve(new Set(fields.briefKeys ?? [])),
     budget: fields.budget ?? RoundBudget.create(140_000, 0),
-    settingsChanged: () => Promise.resolve(false),
+    settingsChanged: fields.settingsChanged ?? (() => Promise.resolve(false)),
   });
 
 Deno.test("dispatchDue", async (t) => {
@@ -210,6 +213,31 @@ Deno.test("dispatchDue", async (t) => {
         [
           ["sent", "2026-10-01T00:00:00Z"],
           ["planned", w.now.toISOString()],
+        ],
+      );
+    },
+  );
+
+  await t.step(
+    "a switch just before a message leaves stops it and the rest of the claim",
+    async () => {
+      const w = world();
+      setup(w, 1);
+      setup(w, 1, { short_code: 20 });
+      w.deliveries[1].recipient_key = "user:avi";
+      // The check before the first person passes; the owner switches while
+      // that person's rows are recorded, before the message leaves.
+      let checks = 0;
+      const report = await run(w, [], team, {
+        settingsChanged: () => Promise.resolve(++checks > 1),
+      });
+      assertEquals(w.sent, []);
+      assertEquals([report.messages, report.deferred], [0, 2]);
+      assertEquals(
+        w.deliveries.map((d) => [d.status, d.not_before, d.attempted_at]),
+        [
+          ["planned", w.now.toISOString(), null],
+          ["planned", w.now.toISOString(), null],
         ],
       );
     },

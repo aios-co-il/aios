@@ -1,4 +1,4 @@
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import type { DbClient } from "../supabase-clients.ts";
 
 /** The tenant owner's user id (user_roles role=owner), or null when the tenant has none; throws when the lookup fails. */
 export async function tenantOwnerUserId(
