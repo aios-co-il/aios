@@ -63,6 +63,38 @@ async function relipScenes(
   );
 }
 
+/**
+ * What produce_video makes for the whole film besides the clips: a narration when the current one
+ * does not read the script in the film's voice (video_narration_ready; a new voice narrates
+ * again), and a music bed when the film has none. A check that cannot be read counts as due, so
+ * the quote never leaves them out.
+ */
+async function soundDue(
+  supabase: ToolContext["supabase"],
+  tenantId: string,
+  itemId: string,
+  newVoice: boolean,
+) {
+  try {
+    const ready = newVoice
+      ? null
+      : await supabase.rpc("video_narration_ready", { p_item_id: itemId });
+    const { data } = await supabase
+      .from("marketing_assets")
+      .select("id, type, url")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .eq("type", "music")
+      .limit(5);
+    const bed = (Array.isArray(data) ? data : []).some(
+      (row: Scene) => row.type === "music" && String(row.url ?? "") !== "",
+    );
+    return { narration: ready?.data !== true, music: !bed };
+  } catch {
+    return { narration: true, music: true };
+  }
+}
+
 export async function workshopProduceVideo(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
@@ -206,16 +238,30 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     choice: args.sound_design,
     userText: deps.userText,
   });
+  // The narration is checked against this voice; a new one re-narrates the film.
+  const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
+  // Narration and music are made for the whole film, also when no scene is animated (a film cut
+  // from the user's own videos, or one line changed).
+  const due = await soundDue(
+    supabase,
+    tenantId,
+    itemId,
+    voiceId !== narrationVoiceId(undefined, video.voice_id),
+  );
   const estimate = quotedProductionEstimate(
     engine,
     costScenes,
-    { withVoice, withMusic, withSoundEffects: soundDesign },
+    {
+      withVoice: withVoice && due.narration,
+      withMusic: withMusic && due.music,
+      withSoundEffects: soundDesign,
+      film: scenes.map(costSceneOf),
+    },
     deps.videoConnections ? await deps.videoConnections() : {},
     relip,
   );
   // Narration needs a voice the user chose after hearing it.
-  const chosenVoice = narrationVoiceId(args.voice_id, video.voice_id);
-  if ((withVoice || talking) && !chosenVoice)
+  if ((withVoice || talking) && !voiceId)
     return await chooseVoice(
       {},
       voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
@@ -269,7 +315,6 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     typeof args.cta_text === "string"
       ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 120)
       : "";
-  const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
   const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
   // The quote is charged before the RPC (the payload's video settings must be saved first); a
   // production that never started gives it back.

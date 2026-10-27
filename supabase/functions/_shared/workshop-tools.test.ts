@@ -2600,6 +2600,76 @@ Deno.test(
 );
 
 Deno.test(
+  "a film cut from the user's own videos is quoted for the narration and music it gets",
+  async () => {
+    // Nothing is animated, but produce_video narrates the whole script and makes a music bed.
+    const line = "א".repeat(500);
+    const asked = (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { clip_asset_id: "own-1", voiceover_text: line }),
+          scene("s-2", { clip_asset_id: "own-2", voiceover_text: line }),
+        ],
+      }),
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", sound_design: false },
+      async () => {},
+      null,
+      { defaultEngine: async () => "elevenlabs" as const },
+    )) as Record<string, any>;
+    assertStrictEquals(asked.needs_budget, true);
+    // 1000 characters at $0.12, and a bed for 6 s planned (15.4 s with headroom) at $0.50 a minute.
+    assertStrictEquals(asked.estimated_usd, 0.25);
+  },
+);
+
+Deno.test(
+  "a narration that reads the script in the film's voice and its music bed are not quoted again",
+  async () => {
+    const line = "א".repeat(500);
+    const produce = async (args: Record<string, unknown> = {}) => {
+      const db = fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { clip_asset_id: "own-1", voiceover_text: line }),
+          scene("s-2", { still_asset_id: "still-2", voiceover_text: line }),
+        ],
+        "rpc:video_narration_ready": true,
+        "marketing_assets:select": [
+          { id: "m-1", type: "music", url: "item-1/music/bed.mp3" },
+        ],
+        "rpc:produce_video": { status: "working", clips: 1 },
+      });
+      await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, sound_design: false, ...args },
+        async () => {},
+        null,
+        { defaultEngine: async () => "elevenlabs" as const },
+      );
+      return (
+        db.calls.find((c) => c.table === "rpc:produce_video")?.value as Record<
+          string,
+          any
+        >
+      ).p_estimate;
+    };
+    const again = await produce();
+    // Scene 2's 3 s become a 4 s ElevenLabs clip at $0.15 a second.
+    assertStrictEquals(again.clips.usd, 0.6);
+    assertStrictEquals(again.voice.usd, 0);
+    assertStrictEquals(again.music.usd, 0);
+    // A new voice narrates the whole script again.
+    const tamar = await produce({ voice_id: "p7J75VowGmxi3K0it9lN" });
+    assertStrictEquals(tamar.voice.usd, 0.12);
+  },
+);
+
+Deno.test(
   "the closing call to action Carmen gives is kept for the film's end card",
   async () => {
     const db = fakeDb({
