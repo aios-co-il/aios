@@ -446,17 +446,20 @@ Deno.test(
         calls.loadPulse,
       0,
     );
-    for (const caller of [
-      { callerCampaignerId: "c-1" },
-      { callerUserId: "44444444-4444-4444-8444-444444444444" },
-    ]) {
-      assertStrictEquals(
-        pulseRefreshCallerRefusal({ surface: "whatsapp", ...caller }),
-        null,
-      );
+    for (const surface of ["whatsapp", "task"]) {
+      for (const caller of [
+        { callerCampaignerId: "c-1" },
+        { callerUserId: "44444444-4444-4444-8444-444444444444" },
+      ]) {
+        assertStrictEquals(
+          pulseRefreshCallerRefusal({ surface, ...caller }),
+          null,
+          surface,
+        );
+      }
     }
-    // Other surfaces resolve the caller from the signed-in user or the task.
-    for (const surface of ["internal_chat", "task", "agent_direct", null]) {
+    // Signed-in surfaces and service callers resolve the caller themselves.
+    for (const surface of ["internal_chat", "aios", "agent_direct", null]) {
       assertStrictEquals(pulseRefreshCallerRefusal({ surface }), null);
     }
     const campaigner = await runCampaignPulseRefresh(
@@ -464,6 +467,39 @@ Deno.test(
       deps,
     );
     assertStrictEquals(campaigner.refresh.status, "refreshed");
+  },
+);
+
+Deno.test(
+  "a task with no staff creator cannot refresh the tenant's pulse",
+  async () => {
+    // A WhatsApp group contact asked Carmen to schedule "דופק עדכני":
+    // create_agent_task stores created_by=null, so run-agent-task runs the
+    // task as user "system" on surface "task", with no campaigner.
+    const { deps, calls } = fakeDeps();
+    const result = await runCampaignPulseRefresh(
+      { tenantId: TENANT, surface: "task", callerUserId: null },
+      deps,
+    );
+    assertStrictEquals(result.error, "caller_not_identified");
+    assertStrictEquals(result.whatsapp_digest, undefined);
+    assertStrictEquals(
+      calls.assert.length +
+        calls.claim.length +
+        calls.invoke.length +
+        calls.loadPulse,
+      0,
+    );
+    // A task a staff member created runs as that user and still refreshes.
+    const staffTask = await runCampaignPulseRefresh(
+      {
+        tenantId: TENANT,
+        surface: "task",
+        callerUserId: "44444444-4444-4444-8444-444444444444",
+      },
+      deps,
+    );
+    assertStrictEquals(staffTask.refresh.status, "refreshed");
   },
 );
 

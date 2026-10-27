@@ -137,17 +137,27 @@ export function buildPulseRefreshNote(
   }
 }
 
+// Surfaces whose turn is not bound to a signed-in user: a WhatsApp sender, or a
+// task that runs as its creator ("system" when a WhatsApp group contact or an
+// automation created it).
+const UNVERIFIED_CALLER_SURFACES = new Set(["whatsapp", "task"]);
+
 /**
- * WhatsApp callers run-ai-agent could not identify (client contacts in a client
- * group, unknown numbers) have no campaigner and no user, so the pulse would
- * not be scoped to them. They may not trigger a refresh of the whole tenant.
+ * WhatsApp senders and task runs that run-ai-agent could not tie to staff
+ * (client contacts in a client group, unknown numbers, tasks they created)
+ * have no campaigner and no user, so the pulse would not be scoped to them.
+ * They may not trigger a refresh of the whole tenant.
  */
 export function pulseRefreshCallerRefusal({
   surface,
   callerCampaignerId,
   callerUserId,
 } = {}) {
-  if (surface === "whatsapp" && !callerCampaignerId && !callerUserId) {
+  if (
+    UNVERIFIED_CALLER_SURFACES.has(surface) &&
+    !callerCampaignerId &&
+    !callerUserId
+  ) {
     return {
       error: "caller_not_identified",
       message: "רענון הדופק זמין רק לאנשי צוות שמזוהים במערכת.",

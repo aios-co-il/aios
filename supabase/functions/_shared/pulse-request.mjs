@@ -19,11 +19,17 @@ const FRESH_ADJECTIVE = String.raw`(?:מלא[הת]?\s+ו?)?ה?(?:עדכני|מע
 // "מחדש" counts only after a run or check verb: "תריצי את הדופק מחדש", not
 // "תשלחי מחדש את הדופק" or a resumed task's "אל תתחיל מחדש".
 const RERUN_VERB = String.raw`(?:תריצי|הריצי|תריץ|הרץ|תבדקי|בדקי|תבדוק|בדוק|תחשבי|חשבי|תחשב|חשב|תעשי|עשי|תעשה|עשה)`;
+// "תרענני לי את הדופק", "רענני לנו בבקשה דופק": a dative or "please" between
+// the verb and the pulse noun.
+const VERB_FILLER = String.raw`(?:(?:לי|לנו|בבקשה)\s+){0,2}`;
+// "אל תרענני את הדופק", "לא צריך לרענן את הדופק", "don't refresh the pulse":
+// a negated verb is not a refresh request.
+const NOT_NEGATED = String.raw`(?<!${WORD_START}ו?(?:אל|לא|בלי|לא\s+צריך|אין\s+צורך|don['’]?t|do\s+not)\s+)`;
 
 const REFRESH_PATTERNS = [
-  // "רענני (את) (בדיקת) (ה)דופק", "רענון של הדופק", "refresh the pulse".
+  // "רענני (לי) (את) (בדיקת) (ה)דופק", "רענון של הדופק", "refresh the pulse".
   new RegExp(
-    `${WORD_START}ו?${REFRESH_VERB}\\s+(?:(?:את|של|the)\\s+)?${PULSE_NOUN}${WORD_END}`,
+    `${WORD_START}${NOT_NEGATED}ו?${REFRESH_VERB}\\s+${VERB_FILLER}(?:(?:את|של|the)\\s+)?${PULSE_NOUN}${WORD_END}`,
     "iu",
   ),
   // "(בדיקת) (ה)דופק (ה)עדכני / מעודכן / מלאה ועדכנית".
@@ -33,9 +39,9 @@ const REFRESH_PATTERNS = [
   ),
   // "fresh pulse", "up-to-date pulse check", "updated pulse".
   /\b(?:fresh|up[\s-]*to[\s-]*date|updated)\s+pulse(?:\s*check)?\b/iu,
-  // "תריצי (את) הדופק מחדש", "תבדקי מחדש את הדופק".
+  // "תריצי (לי) (את) הדופק מחדש", "תבדקי מחדש את הדופק".
   new RegExp(
-    `${WORD_START}ו?${RERUN_VERB}\\s+(?:(?:את\\s+)?${PULSE_NOUN}\\s+מחדש|מחדש\\s+(?:את\\s+)?${PULSE_NOUN})${WORD_END}`,
+    `${WORD_START}${NOT_NEGATED}ו?${RERUN_VERB}\\s+${VERB_FILLER}(?:(?:את\\s+)?${PULSE_NOUN}\\s+מחדש|מחדש\\s+(?:את\\s+)?${PULSE_NOUN})${WORD_END}`,
     "iu",
   ),
 ];
@@ -60,9 +66,9 @@ const BARE_PULSE = String.raw`(?:ה?בדיקת\s+)?ה?דופק(?:\s+ה?קמפי�
 const BARE_PULSE_REFRESH_RE = new RegExp(
   String.raw`^(?:(?:כרמן|קרמן|carmen)[,\s]+)?` +
     String.raw`(?:(?:תני לי|תן לי|הציגי|הצג|אפשר|מה|תראי לי|תראה לי|בבקשה)\s+)?` +
-    String.raw`(?:(?:ת?רענ(?:ני|ן)|רענון|ריענון)\s+(?:(?:את|של)\s+)?${BARE_PULSE}` +
+    String.raw`(?:(?:ת?רענ(?:ני|ן)|רענון|ריענון)\s+${VERB_FILLER}(?:(?:את|של)\s+)?${BARE_PULSE}` +
     String.raw`|${BARE_PULSE}\s+${FRESH_ADJECTIVE}` +
-    String.raw`|(?:תריצי|הריצי)\s+(?:את\s+)?${BARE_PULSE}\s+מחדש` +
+    String.raw`|(?:תריצי|הריצי)\s+${VERB_FILLER}(?:את\s+)?${BARE_PULSE}\s+מחדש` +
     String.raw`|refresh\s+(?:the\s+)?pulse(?:\s*check)?)` +
     String.raw`(?:\s+לפי\s+ה?סוכנויות)?(?:\s+(?:עכשיו|בבקשה))?$`,
   "iu",
