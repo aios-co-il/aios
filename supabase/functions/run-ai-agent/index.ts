@@ -198,6 +198,7 @@ import {
   approveDevTask,
   attachDevTaskSession,
   createDevTask,
+  DevTaskNotApprovedError,
   dispatchDevTask,
   findDuplicateDevTasks,
   logDevTaskEvent,
@@ -10859,12 +10860,17 @@ async function executeTool(
         { id: actorUserId, tier: devEscalationTier },
       );
       if (workshopRefusal) return workshopRefusal;
-      const result = await dispatchDevTask(supabase, {
-        tenantId,
-        taskId: String(args.dev_task_id),
-        actorUserId,
-      });
-      return result;
+      try {
+        return await dispatchDevTask(supabase, {
+          tenantId,
+          taskId: String(args.dev_task_id),
+          actorUserId,
+        });
+      } catch (e) {
+        if (e instanceof DevTaskNotApprovedError)
+          return { error: e.code, message: e.message };
+        throw e;
+      }
     }
     case "list_dev_tasks": {
       let q = supabase
