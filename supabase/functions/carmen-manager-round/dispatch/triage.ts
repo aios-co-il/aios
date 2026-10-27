@@ -6,8 +6,8 @@
  */
 import {
   isAlertHeldForShabbat,
-  isCriticalAlert,
-} from "../../_shared/critical-alerts.ts";
+  isShabbatCriticalAlert,
+} from "../../_shared/shabbat/critical-alerts.ts";
 import { isFindingKind } from "../../_shared/manager-round/kinds.ts";
 import { isSendingMode, kindMode } from "../../_shared/manager-round/modes.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
@@ -113,7 +113,7 @@ function isQuiet(
   if (isAlertHeldForShabbat(alertType, input.now)) {
     return true;
   }
-  if (isCriticalAlert(alertType)) {
+  if (isShabbatCriticalAlert(alertType)) {
     return false;
   }
   const soon = new Date(input.now.getTime() + LIST_LEAD_MS);

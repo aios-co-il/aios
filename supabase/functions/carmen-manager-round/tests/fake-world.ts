@@ -1,6 +1,6 @@
 /** The in-memory world the round's fakes read and write, and row builders. */
 import type { Json, TablesInsert } from "../../_shared/database.types.ts";
-import type { StaffAlertStatus } from "../../_shared/staff-notify.ts";
+import type { StaffAlertStatus } from "../../run-ai-agent/staff-alert.ts";
 import type {
   DeliveryRow,
   FindingRow,

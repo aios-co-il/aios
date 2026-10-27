@@ -44,7 +44,7 @@ export type FindingCandidate = {
   source_event_at: string;
   /** One Hebrew line that names the client, sent as is. */
   summary_he: string;
-  /** The facts behind the finding. alert_type marks a Shabbat-critical alert (_shared/critical-alerts.ts). */
+  /** The facts behind the finding. alert_type marks a Shabbat-critical alert (_shared/shabbat/critical-alerts.ts). */
   evidence: { [key: string]: Json | undefined };
   /** The person to hold responsible when known (e.g. the PBX caller); else the client's campaigner. */
   owner_user_id: string | null;

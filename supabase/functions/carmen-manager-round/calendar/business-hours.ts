@@ -3,11 +3,8 @@
  * escalation ladder. Windows come from the tenant's manager settings
  * (default Sun–Thu 09–19, Fri 09–13); Saturday and holidays have none.
  */
-import {
-  jerusalemLocalTimeToUtc,
-  jerusalemYmd,
-  shiftYmd,
-} from "../../_shared/calendarTimeZone.ts";
+import { jerusalemYmd, shiftYmd } from "../../_shared/calendarTimeZone.ts";
+import { jerusalemLocalTimeToUtc } from "../../_shared/shabbat/quiet-window.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 
 export type BusinessCalendar = Pick<

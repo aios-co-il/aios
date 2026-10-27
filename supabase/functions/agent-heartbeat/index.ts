@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { jerusalemHour, jerusalemYmd } from "../_shared/calendarTimeZone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,9 +38,9 @@ Deno.serve(async (req) => {
       const tenantId = setting.tenant_id;
       const allowedActions = (setting.allowed_actions || []) as string[];
 
-      // Check active hours (Israel local time, DST-aware)
+      // Check active hours
       const now = new Date();
-      const currentHour = jerusalemHour(now);
+      const currentHour = now.getUTCHours() + 3; // Israel timezone offset
       if (
         currentHour < setting.active_hours_start ||
         currentHour >= setting.active_hours_end
@@ -65,7 +64,7 @@ Deno.serve(async (req) => {
         )
         .eq("tenant_id", tenantId)
         .in("status", ["open", "in_progress"])
-        .lt("due_date", jerusalemYmd(now))
+        .lt("due_date", now.toISOString().split("T")[0])
         .is("overdue_notified_at", null)
         .limit(50);
 
@@ -128,38 +127,18 @@ Deno.serve(async (req) => {
         staleTasks &&
         staleTasks.length > 0
       ) {
-        // task_updates.user_id is a profiles uuid and the table has no
-        // tenant_id: write the audit row as the tenant owner.
-        const { data: ownerRole } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("tenant_id", tenantId)
-          .eq("role", "owner")
-          .limit(1)
-          .maybeSingle();
-        const auditUserId: string | null = ownerRole?.user_id ?? null;
         for (const task of staleTasks) {
           await supabase
             .from("tasks")
             .update({ assigned_agent: null })
             .eq("id", task.id);
-          if (auditUserId) {
-            const { error: auditError } = await supabase
-              .from("task_updates")
-              .insert({
-                task_id: task.id,
-                user_id: auditUserId,
-                content: `Heartbeat: המשימה שוחררה מהסוכן ${task.assigned_agent} בגלל חוסר פעילות 24+ שעות`,
-                update_type: "agent_action",
-              });
-            if (auditError) {
-              console.warn(
-                "[agent-heartbeat] stale-release audit insert failed",
-                task.id,
-                auditError.message,
-              );
-            }
-          }
+          await supabase.from("task_updates").insert({
+            task_id: task.id,
+            user_id: "system",
+            tenant_id: tenantId,
+            content: `Heartbeat: המשימה שוחררה מהסוכן ${task.assigned_agent} בגלל חוסר פעילות 24+ שעות`,
+            update_type: "agent_action",
+          });
           actionsLog.push({
             type: "stale_task_released",
             task_id: task.id,
@@ -185,7 +164,7 @@ Deno.serve(async (req) => {
 
       // 6. Summary for heartbeat_logs
       const summaryLines = [
-        `סקירת Heartbeat - ${jerusalemYmd(now)}`,
+        `סקירת Heartbeat - ${now.toISOString().split("T")[0]}`,
         `משימות שנסקרו: ${tasksReviewed}`,
         `משימות באיחור: ${overdueTasks?.length || 0}`,
         `משימות חסומות (סוכן): ${staleTasks?.length || 0}`,
@@ -199,10 +178,7 @@ Deno.serve(async (req) => {
       }
       const summary = summaryLines.join("\n");
 
-      // The summary is only logged. Heartbeat sends no WhatsApp: the old daily
-      // anomaly digest went out through David's Green line with a body the
-      // sender rejected (400), yet was logged as sent. Carmen's planned
-      // morning brief takes over that job.
+      // Heartbeat sends no WhatsApp; Carmen's morning brief owns digests.
 
       // 7. Log heartbeat
       await supabase.from("heartbeat_logs").insert({

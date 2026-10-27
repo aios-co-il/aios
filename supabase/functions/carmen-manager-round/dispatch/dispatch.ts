@@ -6,10 +6,8 @@
  * starts only while the call's send window allows it, and every outcome is
  * recorded on its rows.
  */
-import {
-  jerusalemLocalTimeToUtc,
-  jerusalemYmd,
-} from "../../_shared/calendarTimeZone.ts";
+import { jerusalemYmd } from "../../_shared/calendarTimeZone.ts";
+import { jerusalemLocalTimeToUtc } from "../../_shared/shabbat/quiet-window.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import type { RoundBudget } from "../budget.ts";
 import type { FindingsStore } from "../findings/store.ts";

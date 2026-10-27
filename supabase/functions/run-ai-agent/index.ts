@@ -143,11 +143,7 @@ import {
   scoreNameMatch,
   selectStaffMatch,
 } from "../_shared/staff-whatsapp.ts";
-import {
-  logStaffAlertOutcome,
-  sendStaffAlert,
-  staffAlertToolResult,
-} from "../_shared/staff-notify.ts";
+import { sendStaffWhatsappMessage } from "./staff-alert-tool.ts";
 import {
   buildGoogleCustomerClientMap,
   googleResolveClientCustomerId,
@@ -466,43 +462,6 @@ async function fetchOpenAiBillingStatus(args: {
   const summary_he = formatOpenAiBillingWhatsApp(status);
   // Never echo key material
   return { ...status, summary_he };
-}
-
-// Staff alerts leave only from Carmen's Manus line (send-manus-wa-message:
-// Staging guard + chat_messages record). See _shared/staff-notify.ts.
-async function sendStaffWhatsappMessage(args: {
-  supabase: any;
-  tenantId: string;
-  phone: string;
-  message: string;
-  requesterUserId?: string | null;
-  agentId?: string | null;
-  conversationId?: string | null;
-  recipient?: { entity_type?: string; id?: string; full_name?: string } | null;
-}): Promise<{
-  error?: string;
-  integration_id?: string | null;
-  provider?: string | null;
-  [k: string]: any;
-}> {
-  const result = await sendStaffAlert({
-    supabase: args.supabase,
-    supabaseUrl: SUPABASE_URL,
-    serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
-    tenantId: args.tenantId,
-    phone: args.phone,
-    message: args.message,
-    requesterUserId: args.requesterUserId ?? null,
-  });
-  await logStaffAlertOutcome(args.supabase, {
-    tenantId: args.tenantId,
-    agentId: args.agentId,
-    userId: args.requesterUserId,
-    conversationId: args.conversationId,
-    recipient: args.recipient,
-    result,
-  });
-  return staffAlertToolResult(result);
 }
 
 const corsHeaders = {
@@ -13372,6 +13331,8 @@ async function executeTool(
 
       const sendResult = await sendStaffWhatsappMessage({
         supabase,
+        supabaseUrl: SUPABASE_URL,
+        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
         tenantId,
         phone: contact.phone,
         message,

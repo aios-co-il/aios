@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { isFollowUpDue } from "./schedule.ts";
-import { jerusalemShabbatHoldUntil } from "../_shared/calendarTimeZone.ts";
+import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -344,24 +344,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    // Shabbat (Saturday 00:00 → Sunday 08:30 Israel): claim nothing; the
-    // first run after the window sends each held reminder once (AIO-226).
-    const heldUntil = jerusalemShabbatHoldUntil(new Date());
-    if (heldUntil) {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          held: "shabbat",
-          hold_until: heldUntil.toISOString(),
-          processed: 0,
-          results: [],
-          errors: [],
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    // Follow-up markers stay NULL while held, so the run after Shabbat sends each once.
+    const shabbatHold = shabbatHeldResponse(corsHeaders);
+    if (shabbatHold) {
+      return shabbatHold;
     }
     let clients: ClientRow[] = [];
     const clientColumns =

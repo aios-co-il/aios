@@ -7,7 +7,7 @@
  * brief recipients (owner by default) after escalation_hours[1], or at once
  * when critical.
  */
-import { isCriticalAlert } from "../../_shared/critical-alerts.ts";
+import { isShabbatCriticalAlert } from "../../_shared/shabbat/critical-alerts.ts";
 import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import {
@@ -44,7 +44,7 @@ export function isUrgent(finding: FindingRow, kind: FindingKind): boolean {
  * other at the next business moment (never on Shabbat or a holiday).
  */
 export function sendTime(finding: FindingRow, ctx: LadderContext): Date {
-  return isCriticalAlert(alertTypeOf(finding.evidence))
+  return isShabbatCriticalAlert(alertTypeOf(finding.evidence))
     ? ctx.now
     : nextBusinessStart(ctx.now, ctx.settings);
 }

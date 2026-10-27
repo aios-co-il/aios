@@ -4,11 +4,8 @@
  * pressing items (marked as being sent first), and record when the rest is
  * tried again.
  */
-import {
-  jerusalemLocalTimeToUtc,
-  jerusalemYmd,
-  shiftYmd,
-} from "../../_shared/calendarTimeZone.ts";
+import { jerusalemYmd, shiftYmd } from "../../_shared/calendarTimeZone.ts";
+import { jerusalemLocalTimeToUtc } from "../../_shared/shabbat/quiet-window.ts";
 import { nextBusinessStart } from "../calendar/business-hours.ts";
 import { LIST_CRON, nextWorkingSlot } from "../calendar/slots.ts";
 import type { DeliveryRow, FindingRow } from "../findings/types.ts";

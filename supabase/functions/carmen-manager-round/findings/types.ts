@@ -91,7 +91,7 @@ export type RouteDecision = {
   deliveries: PlannedDelivery[];
 };
 
-/** Reads `evidence.alert_type`, the Shabbat-critical marker (_shared/critical-alerts.ts). */
+/** Reads `evidence.alert_type`, the Shabbat-critical marker (_shared/shabbat/critical-alerts.ts). */
 export function alertTypeOf(evidence: Json): string | null {
   if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
     return null;

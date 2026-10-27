@@ -1,5 +1,5 @@
 /** Production wiring of the round's ports over the service-role client. */
-import { sendStaffAlert } from "../_shared/staff-notify.ts";
+import { sendStaffAlert } from "../run-ai-agent/staff-alert.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { COLLECTORS } from "./collectors/registry.ts";
 import type { CollectorRunDeps } from "./collectors/run.ts";
