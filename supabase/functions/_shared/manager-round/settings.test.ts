@@ -10,6 +10,7 @@ Deno.test("resolveManagerSettings", async (t) => {
       assertEquals(settings.business_hours, MANAGER_DEFAULTS.business_hours);
       assertEquals(settings.escalation_hours, [4, 24]);
       assertEquals(settings.max_alerts_per_recipient_per_day, 8);
+      assertEquals(settings.round_llm_share_pct, 10);
     }
   });
 
@@ -34,6 +35,7 @@ Deno.test("resolveManagerSettings", async (t) => {
         escalation_hours: [6, 2],
         sla_business_hours: -1,
         max_alerts_per_recipient_per_day: 5,
+        round_llm_share_pct: 250,
         cost: { trend_pct: 50 },
       },
     });
@@ -44,5 +46,6 @@ Deno.test("resolveManagerSettings", async (t) => {
     assertEquals(settings.escalation_hours, [4, 24]);
     assertEquals(settings.sla_business_hours, 4);
     assertEquals(settings.max_alerts_per_recipient_per_day, 5);
+    assertEquals(settings.round_llm_share_pct, 100);
   });
 });

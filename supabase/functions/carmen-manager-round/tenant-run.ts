@@ -7,6 +7,7 @@ import type { ManagerMode } from "../_shared/manager-round/modes.ts";
 import { resolveManagerSettings } from "../_shared/manager-round/settings.ts";
 import type { BriefReport } from "./brief/send.ts";
 import type { RoundBudget } from "./budget.ts";
+import type { CardWriteReport } from "./card-drafts/autowrite.ts";
 import type { CollectorReport } from "./collectors/run.ts";
 import type { FindingCandidate } from "./collectors/types.ts";
 import type { RoundDeps } from "./deps.ts";
@@ -24,6 +25,8 @@ export type TenantReport = {
   skipped?: "off" | "locked" | "budget";
   error?: string;
   collectors?: CollectorReport[];
+  /** Drafts Carmen wrote to the card herself (null: no kind writes). */
+  card_writes?: CardWriteReport | null;
   routed?: number;
   gaps?: number;
   brief?: BriefReport | null;

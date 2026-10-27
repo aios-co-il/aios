@@ -1,4 +1,5 @@
 /** The in-memory world the round's fakes read and write, and row builders. */
+import type { ClientCardEntryInput } from "../../_shared/client-card.ts";
 import type { Json, TablesInsert } from "../../_shared/database.types.ts";
 import type { StaffAlertStatus } from "../../_shared/staff-notify.ts";
 import type {
@@ -34,6 +35,7 @@ export type World = {
   /** Campaigner contacts by recipient key (PeopleDirectory.contacts). */
   contacts: Record<string, Contact>;
   heartbeats: TablesInsert<"heartbeat_logs">[];
+  cardEntries: ClientCardEntryInput[];
   sent: { phone: string; message: string }[];
   decisions: RouteDecision[];
   marks: MissingScope[];
@@ -59,6 +61,7 @@ export function world(fields: Partial<World> = {}): World {
     staff: [],
     contacts: {},
     heartbeats: [],
+    cardEntries: [],
     sent: [],
     decisions: [],
     marks: [],

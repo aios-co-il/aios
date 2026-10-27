@@ -15682,6 +15682,15 @@ export type Database = {
         };
         Returns: number;
       };
+      carmen_finding_resolve_card_written: {
+        Args: {
+          p_actor_user_id?: string;
+          p_entry_id: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
       carmen_finding_set_status: {
         Args: {
           p_feedback?: string;
@@ -15781,6 +15790,15 @@ export type Database = {
       carmen_round_end_lease: {
         Args: { p_error?: string; p_tenant_id: string };
         Returns: undefined;
+      };
+      carmen_round_llm_spend: {
+        Args: {
+          p_day_start: string;
+          p_month_start: string;
+          p_source_prefix: string;
+          p_tenant_id: string;
+        };
+        Returns: { day_usd: number; month_usd: number }[];
       };
       carmen_round_try_lease: {
         Args: { p_seconds?: number; p_tenant_id: string };
@@ -16022,6 +16040,21 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      get_client_group_digest_messages: {
+        Args: {
+          p_client_ids?: string[];
+          p_per_group?: number;
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          group_id: string;
+          group_name: string;
+          messages: Json;
+        }[];
+      };
       get_client_tenant_id: { Args: { _client_id: string }; Returns: string };
       get_cron_job_history: {
         Args: { p_jobid: number; p_limit?: number };

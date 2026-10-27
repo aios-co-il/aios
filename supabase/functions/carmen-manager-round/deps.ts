@@ -1,4 +1,8 @@
 /** Production wiring of the round's ports over the service-role client. */
+import {
+  type CardDraftWritePorts,
+  cardDraftWritePorts,
+} from "../_shared/manager-round/card-draft-write.ts";
 import { sendStaffAlert } from "../_shared/staff-notify.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { COLLECTORS } from "./collectors/registry.ts";
@@ -19,6 +23,7 @@ import { createRoundStateStore } from "./state/store.ts";
 export type RoundDeps = CollectorRunDeps & {
   deliveries: DeliveriesStore;
   directory: PeopleDirectory;
+  cardDrafts: CardDraftWritePorts;
   send: SendStaffMessage;
   collectors: readonly Collector[];
   clock: () => Date;
@@ -38,6 +43,7 @@ export function createRoundDeps(
     findings: createFindingsStore(db),
     deliveries: createDeliveriesStore(db),
     directory: createPeopleDirectory(db),
+    cardDrafts: cardDraftWritePorts(db),
     send: ({ tenantId, phone, message }) =>
       sendStaffAlert({
         supabase: db,

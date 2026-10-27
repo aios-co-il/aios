@@ -1,12 +1,13 @@
 /**
- * The steps of one tenant's round, in order: collect, route, the morning
- * brief, then the due messages. A dry run reads and composes, and writes or
- * sends nothing.
+ * The steps of one tenant's round, in order: collect, Carmen's own card
+ * writes (team mode with card_write), route, the morning brief, then the due
+ * messages. A dry run reads and composes, and writes or sends nothing.
  */
 import { jerusalemYmd } from "../_shared/calendarTimeZone.ts";
 import { sendsAnything } from "../_shared/manager-round/modes.ts";
 import type { ManagerSettings } from "../_shared/manager-round/settings.ts";
 import { type BriefRun, briefed, sendBriefIfDue } from "./brief/send.ts";
+import { writeTeamDrafts } from "./card-drafts/autowrite.ts";
 import { dueCollectors } from "./collectors/registry.ts";
 import { runCollectors } from "./collectors/run.ts";
 import type { RoundDeps } from "./deps.ts";
@@ -41,6 +42,14 @@ export async function runSteps(
     dryRun,
   });
   const floors = notifyFloors(deps.collectors, state, now);
+  const virtual = dryRun ? virtualFindings(collected.candidates) : undefined;
+  const cardWrites = await writeTeamDrafts(deps, {
+    tenantId,
+    settings,
+    floors,
+    dryRun,
+    virtual,
+  });
   const routed = await routeTenant(deps, {
     tenantId,
     roundId: run.roundId,
@@ -50,7 +59,7 @@ export async function runSteps(
     floors,
     staff,
     dryRun,
-    virtual: dryRun ? virtualFindings(collected.candidates) : undefined,
+    virtual: virtual?.filter((f) => !cardWrites?.finding_ids.includes(f.id)),
   });
   const { brief, dispatch } = await deliver(deps, {
     tenantId,
@@ -72,6 +81,7 @@ export async function runSteps(
     : undefined;
   return {
     collectors: collected.reports,
+    card_writes: cardWrites,
     routed: routed.decisions.length,
     gaps: routed.gaps.length,
     brief,

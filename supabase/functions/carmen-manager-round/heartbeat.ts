@@ -8,6 +8,7 @@ export function hasActivity(report: TenantReport): boolean {
     !!report.error ||
     (report.collectors?.some((collector) => collector.status !== "skipped") ??
       false) ||
+    (report.card_writes?.written ?? 0) > 0 ||
     (report.routed ?? 0) > 0 ||
     !!report.brief ||
     (report.dispatch?.messages ?? 0) > 0
@@ -50,6 +51,12 @@ export function roundLog(
           reason: reason ?? null,
         }),
       ),
+      card_writes: report.card_writes
+        ? {
+            written: report.card_writes.written,
+            failed: report.card_writes.failed,
+          }
+        : null,
       routed: report.routed ?? 0,
       gaps: report.gaps ?? 0,
       brief: report.brief

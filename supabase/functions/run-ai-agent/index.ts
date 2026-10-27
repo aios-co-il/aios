@@ -56,6 +56,12 @@ import {
   isVideoDirectorTool,
 } from "../_shared/video-director-tools.ts";
 import {
+  CARD_DRAFT_TOOLS,
+  executeCardDraftTool,
+  isCardDraftTool,
+  promoteCardDraftTool,
+} from "./card-draft-approval/tool.ts";
+import {
   CREATIVE_STUDIO_TOOLS,
   executeCreativeStudioTool,
   isCreativeStudioTool,
@@ -2480,6 +2486,7 @@ const ALL_TOOLS = [
   // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
+  ...CARD_DRAFT_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -5638,6 +5645,20 @@ async function executeTool(
       (clientId) =>
         assertCallerCanAccessClient(supabase, clientId, callerScope),
     );
+  }
+  if (isCardDraftTool(name)) {
+    return executeCardDraftTool(supabase, {
+      tenantId,
+      args,
+      requesterUserId: humanRequesterUserId ?? null,
+      caller: {
+        campaignerId: callerCampaignerId ?? null,
+        isManagerRole,
+        isTeamManager,
+        managedAgencyIds,
+      },
+      now: new Date(),
+    });
   }
   if (isCreativeStudioTool(name)) {
     return executeCreativeStudioTool(
@@ -14907,7 +14928,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           lazy: tokenOptimize,
           priorityTools: PRIORITY_TOOLS,
           legacyCoreTools: CORE_TOOLS,
-          forceInclude: (userText, picked, fullSchemaNames) =>
+          forceInclude: (userText, picked, fullSchemaNames) => {
             applyToolForceIncludes(
               userText,
               picked,
@@ -14917,7 +14938,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 extractMeetingUrl,
               },
               fullSchemaNames,
-            ),
+            );
+            promoteCardDraftTool(userText, picked, fullSchemaNames);
+          },
         },
       );
       filteredTools = routed.tools;

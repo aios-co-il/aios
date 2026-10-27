@@ -1,0 +1,126 @@
+import { assertEquals } from "jsr:@std/assert@1";
+import { RoundBudget } from "../../budget.ts";
+import { entry, window } from "../../tests/group-fixtures.ts";
+import { createLlmMeter } from "./llm-meter.ts";
+import { type AskModel, digestWindows } from "./summarize.ts";
+
+const now = new Date("2026-11-01T17:30:00Z");
+const marked = window([
+  { text: "מאשר את הבאנר החדש" },
+  { text: "מתי עולה?" },
+  { text: "מחר בבוקר", speaker: "staff" },
+]);
+const answer = JSON.stringify({
+  material: true,
+  update_text: "הלקוח אישר את הבאנר; עולה מחר",
+  items: [{ type: "approval", text: "אישר את הבאנר" }],
+});
+
+/** Ports with a scripted model and a meter allowing `dailyCapUsd`. */
+function ports(text: string | null, dailyCapUsd = 1) {
+  const prompts: string[] = [];
+  const ask: AskModel = (prompt) => {
+    prompts.push(prompt);
+    return Promise.resolve({ text, costUsd: 0.002 });
+  };
+  const meter = () =>
+    Promise.resolve(
+      createLlmMeter({
+        monthBudgetUsd: null,
+        monthSpentUsd: 0,
+        dailyCapUsd,
+        daySpentUsd: 0,
+      }),
+    );
+  return { ports: { ask, meter }, prompts };
+}
+
+const run = (apiCalls = 10) => ({
+  budget: RoundBudget.create(60_000, apiCalls),
+  now,
+});
+
+Deno.test("digestWindows", async (t) => {
+  await t.step("one metered model call per window", async () => {
+    const { ports: p, prompts } = ports(answer);
+    const { digests, llm } = await digestWindows([marked], [], p, run());
+    assertEquals(digests[0].by, "model");
+    assertEquals(
+      digests[0].digest.update_text,
+      "הלקוח אישר את הבאנר; עולה מחר",
+    );
+    assertEquals([llm.calls, prompts.length], [1, 1]);
+    assertEquals(llm.costUsd, 0.002);
+  });
+
+  await t.step("the model never drops what the markers found", async () => {
+    const quiet = JSON.stringify({
+      material: false,
+      update_text: "",
+      items: [],
+    });
+    const { ports: p } = ports(quiet);
+    const [found] = (await digestWindows([marked], [], p, run())).digests;
+    assertEquals(
+      [found.by, found.modelMaterial, found.digest.material],
+      ["markers", false, true],
+    );
+    const chat = window([
+      { text: "מה שלומכם?" },
+      { text: "הכל טוב" },
+      { text: "נדבר" },
+    ]);
+    const [smallTalk] = (await digestWindows([chat], [], p, run())).digests;
+    assertEquals([smallTalk.by, smallTalk.digest.material], ["model", false]);
+  });
+
+  await t.step(
+    "over the day's allowance the markers decide, with no call",
+    async () => {
+      const { ports: p, prompts } = ports(answer, 0);
+      const { digests, llm } = await digestWindows([marked], [], p, run());
+      assertEquals(
+        [digests[0].by, digests[0].digest.material],
+        ["markers", true],
+      );
+      assertEquals([llm.calls, prompts.length], [0, 0]);
+    },
+  );
+
+  await t.step("no API call left in the round: markers", async () => {
+    const { ports: p, prompts } = ports(answer);
+    const { digests } = await digestWindows([marked], [], p, run(0));
+    assertEquals([digests[0].by, prompts.length], ["markers", 0]);
+  });
+
+  await t.step(
+    "an unusable answer is metered and the markers decide",
+    async () => {
+      const { ports: p } = ports("not json");
+      const { digests, llm } = await digestWindows([marked], [], p, run());
+      assertEquals([digests[0].by, llm.calls], ["markers", 1]);
+    },
+  );
+
+  await t.step("items already on today's card are dropped", async () => {
+    const { ports: p } = ports(answer);
+    const { digests } = await digestWindows(
+      [marked],
+      [entry("2026-11-01T12:00:00Z", "הלקוח אישר את הבאנר")],
+      p,
+      run(),
+    );
+    assertEquals([digests[0].dropped, digests[0].digest.material], [1, false]);
+  });
+
+  await t.step("no window: the meter is never loaded", async () => {
+    const { ports: p } = ports(answer);
+    const loaded: boolean[] = [];
+    const meter = () => {
+      loaded.push(true);
+      return p.meter();
+    };
+    await digestWindows([], [], { ...p, meter }, run());
+    assertEquals(loaded, []);
+  });
+});

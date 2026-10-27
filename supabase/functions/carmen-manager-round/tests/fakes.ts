@@ -6,6 +6,7 @@ import type { RoundDeps } from "../deps.ts";
 import type { DeliveriesStore } from "../dispatch/store.ts";
 import type { FindingsStore } from "../findings/store.ts";
 import type { RoundStateStore } from "../state/store.ts";
+import { fakeCardDrafts } from "./fake-card-drafts.ts";
 import { fakeDirectory } from "./fake-directory.ts";
 import { delivery, finding, type World } from "./fake-world.ts";
 
@@ -19,6 +20,7 @@ export function deps(
     findings: findingsStore(w),
     deliveries: deliveriesStore(w),
     directory: fakeDirectory(w),
+    cardDrafts: fakeCardDrafts(w),
     send: ({ phone, message }) => {
       w.sent.push({ phone, message });
       const sent = w.sendStatus === "sent";
