@@ -27,6 +27,7 @@ export function fakeDb(results: Record<string, FakeResult[]>) {
         eq: record("eq"),
         in: record("in"),
         or: record("or"),
+        order: record("order"),
         limit: record("limit"),
         maybeSingle: () => Promise.resolve(result),
         then: (resolve: (r: FakeResult) => unknown) => resolve(result),
