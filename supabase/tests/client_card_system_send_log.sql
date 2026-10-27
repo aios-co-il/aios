@@ -48,6 +48,7 @@ DECLARE
   v_msg uuid;
   v_echo uuid;
   v_broadcast uuid := gen_random_uuid();
+  v_target uuid := gen_random_uuid();
   v_day timestamptz := '2031-03-04 10:00:00+02';
   v_day_ref text := '2031-03-04';
   v_tag text := 'QA ROLLBACK ' || gen_random_uuid();
@@ -132,7 +133,8 @@ BEGIN
     'public.client_card_profile_or_null(uuid)',
     'public.log_report_delivery_on_client_card()',
     'public.log_system_send_on_client_card()',
-    'public.merge_green_api_send_echo()'
+    'public.merge_green_api_send_echo()',
+    'public.client_updates_keep_owner()'
   ] LOOP
     IF has_function_privilege('anon', v_fn, 'EXECUTE')
       OR has_function_privilege('authenticated', v_fn, 'EXECUTE') THEN
@@ -171,16 +173,23 @@ BEGIN
 
   PERFORM pg_temp.qa_card_log(v_tenant, true);
 
-  -- report_deliveries 'sent': one report_sent entry listing both channels.
+  -- report_deliveries 'sent': one report_sent entry listing both channels,
+  -- with the table id and without the public share link.
   INSERT INTO public.report_deliveries (tenant_id, client_id, target_type, target_id, channels, status, details)
-  VALUES (v_tenant, v_client, 'table', gen_random_uuid(), ARRAY['whatsapp', 'email'], 'sent',
+  VALUES (v_tenant, v_client, 'table', v_target, ARRAY['whatsapp', 'email'], 'sent',
     jsonb_build_object('title', v_tag || ' report', 'share_url', 'https://aios.co.il/shared/table/qa'))
   RETURNING id INTO v_delivery;
   SELECT * INTO v_entry FROM pg_temp.qa_entries(v_delivery::text);
   IF NOT FOUND OR v_entry.update_type <> 'report_sent' OR v_entry.tenant_id <> v_tenant
-    OR v_entry.content NOT LIKE 'דוח "' || v_tag || ' report" נשלח ללקוח בוואטסאפ ובאימייל%'
+    OR v_entry.content <> 'דוח "' || v_tag || ' report" נשלח ללקוח בוואטסאפ ובאימייל'
     OR v_entry.counts_as_contact IS TRUE THEN
     RAISE EXCEPTION 'A sent report was not logged as one report_sent entry: %', v_entry;
+  END IF;
+  IF v_entry.metadata ? 'share_url'
+    OR v_entry.metadata::text LIKE '%shared/table/qa%'
+    OR v_entry.metadata ->> 'target_type' IS DISTINCT FROM 'table'
+    OR v_entry.metadata ->> 'target_id' IS DISTINCT FROM v_target::text THEN
+    RAISE EXCEPTION 'A report entry kept the share link or lost its table id: %', v_entry.metadata;
   END IF;
 
   -- 'partial': only the channel that went out, and says some failed.
@@ -200,15 +209,17 @@ BEGIN
     RAISE EXCEPTION 'A failed delivery was logged';
   END IF;
 
-  -- A meeting summary: its date follows the quoted title.
+  -- A meeting summary: its date follows the quoted title; no share link.
   INSERT INTO public.report_deliveries (tenant_id, client_id, target_type, target_id, channels, status, details)
   VALUES (v_tenant, v_client, 'meeting_summary', gen_random_uuid(), ARRAY['email'], 'sent',
-    jsonb_build_object('title', v_tag, 'meeting_date', '26.10.2026'))
+    jsonb_build_object('title', v_tag, 'meeting_date', '26.10.2026',
+      'share_url', 'https://aios.co.il/shared/summary/qa'))
   RETURNING id INTO v_delivery;
   SELECT * INTO v_entry FROM pg_temp.qa_entries(v_delivery::text);
   IF NOT FOUND OR v_entry.update_type <> 'meeting_summary_sent'
-    OR v_entry.content NOT LIKE 'סיכום הפגישה "' || v_tag || '" (26.10.2026) נשלח ללקוח באימייל%' THEN
-    RAISE EXCEPTION 'A meeting summary was not logged with its date: %', v_entry;
+    OR v_entry.content <> 'סיכום הפגישה "' || v_tag || '" (26.10.2026) נשלח ללקוח באימייל'
+    OR v_entry.metadata ? 'share_url' THEN
+    RAISE EXCEPTION 'A meeting summary was not logged with its date and without its link: %', v_entry;
   END IF;
 
   -- Broadcast: one entry per broadcast per client, however many messages.
@@ -347,12 +358,35 @@ BEGIN
   END IF;
 
   -- RLS: the browser inserts human rows only, super admins included, and
-  -- anyone else only as themselves.
+  -- anyone else only as themselves. An author edits the text of an entry but
+  -- never moves it to another client or org (both targets are writable, so
+  -- only client_updates_keep_owner stops the move).
   PERFORM set_config('request.jwt.claims',
     json_build_object('sub', v_owner, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
   VALUES (v_client, v_tenant, v_owner, v_tag || ' owner human', 'human');
+  UPDATE public.client_updates AS u
+  SET content = v_tag || ' owner human edited'
+  WHERE u.content = v_tag || ' owner human';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'An author could not edit their own entry';
+  END IF;
+  BEGIN
+    UPDATE public.client_updates AS u
+    SET client_id = v_client_b
+    WHERE u.content = v_tag || ' owner human edited';
+    RAISE EXCEPTION 'An author moved an entry to another client';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.client_updates AS u
+    SET tenant_id = v_other_tenant
+    WHERE u.content = v_tag || ' owner human edited';
+    RAISE EXCEPTION 'An author moved an entry to another org';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   BEGIN
     INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
     VALUES (v_client, v_tenant, v_owner, v_tag || ' owner system', 'system_send');
@@ -380,14 +414,22 @@ BEGIN
   END;
   RESET ROLE;
 
-  -- RLS on the shared card: another org writes a human row on the client only
-  -- with read_write agency access, never with read_only access or after the
-  -- access is revoked (the chat section above granted read_write).
+  -- RLS on the shared card: another org writes or edits a human row on the
+  -- client only with read_write agency access, never with read_only access
+  -- or after the access is revoked (the chat section above granted
+  -- read_write).
   PERFORM set_config('request.jwt.claims',
     json_build_object('sub', v_other_owner, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source, update_type)
   VALUES (v_client, v_other_tenant, v_other_owner, v_tag || ' read_write partner', 'human', 'call');
+  UPDATE public.client_updates AS u
+  SET content = v_tag || ' read_write partner edited'
+  WHERE u.content = v_tag || ' read_write partner';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'A read_write agency partner could not edit its own entry';
+  END IF;
   BEGIN
     INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source, update_type)
     VALUES (v_client, v_other_tenant, v_owner, v_tag || ' partner as owner', 'human', 'call');
@@ -401,11 +443,28 @@ BEGIN
   WHERE ata.accessing_tenant_id = v_other_tenant
     AND ata.source_tenant_id = v_tenant
     AND ata.agency_id = v_agency;
+  -- Its later chat send no longer counts on the entry it wrote while it had
+  -- read_write access.
+  INSERT INTO public.chat_messages (tenant_id, client_id, direction, message_text, sent_by_user_id, send_kind, created_at)
+  VALUES (v_other_tenant, v_client, 'outbound', v_tag, v_other_owner, 'chat', v_day + interval '4 hours');
+  SELECT (u.metadata ->> 'count')::integer INTO v_count
+  FROM pg_temp.qa_entries('chat:' || v_other_tenant || ':' || v_client || ':dm:' || v_day_ref) AS u;
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'A read_only partner''s chat send counted on the shared card (count %)', v_count;
+  END IF;
   SET LOCAL ROLE authenticated;
   BEGIN
     INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source, update_type)
     VALUES (v_client, v_other_tenant, v_other_owner, v_tag || ' read_only partner', 'human', 'call');
     RAISE EXCEPTION 'A read_only agency partner inserted a row on the shared card';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.client_updates AS u
+    SET content = v_tag || ' read_only edit'
+    WHERE u.content = v_tag || ' read_write partner edited';
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RAISE EXCEPTION 'A read_only agency partner changed % entries on the shared card', v_count;
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   RESET ROLE;
@@ -426,5 +485,5 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
 END;
 $test$;
-SELECT 'Grants, switch, report deliveries, broadcast, chat counts, groups, browser tokens, Green API echo merge and insert RLS (author, read_write, read_only, revoked) passed' AS result;
+SELECT 'Grants, switch, report deliveries without share links, broadcast, chat counts, groups, browser tokens, Green API echo merge, insert and update RLS (author, read_write, read_only, revoked) and no entry moves passed' AS result;
 ROLLBACK;
