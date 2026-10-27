@@ -462,6 +462,8 @@ export async function assembleFilm(
     filters.push(...graph.filters);
     beds.push(graph.effects);
   }
+  // Each joined segment's audio runs a few ms past its slot (AAC framing): laid on its
+  // timestamps, so the film's narration, bed and effects stay on the cuts to the last scene.
   await ffmpeg([
     "-hide_banner",
     "-loglevel",
@@ -469,7 +471,7 @@ export async function assembleFilm(
     "-y",
     ...inputs,
     "-filter_complex",
-    `${filters.join(";")};[0:a]${beds.join("")}amix=inputs=${beds.length + 1}:duration=first:dropout_transition=0:normalize=0[a]`,
+    `${filters.join(";")};[0:a]aresample=async=1:first_pts=0[scenes];[scenes]${beds.join("")}amix=inputs=${beds.length + 1}:duration=first:dropout_transition=0:normalize=0[a]`,
     "-map",
     "0:v",
     "-map",
