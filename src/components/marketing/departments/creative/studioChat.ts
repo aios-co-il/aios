@@ -112,6 +112,41 @@ export function uiActionLabel(action: StudioUiAction): string {
   }
 }
 
+/** The studio's own tools, so the user sees what Carmen is touching. */
+const STUDIO_TOOL_LABELS: Record<string, string> = {
+  get_studio_state: "בודקת את הפרויקט",
+  update_studio_settings: "מעדכנת הגדרות",
+  attach_to_project: "מצרפת קובץ לפרויקט",
+  edit_scene: "עורכת סצנה",
+  add_scene: "מוסיפה סצנה",
+  delete_scene: "מוחקת סצנה",
+  studio_ui_action: "מפעילה בסטודיו",
+  get_video_storyboard: "קוראת את הסטוריבורד",
+  render_video_film: "מרכיבה סרט",
+};
+
+/** Other tools Carmen often calls from the studio. */
+const OTHER_TOOL_LABELS: Record<string, string> = {
+  get_carmen_skins: "בודקת את הסקינים שלה",
+  recall_skills: "מחפשת בסקילים",
+  search_agent_tools: "מחפשת כלי מתאים",
+  recall_memory: "בודקת בזיכרון",
+  kb_search: "מחפשת במאגר הידע",
+  get_client_info: "קוראת על הלקוח",
+};
+
+/** The progress line while a tool runs: studio tools by name, any other tool generically. */
+export function studioToolLine(tool: unknown): string {
+  const name = typeof tool === "string" ? tool : "";
+  return STUDIO_TOOL_LABELS[name] ?? OTHER_TOOL_LABELS[name] ?? "כרמן עובדת…";
+}
+
+/** With no stream event for this long, the chat stops waiting. */
+export const STUDIO_STALL_MS = 120_000;
+
+export const STUDIO_STALL_MESSAGE =
+  "כרמן לא ענתה במשך שתי דקות, אז הפסקתי לחכות. נסו לשלוח שוב, או לפצל את הבקשה לצעדים קטנים.";
+
 export interface StudioStreamEvent {
   type: string;
   [key: string]: unknown;

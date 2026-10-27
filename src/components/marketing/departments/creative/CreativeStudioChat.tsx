@@ -11,6 +11,9 @@ import {
   needsChatApproval,
   parseSseBuffer,
   parseUiAction,
+  STUDIO_STALL_MESSAGE,
+  STUDIO_STALL_MS,
+  studioToolLine,
   uiActionLabel,
   type StudioUiAction,
 } from "./studioChat";
@@ -23,19 +26,6 @@ type ChatEntry =
       action: StudioUiAction;
       status: "pending" | "done" | "dismissed";
     };
-
-/** Tool names shown while Carmen works, so the user sees what she is touching. */
-const TOOL_LABELS: Record<string, string> = {
-  get_studio_state: "בודקת את הפרויקט",
-  update_studio_settings: "מעדכנת הגדרות",
-  attach_to_project: "מצרפת קובץ לפרויקט",
-  edit_scene: "עורכת סצנה",
-  add_scene: "מוסיפה סצנה",
-  delete_scene: "מוחקת סצנה",
-  studio_ui_action: "מפעילה בסטודיו",
-  get_video_storyboard: "קוראת את הסטוריבורד",
-  render_video_film: "מרכיבה סרט",
-};
 
 interface Props {
   tenantId: string;
@@ -95,6 +85,14 @@ export function CreativeStudioChat({
   }, [entries, streaming]);
 
   const push = (entry: ChatEntry) => setEntries((list) => [...list, entry]);
+  /** A progress line, once: the same line right after itself is not repeated. */
+  const pushTool = (text: string) =>
+    setEntries((list) => {
+      const last = list[list.length - 1];
+      return last?.kind === "tool" && last.text === text
+        ? list
+        : [...list, { kind: "tool", text }];
+    });
 
   const handleAction = (action: StudioUiAction) => {
     if (action.item_id !== itemId) return;
@@ -127,6 +125,18 @@ export function CreativeStudioChat({
     setDraft("");
     setBusy(true);
     let answer = "";
+    // No stream event for STUDIO_STALL_MS: stop waiting instead of looking frozen.
+    const controller = new AbortController();
+    let stalled = false;
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const armStallTimer = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        stalled = true;
+        controller.abort();
+      }, STUDIO_STALL_MS);
+    };
+    armStallTimer();
     try {
       const {
         data: { session },
@@ -152,6 +162,7 @@ export function CreativeStudioChat({
             conversation_history: history,
             user_name: "סטודיו קריאייטיב",
           }),
+          signal: controller.signal,
         },
       );
       if (!res.ok || !res.body) {
@@ -169,13 +180,13 @@ export function CreativeStudioChat({
         buffer += decoder.decode(value, { stream: true });
         const { events, rest } = parseSseBuffer(buffer);
         buffer = rest;
+        if (events.length > 0) armStallTimer();
         for (const event of events) {
           if (event.type === "token" && typeof event.content === "string") {
             answer += event.content;
             setStreaming(answer);
           } else if (event.type === "tool_call") {
-            const label = TOOL_LABELS[String(event.tool)];
-            if (label) push({ kind: "tool", text: label });
+            pushTool(studioToolLine(event.tool));
           } else if (event.type === "ui_action") {
             const action = parseUiAction(event.action);
             if (action) handleAction(action);
@@ -187,9 +198,15 @@ export function CreativeStudioChat({
       }
       push({ kind: "assistant", text: answer.trim() || "סיימתי." });
     } catch (error: unknown) {
-      const text = error instanceof Error ? error.message : "שגיאה";
-      push({ kind: "assistant", text: `לא הצלחתי: ${text}` });
+      if (stalled) {
+        if (answer.trim()) push({ kind: "assistant", text: answer.trim() });
+        push({ kind: "assistant", text: STUDIO_STALL_MESSAGE });
+      } else {
+        const text = error instanceof Error ? error.message : "שגיאה";
+        push({ kind: "assistant", text: `לא הצלחתי: ${text}` });
+      }
     } finally {
+      clearTimeout(stallTimer);
       setStreaming("");
       setBusy(false);
       onTurnDone();
