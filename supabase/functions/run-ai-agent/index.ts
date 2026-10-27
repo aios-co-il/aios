@@ -132,6 +132,13 @@ import {
 } from "./approvals/chat-text.ts";
 import { approvalDisplayCode } from "./approvals/codes.ts";
 import {
+  approvalDecisionRefusal,
+  approvalScopedTools,
+  isApprovalDecisionTool,
+  isAutomationRun,
+  runMayDecideApprovals,
+} from "./approvals/decision-scope.ts";
+import {
   postApprovalDecision,
   runApprovalExecutor,
 } from "./approvals/executor.ts";
@@ -13522,14 +13529,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
-import {
-  approvalDecisionRefusal,
-  approvalScopedTools,
-  bindRunAgentCaller,
-  isAutomationRun,
-  runCallerPhone,
-  runMayDecideApprovals,
-} from "./caller-trust.ts";
+import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -13573,10 +13573,6 @@ async function handleRunAgent(
       bodyJson.pin_skills_only === true &&
       Array.isArray(task_skills) &&
       task_skills.length > 0;
-    // AIO-241: an automation run (trigger-automation) is not a chat conversation.
-    // Only a message a person typed approves or rejects pending requests: never
-    // an automation run or a task run. Carmen's WhatsApp sessions come from the
-    // webhooks without a top-level automation_id.
     const automationRun = isAutomationRun(bodyJson);
     const mayDecideApprovals = runMayDecideApprovals(bodyJson, surface);
     console.log(
@@ -13687,12 +13683,14 @@ async function handleRunAgent(
       callerUserId = resolvedUserId;
     }
     if (callerUserId) {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", callerUserId)
-        // Roles in this tenant plus global (tenant_id null) ones, never another tenant's.
         .or(`tenant_id.eq.${resolvedTenantId},tenant_id.is.null`);
+      if (rolesError) {
+        throw rolesError;
+      }
       const roleList = (roles || []).map((r: any) => r.role);
       // Priority order
       const order = [
@@ -15767,7 +15765,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
-          } else if (approvalDecisionRefusal(toolName, bodyJson, surface)) {
+          } else if (!mayDecideApprovals && isApprovalDecisionTool(toolName)) {
             result = approvalDecisionRefusal(toolName, bodyJson, surface);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);

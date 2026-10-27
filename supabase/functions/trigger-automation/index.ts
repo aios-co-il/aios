@@ -61,12 +61,9 @@ import {
   authorizeTenantCaller,
   bearerToken,
 } from "../_shared/automation-run-auth.ts";
-import {
-  automationRunCaller,
-  bindAutomationAgentCaller,
-} from "../run-ai-agent/caller-trust.ts";
-import { internalBrainRefusal } from "../_shared/carmen/brain-guard.ts";
 import { userClient } from "../_shared/supabase-clients.ts";
+import { prepareAgentRun } from "./agent-run.ts";
+import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1484,7 +1481,7 @@ Deno.serve(async (req) => {
     // (AIO-241): the signed-in user who started it, or the sender a WhatsApp
     // provider webhook relayed. Any other run (lead intake, flow webhooks, cron)
     // acts for no one, so Carmen never takes an identity from outside data.
-    let runCaller: ReturnType<typeof automationRunCaller> = null;
+    let runCaller: AutomationRunCaller | null = null;
 
     // Running one automation by id (tests, manual triggers, reruns) is limited
     // to the service role and to users who may manage that automation.
@@ -3043,13 +3040,6 @@ Deno.serve(async (req) => {
                         }
                       }
                     }
-                    // A user's run needs that user's access to Carmen's main brain.
-                    const brainRefusal = await internalBrainRefusal(
-                      supabase,
-                      runCaller,
-                      { tenantId, agentId },
-                    );
-                    if (brainRefusal) throw new Error(brainRefusal);
                     const agentBody: any = {
                       agent_id: agentId,
                       command_text: commandText,
@@ -3108,15 +3098,22 @@ Deno.serve(async (req) => {
                         payloadData?.sender_phone || payloadData?.phone || null,
                     });
                     if (waNotify) agentBody.wa_notify = waNotify;
-                    // Only a WhatsApp-inbound run acts for the payload's phone.
-                    bindAutomationAgentCaller(agentBody, runCaller);
+                    const agentRun = await prepareAgentRun(
+                      supabase,
+                      runCaller,
+                      { tenantId, agentId },
+                      agentBody,
+                    );
+                    if ("refusal" in agentRun) {
+                      throw new Error(agentRun.refusal);
+                    }
                     const agentRes = await fetch(agentUrl, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                       },
-                      body: JSON.stringify(agentBody),
+                      body: JSON.stringify(agentRun.body),
                     });
                     stepResponse = await agentRes.json();
                     previousStepOutput = stepResponse;
@@ -3777,19 +3774,12 @@ Deno.serve(async (req) => {
             } else if (automation.action_type === "agent") {
               const agentConfig = automation.configuration || {};
               const agentId = agentConfig.agent_id;
-              // A user's run needs that user's access to Carmen's main brain.
-              const brainRefusal = agentId
-                ? await internalBrainRefusal(supabase, runCaller, {
-                    tenantId,
-                    agentId,
-                  })
-                : null;
-              if (brainRefusal) {
-                response = { error: brainRefusal };
-              } else if (agentId) {
+              if (agentId) {
                 const agentUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-ai-agent`;
-                // Only a WhatsApp-inbound run acts for the payload's phone.
-                const agentBody = bindAutomationAgentCaller(
+                const agentRun = await prepareAgentRun(
+                  supabase,
+                  runCaller,
+                  { tenantId, agentId },
                   {
                     agent_id: agentId,
                     command_text:
@@ -3811,17 +3801,20 @@ Deno.serve(async (req) => {
                       agency_name: payloadData?.agency_name,
                     },
                   },
-                  runCaller,
                 );
-                const agentRes = await fetch(agentUrl, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                  },
-                  body: JSON.stringify(agentBody),
-                });
-                response = await agentRes.json();
+                if ("refusal" in agentRun) {
+                  response = { error: agentRun.refusal };
+                } else {
+                  const agentRes = await fetch(agentUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify(agentRun.body),
+                  });
+                  response = await agentRes.json();
+                }
               } else {
                 response = { error: "No agent_id configured in automation" };
               }
