@@ -36,7 +36,7 @@ Deno.test("loadLlmMeter", async (t) => {
     (budget: number | null) =>
     ({ path }: { path: string }) =>
       path === "rpc/carmen_round_llm_spend"
-        ? [{ month_usd: 10, day_usd: 0.1 }]
+        ? [{ project_month_usd: 10, day_usd: 0.1 }]
         : budget === null
           ? []
           : [{ settings: { monthly_budget_usd: budget } }];
@@ -62,6 +62,22 @@ Deno.test("loadLlmMeter", async (t) => {
       });
     },
   );
+
+  await t.step("the project's month spend stops the round", async () => {
+    const { db } = recordingClient(respond(10));
+    assertEquals(
+      (await loadLlmMeter(db, TENANT, SETTINGS, NOW)).allows(),
+      false,
+    );
+  });
+
+  await t.step("a share of 0 never asks the model", async () => {
+    const off = { ...SETTINGS, round_llm_share_pct: 0 };
+    for (const budget of [60, null]) {
+      const { db } = recordingClient(respond(budget));
+      assertEquals((await loadLlmMeter(db, TENANT, off, NOW)).allows(), false);
+    }
+  });
 
   await t.step("without a budget the round may spend $1 a day", async () => {
     const { db } = recordingClient(respond(null));

@@ -1,0 +1,96 @@
+import { assert, assertEquals } from "jsr:@std/assert@1";
+import type { FindingKind } from "../../../_shared/manager-round/kinds.ts";
+import {
+  il,
+  liveFinding,
+  NOW,
+  row,
+  staffRow,
+} from "../../tests/chat-fixtures.ts";
+import {
+  chatContext,
+  type FakeChatFields,
+  fakeChatSources,
+} from "../../tests/fake-chat-sources.ts";
+import { TENANT } from "../../tests/fake-world.ts";
+import type { ActivityRow } from "./activity.ts";
+import { threadFindings } from "./thread-findings.ts";
+
+const ALL: FindingKind[] = ["unanswered_request", "client_complaint"];
+const query = {
+  tenantId: TENANT,
+  connectionIds: ["owner"],
+  since: new Date(NOW.getTime() - 7 * 86_400_000),
+  clientIds: null,
+};
+
+function find(rows: ActivityRow[], fields: FakeChatFields = {}, kinds = ALL) {
+  const sources = fakeChatSources(rows, fields);
+  const run = threadFindings(chatContext(), sources.fake, query, kinds);
+  return run.then((found) => ({ ...found, asked: sources.asked }));
+}
+
+const complaint = row({
+  message_id: "c1",
+  created_at: il("09:30"),
+  message_text: "אני לא מרוצה מהלידים",
+});
+
+Deno.test("threadFindings", async (t) => {
+  await t.step(
+    "closes an answered wait; a quickly answered complaint stays",
+    async () => {
+      const found = await find(
+        [
+          row({ message_id: "g1", created_at: il("09:00") }),
+          complaint,
+          staffRow({ message_id: "s1", created_at: il("10:00") }),
+        ],
+        {
+          live: [
+            liveFinding(
+              "unanswered_request",
+              "chat:group:111@g.us:g1",
+              il("09:00"),
+            ),
+          ],
+        },
+      );
+      assertEquals(
+        found.resolved.map((r) => [r.fingerprint, r.details.response_minutes]),
+        [["chat:group:111@g.us:g1", 60]],
+      );
+      assertEquals(
+        found.candidates.map((c) => [c.kind, c.fingerprint]),
+        [["client_complaint", "chat:group:111@g.us:complaint:g1"]],
+      );
+    },
+  );
+
+  await t.step(
+    "a finding closed for the same message is never raised again",
+    async () => {
+      const found = await find([complaint], {
+        closed: ["client_complaint|chat:group:111@g.us:complaint:c1"],
+      });
+      assertEquals(found.candidates, []);
+    },
+  );
+
+  await t.step(
+    "without complaints only waits past the SLA go to the model",
+    async () => {
+      const team = staffRow({ message_id: "hi", created_at: il("08:00") });
+      const fresh = row({
+        message_id: "f1",
+        created_at: il("13:50"),
+        message_text: "יש עדכון",
+      });
+      const off = await find([team, fresh], {}, ["unanswered_request"]);
+      assertEquals(off.asked.length, 0);
+      const on = await find([team, fresh]);
+      assertEquals(on.asked.length, 1, "complaints are read at any age");
+      assert(!off.candidates.length);
+    },
+  );
+});

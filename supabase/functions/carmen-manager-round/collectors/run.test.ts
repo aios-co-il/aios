@@ -139,6 +139,34 @@ Deno.test("runCollectors", async (t) => {
     },
   );
 
+  await t.step(
+    "clears only the kinds the run checked and reports its note",
+    async () => {
+      const w = world();
+      const both: Collector = {
+        ...collector(() =>
+          Promise.resolve({
+            candidates: [],
+            watermark: null,
+            coverage: {
+              complete: true,
+              clientIds: null,
+              kinds: ["no_contact", "cost_spike"],
+            },
+            note: "lines_not_monitored:1",
+          }),
+        ),
+        kinds: ["no_contact", "data_gap"],
+      };
+      const { reports } = await run(w, [{ collector: both, slot }]);
+      assertEquals(
+        w.marks.map((mark) => mark.kind),
+        ["no_contact"],
+      );
+      assertEquals(reports[0].reason, "lines_not_monitored:1");
+    },
+  );
+
   await t.step("a claimed slot runs once", async () => {
     const w = world();
     const contact = collector(() =>

@@ -27,4 +27,20 @@ Deno.test("unlinkedGroupCandidates", async (t) => {
       assert(found.summary_he.includes("ל-Acme (6 הודעות לאחרונה)"));
     },
   );
+
+  await t.step("a long group name is cut between whole characters", () => {
+    const [found] = unlinkedGroupCandidates([
+      {
+        group_id: "g9",
+        group_chat_id: "999@g.us",
+        group_name: `${"ק".repeat(491)}🚀 Acme`,
+        client_id: "c9",
+        client_name: "Acme",
+        message_count: 6,
+        last_message_at: il("10:00"),
+      },
+    ]);
+    assert(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(found.summary_he));
+    assert(Array.from(found.summary_he).length <= 500);
+  });
 });

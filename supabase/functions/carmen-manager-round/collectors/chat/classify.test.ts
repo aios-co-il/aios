@@ -1,10 +1,10 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { RoundBudget } from "../../budget.ts";
-import { dmRow, review, row, thread } from "../../tests/chat-fixtures.ts";
-import { type ClassifyPorts, classifyWaits } from "./classify.ts";
-import type { ThreadReview } from "./gate.ts";
+import { dmRow, il, row, staffRow, thread } from "../../tests/chat-fixtures.ts";
+import { type ClassifyPorts, classifyThreads } from "./classify.ts";
 import { createLlmMeter } from "./llm-meter.ts";
 import type { CachedReview } from "./review-cache.ts";
+import type { Thread } from "./threads.ts";
 import type { ChatVerdict } from "./verdict.ts";
 
 const verdict: ChatVerdict = {
@@ -33,7 +33,7 @@ function ports(
   });
   const fake: ClassifyPorts = {
     cache: {
-      load: () => Promise.resolve(fields.cached ?? new Map()),
+      load: () => Promise.resolve(new Map(fields.cached ?? [])),
       save: (key) => {
         saved.push(key);
         return Promise.resolve();
@@ -55,16 +55,31 @@ const run = (dryRun = false) => ({
   dryRun,
 });
 
-const group = (): ThreadReview =>
-  review(thread([row({ message_id: "last", message_text: "יש עדכון" })]));
+/** A group the team writes in, with the client's message `text` last. */
+const group = (text = "יש עדכון", key = "group:111@g.us"): Thread =>
+  thread([
+    staffRow({ thread_key: key, created_at: il("08:00") }),
+    row({
+      thread_key: key,
+      message_id: "last",
+      created_at: il("09:00"),
+      message_text: text,
+    }),
+  ]);
 
-Deno.test("classifyWaits", async (t) => {
+const classify = (threads: Thread[], p: ClassifyPorts, dryRun = false) =>
+  classifyThreads(threads, new Set(), p, run(dryRun));
+
+Deno.test("classifyThreads", async (t) => {
   await t.step(
-    "asks once per group wait, caches it and meters the cost",
+    "asks once per new client message, caches it and meters the cost",
     async () => {
       const { fake, prompts, saved } = ports();
-      const { reviews, llm } = await classifyWaits([group()], fake, run());
-      assertEquals(reviews[0].verdict, verdict);
+      const { verdicts, llm } = await classify([group()], fake);
+      assertEquals(verdicts.get("group:111@g.us"), {
+        messageId: "last",
+        verdict,
+      });
       assertEquals(
         [prompts.length, saved, llm],
         [1, ["group:111@g.us"], { calls: 1, costUsd: 0.002 }],
@@ -72,62 +87,93 @@ Deno.test("classifyWaits", async (t) => {
     },
   );
 
-  await t.step("direct-chat text never goes to the model", async () => {
-    const { fake, prompts } = ports();
-    const dm = review(thread([dmRow({ message_text: "פרטי" })]));
-    const { reviews } = await classifyWaits([dm], fake, run());
-    assertEquals([prompts.length, reviews[0].verdict], [0, null]);
-  });
+  await t.step(
+    "asks about a group staff already answered (complaints at any age)",
+    async () => {
+      const answered = thread([
+        staffRow({ created_at: il("08:00") }),
+        row({
+          message_id: "last",
+          created_at: il("09:00"),
+          message_text: "זה לא בסדר",
+        }),
+        staffRow({ created_at: il("09:05") }),
+      ]);
+      const { fake, prompts } = ports();
+      await classify([answered], fake);
+      assertEquals(prompts.length, 1);
+    },
+  );
 
   await t.step(
-    "a cached verdict for the same last message is reused",
+    "direct chats, private groups and thanks never go to the model",
+    async () => {
+      const { fake, prompts } = ports();
+      const dm = thread([dmRow({ message_text: "פרטי" })]);
+      const privateGroup = thread([row({ message_text: "פרטי" })]);
+      const { verdicts } = await classify(
+        [dm, privateGroup, group("תודה רבה 🙏")],
+        fake,
+      );
+      assertEquals([prompts.length, verdicts.size], [0, 0]);
+    },
+  );
+
+  await t.step(
+    "a cached verdict for the same message is reused; a stale one dropped",
     async () => {
       const cached = new Map([
         ["group:111@g.us", { messageId: "last", verdict }],
       ]);
-      const { fake, prompts } = ports({ cached });
-      const { reviews, llm } = await classifyWaits([group()], fake, run());
+      const hit = ports({ cached });
+      const reused = await classify([group()], hit.fake);
       assertEquals(
-        [prompts.length, reviews[0].verdict, llm.calls],
-        [0, verdict, 0],
+        [hit.prompts.length, reused.verdicts.size, reused.llm.calls],
+        [0, 1, 0],
       );
+      const stale = new Map([
+        ["group:111@g.us", { messageId: "older", verdict }],
+      ]);
+      const miss = ports({ cached: stale, dailyCapUsd: 0 });
+      const dropped = await classify([group()], miss.fake);
+      assertEquals([miss.prompts.length, dropped.verdicts.size], [0, 0]);
     },
   );
-
-  await t.step("over the allowance the markers decide alone", async () => {
-    const { fake, prompts } = ports({ dailyCapUsd: 0 });
-    const { reviews } = await classifyWaits([group()], fake, run());
-    assertEquals([prompts.length, reviews[0].verdict], [0, null]);
-  });
-
-  await t.step("a dry run asks but caches nothing", async () => {
-    const { fake, saved } = ports();
-    const { reviews } = await classifyWaits([group()], fake, run(true));
-    assertEquals([saved.length, reviews[0].verdict], [0, verdict]);
-  });
 
   await t.step(
-    "markers that found both need no model; a bad answer is ignored",
+    "a dry run never asks; it uses cached verdicts only",
     async () => {
-      const both = { ...group(), markers: { request: true, complaint: true } };
-      const first = ports();
-      await classifyWaits([both], first.fake, run());
-      assertEquals(first.prompts.length, 0);
-      const broken = ports({ answer: "{oops" });
-      const { reviews } = await classifyWaits([group()], broken.fake, run());
-      assertEquals([reviews[0].verdict, broken.saved.length], [null, 0]);
+      const { fake, prompts, saved } = ports();
+      const { verdicts } = await classify([group()], fake, true);
+      assertEquals([prompts.length, saved.length, verdicts.size], [0, 0, 0]);
     },
   );
 
-  await t.step("no answer (no key, provider down) stops asking", async () => {
-    const { fake, prompts } = ports({ answer: null });
-    const other = review(
-      thread([row({ thread_key: "group:222@g.us", message_text: "נו" })]),
-    );
-    const { reviews, llm } = await classifyWaits([group(), other], fake, run());
-    assertEquals(
-      [prompts.length, reviews.map((r) => r.verdict), llm.calls],
-      [1, [null, null], 0],
-    );
-  });
+  await t.step(
+    "markers that found everything need no model; a bad answer is ignored",
+    async () => {
+      const first = ports();
+      await classify([group("אני לא מרוצה, מתי זה יסתדר?")], first.fake);
+      assertEquals(first.prompts.length, 0);
+      const broken = ports({ answer: "{oops" });
+      const { verdicts } = await classify([group()], broken.fake);
+      assertEquals([verdicts.size, broken.saved.length], [0, 0]);
+    },
+  );
+
+  await t.step(
+    "due waits are asked first; no answer stops asking",
+    async () => {
+      const { fake, prompts } = ports({ answer: null });
+      const later = group("נו", "group:222@g.us");
+      const { llm } = await classifyThreads(
+        [group(), later],
+        new Set(["group:222@g.us"]),
+        fake,
+        run(),
+      );
+      assertEquals([prompts.length, llm.calls], [1, 0]);
+      assertEquals(prompts[0].includes("נו"), true);
+    },
+  );
 });

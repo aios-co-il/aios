@@ -1,10 +1,18 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { dmRow, il, review, row, thread } from "../../tests/chat-fixtures.ts";
-import { waitCandidates } from "./candidates.ts";
+import {
+  dmRow,
+  il,
+  review,
+  row,
+  staffRow,
+  thread,
+} from "../../tests/chat-fixtures.ts";
+import { requestCandidates, withVerdicts } from "./candidates.ts";
 import type { ChatVerdict } from "./verdict.ts";
 
 const link = (id: string) => `https://app.test/t/acme/chat/${id}`;
 const noLink = () => null;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/;
 
 const confident: ChatVerdict = {
   needs_reply: true,
@@ -15,17 +23,19 @@ const confident: ChatVerdict = {
   confidence: 0.9,
 };
 
-Deno.test("waitCandidates", async (t) => {
+/** A group the team writes in, then the client's message. */
+const teamGroup = (text: string, at = "09:05") =>
+  thread([
+    staffRow({ message_id: "hi", created_at: il("08:00") }),
+    row({ message_id: "ask", created_at: il(at), message_text: text }),
+  ]);
+
+const asks = { markers: { request: true, complaint: false } };
+
+Deno.test("requestCandidates", async (t) => {
   await t.step("a group request past the SLA quotes the client", () => {
     const text = `אפשר להעלות את המבצע החדש? ${"פרטים ".repeat(60)}`;
-    const [found] = waitCandidates(
-      [
-        review(thread([row({ created_at: il("09:05"), message_text: text })]), {
-          markers: { request: true, complaint: false },
-        }),
-      ],
-      noLink,
-    );
+    const [found] = requestCandidates([review(teamGroup(text), asks)], link);
     assertEquals(
       [found.kind, found.severity, found.client_id],
       ["unanswered_request", "warning", "c1"],
@@ -41,80 +51,57 @@ Deno.test("waitCandidates", async (t) => {
     assertEquals(found.source_event_at, il("09:05"));
   });
 
+  await t.step("an emoji at the quote's cut is kept whole or dropped", () => {
+    const text = `אפשר לעדכן? ${"א".repeat(186)}🙏 תודה רבה על הכל`;
+    const [found] = requestCandidates([review(teamGroup(text), asks)], noLink);
+    const quote = String(found.evidence.quote);
+    assert(!LONE_SURROGATE.test(quote), JSON.stringify(quote));
+    assert(!LONE_SURROGATE.test(found.summary_he));
+    assertEquals(quote.endsWith("🙏…"), true);
+  });
+
   await t.step(
-    "a direct chat carries the time and a link, never the text",
+    "a direct chat or a private group carries the time and a link, never the text",
     () => {
       const secret = "סוד פרטי מאוד?";
-      const found = waitCandidates(
-        [
-          review(thread([dmRow({ message_text: secret })]), {
-            markers: { request: true, complaint: true },
-          }),
-        ],
-        link,
-      );
-      assertEquals(
-        found.map((c) => c.kind),
-        ["unanswered_request", "client_complaint"],
-      );
-      for (const candidate of found) {
-        const visible =
-          candidate.summary_he + JSON.stringify(candidate.evidence);
+      for (const built of [
+        thread([dmRow({ message_text: secret })]),
+        thread([row({ message_text: secret })]),
+      ]) {
+        const reviewed = review(built, { ...asks, verdict: confident });
+        const [found] = requestCandidates([reviewed], link);
+        const visible = found.summary_he + JSON.stringify(found.evidence);
         assert(!visible.includes("סוד"), visible);
+        assert(!visible.includes("מבקש לעדכן"), visible);
         assert(
-          candidate.summary_he.includes(
-            "לצ׳אט: https://app.test/t/acme/chat/c1",
-          ),
+          found.summary_he.includes("לצ׳אט: https://app.test/t/acme/chat/c1"),
         );
       }
     },
   );
 
   await t.step("the LLM may add a request, never remove the markers'", () => {
-    const quiet = thread([row({ message_text: "יש עדכון" })]);
-    assertEquals(waitCandidates([review(quiet)], noLink), []);
+    const quiet = teamGroup("יש עדכון");
+    assertEquals(requestCandidates([review(quiet)], noLink), []);
     assertEquals(
-      waitCandidates([review(quiet, { verdict: confident })], noLink).map(
+      requestCandidates([review(quiet, { verdict: confident })], noLink).map(
         (c) => c.kind,
       ),
       ["unanswered_request"],
     );
     const denied = review(quiet, {
-      markers: { request: true, complaint: false },
+      ...asks,
       verdict: { ...confident, is_request: false, needs_reply: false },
     });
-    assertEquals(
-      waitCandidates([denied], noLink).map((c) => c.kind),
-      ["unanswered_request"],
-    );
+    assertEquals(requestCandidates([denied], noLink).length, 1);
   });
 
-  await t.step(
-    "before the SLA only a complaint is raised; open kinds stay",
-    () => {
-      const early = thread([
-        row({ message_text: "אני לא מרוצה, מתי זה יסתדר?" }),
-      ]);
-      const fresh = review(early, {
-        slaBreached: false,
-        markers: { request: true, complaint: true },
-      });
-      const [complaint] = waitCandidates([fresh], noLink);
-      assertEquals(complaint.kind, "client_complaint");
-      assert(
-        complaint.summary_he.includes(
-          'נראה שהלקוח מתלונן בקבוצה ב-27.10 בשעה 09:00: "אני לא מרוצה',
-        ),
-      );
-      const kept = review(thread([row({ message_text: "שלום" })]), {
-        openKinds: ["unanswered_request"],
-      });
-      assertEquals(
-        waitCandidates([kept], noLink).map((c) => c.kind),
-        ["unanswered_request"],
-      );
-    },
-  );
+  await t.step("before the SLA only an open request stays", () => {
+    const early = review(teamGroup("מתי?"), { ...asks, slaBreached: false });
+    assertEquals(requestCandidates([early], noLink), []);
+    const kept = review(teamGroup("שלום"), { slaBreached: false, open: true });
+    assertEquals(requestCandidates([kept], noLink).length, 1);
+  });
 
   await t.step(
     "a wait only from unmapped @lid senders is low confidence",
@@ -126,10 +113,7 @@ Deno.test("waitCandidates", async (t) => {
           message_text: "מתי?",
         }),
       ]);
-      const [found] = waitCandidates(
-        [review(unsure, { markers: { request: true, complaint: false } })],
-        noLink,
-      );
+      const [found] = requestCandidates([review(unsure, asks)], noLink);
       assertEquals(
         [found.severity, found.evidence.low_confidence],
         ["info", true],
@@ -137,4 +121,18 @@ Deno.test("waitCandidates", async (t) => {
       assert(found.summary_he.includes("(השולח לא זוהה בוודאות)"));
     },
   );
+});
+
+Deno.test("withVerdicts", async (t) => {
+  await t.step("a verdict counts only for the wait's last message", () => {
+    const wait = review(teamGroup("יש עדכון"));
+    const fresh = new Map([
+      ["group:111@g.us", { messageId: "ask", verdict: confident }],
+    ]);
+    const stale = new Map([
+      ["group:111@g.us", { messageId: "older", verdict: confident }],
+    ]);
+    assertEquals(withVerdicts([wait], fresh)[0].verdict, confident);
+    assertEquals(withVerdicts([wait], stale)[0].verdict, null);
+  });
 });

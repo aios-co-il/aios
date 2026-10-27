@@ -6,6 +6,7 @@
  */
 import type { FindingCandidate } from "../types.ts";
 import type { UnlinkedGroupRow } from "./activity.ts";
+import { clip } from "./clip.ts";
 
 /** One owner-level suggestion per unlinked group. */
 export function unlinkedGroupCandidates(
@@ -18,11 +19,10 @@ export function unlinkedGroupCandidates(
     client_id: null,
     agency_id: null,
     source_event_at: row.last_message_at,
-    summary_he:
-      `הקבוצה "${row.group_name}" לא משויכת ללקוח, אבל השם שלה מתאים ל-${row.client_name} (${row.message_count} הודעות לאחרונה). לשייך אותה ללקוח?`.slice(
-        0,
-        500,
-      ),
+    summary_he: clip(
+      `הקבוצה "${row.group_name}" לא משויכת ללקוח, אבל השם שלה מתאים ל-${row.client_name} (${row.message_count} הודעות לאחרונה). לשייך אותה ללקוח?`,
+      500,
+    ),
     evidence: {
       group_id: row.group_id,
       suggested_client_id: row.client_id,

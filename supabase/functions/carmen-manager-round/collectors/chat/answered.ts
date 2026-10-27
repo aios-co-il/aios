@@ -1,8 +1,9 @@
 /**
- * Waits that ended: an open chat finding the run no longer reports, whose
- * thread now shows a staff reply or a completed call after the client began
- * waiting. It is closed as answered, with the response time on its event.
- * A finding whose thread left the read is left to auto-clear.
+ * Waits that ended: an open unanswered_request the run no longer reports,
+ * whose thread now shows a staff reply or a completed call after the client
+ * began waiting. It is closed as answered, with the response time on its
+ * event. A finding whose thread left the read is left to auto-clear. A
+ * complaint is never closed by a reply (complaints.ts).
  */
 import {
   type BusinessCalendar,
@@ -20,7 +21,8 @@ export function answeredWaits(
   calendar: BusinessCalendar,
 ): FindingResolution[] {
   const still = new Set(reported.map((c) => `${c.kind}|${c.fingerprint}`));
-  return live.flatMap((finding): FindingResolution[] => {
+  const requests = live.filter((f) => f.kind === "unanswered_request");
+  return requests.flatMap((finding): FindingResolution[] => {
     const thread = threads.find((t) =>
       finding.fingerprint.startsWith(threadPrefix(t.key)),
     );

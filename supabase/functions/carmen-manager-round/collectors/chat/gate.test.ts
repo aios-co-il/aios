@@ -1,6 +1,13 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { il, NOW, row, SETTINGS, thread } from "../../tests/chat-fixtures.ts";
-import { gateThreads, type LiveChatFinding, waitFingerprint } from "./gate.ts";
+import {
+  il,
+  liveFinding,
+  NOW,
+  row,
+  SETTINGS,
+  thread,
+} from "../../tests/chat-fixtures.ts";
+import { gateThreads, waitFingerprint } from "./gate.ts";
 
 const ask = (at: string, text = "אפשר לעדכן?") =>
   row({ message_id: `ask-${at}`, created_at: il(at), message_text: text });
@@ -16,18 +23,10 @@ Deno.test("gateThreads", async (t) => {
     assertEquals(review.fingerprint, "chat:group:111@g.us:ask-09:00");
   });
 
-  await t.step("a recent wait waits, unless it reads as a complaint", () => {
+  await t.step("a recent wait waits, complaint or not", () => {
     assertEquals(gateThreads([thread([ask("12:30")])], [], SETTINGS, NOW), []);
-    const [complaint] = gateThreads(
-      [thread([ask("13:50", "אני לא מרוצה מהלידים")])],
-      [],
-      SETTINGS,
-      NOW,
-    );
-    assertEquals(
-      [complaint.slaBreached, complaint.markers.complaint],
-      [false, true],
-    );
+    const complaint = thread([ask("13:50", "אני לא מרוצה מהלידים")]);
+    assertEquals(gateThreads([complaint], [], SETTINGS, NOW), []);
   });
 
   await t.step("an answered thread is not reviewed", () => {
@@ -38,18 +37,26 @@ Deno.test("gateThreads", async (t) => {
     assertEquals(gateThreads([answered], [], SETTINGS, NOW), []);
   });
 
-  await t.step("an open finding keeps its wait under review", () => {
-    const fresh = thread([ask("13:00")]);
-    const live: LiveChatFinding[] = [
-      {
-        kind: "client_complaint",
-        fingerprint: "chat:group:111@g.us:ask-13:00",
-        firstPendingAt: il("13:00"),
-      },
-    ];
-    const [review] = gateThreads([fresh], live, SETTINGS, NOW);
-    assertEquals(review.openKinds, ["client_complaint"]);
-  });
+  await t.step(
+    "an open request keeps its wait under review; a complaint does not",
+    () => {
+      const fresh = thread([ask("13:00")]);
+      const fingerprint = "chat:group:111@g.us:ask-13:00";
+      const [review] = gateThreads(
+        [fresh],
+        [liveFinding("unanswered_request", fingerprint, il("13:00"))],
+        SETTINGS,
+        NOW,
+      );
+      assertEquals([review.open, review.slaBreached], [true, false]);
+      const complaint = liveFinding(
+        "client_complaint",
+        "chat:group:111@g.us:complaint:ask-13:00",
+        il("13:00"),
+      );
+      assertEquals(gateThreads([fresh], [complaint], SETTINGS, NOW), []);
+    },
+  );
 });
 
 Deno.test("waitFingerprint", async (t) => {
@@ -64,17 +71,10 @@ Deno.test("waitFingerprint", async (t) => {
 
   await t.step("a wait older than the read keeps its open finding", () => {
     const clipped = thread([ask("11:00"), ask("12:00")]);
-    const live: LiveChatFinding[] = [
-      {
-        kind: "unanswered_request",
-        fingerprint: "chat:group:111@g.us:older",
-        firstPendingAt: il("09:00", "2026-10-20"),
-      },
-      {
-        kind: "unanswered_request",
-        fingerprint: "chat:group:999@g.us:other",
-        firstPendingAt: il("08:00", "2026-10-20"),
-      },
+    const older = il("09:00", "2026-10-20");
+    const live = [
+      liveFinding("unanswered_request", "chat:group:111@g.us:older", older),
+      liveFinding("unanswered_request", "chat:group:999@g.us:other", older),
     ];
     assertEquals(waitFingerprint(clipped, live), "chat:group:111@g.us:older");
   });

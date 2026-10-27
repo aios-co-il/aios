@@ -1,15 +1,19 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { il, row, SETTINGS, thread } from "../../tests/chat-fixtures.ts";
-import type { FindingCandidate } from "../types.ts";
+import {
+  il,
+  liveFinding,
+  row,
+  SETTINGS,
+  thread,
+} from "../../tests/chat-fixtures.ts";
 import { answeredWaits } from "./answered.ts";
-import type { LiveChatFinding } from "./gate.ts";
 import { buildThreads } from "./threads.ts";
 
-const open: LiveChatFinding = {
-  kind: "unanswered_request",
-  fingerprint: "chat:group:111@g.us:ask",
-  firstPendingAt: il("09:00"),
-};
+const open = liveFinding(
+  "unanswered_request",
+  "chat:group:111@g.us:ask",
+  il("09:00"),
+);
 
 const answered = thread([
   row({ message_id: "ask", created_at: il("09:00") }),
@@ -46,26 +50,25 @@ Deno.test("answeredWaits", async (t) => {
     );
   });
 
+  await t.step("a reply never closes a complaint", () => {
+    const complaint = liveFinding(
+      "client_complaint",
+      "chat:group:111@g.us:complaint:ask",
+      il("09:00"),
+    );
+    assertEquals(answeredWaits([answered], [complaint], [], SETTINGS), []);
+  });
+
   await t.step(
     "a wait still reported, unanswered or out of the read stays open",
     () => {
-      const reported: FindingCandidate[] = [
-        {
-          kind: "unanswered_request",
-          fingerprint: open.fingerprint,
-          severity: "warning",
-          client_id: "c1",
-          agency_id: null,
-          source_event_at: il("09:00"),
-          summary_he: "x",
-          evidence: {},
-          owner_user_id: null,
-        },
-      ];
       const waiting = thread([
         row({ message_id: "ask", created_at: il("09:00") }),
       ]);
-      assertEquals(answeredWaits([answered], [open], reported, SETTINGS), []);
+      assertEquals(
+        answeredWaits([answered], [open], [open.stored], SETTINGS),
+        [],
+      );
       assertEquals(answeredWaits([waiting], [open], [], SETTINGS), []);
       assertEquals(answeredWaits([], [open], [], SETTINGS), []);
       assertEquals(

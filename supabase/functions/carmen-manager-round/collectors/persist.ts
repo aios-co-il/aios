@@ -48,7 +48,11 @@ async function clearMissing(
   result: CollectorResult,
 ): Promise<number> {
   let cleared = 0;
+  const checked = result.coverage.kinds;
   for (const kind of collector.kinds) {
+    if (checked && !checked.includes(kind)) {
+      continue;
+    }
     cleared += await deps.findings.markMissing(input.tenantId, input.roundId, {
       kind,
       seen: candidates

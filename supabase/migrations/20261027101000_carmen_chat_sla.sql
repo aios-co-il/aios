@@ -6,31 +6,77 @@
 -- threads never leave these functions (an unlinked group's name and message
 -- count leave only when the name matches one client, as a link suggestion).
 --
+-- Requires AIO-242 (20261026136000_client_card_system_send_log.sql):
+-- resolve_whatsapp_group_client, whatsapp_group_client_ids,
+-- whatsapp_group_link_tenant_ok and chat_messages.send_kind. Merge order:
+-- AIO-242, AIO-251 (20261027100000), then this migration.
+--
 -- 1. carmen_chat_thread_reviews: the cached LLM verdict per client thread,
 --    valid while the thread's last client message is the one reviewed.
+--    Service role only.
 -- 2. get_client_thread_activity: the recent messages of every client-linked
 --    thread of the given lines (the round passes the tenant's monitored Green
 --    API lines). Groups resolve to one client through
---    whatsapp_group_client_ids (AIO-242, so this migration lands after it);
---    direct chats through chat_messages.client_id or the phone match key of
---    the client or one of its contacts. TypeScript decides who is staff.
+--    resolve_whatsapp_group_client; direct chats through
+--    chat_messages.client_id or the phone match key of the client or one of
+--    its contacts. TypeScript decides who is staff.
 -- 3. get_unlinked_client_groups: groups with traffic and no client link whose
---    name matches exactly one client (an owner-level suggestion).
--- 4. carmen_round_llm_spend: the tenant's month-to-date LLM spend and the
---    round's own spend today, for the round's LLM allowance.
+--    name contains exactly one client's name as whole words (an owner-level
+--    suggestion).
+-- 4. carmen_round_llm_spend: the project's month-to-date LLM spend and the
+--    tenant round's own spend today, for the round's LLM allowance.
 -- 5. carmen_finding_resolve: closes live findings a collector saw end
 --    ('answered'), with the details (response time) on the 'resolved' event.
 --
--- Indexes: none added. The activity read is one range scan of
--- idx_chat_messages_provider (tenant_id, provider, created_at DESC) over at
--- most 7 days, and chat_messages is a hot webhook table. Before merge, run
--- this read-only check on Production and attach the output to the PR:
+-- Indexes: none added; chat_messages is a hot webhook table. The function
+-- bodies are SECURITY DEFINER with a fixed search_path, so PostgreSQL never
+-- inlines them and EXPLAIN of a call shows only a Function Scan. Before
+-- merge, run this read-only check on Production with real literals and
+-- attach the output to the PR:
 --   SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'chat_messages';
 --   SELECT pg_size_pretty(pg_total_relation_size('public.chat_messages'));
---   EXPLAIN SELECT * FROM public.get_client_thread_activity(
---     '<tenant>'::uuid, ARRAY['<green line owner>']::uuid[], now() - interval '7 days');
--- A plan without a sequential scan of chat_messages keeps this as is.
--- Otherwise a new index ships alone in its own migration as
+--   -- (a) The activity read (messages CTE): expect an Index Scan or Bitmap
+--   --     Index Scan on idx_chat_messages_provider (tenant_id, provider,
+--   --     created_at DESC), never a Seq Scan on chat_messages.
+--   EXPLAIN SELECT cm.id FROM public.chat_messages AS cm
+--   WHERE cm.tenant_id = '<tenant>' AND cm.provider = 'green_api'
+--     AND cm.connection_user_id = ANY ('{<green line owner>}'::uuid[])
+--     AND cm.created_at >= now() - interval '7 days' AND cm.is_blocked = false;
+--   -- (b) The shared-group check (group_threads NOT EXISTS), for a group of
+--   --     the client's own tenant: expect an Index Scan on
+--   --     idx_chat_messages_group or idx_chat_messages_group_id, or on
+--   --     idx_chat_messages_provider, never a Seq Scan.
+--   EXPLAIN SELECT 1 FROM public.chat_messages AS ocm
+--   WHERE ocm.group_id = '<whatsapp_groups.id>' AND ocm.tenant_id = '<client tenant>'
+--     AND ocm.provider = 'green_api' AND ocm.created_at >= now() - interval '7 days'
+--   LIMIT 1;
+--   -- (c) The direct-chat client lookup (key_clients): expect a Seq Scan or
+--   --     index scan of clients for the tenant only (idx_clients_tenant_*),
+--   --     and of client_contacts by client_id; it runs once per call.
+--   EXPLAIN SELECT public.phone_match_key(c.phone) FROM public.clients AS c
+--   WHERE c.tenant_id = '<tenant>' AND c.status NOT IN ('ended', 'inactive');
+--   -- (d) get_unlinked_client_groups (traffic CTE): expect
+--   --     idx_chat_messages_provider as in (a).
+--   EXPLAIN SELECT cm.group_id, count(*) FROM public.chat_messages AS cm
+--   WHERE cm.tenant_id = '<tenant>' AND cm.provider = 'green_api'
+--     AND cm.connection_user_id = ANY ('{<green line owner>}'::uuid[])
+--     AND cm.group_id IS NOT NULL AND cm.created_at >= now() - interval '7 days'
+--     AND cm.is_blocked = false
+--   GROUP BY cm.group_id;
+--   -- (e) The round's call read (collectors/chat/calls.ts): expect an Index
+--   --     Scan on idx_call_logs_tenant; AIO-253 plans a (tenant_id,
+--   --     client_id, created_at) index after its own size check.
+--   EXPLAIN SELECT client_id, created_at FROM public.call_logs
+--   WHERE tenant_id IN ('<tenant>') AND status = 'completed' AND client_id IS NOT NULL
+--     AND created_at >= now() - interval '7 days';
+--   -- (f) carmen_round_llm_spend's month sums: Index Scans on
+--   --     idx_ai_usage_log_created; agent_action_log and marketing_runs have no
+--   --     created_at-first index, so a Seq Scan there is expected (the health
+--   --     probe reads the same rows hourly) and fine while they stay small.
+--   EXPLAIN SELECT sum(cost_usd) FROM public.agent_action_log
+--   WHERE created_at >= date_trunc('month', now());
+-- Plans as expected keep this as is. A Seq Scan on chat_messages in (a),
+-- (b) or (d) means a new index, shipped alone in its own migration as
 -- CREATE INDEX CONCURRENTLY IF NOT EXISTS (one statement, outside a
 -- transaction), or as a plain CREATE INDEX merged at a low-traffic hour.
 
@@ -52,37 +98,41 @@ COMMENT ON TABLE public.carmen_chat_thread_reviews IS
 
 ALTER TABLE public.carmen_chat_thread_reviews ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON public.carmen_chat_thread_reviews FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.carmen_chat_thread_reviews TO authenticated;
-GRANT ALL ON public.carmen_chat_thread_reviews TO service_role;
-
--- Verdicts summarise threads of the operator's own line: owner level only.
+-- Verdicts summarise threads of the operator's own line: no policies, so
+-- only the service role (the round) reads or writes them (plan C6).
 DROP POLICY IF EXISTS "Carmen chat reviews for the tenant owner level" ON public.carmen_chat_thread_reviews;
-CREATE POLICY "Carmen chat reviews for the tenant owner level" ON public.carmen_chat_thread_reviews
-  FOR SELECT TO authenticated
-  USING (public.carmen_manager_is_owner(tenant_id));
+REVOKE ALL ON public.carmen_chat_thread_reviews FROM PUBLIC, anon, authenticated;
+GRANT ALL ON public.carmen_chat_thread_reviews TO service_role;
 
 -- ─── 2. get_client_thread_activity ──────────────────────────────────────────
 
 -- Up to p_per_thread recent messages (oldest first) of every client thread
 -- of the lines p_connection_user_ids, since p_since (never more than 7 days
--- back). A thread is a group linked to exactly one client the tenant may act
--- on, or a direct chat whose counterpart is such a client or one of its
--- contacts. Clients: the tenant's own and those of agencies shared with it,
--- not ended or inactive. A group linked to another tenant's client is read
--- only when that tenant has no Green API traffic of its own in the same
--- group (one reader per group_chat_id). Threads the line owner blocked are
--- skipped, and a message stored twice (same Green idMessage) is returned
--- once. sender_match_key is the sender's phone match key after mapping an
--- @lid sender through wa_lid_map; an @lid without a mapping returns NULL with
--- sender_lid_unmapped = true.
+-- back), in thread_key order after p_after_thread_key (keyset paging: each
+-- page holds whole threads). A thread is a group linked to exactly one client
+-- the tenant may act on, or a direct chat whose counterpart is such a client
+-- or one of its contacts. Clients: the tenant's own and those of agencies
+-- shared with it, not ended or inactive.
+-- A group linked to another tenant's client is read here unless that tenant
+-- reads it itself: its p_collector run succeeded in the last 40 hours (the
+-- round skips Saturday) and stored, in watermark.read_lines, a line with
+-- traffic in the same group (one reader per group_chat_id).
+-- Threads the line owner blocked are skipped. A message stored twice (same
+-- Green idMessage, e.g. on two monitored lines in one group) is returned
+-- once, as the copy of the line that sent it. System sends (send_kind other
+-- than 'chat': reports, broadcasts, automations) are left out: they are
+-- neither a staff reply nor the client's. sender_match_key is the sender's
+-- phone match key after mapping an @lid sender through wa_lid_map; an @lid
+-- without a mapping returns NULL with sender_lid_unmapped = true.
 CREATE OR REPLACE FUNCTION public.get_client_thread_activity(
   p_tenant_id uuid,
   p_connection_user_ids uuid[],
   p_since timestamptz,
+  p_collector text,
   p_provider public.chat_provider DEFAULT 'green_api',
   p_client_ids uuid[] DEFAULT NULL,
-  p_per_thread integer DEFAULT 15
+  p_per_thread integer DEFAULT 15,
+  p_after_thread_key text DEFAULT NULL
 )
 RETURNS TABLE (
   thread_key text,
@@ -114,25 +164,31 @@ AS $$
         WHERE ata.agency_id = c.agency_id
           AND ata.accessing_tenant_id = p_tenant_id))
   ),
-  client_keys AS (
-    SELECT DISTINCT k.client_id, k.match_key
+  -- Phone match key -> its one client (client or contact phone), computed
+  -- once per call instead of once per direct-chat counterpart.
+  key_clients AS MATERIALIZED (
+    SELECT k.match_key, (array_agg(k.client_id))[1] AS client_id
     FROM (
       SELECT cs.id AS client_id, public.phone_match_key(cs.phone) AS match_key
       FROM clients_in_scope AS cs
-      UNION ALL
+      UNION
       SELECT cc.client_id, public.phone_match_key(cc.phone)
       FROM public.client_contacts AS cc
       JOIN clients_in_scope AS cs ON cs.id = cc.client_id
     ) AS k
     WHERE k.match_key IS NOT NULL
+    GROUP BY k.match_key
+    HAVING count(DISTINCT k.client_id) = 1
   ),
   messages AS (
     SELECT cm.id, cm.created_at, cm.direction, cm.group_id, cm.client_id,
-           cm.connection_user_id, cm.sender_phone, cm.sent_by_user_id,
+           cm.connection_user_id, cm.sender_phone, cm.sent_by_user_id, cm.send_kind,
            left(cm.message_text, 500) AS message_text,
            coalesce(cm.raw_provider_data ->> 'idMessage', cm.id::text) AS provider_id,
+           -- A reply stored from outgoingMessageStatus has no senderData.
            (CASE WHEN cm.group_id IS NULL
-              THEN cm.raw_provider_data -> 'senderData' ->> 'chatId'
+              THEN coalesce(cm.raw_provider_data -> 'senderData' ->> 'chatId',
+                            cm.raw_provider_data ->> 'chatId')
               ELSE cm.raw_provider_data -> 'senderData' ->> 'sender'
             END) LIKE '%@lid' AS from_lid
     FROM public.chat_messages AS cm
@@ -165,30 +221,37 @@ AS $$
     JOIN clients_in_scope AS cs ON cs.id = gc.client_id
     WHERE cs.tenant_id = p_tenant_id OR NOT EXISTS (
       SELECT 1
-      FROM public.whatsapp_groups AS own
+      FROM public.carmen_round_state AS rs
+      JOIN public.whatsapp_groups AS own
+        ON own.tenant_id = rs.tenant_id AND own.group_chat_id = gc.group_chat_id
       JOIN public.chat_messages AS ocm ON ocm.group_id = own.id
-      WHERE own.tenant_id = cs.tenant_id
-        AND own.group_chat_id = gc.group_chat_id
+      WHERE rs.tenant_id = cs.tenant_id
+        AND rs.collector = p_collector
+        AND rs.last_run_at >= now() - interval '40 hours'
+        AND jsonb_typeof(rs.watermark -> 'read_lines') = 'array'
+        AND (rs.watermark -> 'read_lines') ? ocm.connection_user_id::text
+        AND ocm.tenant_id = own.tenant_id
         AND ocm.provider = p_provider
         AND ocm.created_at >= greatest(p_since, now() - interval '7 days'))
   ),
   -- A direct chat's client: the one client the stored rows are linked to
   -- (none when a linked client is out of scope or there are several), else
   -- the one client whose phone or contact phone matches the counterpart.
-  dm_threads AS (
+  dm_links AS (
     SELECT s.connection_user_id, s.match_key,
-           CASE
-             WHEN count(DISTINCT s.client_id) = 1 THEN (
-               SELECT cs.id FROM clients_in_scope AS cs
-               WHERE cs.id = (array_agg(s.client_id) FILTER (WHERE s.client_id IS NOT NULL))[1])
-             WHEN count(DISTINCT s.client_id) = 0 THEN (
-               SELECT CASE WHEN count(DISTINCT k.client_id) = 1
-                 THEN (array_agg(k.client_id))[1] END
-               FROM client_keys AS k WHERE k.match_key = s.match_key)
-           END AS client_id
+           count(DISTINCT s.client_id) AS linked_count,
+           (array_agg(s.client_id) FILTER (WHERE s.client_id IS NOT NULL))[1] AS linked_client
     FROM senders AS s
     WHERE s.group_id IS NULL AND s.match_key IS NOT NULL
     GROUP BY s.connection_user_id, s.match_key
+  ),
+  dm_threads AS (
+    SELECT d.connection_user_id, d.match_key,
+           CASE WHEN d.linked_count = 1 THEN linked.id
+                WHEN d.linked_count = 0 THEN kc.client_id END AS client_id
+    FROM dm_links AS d
+    LEFT JOIN clients_in_scope AS linked ON linked.id = d.linked_client
+    LEFT JOIN key_clients AS kc ON kc.match_key = d.match_key
   ),
   threaded AS (
     SELECT s.*, gt.thread_key, 'group'::text AS thread_kind, gt.client_id AS thread_client_id
@@ -215,12 +278,13 @@ AS $$
   deduped AS (
     SELECT DISTINCT ON (u.thread_key, u.provider_id) u.*
     FROM unblocked AS u
-    ORDER BY u.thread_key, u.provider_id, u.created_at, u.id
+    ORDER BY u.thread_key, u.provider_id, (u.direction = 'outbound') DESC, u.created_at, u.id
   ),
   ranked AS (
     SELECT d.*, row_number() OVER (
       PARTITION BY d.thread_key ORDER BY d.created_at DESC, d.id DESC) AS recency
     FROM deduped AS d
+    WHERE d.send_kind IS NULL OR d.send_kind = 'chat'
   )
   SELECT r.thread_key, r.thread_kind, r.thread_client_id, cs.tenant_id, cs.name,
          r.group_id, r.id, r.created_at, r.direction, r.match_key,
@@ -228,12 +292,13 @@ AS $$
   FROM ranked AS r
   JOIN clients_in_scope AS cs ON cs.id = r.thread_client_id
   WHERE r.recency <= least(greatest(coalesce(p_per_thread, 15), 1), 50)
+    AND (p_after_thread_key IS NULL OR r.thread_key > p_after_thread_key)
   ORDER BY r.thread_key, r.created_at, r.id
 $$;
 
-REVOKE ALL ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, public.chat_provider, uuid[], integer)
+REVOKE ALL ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer, text)
   FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, public.chat_provider, uuid[], integer)
+GRANT EXECUTE ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer, text)
   TO service_role;
 
 -- ─── 3. get_unlinked_client_groups ──────────────────────────────────────────
@@ -241,8 +306,9 @@ GRANT EXECUTE ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timest
 -- Groups of the tenant with at least p_min_messages messages on the given
 -- lines since p_since (at most 7 days back), linked to no client in the
 -- tenant or a related one, whose name contains the name (3+ characters) of
--- exactly one client the tenant may act on. Only the group's name, id and
--- message count leave; never its messages.
+-- exactly one client the tenant may act on as whole words (spaces and
+-- punctuation separate words, so 'אור' never matches 'אורית'). Only the
+-- group's name, id and message count leave; never its messages.
 CREATE OR REPLACE FUNCTION public.get_unlinked_client_groups(
   p_tenant_id uuid,
   p_connection_user_ids uuid[],
@@ -289,17 +355,24 @@ AS $$
         WHERE same.group_chat_id = g.group_chat_id
           AND public.whatsapp_group_link_tenant_ok(same.tenant_id, p_tenant_id))
   ),
-  matches AS (
-    SELECT cand.id AS group_id, c.id AS client_id, c.name AS client_name
-    FROM candidates AS cand
-    JOIN public.clients AS c
-      ON length(btrim(c.name)) >= 3
-     AND position(lower(btrim(c.name)) IN lower(cand.group_name)) > 0
+  named_clients AS (
+    SELECT c.id, c.name,
+           ' ' || btrim(regexp_replace(lower(c.name), '[[:space:][:punct:]׳״–—]+', ' ', 'g')) || ' ' AS words
+    FROM public.clients AS c
     WHERE c.status NOT IN ('ended', 'inactive')
+      AND length(btrim(c.name)) >= 3
       AND (c.tenant_id = p_tenant_id OR EXISTS (
         SELECT 1 FROM public.agency_tenant_access AS ata
         WHERE ata.agency_id = c.agency_id
           AND ata.accessing_tenant_id = p_tenant_id))
+  ),
+  matches AS (
+    SELECT cand.id AS group_id, nc.id AS client_id, nc.name AS client_name
+    FROM candidates AS cand
+    JOIN named_clients AS nc
+      ON btrim(nc.words) <> ''
+     AND position(nc.words IN ' ' || btrim(regexp_replace(lower(cand.group_name),
+           '[[:space:][:punct:]׳״–—]+', ' ', 'g')) || ' ') > 0
   ),
   single AS (
     SELECT m.group_id, (array_agg(m.client_id))[1] AS client_id,
@@ -322,29 +395,35 @@ GRANT EXECUTE ON FUNCTION public.get_unlinked_client_groups(uuid, uuid[], timest
 
 -- ─── 4. carmen_round_llm_spend ──────────────────────────────────────────────
 
--- The tenant's LLM spend logged in ai_usage_log since p_month_start (every
--- source), and the round's own spend (sources starting with p_source_prefix)
--- since p_day_start.
+-- project_month_usd: the project's LLM spend since p_month_start, the sum the
+-- health probe guards (ai_usage_log, agent_action_log and marketing_runs of
+-- every tenant), because the OpenAI key and its budget are project-wide
+-- today (_shared/ai.ts resolveOpenAIKey). day_usd: the tenant round's own
+-- spend (ai_usage_log sources starting with p_source_prefix) since
+-- p_day_start. Only the two sums leave.
 CREATE OR REPLACE FUNCTION public.carmen_round_llm_spend(
   p_tenant_id uuid,
   p_month_start timestamptz,
   p_day_start timestamptz,
   p_source_prefix text
 )
-RETURNS TABLE (month_usd numeric, day_usd numeric)
+RETURNS TABLE (project_month_usd numeric, day_usd numeric)
   LANGUAGE sql
   STABLE
   SECURITY DEFINER
   SET search_path TO ''
 AS $$
   SELECT
-    coalesce(sum(l.cost_usd) FILTER (WHERE l.created_at >= p_month_start), 0),
-    coalesce(sum(l.cost_usd) FILTER (
-      WHERE l.created_at >= p_day_start
-        AND left(l.source, length(p_source_prefix)) = p_source_prefix), 0)
-  FROM public.ai_usage_log AS l
-  WHERE l.tenant_id = p_tenant_id
-    AND l.created_at >= least(p_month_start, p_day_start)
+    (SELECT coalesce(sum(l.cost_usd), 0) FROM public.ai_usage_log AS l
+      WHERE l.created_at >= p_month_start)
+    + (SELECT coalesce(sum(a.cost_usd), 0) FROM public.agent_action_log AS a
+      WHERE a.created_at >= p_month_start)
+    + (SELECT coalesce(sum(r.cost_usd), 0) FROM public.marketing_runs AS r
+      WHERE r.created_at >= p_month_start),
+    (SELECT coalesce(sum(l.cost_usd), 0) FROM public.ai_usage_log AS l
+      WHERE l.tenant_id = p_tenant_id
+        AND l.created_at >= p_day_start
+        AND left(l.source, length(p_source_prefix)) = p_source_prefix)
 $$;
 
 REVOKE ALL ON FUNCTION public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)

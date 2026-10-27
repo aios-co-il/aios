@@ -3,7 +3,9 @@
  * staff's when it left the monitored line (outbound), was sent from AIOS, or
  * came from a roster phone (an @lid sender after wa_lid_map); a completed
  * call to the client is a staff turn too. Every other message is the
- * client's; an @lid sender wa_lid_map cannot resolve is marked unsure.
+ * client's; an @lid sender wa_lid_map cannot resolve is marked unsure. A
+ * group where a team member other than the line itself wrote is open to the
+ * team: only its text may be classified or quoted to staff.
  */
 import type { ActivityRow } from "./activity.ts";
 import type { CompletedCall } from "./calls.ts";
@@ -29,6 +31,11 @@ export type Thread = {
   turns: Turn[];
   /** Client turns after the last staff turn, oldest first. */
   pending: Turn[];
+  /**
+   * A group where a team phone other than the monitored line wrote in the
+   * read, so staff are members: its text may go to the model and be quoted.
+   */
+  openToTeam: boolean;
 };
 
 /**
@@ -66,6 +73,7 @@ function toThread(
 ): Thread {
   const [first] = rows;
   const messages = rows.map((row) => messageTurn(row, staffKeys));
+  const group = first.thread_kind === "group";
   const start = Math.min(...messages.map((turn) => turn.at.getTime()));
   const callTurns = calls
     .filter(
@@ -80,12 +88,17 @@ function toThread(
   const lastStaff = turns.findLastIndex((turn) => turn.by === "staff");
   return {
     key: first.thread_key,
-    kind: first.thread_kind === "group" ? "group" : "dm",
+    kind: group ? "group" : "dm",
     clientId: first.client_id,
     clientName: first.client_name,
     messageCount: rows.length,
     turns,
     pending: turns.slice(lastStaff + 1),
+    openToTeam:
+      group &&
+      rows.some(
+        (row) => row.direction === "inbound" && isRosterPhone(row, staffKeys),
+      ),
   };
 }
 
@@ -94,7 +107,7 @@ function messageTurn(row: ActivityRow, staffKeys: ReadonlySet<string>): Turn {
   const staff =
     row.direction === "outbound" ||
     !!row.sent_by_user_id ||
-    (!!row.sender_match_key && staffKeys.has(row.sender_match_key));
+    isRosterPhone(row, staffKeys);
   return {
     id: row.message_id,
     at: new Date(row.created_at),
@@ -115,4 +128,12 @@ function callTurn(call: CompletedCall, index: number): Turn {
     text: "",
     unsure: false,
   };
+}
+
+/** True when the sender's phone is on the staff roster. */
+function isRosterPhone(
+  row: ActivityRow,
+  staffKeys: ReadonlySet<string>,
+): boolean {
+  return !!row.sender_match_key && staffKeys.has(row.sender_match_key);
 }

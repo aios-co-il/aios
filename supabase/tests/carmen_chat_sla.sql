@@ -1,156 +1,154 @@
--- Carmen chat SLA (20261027101000_carmen_chat_sla): synthetic chat rows on a
--- made-up line inside one transaction that is rolled back.
+-- Carmen chat SLA (20261027101000_carmen_chat_sla): get_client_thread_activity
+-- over synthetic tenants, lines and chat rows, inside one transaction that is
+-- rolled back. Tenants: the reader, an owner tenant whose agency is shared
+-- with the reader, and an unrelated tenant.
 BEGIN;
 DO $test$
 DECLARE
-  v_tenant uuid;
-  v_client uuid;
-  v_line uuid := gen_random_uuid();
   v_tag text := replace(gen_random_uuid()::text, '-', '');
-  v_linked uuid;
-  v_personal uuid;
-  v_unlinked uuid;
-  v_named_client uuid;
+  v_reader uuid := gen_random_uuid();
+  v_owner uuid := gen_random_uuid();
+  v_other uuid := gen_random_uuid();
+  v_reader_agency uuid := gen_random_uuid();
+  v_owner_agency uuid := gen_random_uuid();
+  v_other_agency uuid := gen_random_uuid();
+  v_client uuid := gen_random_uuid();
+  v_shared_client uuid := gen_random_uuid();
+  v_other_client uuid := gen_random_uuid();
+  v_line uuid := gen_random_uuid();
+  v_org_line uuid := gen_random_uuid();
+  v_owner_line uuid := gen_random_uuid();
+  v_group uuid;
+  v_shared uuid;
+  v_owner_shared uuid;
+  v_unrelated uuid;
+  v_blocked_group uuid;
+  v_phone text := '05' || lpad((floor(random() * 1e8))::bigint::text, 8, '0');
   v_contact text := '05' || lpad((floor(random() * 1e8))::bigint::text, 8, '0');
   v_lid text := '9' || lpad((floor(random() * 1e14))::bigint::text, 14, '0');
-  v_round uuid := gen_random_uuid();
   v_texts text;
-  v_threads text[];
-  v_month numeric;
-  v_day numeric;
-  v_n integer;
+  v_rows integer;
 BEGIN
-  SELECT c.tenant_id, c.id INTO v_tenant, v_client
-  FROM public.clients AS c
-  WHERE c.tenant_id IS NOT NULL AND c.status NOT IN ('ended', 'inactive')
-  ORDER BY c.id LIMIT 1;
-  IF v_client IS NULL THEN RAISE EXCEPTION 'Requires an active client with a tenant'; END IF;
+  INSERT INTO public.tenants (id, name, slug) VALUES
+    (v_reader, 'QA reader', 'qa-reader-' || v_tag),
+    (v_owner, 'QA owner', 'qa-owner-' || v_tag),
+    (v_other, 'QA other', 'qa-other-' || v_tag);
+  INSERT INTO public.agencies (id, tenant_id, name) VALUES
+    (v_reader_agency, v_reader, 'QA'), (v_owner_agency, v_owner, 'QA'), (v_other_agency, v_other, 'QA');
+  INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id)
+  VALUES (v_owner, v_owner_agency, v_reader);
+  INSERT INTO public.clients (id, tenant_id, agency_id, name, phone, status) VALUES
+    (v_client, v_reader, v_reader_agency, 'QA client', v_phone, 'active'),
+    (v_shared_client, v_owner, v_owner_agency, 'QA shared', NULL, 'active'),
+    (v_other_client, v_other, v_other_agency, 'QA other', NULL, 'active');
+  INSERT INTO public.client_contacts (tenant_id, client_id, contact_name, phone)
+  VALUES (v_reader, v_client, 'QA contact', v_contact);
+  INSERT INTO public.wa_lid_map (lid, phone, source) VALUES (v_lid, v_phone, 'qa');
 
   INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
-  VALUES (v_tenant, 'qa-linked-' || v_tag || '@g.us', 'QA linked') RETURNING id INTO v_linked;
+  VALUES (v_reader, 'qa-g-' || v_tag || '@g.us', 'QA group') RETURNING id INTO v_group;
   INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
-  VALUES (v_tenant, 'qa-personal-' || v_tag || '@g.us', 'QA family') RETURNING id INTO v_personal;
-  INSERT INTO public.carmen_client_group_access (tenant_id, client_id, whatsapp_group_id)
-  VALUES (v_tenant, v_client, v_linked);
-  INSERT INTO public.client_contacts (tenant_id, client_id, contact_name, phone)
-  VALUES (v_tenant, v_client, 'QA contact', v_contact);
-  INSERT INTO public.wa_lid_map (lid, phone, source)
-  VALUES (v_lid, '0509999990', 'qa');
+  VALUES (v_reader, 'qa-s-' || v_tag || '@g.us', 'QA shared') RETURNING id INTO v_shared;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_owner, 'qa-s-' || v_tag || '@g.us', 'QA shared') RETURNING id INTO v_owner_shared;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_reader, 'qa-u-' || v_tag || '@g.us', 'QA unrelated') RETURNING id INTO v_unrelated;
+  INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
+  VALUES (v_reader, 'qa-b-' || v_tag || '@g.us', 'QA blocked') RETURNING id INTO v_blocked_group;
+  INSERT INTO public.carmen_client_group_access (tenant_id, client_id, whatsapp_group_id) VALUES
+    (v_reader, v_client, v_group), (v_reader, v_shared_client, v_shared),
+    (v_owner, v_shared_client, v_owner_shared), (v_other, v_other_client, v_unrelated),
+    (v_reader, v_client, v_blocked_group);
+  INSERT INTO public.blocked_contacts (tenant_id, connection_user_id, group_id)
+  VALUES (v_reader, v_line, v_blocked_group);
+  INSERT INTO public.blocked_contacts (tenant_id, connection_user_id, sender_phone)
+  VALUES (v_reader, v_line, '972' || substr(v_contact, 2));
 
   INSERT INTO public.chat_messages (tenant_id, provider, connection_user_id, direction,
-    message_text, sender_phone, group_id, created_at, raw_provider_data)
+    message_text, sender_phone, group_id, created_at, send_kind, raw_provider_data)
   VALUES
-    (v_tenant, 'green_api', v_line, 'inbound', 'QA request?', '972501110001', v_linked,
-      now() - interval '5 hours', jsonb_build_object('idMessage', 'qa1-' || v_tag)),
-    (v_tenant, 'green_api', v_line, 'inbound', 'QA request?', '972501110001', v_linked,
-      now() - interval '5 hours', jsonb_build_object('idMessage', 'qa1-' || v_tag)),
-    (v_tenant, 'green_api', v_line, 'inbound', 'QA lid reply', v_lid, v_linked,
-      now() - interval '4 hours', jsonb_build_object('idMessage', 'qa2-' || v_tag,
-        'senderData', jsonb_build_object('sender', v_lid || '@lid'))),
-    (v_tenant, 'green_api', v_line, 'inbound', 'QA PERSONAL GROUP', '972501110002', v_personal,
-      now() - interval '3 hours', '{}'::jsonb),
-    (v_tenant, 'green_api', v_line, 'inbound', 'QA contact dm', v_contact, NULL,
-      now() - interval '3 hours', '{}'::jsonb),
-    (v_tenant, 'green_api', v_line, 'inbound', 'QA PERSONAL DM', '972501110003', NULL,
-      now() - interval '3 hours', '{}'::jsonb),
-    (v_tenant, 'green_api', v_line, 'inbound', 'QA TOO OLD', v_contact, NULL,
-      now() - interval '9 days', '{}'::jsonb);
+    -- Group: the client asks, the org line answers (stored on both lines).
+    (v_reader, 'green_api', v_line, 'inbound', 'QA ask?', '972' || substr(v_phone, 2), v_group,
+      now() - interval '5 hours', NULL, jsonb_build_object('idMessage', 'qa1-' || v_tag)),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA org reply (copy)', '972509990000', v_group,
+      now() - interval '4 hours', NULL, jsonb_build_object('idMessage', 'qa2-' || v_tag)),
+    (v_reader, 'green_api', v_org_line, 'outbound', 'QA org reply', '972509990000', v_group,
+      now() - interval '4 hours', NULL, jsonb_build_object('idMessage', 'qa2-' || v_tag)),
+    -- A scheduled report is neither a reply nor the client's; a chat send is a reply.
+    (v_reader, 'green_api', v_line, 'outbound', 'QA REPORT', NULL, v_group,
+      now() - interval '3 hours', 'report', jsonb_build_object('idMessage', 'qa3-' || v_tag)),
+    (v_reader, 'green_api', v_line, 'outbound', 'QA chat send', NULL, v_group,
+      now() - interval '2 hours', 'chat', jsonb_build_object('idMessage', 'qa4-' || v_tag)),
+    -- Direct chat: the client writes, the line answers from WhatsApp (status row, @lid chat).
+    (v_reader, 'green_api', v_line, 'inbound', 'QA dm', '972' || substr(v_phone, 2), NULL,
+      now() - interval '5 hours', NULL, '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'outbound', 'QA lid reply', v_lid, NULL,
+      now() - interval '4 hours', NULL, jsonb_build_object('idMessage', 'qa5-' || v_tag, 'chatId', v_lid || '@lid')),
+    -- Never returned: blocked contact, blocked group, lead, unrelated tenant's group, too old.
+    (v_reader, 'green_api', v_line, 'inbound', 'QA BLOCKED DM', '972' || substr(v_contact, 2), NULL,
+      now() - interval '3 hours', NULL, '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA BLOCKED GROUP', '972501110001', v_blocked_group,
+      now() - interval '3 hours', NULL, '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA LEAD DM', '972501110003', NULL,
+      now() - interval '3 hours', NULL, '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA UNRELATED', '972501110004', v_unrelated,
+      now() - interval '3 hours', NULL, '{}'::jsonb),
+    (v_reader, 'green_api', v_line, 'inbound', 'QA TOO OLD', '972' || substr(v_phone, 2), NULL,
+      now() - interval '9 days', NULL, '{}'::jsonb),
+    -- The shared group, seen by the reader's line and by the owner tenant's line.
+    (v_reader, 'green_api', v_line, 'inbound', 'QA shared', '972501110005', v_shared,
+      now() - interval '1 hour', NULL, '{}'::jsonb),
+    (v_owner, 'green_api', v_owner_line, 'inbound', 'QA shared (owner)', '972501110005', v_owner_shared,
+      now() - interval '1 hour', NULL, '{}'::jsonb);
 
-  -- Only client threads leave: the linked group (once per idMessage, the
-  -- @lid sender mapped) and the contact's direct chat.
-  SELECT string_agg(a.message_text, ',' ORDER BY a.created_at),
-         array_agg(DISTINCT a.thread_key)
-  INTO v_texts, v_threads
-  FROM public.get_client_thread_activity(v_tenant, ARRAY[v_line], now() - interval '30 days') AS a;
-  IF v_texts IS DISTINCT FROM 'QA request?,QA lid reply,QA contact dm' THEN
-    RAISE EXCEPTION 'activity: only client threads, got %', v_texts;
+  SELECT string_agg(a.message_text || '/' || a.direction, ',' ORDER BY a.thread_key, a.created_at)
+  INTO v_texts
+  FROM public.get_client_thread_activity(v_reader, ARRAY[v_line, v_org_line], now() - interval '30 days', 'qa_chat') AS a;
+  IF v_texts IS DISTINCT FROM 'QA dm/inbound,QA lid reply/outbound,QA ask?/inbound,QA org reply/outbound,QA chat send/outbound,QA shared/inbound' THEN
+    RAISE EXCEPTION 'activity: client threads only, one copy per message (the sender''s), got %', v_texts;
   END IF;
-  IF NOT v_threads @> ARRAY['group:qa-linked-' || v_tag || '@g.us',
-       'dm:' || v_line || ':' || public.phone_match_key(v_contact)] THEN
-    RAISE EXCEPTION 'activity: thread keys %', v_threads;
+
+  -- The owner tenant reads the shared group itself: the reader skips it.
+  INSERT INTO public.carmen_round_state (tenant_id, collector, last_run_at, watermark)
+  VALUES (v_owner, 'qa_chat', now() - interval '1 hour', jsonb_build_object('read_lines', jsonb_build_array(v_owner_line)));
+  SELECT count(*) INTO v_rows
+  FROM public.get_client_thread_activity(v_reader, ARRAY[v_line], now() - interval '1 day', 'qa_chat') AS a
+  WHERE a.group_id = v_shared;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'shared group: the owner tenant reads it, the reader must not'; END IF;
+
+  -- A stale owner run, or one that read another line, leaves the group to the reader.
+  UPDATE public.carmen_round_state SET last_run_at = now() - interval '3 days'
+  WHERE tenant_id = v_owner AND collector = 'qa_chat';
+  SELECT count(*) INTO v_rows
+  FROM public.get_client_thread_activity(v_reader, ARRAY[v_line], now() - interval '1 day', 'qa_chat') AS a
+  WHERE a.group_id = v_shared;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'shared group: a stale owner run must not hide it'; END IF;
+  UPDATE public.carmen_round_state
+  SET last_run_at = now(), watermark = jsonb_build_object('read_lines', jsonb_build_array(gen_random_uuid()))
+  WHERE tenant_id = v_owner AND collector = 'qa_chat';
+  SELECT count(*) INTO v_rows
+  FROM public.get_client_thread_activity(v_reader, ARRAY[v_line], now() - interval '1 day', 'qa_chat') AS a
+  WHERE a.group_id = v_shared;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'shared group: an owner that does not read its line there must not hide it'; END IF;
+
+  -- The owner tenant never sees the reader's own client.
+  IF EXISTS (SELECT 1 FROM public.get_client_thread_activity(v_owner, ARRAY[v_owner_line, v_line], now() - interval '1 day', 'qa_chat') AS a
+             WHERE a.client_id = v_client) THEN
+    RAISE EXCEPTION 'isolation: another tenant''s client leaked';
   END IF;
-  IF (SELECT a.sender_match_key FROM public.get_client_thread_activity(v_tenant, ARRAY[v_line], now() - interval '1 day') AS a
-      WHERE a.message_text = 'QA lid reply') IS DISTINCT FROM '509999990' THEN
-    RAISE EXCEPTION 'activity: an @lid sender must be mapped through wa_lid_map';
-  END IF;
-  IF EXISTS (SELECT 1 FROM public.get_client_thread_activity(v_tenant, ARRAY[gen_random_uuid()], now() - interval '1 day')) THEN
+
+  -- Keyset paging returns whole threads after the given key; another line reads nothing.
+  SELECT count(DISTINCT a.thread_key) INTO v_rows
+  FROM public.get_client_thread_activity(v_reader, ARRAY[v_line, v_org_line], now() - interval '1 day', 'qa_chat',
+    'green_api', NULL, 15, 'dm:' || v_line || ':' || public.phone_match_key(v_phone)) AS a;
+  IF v_rows <> 2 THEN RAISE EXCEPTION 'paging: the two group threads come after the direct chat'; END IF;
+  IF EXISTS (SELECT 1 FROM public.get_client_thread_activity(v_reader, ARRAY[gen_random_uuid()], now() - interval '1 day', 'qa_chat')) THEN
     RAISE EXCEPTION 'activity: another line must read nothing';
   END IF;
 
-  -- Unlinked groups: a group named after exactly one client is suggested.
-  SELECT c.id INTO v_named_client
-  FROM public.clients AS c
-  WHERE c.tenant_id = v_tenant AND c.status NOT IN ('ended', 'inactive')
-    AND length(btrim(c.name)) >= 3
-    AND NOT EXISTS (
-      SELECT 1 FROM public.clients AS o
-      WHERE o.id <> c.id AND o.status NOT IN ('ended', 'inactive')
-        AND length(btrim(o.name)) >= 3
-        AND (o.tenant_id = v_tenant OR EXISTS (
-          SELECT 1 FROM public.agency_tenant_access AS ata
-          WHERE ata.agency_id = o.agency_id AND ata.accessing_tenant_id = v_tenant))
-        AND position(lower(btrim(o.name)) IN lower('QA ' || c.name)) > 0)
-  LIMIT 1;
-  IF v_named_client IS NOT NULL THEN
-    INSERT INTO public.whatsapp_groups (tenant_id, group_chat_id, group_name)
-    SELECT v_tenant, 'qa-unlinked-' || v_tag || '@g.us', 'QA ' || c.name
-    FROM public.clients AS c WHERE c.id = v_named_client
-    RETURNING id INTO v_unlinked;
-    INSERT INTO public.chat_messages (tenant_id, provider, connection_user_id, direction, message_text, group_id)
-    SELECT v_tenant, 'green_api', v_line, 'inbound', 'QA unlinked ' || n, v_unlinked
-    FROM generate_series(1, 3) AS n;
-    SELECT count(*) INTO v_n
-    FROM public.get_unlinked_client_groups(v_tenant, ARRAY[v_line], now() - interval '1 day') AS u
-    WHERE u.group_id = v_unlinked AND u.client_id = v_named_client AND u.message_count = 3;
-    IF v_n <> 1 THEN RAISE EXCEPTION 'unlinked: the named group must be suggested once'; END IF;
-  ELSE
-    RAISE NOTICE 'unlinked: no uniquely named client, check skipped';
-  END IF;
-  IF EXISTS (SELECT 1 FROM public.get_unlinked_client_groups(v_tenant, ARRAY[v_line], now() - interval '1 day') AS u
-             WHERE u.group_id IN (v_linked, v_personal)) THEN
-    RAISE EXCEPTION 'unlinked: linked and unmatched groups are never suggested';
-  END IF;
-
-  -- LLM spend: the month counts every source, the day only the round's.
-  SELECT s.month_usd, s.day_usd INTO v_month, v_day
-  FROM public.carmen_round_llm_spend(v_tenant, now() - interval '1 day', now() - interval '1 hour', 'manager_round:') AS s;
-  INSERT INTO public.ai_usage_log (tenant_id, source, cost_usd)
-  VALUES (v_tenant, 'manager_round:chat', 0.25), (v_tenant, 'aiChat', 0.5);
-  IF (SELECT s.month_usd - v_month FROM public.carmen_round_llm_spend(v_tenant, now() - interval '1 day', now() - interval '1 hour', 'manager_round:') AS s) <> 0.75
-     OR (SELECT s.day_usd - v_day FROM public.carmen_round_llm_spend(v_tenant, now() - interval '1 day', now() - interval '1 hour', 'manager_round:') AS s) <> 0.25 THEN
-    RAISE EXCEPTION 'spend: month and day sums';
-  END IF;
-
-  -- Resolve: only the collector's own live findings, logged with the details.
-  PERFORM public.carmen_finding_upsert(v_tenant, v_round, 'qa_chat', '1', jsonb_build_array(
-    jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag,
-      'severity', 'warning', 'client_id', v_client, 'summary_he', 'QA ROLLBACK',
-      'source_event_at', now(), 'evidence', '{}'::jsonb)));
-  SELECT count(*) INTO v_n FROM public.carmen_finding_resolve(v_tenant, v_round, 'other_collector',
-    jsonb_build_array(jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag, 'resolution', 'answered')));
-  IF v_n <> 0 THEN RAISE EXCEPTION 'resolve: another collector''s finding must stay open'; END IF;
-  SELECT count(*) INTO v_n FROM public.carmen_finding_resolve(v_tenant, v_round, 'qa_chat',
-    jsonb_build_array(jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag,
-      'resolution', 'answered', 'details', jsonb_build_object('response_minutes', 42))));
-  IF v_n <> 1 THEN RAISE EXCEPTION 'resolve: the finding must close'; END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.carmen_findings AS f
-    JOIN public.carmen_finding_events AS e ON e.finding_id = f.id AND e.event = 'resolved'
-    WHERE f.tenant_id = v_tenant AND f.fingerprint = 'qa-chat-' || v_tag
-      AND f.status = 'resolved' AND f.resolution = 'answered'
-      AND e.details = '{"response_minutes": 42, "resolution": "answered"}'::jsonb) THEN
-    RAISE EXCEPTION 'resolve: status, resolution and event details';
-  END IF;
-
-  -- Grants: service role only, and the review cache is read-only for owners.
-  IF has_function_privilege('anon', 'public.get_client_thread_activity(uuid, uuid[], timestamptz, public.chat_provider, uuid[], integer)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.get_client_thread_activity(uuid, uuid[], timestamptz, public.chat_provider, uuid[], integer)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.get_unlinked_client_groups(uuid, uuid[], timestamptz, public.chat_provider, integer)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_finding_resolve(uuid, uuid, text, jsonb)', 'EXECUTE')
-     OR has_table_privilege('anon', 'public.carmen_chat_thread_reviews', 'SELECT')
-     OR has_table_privilege('authenticated', 'public.carmen_chat_thread_reviews', 'INSERT') THEN
-    RAISE EXCEPTION 'grants: chat SLA objects must be service-role only';
+  IF has_function_privilege('anon', 'public.get_client_thread_activity(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer, text)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.get_client_thread_activity(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer, text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'grants: get_client_thread_activity is service-role only';
   END IF;
 
   RAISE NOTICE 'carmen_chat_sla: all checks passed';

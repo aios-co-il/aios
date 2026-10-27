@@ -1,27 +1,28 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { TENANT } from "../../tests/fake-world.ts";
 import { recordingClient } from "../../tests/recording-client.ts";
-import { monitoredConnectionIds, tenantSlug } from "./connections.ts";
+import { monitoredLines, tenantSlug } from "./connections.ts";
 
-Deno.test("monitoredConnectionIds", async (t) => {
+Deno.test("monitoredLines", async (t) => {
   await t.step(
-    "the owners' own Green lines and org-wide lines only",
+    "the owner-level users' own Green lines and org-wide lines only",
     async () => {
       const { db, calls } = recordingClient(({ path }) =>
         path === "user_roles"
-          ? [{ user_id: "owner" }]
+          ? [{ user_id: "owner" }, { user_id: "agency-owner" }]
           : [
               { user_id: "owner", connection_visibility: "private" },
+              { user_id: "agency-owner", connection_visibility: "private" },
               { user_id: "campaigner", connection_visibility: "private" },
               { user_id: "office", connection_visibility: "org" },
               { user_id: null, connection_visibility: "org" },
               { user_id: "owner", connection_visibility: "shared" },
             ],
       );
-      assertEquals(await monitoredConnectionIds(db, TENANT), [
-        "owner",
-        "office",
-      ]);
+      assertEquals(await monitoredLines(db, TENANT), {
+        ids: ["owner", "agency-owner", "office"],
+        skipped: 2,
+      });
       const lines = calls.find((c) => c.path === "tenant_integrations");
       assertEquals(
         [
@@ -34,7 +35,7 @@ Deno.test("monitoredConnectionIds", async (t) => {
       const roles = calls.find((c) => c.path === "user_roles");
       assertEquals(
         [roles?.query.get("tenant_id"), roles?.query.get("role")],
-        [`eq.${TENANT}`, "eq.owner"],
+        [`eq.${TENANT}`, "in.(owner,agency_owner)"],
       );
     },
   );

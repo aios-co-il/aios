@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { il, row, STAFF_KEY } from "../../tests/chat-fixtures.ts";
+import type { ActivityRow } from "./activity.ts";
 import { buildThreads, firstStaffTurnAfter } from "./threads.ts";
 
 const roster = new Set([STAFF_KEY]);
@@ -98,6 +99,24 @@ Deno.test("buildThreads", async (t) => {
     );
     assertEquals(firstStaffTurnAfter(threads[0], new Date(0)), null);
   });
+
+  await t.step(
+    "a group is open to the team only when a team phone wrote in it",
+    () => {
+      const open = (rows: ActivityRow[]) =>
+        buildThreads(rows, roster, [])[0].openToTeam;
+      const ask = row({ message_id: "ask" });
+      assertEquals(open([ask]), false);
+      // The line's own reply (outbound) is the operator, not the team.
+      assertEquals(open([ask, row({ direction: "outbound" })]), false);
+      assertEquals(open([ask, row({ sender_match_key: STAFF_KEY })]), true);
+      const dm = { thread_key: "dm:o:501234567", thread_kind: "dm" };
+      assertEquals(
+        open([row(dm), row({ ...dm, sender_match_key: STAFF_KEY })]),
+        false,
+      );
+    },
+  );
 
   await t.step("a message read twice counts once", () => {
     const twice = row({ message_id: "same" });

@@ -1,14 +1,19 @@
 /**
- * Adds the cheap LLM verdict to the waits that need one: group threads only
- * (direct-chat text never goes to the model), at most one call per new
- * client message (the review cache), within the tenant's LLM allowance and
- * the round's time and API budget. Without a verdict the markers decide.
+ * The cheap LLM read of client group threads. Asked once per new client
+ * message (the review cache), at any age, so a complaint without a listed
+ * word is seen even when staff answered it quickly. Only groups open to the
+ * team (direct-chat text and private groups never go to the model), within
+ * the tenant's LLM allowance and the round's time and API budget, and never
+ * in a preview. Threads whose wait is due are asked first. Without a verdict
+ * the markers decide.
  */
 import type { RoundBudget } from "../../budget.ts";
-import type { ThreadReview } from "./gate.ts";
 import type { LlmMeter } from "./llm-meter.ts";
-import type { ReviewCache } from "./review-cache.ts";
-import { type ChatVerdict, parseVerdict, verdictPrompt } from "./verdict.ts";
+import { onlyAcknowledgements, readMarkers } from "./markers.ts";
+import type { CachedReview, ReviewCache } from "./review-cache.ts";
+import { clientStreaks, latestClientTurn } from "./streaks.ts";
+import type { Thread } from "./threads.ts";
+import { parseVerdict, verdictPrompt } from "./verdict.ts";
 
 /** One model call: its JSON text (null on failure) and its cost. */
 export type AskModel = (
@@ -22,56 +27,69 @@ export type ClassifyPorts = {
   meter: () => Promise<LlmMeter>;
 };
 
-/** A call's verdict, and whether the model gave no answer at all. */
-type Asked = { verdict: ChatVerdict | null; failed: boolean };
+/** Verdicts by thread key, each for the client message it read. */
+export type Verdicts = Map<string, CachedReview>;
 
 /** At most this many model calls per tenant run. */
 const MAX_CALLS = 20;
 /** A model call needs about this much of the round's time. */
 const CALL_MS = 8_000;
 
-/** The reviews with verdicts where allowed, and the LLM use of the run. */
-export async function classifyWaits(
-  reviews: ThreadReview[],
+/** The verdicts of the threads' latest client messages, and the LLM use of the run. */
+export async function classifyThreads(
+  threads: Thread[],
+  dueKeys: ReadonlySet<string>,
   ports: ClassifyPorts,
   run: { budget: RoundBudget; dryRun: boolean },
-): Promise<{
-  reviews: ThreadReview[];
-  llm: { calls: number; costUsd: number };
-}> {
-  const askable = reviews.filter(needsModel);
-  const cached = await ports.cache.load(
-    askable.map((review) => review.thread.key),
-  );
+): Promise<{ verdicts: Verdicts; llm: { calls: number; costUsd: number } }> {
+  const askable = threads
+    .filter(needsModel)
+    .sort((a, b) => Number(dueKeys.has(b.key)) - Number(dueKeys.has(a.key)));
+  const verdicts: Verdicts = await ports.cache.load(askable.map((t) => t.key));
   let meter: LlmMeter | null = null;
   // No key or a provider error: the rest of the run uses the markers.
   let modelDown = false;
-  const out: ThreadReview[] = [];
-  for (const review of reviews) {
-    const last = review.thread.pending.at(-1);
-    const hit = cached.get(review.thread.key);
-    if (!askable.includes(review) || !last) {
-      out.push(review);
-    } else if (hit && hit.messageId === last.id) {
-      out.push({ ...review, verdict: hit.verdict });
-    } else {
-      meter ??= await ports.meter();
-      const answer: Asked | null =
-        !modelDown && mayAsk(meter, run.budget)
-          ? await ask(ports, meter, review, last.id, run.dryRun)
-          : null;
-      modelDown ||= answer?.failed ?? false;
-      out.push({ ...review, verdict: answer?.verdict ?? null });
+  for (const thread of askable) {
+    const last = latestClientTurn(thread);
+    if (!last || verdicts.get(thread.key)?.messageId === last.id) {
+      continue;
+    }
+    verdicts.delete(thread.key);
+    if (run.dryRun || modelDown) {
+      continue;
+    }
+    meter ??= await ports.meter();
+    if (!mayAsk(meter, run.budget)) {
+      continue;
+    }
+    const { text, costUsd } = await ports.ask(verdictPrompt(thread.turns));
+    modelDown = text === null;
+    const review =
+      text === null
+        ? null
+        : await keep(ports, meter, thread.key, last.id, { text, costUsd });
+    if (review) {
+      verdicts.set(thread.key, review);
     }
   }
-  return { reviews: out, llm: meter?.usage() ?? { calls: 0, costUsd: 0 } };
+  return { verdicts, llm: meter?.usage() ?? { calls: 0, costUsd: 0 } };
 }
 
-/** A group wait whose markers have not already found both a request and a complaint. */
-function needsModel(review: ThreadReview): boolean {
+/**
+ * A group open to the team whose latest client messages say more than
+ * thanks, unless the markers already found everything a verdict could add.
+ */
+function needsModel(thread: Thread): boolean {
+  const latest = clientStreaks(thread).at(-1);
+  if (thread.kind !== "group" || !thread.openToTeam || !latest) {
+    return false;
+  }
+  const texts = latest.turns.map((turn) => turn.text);
+  const markers = readMarkers(texts);
+  const answered = thread.pending.length === 0;
   return (
-    review.thread.kind === "group" &&
-    !(review.markers.request && review.markers.complaint)
+    !onlyAcknowledgements(texts) &&
+    !(markers.complaint && (markers.request || answered))
   );
 }
 
@@ -85,26 +103,23 @@ function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
   );
 }
 
-/** One metered call; a verdict is cached unless this is a dry run. */
-async function ask(
+/** Meters an answer and caches its verdict; null when the answer is malformed. */
+async function keep(
   ports: ClassifyPorts,
   meter: LlmMeter,
-  review: ThreadReview,
+  threadKey: string,
   messageId: string,
-  dryRun: boolean,
-): Promise<Asked> {
-  const answer = await ports.ask(verdictPrompt(review.thread.turns));
-  if (answer.text === null) {
-    return { verdict: null, failed: true };
-  }
+  answer: { text: string; costUsd: number },
+): Promise<CachedReview | null> {
   meter.add(answer.costUsd);
   const verdict = parseVerdict(answer.text);
-  if (verdict && !dryRun) {
-    await ports.cache.save(review.thread.key, {
-      messageId,
-      verdict,
-      costUsd: answer.costUsd,
-    });
+  if (!verdict) {
+    return null;
   }
-  return { verdict, failed: false };
+  await ports.cache.save(threadKey, {
+    messageId,
+    verdict,
+    costUsd: answer.costUsd,
+  });
+  return { messageId, verdict };
 }

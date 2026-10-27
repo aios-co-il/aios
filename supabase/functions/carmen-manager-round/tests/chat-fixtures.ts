@@ -1,7 +1,8 @@
 /** Rows and threads for the chat collector's tests (Israel time is UTC+2 here). */
+import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
 import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
 import type { ActivityRow } from "../collectors/chat/activity.ts";
-import type { ThreadReview } from "../collectors/chat/gate.ts";
+import type { LiveChatFinding, ThreadReview } from "../collectors/chat/gate.ts";
 import { buildThreads, type Thread } from "../collectors/chat/threads.ts";
 import { TENANT } from "./fake-world.ts";
 
@@ -51,6 +52,11 @@ export function dmRow(fields: Partial<ActivityRow> = {}): ActivityRow {
   });
 }
 
+/** A staff member's message in the group (the team is in it). */
+export function staffRow(fields: Partial<ActivityRow> = {}): ActivityRow {
+  return row({ sender_match_key: STAFF_KEY, ...fields });
+}
+
 /** One thread from rows, with the staff key on the roster. */
 export function thread(rows: ActivityRow[]): Thread {
   const [built] = buildThreads(rows, new Set([STAFF_KEY]), []);
@@ -65,11 +71,35 @@ export function review(
   return {
     thread: built,
     fingerprint: `chat:${built.key}:${built.pending[0]?.id ?? "none"}`,
-    openKinds: [],
+    open: false,
     markers: { request: false, complaint: false },
     waitingHours: 5,
     slaBreached: true,
     verdict: null,
     ...fields,
+  };
+}
+
+/** An open finding of the chat collector, stored for client c1 at `at`. */
+export function liveFinding(
+  kind: FindingKind,
+  fingerprint: string,
+  at: string,
+): LiveChatFinding {
+  return {
+    kind,
+    fingerprint,
+    firstPendingAt: at,
+    stored: {
+      kind,
+      fingerprint,
+      severity: "warning",
+      client_id: "c1",
+      agency_id: "a1",
+      source_event_at: at,
+      summary_he: "לקוח א: כפי שנשמר",
+      evidence: { first_pending_at: at },
+      owner_user_id: null,
+    },
   };
 }

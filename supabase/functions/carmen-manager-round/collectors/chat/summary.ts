@@ -1,86 +1,89 @@
 /**
- * The Hebrew line staff receive for a chat finding. A group wait quotes the
- * client (at most 200 characters; the campaigner is in that group). A direct
- * chat is never quoted: the line carries only the time and a link to the
- * chat.
+ * The Hebrew line staff receive for a chat finding. A group open to the team
+ * (staff write there) is quoted (at most 200 characters). A direct chat, or a
+ * group no team member writes in, is never quoted: the line carries only the
+ * time and a link to the chat.
  */
-import type { ThreadReview } from "./gate.ts";
+import { clip } from "./clip.ts";
 import { israelDayAndClock } from "./israel-time.ts";
 import { readMarkers } from "./markers.ts";
-import type { Turn } from "./threads.ts";
+import type { Thread, Turn } from "./threads.ts";
 
 const QUOTE_MAX = 200;
 const SUMMARY_MAX = 500;
 
+type Marker = "request" | "complaint";
+
 /** "<client>: הלקוח כתב … ועדיין לא קיבל מענה (N שעות עסקיות)". */
 export function requestSummary(
-  review: ThreadReview,
+  thread: Thread,
+  waitingHours: number,
   link: string | null,
 ): string {
-  const { thread } = review;
-  const since = when(thread.pending[0]?.at);
-  const waited = hoursText(review.waitingHours);
-  const where =
-    thread.kind === "group"
-      ? `בקבוצה ${since}${quoted(review, "request")}`
-      : `בהודעה פרטית ${since}`;
-  return fit(
-    `${thread.clientName}: הלקוח כתב ${where} ועדיין לא קיבל מענה (${waited})${unsureText(review)}${linkText(link)}`,
+  const since = thread.pending[0]?.at;
+  const where = place(thread, thread.pending, "request", since);
+  return clip(
+    `${thread.clientName}: הלקוח כתב ${where} ועדיין לא קיבל מענה (${hoursText(waitingHours)})${unsureText(thread.pending)}${linkText(link)}`,
+    SUMMARY_MAX,
   );
 }
 
-/** "<client>: נראה שהלקוח מתלונן …". */
+/** "<client>: נראה שהלקוח מתלונן …", for the client turns `turns`. */
 export function complaintSummary(
-  review: ThreadReview,
+  thread: Thread,
+  turns: Turn[],
   link: string | null,
 ): string {
-  const { thread } = review;
-  const at = when(markedTurn(review, "complaint")?.at);
-  const where =
-    thread.kind === "group"
-      ? `בקבוצה ${at}${quoted(review, "complaint")}`
-      : `בהודעה פרטית ${at}`;
-  return fit(
-    `${thread.clientName}: נראה שהלקוח מתלונן ${where}${unsureText(review)}${linkText(link)}`,
+  const where = place(
+    thread,
+    turns,
+    "complaint",
+    markedTurn(turns, "complaint")?.at,
+  );
+  return clip(
+    `${thread.clientName}: נראה שהלקוח מתלונן ${where}${unsureText(turns)}${linkText(link)}`,
+    SUMMARY_MAX,
   );
 }
 
-/** The client message to quote (group threads only), cut to 200 characters. */
+/** The client message to quote (groups open to the team only), cut to 200 characters. */
 export function quoteOf(
-  review: ThreadReview,
-  marker: "request" | "complaint",
+  thread: Thread,
+  turns: Turn[],
+  marker: Marker,
 ): string | null {
-  if (review.thread.kind !== "group") {
+  if (!thread.openToTeam) {
     return null;
   }
-  const text = (markedTurn(review, marker)?.text ?? "")
+  const text = (markedTurn(turns, marker)?.text ?? "")
     .replace(/\s+/g, " ")
     .trim();
-  if (!text) {
-    return null;
+  return text ? clip(text, QUOTE_MAX) : null;
+}
+
+/** True when every turn came from an @lid sender wa_lid_map cannot resolve. */
+export function isLowConfidence(turns: Turn[]): boolean {
+  return turns.every((turn) => turn.unsure);
+}
+
+/** "בקבוצה <time>: "<quote>"" or "בהודעה פרטית <time>". */
+function place(
+  thread: Thread,
+  turns: Turn[],
+  marker: Marker,
+  at: Date | undefined,
+): string {
+  if (thread.kind !== "group") {
+    return `בהודעה פרטית ${when(at)}`;
   }
-  return text.length > QUOTE_MAX ? `${text.slice(0, QUOTE_MAX - 1)}…` : text;
+  const quote = quoteOf(thread, turns, marker);
+  return `בקבוצה ${when(at)}${quote ? `: "${quote}"` : ""}`;
 }
 
-/** True when every waiting message came from an @lid sender wa_lid_map cannot resolve. */
-export function isLowConfidence(review: ThreadReview): boolean {
-  return review.thread.pending.every((turn) => turn.unsure);
-}
-
-/** `: "<quote>"` for a group wait with text, else nothing. */
-function quoted(review: ThreadReview, marker: "request" | "complaint"): string {
-  const quote = quoteOf(review, marker);
-  return quote ? `: "${quote}"` : "";
-}
-
-/** The latest waiting message with the marker, else the latest waiting message. */
-function markedTurn(
-  review: ThreadReview,
-  marker: "request" | "complaint",
-): Turn | undefined {
-  const { pending } = review.thread;
-  const marked = pending.filter((turn) => readMarkers([turn.text])[marker]);
-  return marked.at(-1) ?? pending.at(-1);
+/** The latest turn with the marker, else the latest turn. */
+function markedTurn(turns: Turn[], marker: Marker): Turn | undefined {
+  const marked = turns.filter((turn) => readMarkers([turn.text])[marker]);
+  return marked.at(-1) ?? turns.at(-1);
 }
 
 /** "ב-27.10 בשעה 21:14", or nothing without a time. */
@@ -95,18 +98,11 @@ function hoursText(hours: number): string {
 }
 
 /** A note when the writer may be staff on a number the system cannot read. */
-function unsureText(review: ThreadReview): string {
-  return isLowConfidence(review) ? " (השולח לא זוהה בוודאות)" : "";
+function unsureText(turns: Turn[]): string {
+  return isLowConfidence(turns) ? " (השולח לא זוהה בוודאות)" : "";
 }
 
 /** " – לצ׳אט: <link>", or nothing without a link. */
 function linkText(link: string | null): string {
   return link ? ` – לצ׳אט: ${link}` : "";
-}
-
-/** The finding text limit (carmen_findings.summary_he). */
-function fit(text: string): string {
-  return text.length > SUMMARY_MAX
-    ? `${text.slice(0, SUMMARY_MAX - 1)}…`
-    : text;
 }

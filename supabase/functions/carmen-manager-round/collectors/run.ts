@@ -94,6 +94,7 @@ async function runOne(
       candidates: candidates.length,
       ...stored,
       llm: result.llm,
+      ...(result.note ? { reason: result.note } : {}),
     };
     return { report: report(collector, "ok", fields), candidates };
   } catch (error) {

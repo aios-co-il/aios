@@ -43,6 +43,11 @@ export function readMarkers(texts: string[]): Markers {
   };
 }
 
+/** True when every message is only thanks, acknowledgements or emoji. */
+export function onlyAcknowledgements(texts: string[]): boolean {
+  return texts.every(isAcknowledgement);
+}
+
 /** A question, or a request verb in a message that is not just thanks. */
 function isRequest(text: string): boolean {
   if (QUESTION.test(text)) {

@@ -33,6 +33,9 @@ export type ActivityQuery = {
   clientIds: string[] | null;
 };
 
+/** The rows read, and whether every thread was (false past the page cap). */
+export type ActivityRead = { rows: ActivityRow[]; complete: boolean };
+
 /** The provider the monitored lines store their rows under. */
 export const MONITORED_PROVIDER = "green_api";
 
@@ -43,31 +46,46 @@ export const PER_THREAD = 15;
 const PAGE_ROWS = 1_000;
 const MAX_PAGES = 20;
 
-/** Recent messages of every client-linked thread, oldest first per thread. */
+/**
+ * Recent messages of every client-linked thread, oldest first per thread.
+ * Pages are keyed by thread: a thread cut by the row cap is read whole on
+ * the next page, so no thread loses a row between pages. `collectorId` lets
+ * the function skip a shared group the client's own tenant reads itself.
+ */
 export async function loadThreadActivity(
   db: DbClient,
   query: ActivityQuery,
-): Promise<ActivityRow[]> {
+  collectorId: string,
+): Promise<ActivityRead> {
   const rows: ActivityRow[] = [];
+  let after: string | undefined;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const from = page * PAGE_ROWS;
     const { data, error } = await db
       .rpc("get_client_thread_activity", {
         p_tenant_id: query.tenantId,
         p_connection_user_ids: query.connectionIds,
         p_since: query.since.toISOString(),
+        p_collector: collectorId,
         p_provider: MONITORED_PROVIDER,
         p_client_ids: query.clientIds ?? undefined,
         p_per_thread: PER_THREAD,
+        p_after_thread_key: after,
       })
-      .range(from, from + PAGE_ROWS - 1);
+      .limit(PAGE_ROWS);
     throwIf(error, "get_client_thread_activity");
-    rows.push(...(data ?? []));
-    if ((data ?? []).length < PAGE_ROWS) {
-      return rows;
+    const got = data ?? [];
+    if (got.length < PAGE_ROWS) {
+      return { rows: [...rows, ...got], complete: true };
     }
+    const cut = got[got.length - 1].thread_key;
+    const whole = got.filter((row) => row.thread_key !== cut);
+    after = whole.at(-1)?.thread_key;
+    if (!after) {
+      break;
+    }
+    rows.push(...whole);
   }
-  throw new Error("get_client_thread_activity: more rows than expected");
+  return { rows, complete: false };
 }
 
 /** Unlinked groups with client traffic whose name matches one client. */

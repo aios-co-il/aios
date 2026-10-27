@@ -1,10 +1,12 @@
 /**
  * The round's LLM allowance for one tenant (plan C7): nothing once the
- * tenant's month-to-date ai_usage_log spend reaches its monthly_budget_usd
- * (the active 'llm' integration of the tenant), and per Israel day at most
- * round_llm_share_pct of that budget / 30, or $1 when no budget is set. Calls
- * of this run are added as they finish, since the usage log is written
- * asynchronously.
+ * month-to-date LLM spend reaches the tenant's monthly_budget_usd (its active
+ * 'llm' integration), and per Israel day at most round_llm_share_pct of that
+ * budget / 30, or $1 when no budget is set; a share of 0 turns the model off
+ * (markers only). The month spend is the project's, as the health probe sums
+ * it (UTC month, every tenant's LLM tables), because the OpenAI key and its
+ * budget are project-wide today. Calls of this run are added as they finish,
+ * since the usage log is written asynchronously.
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import {
@@ -57,12 +59,16 @@ export async function loadLlmMeter(
   ]);
   throwIf(spend.error, "carmen_round_llm_spend");
   const [spent] = spend.data ?? [];
+  const share = settings.round_llm_share_pct;
   return createLlmMeter({
     monthBudgetUsd: budget,
-    monthSpentUsd: Number(spent?.month_usd ?? 0),
-    dailyCapUsd: budget
-      ? (budget * settings.round_llm_share_pct) / 100 / 30
-      : DEFAULT_DAILY_USD,
+    monthSpentUsd: Number(spent?.project_month_usd ?? 0),
+    dailyCapUsd:
+      share === 0
+        ? 0
+        : budget
+          ? (budget * share) / 100 / 30
+          : DEFAULT_DAILY_USD,
     daySpentUsd: Number(spent?.day_usd ?? 0),
   });
 }

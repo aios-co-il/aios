@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { readMarkers } from "./markers.ts";
+import { onlyAcknowledgements, readMarkers } from "./markers.ts";
 
 Deno.test("readMarkers", async (t) => {
   await t.step("questions and request verbs are requests", () => {
@@ -25,5 +25,12 @@ Deno.test("readMarkers", async (t) => {
       request: false,
       complaint: true,
     });
+  });
+});
+
+Deno.test("onlyAcknowledgements", async (t) => {
+  await t.step("thanks and emoji only; anything else says more", () => {
+    assertEquals(onlyAcknowledgements(["תודה רבה!", "👍🙏"]), true);
+    assertEquals(onlyAcknowledgements(["תודה", "הלידים שלכם זבל"]), false);
   });
 });

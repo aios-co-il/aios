@@ -62,6 +62,12 @@ Deno.test("parseVerdict", async (t) => {
     });
   });
 
+  await t.step("cuts a long summary between whole characters", () => {
+    const summary_he = `${"א".repeat(198)}😡 ועוד`;
+    const parsed = parseVerdict({ ...verdict, summary_he });
+    assertEquals(parsed?.summary_he, `${"א".repeat(198)}😡…`);
+  });
+
   await t.step("rejects malformed answers", () => {
     for (const raw of [
       null,

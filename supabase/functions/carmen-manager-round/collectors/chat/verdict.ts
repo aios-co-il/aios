@@ -5,6 +5,7 @@
  * carries roles and times, never phones or names.
  */
 import type { Json } from "../../../_shared/database.types.ts";
+import { clip } from "./clip.ts";
 import { israelClock } from "./israel-time.ts";
 import type { Turn } from "./threads.ts";
 
@@ -28,7 +29,7 @@ const MIN_CONFIDENCE = 0.6;
 export function verdictPrompt(turns: Turn[]): string {
   return [
     "You read a WhatsApp group between a digital marketing agency (צוות) and its client (לקוח).",
-    "Look at the client's last messages, the ones after the agency's last turn.",
+    "Look at the client's latest messages: the last client (לקוח) lines, which the agency may have answered already.",
     "Decide whether the client is waiting for an answer, asks for something to be done, or complains.",
     'Answer in JSON only: {"needs_reply": boolean, "is_request": boolean, "is_complaint": boolean, "urgency": "low" | "normal" | "high", "summary_he": "one short Hebrew line", "confidence": number between 0 and 1}.',
     "Thanks, greetings and emoji need no reply.",
@@ -59,7 +60,7 @@ export function parseVerdict(raw: string | Json | null): ChatVerdict | null {
     is_complaint,
     urgency: urgency === "low" || urgency === "high" ? urgency : "normal",
     summary_he:
-      typeof summary_he === "string" ? summary_he.slice(0, MAX_SUMMARY) : "",
+      typeof summary_he === "string" ? clip(summary_he, MAX_SUMMARY) : "",
     confidence: Math.min(1, Math.max(0, confidence)),
   };
 }

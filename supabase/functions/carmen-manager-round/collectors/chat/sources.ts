@@ -7,31 +7,37 @@ import { aiChat } from "../../../_shared/ai.ts";
 import type { CollectorContext } from "../types.ts";
 import {
   type ActivityQuery,
-  type ActivityRow,
+  type ActivityRead,
   loadThreadActivity,
   loadUnlinkedGroups,
   type UnlinkedGroupRow,
 } from "./activity.ts";
 import { type CompletedCall, loadCompletedCalls } from "./calls.ts";
 import type { AskModel, ClassifyPorts } from "./classify.ts";
-import { monitoredConnectionIds, tenantSlug } from "./connections.ts";
+import {
+  type MonitoredLines,
+  monitoredLines,
+  tenantSlug,
+} from "./connections.ts";
 import type { LiveChatFinding } from "./gate.ts";
-import { loadLiveChatFindings } from "./live.ts";
+import { loadClosedChatKeys, loadLiveChatFindings } from "./live.ts";
 import { CHAT_LLM_SOURCE, loadLlmMeter } from "./llm-meter.ts";
 import { createReviewCache } from "./review-cache.ts";
 import { loadStaffKeys } from "./roster.ts";
 
 export type ChatSources = {
-  connectionIds(): Promise<string[]>;
-  activity(query: ActivityQuery): Promise<ActivityRow[]>;
+  lines(): Promise<MonitoredLines>;
+  activity(query: ActivityQuery): Promise<ActivityRead>;
   unlinked(query: ActivityQuery): Promise<UnlinkedGroupRow[]>;
-  staffKeys(tenantIds: string[]): Promise<Set<string>>;
+  staffKeys(tenantIds: string[], since: Date): Promise<Set<string>>;
   calls(
     tenantIds: string[],
     clientIds: string[],
     since: Date,
   ): Promise<CompletedCall[]>;
   live(): Promise<LiveChatFinding[]>;
+  /** `kind|fingerprint` of closed findings about messages since `since`. */
+  closed(since: Date): Promise<Set<string>>;
   /** `<app>/t/<slug>/chat/`, or null without APP_URL or a slug. */
   chatLinkBase(): Promise<string | null>;
   classify: ClassifyPorts;
@@ -45,13 +51,14 @@ export function dbChatSources(
 ): ChatSources {
   const { db, tenantId } = ctx;
   return {
-    connectionIds: () => monitoredConnectionIds(db, tenantId),
-    activity: (query) => loadThreadActivity(db, query),
+    lines: () => monitoredLines(db, tenantId),
+    activity: (query) => loadThreadActivity(db, query, collectorId),
     unlinked: (query) => loadUnlinkedGroups(db, query),
-    staffKeys: (tenantIds) => loadStaffKeys(db, tenantIds),
+    staffKeys: (tenantIds, since) => loadStaffKeys(db, tenantIds, since),
     calls: (tenantIds, clientIds, since) =>
       loadCompletedCalls(db, tenantIds, clientIds, since),
     live: () => loadLiveChatFindings(db, tenantId, collectorId),
+    closed: (since) => loadClosedChatKeys(db, tenantId, collectorId, since),
     async chatLinkBase() {
       const slug = appUrl ? await tenantSlug(db, tenantId) : null;
       return appUrl && slug

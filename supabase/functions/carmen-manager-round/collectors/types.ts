@@ -82,13 +82,21 @@ export type CollectorResult = {
   watermark: Json | null;
   /**
    * What the run fully checked, for auto-clear: complete=false (budget ran
-   * out) clears nothing; clientIds limits clearing to those clients.
+   * out) clears nothing; clientIds limits clearing to those clients, and
+   * kinds to those kinds (default: all the collector's kinds; a kind turned
+   * off is not checked, so its findings stay as they are).
    */
-  coverage: { complete: boolean; clientIds: string[] | null };
+  coverage: {
+    complete: boolean;
+    clientIds: string[] | null;
+    kinds?: readonly FindingKind[];
+  };
   /** Findings to close now (e.g. a client wait staff answered), whatever `coverage` says. */
   resolved?: FindingResolution[];
   /** LLM use of this run, summed into the round's heartbeat_logs row. */
   llm?: { calls: number; costUsd: number };
+  /** Why the run read less than it could (e.g. no monitored line), shown in its report. */
+  note?: string;
 };
 
 export type CollectorSchedule =
