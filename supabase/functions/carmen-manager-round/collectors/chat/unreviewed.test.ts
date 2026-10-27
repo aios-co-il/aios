@@ -130,4 +130,37 @@ Deno.test("readCoversWait", async (t) => {
       assertEquals(readCoversWait(wait, "gone"), false);
     },
   );
+
+  await t.step(
+    "a receipt ('קיבלתי') after the read does not, so the wait is read again",
+    () => {
+      const receipt = thread([
+        ...asked.slice(0, 2),
+        row({
+          message_id: "c2",
+          created_at: il("09:10"),
+          message_text: "קיבלתי, תודה",
+        }),
+      ]);
+      assertEquals(readCoversWait(receipt, "c1"), false);
+      for (const complaints of [true, false]) {
+        assertEquals(
+          needsModel(receipt, unreviewedTurns(receipt, "c1"), complaints),
+          true,
+        );
+      }
+    },
+  );
+
+  await t.step("a wait that is only a receipt is not asked about", () => {
+    const only = thread([
+      staffRow({ message_id: "hi", created_at: il("08:00") }),
+      row({
+        message_id: "c1",
+        created_at: il("09:00"),
+        message_text: "קיבלתי, תודה",
+      }),
+    ]);
+    assertEquals(needsModel(only, only.pending, true), false);
+  });
 });

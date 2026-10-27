@@ -173,6 +173,49 @@ Deno.test("threadFindings", async (t) => {
   );
 
   await t.step(
+    "a receipt after the read sends the wait back to the model",
+    async () => {
+      const verdict: ChatVerdict = {
+        needs_reply: true,
+        is_request: true,
+        complaint_ids: [],
+        urgency: "normal",
+        summary_he: "הדוח החודשי לא הגיע",
+        confidence: 0.9,
+      };
+      const met = {
+        needs_reply: false,
+        is_request: false,
+        complaint_lines: [],
+        urgency: "normal",
+        summary_he: "הלקוח קיבל את הדוח",
+        confidence: 0.9,
+      };
+      const found = await find(
+        [
+          staffRow({ message_id: "hi", created_at: il("08:00") }),
+          row({
+            message_id: "c1",
+            created_at: il("09:00"),
+            message_text: "הדוח של החודש עוד לא הגיע",
+          }),
+          row({
+            message_id: "c2",
+            created_at: il("09:10"),
+            message_text: "קיבלתי, תודה",
+          }),
+        ],
+        {
+          reviews: new Map([["group:111@g.us", { messageId: "c1", verdict }]]),
+          answer: JSON.stringify(met),
+        },
+      );
+      assertEquals(found.asked.length, 1, "'קיבלתי' is read again");
+      assertEquals(found.candidates, []);
+    },
+  );
+
+  await t.step(
     "without complaints only waits past the SLA go to the model",
     async () => {
       const team = staffRow({ message_id: "hi", created_at: il("08:00") });

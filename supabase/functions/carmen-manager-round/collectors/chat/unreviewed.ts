@@ -5,7 +5,7 @@
  * a complaint staff answered before the run, followed by a thank-you, is
  * still read.
  */
-import { onlyAcknowledgements, readMarkers } from "./markers.ts";
+import { onlyAcknowledgements, onlyThanks, readMarkers } from "./markers.ts";
 import { clientStreaks } from "./streaks.ts";
 import type { Thread, Turn } from "./threads.ts";
 
@@ -29,7 +29,10 @@ export function unreviewedTurns(
  * True for a group open to the team with unread client lines that say more
  * than thanks, in a streak the complaint words did not already flag (when
  * complaints are read), or in the open wait when no request marker shows.
- * Otherwise the markers already say everything a verdict could add.
+ * Otherwise the markers already say everything a verdict could add. An
+ * unread receipt ('קיבלתי') is read too when the open wait it ends has a
+ * line beyond acknowledgements and no request marker: the request a verdict
+ * found there may have been met outside the thread.
  */
 export function needsModel(
   thread: Thread,
@@ -45,11 +48,20 @@ export function needsModel(
     const texts = streak.turns
       .filter((turn) => unreadIds.has(turn.id))
       .map((turn) => turn.text);
-    if (!texts.length || onlyAcknowledgements(texts)) {
+    if (!texts.length) {
       return false;
     }
-    const markers = readMarkers(streak.turns.map((turn) => turn.text));
+    const all = streak.turns.map((turn) => turn.text);
+    const markers = readMarkers(all);
     const waiting = index === streaks.length - 1 && thread.pending.length > 0;
+    if (onlyAcknowledgements(texts)) {
+      return (
+        waiting &&
+        !markers.request &&
+        !onlyThanks(texts) &&
+        !onlyAcknowledgements(all)
+      );
+    }
     return (complaints && !markers.complaint) || (waiting && !markers.request);
   });
 }
@@ -58,7 +70,8 @@ export function needsModel(
  * True when the model's read, up to the client message `reviewedId`, still
  * speaks for the open wait: it read one of the wait's lines, and the client
  * wrote only thanks after it. needsModel never asks about thanks, so a
- * thank-you must not make the read stale either.
+ * thank-you must not make the read stale either; a receipt ('קיבלתי') does,
+ * and needsModel reads the wait again.
  */
 export function readCoversWait(thread: Thread, reviewedId: string): boolean {
   const at = thread.pending.findIndex((turn) => turn.id === reviewedId);
@@ -66,5 +79,5 @@ export function readCoversWait(thread: Thread, reviewedId: string): boolean {
     return false;
   }
   const later = thread.pending.slice(at + 1).map((turn) => turn.text);
-  return onlyAcknowledgements(later);
+  return onlyThanks(later);
 }

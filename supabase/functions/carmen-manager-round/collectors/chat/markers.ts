@@ -35,6 +35,12 @@ const ACK_WORDS = new Set([
   "thanks",
 ]);
 
+/**
+ * Acknowledgements that report the client got something: after a request
+ * they may mean it was met outside the thread (e.g. a scheduled report).
+ */
+const RECEIPT_WORDS: ReadonlySet<string> = new Set(["קיבלתי"]);
+
 /** The markers over the client's waiting messages. */
 export function readMarkers(texts: string[]): Markers {
   return {
@@ -48,6 +54,15 @@ export function onlyAcknowledgements(texts: string[]): boolean {
   return texts.every(isAcknowledgement);
 }
 
+/** True when every message is only thanks or emoji: acknowledgements without a receipt word. */
+export function onlyThanks(texts: string[]): boolean {
+  return texts.every(
+    (text) =>
+      isAcknowledgement(text) &&
+      !wordsOf(text).some((word) => RECEIPT_WORDS.has(word)),
+  );
+}
+
 /** A question, or a request verb in a message that is not just thanks. */
 function isRequest(text: string): boolean {
   if (QUESTION.test(text)) {
@@ -58,10 +73,14 @@ function isRequest(text: string): boolean {
 
 /** Only thanks, acknowledgements, punctuation or emoji. */
 function isAcknowledgement(text: string): boolean {
-  const words = text
+  return wordsOf(text).every((word) => ACK_WORDS.has(word));
+}
+
+/** The lower-cased words of a message, without punctuation or emoji. */
+function wordsOf(text: string): string[] {
+  return text
     .toLowerCase()
     .replace(/[\p{P}\p{S}]+/gu, " ")
     .split(/\s+/)
     .filter(Boolean);
-  return words.every((word) => ACK_WORDS.has(word));
 }
