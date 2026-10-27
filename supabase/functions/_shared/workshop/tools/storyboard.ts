@@ -1,4 +1,4 @@
-import { withLook } from "../look.ts";
+import { sceneReferenceUrl, withLook } from "../look.ts";
 import {
   briefProject,
   loadProject,
@@ -35,6 +35,17 @@ export async function workshopStoryboard(ctx: ToolContext) {
     .slice(0, 20);
   if (input.length === 0)
     return { error: "scenes ריק: כל סצנה צריכה visual_prompt" };
+  // A scene's own picture (the skin the character wears in it) must be one the stills can fetch:
+  // a wrong address is refused here rather than silently falling back to the project's look.
+  const badReference = input.findIndex(
+    (scene) =>
+      String(scene.reference_url ?? "").trim() !== "" &&
+      !sceneReferenceUrl(scene.reference_url),
+  );
+  if (badReference >= 0)
+    return {
+      error: `סצנה ${badReference + 1}: reference_url חייב להיות קישור https ציבורי לתמונה (נכס מהפרויקט או קישור שהמשתמש נתן).`,
+    };
   const old = await loadScenes(supabase, tenantId, itemId);
   if (old.length > 0 && args.replace !== true)
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
@@ -58,6 +69,11 @@ export async function workshopStoryboard(ctx: ToolContext) {
     overlay_text: String(scene.overlay_text ?? "").trim(),
     voiceover_text: String(scene.voiceover_text ?? "").trim(),
     duration_s: Math.min(Math.max(Number(scene.duration_s) || 3, 0.5), 120),
+    // The scene's own character picture: saved to meta by save_video_storyboard, and its
+    // still is made from it instead of the project's anchor frame.
+    ...(sceneReferenceUrl(scene.reference_url)
+      ? { reference_url: sceneReferenceUrl(scene.reference_url) }
+      : {}),
     // Talking scene: saved to meta by save_video_storyboard.
     ...(scene.lipsync === true
       ? {
@@ -108,9 +124,11 @@ export async function workshopStoryboard(ctx: ToolContext) {
         .join("\n\n"),
     },
   });
+  const ownReferences = rows.filter((scene) => scene.reference_url).length;
   return {
     success: true,
     scenes: rows.length,
+    ...(ownReferences > 0 ? { scenes_with_own_reference: ownReferences } : {}),
     total_s: total,
     artifact,
     workshop: {

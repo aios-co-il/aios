@@ -875,6 +875,179 @@ Deno.test(
 );
 
 Deno.test(
+  "a scene with its own picture is made from that picture, never from the anchor",
+  async () => {
+    const skin = (n: number) => `https://cdn.example.com/skin-${n}.png`;
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [
+        scene("s-1", { meta: { reference_url: skin(1) } }),
+        scene("s-2"),
+        scene("s-3", { meta: { reference_url: skin(3) } }),
+        scene("s-4"),
+      ],
+      "rpc:attach_video_scene_asset": { id: "asset-1" },
+    });
+    const seen: { prompt: string; references?: string[] }[] = [];
+    const done = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      {
+        item_id: "item-1",
+        confirmed: true,
+        reference_urls: ["https://x/brand.png"],
+      },
+      async () => {},
+      null,
+      {
+        generateImage: async (
+          prompt: string,
+          _format: string,
+          refs?: string[],
+        ) => {
+          seen.push({ prompt, references: refs });
+          return { image_url: `https://x/still-${seen.length}.png` };
+        },
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(done.created, 4);
+    assertStrictEquals(done.own_reference_scenes, 2);
+    // The anchor is the first scene that follows the project's look (s-2), made first.
+    assertEquals(seen[0].references, ["https://x/brand.png"]);
+    const own = seen.filter((call) =>
+      call.references?.some((url) => url.includes("skin-")),
+    );
+    assertEquals(
+      own.map((call) => call.references),
+      [[skin(1)], [skin(3)]],
+    );
+    for (const call of own) {
+      assertMatch(call.prompt, /this scene's character reference/);
+      assertMatch(call.prompt, /warm editorial look/);
+      assertNotMatch(call.prompt, /approved first frame/);
+    }
+    const plain = seen.slice(1).filter((call) => !own.includes(call));
+    assertEquals(
+      plain.map((call) => call.references),
+      [["https://x/brand.png", "https://x/still-1.png"]],
+    );
+    const attached = db.calls
+      .filter((c) => c.table === "rpc:attach_video_scene_asset")
+      .map((c) => c.value as Record<string, any>);
+    assertEquals(
+      attached
+        .filter((call) => call.p_meta.reference_url)
+        .map((call) => call.p_scene_id)
+        .sort(),
+      ["s-1", "s-3"],
+    );
+    assertMatch(done.message, /2 מהן נוצרו לפי התמונה של הסצנה/);
+  },
+);
+
+Deno.test(
+  "when every scene has its own picture no anchor frame is made or saved",
+  async () => {
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [
+        scene("s-1", {
+          meta: { reference_url: "https://cdn.example.com/a.png" },
+        }),
+        scene("s-2", {
+          meta: { reference_url: "https://cdn.example.com/b.png" },
+        }),
+      ],
+      "rpc:attach_video_scene_asset": { id: "asset-1" },
+    });
+    const seen: (string[] | undefined)[] = [];
+    const done = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      { item_id: "item-1", confirmed: true },
+      async () => {},
+      null,
+      {
+        generateImage: async (_p: string, _f: string, refs?: string[]) => {
+          seen.push(refs);
+          return { image_url: `https://x/still-${seen.length}.png` };
+        },
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(done.created, 2);
+    assertStrictEquals(done.anchored, false);
+    assertEquals(seen.map((refs) => refs?.[0]).sort(), [
+      "https://cdn.example.com/a.png",
+      "https://cdn.example.com/b.png",
+    ]);
+    const looks = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map((c) => (c.value as Record<string, any>).payload.workshop_look);
+    assertStrictEquals(
+      looks.some((look) => look?.anchor_url),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "the storyboard keeps each scene's own picture and refuses one it cannot fetch",
+  async () => {
+    const db = fakeDb(videoProject());
+    const saved = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        scenes: [
+          {
+            visual_prompt: "Carmen presents the calendar",
+            reference_url: " https://cdn.example.com/skin-calendar.png ",
+          },
+          { visual_prompt: "Carmen at the desk" },
+        ],
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(saved.success, true);
+    assertStrictEquals(saved.scenes_with_own_reference, 1);
+    const rpc = db.calls.find((c) => c.table === "rpc:save_video_storyboard")
+      ?.value as Record<string, any>;
+    assertStrictEquals(
+      rpc.p_scenes[0].reference_url,
+      "https://cdn.example.com/skin-calendar.png",
+    );
+    assertStrictEquals("reference_url" in rpc.p_scenes[1], false);
+    // A scene's picture never becomes a project-wide reference.
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "workshop_assets" && c.op === "insert"),
+      false,
+    );
+
+    const bad = fakeDb(videoProject());
+    const refused = (await executeWorkshopTool(
+      bad,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        scenes: [
+          { visual_prompt: "a" },
+          { visual_prompt: "b", reference_url: "http://localhost/skin.png" },
+        ],
+      },
+    )) as Record<string, any>;
+    assertMatch(String(refused.error), /סצנה 2: reference_url/);
+    assertStrictEquals(
+      bad.calls.some((c) => c.table === "rpc:save_video_storyboard"),
+      false,
+    );
+  },
+);
+
+Deno.test(
   "when the first picture fails nothing else is generated without its anchor",
   async () => {
     let calls = 0;

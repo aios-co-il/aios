@@ -4,7 +4,37 @@ import {
   assertNotMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { lookOf, stillPrompt, withLook } from "./look.ts";
+import { lookOf, sceneReferenceUrl, stillPrompt, withLook } from "./look.ts";
+
+Deno.test(
+  "a scene's own picture is a public https address, and its prompt copies that character",
+  () => {
+    assertStrictEquals(
+      sceneReferenceUrl(" https://cdn.example.com/skin-1.png "),
+      "https://cdn.example.com/skin-1.png",
+    );
+    assertStrictEquals(sceneReferenceUrl("http://cdn.example.com/a.png"), null);
+    assertStrictEquals(sceneReferenceUrl("https://localhost/a.png"), null);
+    assertStrictEquals(sceneReferenceUrl("https://user:pw@x.com/a.png"), null);
+    assertStrictEquals(sceneReferenceUrl("not a url"), null);
+    assertStrictEquals(sceneReferenceUrl(42), null);
+
+    const prompt = stillPrompt({
+      visual: "she presents the calendar in a bright office",
+      look: { bible: "Carmen in a teal blazer, flat vector style" },
+      userReferences: 0,
+      hasAnchor: false,
+      sceneReference: true,
+      suffix: "No text.",
+    });
+    assertMatch(prompt, /this scene's character reference/);
+    assertMatch(prompt, /face, hair, skin tone, build, outfit/);
+    assertMatch(prompt, /reference wins/);
+    assertMatch(prompt, /flat vector style/);
+    assertNotMatch(prompt, /approved first frame/);
+    assertNotMatch(prompt, /consistent character/);
+  },
+);
 
 Deno.test(
   "references from the tool and from attached style references merge, https only, capped",
