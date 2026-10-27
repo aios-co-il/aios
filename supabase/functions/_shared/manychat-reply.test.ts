@@ -45,10 +45,8 @@ Deno.test(
       status: "success",
       data: [null, { id: 1, name: "city" }, { id: 7, name: "Phone_Number" }],
     };
-    assertEquals(findManyChatPhoneField(reply), {
-      id: 7,
-      name: "Phone_Number",
-    });
+    const phoneField = { id: 7, name: "Phone_Number" };
+    assertEquals(findManyChatPhoneField(reply), phoneField);
     assertStrictEquals(
       findManyChatPhoneField({ status: "error", data: [] }),
       null,
