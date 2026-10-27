@@ -7,8 +7,9 @@
 import { MIX } from "./workshop-edit.mjs";
 
 /**
- * Integrated loudness the music bed is brought to before the gains. A typical ElevenLabs
- * track sits here, so a film without sound design keeps the level it had.
+ * Integrated loudness a trailer's music bed is brought to before the gains (sound-prep.mjs), so
+ * TRAILER's levels are loudness targets: the showcase's ElevenLabs track read -17.2 LUFS. An
+ * ordinary film's bed is not levelled and keeps today's MIX gains.
  */
 export const MUSIC_LUFS = -17;
 /** Each sound effect's loudest moment (momentary LUFS) after normalization. */

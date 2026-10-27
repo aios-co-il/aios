@@ -1,9 +1,11 @@
 /**
- * The film's sound, levelled on the local files before either edit mixes it. The music bed is
- * brought to MUSIC_LUFS and each sound effect's hit to EFFECT_LUFS, so the gains in MIX mean
- * the same for every track (an ElevenLabs impact came out 15 LU under its whoosh). It runs at
- * render time, so effects stored by earlier renders are levelled too. The narration is only
- * measured: the trailer mix sets the bed under it. A file that cannot be read keeps its level.
+ * The film's sound, levelled on the local files before either edit mixes it. Each sound effect's
+ * hit is brought to EFFECT_LUFS (an ElevenLabs impact came out 15 LU under its whoosh) and, in a
+ * trailer, the music bed to MUSIC_LUFS, so the trailer mix's gains are loudness targets. An
+ * ordinary film's bed keeps its own level under today's MIX; it is only measured, for where its
+ * body ends (the loop hand-over). It runs at render time, so effects stored by earlier renders
+ * are levelled too. The narration is only measured: the trailer mix sets the bed under it. A file
+ * that cannot be read keeps its level.
  */
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -75,18 +77,21 @@ export async function prepareSound(
     }
   };
 
+  // Only the trailer mix needs the bed at a known loudness; an ordinary film keeps today's.
+  const trailer = isTrailer(timeline);
   const music = await read(timeline.musicPath);
-  const musicPath = music
-    ? await levelled(
-        timeline.musicPath,
-        "music",
-        levelGain({
-          measured: music.integrated,
-          target: MUSIC_LUFS,
-          peak: music.truePeak,
-        }),
-      )
-    : (timeline.musicPath ?? null);
+  const musicPath =
+    music && trailer
+      ? await levelled(
+          timeline.musicPath,
+          "music",
+          levelGain({
+            measured: music.integrated,
+            target: MUSIC_LUFS,
+            peak: music.truePeak,
+          }),
+        )
+      : (timeline.musicPath ?? null);
 
   let effects = timeline.effects ?? null;
   if (effects) {
@@ -109,7 +114,6 @@ export async function prepareSound(
   }
 
   // Only the trailer mix sets the bed by the voice; an ordinary film's levels are fixed.
-  const trailer = isTrailer(timeline);
   const voices = !trailer
     ? []
     : timeline.narrationPath

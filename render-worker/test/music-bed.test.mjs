@@ -40,13 +40,15 @@ test.skipIf(!hasFfmpeg)(
         return file;
       };
       const music = join(dir, "music.wav");
+      // A tone about as loud as a mastered track (lavfi's sine is at 1/8): an ordinary
+      // film's bed is not levelled, so it plays at its own level under MIX.
       media([
         "-f",
         "lavfi",
         "-i",
         "sine=frequency=330:duration=2",
         "-af",
-        "volume=0.5",
+        "volume=4",
         music,
       ]);
       const output = join(dir, "film.mp4");
@@ -96,14 +98,19 @@ test("a track shorter than the film is looped with a crossfade at its musical en
     if (i) expect(loop.startFrame).toBe(many[i - 1].startFrame + 300 - 45);
 });
 
-test("a track that covers the film stays one copy, also when its outro ends it", () => {
+test("a track that covers the film is one copy unless its music dies away before the film's fade", () => {
   expect(musicLoops(1500, 1400)).toStrictEqual([
     { startFrame: 0, frameCount: 1400, fadeInFrames: 0, fadeOutFrames: 0 },
   ]);
   // The body ends 0.9 s before the film's own 1.5 s fade: the track's outro plays out.
   expect(musicLoops(1683, 1563, { bodyFrames: 1490 }).length).toBe(1);
-  // A body ending earlier starts a new copy instead of a dying tail.
+  // A body ending earlier starts a new copy instead of a dying tail under the end card,
+  // also when the track itself is long enough.
   expect(musicLoops(1683, 1563, { bodyFrames: 1440 }).length).toBe(2);
+  expect(musicLoops(1686, 1567, { bodyFrames: 1380 })).toStrictEqual([
+    { startFrame: 0, frameCount: 1380, fadeInFrames: 0, fadeOutFrames: 45 },
+    { startFrame: 1335, frameCount: 232, fadeInFrames: 45, fadeOutFrames: 0 },
+  ]);
   // A short outro that ends inside the film's fade is not left to silence either.
   const short = musicLoops(60, 197, { bodyFrames: 54 });
   expect(short.at(-1).startFrame + short.at(-1).frameCount).toBe(197);

@@ -149,3 +149,36 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
   expect(kept.effects.whooshPath).toBe("/w.mp3");
   expect(kept.voiceLufs).toBe(null);
 });
+
+test("an ordinary film's bed keeps its own level and is only measured for its loop", async () => {
+  const written = [];
+  const options = {
+    measure: async () => ({
+      integrated: -12,
+      truePeak: -1,
+      maxMomentary: -10,
+      bodyEndS: 30,
+    }),
+    normalize: async (file, out, gain) => written.push([file, out, gain]),
+    log: () => {},
+  };
+  const plain = await prepareSound(
+    { musicPath: "/m.mp3", narrationPath: "/n.mp3", scenes: [] },
+    "/out",
+    options,
+  );
+  expect(plain).toMatchObject({
+    musicPath: "/m.mp3",
+    musicBodyS: 30,
+    voiceLufs: null,
+  });
+  expect(written).toStrictEqual([]);
+  // A trailer brief without effects still gets its bed levelled for the trailer mix.
+  const trailer = await prepareSound(
+    { musicPath: "/m.mp3", soundDesign: true, scenes: [] },
+    "/out",
+    options,
+  );
+  expect(trailer.musicPath).toBe("/out/music-levelled.wav");
+  expect(written.map(([, , gain]) => gain.gainDb)).toStrictEqual([-5]);
+});
