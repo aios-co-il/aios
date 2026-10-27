@@ -104,9 +104,68 @@ Deno.test("resolveCarmenReportRecipients", async (t) => {
       ["u-owner"],
     );
     assertEquals(result.skipped, [
-      { name: "Same phone", reason: "duplicate_phone" },
+      {
+        name: "Same phone",
+        extra_phone: "+972500000001",
+        reason: "duplicate_phone",
+      },
     ]);
   });
+
+  await t.step("skips an extra phone that now belongs to a client", () => {
+    const result = resolveCarmenReportRecipients({
+      configured: [
+        { user_id: null, phone: "+972500000009", label: "Partner" },
+        { user_id: "u-manager", phone: null, label: null },
+      ],
+      staff: STAFF,
+      clientPhones: ["+972500000009"],
+    });
+
+    assertEquals(
+      result.recipients.map((r) => r.user_id),
+      ["u-manager"],
+    );
+    assertEquals(result.skipped, [
+      { name: "Partner", extra_phone: "+972500000009", reason: "client_phone" },
+    ]);
+  });
+
+  await t.step(
+    "a list of only client phones sends to nobody, not to the owners",
+    () => {
+      const result = resolveCarmenReportRecipients({
+        configured: [
+          { user_id: null, phone: "+972500000009", label: "Partner" },
+        ],
+        staff: STAFF,
+        clientPhones: ["+972500000009"],
+      });
+
+      assertEquals(result.recipients, []);
+    },
+  );
+
+  await t.step(
+    "two extra phones with one label are told apart by phone",
+    () => {
+      const result = resolveCarmenReportRecipients({
+        configured: [
+          { user_id: null, phone: "+972500000007", label: "Office" },
+          { user_id: null, phone: "+9720500000007", label: "Office" },
+        ],
+        staff: STAFF,
+      });
+
+      assertEquals(result.skipped, [
+        {
+          name: "Office",
+          extra_phone: "+9720500000007",
+          reason: "duplicate_phone",
+        },
+      ]);
+    },
+  );
 
   await t.step("skips a member without a phone with a reason", () => {
     const result = resolveCarmenReportRecipients({

@@ -140,6 +140,23 @@ describe("CarmenReportRecipientsSection", () => {
     );
   });
 
+  it("warns only on the duplicate of two extra phones with one label", async () => {
+    state.rows = [
+      { id: "r1", user_id: "u-felix", phone: null, label: null },
+      { id: "r2", user_id: null, phone: "+972500000011", label: "משרד" },
+      { id: "r3", user_id: null, phone: "+972500000012", label: "משרד" },
+    ];
+
+    mount();
+
+    const list = await screen.findByRole("list", { name: "נמעני הדיווח" });
+    const [duplicate, other] = within(list)
+      .getAllByText("משרד")
+      .map((label) => label.closest("li"));
+    expect(duplicate).toHaveTextContent("אותו טלפון כבר ברשימה");
+    expect(other).not.toHaveTextContent("אותו טלפון כבר ברשימה");
+  });
+
   it("adds a team member found by search", async () => {
     const user = userEvent.setup();
     mount();

@@ -19,13 +19,18 @@ const STAFF = [
   },
 ];
 
-function db(rows: unknown[]) {
+function db(rows: unknown[], clientPhones: string[] = []) {
   const staffCalls: unknown[] = [];
   const client = fakeSupabase(
     { carmen_report_recipients: rows },
     {
       rpc: {
         carmen_report_staff: (args: unknown) => (staffCalls.push(args), STAFF),
+        carmen_report_client_phones: ({
+          p_tenant_id,
+        }: {
+          p_tenant_id: string;
+        }) => (p_tenant_id === TENANT ? clientPhones : []),
       },
     },
   );
@@ -65,6 +70,35 @@ Deno.test("loadCarmenReportRecipients", async (t) => {
     assertEquals(listQuery.filters, [["eq", "tenant_id", TENANT]]);
     assertEquals(listQuery.order, { col: "created_at", asc: true });
   });
+
+  await t.step(
+    "an extra phone that became a client's is skipped at send time",
+    async () => {
+      const { client } = db(
+        [
+          {
+            tenant_id: TENANT,
+            user_id: null,
+            phone: "+972500000009",
+            label: "Partner",
+            created_at: "2026-10-27T10:00:00Z",
+          },
+        ],
+        ["+972500000009"],
+      );
+
+      const result = await loadCarmenReportRecipients(client, TENANT);
+
+      assertEquals(result.recipients, []);
+      assertEquals(result.skipped, [
+        {
+          name: "Partner",
+          extra_phone: "+972500000009",
+          reason: "client_phone",
+        },
+      ]);
+    },
+  );
 
   await t.step("an empty list resolves to the owners", async () => {
     const result = await loadCarmenReportRecipients(db([]).client, TENANT);

@@ -3,10 +3,11 @@
  *
  * The configured list (carmen_report_recipients) wins; an empty list means the
  * organization's owners. Only staff of the organization and the extra phones
- * an owner typed in are ever returned, never a client (the DB trigger
- * carmen_report_recipients_guard rejects client phones), and each normalised
- * phone appears once. The browser imports this module too, so the settings
- * screen shows exactly what the server will do.
+ * an owner typed in are ever returned, never a client: the DB trigger
+ * carmen_report_recipients_guard refuses a client phone on write, and
+ * clientPhones skips one that became a client's later. Each normalised phone
+ * appears once. The browser imports this module too, so the settings screen
+ * shows what the server will do.
  */
 
 import { normalizeNotifyPhone } from "../carmen-notify-target.ts";
@@ -15,12 +16,17 @@ import { normalizeNotifyPhone } from "../carmen-notify-target.ts";
 export function resolveCarmenReportRecipients(input: {
   configured: ConfiguredReportRecipient[];
   staff: ReportStaffMember[];
+  /** Listed extra phones that now belong to a client (carmen_report_client_phones). */
+  clientPhones?: string[];
 }): CarmenReportRecipients {
   const staffById = new Map(
     input.staff.map((member) => [member.user_id, member]),
   );
+  const clientPhones = new Set(input.clientPhones);
   const candidates = input.configured.length
-    ? input.configured.map((row) => configuredCandidate(row, staffById))
+    ? input.configured.map((row) =>
+        configuredCandidate(row, staffById, clientPhones),
+      )
     : input.staff.filter((member) => member.is_owner).map(ownerCandidate);
   return dedupeByPhone(candidates);
 }
@@ -51,10 +57,16 @@ export type CarmenReportRecipient = {
 };
 
 export type ReportRecipientSkipReason =
-  "member_without_phone" | "not_staff" | "invalid_phone" | "duplicate_phone";
+  | "member_without_phone"
+  | "not_staff"
+  | "invalid_phone"
+  | "duplicate_phone"
+  | "client_phone";
 
 export type SkippedReportRecipient = {
   user_id?: string;
+  /** The stored phone of a skipped extra-phone row (unique in the list). */
+  extra_phone?: string | null;
   name: string;
   reason: ReportRecipientSkipReason;
 };
@@ -75,19 +87,24 @@ type Candidate = {
   source: CarmenReportRecipientSource;
   /** Why the candidate is skipped when it has no phone at all. */
   noPhoneReason: ReportRecipientSkipReason;
+  /** Set when the candidate is skipped whatever its phone. */
+  refused?: ReportRecipientSkipReason;
 };
 
 /** A configured row as a candidate: an extra phone, or a member with their staff phone. */
 function configuredCandidate(
   row: ConfiguredReportRecipient,
   staffById: Map<string, ReportStaffMember>,
+  clientPhones: Set<string>,
 ): Candidate {
   if (!row.user_id) {
+    const isClient = row.phone !== null && clientPhones.has(row.phone);
     return {
       name: row.label?.trim() || EXTRA_PHONE_NAME,
       rawPhone: row.phone,
       source: "configured",
       noPhoneReason: "invalid_phone",
+      refused: isClient ? "client_phone" : undefined,
     };
   }
   const member = staffById.get(row.user_id);
@@ -126,25 +143,41 @@ function dedupeByPhone(candidates: Candidate[]): CarmenReportRecipients {
   const skipped: SkippedReportRecipient[] = [];
   const seen = new Set<string>();
   for (const candidate of candidates) {
-    const identity = candidate.user_id
-      ? { user_id: candidate.user_id, name: candidate.name }
-      : { name: candidate.name };
     const phone = dialablePhone(candidate.rawPhone);
+    if (candidate.refused) {
+      skipped.push(skippedEntry(candidate, candidate.refused));
+      continue;
+    }
     if (!phone) {
       const reason = candidate.rawPhone?.trim()
         ? "invalid_phone"
         : candidate.noPhoneReason;
-      skipped.push({ ...identity, reason });
+      skipped.push(skippedEntry(candidate, reason));
       continue;
     }
     if (seen.has(phone)) {
-      skipped.push({ ...identity, reason: "duplicate_phone" });
+      skipped.push(skippedEntry(candidate, "duplicate_phone"));
       continue;
     }
     seen.add(phone);
-    recipients.push({ ...identity, phone, source: candidate.source });
+    recipients.push({
+      ...(candidate.user_id ? { user_id: candidate.user_id } : {}),
+      name: candidate.name,
+      phone,
+      source: candidate.source,
+    });
   }
   return { recipients, skipped };
+}
+
+/** A skipped member keeps its user_id; a skipped extra phone keeps its stored phone. */
+function skippedEntry(
+  candidate: Candidate,
+  reason: ReportRecipientSkipReason,
+): SkippedReportRecipient {
+  return candidate.user_id
+    ? { user_id: candidate.user_id, name: candidate.name, reason }
+    : { name: candidate.name, extra_phone: candidate.rawPhone, reason };
 }
 
 /** Normalised digits, or null when the stored phone cannot be a WhatsApp number. */

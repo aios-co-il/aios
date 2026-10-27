@@ -42,7 +42,7 @@ export type ResolveCarmenNotifyTargetInput = {
   /** Explicit chat_id / phone from the caller (highest priority). */
   preferredPhone?: string | null;
   /** Whom the tenant's Carmen reports to (loadCarmenReportRecipients), in order. */
-  reportRecipients?: Pick<CarmenReportRecipient, "phone" | "name">[];
+  reportRecipients?: Pick<CarmenReportRecipient, "phone" | "name" | "source">[];
   /** Non-group carmen_whatsapp_sessions for the tenant (newest first preferred). */
   sessions: NotifySessionCandidate[];
   /** Active tenant campaigners with phones (this tenant only). */
@@ -208,8 +208,12 @@ export function resolveCarmenNotifyTarget(
   const preferred = tryPhone(input.preferredPhone, "preferred_phone");
   if (preferred) return preferred;
 
-  // A single-recipient notify goes to the first person Carmen reports to.
-  const reportRecipient = input.reportRecipients?.[0];
+  // A single-recipient notify goes to the first configured report recipient,
+  // which replaces campaign_pulse_phone. The owner fallback does not apply
+  // here: without a configured list the staff session chain below decides.
+  const reportRecipient = input.reportRecipients?.find(
+    (recipient) => recipient.source === "configured",
+  );
   const report = tryPhone(reportRecipient?.phone, "report_recipient");
   if (report) {
     return {

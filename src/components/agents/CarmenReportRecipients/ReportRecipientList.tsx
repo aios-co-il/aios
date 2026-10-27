@@ -62,7 +62,7 @@ function RecipientItem({
     : row.label || "מספר נוסף";
   const phone = row.user_id ? member?.phone : row.phone;
   const skip = resolved.skipped.find((s) =>
-    row.user_id ? s.user_id === row.user_id : !s.user_id && s.name === name,
+    row.user_id ? s.user_id === row.user_id : s.extra_phone === row.phone,
   );
   return (
     <li className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2">
@@ -101,7 +101,7 @@ function RecipientItem({
 function OwnerFallbackNote({ resolved }: { resolved: CarmenReportRecipients }) {
   if (!resolved.recipients.length) {
     return (
-      <RecipientWarning text="הרשימה ריקה ולאף בעלים אין טלפון — כרמן לא תשלח דוחות" />
+      <RecipientWarning text="הרשימה ריקה ולאף בעלים אין טלפון — דוח הדופק המלא לא יישלח" />
     );
   }
   return (

@@ -1,7 +1,8 @@
 /**
  * Instant WhatsApp alerts from campaign pulse snapshots.
- * Everyone the organization's Carmen reports to, plus the team managers of the
- * client's agency, receive per-campaign alerts (deduped).
+ * Everyone the organization's Carmen reports to, its owners and agency owners,
+ * and the team managers of the client's agency receive per-campaign alerts
+ * (deduped).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -508,7 +509,7 @@ export async function deliverInstantPulseAlerts(input: {
   supabase: any;
   tenantId: string;
   tenantSlug?: string | null;
-  /** Whom the organization's Carmen reports to: the owner slot of every alert. */
+  /** Whom the organization's Carmen reports to; alerted ahead of the owners and managers. */
   reportRecipients: CarmenReportRecipient[];
   snapshots: PulseSnapshotAlertInput[];
   criticalIssues: CriticalIssueLike[];

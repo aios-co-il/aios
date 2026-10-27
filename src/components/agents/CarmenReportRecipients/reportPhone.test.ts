@@ -6,6 +6,11 @@ describe("toReportPhoneE164", () => {
     expect(toReportPhoneE164("050-123-4567")).toBe("+972501234567");
   });
 
+  it("reads a mobile typed without its leading 0 as Israeli", () => {
+    expect(toReportPhoneE164("541234567")).toBe("+972541234567");
+    expect(toReportPhoneE164("+972 54-123-4567")).toBe("+972541234567");
+  });
+
   it("keeps an international number", () => {
     expect(toReportPhoneE164("+1 (415) 555-0100")).toBe("+14155550100");
   });

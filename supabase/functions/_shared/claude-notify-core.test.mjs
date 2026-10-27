@@ -398,6 +398,7 @@ function tenantTables({
   sessions,
   trigger = {},
   reportRecipients,
+  campaigners = [],
 } = {}) {
   return {
     tenant_heartbeat_settings: [
@@ -423,7 +424,7 @@ function tenantTables({
         last_message_at: "2026-10-25T08:00:00Z",
       },
     ],
-    campaigners: [],
+    campaigners,
     automation_flow_steps: [
       {
         tenant_id: TENANT,
@@ -514,27 +515,35 @@ Deno.test(
 );
 
 Deno.test(
-  "handler: with an empty report list the notify goes to the organization's owner",
+  "handler: with an empty report list the notify keeps the staff session, not the owner",
   async () => {
     const { handle, fetch } = handler({
-      tables: tenantTables({ reportRecipients: [] }),
+      tables: tenantTables({
+        reportRecipients: [],
+        campaigners: [
+          {
+            tenant_id: TENANT,
+            full_name: "David",
+            phone: PHONE,
+            role: "מנהל צוות",
+            active: true,
+          },
+        ],
+      }),
       rpc: {
-        carmen_report_staff: ({ p_tenant_id }) =>
-          p_tenant_id === TENANT
-            ? [
-                {
-                  user_id: DAVID_USER,
-                  full_name: "David",
-                  phone: "0501234567",
-                  is_owner: true,
-                },
-              ]
-            : [],
+        carmen_report_staff: () => [
+          {
+            user_id: "33333333-3333-4333-8333-333333333333",
+            full_name: "Owner",
+            phone: "0509999999",
+            is_owner: true,
+          },
+        ],
       },
     });
     const out = await (await handle(post(notifyBody, SERVICE_KEY))).json();
     assertStrictEquals(out.sent, true);
-    assertStrictEquals(out.source, "report_recipient");
+    assertStrictEquals(out.source, "tenant_staff_session");
     assertStrictEquals(fetch.calls[0].body.phoneNumber, PHONE);
   },
 );

@@ -33,7 +33,7 @@ function ReportRecipientsEditor({ tenantId }: { tenantId: string }) {
         <Label className="text-xs font-medium">כרמן מדווחת ל</Label>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           דוחות יום ראשון, התראות דופק מיידיות והודעות כרמן של הארגון. רשימה
-          ריקה — בעלי הארגון.
+          ריקה — הדוחות לבעלי הארגון.
         </p>
       </div>
       {isError ? (

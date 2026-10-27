@@ -6,4 +6,5 @@ export const SKIP_WARNINGS: Record<ReportRecipientSkipReason, string> = {
   not_staff: "כבר לא בצוות הארגון — כרמן לא תשלח",
   invalid_phone: "הטלפון בכרטיס לא תקין — כרמן לא תוכל לשלוח",
   duplicate_phone: "אותו טלפון כבר ברשימה — יישלח פעם אחת",
+  client_phone: "המספר שייך ללקוח — כרמן לא תשלח אליו",
 };

@@ -349,8 +349,8 @@ legacy manual process.
 ### 2026-08-05 — DMM notify/pulse recipient = Felix (not David fallback)
 
 - **Skin slug:** `dmm_notify_recipient_routing` (tenant: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019`)
-- **What Carmen can now do:** Know that DMM outbound pulse/health digests go to Felix (`972558833168`) via `tenant_heartbeat_settings.campaign_pulse_phone`, not to David. David only receives a DMM notify when he is the explicit `chat_id` / preferred recipient. Cross-tenant “newest session” owner fallback is refused.
-- **How:** Configure/verify `campaign_pulse_phone` on Agent Tasks → heartbeat. Delivery path: `campaign-pulse-snapshot` / `carmen-health-probe` → `claude_notify_david` → `claude-notify` → `resolveCarmenNotifyTarget` (preferred → pulse phone → tenant campaigner/manager session → refuse). Shared helper: `_shared/carmen-notify-target`.
+- **What Carmen can now do:** Know that DMM's Sunday pulse and health digests go to everyone on DMM's report list (Carmen → Heartbeat → "כרמן מדווחת ל", table `carmen_report_recipients`, AIO-260), not to David unless the list names him. A notify without `chat_id` goes to the first configured recipient, else a DMM manager/campaigner session. Cross-tenant “newest session” owner fallback is refused. `campaign_pulse_phone` is deprecated and no longer routes anything.
+- **How:** An owner of DMM edits the list in Heartbeat. Delivery path: `campaign-pulse-snapshot` / `carmen-health-probe` → `_shared/carmen-report-recipients/` → `claude_notify_david` → `claude-notify` → `resolveCarmenNotifyTarget` (preferred → first configured report recipient → tenant campaigner/manager session → refuse). Rules: `docs/agents/carmen.md` § Carmen report recipients.
 - **Origin:** Carmen → Cursor DEV TASK — David: “כרמן dmm ממשיכה לשלוח לי עדכונים במקום לפליקס”.
 
 ### 2026-08-05 — Group replies only when addressed (not talked about)

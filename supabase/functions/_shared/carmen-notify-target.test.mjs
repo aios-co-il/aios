@@ -28,8 +28,8 @@ Deno.test(
   () => {
     const result = resolveCarmenNotifyTarget({
       reportRecipients: [
-        { phone: FELIX, name: "פליקס" },
-        { phone: DAVID, name: "דוד" },
+        { phone: FELIX, name: "פליקס", source: "configured" },
+        { phone: DAVID, name: "דוד", source: "configured" },
       ],
       sessions: [
         {
@@ -57,10 +57,12 @@ Deno.test(
 );
 
 Deno.test(
-  "DMM: without report recipients, prefer Felix manager session over David (David not in staff)",
+  "DMM: with only the owner fallback, prefer Felix manager session over owner David",
   () => {
     const result = resolveCarmenNotifyTarget({
-      reportRecipients: [],
+      reportRecipients: [
+        { phone: DAVID, name: "דוד", source: "owner_fallback" },
+      ],
       sessions: [
         {
           chat_id: `${DAVID}@c.us`,
@@ -115,7 +117,7 @@ Deno.test("DMM: David sessions + empty staff → refuse", () => {
 Deno.test("preferred_phone wins over the report recipients", () => {
   const result = resolveCarmenNotifyTarget({
     preferredPhone: DAVID,
-    reportRecipients: [{ phone: FELIX, name: "פליקס" }],
+    reportRecipients: [{ phone: FELIX, name: "פליקס", source: "configured" }],
     sessions: [
       { chat_id: `${DAVID}@c.us`, phone: DAVID, sender_name: "דוד" },
       { chat_id: `${FELIX}@c.us`, phone: FELIX, sender_name: "פליקס" },
@@ -128,7 +130,7 @@ Deno.test("preferred_phone wins over the report recipients", () => {
 
 Deno.test("MC: report recipient David works when he is tenant staff", () => {
   const result = resolveCarmenNotifyTarget({
-    reportRecipients: [{ phone: DAVID, name: "דוד" }],
+    reportRecipients: [{ phone: DAVID, name: "דוד", source: "configured" }],
     sessions: [{ chat_id: `${DAVID}@c.us`, phone: DAVID, sender_name: "דוד" }],
     staff: [{ phone: "0507677613", full_name: "דוד", role: "owner" }],
   });
@@ -203,7 +205,7 @@ Deno.test(
   "group-only sessions fall back to private phone digits, not the group JID",
   () => {
     const result = resolveCarmenNotifyTarget({
-      reportRecipients: [{ phone: DAVID, name: "דוד" }],
+      reportRecipients: [{ phone: DAVID, name: "דוד", source: "configured" }],
       sessions: [
         {
           chat_id: "120363425732219862@g.us",
@@ -276,7 +278,9 @@ Deno.test(
   "a report recipient with no session still gets a private notify, named from the list",
   () => {
     const result = resolveCarmenNotifyTarget({
-      reportRecipients: [{ phone: "972500000003", name: "Partner" }],
+      reportRecipients: [
+        { phone: "972500000003", name: "Partner", source: "configured" },
+      ],
       sessions: [],
       staff: [],
     });

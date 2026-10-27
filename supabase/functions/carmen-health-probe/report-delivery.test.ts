@@ -13,7 +13,7 @@ const OWNER = {
 
 function db(
   rows: unknown[],
-  queued: (args: { p_chat_id: string }) => boolean = () => true,
+  queued: (args: { p_chat_id?: string }) => boolean = () => true,
 ) {
   const notifies: unknown[] = [];
   const client = fakeSupabase(
@@ -21,7 +21,7 @@ function db(
     {
       rpc: {
         carmen_report_staff: () => [OWNER],
-        claude_notify_david: (args: { p_chat_id: string }) => (
+        claude_notify_david: (args: { p_chat_id?: string }) => (
           notifies.push(args),
           { queued: queued(args) }
         ),
@@ -57,22 +57,38 @@ Deno.test("deliverHealthDigest", async (t) => {
     ]);
   });
 
-  await t.step("nobody to send to is reported, not guessed", async () => {
+  await t.step(
+    "with nobody resolved, one notify lets claude-notify pick the staff chat",
+    async () => {
+      const { client, notifies } = db([]);
+      const noOwnerPhone = {
+        ...client,
+        rpc: async (name: string, args: { p_chat_id?: string }) =>
+          name === "carmen_report_staff"
+            ? { data: [{ ...OWNER, phone: null }], error: null }
+            : client.rpc(name, args),
+      };
+
+      const result = await deliverHealthDigest(noOwnerPhone, TENANT, "health");
+
+      assertEquals(result, { sent: true });
+      assertEquals(notifies, [{ p_message: "health", p_tenant: TENANT }]);
+    },
+  );
+
+  await t.step("a failed list read is reported and sends nothing", async () => {
     const { client, notifies } = db([]);
-    const noOwnerPhone = {
+    const failing = {
       ...client,
-      rpc: async (name: string, args: { p_chat_id: string }) =>
+      rpc: async (name: string, args: { p_chat_id?: string }) =>
         name === "carmen_report_staff"
-          ? { data: [{ ...OWNER, phone: null }], error: null }
+          ? { data: null, error: { message: "permission denied" } }
           : client.rpc(name, args),
     };
 
-    const result = await deliverHealthDigest(noOwnerPhone, TENANT, "health");
+    const result = await deliverHealthDigest(failing, TENANT, "health");
 
-    assertEquals(result, {
-      sent: false,
-      error: "no report recipient with a phone",
-    });
+    assertEquals(result, { sent: false, error: "permission denied" });
     assertEquals(notifies, []);
   });
 

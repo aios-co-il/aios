@@ -129,7 +129,11 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
 
 ## Carmen report recipients (Carmen → Heartbeat → כרמן מדווחת ל, AIO-260)
 
-- Each organization (tenant) has one Carmen. `carmen_report_recipients` lists whom she reports to: staff members (`user_id`; the phone comes from their campaigner card, else their profile) or extra E.164 phones with a label. Owners and agency owners edit it; staff read it.
-- An empty list means the organization's owners and agency owners who have a phone. Clients are never recipients: the table's guard trigger refuses a client's phone and a user without a role in the organization.
-- Every reader goes through `_shared/carmen-report-recipients/`: the Sunday pulse digest and missing-phone alert (`campaign-pulse-snapshot`), the Sunday health digest (`carmen-health-probe`), the owner slot of instant pulse alerts (the agency's team managers are added after it), and the `claude-notify` / `manus-notify` fallback when no `chat_id` is passed (the first recipient).
-- `tenant_heartbeat_settings.campaign_pulse_phone` is deprecated: it was carried into the list once and nothing reads or writes it.
+- Each organization (tenant) has one Carmen. `carmen_report_recipients` lists whom she reports to: staff members (`user_id`; the phone comes from their campaigner card, else their profile; inactive profiles are not staff) or extra E.164 phones with a label. Owners and agency owners edit it; staff read it.
+- An empty list means the organization's owners and agency owners who have a phone.
+- Clients are never recipients. The guard trigger refuses a phone of a client or client contact and a user without a role in the organization, after it refuses anyone signed in who is not an owner. Each send also skips a listed phone that became a client's later (`carmen_report_client_phones`).
+- Every reader goes through `_shared/carmen-report-recipients/`:
+  - The Sunday pulse digest and the missing-phone alert (`campaign-pulse-snapshot`) and the Sunday health digest (`carmen-health-probe`) go to every recipient. When nobody resolves, the health digest goes through `claude-notify` without a `chat_id`.
+  - Instant pulse alerts go to the recipients, then the owners and agency owners with a campaigner phone, then the client agency's team managers.
+  - `claude-notify` / `manus-notify` without a `chat_id` go to the first configured recipient; with no configured list they keep the staff session chain (the owner fallback does not apply).
+- `tenant_heartbeat_settings.campaign_pulse_phone` is deprecated: the migration carried it into the list once (as the staff member with that phone when exactly one matches), and nothing reads or writes it.

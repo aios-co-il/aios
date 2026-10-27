@@ -15350,6 +15350,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      carmen_is_client_phone: {
+        Args: { p_phone: string; p_tenant_id: string };
+        Returns: boolean;
+      };
       carmen_is_tenant_owner: {
         Args: { p_tenant_id: string };
         Returns: boolean;
@@ -15379,7 +15383,20 @@ export type Database = {
           source_location: string;
         }[];
       };
+      carmen_report_client_phones: {
+        Args: { p_tenant_id: string };
+        Returns: string[];
+      };
       carmen_report_staff: {
+        Args: { p_tenant_id: string };
+        Returns: {
+          full_name: string;
+          is_owner: boolean;
+          phone: string;
+          user_id: string;
+        }[];
+      };
+      carmen_report_staff_rows: {
         Args: { p_tenant_id: string };
         Returns: {
           full_name: string;
