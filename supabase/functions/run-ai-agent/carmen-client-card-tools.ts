@@ -83,18 +83,23 @@ type HealthCardEntryInput = {
   now?: Date;
 };
 
+/** Tells Carmen, in both health tools' descriptions, what card_entry_error means. */
+export const HEALTH_CARD_ENTRY_ERROR_HINT =
+  "אם בתוצאה יש card_entry_error — מצב הבריאות עודכן, אבל הרשומה בכרטיס הלקוח לא נכתבה; אמרי זאת למשתמש ואל תדווחי הצלחה מלאה.";
+
 /**
- * The card entry of a health update that is already written. A card refusal
- * (no person to attribute it to, a read-only shared agency) is logged and
- * returned as text, so the health update still reports success.
+ * The card entry of a health update that is already written, as fields to
+ * spread into the tool result. A card refusal (no person to attribute it to,
+ * a read-only shared agency) is logged and returned as card_entry_error, so
+ * the health update still reports success; any other error is rethrown.
  */
 export async function recordHealthCardEntryAfterUpdate(
   supabase: Pick<DbClient, "rpc">,
   input: HealthCardEntryInput,
-): Promise<string | null> {
+): Promise<{ card_entry_error?: string }> {
   try {
     await recordCarmenHealthCardEntry(supabase, input);
-    return null;
+    return {};
   } catch (error) {
     if (!(error instanceof ClientCardEntryError)) {
       throw error;
@@ -102,7 +107,7 @@ export async function recordHealthCardEntryAfterUpdate(
     console.error(
       `[${input.tool}] card entry for client ${input.clientId} not written: ${error.code} ${error.message}`,
     );
-    return error.message;
+    return { card_entry_error: error.message };
   }
 }
 

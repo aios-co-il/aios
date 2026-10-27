@@ -6,6 +6,7 @@ DO $test$
 DECLARE
   v_tenant uuid;
   v_other_tenant uuid;
+  v_other_owner uuid;
   v_client uuid;
   v_agency uuid;
   v_owner uuid;
@@ -21,7 +22,8 @@ DECLARE
   affected integer;
 BEGIN
   -- An owner (not a super admin) whose home tenant has a client with no team,
-  -- so attribution starts at the owner fallback.
+  -- so attribution starts at the owner fallback. The client has an agency, so
+  -- it can be shared with another org.
   SELECT ur.user_id, ur.tenant_id INTO v_owner, v_tenant
   FROM public.user_roles AS ur
   JOIN public.profiles AS p ON p.id = ur.user_id
@@ -32,6 +34,7 @@ BEGIN
       SELECT 1
       FROM public.clients AS c
       WHERE c.tenant_id = ur.tenant_id
+        AND c.agency_id IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM public.client_team AS ct WHERE ct.client_id = c.id)
     )
   LIMIT 1;
@@ -39,6 +42,7 @@ BEGIN
   SELECT c.id, c.agency_id INTO v_client, v_agency
   FROM public.clients AS c
   WHERE c.tenant_id = v_tenant
+    AND c.agency_id IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM public.client_team AS ct WHERE ct.client_id = c.id)
   LIMIT 1;
 
@@ -58,29 +62,53 @@ BEGIN
     )
   LIMIT 1;
 
-  -- A second tenant with no agency access to the first one.
-  SELECT t.id INTO v_other_tenant
-  FROM public.tenants AS t
-  WHERE t.id <> v_tenant
+  -- A second tenant with no agency access to the first one, and its owner
+  -- (not a super admin) whose home tenant it is. The first tenant's owner has
+  -- no role there, so owner rights never cross between the two.
+  SELECT ur.tenant_id, ur.user_id INTO v_other_tenant, v_other_owner
+  FROM public.user_roles AS ur
+  WHERE ur.role = 'owner'::public.app_role
+    AND ur.tenant_id <> v_tenant
+    AND public.get_user_tenant_id(ur.user_id) = ur.tenant_id
+    AND NOT public.is_super_admin(ur.user_id)
     AND NOT EXISTS (
       SELECT 1
       FROM public.agency_tenant_access AS ata
-      WHERE ata.accessing_tenant_id = t.id
+      WHERE ata.accessing_tenant_id = ur.tenant_id
         AND ata.source_tenant_id = v_tenant
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.user_roles AS own
+      WHERE own.user_id = v_owner
+        AND own.tenant_id = ur.tenant_id
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.tenant_users AS own
+      WHERE own.user_id = v_owner
+        AND own.tenant_id = ur.tenant_id
     )
   LIMIT 1;
 
-  -- An active campaigner with an active profile, assigned to the client later.
+  -- An active campaigner with an active profile, assigned to the client later;
+  -- not the second tenant's owner, who must not see the client through it.
   SELECT cp.id INTO v_campaigner
   FROM public.campaigners AS cp
   JOIN public.profiles AS p ON p.campaigner_id = cp.id
   WHERE cp.active
     AND p.status <> 'inactive'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.profiles AS other
+      WHERE other.id = v_other_owner
+        AND other.campaigner_id = cp.id
+    )
   LIMIT 1;
 
   IF v_owner IS NULL OR v_client IS NULL OR v_member IS NULL
-    OR v_other_tenant IS NULL OR v_campaigner IS NULL THEN
-    RAISE EXCEPTION 'Requires an owner tenant with an unassigned client, a non-owner member, a second tenant and an active campaigner';
+    OR v_other_tenant IS NULL OR v_other_owner IS NULL OR v_campaigner IS NULL THEN
+    RAISE EXCEPTION 'Requires an owner tenant with an unassigned agency client, a non-owner member, a second tenant with its own owner and an active campaigner';
   END IF;
 
   -- Grants: only the service role may call the writer.
@@ -199,9 +227,43 @@ BEGIN
     RAISE EXCEPTION 'The tenant owner could not edit a carmen row';
   END IF;
 
-  -- One shared card: the client's org sees the entry the sharing org wrote.
+  -- One shared card: the client's org sees the entry the sharing org wrote ...
   IF NOT EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_shared_row) THEN
     RAISE EXCEPTION 'The client''s org cannot see the entry the sharing org wrote';
+  END IF;
+
+  -- ... but cannot edit or delete it: owner rights follow the writer's tenant.
+  UPDATE public.client_updates SET content = 'Must be denied' WHERE id = v_shared_row;
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN
+    RAISE EXCEPTION 'The client''s org edited an automatic entry the sharing org wrote';
+  END IF;
+  DELETE FROM public.client_updates WHERE id = v_shared_row;
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN
+    RAISE EXCEPTION 'The client''s org deleted an automatic entry the sharing org wrote';
+  END IF;
+  RESET ROLE;
+
+  -- One shared card, the other way: the sharing org sees the client's entries.
+  PERFORM set_config('request.jwt.claim.sub', v_other_owner::text, true);
+  SET LOCAL ROLE authenticated;
+  IF NOT EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_carmen_row) THEN
+    RAISE EXCEPTION 'The sharing org cannot see the entry the client''s org wrote';
+  END IF;
+  RESET ROLE;
+
+  -- Without access to the client, its entries are hidden.
+  DELETE FROM public.agency_tenant_access
+  WHERE source_tenant_id = v_tenant
+    AND agency_id = v_agency
+    AND accessing_tenant_id = v_other_tenant;
+  SET LOCAL ROLE authenticated;
+  IF EXISTS (SELECT 1 FROM public.clients WHERE id = v_client) THEN
+    RAISE EXCEPTION 'Setup: the second tenant''s owner still sees the client after its access was revoked';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_carmen_row) THEN
+    RAISE EXCEPTION 'A user who cannot see the client sees its entries';
   END IF;
   RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub', '', true);

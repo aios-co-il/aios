@@ -47,6 +47,10 @@ import {
   matchesClientUpdateSourceFilter,
   type ClientUpdateSourceFilter,
 } from "@/components/clients/clientUpdateSource";
+import {
+  deleteClientUpdate,
+  editClientUpdate,
+} from "@/components/clients/clientUpdateWrites";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ClientUpdateBadges } from "@/components/clients/ClientUpdateBadges";
 import { ClientUpdateSourceFilterSelect } from "@/components/clients/ClientUpdateSourceFilterSelect";
@@ -116,8 +120,9 @@ export function ClientUpdatesTab({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const { user } = useCurrentUser();
-  // Mirrors user_can_manage_client_card_entries to hide buttons RLS would
-  // refuse; the role hook keeps "view as" showing the viewed user's rights.
+  // With canModifyClientUpdate, mirrors user_can_manage_client_card_entries
+  // (row tenant) to hide buttons RLS would refuse; the role hook keeps
+  // "view as" showing the viewed user's rights.
   const { isOwner, isAgencyOwner } = useUserRole();
   const canManageAutomaticEntries = isOwner || isAgencyOwner;
 
@@ -317,13 +322,8 @@ export function ClientUpdatesTab({
 
   // Edit update mutation
   const editUpdateMutation = useMutation({
-    mutationFn: async ({ id, content }: { id: string; content: string }) => {
-      const { error } = await supabase
-        .from("client_updates")
-        .update({ content })
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, content }: { id: string; content: string }) =>
+      editClientUpdate(id, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
       setEditingUpdateId(null);
@@ -337,13 +337,7 @@ export function ClientUpdatesTab({
 
   // Delete update mutation
   const deleteUpdateMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("client_updates")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: deleteClientUpdate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
       toast.success("העדכון נמחק בהצלחה");
@@ -721,6 +715,8 @@ export function ClientUpdatesTab({
                       source: update.source,
                       rowUserId: update.user_id,
                       currentUserId: user?.id,
+                      rowTenantId: update.tenant_id,
+                      currentTenantId: tenantId,
                       canManageAutomaticEntries,
                     });
 
