@@ -1,5 +1,6 @@
 -- Scene text edit (20261026103240_workshop_scene_text_edit, member check in
--- 20261026103255_workshop_cross_tenant_writes): synthetic work items and scenes inside one
+-- 20261026103255_workshop_cross_tenant_writes, kept with the rules of 20261026103251 in
+-- 20261026103257_workshop_scene_text_edit_member_rules): synthetic work items and scenes inside one
 -- transaction that is rolled back, signed in as a tenant member (authenticated role). Only the
 -- texts given change, within their limits; meta keys written by others survive, and nothing is
 -- marked stale. The scene of another tenant is not found and stays as it was, also for a super

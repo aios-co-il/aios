@@ -1,11 +1,14 @@
--- Scene text edit rules (20261026103251_workshop_scene_text_edit_rules): synthetic work items,
--- assets and scenes inside one transaction that is rolled back. A changed line marks the clip
--- stale exactly as Carmen's workshop_update_scene does (scene-update.ts): only a clip that says
--- the line itself (an engine that speaks, not in the chosen voice), or a clip that talked and has
--- no line any more, is made again. Staging only: needs a tenant.
+-- Scene text edit rules (20261026103251_workshop_scene_text_edit_rules, kept with the member
+-- check in 20261026103257_workshop_scene_text_edit_member_rules): synthetic work items, assets
+-- and scenes inside one transaction that is rolled back, signed in as a tenant member
+-- (authenticated role). A changed line marks the clip stale exactly as Carmen's
+-- workshop_update_scene does (scene-update.ts): only a clip that says the line itself (an engine
+-- that speaks, not in the chosen voice), or a clip that talked and has no line any more, is made
+-- again. Staging only: needs a non-admin tenant member.
 BEGIN;
 DO $stale$
 DECLARE
+  v_actor uuid;
   v_tenant uuid;
   v_speaks uuid;
   v_mute uuid;
@@ -20,8 +23,12 @@ DECLARE
   v_silenced uuid := gen_random_uuid();
   r public.marketing_video_scenes;
 BEGIN
-  SELECT id INTO v_tenant FROM public.tenants ORDER BY id LIMIT 1;
-  IF v_tenant IS NULL THEN RAISE EXCEPTION 'Requires a tenant'; END IF;
+  SELECT tu.user_id, tu.tenant_id INTO v_actor, v_tenant
+  FROM public.tenant_users tu
+  WHERE public.get_user_tenant_id(tu.user_id) = tu.tenant_id
+    AND NOT public.is_super_admin(tu.user_id)
+  LIMIT 1;
+  IF v_actor IS NULL THEN RAISE EXCEPTION 'Requires a non-admin tenant member'; END IF;
   -- One film on an engine that speaks (OpenRouter Veo), one on an engine that cannot (Kling).
   INSERT INTO public.marketing_work_items (tenant_id, title, status, payload)
   VALUES (v_tenant, 'QA ROLLBACK scene text rules', 'draft',
@@ -46,6 +53,8 @@ BEGIN
     (v_footage, v_tenant, v_speaks, 5, NULL, v_clip, '', '{"lipsync":true,"dialogue":"שורה ישנה"}'),
     (v_lipsynced, v_tenant, v_mute, 1, v_still, v_clip, '', '{"lipsync":true,"dialogue":"שורה ישנה"}'),
     (v_silenced, v_tenant, v_mute, 2, v_still, v_clip, '', '{"lipsync":true,"dialogue":"שורה ישנה"}');
+  PERFORM set_config('request.jwt.claim.sub', v_actor::text, true);
+  SET LOCAL ROLE authenticated;
 
   -- The engine says the line itself: a new line makes that clip again.
   r := public.workshop_edit_scene_text(v_native, NULL, NULL, 'שורה חדשה');
@@ -78,6 +87,8 @@ BEGIN
   IF NOT r.clip_stale THEN
     RAISE EXCEPTION 'stale: a clip that talked and has no line must be made again';
   END IF;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub', '', true);
 
   RAISE NOTICE 'workshop_scene_text_edit_rules: stale checks passed';
 END;
@@ -88,14 +99,19 @@ $stale$;
 -- running, started within the hour.
 DO $running$
 DECLARE
+  v_actor uuid;
   v_tenant uuid;
   v_item uuid;
   v_scene uuid := gen_random_uuid();
   v_failed boolean;
   r public.marketing_video_scenes;
 BEGIN
-  SELECT id INTO v_tenant FROM public.tenants ORDER BY id LIMIT 1;
-  IF v_tenant IS NULL THEN RAISE EXCEPTION 'Requires a tenant'; END IF;
+  SELECT tu.user_id, tu.tenant_id INTO v_actor, v_tenant
+  FROM public.tenant_users tu
+  WHERE public.get_user_tenant_id(tu.user_id) = tu.tenant_id
+    AND NOT public.is_super_admin(tu.user_id)
+  LIMIT 1;
+  IF v_actor IS NULL THEN RAISE EXCEPTION 'Requires a non-admin tenant member'; END IF;
   INSERT INTO public.marketing_work_items (tenant_id, title, status, payload)
   VALUES (v_tenant, 'QA ROLLBACK scene text during production', 'draft',
           jsonb_build_object('workshop', '{}'::jsonb, 'video', jsonb_build_object(
@@ -103,6 +119,8 @@ BEGIN
   RETURNING id INTO v_item;
   INSERT INTO public.marketing_video_scenes (id, tenant_id, item_id, position, overlay_text, voiceover_text, meta)
   VALUES (v_scene, v_tenant, v_item, 1, 'ישן', 'קריינות ישנה', '{"lipsync":true,"dialogue":"שורה ישנה"}');
+  PERFORM set_config('request.jwt.claim.sub', v_actor::text, true);
+  SET LOCAL ROLE authenticated;
 
   BEGIN
     PERFORM public.workshop_edit_scene_text(v_scene, 'חדש', 'קריינות חדשה', 'שורה חדשה');
@@ -116,18 +134,24 @@ BEGIN
   END IF;
 
   -- A production marked running for over an hour holds nothing (it was cut off).
+  RESET ROLE;
   UPDATE public.marketing_work_items
      SET payload = jsonb_set(payload, '{video,production,started_at}', to_jsonb(now() - interval '2 hours'))
    WHERE id = v_item;
+  SET LOCAL ROLE authenticated;
   r := public.workshop_edit_scene_text(v_scene, NULL, 'קריינות חדשה');
   IF r.voiceover_text <> 'קריינות חדשה' THEN RAISE EXCEPTION 'running: a cut-off production holds nothing'; END IF;
 
   -- A finished production holds nothing either.
+  RESET ROLE;
   UPDATE public.marketing_work_items
      SET payload = jsonb_set(payload, '{video,production}', '{"status":"done"}')
    WHERE id = v_item;
+  SET LOCAL ROLE authenticated;
   r := public.workshop_edit_scene_text(v_scene, 'חדש');
   IF r.overlay_text <> 'חדש' THEN RAISE EXCEPTION 'running: a finished production holds nothing'; END IF;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub', '', true);
 
   RAISE NOTICE 'workshop_scene_text_edit_rules: production checks passed';
 END;
