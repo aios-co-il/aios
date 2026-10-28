@@ -142,12 +142,18 @@ async function sendErrorMessage(error: unknown): Promise<string> {
     : REPORT_SENDER_MESSAGES.send_failed;
 }
 
-/** The JSON body of an error response, or null. */
+/**
+ * The JSON body of an error response, or null. An unreadable body is logged;
+ * the send still fails with the generic message.
+ */
 async function responseJson(context: unknown): Promise<unknown> {
   if (!(context instanceof Response)) {
     return null;
   }
-  return context.json().catch(() => null);
+  return context.json().catch((error: unknown) => {
+    console.error("[sendReportWhatsApp] unreadable error response", error);
+    return null;
+  });
 }
 
 /** One property of an unknown value, if it is an object. */

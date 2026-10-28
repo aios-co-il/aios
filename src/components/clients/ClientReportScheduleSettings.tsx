@@ -138,15 +138,14 @@ export function ClientReportScheduleSettings({
         whatsapp_integration_id: line.id,
         email_recipients: emailRecipients,
         message: message.trim() || null,
-        created_by: user.id,
       };
 
+      // The creator is set once: the worker sends as them, and the line was
+      // resolved for them, so a colleague's save never takes the schedule over.
+      const schedules = supabase.from("report_schedules");
       const result = schedule?.id
-        ? await supabase
-            .from("report_schedules")
-            .update(payload)
-            .eq("id", schedule.id)
-        : await supabase.from("report_schedules").insert(payload);
+        ? await schedules.update(payload).eq("id", schedule.id)
+        : await schedules.insert({ ...payload, created_by: user.id });
       if (result.error) throw result.error;
       await queryClient.invalidateQueries({ queryKey });
       toast.success(

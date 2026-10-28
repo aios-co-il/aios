@@ -1,15 +1,25 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { reportSender } from "@/test/reportSenderFixture";
+import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import { withTestQuery } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ReportSenderDefaultCard } from "./ReportSenderDefaultCard";
+import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 
-const backend = vi.hoisted(() => ({
-  senders: [] as ReportSender[],
-  tenantDefault: null as string | null,
+type Backend = {
+  senders: ReportSender[];
+  tenantDefault: string | null;
+  setDefault: ReturnType<typeof vi.fn>;
+  setError: { message: string } | null;
+};
+
+const backend = vi.hoisted((): Backend => ({
+  senders: [],
+  tenantDefault: null,
   setDefault: vi.fn(),
+  setError: null,
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -19,7 +29,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     rpc: (name: string, args: Record<string, unknown>) => {
       if (name === "set_report_whatsapp_sender") {
         backend.setDefault(args);
-        return Promise.resolve({ data: null, error: null });
+        return Promise.resolve({ data: null, error: backend.setError });
       }
       return Promise.resolve({ data: backend.senders, error: null });
     },
@@ -39,11 +49,16 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 const owner = { caller_can_manage: true };
+
+/** Carmen's Manus line, open to every member unless overridden. */
 const carmen = (extra: Partial<ReportSender> = {}) =>
   reportSender("carmen", { integration_type: "manus_wa", ...extra });
+
+/** David's Green API line, open to every member unless overridden. */
 const david = (extra: Partial<ReportSender> = {}) =>
   reportSender("david", { owner_name: "דוד", ...extra });
 
+/** The card of tenant t1, over the mocked backend. */
 function renderCard() {
   const { wrapper } = withTestQuery();
   return render(<ReportSenderDefaultCard tenantId="t1" />, { wrapper });
@@ -61,6 +76,8 @@ beforeAll(() => {
 beforeEach(() => {
   backend.senders = [];
   backend.tenantDefault = null;
+  backend.setError = null;
+  vi.mocked(toast.error).mockClear();
 });
 
 describe("ReportSenderDefaultCard", () => {
@@ -110,7 +127,7 @@ describe("ReportSenderDefaultCard", () => {
     backend.senders = [carmen({ is_shared: true })];
     renderCard();
     expect(
-      await screen.findByText(/אין טלפון קבוע לדוחות/),
+      await screen.findByText(REPORT_SENDER_MESSAGES.no_fixed_sender),
     ).toBeInTheDocument();
   });
 
@@ -167,5 +184,48 @@ describe("ReportSenderDefaultCard", () => {
     const select = await screen.findByRole("combobox", { name: "שלח דוחות מ" });
     expect(select).toHaveTextContent("הטלפון שנבחר כבר לא זמין");
     expect(screen.getByText(/בחרו ברירת מחדל חדשה/)).toBeInTheDocument();
+  });
+
+  it("offers owners only lines every member may use as the default", async () => {
+    // David's own line is private: it serves David, never the organization.
+    backend.senders = [
+      carmen(owner),
+      david({ ...owner, owner_user_id: "david", org_wide: false }),
+    ];
+    renderCard();
+    const select = await screen.findByRole("combobox", { name: "שלח דוחות מ" });
+    expect(
+      screen.getByText(/ברירת המחדל יכולה להיות רק טלפון שפתוח לכל הארגון/),
+    ).toBeInTheDocument();
+    await userEvent.click(select);
+    expect(
+      await screen.findByRole("option", { name: "הטלפון של כרמן" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "הטלפון של דוד" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("flags a default its owner made private", async () => {
+    // The owner still lists the line, but the other members do not.
+    backend.senders = [carmen(owner), david({ ...owner, org_wide: false })];
+    backend.tenantDefault = "david";
+    renderCard();
+    expect(await screen.findByText(/בחרו ברירת מחדל חדשה/)).toBeInTheDocument();
+  });
+
+  it("says the default was not saved when saving fails", async () => {
+    backend.senders = [carmen(owner), david(owner)];
+    backend.setError = { message: "network down" };
+    renderCard();
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "שלח דוחות מ" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("option", { name: "הטלפון של כרמן" }),
+    );
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("שמירת טלפון ברירת המחדל נכשלה"),
+    );
   });
 });

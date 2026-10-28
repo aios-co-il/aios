@@ -16034,7 +16034,7 @@ export type Database = {
         Returns: string;
       };
       list_report_whatsapp_senders: {
-        Args: { p_tenant_id: string };
+        Args: { p_tenant_id: string; p_user_id?: string };
         Returns: {
           caller_can_manage: boolean;
           carmen_role: string;
@@ -16044,6 +16044,7 @@ export type Database = {
           integration_type: string;
           is_shared: boolean;
           last4: string;
+          org_wide: boolean;
           owner_name: string;
           owner_tenant_id: string;
           owner_tenant_name: string;
@@ -16313,7 +16314,11 @@ export type Database = {
         Returns: undefined;
       };
       report_whatsapp_sender_usable: {
-        Args: { p_integration_id: string; p_tenant_id: string };
+        Args: {
+          p_integration_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
         Returns: boolean;
       };
       resolve_send_recipient: {
@@ -16442,6 +16447,10 @@ export type Database = {
       };
       tenant_can_use_integration: {
         Args: { p_integration_id: string; p_tenant_id: string };
+        Returns: boolean;
+      };
+      tenant_can_write_client: {
+        Args: { p_client: string; p_tenant: string };
         Returns: boolean;
       };
       try_acquire_manychat_destination_lock: {

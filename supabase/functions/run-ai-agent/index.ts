@@ -50,9 +50,11 @@ import {
 } from "../_shared/client-card/sources.ts";
 import {
   addClientUpdateFromCarmen,
+  HEALTH_CARD_ENTRY_ERROR_HINT,
   recordHealthCardEntryAfterUpdate,
 } from "./carmen-client-card-tools.ts";
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { setClientMoodStatus } from "./client-health-status.ts";
 import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
@@ -1970,8 +1972,7 @@ const ALL_TOOLS = [
   },
   {
     name: "update_client_health",
-    description:
-      "עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים).",
+    description: `עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים). ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -2006,8 +2007,7 @@ const ALL_TOOLS = [
   },
   {
     name: "batch_update_client_health",
-    description:
-      "עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור.",
+    description: `עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור. ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -8016,13 +8016,11 @@ async function executeTool(
       }
 
       // 1. Update mood_status on client
-      const updateData: any = { mood_status: args.mood_status };
-      const { error: clientErr } = await supabase
-        .from("clients")
-        .update(updateData)
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds);
-      if (clientErr) throw clientErr;
+      await setClientMoodStatus(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        moodStatus: args.mood_status,
+      });
 
       // 2. Create communication_log entry
       const commStatus =
@@ -8045,7 +8043,7 @@ async function executeTool(
       if (logErr) throw logErr;
 
       // 3. Card entry as source carmen, so it never counts as client contact.
-      const cardEntryError = await recordHealthCardEntryAfterUpdate(supabase, {
+      const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
         tenantId,
         clientId: args.client_id,
         note: args.note,
@@ -8060,7 +8058,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
-        ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
+        ...cardEntry,
       };
     }
     case "get_client_retention_scan": {
@@ -8205,12 +8203,11 @@ async function executeTool(
         }
         try {
           await assertCallerCanAccessClient(supabase, clientId, callerScope);
-          const { error: clientErr } = await supabase
-            .from("clients")
-            .update({ mood_status: mood })
-            .eq("id", clientId)
-            .in("tenant_id", accessibleTenantIds);
-          if (clientErr) throw clientErr;
+          await setClientMoodStatus(supabase, {
+            tenantId,
+            clientId,
+            moodStatus: mood,
+          });
           const commStatus =
             update.communication_status ||
             (mood === "happy"
@@ -8229,22 +8226,19 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          const cardEntryError = await recordHealthCardEntryAfterUpdate(
-            supabase,
-            {
-              tenantId,
-              clientId,
-              note,
-              moodStatus: mood,
-              requesterUserId: humanRequesterUserId,
-              tool: "batch_update_client_health",
-            },
-          );
+          const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
+            tenantId,
+            clientId,
+            note,
+            moodStatus: mood,
+            requesterUserId: humanRequesterUserId,
+            tool: "batch_update_client_health",
+          });
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
-            ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
+            ...cardEntry,
           });
         } catch (err: any) {
           results.push({
@@ -10406,6 +10400,7 @@ async function executeTool(
       return await listUpdates(supabase, {
         entityType: args.entity_type,
         entityId: args.entity_id,
+        tenantId,
         accessibleTenantIds,
         limit: args.limit,
       });

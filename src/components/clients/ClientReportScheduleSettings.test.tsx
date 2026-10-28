@@ -1,15 +1,23 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { reportSender } from "@/test/reportSenderFixture";
+import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import { withTestQuery } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ClientReportScheduleSettings } from "./ClientReportScheduleSettings";
 
-const backend = vi.hoisted(() => ({
-  senders: [] as ReportSender[],
-  tenantDefault: null as string | null,
-  schedule: null as Record<string, unknown> | null,
+type Backend = {
+  senders: ReportSender[];
+  tenantDefault: string | null;
+  schedule: Record<string, unknown> | null;
+  update: ReturnType<typeof vi.fn>;
+  insert: ReturnType<typeof vi.fn>;
+};
+
+const backend = vi.hoisted((): Backend => ({
+  senders: [],
+  tenantDefault: null,
+  schedule: null,
   update: vi.fn(),
   insert: vi.fn(),
 }));
@@ -55,6 +63,7 @@ const carmen = reportSender("carmen", { integration_type: "manus_wa" });
 const david = reportSender("david", { owner_name: "דוד", owner_user_id: "u1" });
 const office = reportSender("office", { display_name: "משרד" });
 
+/** The schedule form of one table report, over the mocked backend. */
 function renderSettings() {
   const { wrapper } = withTestQuery();
   return render(
@@ -76,7 +85,7 @@ beforeAll(() => {
   });
 });
 
-/** Clicks the save button. */
+/** Submits the form; backend.update or backend.insert records the row. */
 async function save() {
   await userEvent.click(screen.getByRole("button", { name: "שמור הגדרה" }));
 }
@@ -96,6 +105,7 @@ beforeEach(() => {
     email_recipients: [],
     message: null,
     whatsapp_integration_id: null,
+    created_by: "u1",
   };
 });
 
@@ -118,7 +128,7 @@ describe("ClientReportScheduleSettings sender line", () => {
     backend.senders = [carmen, david];
     renderSettings();
     const select = await screen.findByRole("combobox", { name: "שלח מ" });
-    // Preselected: the line the worker would use, the saver's own phone.
+    // Preselected: the line the worker would use, the creator's own phone.
     expect(select).toHaveTextContent("הטלפון של דוד");
     await userEvent.click(select);
     await userEvent.click(
@@ -172,9 +182,48 @@ describe("ClientReportScheduleSettings sender line", () => {
     await save();
     await waitFor(() =>
       expect(backend.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ whatsapp_integration_id: "carmen" }),
+        expect.objectContaining({
+          whatsapp_integration_id: "carmen",
+          created_by: "u1",
+        }),
       ),
     );
+  });
+
+  it("resolves another member's schedule for its creator, never the saver's line", async () => {
+    backend.senders = [carmen, { ...david, org_wide: false }];
+    backend.schedule = { ...backend.schedule, created_by: "u2" };
+    renderSettings();
+    expect(
+      await screen.findByText("יישלח מ: הטלפון של כרמן"),
+    ).toBeInTheDocument();
+    await save();
+    await waitFor(() => expect(backend.update).toHaveBeenCalledTimes(1));
+    const [payload] = backend.update.mock.calls[0];
+    expect(payload).toMatchObject({ whatsapp_integration_id: "carmen" });
+    expect(payload).not.toHaveProperty("created_by");
+  });
+
+  it("keeps another member's NULL line when switched off, offering org-wide lines only", async () => {
+    backend.senders = [carmen, office, { ...david, org_wide: false }];
+    backend.schedule = { ...backend.schedule, created_by: "u2" };
+    renderSettings();
+    const select = await screen.findByRole("combobox", { name: "שלח מ" });
+    await userEvent.click(screen.getByRole("switch"));
+    await save();
+    await waitFor(() => expect(backend.update).toHaveBeenCalledTimes(1));
+    const [payload] = backend.update.mock.calls[0];
+    expect(payload).toMatchObject({
+      enabled: false,
+      whatsapp_integration_id: null,
+    });
+    expect(payload).not.toHaveProperty("created_by");
+    await userEvent.click(select);
+    const options = await screen.findAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "הטלפון של כרמן",
+      "משרד",
+    ]);
   });
 
   it("does not save an enabled schedule without a phone", async () => {

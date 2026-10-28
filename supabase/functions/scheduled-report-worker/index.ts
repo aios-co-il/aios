@@ -1,5 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { serviceClient } from "../_shared/supabase-clients.ts";
+import { ensureReportShare } from "./share.ts";
 import {
   sendScheduledWhatsApp,
   type WhatsAppSenderDetail,
@@ -36,12 +36,8 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const admin = createClient(supabaseUrl, serviceRoleKey);
-  const whatsappDeps = workerWhatsAppDeps(
-    serviceClient(),
-    supabaseUrl,
-    serviceRoleKey,
-  );
+  const admin = serviceClient();
+  const whatsappDeps = workerWhatsAppDeps(admin, supabaseUrl, serviceRoleKey);
   const staleLockCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   await admin
     .from("report_schedules")
@@ -65,6 +61,15 @@ Deno.serve(async (req) => {
 
   const results: Array<Record<string, unknown>> = [];
   for (const schedule of schedules || []) {
+    const targetId =
+      schedule.target_type === "table"
+        ? schedule.table_id
+        : schedule.dashboard_id;
+    if (!targetId) {
+      // report_schedule_target_matches keeps this from happening.
+      console.error("[scheduled-report-worker] no target", schedule.id);
+      continue;
+    }
     const { data: claimed } = await admin
       .from("report_schedules")
       .update({ locked_at: new Date().toISOString() })
@@ -75,50 +80,9 @@ Deno.serve(async (req) => {
     if (!claimed) continue;
 
     const channelResults: Record<string, { ok: boolean; error?: string }> = {};
-    const targetId =
-      schedule.target_type === "table"
-        ? schedule.table_id
-        : schedule.dashboard_id;
 
     try {
-      const shareTable =
-        schedule.target_type === "table" ? "table_shares" : "dashboard_shares";
-      const targetColumn =
-        schedule.target_type === "table" ? "table_id" : "dashboard_id";
-      const route = schedule.target_type === "table" ? "table" : "dashboard";
-
-      let { data: share } = await admin
-        .from(shareTable)
-        .select("share_token, is_active")
-        .eq(targetColumn, targetId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (share && !share.is_active) {
-        await admin
-          .from(shareTable)
-          .update({ is_active: true })
-          .eq(targetColumn, targetId);
-      }
-      if (!share) {
-        const token = `report-${crypto.randomUUID().slice(0, 8)}`;
-        const { data: created, error: createError } = await admin
-          .from(shareTable)
-          .insert({
-            [targetColumn]: targetId,
-            tenant_id: schedule.tenant_id,
-            share_token: token,
-            allowed_emails: [],
-            created_by: schedule.created_by,
-          })
-          .select("share_token, is_active")
-          .single();
-        if (createError) throw createError;
-        share = created;
-      }
-
-      const shareUrl = `https://aios.co.il/shared/${route}/${share.share_token}`;
+      const shareUrl = await ensureReportShare(admin, schedule, targetId);
       const clientName = schedule.clients?.name || "לקוח";
       const message = `${schedule.message?.trim() || `הדוח החדש של ${clientName} מוכן לצפייה`}\n\n📊 ${shareUrl}`;
       const channels: string[] = schedule.channels || [];

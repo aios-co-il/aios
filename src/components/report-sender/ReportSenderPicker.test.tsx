@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { reportSender } from "@/test/reportSenderFixture";
+import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import { ReportSenderPicker } from "./ReportSenderPicker";
 import type { ReportSenderChoice } from "./useReportSenderChoice";
 
@@ -11,7 +11,12 @@ const carmen = reportSender("carmen", {
   group_chat_ids: [GROUP],
 });
 const david = reportSender("david", { owner_name: "דוד" });
+const groups = [
+  { id: "group-known", group_chat_id: GROUP },
+  { id: "group-other", group_chat_id: "other@g.us" },
+];
 
+/** A resolved choice with no line, unless overridden. */
 function choice(overrides: Partial<ReportSenderChoice>): ReportSenderChoice {
   return {
     senders: [],
@@ -110,7 +115,8 @@ describe("ReportSenderPicker", () => {
     const { rerender } = render(
       <ReportSenderPicker
         choice={choice({ senders: [carmen], pick })}
-        groupChatId="other@g.us"
+        groups={groups}
+        groupId="group-other"
       />,
     );
     expect(
@@ -119,7 +125,8 @@ describe("ReportSenderPicker", () => {
     rerender(
       <ReportSenderPicker
         choice={choice({ senders: [carmen], pick })}
-        groupChatId={GROUP}
+        groups={groups}
+        groupId="group-known"
       />,
     );
     expect(

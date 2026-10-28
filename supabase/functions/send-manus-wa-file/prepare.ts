@@ -6,12 +6,19 @@ import type { GuardResult } from "../_shared/integration-guard.ts";
 import {
   callerMaySendForTenant,
   lineSetting,
-  type LineStore,
-  type SenderLine,
+  resolveSenderLine,
 } from "../_shared/report-sender/line-access.ts";
+import type {
+  LineStore,
+  SenderLine,
+} from "../_shared/report-sender/line-store.ts";
+import {
+  lineRefusal,
+  type SendRefusal,
+  stagingRefusal,
+} from "../_shared/report-sender/refusals.ts";
 import { json } from "../_shared/telephony/response.ts";
 import { clientSendBlock } from "./client-send.ts";
-import { resolveManusLine } from "./line.ts";
 import { type FileSendRequest, readFileSendRequest } from "./request.ts";
 import { manusTarget, type ManusTarget } from "./target.ts";
 
@@ -70,13 +77,19 @@ export async function prepareSend(
   if (!(await callerMaySendForTenant(deps.store, tenantId, userId))) {
     return json({ error: "Forbidden", code: "forbidden" }, 403);
   }
-  const choice = await resolveManusLine(deps, {
-    tenantId,
-    userId,
-    integrationId: request.integrationId,
-  });
+  const choice = await resolveSenderLine(
+    deps.store,
+    {
+      caller: caller.kind,
+      tenantId,
+      userId,
+      integrationId: request.integrationId,
+      type: "manus_wa",
+    },
+    () => deps.ownManusLine(tenantId, userId),
+  );
   if ("error" in choice) {
-    return lineRefusal(choice.error);
+    return refusalResponse(lineRefusal(choice.error, "manus_wa"));
   }
   const target = manusTarget({
     groupId: request.groupId,
@@ -110,16 +123,6 @@ export async function prepareSend(
   };
 }
 
-/** 403 for a line the tenant may not use, 400 when the tenant has none set up. */
-function lineRefusal(error: "sender_not_allowed" | "not_configured"): Response {
-  return error === "sender_not_allowed"
-    ? json({ error: "sender_not_allowed", code: "sender_not_allowed" }, 403)
-    : json(
-        { error: "Manus WhatsApp not configured", code: "not_configured" },
-        400,
-      );
-}
-
 /** Staging sends only to allowlisted phones and never to groups. */
 function stagingBlock(
   guard: PrepareDeps["guard"],
@@ -130,12 +133,10 @@ function stagingBlock(
     return null;
   }
   console.warn("[send-manus-wa-file] blocked by integration-guard", result);
-  return json(
-    {
-      error: "blocked_by_staging_safe_mode",
-      reason: result.reason,
-      environment: result.environment,
-    },
-    403,
-  );
+  return refusalResponse(stagingRefusal(result));
+}
+
+/** The JSON response for a refusal. */
+function refusalResponse(refusal: SendRefusal): Response {
+  return json(refusal.body, refusal.status);
 }

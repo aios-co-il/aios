@@ -5,13 +5,12 @@ import {
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import {
-  lineSetting,
-  lineStore,
-} from "../_shared/report-sender/line-access.ts";
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
+import { lineStore } from "../_shared/report-sender/line-store.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { internalError } from "../_shared/telephony/response.ts";
 import { prepareGreenFileSend } from "./prepare.ts";
 import { legacyGreenLine } from "./sender.ts";
 
@@ -203,18 +202,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const tenantForSend = resolvedTenantId;
     const admin = serviceClient();
     const send = await prepareGreenFileSend(
       {
         store: lineStore(admin),
-        legacyLine: () =>
-          legacyGreenLine(supabaseClient, tenantForSend, user.id),
+        legacyLine: (tenantId, userId) =>
+          legacyGreenLine(supabaseClient, tenantId, userId),
         guard: checkWhatsAppSend,
         clientSendGuard: (request) => authorizeClientSend(admin, request),
       },
       {
-        tenantId: tenantForSend,
+        tenantId: resolvedTenantId,
         userId: user.id,
         integrationId: chosenIntegrationId,
         groupId,
@@ -232,9 +230,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { line: integration, chatId, usedGroupChat } = send;
-    const instanceId = lineSetting(integration.settings, "instance_id");
-    const apiToken = integration.api_key;
+    const { line, chatId, usedGroupChat } = send;
+    const instanceId = lineSetting(line.settings, "instance_id");
+    const apiToken = line.api_key;
 
     // Determine API endpoint based on file type
     let endpoint: string;
@@ -270,7 +268,7 @@ Deno.serve(async (req) => {
             group_id: groupId || null,
             tenant_id: resolvedTenantId,
             connection_user_id: user.id,
-            integration_id: integration.id,
+            integration_id: line.id,
             message_text: `[הודעה קולית]${caption ? ": " + caption : ""}`,
             direction: "outbound",
             channel: "whatsapp",
@@ -340,7 +338,7 @@ Deno.serve(async (req) => {
           group_id: groupId || null,
           tenant_id: resolvedTenantId,
           connection_user_id: user.id,
-          integration_id: integration.id,
+          integration_id: line.id,
           message_text: messageText,
           direction: "outbound",
           channel: "whatsapp",
@@ -367,20 +365,20 @@ Deno.serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error("❌ Error in send-green-api-file:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    // Database and upstream text stays in the log, never in the response.
     const isTimeout =
-      errorMessage.includes("timeout") ||
-      (error instanceof Error &&
-        (error.name === "TimeoutError" || error.name === "AbortError"));
+      error instanceof Error &&
+      (error.name === "TimeoutError" ||
+        error.name === "AbortError" ||
+        error.message.includes("timeout"));
+    if (!isTimeout) {
+      return internalError("send-green-api-file", error);
+    }
+    console.error("❌ Timeout in send-green-api-file:", error);
     return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        code: isTimeout ? "timeout" : undefined,
-      }),
+      JSON.stringify({ error: "Green API timeout", code: "timeout" }),
       {
-        status: isTimeout ? 504 : 500,
+        status: 504,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

@@ -1,4 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { reportSender } from "../_shared/report-sender/fixture.ts";
 import type { ReportSender } from "../_shared/report-sender/types.ts";
 import {
   type FunctionReply,
@@ -10,30 +11,26 @@ import {
 const TENANT = "tenant-dmm";
 const CREATOR = "user-creator";
 
+/**
+ * A line of the schedule's tenant, owned by another member and open to
+ * everyone unless overridden.
+ */
 function sender(
   id: string,
   overrides: Partial<ReportSender> = {},
 ): ReportSender {
-  return {
-    id,
-    integration_type: "green_api",
-    display_name: null,
-    last4: null,
+  return reportSender(id, {
     owner_user_id: "user-other",
-    owner_name: null,
     owner_tenant_id: TENANT,
-    owner_tenant_name: null,
-    is_shared: false,
-    carmen_role: null,
-    ready: true,
-    group_chat_ids: null,
-    caller_can_manage: false,
     ...overrides,
-  };
+  });
 }
 
 const carmen = sender("carmen", { integration_type: "manus_wa" });
-const creatorGreen = sender("creator-green", { owner_user_id: CREATOR });
+const creatorGreen = sender("creator-green", {
+  owner_user_id: CREATOR,
+  org_wide: false,
+});
 const officeGreen = sender("office-green");
 
 const schedule: ScheduleForWhatsApp = {
@@ -49,7 +46,11 @@ const schedule: ScheduleForWhatsApp = {
 
 type Call = { name: string; body: Record<string, unknown> };
 
-/** Deps over fixed lines and default; records each function call. */
+/**
+ * Deps over fixed lines and default; records each function call. The list
+ * keeps list_report_whatsapp_senders' privacy rule: a line open to everyone,
+ * or one the asking user owns.
+ */
 function deps(
   senders: ReportSender[],
   tenantDefault: string | null = null,
@@ -57,7 +58,12 @@ function deps(
 ) {
   const calls: Call[] = [];
   const channel: WhatsAppChannelDeps = {
-    listSenders: async (tenantId) => (tenantId === TENANT ? senders : []),
+    listSenders: async (tenantId, userId) =>
+      tenantId === TENANT
+        ? senders.filter(
+            (line) => line.org_wide || line.owner_user_id === userId,
+          )
+        : [],
     tenantDefaultId: async () => tenantDefault,
     callFunction: async (name, body) => {
       calls.push({ name, body });
@@ -185,6 +191,31 @@ Deno.test(
         // list_report_whatsapp_senders no longer returns the default line.
         const { calls, channel } = deps([carmen], "office-green");
         const result = await sendScheduledWhatsApp(channel, schedule, "msg");
+        assertEquals(result, { ok: false, error: "sender_not_allowed" });
+        assertEquals(calls.length, 0);
+      },
+    );
+
+    await t.step("only another member's private line", async () => {
+      // Member A's own Green API line, never opened to the organization:
+      // creator B's report must not go out from A's WhatsApp.
+      const memberALine = sender("member-a", { org_wide: false });
+      const { calls, channel } = deps([memberALine]);
+      const result = await sendScheduledWhatsApp(channel, schedule, "msg");
+      assertEquals(result, { ok: false, error: "no_report_sender" });
+      assertEquals(calls.length, 0);
+    });
+
+    await t.step(
+      "a schedule pinned to another member's private line",
+      async () => {
+        const memberALine = sender("member-a", { org_wide: false });
+        const { calls, channel } = deps([memberALine, carmen]);
+        const result = await sendScheduledWhatsApp(
+          channel,
+          { ...schedule, whatsapp_integration_id: "member-a" },
+          "msg",
+        );
         assertEquals(result, { ok: false, error: "sender_not_allowed" });
         assertEquals(calls.length, 0);
       },

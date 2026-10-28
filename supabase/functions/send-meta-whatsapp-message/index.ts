@@ -8,7 +8,7 @@ import {
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
-import { lineStore } from "../_shared/report-sender/line-access.ts";
+import { lineStore } from "../_shared/report-sender/line-store.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {

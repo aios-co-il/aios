@@ -1,6 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
+import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import { sendReportWhatsApp } from "./sendReportWhatsApp";
 import type { ReportSenderChoicePick } from "./useReportSenderChoice";
 
@@ -10,31 +10,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke } },
 }));
 
-function line(id: string, integration_type: string): ReportSender {
-  return {
-    id,
-    integration_type,
-    display_name: null,
-    last4: null,
-    owner_user_id: null,
-    owner_name: null,
-    owner_tenant_id: "t1",
-    owner_tenant_name: null,
-    is_shared: false,
-    carmen_role: null,
-    ready: true,
-    group_chat_ids: null,
-    caller_can_manage: false,
-  };
-}
-
 const carmen: ReportSenderChoicePick = {
-  sender: line("carmen", "manus_wa"),
+  sender: reportSender("carmen", { integration_type: "manus_wa" }),
   type: "manus_wa",
   source: "only_sender",
 };
 const green: ReportSenderChoicePick = {
-  sender: line("green", "green_api"),
+  sender: reportSender("green"),
   type: "green_api",
   source: "own_line",
 };

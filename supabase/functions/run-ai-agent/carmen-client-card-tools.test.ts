@@ -1,4 +1,8 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 
 import {
   addClientUpdateFromCarmen,
@@ -206,24 +210,52 @@ Deno.test(
   },
 );
 
-Deno.test(
-  "health card entry: a card refusal is returned, not thrown, so the health update stands",
-  async () => {
-    const { supabase, calls } = fakeCardRpc({
-      error: {
+Deno.test("recordHealthCardEntryAfterUpdate", async (t) => {
+  const input = {
+    tenantId: TENANT,
+    clientId: CLIENT,
+    note: "עלייה בעלות לליד",
+    moodStatus: "wavering",
+    tool: "batch_update_client_health" as const,
+    now: NOW,
+  };
+
+  await t.step("a written entry adds nothing to the tool result", async () => {
+    const { supabase, rows } = fakeCardRpc({ ownerUserId: OWNER_USER });
+    const fields = await recordHealthCardEntryAfterUpdate(supabase, input);
+    assertEquals(fields, {});
+    assertStrictEquals(rows.length, 1);
+  });
+
+  await t.step(
+    "a refused or failed card write becomes card_entry_error, so the health update stands",
+    async () => {
+      const refusal = {
         code: "42501",
         message: `record_client_card_entry: client ${CLIENT} is not in tenant ${TENANT}`,
-      },
-    });
-    const error = await recordHealthCardEntryAfterUpdate(supabase, {
-      tenantId: TENANT,
-      clientId: CLIENT,
-      note: "עלייה בעלות לליד",
-      moodStatus: "wavering",
-      tool: "batch_update_client_health",
-      now: NOW,
-    });
-    assertStrictEquals(calls.length, 1);
-    assertStrictEquals(error?.includes("is not in tenant"), true);
-  },
-);
+      };
+      // supabase-js reports a network failure as { error }, never a rejection.
+      const outage = { code: "", message: "FetchError: network down" };
+      for (const error of [refusal, outage]) {
+        const { supabase, calls } = fakeCardRpc({ error });
+        const fields = await recordHealthCardEntryAfterUpdate(supabase, input);
+        assertStrictEquals(calls.length, 1);
+        assertEquals(fields, { card_entry_error: error.message });
+      }
+    },
+  );
+
+  await t.step(
+    "an exception that is not a card error is rethrown, so the tool reports it",
+    async () => {
+      const bug = new TypeError("not a function");
+      const supabase = {
+        rpc: () => Promise.reject(bug),
+      };
+      const thrown = await assertRejects(() =>
+        recordHealthCardEntryAfterUpdate(supabase, input),
+      );
+      assertStrictEquals(thrown, bug);
+    },
+  );
+});

@@ -1,26 +1,28 @@
 // Report WhatsApp sender lines (AIO-255). Shared by the report worker and the
 // web app, so keep this folder free of Deno and browser APIs.
+import type { Database } from "../database.types.ts";
 
 /** Line types that may send reports. Meta Cloud numbers need templates. */
 export const REPORT_SENDER_TYPES = ["green_api", "manus_wa"] as const;
 
 export type ReportSenderType = (typeof REPORT_SENDER_TYPES)[number];
 
+type SenderRow =
+  Database["public"]["Functions"]["list_report_whatsapp_senders"]["Returns"][number];
+
+/** Columns the generated row types as always set, which the RPC can leave NULL. */
+type NullableColumn =
+  | "display_name"
+  | "last4"
+  | "owner_user_id"
+  | "owner_name"
+  | "owner_tenant_name"
+  | "carmen_role"
+  | "group_chat_ids";
+
 /** One row of the list_report_whatsapp_senders RPC. */
-export type ReportSender = {
-  id: string;
-  integration_type: string;
-  display_name: string | null;
-  last4: string | null;
-  owner_user_id: string | null;
-  owner_name: string | null;
-  owner_tenant_id: string;
-  owner_tenant_name: string | null;
-  is_shared: boolean;
-  carmen_role: string | null;
-  ready: boolean;
-  group_chat_ids: string[] | null;
-  caller_can_manage: boolean;
+export type ReportSender = Omit<SenderRow, NullableColumn> & {
+  [Column in NullableColumn]: SenderRow[Column] | null;
 };
 
 /** The fields the resolver reads from a line. */

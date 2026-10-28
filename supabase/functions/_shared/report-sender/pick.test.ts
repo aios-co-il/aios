@@ -4,6 +4,10 @@ import type { PickableSender } from "./types.ts";
 
 const CALLER = "user-caller";
 
+/**
+ * A ready Green API line of the tenant, owned by another member, unless
+ * overridden.
+ */
 function line(
   id: string,
   overrides: Partial<PickableSender> = {},

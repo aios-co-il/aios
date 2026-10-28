@@ -3,8 +3,10 @@
 // through _shared/client-card/entry.ts; list_updates reads via list-updates.ts.
 
 import { asUuidOrNull } from "../_shared/uuid.mjs";
-import type { DbClient } from "../_shared/supabase-clients.ts";
-import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  type ClientCardEntryRpc,
+  recordClientCardEntry,
+} from "../_shared/client-card/entry.ts";
 import {
   ClientCardEntryError,
   type ClientCardEntryResult,
@@ -14,7 +16,7 @@ import { planCarmenClientUpdate } from "./client-card-contact-policy.ts";
 
 /** Carmen's add_client_update tool. The caller checks callerScope first. */
 export async function addClientUpdateFromCarmen(
-  supabase: Pick<DbClient, "rpc">,
+  supabase: ClientCardEntryRpc,
   input: {
     tenantId: string;
     clientId: string;
@@ -83,18 +85,26 @@ type HealthCardEntryInput = {
   now?: Date;
 };
 
+/** Tells Carmen, in both health tools' descriptions, what card_entry_error means. */
+export const HEALTH_CARD_ENTRY_ERROR_HINT =
+  "אם בתוצאה יש card_entry_error — מצב הבריאות עודכן, אבל הרשומה בכרטיס הלקוח לא נכתבה; אמרי זאת למשתמש ואל תדווחי הצלחה מלאה.";
+
 /**
- * The card entry of a health update that is already written. A card refusal
- * (no person to attribute it to, a read-only shared agency) is logged and
- * returned as text, so the health update still reports success.
+ * The card entry of a health update that is already written, as fields to
+ * spread into the tool result. Every failed card write is logged and returned
+ * as card_entry_error, so the health update still reports success: a refusal
+ * (no person to attribute it to, a read-only shared agency) and an outage or
+ * timeout alike, because supabase-js returns those as `{ error }` and
+ * recordClientCardEntry turns every RPC error into a ClientCardEntryError.
+ * Only an exception that is not a card error (a bug) is rethrown.
  */
 export async function recordHealthCardEntryAfterUpdate(
-  supabase: Pick<DbClient, "rpc">,
+  supabase: ClientCardEntryRpc,
   input: HealthCardEntryInput,
-): Promise<string | null> {
+): Promise<{ card_entry_error?: string }> {
   try {
     await recordCarmenHealthCardEntry(supabase, input);
-    return null;
+    return {};
   } catch (error) {
     if (!(error instanceof ClientCardEntryError)) {
       throw error;
@@ -102,13 +112,13 @@ export async function recordHealthCardEntryAfterUpdate(
     console.error(
       `[${input.tool}] card entry for client ${input.clientId} not written: ${error.code} ${error.message}`,
     );
-    return error.message;
+    return { card_entry_error: error.message };
   }
 }
 
 /** Card entry for update_client_health / batch_update_client_health. */
 export function recordCarmenHealthCardEntry(
-  supabase: Pick<DbClient, "rpc">,
+  supabase: ClientCardEntryRpc,
   input: HealthCardEntryInput,
 ): Promise<ClientCardEntryResult> {
   const requester = asUuidOrNull(input.requesterUserId);

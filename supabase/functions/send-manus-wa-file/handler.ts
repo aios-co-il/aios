@@ -75,7 +75,8 @@ async function mediaToSend(
 
 /**
  * 202 when delivery is unknown (a timeout): the file may have arrived, so the
- * caller must not retry. 502 when the gateway refused or failed.
+ * caller must not retry. 502 when the gateway refused or failed; its reply
+ * stays in the log.
  */
 function notSentResponse(
   outcome: Exclude<GatewayOutcome, { status: "sent" }>,
@@ -92,5 +93,5 @@ function notSentResponse(
     );
   }
   console.error("[send-manus-wa-file] gateway", outcome.status, outcome.detail);
-  return json({ error: `Manus WA error ${outcome.detail}` }, 502);
+  return json({ error: "Manus WA error", code: "send_failed" }, 502);
 }
