@@ -1,1 +1,1 @@
-export const PRIVACY_EMAIL = "privacy@aios.co.il";
+export const PRIVACY_EMAIL = "david@aios.co.il";

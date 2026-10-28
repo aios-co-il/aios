@@ -8,7 +8,7 @@
 // tenant_integrations; no Facebook user id is persisted, so there is no row to
 // match against `user_id` from the signed request. Tokens are revoked by Meta
 // when the app is removed; the logged request is processed manually (see
-// /data-deletion and privacy@aios.co.il).
+// /data-deletion and the privacy email).
 
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 import { readDeletionRequestStatus } from "./contract.ts";

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { PrivacyEmailLink } from "@/components/DataDeletionPage/PrivacyEmailLink";
 
 export default function Terms() {
   return (
@@ -332,13 +333,7 @@ export default function Terms() {
                   <strong>Carmen Marketing OS</strong>
                 </p>
                 <p>
-                  אימייל:{" "}
-                  <a
-                    href="mailto:privacy@aios.co.il"
-                    className="text-primary hover:underline"
-                  >
-                    privacy@aios.co.il
-                  </a>
+                  אימייל: <PrivacyEmailLink />
                 </p>
                 <p>
                   אתר:{" "}

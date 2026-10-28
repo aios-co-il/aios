@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { PRIVACY_EMAIL } from "@/components/DataDeletionPage/constants";
+import { PrivacyEmailLink } from "@/components/DataDeletionPage/PrivacyEmailLink";
 
 export default function Privacy() {
   return (
@@ -321,7 +323,7 @@ export default function Privacy() {
               </ul>
               <p className="mt-3">
                 לממש את זכויותיך, פנה אלינו בכתובת:{" "}
-                <strong>privacy@aios.co.il</strong>
+                <strong>{PRIVACY_EMAIL}</strong>
               </p>
             </section>
 
@@ -352,13 +354,7 @@ export default function Privacy() {
                   <strong>Carmen Marketing OS</strong>
                 </p>
                 <p>
-                  אימייל:{" "}
-                  <a
-                    href="mailto:privacy@aios.co.il"
-                    className="text-primary hover:underline"
-                  >
-                    privacy@aios.co.il
-                  </a>
+                  אימייל: <PrivacyEmailLink />
                 </p>
                 <p>
                   אתר:{" "}
