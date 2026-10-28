@@ -57,6 +57,7 @@ DECLARE
   v_kind text;
   v_entry public.client_updates%ROWTYPE;
   v_count integer;
+  v_next_day_ref text;
 BEGIN
   -- An owner (not a super admin) whose home tenant has an agency client and a
   -- second client.
@@ -436,7 +437,53 @@ BEGIN
     RAISE EXCEPTION 'A partner inserted a row attributed to the client org''s person';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+
+  -- No edit changes an entry's source, source_ref or person, so the partner
+  -- can neither turn its human row into a system_send row or into the client
+  -- org's chat entry for the next day, nor re-key or re-attribute its own
+  -- chat entry (it owns both rows and may write the client, so only
+  -- client_updates_keep_owner stops this), and that day's chat send of the
+  -- client org still logs.
+  v_next_day_ref := 'chat:' || v_tenant || ':' || v_client || ':dm:2031-03-05';
+  BEGIN
+    UPDATE public.client_updates AS u
+    SET source = 'system_send'
+    WHERE u.content = v_tag || ' read_write partner edited';
+    RAISE EXCEPTION 'A partner turned its entry into a system_send row';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.client_updates AS u
+    SET source = 'system_send', source_ref = v_next_day_ref, user_id = v_owner
+    WHERE u.content = v_tag || ' read_write partner edited';
+    RAISE EXCEPTION 'A partner turned its entry into the client org''s chat entry';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.client_updates AS u
+    SET source_ref = v_next_day_ref
+    WHERE u.source_ref = 'chat:' || v_other_tenant || ':' || v_client || ':dm:' || v_day_ref;
+    RAISE EXCEPTION 'A partner re-keyed its chat entry to the client org''s key';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.client_updates AS u
+    SET user_id = v_other_owner
+    WHERE u.source_ref = 'chat:' || v_other_tenant || ':' || v_client || ':dm:' || v_day_ref;
+    RAISE EXCEPTION 'A partner re-attributed its chat entry';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   RESET ROLE;
+  PERFORM set_config('request.jwt.claims', '', true);
+  INSERT INTO public.chat_messages (tenant_id, client_id, direction, message_text, sent_by_user_id, send_kind, created_at)
+  VALUES (v_tenant, v_client, 'outbound', v_tag, v_owner, 'chat', v_day + interval '1 day');
+  SELECT * INTO v_entry FROM pg_temp.qa_entries(v_next_day_ref);
+  IF NOT FOUND OR v_entry.tenant_id <> v_tenant OR v_entry.user_id <> v_owner
+    OR (v_entry.metadata ->> 'count')::integer <> 1 THEN
+    RAISE EXCEPTION 'The client org''s chat send was not logged after the partner''s edits: %', v_entry;
+  END IF;
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_other_owner, 'role', 'authenticated')::text, true);
 
   UPDATE public.agency_tenant_access AS ata
   SET access_level = 'read_only'
@@ -485,5 +532,5 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
 END;
 $test$;
-SELECT 'Grants, switch, report deliveries without share links, broadcast, chat counts, groups, browser tokens, Green API echo merge, insert and update RLS (author, read_write, read_only, revoked) and no entry moves passed' AS result;
+SELECT 'Grants, switch, report deliveries without share links, broadcast, chat counts, groups, browser tokens, Green API echo merge, insert and update RLS (author, read_write, read_only, revoked), no entry moves and no provenance edits passed' AS result;
 ROLLBACK;

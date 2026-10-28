@@ -100,8 +100,10 @@
 --    they can see that their tenant may write (tenant_can_write_client, the
 --    rule record_client_card_entry uses). An edit keeps the entry on a client
 --    its org may still write, and no edit moves an entry to another client
---    or org. A former or read-only agency partner can neither add an entry to
---    the card nor change one.
+--    or org or changes its source, source_ref or person, so an edit cannot
+--    forge a system_send entry or claim a trigger's dedupe key either. A
+--    former or read-only agency partner can neither add an entry to the card
+--    nor change one.
 --
 -- 6. One chat row per Green API message. A Green API send stored by its
 --    sender with send_kind carmen or automation (trigger-automation, Carmen's
@@ -789,7 +791,8 @@ CREATE POLICY "Users can create client updates in their tenant"
 -- The edited row stays on a client the editor can see and that the row's org
 -- may still write (tenant_can_write_client), so a read_only or former agency
 -- partner cannot change text on the shared card. client_updates_keep_owner
--- below stops an edit from moving the row to another client or org.
+-- below stops an edit from moving the row to another client or org, or from
+-- changing its source, source_ref or person.
 DROP POLICY IF EXISTS "Users can update own client updates" ON public.client_updates;
 CREATE POLICY "Users can update own client updates"
   ON public.client_updates
@@ -817,9 +820,12 @@ CREATE POLICY "Users can update own client updates"
     AND public.tenant_can_write_client(tenant_id, client_id)
   );
 
--- Rejects an update that changes a card entry's client_id or tenant_id: an
--- entry stays on the client and in the org it was written for, whoever edits
--- it (a WITH CHECK cannot compare the new row with the old one).
+-- Rejects an update that changes a card entry's client_id, tenant_id, source,
+-- source_ref or user_id: an entry stays on the client and in the org it was
+-- written for, and keeps who and what wrote it, whoever edits it. Otherwise an
+-- owner could turn a row into a system_send entry attributed to another org's
+-- person, holding a trigger's dedupe key so the trigger's own entry is never
+-- written (a WITH CHECK cannot compare the new row with the old one).
 CREATE OR REPLACE FUNCTION public.client_updates_keep_owner()
 RETURNS trigger
   LANGUAGE plpgsql
@@ -830,8 +836,11 @@ BEGIN
     AND (
       NEW.client_id IS DISTINCT FROM OLD.client_id
       OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+      OR NEW.source IS DISTINCT FROM OLD.source
+      OR NEW.source_ref IS DISTINCT FROM OLD.source_ref
+      OR NEW.user_id IS DISTINCT FROM OLD.user_id
     ) THEN
-    RAISE EXCEPTION 'client_updates: client_id and tenant_id cannot change'
+    RAISE EXCEPTION 'client_updates: client_id, tenant_id, source, source_ref and user_id cannot change'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
   RETURN NEW;
@@ -843,6 +852,7 @@ REVOKE ALL ON FUNCTION public.client_updates_keep_owner()
 
 DROP TRIGGER IF EXISTS client_updates_keep_owner ON public.client_updates;
 CREATE TRIGGER client_updates_keep_owner
-  BEFORE UPDATE OF client_id, tenant_id ON public.client_updates
+  BEFORE UPDATE OF client_id, tenant_id, source, source_ref, user_id
+  ON public.client_updates
   FOR EACH ROW
   EXECUTE FUNCTION public.client_updates_keep_owner();
