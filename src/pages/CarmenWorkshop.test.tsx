@@ -84,6 +84,8 @@ vi.mock("@/integrations/supabase/client", () => {
                   client_name: null,
                   department_hint: payload.department ?? null,
                   has_board: payload.workshop != null,
+                  format: payload.format ?? null,
+                  workshop_edit: payload.workshop_edit === true,
                 };
               })
           : null,

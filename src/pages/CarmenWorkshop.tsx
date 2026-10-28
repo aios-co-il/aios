@@ -270,31 +270,14 @@ export default function CarmenWorkshop() {
   });
   const viewClientName = viewClientId ? (viewClient.data ?? null) : null;
 
-  // The list rows carry no payload; the storyboard needs the board's film format and edit flag.
-  // Under the list's key, so a workshop event refreshes it with the list.
+  // The board's list row brings the film's format and edit flag, so both hold from its first render.
   const boardId = board?.id ?? null;
-  const film = useQuery({
-    queryKey: ["carmen-workshop-projects", tenantId, "film", boardId],
-    queryFn: boardId
-      ? async () => {
-          const { data, error } = await supabase
-            .from("marketing_work_items")
-            .select("payload")
-            .eq("id", boardId)
-            .maybeSingle();
-          if (error) throw error;
-          return (data?.payload ?? null) as Record<string, unknown> | null;
-        }
-      : skipToken,
-  });
-  const filmPayload = boardId ? (film.data ?? null) : null;
-
   const artifacts = useWorkshopArtifacts(tenantId, boardId);
   const sceneBoard = useStoryboardBoard({
     tenantId,
     projectId: boardId,
-    aspect: filmAspect(filmPayload),
-    edit: filmPayload?.workshop_edit === true,
+    aspect: filmAspect(board ? { format: board.format } : null),
+    edit: board?.workshop_edit === true,
     onPickScene: () => setArtifactId(null),
     openChat: () => setOpen(true),
   });

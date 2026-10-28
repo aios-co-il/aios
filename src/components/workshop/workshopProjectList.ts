@@ -22,6 +22,10 @@ export interface WorkshopListRow {
   has_creative: boolean;
   has_seo_plan: boolean;
   updated_at: string;
+  /** The film's payload.format, which the board draws its scenes at. */
+  format: string | null;
+  /** The film is cut from the user's materials (payload.workshop_edit). */
+  workshop_edit: boolean;
 }
 
 export interface DepartmentGroup {
