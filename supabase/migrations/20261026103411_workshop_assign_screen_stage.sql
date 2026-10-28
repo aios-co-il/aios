@@ -8,6 +8,9 @@
 -- department's screen (departmentScreen of projectDepartment), which then does not show it.
 -- Now the stage type is kept only where the screen lists the project at any stage; otherwise it
 -- starts at the stage the screen lists it by, as 20261026103400 did.
+-- Refusing a project with an SEO program now names the program's client. The workshop picker
+-- cannot see the program, so it stays open for such a project when it has no client or is not
+-- an SEO one, and the old "stays with its client" made no sense for a project with no client.
 
 create or replace function public.workshop_assign_client(
   p_item_id uuid,
@@ -28,6 +31,7 @@ declare
   v_has_creative boolean;
   v_dept text;
   v_program_client uuid;
+  v_program_client_name text;
   v_target_track text;
   v_target_stage text;
   v_listed_anywhere boolean;
@@ -81,15 +85,28 @@ begin
   -- A project with an SEO program takes only the program's client: its keywords, calendar and
   -- site belong to it. SEO and social projects stay with the client they have; an unassigned one
   -- can still be assigned. Only the program lock is also enforced by the trigger of 103410.
+  -- The workshop picker is open for a project with a program but no client, or one whose
+  -- department is not SEO (isClientLocked cannot see the program), so this refusal names the
+  -- program's client: the only client the project can take.
   select g.client_id into v_program_client
     from public.seo_geo_programs g where g.work_item_id = v_item.id;
-  if (v_program_client is not null and p_client_id is distinct from v_program_client)
-     or (v_program_client is null
-         and v_item.client_id is not null
-         and v_dept in ('seo', 'social')
-         and p_client_id is distinct from v_item.client_id) then
+  if v_program_client is not null and p_client_id is distinct from v_program_client then
+    select c.name into v_program_client_name from public.clients c where c.id = v_program_client;
+    raise exception '%', case
+        when v_program_client_name is null then
+          'לפרויקט יש תוכנית SEO / GEO של לקוח שאין לך גישה אליו: אי אפשר לשייך אותו ללקוח אחר או להסיר את השיוך'
+        else format(
+          'לפרויקט יש תוכנית SEO / GEO של הלקוח "%s": אפשר לשייך אותו רק ללקוח הזה, ואי אפשר להסיר את השיוך',
+          v_program_client_name)
+      end
+      using errcode = '22023';
+  end if;
+  if v_program_client is null
+     and v_item.client_id is not null
+     and v_dept in ('seo', 'social')
+     and p_client_id is distinct from v_item.client_id then
     raise exception 'פרויקט % נשאר אצל הלקוח שלו: אי אפשר להעביר אותו ללקוח אחר או להסיר את השיוך',
-      case when v_program_client is null and v_dept = 'social' then 'סושיאל' else 'SEO / GEO' end
+      case when v_dept = 'social' then 'סושיאל' else 'SEO / GEO' end
       using errcode = '22023';
   end if;
 

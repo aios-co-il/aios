@@ -66,15 +66,21 @@ BEGIN
 END;
 $$;
 
--- True when assigning p_item to p_client is refused as a locked project.
-CREATE FUNCTION pg_temp.qa_refused(p_item uuid, p_client uuid) RETURNS boolean
+-- The message when assigning p_item to p_client is refused as a locked project, else null.
+CREATE FUNCTION pg_temp.qa_refusal(p_item uuid, p_client uuid) RETURNS text
 LANGUAGE plpgsql AS $$
 BEGIN
   PERFORM public.workshop_assign_client(p_item, p_client);
-  RETURN false;
+  RETURN NULL;
 EXCEPTION WHEN invalid_parameter_value THEN
-  RETURN true;
+  RETURN SQLERRM;
 END;
+$$;
+
+-- True when assigning p_item to p_client is refused as a locked project.
+CREATE FUNCTION pg_temp.qa_refused(p_item uuid, p_client uuid) RETURNS boolean
+LANGUAGE sql AS $$
+  SELECT pg_temp.qa_refusal(p_item, p_client) IS NOT NULL
 $$;
 
 DO $test$
@@ -86,6 +92,7 @@ DECLARE
   v_item uuid;
   v_place text;
   v_failed boolean;
+  v_error text;
   c record;
 BEGIN
   INSERT INTO public.tenants (name, slug)
@@ -238,10 +245,21 @@ BEGIN
   IF NOT pg_temp.qa_refused(v_item, v_b) OR NOT pg_temp.qa_refused(v_item, NULL) THEN
     RAISE EXCEPTION 'program: a project with a program should not move or be released';
   END IF;
+  -- The workshop picker of a project that is not SEO or social is open, so the refusal says
+  -- which client the program belongs to: the only one the project can take.
+  v_error := pg_temp.qa_refusal(v_item, v_b);
+  IF position('QA ROLLBACK client A' IN coalesce(v_error, '')) = 0 THEN
+    RAISE EXCEPTION 'program: refusing a move names the program''s client (%)', v_error;
+  END IF;
   v_item := pg_temp.qa_item(v_tenant, NULL, 'campaigns', 'creative', '{"department":"creative"}');
   INSERT INTO public.seo_geo_programs (tenant_id, client_id, work_item_id) VALUES (v_tenant, v_a, v_item);
   IF NOT pg_temp.qa_refused(v_item, v_b) THEN
     RAISE EXCEPTION 'program: a project without a client takes only its program''s client';
+  END IF;
+  -- With no client the picker shows none and is open: the refusal names the program's client.
+  v_error := pg_temp.qa_refusal(v_item, v_b);
+  IF position('QA ROLLBACK client A' IN coalesce(v_error, '')) = 0 THEN
+    RAISE EXCEPTION 'program: a project without a client is told its program''s client (%)', v_error;
   END IF;
   BEGIN
     UPDATE public.marketing_work_items SET client_id = v_b WHERE id = v_item;
