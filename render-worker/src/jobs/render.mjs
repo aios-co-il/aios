@@ -8,11 +8,10 @@ import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
-  privateStorageObject,
+  readMedia,
 } from "../guard.mjs";
 import {
   isTalkingScene,
@@ -21,12 +20,11 @@ import {
   spokenLine,
   talkingLine,
 } from "../narration.mjs";
+import { AUDIO_DRIVEN_LIPSYNC } from "../providers/index.mjs";
 import { inList, metaOf } from "./rows.mjs";
 import { effectsByKind, filmSoundEffects } from "./sound-effects.mjs";
 
 const BUCKET = "creative-video";
-/** Lip-sync providers whose mouth follows the voice file as it is, so its word timings hold. */
-const AUDIO_DRIVEN = new Set(["elevenlabs", "kling", "heygen"]);
 
 const sniffExt = (bytes) => {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
@@ -51,21 +49,9 @@ const sniffExt = (bytes) => {
 };
 
 async function materialize(db, tenantId, path, fileBase) {
-  const remote = /^https?:\/\//.test(path);
-  // A private upload (an entity-attachments link, such as the logo) is read with the worker's
-  // key, like the film's own files, from the tenant's folder only.
-  const stored = remote ? privateStorageObject(path) : { bucket: BUCKET, path };
-  let bytes;
-  if (stored) {
-    bytes = await db.download(
-      stored.bucket,
-      assertTenantPath(tenantId, stored.path),
-    );
-  } else {
-    const response = await fetch(assertMediaUrl(path));
-    if (!response.ok) throw new Error(`media download ${response.status}`);
-    bytes = new Uint8Array(await response.arrayBuffer());
-  }
+  // A private upload (an entity-attachments link, such as the logo or the user's own picture) is
+  // read with the worker's key, like the film's own files, from the tenant's folder only.
+  const bytes = await readMedia(db, tenantId, path, BUCKET);
   const file = `${fileBase}.${sniffExt(bytes)}`;
   await writeFile(file, bytes);
   return file;
@@ -186,7 +172,8 @@ export async function loadFilmSources(db, run) {
           : null;
       const spokenAlignment =
         lineVoice?.type === "voiceover" &&
-        AUDIO_DRIVEN.has(String(clipMeta.provider)) &&
+        // A lip sync whose mouth follows the voice file keeps the line's word timings.
+        AUDIO_DRIVEN_LIPSYNC.has(String(clipMeta.provider)) &&
         String(metaOf(lineVoice).text ?? "") === talkingLine(scene)
           ? metaOf(lineVoice).alignment || null
           : null;

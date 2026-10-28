@@ -136,6 +136,49 @@ test("without an ElevenLabs key OpenRouter narrates before Gemini and estimates 
   expect(urls).toStrictEqual(["https://openrouter.ai/api/v1/audio/speech"]);
 });
 
+test("the paid narration and the save of its file run inside the worker's submit guard", async () => {
+  let inside = false;
+  const seen = [];
+  vi.stubGlobal("fetch", async (url) => {
+    seen.push(["speech", inside]);
+    if (String(url).endsWith("/audio/speech")) return audio();
+    throw new Error(`unexpected ${url}`);
+  });
+  const run = voiceRun();
+  const db = fakeDb(run);
+  const upload = db.upload;
+  db.upload = async (...args) => {
+    seen.push(["upload", inside]);
+    return upload(...args);
+  };
+  const update = db.update;
+  db.update = async (...args) => {
+    seen.push(["save", inside]);
+    return update(...args);
+  };
+  await generateVoice({
+    db,
+    run,
+    apiKey: null,
+    resolveOpenRouterKey: async () => "sk-or",
+    log: () => {},
+    submitting: async (submit) => {
+      inside = true;
+      try {
+        return await submit();
+      } finally {
+        inside = false;
+      }
+    },
+  });
+  // A stop waits for these, so it never puts the run back to queued between payment and save.
+  expect(seen).toStrictEqual([
+    ["speech", true],
+    ["upload", true],
+    ["save", true],
+  ]);
+});
+
 test("a voice OpenRouter cannot use is retried once with a premade voice", async () => {
   const voices = [];
   const fetchImpl = async (_url, init) => {

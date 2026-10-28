@@ -3,6 +3,7 @@ import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { signCreativeVideoPaths } from "@/components/marketing/departments/creative/videoScenesStore";
+import { resolveCreativeImageUrl } from "@/components/marketing/lib/resolveCreativeImageUrl";
 import {
   splitFailures,
   storagePathsIn,
@@ -33,6 +34,16 @@ async function clearFailures(
 
 const COLUMNS =
   "id,item_id,kind,folder,title,status,url,thumb_url,meta,created_at";
+
+/** A page of the user's own upload links to the private entity-attachments bucket: signed to show. */
+const withViewableUploads = (rows: WorkshopArtifact[]) =>
+  Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      url: await resolveCreativeImageUrl(row.url),
+      thumb_url: await resolveCreativeImageUrl(row.thumb_url),
+    })),
+  );
 
 /** The pages of one project, kept live: a page Carmen adds arrives without a refresh. */
 export function useWorkshopArtifacts(
@@ -80,11 +91,11 @@ export function useWorkshopArtifacts(
               (data ?? []) as WorkshopArtifact[],
             );
             const paths = storagePathsIn(rows);
-            if (paths.length === 0) return rows;
+            if (paths.length === 0) return withViewableUploads(rows);
             const signed = await signCreativeVideoPaths(paths).catch(
               () => ({}),
             );
-            return withSignedUrls(rows, signed);
+            return withViewableUploads(withSignedUrls(rows, signed));
           }
         : skipToken,
   });

@@ -4,16 +4,14 @@
  * project ready for workshop_produce_video. Free: nothing is generated here.
  */
 
-import { ASSET_BUCKET, type AssetView } from "./assets.ts";
+import { type AssetView } from "./assets.ts";
 import { pickMaterials, planEditScenes } from "./edit-plan.ts";
+import { publicUrlOf } from "./project-io.ts";
 import { asRecord } from "./record.ts";
 import { spokenField } from "./spoken-text.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
-
-/** Signed links last a week, enough for the film to be rendered from them. */
-const LINK_SECONDS = 7 * 24 * 60 * 60;
 
 export const EDIT_TOOL = {
   name: "workshop_edit_from_assets",
@@ -174,14 +172,12 @@ export async function buildEditScenes(
     if (marked.error) return { error: marked.error.message };
   }
   const failed: string[] = [];
+  // The upload's own address in the private bucket, as the assets tab keeps it: it never expires.
+  // The worker reads it with its own key (render-worker/src/guard.mjs readMedia) and the board
+  // signs it to show it.
+  const addressOf = publicUrlOf(supabase);
   for (const scene of plan) {
-    const link = scene.storagePath
-      ? (
-          await supabase.storage
-            .from(ASSET_BUCKET)
-            .createSignedUrl(scene.storagePath, LINK_SECONDS)
-        ).data?.signedUrl
-      : scene.url;
+    const link = scene.storagePath ? addressOf(scene.storagePath) : scene.url;
     const attached = link
       ? await supabase.rpc("attach_video_scene_asset", {
           p_scene_id: scene.row.id,

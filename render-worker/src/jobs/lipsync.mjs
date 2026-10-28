@@ -3,12 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { probe } from "../ffmpeg.mjs";
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
   loadRunScene,
+  readMedia,
   safeSegment,
+  storedObject,
 } from "../guard.mjs";
 import {
   isTalkingScene,
@@ -18,6 +19,7 @@ import {
 import {
   getLipsyncProvider,
   lipsyncProviderNames,
+  speaksInOwnVoice,
 } from "../providers/index.mjs";
 import { audioMime } from "../providers/lipsync.mjs";
 import { isPaidPlanError } from "../providers/plan.mjs";
@@ -30,20 +32,7 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const NO_LIPSYNC_PROVIDER =
-  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), an OpenRouter key or a Higgsfield key to the tenant, or set KLING_ACCESS_KEY and KLING_SECRET_KEY on the worker";
-
-/** Bytes of a creative-video file in the tenant folder, or of an allowed media URL. */
-async function loadFile(db, tenantId, url) {
-  if (/^https?:\/\//.test(String(url))) {
-    const response = await fetch(assertMediaUrl(url));
-    if (!response.ok)
-      throw new Error(
-        `media download ${response.status}: ${String(url).slice(0, 200)}`,
-      );
-    return new Uint8Array(await response.arrayBuffer());
-  }
-  return db.download(BUCKET, assertTenantPath(tenantId, url));
-}
+  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), a Kling key pair, an OpenRouter key or a Higgsfield key to the tenant";
 
 /** <item folder>/<scene>/lipsync-v<n>.mp4, n = the next lip-synced clip of the scene. */
 export async function lipsyncPath(db, run, folder) {
@@ -144,10 +133,10 @@ export async function generateLipsync({
   const clip = await asset(db, run, scene.clip_asset_id, "video_clip");
   const motion = await motionClipOf(db, run, clip);
 
-  // OpenRouter Veo speaks the line in its own voice: never for a line in the chosen voice,
-  // which is assembled as it is (the chosen voice over the picture) when nothing else can.
+  // A provider that speaks in its own voice (Veo) never says a line in the chosen voice, which
+  // is assembled as it is (the chosen voice over the picture) when nothing else can.
   const names = lipsyncProviderNames(run, keys, env).filter(
-    (name) => !(name === "openrouter" && speaksInChosenVoice(scene)),
+    (name) => !(speaksInOwnVoice(name) && speaksInChosenVoice(scene)),
   );
   if (!names.length) throw finalError(NO_LIPSYNC_PROVIDER);
   const durationS = Number(scene.duration_s) || 5;
@@ -258,7 +247,7 @@ async function providerInput(
   provider,
   { picture, voice, line, speaker, motionPrompt, durationS, aspect },
 ) {
-  const audioBytes = await loadFile(db, run.tenant_id, voice.url);
+  const audioBytes = await readMedia(db, run.tenant_id, voice.url, BUCKET);
   const input = {
     prompt: `${speaker || "The character"} speaks this exact audio line to the camera with natural lip sync: "${line}". No text, no letters, no logos.`,
     line,
@@ -268,7 +257,7 @@ async function providerInput(
     audioBytes,
   };
   if (provider.needs === "image")
-    input.imageBytes = await loadFile(db, run.tenant_id, picture.url);
+    input.imageBytes = await readMedia(db, run.tenant_id, picture.url, BUCKET);
   if (provider.needsPublicMedia) {
     // Stored files are private: hand the provider fresh signed links of copies in the tenant folder.
     const base = `${item.folder}/${safeSegment(run.scene_id)}`;
@@ -281,9 +270,14 @@ async function providerInput(
     await db.upload(BUCKET, audioPath, audioBytes, audioType);
     input.audioUrl = await db.sign(BUCKET, audioPath, 3600);
     if (provider.needs === "video") {
+      // A clip in the tenant folder, or the user's own video in the private bucket it was kept in.
+      const clip = storedObject(picture.url, BUCKET) ?? {
+        bucket: BUCKET,
+        path: picture.url,
+      };
       input.videoUrl = await db.sign(
-        BUCKET,
-        assertTenantPath(run.tenant_id, picture.url),
+        clip.bucket,
+        assertTenantPath(run.tenant_id, clip.path),
         3600,
       );
     } else {

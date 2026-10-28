@@ -1,7 +1,45 @@
 import { hostLabel, isHttpUrl } from "../assets.ts";
+import { type Db } from "../db.ts";
+import { type WorkshopDeps } from "../gate.ts";
+import { sniffMime } from "../image-providers.ts";
 import { loadAssets, loadProject, savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
+
+/**
+ * Where a picture copied from the web is kept: the public bucket beside Carmen's own pictures
+ * (creative/ad-image.ts). It came from a public address, and every reader fetches it as it is:
+ * image references (loadReferences), the film's end card and the board. A link to the private
+ * entity-attachments bucket would answer them 400.
+ */
+const IMPORT_BUCKET = "social-media";
+
+/** Copies a picture from the web into storage (deps.importImage); returns its public link. */
+export async function importWebImage(
+  supabase: Db,
+  fetchPublic: NonNullable<WorkshopDeps["fetchPublic"]>,
+  url: string,
+  scope: { tenantId: string; itemId: string },
+): Promise<{ url?: string; error?: string }> {
+  const fetched = await fetchPublic(url, {
+    accept: "image/*,*/*",
+    maxBytes: 8_000_000,
+  });
+  if (!fetched.ok) return { error: fetched.error ?? "התמונה לא נגישה" };
+  const mime = sniffMime(fetched.bytes);
+  if (!mime) return { error: "הקובץ אינו תמונה נתמכת (JPG, PNG או WebP)" };
+  const extension =
+    mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+  const path = `workshop-imports/${scope.tenantId}/${scope.itemId}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${extension}`;
+  const { error } = await supabase.storage
+    .from(IMPORT_BUCKET)
+    .upload(path, fetched.bytes, { contentType: mime });
+  if (error) return { error: error.message };
+  return {
+    url: supabase.storage.from(IMPORT_BUCKET).getPublicUrl(path).data
+      .publicUrl as string,
+  };
+}
 
 export async function workshopAddAssets(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;

@@ -12,6 +12,7 @@ import {
   WORKSHOP_TOOLS,
 } from "./workshop-tools.ts";
 import { shouldNudgeSilentTurn } from "./workshop/reply.ts";
+import { importWebImage } from "./workshop/tools/add-assets.ts";
 
 type RunArgs = Parameters<typeof runWorkshopTool>;
 
@@ -2049,6 +2050,73 @@ Deno.test(
   },
 );
 
+const LOGO_SITE = `<html><head><title>קפה הגינה</title></head>
+<body><img src="/img/logo.png" alt="קפה הגינה logo"></body></html>`;
+
+/** workshop_inspect_site with apply_brand on a site with a logo; importImage answers `copy`. */
+async function brandFromSite(copy: { url?: string; error?: string }) {
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "x",
+      client_id: null,
+      current_stage_id: null,
+      payload: { workshop: {} },
+    },
+  });
+  const imported: string[] = [];
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_inspect_site",
+    {
+      item_id: "item-1",
+      url: "https://garden.example.com/",
+      apply_brand: true,
+    },
+    async () => {},
+    null,
+    {
+      fetchPublic: async (url) => ({
+        ok: true,
+        url,
+        contentType: "text/html",
+        bytes: encode(LOGO_SITE),
+      }),
+      importImage: async (url) => {
+        imported.push(url);
+        return copy;
+      },
+    },
+  )) as Record<string, any>;
+  const saved = db.calls.filter(
+    (c) => c.table === "marketing_work_items" && c.op === "update",
+  );
+  const payload = (saved[saved.length - 1].value as Record<string, any>)
+    .payload;
+  return { result, imported, payload };
+}
+
+Deno.test(
+  "the site's logo is copied into storage for the brand, never kept as the site's own link",
+  async () => {
+    const stored =
+      "https://p.supabase.co/storage/v1/object/public/social-media/workshop-imports/tenant-1/item-1/logo.png";
+    const { result, imported, payload } = await brandFromSite({ url: stored });
+    assertEquals(imported, ["https://garden.example.com/img/logo.png"]);
+    // The worker reads storage links; it refuses the client's own host.
+    assertStrictEquals(payload.logo_url, stored);
+    assertStrictEquals(result.brand_applied, true);
+    assertStrictEquals(result.logo_url, stored);
+
+    const failed = await brandFromSite({ error: "הקובץ אינו תמונה נתמכת" });
+    assertStrictEquals(failed.payload.logo_url, undefined);
+    assertStrictEquals(failed.result.brand_applied, true);
+    assertMatch(failed.result.logo_error, /אינו תמונה נתמכת/);
+    assertMatch(failed.result.message, /הלוגו מהאתר לא נשמר/);
+  },
+);
+
 Deno.test(
   "a site that cannot be read says so, and a missing address is asked for",
   async () => {
@@ -2143,6 +2211,79 @@ Deno.test(
       "https://garden.example.com/hero.jpg",
       "https://garden.example.com/broken.jpg",
     ]);
+  },
+);
+
+/** Storage that records uploads and answers public links as Supabase does. */
+function fakeStorage() {
+  const uploads: { bucket: string; path: string; contentType?: string }[] = [];
+  return {
+    uploads,
+    storage: {
+      from: (bucket: string) => ({
+        upload: (
+          path: string,
+          _bytes: Uint8Array,
+          options?: { contentType?: string },
+        ) => {
+          uploads.push({ bucket, path, contentType: options?.contentType });
+          return Promise.resolve({ error: null });
+        },
+        getPublicUrl: (path: string) => ({
+          data: {
+            publicUrl: `https://p.supabase.co/storage/v1/object/public/${bucket}/${path}`,
+          },
+        }),
+      }),
+    },
+  };
+}
+
+const PNG_BYTES = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+
+Deno.test(
+  "a picture copied from the web is kept where every reader can fetch it, not in the private bucket",
+  async () => {
+    const { storage, uploads } = fakeStorage();
+    const imported = await importWebImage(
+      { storage },
+      async (url) => ({
+        ok: true,
+        url,
+        contentType: "image/png",
+        bytes: PNG_BYTES,
+      }),
+      "https://garden.example.com/logo.png",
+      { tenantId: "tenant-1", itemId: "item-1" },
+    );
+    assertStrictEquals(uploads.length, 1);
+    assertStrictEquals(uploads[0].bucket, "social-media");
+    assertMatch(
+      uploads[0].path,
+      /^workshop-imports\/tenant-1\/item-1\/[^/]+\.png$/,
+    );
+    assertStrictEquals(uploads[0].contentType, "image/png");
+    // A public link: image references, the film's end card and the board read it as it is.
+    assertStrictEquals(
+      imported.url,
+      `https://p.supabase.co/storage/v1/object/public/social-media/${uploads[0].path}`,
+    );
+
+    const refused = await importWebImage(
+      { storage },
+      async (url) => ({
+        ok: true,
+        url,
+        contentType: "text/html",
+        bytes: encode("<html></html>"),
+      }),
+      "https://garden.example.com/",
+      { tenantId: "tenant-1", itemId: "item-1" },
+    );
+    assertMatch(String(refused.error), /אינו תמונה נתמכת/);
+    assertStrictEquals(uploads.length, 1);
   },
 );
 
