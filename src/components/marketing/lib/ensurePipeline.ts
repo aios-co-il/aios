@@ -82,10 +82,11 @@ function buildDefaultStages(track: MarketingTrack): DefaultStage[] {
 
 /**
  * A client's pipeline of one track. A client can have duplicates, so this takes the oldest one,
- * the same one the workshop's assign RPC (public.workshop_department_stage) picks.
+ * the same one the workshop's assign RPC (public.workshop_department_stage) picks. A failed
+ * lookup throws: reading it as "no pipeline" would make the caller create a duplicate.
  */
 async function findOldestPipeline(clientId: string, track: MarketingTrack) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("marketing_pipelines")
     .select("*")
     .eq("client_id", clientId)
@@ -93,6 +94,7 @@ async function findOldestPipeline(clientId: string, track: MarketingTrack) {
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(1);
+  if (error) throw error;
   return data?.[0] ?? null;
 }
 
@@ -149,7 +151,7 @@ export async function ensurePipelineForClient({
     return existing;
   }
 
-  // If select failed (e.g. RLS timing), try upsert approach
+  // No pipeline yet: create one
   const { data: created, error } = await supabase
     .from("marketing_pipelines")
     .insert({ client_id: clientId, tenant_id: tenantId, track })
