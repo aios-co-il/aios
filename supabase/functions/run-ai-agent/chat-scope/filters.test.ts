@@ -25,6 +25,10 @@ import {
   staff,
 } from "./test-fixtures.ts";
 
+/** The id plus the columns the scope check reads, as the chat readers select them. */
+const SCOPE_COLUMNS =
+  "id, client_id, lead_id, group_id, provider, connection_user_id, sender_phone";
+
 Deno.test("withChatScopeColumns", async (t) => {
   await t.step("adds missing columns once and ignores embeds", () => {
     assertStrictEquals(
@@ -137,7 +141,7 @@ Deno.test("applyChatScope", async (t) => {
     });
     const scope = staff({ mode: "group", groupId: GA, connectionUserIds: [] });
     const { data } = await applyChatScope(
-      db.from("chat_messages").select("id"),
+      db.from("chat_messages").select(SCOPE_COLUMNS),
       scope,
     );
     assertEquals(

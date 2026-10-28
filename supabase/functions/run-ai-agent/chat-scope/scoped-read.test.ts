@@ -27,7 +27,7 @@ import {
   T,
   TEAM_MGR,
 } from "./test-fixtures.ts";
-import type { ChatScopeInput } from "./types.ts";
+import type { ChatScopeInput, ChatScopeRow } from "./types.ts";
 
 type Caller = Omit<ChatScopeInput, "tenantId" | "accessibleTenantIds">;
 
@@ -258,7 +258,9 @@ async function readChats(
   const query = () => {
     let q = db
       .from("chat_messages")
-      .select(withChatScopeColumns("id, message_text, created_at"))
+      .select<string, ChatScopeRow & { id: string }>(
+        withChatScopeColumns("id, message_text, created_at"),
+      )
       .in("tenant_id", [T])
       .order("created_at", { ascending: false })
       .limit(100);

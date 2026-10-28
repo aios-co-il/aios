@@ -1,3 +1,4 @@
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import {
   evalFilter,
   likeToRegex,
@@ -140,5 +141,8 @@ export function fakeDb(
     }
   }
 
-  return { db: { from, rpc }, queries, rpcCalls };
+  // The fake implements only the builder calls in FakeQuery; typing it as the
+  // client the chat scope takes lets tests pass it where production code does.
+  const db = { from, rpc } as unknown as Pick<DbClient, "from" | "rpc">;
+  return { db, queries, rpcCalls };
 }

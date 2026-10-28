@@ -28,6 +28,10 @@ import {
   world,
 } from "./test-fixtures.ts";
 
+/** The id plus the columns the scope check reads, as the chat readers select them. */
+const SCOPE_COLUMNS =
+  "id, client_id, lead_id, group_id, provider, connection_user_id, sender_phone";
+
 Deno.test("isChatRowVisible", async (t) => {
   await t.step(
     "green_api needs an allowed connection and a linked thread",
@@ -156,7 +160,7 @@ Deno.test("readScopedChatRows", async (t) => {
     const { db } = fakeDb({ chat_messages: chats });
     const rows = await readScopedChatRows(
       db,
-      db.from("chat_messages").select("id").in("tenant_id", [T]),
+      db.from("chat_messages").select(SCOPE_COLUMNS).in("tenant_id", [T]),
       staff({ connectionUserIds: [] }),
       [T],
     );
@@ -169,7 +173,13 @@ Deno.test("readScopedChatRows", async (t) => {
   await t.step("throws the query's error", async () => {
     const { db } = fakeDb({}, {}, { chat_messages: new Error("db down") });
     await assertRejects(
-      () => readScopedChatRows(db, db.from("chat_messages"), staff(), [T]),
+      () =>
+        readScopedChatRows(
+          db,
+          db.from("chat_messages").select(SCOPE_COLUMNS),
+          staff(),
+          [T],
+        ),
       Error,
       "db down",
     );
