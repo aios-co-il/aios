@@ -23,7 +23,8 @@ const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
  * throttle, then the org's recipients from `recipientsFor` minus the phones
  * an org sharing the client's agency already alerted. Alerts accepted
  * earlier in this run count like log rows, since they are logged only after
- * the sends.
+ * the sends. Two overlapping runs of one org can both plan an alert: there
+ * is no per-org run lease yet (AIO-158).
  */
 export async function planInstantAlerts(
   input: Pick<InstantPulseAlertsInput, "supabase" | "tenantId" | "snapshots">,
