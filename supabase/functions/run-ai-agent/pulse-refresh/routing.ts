@@ -1,9 +1,9 @@
+import { REFRESH_PULSE_TOOL_NAME } from "../../_shared/carmen/pulse-tools.ts";
 import { CALLER_ROLE_PRIORITY } from "../caller-roles.ts";
 import {
   isBarePulseRefreshRequest,
   isPulseRefreshRequest,
 } from "./refresh-request.ts";
-import { REFRESH_CAMPAIGN_PULSE_TOOL } from "./tool.ts";
 
 /** The caller run-ai-agent resolved for this turn. */
 export type PulseCaller = {
@@ -62,12 +62,13 @@ export function pulseRefreshToolChoice(
   route: PulseRefreshRoute,
   cappedTools: readonly CappedTool[],
 ): { type: "function"; function: { name: string } } | null {
-  const { name } = REFRESH_CAMPAIGN_PULSE_TOOL;
-  const offered = cappedTools.some((tool) => tool.function?.name === name);
+  const offered = cappedTools.some(
+    (tool) => tool.function?.name === REFRESH_PULSE_TOOL_NAME,
+  );
   if (!route.forceRefresh || !offered) {
     return null;
   }
-  return { type: "function", function: { name } };
+  return { type: "function", function: { name: REFRESH_PULSE_TOOL_NAME } };
 }
 
 /**

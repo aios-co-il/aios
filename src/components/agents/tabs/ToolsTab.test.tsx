@@ -31,6 +31,24 @@ describe("ToolsTab", () => {
     expect(checkboxOf(/ניתוח קמפיינים/)).not.toBeChecked();
   });
 
+  test("a pulse tool turned off in disabled_tools is not shown as always on", () => {
+    render(
+      <ToolsTab
+        agent={{
+          id: "a-3",
+          name: "כרמן",
+          allowed_tools: ["list_leads"],
+          disabled_tools: ["refresh_campaign_pulse"],
+        }}
+      />,
+    );
+    const refresh = checkboxOf(/רענון בדיקת דופק/);
+    expect(refresh).not.toBeChecked();
+    expect(refresh).toBeEnabled();
+    expect(checkboxOf(/בדיקת דופק שמורה/)).toBeDisabled();
+    expect(screen.getAllByText("תמיד פעיל לכרמן")).toHaveLength(1);
+  });
+
   test("other agents can turn the pulse tools off", () => {
     render(
       <ToolsTab

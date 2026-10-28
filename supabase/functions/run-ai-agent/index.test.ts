@@ -1,5 +1,6 @@
 import {
   assert,
+  assertEquals,
   assertMatch,
   assertNotMatch,
   assertStrictEquals,
@@ -55,22 +56,22 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       );
       assertMatch(
         runAiAgent,
-        /toolName === "refresh_campaign_pulse" &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(result\);/,
+        /toolName === REFRESH_PULSE_TOOL_NAME &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(result\);/,
       );
       assert(!runAiAgent.includes("isPulseRefreshRequest("));
       // The tool runs with executeTool's caller and scope.
       assertMatch(
         runAiAgent,
-        /case "refresh_campaign_pulse": \{\s*return await executeRefreshCampaignPulse\(\s*\{[^}]*actorUserId,\s*accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
+        /case REFRESH_PULSE_TOOL_NAME: \{\s*return await executeRefreshCampaignPulse\(\s*\{[^}]*actorUserId,\s*accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
       );
       const priority = runAiAgent.slice(
         runAiAgent.indexOf("const PRIORITY_TOOLS = new Set(["),
         runAiAgent.indexOf("function capToolsForTarget("),
       );
-      assert(priority.includes('"refresh_campaign_pulse"'));
+      assert(priority.includes("  REFRESH_PULSE_TOOL_NAME,\n"));
       assert(runAiAgent.includes("  REFRESH_CAMPAIGN_PULSE_TOOL,\n"));
       const catalog = read("../../../src/lib/agentToolsCatalog.ts");
-      assert(catalog.includes('name: "refresh_campaign_pulse"'));
+      assert(catalog.includes("name: REFRESH_PULSE_TOOL_NAME,"));
     },
   );
 
@@ -154,6 +155,17 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         runAiAgent,
         /const pool = keepCarmenPulseTools\(\s*directToolPool\(ALL_TOOLS, \{/,
       );
+      // Nor do matched or pinned skins hand that caller the pulse tools.
+      assertMatch(
+        runAiAgent,
+        /const skinDisabledTools = skinToolDenylist\(disabledTools, \{\s*surface,\s*callerCampaignerId,\s*callerUserId,\s*\}\);/,
+      );
+      const skinPromotions = [
+        ...runAiAgent.matchAll(
+          /missingEnabledTools\(\s*filteredTools,\s*ALL_TOOLS,\s*[^,]+,\s*(\w+),\s*\)/g,
+        ),
+      ].map((m) => m[1]);
+      assertEquals(skinPromotions, ["skinDisabledTools", "skinDisabledTools"]);
     },
   );
 

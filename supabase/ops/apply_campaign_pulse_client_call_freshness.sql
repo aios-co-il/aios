@@ -1,3 +1,5 @@
+-- Superseded by 20261009000000_production_baseline.sql; retire this script
+-- once the open branches that still edit it land (AIO-124).
 -- Add client-contact freshness to the deterministic campaign pulse.
 -- A "call" is the structured update_type selected in the client card updates tab.
 

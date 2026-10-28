@@ -74,7 +74,11 @@ BEGIN
     WHERE claims.last_claimed_at <= now() - v_interval
   RETURNING true INTO v_claimed;
 
-  RETURN COALESCE(v_claimed, false);
+  IF v_claimed IS NULL THEN
+    RAISE NOTICE 'claim_campaign_pulse_refresh: tenant % already refreshed in the last %', p_tenant_id, v_interval;
+    RETURN false;
+  END IF;
+  RETURN true;
 END;
 $$;
 

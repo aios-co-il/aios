@@ -125,6 +125,34 @@ Deno.test("executeRefreshCampaignPulse", async (t) => {
       assertEquals(loaded, [{ client_id: undefined, client_name: undefined }]);
     },
   );
+
+  await t.step(
+    "a blank client_id reads the whole tenant's pulse, as the refresh did",
+    async () => {
+      const { ctx, scopeChecks } = context({ args: { client_id: "  " } });
+      const loaded: unknown[] = [];
+      const result = await executeRefreshCampaignPulse(ctx, async (args) => {
+        loaded.push(args);
+        return {};
+      });
+      assertEquals(scopeChecks, []);
+      assertEquals(loaded, [{ client_id: undefined, client_name: undefined }]);
+      assertStrictEquals(refreshOf(result).status, "rate_limited");
+    },
+  );
+
+  await t.step("a padded client_id is checked and read trimmed", async () => {
+    const { ctx, scopeChecks } = context({
+      args: { client_id: ` ${CLIENT} ` },
+    });
+    const loaded: unknown[] = [];
+    await executeRefreshCampaignPulse(ctx, async (args) => {
+      loaded.push(args);
+      return {};
+    });
+    assertEquals(scopeChecks, [CLIENT]);
+    assertEquals(loaded, [{ client_id: CLIENT, client_name: undefined }]);
+  });
 });
 
 Deno.test("REFRESH_CAMPAIGN_PULSE_TOOL", async (t) => {

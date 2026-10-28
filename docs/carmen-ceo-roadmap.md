@@ -125,7 +125,7 @@
 מאומת שחסר ב-`run-ai-agent` (grep):
 
 - **אימייל:** אין שליחת מייל (יש רק זימון יומן). מנכ"לית צריכה `send_email` (Gmail).
-- **איקומרס:** סקין `ecommerce_pulse` מפנה ל-`list_shopify_orders`/`list_woocommerce_orders` — **לא קיימים**. (AIO-237: הסקין כבר לא מפנה אליהם ועובד מהדופק.)
+- **איקומרס:** אין כלי שקורא הזמנות מ-Shopify או מ-WooCommerce. סקין `ecommerce_pulse` קורא רכישות, הכנסות ו-ROAS מהדופק (AIO-237).
 - **SEO:** Ahrefs מוזכר בסקינז — **לא מחווט** (רק Maskyoo calls).
 - **אנליטיקס:** GSC / web-analytics מוזכרים — לא מחווטים.
 - **תוכן:** Gamma / higgsfield / וידאו מוזכרים — לא מחווטים.
@@ -188,7 +188,7 @@
 ### Workstream F — הרחבת כיסוי "מא' עד ת'" (מצטבר, אפשר לפי דרישה עסקית)
 
 - **F1.** `send_email` (Gmail — יש כבר OAuth calendar; להרחיב scope).
-- **F2.** איקומרס: `list_shopify_orders`/`list_woocommerce_orders` → הפעלת `ecommerce_pulse`.
+- **F2.** איקומרס: `list_shopify_orders`/`list_woocommerce_orders`, כדי ש-`ecommerce_pulse` יקרא גם הזמנות ולא רק את הדופק.
 - **F3.** SEO: חיווט Ahrefs (MCP או כלי) + GSC לאנליטיקס.
 - **F4.** תוכן: Gamma/וידאו כ-nodes/כלים.
 - **F5.** ניהול מכירות: כלי ניקוד/העשרת לידים אמיתיים + רצפי nurture (מעל מנוע D).

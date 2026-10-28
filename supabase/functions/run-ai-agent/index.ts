@@ -30,6 +30,7 @@ import {
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
+import { REFRESH_PULSE_TOOL_NAME } from "../_shared/carmen/pulse-tools.ts";
 import { CALLER_ROLE_PRIORITY } from "./caller-roles.ts";
 import { buildPulseRefreshDigestReply } from "./pulse-refresh/note.ts";
 import {
@@ -44,7 +45,10 @@ import {
   executeRefreshCampaignPulse,
   REFRESH_CAMPAIGN_PULSE_TOOL,
 } from "./pulse-refresh/tool.ts";
-import { keepCarmenPulseTools } from "./pulse-refresh/tool-pool.ts";
+import {
+  keepCarmenPulseTools,
+  skinToolDenylist,
+} from "./pulse-refresh/tool-pool.ts";
 import { missingEnabledTools } from "./missing-enabled-tools.ts";
 import {
   classifyDirectTool,
@@ -793,7 +797,7 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
-  "refresh_campaign_pulse",
+  REFRESH_PULSE_TOOL_NAME,
   ...NATIVE_DEV_TASK_TOOLS,
 ]);
 
@@ -7610,7 +7614,7 @@ async function executeTool(
           "בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
     }
-    case "refresh_campaign_pulse": {
+    case REFRESH_PULSE_TOOL_NAME: {
       return await executeRefreshCampaignPulse(
         {
           args,
@@ -14882,6 +14886,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       disabledTools,
       caller: { surface, callerCampaignerId, callerUserId },
     });
+    const skinDisabledTools = skinToolDenylist(disabledTools, {
+      surface,
+      callerCampaignerId,
+      callerUserId,
+    });
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -15196,7 +15205,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       );
       // Skin → capability enforcement: a matched skin's allowed_tools are
       // guaranteed to be available, even when agent.allowed_tools narrows the
-      // set. Explicitly disabled tools stay disabled (denylist wins).
+      // set. Explicitly disabled tools stay disabled (denylist wins), and so do
+      // the pulse tools for an unidentified caller (skinToolDenylist).
       const skillToolNames = new Set(
         _matchedSkills.flatMap((s) => s.tools || []),
       );
@@ -15205,7 +15215,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           filteredTools,
           ALL_TOOLS,
           skillToolNames,
-          disabledTools,
+          skinDisabledTools,
         ).filter((t) => isDevEscalationToolAllowed(t.name, devEscalationTier));
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
@@ -15243,7 +15253,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           filteredTools,
           ALL_TOOLS,
           pinned.flatMap((s) => s.tools || []),
-          disabledTools,
+          skinDisabledTools,
         ).filter((t) => isDevEscalationToolAllowed(t.name, devEscalationTier));
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
@@ -15483,6 +15493,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Deterministic path: WhatsApp pulse request → return colorful cached digest verbatim.
+    // It does not check the caller yet, so an unidentified sender gets the
+    // tenant digest too (AIO-248).
     if (
       isCarmen &&
       isStoredPulseRequest &&
@@ -15936,7 +15948,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         }
         if (
           round === 0 &&
-          toolName === "refresh_campaign_pulse" &&
+          toolName === REFRESH_PULSE_TOOL_NAME &&
           pulseRefreshRoute.digestShortcut
         ) {
           pulseDigestShortcut = buildPulseRefreshDigestReply(result);

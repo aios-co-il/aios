@@ -1,4 +1,8 @@
-import { normalizeCommand } from "./pulse/command-text.ts";
+import {
+  CARMEN_ADDRESS,
+  normalizeCommand,
+  POLITE_OPENERS,
+} from "./pulse/command-text.ts";
 
 // JavaScript \b does not recognize Hebrew word boundaries.
 export function hasPulseIntent(text) {
@@ -10,7 +14,10 @@ export function hasPulseIntent(text) {
 export function isCachedPulseRequest(text) {
   // Only unqualified summary requests may bypass the model with empty tool args.
   // Client filters, analysis, refresh and send instructions need normal routing.
-  return /^(?:(?:כרמן|קרמן|carmen)[,\s]+)?(?:(?:תני לי|תן לי|הציגי|הצג|אפשר|מה|תראי לי|תראה לי)\s+)?(?:(?:בדיקת\s+)?דופק(?:\s+קמפיינים)?|(?:מצב|סיכום)\s*(?:הקמפיינים|קמפיינים)|pulse\s*check)(?:\s+בבקשה)?$/iu.test(
-    normalizeCommand(text),
-  );
+  return CACHED_PULSE_RE.test(normalizeCommand(text));
 }
+
+const CACHED_PULSE_RE = new RegExp(
+  String.raw`^${CARMEN_ADDRESS}(?:(?:${POLITE_OPENERS})\s+)?(?:(?:בדיקת\s+)?דופק(?:\s+קמפיינים)?|(?:מצב|סיכום)\s*(?:הקמפיינים|קמפיינים)|pulse\s*check)(?:\s+בבקשה)?$`,
+  "iu",
+);

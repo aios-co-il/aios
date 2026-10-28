@@ -1,4 +1,8 @@
-import { normalizeCommand } from "../../_shared/pulse/command-text.ts";
+import {
+  CARMEN_ADDRESS,
+  normalizeCommand,
+  POLITE_OPENERS,
+} from "../../_shared/pulse/command-text.ts";
 
 /**
  * "רענני דופק", "דופק עדכני", the voice "בדיקת דופק מלאה ועדכנית": the caller
@@ -69,8 +73,8 @@ const REFRESH_PATTERNS = [
 ];
 
 const BARE_PULSE_REFRESH_RE = new RegExp(
-  String.raw`^(?:(?:כרמן|קרמן|carmen)[,\s]+)?` +
-    String.raw`(?:(?:תני לי|תן לי|הציגי|הצג|אפשר|מה|תראי לי|תראה לי|בבקשה)\s+)?` +
+  String.raw`^${CARMEN_ADDRESS}` +
+    String.raw`(?:(?:${POLITE_OPENERS}|בבקשה)\s+)?` +
     String.raw`(?:(?:ת?רענ(?:ני|ן)|רענון|ריענון)\s+${VERB_FILLER}(?:(?:את|של)\s+)?${HEBREW_PULSE_NOUN}` +
     String.raw`|${HEBREW_PULSE_NOUN}\s+${FRESH_ADJECTIVE}` +
     String.raw`|(?:תריצי|הריצי)\s+${VERB_FILLER}(?:את\s+)?${HEBREW_PULSE_NOUN}\s+מחדש` +

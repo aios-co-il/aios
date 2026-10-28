@@ -52,14 +52,17 @@ export function executeRefreshCampaignPulse(
   loadPulse: (args: PulseArgs) => Promise<PulsePayload | null>,
 ): Promise<PulseRefreshRefusal | PulsePayload> {
   const { args } = ctx;
+  // A blank client_id means the whole tenant, for the refresh and the read.
+  const clientId =
+    typeof args.client_id === "string" ? args.client_id.trim() : args.client_id;
   const pulseArgs: PulseArgs = {
-    client_id: args.client_id || undefined,
+    client_id: clientId || undefined,
     client_name: args.client_name || undefined,
   };
   return runCampaignPulseRefresh(
     {
       tenantId: ctx.tenantId,
-      clientId: args.client_id,
+      clientId,
       surface: ctx.surface,
       callerCampaignerId: ctx.callerCampaignerId,
       callerUserId: ctx.actorUserId,

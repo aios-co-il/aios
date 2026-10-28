@@ -2,7 +2,8 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { directToolPool } from "../../_shared/carmen-direct-tools.mjs";
 import { USER } from "./fake-deps.ts";
 import { REFRESH_CAMPAIGN_PULSE_TOOL } from "./tool.ts";
-import { keepCarmenPulseTools } from "./tool-pool.ts";
+import { missingEnabledTools } from "../missing-enabled-tools.ts";
+import { keepCarmenPulseTools, skinToolDenylist } from "./tool-pool.ts";
 
 const LATEST = { name: "get_latest_campaign_pulse" };
 const ANALYZE = { name: "analyze_campaign_performance" };
@@ -144,6 +145,77 @@ Deno.test("keepCarmenPulseTools", async (t) => {
         "analyze_campaign_performance",
         "refresh_campaign_pulse",
       ]);
+    },
+  );
+});
+
+Deno.test("skinToolDenylist", async (t) => {
+  /** The pool after a matched pulse skin adds its tools, as run-ai-agent does. */
+  const afterPulseSkin = (
+    caller: Parameters<typeof skinToolDenylist>[1],
+    disabledTools: string[] = [],
+  ) => {
+    const pool = keepCarmenPulseTools(
+      poolOf("analyze_campaign_performance"),
+      ALL_TOOLS,
+      {
+        isCarmen: true,
+        disabledTools,
+        caller,
+      },
+    );
+    const skinTools = ["get_latest_campaign_pulse", "refresh_campaign_pulse"];
+    return names([
+      ...pool,
+      ...missingEnabledTools(
+        pool,
+        ALL_TOOLS,
+        skinTools,
+        skinToolDenylist(disabledTools, caller),
+      ),
+    ]);
+  };
+
+  await t.step(
+    "a skin adds no pulse tool for an unidentified WhatsApp or task caller",
+    () => {
+      // ecommerce_pulse fires on "רכישות" and lists both pulse tools.
+      for (const surface of ["whatsapp", "task"]) {
+        assertEquals(
+          afterPulseSkin({
+            surface,
+            callerCampaignerId: null,
+            callerUserId: null,
+          }),
+          ["analyze_campaign_performance"],
+          surface,
+        );
+      }
+    },
+  );
+
+  await t.step(
+    "staff callers keep the pulse tools, and disabled_tools still wins",
+    () => {
+      assertEquals(
+        afterPulseSkin({ surface: "whatsapp", callerCampaignerId: "c-1" }),
+        [
+          "analyze_campaign_performance",
+          "get_latest_campaign_pulse",
+          "refresh_campaign_pulse",
+        ],
+      );
+      assertEquals(
+        afterPulseSkin({ surface: "task", callerUserId: USER }, [
+          "refresh_campaign_pulse",
+        ]),
+        ["analyze_campaign_performance", "get_latest_campaign_pulse"],
+      );
+      const disabled = ["list_leads"];
+      assertStrictEquals(
+        skinToolDenylist(disabled, { surface: "internal_chat" }),
+        disabled,
+      );
     },
   );
 });

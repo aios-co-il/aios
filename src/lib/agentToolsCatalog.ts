@@ -1,3 +1,8 @@
+import {
+  LATEST_PULSE_TOOL_NAME,
+  REFRESH_PULSE_TOOL_NAME,
+} from "../../supabase/functions/_shared/carmen/pulse-tools.ts";
+
 // Shared catalog of Carmen's built-in tools, grouped for settings UIs.
 // Used by the per-agent ToolsTab (allowlist) and the Carmen Access page
 // (denylist). Keep names in sync with ALL_TOOLS in run-ai-agent.
@@ -51,12 +56,12 @@ export const AGENT_TOOLS_CATALOG: AgentToolEntry[] = [
     group: "דוחות",
   },
   {
-    name: "get_latest_campaign_pulse",
+    name: LATEST_PULSE_TOOL_NAME,
     label: "בדיקת דופק שמורה",
     group: "דוחות",
   },
   {
-    name: "refresh_campaign_pulse",
+    name: REFRESH_PULSE_TOOL_NAME,
     label: "רענון בדיקת דופק",
     group: "דוחות",
   },

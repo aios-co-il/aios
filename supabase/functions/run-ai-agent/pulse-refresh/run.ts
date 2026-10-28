@@ -41,6 +41,13 @@ export async function runCampaignPulseRefresh(
 ): Promise<PulseRefreshRefusal | PulsePayload> {
   const checked = await checkRefreshInput(input, deps.assertClientVisible);
   if ("error" in checked) {
+    console.warn(
+      "[refresh_campaign_pulse] refused",
+      input.tenantId,
+      input.surface,
+      checked.error,
+      checked.message,
+    );
     return checked;
   }
   const now = deps.now();

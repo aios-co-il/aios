@@ -49,8 +49,8 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
         result.refresh_note,
         "🔄 רעננתי את בדיקת הדופק עכשיו (12:00).",
       );
-      assertMatch(String(result.instructions_to_agent), /refresh_note/);
-      assertMatch(String(result.instructions_to_agent), /הנחיית הדופק/);
+      assertMatch(result.instructions_to_agent ?? "", /refresh_note/);
+      assertMatch(result.instructions_to_agent ?? "", /הנחיית הדופק/);
     },
   );
 
@@ -69,7 +69,7 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
       assertStrictEquals(result.auto_refreshed, false);
       assertStrictEquals(refreshOf(result).status, "fresh_snapshot");
       assertMatch(
-        String(result.instructions_to_agent),
+        result.instructions_to_agent ?? "",
         /אל תטעני שהנתונים חושבו מחדש/,
       );
     },
@@ -226,7 +226,7 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
           fakeDeps({ loadPulse: async () => ({ ...empty }) }).deps,
         ),
       );
-      const refreshedRules = String(refreshed.instructions_to_agent);
+      const refreshedRules = refreshed.instructions_to_agent ?? "";
       assertStrictEquals(refreshOf(refreshed).status, "refreshed");
       assert(!refreshedRules.includes("אסור ליצור בדיקה חדשה"));
       assertMatch(refreshedRules, /הרענון רץ, אבל לא נמצאה/);
@@ -243,7 +243,7 @@ Deno.test("runCampaignPulseRefresh", async (t) => {
           }).deps,
         ),
       );
-      const notConfiguredRules = String(notConfigured.instructions_to_agent);
+      const notConfiguredRules = notConfigured.instructions_to_agent ?? "";
       assertStrictEquals(refreshOf(notConfigured).status, "not_configured");
       assert(!notConfiguredRules.includes("אסור ליצור בדיקה חדשה"));
       assertMatch(notConfiguredRules, /אין בדיקת דופק שמורה/);
