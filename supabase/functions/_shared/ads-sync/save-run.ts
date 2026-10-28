@@ -6,6 +6,7 @@ import { isRecord } from "./is-record.ts";
 import {
   buildSyncOutcome,
   isWriteSuccess,
+  nextFailedStreak,
   settingsMirrorOutcome,
   type SyncOutcome,
 } from "./outcome.ts";
@@ -34,6 +35,10 @@ type SaveOptions = {
  * - `last_sync_attempt_at` / `last_sync_outcome` are recorded on every run (column
  *   + settings mirror). A catch-up chunk records only a failure: the refresh run
  *   that follows owns the outcome.
+ * - `sync_failed_streak` (settings) counts runs in a row that did not write, read
+ *   from the latest settings and reset by a write; the pulse alerts on two
+ *   (freshness.ts hasRepeatedSyncFailures). A catch-up chunk does not count: it
+ *   runs in the same invocation as the refresh run that follows it.
  * - The error text goes to the column only, redacted: the settings mirror has no
  *   `error`, because the public share-link endpoints return the settings verbatim.
  * - `settingsPatch` is merged into the latest settings, not the copy the run
@@ -61,9 +66,19 @@ export async function saveSyncRun(
     patch.last_sync_outcome = settingsMirrorOutcome(outcome);
   }
 
+  const countRun = record && !opts.catchup;
   if (Object.keys(patch).length > 0) {
     await mergeSettings(client, table, {
-      patch,
+      patch: (current) =>
+        countRun
+          ? {
+              ...patch,
+              sync_failed_streak: nextFailedStreak(
+                current.sync_failed_streak,
+                outcome.status,
+              ),
+            }
+          : patch,
       stampAt: stamp ? outcome.at : null,
       fallbackSettings: opts.fallbackSettings,
       log,
@@ -127,7 +142,8 @@ async function mergeSettings(
   client: SyncDbClient,
   table: SyncRunTable,
   input: {
-    patch: Record<string, unknown>;
+    /** The keys to write, built from the latest stored settings. */
+    patch: (current: Record<string, unknown>) => Record<string, unknown>;
     stampAt: string | null;
     fallbackSettings?: Record<string, unknown> | null;
     log: (message: string) => void;
@@ -149,7 +165,7 @@ async function mergeSettings(
   const { error } = await client
     .from("crm_tables")
     .update({
-      integration_settings: { ...current, ...input.patch },
+      integration_settings: { ...current, ...input.patch(current) },
       ...(input.stampAt ? { last_sync_at: input.stampAt } : {}),
     })
     .eq("id", table.tableId)

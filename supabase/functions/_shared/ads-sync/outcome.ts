@@ -71,6 +71,27 @@ export function isWriteSuccess(status: SyncOutcomeStatus): boolean {
   return status === "ok" || status === "partial";
 }
 
+/**
+ * Runs in a row that did not refresh the data before the pulse raises a sync
+ * alert: the morning run and the next one. One failure only shows on the report.
+ */
+export const SYNC_FAILURES_BEFORE_ALERT = 2;
+
+/** A stored `sync_failed_streak`, or 0 when it is missing or not a count. */
+export function readFailedStreak(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : 0;
+}
+
+/** The streak after a run: 0 after a write, otherwise one more. */
+export function nextFailedStreak(
+  previous: unknown,
+  status: SyncOutcomeStatus,
+): number {
+  return isWriteSuccess(status) ? 0 : readFailedStreak(previous) + 1;
+}
+
 /** One of SYNC_OUTCOME_STATUSES (stored outcomes are read back as plain JSON). */
 export function isSyncOutcomeStatus(
   value: unknown,

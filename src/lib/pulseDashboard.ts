@@ -9,7 +9,7 @@ import {
   resolveCampaignDeliveryStatus,
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
-import { syncOutcomeProblem } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
+import { hasRepeatedSyncFailures } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
 import {
   isLegacyClientCallFlag,
   stripLegacyClientCallFlag,
@@ -903,7 +903,6 @@ export type PulseCampaignTable = {
   category?: string | null;
   campaign_active?: boolean | null;
   last_sync_at?: string | null;
-  last_sync_outcome?: unknown;
   integration_settings?: Record<string, unknown> | null;
 };
 
@@ -971,11 +970,9 @@ function resolveLastSyncAt(table: PulseCampaignTable): string | null {
   )[0];
 }
 
-/** Same rule as the snapshot: an empty or failed latest run is stale too. */
+/** Same rule as the snapshot (campaign-pulse.ts isSyncStale). */
 function isSyncStale(table: PulseCampaignTable, nowMs = Date.now()): boolean {
-  if (syncOutcomeProblem(table)) {
-    return true;
-  }
+  if (hasRepeatedSyncFailures(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
