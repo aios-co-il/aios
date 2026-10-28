@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { SeoGeoWorkflowStudio } from "./SeoGeoWorkflowStudio";
 
@@ -52,7 +52,10 @@ test("a project of another client says so instead of empty program settings", as
 
 test("on the project's own client the program settings show", async () => {
   renderStudio("client-1");
-  expect(await screen.findByText("אתר WordPress")).toBeInTheDocument();
+  // The settings also render while the program loads; the auto-approve switch is enabled only
+  // once the query has settled, so the checks below see the loaded state.
+  await waitFor(() => expect(screen.getByRole("switch")).toBeEnabled());
+  expect(screen.getByText("אתר WordPress")).toBeInTheDocument();
   expect(
     screen.queryByText("הפרויקט הזה שייך ללקוח אחר"),
   ).not.toBeInTheDocument();
