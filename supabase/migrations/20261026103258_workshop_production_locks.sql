@@ -15,8 +15,24 @@
 --    signs it), whose first part has no ":" and so is never a scheme. Staging (read-only check,
 --    2026-10-28) has neither table yet, so nothing violates them and they are validated here.
 --
--- Replaces save_video_storyboard (20261026103230_video_scene_reference.sql), with the addition
--- marked "production lock". Same arguments, meta keys and grants.
+-- 3. R932-7 / R932-31: real spend stays within the approved budget (AIO-224). The quote only
+--    estimates what a film costs, so claim_video_run now enforces the budget the user approved
+--    (payload.workshop_budget.cap_usd). The real spend in the database at claim time is what the
+--    project's pictures were charged (workshop_budget.quoted_usd for the picture tools; they are
+--    never re-priced) plus what the render worker recorded on the project's runs (cost_usd of
+--    clip, voice, music, lipsync and render, the kinds budget-settle.ts counts). Once that meets
+--    or exceeds the budget, a paid job that no provider has taken yet (a clip on a paid engine,
+--    a voice, a music bed or a lip sync, queued or due for a retry, no provider_job_id) is not
+--    handed to a worker: it ends failed with the budget error, a clip's scene is failed, and
+--    advance_video_production moves the production on as after any failed scene. Not stopped:
+--    free preview clips, a job a provider already took (resuming it costs nothing new), the
+--    render (it assembles what was made; render.mjs pays its sound effects only up to their
+--    quote), and projects without an approved workshop budget.
+--
+-- Replaces (copied from their latest definitions, changes marked):
+--   save_video_storyboard  (20261026103230_video_scene_reference.sql)        "production lock"
+--   claim_video_run        (20261026103254_video_production_stage_guard.sql)  "budget"
+-- Same arguments and grants. New: workshop_budget_used_up(item), service role only.
 
 -- ── 1. Storyboard: nothing is replaced while the film is produced ──────────────
 create or replace function public.save_video_storyboard(p_item_id uuid, p_scenes jsonb)
@@ -143,3 +159,147 @@ end $$;
 alter table public.workshop_assets validate constraint workshop_assets_url_web;
 alter table public.workshop_artifacts validate constraint workshop_artifacts_url_safe;
 alter table public.workshop_artifacts validate constraint workshop_artifacts_thumb_url_safe;
+
+-- ── 3. Claim: no paid job once the approved budget is spent ────────────────────
+-- Whether the project's recorded spend has reached the budget the user approved. Never raises:
+-- a value that is not a number counts as none, so one odd payload cannot stop the claim.
+create or replace function public.workshop_budget_used_up(p_item_id uuid)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with budget as (
+    select item.payload->'workshop_budget' as b
+      from public.marketing_work_items as item
+     where item.id = p_item_id
+  ),
+  amounts as (
+    select
+      case when jsonb_typeof(b->'cap_usd') = 'number' then (b->>'cap_usd')::numeric else 0 end as cap,
+      case when jsonb_typeof(b->'quoted_usd'->'workshop_make_creative') = 'number'
+        then (b->'quoted_usd'->>'workshop_make_creative')::numeric else 0 end
+      + case when jsonb_typeof(b->'quoted_usd'->'workshop_make_stills') = 'number'
+        then (b->'quoted_usd'->>'workshop_make_stills')::numeric else 0 end as pictures
+      from budget
+  )
+  select coalesce((
+    select amounts.cap > 0
+       and amounts.pictures + coalesce((
+             select sum(run.cost_usd)
+               from public.marketing_runs as run
+              where run.item_id = p_item_id
+                and run.kind in ('clip', 'voice', 'music', 'lipsync', 'render')
+           ), 0) >= amounts.cap
+      from amounts
+  ), false);
+$$;
+
+revoke all on function public.workshop_budget_used_up(uuid) from public, anon, authenticated;
+grant execute on function public.workshop_budget_used_up(uuid) to service_role;
+
+create or replace function public.claim_video_run(p_kinds text[], p_worker text default null)
+returns setof public.marketing_runs
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_abandoned record;
+  v_over record;
+begin
+  if coalesce(current_setting('request.jwt.claims', true)::jsonb->>'role', '') <> 'service_role'
+     and current_user not in ('postgres', 'service_role') then
+    raise exception 'claim_video_run: service role only' using errcode = '42501';
+  end if;
+
+  -- Out of attempts: fail the run, free its scene, and move its production on.
+  for v_abandoned in
+    update public.marketing_runs as stale
+       set status = 'failed',
+           finished_at = now(),
+           error = 'worker stopped during the job (no attempts left)'
+     where stale.status = 'running'
+       and stale.kind = any(p_kinds)
+       and stale.started_at < now() - interval '45 minutes'
+       and stale.attempts >= 3
+    returning stale.item_id, stale.scene_id, stale.kind
+  loop
+    if v_abandoned.kind = 'clip' and v_abandoned.scene_id is not null then
+      update public.marketing_video_scenes
+         set status = 'failed'
+       where id = v_abandoned.scene_id
+         and status = 'clip_generating';
+    end if;
+    if v_abandoned.item_id is not null
+       and v_abandoned.kind in ('clip', 'voice', 'music', 'lipsync', 'render') then
+      -- stage guard: one production that cannot move on keeps its run failed and is logged;
+      -- the claim goes on for every other tenant.
+      begin
+        perform public.advance_video_production(v_abandoned.item_id);
+      exception when others then
+        raise warning 'claim_video_run: advance_video_production(%): %', v_abandoned.item_id, sqlerrm;
+      end;
+    end if;
+  end loop;
+
+  -- budget: a paid job no provider has taken yet is not handed out once the project's recorded
+  -- spend has reached its approved budget. It fails as a scene that could not be made does.
+  for v_over in
+    update public.marketing_runs as waiting
+       set status = 'failed',
+           finished_at = now(),
+           error = 'התקציב שאושר לפרויקט נוצל: ההוצאה בפועל כבר הגיעה אליו, ולכן השלב הזה לא הופעל. כדי להמשיך צריך להגדיל את התקציב.'
+     where waiting.kind = any(p_kinds)
+       and waiting.kind in ('clip', 'voice', 'music', 'lipsync')
+       and not (waiting.kind = 'clip' and coalesce(waiting.provider, '') = 'mock')
+       and waiting.provider_job_id is null
+       and (
+         waiting.status = 'queued'
+         or (waiting.status = 'running'
+             and waiting.started_at < now() - interval '45 minutes'
+             and waiting.attempts < 3)
+       )
+       and public.workshop_budget_used_up(waiting.item_id)
+    returning waiting.item_id, waiting.scene_id, waiting.kind
+  loop
+    if v_over.kind = 'clip' and v_over.scene_id is not null then
+      update public.marketing_video_scenes
+         set status = 'failed'
+       where id = v_over.scene_id
+         and status = 'clip_generating';
+    end if;
+    begin
+      perform public.advance_video_production(v_over.item_id);
+    exception when others then
+      raise warning 'claim_video_run: advance_video_production(%): %', v_over.item_id, sqlerrm;
+    end;
+  end loop;
+
+  return query
+  update public.marketing_runs as run
+     set status = 'running',
+         started_at = now(),
+         attempts = run.attempts + 1,
+         output = run.output || jsonb_strip_nulls(jsonb_build_object('worker', p_worker))
+   where run.id = (
+     select waiting.id
+       from public.marketing_runs as waiting
+      where waiting.kind = any(p_kinds)
+        and (
+          waiting.status = 'queued'
+          or (waiting.status = 'running'
+              and waiting.started_at < now() - interval '45 minutes'
+              and waiting.attempts < 3)
+        )
+      order by waiting.created_at
+      limit 1
+      for update skip locked
+   )
+  returning run.*;
+end;
+$$;
+
+revoke all on function public.claim_video_run(text[], text) from public, anon, authenticated;
+grant execute on function public.claim_video_run(text[], text) to service_role;

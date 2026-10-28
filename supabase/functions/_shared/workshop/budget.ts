@@ -3,7 +3,9 @@
  * tapping "מאשר תקציב <code>": their own message carries the code, so nothing Carmen read (a
  * website, a tool result) can approve a spend. Steps that fit in what is left run without
  * asking; a step that would go over stops and asks to raise the budget. A run David approved
- * in the approvals queue does not draw on the budget check.
+ * in the approvals queue does not draw on the budget check. A quote is only an estimate: once
+ * what the project really spent reaches the approved budget, the render worker's claim
+ * (claim_video_run, 20261026103258) hands out no further paid job.
  */
 
 import type {
