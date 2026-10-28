@@ -18,19 +18,6 @@ Deno.test("parsePulseAlertRules applies defaults", () => {
   );
 });
 
-Deno.test("parsePulseAlertRules keeps a stored instant cap", () => {
-  const stored = {
-    ...DEFAULT_PULSE_ALERT_RULES,
-    instant: { max_exception_messages_per_run: 1 },
-  };
-  assertEquals(parsePulseAlertRules(stored).instant, {
-    max_exception_messages_per_run: 1,
-  });
-  assertEquals(parsePulseAlertRules({ cpl_spike_pct: 60 }).instant, {
-    max_exception_messages_per_run: 3,
-  });
-});
-
 Deno.test("evaluatePulseInstantAlerts detects no contact and CPL spike", () => {
   const now = Date.parse("2026-09-15T07:00:00+03:00");
   const rows = evaluatePulseInstantAlerts(

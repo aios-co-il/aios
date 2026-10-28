@@ -86,6 +86,22 @@ Deno.test("hasNumberWord", async (t) => {
         "בפעם השלישית",
         "ליד אחד בלבד",
         "ליד אחד מאז השינוי",
+        "ליד אחד הגיע השבוע",
+        "מודעה אחת הושהתה",
+        "רק ליד אחד מהקמפיין",
+        "הליד האחד",
+        "יותר מאחד",
+        "בדיקה של אחד הקמפיינים",
+        "ליד יחיד",
+        "ליד בודד",
+        "עלייה דו-ספרתית",
+        "ירידה חד־ספרתית",
+        "חמישת הימים",
+        "only one lead",
+        "a single lead",
+        "only once",
+        "a third of the target",
+        "a quarter of the target",
         "CPL doubled",
         "twice the target",
         "half the target",
@@ -96,22 +112,34 @@ Deno.test("hasNumberWord", async (t) => {
     },
   );
 
-  await t.step("the כפל root counts in every form and with any prefix", () => {
-    for (const text of [
-      "כפל היעד",
-      "לכפל היעד",
-      "הכפלת העלות",
-      "הכפלה של העלות",
-      "העלות מוכפלת",
-      "הקמפיינים מוכפלים",
-      "כופל את העלות",
-      "העלות התכפלה",
-      "בכפליים",
-      "יכפיל את העלות",
-    ]) {
-      assertStrictEquals(hasNumberWord(text), true, text);
-    }
-  });
+  await t.step(
+    "the כפל, שלש and רבע roots count in every form and with any prefix",
+    () => {
+      for (const text of [
+        "כפל היעד",
+        "לכפל היעד",
+        "הכפלת העלות",
+        "הכפלה של העלות",
+        "העלות מוכפלת",
+        "הקמפיינים מוכפלים",
+        "כופל את העלות",
+        "העלות התכפלה",
+        "בכפליים",
+        "יכפיל את העלות",
+        "העלות שילשה את עצמה",
+        "העלות שולשה",
+        "העלות שולשו",
+        "העלות התשלשה",
+        "לשלש את התקציב",
+        "משולש מהיעד",
+        "העלות מרובעת",
+        "העלות ריבעה את עצמה",
+        "רבע מהיעד",
+      ]) {
+        assertStrictEquals(hasNumberWord(text), true, text);
+      }
+    },
+  );
 
   await t.step("words that only contain a number word pass", () => {
     for (const text of [
@@ -129,6 +157,11 @@ Deno.test("hasNumberWord", async (t) => {
       "אחד הקמפיינים",
       "אחת מהמודעות",
       "לאחד את הקהלים",
+      "באחד הקמפיינים יש חריגה",
+      "הקמפיין חורג. אחת מהמודעות לא מביאה לידים",
+      "מאז יום רביעי",
+      "לבדוק את התשלומים בחשבון",
+      "העלות לליד גבוהה בערב",
       "CPL max 30",
       "הקמפיין מעל היעד המאושר",
     ]) {

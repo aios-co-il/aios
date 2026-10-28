@@ -9,8 +9,9 @@ const NUMBER_TOKEN = /\d+(?:(?:[.,:/-]|T)\d+)*/g;
 // the same digit as a value ("פי 3", "ירידה של 7%").
 const DAY_UNIT_AFTER = /\s*ה?(?:ימים|יום)(?![\p{L}\p{N}])/uy;
 const DAYS_SUFFIX = " ימים";
-// Numbers, fractions and multipliers written as Hebrew words, in both
-// spellings ("שלושה"/"שלשה"), which code cannot check against the evidence.
+// Numbers, fractions, multipliers and counts ("ליד יחיד", "דו-ספרתי")
+// written as Hebrew words, in both spellings ("שלושה"/"שלשה"), which code
+// cannot check against the evidence.
 // Each takes up to two one-letter prefixes ("ובשלושה", "לחצי", "השניים").
 // Masculine ordinals are left out: they also name weekdays ("יום שלישי").
 const NUMBER_WORDS = [
@@ -21,7 +22,7 @@ const NUMBER_WORDS = [
   "מיליון מליון מיליונים מליונים מיליארד מליארד מיליארדים מליארדים",
   "יומיים שבועיים חודשיים שנתיים פעמיים",
   "חצי מחצית שליש רבע שלישית רביעית חמישית שישית שביעית שמינית תשיעית עשירית",
-  "משולש משולשת שולש שולשה שילש",
+  "יחיד יחידה בודד בודדת ספרתי ספרתית ספרתיים ספרתיות",
 ];
 const NUMBER_WORD = wordPattern("ובהלמשכ", NUMBER_WORDS.join(" ").split(" "));
 // Construct forms ("שלושת הימים", "שני קמפיינים") never take ה, so
@@ -29,16 +30,24 @@ const NUMBER_WORD = wordPattern("ובהלמשכ", NUMBER_WORDS.join(" ").split("
 // "שני" right after "יום" names Monday.
 const CONSTRUCT_NUMBER_WORD = wordPattern("ובלמשכ", [
   "שני(?<!יום[\\s\\-־]שני)",
-  ..."שתי שלושת שלשת ארבעת חמשת ששת שבעת שמונת תשעת עשרת אלפי".split(" "),
+  ..."שתי שלושת שלשת ארבעת חמשת חמישת ששת שישת שבעת".split(" "),
+  ..."שמונת תשעת עשרת אלפי".split(" "),
 ]);
-// "אחד"/"אחת" as a count ("ליד אחד בלבד"), not "one of" ("אחד הקמפיינים",
-// "אחת מהמודעות") and not prefixed ("לאחד" is to merge).
-const ONE_AS_COUNT =
-  /(?<![\p{L}\p{N}])(?:אחד|אחת)(?![\p{L}\p{N}])(?!\s+(?:ה|מה|מבין|מתוך|מכל))/u;
-// The כפל (double) root in any form and with any prefix: "כפל", "כפולה",
-// "הכפלת", "מוכפלת", "כופל", "התכפלו". Duplication words from the same
-// letters ("כפילות", "שכפול") are dropped with it.
-const DOUBLE_ROOT = /כ[וי]?פ[וי]?ל/u;
+// "אחד"/"אחת", prefixed too, is a count ("ליד אחד הגיע", "הליד האחד",
+// "יותר מאחד"). Only "לאחד" (to merge) and a phrase that opens with "one of"
+// ("אחד הקמפיינים", "באחת מהמודעות") pass: after a noun the same words are a
+// count ("ליד אחד מהקמפיין"), and code cannot tell a noun from a verb.
+const ONE_OF_AT_PHRASE_START = String.raw`(?<=(?:^|[.,:;!?()–—-])\s*)[וב]{0,2}(?:אחד|אחת)\s+(?:ה|מה|מבין|מתוך|מכל)`;
+const ONE_AS_COUNT = new RegExp(
+  String.raw`(?<![\p{L}\p{N}])(?!ו?לאחד(?![\p{L}\p{N}]))(?!${ONE_OF_AT_PHRASE_START})[ובהלמשכ]{0,2}(?:אחד|אחת)(?![\p{L}\p{N}])`,
+  "u",
+);
+// Multiplier roots in any form and with any prefix. כפל (double): "כפל",
+// "כפולה", "הכפלת", "מוכפלת", "התכפלו"; שלש (triple): "שילשה", "שולשו",
+// "התשלשה", "משולש"; רבע (quadruple): "מרובעת", "ריבע". Words that share the
+// letters ("כפילות", "שכפול", "ריבוע", "רבעון", "שלשום") are dropped with
+// them; "שלישי" and "רביעי" (Tuesday, Wednesday) pass.
+const MULTIPLIER_ROOT = /כ[וי]?פ[וי]?ל|ש[וי]?ל[ו]?ש|ר[וי]?ב[ו]?ע/u;
 // "פי" (times) as its own word, also right before a digit ("פי3"); "לפי"
 // and "על פי" mean "according to". A multiplication sign or an "x" next to
 // a digit ("x2", "3×") is a multiplier too.
@@ -46,11 +55,11 @@ const TIMES_WORD = /(?<![\p{L}\p{N}])(?<!על[\s\-־])פי(?!\p{L})/u;
 const TIMES_SIGN = /×|(?<![a-z])x\s?\d|\d\s?x(?![a-z])/iu;
 const ENGLISH_NUMBER_WORD = new RegExp(
   `\\b(?:${[
-    "zero two three four five six seven eight nine ten eleven twelve",
+    "zero one two three four five six seven eight nine ten eleven twelve",
     "twenty thirty forty fifty sixty seventy eighty ninety",
-    "hundreds? thousands? millions? billions? dozens?",
+    "hundreds? thousands? millions? billions? dozens? single once",
     "double[ds]? doubling twice thrice triple[ds]? tripling quadruple[ds]?",
-    "half halve[ds]? halving",
+    "half halve[ds]? halving thirds? quarters?",
   ]
     .join(" ")
     .split(" ")
@@ -91,7 +100,7 @@ export function hasNumberWord(text: string): boolean {
     NUMBER_WORD,
     CONSTRUCT_NUMBER_WORD,
     ONE_AS_COUNT,
-    DOUBLE_ROOT,
+    MULTIPLIER_ROOT,
     TIMES_WORD,
     TIMES_SIGN,
     ENGLISH_NUMBER_WORD,

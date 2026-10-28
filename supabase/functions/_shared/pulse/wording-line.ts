@@ -38,11 +38,12 @@ const REPEATED_LABEL = new RegExp(
 const LINK_LIKE = /https?:\/\/|www\.|[\p{L}\p{N}-]+\.[a-z]{2,}(?![a-z0-9])/iu;
 
 /**
- * One model line, made safe for WhatsApp: a single line without markdown or
- * direction-control characters, at most PULSE_WORDING_MAX_CHARS long,
- * without a percentage, a signed number or a number in words, and without
- * any digits the deterministic evidence does not already contain. The checks run on the
- * text as it will be shown, after any shortening.
+ * One model line, made safe for WhatsApp: a single line without markdown,
+ * direction-control characters or vowel points, at most
+ * PULSE_WORDING_MAX_CHARS long, without a percentage, a signed number or a
+ * number in words, and without any digits the deterministic evidence does
+ * not already contain. The checks run on the text as it will be shown, after
+ * any shortening.
  */
 export function sanitizePulseWordingLine(
   raw: unknown,
@@ -86,6 +87,8 @@ function plainLine(raw: string): string {
     raw
       .replace(/\p{Cc}/gu, " ") // newlines, tabs and other control characters
       .replace(/\p{Cf}/gu, "") // zero-width and direction marks
+      // Vowel points and other combining marks: "שְׁלוֹשָׁה" is a number word.
+      .replace(/\p{M}/gu, "")
       .replace(/[*_~`#>|[\]{}<]/g, "")
       .replace(/\s+/g, " ")
       .trim()

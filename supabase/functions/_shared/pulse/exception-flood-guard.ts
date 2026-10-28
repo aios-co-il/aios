@@ -3,9 +3,10 @@ import type { PlannedInstantAlert } from "./planned-alert.ts";
 
 /**
  * A deploy or a bad sync must not burst alerts: per phone in one org's run,
- * at most `cap` campaign_exception messages go out, most severe first. Each exception
- * keeps only the phones under the cap in `individual`; the returned map holds,
- * per phone, the exceptions that go into its one summary message instead.
+ * at most `cap` campaign_exception messages go out, most severe first. Each
+ * exception keeps only the phones under the cap in `individual`; the returned
+ * map holds, per phone, the exceptions that go into its one summary message
+ * instead.
  */
 export function capExceptionMessages(
   planned: PlannedInstantAlert[],

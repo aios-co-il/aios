@@ -155,6 +155,29 @@ Deno.test("applyPulseExceptionWording", async (t) => {
       assertEquals(plain.ai_wording, { applied: true });
     },
   );
+
+  await t.step(
+    "a count or a multiplier in words never reaches the message",
+    () => {
+      const candidate = exceptionAlert({
+        target_value: 30,
+        efficiency_3d: 52,
+      });
+      for (const wording of [
+        { summary: "רק ליד אחד הגיע השבוע למרות ההוצאה" },
+        { summary: "מודעה אחת הושהתה והשנייה לא מביאה לידים" },
+        { recommended_check: "לבדוק אם העלות שילשה את עצמה מאז השינוי" },
+        { recommended_check: "לבדוק למה העלות מרובעת מהיעד" },
+      ]) {
+        const worded = applyPulseExceptionWording(candidate, wording);
+        assertStrictEquals(worded.message, candidate.message);
+        assertEquals(worded.ai_wording, {
+          applied: false,
+          error: "invented_number",
+        });
+      }
+    },
+  );
 });
 
 Deno.test("wordPulseException", async (t) => {
