@@ -118,6 +118,10 @@ export type WorkshopScene = {
   still?: string | null;
   clip?: string | null;
   voice?: string | null;
+  /**
+   * The scene's on-screen text: at the bottom of a film without spoken captions; over them, at
+   * the top unless the kicker or the captions already show it (workshop-scene-text.ts).
+   */
   caption?: string;
   /**
    * The scene's own short title while the narration's captions run: at the top over karaoke

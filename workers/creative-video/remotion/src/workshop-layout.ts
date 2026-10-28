@@ -2,7 +2,8 @@
  * Where the Workshop film's motion captions and title card sit, and how large they are, for
  * each frame shape. On a phone frame (9:16) Reels and TikTok draw their own UI over the top 14%
  * and the bottom 22%, so the captions sit in the lower middle, clear of both, and the scene's
- * title card sits right above them.
+ * title card sits right above them. A scene's longer on-screen text sits at the top, under the
+ * top band; without spoken captions, it sits where the captions would.
  */
 
 /** A key word is drawn this much larger (render-worker motion-captions.mjs KEY_WIDTH). */
@@ -34,6 +35,10 @@ export type CaptionLayout = {
   /** Space below the title card, in px: right above the caption box. */
   titleBottom: number;
   titleFontSize: number;
+  /** Space above the scene's on-screen text at the top of the frame, in px. */
+  top: number;
+  /** The scene's on-screen text, in px. */
+  sceneFontSize: number;
 };
 
 export function captionLayout(width: number, height: number): CaptionLayout {
@@ -57,6 +62,8 @@ export function captionLayout(width: number, height: number): CaptionLayout {
         height * (tall ? 0.04 : portrait ? 0.042 : 0.056),
       ),
     ),
+    top: Math.round(height * (tall ? 0.155 : portrait ? 0.08 : 0.06)),
+    sceneFontSize: Math.round(height * 0.032),
   };
 }
 
