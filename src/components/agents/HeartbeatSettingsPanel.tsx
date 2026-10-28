@@ -1,9 +1,12 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,16 +23,12 @@ import {
   CheckCircle2,
   Clock,
   Heart,
-  Settings2,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { PulseAlertRulesDialog } from "@/components/pulse/PulseAlertRulesDialog";
-import {
-  parsePulseAlertRules,
-  type PulseAlertRules,
-} from "@/lib/pulseAlertRules";
+import { MANAGER_ROUND_RUN_KIND } from "../../../supabase/functions/_shared/manager-round/run-kind.ts";
+import { PulseAlertRulesButton } from "./PulseAlertRulesButton";
 
 const DEFAULT_ALLOWED_ACTIONS = ["reminders", "status_update", "daily_summary"];
 
@@ -56,7 +55,8 @@ type HeartbeatSettingsInput = {
   campaign_pulse_phone?: string | null;
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
-  pulse_alert_rules?: PulseAlertRules;
+  // The full stored JSON: alert rules plus keys this screen does not edit.
+  pulse_alert_rules?: Record<string, unknown>;
 };
 
 /**
@@ -67,7 +67,6 @@ type HeartbeatSettingsInput = {
 export function HeartbeatSettingsPanel() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
-  const [pulseRulesOpen, setPulseRulesOpen] = useState(false);
 
   const { data: heartbeatSettings } = useQuery({
     queryKey: ["heartbeat_settings", tenantId],
@@ -84,16 +83,22 @@ export function HeartbeatSettingsPanel() {
 
   const { data: heartbeatLogs = [] } = useQuery({
     queryKey: ["heartbeat_logs", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("heartbeat_logs")
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        .order("triggered_at", { ascending: false })
-        .limit(10);
-      return (data as any[]) || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("heartbeat_logs")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            // Carmen's manager round logs every run; this list is the heartbeat's.
+            .neq("run_kind", MANAGER_ROUND_RUN_KIND)
+            .order("triggered_at", { ascending: false })
+            .limit(10);
+          if (error) {
+            throw error;
+          }
+          return data;
+        }
+      : skipToken,
   });
 
   const saveHeartbeatSettings = useMutation({
@@ -257,16 +262,21 @@ export function HeartbeatSettingsPanel() {
               }}
             />
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => setPulseRulesOpen(true)}
-          >
-            <Settings2 className="h-4 w-4 ml-2" />
-            ניהול חוקי התראות דופק
-          </Button>
+          <PulseAlertRulesButton
+            stored={heartbeatSettings?.pulse_alert_rules}
+            saving={saveHeartbeatSettings.isPending}
+            save={(pulseAlertRules, onSuccess) =>
+              saveHeartbeatSettings.mutate(
+                {
+                  ...coreSettings(),
+                  ...campaignPulseSettings(),
+                  pulse_alert_rules: pulseAlertRules,
+                },
+                // The mutation's own onError shows a failure.
+                { onSuccess },
+              )
+            }
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -415,21 +425,6 @@ export function HeartbeatSettingsPanel() {
           </div>
         )}
       </div>
-
-      <PulseAlertRulesDialog
-        open={pulseRulesOpen}
-        onOpenChange={setPulseRulesOpen}
-        value={heartbeatSettings?.pulse_alert_rules}
-        saving={saveHeartbeatSettings.isPending}
-        onSave={async (rules) => {
-          await saveHeartbeatSettings.mutateAsync({
-            ...coreSettings(),
-            ...campaignPulseSettings(),
-            pulse_alert_rules: parsePulseAlertRules(rules),
-          });
-          setPulseRulesOpen(false);
-        }}
-      />
     </div>
   );
 }

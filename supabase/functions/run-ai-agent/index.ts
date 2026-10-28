@@ -43,6 +43,17 @@ import {
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  CARMEN_CLIENT_UPDATE_TYPES,
+  CLIENT_CARD_SOURCES,
+} from "../_shared/client-card/sources.ts";
+import {
+  addClientUpdateFromCarmen,
+  recordHealthCardEntryAfterUpdate,
+} from "./carmen-client-card-tools.ts";
+import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
@@ -148,6 +159,7 @@ import {
   scoreNameMatch,
   selectStaffMatch,
 } from "../_shared/staff-whatsapp.ts";
+import { sendStaffWhatsappMessage } from "./staff-alert-tool.ts";
 import {
   buildGoogleCustomerClientMap,
   googleResolveClientCustomerId,
@@ -195,9 +207,15 @@ import {
   selectPulseCriticalAlerts,
 } from "../_shared/campaign-pulse.ts";
 import {
+  NO_RECENT_CLIENT_CALL_TEXT,
+  normalizePulseRowClientCall,
+  pulseRowHasNoRecentClientCall,
+} from "../_shared/pulse/client-call.ts";
+import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -461,124 +479,6 @@ async function fetchOpenAiBillingStatus(args: {
   const summary_he = formatOpenAiBillingWhatsApp(status);
   // Never echo key material
   return { ...status, summary_he };
-}
-
-async function sendStaffWhatsappMessage(args: {
-  supabase: any;
-  tenantId: string;
-  phone: string;
-  message: string;
-}): Promise<{
-  error?: string;
-  integration_id?: string;
-  provider?: string;
-  [k: string]: any;
-}> {
-  const { supabase, tenantId, phone, message } = args;
-  const normalized = normalizeStaffPhone(phone);
-  if (!normalized) return { error: "מספר טלפון לא תקין" };
-
-  const { data: integrations } = await supabase
-    .from("tenant_integrations")
-    .select("id, integration_type, settings")
-    .eq("tenant_id", tenantId)
-    .in("integration_type", ["manus_wa", "manuswa", "greenapi", "green_api"])
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (!integrations?.length) {
-    return {
-      error:
-        "לא נמצאה אינטגרציית WhatsApp פעילה בטננט. חבר WhatsApp תחת הגדרות אינטגרציות.",
-    };
-  }
-
-  // Prefer Manus WA (Carmen's direct line), then Green API.
-  const ordered = [...integrations].sort((a: any, b: any) => {
-    const rank = (t: string) => (/manus/i.test(t) ? 0 : 1);
-    return rank(a.integration_type) - rank(b.integration_type);
-  });
-
-  const errors: string[] = [];
-  for (const integration of ordered) {
-    const type = String(integration.integration_type || "");
-    try {
-      if (/manus/i.test(type)) {
-        const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/manage-manus-wa`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              action: "send_message",
-              integrationId: integration.id,
-              phone: normalized,
-              message,
-            }),
-          },
-        );
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          return { integration_id: integration.id, provider: type, ...data };
-        }
-        // Fallback to send-manus-wa-message
-        const res2 = await fetch(
-          `${SUPABASE_URL}/functions/v1/send-manus-wa-message`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              integrationId: integration.id,
-              tenantId,
-              phoneNumber: normalized,
-              message,
-            }),
-          },
-        );
-        const data2 = await res2.json().catch(() => ({}));
-        if (res2.ok) {
-          return {
-            integration_id: integration.id,
-            provider: "send-manus-wa-message",
-            ...data2,
-          };
-        }
-        errors.push(`${type}: ${data.error || data2.error || res.status}`);
-      } else {
-        const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/send-green-api-message`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              phone: normalized,
-              message,
-              tenantId,
-              integrationId: integration.id,
-            }),
-          },
-        );
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          return { integration_id: integration.id, provider: type, ...data };
-        }
-        errors.push(`${type}: ${data.error || res.status}`);
-      }
-    } catch (e: any) {
-      errors.push(`${type}: ${e?.message || e}`);
-    }
-  }
-  return { error: `שליחה נכשלה: ${errors.join(" | ") || "unknown"}` };
 }
 
 const corsHeaders = {
@@ -1374,12 +1274,19 @@ const ALL_TOOLS = [
   },
   {
     name: "add_client_update",
-    description: "הוספת עדכון ללקוח",
+    description:
+      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. שיחה (call) או פגישה (meeting) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק note, complaint או weekly_update.",
     parameters: {
       type: "object",
       properties: {
         client_id: { type: "string" },
         content: { type: "string" },
+        update_type: {
+          type: "string",
+          enum: [...CARMEN_CLIENT_UPDATE_TYPES],
+          description:
+            "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
+        },
       },
       required: ["client_id", "content"],
     },
@@ -3092,7 +2999,7 @@ const ALL_TOOLS = [
   // UPDATES
   {
     name: "list_updates",
-    description: "רשימת עדכונים ללקוח או ליד",
+    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
     parameters: {
       type: "object",
       properties: {
@@ -5648,6 +5555,9 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
+  // The person talking to Carmen in this run (resolveHumanRequesterUserId).
+  // Omitted = nobody can vouch for a client contact, so calls are not logged.
+  humanRequesterUserId?: string | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -6405,18 +6315,15 @@ async function executeTool(
     }
     case "add_client_update": {
       await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      const { data, error } = await supabase
-        .from("client_updates")
-        .insert({
-          client_id: args.client_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { update_id: data.id };
+      // Tenant check, attribution and dedupe happen in record_client_card_entry.
+      return await addClientUpdateFromCarmen(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        content: args.content,
+        updateType: args.update_type,
+        humanRequesterUserId,
+        surface,
+      });
     }
     case "send_message": {
       let phone: string | null = null;
@@ -7378,7 +7285,6 @@ async function executeTool(
           .order("calculated_at", { ascending: false });
         if (args.client_id) query = query.eq("client_id", args.client_id);
         if (args.agency_id) query = query.eq("agency_id", args.agency_id);
-        if (args.status) query = query.eq("status", args.status);
         if (callerManagedAgencyIds && callerManagedAgencyIds.length > 0) {
           query = query.in("agency_id", callerManagedAgencyIds);
         }
@@ -7426,15 +7332,19 @@ async function executeTool(
           freshestByClient.set(row.client_id, row);
         }
       }
-      let normalizedRows = Array.from(freshestByClient.values()).map(
-        (row: any) => ({
-          ...row,
-          client_name: row.clients?.name || null,
-          agency_name: row.agencies?.name || null,
-          clients: undefined,
-          agencies: undefined,
-        }),
-      );
+      // Status is performance-only; no_recent_client_call is the separate contact flag (AIO-227).
+      // Filter status here, not in SQL: a legacy call-only warning reads as healthy only after normalising.
+      let normalizedRows = Array.from(freshestByClient.values())
+        .map((row: any) =>
+          normalizePulseRowClientCall({
+            ...row,
+            client_name: row.clients?.name || null,
+            agency_name: row.agencies?.name || null,
+            clients: undefined,
+            agencies: undefined,
+          }),
+        )
+        .filter((row) => !args.status || row.status === args.status);
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
         const { data: links, error: linksError } = await supabase
@@ -7533,7 +7443,11 @@ async function executeTool(
             (client: any) => client.client_id === row.client_id,
           );
           const agencyName = snapshotRow?.agency_name;
-          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(fmtDate(snapshotRow?.last_client_call_at))} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
+          const lastCall = fmtDate(snapshotRow?.last_client_call_at);
+          const callCell = snapshotRow?.no_recent_client_call
+            ? `${lastCall} · ${NO_RECENT_CLIENT_CALL_TEXT}`
+            : lastCall;
+          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(callCell)} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
         }),
       ];
       const { data: tenantRow } = await supabase
@@ -7544,6 +7458,9 @@ async function executeTool(
       const tenantSlug = tenantRow?.slug || tenantId;
       const dashboardUrl = buildPulseDashboardAbsoluteUrl(tenantSlug);
       const statusCounts = countPulseStatuses(goalRows);
+      const noRecentClientCallCount = normalizedRows.filter(
+        pulseRowHasNoRecentClientCall,
+      ).length;
       const criticalIssues = await loadPulseCriticalIssues(
         supabase,
         accessibleTenantIds,
@@ -7562,6 +7479,7 @@ async function executeTool(
           count: 0,
           freshness: null,
           status_counts: statusCounts,
+          no_recent_client_call_count: 0,
           dashboard_url: dashboardUrl,
           whatsapp_digest: null,
           rows: preferDigest ? undefined : [],
@@ -7580,6 +7498,7 @@ async function executeTool(
           count: goalRows.length,
           freshness: normalizedRows[0]?.calculated_at || null,
           status_counts: statusCounts,
+          no_recent_client_call_count: noRecentClientCallCount,
           dashboard_url: dashboardUrl,
           whatsapp_digest: whatsappDigest,
           formatted_markdown: null,
@@ -7595,13 +7514,14 @@ async function executeTool(
         count: normalizedRows.length,
         freshness: normalizedRows[0]?.calculated_at || null,
         status_counts: statusCounts,
+        no_recent_client_call_count: noRecentClientCallCount,
         dashboard_url: dashboardUrl,
         whatsapp_digest: whatsappDigest,
         manual_overrides: manualOverrides,
         rows: normalizedRows,
         formatted_markdown: tableLines.join("\n"),
         instructions_to_agent:
-          "בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
+          "status משקף ביצועי קמפיין ונתונים בלבד. היעדר שיחה מתועדת עם הלקוח מופיע בנפרד ב-no_recent_client_call וב-no_recent_client_call_count, ואינו הופך לקוח ל'תשומת לב'. בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
     }
     case "analyze_campaign_performance": {
@@ -8038,19 +7958,15 @@ async function executeTool(
         });
       if (logErr) throw logErr;
 
-      // 3. Also create a client_update so it's visible in the client updates tab
-      if (effectiveUserId) {
-        const { error: clientUpdateErr } = await supabase
-          .from("client_updates")
-          .insert({
-            client_id: args.client_id,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: `[עדכון אוטומטי - כרמן] ${args.note}`,
-          });
-
-        if (clientUpdateErr) throw clientUpdateErr;
-      }
+      // 3. Card entry as source carmen, so it never counts as client contact.
+      const cardEntryError = await recordHealthCardEntryAfterUpdate(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        note: args.note,
+        moodStatus: args.mood_status,
+        requesterUserId: humanRequesterUserId,
+        tool: "update_client_health",
+      });
 
       return {
         success: true,
@@ -8058,6 +7974,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
+        ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
       };
     }
     case "get_client_retention_scan": {
@@ -8226,21 +8143,22 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          if (batchUserId) {
-            const { error: clientUpdateErr } = await supabase
-              .from("client_updates")
-              .insert({
-                client_id: clientId,
-                tenant_id: tenantId,
-                user_id: batchUserId,
-                content: `[עדכון אוטומטי - כרמן] ${note}`,
-              });
-            if (clientUpdateErr) throw clientUpdateErr;
-          }
+          const cardEntryError = await recordHealthCardEntryAfterUpdate(
+            supabase,
+            {
+              tenantId,
+              clientId,
+              note,
+              moodStatus: mood,
+              requesterUserId: humanRequesterUserId,
+              tool: "batch_update_client_health",
+            },
+          );
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
+            ...(cardEntryError ? { card_entry_error: cardEntryError } : {}),
           });
         } catch (err: any) {
           results.push({
@@ -10392,17 +10310,19 @@ async function executeTool(
     }
     // UPDATES
     case "list_updates": {
-      const table =
-        args.entity_type === "client" ? "client_updates" : "lead_updates";
-      const idCol = args.entity_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await supabase
-        .from(table)
-        .select("id, content, created_at")
-        .eq(idCol, args.entity_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      return { count: data.length, updates: data };
+      if (args.entity_type === "client") {
+        await assertCallerCanAccessClient(
+          supabase,
+          args.entity_id,
+          callerScope,
+        );
+      }
+      return await listUpdates(supabase, {
+        entityType: args.entity_type,
+        entityId: args.entity_id,
+        accessibleTenantIds,
+        limit: args.limit,
+      });
     }
     // GOALS
     case "create_goal": {
@@ -11233,12 +11153,14 @@ async function executeTool(
         { spend7: number; activeCount: number; pausedCount: number }
       >();
       if (tableIds.length > 0) {
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("table_id, data")
-          .in("table_id", tableIds)
-          .in("tenant_id", accessibleTenantIds);
-        for (const r of recs || []) {
+        // Campaign-level rows of the last 7 days, paged: one unfiltered request
+        // stopped at 1000 rows of any level/date and missed real spend.
+        const recs = await fetchCampaignLevelRecords(supabase, {
+          tableIds,
+          sinceYmd: d7Str,
+          tenantIds: accessibleTenantIds,
+        });
+        for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
           if (!cid) continue;
           const cur = spendByClient.get(cid) || {
@@ -12588,20 +12510,19 @@ async function executeTool(
           () => {},
         );
 
-      if (effectiveUserId) {
-        await supabase
-          .from("client_updates")
-          .insert({
-            client_id: clientId,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: note,
-          })
-          .then(
-            () => {},
-            () => {},
-          );
-      }
+      await recordClientCardEntry(supabase, {
+        tenantId,
+        clientId,
+        content: note,
+        source: "carmen",
+        attributedUserId: effectiveUserId,
+        metadata: { tool: "connect_client_meta_ad_account" },
+      }).catch((err) =>
+        console.warn(
+          "[connect_client_meta_ad_account] client card entry failed",
+          err,
+        ),
+      );
 
       return {
         success: true,
@@ -13359,9 +13280,15 @@ async function executeTool(
 
       const sendResult = await sendStaffWhatsappMessage({
         supabase,
+        supabaseUrl: SUPABASE_URL,
+        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
         tenantId,
         phone: contact.phone,
         message,
+        requesterUserId: actorUserId,
+        agentId: agentId || null,
+        conversationId: conversationId || null,
+        recipient: contact,
       });
       if (sendResult.error) return sendResult;
       return {
@@ -13520,12 +13447,8 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
+import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller } from "./caller-trust.ts";
-
-// Surface for which the agent is currently invoked.
-// 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
-// but no dialog progress UI). Default for unspecified callers.
-type Surface = "whatsapp" | "aios" | "task" | "internal_chat" | "grok_bot";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -13712,6 +13635,13 @@ async function handleRunAgent(
         callerRole,
       );
     const isTeamManagerCaller = callerRole === "team_manager";
+    // A person talking to Carmen right now (not a task, automation or bot run):
+    // only they can confirm a client call or meeting for the client card.
+    const humanRequesterUserId = resolveHumanRequesterUserId({
+      userId: callerUserId,
+      surface,
+      automationId: automation_id,
+    });
 
     // System/dev-fix escalations (Cursor/Claude/Manus MCP + GitHub agent) —
     // tiered allowlist: David=full, Ana=bugfix→Cursor only. Role alone is not enough.
@@ -15755,6 +15685,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
+              humanRequesterUserId,
             );
             if (result?.pending_approval && result?.approval_id) {
               await bindApprovalToConversation(

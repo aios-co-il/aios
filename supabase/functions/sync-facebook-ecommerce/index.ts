@@ -11,11 +11,19 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
-  replacedRecordsFilter,
   resolveAdsSyncWindow,
-  resolvePruneStart,
   toDateString,
 } from "../_shared/report-sync-window.ts";
+import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
+import { redactSyncError } from "../_shared/ads-sync/redact.ts";
+import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
+import {
+  failedRunRecorder,
+  saveSyncRun,
+} from "../_shared/ads-sync/save-run.ts";
+import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
+
+const SOURCE = "sync-facebook-ecommerce";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +37,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Set once the table is known, so an unexpected error is recorded as a failed run.
+  let recordFailure: ((message: string) => Promise<void>) | null = null;
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -200,6 +210,13 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = integration.api_key;
+    const run = { tableId: table_id, tenantId: tableTenantId };
+    recordFailure = failedRunRecorder(supabaseAdmin, {
+      ...run,
+      source: SOURCE,
+      catchup: update_last_sync === false,
+      fallbackSettings: settings,
+    });
 
     // Calculate date range
     const now = new Date();
@@ -326,17 +343,20 @@ Deno.serve(async (req) => {
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
     const resultMetrics = buildResultMetricMaps(adsets);
 
-    const { records: insights, levelCounts } =
-      await buildAllLevelInsightRecords(
-        adAccountId,
-        sinceStr,
-        untilStr,
-        accessToken,
-        campaignStatuses,
-        resultLeadTypes,
-        optimizationGoals,
-        resultMetrics,
-      );
+    const {
+      records: insights,
+      levelCounts,
+      levelErrors,
+    } = await buildAllLevelInsightRecords(
+      adAccountId,
+      sinceStr,
+      untilStr,
+      accessToken,
+      campaignStatuses,
+      resultLeadTypes,
+      optimizationGoals,
+      resultMetrics,
+    );
     console.log(
       `[sync-facebook-ecommerce] synced ${insights.length} rows`,
       levelCounts,
@@ -373,106 +393,58 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Replace only the days this run re-fetched (admin client to bypass RLS); rows older
-    // than the sync window are history a longer report window still needs. A run that came
-    // back empty is far more likely to be a Meta hiccup than an account with no delivery
-    // at all, so it leaves the stored rows alone instead of blanking the report.
-    // table_id only — orphan rows from a previous tenant_id must not survive sync.
-    if (insights.length > 0) {
-      const { error: delErr } = await supabaseAdmin
-        .from("crm_records")
-        .delete()
-        .eq("table_id", table_id)
-        .or(
-          replacedRecordsFilter(
-            resolvePruneStart(
-              syncWindow,
-              insights.map((i) => i.date),
-            ),
-          ),
-        );
-      if (delErr)
-        console.error(
-          "[sync-facebook-ecommerce] delete error:",
-          delErr.message,
-        );
-    }
-
-    // Insert new records (batched)
-    let inserted = 0;
-    if (insights.length > 0) {
-      const rows = insights.map((insight) => ({
-        table_id,
-        tenant_id: tableTenantId,
-        created_by: userId,
-        data: insight as any,
-      }));
-      const { error: insErr, count } = await supabaseAdmin
-        .from("crm_records")
-        .insert(rows, { count: "exact" });
-      if (insErr) {
-        console.error(
-          "[sync-facebook-ecommerce] insert error:",
-          insErr.message,
-        );
-      } else {
-        inserted = count ?? rows.length;
-      }
-    }
-    console.log(`[sync-facebook-ecommerce] inserted: ${inserted}`);
-
-    // Update last_sync_at on both the column and settings so health/pulse do
-    // not treat a fresh settings sync as stale because the column was null/old.
-    const syncedAt = new Date().toISOString();
-    const { data: freshTable } = await supabaseAdmin
-      .from("crm_tables")
-      .select("integration_settings")
-      .eq("id", table_id)
-      .maybeSingle();
-    const currentSettings = (freshTable?.integration_settings ||
-      settings ||
-      {}) as Record<string, unknown>;
-    const lastCampaignUpdatedAt = latestCampaignUpdatedTime(campaignStatuses);
-    const touchLastSync = update_last_sync !== false;
-    await supabaseAdmin
-      .from("crm_tables")
-      .update({
-        ...(touchLastSync ? { last_sync_at: syncedAt } : {}),
-        integration_settings: {
-          ...currentSettings,
-          ...(touchLastSync ? { last_sync_at: syncedAt } : {}),
-          last_campaign_updated_at: lastCampaignUpdatedAt,
-          ...(typeof scheduled_history_from === "string" &&
-          isoDate.test(scheduled_history_from)
-            ? { scheduled_history_from }
-            : {}),
-          ...(typeof scheduled_synced_through === "string" &&
-          isoDate.test(scheduled_synced_through)
-            ? { scheduled_synced_through }
-            : {}),
-          ...(typeof scheduled_lookback_on === "string" &&
-          isoDate.test(scheduled_lookback_on)
-            ? { scheduled_lookback_on }
-            : {}),
-        },
-      })
-      .eq("id", table_id);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        records_synced: inserted,
-        last_sync_at: syncedAt,
-      }),
+    // Admin client bypasses RLS; what may be replaced (table_id-only): see syncAdsWindow.
+    const outcome = await syncAdsWindow(
+      { deleteClient: supabaseAdmin },
       {
+        tableId: table_id,
+        tenantId: tableTenantId,
+        createdBy: userId,
+        window: syncWindow,
+        records: insights,
+        levelCounts,
+        levelErrors,
+        source: SOURCE,
+      },
+    );
+    console.log(
+      `[sync-facebook-ecommerce] outcome: ${outcome.status}, inserted: ${outcome.rows}`,
+      outcome.error || "",
+    );
+
+    // last_sync_at (column + settings) and the scheduled markers move only after a
+    // successful write; catch-up chunks (update_last_sync=false) never stamp it.
+    const { lastSyncAt } = await saveSyncRun(supabaseAdmin, run, {
+      outcome,
+      catchup: update_last_sync === false,
+      fallbackSettings: settings,
+      settingsPatch: {
+        last_campaign_updated_at: latestCampaignUpdatedTime(campaignStatuses),
+        ...scheduledMarkerPatch(outcome.status, {
+          scheduled_history_from,
+          scheduled_synced_through,
+          scheduled_lookback_on,
+        }),
+      },
+    });
+
+    const { body, status } = syncRunBody(outcome, lastSyncAt);
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Error in sync-facebook-ecommerce:", error);
+    await recordFailure?.(
+      error instanceof Error ? error.message : String(error),
+    );
+    // Upstream errors can print the request URL, Meta access token included.
+    return new Response(
+      JSON.stringify({ error: redactSyncError(error?.message ?? error) }),
+      {
+        status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
-    console.error("Error in sync-facebook-ecommerce:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   }
 });

@@ -1,0 +1,84 @@
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import { withConsoleErrors } from "../_shared/testing/console-errors.ts";
+import { runRound, tenantsToRun } from "./round.ts";
+import { deps } from "./tests/fakes.ts";
+import { rules, world } from "./tests/fake-world.ts";
+
+const request = {
+  tenantId: null,
+  clientId: null,
+  collectorIds: null,
+  dryRun: false,
+  fixtures: null,
+  now: null,
+};
+
+/** A tenant row with this mode (null: no stored settings) and last run. */
+const tenant = (
+  tenant_id: string,
+  mode: string | null,
+  last_run_at: string | null,
+) => ({
+  tenant_id,
+  pulse_alert_rules: mode ? rules({ mode }) : null,
+  last_run_at,
+});
+
+Deno.test("round", async (t) => {
+  await t.step(
+    "tenantsToRun: every tenant not off, never-run and oldest first; a named one always",
+    () => {
+      const tenants = [
+        tenant("b", "team", "2026-11-01T07:00:00Z"),
+        tenant("off", "off", null),
+        tenant("a", null, null),
+        tenant("c", "observe", "2026-11-01T06:00:00Z"),
+      ];
+      assertEquals(
+        tenantsToRun(tenants, { tenantId: null }).map((t) => t.tenant_id),
+        ["a", "c", "b"],
+      );
+      assertEquals(
+        tenantsToRun(tenants, { tenantId: "off" }).map((t) => t.tenant_id),
+        ["off"],
+      );
+    },
+  );
+
+  await t.step(
+    "runRound reports each tenant and keeps going after one fails",
+    async () => {
+      const w = world({
+        tenants: [tenant("t1", null, null), tenant("t2", "off", null)],
+        failOn: "findings",
+      });
+      const report = await runRound(deps(w), request);
+      assertEquals(
+        report.tenants.map((t) => [t.tenant_id, t.error ?? t.skipped ?? "ok"]),
+        [["t1", "db down"]],
+      );
+    },
+  );
+
+  await t.step(
+    "runRound logs a lease failure and records it in heartbeat_logs",
+    async () => {
+      const w = world({
+        tenants: [tenant("t1", null, null)],
+        failOn: "lease",
+      });
+      const { result, logged } = await withConsoleErrors(() =>
+        runRound(deps(w), request),
+      );
+      assertEquals(
+        result.tenants.map((t) => [t.tenant_id, t.error]),
+        [["t1", "lease down"]],
+      );
+      assertStringIncludes(logged, "tenant t1 failed: lease down");
+      assertEquals(
+        w.heartbeats.map((row) => [row.tenant_id, row.status]),
+        [["t1", "error"]],
+      );
+    },
+  );
+});

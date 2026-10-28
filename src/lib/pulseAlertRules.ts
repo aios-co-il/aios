@@ -1,3 +1,5 @@
+import type { ManagerMode } from "../../supabase/functions/_shared/manager-round/modes.ts";
+
 export type PulseAlertRules = {
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
@@ -34,4 +36,57 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
   };
+}
+
+/**
+ * Manager-round settings stored under pulse_alert_rules.manager. Other code
+ * may keep more keys there (cost thresholds, logging switches, collector
+ * settings); they are always preserved.
+ */
+export type PulseManagerSettings = {
+  /** Carmen's rollout mode; owner-only (the database refuses others). */
+  mode?: ManagerMode;
+};
+
+/**
+ * Saves the edited alert rules and the manager settings; the caller merges
+ * both into the stored pulse_alert_rules (mergePulseAlertRules).
+ */
+export type SavePulseAlertRules = (
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings,
+) => void;
+
+/** A copy of the stored JSON object; {} for anything else (null, an array, a scalar). */
+function asRecord(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? { ...raw }
+    : {};
+}
+
+/**
+ * The pulse_alert_rules value to save: the stored JSON with the edited alert
+ * rules laid over it; keys this screen does not know are kept. The manager
+ * block is sent only when a manager setting actually changes: without it the
+ * database keeps the stored block (carmen_manager_settings_guard), so a stale
+ * page never reverts it and a non-owner's save never touches it.
+ */
+export function mergePulseAlertRules(
+  stored: unknown,
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings = {},
+): Record<string, unknown> {
+  const { manager: storedManager, ...current } = asRecord(stored);
+  const merged: Record<string, unknown> = {
+    ...current,
+    ...parsePulseAlertRules({ ...current, ...rules }),
+  };
+  const block = asRecord(storedManager);
+  const changes = Object.entries(manager).filter(
+    ([key, value]) => value !== undefined && block[key] !== value,
+  );
+  if (changes.length > 0) {
+    merged.manager = { ...block, ...Object.fromEntries(changes) };
+  }
+  return merged;
 }

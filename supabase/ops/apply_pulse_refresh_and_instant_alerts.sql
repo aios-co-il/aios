@@ -131,33 +131,10 @@ CREATE POLICY "pulse_instant_alert_log_read"
 GRANT SELECT ON public.pulse_instant_alert_log TO authenticated;
 GRANT ALL ON public.pulse_instant_alert_log TO service_role;
 
-CREATE OR REPLACE FUNCTION public.get_latest_client_call_updates(p_client_ids uuid[])
-RETURNS TABLE (
-  client_id uuid,
-  last_client_call_at timestamptz,
-  last_client_call_by text
-)
-LANGUAGE sql
-STABLE
-SECURITY INVOKER
-SET search_path = public
-AS $$
-  SELECT DISTINCT ON (updates.client_id)
-    updates.client_id,
-    updates.created_at AS last_client_call_at,
-    COALESCE(NULLIF(profiles.full_name, ''), profiles.email) AS last_client_call_by
-  FROM public.client_updates AS updates
-  LEFT JOIN public.profiles AS profiles ON profiles.id = updates.user_id
-  WHERE updates.client_id = ANY (p_client_ids)
-    AND (
-      updates.update_type IN ('call', 'meeting')
-      OR (
-        updates.update_type = 'weekly_update'
-        AND public.client_update_documents_phone_call(updates.content)
-      )
-    )
-  ORDER BY updates.client_id, updates.created_at DESC;
-$$;
+-- get_latest_client_call_updates is owned by the migrations: see
+-- supabase/migrations/20261026126000_client_card_provenance.sql (AIO-232).
+-- It is not redefined here, so re-running this script cannot drop the
+-- client-card source filter or start counting plain meeting rows.
 
 DO $pulse_refresh_crons$
 DECLARE
