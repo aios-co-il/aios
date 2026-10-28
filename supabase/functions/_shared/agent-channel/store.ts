@@ -50,7 +50,7 @@ export async function userHasTenantAccess(
 }
 
 export async function resolveCarmenAgent(
-  sb: SupabaseClient,
+  sb: Pick<SupabaseClient, "from">,
   tenantId: string,
 ): Promise<{ id: string; name: string } | null> {
   const { data } = await sb
