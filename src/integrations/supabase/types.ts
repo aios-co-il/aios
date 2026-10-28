@@ -5164,6 +5164,8 @@ export type Database = {
           integration_type: string | null;
           integrations: Json | null;
           last_sync_at: string | null;
+          last_sync_attempt_at: string | null;
+          last_sync_outcome: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5183,6 +5185,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5202,6 +5206,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name?: string;
           slug?: string;
           tenant_id?: string;
@@ -15546,6 +15552,10 @@ export type Database = {
         Args: { p_integration: string; p_phone: string; p_tenant: string };
         Returns: Json;
       };
+      chat_allowed_connection_user_ids: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: string[];
+      };
       check_circuit_breaker: {
         Args: { p_provider: string; p_tenant_id: string };
         Returns: boolean;
@@ -16480,6 +16490,10 @@ export type Database = {
       };
       tenant_can_use_integration: {
         Args: { p_integration_id: string; p_tenant_id: string };
+        Returns: boolean;
+      };
+      tenant_holds_agency: {
+        Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };
         Returns: boolean;
       };
       try_acquire_manychat_destination_lock: {

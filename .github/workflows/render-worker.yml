@@ -1,4 +1,6 @@
-name: Render worker (Staging)
+# Drains Staging's video queue every 10 minutes: when a video run is waiting, it runs develop's
+# render worker once until the queue is empty (the Production worker is a container, not this).
+name: Drain render worker (Staging)
 
 on:
   workflow_dispatch:
@@ -18,8 +20,9 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    environment: staging
     env:
-      PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID }}
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
       # The account token can read every project's keys, Production's included. Only this step
       # sees it, and it runs before anything from the repository is checked out or installed, so
@@ -32,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${PROJECT_REF}" ]; then
-            echo "SUPABASE_STAGING_PROJECT_ID is empty" >&2
+            echo "The staging environment's SUPABASE_PROJECT_REF is empty" >&2
             exit 1
           fi
           KEYS="$(curl --fail --silent --show-error \

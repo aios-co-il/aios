@@ -46,6 +46,15 @@ import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
+import { withChatScopeColumns } from "./chat-scope/filters.ts";
+import {
+  getChatHistory,
+  getRecentInboundMessages,
+} from "./chat-scope/readers.ts";
+import { chatScopeMeta } from "./chat-scope/responses.ts";
+import { readScopedChatRows } from "./chat-scope/rows.ts";
+import { scopedChatRead } from "./chat-scope/scoped-read.ts";
+import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
@@ -280,6 +289,7 @@ import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -5875,6 +5885,19 @@ async function executeTool(
       },
     );
   }
+  // Chat readers (AIO-231) scope from the verified caller and the WhatsApp chat
+  // of this turn, never from tool args, and read the caller's role in this
+  // tenant: callerRole here is the highest role across all their tenants.
+  const chatRead = {
+    supabase,
+    scopeInput: {
+      tenantId,
+      accessibleTenantIds,
+      userId: actorUserId,
+      callerCampaignerId: callerCampaignerId ?? null,
+      waNotify,
+    },
+  };
   if (isVideoDirectorTool(name)) {
     return executeVideoDirectorTool(
       supabase,
@@ -6600,25 +6623,12 @@ async function executeTool(
       return { update_id: data.id };
     }
     case "send_message": {
-      let phone: string | null = null;
-      let contactName: string | null = null;
-      if (args.contact_type === "lead") {
-        const { data } = await supabase
-          .from("leads")
-          .select("phone, company_name, contact_name")
-          .eq("id", args.contact_id)
-          .single();
-        phone = data?.phone;
-        contactName = data?.contact_name || data?.company_name;
-      } else {
-        const { data } = await supabase
-          .from("clients")
-          .select("phone, name, contact_name")
-          .eq("id", args.contact_id)
-          .single();
-        phone = data?.phone;
-        contactName = data?.contact_name || data?.name;
-      }
+      const { phone, contactName } = await sendTargetFor(
+        supabase,
+        args.contact_type,
+        args.contact_id,
+        accessibleTenantIds,
+      );
       if (!phone) return { success: false, error: "לא נמצא מספר טלפון" };
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/send-green-api-message`,
@@ -9890,20 +9900,17 @@ async function executeTool(
       return { learned: true, episode_id: data.id, topic: data.topic };
     }
     // CHAT HISTORY
-    case "get_chat_history": {
-      const filterCol =
-        args.contact_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select("id, message_text, direction, sender_name, created_at")
-        .in("tenant_id", accessibleTenantIds)
-        .eq(filterCol, args.contact_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (error) throw error;
-      return { count: data.length, messages: data.reverse() };
-    }
+    case "get_chat_history":
+      return getChatHistory(chatRead, args);
     case "search_conversation_history": {
+      const { scope: chatScope, refusal } = await scopedChatRead(
+        chatRead,
+        null,
+      );
+      if (refusal) {
+        return refusal;
+      }
+
       const rawQuery = String(args.query || "").trim();
       // AND semantics: every token must appear in the message. Up to 4 tokens.
       // No query = browse mode: chronological slice of the window, which then
@@ -9955,7 +9962,9 @@ async function executeTool(
       let q = supabase
         .from("chat_messages")
         .select(
-          "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
+          withChatScopeColumns(
+            "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
+          ),
         )
         .in("tenant_id", accessibleTenantIds)
         .gte("created_at", since)
@@ -9975,8 +9984,12 @@ async function executeTool(
           .is("group_id", null)
           .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
       else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const { data, error } = await q;
-      if (error) throw error;
+      const data = await readScopedChatRows(
+        supabase,
+        q,
+        chatScope,
+        accessibleTenantIds,
+      );
       const fmt = (iso: string) =>
         new Date(iso).toLocaleString("he-IL", {
           timeZone: "Asia/Jerusalem",
@@ -10002,36 +10015,11 @@ async function executeTool(
           in_group: !!m.group_id,
           text: String(m.message_text).slice(0, 400),
         })),
+        ...chatScopeMeta(chatScope),
       };
     }
-    case "get_recent_inbound_messages": {
-      const hoursAgo = args.hours || 24;
-      const since = new Date(
-        Date.now() - hoursAgo * 60 * 60 * 1000,
-      ).toISOString();
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select(
-          "id, message_text, sender_name, sender_phone, created_at, client_id, lead_id, clients(name), leads(company_name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .eq("direction", "inbound")
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 30);
-      if (error) throw error;
-      return {
-        count: data.length,
-        messages: data.map((m: any) => ({
-          ...m,
-          contact_name:
-            m.clients?.name ||
-            m.leads?.company_name ||
-            m.sender_name ||
-            m.sender_phone,
-        })),
-      };
-    }
+    case "get_recent_inbound_messages":
+      return getRecentInboundMessages(chatRead, args);
     // FINANCE
     case "list_finance": {
       let query = supabase
@@ -11303,12 +11291,14 @@ async function executeTool(
         { spend7: number; activeCount: number; pausedCount: number }
       >();
       if (tableIds.length > 0) {
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("table_id, data")
-          .in("table_id", tableIds)
-          .in("tenant_id", accessibleTenantIds);
-        for (const r of recs || []) {
+        // Campaign-level rows of the last 7 days, paged: one unfiltered request
+        // stopped at 1000 rows of any level/date and missed real spend.
+        const recs = await fetchCampaignLevelRecords(supabase, {
+          tableIds,
+          sinceYmd: d7Str,
+          tenantIds: accessibleTenantIds,
+        });
+        for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
           if (!cid) continue;
           const cur = spendByClient.get(cid) || {
@@ -11316,8 +11306,10 @@ async function executeTool(
             activeCount: 0,
             pausedCount: 0,
           };
-          if (r.data?.date && r.data.date >= d7Str)
-            cur.spend7 += parseFloat(r.data?.spend) || 0;
+          const date = r.data?.date;
+          if (typeof date === "string" && date >= d7Str) {
+            cur.spend7 += parseFloat(String(r.data?.spend)) || 0;
+          }
           const eff = String(r.data?.effective_status || "").toUpperCase();
           if (eff === "ACTIVE") cur.activeCount += 1;
           else if (eff === "PAUSED" || eff === "OFF") cur.pausedCount += 1;
