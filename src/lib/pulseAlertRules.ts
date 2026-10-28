@@ -57,6 +57,7 @@ export type SavePulseAlertRules = (
   manager: PulseManagerSettings,
 ) => void;
 
+/** A copy of the stored JSON object; {} for anything else (null, an array, a scalar). */
 function asRecord(raw: unknown): Record<string, unknown> {
   return raw && typeof raw === "object" && !Array.isArray(raw)
     ? { ...raw }

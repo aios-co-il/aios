@@ -4,7 +4,7 @@
  * decision (up to five items with short codes), the team's open items (team
  * mode) and what Carmen already did in the last 24 hours. Read-only: the
  * short codes point at findings in the app; a parser for replies to the brief
- * is deferred.
+ * is AIO-251 phase 2.
  */
 import { dayMonth } from "../calendar/day-month.ts";
 import { firstName } from "../dispatch/message.ts";

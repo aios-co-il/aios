@@ -84,7 +84,7 @@ export function climbLadder(
 
 /**
  * Level 1 goes at once (a roll-up kind's waits for the weekly roll-up);
- * level 2 waits for the 08:00 brief unless urgent.
+ * level 2 waits for the morning brief unless urgent.
  */
 function climb(
   level: 1 | 2,

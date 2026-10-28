@@ -129,8 +129,14 @@ function stateStore(w: World): RoundStateStore {
       w.state = [...w.state.filter((s) => s.collector !== collector), row];
       return Promise.resolve();
     },
-    tryLease: (tenantId) =>
-      Promise.resolve(!w.leased.has(tenantId) && !!w.leased.add(tenantId)),
+    tryLease: (tenantId) => {
+      if (w.failOn === "lease") {
+        return Promise.reject(new Error("lease down"));
+      }
+      return Promise.resolve(
+        !w.leased.has(tenantId) && !!w.leased.add(tenantId),
+      );
+    },
     endLease: (tenantId) => Promise.resolve(void w.leased.delete(tenantId)),
     claimSlot: (_tenant, key, slot) => {
       const id = `${key}@${slot.toISOString()}`;

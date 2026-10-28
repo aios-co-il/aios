@@ -2,6 +2,8 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
 import {
   DAVID_USER,
+  greenLine,
+  greenStep,
   handler,
   manusLine,
   manusStep,
@@ -10,6 +12,7 @@ import {
   SERVICE_KEY,
   TENANT,
   tenantTables,
+  withRole,
 } from "./test-fixtures.ts";
 
 type Row = Record<string, unknown>;
@@ -46,14 +49,14 @@ const access = ({
   is_super_admin: ({ _user_id }: Row) => _user_id === superAdmin,
 });
 
-/** The handler's notify reply and the sends it posted. */
+/** The handler's notify reply, the sends it posted and the errors it logged. */
 async function notify(
   tables: Record<string, Row[]>,
   rpc: ReturnType<typeof access>,
 ) {
-  const { handle, fetch } = handler({ tables, rpc });
+  const { handle, fetch, errors } = handler({ tables, rpc });
   const out = await (await handle(post(notifyBody, SERVICE_KEY))).json();
-  return { out, posted: fetch.calls };
+  return { out, posted: fetch.calls, errors };
 }
 
 Deno.test("lines of another tenant", async (t) => {
@@ -82,12 +85,72 @@ Deno.test("lines of another tenant", async (t) => {
   );
 
   await t.step(
-    "with no line of its own and no access, nothing is posted",
+    "with no line of its own and no access, nothing is posted and the refusal is logged",
     async () => {
-      const { out, posted } = await notify(tables([]), access({}));
+      const { out, posted, errors } = await notify(tables([]), access({}));
       assertStrictEquals(out.sent, false);
       assertStrictEquals(out.status, "no_transport");
       assertStrictEquals(posted.length, 0);
+      // pg_net callers never read the reply, so the refusal must be logged.
+      const reason = "manus_integration_inactive";
+      assertEquals(errors, [
+        [
+          "[claude-notify] nothing sent",
+          {
+            tenantId: TENANT,
+            status: "no_transport",
+            error: `no Carmen WhatsApp send step on a primary Carmen line for this tenant (${reason})`,
+            transportReason: reason,
+            skipped: [
+              {
+                automationId: "auto-1",
+                integrationId: FOREIGN,
+                role: "primary",
+                reason: "not_shared",
+              },
+            ],
+          },
+        ],
+      ]);
+    },
+  );
+
+  await t.step(
+    "an unshared line owned by a super admin is not used without a session sender",
+    async () => {
+      const ownedByDavid = { ...foreignLine, user_id: DAVID_USER };
+      const noSender = tenantTables({
+        steps: [manusStep("auto-1", FOREIGN)],
+        integrations: [ownedByDavid],
+        sessions: [],
+      });
+      const { out, posted } = await notify(
+        noSender,
+        access({ superAdmin: DAVID_USER }),
+      );
+      assertStrictEquals(out.status, "no_transport");
+      assertStrictEquals(posted.length, 0);
+    },
+  );
+
+  await t.step(
+    "another tenant's Green line sends only when its carmen_role is primary",
+    async () => {
+      const green = { ...greenLine(FOREIGN), tenant_id: OTHER_TENANT };
+      const greenTables = (line: Row) =>
+        tenantTables({
+          steps: [greenStep("auto-1", "2026-01-01", FOREIGN)],
+          integrations: [line],
+        });
+      const shared = access({ shared: true });
+      const implicit = await notify(greenTables(green), shared);
+      assertStrictEquals(implicit.out.status, "no_transport");
+      assertStrictEquals(implicit.posted.length, 0);
+
+      const primary = withRole(green, "primary");
+      const { out, posted } = await notify(greenTables(primary), shared);
+      assertStrictEquals(out.transport, "green_fallback");
+      assertStrictEquals(posted[0].body.integrationId, FOREIGN);
     },
   );
 

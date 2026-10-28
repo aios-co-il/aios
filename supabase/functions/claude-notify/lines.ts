@@ -36,7 +36,7 @@ export type NotifyIntegrationRow = Pick<
  * The line a Manus or Green send step names: green_api_integration_id, then
  * integration_id (the field the step UI writes). Same fields and order as
  * Carmen's reply path for these steps (sendCarmenReplyViaActionStep in
- * _shared/carmen.ts).
+ * _shared/carmen.ts); merging the two copies is AIO-275.
  */
 export function stepIntegrationId(step: NotifyStepRow): string | null {
   const cfg = configRecord(step.configuration);

@@ -1095,7 +1095,10 @@ $$;
 -- actually told or tried (below the first cancelled level; NULL when that is
 -- level 0 or nobody) and is routed again at once. Otherwise the ladder would
 -- move on to a manager ("not handled in time") about an item the campaigner
--- never got. Snoozed findings keep their snooze.
+-- never got. Snoozed findings keep their snooze. Rows a running call already
+-- claimed are left to it: it re-reads the settings before each message and
+-- returns the rest to 'planned' for the next call's triage. Cancelling them
+-- here too needs an all-or-nothing mark before sending (AIO-251 phase 2).
 CREATE OR REPLACE FUNCTION public.carmen_manager_reset_ladders(
   p_tenant_id uuid,
   p_kinds text[]

@@ -61,7 +61,7 @@ export function listTime(ctx: LadderContext): Date {
   );
 }
 
-/** The next morning brief (08:00 Sunday–Friday, holidays skipped). */
+/** The next morning brief (BRIEF_CRON), holidays skipped. */
 export function briefTime(ctx: LadderContext): Date {
   return (
     nextWorkingSlot(BRIEF_CRON, ctx.now, ctx.settings) ??
