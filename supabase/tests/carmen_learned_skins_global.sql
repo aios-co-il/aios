@@ -10,9 +10,7 @@ DECLARE
   v_slugs text[] := ARRAY[
     'group_response_only_when_addressed',
     'wa_notify_never_group_session',
-    'carmen_session_keyed_by_chat_id',
-    'diagnose_campaign_pulse_status',
-    'identity-guard'
+    'carmen_session_keyed_by_chat_id'
   ];
   v_tenant uuid;
   v_new_tenant uuid := gen_random_uuid();
@@ -134,14 +132,17 @@ BEGIN
     RAISE EXCEPTION 'triggers: an everyday command matches %', v_bad;
   END IF;
 
-  -- Identity questions still route to identity-guard.
-  SELECT string_agg(q.text, ', ') INTO v_bad
-  FROM (VALUES ('כרמן, מי את?'), ('כרמן, מי את בכלל?'), ('who are you')) AS q (text)
-  WHERE NOT EXISTS (
-    SELECT 1 FROM trigger_hit AS h WHERE h.text = q.text AND h.slug = 'identity-guard'
-  );
-  IF v_bad IS NOT NULL THEN
-    RAISE EXCEPTION 'triggers: identity-guard misses %', v_bad;
+  -- identity-guard and diagnose_campaign_pulse_status stay tenant rows: a
+  -- global row would reach every agent of every org.
+  IF EXISTS (
+    SELECT 1
+    FROM public.ai_skills AS s
+    WHERE s.scope = 'global'
+      AND s.slug IN ('identity-guard', 'diagnose_campaign_pulse_status')
+      AND s.created_by_agent = false
+      AND s.name IN ('תמיד מזדהה ככרמן', 'אבחון בדיקת דופק: אין טבלה מול סנכרון ישן')
+  ) THEN
+    RAISE EXCEPTION 'global: identity-guard or diagnose_campaign_pulse_status was made global';
   END IF;
 END
 $test$;

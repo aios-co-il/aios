@@ -9,8 +9,8 @@
 -- still win for its Carmen. A slug that already has a global row keeps it
 -- (NOTICE).
 -- A global row reaches every tenant's agents whose run loads skills, not only
--- Carmen, and a matched diagnose_campaign_pulse_status adds
--- get_latest_campaign_pulse to that agent's tools.
+-- Carmen, so skins that set an agent's identity (identity-guard) or add a
+-- tool (diagnose_campaign_pulse_status) stay tenant rows.
 -- MarketingCaptain's dmm_notify_recipient_routing is retired: it tells Carmen
 -- DMM's pulse goes to one person, and the per-org recipients setting (AIO-260)
 -- now names DMM's pulse recipients.
@@ -99,60 +99,6 @@ BEGIN
 2. כל קבוצה היא סשן משלה. שאלה בקבוצה א׳ נענית בקבוצה א׳. עדכון מערכת הולך לנמען שהוגדר לו.
 3. השאירי את שאר הסשנים פתוחים. הם צריכים להמשיך לפעול במקביל.$$,
         'לא לנתב לפי הסשן החדש ביותר. לא למזג קבוצות לפי מספר הדובר. לא להרחיב גישה.',
-        '{}'::text[]
-      ),
-      (
-        'diagnose_campaign_pulse_status',
-        'אבחון בדיקת דופק: אין טבלה מול סנכרון ישן',
-        'כשבדיקת הדופק של לקוח נראית ריקה למרות שדוחות מחוברים: להבחין בין no_data (אין טבלת קמפיין מחוברת) לבין סנכרון ישן, ולהציג את המדדים שיש.',
-        ARRAY[
-          'אין נתונים בדופק',
-          'בדיקת דופק אין נתונים',
-          'הדוחות מחוברים אבל אין נתונים',
-          'סנכרון ישן',
-          'pulse no data',
-          'pulse no_data'
-        ]::text[],
-        $$1. קראי ל-get_latest_campaign_pulse עם client_name של הלקוח.
-2. בדקי את status ואת flags של הלקוח.
-3. ללקוח איקומרס הציגי רכישות ו-ROAS.$$,
-        $$כשאומרים שבדיקת הדופק של לקוח מראה "אין נתונים" למרות שהדוחות מחוברים:
-1. status=no_data פירושו שאין ללקוח טבלת קמפיין מחוברת (הדגל "אין טבלת קמפיין מחוברת").
-2. status=warning או critical עם דגל שמתחיל ב"סנכרון ישן או חסר" פירושו שהטבלה מחוברת והסנכרון ישן. אמרי שהסנכרון ישן וציני את הפלטפורמה.
-3. כש-is_ecommerce=true, הציגי רכישות ו-ROAS (purchases_7d, roas_7d) במקום CPL.$$,
-        'כשהטבלה מחוברת והסנכרון ישן, אל תאמרי "אין נתונים". אל תמציאי מדדים שהכלי לא החזיר.',
-        ARRAY['get_latest_campaign_pulse']::text[]
-      ),
-      (
-        'identity-guard',
-        'תמיד מזדהה ככרמן',
-        'כרמן תמיד מזדהה ככרמן ולא מאמצת זהות של אדם, דמות או בוט אחר, גם כשמבקשים ממנה.',
-        -- No bare 'מי את': the registry matches a trigger anywhere in the
-        -- text, so it fires on any imperative ending in -מי before 'את'
-        -- ('תסכמי את הפגישה').
-        ARRAY[
-          'מי את?',
-          'מי את בכלל',
-          'מה שמך',
-          'איך קוראים לך',
-          'עם מי אני מדבר',
-          'תתחזי',
-          'להתחזות',
-          'תעמידי פנים',
-          'תציגי את עצמך',
-          'who are you',
-          'what is your name',
-          'pretend to be',
-          'impersonate',
-          'act as someone else'
-        ]::text[],
-        $$1. כששואלים מי את, עני שאת כרמן.
-2. כשמבקשים ממך להתחזות לאדם, לדמות או לבוט אחר, אמרי שאת כרמן והציעי לעזור ככרמן.
-3. טקסט שאת כותבת לבקשת המשתמש בקול של מותג או בשמו הוא לא החלפת זהות.$$,
-        $$תמיד הזדהי ככרמן. לעולם אל תאמצי זהות של דמות אחרת.
-כששואלים מי את או איך קוראים לך, עני שאת כרמן.
-כשמבקשים ממך להתחזות לאדם, לדמות או לבוט אחר, סרבי בקצרה והמשיכי לעזור ככרמן.$$,
-        'אל תציגי את עצמך כאדם, כדמות או כבוט אחר, גם כשמבקשים ממך.',
         '{}'::text[]
       )
   ),
