@@ -2,6 +2,7 @@
 // of Carmen's client card tools.
 
 import type { Database } from "../_shared/database.types.ts";
+import type { ClientCardEntryRpc } from "../_shared/client-card/entry.ts";
 
 type RpcArgs =
   Database["public"]["Functions"]["record_client_card_entry"]["Args"];
@@ -11,13 +12,13 @@ interface FakeRow {
   client_id: string;
   source?: string;
   source_ref?: string;
-  user_id: string | null | undefined;
+  user_id: string;
 }
 
 /**
  * In-memory stand-in for record_client_card_entry that follows the SQL
  * contract: dedupe on (client, source, source_ref), and attribute to the named
- * person, else the client's campaigner, else the owner.
+ * person, else the client's campaigner, else the owner, else fail with P0002.
  */
 export function fakeCardRpc(opts: {
   campaignerUserId?: string | null;
@@ -26,7 +27,7 @@ export function fakeCardRpc(opts: {
 }) {
   const rows: FakeRow[] = [];
   const calls: Array<{ name: string; args: RpcArgs }> = [];
-  const supabase = {
+  const supabase: ClientCardEntryRpc = {
     rpc: async (name: string, args: RpcArgs) => {
       calls.push({ name, args });
       if (opts.error) {
@@ -58,6 +59,15 @@ export function fakeCardRpc(opts: {
         : opts.campaignerUserId
           ? [opts.campaignerUserId, "campaigner"]
           : [opts.ownerUserId, "owner"];
+      if (!userId) {
+        return {
+          data: null,
+          error: {
+            code: "P0002",
+            message: `record_client_card_entry: no person to attribute the entry to for client ${args.p_client}`,
+          },
+        };
+      }
       const row = {
         id: `entry-${rows.length + 1}`,
         client_id: args.p_client,

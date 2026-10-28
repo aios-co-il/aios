@@ -12,7 +12,10 @@ export type ReportDeliveryInput = {
   targetType: "table" | "dashboard" | "meeting_summary";
   targetId: string;
   title: string;
-  /** The link sent to the client; leave it out when the send has none. */
+  /**
+   * The link sent to the client; leave it out when the send has none. It
+   * stays on this tenant-only delivery row: the card entry never copies it.
+   */
   shareUrl?: string | null;
   requested: { whatsapp: boolean; email: boolean };
   sent: readonly ReportDeliveryChannel[];

@@ -33,43 +33,72 @@ describe("isClientUpdateSourceFilter", () => {
 });
 
 describe("canModifyClientUpdate", () => {
-  test("automatic entries are edited only by owners; own human notes by their author", () => {
-    const me = "user-1";
+  const me = "user-1";
+  const myTenant = "tenant-dmm";
+  const otherTenant = "tenant-mc";
+  const row = {
+    rowUserId: "someone-else",
+    currentUserId: me,
+    rowTenantId: myTenant,
+    currentTenantId: myTenant,
+  };
+
+  test("own human notes are edited by their author only", () => {
     expect(
       canModifyClientUpdate({
+        ...row,
         source: "human",
         rowUserId: me,
-        currentUserId: me,
         canManageAutomaticEntries: false,
       }),
     ).toBe(true);
 
     expect(
       canModifyClientUpdate({
+        ...row,
         source: null,
-        rowUserId: "someone-else",
-        currentUserId: me,
         canManageAutomaticEntries: true,
       }),
     ).toBe(false);
+  });
 
+  test("automatic entries are edited only by owners of the tenant that wrote them", () => {
     // A Carmen entry attributed to the campaigner is still not theirs to edit.
     expect(
       canModifyClientUpdate({
+        ...row,
         source: "carmen_confirmed",
         rowUserId: me,
-        currentUserId: me,
         canManageAutomaticEntries: false,
       }),
     ).toBe(false);
 
     expect(
       canModifyClientUpdate({
+        ...row,
         source: "system_send",
-        rowUserId: "someone-else",
-        currentUserId: me,
         canManageAutomaticEntries: true,
       }),
     ).toBe(true);
+  });
+
+  test("an automatic entry another org wrote on a shared client stays read-only", () => {
+    expect(
+      canModifyClientUpdate({
+        ...row,
+        source: "carmen",
+        rowTenantId: otherTenant,
+        canManageAutomaticEntries: true,
+      }),
+    ).toBe(false);
+
+    expect(
+      canModifyClientUpdate({
+        ...row,
+        source: "automation",
+        currentTenantId: null,
+        canManageAutomaticEntries: true,
+      }),
+    ).toBe(false);
   });
 });
