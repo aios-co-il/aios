@@ -1,10 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import { lineStore } from "../_shared/report-sender/line-store.ts";
-import { namedLineRefusal } from "../_shared/report-sender/refusals.ts";
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { toGatewayPhone } from "../_shared/telephony/phone.ts";
+import { liveLineDeps, sendLine } from "./line.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -170,56 +170,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    const lineRefusal = await namedLineRefusal(lineStore(serviceClient()), {
+    const lineStep = await sendLine(liveLineDeps(serviceClient()), {
       isServiceRole,
       tenantId,
       userId,
       integrationId,
-      type: "manus_wa",
+      superAdmin: superAdmin === true,
     });
-    if (lineRefusal) {
-      return new Response(JSON.stringify(lineRefusal.body), {
-        status: lineRefusal.status,
+    if ("refusal" in lineStep) {
+      return new Response(JSON.stringify(lineStep.refusal.body), {
+        status: lineStep.refusal.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const integ = lineStep.line;
+    const instanceId = integ && lineSetting(integ.settings, "instance_id");
 
-    // Find integration
-    let integ: any = null;
-    if (integrationId) {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .eq("integration_type", "manus_wa")
-        .eq("is_active", true)
-        .maybeSingle();
-      integ = data;
-      if (integ?.tenant_id !== tenantId) {
-        const { data: canUse, error: accessError } = await admin.rpc(
-          "tenant_can_use_integration",
-          {
-            p_tenant_id: tenantId,
-            p_integration_id: integrationId,
-          },
-        );
-        if (accessError) throw accessError;
-        if (canUse !== true && superAdmin !== true) integ = null;
-      }
-    } else {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .eq("integration_type", "manus_wa")
-        .eq("is_active", true)
-        .order("created_at", { ascending: true })
-        .limit(1);
-      integ = data?.[0] || null;
-    }
-
-    if (!integ?.api_key || !(integ?.settings as any)?.instance_id) {
+    if (!integ?.api_key || !instanceId) {
       return new Response(
         JSON.stringify({ error: "Manus WhatsApp not configured" }),
         {
@@ -229,14 +196,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const settings = integ.settings as any;
-    const instanceId = settings.instance_id;
     const apiKey = integ.api_key;
-    const cc = (
-      settings.country_code ||
-      settings.default_country_code ||
-      "972"
-    ).toString();
+    const cc =
+      lineSetting(integ.settings, "country_code") ??
+      lineSetting(integ.settings, "default_country_code") ??
+      "972";
     // For groups, send chat id as-is (e.g. "1234567890-9876543210@g.us"); otherwise normalize phone.
     const to = groupChatId
       ? groupChatId

@@ -19,8 +19,11 @@
 -- 5. list_report_whatsapp_senders returns the lines a member (or a
 --    schedule's creator, for the report worker) may send from, without
 --    secrets.
--- 6. A trigger refuses a schedule line its creator may not use. It never
---    touches next_run_at, so choosing a line never sends anything.
+-- 6. A trigger keeps report_schedules.created_by trusted, since the worker
+--    sends as the creator: a member's insert records that member, and only
+--    server code changes it later. It refuses a schedule line its creator
+--    may not use. It never touches next_run_at, so choosing a line never
+--    sends anything.
 -- 7. report-media is a private bucket for files sent through Manus, which
 --    fetches media by URL. Only the service role reads or writes it.
 -- 8. Existing WhatsApp schedules are pinned to the line they always used, so
@@ -318,23 +321,43 @@ REVOKE ALL ON FUNCTION public.list_report_whatsapp_senders(uuid, uuid)
 GRANT EXECUTE ON FUNCTION public.list_report_whatsapp_senders(uuid, uuid)
   TO authenticated, service_role;
 
--- 6. A schedule may only name a line its creator may use, since the worker
--- sends as the creator. Checked when the line or the tenant changes, so a
--- line that was later switched off does not stop anyone from editing or
--- disabling the schedule. The worker checks the line for the creator again
--- at every run, so a schedule taken over by a member who may not use its
--- line is refused there.
+-- 6. The worker sends as a schedule's creator, so created_by is trusted. A
+-- signed-in member's token (the browser) records that member on insert and
+-- never changes it on update. Server code may set it: the service role, or
+-- a session with no request token, such as a migration or auth deleting a
+-- user, whose foreign key clears it.
+--
+-- A schedule may only name a line its creator may use. Checked when the
+-- line or the tenant changes, so a line that was later switched off does
+-- not stop anyone from editing or disabling the schedule. The worker checks
+-- the line for the creator again at every run, so a creator who later loses
+-- the line is refused there.
 CREATE OR REPLACE FUNCTION public.check_report_schedule_sender()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_member_token boolean :=
+    coalesce(auth.jwt() ->> 'role', auth.role(), '') IN ('authenticated', 'anon');
 BEGIN
-  IF TG_OP = 'UPDATE'
-     AND NEW.whatsapp_integration_id IS NOT DISTINCT FROM OLD.whatsapp_integration_id
-     AND NEW.tenant_id = OLD.tenant_id THEN
-    RETURN NEW;
+  IF TG_OP = 'INSERT' THEN
+    IF v_member_token AND NEW.created_by IS DISTINCT FROM auth.uid() THEN
+      RAISE NOTICE 'report_schedules %: created_by set to the member inserting it',
+        NEW.id;
+      NEW.created_by := auth.uid();
+    END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF v_member_token AND NEW.created_by IS DISTINCT FROM OLD.created_by THEN
+      RAISE NOTICE 'report_schedules %: created_by kept, a member may not change it',
+        NEW.id;
+      NEW.created_by := OLD.created_by;
+    END IF;
+    IF NEW.whatsapp_integration_id IS NOT DISTINCT FROM OLD.whatsapp_integration_id
+       AND NEW.tenant_id = OLD.tenant_id THEN
+      RETURN NEW;
+    END IF;
   END IF;
 
   IF NEW.whatsapp_integration_id IS NOT NULL
@@ -355,7 +378,7 @@ REVOKE ALL ON FUNCTION public.check_report_schedule_sender()
 
 DROP TRIGGER IF EXISTS report_schedules_check_sender ON public.report_schedules;
 CREATE TRIGGER report_schedules_check_sender
-  BEFORE INSERT OR UPDATE OF whatsapp_integration_id, tenant_id
+  BEFORE INSERT OR UPDATE OF whatsapp_integration_id, tenant_id, created_by
   ON public.report_schedules
   FOR EACH ROW
   EXECUTE FUNCTION public.check_report_schedule_sender();

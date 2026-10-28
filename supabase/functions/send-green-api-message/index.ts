@@ -1,27 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import { lineStore } from "../_shared/report-sender/line-store.ts";
-import { namedLineRefusal } from "../_shared/report-sender/refusals.ts";
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { claimIdenticalWhatsAppSend } from "../_shared/facebook-lead-dedup.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { liveLineDeps, sendLine } from "./line.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-};
-
-type GreenApiIntegration = {
-  id: string;
-  tenant_id: string;
-  user_id?: string | null;
-  api_key?: string | null;
-  settings?: {
-    instance_id?: string;
-    country_code?: string;
-    default_country_code?: string;
-  } | null;
 };
 
 Deno.serve(async (req) => {
@@ -203,56 +191,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    const lineRefusal = await namedLineRefusal(lineStore(serviceClient()), {
+    const lineStep = await sendLine(liveLineDeps(serviceClient()), {
       isServiceRole,
       tenantId,
       userId,
       integrationId,
-      type: "green_api",
+      superAdmin: superAdmin === true,
     });
-    if (lineRefusal) {
-      return new Response(JSON.stringify(lineRefusal.body), {
-        status: lineRefusal.status,
+    if ("refusal" in lineStep) {
+      return new Response(JSON.stringify(lineStep.refusal.body), {
+        status: lineStep.refusal.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const integration = lineStep.line;
+    const instanceId =
+      integration && lineSetting(integration.settings, "instance_id");
 
-    // Resolve either the caller's own connection or one explicitly shared with
-    // their tenant. The canonical credential row stays in the owner tenant.
-    let integration: GreenApiIntegration | null = null;
-    if (integrationId) {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .eq("integration_type", "green_api")
-        .eq("is_active", true)
-        .maybeSingle();
-      integration = data;
-      if (integration?.tenant_id !== tenantId) {
-        const { data: canUse, error: accessError } = await admin.rpc(
-          "tenant_can_use_integration",
-          {
-            p_tenant_id: tenantId,
-            p_integration_id: integrationId,
-          },
-        );
-        if (accessError) throw accessError;
-        if (canUse !== true && superAdmin !== true) integration = null;
-      }
-    } else {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .eq("integration_type", "green_api")
-        .eq("is_active", true)
-        .maybeSingle();
-      integration = data;
-    }
-
-    if (!integration?.api_key || !integration?.settings?.instance_id) {
+    if (!integration?.api_key || !instanceId) {
       console.error("Green API integration not configured for user:", userId);
       return new Response(
         JSON.stringify({
@@ -266,7 +222,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const instanceId = integration.settings.instance_id;
     const apiToken = integration.api_key;
 
     // Normalize phone to international format suitable for WhatsApp (chatId)
@@ -284,11 +239,10 @@ Deno.serve(async (req) => {
       }
 
       // Determine country code from integration settings or fallback to IL (972)
-      const configuredCc = (
-        integration.settings?.country_code ||
-        integration.settings?.default_country_code ||
-        ""
-      ).toString();
+      const configuredCc =
+        lineSetting(integration.settings, "country_code") ??
+        lineSetting(integration.settings, "default_country_code") ??
+        "";
       const defaultCountryCode =
         configuredCc && /^(\d{1,3})$/.test(configuredCc) ? configuredCc : "972";
 

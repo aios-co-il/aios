@@ -264,11 +264,22 @@ BEGIN
   PERFORM public.set_report_whatsapp_sender(v_tenant, v_own);
   PERFORM set_config('request.jwt.claims', '', true);
 
+  -- A member's insert records that member as the creator, whoever it names.
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_member)::text,
+    true
+  );
+  INSERT INTO public.report_schedules (tenant_id, client_id, target_type, table_id, whatsapp_integration_id, created_by)
+  VALUES (v_tenant, v_client, 'table', v_table, v_shared, v_colleague)
+  RETURNING id INTO v_schedule;
+  IF (SELECT created_by FROM public.report_schedules WHERE id = v_schedule) IS DISTINCT FROM v_member THEN
+    RAISE EXCEPTION 'creator: a member''s insert must record that member';
+  END IF;
+  PERFORM set_config('request.jwt.claims', '', true);
+
   -- A schedule may name a line its creator may use, never another member's
   -- private line or another tenant's line.
-  INSERT INTO public.report_schedules (tenant_id, client_id, target_type, table_id, whatsapp_integration_id)
-  VALUES (v_tenant, v_client, 'table', v_table, v_shared)
-  RETURNING id INTO v_schedule;
   BEGIN
     UPDATE public.report_schedules
     SET whatsapp_integration_id = v_member_line, created_by = v_colleague
@@ -293,6 +304,34 @@ BEGIN
     NULL;
   END;
   UPDATE public.report_schedules SET whatsapp_integration_id = v_shared WHERE id = v_schedule;
+
+  -- The worker sends as the creator, so a member never names another one:
+  -- naming the owner of a private line does not open it, and an update
+  -- keeps the creator. The service role may change it.
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_colleague)::text,
+    true
+  );
+  BEGIN
+    INSERT INTO public.report_schedules (tenant_id, client_id, target_type, table_id, whatsapp_integration_id, created_by)
+    VALUES (v_tenant, v_client, 'table', v_table, v_member_line, v_member)
+    ON CONFLICT DO NOTHING;
+    RAISE EXCEPTION 'creator: naming another member must not open their private line';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+  UPDATE public.report_schedules SET created_by = v_colleague WHERE id = v_schedule;
+  UPDATE public.report_schedules SET created_by = NULL WHERE id = v_schedule;
+  IF (SELECT created_by FROM public.report_schedules WHERE id = v_schedule) IS DISTINCT FROM v_member THEN
+    RAISE EXCEPTION 'creator: a member must not change the creator';
+  END IF;
+  PERFORM set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  UPDATE public.report_schedules SET created_by = v_colleague WHERE id = v_schedule;
+  IF (SELECT created_by FROM public.report_schedules WHERE id = v_schedule) IS DISTINCT FROM v_colleague THEN
+    RAISE EXCEPTION 'creator: the service role may change the creator';
+  END IF;
+  PERFORM set_config('request.jwt.claims', '', true);
 
   -- A line switched off later does not block editing or disabling the schedule.
   UPDATE public.tenant_integrations SET is_active = false WHERE id = v_shared;
