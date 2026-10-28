@@ -22,8 +22,9 @@
 -- 6. A trigger keeps report_schedules.created_by trusted, since the worker
 --    sends as the creator: a member's insert records that member, and only
 --    server code changes it later. It refuses a schedule line its creator
---    may not use. It never touches next_run_at, so choosing a line never
---    sends anything.
+--    may not use, and a colleague's edit that leaves the schedule sending
+--    from a line that colleague may not use. It never touches next_run_at,
+--    so choosing a line never sends anything.
 -- 7. report-media is a private bucket for files sent through Manus, which
 --    fetches media by URL. Only the service role reads or writes it.
 -- 8. Existing WhatsApp schedules are pinned to the line they always used, so
@@ -329,9 +330,17 @@ GRANT EXECUTE ON FUNCTION public.list_report_whatsapp_senders(uuid, uuid)
 --
 -- A schedule may only name a line its creator may use. Checked when the
 -- line or the tenant changes, so a line that was later switched off does
--- not stop anyone from editing or disabling the schedule. The worker checks
--- the line for the creator again at every run, so a creator who later loses
--- the line is refused there.
+-- not stop its creator from editing it, or anyone from disabling it. The
+-- worker checks the line for the creator again at every run, so a creator
+-- who later loses the line is refused there.
+--
+-- A member editing a colleague's schedule may leave it sending WhatsApp only
+-- from a line that member may use too: its own line, else the tenant
+-- default. Otherwise they could put their own text and recipient on the
+-- colleague's private line. Switching it off or dropping WhatsApp stays open
+-- to every member. A nested update is not checked: deleting a line clears it
+-- from schedules through the foreign key, and a member may always delete
+-- their own line.
 CREATE OR REPLACE FUNCTION public.check_report_schedule_sender()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -353,6 +362,28 @@ BEGIN
       RAISE NOTICE 'report_schedules %: created_by kept, a member may not change it',
         NEW.id;
       NEW.created_by := OLD.created_by;
+    END IF;
+    IF v_member_token
+       AND auth.uid() IS DISTINCT FROM NEW.created_by
+       AND NEW.enabled
+       AND 'whatsapp' = ANY (NEW.channels) THEN
+      IF pg_trigger_depth() > 1 THEN
+        RAISE NOTICE 'report_schedules %: nested update, line not checked for the editing member',
+          NEW.id;
+      ELSIF NOT public.report_whatsapp_sender_usable(
+        NEW.tenant_id,
+        coalesce(
+          NEW.whatsapp_integration_id,
+          (
+            SELECT s.whatsapp_integration_id
+            FROM public.tenant_report_settings AS s
+            WHERE s.tenant_id = NEW.tenant_id
+          )
+        ),
+        auth.uid()
+      ) THEN
+        RAISE EXCEPTION 'report_sender_not_allowed' USING ERRCODE = '22023';
+      END IF;
     END IF;
     IF NEW.whatsapp_integration_id IS NOT DISTINCT FROM OLD.whatsapp_integration_id
        AND NEW.tenant_id = OLD.tenant_id THEN
@@ -378,7 +409,7 @@ REVOKE ALL ON FUNCTION public.check_report_schedule_sender()
 
 DROP TRIGGER IF EXISTS report_schedules_check_sender ON public.report_schedules;
 CREATE TRIGGER report_schedules_check_sender
-  BEFORE INSERT OR UPDATE OF whatsapp_integration_id, tenant_id, created_by
+  BEFORE INSERT OR UPDATE
   ON public.report_schedules
   FOR EACH ROW
   EXECUTE FUNCTION public.check_report_schedule_sender();

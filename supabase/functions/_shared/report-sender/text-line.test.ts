@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import type { SenderLine } from "../_shared/report-sender/line-store.ts";
-import { type LineDeps, sendLine } from "./line.ts";
+import type { SenderLine } from "./line-store.ts";
+import { type LineDeps, sendLine } from "./text-line.ts";
+import type { ReportSenderType } from "./types.ts";
 
 const TENANT = "tenant-dmm";
 const OTHER = "tenant-other";
@@ -62,14 +63,16 @@ const deps: LineDeps = {
     tenantId === TENANT && userId === MEMBER ? lines.own : null,
 };
 
-/** The line step of a send by `userId` for the tenant. */
+/** The line step of a Green API send by `userId` for the tenant. */
 function step(input: {
+  type?: ReportSenderType;
   integrationId?: string;
   userId?: string;
   isServiceRole?: boolean;
   superAdmin?: boolean;
 }) {
   return sendLine(deps, {
+    type: "green_api",
     tenantId: TENANT,
     userId: MEMBER,
     isServiceRole: false,
@@ -137,5 +140,20 @@ Deno.test("sendLine", async (t) => {
   await t.step("uses the caller's own line when none is named", async () => {
     assertEquals(await step({}), { line: lines.own });
     assertEquals(await step({ userId: COLLEAGUE }), { line: null });
+  });
+
+  await t.step("looks the named line up as the send's type", async () => {
+    assertEquals(
+      await step({ type: "manus_wa", integrationId: "org" }),
+      NOT_ALLOWED,
+    );
+    assertEquals(
+      await step({
+        type: "manus_wa",
+        integrationId: "org",
+        isServiceRole: true,
+      }),
+      { line: null },
+    );
   });
 });

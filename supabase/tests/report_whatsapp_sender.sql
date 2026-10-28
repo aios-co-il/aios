@@ -17,6 +17,7 @@ DECLARE
   v_stranger uuid;
   v_admin uuid;
   v_member_line uuid;
+  v_colleague_line uuid;
   v_forged uuid;
   v_schedule uuid;
   v_ids uuid[];
@@ -304,6 +305,82 @@ BEGIN
     NULL;
   END;
   UPDATE public.report_schedules SET whatsapp_integration_id = v_shared WHERE id = v_schedule;
+
+  -- A colleague may leave the member's enabled schedule sending only from a
+  -- line the colleague may use too: never point it at the member's private
+  -- line, nor change its recipient while it sends from that line or from
+  -- the member's own line through a NULL with no default.
+  UPDATE public.report_schedules SET enabled = true WHERE id = v_schedule;
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_colleague)::text,
+    true
+  );
+  BEGIN
+    UPDATE public.report_schedules
+    SET whatsapp_integration_id = v_member_line, phone = '+972500000001', message = 'qa colleague'
+    WHERE id = v_schedule;
+    RAISE EXCEPTION 'colleague: must not point a member''s schedule at the member''s private line';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+  UPDATE public.report_schedules SET phone = '+972500000001' WHERE id = v_schedule;
+  PERFORM set_config('request.jwt.claims', '', true);
+  UPDATE public.report_schedules SET whatsapp_integration_id = v_member_line WHERE id = v_schedule;
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_colleague)::text,
+    true
+  );
+  BEGIN
+    UPDATE public.report_schedules SET phone = '+972500000002' WHERE id = v_schedule;
+    RAISE EXCEPTION 'colleague: must not edit a schedule that sends from a member''s private line';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+  -- The default (the organization line) serves the colleague too.
+  UPDATE public.report_schedules SET whatsapp_integration_id = NULL WHERE id = v_schedule;
+  PERFORM set_config('request.jwt.claims', '', true);
+  UPDATE public.tenant_report_settings SET whatsapp_integration_id = NULL WHERE tenant_id = v_tenant;
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_colleague)::text,
+    true
+  );
+  BEGIN
+    UPDATE public.report_schedules SET phone = '+972500000002' WHERE id = v_schedule;
+    RAISE EXCEPTION 'colleague: a NULL line with no default must not pass';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+
+  -- Deleting a line clears it from a member's schedule through the foreign
+  -- key, which its owner may always do.
+  INSERT INTO public.tenant_integrations (tenant_id, user_id, integration_type, is_active, api_key, settings, connection_visibility)
+  VALUES (v_tenant, v_colleague, 'green_api', true, 'qa-key', '{"instance_id": "qa-colleague"}', 'org')
+  RETURNING id INTO v_colleague_line;
+  UPDATE public.report_schedules SET whatsapp_integration_id = v_colleague_line WHERE id = v_schedule;
+  DELETE FROM public.tenant_integrations WHERE id = v_colleague_line;
+
+  -- Switching it off stays open to the colleague, and the member edits it.
+  PERFORM set_config('request.jwt.claims', '', true);
+  UPDATE public.report_schedules SET whatsapp_integration_id = v_member_line WHERE id = v_schedule;
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_colleague)::text,
+    true
+  );
+  UPDATE public.report_schedules SET enabled = false WHERE id = v_schedule;
+  PERFORM set_config(
+    'request.jwt.claims',
+    jsonb_build_object('role', 'authenticated', 'sub', v_member)::text,
+    true
+  );
+  UPDATE public.report_schedules SET enabled = true, phone = '+972500000003' WHERE id = v_schedule;
+  PERFORM set_config('request.jwt.claims', '', true);
+  UPDATE public.report_schedules
+  SET whatsapp_integration_id = v_shared, enabled = false
+  WHERE id = v_schedule;
 
   -- The worker sends as the creator, so a member never names another one:
   -- naming the owner of a private line does not open it, and an update
