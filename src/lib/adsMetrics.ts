@@ -314,7 +314,11 @@ export function groupFacebookCampaigns(
   return { ecommerce: [], leads: nonTraffic, traffic };
 }
 
-/** The key Facebook campaign rows are aggregated under: the campaign's name. */
+/**
+ * The key Facebook campaign rows are aggregated under: the campaign's name. The
+ * reports key by campaign id, so two same-name campaigns still merge on the
+ * dashboards and the share link (AIO-263).
+ */
 export function facebookCampaignKey(data: NullableAdsMetricData): string {
   return data?.campaign_name || data?.campaign || "ללא שם";
 }
