@@ -1,7 +1,10 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import type { PublishAccessLookups } from "../_shared/tenant-publish-access.ts";
-import { authorizeUserPublishTarget } from "./publish-target.ts";
+import {
+  authorizeUserPublishTarget,
+  splitByClientAccess,
+} from "./publish-target.ts";
 
 const TENANT = "tenant-a";
 const ENTRY = { tenant_id: TENANT, client_id: "client-1" };
@@ -174,6 +177,79 @@ describe("authorizeUserPublishTarget", () => {
         ),
       Error,
       "db down",
+    );
+  });
+});
+
+describe("splitByClientAccess", () => {
+  const due = (id: string, client_id: string | null) => ({
+    id,
+    tenant_id: TENANT,
+    client_id,
+  });
+
+  it("refuses each entry of a client the user cannot access", async () => {
+    const lookups = fakeLookups();
+    const split = await splitByClientAccess(
+      user("with-access"),
+      [due("e1", "client-1"), due("e2", "client-2"), due("e3", "client-1")],
+      lookups,
+    );
+    assertEquals(split, {
+      publishable: [due("e1", "client-1"), due("e3", "client-1")],
+      refused: [{ id: "e2", ok: false, error: "No access to this client" }],
+    });
+    assertEquals(lookups.clientChecks, ["client-1", "client-2"]);
+  });
+
+  it("a work item without a client does not cover its entries", async () => {
+    const { db } = fakeDb({
+      marketing_work_items: { tenant_id: TENANT, client_id: null },
+    });
+    const lookups = fakeLookups();
+    const target = await authorizeUserPublishTarget(
+      db,
+      user("no-access"),
+      { workItemId: "item-1" },
+      lookups,
+    );
+    assertEquals(target, { allowed: true, tenantId: TENANT });
+    const split = await splitByClientAccess(
+      user("no-access"),
+      [due("e1", "client-1"), due("e2", null)],
+      lookups,
+    );
+    assertEquals(split, {
+      publishable: [due("e2", null)],
+      refused: [{ id: "e1", ok: false, error: "No access to this client" }],
+    });
+  });
+
+  it("lets the service role publish every entry without lookups", async () => {
+    const lookups = fakeLookups();
+    const split = await splitByClientAccess(
+      { kind: "service", userId: null },
+      [due("e1", "client-2")],
+      lookups,
+    );
+    assertEquals(split, { publishable: [due("e1", "client-2")], refused: [] });
+    assertEquals(lookups.clientChecks, []);
+  });
+
+  it("throws when a lookup fails instead of allowing", async () => {
+    const failing = {
+      ...fakeLookups(),
+      canAccessClient: () => Promise.reject(new Error("rpc down")),
+    };
+    await assertRejects(
+      () =>
+        splitByClientAccess(
+          user("with-access"),
+          [due("e1", "client-1")],
+          failing,
+        ),
+      Error,
+      "rpc down",
     );
   });
 });

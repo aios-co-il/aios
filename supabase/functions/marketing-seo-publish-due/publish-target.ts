@@ -3,6 +3,7 @@ import {
   type PublishAccessDb,
   type PublishAccessLookups,
   type PublishCaller,
+  type PublishDecision,
 } from "../_shared/tenant-publish-access.ts";
 
 /** What a user names to publish: one calendar entry, or a work item whose due
@@ -65,4 +66,52 @@ async function loadPublishTarget(
     throw error;
   }
   return data;
+}
+
+/** One entry's outcome in publish-due's response. */
+export type EntryResult = {
+  id: string;
+  ok: boolean;
+  error?: string;
+  link?: string;
+};
+
+type DueEntry = { id: string; tenant_id: string; client_id: string | null };
+
+/** Splits the due entries into those `caller` may publish and a failed result
+ * for each of the others. An entry keeps its own client when its work item's
+ * client is changed or cleared, so the check on the named work item does not
+ * cover it: each entry needs access to its own client (AIO-234). Each tenant
+ * and client pair is decided once. */
+export async function splitByClientAccess<E extends DueEntry>(
+  caller: PublishCaller,
+  entries: E[],
+  lookups: PublishAccessLookups,
+): Promise<{ publishable: E[]; refused: EntryResult[] }> {
+  const decisions = new Map<string, Promise<PublishDecision>>();
+  const decide = (entry: E) => {
+    const key = `${entry.tenant_id}:${entry.client_id ?? ""}`;
+    let decision = decisions.get(key);
+    if (!decision) {
+      decision = authorizeTenantPublisher(
+        caller,
+        entry.tenant_id,
+        [entry.client_id],
+        lookups,
+      );
+      decisions.set(key, decision);
+    }
+    return decision;
+  };
+  const publishable: E[] = [];
+  const refused: EntryResult[] = [];
+  for (const entry of entries) {
+    const decision = await decide(entry);
+    if (decision.allowed) {
+      publishable.push(entry);
+    } else {
+      refused.push({ id: entry.id, ok: false, error: decision.error });
+    }
+  }
+  return { publishable, refused };
 }

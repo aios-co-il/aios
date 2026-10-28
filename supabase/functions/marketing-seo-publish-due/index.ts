@@ -3,7 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/security.ts";
 import { timingSafeEqualStr } from "../_shared/timing-safe-equal.ts";
 import { publishAccessLookups } from "../_shared/tenant-publish-access.ts";
-import { authorizeUserPublishTarget } from "./publish-target.ts";
+import {
+  authorizeUserPublishTarget,
+  type EntryResult,
+  splitByClientAccess,
+} from "./publish-target.ts";
 import {
   loadWordPressSite,
   publishToWordPress,
@@ -43,10 +47,11 @@ serve(async (req) => {
 
     // Only cron sweeps every tenant. The service role must name one entry or
     // work item; a signed-in user, one of a tenant they belong to and a client
-    // they can access.
+    // they can access, and gets only the entries whose client they can access.
     let scopeTenantId: string | null = null;
+    const auth = isCron ? null : await requireAuth(req);
+    const lookups = publishAccessLookups(admin);
     if (!isCron) {
-      const auth = await requireAuth(req);
       if (!auth) return respond({ error: "Unauthorized" }, 401);
       if (!entry_id && !work_item_id)
         return respond({ error: "entry_id or work_item_id required" }, 400);
@@ -55,7 +60,7 @@ serve(async (req) => {
           admin,
           auth,
           { entryId: entry_id, workItemId: work_item_id },
-          publishAccessLookups(admin),
+          lookups,
         );
         if (!target.allowed) {
           return respond({ error: target.error }, target.status);
@@ -80,14 +85,12 @@ serve(async (req) => {
       .in("generation_status", ["draft"])
       .limit(20);
 
-    const results: Array<{
-      id: string;
-      ok: boolean;
-      error?: string;
-      link?: string;
-    }> = [];
+    const { publishable, refused } = auth
+      ? await splitByClientAccess(auth, entries ?? [], lookups)
+      : { publishable: entries ?? [], refused: [] };
+    const results: EntryResult[] = [...refused];
 
-    for (const entry of entries ?? []) {
+    for (const entry of publishable) {
       if (!entry.content_html?.trim()) {
         results.push({ id: entry.id, ok: false, error: "missing content" });
         continue;
