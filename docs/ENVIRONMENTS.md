@@ -128,6 +128,16 @@ Supabase Staging already allows `https://*.vercel.app/**` as redirect URLs. Goog
 
 Branch protection on `main` / `develop` is a GitHub settings change; the freshness and shared-agency guards must be required. Local checkouts still need Staging variables before running the frontend.
 
+## Video render workers
+
+The render worker claims paid media jobs (`marketing_runs`) for one environment at a time:
+
+- **Production:** only a Droplet container built from `main` (`render-worker/README.md`, "One container per environment").
+- **Staging:** `.github/workflows/render-worker.yml` runs `develop`'s worker every 10 minutes. One REST request first checks for a waiting run, and the run installs nothing when there is none. The Staging ref comes from the repo secret `SUPABASE_STAGING_PROJECT_ID`.
+- **PR previews:** `.github/workflows/render-worker-preview.yml` drains a PR's own Supabase preview branch, found under `PROD_PROJECT_REF`, on every push and on "Run workflow", and keeps listening 15 minutes after the queue empties.
+
+Neither GitHub drain claims Production runs. Both resolve their service key with `BASE_ACCESS_TOKEN` before anything from the branch is checked out or installed. A Staging or preview tenant with real provider keys pays for the jobs these drains run.
+
 ## Agent working rules
 
 1. Branch from `develop`. Hotfixes David asked for on Production may branch from `main`.
