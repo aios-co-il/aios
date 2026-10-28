@@ -3,6 +3,7 @@
  * Shared by campaign-pulse-snapshot (and unit-tested) so connected clients with
  * stale sync are never collapsed into no_data.
  */
+import { hasRepeatedSyncFailures } from "./ads-sync/freshness.ts";
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   isLegacyClientCallFlag,
@@ -53,11 +54,18 @@ export function resolveLastSyncAt(table: CampaignTableLike): string | null {
   )[0];
 }
 
+/**
+ * Stale = the last two runs in a row failed or came back empty (the morning sync
+ * and the next one), or no successful write within `staleMs` (the syncs stopped
+ * running). One failed run alone is not stale, so a transient platform error (a
+ * rate limit) raises no connection alert; the report pages show it at once.
+ */
 export function isSyncStale(
   table: CampaignTableLike,
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
+  if (hasRepeatedSyncFailures(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
