@@ -53,6 +53,7 @@ interface SeoItem {
   id: string;
   title: string | null;
   status: string;
+  client_id: string | null;
   payload: Record<string, unknown> | null;
   current_stage_id: string | null;
   updated_at: string;
@@ -143,7 +144,7 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
     queryFn: async () => {
       let query = supabase
         .from("marketing_work_items")
-        .select("id,title,status,payload,current_stage_id,updated_at")
+        .select("id,title,status,client_id,payload,current_stage_id,updated_at")
         .eq("tenant_id", tenantId)
         .order("updated_at", { ascending: false });
       query = applyClientFilter(query, clientFilter);
