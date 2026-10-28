@@ -2,11 +2,11 @@
 // caller's JWT, the Staging guard and the Manus gateway.
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { lineStore } from "../_shared/report-sender/line-store.ts";
+import { ownManusLine } from "../_shared/report-sender/own-manus-line.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { deliverManusMedia } from "./gateway.ts";
 import type { FileSendDeps } from "./handler.ts";
-import { ownManusLine } from "./line.ts";
 import { recordSend } from "./record.ts";
 import { findGroupChatId } from "./target.ts";
 import { resolveTenantId } from "./tenant.ts";

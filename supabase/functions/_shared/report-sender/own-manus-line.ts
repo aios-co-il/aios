@@ -1,7 +1,7 @@
-// The Manus line a file goes out from when the call names none (older
-// callers), as before lines could be chosen.
-import type { SenderLine } from "../_shared/report-sender/line-store.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
+// The Manus line a text or file send goes out from when the call names none
+// (older callers), as before lines could be chosen (AIO-255).
+import type { DbClient } from "../supabase-clients.ts";
+import type { SenderLine } from "./line-store.ts";
 
 /** The caller's oldest active Manus line in the tenant. */
 export async function ownManusLine(

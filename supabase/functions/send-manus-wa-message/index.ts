@@ -4,7 +4,8 @@ import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { toGatewayPhone } from "../_shared/telephony/phone.ts";
-import { liveLineDeps, sendLine } from "./line.ts";
+import { sendLine } from "../_shared/report-sender/text-line.ts";
+import { liveLineDeps } from "./line.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -171,6 +172,7 @@ Deno.serve(async (req) => {
     }
 
     const lineStep = await sendLine(liveLineDeps(serviceClient()), {
+      type: "manus_wa",
       isServiceRole,
       tenantId,
       userId,

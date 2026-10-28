@@ -9,9 +9,11 @@ type ScheduleForShare = Pick<
 >;
 
 /**
- * The public URL of the schedule's table or dashboard: its latest share,
- * switched back on when someone switched it off, else a new share in the
- * schedule creator's name.
+ * The public URL of the schedule's table or dashboard: its tenant's latest
+ * share, switched back on when someone switched it off, else a new share in
+ * the schedule creator's name. Only the schedule tenant's shares count: a
+ * member writes the schedule's table_id/dashboard_id, which nothing ties to
+ * its tenant yet (AIO-126).
  */
 export async function ensureReportShare(
   admin: DbClient,
@@ -25,6 +27,7 @@ export async function ensureReportShare(
     .from(shareTable)
     .select("share_token, is_active")
     .eq(targetColumn, targetId)
+    .eq("tenant_id", schedule.tenant_id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -35,7 +38,8 @@ export async function ensureReportShare(
     const { error: updateError } = await admin
       .from(shareTable)
       .update({ is_active: true })
-      .eq(targetColumn, targetId);
+      .eq(targetColumn, targetId)
+      .eq("tenant_id", schedule.tenant_id);
     if (updateError) {
       throw updateError;
     }
