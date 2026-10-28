@@ -5,9 +5,11 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
+  authorizePublishTarget,
   authorizeTenantPublisher,
   publishAccessLookups,
   type PublishAccessLookups,
+  type PublishTarget,
   wordPressSiteScopeError,
 } from "./tenant-publish-access.ts";
 
@@ -205,6 +207,57 @@ Deno.test("an RPC error throws instead of granting access", async () => {
     }).db,
   );
   await assertRejects(() => l.isSuperAdmin("u1"), Error, "boom");
+});
+
+// authorizePublishTarget for member-a, against a fake client that returns
+// only the selected columns of `row`.
+function publishTarget(
+  row: Record<string, unknown> | null,
+  table: PublishTarget["table"] = "seo_geo_calendar_entries",
+  error: unknown = null,
+) {
+  let cols: string[] = [];
+  const builder = {
+    select: (s: string) => {
+      cols = s.split(",").map((c) => c.trim());
+      return builder;
+    },
+    eq: () => builder,
+    maybeSingle: async () => ({
+      data: row && Object.fromEntries(cols.map((c) => [c, row[c]])),
+      error,
+    }),
+  };
+  const db = { from: () => builder, rpc: fakeDb({}).db.rpc };
+  return authorizePublishTarget(
+    user("member-a"),
+    db,
+    { table, id: "1" },
+    lookups,
+  );
+}
+
+Deno.test("publishing a row needs access to the row's client", async () => {
+  const row = { tenant_id: TENANT, client_id: "client-2" };
+  assertEquals(await publishTarget(row), {
+    allowed: false,
+    status: 403,
+    error: "No access to this client",
+  });
+  assertEquals(await publishTarget({ ...row, client_id: "client-1" }), {
+    allowed: true,
+    tenantId: TENANT,
+  });
+});
+
+Deno.test("a missing row is 404 and a failed lookup throws", async () => {
+  assertEquals(await publishTarget(null, "marketing_work_items"), {
+    allowed: false,
+    status: 404,
+    error: "Work item not found",
+  });
+  const failed = () => publishTarget(null, undefined, new Error("db down"));
+  await assertRejects(failed, Error, "db down");
 });
 
 Deno.test("WordPress site scope: same tenant and client is allowed", () => {

@@ -2,10 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/security.ts";
 import { timingSafeEqualStr } from "../_shared/timing-safe-equal.ts";
-import {
-  authorizeTenantPublisher,
-  publishAccessLookups,
-} from "../_shared/tenant-publish-access.ts";
+import { authorizePublishTarget } from "../_shared/tenant-publish-access.ts";
 import {
   loadWordPressSite,
   publishToWordPress,
@@ -52,31 +49,17 @@ serve(async (req) => {
       if (!entry_id && !work_item_id)
         return respond({ error: "entry_id or work_item_id required" }, 400);
       if (auth.kind === "user") {
-        const { data: target } = entry_id
-          ? await admin
-              .from("seo_geo_calendar_entries")
-              .select("tenant_id")
-              .eq("id", entry_id)
-              .maybeSingle()
-          : await admin
-              .from("marketing_work_items")
-              .select("tenant_id")
-              .eq("id", work_item_id)
-              .maybeSingle();
-        if (!target)
-          return respond(
-            { error: entry_id ? "Entry not found" : "Work item not found" },
-            404,
-          );
-        const decision = await authorizeTenantPublisher(
+        // The row's tenant and its client (AIO-234).
+        const decision = await authorizePublishTarget(
           auth,
-          target.tenant_id,
-          [],
-          publishAccessLookups(admin),
+          admin,
+          entry_id
+            ? { table: "seo_geo_calendar_entries", id: entry_id }
+            : { table: "marketing_work_items", id: work_item_id },
         );
         if (!decision.allowed)
           return respond({ error: decision.error }, decision.status);
-        scopeTenantId = target.tenant_id;
+        scopeTenantId = decision.tenantId;
       }
     }
 
