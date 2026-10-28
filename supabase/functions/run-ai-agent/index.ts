@@ -18,12 +18,16 @@ import {
 } from "../_shared/carmen/brain-guard.ts";
 import {
   type BrainEngine,
+  type BrainEngineTarget,
   resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
 import {
-  generateOpenRouterImage,
-  tenantOpenRouterKey,
-} from "../_shared/creative/openrouterImage.ts";
+  movesToNextLink,
+  openRouterTail,
+  lazyBrainTail,
+} from "../_shared/carmen/brain-engine/openrouter-tail.ts";
+import { makeAdImage } from "../_shared/creative/ad-image.ts";
+import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
   activeSkinBlock,
@@ -63,6 +67,49 @@ import {
   isCreativeStudioTool,
 } from "../_shared/creative-studio-tools.ts";
 import {
+  WORKSHOP_SKIN,
+  WORKSHOP_TOOLS,
+  executeWorkshopTool,
+  isWorkshopTool,
+} from "../_shared/workshop-tools.ts";
+import {
+  isBlockedInWorkshop,
+  stripServerOnlyPayloadKeys,
+  workshopToolRefusal,
+} from "../_shared/workshop/blocked-tools.ts";
+import { skinForTool } from "../_shared/workshop/artifacts.ts";
+import {
+  ROLE_PERSONA,
+  ROLE_SKILL,
+  ROLE_TOOLS,
+  toolsForRole,
+  workshopRole,
+} from "../_shared/workshop/roles.ts";
+import {
+  workshopItemIdFrom,
+  workshopProjectKind,
+  workshopSceneIdFrom,
+} from "../_shared/workshop/role-project.ts";
+import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
+import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+
+import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
+import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
+import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
+import {
+  connectedProviders,
+  imageProvidersFor,
+} from "../_shared/workshop/capabilities.ts";
+import { fetchPublic } from "../_shared/public-fetch.ts";
+import { importWebImage } from "../_shared/workshop/tools/add-assets.ts";
+import {
+  SILENT_TURN_NUDGE,
+  fallbackReply,
+  shouldNudgeSilentTurn,
+} from "../_shared/workshop/reply.ts";
+import { connectionsStanding } from "../_shared/workshop/connections-standing.ts";
+import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
   recallAgentMemoryFTS,
@@ -85,6 +132,7 @@ import {
   resolveSkillsBySlug,
 } from "../_shared/skills/registry.ts";
 import { DEV_ENVIRONMENT_STANDING } from "../_shared/environments-standing.ts";
+import { selfQuestionsStanding } from "../_shared/carmen/self-questions.ts";
 import {
   applyToolForceIncludes,
   buildQuickAck,
@@ -178,10 +226,29 @@ import {
   approveDevTask,
   attachDevTaskSession,
   createDevTask,
+  DevTaskNotApprovedError,
   dispatchDevTask,
   findDuplicateDevTasks,
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
+import {
+  declineOfferedDevTask,
+  devTaskSendRule,
+  directDevSendRefusal,
+  findOfferedDevTask,
+  isExplicitDevTaskApproval,
+  isExplicitDevTaskDecline,
+  offersDevTask,
+  devTaskApprovalDecision,
+  workshopDevTaskRule,
+} from "../_shared/dev-task-approval.ts";
+import {
+  appOrigin,
+  carmenSkinEntries,
+  carmenSkinsResult,
+  customSkinPaths,
+  pathsToSign,
+} from "../_shared/carmen/skin-gallery.ts";
 import {
   addGoalBlocker,
   addGoalMilestone,
@@ -694,7 +761,11 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  // Questions about Carmen herself: her personas and their portraits, on every surface.
+  "get_carmen_skins",
   ...NATIVE_DEV_TASK_TOOLS,
+  // Offered only inside the workshop skin, where they are the main tools.
+  ...WORKSHOP_TOOLS.map((tool) => tool.name),
 ]);
 
 function capToolsForTarget(target: LLMTarget, tools: any[]): any[] {
@@ -2559,6 +2630,18 @@ const ALL_TOOLS = [
           enum: ["1:1", "16:9", "9:16", "4:5"],
           description: "יחס גובה-רוחב",
         },
+        reference_urls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "קישורי https של תמונות רפרנס (סגנון, דמות, מוצר) שהתמונה צריכה להתאים להן",
+        },
+        engine: {
+          type: "string",
+          enum: ["google", "elevenlabs", "higgsfield", "openai"],
+          description:
+            "מנוע תמונות מסוים. כשמחוברים כמה, שאלי את המשתמש באיזה ליצור. בלי זה נבחר אוטומטית.",
+        },
       },
       required: ["prompt"],
     },
@@ -3534,6 +3617,12 @@ const ALL_TOOLS = [
   // HERMES SKILLS SYSTEM (self-improving procedural memory)
   // ===========================
   {
+    name: "get_carmen_skins",
+    description:
+      "הסקינים (הפרסונות) של כרמן ותמונות הדיוקן שלהן: slug, שם בעברית, הסקינים שבכל פרסונה, has_portrait ו-portrait_url. כשהעסק העלה תמונה משלו לסקין מוחזר קישור חתום לשעה (source=custom). portrait_url הוא קישור מלא: בצ׳אט שמציג Markdown כתמונה ![שם](portrait_url), בוואטסאפ כקישור. לשאלות על כרמן עצמה, על הסקינים שלה ועל התמונות שלהן. קריאה בלבד.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
     name: "recall_skills",
     description:
       "חיפוש סקילים (פרוצדורות שמורות) רלוונטיים למשימה הנוכחית. השתמש כשהמשימה מורכבת/חוזרת ויתכן שכבר יש לך פרוצדורה שמורה לבצע אותה. הסקילים הרלוונטיים ביותר כבר מוזרקים אוטומטית, אבל ניתן לחפש עוד.",
@@ -4445,6 +4534,8 @@ const ALL_TOOLS = [
   // CAMPAIGNER MESSAGING
   // ===========================
   // send_message_to_campaigner / send_whatsapp_to_staff / lookup_staff_whatsapp — defined near send_message (CORE/PRIORITY) so the OpenAI 128-tool cap cannot drop them.
+  // Last, so adding them never shifts which earlier tools survive the tool cap.
+  ...WORKSHOP_TOOLS,
 ];
 
 // ===========================
@@ -5539,6 +5630,61 @@ async function tryCreateCalendarEventForTask(
   }
 }
 
+/**
+ * Why approve_dev_task / dispatch_dev_task may not act on this task now, in any chat (the user's
+ * yes in an AIOS chat must answer Carmen's previous message, which offered this task), or null
+ * when it may. A call with no user turn (a service or out-of-band call) is never a yes.
+ */
+async function devTaskApprovalRefusal(
+  supabase: any,
+  tenantId: string,
+  taskId: string,
+  conversationId: string | null,
+  turn:
+    | { turnStartedAt: string; appChatUser: boolean; lastAssistantText: string }
+    | null
+    | undefined,
+  userText: string | null,
+  approver: { id: string | null; tier: "full" | "bugfix" | null },
+): Promise<{ error: string; message: string } | null> {
+  const gate = turn ?? {
+    turnStartedAt: "",
+    appChatUser: false,
+    lastAssistantText: "",
+  };
+  const { data: task } = await supabase
+    .from("dev_tasks")
+    .select(
+      "id, status, created_at, assigned_agent, requested_by_user_id, source_conversation_id",
+    )
+    .eq("id", taskId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const offered = conversationId
+    ? await findOfferedDevTask(supabase, {
+        tenantId,
+        conversationId,
+        turnStartedAt: gate.turnStartedAt,
+      })
+    : null;
+  const decision = devTaskApprovalDecision({
+    task: task ?? null,
+    appChatUser: gate.appChatUser,
+    userText,
+    turnStartedAt: gate.turnStartedAt,
+    conversationId,
+    lastAssistantText: gate.lastAssistantText,
+    offeredTaskId: offered?.id ?? null,
+    approver,
+  });
+  return decision.ok
+    ? null
+    : {
+        error: `dev_task_approval_${decision.reason}`,
+        message: decision.message,
+      };
+}
+
 async function executeTool(
   name: string,
   args: Record<string, any>,
@@ -5553,6 +5699,24 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
+  approval: {
+    turnId?: string | null;
+    userText?: string | null;
+    /** Carmen's previous message; the workshop reads the taps that answer it. */
+    lastAssistant?: string | null;
+    outOfBand?: boolean;
+    /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
+    devTaskTurn?: {
+      /** When the user's message of this turn arrived; the offered task must be older. */
+      turnStartedAt: string;
+      /** A signed-in user typed this turn in an AIOS chat (not a service call). */
+      appChatUser: boolean;
+      /** Carmen's previous message; the user's yes answers its dev-task question only. */
+      lastAssistantText: string;
+    } | null;
+  } = {},
+  /** The chat's app origin (request Origin), for full links to files the app serves. */
+  appLinkOrigin?: string | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5599,6 +5763,123 @@ async function executeTool(
     managedAgencyIds,
     accessibleTenantIds,
   };
+  if (isWorkshopTool(name)) {
+    return executeWorkshopTool(
+      supabase,
+      tenantId,
+      name,
+      args,
+      (clientId) =>
+        assertCallerCanAccessClient(supabase, clientId, callerScope),
+      actorUserId,
+      {
+        turnId: approval.turnId ?? null,
+        userText: approval.userText ?? null,
+        lastAssistant: approval.lastAssistant ?? null,
+        approvedOutOfBand: approval.outOfBand === true,
+        imageEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return imageProvidersFor(
+            connectedProviders(
+              (data?.settings || {}) as Record<string, unknown>,
+              { openai: Deno.env.get("OPENAI_API_KEY") ?? undefined },
+            ),
+          );
+        },
+        generateImage: async (prompt, format, references, engine) => {
+          // Each picture in its own request: several made here ran past the CPU limit.
+          const remote = await remoteAdImage(
+            SUPABASE_URL,
+            SUPABASE_SERVICE_ROLE_KEY,
+            tenantId,
+            {
+              prompt,
+              aspect_ratio: format,
+              reference_urls: references,
+              engine,
+            },
+          );
+          if (!("missing" in remote && remote.missing)) return remote;
+          const made = await executeTool(
+            "generate_ad_image",
+            {
+              prompt,
+              aspect_ratio: format,
+              reference_urls: references,
+              engine,
+            },
+            supabase,
+            tenantId,
+            userId,
+            callerCampaignerId,
+            agentId,
+            callerRole,
+            callerManagedAgencyIds,
+            callerPhone,
+            waNotify,
+            surface,
+            conversationId,
+          );
+          return made?.image_url
+            ? { image_url: made.image_url as string }
+            : { error: String(made?.error ?? "לא התקבלה תמונה") };
+        },
+        envOpenAiKey: Deno.env.get("OPENAI_API_KEY") ?? undefined,
+        background: (work) => {
+          try {
+            EdgeRuntime.waitUntil(work);
+          } catch {
+            void work;
+          }
+        },
+        fetchPublic: (url, options) => fetchPublic(url, options),
+        voiceSample: (voiceId) =>
+          workshopVoiceSample(supabase, tenantId, voiceId),
+        importImage: (url, scope) =>
+          importWebImage(supabase, fetchPublic, url, scope),
+        defaultEngine: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return sceneEngineFor(
+            (data?.settings || {}) as Record<string, unknown>,
+            fetch,
+            await videoConnectionsFor(supabase, tenantId),
+          );
+        },
+        sceneEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return connectedSceneEngines(
+            (data?.settings || {}) as Record<string, unknown>,
+            await videoConnectionsFor(supabase, tenantId),
+          );
+        },
+        videoConnections: () => videoConnectionsFor(supabase, tenantId),
+      },
+    );
+  }
   // Chat readers (AIO-231) scope from the verified caller and the WhatsApp chat
   // of this turn, never from tool args, and read the caller's role in this
   // tenant: callerRole here is the highest role across all their tenants.
@@ -8474,185 +8755,40 @@ async function executeTool(
       };
     }
     case "update_marketing_work_item": {
-      const { data: item } = await supabase
-        .from("marketing_work_items")
-        .select("id, payload, title, status")
-        .eq("id", args.item_id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (!item) return { error: "עבודה לא נמצאה" };
-      const patch: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      if (args.title != null) patch.title = String(args.title);
-      if (args.status != null) patch.status = args.status;
+      // The workshop's budget and project state are written only by its own server code.
+      let droppedKeys: string[] = [];
+      let payloadPatch: Record<string, unknown> | null = null;
       if (args.payload_patch && typeof args.payload_patch === "object") {
-        patch.payload = { ...(item.payload || {}), ...args.payload_patch };
+        const safe = stripServerOnlyPayloadKeys(args.payload_patch);
+        droppedKeys = safe.dropped;
+        payloadPatch = safe.patch;
       }
-      const { data: updated, error } = await supabase
-        .from("marketing_work_items")
-        .update(patch)
-        .eq("id", args.item_id)
-        .select("id, title, status")
-        .single();
+      // Merges the patch in SQL (payload || patch), so a concurrent workshop write survives.
+      const { data: rows, error } = await supabase.rpc(
+        "patch_marketing_work_item",
+        {
+          p_item_id: args.item_id,
+          p_tenant_id: tenantId,
+          p_title: args.title != null ? String(args.title) : null,
+          p_status: args.status != null ? String(args.status) : null,
+          p_payload_patch: payloadPatch,
+        },
+      );
       if (error) throw error;
-      return { success: true, item: updated };
+      const updated = Array.isArray(rows) ? rows[0] : rows;
+      if (!updated) return { error: "עבודה לא נמצאה" };
+      if (droppedKeys.length === 0) return { success: true, item: updated };
+      return {
+        success: true,
+        item: updated,
+        ignored_payload_keys: droppedKeys,
+        message: `לא עודכנו: ${droppedKeys.join(", ")}. את התקציב ואת מצב הפרויקט של הסדנה כותבת רק הסדנה עצמה.`,
+      };
     }
 
     case "generate_ad_image": {
-      const imagePrompt = `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`;
-
-      // OpenRouter first when the tenant connected an OpenRouter brain; OpenAI
-      // stays the fallback (_shared/creative/openrouterImage.ts).
-      let b64 = "";
-      let mime = "image/png";
-      let imageData: any = {};
-      let content = "";
-      let imageProvider = "openai/gpt-image-1";
-      const openRouterKey = await tenantOpenRouterKey(supabase, tenantId).catch(
-        () => "",
-      );
-      if (openRouterKey) {
-        try {
-          const generated = await generateOpenRouterImage({
-            apiKey: openRouterKey,
-            prompt: imagePrompt,
-            aspectRatio:
-              typeof args.aspect_ratio === "string" ? args.aspect_ratio : "1:1",
-          });
-          b64 = generated.b64;
-          mime = generated.mediaType;
-          imageProvider = `openrouter/${generated.model}`;
-        } catch (e: any) {
-          console.warn(
-            `[generate_ad_image] OpenRouter failed, using OpenAI: ${e?.message ?? e}`,
-          );
-        }
-      }
-
-      if (!b64) {
-        const openaiKey = await resolveOpenAIKey();
-        if (!openaiKey) {
-          return {
-            error:
-              "אין מפתח ליצירת תמונות. חברו מוח OpenRouter בהגדרות המוחות, או הגדירו מפתח OpenAI בהגדרות האינטגרציות (LLM).",
-            suggestion: "פנה למנהל המערכת להגדרת המפתח.",
-          };
-        }
-        const imageRes = await fetch(
-          "https://api.openai.com/v1/images/generations",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${openaiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "gpt-image-1",
-              prompt: imagePrompt,
-              n: 1,
-              size: "1024x1024",
-              output_format: "png",
-            }),
-          },
-        );
-        if (!imageRes.ok) {
-          const errText = await imageRes.text();
-          throw new Error(`Image generation error: ${errText}`);
-        }
-        imageData = await imageRes.json();
-        content = imageData.choices?.[0]?.message?.content || "";
-        // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
-        b64 = imageData?.data?.[0]?.b64_json || "";
-      }
-      const images = b64
-        ? [{ image_url: { url: `data:${mime};base64,${b64}` } }]
-        : [];
-      let imageUrl = "";
-
-      if (images.length > 0 && images[0]?.image_url?.url) {
-        const dataUrl = images[0].image_url.url;
-        // Extract base64 data from data URL
-        const base64Match = dataUrl.match(
-          /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/,
-        );
-        if (base64Match) {
-          const mimeType = `image/${base64Match[1]}`;
-          const base64 = base64Match[2];
-          const ext = base64Match[1] === "jpeg" ? "jpg" : base64Match[1];
-          const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-
-          const binaryData = Uint8Array.from(atob(base64), (c) =>
-            c.charCodeAt(0),
-          );
-
-          // Ensure bucket exists
-          await supabase.storage
-            .createBucket("social-media", { public: true })
-            .catch(() => {});
-
-          const { error: uploadError } = await supabase.storage
-            .from("social-media")
-            .upload(fileName, binaryData, {
-              contentType: mimeType,
-              upsert: true,
-            });
-
-          if (uploadError)
-            throw new Error(`Upload failed: ${uploadError.message}`);
-
-          const { data: urlData } = supabase.storage
-            .from("social-media")
-            .getPublicUrl(fileName);
-          imageUrl = urlData.publicUrl;
-        }
-      }
-
-      // Fallback: check inline_data in parts
-      if (!imageUrl) {
-        const parts = imageData.choices?.[0]?.message?.parts || [];
-        for (const part of parts) {
-          if (part.inline_data) {
-            const base64 = part.inline_data.data;
-            const mimeType = part.inline_data.mime_type || "image/png";
-            const ext = mimeType.includes("jpeg") ? "jpg" : "png";
-            const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-            const binaryData = Uint8Array.from(atob(base64), (c) =>
-              c.charCodeAt(0),
-            );
-            await supabase.storage
-              .createBucket("social-media", { public: true })
-              .catch(() => {});
-            const { error: uploadError } = await supabase.storage
-              .from("social-media")
-              .upload(fileName, binaryData, {
-                contentType: mimeType,
-                upsert: true,
-              });
-            if (uploadError) throw uploadError;
-            const { data: urlData } = supabase.storage
-              .from("social-media")
-              .getPublicUrl(fileName);
-            imageUrl = urlData.publicUrl;
-            break;
-          }
-        }
-      }
-
-      if (!imageUrl) {
-        return {
-          success: false,
-          error: "לא הצלחתי ליצור תמונה. נסה שוב עם תיאור אחר.",
-          raw_content: content,
-        };
-      }
-
-      return {
-        success: true,
-        image_url: imageUrl,
-        provider: imageProvider,
-        message: "התמונה נוצרה בהצלחה. השתמש בה ביצירת הפוסט.",
-      };
+      // _shared/creative/ad-image.ts; the workshop runs it in workshop-image (CPU limit).
+      return await makeAdImage(supabase, tenantId, args);
     }
     // CLIENTS - full CRUD
     case "create_client": {
@@ -10563,8 +10699,10 @@ async function executeTool(
         priority: args.priority,
         assignedAgent: args.assigned_agent || "cursor",
         requestedByUserId: devActorId,
-        sourceConversationId:
-          args.source_conversation_id || conversationId || null,
+        // In an AIOS chat a task belongs to this chat: only a yes here may approve it.
+        sourceConversationId: approval.devTaskTurn?.appChatUser
+          ? conversationId || null
+          : args.source_conversation_id || conversationId || null,
         sourceMessage: args.source_message,
         dedupOf: args.dedup_of || null,
         actorUserId: devActorId,
@@ -10582,6 +10720,16 @@ async function executeTool(
           phone: callerPhone || null,
           devEscalationTier,
         }));
+      const refusal = await devTaskApprovalRefusal(
+        supabase,
+        tenantId,
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.devTaskTurn,
+        approval.userText ?? null,
+        { id: approverId, tier: devEscalationTier },
+      );
+      if (refusal) return refusal;
       if (!approverId) throw new Error("user auth required");
       const task = await approveDevTask(
         supabase,
@@ -10592,12 +10740,27 @@ async function executeTool(
       return { task };
     }
     case "dispatch_dev_task": {
-      const result = await dispatchDevTask(supabase, {
+      const refusal = await devTaskApprovalRefusal(
+        supabase,
         tenantId,
-        taskId: String(args.dev_task_id),
-        actorUserId,
-      });
-      return result;
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.devTaskTurn,
+        approval.userText ?? null,
+        { id: actorUserId, tier: devEscalationTier },
+      );
+      if (refusal) return refusal;
+      try {
+        return await dispatchDevTask(supabase, {
+          tenantId,
+          taskId: String(args.dev_task_id),
+          actorUserId,
+        });
+      } catch (e) {
+        if (e instanceof DevTaskNotApprovedError)
+          return { error: e.code, message: e.message };
+        throw e;
+      }
     }
     case "list_dev_tasks": {
       let q = supabase
@@ -11453,16 +11616,43 @@ async function executeTool(
     // ===========================
     // HERMES SKILLS SYSTEM
     // ===========================
+    case "get_carmen_skins": {
+      // The tenant's Carmen agent holds the custom skin images (visual_identity.skins).
+      const { data: carmenAgent } = await supabase
+        .from("ai_agents")
+        .select("metadata")
+        .eq("tenant_id", tenantId)
+        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const paths = customSkinPaths(carmenAgent?.metadata, tenantId);
+      const signed: Record<string, string> = {};
+      await Promise.all(
+        pathsToSign(paths).map(async (path) => {
+          const { data, error } = await supabase.storage
+            .from("entity-attachments")
+            .createSignedUrl(path, 3600);
+          if (!error && data?.signedUrl) signed[path] = data.signedUrl;
+        }),
+      );
+      return carmenSkinsResult(
+        carmenSkinEntries(paths, signed),
+        appOrigin(appLinkOrigin, Deno.env.get("APP_URL")),
+      );
+    }
     case "recall_skills": {
       const limit = Math.min(args.limit || 5, 20);
       const q = String(args.query || "").trim();
+      // The tenant's own skills and the global skins every tenant has (scope = 'global').
+      const skillScope = `tenant_id.eq.${tenantId},scope.eq.global`;
       // Try FTS first; fall back to ILIKE
       const { data: matchedSkills, error } = await supabase
         .from("ai_skills")
         .select(
           "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
         )
-        .eq("tenant_id", tenantId)
+        .or(skillScope)
         .eq("is_active", true)
         .textSearch(
           "search_vector",
@@ -11477,7 +11667,7 @@ async function executeTool(
           .select(
             "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
           )
-          .eq("tenant_id", tenantId)
+          .or(skillScope)
           .eq("is_active", true)
           .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
           .limit(limit);
@@ -13442,6 +13632,14 @@ async function handleRunAgent(
   surface: Surface,
   emit: Emit,
   brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
+  request: {
+    /** How the request was authenticated (requireAuth): a signed-in user, or a service call. */
+    authKind?: string;
+    /** The browser's Origin header, for full links back to the app the chat runs on. */
+    origin?: string | null;
+  } = {},
+  /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
+  internalTail?: () => Promise<BrainEngineTarget[]>,
 ): Promise<Response> {
   try {
     const {
@@ -13453,12 +13651,17 @@ async function handleRunAgent(
       lead_data,
       tenant_id,
       user_id,
-      task_skills,
+      task_skills: requestedTaskSkills,
       task_mode,
       conversation_history,
       conversation_id,
       wa_notify,
     } = bodyJson;
+    const inWorkshopRequest =
+      surface !== "whatsapp" &&
+      Array.isArray(requestedTaskSkills) &&
+      requestedTaskSkills.includes(WORKSHOP_SKIN);
+    let task_skills = requestedTaskSkills;
     // Per-task engine override (agent_tasks.engine_model). Only internal
     // service calls may set it — stripped from user requests in Deno.serve.
     const modelOverride =
@@ -13479,6 +13682,35 @@ async function handleRunAgent(
     if (!command_text) throw new Error("Missing command_text");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // In the workshop the server picks the specialist for this message (designer, producer or
+    // video editor) from the message and the open project, and pins her skin; see roles.ts.
+    // Approves a waiting budget from the user's code and states the project's next step.
+    const workshopNote = inWorkshopRequest
+      ? await workshopTurnNote(
+          supabase,
+          tenant_id,
+          workshopItemIdFrom(bodyJson),
+          String(command_text ?? ""),
+          lastAssistantText(conversation_history),
+        )
+      : null;
+    const workshopRoleForRun = inWorkshopRequest
+      ? workshopRole(
+          String(command_text ?? ""),
+          parseActiveSkin(bodyJson.active_skin),
+          await workshopProjectKind(
+            supabase,
+            tenant_id,
+            workshopItemIdFrom(bodyJson),
+            workshopSceneIdFrom(bodyJson),
+          ),
+        )
+      : null;
+    if (workshopRoleForRun) {
+      task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
+      if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+    }
 
     // 1. Fetch agent — by id, or default to the tenant's Carmen agent
     let agent: any;
@@ -13645,6 +13877,15 @@ async function handleRunAgent(
     // completed turn here. This also makes Realtime ask_carmen calls continue
     // the exact same conversation as typed chat.
     let serverConversationId: string | null = null;
+    // A paid workshop confirm must arrive in a later user message than the quote it confirms.
+    const turnId = crypto.randomUUID();
+    // A dev task is approved only in a later user message than the one that offered it.
+    const turnStartedAt = new Date().toISOString();
+    // The signed-in user's own message in an AIOS chat (the workshop, the video studio, the
+    // Command Center), not a service call: only there is a dev-task yes read (dev-task-approval).
+    const appChatTurn =
+      request.authKind === "user" &&
+      (surface === "internal_chat" || surface === "aios");
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -13724,8 +13965,14 @@ async function handleRunAgent(
       const m = cmdRaw.match(TRIGGER_RE);
       const looksLikeInstruction =
         !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
-      // An automation's text is not someone teaching Carmen (AIO-241).
-      if (looksLikeInstruction && resolvedTenantId && !automationRun) {
+      // A workshop message is a creative brief ("פיצריה שתמיד פתוחה"), not a standing instruction,
+      // and an automation's text is not someone teaching Carmen (AIO-241).
+      if (
+        looksLikeInstruction &&
+        resolvedTenantId &&
+        !inWorkshopRequest &&
+        !automationRun
+      ) {
         // Extract the surrounding sentence/paragraph (split on . ! ? newlines, max ~400 chars)
         const triggerIdx = m!.index ?? 0;
         const before =
@@ -14558,14 +14805,18 @@ async function handleRunAgent(
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
     }
-    // The skin picked in this chat session shapes Carmen for this run only.
+    // The skin picked in this chat session shapes Carmen for this run only. In the workshop the
+    // role's skill is already pinned; the persona's older skills would contradict it.
     if (isCarmen && !pinSkillsOnly) {
-      systemPrompt += await activeSkinBlock({
-        slug: parseActiveSkin(bodyJson.active_skin),
-        tenantId: agent.tenant_id || tenant_id || null,
-        disabledSkins: agent.disabled_skins,
-        pinned: task_skills,
-      });
+      if (!workshopRoleForRun) {
+        systemPrompt += await activeSkinBlock({
+          slug: parseActiveSkin(bodyJson.active_skin),
+          tenantId: agent.tenant_id || tenant_id || null,
+          disabledSkins: agent.disabled_skins,
+          pinned: task_skills,
+        });
+      }
+      if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
@@ -14601,25 +14852,30 @@ async function handleRunAgent(
         "David is chatting from the persistent sidecar while viewing a live AIOS screen.\n" +
         "Use the screen context in system_prompt_addon / context_metadata to understand what he sees.\n" +
         "Respond normally. For dev/system/code work use the Dev Task Command Center workflow:\n" +
-        '1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) ask David for approval unless he said "תעבירי לפיתוח"/"שלחי לפיתוח" explicitly → 4) approve_dev_task + dispatch_dev_task.\n' +
+        "1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) tell David what the task is and ask: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]] → 4) only after his yes in a later message: approve_dev_task + dispatch_dev_task (the server refuses them in the turn that opened the task, even when he already said 'שלחי לפיתוח').\n" +
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
-        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable.\n" +
+        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his yes in a later message.\n" +
         "Always include path + entity context in any dev task you create.\n" +
         `context_metadata: ${JSON.stringify(ctxMeta).slice(0, 4000)}`;
     }
 
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
     // system/dev/config/code fixes to Cursor/Claude/Manus/GitHub agent.
-    systemPrompt += buildDevEscalationPromptRule(devEscalationTier);
+    // The workshop has no connector or delegate tools: there a dev task goes only through
+    // create_dev_task. Everywhere a send to a coding agent waits for the user's yes in a later
+    // message, read only in an AIOS chat (dev-task-approval.ts).
+    systemPrompt +=
+      inWorkshopRequest && devEscalationTier
+        ? workshopDevTaskRule(devEscalationTier)
+        : buildDevEscalationPromptRule(devEscalationTier) +
+          (devEscalationTier ? devTaskSendRule(appChatTurn) : "");
 
     if (isCarmen && surface === "whatsapp" && canEscalateDevFixes) {
       systemPrompt +=
         "\n\n📱 === משימות פיתוח מ-WhatsApp (מורשה) ===\n" +
         'כשמבקשים "תעבירי לפיתוח" / "שלחי לקרסר" / תיקון מערכת:\n' +
-        '1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אם הבקשה מפורשת ("שלחי"/"תעבירי") — approve_dev_task + dispatch_dev_task מיד.\n' +
-        "4) דווחי לפי delivered/userStatus + bc- URL. אם delivered=true — נשלח (גם עם dispatchToolError).\n" +
-        '5) אם timeout / delivery_unconfirmed / verificationFailed — אמרי שלא אומתה הגעה; אסור להגיד "קרסר לא קיבל". בדקי list_dev_tasks או attach_dev_task_session.\n' +
-        "אל תבקשי אישור נוסף כשהמשתמש כבר אמר לשלוח.";
+        "1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אמרי במשפט מה המשימה ולמי, ושהיא מחכה לאישור במרכז משימות הפיתוח באפליקציה (כפתור 'שלח'). מוואטסאפ לא מאשרים ולא שולחים: השרת מסרב ל-approve_dev_task, ל-dispatch_dev_task ולשליחה ישירה.\n" +
+        "4) שאלה על משימה שכבר נשלחה: list_dev_tasks או attach_dev_task_session.";
     }
 
     // Voice capability (both prompt versions): answer from 🎤 / explicit failure markers.
@@ -14700,9 +14956,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
+    // Carmen can always answer about herself (her personas and their portraits), whatever
+    // the agent's allowlist; the settings denylist below still applies.
     let filteredTools =
       allowedTools.length > 0
-        ? ALL_TOOLS.filter((t) => allowedTools.includes(t.name))
+        ? ALL_TOOLS.filter(
+            (t) =>
+              allowedTools.includes(t.name) ||
+              (isCarmen && t.name === "get_carmen_skins"),
+          )
         : ALL_TOOLS;
     const toolPoolBeforeRouting = filteredTools;
 
@@ -14714,6 +14976,36 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !disabledTools.includes(t.name),
       );
     }
+    // Workshop tools write to the board of the open project; outside the workshop skin
+    // (WhatsApp, other chats) Carmen has no board to show them on.
+    const inWorkshop =
+      surface !== "whatsapp" &&
+      Array.isArray(task_skills) &&
+      task_skills.includes(WORKSHOP_SKIN);
+    if (!inWorkshop) {
+      filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
+    } else {
+      // A workshop "מאשר" answers the workshop: the approval queue (WhatsApp, Meta) is not
+      // reachable from here, so a tap can never run an unrelated pending approval. Tools that
+      // publish, message people, change ads or act later are not offered here either.
+      filteredTools = filteredTools.filter(
+        (t) => !isBlockedInWorkshop(t.name, true),
+      );
+    }
+    if (inWorkshop && workshopRoleForRun) {
+      filteredTools = toolsForRole(
+        filteredTools,
+        workshopRoleForRun,
+        isWorkshopTool,
+      );
+    }
+    // A skin's tools may be added below; workshop tools only for this run's role.
+    const workshopToolAllowed = (name: string) =>
+      !isBlockedInWorkshop(name, inWorkshop) &&
+      (!isWorkshopTool(name) ||
+        (inWorkshop &&
+          (!workshopRoleForRun ||
+            ROLE_TOOLS[workshopRoleForRun].includes(name))));
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -14804,8 +15096,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               userText,
               picked,
               {
-                isExplicitApprovalPhrase,
-                isExplicitRejectionPhrase,
+                // In the workshop a yes/no answers the workshop, not the approval queue.
+                isExplicitApprovalPhrase: inWorkshop
+                  ? () => false
+                  : isExplicitApprovalPhrase,
+                isExplicitRejectionPhrase: inWorkshop
+                  ? () => false
+                  : isExplicitRejectionPhrase,
                 extractMeetingUrl,
               },
               fullSchemaNames,
@@ -14876,7 +15173,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // 4b. Load MCP tools for this tenant + agent (Phase 3)
     const mcpExecutors = new Map<string, (args: any) => Promise<any>>();
     try {
-      if (!pinSkillsOnly) {
+      // The workshop loads no connector tools: they send, publish or change things outside
+      // the board. isBlockedInWorkshop also refuses any mcp_ call made there.
+      if (!pinSkillsOnly && !inWorkshop) {
         const disabledIntegrations = ((agent as any).disabled_integrations ||
           []) as string[];
         const mcp = await loadMcpTools(
@@ -14974,7 +15273,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const model = resolveModel(
       modelOverride || agent.engine || "gemini-3-flash",
     );
-    const maxRounds = agent.max_tool_rounds || 25;
+    // A workshop step needs a look at the project, the tool, and a reply: give it room for that
+    // even when the agent is tuned to very few rounds.
+    const maxRounds = workshopRoleForRun
+      ? Math.max(agent.max_tool_rounds || 25, 6)
+      : agent.max_tool_rounds || 25;
     const safeTemp =
       typeof temperature === "number"
         ? Math.min(2, Math.max(0, temperature))
@@ -14982,6 +15285,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     if (isCarmen) {
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
+      // Only the workshop has workshop_check_connections; other chats get no such rule.
+      const connections = connectionsStanding(inWorkshop);
+      if (connections)
+        systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${connections}`;
+      systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
+        {
+          tier: devEscalationTier,
+          // WhatsApp shows assistant text as plain text; the AIOS chats (the video studio's
+          // included) show a Markdown picture as an image.
+          markdownImages: surface !== "whatsapp",
+          appChat: appChatTurn,
+        },
+      )}`;
     }
     if (tokenOptimize) {
       systemPrompt += `\n\n=== אופטימיזציית טוקנים (שלב 2 — פעילה) ===
@@ -15030,6 +15346,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             skillToolNames.has(t.name) &&
+            workshopToolAllowed(t.name) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
@@ -15071,6 +15388,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             pinnedTools.has(t.name) &&
+            workshopToolAllowed(t.name) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
@@ -15093,6 +15411,41 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
+    // In an AIOS chat the user's yes or no answers the dev task Carmen offered in her previous
+    // message, and only when that message asked about it: a yes names the task, so she approves
+    // and sends that one (devTaskApprovalRefusal checks it again); a no cancels it.
+    const devTaskUserText = String(command_text ?? "");
+    const devTaskYes = isExplicitDevTaskApproval(devTaskUserText);
+    const devTaskNo = !devTaskYes && isExplicitDevTaskDecline(devTaskUserText);
+    // That answer is not also a yes or no to a pending WhatsApp/Meta approval below.
+    let devTaskOfferAnswered = false;
+    if (
+      isCarmen &&
+      canEscalateDevFixes &&
+      serverConversationId &&
+      appChatTurn &&
+      (devTaskYes || devTaskNo) &&
+      offersDevTask(lastAssistantText(conversation_history))
+    ) {
+      const offeredTask = await findOfferedDevTask(supabase, {
+        tenantId: resolvedTenantId,
+        conversationId: serverConversationId,
+        turnStartedAt,
+      });
+      devTaskOfferAnswered = Boolean(offeredTask);
+      if (offeredTask && devTaskYes)
+        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
+      else if (
+        offeredTask &&
+        (await declineOfferedDevTask(supabase, {
+          tenantId: resolvedTenantId,
+          taskId: offeredTask.id,
+          actorUserId: callerUserId || asUuidOrNull(resolvedUserId),
+        }))
+      )
+        systemPrompt += `\n\n🚫 המשתמש ענה 'לא' למשימת הפיתוח שהצעת: "${String(offeredTask.title || "").slice(0, 120)}". המשימה בוטלה ולא נשלחה. אשרי בקצרה, ואל תקראי ל-approve_dev_task או ל-dispatch_dev_task; אם ירצה בהמשך, פתחי משימה חדשה ושאלי שוב.`;
+    }
+
     // ─── Chat approval flow (AIO-230): ./approvals/resolve.ts ───
     const approvalConversation = {
       surface,
@@ -15101,12 +15454,16 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       phone: callerPhone,
     };
     const approvalReply = parseApprovalReply(String(command_text || ""));
-    const userSaidApprove = approvalReply.approve;
-    const userSaidReject = approvalReply.reject;
+    // A yes or no that answered Carmen's dev-task offer is not also an answer to an approval.
+    const userSaidApprove = !devTaskOfferAnswered && approvalReply.approve;
+    const userSaidReject = !devTaskOfferAnswered && approvalReply.reject;
     let approvalPick: ApprovalPick | null = null;
+    // A workshop "כן" answers the workshop, never a pending approval; its budget code is
+    // approved by workshopTurnNote.
     if (
       isCarmen &&
       !pinSkillsOnly &&
+      !inWorkshopRequest &&
       mayDecideApprovals &&
       (userSaidApprove || userSaidReject)
     ) {
@@ -15216,8 +15573,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Deterministic path: meeting join URL in message → dispatch Recall bot immediately.
+    // Not from the workshop: a meeting link there is project material, not a request to join.
     const meetingUrl = extractMeetingUrl(String(command_text || ""));
-    if (isCarmen && !pinSkillsOnly && meetingUrl) {
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      meetingUrl &&
+      !isBlockedInWorkshop("join_meeting_for_client", inWorkshop)
+    ) {
       console.log(
         `[AGENT] Auto-dispatching meeting bot for URL: ${meetingUrl.slice(0, 80)}`,
       );
@@ -15431,6 +15794,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // A picked model brain runs this same loop on its own endpoint and key;
     // "נתב חכם" may continue on Carmen's own engine when its brains fail.
+    const runsInternal = !brainEngine || brainEngine.fallbackInternal;
     const llmChain: LLMTarget[] = brainEngine
       ? [
           ...brainEngine.targets,
@@ -15439,6 +15803,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             : []),
         ]
       : await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel);
+    // Carmen's own engine ends on the tenant's OpenRouter brain, read only once the chain
+    // runs out, so a missing or refused provider key continues there instead of failing.
+    const extendChain = lazyBrainTail<LLMTarget>(
+      llmChain,
+      runsInternal ? internalTail : undefined,
+    );
+    if (llmChain.length === 0) await extendChain();
     if (llmChain.length === 0)
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     let activeIdx = 0;
@@ -15470,6 +15841,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     let usageTokensIn = 0;
     let usageTokensOut = 0;
 
+    // A tool that starts a coding agent runs only on the user's yes to Carmen's offer.
+    const devSendTurn = {
+      appChatUser: appChatTurn,
+      userText: String(command_text ?? ""),
+      lastAssistantText: lastAssistantText(conversation_history),
+    };
+    let silentNudges = 0;
     for (let round = 0; round < maxRounds; round++) {
       // Provider failover: try the active provider; on a quota/credit error, advance
       // to the next provider in the chain and retry THIS round (no round consumed).
@@ -15538,22 +15916,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, or any body signalling exhausted balance/quota, triggers failover.
-        const outOfCredit =
-          res.status === 429 ||
-          /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
-            err,
-          );
-        // A connected brain may also fail on size, model or auth; any failure
-        // moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
+        // triggers failover. A connected brain may also fail on size, model or auth; any
+        // failure moves on, and the chain holds only what this brain plan allowed.
         if (
-          (outOfCredit || !!llm.connectionId) &&
-          activeIdx < llmChain.length - 1
+          movesToNextLink(res.status, err, !!llm.connectionId) &&
+          (activeIdx < llmChain.length - 1 || (await extendChain()))
         ) {
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason = res.status === 429 ? "מגבלת קצב/קרדיט" : "קרדיט נגמר";
+          const reason =
+            res.status === 429
+              ? "מגבלת קצב/קרדיט"
+              : res.status === 401 || res.status === 403
+                ? "המפתח נדחה"
+                : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
@@ -15587,6 +15965,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
       // No tool calls → done
       if (!msg.tool_calls || msg.tool_calls.length === 0) {
+        if (
+          !String(msg.content || "").trim() &&
+          silentNudges < 1 &&
+          shouldNudgeSilentTurn(toolLog)
+        ) {
+          silentNudges += 1;
+          messages.push({
+            role: "user",
+            content: SILENT_TURN_NUDGE,
+          });
+          continue;
+        }
         finalOutput = msg.content || "";
         console.log(
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,
@@ -15604,6 +15994,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       // Execute tool calls — promote any called tool to full schema for the next round.
       const toolResults: any[] = [];
       let pulseDigestShortcut: string | null = null;
+      // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
+      const sayToUser: string[] = [];
+      // Only the last budget request of a round: an earlier one's code is no longer valid.
+      let budgetSay: string | null = null;
       if (tokenOptimize && msg.tool_calls?.length) {
         for (const tc of msg.tool_calls)
           promotedToolNames.add(tc.function.name);
@@ -15622,6 +16016,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         if (emit) emit({ type: "tool_call", tool: toolName, args: toolArgs });
 
         let result: any;
+        // A workshop tap is never an approval, and nothing leaves the board from the workshop;
+        // outside it a workshop tool has no board. Either way, even a tool never offered.
+        const workshopRefusal = workshopToolRefusal(toolName, inWorkshop);
         try {
           // Defense in depth: even if a tool slipped into the schema, refuse
           // coding-agent escalations outside the caller's tier (full vs bugfix).
@@ -15630,13 +16027,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               error: "isolated_session",
               message: "סשן מבודד — כלים כבויים.",
             };
+          } else if (workshopRefusal) {
+            result = workshopRefusal;
           } else if (toolName === "search_agent_tools") {
-            const discovered = await searchToolsFromIndex(
-              supabase,
-              String(toolArgs.query || command_text || ""),
-              toolPoolBeforeRouting,
-              typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
-            );
+            const discovered = (
+              await searchToolsFromIndex(
+                supabase,
+                String(toolArgs.query || command_text || ""),
+                toolPoolBeforeRouting,
+                typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
+              )
+            ).filter((tool) => workshopToolAllowed(tool.name));
             expandAgentTools(discovered);
             result = {
               success: true,
@@ -15663,6 +16064,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             };
           } else if (!mayDecideApprovals && isApprovalDecisionTool(toolName)) {
             result = approvalDecisionRefusal(toolName, bodyJson, surface);
+          } else if (directDevSendRefusal(toolName, devSendTurn, toolArgs)) {
+            // A coding agent starts only after the user's yes to Carmen's offer.
+            result = directDevSendRefusal(toolName, devSendTurn, toolArgs);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {
@@ -15681,6 +16085,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
+              {
+                turnId,
+                userText: String(command_text ?? ""),
+                // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
+                devTaskTurn: {
+                  turnStartedAt,
+                  appChatUser: appChatTurn,
+                  lastAssistantText: lastAssistantText(conversation_history),
+                },
+                lastAssistant: lastAssistantText(conversation_history),
+              },
+              request.origin ?? null,
             );
             if (result?.pending_approval && result?.approval_id) {
               await bindApprovalToConversation(
@@ -15727,6 +16143,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               : undefined;
           if (uiAction && typeof uiAction === "object")
             emit({ type: "ui_action", tool: toolName, action: uiAction });
+          // Workshop tools tell the board what appeared and which skin is doing the work.
+          const workshopEvent =
+            result && typeof result === "object"
+              ? (result as any).workshop
+              : undefined;
+          if (workshopEvent && typeof workshopEvent === "object")
+            emit({ type: "workshop", tool: toolName, ...workshopEvent });
+          const skinSlug =
+            workshopRoleForRun && isWorkshopTool(toolName)
+              ? ROLE_PERSONA[workshopRoleForRun]
+              : skinForTool(toolName);
+          if (skinSlug) emit({ type: "skin", slug: skinSlug, tool: toolName });
         }
 
         if (
@@ -15739,13 +16167,35 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         ) {
           pulseDigestShortcut = result.whatsapp_digest.trim();
         }
+        // A workshop question or budget request is sent to the user exactly as the server
+        // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
+        if (
+          isWorkshopTool(toolName) &&
+          typeof result?.say_to_user === "string" &&
+          result.say_to_user.trim()
+        ) {
+          const say = result.say_to_user.trim();
+          if (result.needs_budget === true) budgetSay = say;
+          else if (!sayToUser.includes(say)) sayToUser.push(say);
+        }
       }
 
       messages.push(...toolResults);
+      if (budgetSay) sayToUser.push(budgetSay);
+      if (sayToUser.length) pulseDigestShortcut = sayToUser.join("\n\n");
       if (pulseDigestShortcut) {
         finalOutput = pulseDigestShortcut;
-        if (emit) emit({ type: "token", content: finalOutput });
+        // emitText puts it apart from any text the model already sent this turn.
+        emitText(finalOutput);
         break;
+      }
+    }
+
+    if (!String(finalOutput || "").trim()) {
+      const fallback = fallbackReply(toolLog);
+      if (fallback) {
+        finalOutput = fallback;
+        if (emit) emit({ type: "token", content: fallback });
       }
     }
 
@@ -15936,6 +16386,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
         null,
         "agent_direct",
         null,
+        { outOfBand: true },
       );
       failed = !!result?.error || !!result?.pending_approval;
     } catch (e: any) {
@@ -16188,9 +16639,19 @@ Deno.serve(async (req) => {
     if (denied) return denied;
   }
   const brainEngine = engine.kind === "connections" ? engine : undefined;
+  // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
+  // that brain's own access rules.
+  const internalTail = () => openRouterTail(guardClient, auth, bodyJson);
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined, brainEngine);
+    return await handleRunAgent(
+      bodyJson,
+      surface,
+      undefined,
+      brainEngine,
+      { authKind: auth.kind, origin: req.headers.get("origin") },
+      internalTail,
+    );
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16206,7 +16667,17 @@ Deno.serve(async (req) => {
         }
       };
       try {
-        const resp = await handleRunAgent(bodyJson, surface, emit, brainEngine);
+        const resp = await handleRunAgent(
+          bodyJson,
+          surface,
+          emit,
+          brainEngine,
+          {
+            authKind: auth.kind,
+            origin: req.headers.get("origin"),
+          },
+          internalTail,
+        );
         let final: any = {};
         try {
           final = await resp.json();

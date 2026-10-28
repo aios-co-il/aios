@@ -364,6 +364,10 @@ verify_jwt = false
 [functions.run-ai-agent]
 verify_jwt = false
 
+# One workshop picture per request (run-ai-agent calls it with the service role key).
+[functions.workshop-image]
+verify_jwt = false
+
 [functions.campaign-pulse-snapshot]
 verify_jwt = false
 
