@@ -6,6 +6,7 @@
 
 import { type AssetView } from "./assets.ts";
 import { pickMaterials, planEditScenes } from "./edit-plan.ts";
+import { PRODUCTION_LOCKED, productionLockError } from "./production.ts";
 import { publicUrlOf } from "./project-io.ts";
 import { asRecord } from "./record.ts";
 import { spokenField } from "./spoken-text.ts";
@@ -133,7 +134,10 @@ export async function buildEditScenes(
     p_item_id: itemId,
     p_scenes: plan.map((scene) => scene.row),
   });
-  if (saved.error) return { error: saved.error.message };
+  if (saved.error)
+    return productionLockError(saved.error)
+      ? { ...PRODUCTION_LOCKED }
+      : { error: saved.error.message };
   if (old.length > 0) {
     const removed = await supabase
       .from("marketing_video_scenes")

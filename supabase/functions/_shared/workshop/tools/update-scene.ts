@@ -8,7 +8,7 @@
  */
 
 import type { Db } from "../db.ts";
-import { productionRunning } from "../production.ts";
+import { PRODUCTION_LOCKED, productionRunning } from "../production.ts";
 import { loadProject, savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import { isSceneEngine } from "../video-cost.ts";
@@ -111,11 +111,7 @@ export async function workshopUpdateScene(ctx: ToolContext) {
   // lip-sync a new line, or miss its narration, with nothing priced for it. The board's own edit
   // (workshop_edit_scene_text) refuses too.
   if (productionRunning(asRecord(asRecord(project.payload.video).production)))
-    return {
-      error:
-        "הסרט בהפקה עכשיו, ובזמן ההפקה לא משנים סצנות: שינוי באמצע היה נכנס להפקה הזו בלי הצעת מחיר. אמרי למשתמש שאפשר לשנות את הסצנה כשההפקה מסתיימת (workshop_get_state מראה את מצב ההפקה), ואל תפיקי שוב.",
-      production_running: true,
-    };
+    return { ...PRODUCTION_LOCKED };
   const scenes = await loadScenes(supabase, tenantId, itemId);
   const found = findScene(scenes, args);
   if (!found)

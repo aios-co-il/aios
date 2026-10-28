@@ -14988,7 +14988,7 @@ async function handleRunAgent(
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
     // system/dev/config/code fixes to Cursor/Claude/Manus/GitHub agent.
     // The workshop has no connector or delegate tools: there a dev task goes only through
-    // create_dev_task. Everywhere a send to Cursor or Claude waits for the user's yes in a later
+    // create_dev_task. Everywhere a send to a coding agent waits for the user's yes in a later
     // message, read only in an AIOS chat (dev-task-approval.ts).
     systemPrompt +=
       inWorkshopRequest && devEscalationTier
@@ -15986,7 +15986,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     let usageTokensIn = 0;
     let usageTokensOut = 0;
 
-    // A direct send to Cursor or Claude runs only on the user's yes to Carmen's offer.
+    // A tool that starts a coding agent runs only on the user's yes to Carmen's offer.
     const devSendTurn = {
       appChatUser: appChatTurn,
       userText: String(command_text ?? ""),
@@ -16207,9 +16207,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
-          } else if (directDevSendRefusal(toolName, devSendTurn)) {
-            // Straight to Cursor or Claude only after the user's yes to Carmen's offer.
-            result = directDevSendRefusal(toolName, devSendTurn);
+          } else if (directDevSendRefusal(toolName, devSendTurn, toolArgs)) {
+            // A coding agent starts only after the user's yes to Carmen's offer.
+            result = directDevSendRefusal(toolName, devSendTurn, toolArgs);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {

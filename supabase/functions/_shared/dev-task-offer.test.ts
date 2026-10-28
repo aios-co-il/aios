@@ -17,6 +17,7 @@ Deno.test("Carmen's dev-task choices are offers; other choices are not", () => {
     "[[בחירה: לשלוח לקרסר? | כן, לשלוח | לא]]",
     "[[בחירה: להעביר לפיתוח? | כן | עוד לא]]",
     "[[choice: Send to Claude? | yes | no]]",
+    "[[בחירה: לשלוח לגרוק? | כן | לא]]",
   ])
     assertStrictEquals(offersDevTask(text), true, text);
   for (const text of [
@@ -24,6 +25,8 @@ Deno.test("Carmen's dev-task choices are offers; other choices are not", () => {
     "[[בחירה: להמשיך? | כן | לא]]",
     "[[בחירה: סגנון | מינימלי | צבעוני]]",
     "[[בחירה: לשלוח את משימת הפיתוח? | אחר כך | עוד לא]]",
+    // "מנוסה" (experienced) is not Manus.
+    "[[בחירה: לחפש קופירייטרית מנוסה? | כן | לא]]",
     "רוצה שאפתח משימת פיתוח?",
   ])
     assertStrictEquals(offersDevTask(text), false, text);

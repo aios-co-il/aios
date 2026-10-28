@@ -1,4 +1,5 @@
 import { buildEditScenes } from "../edit-tool.ts";
+import { PRODUCTION_LOCKED, productionRunning } from "../production.ts";
 import {
   briefProject,
   loadAssets,
@@ -21,6 +22,11 @@ export async function workshopEditFromAssets(ctx: ToolContext) {
     assertClientAccess,
   );
   if ("error" in loaded) return loaded;
+  // A running production's paid runs belong to the scenes it has (save_video_storyboard refuses
+  // too, for a production that starts meanwhile).
+  const video = asRecord(loaded.project.payload.video);
+  if (productionRunning(asRecord(video.production)))
+    return { ...PRODUCTION_LOCKED };
   const brief = await briefProject(deps, loaded.project.payload, args, {
     kind: "video",
     save: (next) => savePayload(supabase, tenantId, itemId, next),
