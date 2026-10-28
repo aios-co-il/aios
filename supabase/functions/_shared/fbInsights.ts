@@ -1038,18 +1038,18 @@ export async function buildAllLevelInsightRecords(
   untilStr: string,
   accessToken: string,
   campaignStatuses: Record<string, CampaignStatus>,
-  resultLeadTypesByCampaign: Record<string, string[]> = {},
-  optimizationGoalsByCampaign: Record<string, string> = {},
-  resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
+  resultLeadTypesByCampaign: Record<string, string[]>,
+  optimizationGoalsByCampaign: Record<string, string>,
+  resultMetrics: ResultMetricMaps,
   destinationTypes: DestinationTypeMaps,
 ): Promise<{
   records: InsightRecord[];
   levelCounts: Record<AdsEntityLevel, number>;
 }> {
   if (!destinationTypes) {
-    // CI runs the edge tests without type-checking, so a sync that drops this
-    // argument in a merge would otherwise store destination_type = null on
-    // every row. Fail before fetching or writing anything.
+    // CI runs the edge tests without type-checking (AIO-34), so a sync that
+    // drops this argument in a merge would otherwise store destination_type =
+    // null on every row. Fail before fetching or writing anything.
     throw new Error(
       "buildAllLevelInsightRecords: destinationTypes is required (buildDestinationTypeMaps)",
     );

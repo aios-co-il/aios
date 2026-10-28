@@ -105,9 +105,9 @@ Deno.test(
     };
     try {
       await assertRejects(
+        // A sync call site that lost the argument in a merge.
         () =>
-          // @ts-expect-error: a sync call site that lost the argument in a merge.
-          buildAllLevelInsightRecords(
+          Reflect.apply(buildAllLevelInsightRecords, null, [
             "act_1",
             "2026-10-20",
             "2026-10-20",
@@ -116,7 +116,7 @@ Deno.test(
             {},
             {},
             { byCampaign: {}, byAdset: {} },
-          ),
+          ]),
         Error,
         "destinationTypes is required",
       );
