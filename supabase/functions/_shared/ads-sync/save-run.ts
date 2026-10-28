@@ -10,7 +10,11 @@ import {
   type SyncOutcome,
 } from "./outcome.ts";
 import { redactSyncError } from "./redact.ts";
-import type { SyncDbClient } from "./write-window.ts";
+import {
+  asSyncDbClient,
+  type SyncClient,
+  type SyncDbClient,
+} from "./write-window.ts";
 
 /** The crm_tables row a run belongs to; every read and write is scoped to its tenant. */
 export type SyncRunTable = { tableId: string; tenantId: string };
@@ -37,10 +41,11 @@ type SaveOptions = {
  *   etc.); the read-modify-write is not atomic.
  */
 export async function saveSyncRun(
-  client: SyncDbClient,
+  syncClient: SyncClient,
   table: SyncRunTable,
   opts: SaveOptions,
 ): Promise<{ lastSyncAt: string | null; recorded: boolean }> {
+  const client = asSyncDbClient(syncClient);
   const outcome: SyncOutcome = opts.outcome.error
     ? { ...opts.outcome, error: redactSyncError(opts.outcome.error) }
     : opts.outcome;
@@ -87,7 +92,7 @@ export async function saveSyncRun(
  * record is logged, so the caller's error response still goes out.
  */
 export function failedRunRecorder(
-  client: SyncDbClient,
+  client: SyncClient,
   run: SyncRunTable & {
     source: string;
     catchup?: boolean;
