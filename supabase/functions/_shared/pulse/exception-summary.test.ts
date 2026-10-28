@@ -181,8 +181,9 @@ Deno.test("sendExceptionSummaries", async (t) => {
   await t.step(
     "a failed log insert leaves the counts adding up to the candidates",
     async () => {
-      const supabase = fakeSupabase();
-      supabase.insertError = "connection reset";
+      const supabase = fakeSupabase([], {
+        failingInserts: ["pulse_instant_alert_log"],
+      });
       const snapshot = exceptionSnapshot(...exceptionCampaigns(7));
       const errors = await consoleErrorsOf(async () => {
         const { result, sends } = await run(supabase, WEDNESDAY, [snapshot], {

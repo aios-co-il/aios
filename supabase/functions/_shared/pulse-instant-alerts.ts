@@ -109,7 +109,7 @@ type CriticalIssueLike = {
   campaignName?: string | null;
 };
 
-type QueueWhatsApp = (
+export type QueueWhatsApp = (
   message: string,
   chatId: string | null,
 ) => Promise<boolean>;
@@ -431,17 +431,19 @@ export async function deliverInstantPulseAlerts(
   const candidates = evaluated.filter(
     (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
   );
-  const plan = await planInstantAlerts(input, candidates, now, (candidate) =>
-    resolveInstantAlertRecipients(
-      input.supabase,
-      input.tenantId,
-      candidate.client_id,
-      input.snapshots.find(
-        (snapshot) => snapshot.client_id === candidate.client_id,
-      )?.agency_id,
-      input.pulsePhone,
-      input.tenantSlug,
-    ),
+  const plan = await planInstantAlerts(
+    input,
+    candidates,
+    now,
+    (candidate, agencyId) =>
+      resolveInstantAlertRecipients(
+        input.supabase,
+        input.tenantId,
+        candidate.client_id,
+        agencyId,
+        input.pulsePhone,
+        input.tenantSlug,
+      ),
   );
   const summaryByPhone = capExceptionMessages(
     plan.planned,

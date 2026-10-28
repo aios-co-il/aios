@@ -4,7 +4,7 @@ import type {
   PulseInstantAlertCandidate,
 } from "../pulse-instant-alerts.ts";
 import { PULSE_ALERT_FOOTER } from "./alert-footer.ts";
-import { logInstantAlert } from "./instant-alert-log.ts";
+import { logInstantAlert } from "./instant-alert-send.ts";
 import type { PlannedInstantAlert } from "./planned-alert.ts";
 
 type SummaryCandidate = Pick<
@@ -61,8 +61,7 @@ export async function sendExceptionSummaries(
   for (const [item, phonesByText] of listed) {
     for (const [message, phones] of phonesByText) {
       await logInstantAlert(
-        input.supabase,
-        input.tenantId,
+        input,
         summaryLogCandidate(item.candidate, message),
         phones,
       );

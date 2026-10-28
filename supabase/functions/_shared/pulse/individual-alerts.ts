@@ -4,7 +4,7 @@ import type {
   PulseInstantAlertCandidate,
 } from "../pulse-instant-alerts.ts";
 import { wordPulseException } from "./exception-wording.ts";
-import { logInstantAlert } from "./instant-alert-log.ts";
+import { queueAndLogInstantAlert } from "./instant-alert-send.ts";
 import type { PlannedInstantAlert } from "./planned-alert.ts";
 
 type SendInput = Pick<
@@ -35,21 +35,16 @@ export async function sendIndividualAlerts(
       wordingCalls += 1;
     }
 
-    for (const phone of item.individual) {
-      if (await input.queueWhatsApp(item.candidate.message, phone)) {
-        item.sentTo.push(phone);
-      }
-    }
-
+    item.sentTo.push(
+      ...(await queueAndLogInstantAlert(
+        input,
+        item.candidate,
+        item.individual,
+      )),
+    );
     if (item.sentTo.length) {
       sent += 1;
       worded += wording.applied ? 1 : 0;
-      await logInstantAlert(
-        input.supabase,
-        input.tenantId,
-        item.candidate,
-        item.sentTo,
-      );
     }
   }
 

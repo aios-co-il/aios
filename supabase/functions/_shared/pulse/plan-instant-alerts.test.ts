@@ -1,10 +1,17 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
-import { fakeSupabase, WEDNESDAY } from "./fake-alert-log.ts";
+import { fakeSupabase, healthy, WEDNESDAY } from "./fake-alert-log.ts";
 import { planInstantAlerts } from "./plan-instant-alerts.ts";
 
 const OWNER_PHONE = "972501234567";
 const MANAGER_PHONE = "972529999999";
+
+/** t2 shares agency a1, the agency of client c1, with t1. */
+const GRANT = {
+  agency_id: "a1",
+  source_tenant_id: "t2",
+  accessing_tenant_id: "t1",
+};
 
 /** A campaign_exception of client c1 on campaign meta:id:1, severity 40. */
 function exception(
@@ -22,13 +29,20 @@ function exception(
   };
 }
 
-/** Plans `candidates` for org t1 at WEDNESDAY, owner and manager on each. */
+/**
+ * Plans `candidates` for org t1 at WEDNESDAY, owner and manager on each;
+ * client c1 is of agency a1.
+ */
 function plan(
   candidates: PulseInstantAlertCandidate[],
   supabase = fakeSupabase(),
 ) {
   return planInstantAlerts(
-    { supabase, tenantId: "t1" },
+    {
+      supabase,
+      tenantId: "t1",
+      snapshots: [{ ...healthy(), agency_id: "a1" }],
+    },
     candidates,
     WEDNESDAY,
     async () => [{ phone: OWNER_PHONE }, { phone: MANAGER_PHONE }],
@@ -89,7 +103,7 @@ Deno.test("planInstantAlerts", async (t) => {
   );
 
   await t.step(
-    "a logged finding is skipped and another org's phones are left out",
+    "a logged finding is skipped and a sharing org's phones are left out",
     async () => {
       const sentAt = new Date(WEDNESDAY.getTime() - 3600e3).toISOString();
       const logged = {
@@ -108,26 +122,36 @@ Deno.test("planInstantAlerts", async (t) => {
       );
       assertEquals(ownLog, { planned: [], skipped: 1 });
 
-      const otherOrg = await plan(
+      const otherOrgLog = [
+        { ...logged, tenant_id: "t2", recipient_phone: OWNER_PHONE },
+      ];
+      const sharingOrg = await plan(
         [exception()],
-        fakeSupabase([
-          { ...logged, tenant_id: "t2", recipient_phone: OWNER_PHONE },
-        ]),
+        fakeSupabase(otherOrgLog, { grants: [GRANT] }),
       );
       assertEquals(
-        otherOrg.planned.map((item) => item.recipients),
+        sharingOrg.planned.map((item) => item.recipients),
         [[MANAGER_PHONE]],
+      );
+
+      const unsharedOrg = await plan([exception()], fakeSupabase(otherOrgLog));
+      assertEquals(
+        unsharedOrg.planned.map((item) => item.recipients),
+        [[OWNER_PHONE, MANAGER_PHONE]],
       );
 
       const everyoneElsewhere = await plan(
         [exception()],
-        fakeSupabase([
-          {
-            ...logged,
-            tenant_id: "t2",
-            recipient_phone: `${OWNER_PHONE},${MANAGER_PHONE}`,
-          },
-        ]),
+        fakeSupabase(
+          [
+            {
+              ...logged,
+              tenant_id: "t2",
+              recipient_phone: `${OWNER_PHONE},${MANAGER_PHONE}`,
+            },
+          ],
+          { grants: [GRANT] },
+        ),
       );
       assertEquals(everyoneElsewhere, { planned: [], skipped: 1 });
     },

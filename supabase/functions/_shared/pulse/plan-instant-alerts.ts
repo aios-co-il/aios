@@ -21,15 +21,17 @@ const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
 /**
  * Code decides what goes out, before any message is queued: dedupe and
  * throttle, then the org's recipients from `recipientsFor` minus the phones
- * another org already alerted. Alerts accepted earlier in this run count
- * like log rows, since they are logged only after the sends.
+ * an org sharing the client's agency already alerted. Alerts accepted
+ * earlier in this run count like log rows, since they are logged only after
+ * the sends.
  */
 export async function planInstantAlerts(
-  input: Pick<InstantPulseAlertsInput, "supabase" | "tenantId">,
+  input: Pick<InstantPulseAlertsInput, "supabase" | "tenantId" | "snapshots">,
   candidates: PulseInstantAlertCandidate[],
   now: Date,
   recipientsFor: (
     candidate: PulseInstantAlertCandidate,
+    agencyId: string | null | undefined,
   ) => Promise<Array<{ phone: string }>>,
 ): Promise<{ planned: PlannedInstantAlert[]; skipped: number }> {
   const planned: PlannedInstantAlert[] = [];
@@ -56,10 +58,14 @@ export async function planInstantAlerts(
       continue;
     }
 
+    const agencyId = input.snapshots.find(
+      (snapshot) => snapshot.client_id === candidate.client_id,
+    )?.agency_id;
     const recipients = await withoutPhonesAlertedElsewhere(
       input,
       candidate,
-      await recipientsFor(candidate),
+      agencyId,
+      await recipientsFor(candidate, agencyId),
       throttleHours,
       now,
     );

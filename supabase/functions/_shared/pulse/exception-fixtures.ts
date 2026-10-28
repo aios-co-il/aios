@@ -76,8 +76,8 @@ export const MANAGER_PHONE = "972529999999";
 
 /** Staff tables for fakeSupabase: team manager m1 (MANAGER_PHONE) on agency a1. */
 export const MANAGER_ON_AGENCY_A1 = {
-  user_roles: [{ tenant_id: "t1", user_id: "m1", role: "team_manager" }],
-  user_managed_agencies: [{ user_id: "m1", agency_id: "a1" }],
+  roles: [{ tenant_id: "t1", user_id: "m1", role: "team_manager" }],
+  managedAgencies: [{ user_id: "m1", agency_id: "a1" }],
   profiles: [
     { id: "m1", full_name: "Manager", campaigners: { phone: "0529999999" } },
   ],
