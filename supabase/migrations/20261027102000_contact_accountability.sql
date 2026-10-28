@@ -168,13 +168,17 @@ AS $$
     CROSS JOIN bounds
     WHERE m.at >= bounds.contact_since AND m.at <= now()
   ), client_groups AS (
-    -- The tenant's own copy of the client's group (same group_chat_id).
+    -- The tenant's own copy of the client's group (same group_chat_id), from
+    -- clients.whatsapp_group_id only; reading AIO-242's group links and the
+    -- staff roster is AIO-253 phase 2.
     SELECT sc.id AS client_id, own.id AS group_id
     FROM scope AS sc
     JOIN public.whatsapp_groups AS linked ON linked.id = sc.whatsapp_group_id
     JOIN public.whatsapp_groups AS own
       ON own.group_chat_id = linked.group_chat_id AND own.tenant_id = p_tenant_id
   ), thread_messages AS (
+    -- Uses chat_messages (client_id)/(group_id); a Staging plan check of this
+    -- read is AIO-253 phase 2.
     SELECT msg.client_id, msg.created_at, msg.direction, msg.sent_by_user_id,
       msg.connection_user_id, msg.sender_phone, msg.raw_provider_data,
       msg.group_id IS NOT NULL AS in_group
@@ -339,8 +343,8 @@ BEGIN
         'finding_owner_user_id', v_finding.owner_user_id,
         'confirmed_by', p_user_id)) AS e;
   EXCEPTION WHEN insufficient_privilege THEN
-    -- record_client_card_entry decides card write access: its client's agency
-    -- is shared with this tenant without write access.
+    -- record_client_card_entry decides card write access (42501): the
+    -- client's agency is shared read-only, or no longer with this tenant.
     RAISE NOTICE 'carmen_finding_confirm_contact: tenant %, finding %, user %: read_only',
       p_tenant_id, p_finding_id, p_user_id;
     RETURN QUERY SELECT 'read_only'::text, NULL::uuid, NULL::boolean;
@@ -376,7 +380,7 @@ GRANT EXECUTE ON FUNCTION public.carmen_finding_confirm_contact(uuid, uuid, uuid
   TO service_role;
 
 -- May p_user_id log the contact of a finding of p_tenant_id? Roles count only
--- in that tenant.
+-- in that tenant. One role reader with carmen_finding_viewer_role: AIO-275.
 CREATE OR REPLACE FUNCTION public.carmen_finding_may_confirm(
   p_tenant_id uuid,
   p_client_id uuid,

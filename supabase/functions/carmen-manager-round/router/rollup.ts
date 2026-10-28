@@ -59,7 +59,13 @@ export function isRollupKind(kind: FindingKind): boolean {
   return !!KIND_POLICY[kind].weeklyRollup;
 }
 
-/** The first weekly roll-up at or after `from` (Sunday 08:30, holidays skipped). */
+/**
+ * The first weekly roll-up at or after `from` (Sunday 08:30, holidays
+ * skipped, so a holiday Sunday waits a week), sent by the ordinary
+ * dispatcher at MAX_ITEMS_PER_MESSAGE items a message. A roll-up message of
+ * its own, without that cap and on the next business day after a holiday,
+ * is AIO-253 phase 2.
+ */
 export function rollupTime(from: Date, settings: ManagerSettings): Date {
   return (
     nextWorkingSlot(ROLLUP_CRON, from, settings) ??

@@ -3,7 +3,8 @@
  * once it is older than log_grace_hours. However many calls follow, it stays
  * the same finding until someone logs or it leaves the no_contact_days
  * window; then the next unlogged one, if any, is a new finding, so a
- * campaigner who never logs is still told after go-live. A call belongs to
+ * campaigner who never logs is still told after go-live (keeping the aged-out
+ * one open instead is AIO-253 phase 2). A call belongs to
  * the person who made it (mapped extension or click-to-call), else to
  * nobody, so the router asks the client's campaigners and never blames the
  * fallback user. Each finding carries the card entry to log on "תעדי <code>".

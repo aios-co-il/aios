@@ -1,3 +1,5 @@
+-- Staging or a Preview branch only: it rewrites a real user's roles inside
+-- the rolled-back transaction.
 -- "תעדי <code>" (20261027102000_contact_accountability): who may log a
 -- finding's contact, and that the card entry and the resolution happen
 -- together or not at all. Synthetic rows inside one transaction that is

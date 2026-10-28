@@ -10,6 +10,7 @@ import { mapCallStatus } from "./status.ts";
 export type Recording = { url: string | null; path: string | null };
 export type SavedCall = Owner & { callLogId: string };
 
+/** Applies a later PBX event to the call's existing call_logs row (tenant-keyed). */
 export async function updateCall(
   sb: DbClient,
   tenantId: string,
@@ -32,6 +33,7 @@ export async function updateCall(
   };
 }
 
+/** Inserts the call_logs row for a call the PBX reports first, choosing its caller. */
 export async function insertCall(
   sb: DbClient,
   tenantId: string,

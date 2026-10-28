@@ -14,6 +14,7 @@ export interface NewOutboundCall {
   callId: string;
 }
 
+/** Inserts the call_logs row of a call started from AIOS and returns it. */
 export async function createCallLog(sb: DbClient, call: NewOutboundCall) {
   const { data, error } = await sb
     .from("call_logs")
@@ -45,6 +46,7 @@ export function newCallRow(call: NewOutboundCall): TablesInsert<"call_logs"> {
   };
 }
 
+/** Marks a call the PBX refused as failed, keeping its notes and adding the PBX error. */
 export async function markCallFailed(
   sb: DbClient,
   log: { id: string; notes: string | null },
