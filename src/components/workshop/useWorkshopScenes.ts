@@ -12,6 +12,10 @@ import { signCreativeVideoPaths } from "@/components/marketing/departments/creat
 import { resolveCreativeImageUrl } from "@/components/marketing/lib/resolveCreativeImageUrl";
 import { subscribeWorkshopEvents } from "@/lib/workshopBridge";
 import {
+  filmInProductionMessage,
+  isFilmInProduction,
+} from "./filmInProduction";
+import {
   type PageScene,
   storyboardPageWith,
 } from "../../../supabase/functions/_shared/workshop/storyboard-text.ts";
@@ -156,9 +160,6 @@ async function refreshStoryboardPage(
   }
 }
 
-/** workshop_edit_scene_text refuses while the film is being produced (object_in_use). */
-const FILM_IN_PRODUCTION = "55006";
-
 /**
  * Saves the texts the user changed on one scene (on-screen text, narration, dialogue). The card
  * shows them at once; a failed save puts the old texts back and says so. `edit`: the film is cut
@@ -206,8 +207,8 @@ export function useEditSceneText(
     onError: (error, _vars, context) => {
       if (context?.before) queryClient.setQueryData(queryKey, context.before);
       toast.error(
-        (error as { code?: string } | null)?.code === FILM_IN_PRODUCTION
-          ? "הסרט בהפקה עכשיו. אפשר לשנות את הטקסט כשההפקה מסתיימת."
+        isFilmInProduction(error)
+          ? filmInProductionMessage("את הטקסט")
           : "לא הצלחנו לשמור את הטקסט של הסצנה",
       );
     },

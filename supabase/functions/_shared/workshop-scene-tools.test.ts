@@ -1135,3 +1135,101 @@ Deno.test(
     assertStrictEquals(preview.success, true, JSON.stringify(preview));
   },
 );
+
+// ── A film being produced keeps its storyboard ──────────────────────────────
+
+const newStoryboards: [string, Row][] = [
+  ["workshop_storyboard", { scenes: [{ visual_prompt: "Carmen on a roof" }] }],
+  ["workshop_edit_from_assets", editArgs],
+];
+
+/** The user asked for a new story, so only the production can stop the replacement. */
+const replaceStoryboard = (
+  db: ReturnType<typeof memoryDb>,
+  name: string,
+  args: Row,
+) =>
+  executeWorkshopTool(
+    db,
+    "tenant-1",
+    name,
+    { ...args, item_id: "item-1", replace: true },
+    async () => {},
+    null,
+    { userText: "בואי נעשה סיפור חדש" },
+  ) as Promise<Row>;
+
+const filmInProduction = () =>
+  film({
+    marketing_work_items: [
+      project({
+        payload: payload({
+          video: {
+            voice_id: "yael-voice",
+            production: {
+              status: "running",
+              started_at: new Date().toISOString(),
+            },
+          },
+        }),
+      }),
+    ],
+    workshop_assets: materials().tables.workshop_assets,
+  });
+
+/** The refusal Carmen gets for one scene's change while the film is produced. */
+const sceneRefusal = () =>
+  update(filmInProduction(), { scene_id: "s-2", overlay_text: "חדש" });
+
+Deno.test(
+  "no new storyboard replaces the scenes of a film being produced",
+  async () => {
+    const expected = await sceneRefusal();
+    for (const [name, args] of newStoryboards) {
+      const db = filmInProduction();
+      const refused = await replaceStoryboard(db, name, args);
+      assertStrictEquals(refused.error, expected.error, name);
+      assertStrictEquals(refused.production_running, true, name);
+      assertStrictEquals(
+        db.rpcs.some((call) => call.name === "save_video_storyboard"),
+        false,
+        name,
+      );
+      assertEquals(
+        db.tables.marketing_video_scenes.map((scene) => scene.id),
+        ["s-1", "s-2", "s-3"],
+        name,
+      );
+    }
+  },
+);
+
+Deno.test(
+  "a storyboard the database refuses while the film is produced gets the same refusal",
+  async () => {
+    const expected = await sceneRefusal();
+    for (const [name, args] of newStoryboards) {
+      const db = film({ workshop_assets: materials().tables.workshop_assets });
+      // The production started after the tool read the project: save_video_storyboard's lock.
+      const saved = db.rpc.bind(db);
+      (db as Row).rpc = (rpc: string, rpcArgs: Row) =>
+        rpc === "save_video_storyboard"
+          ? Promise.resolve({
+              data: null,
+              error: {
+                code: "55006",
+                message: "save_video_storyboard: the film is being produced",
+              },
+            })
+          : saved(rpc, rpcArgs);
+      const refused = await replaceStoryboard(db, name, args);
+      assertStrictEquals(refused.error, expected.error, name);
+      assertStrictEquals(refused.production_running, true, name);
+      assertEquals(
+        db.tables.marketing_video_scenes.map((scene) => scene.id),
+        ["s-1", "s-2", "s-3"],
+        name,
+      );
+    }
+  },
+);
