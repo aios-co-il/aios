@@ -38,6 +38,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
 import { getSessionSkin } from "@/lib/carmenSessionSkin";
+import {
+  applyWorkshopSkin,
+  emitWorkshopEvent,
+  getWorkshopContext,
+  prefilledDraft,
+  subscribeComposerPrefill,
+  workshopEventFrom,
+  workshopRequestParts,
+} from "@/lib/workshopBridge";
+import { answerableIndex, hidePartialQuickReplies } from "@/lib/quickReplies";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -448,7 +458,11 @@ export const CarmenChatBar = forwardRef<
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("לא מחוברת");
-      const promptAddon = ctxMeta ? systemFixPromptAddon(ctxMeta) : undefined;
+      const workshop = workshopRequestParts(getWorkshopContext());
+      const promptAddon =
+        [ctxMeta ? systemFixPromptAddon(ctxMeta) : "", workshop?.promptAddon]
+          .filter(Boolean)
+          .join("\n\n") || undefined;
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-ai-agent`,
         {
@@ -464,9 +478,10 @@ export const CarmenChatBar = forwardRef<
             stream: true,
             conversation_id: boundConvId || conversationIdRef.current,
             conversation_history: history,
-            system_prompt_addon: promptAddon || undefined,
+            system_prompt_addon: promptAddon,
             context_metadata: ctxMeta ?? undefined,
             active_skin: getSessionSkin(tenantId) ?? undefined,
+            task_skills: workshop?.taskSkills,
             brain_slug: runBrain || undefined,
           }),
         },
@@ -483,6 +498,7 @@ export const CarmenChatBar = forwardRef<
       let buffer = "";
       let answer = "";
       let gotDone = false;
+      let streamError = "";
       let speechBuf = "";
       let firstSegmentSent = false;
       let boundId = boundConvId;
@@ -534,6 +550,15 @@ export const CarmenChatBar = forwardRef<
                 ]);
                 scrollDown();
               }
+            } else if (parsed.type === "workshop") {
+              const event = workshopEventFrom(parsed);
+              if (event) emitWorkshopEvent(event);
+            } else if (
+              parsed.type === "skin" &&
+              typeof parsed.slug === "string" &&
+              workshop
+            ) {
+              applyWorkshopSkin(tenantId, parsed.slug);
             } else if (parsed.type === "conversation_id" && parsed.id) {
               boundId = parsed.id;
               if (
@@ -542,8 +567,14 @@ export const CarmenChatBar = forwardRef<
               ) {
                 rememberConv(parsed.id);
               }
+            } else if (parsed.type === "error") {
+              streamError =
+                typeof parsed.error === "string" ? parsed.error : "שגיאה";
             } else if (parsed.type === "done") {
               gotDone = true;
+              if (!streamError && parsed.success === false)
+                streamError =
+                  typeof parsed.error === "string" ? parsed.error : "";
               // A brain that failed before writing anything explains why here.
               if (!answer && typeof parsed.error === "string" && parsed.error)
                 answer = `⚠️ ${parsed.error}`;
@@ -557,7 +588,12 @@ export const CarmenChatBar = forwardRef<
       if (shouldSpeakWithLegacyTts(inputModeRef.current) && speechBuf.trim())
         enqueueSpeech(speechBuf);
       const finalText =
-        answer || (gotDone ? "" : "⚠️ החיבור נותק באמצע — נסי שוב.");
+        answer ||
+        (streamError
+          ? `⚠️ כרמן לא הצליחה לענות: ${streamError}`
+          : gotDone
+            ? ""
+            : "⚠️ החיבור נותק באמצע — נסי שוב.");
       if (finalText) {
         if (streamAppliesToActive(boundId, conversationIdRef.current)) {
           setMessages((prev) => [
@@ -1620,6 +1656,20 @@ export const CarmenChatBar = forwardRef<
   // Release the mic and stop audio when the page unmounts
   useEffect(() => () => endConversation(), [endConversation]);
 
+  // The workshop board's "comment on this scene" writes its line here and hands over the focus.
+  useEffect(() => {
+    if (!isSidecar) return;
+    return subscribeComposerPrefill((text) => {
+      setInput((current) => prefilledDraft(current, text));
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      });
+    });
+  }, [isSidecar]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -1635,6 +1685,7 @@ export const CarmenChatBar = forwardRef<
   );
 
   const visibleMessages = filterMessagesForRoute(messages, brain.selected);
+  const lastAnswerIndex = answerableIndex(visibleMessages);
   const streamSeatKey = seatKeyFromRoute(brain.selected);
   const streamSprite =
     AGENT_SPRITES[streamSeatKey === "shared" ? "carmen" : streamSeatKey];
@@ -1719,6 +1770,11 @@ export const CarmenChatBar = forwardRef<
                 speaker={m.speaker}
                 channel={m.channel}
                 tool={m.tool}
+                onQuickReply={
+                  i === lastAnswerIndex && !thisChatBusy
+                    ? (answer) => void sendText(answer)
+                    : undefined
+                }
               />
             ))}
             {streamingText && (
@@ -1738,7 +1794,7 @@ export const CarmenChatBar = forwardRef<
                 )}
                 <div className="cc-msg-bubble">
                   <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">
-                    {streamingText}
+                    {hidePartialQuickReplies(streamingText)}
                   </div>
                 </div>
               </div>
