@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { useApprovalDecision } from "./approvals/useApprovalDecision";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CheckCircle2, XCircle, Clock, ShieldAlert } from "lucide-react";
-import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 
@@ -31,48 +30,21 @@ function StatusBadge({ status }: { status: string }) {
       label: "בוצע",
     },
     expired: { cls: "bg-muted text-muted-foreground", label: "פג תוקף" },
+    executing: {
+      cls: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+      label: "בביצוע",
+    },
+    failed: {
+      cls: "bg-red-500/15 text-red-700 dark:text-red-300",
+      label: "נכשל",
+    },
   };
   const m = map[status] ?? map.pending;
   return <Badge className={m.cls}>{m.label}</Badge>;
 }
 
 function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
-  const qc = useQueryClient();
-  const { tenantId } = useCurrentTenant();
-
-  const decide = useMutation({
-    mutationFn: async (decision: "approved" | "rejected") => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("agent_approval_queue")
-        .update({
-          status: decision,
-          approved_by: user?.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq("id", item.id);
-      if (error) throw error;
-
-      if (decision === "approved") {
-        try {
-          await supabase.functions.invoke("resume-agent-run", {
-            body: { approval_id: item.id, decision },
-          });
-        } catch (e) {
-          console.warn("resume-agent-run failed", e);
-        }
-      }
-    },
-    onSuccess: (_, d) => {
-      qc.invalidateQueries({ queryKey: ["agent-approvals", tenantId] });
-      qc.invalidateQueries({ queryKey: ["agent-approvals-global", tenantId] });
-      toast.success(d === "approved" ? "אושר" : "נדחה");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
+  const decide = useApprovalDecision(item);
   const expired = item.expires_at && new Date(item.expires_at) < new Date();
 
   return (
@@ -115,6 +87,12 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
         </pre>
       )}
 
+      {item.status === "failed" && item.execution_result?.error && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          {String(item.execution_result.error)}
+        </p>
+      )}
+
       {item.expires_at && item.status === "pending" && (
         <p className="text-xs text-muted-foreground">
           תוקף עד: {new Date(item.expires_at).toLocaleString("he-IL")}
@@ -125,7 +103,7 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => decide.mutate("approved")}
+            onClick={() => decide.mutate("approve")}
             disabled={decide.isPending}
             className="bg-emerald-600 hover:bg-emerald-700"
           >
@@ -134,7 +112,7 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => decide.mutate("rejected")}
+            onClick={() => decide.mutate("reject")}
             disabled={decide.isPending}
           >
             <XCircle className="h-4 w-4 ml-1" /> דחה
@@ -157,8 +135,19 @@ export function ApprovalsTab({ agent }: { agent: any }) {
         .eq("agent_id", agent.id)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (tab === "pending") q = q.eq("status", "pending");
-      else q = q.in("status", ["approved", "rejected", "executed", "expired"]);
+      if (tab === "pending") {
+        q = q.eq("status", "pending");
+      } else {
+        q = q.in("status", [
+          "approved",
+          "executing",
+          "rejected",
+          "executed",
+          "failed",
+          "expired",
+        ]);
+      }
+
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
