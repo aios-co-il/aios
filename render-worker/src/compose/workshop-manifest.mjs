@@ -15,6 +15,7 @@ import {
   lineCharsFor,
   motionCaptions,
 } from "./motion-captions.mjs";
+import { PREVIEW_PROVIDER } from "../providers/index.mjs";
 import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
 import { isSkinSwitch, sceneTransitionFor } from "./skin-switch.mjs";
 import {
@@ -143,8 +144,9 @@ export function buildWorkshopManifest(timeline) {
   const files = [];
   const picked = [];
   for (const [index, scene] of timeline.scenes.entries()) {
-    const provider = scene.clipProvider || "mock";
-    const useStill = provider === "mock" && scene.stillPath && !scene.lipsync;
+    const provider = scene.clipProvider || PREVIEW_PROVIDER;
+    const useStill =
+      provider === PREVIEW_PROVIDER && scene.stillPath && !scene.lipsync;
     const source = useStill ? scene.stillPath : scene.clipPath;
     if (!source) continue;
     const name = `${useStill ? "still" : "clip"}-${index}.${extension(source)}`;
