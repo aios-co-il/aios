@@ -2,10 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/security.ts";
 import { timingSafeEqualStr } from "../_shared/timing-safe-equal.ts";
-import {
-  authorizeTenantPublisher,
-  publishAccessLookups,
-} from "../_shared/tenant-publish-access.ts";
+import { publishAccessLookups } from "../_shared/tenant-publish-access.ts";
+import { authorizeUserPublishTarget } from "./publish-target.ts";
 import {
   loadWordPressSite,
   publishToWordPress,
@@ -44,7 +42,8 @@ serve(async (req) => {
     } = await req.json().catch(() => ({}));
 
     // Only cron sweeps every tenant. The service role must name one entry or
-    // work item; a signed-in user, one of a tenant they belong to.
+    // work item; a signed-in user, one of a tenant they belong to and a client
+    // they can access.
     let scopeTenantId: string | null = null;
     if (!isCron) {
       const auth = await requireAuth(req);
@@ -52,31 +51,16 @@ serve(async (req) => {
       if (!entry_id && !work_item_id)
         return respond({ error: "entry_id or work_item_id required" }, 400);
       if (auth.kind === "user") {
-        const { data: target } = entry_id
-          ? await admin
-              .from("seo_geo_calendar_entries")
-              .select("tenant_id")
-              .eq("id", entry_id)
-              .maybeSingle()
-          : await admin
-              .from("marketing_work_items")
-              .select("tenant_id")
-              .eq("id", work_item_id)
-              .maybeSingle();
-        if (!target)
-          return respond(
-            { error: entry_id ? "Entry not found" : "Work item not found" },
-            404,
-          );
-        const decision = await authorizeTenantPublisher(
+        const target = await authorizeUserPublishTarget(
+          admin,
           auth,
-          target.tenant_id,
-          [],
+          { entryId: entry_id, workItemId: work_item_id },
           publishAccessLookups(admin),
         );
-        if (!decision.allowed)
-          return respond({ error: decision.error }, decision.status);
-        scopeTenantId = target.tenant_id;
+        if (!target.allowed) {
+          return respond({ error: target.error }, target.status);
+        }
+        scopeTenantId = target.tenantId;
       }
     }
 
