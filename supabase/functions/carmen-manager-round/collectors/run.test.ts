@@ -126,7 +126,9 @@ Deno.test("runCollectors", async (t) => {
       });
       const contact = collector(() =>
         Promise.resolve({
-          candidates: ["a", "far", "long", "old"].map((fp) => candidate(fp)),
+          candidates: ["a", "a", "far", "long", "old"].map((fp) =>
+            candidate(fp),
+          ),
           watermark: null,
           coverage: { complete: false, clientIds: null },
         }),
@@ -136,6 +138,7 @@ Deno.test("runCollectors", async (t) => {
       );
       assertEquals(result.reports[0].inserted, 1);
       assertEquals(result.reports[0].dropped, {
+        duplicate: 1,
         rejected_client: 1,
         invalid: 1,
         suppressed: 1,

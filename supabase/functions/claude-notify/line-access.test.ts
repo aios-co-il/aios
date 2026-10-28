@@ -32,17 +32,20 @@ const asDavid: LineAccessInput = {
 
 Deno.test("stepSender", async (t) => {
   await t.step(
-    "the automation's session user, else the Manus line's own user",
+    "the automation's session user, else the tenant's own Manus line's user",
     () => {
       const noSession = { tenantId: TENANT };
+      const ownWithUser = manusLine("manus-own", true, LINE_USER);
       assertStrictEquals(
         stepSender(asDavid, step, foreign, "manus"),
         DAVID_USER,
       );
       assertStrictEquals(
-        stepSender(noSession, step, foreign, "manus"),
+        stepSender(noSession, step, ownWithUser, "manus"),
         LINE_USER,
       );
+      // Another tenant's line never lends its owner as the sender.
+      assertStrictEquals(stepSender(noSession, step, foreign, "manus"), null);
       const green = greenLine("green-1", { user_id: LINE_USER });
       assertStrictEquals(stepSender(noSession, step, green, "green"), null);
     },
@@ -62,9 +65,13 @@ Deno.test("stepMayUseLine", async (t) => {
         may({ ...asDavid, superAdminUserIds: [DAVID_USER] }),
         true,
       );
-      // The line's own user counts only when no session user sends.
+      // A super admin who owns the foreign line does not open it to this tenant.
       assertStrictEquals(
         may({ ...asDavid, superAdminUserIds: [LINE_USER] }),
+        false,
+      );
+      assertStrictEquals(
+        may({ tenantId: TENANT, superAdminUserIds: [LINE_USER] }),
         false,
       );
     },

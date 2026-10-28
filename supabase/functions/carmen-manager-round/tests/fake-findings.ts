@@ -7,13 +7,22 @@ import { delivery, finding, type World } from "./fake-world.ts";
 
 const LIVE: readonly string[] = FINDING_LIVE_STATUSES;
 
-/** The findings RPCs over `w.findings` (`w.refused` fingerprints are reported, not stored). */
+/**
+ * The findings RPCs over `w.findings`. As in carmen_finding_upsert, a kind and
+ * fingerprint repeated in one batch is a 'duplicate'; `w.refused` fingerprints
+ * are reported, not stored.
+ */
 export function fakeFindingsStore(w: World): FindingsStore {
   return {
-    upsert: (_tenant, _round, _collector, candidates) =>
-      Promise.resolve(
+    upsert: (_tenant, _round, _collector, candidates) => {
+      const batch = new Set<string>();
+      return Promise.resolve(
         candidates.map((c): UpsertOutcome => {
-          const refused = w.refused[c.fingerprint];
+          const key = `${c.kind}\u0000${c.fingerprint}`;
+          const refused = batch.has(key)
+            ? "duplicate"
+            : w.refused[c.fingerprint];
+          batch.add(key);
           if (refused) {
             return {
               finding_id: null,
@@ -52,7 +61,8 @@ export function fakeFindingsStore(w: World): FindingsStore {
             outcome: "inserted",
           };
         }),
-      ),
+      );
+    },
     resolve: (_tenant, _round, _collector, items) => resolveLive(w, items),
     markMissing: (_tenant, _round, scope) => {
       w.marks.push(scope);

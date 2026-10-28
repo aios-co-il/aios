@@ -5,6 +5,8 @@
  * was asked (for example, which integration types were requested).
  * A plain column list in select() is honoured: rows come back with only those
  * columns, so code that forgets to select a column it reads fails its test.
+ * Its type does not yet satisfy Pick<DbClient, …> under deno check, which CI
+ * skips (--no-check); typing the fakes is AIO-34.
  */
 
 type Row = Record<string, unknown>;
