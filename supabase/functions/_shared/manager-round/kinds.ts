@@ -7,7 +7,7 @@
 
 export const FINDING_KINDS = [
   // No collector emits these nine yet: the KPI, platform alert and
-  // reconciliation detectors are deferred.
+  // reconciliation detectors are AIO-251 phase 2.
   "cost_spike",
   "roas_drop",
   "kpi_exception",

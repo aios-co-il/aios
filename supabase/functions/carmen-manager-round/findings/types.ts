@@ -70,8 +70,9 @@ export type UpsertDrop = (typeof UPSERT_DROPPED)[number];
 
 export type UpsertOutcome = {
   finding_id: string | null;
-  kind: string;
-  fingerprint: string;
+  /** NULL for an 'invalid' candidate that had none. */
+  kind: string | null;
+  fingerprint: string | null;
   short_code: number | null;
   outcome: (typeof UPSERT_STORED)[number] | UpsertDrop;
 };

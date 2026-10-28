@@ -73,7 +73,7 @@ export function climbLadder(
   });
 }
 
-/** Level 1 goes at once; level 2 waits for the 08:00 brief unless urgent. */
+/** Level 1 goes at once; level 2 waits for the morning brief unless urgent. */
 function climb(
   level: 1 | 2,
   finding: FindingRow,

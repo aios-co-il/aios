@@ -6,6 +6,7 @@
 import { resolveManagerSettings } from "../_shared/manager-round/settings.ts";
 import { RoundBudget } from "./budget.ts";
 import type { RoundDeps } from "./deps.ts";
+import { roundLog } from "./heartbeat.ts";
 import type { RoundRequest } from "./request.ts";
 import type { TenantRow } from "./state/store.ts";
 import { runTenant, type TenantReport } from "./tenant-run.ts";
@@ -51,11 +52,13 @@ export async function runRound(
         }),
       );
     } catch (error) {
-      reports.push({
-        tenant_id: tenant.tenant_id,
-        mode,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      reports.push(
+        await recordTenantFailure(deps, request, {
+          tenant_id: tenant.tenant_id,
+          mode,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
     }
   }
   return { round_id: roundId, dry_run: request.dryRun, tenants: reports };
@@ -73,6 +76,28 @@ export function tenantsToRun(
           resolveManagerSettings(tenant.pulse_alert_rules).mode !== "off",
       );
   return [...chosen].sort((a, b) => lastRun(a) - lastRun(b));
+}
+
+/**
+ * Logs and records a tenant run that threw past runTenant (its lease RPCs), as
+ * the cron discards the response; a failed record is logged too.
+ */
+async function recordTenantFailure(
+  deps: RoundDeps,
+  request: RoundRequest,
+  report: TenantReport,
+): Promise<TenantReport> {
+  console.error(
+    `[carmen-manager-round] tenant ${report.tenant_id} failed: ${report.error}`,
+  );
+  if (!request.dryRun) {
+    await deps.state
+      .writeHeartbeat(roundLog(report, 0))
+      .catch((logError) =>
+        console.error("[carmen-manager-round] heartbeat", logError),
+      );
+  }
+  return report;
 }
 
 /** Last round time in ms; 0 for a tenant never run. */

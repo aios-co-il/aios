@@ -4,13 +4,14 @@ import { MANAGER_ROUND_RUN_KIND } from "../_shared/manager-round/run-kind.ts";
 import { unexpectedDrops } from "./findings/dropped.ts";
 import type { TenantReport } from "./tenant-run.ts";
 
-/** True when the run collected, routed, briefed, sent or failed. */
+/** True when the run collected, routed, lost a routing gap, briefed, sent or failed. */
 export function hasActivity(report: TenantReport): boolean {
   return (
     !!report.error ||
     (report.collectors?.some((collector) => collector.status !== "skipped") ??
       false) ||
     (report.routed ?? 0) > 0 ||
+    unexpectedDrops(report.gaps_dropped ?? {}) > 0 ||
     !!report.brief ||
     (report.dispatch?.messages ?? 0) > 0
   );
