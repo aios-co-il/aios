@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { jsonObject } from "./json-config.ts";
-import {
-  isMetaNode,
-  MetaResponseError,
-  readMetaResponse,
-} from "./meta-response.ts";
+import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status });
@@ -25,7 +21,10 @@ test("Meta responses preserve numeric strings, actions, pagination and extra met
     paging: { next: "https://graph.facebook.com/next" },
     summary: { total_count: 1 },
   };
-  assert.deepEqual(await readMetaResponse(response(payload)), payload);
+  assert.deepEqual(await readMetaResponse(response(payload)), {
+    ok: true,
+    value: payload,
+  });
 });
 
 test("Meta API errors and nullable fields survive decoding for existing fallback handling", async () => {
@@ -34,7 +33,10 @@ test("Meta API errors and nullable fields survive decoding for existing fallback
     error: { message: "Token expired", code: 190, type: null },
     paging: null,
   };
-  assert.deepEqual(await readMetaResponse(response(payload, 400)), payload);
+  assert.deepEqual(await readMetaResponse(response(payload, 400)), {
+    ok: true,
+    value: payload,
+  });
   const nullable = {
     id: null,
     spend: null,
@@ -42,9 +44,13 @@ test("Meta API errors and nullable fields survive decoding for existing fallback
     cost_per_action_type: null,
     questions: null,
   };
-  assert.deepEqual(await readMetaResponse(response(nullable)), nullable);
+  assert.deepEqual(await readMetaResponse(response(nullable)), {
+    ok: true,
+    value: nullable,
+  });
   assert.deepEqual(await readMetaResponse(response({ data: [] })), {
-    data: [],
+    ok: true,
+    value: { data: [] },
   });
 });
 
@@ -61,25 +67,20 @@ test("malformed Graph envelopes cannot masquerade as typed campaign data", async
     { paging: { next: 3 } },
     { error: "expired" },
   ]) {
-    await assert.rejects(
-      readMetaResponse(response(payload)),
-      /Invalid Meta response/,
-    );
+    assert.deepEqual(await readMetaResponse(response(payload)), {
+      ok: false,
+      error: { message: "Invalid Meta response" },
+    });
   }
   await assert.rejects(readMetaResponse(new Response("not-json")), SyntaxError);
 });
 
-test("invalid Graph bodies throw MetaResponseError carrying status and Meta's own error", async () => {
-  const body = { error: { message: "Token expired", code: "190" } };
-  const err = await readMetaResponse(response(body, 400)).catch((e) => e);
-  assert.ok(err instanceof MetaResponseError);
-  assert.equal(err.status, 400);
-  assert.deepEqual(err.body, body);
-  assert.deepEqual(err.fbError, body.error);
-  const generic = await readMetaResponse(response({ error: "expired" })).catch(
-    (e) => e,
-  );
-  assert.deepEqual(generic.fbError, { message: "Invalid Meta response error" });
+test("invalid Graph bodies return Meta's own error when it sent one", async () => {
+  const error = { message: "Token expired", code: "190" };
+  assert.deepEqual(await readMetaResponse(response({ error }, 400)), {
+    ok: false,
+    error,
+  });
 });
 
 test("configured Meta pages accept nullable optional fields and reject malformed fields", () => {

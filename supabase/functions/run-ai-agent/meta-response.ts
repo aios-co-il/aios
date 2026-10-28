@@ -128,42 +128,28 @@ export function isMetaNode(value: unknown): value is MetaNode {
   return metaNodeSchema.safeParse(value).success;
 }
 
-/** Thrown when a Graph body fails validation; keeps the raw body so callers can surface Meta's own error. */
-export class MetaResponseError extends Error {
-  status: number;
-  body: unknown;
+export type MetaResult =
+  | { ok: true; value: MetaResponse }
+  | { ok: false; error: Record<string, unknown> };
 
-  constructor(message: string, status: number, body: unknown) {
-    super(message);
-    this.name = "MetaResponseError";
-    this.status = status;
-    this.body = body;
-  }
-
-  /** Meta's `error` object when the raw body carries one, else a generic message. */
-  get fbError(): Record<string, unknown> {
-    const error: unknown = isObject(this.body)
-      ? Reflect.get(this.body, "error")
-      : undefined;
-    return isObject(error) ? { ...error } : { message: this.message };
-  }
-}
-
-/** Validate the Graph envelope once; keep extra provider fields for metric spreads. */
+/**
+ * Validate the Graph envelope once; keep extra provider fields for metric spreads.
+ * An invalid body returns `{ ok: false, error }` with Meta's own `error` object when
+ * it sent one, so callers choose whether to degrade or surface it.
+ */
 export async function readMetaResponse(
   response: Response,
-): Promise<MetaResponse> {
-  const value: unknown = await response.json();
-  const parsed = metaResponseSchema.safeParse(value);
-  if (parsed.success) return parsed.data;
-  const section = parsed.error.issues[0]?.path[0];
-  const suffix =
-    section === "data" || section === "error" || section === "paging"
-      ? ` ${section}`
-      : "";
-  throw new MetaResponseError(
-    `Invalid Meta response${suffix}`,
-    response.status,
-    value,
-  );
+): Promise<MetaResult> {
+  const body: unknown = await response.json();
+  const parsed = metaResponseSchema.safeParse(body);
+  if (parsed.success) return { ok: true, value: parsed.data };
+  const metaError: unknown = isObject(body)
+    ? Reflect.get(body, "error")
+    : undefined;
+  return {
+    ok: false,
+    error: isObject(metaError)
+      ? { ...metaError }
+      : { message: "Invalid Meta response" },
+  };
 }
