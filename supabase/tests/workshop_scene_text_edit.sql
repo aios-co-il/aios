@@ -1,19 +1,26 @@
--- Scene text edit (20261026103240_workshop_scene_text_edit): synthetic work items and scenes
--- inside one transaction that is rolled back. Only the texts given change, within their limits;
--- meta keys written by others survive, and nothing is marked stale. Signed in as a tenant member
--- (authenticated role), the scene of another tenant is not found and stays as it was.
--- Staging only: needs a non-admin tenant member and a second tenant.
+-- Scene text edit (20261026103240_workshop_scene_text_edit, member check in
+-- 20261026103255_workshop_cross_tenant_writes): synthetic work items and scenes inside one
+-- transaction that is rolled back, signed in as a tenant member (authenticated role). Only the
+-- texts given change, within their limits; meta keys written by others survive, and nothing is
+-- marked stale. The scene of another tenant is not found and stays as it was, also for a super
+-- admin, who reads every tenant's scenes but changes none outside their own (TENANT_ISOLATION.md).
+-- Staging only: needs a non-admin tenant member and a tenant they do not belong to.
 BEGIN;
 DO $test$
 DECLARE
+  v_actor uuid;
   v_tenant uuid;
   v_item uuid;
   v_scene uuid := gen_random_uuid();
   r public.marketing_video_scenes;
   v_failed boolean;
 BEGIN
-  SELECT id INTO v_tenant FROM public.tenants ORDER BY id LIMIT 1;
-  IF v_tenant IS NULL THEN RAISE EXCEPTION 'Requires a tenant'; END IF;
+  SELECT tu.user_id, tu.tenant_id INTO v_actor, v_tenant
+  FROM public.tenant_users tu
+  WHERE public.get_user_tenant_id(tu.user_id) = tu.tenant_id
+    AND NOT public.is_super_admin(tu.user_id)
+  LIMIT 1;
+  IF v_actor IS NULL THEN RAISE EXCEPTION 'Requires a non-admin tenant member'; END IF;
   INSERT INTO public.marketing_work_items (tenant_id, title, status, payload)
   VALUES (v_tenant, 'QA ROLLBACK scene text edit', 'draft', '{"workshop":{}}')
   RETURNING id INTO v_item;
@@ -23,6 +30,8 @@ BEGIN
     v_scene, v_tenant, v_item, 1, 'פתיחה', 'ישן', 'קריינות ישנה', 'slow push in', false,
     '{"lipsync":true,"dialogue":"שורה ישנה","reference_url":"https://example.com/skin.png"}'
   );
+  PERFORM set_config('request.jwt.claim.sub', v_actor::text, true);
+  SET LOCAL ROLE authenticated;
 
   -- Only the dialogue: the other texts and meta keys stay.
   r := public.workshop_edit_scene_text(v_scene, NULL, NULL, '  שורה חדשה  ');
@@ -61,6 +70,8 @@ BEGIN
     RAISE EXCEPTION 'edit: texts keep their limits (%, %, %)',
       length(r.overlay_text), length(r.voiceover_text), length(r.meta->>'dialogue');
   END IF;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub', '', true);
 
   RAISE NOTICE 'workshop_scene_text_edit: all checks passed';
 END;
@@ -119,4 +130,58 @@ BEGIN
   RAISE NOTICE 'workshop_scene_text_edit: tenant checks passed';
 END;
 $tenant$;
+
+-- As a super admin (made one inside this transaction): another tenant's scene can be read but
+-- not changed; it is not found and stays as it was.
+DO $admin$
+DECLARE
+  v_actor uuid;
+  v_other_tenant uuid;
+  v_other_item uuid;
+  v_other uuid := gen_random_uuid();
+  v_seen integer;
+  v_failed boolean;
+BEGIN
+  SELECT tu.user_id INTO v_actor
+  FROM public.tenant_users tu
+  WHERE NOT public.is_super_admin(tu.user_id)
+  LIMIT 1;
+  SELECT t.id INTO v_other_tenant
+  FROM public.tenants t
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.tenant_users tu WHERE tu.user_id = v_actor AND tu.tenant_id = t.id
+  )
+  LIMIT 1;
+  IF v_actor IS NULL OR v_other_tenant IS NULL THEN
+    RAISE EXCEPTION 'Requires a tenant member and a tenant they do not belong to';
+  END IF;
+  INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (v_actor, 'super_admin', NULL);
+  INSERT INTO public.marketing_work_items (tenant_id, title, status, payload)
+  VALUES (v_other_tenant, 'QA ROLLBACK admin scene', 'draft', '{}') RETURNING id INTO v_other_item;
+  INSERT INTO public.marketing_video_scenes (id, tenant_id, item_id, position, title, overlay_text)
+  VALUES (v_other, v_other_tenant, v_other_item, 1, 'של ארגון אחר', 'ישן');
+
+  PERFORM set_config('request.jwt.claim.sub', v_actor::text, true);
+  SET LOCAL ROLE authenticated;
+  SELECT count(*) INTO v_seen FROM public.marketing_video_scenes WHERE id = v_other;
+  BEGIN
+    PERFORM public.workshop_edit_scene_text(v_other, 'נערך בידי מנהל');
+    v_failed := false;
+  EXCEPTION WHEN no_data_found THEN v_failed := true;
+  END;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+  IF v_seen <> 1 THEN
+    RAISE EXCEPTION 'admin: a super admin should read another tenant''s scene (setup)';
+  END IF;
+  IF NOT v_failed THEN
+    RAISE EXCEPTION 'admin: a super admin must not change another tenant''s scene';
+  END IF;
+  IF (SELECT overlay_text FROM public.marketing_video_scenes WHERE id = v_other) <> 'ישן' THEN
+    RAISE EXCEPTION 'admin: another tenant''s scene must stay as it was';
+  END IF;
+
+  RAISE NOTICE 'workshop_scene_text_edit: super admin checks passed';
+END;
+$admin$;
 ROLLBACK;
