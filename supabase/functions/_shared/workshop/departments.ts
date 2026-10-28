@@ -70,7 +70,8 @@ const STAGE_DEPARTMENT: Record<string, DepartmentId> = {
  * Untagged creative work (variations, a static or video project, a picture) goes to Creative
  * whatever brief, copy or copy stage it carries: isCreativeDepartmentItem lists it and
  * isCopyDepartmentItem leaves most of it out, so the card links to a screen that shows it.
- * public.workshop_assign_client mirrors this rule in SQL: change both together.
+ * public.workshop_assign_client mirrors this rule in SQL: change both together, and the cases in
+ * supabase/tests/workshop_assign_client.sql with departments.test.ts.
  */
 export function projectDepartment(row: ProjectDepartmentInput): DepartmentId {
   if (isDepartmentId(row.department_hint)) return row.department_hint;

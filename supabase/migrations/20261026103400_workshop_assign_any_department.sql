@@ -1,6 +1,8 @@
 -- One assign path for every department (AIO-256). The workshop, Carmen and the department cards
 -- assign, move and release a project with workshop_assign_client, whatever its department.
--- SEO and social projects stay with the client they were assigned to.
+-- SEO and social projects stay with the client they were assigned to. The trigger at the end
+-- enforces this only for projects with a seo_geo_programs row; social (and SEO without a
+-- program) is locked in workshop_assign_client alone. 20261026103410 refines both.
 
 -- The stage of one type in a client's pipeline of one track (or in the tenant's active "no client"
 -- pipeline when p_client is null). Takes the oldest pipeline when a client has duplicates, the
@@ -258,7 +260,8 @@ grant execute on function public.workshop_assign_client(uuid, uuid) to authentic
 
 -- An SEO project's program, keywords and calendar belong to its client, so the project never
 -- changes client once it has one. Checked for every writer, the service role included; the
--- assign RPC refuses these moves before they get here.
+-- assign RPC refuses these moves before they get here. Only projects with a program: a social
+-- project's lock lives in workshop_assign_client alone.
 create or replace function public.marketing_work_items_seo_client_lock()
 returns trigger
 language plpgsql
