@@ -293,13 +293,31 @@ export function devTaskApprovalDecision(
     return refuse("not_offered");
   const named = namedDevAgent(input.userText);
   if (named && named !== agentOf(task)) return refuse("target_mismatch");
-  if (input.approver?.tier === "bugfix") {
-    if (agentOf(task) !== "cursor") return refuse("bugfix_cursor_only");
-    const requester = task.requested_by_user_id;
-    if (requester && input.approver.id && requester !== input.approver.id)
-      return refuse("not_requester");
-  }
-  return { ok: true };
+  const bugfix = bugfixApprovalRefusal(task, input.approver);
+  return bugfix ? refuse(bugfix.reason) : { ok: true };
+}
+
+/**
+ * A bug-fix caller (Ana) approves and sends only Cursor tasks she asked for (or that name no
+ * requester); a full caller any task. Carmen's approve_dev_task and the Command Center both
+ * apply it.
+ */
+export function bugfixApprovalRefusal(
+  task: {
+    assigned_agent?: string | null;
+    requested_by_user_id?: string | null;
+  },
+  approver: { id?: string | null; tier?: DevEscalationTier } | undefined,
+): { reason: "bugfix_cursor_only" | "not_requester"; message: string } | null {
+  if (approver?.tier !== "bugfix") return null;
+  const requester = task.requested_by_user_id;
+  const reason =
+    agentOf(task) !== "cursor"
+      ? "bugfix_cursor_only"
+      : requester && approver.id && requester !== approver.id
+        ? "not_requester"
+        : null;
+  return reason ? { reason, message: REFUSAL_MESSAGES[reason] } : null;
 }
 
 /** A connector's tool that starts new work at a coding agent: a dev task or a research run. */

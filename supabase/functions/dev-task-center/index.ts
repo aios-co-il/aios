@@ -1,6 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { requireAuth } from "../_shared/security.ts";
+import {
+  resolveCarmenAgent,
+  userHasTenantAccess,
+} from "../_shared/agent-channel/store.ts";
+import { loadDevEscalationTierFromDb } from "../_shared/carmen-access-policy.ts";
+import type { DevEscalationTier } from "../_shared/dev-task-approval.ts";
+import {
+  type DevTaskCenterCaller,
+  devTaskSendAuthorization,
+} from "./authorize.ts";
 import {
   approveDevTask,
   approveOnSend,
@@ -149,6 +162,26 @@ serve(async (req) => {
       return json({ task: data });
     }
 
+    if (action === "approve" || action === "dispatch") {
+      // Only the service role, or a person of this tenant whose dev tier allows it, approves
+      // or sends; the approval is recorded as that verified caller.
+      const { data: target } = await supabase
+        .from("dev_tasks")
+        .select("assigned_agent, requested_by_user_id")
+        .eq("id", String(body.id || ""))
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      const verdict = devTaskSendAuthorization(
+        await devTaskCenterCaller(supabase, auth, tenantId),
+        target,
+      );
+      if (!verdict.ok)
+        return json(
+          { error: verdict.error, code: verdict.code },
+          verdict.status,
+        );
+    }
+
     if (action === "approve") {
       const task = await approveDevTask(
         supabase,
@@ -238,8 +271,39 @@ serve(async (req) => {
   }
 });
 
-function json(payload: unknown) {
+function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
+    status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
+}
+
+/**
+ * The caller's rights in this tenant: their tenant access, and their dev-escalation tier loaded
+ * the way Carmen's tools load it for an app user (the tenant's Carmen, no campaigner or phone).
+ */
+async function devTaskCenterCaller(
+  supabase: SupabaseClient,
+  auth: { kind: "user" | "service"; userId: string | null },
+  tenantId: string,
+): Promise<DevTaskCenterCaller> {
+  if (auth.kind === "service") return { kind: "service" };
+  const userId = auth.userId ?? "";
+  const carmen = await resolveCarmenAgent(supabase, tenantId);
+  const [tenantAccess, tier] = await Promise.all([
+    userId ? userHasTenantAccess(supabase, userId, tenantId) : false,
+    loadDevEscalationTierFromDb(supabase, {
+      tenantId,
+      agentId: carmen?.id ?? null,
+      userId: userId || null,
+      campaignerId: null,
+      phone: null,
+    }),
+  ]);
+  return {
+    kind: "user",
+    userId,
+    tenantAccess,
+    tier: (tier ?? null) as DevEscalationTier,
+  };
 }
