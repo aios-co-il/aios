@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { saveAgencyShares } from "./agencyShares";
 
 interface EditTenantAgenciesDialogProps {
@@ -78,7 +79,7 @@ export default function EditTenantAgenciesDialog({
   const mutation = useMutation({
     mutationFn: (agencyIds: string[]) =>
       saveAgencyShares(supabase, {
-        sourceTenantId: currentTenantId,
+        sourceTenantId: requireTenantId(currentTenantId),
         accessingTenantId: tenant.id,
         saved: existingAccess ?? [],
         picked: agencyIds,
