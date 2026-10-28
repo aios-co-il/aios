@@ -19,21 +19,27 @@ export type LineAccessInput = {
   superAdminUserIds?: string[];
 };
 
-/** Who a send of this step from this line goes out as: the automation's session user, else (Manus only) the line's own user. */
+/**
+ * Who a send of this step from this line goes out as: the automation's
+ * session user, else (on the tenant's own Manus line only) the line's own
+ * user. Another tenant's line never lends its owner, so the owner's
+ * super-admin access cannot open that line to this tenant.
+ */
 export function stepSender(
   input: LineAccessInput,
   step: NotifyStepRow,
   line: NotifyIntegrationRow,
   provider: Provider,
 ): string | null {
+  const ownManus = provider === "manus" && line.tenant_id === input.tenantId;
   return (
     input.senderUserIds?.[step.automation_id] ||
-    (provider === "manus" ? line.user_id : null) ||
+    (ownManus ? line.user_id : null) ||
     null
   );
 }
 
-/** The tenant's own line, one shared with it, or any line when the step's sender is a super admin. */
+/** The tenant's own line, one shared with it, or any line when the step's session sender is a super admin. */
 export function stepMayUseLine(
   input: LineAccessInput,
   step: NotifyStepRow,
