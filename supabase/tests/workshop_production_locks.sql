@@ -58,4 +58,79 @@ BEGIN
 END;
 $storyboard$;
 
+-- An asset's address opens as a link and shows as a picture, and a board page's address plays
+-- as its picture, video or sound: only what the app writes is stored, never javascript: or
+-- data: written straight through the API. Assets: http(s) only. Pages: http(s), or a path in
+-- the project's storage (the board signs it to show it).
+DO $links$
+DECLARE
+  v_tenant uuid;
+  v_item uuid;
+  v_bad text;
+  v_refused boolean;
+BEGIN
+  SELECT id INTO v_tenant FROM public.tenants ORDER BY id LIMIT 1;
+  IF v_tenant IS NULL THEN RAISE EXCEPTION 'Requires a tenant'; END IF;
+  INSERT INTO public.marketing_work_items (tenant_id, title, status, payload)
+  VALUES (v_tenant, 'QA ROLLBACK asset links', 'draft', '{"workshop":{}}')
+  RETURNING id INTO v_item;
+
+  -- What the app writes.
+  INSERT INTO public.workshop_assets (tenant_id, item_id, asset_type, url) VALUES
+    (v_tenant, v_item, 'link', 'https://example.com/page'),
+    (v_tenant, v_item, 'site', 'http://example.com'),
+    (v_tenant, v_item, 'image', 'https://p.supabase.co/storage/v1/object/public/entity-attachments/a/b.png'),
+    (v_tenant, v_item, 'text', NULL);
+  INSERT INTO public.workshop_artifacts (tenant_id, item_id, kind, url, thumb_url) VALUES
+    (v_tenant, v_item, 'image', 'https://p.supabase.co/storage/v1/object/public/x/y.png',
+     'https://p.supabase.co/storage/v1/object/public/x/y.png'),
+    (v_tenant, v_item, 'clip', v_tenant || '/' || v_item || '/clip.mp4', NULL),
+    (v_tenant, v_item, 'narration', v_tenant || '/voices/sample.mp3', NULL),
+    (v_tenant, v_item, 'brief', NULL, NULL);
+
+  FOREACH v_bad IN ARRAY ARRAY[
+    'javascript:alert(1)', ' javascript:alert(1)', 'JaVaScRiPt:alert(1)',
+    'data:text/html,<script>alert(1)</script>', '//evil.example/x', 'evil.example/page'
+  ] LOOP
+    BEGIN
+      INSERT INTO public.workshop_assets (tenant_id, item_id, asset_type, url)
+      VALUES (v_tenant, v_item, 'link', v_bad);
+      v_refused := false;
+    EXCEPTION WHEN check_violation THEN v_refused := true;
+    END;
+    IF NOT v_refused THEN RAISE EXCEPTION 'links: an asset address % must be refused', v_bad; END IF;
+  END LOOP;
+
+  FOREACH v_bad IN ARRAY ARRAY[
+    'javascript:alert(1)', ' javascript:alert(1)', E'java\tscript:alert(1)',
+    'data:image/svg+xml,<svg onload=alert(1)>', '//evil.example/x', '/etc/passwd'
+  ] LOOP
+    BEGIN
+      INSERT INTO public.workshop_artifacts (tenant_id, item_id, kind, url)
+      VALUES (v_tenant, v_item, 'image', v_bad);
+      v_refused := false;
+    EXCEPTION WHEN check_violation THEN v_refused := true;
+    END;
+    IF NOT v_refused THEN RAISE EXCEPTION 'links: a page address % must be refused', v_bad; END IF;
+    BEGIN
+      INSERT INTO public.workshop_artifacts (tenant_id, item_id, kind, thumb_url)
+      VALUES (v_tenant, v_item, 'image', v_bad);
+      v_refused := false;
+    EXCEPTION WHEN check_violation THEN v_refused := true;
+    END;
+    IF NOT v_refused THEN RAISE EXCEPTION 'links: a page thumbnail % must be refused', v_bad; END IF;
+  END LOOP;
+
+  -- An update cannot slip one in either.
+  BEGIN
+    UPDATE public.workshop_assets SET url = 'javascript:alert(1)' WHERE item_id = v_item AND asset_type = 'link';
+    v_refused := false;
+  EXCEPTION WHEN check_violation THEN v_refused := true;
+  END;
+  IF NOT v_refused THEN RAISE EXCEPTION 'links: an updated asset address must be refused'; END IF;
+
+  RAISE NOTICE 'workshop_production_locks: link checks passed';
+END;
+$links$;
+
 ROLLBACK;

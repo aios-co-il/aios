@@ -6,6 +6,15 @@
 --    belong to. It now refuses as workshop_edit_scene_text does (20261026103257): errcode
 --    55006 while produce_video's own lock holds (status running, started within the hour).
 --
+-- 2. R932-16 / R932-33: the addresses the workshop shows are only what the app writes. An
+--    asset's url opens as a link and shows as a picture (AssetCard), and a board page's url and
+--    thumb_url play as its picture, video or sound (WorkshopFeed), but members write both tables
+--    through the API, so a javascript: or data: address could be stored. Assets: http(s) only
+--    (uploads keep their public url, links and sites are http(s), storage_path holds the path).
+--    Pages: http(s), or a path in the project's storage ("<tenant>/<item>/clip.mp4"; the board
+--    signs it), whose first part has no ":" and so is never a scheme. Staging (read-only check,
+--    2026-10-28) has neither table yet, so nothing violates them and they are validated here.
+--
 -- Replaces save_video_storyboard (20261026103230_video_scene_reference.sql), with the addition
 -- marked "production lock". Same arguments, meta keys and grants.
 
@@ -93,3 +102,44 @@ $$;
 
 revoke all on function public.save_video_storyboard(uuid, jsonb) from public, anon;
 grant execute on function public.save_video_storyboard(uuid, jsonb) to authenticated, service_role;
+
+-- ── 2. Addresses: only what the app writes ─────────────────────────────────────
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'workshop_assets_url_web' and conrelid = 'public.workshop_assets'::regclass
+  ) then
+    alter table public.workshop_assets
+      add constraint workshop_assets_url_web
+      check (url is null or url ~* '^https?://') not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'workshop_artifacts_url_safe' and conrelid = 'public.workshop_artifacts'::regclass
+  ) then
+    alter table public.workshop_artifacts
+      add constraint workshop_artifacts_url_safe
+      check (
+        url is null
+        or url ~* '^https?://'
+        or url ~ '^[[:alnum:]_][[:alnum:]_.-]*(/.*)?$'
+      ) not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'workshop_artifacts_thumb_url_safe' and conrelid = 'public.workshop_artifacts'::regclass
+  ) then
+    alter table public.workshop_artifacts
+      add constraint workshop_artifacts_thumb_url_safe
+      check (
+        thumb_url is null
+        or thumb_url ~* '^https?://'
+        or thumb_url ~ '^[[:alnum:]_][[:alnum:]_.-]*(/.*)?$'
+      ) not valid;
+  end if;
+end $$;
+
+alter table public.workshop_assets validate constraint workshop_assets_url_web;
+alter table public.workshop_artifacts validate constraint workshop_artifacts_url_safe;
+alter table public.workshop_artifacts validate constraint workshop_artifacts_thumb_url_safe;
