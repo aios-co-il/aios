@@ -127,3 +127,12 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
    - **Voice-OUT:** each assistant bubble has a "השמע" speaker button → `carmen-speak` edge function (`aiSpeak`, mp3) → browser `<audio>` playback.
 
 - TTS/STT helpers live in `_shared/ai.ts` (`aiSpeak` / `aiTranscribe`). Voice = `ai_agents.voice` (default `shimmer`).
+
+## Shabbat quiet hours and pulse instant alerts (AIO-226)
+
+- **Shabbat** is the whole Saturday, 00:00–23:59 Asia/Jerusalem (`_shared/shabbat/quiet-window.ts`).
+- **Held until Sunday 08:30:** `task-notification-worker`, `client-follow-up-worker` and task notifications sent through `trigger-automation`. Peer task notifications wait in `task_notification_holds`; the worker replays each once, and a hold still unreleased 24h after its release time expires unsent.
+- **Held for Saturday only:** pulse instant alerts and `fb-campaign-monitor` WhatsApp, for every alert type not in `_shared/shabbat/critical-alerts.ts` (add a new critical kind there); a pulse `connection_lost` goes out only for a real connection loss. `agent-heartbeat` skips the Saturday anomaly digest. No other sender is gated.
+- **Recurring task reminders** go out at 08:30 on the occurrence's own Israel date; one-off tasks keep the day-before reminder.
+- **Pulse instant alerts** run only when `instantPulseAlertsGate` (`campaign-pulse-snapshot/instant-alerts-gate.ts`) allows it. Send `skip_instant_alerts: true` to refresh pulse numbers without alerting the team.
+- **Cross-org dedupe:** for a client of an agency on one of this org's own `agency_tenant_access` grants (this org on either side), a phone the org on the other side of that grant already alerted with the same rule and finding inside the rule's throttle window is dropped from this org's send (`_shared/pulse/cross-tenant-recipients.ts`, keyed by phone in `pulse_instant_alert_log.recipient_phone`). Two orgs that each hold a grant from a third org do not dedupe each other. A failed lookup alerts everyone. Check this first when one org reports a missed pulse alert.
