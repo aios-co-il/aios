@@ -93,3 +93,29 @@ test("a static project is in creative before it has a picture, and never in copy
     expect(isCopyDepartmentItem(item, "copy-1")).toBe(false);
   }
 });
+
+test("social and web work never shows in creative, as the workshop groups it", () => {
+  // An untagged item in a social_organic pipeline is social work, even at that pipeline's
+  // creative stage or with a picture; a tag for creative still wins, as in projectDepartment.
+  const items = [
+    { id: "post", pipeline_id: "social", payload: { image_url: "a.png" } },
+    { id: "staged", pipeline_id: "social", current_stage_id: "creative-s" },
+    {
+      id: "variations",
+      pipeline_id: "social",
+      payload: { variations: [{ id: "v1" }] },
+    },
+    {
+      id: "tagged",
+      pipeline_id: "social",
+      payload: { department: "creative", image_url: "b.png" },
+    },
+    { id: "web", payload: { department: "web", image_url: "c.png" } },
+    { id: "ad", pipeline_id: "campaigns", payload: { image_url: "d.png" } },
+  ];
+  expect(
+    filterCreativeDepartmentItems(items, ["creative-s"], ["social"]).map(
+      (item) => item.id,
+    ),
+  ).toStrictEqual(["tagged", "ad"]);
+});

@@ -1,6 +1,7 @@
 type WorkItemLike = {
   payload?: Record<string, unknown> | null;
   current_stage_id?: string | null;
+  pipeline_id?: string | null;
 };
 
 const otherDepartments = new Set([
@@ -39,15 +40,22 @@ export function isCopyDepartmentItem(
   return false;
 }
 
+/**
+ * `socialPipelineIds`: the tenant's social_organic pipelines. An untagged item in one is social
+ * work, wherever it stands and whatever it holds, as the workshop groups it (projectDepartment).
+ */
 export function isCreativeDepartmentItem(
   item: WorkItemLike,
   creativeStageId?: string | null,
+  socialPipelineIds?: ReadonlySet<string>,
 ) {
   const payload = item.payload ?? {};
   const department = payload.department;
   if (typeof department === "string" && nonCreativeDepartments.has(department))
     return false;
   if (department === "creative") return true;
+  if (item.pipeline_id && socialPipelineIds?.has(item.pipeline_id))
+    return false;
   if (payload.handoff_from === "copy") return true;
   if (payload.intake_source === "copy_link") return true;
   if (creativeStageId && item.current_stage_id === creativeStageId) return true;
@@ -64,14 +72,16 @@ export function isCreativeDepartmentItem(
 export function filterCreativeDepartmentItems<T extends WorkItemLike>(
   items: T[],
   creativeStageIds: Iterable<string> = [],
+  socialPipelineIds: Iterable<string> = [],
 ): T[] {
   const ids = new Set(creativeStageIds);
+  const social = new Set(socialPipelineIds);
   return items.filter((item) => {
     const stageId =
       item.current_stage_id && ids.has(item.current_stage_id)
         ? item.current_stage_id
         : undefined;
-    return isCreativeDepartmentItem(item, stageId);
+    return isCreativeDepartmentItem(item, stageId, social);
   });
 }
 
