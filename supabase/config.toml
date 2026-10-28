@@ -461,6 +461,11 @@ verify_jwt = true
 [functions.client-follow-up-worker]
 verify_jwt = true
 
+# Carmen's manager round (AIO-251): called every 15 minutes by the
+# carmen-manager-round-15m cron; refuses any caller but the service role.
+[functions.carmen-manager-round]
+verify_jwt = true
+
 [functions.run-ai-agent-v2]
 verify_jwt = true
 

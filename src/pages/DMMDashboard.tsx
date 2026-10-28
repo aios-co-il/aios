@@ -86,6 +86,7 @@ import {
   type PulseCampaignGoal,
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
+import { hasComplaintWords } from "../../supabase/functions/_shared/client-signals/complaint-words.ts";
 
 export type CampaignPulseDashboardProps = {
   /** When embedded from agency dashboard — lock to one agency and hide picker */
@@ -581,6 +582,8 @@ export function CampaignPulseDashboard({
         .from("client_updates")
         .select("client_id, update_type, content, created_at")
         .in("client_id", clientIds)
+        // Messages AIOS sent to the client are not the client's complaints.
+        .neq("source", "system_send")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(300);
@@ -733,10 +736,9 @@ export function CampaignPulseDashboard({
       const recentStatus =
         latestLog?.status as PulseAttentionClientContext["recentCommunicationStatus"];
       const updates = updatesByClient.get(clientId) ?? [];
-      const hasRecentComplaintUpdate = updates.some((row) => {
-        const text = `${row.update_type ?? ""} ${row.content}`.toLowerCase();
-        return /complaint|תלונה|לא מרוצ|כועס|עצבן|בעיה חמורה/.test(text);
-      });
+      const hasRecentComplaintUpdate = updates.some((row) =>
+        hasComplaintWords(`${row.update_type ?? ""} ${row.content}`),
+      );
 
       contexts.push({
         clientId,

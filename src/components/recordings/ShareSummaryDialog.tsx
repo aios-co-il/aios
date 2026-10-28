@@ -39,6 +39,8 @@ import {
   Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { markdownToEmailHtml, markdownToWhatsApp } from "./summaryFormat";
 
 export interface ShareableRecording {
@@ -81,6 +83,7 @@ export function ShareSummaryDialog({
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const recordDelivery = useRecordReportDelivery();
 
   const meetingName = recording.meeting_topic || "פגישה";
   const meetingDate = recording.start_time
@@ -146,24 +149,6 @@ export function ShareSummaryDialog({
     else setEmailSender("aios");
   }, [gmailToken]);
 
-  const logClientUpdate = async () => {
-    if (!recording.client_id) return;
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      await supabase.from("client_updates").insert({
-        tenant_id: tenantId,
-        client_id: recording.client_id,
-        update_type: "meeting_summary",
-        content: `סיכום הפגישה "${meetingName}"${meetingDate ? ` (${meetingDate})` : ""} נשלח ללקוח`,
-        created_by: user?.id ?? null,
-      } as never);
-    } catch (err) {
-      console.error("client_updates log failed:", err);
-    }
-  };
-
   const handleSend = async () => {
     if (!recording.summary_md) {
       toast.error("אין סיכום לשליחה — צור סיכום קודם");
@@ -175,6 +160,7 @@ export function ShareSummaryDialog({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
     try {
       const {
         data: { session },
@@ -214,12 +200,16 @@ export function ShareSummaryDialog({
                 ? { groupId: selectedGroupId }
                 : { phoneNumber: directPhone }),
               ...(recording.client_id ? { clientId: recording.client_id } : {}),
+              // Logged on the client card once, from report_deliveries.
+              sendKind: "meeting_summary",
+              sendRef: recording.id,
             }),
           },
         );
         const msgResult = await msgResponse.json();
         if (!msgResponse.ok)
           throw new Error(msgResult.error || "שגיאה בשליחה בוואטסאפ");
+        sentChannels.push("whatsapp");
 
         // Optional: the DOCX as an attached document
         if (attachDocx && recording.summary_file_url) {
@@ -239,6 +229,8 @@ export function ShareSummaryDialog({
             else formData.append("phoneNumber", directPhone);
             if (recording.client_id)
               formData.append("clientId", recording.client_id);
+            formData.append("sendKind", "meeting_summary");
+            formData.append("sendRef", recording.id);
             const fileResponse = await fetch(
               `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
               {
@@ -362,9 +354,9 @@ export function ShareSummaryDialog({
             throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הסיכום נשלח באימייל בהצלחה");
         }
+        sentChannels.push("email");
       }
 
-      await logClientUpdate();
       onOpenChange(false);
     } catch (error) {
       console.error("Error sending summary:", error);
@@ -372,6 +364,19 @@ export function ShareSummaryDialog({
         "שגיאה בשליחת הסיכום: " + (error instanceof Error ? error.message : ""),
       );
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId: recording.client_id,
+        targetType: "meeting_summary",
+        targetId: recording.id,
+        title: meetingName,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        extraDetails: {
+          meeting_date: meetingDate || null,
+          recording_id: recording.id,
+        },
+      });
       setIsSending(false);
     }
   };

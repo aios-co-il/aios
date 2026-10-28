@@ -1,3 +1,5 @@
+import type { ManagerMode } from "../../supabase/functions/_shared/manager-round/modes.ts";
+
 export type PulseAlertRules = {
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
@@ -34,4 +36,68 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
   };
+}
+
+/**
+ * Manager-round settings stored under pulse_alert_rules.manager. Other code
+ * may keep more keys there (cost thresholds, logging switches, collector
+ * settings); they are always preserved.
+ */
+export type PulseManagerSettings = {
+  /** Carmen's rollout mode; owner-only (the database refuses others). */
+  mode?: ManagerMode;
+  /**
+   * Log what AIOS sends to a client (reports, dashboard shares, meeting
+   * summaries, broadcasts, Carmen and automation messages, chat replies) on
+   * the client card automatically. Off unless an owner turns it on.
+   */
+  card_log_system_sends?: boolean;
+};
+
+/** Whether the tenant logs system sends on the client card (default false). */
+export function readCardLogSystemSends(raw: unknown): boolean {
+  return asRecord(asRecord(raw).manager).card_log_system_sends === true;
+}
+
+/**
+ * Saves the edited alert rules and the manager settings; the caller merges
+ * both into the stored pulse_alert_rules (mergePulseAlertRules).
+ */
+export type SavePulseAlertRules = (
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings,
+) => void;
+
+/**
+ * The pulse_alert_rules value to save: the stored JSON with the edited alert
+ * rules laid over it; keys this screen does not know are kept. The manager
+ * block is sent only when a manager setting actually changes: without it the
+ * database keeps the stored block (carmen_manager_settings_guard), so a stale
+ * page never reverts it and a non-owner's save never touches it.
+ */
+export function mergePulseAlertRules(
+  stored: unknown,
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings = {},
+): Record<string, unknown> {
+  const { manager: storedManager, ...current } = asRecord(stored);
+  const merged: Record<string, unknown> = {
+    ...current,
+    ...parsePulseAlertRules({ ...current, ...rules }),
+  };
+  const block = asRecord(storedManager);
+  const changes = Object.entries(manager).filter(
+    ([key, value]) => value !== undefined && block[key] !== value,
+  );
+  if (changes.length > 0) {
+    merged.manager = { ...block, ...Object.fromEntries(changes) };
+  }
+  return merged;
+}
+
+/** A copy of a JSON object, or {} for anything else (arrays included). */
+function asRecord(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? { ...raw }
+    : {};
 }

@@ -39,6 +39,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 
 /** Keep in sync with SEND_REPORT_CLIENT_TIMEOUT_MS in send-green-api-file-chat-resolve.mjs */
 const SEND_REPORT_WA_CLIENT_TIMEOUT_MS = 60_000;
@@ -82,6 +84,7 @@ export function SendReportDialog({
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const recordDelivery = useRecordReportDelivery();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -184,6 +187,7 @@ export function SendReportDialog({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
     try {
       const {
         data: { session },
@@ -216,6 +220,9 @@ export function SendReportDialog({
           formData.append("phoneNumber", directPhone.trim());
         }
         if (clientId) formData.append("clientId", clientId);
+        // A report send: the client card logs it once, from report_deliveries.
+        formData.append("sendKind", "report");
+        formData.append("sendRef", tableId);
 
         const controller = new AbortController();
         const timeoutId = window.setTimeout(
@@ -247,6 +254,7 @@ export function SendReportDialog({
         const result = await response.json();
         if (!response.ok)
           throw new Error(result.error || "שגיאה בשליחה בוואטסאפ");
+        sentChannels.push("whatsapp");
         toast.success("הדוח נשלח בוואטסאפ בהצלחה");
       }
 
@@ -352,6 +360,7 @@ export function SendReportDialog({
             throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הדוח נשלח באימייל בהצלחה");
         }
+        sentChannels.push("email");
       }
 
       onOpenChange(false);
@@ -359,6 +368,17 @@ export function SendReportDialog({
       console.error("Error sending report:", error);
       toast.error("שגיאה בשליחת הדוח: " + error.message);
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "table",
+        targetId: tableId,
+        title: tableName,
+        shareUrl: shareLink ?? null,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients: [emailAddress],
+      });
       setIsSending(false);
     }
   };

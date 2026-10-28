@@ -39,7 +39,12 @@ import {
 } from "./ReportEmailSenderSelect";
 import { syncReportTable, waitForSnapshotReady } from "@/lib/reportSync";
 import { downloadReportPdf } from "@/lib/reportPdf";
-import { getReportLastSyncAt } from "@/lib/reportQueryOptions";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
+import {
+  getReportLastSyncAt,
+  getReportSyncProblem,
+} from "@/lib/reportQueryOptions";
 import { getAdAccountUrl } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import {
@@ -146,6 +151,7 @@ export function ClientReportPanel({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const recordDelivery = useRecordReportDelivery();
   const snapshotRef = useRef<HTMLDivElement>(null);
 
   // Screenshot state
@@ -498,9 +504,13 @@ export function ClientReportPanel({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
+    let effectiveShareLink: string | null = shareLink || null;
     try {
       // Auto-create share link if missing
-      const effectiveShareLink = shareLink || (await ensureShareLink());
+      if (!effectiveShareLink) {
+        effectiveShareLink = await ensureShareLink();
+      }
 
       if (sendWhatsApp) {
         const hasGroup = selectedGroupId && selectedGroupId !== "__none__";
@@ -534,6 +544,9 @@ export function ClientReportPanel({
         }
         if (waSenderId) formData.append("integrationId", waSenderId);
         if (clientId) formData.append("clientId", clientId);
+        // A report send: the client card logs it once, from report_deliveries.
+        formData.append("sendKind", "report");
+        formData.append("sendRef", table.id);
 
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
@@ -545,28 +558,8 @@ export function ClientReportPanel({
         );
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "שגיאה בשליחה");
+        sentChannels.push("whatsapp");
         toast.success("הדוח נשלח בוואטסאפ בהצלחה");
-
-        // Auto-save the WhatsApp text as a weekly update in the client updates tab
-        if (messageText.trim()) {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            await supabase.from("client_updates").insert({
-              client_id: clientId,
-              tenant_id: tenantId,
-              user_id: user?.id,
-              content: messageText.trim(),
-              update_type: "weekly_update",
-            } as any);
-            queryClient.invalidateQueries({
-              queryKey: ["client-updates", tenantId],
-            });
-          } catch (e) {
-            console.warn("Failed to auto-save weekly update:", e);
-          }
-        }
       }
 
       if (sendEmail) {
@@ -650,50 +643,9 @@ export function ClientReportPanel({
           if (error) throw new Error(error.message || "שגיאה בשליחה");
           if (data?.error) throw new Error(data.error);
         }
+        sentChannels.push("email");
         toast.success("הדוח נשלח באימייל בהצלחה");
-
-        // Auto-save the email text as a monthly SEO update
-        if (messageText.trim()) {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            await supabase.from("client_updates").insert({
-              client_id: clientId,
-              tenant_id: tenantId,
-              user_id: user?.id,
-              content: messageText.trim(),
-              update_type: "monthly_seo",
-            } as any);
-            queryClient.invalidateQueries({
-              queryKey: ["client-updates", tenantId],
-            });
-          } catch (e) {
-            console.warn("Failed to auto-save monthly SEO update:", e);
-          }
-        }
       }
-
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "table",
-          target_id: table.id,
-          channels: [
-            ...(sendWhatsApp ? ["whatsapp"] : []),
-            ...(sendEmail ? ["email"] : []),
-          ],
-          status: "sent",
-          details: {
-            source: "manual",
-            share_url: effectiveShareLink,
-            email_recipients: sendEmail ? emailRecipients : [],
-          },
-        });
-      if (deliveryLogError)
-        console.warn("Failed to log report delivery:", deliveryLogError);
     } catch (error: any) {
       console.error("Error sending report:", error);
       const msg = String(error?.message || "");
@@ -713,6 +665,17 @@ export function ClientReportPanel({
         toast.error("שגיאה בשליחת הדוח: " + msg);
       }
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "table",
+        targetId: table.id,
+        title: table.name,
+        shareUrl: effectiveShareLink,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients,
+      });
       setIsSending(false);
     }
   };
@@ -738,6 +701,7 @@ export function ClientReportPanel({
     <div className="space-y-3 min-w-0" dir="rtl">
       <ReportDataFreshness
         lastSyncAt={getReportLastSyncAt(table)}
+        syncProblem={getReportSyncProblem([table])}
         className="px-1"
       />
       {/* Screenshot Preview */}

@@ -14,14 +14,16 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
-  type PulseAlertRules,
+  type SavePulseAlertRules,
 } from "@/lib/pulseAlertRules";
+import { ManagerSettingsSections } from "./manager-round/ManagerSettingsSections";
+import { useManagerModeDraft } from "./manager-round/useManagerModeDraft";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: unknown;
-  onSave: (rules: PulseAlertRules) => Promise<void> | void;
+  onSave: SavePulseAlertRules;
   saving?: boolean;
 };
 
@@ -32,12 +34,13 @@ export function PulseAlertRulesDialog({
   onSave,
   saving = false,
 }: PulseAlertRulesDialogProps) {
-  const [rules, setRules] = useState<PulseAlertRules>(
-    DEFAULT_PULSE_ALERT_RULES,
-  );
+  const [rules, setRules] = useState(DEFAULT_PULSE_ALERT_RULES);
+  const manager = useManagerModeDraft(open, value, onSave);
 
   useEffect(() => {
-    if (open) setRules(parsePulseAlertRules(value));
+    if (open) {
+      setRules(parsePulseAlertRules(value));
+    }
   }, [open, value]);
 
   return (
@@ -146,16 +149,15 @@ export function PulseAlertRulesDialog({
               }
             />
           </div>
+
+          <ManagerSettingsSections {...manager} />
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ביטול
           </Button>
-          <Button
-            disabled={saving}
-            onClick={() => onSave(parsePulseAlertRules(rules))}
-          >
+          <Button disabled={saving} onClick={() => manager.save(rules)}>
             שמור חוקים
           </Button>
         </DialogFooter>
