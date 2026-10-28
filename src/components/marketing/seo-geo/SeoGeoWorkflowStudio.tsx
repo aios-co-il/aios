@@ -281,6 +281,15 @@ export function SeoGeoWorkflowStudio({
   };
 
   const hasPlan = !!workItem.payload?.seo_plan;
+  // No program to set up from here: the project is another client's, or has no client yet.
+  const programNotice =
+    loadingProgram || program
+      ? null
+      : !workItem.client_id
+        ? "שייכו את הפרויקט ללקוח כדי להגדיר תוכנית"
+        : workItem.client_id !== clientId
+          ? "הפרויקט הזה שייך ללקוח אחר"
+          : null;
   const planApproved =
     String(workItem.payload?.seo_plan_status ?? "") === "approved";
 
@@ -288,40 +297,46 @@ export function SeoGeoWorkflowStudio({
     <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex flex-col gap-2 border-b bg-card/60 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-4">
-          <div className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-            <Label className="text-xs shrink-0">אתר WordPress</Label>
-            <Select
-              value={program?.wordpress_site_id ?? ""}
-              onValueChange={(v) =>
-                updateProgram({ wordpress_site_id: v || null }).catch((e) =>
-                  toast.error(String(e)),
-                )
-              }
-            >
-              <SelectTrigger className="h-9 w-full min-w-0 sm:h-8 sm:w-52">
-                <SelectValue placeholder="בחר אתר" />
-              </SelectTrigger>
-              <SelectContent>
-                {wpSites.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.site_name || s.site_url}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
-            <Switch
-              checked={!!program?.auto_approve}
-              disabled={loadingProgram}
-              onCheckedChange={(checked) =>
-                updateProgram({ auto_approve: checked }).catch((e) =>
-                  toast.error(String(e)),
-                )
-              }
-            />
-            <Label className="text-xs">אישור אוטומטי (כרמן)</Label>
-          </div>
+          {programNotice ? (
+            <p className="text-xs text-muted-foreground">{programNotice}</p>
+          ) : (
+            <>
+              <div className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+                <Label className="text-xs shrink-0">אתר WordPress</Label>
+                <Select
+                  value={program?.wordpress_site_id ?? ""}
+                  onValueChange={(v) =>
+                    updateProgram({ wordpress_site_id: v || null }).catch((e) =>
+                      toast.error(String(e)),
+                    )
+                  }
+                >
+                  <SelectTrigger className="h-9 w-full min-w-0 sm:h-8 sm:w-52">
+                    <SelectValue placeholder="בחר אתר" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wpSites.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.site_name || s.site_url}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+                <Switch
+                  checked={!!program?.auto_approve}
+                  disabled={loadingProgram}
+                  onCheckedChange={(checked) =>
+                    updateProgram({ auto_approve: checked }).catch((e) =>
+                      toast.error(String(e)),
+                    )
+                  }
+                />
+                <Label className="text-xs">אישור אוטומטי (כרמן)</Label>
+              </div>
+            </>
+          )}
           <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <Button
               size="sm"
