@@ -94,6 +94,7 @@ import {
   imageProvidersFor,
 } from "../_shared/workshop/capabilities.ts";
 import { fetchPublic } from "../_shared/public-fetch.ts";
+import { findOrCreateClientPipeline } from "../_shared/marketing-client-pipeline.ts";
 import { importWebImage } from "../_shared/workshop/tools/add-assets.ts";
 import {
   SILENT_TURN_NUDGE,
@@ -8669,25 +8670,15 @@ async function executeTool(
             : "target_seo";
 
       // Ensure pipeline + default stages (mirrors ensurePipelineForClient). A client can have
-      // duplicate pipelines: take the oldest, as the department screens do.
-      const { data: pipelines } = await supabase
-        .from("marketing_pipelines")
-        .select("id")
-        .eq("client_id", client_id)
-        .eq("track", track)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true })
-        .limit(1);
-      let pipeline = pipelines?.[0] ?? null;
-      if (!pipeline) {
-        const { data: created, error: pErr } = await supabase
-          .from("marketing_pipelines")
-          .insert({ client_id, tenant_id: tenantId, track })
-          .select("id")
-          .single();
-        if (pErr) throw pErr;
-        pipeline = created;
-      }
+      // duplicate pipelines: take the oldest, as the department screens do. A failed lookup
+      // creates nothing.
+      const found = await findOrCreateClientPipeline(supabase, {
+        clientId: client_id,
+        tenantId,
+        track,
+      });
+      if ("error" in found) return { error: found.error };
+      const pipeline = found;
       const { count: stageCount } = await supabase
         .from("marketing_pipeline_stages")
         .select("id", { count: "exact", head: true })
