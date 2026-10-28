@@ -907,13 +907,6 @@
       "count": 1
     },
     {
-      "file": "src/components/marketing/departments/SeoGeoDepartment.tsx",
-      "code": 2741,
-      "message": "Property 'client_id' is missing in type 'SeoItem' but required in type 'WorkItem'.",
-      "source": "workItem",
-      "count": 1
-    },
-    {
       "file": "src/components/marketing/publishing/PublishingStudio.tsx",
       "code": 18048,
       "message": "'site' is possibly 'undefined'.",

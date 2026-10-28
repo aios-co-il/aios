@@ -2,7 +2,9 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   DEPARTMENTS,
   departmentLabel,
+  assignClientErrorMessage,
   departmentScreen,
+  isClientLocked,
   isDepartmentId,
   projectDepartment,
 } from "./departments.ts";
@@ -94,6 +96,48 @@ Deno.test("payload content decides last, and creative is the default", () => {
   assertStrictEquals(projectDepartment({ has_creative: true }), "creative");
   assertStrictEquals(projectDepartment({}), "creative");
 });
+
+Deno.test("SEO and social projects with a client are locked to it", () => {
+  assertStrictEquals(
+    isClientLocked({ department_hint: "seo", client_id: "c1" }),
+    true,
+  );
+  assertStrictEquals(
+    isClientLocked({ track: "social_organic", client_id: "c1" }),
+    true,
+  );
+  assertStrictEquals(isClientLocked({ department_hint: "seo" }), false);
+  assertStrictEquals(
+    isClientLocked({ department_hint: "copy", client_id: "c1" }),
+    false,
+  );
+  assertStrictEquals(
+    isClientLocked({ has_board: true, client_id: "c1" }),
+    false,
+  );
+});
+
+Deno.test(
+  "assign errors: the RPC's Hebrew reason, otherwise a plain sentence",
+  () => {
+    const locked = "פרויקט SEO / GEO נשאר אצל הלקוח שלו";
+    assertStrictEquals(assignClientErrorMessage({ message: locked }), locked);
+    assertStrictEquals(
+      assignClientErrorMessage({
+        message: "new row violates row-level security",
+      }),
+      "לא הצלחנו לשייך את הפרויקט ללקוח",
+    );
+    assertStrictEquals(
+      assignClientErrorMessage({ message: "timeout" }, true),
+      "לא הצלחנו לשייך את הפרויקט ללקוח: timeout",
+    );
+    assertStrictEquals(
+      assignClientErrorMessage(null),
+      "לא הצלחנו לשייך את הפרויקט ללקוח",
+    );
+  },
+);
 
 Deno.test(
   "creative work with a brief or copy goes to Creative, the screen that lists it",
