@@ -1,47 +1,47 @@
 -- Agency shares (AIO-234, 20261026095300_agency_share_grants): who may write
 -- agency_tenant_access, and which share lets a PBN article name a client of
--- another tenant. Staging only: synthetic agencies, shares, sites and articles
--- around one existing client, an authenticated owner, and a full rollback.
+-- another tenant. Staging only: the test's own tenants, agencies, client,
+-- shares, sites and articles, an existing non-admin user as their owner, and a
+-- full rollback.
 BEGIN;
 DO $test$
 DECLARE
   actor uuid;
-  v_client uuid; v_client_agency uuid;
   t_z uuid; t_x uuid; t_y uuid;
   a_own uuid; a_shared uuid; a_ro uuid; a_other uuid;
+  v_client_agency uuid; v_client uuid;
   v_site_x uuid; v_site_y uuid;
   affected integer;
 BEGIN
-  -- t_z owns the client and its agency, t_x (the actor's tenant) holds no
-  -- share of that agency, t_y is a third tenant.
-  SELECT c.id, c.agency_id, c.tenant_id INTO v_client, v_client_agency, t_z
-  FROM public.clients c
-  JOIN public.agencies a ON a.id = c.agency_id AND a.tenant_id = c.tenant_id
-  ORDER BY c.id LIMIT 1;
-  SELECT t.id INTO t_x FROM public.tenants t
-  WHERE t.id <> t_z
-    AND NOT EXISTS (SELECT 1 FROM public.agency_tenant_access ata
-                     WHERE ata.agency_id = v_client_agency
-                       AND ata.accessing_tenant_id = t.id)
-  ORDER BY t.id LIMIT 1;
-  SELECT t.id INTO t_y FROM public.tenants t
-  WHERE t.id NOT IN (t_z, t_x) ORDER BY t.id LIMIT 1;
+  -- t_z owns the agencies and the client, t_x (the actor's tenant) is shared
+  -- some of them, t_y is a third tenant. They are new, so no share outside
+  -- this test can change an outcome. user_roles needs an auth.users row, so
+  -- the actor is an existing non-admin user; it acts only through the owner
+  -- role it gets in t_x.
   SELECT u.id INTO actor FROM auth.users u
   WHERE NOT public.is_super_admin(u.id) ORDER BY u.id LIMIT 1;
-  IF v_client IS NULL OR t_x IS NULL OR t_y IS NULL OR actor IS NULL THEN
-    RAISE EXCEPTION 'Requires a client, three tenants and a non-admin user';
+  IF actor IS NULL THEN
+    RAISE EXCEPTION 'Requires a non-admin user';
   END IF;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK Z', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_z;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK X', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_x;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK Y', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_y;
 
   -- The actor owns t_x.
   INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES (actor, t_x)
   ON CONFLICT (user_id) DO UPDATE SET tenant_id = excluded.tenant_id;
-  INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (actor, 'owner', t_x)
-  ON CONFLICT DO NOTHING;
+  INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (actor, 'owner', t_x);
 
   INSERT INTO public.agencies (name, tenant_id) VALUES ('QA ROLLBACK own', t_x) RETURNING id INTO a_own;
   INSERT INTO public.agencies (name, tenant_id) VALUES ('QA ROLLBACK shared', t_z) RETURNING id INTO a_shared;
   INSERT INTO public.agencies (name, tenant_id) VALUES ('QA ROLLBACK read only', t_z) RETURNING id INTO a_ro;
   INSERT INTO public.agencies (name, tenant_id) VALUES ('QA ROLLBACK other', t_z) RETURNING id INTO a_other;
+  INSERT INTO public.agencies (name, tenant_id) VALUES ('QA ROLLBACK client', t_z) RETURNING id INTO v_client_agency;
+  INSERT INTO public.clients (name, tenant_id, agency_id)
+  VALUES ('QA ROLLBACK', t_z, v_client_agency) RETURNING id INTO v_client;
   INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
   VALUES (t_z, a_shared, t_x, 'read_write'),
          (t_z, a_ro, t_x, 'read_only'),
