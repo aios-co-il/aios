@@ -152,3 +152,30 @@ test("the Staging drain installs nothing while no run is waiting", () => {
   expect(minutesAgo).toBeGreaterThan(44);
   expect(minutesAgo).toBeLessThan(46.5);
 });
+
+test("a branch without a Supabase preview installs nothing", () => {
+  const all = steps(workflow("render-worker-preview.yml"));
+  const at = all.findIndex((step) => step.id === "preview");
+  expect(at).toBe(0);
+  for (const step of all.slice(at + 1))
+    expect(step.if).toBe("steps.preview.outputs.ref != ''");
+});
+
+test("a preview is looked up only under the Production project", () => {
+  const resolve = steps(workflow("render-worker-preview.yml")).find(
+    (step) => step.id === "preview",
+  );
+  // Every request fails at once, so a lookup across all the token's projects crashes here.
+  const offline = "http://127.0.0.1:9";
+  const unset = runWithFakeCurl(resolve, "", {
+    GIT_BRANCH: "feature/film",
+    PARENT_REF: "",
+    SUPABASE_ACCESS_TOKEN: "account-token",
+    https_proxy: offline,
+    HTTPS_PROXY: offline,
+    no_proxy: "",
+    NO_PROXY: "",
+  });
+  expect(unset.status).toBe(0);
+  expect(unset.output).toBe("ref=\n");
+});

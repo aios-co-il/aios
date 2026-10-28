@@ -42,29 +42,22 @@ jobs:
               with urllib.request.urlopen(req, timeout=60) as response:
                   return json.load(response)
 
+          # Previews are branches of the Production project only. Never search every project
+          # the token sees: another project's branch of the same name is not this PR's.
           found = ""
-          if want not in ("main", "develop"):
-              parents = [parent] if parent else []
-              if not parents:
-                  projects = get("https://api.supabase.com/v1/projects")
-                  if isinstance(projects, dict):
-                      projects = projects.get("projects") or []
-                  parents = [p.get("id") or p.get("ref") for p in projects if isinstance(p, dict)]
-              for ref in parents:
-                  if not ref:
-                      continue
-                  try:
-                      branches = get(f"https://api.supabase.com/v1/projects/{ref}/branches")
-                  except urllib.error.HTTPError:
-                      continue
-                  if isinstance(branches, dict):
-                      branches = branches.get("branches") or []
-                  for branch in branches:
-                      if branch.get("git_branch") != want or branch.get("is_default"):
-                          continue
+          if not parent:
+              print("::warning::PROD_PROJECT_REF is not set; no preview is drained")
+          elif want not in ("main", "develop"):
+              try:
+                  branches = get(f"https://api.supabase.com/v1/projects/{parent}/branches")
+              except urllib.error.HTTPError as error:
+                  print(f"::warning::Listing the preview branches failed: HTTP {error.code}")
+                  branches = []
+              if isinstance(branches, dict):
+                  branches = branches.get("branches") or []
+              for branch in branches:
+                  if branch.get("git_branch") == want and not branch.get("is_default"):
                       found = branch.get("project_ref") or ""
-                      break
-                  if found:
                       break
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
               handle.write(f"ref={found}\n")
@@ -93,17 +86,21 @@ jobs:
           echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4
+        if: steps.preview.outputs.ref != ''
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@v4
+        if: steps.preview.outputs.ref != ''
         with:
           node-version: "22"
 
       - name: Install ffmpeg
+        if: steps.preview.outputs.ref != ''
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
 
       - name: Install Remotion
+        if: steps.preview.outputs.ref != ''
         working-directory: workers/creative-video/remotion
         run: npm ci --ignore-scripts --no-audit --no-fund && npx remotion browser ensure
 
