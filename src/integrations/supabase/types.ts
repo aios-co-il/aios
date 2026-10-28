@@ -10345,6 +10345,13 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "reconcile_findings_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "reconcile_findings_run_id_fkey";
             columns: ["run_id"];
             isOneToOne: false;
@@ -10356,6 +10363,13 @@ export type Database = {
             columns: ["table_id"];
             isOneToOne: false;
             referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
         ];
@@ -10402,10 +10416,24 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "reconcile_runs_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "reconcile_runs_table_id_fkey";
             columns: ["table_id"];
             isOneToOne: false;
             referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_runs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
         ];
