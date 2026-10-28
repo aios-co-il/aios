@@ -10,6 +10,10 @@
  *    would otherwise steal David's private 1:1 destination.
  *  - conversation identity is the chat JID (see carmen-session-identity.ts);
  *    notify never follows the freshest live session.
+ *
+ * Already over max-lines; the report-recipient step lives in
+ * carmen-report-recipients/notify-recipient.ts, and splitting the rest of
+ * this file by topic is AIO-123.
  */
 
 import { notifyReportRecipient } from "./carmen-report-recipients/notify-recipient.ts";
