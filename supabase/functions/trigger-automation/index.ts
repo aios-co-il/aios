@@ -7,6 +7,8 @@ import {
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
 import { formatClientFollowUpMessage } from "../_shared/client-follow-up-message.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import { isCampaignRole } from "../_shared/client-team/campaign-role.ts";
 import {
   dropUnresolvedTemplateLines,
   sanitizeTemplateParameter,
@@ -23,6 +25,7 @@ import {
   releaseTaskNotificationDelivery,
   taskNotificationRecipientKey,
 } from "../_shared/task-notification-dedupe.ts";
+import { holdOnShabbat } from "./shabbat-hold-response.ts";
 import {
   formatTaskNotificationMessage,
   resolveTaskNotificationLinkTenantId,
@@ -1008,7 +1011,7 @@ async function sendTaskNotificationFromTenantCarmen(
       .or(`end_date.is.null,end_date.gte.${today}`)
       .order("created_at", { ascending: true });
     const preferred = (team || []).find((row: any) =>
-      /campaign|ppc|קמפיינ/i.test(String(row.role_on_account || "")),
+      isCampaignRole(row.role_on_account),
     );
     campaignerId = preferred?.campaigner_id || team?.[0]?.campaigner_id || null;
   }
@@ -1509,6 +1512,10 @@ Deno.serve(async (req) => {
     }
 
     if (TASK_NOTIFICATION_TYPES.has(requestBody.trigger_type)) {
+      const held = await holdOnShabbat(supabase, requestBody, req, corsHeaders);
+      if (held) {
+        return held;
+      }
       const taskNotification = await sendTaskNotificationFromTenantCarmen(
         supabase,
         requestBody,
@@ -6906,43 +6913,27 @@ async function executeAddClientUpdate(
     tenantSlug,
   );
 
-  // Get a system user ID for the update
-  const { data: ownerRole } = await supabase
-    .from("user_roles")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .eq("role", "owner")
-    .limit(1)
-    .maybeSingle();
-
-  const userId = ownerRole?.user_id || data.user_id;
-
-  if (!userId) {
-    throw new Error("לא נמצא משתמש לשמירת העדכון");
-  }
-
-  // Insert update into client_updates table
-  const { data: insertedUpdate, error: insertError } = await supabase
-    .from("client_updates")
-    .insert({
-      client_id: clientId,
-      tenant_id: tenantId,
-      user_id: userId,
+  // record_client_card_entry checks the client is in this tenant, marks the
+  // row as an automation entry (never counted as client contact) and
+  // attributes it to the client's campaigner, else the tenant owner.
+  try {
+    const entry = await recordClientCardEntry(supabase, {
+      tenantId,
+      clientId,
       content: updateContent,
-    })
-    .select()
-    .single();
-
-  if (insertError) {
+      source: "automation",
+    });
+    return {
+      success: true,
+      update_id: entry.entryId,
+      content: updateContent,
+    };
+  } catch (insertError) {
     console.error("Error inserting client update:", insertError);
-    throw new Error(`שגיאה בשמירת עדכון: ${insertError.message}`);
+    const reason =
+      insertError instanceof Error ? insertError.message : String(insertError);
+    throw new Error(`שגיאה בשמירת עדכון: ${reason}`);
   }
-
-  return {
-    success: true,
-    update_id: insertedUpdate.id,
-    content: updateContent,
-  };
 }
 
 // Execute create task action
