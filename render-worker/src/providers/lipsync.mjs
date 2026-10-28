@@ -3,8 +3,10 @@
 // providers). Same shape as the video providers:
 //   estimate({ durationS })  -> { credits, usd }
 //   submit(input)            -> { jobId }
-//   poll(jobId)              -> { status: "pending" | "succeeded" | "failed", url?, error? }
-// input: { imageBytes, imageUrl, audioBytes, audioUrl, videoUrl, prompt, durationS, aspect }
+//   poll(jobId)              -> { status: "pending" | "succeeded" | "failed", url?, bytes?,
+//                                 costUsd?, error? }  (costUsd: what the provider charged)
+// input: { imageBytes, imageUrl, audioBytes, audioUrl, videoUrl, prompt, line, motionPrompt,
+//          durationS, aspect }
 // `needs` says which picture the provider animates: "image" (the still) or "video" (the clip).
 //
 // Request shapes come from the published docs cited on each provider. None has been
@@ -12,19 +14,21 @@
 import { elevenLabsBaseUrl, imageMime } from "./elevenlabs.mjs";
 import { higgsfieldCredential } from "./higgsfield-credential.mjs";
 import { higgsfieldBaseUrl } from "./higgsfield.mjs";
-import { klingBaseUrl, klingToken } from "./kling.mjs";
+import { klingAuth, klingBaseUrl, klingKeys } from "./kling.mjs";
 import { openRouterProvider } from "./openrouter.mjs";
 
 /** Planning price per second of talking video, until the first paid run gives the real one. */
-const usdPerSecond = (name) =>
-  Number(process.env[`${name.toUpperCase()}_LIPSYNC_USD_PER_SECOND`]) || 0.1;
+const usdPerSecond = (name, fallback) =>
+  Number(process.env[`${name.toUpperCase()}_LIPSYNC_USD_PER_SECOND`]) ||
+  fallback;
 
 const estimateFor =
-  (name) =>
+  (name, fallback = 0.1) =>
   ({ durationS }) => ({
     credits: 0,
     usd: +(
-      Math.max(1, Math.ceil(Number(durationS) || 5)) * usdPerSecond(name)
+      Math.max(1, Math.ceil(Number(durationS) || 5)) *
+      usdPerSecond(name, fallback)
     ).toFixed(2),
   });
 
@@ -124,8 +128,8 @@ export function elevenLabsLipsyncProvider({ apiKey, fetchImpl = fetch } = {}) {
  * POST /v1/videos/lip-sync { input: { video_url, mode: "audio2video", audio_type: "url",
  * audio_url } }, then GET /v1/videos/lip-sync/{task_id}. Kling API reference, section
  * "Lip-Sync" (https://app.klingai.com/global/dev/document-api/apiReference/model/videoTolip;
- * mirrored at https://glama.ai/mcp/servers/@199-mcp/mcp-kling). Keys: KLING_ACCESS_KEY and
- * KLING_SECRET_KEY on the worker (Kling has no tenant key today).
+ * mirrored at https://glama.ai/mcp/servers/@199-mcp/mcp-kling). Keys: the tenant's own Kling pair
+ * (kling_access_key / kling_secret_key), as the Kling scene engine signs (klingKeys).
  */
 export function klingLipsyncBody({ videoUrl, audioUrl }) {
   if (!videoUrl) throw new Error("kling lipsync needs the scene clip");
@@ -140,19 +144,12 @@ export function klingLipsyncBody({ videoUrl, audioUrl }) {
   };
 }
 
-export function klingLipsyncProvider({ fetchImpl = fetch } = {}) {
-  const accessKey = process.env.KLING_ACCESS_KEY;
-  const secretKey = process.env.KLING_SECRET_KEY;
-  const auth = () => {
-    if (!accessKey || !secretKey)
-      throw new Error(
-        "KLING_ACCESS_KEY and KLING_SECRET_KEY are required for Kling lip sync",
-      );
-    return {
-      Authorization: `Bearer ${klingToken(accessKey, secretKey)}`,
-      "Content-Type": "application/json",
-    };
-  };
+export function klingLipsyncProvider({
+  accessKey,
+  secretKey,
+  fetchImpl = fetch,
+} = {}) {
+  const auth = klingAuth({ accessKey, secretKey });
   return {
     name: "kling",
     model: "kling-lip-sync",
@@ -198,6 +195,58 @@ export function klingLipsyncProvider({ fetchImpl = fetch } = {}) {
         };
       return { status: "pending" };
     },
+  };
+}
+
+export const HEYGEN_LIPSYNC_MODEL = "heygen/avatar-iv";
+
+/**
+ * HeyGen Avatar IV on OpenRouter: one portrait + the scene's own voice line -> a lip-synced
+ * talking video whose length follows the audio, at $0.05 a second. OpenRouter's model page:
+ * the spoken audio can be "a supplied audio track, which the image is lip-synced to directly";
+ * the video API takes image and audio references in input_references (ContentPartAudio).
+ * https://openrouter.ai/heygen/avatar-iv · https://openrouter.ai/api/v1/videos/models
+ * Same key, job API and poll as the OpenRouter scene engine. Verify with one paid call.
+ */
+export function heygenLipsyncBody({
+  imageUrl,
+  audioUrl,
+  line,
+  motionPrompt,
+  aspect,
+}) {
+  if (!imageUrl) throw new Error("heygen lipsync needs a public image url");
+  if (!audioUrl) throw new Error("heygen lipsync needs the voice line");
+  const motion = String(motionPrompt ?? "").trim();
+  return {
+    model: HEYGEN_LIPSYNC_MODEL,
+    // The model can also voice a text script: the prompt is the line alone, so it can never
+    // say other words than the voice file.
+    prompt: line,
+    resolution: "1080p",
+    // Avatar IV renders 16:9, 9:16 and 1:1.
+    aspect_ratio: ["16:9", "9:16", "1:1"].includes(aspect) ? aspect : "9:16",
+    input_references: [
+      { type: "image_url", image_url: { url: imageUrl } },
+      { type: "audio_url", audio_url: { url: audioUrl } },
+    ],
+    // The skin's own movement while she speaks (Avatar IV's motion_prompt passthrough).
+    ...(motion
+      ? { provider: { options: { heygen: { motion_prompt: motion } } } }
+      : {}),
+  };
+}
+
+export function heygenLipsyncProvider({ apiKey, fetchImpl = fetch } = {}) {
+  const jobs = openRouterProvider({ apiKey, fetchImpl });
+  return {
+    name: "heygen",
+    model: HEYGEN_LIPSYNC_MODEL,
+    needs: "image",
+    needsPublicMedia: true,
+    estimate: estimateFor("heygen", 0.05),
+    submit: (input) => jobs.submitBody(heygenLipsyncBody(input)),
+    poll: (jobId) => jobs.poll(jobId),
   };
 }
 
@@ -299,12 +348,18 @@ export function higgsfieldLipsyncProvider({
 
 /**
  * Lip-sync providers this tenant can run, best first: ElevenLabs (the tenant's own key, a
- * documented image+audio lip-sync model), Kling (worker keys, needs the clip), Higgsfield.
+ * documented image+audio lip-sync model), Kling (the tenant's Kling pair, needs the clip),
+ * HeyGen Avatar IV (the tenant's OpenRouter key, image+audio), Higgsfield.
  */
 export function lipsyncCandidates(keys = {}, env = process.env) {
   const names = [];
   if (keys.elevenLabsKey) names.push("elevenlabs");
-  if (env.KLING_ACCESS_KEY && env.KLING_SECRET_KEY) names.push("kling");
+  const kling = klingKeys(
+    { accessKey: keys.klingAccessKey, secretKey: keys.klingSecretKey },
+    env,
+  );
+  if (kling.accessKey && kling.secretKey) names.push("kling");
+  if (keys.openRouterKey) names.push("heygen");
   if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret))
     names.push("higgsfield");
   // Last: Veo speaks the line itself from the still, so the voice is Veo's, not the chosen one.

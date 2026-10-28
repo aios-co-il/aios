@@ -3,17 +3,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { probe } from "../ffmpeg.mjs";
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
   loadRunScene,
+  readMedia,
   safeSegment,
+  storedObject,
 } from "../guard.mjs";
-import { isTalkingScene, talkingLine } from "../narration.mjs";
+import {
+  isTalkingScene,
+  speaksInChosenVoice,
+  talkingLine,
+} from "../narration.mjs";
 import {
   getLipsyncProvider,
   lipsyncProviderNames,
+  speaksInOwnVoice,
 } from "../providers/index.mjs";
 import { audioMime } from "../providers/lipsync.mjs";
 import { isPaidPlanError } from "../providers/plan.mjs";
@@ -26,20 +32,7 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const NO_LIPSYNC_PROVIDER =
-  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan) or Higgsfield key to the tenant, or set KLING_ACCESS_KEY and KLING_SECRET_KEY on the worker";
-
-/** Bytes of a creative-video file in the tenant folder, or of an allowed media URL. */
-async function loadFile(db, tenantId, url) {
-  if (/^https?:\/\//.test(String(url))) {
-    const response = await fetch(assertMediaUrl(url));
-    if (!response.ok)
-      throw new Error(
-        `media download ${response.status}: ${String(url).slice(0, 200)}`,
-      );
-    return new Uint8Array(await response.arrayBuffer());
-  }
-  return db.download(BUCKET, assertTenantPath(tenantId, url));
-}
+  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), a Kling key pair, an OpenRouter key or a Higgsfield key to the tenant";
 
 /** <item folder>/<scene>/lipsync-v<n>.mp4, n = the next lip-synced clip of the scene. */
 export async function lipsyncPath(db, run, folder) {
@@ -62,6 +55,21 @@ const asset = async (db, run, id, type) => {
     )) ?? [];
   return row?.url ? row : null;
 };
+
+/**
+ * The scene's animated clip, which carries its own movement (motion_prompt): the current clip, or
+ * the one an earlier lip sync of the scene was made over, so a new line keeps the movement. A clip
+ * that talks (a one-shot talking clip, or a lip sync with no clip behind it) has none to keep.
+ */
+export async function motionClipOf(db, run, clip) {
+  if (!clip) return null;
+  if (clip.meta?.lipsync !== true) return clip;
+  const id =
+    clip.meta?.motion_clip_asset_id ||
+    (clip.meta?.source_kind === "clip" ? clip.meta?.source_asset_id : null);
+  const earlier = await asset(db, run, id, "video_clip");
+  return earlier && earlier.meta?.lipsync !== true ? earlier : null;
+}
 
 /** Length of the stored MP4, so the film gives the whole line its time. null without ffprobe. */
 async function videoSeconds(bytes) {
@@ -105,7 +113,7 @@ export async function generateLipsync({
   const scene = await loadRunScene(
     db,
     run,
-    "id,still_asset_id,clip_asset_id,voice_asset_id,voiceover_text,duration_s,meta",
+    "id,still_asset_id,clip_asset_id,voice_asset_id,voiceover_text,duration_s,motion_prompt,meta",
   );
   if (!isTalkingScene(scene))
     throw finalError(
@@ -123,8 +131,13 @@ export async function generateLipsync({
     );
   const still = await asset(db, run, scene.still_asset_id, "video_still");
   const clip = await asset(db, run, scene.clip_asset_id, "video_clip");
+  const motion = await motionClipOf(db, run, clip);
 
-  const names = lipsyncProviderNames(run, keys, env);
+  // A provider that speaks in its own voice (Veo) never says a line in the chosen voice, which
+  // is assembled as it is (the chosen voice over the picture) when nothing else can.
+  const names = lipsyncProviderNames(run, keys, env).filter(
+    (name) => !(speaksInOwnVoice(name) && speaksInChosenVoice(scene)),
+  );
   if (!names.length) throw finalError(NO_LIPSYNC_PROVIDER);
   const durationS = Number(scene.duration_s) || 5;
   const aspect = run.input?.aspect || clip?.meta?.aspect || "9:16";
@@ -142,7 +155,8 @@ export async function generateLipsync({
       let lastError = null;
       for (const name of names) {
         const candidate = providerFor(name, keys);
-        const picture = candidate.needs === "video" ? clip : still;
+        // A clip-based lip sync re-times the mouth of the clip with the movement in it.
+        const picture = candidate.needs === "video" ? (motion ?? clip) : still;
         if (!picture) {
           lastError = new Error(
             `${name} lip sync needs the scene ${candidate.needs === "video" ? "clip" : "still"}`,
@@ -155,6 +169,7 @@ export async function generateLipsync({
             voice,
             line,
             speaker: String(scene.meta?.speaker ?? "").trim() || null,
+            motionPrompt: scene.motion_prompt,
             durationS,
             aspect,
           });
@@ -209,6 +224,12 @@ export async function generateLipsync({
       scene,
       voice,
       source,
+      // A lip sync of the still has none of the scene's movement: the film plays the animated
+      // clip after the line (workshop-manifest.mjs), so each skin still makes her own move.
+      motionClipId:
+        source?.kind === "still" && motion?.id && motion.id !== source.asset_id
+          ? motion.id
+          : null,
       durationS,
       aspect,
       log,
@@ -224,30 +245,39 @@ async function providerInput(
   run,
   item,
   provider,
-  { picture, voice, line, speaker, durationS, aspect },
+  { picture, voice, line, speaker, motionPrompt, durationS, aspect },
 ) {
-  const audioBytes = await loadFile(db, run.tenant_id, voice.url);
+  const audioBytes = await readMedia(db, run.tenant_id, voice.url, BUCKET);
   const input = {
     prompt: `${speaker || "The character"} speaks this exact audio line to the camera with natural lip sync: "${line}". No text, no letters, no logos.`,
+    line,
+    motionPrompt,
     durationS,
     aspect,
     audioBytes,
   };
   if (provider.needs === "image")
-    input.imageBytes = await loadFile(db, run.tenant_id, picture.url);
+    input.imageBytes = await readMedia(db, run.tenant_id, picture.url, BUCKET);
   if (provider.needsPublicMedia) {
     // Stored files are private: hand the provider fresh signed links of copies in the tenant folder.
     const base = `${item.folder}/${safeSegment(run.scene_id)}`;
+    // Named by its real type: a provider may read the format from the link.
+    const audioType = audioMime(audioBytes);
     const audioPath = assertTenantPath(
       run.tenant_id,
-      `${base}/lipsync-audio-${safeSegment(run.id)}.audio`,
+      `${base}/lipsync-audio-${safeSegment(run.id)}.${audioType === "audio/wav" ? "wav" : "mp3"}`,
     );
-    await db.upload(BUCKET, audioPath, audioBytes, audioMime(audioBytes));
+    await db.upload(BUCKET, audioPath, audioBytes, audioType);
     input.audioUrl = await db.sign(BUCKET, audioPath, 3600);
     if (provider.needs === "video") {
+      // A clip in the tenant folder, or the user's own video in the private bucket it was kept in.
+      const clip = storedObject(picture.url, BUCKET) ?? {
+        bucket: BUCKET,
+        path: picture.url,
+      };
       input.videoUrl = await db.sign(
-        BUCKET,
-        assertTenantPath(run.tenant_id, picture.url),
+        clip.bucket,
+        assertTenantPath(run.tenant_id, clip.path),
         3600,
       );
     } else {
@@ -273,6 +303,7 @@ async function finishLipsync({
   scene,
   voice,
   source,
+  motionClipId = null,
   durationS,
   aspect,
   log,
@@ -299,7 +330,10 @@ async function finishLipsync({
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const seconds = (await videoSeconds(bytes)) ?? durationS;
-  const estimate = provider.estimate({ durationS: seconds });
+  // What the provider charged when it says (OpenRouter), else the planning price.
+  const cost = Number.isFinite(result.costUsd)
+    ? { usd: result.costUsd, credits: 0 }
+    : provider.estimate({ durationS: seconds });
   const path = await lipsyncPath(db, run, item.folder);
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {
@@ -318,9 +352,10 @@ async function finishLipsync({
       voice_asset_id: voice.id,
       source_kind: source?.kind ?? null,
       source_asset_id: source?.asset_id ?? null,
+      ...(motionClipId ? { motion_clip_asset_id: motionClipId } : {}),
       duration_s: seconds,
       aspect,
-      generation_cost: { usd: estimate.usd, credits: estimate.credits },
+      generation_cost: { usd: cost.usd, credits: cost.credits },
     },
     p_run_id: run.id,
   });
@@ -333,8 +368,8 @@ async function finishLipsync({
       job_id: jobId,
       lipsync: true,
     },
-    costUsd: estimate.usd,
-    credits: estimate.credits,
+    costUsd: cost.usd,
+    credits: cost.credits,
     provider: provider.name,
   };
 }

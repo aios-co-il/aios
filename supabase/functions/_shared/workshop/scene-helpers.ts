@@ -1,6 +1,8 @@
+import { isExplicitApprovalPhrase } from "../wa-approval-flow.ts";
 import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { type Db } from "./db.ts";
 import { type StartProjectPlan } from "./defaults.ts";
+import { tappedAnswers } from "./tapped-answers.ts";
 
 export const briefPayload = (plan: StartProjectPlan, brief: string) => ({
   brief_text: brief,
@@ -48,9 +50,84 @@ export function endingOf(payload: Record<string, unknown>, ctaText: string) {
   return next;
 }
 
-/** The user asked for a new or changed story (a filmed storyboard may then be replaced). */
-export const STORY_CHANGE =
-  /סטוריבורד|סצנ|תסריט|סיפור|מחדש|מההתחלה|לשנות|תשני|שני את|חדש|אחר|storyboard|scene|script/i;
+/** A whole Hebrew word, after the prefix letters it may carry ("הסיפור", "והאחר"). */
+const hebrewWord = (forms: string, prefixes: string) =>
+  `(?<![א-ת])[${prefixes}]{0,3}(?:${forms})(?![א-ת])`;
+const STORY_NOUN = new RegExp(
+  `${hebrewWord("סטוריבורד|סטורי בורד|תסריטים|תסריט|סיפורים|סיפור|עלילה", "ובלהשמכ")}|\\b(?:storyboard|script|story|plot)s?\\b`,
+  "iu",
+);
+// Only ה and ו before a change word: "לאחר" (after) and "מאחר" (since) are no "אחר".
+const STORY_CHANGE_WORD = new RegExp(
+  `${hebrewWord("חדשה|חדשים|חדשות|חדש|אחרת|אחרים|אחרות|אחר|שונה|מחדש|מההתחלה|לשנות|תשני|להחליף|תחליפי|לכתוב|תכתבי", "הו")}|\\b(?:new|different|another|change|rewrite|replace)\\b`,
+  "iu",
+);
+
+/**
+ * The user asked for a new or changed story (a filmed storyboard may then be replaced): a story
+ * word and a change word, each a whole word. "תנסי מחדש" or "מה קורה אחרי ההפקה?" is not one.
+ */
+export const asksForNewStory = (text: string | null | undefined) =>
+  STORY_NOUN.test(String(text ?? "")) &&
+  STORY_CHANGE_WORD.test(String(text ?? ""));
+
+/** The question Carmen asks before she replaces a storyboard that cost money. */
+const NEW_STORYBOARD_QUESTION =
+  "[[בחירה: סטוריבורד חדש במקום הקיים? | כן | לא]]";
+
+/**
+ * The user asked for a new story in their own words, or tapped yes to Carmen's question about one
+ * (a tap sends only "כן"). A yes to any other question is not one.
+ */
+function wantsNewStory(turn: {
+  userText?: string | null;
+  lastAssistant?: string | null;
+}) {
+  if (asksForNewStory(turn.userText)) return true;
+  const answers = tappedAnswers(
+    String(turn.lastAssistant ?? ""),
+    String(turn.userText ?? ""),
+  );
+  return Object.entries(answers).some(
+    ([question, answer]) =>
+      asksForNewStory(question) && isExplicitApprovalPhrase(answer),
+  );
+}
+
+/**
+ * Replacing a storyboard deletes its scenes, and with them the stills and clips that were paid
+ * for. Only the user's own material and a free preview cost nothing; an asset that cannot be
+ * read counts as paid. Those scenes are replaced only when the user asked for a new story, never
+ * to recover from a failed step.
+ */
+export async function paidReplaceRefusal(
+  supabase: Db,
+  tenantId: string,
+  old: Record<string, any>[],
+  turn: { userText?: string | null; lastAssistant?: string | null },
+): Promise<{ error: string } | null> {
+  const ids = old
+    .flatMap((scene) => [scene.still_asset_id, scene.clip_asset_id])
+    .filter((id): id is string => typeof id === "string" && id !== "");
+  if (ids.length === 0 || wantsNewStory(turn)) return null;
+  const { data } = await supabase
+    .from("marketing_assets")
+    .select("id, meta")
+    .eq("tenant_id", tenantId)
+    .in("id", ids);
+  const free = new Set(
+    (Array.isArray(data) ? data : [])
+      .filter((row: { meta?: Record<string, unknown> | null }) => {
+        const meta = row.meta ?? {};
+        return meta.source === "user_asset" || meta.provider === "mock";
+      })
+      .map((row: { id: string }) => String(row.id)),
+  );
+  if (ids.every((id) => free.has(id))) return null;
+  return {
+    error: `לסטוריבורד הזה כבר יש תמונות או סרטונים בתשלום, והמשתמש לא ביקש סיפור חדש. אל תחליפי אותו: דווחי למשתמש מה נכשל, או שאלי אם הוא רוצה סטוריבורד חדש, בדיוק עם השאלה הזו: ${NEW_STORYBOARD_QUESTION}`,
+  };
+}
 
 /** A scene that already has a current clip (the user's own video) needs no picture. */
 export const hasOwnClip = (scene: Record<string, any>) =>

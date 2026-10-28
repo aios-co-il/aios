@@ -79,3 +79,17 @@ export function normalizeLink(raw: string): string | null {
     return null;
   }
 }
+
+/**
+ * A stored asset address the card may open, or null. Rows reach the table through the API too,
+ * so the url can hold any text: only an http(s) address becomes a link, never javascript: or data:.
+ */
+export function webHref(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "https:" || protocol === "http:" ? url : null;
+  } catch {
+    return null;
+  }
+}

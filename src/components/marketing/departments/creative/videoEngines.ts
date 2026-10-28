@@ -6,6 +6,7 @@ import {
   MUSIC_USD_PER_MINUTE,
   OPENROUTER_USD_PER_SECOND,
   VOICE_USD_PER_1000_CHARS,
+  musicQuoteSeconds,
 } from "../../../../../supabase/functions/_shared/workshop/clip-prices.ts";
 import type { StoryboardFrame } from "./types";
 
@@ -198,6 +199,10 @@ export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
   };
 }
 
+/**
+ * The music bed: `seconds` is the storyboard, the price covers the film the bed is made for
+ * (the narration's stretch, the end card and a tail; musicQuoteSeconds in clip-prices.ts).
+ */
 export function musicEstimate(frames: StoryboardFrame[]): EngineEstimate {
   const seconds = frames.reduce(
     (sum, frame) => sum + (Number(frame.duration) || 0),
@@ -206,7 +211,7 @@ export function musicEstimate(frames: StoryboardFrame[]): EngineEstimate {
   return {
     count: 1,
     seconds,
-    usd: roundUsd((seconds / 60) * MUSIC_USD_PER_MINUTE),
+    usd: roundUsd((musicQuoteSeconds(seconds) / 60) * MUSIC_USD_PER_MINUTE),
     credits: 0,
     label: "ElevenLabs מוזיקה",
   };

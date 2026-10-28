@@ -301,3 +301,50 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "a comment on a scene picked on the board stays with the film's specialist",
+  () => {
+    const edit = { video: true, edit: true, scene: true };
+    const film = { video: true, edit: false, scene: true };
+    // A skin's line talks about posts and ads: it is the scene's text, not a new post.
+    for (const text of [
+      "סצנה 4: תשני את המשפט ל'אני המעצבת, אני מעצבת לך פוסטים ומודעות'",
+      "סצנה 2: שתגיד 'אני מריצה לך מודעות בפייסבוק'",
+      "סצנה 3: שתגיד שהיא מעצבת באנרים ופוסטים",
+      'שני את הכיתוב ל"מודעות שעובדות"',
+    ]) {
+      assertStrictEquals(workshopRole(text, "video_editor", edit), "editor");
+      assertStrictEquals(
+        workshopRole(text, "video_director", film),
+        "producer",
+      );
+    }
+    // Without a picked scene the same words still mean a new post.
+    assertStrictEquals(
+      workshopRole(
+        "סצנה 2: שתגיד 'אני מריצה לך מודעות בפייסבוק'",
+        "video_editor",
+        {
+          video: true,
+          edit: true,
+        },
+      ),
+      "designer",
+    );
+    // A request to make a new post, outside quotes, leaves the film.
+    assertStrictEquals(
+      workshopRole(
+        "סצנה 3: תכיני לי גם פוסט עם התמונה הזאת",
+        "video_editor",
+        edit,
+      ),
+      "designer",
+    );
+    // A question about Carmen herself is answered by the current skin.
+    assertStrictEquals(
+      workshopRole("מה את יודעת לעשות?", "video_editor", edit),
+      "editor",
+    );
+  },
+);

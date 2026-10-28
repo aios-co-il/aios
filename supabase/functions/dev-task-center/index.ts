@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { requireAuth } from "../_shared/security.ts";
 import {
   approveDevTask,
+  approveOnSend,
   attachDevTaskSession,
   createDevTask,
   dispatchDevTask,
@@ -159,6 +160,8 @@ serve(async (req) => {
     }
 
     if (action === "dispatch") {
+      // "Send" on a draft is the signed-in user's approval; dispatch sends approved tasks only.
+      await approveOnSend(supabase, tenantId, String(body.id), userId);
       const result = await dispatchDevTask(supabase, {
         tenantId,
         taskId: String(body.id),

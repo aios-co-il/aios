@@ -139,6 +139,31 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "only the tapped approval with the whole code approves, not a message that contains it",
+  () => {
+    // A code of digits only (about one in seven) could sit in a year, a price or a phone number.
+    const { payload } = requestBudget({}, 10, "turn-1", "tok-2026");
+    const answer = (userText: string) =>
+      checkBudget(payload, film, { turnId: "turn-2", userText }).ok;
+    for (const userText of [
+      "סרטון לקמפיין 2026",
+      "תתקשרי ל-054-2026111",
+      "https://example.com/ab2026cd",
+      "מאשר תקציב 20261",
+      "לא מאשר תקציב 2026",
+    ])
+      assertStrictEquals(answer(userText), false, userText);
+    for (const userText of [
+      "מאשר תקציב 2026",
+      "מאשרת תקציב 2026!",
+      // Several questions answered at once: one line per question (src/lib/quickReplies.ts).
+      "קצב: רגוע\nלאשר תקציב של $10 לפרויקט?: מאשר תקציב 2026",
+    ])
+      assertStrictEquals(answer(userText), true, userText);
+  },
+);
+
 const filmBudget = () => {
   const priced = checkBudget(
     { workshop_budget: { cap_usd: 10, spent_usd: 0, unit_usd: {} } },
@@ -184,6 +209,28 @@ Deno.test("settling twice does not count the film twice", () => {
   const twice = settleProduction(once, { usd: 4.2, inFlight: false });
   assertStrictEquals(budgetOf(twice).spent_usd, 4.2);
 });
+
+Deno.test(
+  "a second film counts its own quote once, on top of what the first one cost",
+  () => {
+    // The first film was quoted $2.50 and really cost $2.
+    const first = settleProduction(filmBudget(), { usd: 2, inFlight: false });
+    const checked = checkBudget(first, film, {});
+    if (!checked.ok) throw new Error("budget refused");
+    const second = spendBudget(checked.payload, "workshop_produce_video", 5);
+    assertStrictEquals(budgetOf(second).spent_usd, 4.5);
+    // Nothing new charged yet: the first film's cost and the second's quote.
+    const running = settleProduction(second, { usd: 2, inFlight: true });
+    assertStrictEquals(budgetOf(running).spent_usd, 4.5);
+    // Both done: what the two films really cost, $2 and $1.50.
+    const done = settleProduction(running, { usd: 3.5, inFlight: false });
+    assertStrictEquals(budgetOf(done).spent_usd, 3.5);
+    assertStrictEquals(
+      budgetOf(settleProduction(done, { usd: 3.5, inFlight: false })).spent_usd,
+      3.5,
+    );
+  },
+);
 
 Deno.test("pictures that were not made give their reservation back", () => {
   const still: Quote = {

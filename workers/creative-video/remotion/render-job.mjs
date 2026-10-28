@@ -72,7 +72,7 @@ assert(
 );
 
 const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
-const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom"];
+const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom", "skin"];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FONT = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 const frameNo = (n) => Number.isInteger(n) && n >= 0 && n <= totalFrames;
@@ -97,7 +97,37 @@ const envelopeOf = (env) => {
   return { frames, volumes };
 };
 
-/** Karaoke lines: frame-timed words, at most 2000 lines of 12 words. */
+/**
+ * Copies of the music track that cover the film: each inside it, fades within its length. At
+ * most 50 (render-worker music-bed.mjs MAX_MUSIC_LOOPS).
+ */
+const musicLoopsOf = (list) => {
+  if (list === undefined || list === null) return null;
+  assert(Array.isArray(list) && list.length <= 50, "Invalid music loops");
+  return list.map((loop) => {
+    assert(
+      frameNo(loop?.startFrame) &&
+        Number.isInteger(loop?.frameCount) &&
+        loop.frameCount > 0 &&
+        loop.startFrame + loop.frameCount <= totalFrames &&
+        [loop.fadeInFrames, loop.fadeOutFrames].every(
+          (n) => Number.isInteger(n) && n >= 0 && n <= loop.frameCount,
+        ),
+      "Invalid music loop",
+    );
+    return {
+      startFrame: loop.startFrame,
+      frameCount: loop.frameCount,
+      fadeInFrames: loop.fadeInFrames,
+      fadeOutFrames: loop.fadeOutFrames,
+    };
+  });
+};
+
+/**
+ * Caption lines: frame-timed words, at most 2000 lines of 12 words. A motion caption's word
+ * also says its line (0 or 1), whether it is the key word and whether it reads left to right.
+ */
 const captionsOf = (list) => {
   if (!Array.isArray(list)) return [];
   assert(list.length <= 2000, "Too many captions");
@@ -116,13 +146,20 @@ const captionsOf = (list) => {
       endFrame: line.endFrame,
       words: line.words.map((word) => {
         assert(
-          frameNo(word?.startFrame) && frameNo(word?.endFrame),
+          frameNo(word?.startFrame) &&
+            frameNo(word?.endFrame) &&
+            [undefined, 0, 1].includes(word.line) &&
+            [undefined, true, false].includes(word.key) &&
+            [undefined, true, false].includes(word.ltr),
           "Invalid caption word",
         );
         return {
           text: text(word.text, 40),
           startFrame: word.startFrame,
           endFrame: word.endFrame,
+          line: word.line === 1 ? 1 : 0,
+          key: word.key === true,
+          ltr: word.ltr === true,
         };
       }),
     };
@@ -176,6 +213,19 @@ if (manifest.schemaVersion === 1) {
     if (still) await stageFile(root, publicDir, still);
     if (clip) await stageFile(root, publicDir, clip);
     if (v3 && scene.voice) await stageFile(root, publicDir, scene.voice);
+    // After a line lip-synced on the still: the scene's animated clip (the skin's move).
+    if (v3 && scene.moveClip) {
+      assert(clip && scene.lipsync === true, "A move needs a talking clip");
+      assert(
+        Number.isInteger(scene.moveFrom) &&
+          scene.moveFrom >= 0 &&
+          scene.moveFrom < scene.frameCount + (scene.transitionFrames ?? 0) &&
+          Number.isInteger(scene.moveFrames) &&
+          scene.moveFrames > 0,
+        "Invalid move timing",
+      );
+      await stageFile(root, publicDir, scene.moveClip);
+    }
     assert(MOVES.includes(scene.move), "Invalid camera move");
     if (v3) {
       assert(
@@ -246,11 +296,15 @@ if (manifest.schemaVersion === 1) {
   props = {
     narration,
     music,
+    musicLoops: v3 && music ? musicLoopsOf(manifest.musicLoops) : null,
     musicEnvelope: v3 ? envelopeOf(manifest.musicEnvelope) : null,
     effects,
     effectsEnvelope:
       v3 && effects.length ? envelopeOf(manifest.effectsEnvelope) : null,
     captions: v3 ? captionsOf(manifest.captions) : [],
+    // Motion-graphic captions (render-worker motion-captions.mjs); karaoke lines otherwise.
+    captionStyle:
+      v3 && manifest.captionStyle === "motion" ? "motion" : "karaoke",
     brand,
     endCardFrames,
     scenes: sorted.map((scene) => ({
@@ -263,6 +317,9 @@ if (manifest.schemaVersion === 1) {
       ...(v3
         ? {
             voice: scene.voice || null,
+            // The scene's short title over the captions: at most 32 characters
+            // (render-worker kicker.mjs KICKER_MAX_CHARS).
+            kicker: scene.kicker ? text(scene.kicker, 32) : null,
             transition: scene.transition || "crossfade",
             transitionFrames: scene.transitionFrames ?? 0,
             lipsync: scene.lipsync === true,
@@ -272,6 +329,13 @@ if (manifest.schemaVersion === 1) {
               Number.isInteger(scene.clipFrames) && scene.clipFrames > 0
                 ? scene.clipFrames
                 : undefined,
+            ...(scene.moveClip
+              ? {
+                  moveClip: scene.moveClip,
+                  moveFrom: scene.moveFrom,
+                  moveFrames: scene.moveFrames,
+                }
+              : {}),
           }
         : // A v2 manifest keeps its look: muted clips and short crossfades.
           { transition: "crossfade", transitionFrames: 8, clipVolume: 0 }),

@@ -1,11 +1,13 @@
 import { expect, test } from "vitest";
 import {
+  chatParts,
   needsChatApproval,
   parseSseBuffer,
   parseUiAction,
   STUDIO_STALL_MESSAGE,
   STUDIO_STALL_MS,
   studioContextAddon,
+  studioRunBody,
   studioToolLine,
 } from "./studioChat.ts";
 
@@ -62,6 +64,40 @@ test("every tool shows a progress line, other tools a generic one", () => {
   expect(studioToolLine("get_carmen_skins")).toBe("בודקת את הסקינים שלה");
   expect(studioToolLine("list_clients")).toBe("כרמן עובדת…");
   expect(studioToolLine(undefined)).toBe("כרמן עובדת…");
+});
+
+test("a skin portrait in Carmen's answer is shown as a picture", () => {
+  const url = "https://aios.co.il/brand/carmen/designer.png";
+  expect(chatParts(`הנה הסקינים:\n![המעצבת](${url})\nזהו`)).toStrictEqual([
+    { kind: "text", text: "הנה הסקינים:\n" },
+    { kind: "image", alt: "המעצבת", url },
+    { kind: "text", text: "\nזהו" },
+  ]);
+  // Only a web link becomes a picture; anything else stays text as written.
+  expect(chatParts("![x](javascript:alert(1))")).toStrictEqual([
+    { kind: "text", text: "![x](javascript:alert(1))" },
+  ]);
+  expect(chatParts("בלי תמונות")).toStrictEqual([
+    { kind: "text", text: "בלי תמונות" },
+  ]);
+});
+
+test("every turn of a project's studio chat continues one conversation", () => {
+  const turn = {
+    message: "כן",
+    tenantId: "t1",
+    clientId: null,
+    contextAddon: "--- הקשר ---",
+    history: [{ role: "assistant" as const, content: "לשלוח?" }],
+  };
+  // The first turn starts it; the server's conversation id then rides on every later turn, so
+  // a yes answers the dev task Carmen offered in the same conversation.
+  expect(studioRunBody(turn)).not.toHaveProperty("conversation_id");
+  const later = studioRunBody({ ...turn, conversationId: "conv-1" });
+  expect(later.conversation_id).toBe("conv-1");
+  expect(later.surface).toBe("internal_chat");
+  expect(later.task_skills).toStrictEqual(["creative_studio"]);
+  expect(later.conversation_history).toStrictEqual(turn.history);
 });
 
 test("the chat stops waiting after two silent minutes and says how to retry", () => {

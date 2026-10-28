@@ -14,6 +14,8 @@ import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import { Button } from "@/components/ui/button";
 import { WorkshopFeed } from "@/components/workshop/WorkshopFeed";
 import { useWorkshopArtifacts } from "@/components/workshop/useWorkshopArtifacts";
+import { useStoryboardBoard } from "@/components/workshop/useStoryboardBoard";
+import { filmAspect } from "@/components/workshop/storyboardScenes";
 import {
   setWorkshopContext,
   subscribeWorkshopEvents,
@@ -207,7 +209,7 @@ export default function CarmenWorkshop() {
       itemId: string;
       clientId: string | null;
     }) => {
-      // An omitted p_client_id defaults to null in SQL: unassign.
+      // No client: the function's null default takes the project off its client.
       const { error } = await supabase.rpc("workshop_assign_client", {
         p_item_id: itemId,
         p_client_id: clientId ?? undefined,
@@ -268,21 +270,60 @@ export default function CarmenWorkshop() {
   });
   const viewClientName = viewClientId ? (viewClient.data ?? null) : null;
 
-  const artifacts = useWorkshopArtifacts(tenantId, board?.id ?? null);
+  // The list rows carry no payload; the storyboard needs the board's film format and edit flag.
+  // Under the list's key, so a workshop event refreshes it with the list.
+  const boardId = board?.id ?? null;
+  const film = useQuery({
+    queryKey: ["carmen-workshop-projects", tenantId, "film", boardId],
+    queryFn: boardId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("marketing_work_items")
+            .select("payload")
+            .eq("id", boardId)
+            .maybeSingle();
+          if (error) throw error;
+          return (data?.payload ?? null) as Record<string, unknown> | null;
+        }
+      : skipToken,
+  });
+  const filmPayload = boardId ? (film.data ?? null) : null;
+
+  const artifacts = useWorkshopArtifacts(tenantId, boardId);
+  const sceneBoard = useStoryboardBoard({
+    tenantId,
+    projectId: boardId,
+    aspect: filmAspect(filmPayload),
+    edit: filmPayload?.workshop_edit === true,
+    onPickScene: () => setArtifactId(null),
+    openChat: () => setOpen(true),
+  });
+  const sceneId = sceneBoard.selectedScene?.id ?? null;
+  const sceneNumber = sceneBoard.selectedScene?.number ?? null;
 
   useEffect(() => {
     setArtifactId(null);
-  }, [board?.id]);
+  }, [boardId]);
 
   useEffect(() => {
     setWorkshopContext({
-      projectId: board?.id ?? null,
+      projectId: boardId,
       title: board?.title ?? null,
       selectedArtifactId: artifactId,
+      selectedSceneId: sceneId,
+      selectedSceneNumber: sceneNumber,
       clientId: viewClientId,
       clientName: viewClientName,
     });
-  }, [board?.id, board?.title, artifactId, viewClientId, viewClientName]);
+  }, [
+    boardId,
+    board?.title,
+    artifactId,
+    sceneId,
+    sceneNumber,
+    viewClientId,
+    viewClientName,
+  ]);
 
   useEffect(() => () => setWorkshopContext(null), []);
 
@@ -412,10 +453,14 @@ export default function CarmenWorkshop() {
               }
               hasProject={!!board}
               selectedId={artifactId}
-              onSelect={setArtifactId}
+              onSelect={(id) => {
+                setArtifactId(id);
+                if (id) sceneBoard.clearScene();
+              }}
               tenantId={tenantId}
-              projectId={board?.id ?? null}
+              projectId={boardId}
               clientName={board?.client_name ?? null}
+              storyboard={sceneBoard.storyboard}
             />
           )}
         </main>

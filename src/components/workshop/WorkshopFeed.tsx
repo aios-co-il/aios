@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
+  LayoutGrid,
   Loader2,
   Paperclip,
   Sparkles,
@@ -10,11 +11,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MagicShimmer } from "./MagicShimmer";
 import { AssetsPanel } from "./AssetsPanel";
+import { StoryboardGrid, type StoryboardGridProps } from "./StoryboardGrid";
 import { useWorkshopAssets } from "./useWorkshopAssets";
 import {
+  SCENES_FOLDER,
   artifactText,
   fallbackNote,
-  foldersOf,
+  folderTabs,
   pagesIn,
   pageTypeFor,
   projectFormat,
@@ -129,6 +132,7 @@ export function WorkshopFeed({
   tenantId,
   projectId,
   clientName,
+  storyboard,
 }: {
   artifacts: WorkshopArtifact[];
   loading: boolean;
@@ -138,6 +142,8 @@ export function WorkshopFeed({
   clientName?: string | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** The project's storyboard scenes; the scenes tab shows them as a grid of cards. */
+  storyboard?: StoryboardGridProps;
 }) {
   const [folder, setFolder] = useState<string | null>(null);
   const [following, setFollowing] = useState(true);
@@ -146,10 +152,21 @@ export function WorkshopFeed({
   const seen = useRef(0);
   const assets = useWorkshopAssets(tenantId, projectId ?? null);
   const inAssets = folder === ASSETS_TAB && !!projectId;
+  const sceneCount = storyboard?.scenes.length ?? 0;
+  const inGrid = folder === SCENES_FOLDER && sceneCount > 0;
   const pages = pagesIn(artifacts, inAssets ? null : folder);
-  const folders = foldersOf(artifacts);
+  const folders = folderTabs(artifacts, sceneCount);
   const project = projectFormat(artifacts);
   const shown = pages.length;
+  const latestStoryboard = [...pages]
+    .reverse()
+    .find((page) => page.kind === "storyboard")?.id;
+
+  // A scene stays picked only while its card is on screen.
+  const openFolder = (next: string | null) => {
+    setFolder(next);
+    if (next !== SCENES_FOLDER) storyboard?.onSelect(null);
+  };
 
   useEffect(() => {
     if (shouldFollow(seen.current, shown, following))
@@ -181,7 +198,7 @@ export function WorkshopFeed({
             size="sm"
             variant={folder === null ? "default" : "outline"}
             className="h-7 shrink-0 rounded-full px-3 text-xs"
-            onClick={() => setFolder(null)}
+            onClick={() => openFolder(null)}
           >
             הכול ({artifacts.length})
           </Button>
@@ -191,9 +208,12 @@ export function WorkshopFeed({
               type="button"
               size="sm"
               variant={folder === entry.folder ? "default" : "outline"}
-              className="h-7 shrink-0 rounded-full px-3 text-xs"
-              onClick={() => setFolder(entry.folder)}
+              className="h-7 shrink-0 gap-1 rounded-full px-3 text-xs"
+              onClick={() => openFolder(entry.folder)}
             >
+              {entry.folder === SCENES_FOLDER && sceneCount > 0 ? (
+                <LayoutGrid className="h-3 w-3" />
+              ) : null}
               {entry.label} ({entry.count})
             </Button>
           ))}
@@ -203,7 +223,7 @@ export function WorkshopFeed({
               size="sm"
               variant={inAssets ? "default" : "outline"}
               className="h-7 shrink-0 gap-1 rounded-full px-3 text-xs"
-              onClick={() => setFolder(ASSETS_TAB)}
+              onClick={() => openFolder(ASSETS_TAB)}
             >
               <Paperclip className="h-3 w-3" />
               נכסים ({assets.data?.length ?? 0})
@@ -224,6 +244,8 @@ export function WorkshopFeed({
             assets={assets.data ?? []}
             loading={assets.isLoading}
           />
+        ) : inGrid && storyboard ? (
+          <StoryboardGrid {...storyboard} />
         ) : shown === 0 ? (
           <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 text-center">
             {loading && hasProject ? (
@@ -266,8 +288,23 @@ export function WorkshopFeed({
               >
                 <PageBody artifact={artifact} format={project} />
                 {artifact.title && pageTypeFor(artifact) !== "brief" ? (
-                  <footer className="border-t px-4 py-2 text-xs text-muted-foreground">
-                    {artifact.title}
+                  <footer className="flex items-center justify-between gap-2 border-t px-4 py-2 text-xs text-muted-foreground">
+                    <span className="min-w-0 truncate">{artifact.title}</span>
+                    {artifact.id === latestStoryboard && sceneCount > 0 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 shrink-0 gap-1 rounded-full px-3 text-xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openFolder(SCENES_FOLDER);
+                        }}
+                      >
+                        <LayoutGrid className="h-3 w-3" />
+                        ללוח הסצנות
+                      </Button>
+                    ) : null}
                   </footer>
                 ) : null}
               </article>
@@ -276,7 +313,7 @@ export function WorkshopFeed({
           </div>
         )}
       </div>
-      {!following && pages.length > 0 && !inAssets ? (
+      {!following && pages.length > 0 && !inAssets && !inGrid ? (
         <Button
           type="button"
           size="sm"

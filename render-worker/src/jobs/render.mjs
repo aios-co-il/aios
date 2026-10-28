@@ -2,15 +2,16 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assembleFilm } from "../compose/assemble.mjs";
-import { brandFromPayload } from "../compose/brand.mjs";
+import { brandFromPayload, brandNameFromPayload } from "../compose/brand.mjs";
+import { captionStyleOf } from "../compose/motion-captions.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
+  readMedia,
 } from "../guard.mjs";
 import {
   isTalkingScene,
@@ -19,24 +20,11 @@ import {
   spokenLine,
   talkingLine,
 } from "../narration.mjs";
-import { filmSoundEffects } from "./sound-effects.mjs";
+import { AUDIO_DRIVEN_LIPSYNC } from "../providers/index.mjs";
+import { inList, metaOf } from "./rows.mjs";
+import { effectsByKind, filmSoundEffects } from "./sound-effects.mjs";
 
 const BUCKET = "creative-video";
-
-const inList = (ids) => `(${ids.map(encodeURIComponent).join(",")})`;
-
-const metaOf = (asset) => {
-  const meta = asset?.meta;
-  if (!meta) return {};
-  if (typeof meta === "string") {
-    try {
-      return JSON.parse(meta);
-    } catch {
-      return {};
-    }
-  }
-  return meta;
-};
 
 const sniffExt = (bytes) => {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
@@ -61,14 +49,9 @@ const sniffExt = (bytes) => {
 };
 
 async function materialize(db, tenantId, path, fileBase) {
-  let bytes;
-  if (/^https?:\/\//.test(path)) {
-    const response = await fetch(assertMediaUrl(path));
-    if (!response.ok) throw new Error(`media download ${response.status}`);
-    bytes = new Uint8Array(await response.arrayBuffer());
-  } else {
-    bytes = await db.download(BUCKET, assertTenantPath(tenantId, path));
-  }
+  // A private upload (an entity-attachments link, such as the logo or the user's own picture) is
+  // read with the worker's key, like the film's own files, from the tenant's folder only.
+  const bytes = await readMedia(db, tenantId, path, BUCKET);
   const file = `${fileBase}.${sniffExt(bytes)}`;
   await writeFile(file, bytes);
   return file;
@@ -92,15 +75,25 @@ export async function loadFilmSources(db, run) {
       scene.still_asset_id,
     ])
     .filter(Boolean);
-  const assets = new Map(
-    (assetIds.length
+  const assetsByIds = async (ids) =>
+    ids.length
       ? ((await db.select(
           "marketing_assets",
-          `id=in.${inList(assetIds)}&tenant_id=eq.${run.tenant_id}&select=id,type,url,meta`,
+          `id=in.${inList(ids)}&tenant_id=eq.${run.tenant_id}&select=id,type,url,meta`,
         )) ?? [])
-      : []
-    ).map((asset) => [asset.id, asset]),
+      : [];
+  const assets = new Map(
+    (await assetsByIds(assetIds)).map((asset) => [asset.id, asset]),
   );
+  // A lip sync of the still keeps the scene's animated clip (jobs/lipsync.mjs), and the voice
+  // line that drove its lips: the move after the line, and the line's word timings.
+  const lipsyncedFrom = scenes
+    .map((scene) => metaOf(assets.get(scene.clip_asset_id)))
+    .filter((meta) => meta.lipsync === true)
+    .flatMap((meta) => [meta.motion_clip_asset_id, meta.voice_asset_id])
+    .filter((id) => id && !assets.has(id));
+  for (const asset of await assetsByIds([...new Set(lipsyncedFrom)]))
+    assets.set(asset.id, asset);
   const [music] =
     (await db.select(
       "marketing_assets",
@@ -171,7 +164,34 @@ export async function loadFilmSources(db, run) {
         spokenLine(clipMeta.dialogue) !== talkingLine(scene);
       const clipTalks = clipMeta.lipsync === true && !spokeOldLine;
       const voicePath = voicePathOf(scene, clipTalks);
+      // The voice file that drove the lips (a lip-sync pass of this very line, not a clip that
+      // speaks in its engine's own voice), and the animated clip the lip sync was made beside.
+      const lineVoice =
+        clipTalks && clipMeta.source_kind
+          ? assets.get(clipMeta.voice_asset_id)
+          : null;
+      const spokenAlignment =
+        lineVoice?.type === "voiceover" &&
+        // A lip sync whose mouth follows the voice file keeps the line's word timings.
+        AUDIO_DRIVEN_LIPSYNC.has(String(clipMeta.provider)) &&
+        String(metaOf(lineVoice).text ?? "") === talkingLine(scene)
+          ? metaOf(lineVoice).alignment || null
+          : null;
+      const motionClip = clipTalks
+        ? assets.get(clipMeta.motion_clip_asset_id)
+        : null;
       const voice = voicePath ? assets.get(scene.voice_asset_id) : null;
+      const still = assets.get(scene.still_asset_id);
+      const sceneMeta = metaOf(scene);
+      // Which picture the scene shows, by its source (a material keeps its asset id across
+      // scenes), and the skin it wears: two scenes in a row in other skins are a skin switch.
+      const source = (asset) =>
+        asset?.url ? metaOf(asset).asset_id || asset.url : null;
+      const skinRef =
+        typeof sceneMeta.reference_url === "string" &&
+        sceneMeta.reference_url.trim()
+          ? sceneMeta.reference_url.trim()
+          : null;
       return {
         id: scene.id,
         position: scene.position,
@@ -180,11 +200,20 @@ export async function loadFilmSources(db, run) {
         durationS: scene.duration_s,
         clipPath: clip?.url || null,
         clipProvider: clipMeta.provider || null,
-        stillPath: assets.get(scene.still_asset_id)?.url || null,
+        stillPath: still?.url || null,
+        skinSwitch:
+          typeof sceneMeta.skin_switch === "boolean"
+            ? sceneMeta.skin_switch
+            : null,
+        skinRef,
+        pictureKey: skinRef || source(still) || source(clip),
         voicePath,
         voiceAlignment: voice ? metaOf(voice).alignment || null : null,
         lipsync: clipTalks,
         spokenText: clipTalks ? talkingLine(scene) : "",
+        spokenAlignment,
+        moveClipPath:
+          motionClip?.type === "video_clip" ? motionClip.url || null : null,
         muteClip: spokeOldLine,
       };
     })
@@ -206,11 +235,13 @@ export async function loadFilmSources(db, run) {
 
 /**
  * The film's settings on the run's work item, read for the run's tenant: the brand kit (colors,
- * font, logo, CTA), whether the brief asked for trailer sound design (video.sound_design), and
+ * font, logo, CTA) and the brand's name, the caption style (video.caption_style, "motion" unless
+ * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), and
  * whether this run may pay for the effects: only the assembly of a running production
- * (advance_video_production records its render_run_id) whose approved quote priced them
- * (workshop_produce_video puts estimate.sound_effects on the production). Every other render,
- * and a production quoted without them (the Video Studio's own plan), is free.
+ * (advance_video_production records its render_run_id), up to what its approved quote priced
+ * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
+ * production). Every other render, and a production quoted without them (the Video Studio's
+ * own plan), is free (0).
  */
 export async function loadFilmSettings(db, run) {
   const [row] =
@@ -221,12 +252,15 @@ export async function loadFilmSettings(db, run) {
   const production = row?.payload?.video?.production;
   return {
     brand: brandFromPayload(row?.payload),
+    // Motion-graphic captions unless the film asks for karaoke lines.
+    captionStyle: captionStyleOf(row?.payload?.video?.caption_style),
+    brandName: brandNameFromPayload(row?.payload),
     soundDesign: row?.payload?.video?.sound_design === true,
-    effectsQuoted:
-      !!production &&
-      production.status === "running" &&
-      String(production.render_run_id ?? "") === String(run.id) &&
-      Number(production.estimate?.sound_effects?.usd) > 0,
+    effectsQuotedUsd:
+      production?.status === "running" &&
+      String(production.render_run_id ?? "") === String(run.id)
+        ? Math.max(0, Number(production.estimate?.sound_effects?.usd) || 0)
+        : 0,
   };
 }
 
@@ -274,6 +308,18 @@ export async function renderFilm({
               join(dir, `voice-${index}`),
             )
           : null,
+        // The move is extra: a file that cannot be read leaves the scene as its talking clip.
+        moveClipPath: scene.moveClipPath
+          ? await materialize(
+              db,
+              run.tenant_id,
+              scene.moveClipPath,
+              join(dir, `move-${index}`),
+            ).catch((error) => {
+              log(`[render] ${run.id} move clip skipped: ${error.message}`);
+              return null;
+            })
+          : null,
       });
     }
     const musicPath = sources.musicPath
@@ -296,15 +342,16 @@ export async function renderFilm({
     const settings = await loadFilmSettings(db, run);
     // Both edits close on the brand's end card (Remotion's card, or the ffmpeg one).
     const brand = settings.brand;
-    // Trailer sound design: made once per film, in the production's own (quoted) render; a
-    // free render only reuses stored effects. Without them the film renders as before.
+    // Trailer sound design: the set is made once per film, in the production's own render and
+    // within its quote; a free render only reuses stored effects. Without them the film renders
+    // as before.
     const effects = settings.soundDesign
       ? await makeEffects({
           db,
           run,
           item,
           resolveKey: resolveElevenLabsKey,
-          mayGenerate: settings.effectsQuoted,
+          quotedUsd: settings.effectsQuotedUsd,
           log,
         }).catch((error) => ({
           paths: {},
@@ -312,31 +359,47 @@ export async function renderFilm({
           error: `יצירת אפקטי הסאונד נכשלה: ${String(error?.message ?? error).slice(0, 120)}`,
         }))
       : null;
-    const effectFiles = {};
-    for (const name of ["whoosh", "impact"]) {
-      if (!effects?.paths?.[name]) continue;
+    const stored = effectsByKind(effects?.paths);
+    const fetchEffect = async (name, path) => {
       try {
-        effectFiles[`${name}Path`] = await materialize(
+        return await materialize(
           db,
           run.tenant_id,
-          effects.paths[name],
+          path,
           join(dir, `sfx-${name}`),
         );
       } catch (error) {
         log(
           `[render] ${run.id} sound effect ${name} skipped: ${error.message}`,
         );
+        return null;
       }
+    };
+    // The film's id draws which transition sound plays at which cut, the same every render.
+    const effectFiles = {
+      transitionPaths: [],
+      impactPath: null,
+      seed: run.item_id,
+    };
+    for (const { name, path } of stored.transitions) {
+      const file = await fetchEffect(name, path);
+      if (file) effectFiles.transitionPaths.push(file);
     }
+    if (stored.impact)
+      effectFiles.impactPath = await fetchEffect("impact", stored.impact);
     let logoPath = null;
     if (brand?.logoUrl) {
       try {
-        logoPath = await materialize(
+        const file = await materialize(
           db,
           run.tenant_id,
           brand.logoUrl,
           join(dir, "logo"),
         );
+        // Anything but a picture would break the end card, so the film closes without it.
+        if (!/\.(png|jpg|webp|svg)$/.test(file))
+          throw new Error("the logo file is not a picture");
+        logoPath = file;
       } catch (error) {
         // A logo outside the tenant folder or the media hosts is left off the end card.
         log(`[render] ${run.id} logo skipped: ${error.message}`);
@@ -349,6 +412,10 @@ export async function renderFilm({
       narrationAlignment: sources.narrationAlignment,
       brand: brand ? { ...brand, logoPath } : null,
       effects: effectFiles,
+      // A trailer brief gets the trailer mix, also when its effects could not be made.
+      soundDesign: settings.soundDesign,
+      captionStyle: settings.captionStyle,
+      brandName: settings.brandName,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;
@@ -399,11 +466,14 @@ export async function renderFilm({
         ...(effects
           ? {
               sound_effects: effects.paths ?? {},
-              // The production report tells the user once that effects are missing.
+              // The production report tells the user once that effects are missing: in the
+              // production's render, any of the set it could not make (also when version 1's
+              // whoosh or impact stands in); in a free render, a kind the film has nothing of.
               sound_effects_error:
-                timeline.effects?.whooshPath && timeline.effects?.impactPath
+                (settings.effectsQuotedUsd > 0 && effects.error) ||
+                (effectFiles.transitionPaths.length && effectFiles.impactPath
                   ? null
-                  : effects.error || "אפקטי הסאונד לא נטענו",
+                  : effects.error || "אפקטי הסאונד לא נטענו"),
             }
           : {}),
       },

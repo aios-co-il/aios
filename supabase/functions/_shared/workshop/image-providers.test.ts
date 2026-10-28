@@ -392,3 +392,91 @@ Deno.test(
     );
   },
 );
+
+/** ElevenLabs takes the job, then `poll` answers each status check; Higgsfield would make it. */
+const acceptedByElevenLabs = (
+  poll: (attempt: number) => Response,
+  download = () => new Response(png),
+) => {
+  const hosts: string[] = [];
+  let attempt = 0;
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    hosts.push(new URL(url).host);
+    if (url.includes("higgsfield")) return json({ request_id: "req-1" });
+    if (url.startsWith("https://files/")) return download();
+    if (init?.method === "POST") return json({ id: "gen-1" });
+    attempt += 1;
+    return poll(attempt);
+  }) as typeof fetch;
+  return { hosts, fetchImpl };
+};
+
+Deno.test(
+  "an ElevenLabs job that was accepted and then ran out of time does not fall through",
+  async () => {
+    const { hosts, fetchImpl } = acceptedByElevenLabs(() =>
+      json({ status: "pending" }),
+    );
+    await assertRejects(
+      () =>
+        generateStill(
+          { elevenlabs: "e", higgsfield: "id:secret" },
+          "a cat",
+          "1:1",
+          { sleep: async () => {}, maxPolls: 2, fetchImpl },
+        ),
+      Error,
+      "הזמן אזל",
+    );
+    assertStrictEquals(
+      hosts.some((host) => host.includes("higgsfield")),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "a failed check or download of an accepted ElevenLabs job does not fall through",
+  async () => {
+    const cases = [
+      acceptedByElevenLabs(() => json({ detail: "rate limited" }, 429)),
+      acceptedByElevenLabs(
+        () => json({ status: "completed", content_url: "https://files/x.png" }),
+        () => new Response("gone", { status: 503 }),
+      ),
+    ];
+    for (const { hosts, fetchImpl } of cases) {
+      await assertRejects(() =>
+        generateStill(
+          { elevenlabs: "e", higgsfield: "id:secret" },
+          "a cat",
+          "1:1",
+          { sleep: async () => {}, fetchImpl },
+        ),
+      );
+      assertStrictEquals(
+        hosts.some((host) => host.includes("higgsfield")),
+        false,
+        hosts.join(","),
+      );
+    }
+  },
+);
+
+Deno.test(
+  "an ElevenLabs job that ElevenLabs itself failed hands over to the next engine",
+  async () => {
+    const { hosts, fetchImpl } = acceptedByElevenLabs(() =>
+      json({ status: "failed", failure_reason: "charging_failed" }),
+    );
+    await assertRejects(() =>
+      generateStill(
+        { elevenlabs: "e", higgsfield: "id:secret" },
+        "a cat",
+        "1:1",
+        { sleep: async () => {}, maxPolls: 1, fetchImpl },
+      ),
+    );
+    assert(hosts.some((host) => host.includes("higgsfield")));
+  },
+);

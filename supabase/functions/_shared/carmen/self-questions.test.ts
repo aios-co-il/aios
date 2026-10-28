@@ -19,12 +19,12 @@ Deno.test("a chat without Markdown images gets the links instead", () => {
 });
 
 Deno.test(
-  "in the workshop David is offered a dev task, sent after his yes in the next message",
+  "in an AIOS chat David is offered a dev task, sent after his yes in the next message",
   () => {
     const rule = selfQuestionsStanding({
       tier: "full",
       markdownImages: true,
-      inWorkshop: true,
+      appChat: true,
     });
     assertMatch(rule, /create_dev_task/);
     assertMatch(rule, /Cursor/);
@@ -35,21 +35,26 @@ Deno.test(
 );
 
 Deno.test(
-  "outside the workshop the usual dev-task flow is left as it is",
+  "on WhatsApp a dev task is only opened and waits for the Command Center",
   () => {
-    const rule = selfQuestionsStanding({ tier: "full", markdownImages: true });
+    const rule = selfQuestionsStanding({
+      tier: "full",
+      markdownImages: false,
+      appChat: false,
+    });
     assertMatch(rule, /create_dev_task/);
-    assertStrictEquals(rule.includes("בהודעה הבאה"), false);
+    assertMatch(rule, /מרכז משימות הפיתוח/);
+    assertStrictEquals(rule.includes("approve_dev_task"), false);
     assertStrictEquals(rule.includes("[[בחירה"), false);
   },
 );
 
 Deno.test("a bug-fix caller is offered only a Cursor bug fix", () => {
-  for (const inWorkshop of [true, false]) {
+  for (const appChat of [true, false]) {
     const rule = selfQuestionsStanding({
       tier: "bugfix",
       markdownImages: true,
-      inWorkshop,
+      appChat,
     });
     assertMatch(rule, /Cursor בלבד/);
     assertMatch(rule, /רק דיוויד/);

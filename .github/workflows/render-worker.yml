@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 
+permissions:
+  contents: read
+
 concurrency:
   group: render-worker-staging
   cancel-in-progress: false
@@ -18,19 +21,10 @@ jobs:
     env:
       PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
-
-      - name: Install Remotion
-        working-directory: workers/creative-video/remotion
-        run: npm install --no-audit --no-fund && npx remotion browser ensure
-
+      # The account token can read every project's keys, Production's included. Only this step
+      # sees it, and it runs before anything from the repository is checked out or installed, so
+      # no branch code or dependency script can replace a program it calls. The steps after it
+      # get the Staging service key only.
       - name: Resolve Staging service key
         shell: bash
         env:
@@ -53,7 +47,50 @@ jobs:
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> "$GITHUB_ENV"
           echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
 
+      # Most runs find the queue empty. One request decides before anything is installed:
+      # what claim_video_run takes, a queued video run or one left running for 45 minutes.
+      - name: Check the queue
+        id: queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          STALE="$(date -u -d '45 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          RUNS="$(curl --fail --silent --show-error --get \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --data-urlencode "select=id" \
+            --data-urlencode "kind=not.is.null" \
+            --data-urlencode "or=(status.eq.queued,and(status.eq.running,started_at.lt.$STALE))" \
+            --data-urlencode "limit=1" \
+            "$SUPABASE_URL/rest/v1/marketing_runs")"
+          if [ "$(jq length <<<"$RUNS")" -gt 0 ]; then
+            echo "work=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "work=false" >> "$GITHUB_OUTPUT"
+            echo "No video run is waiting on Staging; nothing to install"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.queue.outputs.work == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        if: steps.queue.outputs.work == 'true'
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        if: steps.queue.outputs.work == 'true'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install Remotion
+        if: steps.queue.outputs.work == 'true'
+        working-directory: workers/creative-video/remotion
+        run: npm ci --ignore-scripts --no-audit --no-fund && npx remotion browser ensure
+
       - name: Drain queued video runs
+        if: steps.queue.outputs.work == 'true'
         working-directory: render-worker
         env:
           DRAIN: "1"

@@ -1,6 +1,10 @@
 import { BUDGET_REFUSAL, budgetMessage } from "./budget-messages.ts";
 import { settleFromRuns } from "./budget-settle.ts";
-import { type BudgetRefusal, type Quote } from "./budget-types.ts";
+import {
+  type BudgetRefusal,
+  type PaidTool,
+  type Quote,
+} from "./budget-types.ts";
 import {
   budgetOf,
   budgetPrompt,
@@ -131,12 +135,15 @@ export async function gatePaid(
   };
 }
 
-/** A picture that was not made is not charged: give its reservation back to the budget. */
+/**
+ * A picture that was not made, or a production that never started, is not charged: give its
+ * reservation back to the budget, at the unit price the step was checked at.
+ */
 export async function refundMissing(
   supabase: Db,
   tenantId: string,
   itemId: string,
-  tool: "workshop_make_creative" | "workshop_make_stills",
+  tool: PaidTool,
   missing: number,
 ) {
   if (missing <= 0) return;
@@ -155,5 +162,3 @@ export async function refundMissing(
     // Keeping the reservation is the safe side of a refund that could not be written.
   }
 }
-
-/** Board pages for voice samples, and saving the chosen voice on the project. */

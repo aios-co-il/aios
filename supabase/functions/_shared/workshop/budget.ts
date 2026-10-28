@@ -43,6 +43,21 @@ export const approvalCode = (token: string) =>
     .slice(-4)
     .toUpperCase();
 
+/**
+ * Whether the user's message is the approval tap: "מאשר תקציב <code>" (or a typed "מאשרת"), with
+ * the code as a whole word. A message that merely contains the code (a year, a price, a phone
+ * number, a link) or says "לא מאשר" approves nothing. Several taps at once arrive one per line
+ * as "question: answer" (src/lib/quickReplies.ts), so the phrase may follow a colon.
+ */
+export function approvesRequest(userText: unknown, code: string): boolean {
+  const wanted = code.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  if (!wanted) return false;
+  return new RegExp(
+    `(?<!לא\\s*)(?:^|[^\\p{L}\\p{N}])מאשרת?\\s+תקציב\\s+${wanted}(?![\\p{L}\\p{N}])`,
+    "u",
+  ).test(String(userText ?? "").toUpperCase());
+}
+
 /** The tap-to-answer marker Carmen puts under the budget (see src/lib/quickReplies.ts). */
 export const budgetPrompt = (capUsd: number, code: string) =>
   `[[בחירה: לאשר תקציב של $${capUsd} לפרויקט? | מאשר תקציב ${code} | לא עכשיו]]`;
@@ -59,6 +74,9 @@ export function budgetOf(payload: Record<string, unknown>): Budget {
       : {}),
     ...(raw.production_usd !== undefined
       ? { production_usd: money(raw.production_usd) }
+      : {}),
+    ...(raw.production_quoted_usd !== undefined
+      ? { production_quoted_usd: money(raw.production_quoted_usd) }
       : {}),
     ...(typeof request.token === "string"
       ? { request: request as unknown as BudgetRequest }
@@ -139,11 +157,7 @@ export function checkBudget(
   if (request.turn_id === context.turnId)
     return { ok: false, reason: "same_turn" };
   if (!requestFresh(request, now)) return { ok: false, reason: "expired" };
-  if (
-    !String(context.userText ?? "")
-      .toUpperCase()
-      .includes(request.code)
-  )
+  if (!approvesRequest(context.userText, request.code))
     return { ok: false, reason: "not_user" };
   if (request.cap_usd - budget.spent_usd + 0.005 < quote.usd)
     return { ok: false, reason: "over_budget" };
@@ -203,9 +217,10 @@ export function refundBudget(
 }
 
 /**
- * What the film really cost replaces its quote once the render worker reports charges: while
+ * What the films really cost replace their quotes once the render worker reports charges: while
  * runs are still in flight the larger of the two counts, and when they are done only the real
- * charge does. Pictures stay at their quote, they are charged when made.
+ * charge does. `run.usd` is every production of the project so far, so a film quoted since the
+ * last settle counts on top of what that settle counted. Pictures stay at their quote.
  */
 export function settleProduction(
   payload: Record<string, unknown>,
@@ -215,12 +230,18 @@ export function settleProduction(
   const quoted = Number(budget.quoted_usd?.workshop_produce_video ?? 0);
   if (quoted <= 0 && run.usd <= 0) return payload;
   const real = money(run.usd);
-  const counted = run.inFlight ? Math.max(quoted, real) : real;
-  const before = budget.production_usd ?? quoted;
+  // A budget settled before production_quoted_usd was kept had all its quotes settled.
+  const settledQuote =
+    budget.production_quoted_usd ??
+    (budget.production_usd !== undefined ? quoted : 0);
+  const before =
+    (budget.production_usd ?? 0) + Math.max(0, quoted - settledQuote);
+  const counted = run.inFlight ? Math.max(before, real) : real;
   const spent = Math.max(0, budget.spent_usd - before + counted);
   return withBudget(payload, {
     ...budget,
     spent_usd: Math.round(spent * 100) / 100,
-    production_usd: counted,
+    production_usd: Math.round(counted * 100) / 100,
+    production_quoted_usd: quoted,
   });
 }

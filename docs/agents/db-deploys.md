@@ -17,5 +17,6 @@ Migrations in `supabase/migrations/**` are applied by the Supabase GitHub integr
 | Repo variable                         | `PROD_PROJECT_REF`                                                                |
 | Environment secret                    | `DB_PASSWORD` (per environment)                                                   |
 | Repo secret                           | `BASE_ACCESS_TOKEN`                                                               |
+| Repo secret                           | `SUPABASE_STAGING_PROJECT_ID` (Staging render-worker drain)                       |
 | Branch protection (`develop`, `main`) | PR required; 1 approving review; merge restricted to authorised humans            |
 | Required checks                       | `Supabase Preview` replaces the removed `Staging deploy result`                   |

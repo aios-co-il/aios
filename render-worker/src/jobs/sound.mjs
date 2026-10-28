@@ -21,6 +21,13 @@ import {
 import { synthesizeGeminiSpeech } from "../providers/geminiTts.mjs";
 import { synthesizeOpenRouterSpeech } from "../providers/openrouterTts.mjs";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.mjs";
+import {
+  MUSIC_MAX_MS,
+  MUSIC_MIN_MS,
+  musicCostUsd,
+  musicLengthMs,
+  quotedMusicMs,
+} from "./music-length.mjs";
 
 const BUCKET = "creative-video";
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
@@ -58,8 +65,20 @@ async function narrationLines(db, run) {
  * run before anything else can fail, so a retry reuses it. A failure after the provider
  * charged but before the upload is final rather than retried.
  */
-async function generateOnce({ db, run, path, generate }) {
+async function generateOnce({
+  db,
+  run,
+  path,
+  generate,
+  submitting = (work) => work(),
+}) {
   if (run.output?.audio_path === path) return run.output.audio_meta ?? {};
+  // The paid call and the save of its file run inside the worker's submit guard, so a stop
+  // never puts the run back to queued between the payment and the save (src/inflight.mjs).
+  return submitting(() => generateAndStore({ db, run, path, generate }));
+}
+
+async function generateAndStore({ db, run, path, generate }) {
   const result = await generate();
   try {
     await db.upload(
@@ -94,6 +113,7 @@ export async function generateVoice({
   googleKey = null,
   resolveOpenRouterKey = async () => null,
   log = console.log,
+  submitting,
 }) {
   const continuous = run.input?.continuous === true || !run.scene_id;
   const item = await loadRunItem(db, run);
@@ -119,6 +139,7 @@ export async function generateVoice({
     db,
     run,
     path,
+    submitting,
     generate: async () => {
       if (apiKey) {
         try {
@@ -248,30 +269,70 @@ export async function generateVoice({
   };
 }
 
-/** One music bed for the whole storyboard. */
-export async function generateMusic({ db, run, apiKey, log = console.log }) {
+/**
+ * The bed's length. The run's music_length_ms is the storyboard's planned total; the bed is
+ * sized to the film that will be rendered instead (music-length.mjs), unless that cannot be read,
+ * and never longer than the run's quote pays for (quotedMusicMs). A bed already paid for keeps
+ * the length it was made at.
+ */
+async function bedLength({ db, run, path, sizeMusic, log }) {
+  const planned = Math.min(
+    MUSIC_MAX_MS,
+    Math.max(MUSIC_MIN_MS, Number(run.input?.music_length_ms) || 0),
+  );
+  if (run.output?.audio_path === path)
+    return {
+      ms: Number(run.output.audio_meta?.music_length_ms) || planned,
+      basis: run.output.audio_meta?.music_basis ?? "stored",
+    };
+  try {
+    const sized = await sizeMusic({ db, run, log });
+    const quoted = quotedMusicMs(run);
+    log(
+      `[music] ${run.id} ${sized.ms} ms for a ${sized.filmS} s film (${sized.basis}; planned ${planned} ms, quoted ${quoted} ms)`,
+    );
+    // Past the quote the render loops the bed instead of the run spending what was not approved.
+    return sized.ms > quoted ? { ms: quoted, basis: "quote" } : sized;
+  } catch (error) {
+    log(
+      `[music] ${run.id} film length unknown (${error instanceof Error ? error.message : error}); using the planned ${planned} ms`,
+    );
+    return { ms: planned, basis: "run" };
+  }
+}
+
+/** One music bed for the whole film. */
+export async function generateMusic({
+  db,
+  run,
+  apiKey,
+  sizeMusic = musicLengthMs,
+  log = console.log,
+  submitting,
+}) {
   const item = await loadRunItem(db, run);
   const prompt = String(run.input?.prompt ?? "").trim();
-  const musicLengthMs = Math.min(
-    300_000,
-    Math.max(3_000, Number(run.input?.music_length_ms) || 0),
-  );
   if (!prompt || !Number(run.input?.music_length_ms))
     throw finalError("music run: prompt and music_length_ms are required");
   const path = assetPath(run, item.folder, "music");
+  // Music has no OpenRouter route: without a working ElevenLabs key the film is assembled
+  // without a music bed, and the run's error says so once, before any wait for the narration.
+  if (!apiKey && run.output?.audio_path !== path)
+    throw finalError("אין מפתח ElevenLabs למוזיקה. הסרט יורכב בלי מיטת מוזיקה");
+  const length = await bedLength({ db, run, path, sizeMusic, log });
+  const musicLengthMs = length.ms;
   await generateOnce({
     db,
     run,
     path,
+    submitting,
     generate: async () => {
-      // Music has no OpenRouter route: without a working ElevenLabs key the film is
-      // assembled without a music bed, and the run's error says so once.
-      if (!apiKey)
-        throw finalError(
-          "אין מפתח ElevenLabs למוזיקה. הסרט יורכב בלי מיטת מוזיקה",
-        );
       try {
-        return { bytes: await composeMusic({ apiKey, prompt, musicLengthMs }) };
+        return {
+          bytes: await composeMusic({ apiKey, prompt, musicLengthMs }),
+          // Kept on the run, so a retry after the payment records the length it paid for.
+          meta: { music_length_ms: musicLengthMs, music_basis: length.basis },
+        };
       } catch (error) {
         if (isPaidPlanError(error)) {
           throw finalError(
@@ -312,6 +373,7 @@ export async function generateMusic({ db, run, apiKey, log = console.log }) {
     output: { path, provider: "elevenlabs" },
     provider: "elevenlabs",
     credits: 0,
-    costUsd: Number(run.input?.estimate?.usd) || 0,
+    // The length paid for, at the quote's rate: the budget settles on this (budget-settle.ts).
+    costUsd: musicCostUsd(musicLengthMs),
   };
 }

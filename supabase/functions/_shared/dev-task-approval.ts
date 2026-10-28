@@ -1,9 +1,10 @@
 /**
- * In the workshop, when a dev task may be approved and sent to a coding agent (Cursor or Claude).
- * Like the workshop budget (workshop/budget.ts), the approval is the user's own message in the
- * app chat, in a later turn than the one that offered the task: Carmen offers the task, and only
+ * When a dev task may be approved and sent to a coding agent (Cursor or Claude), in every chat.
+ * Like the workshop budget (workshop/budget.ts), the approval is the user's own message in an
+ * AIOS chat, in a later turn than the one that offered the task: Carmen offers the task, and only
  * the user's "כן" in the next message approves and sends it. Nothing Carmen read or wrote in the
- * same turn can. Outside the workshop the dev-task flow is unchanged.
+ * same turn can. Where the yes cannot be checked (WhatsApp, automations) a task waits for the
+ * Command Center's send button (dev-tasks.ts approveOnSend).
  */
 import {
   isExplicitApprovalPhrase,
@@ -161,7 +162,7 @@ export type DevEscalationTier = "full" | "bugfix" | null;
 /** How long an offered task stays open to the user's yes. */
 export const DEV_TASK_OFFER_TTL_MS = 30 * 60 * 1000;
 
-export interface WorkshopDevTaskInput {
+export interface DevTaskApprovalInput {
   task: {
     id?: string | null;
     status?: string | null;
@@ -170,7 +171,7 @@ export interface WorkshopDevTaskInput {
     requested_by_user_id?: string | null;
     source_conversation_id?: string | null;
   } | null;
-  /** The user typed this turn in the app chat (a signed-in user on internal_chat). */
+  /** The user typed this turn in an AIOS chat (a signed-in user, not a service call). */
   appChatUser: boolean;
   /** The user's own message in this turn. */
   userText?: string | null;
@@ -190,6 +191,7 @@ export interface WorkshopDevTaskInput {
 export type DevTaskApprovalRefusal =
   | "not_found"
   | "not_draft"
+  | "not_app_chat"
   | "no_turn"
   | "same_turn"
   | "other_conversation"
@@ -206,11 +208,16 @@ export type DevTaskApprovalDecision =
 const ASK =
   "ספרי למשתמש במשפט מה המשימה ולמי היא תישלח, ושאלי אם לשלוח: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. אשרי ושלחי רק אחרי 'כן' שלו בהודעה הבאה.";
 
+/** Where the user's yes cannot be checked, a task waits for a person in the Command Center. */
+const NOT_APP_CHAT =
+  "מכאן (וואטסאפ, אוטומציה) לא מאשרים ולא שולחים משימת פיתוח: את ה'כן' של המשתמש בודקים רק בצ׳אט של AIOS. אם עוד אין משימה, פתחי אותה עם create_dev_task, ואמרי למשתמש שהיא מחכה לאישור שלו במרכז משימות הפיתוח באפליקציה (כפתור 'שלח').";
+
 const REFUSAL_MESSAGES: Record<DevTaskApprovalRefusal, string> = {
   not_found: "משימת הפיתוח לא נמצאה. בדקי את המזהה עם list_dev_tasks.",
   not_draft:
     "המשימה כבר לא מחכה לאישור (היא נשלחה, נסגרה או בוטלה). בדקי את הסטטוס עם list_dev_tasks.",
-  no_turn: `בסדנה מאשרים ושולחים משימת פיתוח רק מתוך הצ׳אט, אחרי שהמשתמש ענה 'כן'. ${ASK}`,
+  not_app_chat: NOT_APP_CHAT,
+  no_turn: `מאשרים ושולחים משימת פיתוח רק מתוך הצ׳אט, אחרי שהמשתמש ענה 'כן'. ${ASK}`,
   same_turn: `המשימה נפתחה בהודעה הזו. ${ASK}`,
   other_conversation: `המשימה לא הוצעה בשיחה הזו. ${ASK}`,
   expired: `עבר יותר מדי זמן מאז שהוצעה המשימה. ${ASK}`,
@@ -240,13 +247,13 @@ const agentOf = (task: { assigned_agent?: string | null }) =>
   String(task.assigned_agent || "cursor").toLowerCase();
 
 /**
- * Whether approve_dev_task or dispatch_dev_task may act on this task now, in the workshop: the
- * user's message in the app chat is a plain yes to Carmen's previous message, which asked whether
+ * Whether approve_dev_task or dispatch_dev_task may act on this task now, in any chat: the
+ * user's message in an AIOS chat is a plain yes to Carmen's previous message, which asked whether
  * to send this task (the newest one offered in this conversation, not long ago), and a yes that
  * names an agent names this task's one.
  */
-export function workshopDevTaskDecision(
-  input: WorkshopDevTaskInput,
+export function devTaskApprovalDecision(
+  input: DevTaskApprovalInput,
 ): DevTaskApprovalDecision {
   const refuse = (reason: DevTaskApprovalRefusal): DevTaskApprovalDecision => ({
     ok: false,
@@ -257,9 +264,9 @@ export function workshopDevTaskDecision(
   if (!task) return refuse("not_found");
   if (task.status !== "draft" && task.status !== "approved")
     return refuse("not_draft");
+  if (!input.appChatUser) return refuse("not_app_chat");
   const started = time(input.turnStartedAt);
   if (
-    !input.appChatUser ||
     !input.conversationId ||
     !Number.isFinite(started) ||
     !String(input.userText ?? "").trim()
@@ -288,6 +295,56 @@ export function workshopDevTaskDecision(
       return refuse("not_requester");
   }
   return { ok: true };
+}
+
+/** Connector tools that start new work at Cursor or Claude (a dev task, a research run). */
+const DIRECT_DEV_SEND =
+  /^(?:mcp_(?:Cursor|Claude)__)?(?:request_dev_task|ask_cursor|ask_claude)$/;
+
+const DIRECT_ASK =
+  "ספרי למשתמש במשפט מה תשלחי ולמי (Cursor או Claude), ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. שולחים רק אחרי 'כן' שלו בהודעה הבאה; השרת מסרב באותה הודעה שבה ביקש.";
+
+/**
+ * Why a direct send to Cursor or Claude (mcp_Cursor__request_dev_task, ask_claude, ...) may not
+ * run now, or null: like a dev task, it waits for the user's own plain yes in an AIOS chat to
+ * Carmen's previous message, which offered it. Other tools are not sends and are never refused.
+ */
+export function directDevSendRefusal(
+  toolName: string,
+  turn: {
+    appChatUser: boolean;
+    userText?: string | null;
+    lastAssistantText?: string | null;
+  },
+): { error: string; message: string } | null {
+  if (!DIRECT_DEV_SEND.test(toolName)) return null;
+  if (!turn.appChatUser)
+    return { error: "dev_task_approval_not_app_chat", message: NOT_APP_CHAT };
+  if (
+    !isExplicitDevTaskApproval(turn.userText) ||
+    !offersDevTask(turn.lastAssistantText)
+  )
+    return { error: "dev_send_needs_yes", message: DIRECT_ASK };
+  const agent = /claude/i.test(toolName) ? "claude" : "cursor";
+  const named = namedDevAgent(turn.userText);
+  if (named && named !== agent)
+    return {
+      error: "dev_task_approval_target_mismatch",
+      message: REFUSAL_MESSAGES.target_mismatch,
+    };
+  return null;
+}
+
+/**
+ * How a dev task is sent outside the workshop, for a caller allowed to send one: in an AIOS chat
+ * Carmen offers it and sends it after the user's yes in the next message; where the yes cannot
+ * be checked she only opens it, and a person sends it from the Command Center.
+ */
+export function devTaskSendRule(appChat: boolean): string {
+  return appChat
+    ? "\n\n✋ **שליחה ל-Cursor או ל-Claude (חובה):** משימת פיתוח (create_dev_task) או שליחה ישירה (mcp_Cursor__request_dev_task, ask_cursor, mcp_Claude__*): ספרי במשפט מה תשלחי ולמי, ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. " +
+        "approve_dev_task ואז dispatch_dev_task (או השליחה הישירה) רק אחרי 'כן' של המשתמש בהודעה הבאה; השרת מסרב באותה הודעה, גם כשהמשתמש כבר כתב 'שלחי'."
+    : "\n\n✋ **שליחה ל-Cursor או ל-Claude (חובה):** מכאן לא שולחים: פתחי משימה עם create_dev_task, ואמרי למשתמש שהיא מחכה לאישור שלו במרכז משימות הפיתוח באפליקציה (כפתור 'שלח').";
 }
 
 const WORKSHOP_OFFER =

@@ -26,6 +26,20 @@ Deno.test(
     assertMatch(nextFilmStep({ ...base, voiceChosen: false }), /choose_voice/);
     assertMatch(nextFilmStep(base), /produce_video/);
     assertMatch(nextFilmStep({ ...base, producing: true }), /get_state/);
+    // A film of talking pictures with no narration still says its lines in the chosen voice.
+    assertMatch(
+      nextFilmStep({
+        ...base,
+        narrated: false,
+        talking: true,
+        voiceChosen: false,
+      }),
+      /choose_voice/,
+    );
+    assertMatch(
+      nextFilmStep({ ...base, narrated: false, voiceChosen: false }),
+      /produce_video/,
+    );
   },
 );
 
@@ -60,6 +74,26 @@ Deno.test(
       ),
       null,
     );
+  },
+);
+
+Deno.test(
+  "a message that only contains the code approves nothing at the start of the turn",
+  () => {
+    const at = new Date("2026-10-25T14:05:00Z");
+    const asked = requestBudget(
+      {},
+      4,
+      "turn-1",
+      "tok-2026",
+      new Date("2026-10-25T14:00:00Z"),
+    );
+    assertStrictEquals(asked.request.code, "2026");
+    assertStrictEquals(
+      approveFromMessage(asked.payload, "סרטון לקמפיין 2026", at),
+      null,
+    );
+    assert(approveFromMessage(asked.payload, "מאשר תקציב 2026", at));
   },
 );
 

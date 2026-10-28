@@ -9,6 +9,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { WorkshopBrand } from "./manifest";
+import { accentColours } from "./workshop-layout";
 
 /** Width of a bold Hebrew glyph in ems, on average (render-worker compose/end-card.mjs). */
 const GLYPH_EM = 0.56;
@@ -55,6 +56,7 @@ export const EndCard: React.FC<{
   const second = brand.secondaryColor || "#07111c";
   const lines = ctaLinesOf(brand);
   const fontSize = ctaFontSize(lines, width, height);
+  const colours = accentColours(accent);
   return (
     <AbsoluteFill
       style={{
@@ -88,8 +90,8 @@ export const EndCard: React.FC<{
         <div
           dir="rtl"
           style={{
-            background: accent,
-            color: "#05080f",
+            background: colours.fill,
+            color: colours.onFill,
             fontWeight: 800,
             fontSize,
             lineHeight: 1.22,
@@ -99,14 +101,32 @@ export const EndCard: React.FC<{
             borderRadius: lines.length > 1 ? Math.round(unit * 0.04) : 999,
             opacity: ctaIn,
             transform: `translateY(${(1 - ctaIn) * 30}px)`,
-            boxShadow: `0 10px 40px ${accent}55`,
+            boxShadow: `0 10px 40px ${colours.glow}`,
           }}
         >
-          {lines.map((line, index) => (
-            <div key={index} dir="rtl" style={{ whiteSpace: "nowrap" }}>
-              {line}
-            </div>
-          ))}
+          {lines.map((line, index) => {
+            // Line by line, like the film's motion captions: up, sharp and in place.
+            const p = spring({
+              frame: frame - 14 - index * 5,
+              fps,
+              config: { damping: 14, mass: 0.45, stiffness: 190 },
+            });
+            const blur = (1 - Math.min(1, Math.max(0, p))) * 8;
+            return (
+              <div
+                key={index}
+                dir="rtl"
+                style={{
+                  whiteSpace: "nowrap",
+                  opacity: Math.min(1, p * 1.5),
+                  transform: `translateY(${((1 - p) * 0.5).toFixed(3)}em)`,
+                  filter: blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : undefined,
+                }}
+              >
+                {line}
+              </div>
+            );
+          })}
         </div>
       ) : null}
       {brand.ctaUrl ? (

@@ -80,13 +80,22 @@ export function manifestToProps(manifest: InputManifest): CarmenVideoProps {
 /** Workshop film (manifest schemaVersion 2 and 3). Every v3 field is optional. */
 export type WorkshopMove =
   "push" | "drift-left" | "drift-right" | "rise" | "pull" | "static";
+/** "skin": the same character in another picture (flash, scale pop and light sweep). */
 export type WorkshopTransition =
-  "cut" | "crossfade" | "slide" | "wipe" | "zoom";
+  "cut" | "crossfade" | "slide" | "wipe" | "zoom" | "skin";
 export type WorkshopWord = {
   text: string;
   startFrame: number;
   endFrame: number;
+  /** Motion captions: the word's line in its phrase (0 or 1). */
+  line?: number;
+  /** Motion captions: the phrase's key word, larger and in the accent colour. */
+  key?: boolean;
+  /** Motion captions: a Latin word or number, kept left to right with its LTR neighbours. */
+  ltr?: boolean;
 };
+/** "motion": kinetic phrases (workshop-motion-captions.tsx); "karaoke": lines. */
+export type WorkshopCaptionStyle = "motion" | "karaoke";
 export type WorkshopCaption = {
   startFrame: number;
   endFrame: number;
@@ -109,7 +118,16 @@ export type WorkshopScene = {
   still?: string | null;
   clip?: string | null;
   voice?: string | null;
+  /**
+   * The scene's on-screen text: at the bottom of a film without spoken captions; over them, at
+   * the top unless the kicker or the captions already show it (workshop-scene-text.ts).
+   */
   caption?: string;
+  /**
+   * The scene's own short title while the narration's captions run: at the top over karaoke
+   * lines, as a title card above motion captions.
+   */
+  kicker?: string | null;
   move?: WorkshopMove;
   transition?: WorkshopTransition;
   transitionFrames?: number;
@@ -117,6 +135,13 @@ export type WorkshopScene = {
   clipVolume?: number;
   /** The clip's own length; past it the last frame holds. */
   clipFrames?: number;
+  /**
+   * A line lip-synced on the still: the scene's animated clip (the skin's own move), muted, from
+   * picture frame `moveFrom` on (the talking clip's end), `moveFrames` long before it holds.
+   */
+  moveClip?: string | null;
+  moveFrom?: number;
+  moveFrames?: number;
 };
 /** One sound effect (a whoosh at a cut, an impact on the title or end card). */
 export type WorkshopEffect = {
@@ -124,15 +149,30 @@ export type WorkshopEffect = {
   startFrame: number;
   frameCount: number;
 };
+/**
+ * One copy of the music track on the film: it plays the track from its start at `startFrame`
+ * for `frameCount` frames, fading in and out over the given frames (equal power), so a track
+ * shorter than the film is looped with a crossfade.
+ */
+export type WorkshopMusicLoop = {
+  startFrame: number;
+  frameCount: number;
+  fadeInFrames: number;
+  fadeOutFrames: number;
+};
 export type WorkshopFilmProps = {
   scenes: WorkshopScene[];
   narration?: string | null;
   music?: string | null;
+  /** Copies of the music that cover the film; without them the track simply loops. */
+  musicLoops?: WorkshopMusicLoop[] | null;
   musicEnvelope?: WorkshopEnvelope | null;
   effects?: WorkshopEffect[];
   /** Effect levels over the film, ducked under the voice like the music bed. */
   effectsEnvelope?: WorkshopEnvelope | null;
   captions?: WorkshopCaption[];
+  /** How the captions are drawn; karaoke when unset (older manifests). */
+  captionStyle?: WorkshopCaptionStyle;
   brand?: WorkshopBrand | null;
   endCardFrames?: number;
 };
