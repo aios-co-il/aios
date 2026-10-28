@@ -1,6 +1,6 @@
 /**
- * The send step of claude-notify: refuse a plan with no recipient, line or
- * sender; otherwise post the message to the chosen sender function and
+ * The send step of claude-notify: refuse (and log) a plan with no recipient,
+ * line or sender; otherwise post the message to the chosen sender function and
  * report the real outcome. A Green API send is labelled green_fallback and
  * warned about, so it is never silent.
  */
@@ -31,6 +31,7 @@ export async function sendNotify(
   const { target, delivery, transport, senderUserId } = plan;
   if (!delivery) {
     return refusal(
+      deps.logger,
       plan,
       "no_recipient",
       target.reason ||
@@ -39,6 +40,7 @@ export async function sendNotify(
   }
   if (!transport.functionName) {
     return refusal(
+      deps.logger,
       plan,
       "no_transport",
       `no Carmen WhatsApp send step on a primary Carmen line for this tenant (${transport.reason})`,
@@ -46,6 +48,7 @@ export async function sendNotify(
   }
   if (!senderUserId) {
     return refusal(
+      deps.logger,
       plan,
       "no_sender",
       "no connection user to send as on the tenant's Carmen line",
@@ -84,12 +87,23 @@ export async function sendNotify(
   };
 }
 
-/** The response body when nothing is sent, and why. */
+/**
+ * The response body when nothing is sent, and why. Logged as an error because
+ * the pg_net callers (claude_notify_david) never read this body.
+ */
 function refusal(
+  logger: NotifySendDeps["logger"],
   plan: TenantNotifyPlan,
   status: NotifySendStatus,
   error: string,
 ): Record<string, unknown> {
+  logger.error("[claude-notify] nothing sent", {
+    tenantId: plan.tenantId,
+    status,
+    error,
+    transportReason: plan.transport.reason,
+    skipped: plan.transport.skipped,
+  });
   return {
     ok: false,
     sent: false,

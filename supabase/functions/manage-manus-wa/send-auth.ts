@@ -1,7 +1,9 @@
 /**
  * Who may make Carmen's Manus line send a message through manage-manus-wa.
  *
- * - This project's service-role key: accepted (run-ai-agent's gateway tool).
+ * - This project's service-role key: accepted (run-ai-agent's gateway tool),
+ *   with no tenant or primary-line check on the integrationId it names
+ *   (AIO-248).
  * - A JWT with role "anon" (the public anon key): 401.
  * - A user JWT: the rule send-manus-wa-message applies
  *   (_shared/auth/tenant-access.ts) for the requested tenant, else the

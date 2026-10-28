@@ -62,10 +62,10 @@ Deno.test("resolveStepLine", async (t) => {
         resolve({ senderUserIds, superAdminUserIds: [DAVID_USER] }).line,
         FOREIGN,
       );
-      // With no session sender, the line's own user sends: their access counts.
+      // With no session sender, the foreign line's super-admin owner gives no access.
       assertStrictEquals(
         resolve({ superAdminUserIds: [LINE_USER] }).line,
-        FOREIGN,
+        null,
       );
     },
   );

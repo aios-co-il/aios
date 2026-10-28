@@ -75,9 +75,10 @@ function sendersByAutomation(
 }
 
 /**
- * The possible senders who are super admins. Looked up only when a step names
+ * The session senders who are super admins. Looked up only when a step names
  * another tenant's line that is not shared, the one case it decides: a super
  * admin may send from any line (mayUseLine, _shared/auth/tenant-access.ts).
+ * That line's own user is never a candidate (stepSender, line-access.ts).
  */
 async function superAdminSenders(
   sb: Pick<DbClient, "rpc">,
@@ -85,19 +86,14 @@ async function superAdminSenders(
   setup: CarmenSendSetup,
   senderUserIds: Record<string, string | null>,
 ): Promise<string[]> {
-  const unshared = setup.integrations.filter(
+  const unshared = setup.integrations.some(
     (r) => r.tenant_id !== tenantId && !setup.sharedLineIds.includes(r.id),
   );
-  if (!unshared.length) {
+  if (!unshared) {
     return [];
   }
   const candidates = [
-    ...new Set(
-      [
-        ...Object.values(senderUserIds),
-        ...unshared.map((r) => r.user_id),
-      ].filter((id): id is string => !!id),
-    ),
+    ...new Set(Object.values(senderUserIds).filter((id): id is string => !!id)),
   ];
   const flags = await Promise.all(
     candidates.map((id) => isSuperAdminUser(sb, id)),

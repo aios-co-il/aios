@@ -7,7 +7,11 @@ import {
 import { SEND_MANUS_FN } from "../_shared/whatsapp/send-result.ts";
 import type { NotifyIntegrationRow, NotifyStepRow } from "./lines.ts";
 import { stepSender } from "./line-access.ts";
-import type { NotifySkippedLine, TransportContext } from "./step-line.ts";
+import {
+  ownerHasActiveManus,
+  type NotifySkippedLine,
+  type TransportContext,
+} from "./step-line.ts";
 
 export type NotifyTransport = "manus" | "green_fallback" | "none";
 
@@ -51,7 +55,7 @@ export function transportPlan(
       transport === "manus" ? "manus" : "green",
     ),
     integrationRole: resolveCarmenConnectionRole(line, {
-      tenantHasActiveManus: ctx.hasActiveManus,
+      tenantHasActiveManus: ownerHasActiveManus(ctx, line),
     }),
     manusIntegrationActive: transport === "manus",
     skipped: ctx.skipped,

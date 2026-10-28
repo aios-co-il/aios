@@ -51,6 +51,7 @@ export type NotifySkippedLine = {
 /** One transport selection: its input, lookups, and the lines skipped so far. */
 export type TransportContext = {
   input: NotifyTransportInput;
+  /** The notifying tenant's own; another tenant's line uses ownerHasActiveManus. */
   hasActiveManus: boolean;
   byId: Map<string, NotifyIntegrationRow>;
   skipped: NotifySkippedLine[];
@@ -74,7 +75,7 @@ export function resolveStepLine(
       skipLine(ctx, step.automation_id, row.id, row, "not_shared");
       continue;
     }
-    if (isPrimaryCarmenLine(row, ctx.hasActiveManus)) {
+    if (isPrimaryCarmenLine(row, ownerHasActiveManus(ctx, row))) {
       return row;
     }
     skipLine(ctx, step.automation_id, row.id, row, "not_primary");
@@ -102,7 +103,7 @@ function namedLine(
     skipLine(ctx, step.automation_id, integrationId, row, "inactive");
     return null;
   }
-  if (!isPrimaryCarmenLine(row, ctx.hasActiveManus)) {
+  if (!isPrimaryCarmenLine(row, ownerHasActiveManus(ctx, row))) {
     skipLine(ctx, step.automation_id, integrationId, row, "not_primary");
     return null;
   }
@@ -154,11 +155,24 @@ function skipLine(
     integrationId,
     role: row
       ? resolveCarmenConnectionRole(row, {
-          tenantHasActiveManus: ctx.hasActiveManus,
+          tenantHasActiveManus: ownerHasActiveManus(ctx, row),
         })
       : null,
     reason,
   });
+}
+
+/**
+ * Whether the line's own tenant has an active Manus line, which decides a
+ * Green line's implicit role. Another tenant's Manus lines are not loaded, so
+ * for its line this is assumed true: its Green line is primary only when
+ * settings.carmen_role says so, and never because this tenant lacks Manus.
+ */
+export function ownerHasActiveManus(
+  ctx: TransportContext,
+  row: NotifyIntegrationRow,
+): boolean {
+  return row.tenant_id === ctx.input.tenantId ? ctx.hasActiveManus : true;
 }
 
 /** Whether a line belongs to the step's provider. */
