@@ -194,8 +194,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Only Carmen's execute_pending_approval reaches this until AIO-230 routes the
-    // approvals page here and lists set_pulse_target in CARMEN_EXECUTOR_TOOLS.
+    // Reached from Carmen's "כן" and from the approvals page, after the approver
+    // gate and claimForRun (set_pulse_target is in CARMEN_EXECUTOR_TOOLS).
     if (row.tool_name === "set_pulse_target") {
       return await handlePulseTargetApproval(
         supabase,
