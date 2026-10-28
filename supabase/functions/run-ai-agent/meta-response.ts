@@ -127,18 +127,40 @@ export function isMetaNode(value: unknown): value is MetaNode {
   return true;
 }
 
+/** Thrown when a Graph body fails validation; keeps the raw body so callers can surface Meta's own error. */
+export class MetaResponseError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "MetaResponseError";
+    this.status = status;
+    this.body = body;
+  }
+
+  /** Meta's `error` object when the raw body carries one, else a generic message. */
+  get fbError(): Record<string, unknown> {
+    if (isObject(this.body) && isObject(this.body.error))
+      return this.body.error;
+    return { message: this.message };
+  }
+}
+
 /** Validate the Graph envelope once; keep extra provider fields for metric spreads. */
 export async function readMetaResponse(
   response: Response,
 ): Promise<MetaResponse> {
   const value: unknown = await response.json();
-  if (!isMetaNode(value)) throw new Error("Invalid Meta response");
+  const invalid = (message: string) =>
+    new MetaResponseError(message, response.status, value);
+  if (!isMetaNode(value)) throw invalid("Invalid Meta response");
   if (
     "data" in value &&
     value.data != null &&
     (!Array.isArray(value.data) || !value.data.every(isMetaNode))
   )
-    throw new Error("Invalid Meta response data");
+    throw invalid("Invalid Meta response data");
   if (
     "error" in value &&
     value.error != null &&
@@ -146,13 +168,13 @@ export async function readMetaResponse(
       !hasOptionalFields(value.error, ["message", "type"], ["string"]) ||
       !hasOptionalFields(value.error, ["code"], ["number"]))
   )
-    throw new Error("Invalid Meta response error");
+    throw invalid("Invalid Meta response error");
   if (
     "paging" in value &&
     value.paging != null &&
     (!isObject(value.paging) ||
       !hasOptionalFields(value.paging, ["next"], ["string"]))
   )
-    throw new Error("Invalid Meta response paging");
+    throw invalid("Invalid Meta response paging");
   return value;
 }

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { jsonObject } from "./json-config.ts";
-import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import {
+  isMetaNode,
+  MetaResponseError,
+  readMetaResponse,
+} from "./meta-response.ts";
 
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status });
@@ -63,6 +67,19 @@ test("malformed Graph envelopes cannot masquerade as typed campaign data", async
     );
   }
   await assert.rejects(readMetaResponse(new Response("not-json")), SyntaxError);
+});
+
+test("invalid Graph bodies throw MetaResponseError carrying status and Meta's own error", async () => {
+  const body = { error: { message: "Token expired", code: "190" } };
+  const err = await readMetaResponse(response(body, 400)).catch((e) => e);
+  assert.ok(err instanceof MetaResponseError);
+  assert.equal(err.status, 400);
+  assert.deepEqual(err.body, body);
+  assert.deepEqual(err.fbError, body.error);
+  const generic = await readMetaResponse(response({ error: "expired" })).catch(
+    (e) => e,
+  );
+  assert.deepEqual(generic.fbError, { message: "Invalid Meta response error" });
 });
 
 test("configured Meta pages accept nullable optional fields and reject malformed fields", () => {

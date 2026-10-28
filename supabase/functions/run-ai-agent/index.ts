@@ -292,7 +292,17 @@ import {
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
 import { jsonObject, isObject } from "./json-config.ts";
-import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import {
+  isMetaNode,
+  MetaResponseError,
+  readMetaResponse,
+} from "./meta-response.ts";
+
+/** Invalid Meta bodies degrade to "no data" like they did before validation; other failures still throw. */
+function degradeMetaError(e: unknown): null {
+  if (e instanceof MetaResponseError) return null;
+  throw e;
+}
 
 /** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
 function errorMessage(e: unknown): string {
@@ -4834,20 +4844,20 @@ async function fbAnalyzeCampaignInline(
     const r = await fetch(
       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?fields=${fields}&date_preset=${date_preset}&access_token=${token}`,
     );
-    const j = await readMetaResponse(r);
+    const j = await readMetaResponse(r).catch(degradeMetaError);
     return j?.data?.[0] || null;
   };
   const fetchAds = async () => {
     const r = await fetch(
       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/ads?fields=id,name,effective_status,status&limit=200&access_token=${token}`,
     );
-    const j = await readMetaResponse(r);
+    const j = await readMetaResponse(r).catch(degradeMetaError);
     if (!r.ok || j?.error || !Array.isArray(j?.data)) return [];
     const ads = j.data;
     // Ad-level insights for last_7d
     const insightsUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?level=ad&date_preset=last_7d&fields=ad_id,ad_name,spend,actions,impressions,clicks&limit=200&access_token=${token}`;
     const ir = await fetch(insightsUrl);
-    const ij = await readMetaResponse(ir);
+    const ij = await readMetaResponse(ir).catch(degradeMetaError);
     const byAd = new Map<string, MetaAdMetrics>();
     for (const row of ij?.data || []) {
       const leads = fbLeadsFromActions(row.actions || []);
@@ -4887,7 +4897,14 @@ async function fbAnalyzeCampaignInline(
   const metaRes = await fetch(
     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective,issues_info&access_token=${token}`,
   );
-  const meta = await readMetaResponse(metaRes);
+  let meta;
+  try {
+    meta = await readMetaResponse(metaRes);
+  } catch (e) {
+    if (e instanceof MetaResponseError)
+      return { error: "fb_api_error", fb_error: e.fbError };
+    throw e;
+  }
   if (meta?.error) return { error: "fb_api_error", fb_error: meta.error };
 
   const [today, last7, last30, ads] = await Promise.all([
@@ -5092,7 +5109,13 @@ async function metaLeadPages(
         `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;
       while (next) {
         const response = await fetch(next);
-        const json = await readMetaResponse(response);
+        const json = await readMetaResponse(response).catch((e: unknown) => {
+          if (e instanceof MetaResponseError)
+            throw new Error(
+              String(e.fbError.message ?? "Meta pages request failed"),
+            );
+          throw e;
+        });
         if (!response.ok || json?.error)
           throw new Error(json?.error?.message || "Meta pages request failed");
         sourcePages = sourcePages.concat(json.data || []);
@@ -5697,10 +5720,7 @@ async function tryCreateCalendarEventForTask(
       );
     }
   } catch (e) {
-    console.warn(
-      "[create_task] calendar sync error:",
-      errorMessage(e),
-    );
+    console.warn("[create_task] calendar sync error:", errorMessage(e));
   }
 }
 
