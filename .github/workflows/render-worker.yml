@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 
+permissions:
+  contents: read
+
 concurrency:
   group: render-worker-staging
   cancel-in-progress: false
@@ -18,19 +21,10 @@ jobs:
     env:
       PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
-
-      - name: Install Remotion
-        working-directory: workers/creative-video/remotion
-        run: npm install --no-audit --no-fund && npx remotion browser ensure
-
+      # The account token can read every project's keys, Production's included. Only this step
+      # sees it, and it runs before anything from the repository is checked out or installed, so
+      # no branch code or dependency script can replace a program it calls. The steps after it
+      # get the Staging service key only.
       - name: Resolve Staging service key
         shell: bash
         env:
@@ -52,6 +46,21 @@ jobs:
           echo "::add-mask::$SERVICE_KEY"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> "$GITHUB_ENV"
           echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install Remotion
+        working-directory: workers/creative-video/remotion
+        run: npm ci --ignore-scripts --no-audit --no-fund && npx remotion browser ensure
 
       - name: Drain queued video runs
         working-directory: render-worker

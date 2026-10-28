@@ -5,6 +5,9 @@ on:
     branches: [develop]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: render-worker-preview-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: false
@@ -17,21 +20,10 @@ jobs:
       GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
       PARENT_REF: ${{ vars.PROD_PROJECT_REF }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
-
-      - name: Install Remotion
-        working-directory: workers/creative-video/remotion
-        run: npm install --no-audit --no-fund && npx remotion browser ensure
-
-      # The account token can read every project's keys. Only these two steps see it;
-      # the install and drain steps run branch code and get the preview's own key only.
+      # The account token can read every project's keys, Production's included. Only these two
+      # steps see it, and they run before anything from the branch is checked out or installed,
+      # so no branch code or dependency script can replace a program they call. The steps after
+      # them get the preview's own key only.
       - name: Resolve this branch's Supabase preview
         id: preview
         shell: bash
@@ -99,6 +91,21 @@ jobs:
           echo "::add-mask::$SERVICE_KEY"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> "$GITHUB_ENV"
           echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install Remotion
+        working-directory: workers/creative-video/remotion
+        run: npm ci --ignore-scripts --no-audit --no-fund && npx remotion browser ensure
 
       - name: Drain queued video runs on the preview
         if: steps.preview.outputs.ref != ''
