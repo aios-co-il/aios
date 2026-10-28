@@ -85,8 +85,15 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 ## Carmen's tools for coding agents (`carmen-tools-mcp`)
 
 - Claude Direct / Cursor Direct operate AIOS through Carmen's own tools, without her LLM: `carmen-tools-mcp` (`…/functions/v1/carmen-tools-mcp/mcp?agent=claude|cursor`, bearer or `?key=` = `CARMEN_TOOLS_MCP_BEARER`) forwards to `run-ai-agent` `direct_tool` mode (service-role only), which runs `executeTool` as `CARMEN_MCP_USER_ID` with the same role scoping.
-- Policy lives in `_shared/carmen-direct-tools.mjs`: agent spawning, dev escalation and self-approval tools are hidden; external sends, deletions, access and money changes are queued in `agent_approval_queue` (`action_type='agent_direct_tool'`) and run only after David approves (`resume-agent-run` / `carmen-approval-execute` → `execute_approved`). Tools that already queue themselves keep their own gate.
+- Policy lives in `_shared/carmen-direct-tools.mjs`: agent spawning, dev escalation and self-approval tools are hidden; external sends, deletions, access and money changes are queued in `agent_approval_queue` (`action_type='agent_direct_tool'`) and run only after David approves (`carmen-approval-execute` → `execute_approved`). Tools that already queue themselves keep their own gate.
 - Prefer these tools over raw SQL for business actions (tasks, automations, leads, clients); raw SQL bypasses scoping and approvals.
+
+## Approvals (`agent_approval_queue`)
+
+- A chat "כן" runs only a pending row the same user requested in the same conversation (`context.conversation_key`) within 30 minutes. Otherwise Carmen lists the candidates with 4-digit codes (6 digits when two listed rows share 4), and "כן <קוד>" picks one; "לא <קוד>" lets the requester or an approver reject. Picker and tests: `run-ai-agent/approvals/`; role gate and claim: `_shared/carmen/approvals/`.
+- The approver is the caller Carmen resolved. For a user JWT that is always the JWT user: `run-ai-agent` strips `lead_data` (caller phone), `wa_notify` and the `whatsapp` surface from non-service requests (`run-ai-agent/caller-trust.ts`), so only WhatsApp webhooks and automations, which call with the service key, can act for a phone.
+- Money, external_send, config and destructive rows need `owner`, `agency_owner` or `super_admin`. `carmen-approval-execute` checks the approver's tenant and role, refuses expired rows and claims a row once (`executing`, then `executed` or `failed`).
+- The approvals screen calls `carmen-approval-execute` directly; `resume-agent-run` handles only `run-ai-agent-v2` run steps. Browser roles can read the queue but not write it.
 
 ## Carmen → Claude bridge (legacy / alternate)
 
