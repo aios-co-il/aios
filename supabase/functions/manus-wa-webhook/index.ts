@@ -71,14 +71,16 @@ function isUnresolvedGroupAuthor(
 }
 
 /** Inspect a JSON object without assuming the provider's envelope shape. */
-function pickObj(...candidates: unknown[]): Record<string, Json> | null {
+function pickObj(
+  ...candidates: Array<Json | undefined>
+): { [key: string]: Json | undefined } | null {
   for (const candidate of candidates) {
     if (
       candidate &&
       typeof candidate === "object" &&
       !Array.isArray(candidate)
     ) {
-      return candidate as Record<string, Json>;
+      return candidate;
     }
   }
   return null;
@@ -507,9 +509,6 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
   req,
   outer,
 ) => {
-  if (req.method === "OPTIONS")
-    return new Response(null, { headers: corsHeaders });
-
   try {
     const supabase = serviceClient();
 
@@ -707,8 +706,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     }
 
     const tenantId = integ.tenant_id;
-    // Existing routing requires the integration owner; preserve its runtime value.
-    const connectionUserId = integ.user_id!;
+    // An integration may have no owner; downstream session lookups handle null.
+    const connectionUserId = integ.user_id ?? null;
     const event = payload.event;
 
     // Credentials + diagnostics for resolving inbound voice-note media.
@@ -929,7 +928,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         const pendingQuery = () =>
           supabase
             .from("wa_pending_activations")
-            .select("*")
+            .select("id, phone, code, activation_message_id, group_chat_id")
             .eq("tenant_id", tenantId)
             .eq("status", "pending")
             .gte("created_at", pendingSince)
@@ -1666,6 +1665,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           .select("id, created_at")
           .eq("tenant_id", tenantId)
           .eq("direction", "outbound")
+          // BUG: PostgREST sends `group_id=eq.null`, which never matches, so this
+          // echo guard never finds a recent outbound message. Needs its own issue.
           .filter("group_id", "eq", null)
           .in("provider", ["manus_wa", "green_api"])
           .eq("message_text", messageText)
@@ -1981,7 +1982,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
               return res.ok;
             } catch (err) {
               clearTimeout(timer);
-              const isAbort = pickObj(err)?.name === "AbortError";
+              const isAbort = err instanceof Error && err.name === "AbortError";
               console.error(
                 "manus-wa Carmen group sendMessage error:",
                 isAbort

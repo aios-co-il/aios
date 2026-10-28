@@ -1,7 +1,4 @@
-import {
-  spy,
-  assertSpyCalls,
-} from "https://raw.githubusercontent.com/denoland/std/0.224.0/testing/mock.ts";
+import { assertSpyCalls, spy } from "jsr:@std/testing@1/mock";
 import { createWebhookHandler } from "./request-handler.ts";
 
 function assert(condition: boolean, message: string): asserts condition {
@@ -11,7 +8,7 @@ function assert(condition: boolean, message: string): asserts condition {
 for (const variant of ["body", "header", "query"]) {
   for (const payload of [null, [], "invalid", 42]) {
     Deno.test(
-      `rejects ${JSON.stringify(payload)} with ${variant} instance before database access`,
+      `ACKs ${JSON.stringify(payload)} with ${variant} instance before database access`,
       async () => {
         const failedHandler = spy(async () => {
           throw new Error("Unexpected database access");
@@ -32,10 +29,12 @@ for (const variant of ["body", "header", "query"]) {
             },
           ),
         );
-        assert(response.status === 400, "Expected invalid-payload 400");
+        assert(response.status === 200, "Expected invalid-payload ACK");
+        const body = await response.json();
+        assert(body.received === true, "Expected received marker");
         assert(
-          (await response.json()).error === "Invalid payload",
-          "Expected invalid-payload response",
+          body.ignored === "invalid_payload",
+          "Expected invalid-payload ignored marker",
         );
         assertSpyCalls(failedHandler, 0);
       },

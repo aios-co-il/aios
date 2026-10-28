@@ -21,9 +21,10 @@ export function createWebhookHandler(
     try {
       const payload: unknown = await request.json();
       if (!isPayload(payload))
+        // ACK so Manus doesn't disable the webhook on a stray non-object body.
         return Response.json(
-          { error: "Invalid payload" },
-          { status: 400, headers: corsHeaders },
+          { received: true, ignored: "invalid_payload" },
+          { headers: corsHeaders },
         );
       return await processPayload(request, payload);
     } catch (error) {

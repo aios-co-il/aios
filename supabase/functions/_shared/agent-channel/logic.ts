@@ -376,6 +376,7 @@ export function parseBrainRoute(
     route_type !== "direct_channel" &&
     route_type !== "parliament"
   ) {
+    console.warn("[agent-channel] unknown route_type", row.id, route_type);
     return null;
   }
 
@@ -389,6 +390,7 @@ export function parseBrainRoute(
     provider !== "internal" &&
     provider !== "parliament"
   ) {
+    console.warn("[agent-channel] unknown provider", row.id, provider);
     return null;
   }
 
