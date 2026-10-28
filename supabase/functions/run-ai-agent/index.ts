@@ -293,6 +293,12 @@ import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.
 
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+
+/** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
+function errorMessage(e: unknown): string {
+  if (isObject(e) && typeof e.message === "string") return e.message;
+  return String(e);
+}
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
@@ -499,7 +505,7 @@ async function openaiAdminGet(
       ok: false,
       status: 0,
       json: null,
-      error: redactSecretsFromText(e instanceof Error ? e.message : String(e)),
+      error: redactSecretsFromText(errorMessage(e)),
     };
   }
 }
@@ -5693,7 +5699,7 @@ async function tryCreateCalendarEventForTask(
   } catch (e) {
     console.warn(
       "[create_task] calendar sync error:",
-      e instanceof Error ? e.message : undefined,
+      errorMessage(e),
     );
   }
 }
