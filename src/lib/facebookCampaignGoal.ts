@@ -3,9 +3,9 @@ import {
   getLeadsFromData,
   isFacebookEcommerceCampaign,
   preferFacebookCampaignType,
-  type FacebookCampaignType,
 } from "@/lib/adsMetrics";
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
+import type { FacebookCampaignType } from "../../supabase/functions/_shared/meta-ads/campaign-objectives.ts";
 
 type RecordData = Record<string, unknown>;
 

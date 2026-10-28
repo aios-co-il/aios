@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sharedManualRoiFigures } from "./sharedManualRoi";
 
-const summary = { spend: 500, leads: 0, hasLeads: false };
 const entered = { manual_roi: { closures: 2, revenue: 3000 } };
 
 describe("sharedManualRoiFigures", () => {
@@ -12,7 +11,6 @@ describe("sharedManualRoiFigures", () => {
           { spend: 100, leads: 5 },
           { spend: 60, leads: 3 },
         ],
-        summary: { spend: 500, leads: 8, hasLeads: true },
         integrationSettings: entered,
       }),
     ).toStrictEqual({ spend: 160, leads: 8 });
@@ -22,7 +20,6 @@ describe("sharedManualRoiFigures", () => {
     expect(
       sharedManualRoiFigures({
         leadRows: [{ spend: 0, leads: 4 }],
-        summary: { spend: 900, leads: 4, hasLeads: true },
         integrationSettings: entered,
       }),
     ).toStrictEqual({ spend: 0, leads: 4 });
@@ -32,7 +29,6 @@ describe("sharedManualRoiFigures", () => {
     expect(
       sharedManualRoiFigures({
         leadRows: [],
-        summary,
         integrationSettings: entered,
       }),
     ).toStrictEqual({ spend: 0, leads: 0 });
@@ -42,7 +38,6 @@ describe("sharedManualRoiFigures", () => {
     expect(
       sharedManualRoiFigures({
         leadRows: [],
-        summary,
         integrationSettings: {},
       }),
     ).toBeNull();

@@ -129,6 +129,57 @@ describe("sharedIntegrationReport", () => {
     expect(report.manualRoi).toStrictEqual({ spend: 100, leads: 5 });
   });
 
+  it("manual ROI never takes sales spend when lead campaigns have no rows at this level", () => {
+    const table = {
+      id: "g",
+      integration_type: "google_ads",
+      integration_settings: {
+        campaign_type: "leads",
+        manual_roi: { closures: 2, revenue: 3000 },
+      },
+    };
+    const leadCampaign = {
+      data: {
+        date: "2026-10-20",
+        campaign_id: "pmax",
+        campaign_name: "pmax",
+        conversion_goal: "leads" as const,
+        cost: 100,
+        conversions: 5,
+      },
+    };
+    const salesAdGroup = {
+      data: {
+        date: "2026-10-20",
+        entity_level: "adset",
+        campaign_id: "search",
+        campaign_name: "search",
+        ad_group_name: "search group",
+        conversion_goal: "ecommerce" as const,
+        cost: 200,
+        conversions: 4,
+        conversions_value: 800,
+      },
+    };
+    const tableGoals = googleCampaignGoalOf(
+      [leadCampaign, salesAdGroup].map((record) => ({
+        table_id: table.id,
+        data: record.data,
+      })),
+      [table],
+      "leads",
+    );
+    const report = sharedIntegrationReport([salesAdGroup], {
+      integrationType: "google_ads",
+      level: "adset",
+      integrationSettings: table.integration_settings,
+      tableGoals,
+      tableMode: "leads",
+    });
+    expect(report.campaigns.leads).toStrictEqual([]);
+    expect(report.manualRoi).toStrictEqual({ spend: 0, leads: 0 });
+  });
+
   it("an analytics table has KPIs and no campaign tables", () => {
     const report = sharedIntegrationReport([{ data: { sessions: 30 } }], {
       integrationType: "google_analytics",

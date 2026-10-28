@@ -1215,13 +1215,6 @@
       "count": 1
     },
     {
-      "file": "src/lib/adsMetrics.test.ts",
-      "code": 2353,
-      "message": "Object literal may only specify known properties, and 'name' does not exist in type '{ leads?: number | undefined; purchases?: number | undefined; purchase_value?: number | undefined; revenue?: number | undefined; campaign_type?: string | undefined; }'.",
-      "source": "name",
-      "count": 1
-    },
-    {
       "file": "src/lib/carmenAccessAutomation.ts",
       "code": 2345,
       "message": "Argument of type '(s: { configuration?: CarmenAutomationConfig; }) => CarmenAutomationConfig | undefined' is not assignable to parameter of type '(value: { configuration: Json; }, index: number, array: { configuration: Json; }[]) => CarmenAutomationConfig | undefined'.\n  Types of parameters 's' and 'value' are incompatible.\n    Type '{ configuration: Json; }' is not assignable to type '{ configuration?: CarmenAutomationConfig | undefined; }'.\n      Types of property 'configuration' are incompatible.\n        Type 'Json' is not assignable to type 'CarmenAutomationConfig | undefined'.\n          Type 'null' is not assignable to type 'CarmenAutomationConfig | undefined'.",

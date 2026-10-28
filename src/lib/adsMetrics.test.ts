@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import {
   aggregateFacebookCampaignsFromRecords,
-  classifyFacebookCampaignTotals,
   effectiveFacebookCampaignType,
   facebookTableUsesMixedRows,
   getLeadsFromData,
@@ -211,24 +210,6 @@ test("mixed Facebook table is detected when campaign_type is unset", () => {
   expect(facebookTableUsesMixedRows("facebook_ecommerce", {})).toBe(false);
 });
 
-test("classifyFacebookCampaignTotals mirrors per-row rules on aggregates", () => {
-  const salesTotals = {
-    name: "מכירות",
-    purchases: 4,
-    purchase_value: 1200,
-    leads: 0,
-  };
-  expect(classifyFacebookCampaignTotals(salesTotals)).toBe("ecommerce");
-  expect(
-    classifyFacebookCampaignTotals({
-      name: "לידים",
-      purchases: 0,
-      purchase_value: 0,
-      leads: 18,
-    }),
-  ).toBe("leads");
-});
-
 test("sales campaign with pixel leads and zero purchases stays in the ecommerce table", () => {
   expect(
     isFacebookEcommerceCampaign({
@@ -238,14 +219,6 @@ test("sales campaign with pixel leads and zero purchases stays in the ecommerce 
       campaign_type: "ecommerce",
     }),
   ).toBe(true);
-  expect(
-    classifyFacebookCampaignTotals({
-      campaign_type: "ecommerce",
-      leads: 100,
-      purchases: 0,
-      purchase_value: 0,
-    }),
-  ).toBe("ecommerce");
 });
 
 test("checkout result stays on the ecommerce table beside its leads", () => {

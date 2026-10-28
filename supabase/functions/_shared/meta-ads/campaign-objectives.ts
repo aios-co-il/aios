@@ -32,3 +32,6 @@ export function metaObjectiveGoal(
   }
   return null;
 }
+
+/** A Facebook campaign's type as the Meta sync stores it in `campaign_type`. */
+export type FacebookCampaignType = "lead" | "ecommerce" | "traffic" | "other";

@@ -1,6 +1,8 @@
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
-import type { ReportCampaignGoal } from "@/lib/campaignGoals";
-import { metaObjectiveGoal } from "../../supabase/functions/_shared/meta-ads/campaign-objectives.ts";
+import {
+  metaObjectiveGoal,
+  type FacebookCampaignType,
+} from "../../supabase/functions/_shared/meta-ads/campaign-objectives.ts";
 
 // Shared metric extraction for report records (`crm_records.data`).
 //
@@ -157,9 +159,6 @@ export const FACEBOOK_ECOMMERCE_RESULT_KINDS = new Set([
   "search",
 ]);
 
-/** A Facebook campaign's type as the Meta sync stores it. */
-export type FacebookCampaignType = "lead" | "ecommerce" | "traffic" | "other";
-
 const FACEBOOK_CAMPAIGN_TYPE_RANK: Record<string, number> = {
   ecommerce: 3,
   lead: 2,
@@ -185,7 +184,7 @@ export function preferFacebookCampaignType(
 }
 
 /** The fields of a Facebook campaign that decide whether it is a sales campaign. */
-export type FacebookSalesSignals = Pick<
+type FacebookSalesSignals = Pick<
   FacebookCampaignRow,
   | "campaign_type"
   | "campaign_objective"
@@ -364,27 +363,6 @@ export function aggregateFacebookCampaignsFromRecords(
   });
 
   return Object.values(map).sort((a, b) => b.spend - a.spend);
-}
-
-/** Classify an aggregated Facebook campaign row (same rules as DynamicTableView). */
-export function classifyFacebookCampaignTotals(totals: {
-  leads?: number;
-  purchases?: number;
-  purchase_value?: number;
-  revenue?: number;
-  campaign_type?: string;
-}): ReportCampaignGoal {
-  const rowType = String(totals.campaign_type || "").toLowerCase();
-  if (rowType === "traffic") return "traffic";
-  if (rowType === "lead") return "leads";
-  const row: FacebookSalesSignals = {
-    leads: Number(totals.leads) || 0,
-    purchases: Number(totals.purchases) || 0,
-    purchase_value:
-      Number(totals.purchase_value) || Number(totals.revenue) || 0,
-    campaign_type: totals.campaign_type,
-  };
-  return isFacebookEcommerceCampaign(row) ? "ecommerce" : "leads";
 }
 
 export function isFacebookLeadsOnlyTable(
