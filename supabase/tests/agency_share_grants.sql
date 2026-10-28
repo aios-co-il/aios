@@ -157,14 +157,11 @@ BEGIN
     RAISE EXCEPTION 'A share cycle outlives the share it came from';
   END IF;
 
-  -- The agency's own tenant may revoke or downgrade any share of it, but not
-  -- upgrade one it did not make; an owner of a fourth tenant may do neither.
+  -- The agency's own tenant may revoke any share of it, but never edit one it
+  -- did not make (that could rewrite the share in another tenant's name); an
+  -- owner of a fourth tenant may do neither.
   UPDATE public.user_active_tenant SET tenant_id = t_w WHERE user_id = actor;
   SET LOCAL ROLE authenticated;
-  UPDATE public.agency_tenant_access SET access_level = 'read_only'
-  WHERE source_tenant_id = t_x AND agency_id = a_rev AND accessing_tenant_id = t_y;
-  GET DIAGNOSTICS affected = ROW_COUNT;
-  IF affected <> 0 THEN RAISE EXCEPTION 'Another tenant''s owner can downgrade a share'; END IF;
   DELETE FROM public.agency_tenant_access
   WHERE source_tenant_id = t_x AND agency_id = a_rev AND accessing_tenant_id = t_y;
   GET DIAGNOSTICS affected = ROW_COUNT;
@@ -175,13 +172,12 @@ BEGIN
   UPDATE public.agency_tenant_access SET access_level = 'read_only'
   WHERE source_tenant_id = t_x AND agency_id = a_rev AND accessing_tenant_id = t_y;
   GET DIAGNOSTICS affected = ROW_COUNT;
-  IF affected <> 1 THEN RAISE EXCEPTION 'The agency''s owner cannot downgrade a re-share'; END IF;
-  BEGIN
-    UPDATE public.agency_tenant_access SET access_level = 'read_write'
-    WHERE source_tenant_id = t_x AND agency_id = a_rev AND accessing_tenant_id = t_y;
-    RAISE EXCEPTION 'The agency''s owner can upgrade a re-share it did not make';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
+  IF affected <> 0 THEN RAISE EXCEPTION 'The agency''s owner can edit a re-share it did not make'; END IF;
+  UPDATE public.agency_tenant_access
+     SET source_tenant_id = t_w, accessing_tenant_id = t_z, access_level = 'read_only'
+  WHERE source_tenant_id = t_x AND agency_id = a_rev AND accessing_tenant_id = t_y;
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN RAISE EXCEPTION 'The agency''s owner can move a share into another tenant''s name'; END IF;
   DELETE FROM public.agency_tenant_access
   WHERE source_tenant_id = t_x AND agency_id = a_rev AND accessing_tenant_id = t_y;
   GET DIAGNOSTICS affected = ROW_COUNT;

@@ -3,12 +3,11 @@
 -- its agency.
 --
 -- 1. An owner of the agency's own tenant (agencies.tenant_id, through
---    user_owns_agency) may see, delete, and downgrade to read_only every
---    agency_tenant_access row for that agency, including re-shares other
---    tenants made. The source owner keeps its 20261026095300 rights. RLS sees
---    only the new row, so the downgrade policy also lets the agency owner move
---    a share to another tenant, or to another agency it owns, as read_only:
---    read access it could grant directly anyway.
+--    user_owns_agency) may see and delete every agency_tenant_access row for
+--    that agency, including re-shares other tenants made. It cannot edit a
+--    share it did not make: RLS sees only the new row, so an edit policy would
+--    let it rewrite the share's tenants into another tenant's name. The source
+--    owner keeps its 20261026095300 rights, including downgrading its share.
 drop policy if exists "Agency owners can view shares of their agency" on public.agency_tenant_access;
 drop policy if exists "Agency owners can downgrade shares of their agency" on public.agency_tenant_access;
 drop policy if exists "Agency owners can revoke shares of their agency" on public.agency_tenant_access;
@@ -20,20 +19,6 @@ create policy "Agency owners can view shares of their agency"
   using (
     public.has_role(auth.uid(), 'owner'::public.app_role)
     and public.user_owns_agency(auth.uid(), agency_id)
-  );
-
--- Owners of the agency's tenant turn any share of it read_only, never read_write.
-create policy "Agency owners can downgrade shares of their agency"
-  on public.agency_tenant_access
-  for update to authenticated
-  using (
-    public.has_role(auth.uid(), 'owner'::public.app_role)
-    and public.user_owns_agency(auth.uid(), agency_id)
-  )
-  with check (
-    public.has_role(auth.uid(), 'owner'::public.app_role)
-    and public.user_owns_agency(auth.uid(), agency_id)
-    and access_level = 'read_only'
   );
 
 -- Owners of the agency's tenant delete any share of it.
@@ -63,9 +48,12 @@ security definer
 set search_path = public
 as $$
 begin
-  -- A DELETE always checks again. An UPDATE that keeps the tenants, the
-  -- agency and write access takes nothing away.
-  if tg_op = 'UPDATE' then
+  if tg_op = 'DELETE' then
+    -- A removed share always takes the hold away; check again below.
+    null;
+  elsif tg_op = 'UPDATE' then
+    -- An edit that keeps the tenants, the agency and write access takes
+    -- nothing away.
     if new.source_tenant_id = old.source_tenant_id
        and new.agency_id = old.agency_id
        and new.accessing_tenant_id = old.accessing_tenant_id
@@ -73,6 +61,8 @@ begin
             or new.access_level = 'read_write') then
       return null;
     end if;
+  else
+    return null;
   end if;
 
   if not public.tenant_holds_agency(old.accessing_tenant_id, old.agency_id, false) then
