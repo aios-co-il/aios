@@ -168,6 +168,9 @@ export function buildHealthWhatsAppDigest(input: {
 const ALERT_TYPE_LABELS: Record<string, string> = {
   campaign_stopped: "קמפיין נעצר",
   ad_disapproved: "מודעה נדחתה",
+  account_disabled: "חשבון הפרסום הושבת או הוגבל",
+  ad_account_billing_issue: "בעיית חיוב בחשבון הפרסום",
+  no_live_ads: "אין מודעה באוויר",
   campaign_with_issues: "תקלה בקמפיין",
   cpl_spike: "CPL חורג",
 };
