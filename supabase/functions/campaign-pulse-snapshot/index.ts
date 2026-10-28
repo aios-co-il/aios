@@ -16,6 +16,7 @@ import {
   tableMatchesServices,
   worstPulseStatus,
 } from "../_shared/campaign-pulse.ts";
+import { resolveNoRecentClientCall } from "../_shared/pulse/client-call.ts";
 import {
   cachedLastMetaActivity,
   fetchLastMetaCampaignActivity,
@@ -33,7 +34,8 @@ import {
   scopeSnapshotsForPlan,
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
-import { deliverInstantPulseAlerts } from "../_shared/pulse-instant-alerts.ts";
+import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
+import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -266,12 +268,13 @@ Deno.serve(async (req) => {
     const retention = await runDailyClientRetention(supabase, body.tenant_id);
     return json(retention, retention.error ? 500 : 200);
   }
-  // Only explicit deliver:true may send WhatsApp — sync crons refresh snapshots only.
+  // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
+  // Instant alerts: see gatedInstantAlerts.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
-    body.force_delivery === true && body.source === "approved_manual_trigger";
+    body.force_delivery === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const previewOnlyDelivery =
-    body.preview_only === true && body.source === "approved_manual_trigger";
+    body.preview_only === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const campaignerNameFilter =
     manualDeliveryBypass && typeof body.campaigner_name === "string"
       ? body.campaigner_name.trim()
@@ -654,6 +657,11 @@ Deno.serve(async (req) => {
         const lastClientCallAt = clientCallDataAvailable
           ? latestCall?.last_client_call_at || null
           : undefined;
+        // Contact indicator only (AIO-227): never part of the campaign status.
+        const noRecentClientCall = resolveNoRecentClientCall(
+          lastClientCallAt,
+          now.getTime(),
+        );
         const stoppedCount = stoppedByClient.get(client.id) || 0;
         const leadTables = activeTables.filter(
           (table: any) =>
@@ -679,8 +687,6 @@ Deno.serve(async (req) => {
           purchases7: 0,
           roas: null,
           cplChangePct: leadMetrics.changePct,
-          lastClientCallAt:
-            goalMode !== "ecommerce" ? lastClientCallAt : undefined,
           stoppedCampaignCount: goalMode !== "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
         });
@@ -700,8 +706,6 @@ Deno.serve(async (req) => {
           purchases7: ecommerceMetrics.outcomes,
           roas: ecommerceMetrics.efficiency,
           cplChangePct: null,
-          lastClientCallAt:
-            goalMode === "ecommerce" ? lastClientCallAt : undefined,
           stoppedCampaignCount: goalMode === "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
         });
@@ -763,6 +767,7 @@ Deno.serve(async (req) => {
           is_ecommerce: isEcommerce,
           stale_platforms: stalePlatforms,
           flags,
+          no_recent_client_call: noRecentClientCall,
         });
         snapshots.push({
           tenant_id: tenantId,
@@ -795,6 +800,8 @@ Deno.serve(async (req) => {
           meta_change_availability: lastMetaChange.availability,
           last_client_call_at: latestCall?.last_client_call_at || null,
           last_client_call_by: latestCall?.last_client_call_by || null,
+          // In-memory only: derived from last_client_call_at, not a stored column.
+          no_recent_client_call: noRecentClientCall,
           client_name: client.name,
           agency_name: (client.agencies as any)?.name || null,
         });
@@ -837,6 +844,7 @@ Deno.serve(async (req) => {
           meta_change_availability: "meta_api_unavailable",
           last_client_call_at: null,
           last_client_call_by: null,
+          no_recent_client_call: null,
           client_name: client.name,
           agency_name: (client.agencies as any)?.name || null,
         });
@@ -861,7 +869,12 @@ Deno.serve(async (req) => {
     }
     if (snapshots.length) {
       const rows = snapshots.map(
-        ({ client_name: _c, agency_name: _a, ...row }) => row,
+        ({
+          client_name: _c,
+          agency_name: _a,
+          no_recent_client_call: _n,
+          ...row
+        }) => row,
       );
       let { error } = await supabase
         .from("campaign_pulse_snapshots")
@@ -895,10 +908,10 @@ Deno.serve(async (req) => {
       .eq("id", tenantId)
       .maybeSingle();
     const tenantSlug = tenantRow?.slug || tenantId;
-    let instantAlerts = { sent: 0, skipped: 0, candidates: 0, analyzed: 0 };
+    let instantAlerts = noInstantAlerts();
     if (snapshots.length) {
       try {
-        instantAlerts = await deliverInstantPulseAlerts({
+        instantAlerts = await gatedInstantAlerts(setting, body, {
           supabase,
           tenantId,
           tenantSlug,

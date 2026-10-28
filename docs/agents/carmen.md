@@ -86,8 +86,15 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 ## Carmen's tools for coding agents (`carmen-tools-mcp`)
 
 - Claude Direct / Cursor Direct operate AIOS through Carmen's own tools, without her LLM: `carmen-tools-mcp` (`…/functions/v1/carmen-tools-mcp/mcp?agent=claude|cursor`, bearer or `?key=` = `CARMEN_TOOLS_MCP_BEARER`) forwards to `run-ai-agent` `direct_tool` mode (service-role only), which runs `executeTool` as `CARMEN_MCP_USER_ID` with the same role scoping.
-- Policy lives in `_shared/carmen-direct-tools.mjs`: agent spawning, dev escalation and self-approval tools are hidden; external sends, deletions, access and money changes are queued in `agent_approval_queue` (`action_type='agent_direct_tool'`) and run only after David approves (`resume-agent-run` / `carmen-approval-execute` → `execute_approved`). Tools that already queue themselves keep their own gate.
+- Policy lives in `_shared/carmen-direct-tools.mjs`: agent spawning, dev escalation and self-approval tools are hidden; external sends, deletions, access and money changes are queued in `agent_approval_queue` (`action_type='agent_direct_tool'`) and run only after David approves (`carmen-approval-execute` → `execute_approved`). Tools that already queue themselves keep their own gate.
 - Prefer these tools over raw SQL for business actions (tasks, automations, leads, clients); raw SQL bypasses scoping and approvals.
+
+## Approvals (`agent_approval_queue`)
+
+- A chat "כן" runs only a pending row the same user requested in the same conversation (`context.conversation_key`) within 30 minutes. Otherwise Carmen lists the candidates with 4-digit codes (6 digits when two listed rows share 4), and "כן <קוד>" picks one; "לא <קוד>" lets the requester or an approver reject. Picker and tests: `run-ai-agent/approvals/`; role gate and claim: `_shared/carmen/approvals/`.
+- The approver is the caller Carmen resolved. For a user JWT that is always the JWT user: `run-ai-agent` strips `lead_data` (caller phone), `wa_notify` and the `whatsapp` surface from non-service requests (`run-ai-agent/caller-trust.ts`), so only WhatsApp webhooks and automations, which call with the service key, can act for a phone.
+- Money, external_send, config and destructive rows need `owner`, `agency_owner` or `super_admin`. `carmen-approval-execute` checks the approver's tenant and role, refuses expired rows and claims a row once (`executing`, then `executed` or `failed`).
+- The approvals screen calls `carmen-approval-execute` directly; `resume-agent-run` handles only `run-ai-agent-v2` run steps. Browser roles can read the queue but not write it.
 
 ## Carmen → Claude bridge (legacy / alternate)
 
@@ -95,7 +102,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - When Carmen can't do something herself, she offers a dev task for Claude (always-on instruction in `ai_memory` + the `claude_escalation` skin) or Cursor (`cursor_escalation`). The request also asks the coding agent to **teach Carmen**: write a reusable skin into `ai_skills` (`scope='tenant'`, `created_by_agent=true`) so she's independent next time.
 - **A person sends every task** (`_shared/dev-task-approval.ts`). In an AIOS chat Carmen offers it and sends it after the user's yes in a later message. On WhatsApp or in an automation she opens it (`create_dev_task`), and a person sends it from the Command Center (`dev-task-center`, allowed dev tiers only). The rule covers every tool that starts a coding agent (Cursor, Claude, Grok, Manus, the GitHub agent, the Cursor task queue); a reply into a session already sent goes straight through.
 - **Keep David updated:** Carmen tells David at hand-off (with the session link) and again with a summary when the result/PR lands. When a capability she learned fails in practice, she reports the exact error and offers a fix task, sent the same way.
-- **Guaranteed update channel:** when a coding-agent session finishes a Carmen-delegated task, it pushes a WhatsApp update straight to David by running `select public.claude_notify_david('<message>', '<tenant_id>'::uuid);` via its Supabase connector. That SECURITY DEFINER function reads the shared bearer from Vault and calls the `claude-notify` edge function, which sends through the tenant's Carmen WhatsApp automation — independent of any live Carmen session.
+- **Guaranteed update channel:** when a coding-agent session finishes a Carmen-delegated task, it pushes a WhatsApp update straight to David by running `select public.claude_notify_david('<message>', '<tenant_id>'::uuid);` via its Supabase connector. That SECURITY DEFINER function reads the shared bearer from Vault and calls the `claude-notify` edge function, which sends from the tenant's primary Carmen line (see Carmen's outbound lines below), independent of any live Carmen session.
 
 ## Safety rules for autonomous fixes (Carmen → Claude)
 
@@ -120,3 +127,20 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
    - **Voice-OUT:** each assistant bubble has a "השמע" speaker button → `carmen-speak` edge function (`aiSpeak`, mp3) → browser `<audio>` playback.
 
 - TTS/STT helpers live in `_shared/ai.ts` (`aiSpeak` / `aiTranscribe`). Voice = `ai_agents.voice` (default `shimmer`).
+
+## Shabbat quiet hours and pulse instant alerts (AIO-226)
+
+- **Shabbat** is the whole Saturday, 00:00–23:59 Asia/Jerusalem (`_shared/shabbat/quiet-window.ts`).
+- **Held until Sunday 08:30:** `task-notification-worker`, `client-follow-up-worker` and task notifications sent through `trigger-automation`. Peer task notifications wait in `task_notification_holds`; the worker replays each once, and a hold still unreleased 24h after its release time expires unsent.
+- **Held for Saturday only:** pulse instant alerts and `fb-campaign-monitor` WhatsApp, for every alert type not in `_shared/shabbat/critical-alerts.ts` (add a new critical kind there); a pulse `connection_lost` goes out only for a real connection loss. No other sender is gated.
+- **Recurring task reminders** go out at 08:30 on the occurrence's own Israel date; one-off tasks keep the day-before reminder.
+- **Pulse instant alerts** run only when `instantPulseAlertsGate` (`campaign-pulse-snapshot/instant-alerts-gate.ts`) allows it. Send `skip_instant_alerts: true` to refresh pulse numbers without alerting the team.
+- **Cross-org dedupe:** for a client of an agency on one of this org's own `agency_tenant_access` grants (this org on either side), a phone the org on the other side of that grant already alerted with the same rule and finding inside the rule's throttle window is dropped from this org's send (`_shared/pulse/cross-tenant-recipients.ts`, keyed by phone in `pulse_instant_alert_log.recipient_phone`). Two orgs that each hold a grant from a third org do not dedupe each other. A failed lookup alerts everyone. Check this first when one org reports a missed pulse alert.
+
+## Carmen's outbound lines
+
+- **Primary line only:** `claude-notify` and staff alerts send only from a Carmen connection whose role is primary (`settings.carmen_role`, `_shared/carmen-connection-role.ts`); a secondary line, such as the owner's personal phone, never sends them.
+- **`claude-notify`** uses the tenant's Carmen `send_manus_message` step on an active primary `manus_wa` line. A Green API step is used only when no Manus step resolves, and the response labels it `transport: "green_fallback"`. A line a step names is used only when the senders below would accept it: the tenant's own, one shared with it, or any line when the automation's session sender is a super admin (another tenant's line never lends its owner as the sender). Another tenant's Green line counts as primary only with an explicit `carmen_role: "primary"`. Every refusal (`no_recipient`, `no_transport`, `no_sender`) is logged as an error. It accepts only `CLAUDE_MCP_BEARER` or the service-role key; `{ "ping": true, "tenant_id"? }` reports the line each tenant would use and sends nothing.
+- **Staff alerts** (`send_whatsapp_to_staff`, `send_message_to_campaigner`) leave only through `send-manus-wa-message` on a primary `manus_wa` line (`run-ai-agent/staff-alert.ts`), so the Staging guard applies and the outcome lands in `agent_action_log`.
+- **Who may send from a line:** `send-manus-wa-message`, `manage-manus-wa` `send_message`, staff alerts and `claude-notify`'s line choice apply one rule, `_shared/auth/tenant-access.ts`. `manage-manus-wa` also accepts the service-role key with no line check (AIO-248), refuses the anon key on every action (`manage-manus-wa/send-auth.ts`), and passes the Staging guard.
+- **`agent-heartbeat`** sends no WhatsApp; its summary goes to `heartbeat_logs` only.
