@@ -8,6 +8,7 @@ import {
   pickErrorKey,
   type ReportSenderMessageKey,
 } from "./reportSenderMessages";
+import type { ReportSenderOptions } from "./useReportSenders";
 
 /**
  * A schedule's line as its form shows it:
@@ -34,6 +35,12 @@ export type ScheduleSender =
         | "stale_default";
     };
 
+/** The lines a schedule's form offers, and the creator its line is for. */
+export type ScheduleCreatorView = {
+  options: ReportSenderOptions;
+  creatorId: string | null;
+};
+
 /** The form's line, or that the lines are still loading or failed to. */
 export type ScheduleSenderState =
   ScheduleSender | { status: "pending"; error: "loading" | "load_failed" };
@@ -41,7 +48,10 @@ export type ScheduleSenderState =
 export type ScheduleSenderInput = {
   senders: readonly ReportSender[];
   tenantDefaultId: string | null;
-  /** The person saving, who becomes the schedule's creator. */
+  /**
+   * The schedule's creator, whom the report worker sends as: the person
+   * saving a new schedule, else the stored created_by, which a save keeps.
+   */
   userId: string | null;
   /** The line in the form: the stored one, or the one just picked. */
   value: string | null;
@@ -79,20 +89,44 @@ export function resolveScheduleSender(
 
 /**
  * The line id to store, or why an enabled WhatsApp schedule cannot be saved.
- * A schedule that is off, or sends no WhatsApp, keeps what it has.
+ * A stored schedule that is off, or sends no WhatsApp, keeps what it has, so
+ * its NULL line is pinned only when it is saved switched on; a new one stores
+ * the line it resolves to, if any.
  */
 export function scheduleSenderToSave(
   state: ScheduleSenderState,
   value: string | null,
-  required: boolean,
+  save: { required: boolean; isNew: boolean },
 ): { id: string | null } | { error: ReportSenderMessageKey } {
+  if (!save.required && !save.isNew) {
+    return { id: value };
+  }
   if (state.status === "follows_default") {
     return { id: null };
   }
   if (state.status === "line") {
     return { id: state.sender.id };
   }
-  return required ? { error: state.error } : { id: value };
+  return save.required ? { error: state.error } : { id: value };
+}
+
+/**
+ * The lines a schedule's form offers, and whom its line is resolved for: the
+ * creator, since the trigger keeps created_by and checks the line for them.
+ * The viewer's list holds the viewer's own lines, so on another member's
+ * schedule only the lines every member may use (the creator too) are kept.
+ */
+export function forScheduleCreator(
+  options: ReportSenderOptions,
+  viewerId: string | null,
+  saved: { created_by: string | null } | null | undefined,
+): ScheduleCreatorView {
+  const creatorId = saved ? saved.created_by : viewerId;
+  if (creatorId === viewerId) {
+    return { options, creatorId };
+  }
+  const senders = options.senders.filter((sender) => sender.org_wide);
+  return { options: { ...options, senders }, creatorId };
 }
 
 /** A stored line, checked by the same rule as the worker. */

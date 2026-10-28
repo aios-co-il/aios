@@ -105,6 +105,7 @@ beforeEach(() => {
     email_recipients: [],
     message: null,
     whatsapp_integration_id: null,
+    created_by: "u1",
   };
 });
 
@@ -127,7 +128,7 @@ describe("ClientReportScheduleSettings sender line", () => {
     backend.senders = [carmen, david];
     renderSettings();
     const select = await screen.findByRole("combobox", { name: "שלח מ" });
-    // Preselected: the line the worker would use, the saver's own phone.
+    // Preselected: the line the worker would use, the creator's own phone.
     expect(select).toHaveTextContent("הטלפון של דוד");
     await userEvent.click(select);
     await userEvent.click(
@@ -181,9 +182,48 @@ describe("ClientReportScheduleSettings sender line", () => {
     await save();
     await waitFor(() =>
       expect(backend.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ whatsapp_integration_id: "carmen" }),
+        expect.objectContaining({
+          whatsapp_integration_id: "carmen",
+          created_by: "u1",
+        }),
       ),
     );
+  });
+
+  it("resolves another member's schedule for its creator, never the saver's line", async () => {
+    backend.senders = [carmen, { ...david, org_wide: false }];
+    backend.schedule = { ...backend.schedule, created_by: "u2" };
+    renderSettings();
+    expect(
+      await screen.findByText("יישלח מ: הטלפון של כרמן"),
+    ).toBeInTheDocument();
+    await save();
+    await waitFor(() => expect(backend.update).toHaveBeenCalledTimes(1));
+    const [payload] = backend.update.mock.calls[0];
+    expect(payload).toMatchObject({ whatsapp_integration_id: "carmen" });
+    expect(payload).not.toHaveProperty("created_by");
+  });
+
+  it("keeps another member's NULL line when switched off, offering org-wide lines only", async () => {
+    backend.senders = [carmen, office, { ...david, org_wide: false }];
+    backend.schedule = { ...backend.schedule, created_by: "u2" };
+    renderSettings();
+    const select = await screen.findByRole("combobox", { name: "שלח מ" });
+    await userEvent.click(screen.getByRole("switch"));
+    await save();
+    await waitFor(() => expect(backend.update).toHaveBeenCalledTimes(1));
+    const [payload] = backend.update.mock.calls[0];
+    expect(payload).toMatchObject({
+      enabled: false,
+      whatsapp_integration_id: null,
+    });
+    expect(payload).not.toHaveProperty("created_by");
+    await userEvent.click(select);
+    const options = await screen.findAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "הטלפון של כרמן",
+      "משרד",
+    ]);
   });
 
   it("does not save an enabled schedule without a phone", async () => {

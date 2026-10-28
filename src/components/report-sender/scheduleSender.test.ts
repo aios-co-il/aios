@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
 import {
+  forScheduleCreator,
   resolveScheduleSender,
   type ScheduleSenderInput,
   scheduleSenderToSave,
@@ -116,30 +117,69 @@ describe("scheduleSenderToSave", () => {
     input({ tenantDefaultId: "carmen", nullFollowsDefault: true }),
   );
   const none = resolveScheduleSender(input({ senders: [carmen, office] }));
+  const on = { required: true, isNew: false };
+  const off = { required: false, isNew: false };
 
   it("stores the line id, or NULL to follow the default", () => {
-    expect(scheduleSenderToSave(line, null, true)).toEqual({ id: "own" });
-    expect(scheduleSenderToSave(follows, null, true)).toEqual({ id: null });
+    expect(scheduleSenderToSave(line, null, on)).toEqual({ id: "own" });
+    expect(scheduleSenderToSave(follows, null, on)).toEqual({ id: null });
   });
 
   it("blocks an enabled WhatsApp schedule without a working line", () => {
-    expect(scheduleSenderToSave(none, null, true)).toEqual({
+    expect(scheduleSenderToSave(none, null, on)).toEqual({
       error: "choose_sender",
     });
     const stale = resolveScheduleSender(
       input({ tenantDefaultId: "off", nullFollowsDefault: true }),
     );
-    expect(scheduleSenderToSave(stale, null, true)).toEqual({
+    expect(scheduleSenderToSave(stale, null, on)).toEqual({
       error: "stale_default",
     });
     expect(
-      scheduleSenderToSave({ status: "pending", error: "loading" }, null, true),
+      scheduleSenderToSave({ status: "pending", error: "loading" }, null, on),
     ).toEqual({ error: "loading" });
   });
 
-  it("lets a schedule that is off keep what it has", () => {
-    expect(scheduleSenderToSave(none, null, false)).toEqual({ id: null });
+  it("lets a stored schedule that is off keep what it has", () => {
+    expect(scheduleSenderToSave(none, null, off)).toEqual({ id: null });
+    // A NULL line is pinned only when the schedule is saved switched on.
+    expect(scheduleSenderToSave(line, null, off)).toEqual({ id: null });
     const gone = resolveScheduleSender(input({ value: "gone" }));
-    expect(scheduleSenderToSave(gone, "gone", false)).toEqual({ id: "gone" });
+    expect(scheduleSenderToSave(gone, "gone", off)).toEqual({ id: "gone" });
+  });
+
+  it("stores the line a new schedule saved off resolves to, if any", () => {
+    const newOff = { required: false, isNew: true };
+    expect(scheduleSenderToSave(line, null, newOff)).toEqual({ id: "own" });
+    expect(scheduleSenderToSave(none, null, newOff)).toEqual({ id: null });
+  });
+});
+
+describe("forScheduleCreator", () => {
+  const privateLine = reportSender("own", {
+    owner_user_id: "u1",
+    org_wide: false,
+  });
+  const options = {
+    senders: [carmen, privateLine],
+    tenantDefaultId: null,
+    canManage: false,
+  };
+
+  it("resolves a new or own schedule for the viewer, with all their lines", () => {
+    for (const saved of [null, { created_by: "u1" }]) {
+      expect(forScheduleCreator(options, "u1", saved)).toEqual({
+        options,
+        creatorId: "u1",
+      });
+    }
+  });
+
+  it("keeps only org-wide lines on another member's schedule", () => {
+    for (const createdBy of ["u2", null]) {
+      const view = forScheduleCreator(options, "u1", { created_by: createdBy });
+      expect(view.creatorId).toBe(createdBy);
+      expect(view.options.senders).toEqual([carmen]);
+    }
   });
 });
