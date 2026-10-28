@@ -89,10 +89,27 @@ Deno.test("payload content decides last, and creative is the default", () => {
     projectDepartment({ has_seo_plan: true, has_copy: true }),
     "seo",
   );
-  assertStrictEquals(
-    projectDepartment({ has_copy: true, has_creative: true }),
-    "copy",
-  );
+  assertStrictEquals(projectDepartment({ has_copy: true }), "copy");
   assertStrictEquals(projectDepartment({ has_creative: true }), "creative");
   assertStrictEquals(projectDepartment({}), "creative");
 });
+
+Deno.test(
+  "creative work with a brief or copy goes to Creative, the screen that lists it",
+  () => {
+    // isCopyDepartmentItem leaves out variations and static or video projects, whatever
+    // brief, copy or copy stage they carry; isCreativeDepartmentItem lists them.
+    assertStrictEquals(
+      projectDepartment({ has_copy: true, has_creative: true }),
+      "creative",
+    );
+    assertStrictEquals(
+      projectDepartment({ stage_type: "copy", has_creative: true }),
+      "creative",
+    );
+    assertStrictEquals(
+      projectDepartment({ department_hint: "copy", has_creative: true }),
+      "copy",
+    );
+  },
+);
