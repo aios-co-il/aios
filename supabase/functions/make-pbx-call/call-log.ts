@@ -1,6 +1,6 @@
 // call_logs writes for calls started from the CRM.
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { TablesInsert } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import type { CallerResolution } from "../_shared/telephony/types.ts";
 
 export interface NewOutboundCall {
@@ -14,7 +14,7 @@ export interface NewOutboundCall {
   callId: string;
 }
 
-export async function createCallLog(sb: SupabaseClient, call: NewOutboundCall) {
+export async function createCallLog(sb: DbClient, call: NewOutboundCall) {
   const { data, error } = await sb
     .from("call_logs")
     .insert(newCallRow(call))
@@ -46,7 +46,7 @@ export function newCallRow(call: NewOutboundCall): TablesInsert<"call_logs"> {
 }
 
 export async function markCallFailed(
-  sb: SupabaseClient,
+  sb: DbClient,
   log: { id: string; notes: string | null },
   detail: string,
 ) {

@@ -39,6 +39,7 @@ const EVIDENCE_BODY = {
 /** Answers the evidence RPC with these rows. */
 const responder = (rows: unknown[]) => (): unknown => rows;
 
+/** A collector context for tenant T at NOW over `db`, with no_contact_days 10. */
 function context(
   db: CollectorContext["db"],
   fields: Partial<CollectorContext> = {},

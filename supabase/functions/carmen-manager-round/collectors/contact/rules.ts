@@ -21,6 +21,8 @@ export type ContactRules = {
 
 export const CONTACT_DEFAULTS = { logGraceHours: 24, minCallSeconds: 60 };
 
+const DAY_MS = 86_400_000;
+
 /** Contact rules from stored pulse_alert_rules (any shape), with defaults. */
 export function contactRules(pulseAlertRules: unknown): ContactRules {
   const contact = record(record(record(pulseAlertRules).manager).contact);
@@ -37,4 +39,9 @@ export function contactRules(pulseAlertRules: unknown): ContactRules {
     noContactEnabled: pulse.no_contact_enabled !== false,
     noContactDays: pulse.no_contact_days ?? CLIENT_CALL_STALE_DAYS,
   };
+}
+
+/** no_contact_days in milliseconds: how long a silence lasts before it is a finding. */
+export function noContactWindowMs(rules: ContactRules): number {
+  return rules.noContactDays * DAY_MS;
 }

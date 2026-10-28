@@ -3,7 +3,8 @@
  * no_contact): the manager hears after the kind's business days, together
  * with every such item on the next Sunday list, and the ladder stops there
  * instead of reaching the owner level. A client without a campaigner sends
- * level 0 to the managers, so it waits for the roll-up too.
+ * level 0 to the managers (without them, the brief recipients), so it waits
+ * for the roll-up too.
  */
 import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
@@ -24,8 +25,8 @@ import { KIND_POLICY } from "./policy.ts";
 
 /**
  * When level 0 goes out: urgent at once, else in the next daily list; a
- * roll-up kind whose level 0 can only be the managers (no campaigner on the
- * client) in the weekly roll-up instead.
+ * roll-up kind with no campaigner on the client (level 0 is the managers or
+ * the brief recipients) in the weekly roll-up instead.
  */
 export function levelZeroTime(
   finding: FindingRow,

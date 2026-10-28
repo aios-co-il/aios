@@ -13,6 +13,7 @@ DECLARE
   v_finding uuid;
   v_other_tenant uuid;
   v_other_agency uuid;
+  v_moved_agency uuid;
   v_result record;
   v_round uuid := gen_random_uuid();
 BEGIN
@@ -114,6 +115,17 @@ BEGIN
   IF v_other_agency IS NULL THEN
     RAISE NOTICE 'skipped the read-only share check: no second tenant with an agency';
   ELSE
+    -- A finding's deliveries carry its tenant (composite FK), so the confirm's
+    -- tenant-keyed cancel reaches every one of them.
+    BEGIN
+      INSERT INTO public.carmen_finding_deliveries (tenant_id, finding_id, level,
+        recipient_key, channel, slot, status)
+      VALUES (v_other_tenant, v_finding, 0, 'user:qa', 'manus_wa', 'list', 'planned');
+      RAISE EXCEPTION 'deliveries: another tenant''s delivery of a finding must be refused';
+    EXCEPTION WHEN foreign_key_violation THEN
+      NULL;
+    END;
+
     INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
     VALUES (v_other_tenant, v_other_agency, v_tenant, 'read_only')
     ON CONFLICT (source_tenant_id, agency_id, accessing_tenant_id)
@@ -131,6 +143,17 @@ BEGIN
        OR EXISTS (SELECT 1 FROM public.client_updates AS u WHERE u.source_ref = 'finding:' || v_finding)
        OR (SELECT f.status FROM public.carmen_findings AS f WHERE f.id = v_finding) <> 'open' THEN
       RAISE EXCEPTION 'confirm: a read-only share writes nothing and keeps the finding';
+    END IF;
+
+    -- The client's current agency decides, not the one the finding recorded.
+    INSERT INTO public.agencies (tenant_id, name)
+    VALUES (v_other_tenant, 'QA ROLLBACK moved') RETURNING id INTO v_moved_agency;
+    INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
+    VALUES (v_other_tenant, v_moved_agency, v_tenant, 'read_write');
+    UPDATE public.clients SET agency_id = v_moved_agency WHERE id = v_client;
+    IF (SELECT r.outcome FROM public.carmen_finding_confirm_contact(
+          v_tenant, v_finding, v_user, 'call', 'QA') AS r) <> 'logged' THEN
+      RAISE EXCEPTION 'confirm: a client moved to an agency shared read_write is logged';
     END IF;
   END IF;
 

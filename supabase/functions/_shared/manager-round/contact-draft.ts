@@ -6,8 +6,15 @@
  */
 import type { Json } from "../database.types.ts";
 
+/** The stem every form of the reply word starts with ("תעד", "תעדי", "תעדו"). */
+export const CONFIRM_DRAFT_STEM_HE = "תעד";
+
 /** The reply word, sent before the finding's code. */
-export const CONFIRM_DRAFT_WORD_HE = "תעדי";
+export const CONFIRM_DRAFT_WORD_HE = `${CONFIRM_DRAFT_STEM_HE}י`;
+
+const CONFIRM_DRAFT_REPLY = new RegExp(
+  `(?:^|\\s)${CONFIRM_DRAFT_STEM_HE}[יו]?\\s*#?(\\d{1,7})(?!\\d)`,
+);
 
 export const CONTACT_DRAFT_TYPES = ["call", "meeting"] as const;
 
@@ -28,7 +35,7 @@ export function contactDraftOf(evidence: Json): ContactDraft | null {
 
 /** The finding code in a reply such as "תעדי 123", "תעד #123" or "תעדו 123"; else null. */
 export function parseConfirmDraftReply(text: string): number | null {
-  const match = /(?:^|\s)תעד[יו]?\s*#?(\d{1,7})(?!\d)/.exec(text);
+  const match = CONFIRM_DRAFT_REPLY.exec(text);
   return match ? Number(match[1]) : null;
 }
 

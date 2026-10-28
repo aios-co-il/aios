@@ -1,6 +1,6 @@
 // Writes an incoming PBX event to call_logs.
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import type { PbxEvent, PbxSettings } from "../_shared/telephony/types.ts";
 import { callerUpgrade, loadFirstTenantUser, resolveCaller } from "./caller.ts";
 import type { CallLogRow, Owner } from "./match.ts";
@@ -11,7 +11,7 @@ export type Recording = { url: string | null; path: string | null };
 export type SavedCall = Owner & { callLogId: string };
 
 export async function updateCall(
-  sb: SupabaseClient,
+  sb: DbClient,
   tenantId: string,
   existing: CallLogRow,
   event: PbxEvent,
@@ -33,7 +33,7 @@ export async function updateCall(
 }
 
 export async function insertCall(
-  sb: SupabaseClient,
+  sb: DbClient,
   tenantId: string,
   settings: PbxSettings,
   event: PbxEvent,

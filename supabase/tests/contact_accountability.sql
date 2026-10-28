@@ -43,7 +43,7 @@ BEGIN
 
   -- Only clients whose card the tenant may write: its own, or of an agency shared read_write.
   IF EXISTS (
-    SELECT 1 FROM public.get_client_contact_evidence(v_tenant, v_since) AS e
+    SELECT 1 FROM public.get_client_contact_evidence(v_tenant, v_since, 60) AS e
     JOIN public.clients AS c ON c.id = e.client_id
     WHERE c.tenant_id IS DISTINCT FROM v_tenant AND NOT EXISTS (
       SELECT 1 FROM public.agency_tenant_access AS ata

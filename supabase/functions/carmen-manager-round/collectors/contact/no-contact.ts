@@ -8,10 +8,8 @@
  */
 import type { FindingCandidate } from "../types.ts";
 import type { ContactEvidence } from "./evidence.ts";
-import type { ContactRules } from "./rules.ts";
+import { type ContactRules, noContactWindowMs } from "./rules.ts";
 import { noContactSummary } from "./text.ts";
-
-const DAY_MS = 86_400_000;
 
 /** Clients nobody contacted or logged for no_contact_days, at `now`. */
 export function noContactFindings(
@@ -39,7 +37,7 @@ function silenceCrossedAt(
   rules: ContactRules,
   now: Date,
 ): number {
-  const window = rules.noContactDays * DAY_MS;
+  const window = noContactWindowMs(rules);
   const since = latest([contact?.toISOString(), client.clientSince]);
   return since ? since.getTime() + window : now.getTime() - window;
 }

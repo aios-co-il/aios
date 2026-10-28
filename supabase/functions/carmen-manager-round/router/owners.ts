@@ -11,7 +11,11 @@
 import type { Json } from "../../_shared/database.types.ts";
 import { isFindingKind } from "../../_shared/manager-round/kinds.ts";
 import { normalizeStaffPhone } from "../../_shared/staff-whatsapp.ts";
-import type { FindingRow, Recipient } from "../findings/types.ts";
+import type {
+  FindingRow,
+  Recipient,
+  RecipientRole,
+} from "../findings/types.ts";
 import type { PeopleDirectory, StaffMember } from "../recipients/directory.ts";
 import {
   type ClientRecipients,
@@ -99,10 +103,14 @@ function knownPerson(
     return campaigner;
   }
   const member = input.staff.find((staff) => staff.user_id === userId);
-  return member
-    ? staffRecipient(
-        member,
-        member.roles.includes("owner") ? "owner" : "manager",
-      )
-    : null;
+  return member ? staffRecipient(member, staffRole(member)) : null;
+}
+
+/** Owners and agency owners keep the owner role, as resolveBriefRecipients names them; other staff are managers. */
+function staffRole(member: StaffMember): RecipientRole {
+  return member.roles.some(
+    (role) => role === "owner" || role === "agency_owner",
+  )
+    ? "owner"
+    : "manager";
 }

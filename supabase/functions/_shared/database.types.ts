@@ -16050,7 +16050,7 @@ export type Database = {
         Args: {
           p_client_ids?: string[];
           p_contact_since?: string;
-          p_min_call_seconds?: number;
+          p_min_call_seconds: number;
           p_since: string;
           p_tenant_id: string;
         };

@@ -38,7 +38,7 @@ export async function resolveCaller(
 export function callerUpgrade(
   settings: PbxSettings,
   extension: string | null,
-  current: string | null,
+  current: CallerResolution | null,
 ): { caller_user_id: string; caller_resolution: CallerResolution } | null {
   const mapped = extensionUser(settings, extension);
   return mapped && (current === null || current === "fallback")

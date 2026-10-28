@@ -39,6 +39,7 @@ function ports(
   };
 }
 
+/** dana's private "תעדי 123" in tenant T. */
 function input(fields: Partial<ConfirmInput> = {}): ConfirmInput {
   return {
     tenantId: T,

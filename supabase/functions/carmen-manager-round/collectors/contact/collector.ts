@@ -13,9 +13,7 @@ import {
 } from "./evidence.ts";
 import { noContactFindings } from "./no-contact.ts";
 import { notLoggedFindings } from "./not-logged.ts";
-import { type ContactRules, contactRules } from "./rules.ts";
-
-const DAY_MS = 86_400_000;
+import { type ContactRules, contactRules, noContactWindowMs } from "./rules.ts";
 
 export const contactCollector: Collector = {
   id: "contact",
@@ -58,7 +56,7 @@ function contactEvidence(
   if (fixtures) {
     return Promise.resolve(fixtures);
   }
-  const window = rules.noContactDays * DAY_MS;
+  const window = noContactWindowMs(rules);
   return loadContactEvidence(ctx.db, {
     tenantId: ctx.tenantId,
     since: new Date(ctx.now.getTime() - window),

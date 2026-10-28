@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { contactRules } from "./rules.ts";
+import { contactRules, noContactWindowMs } from "./rules.ts";
 
 Deno.test("contactRules", async (t) => {
   await t.step("defaults: 24 h grace, 60 s calls, the pulse's 14 days", () => {
@@ -49,5 +49,11 @@ Deno.test("contactRules", async (t) => {
       contactRules({ no_contact_enabled: false }).noContactEnabled,
       false,
     );
+  });
+});
+
+Deno.test("noContactWindowMs", async (t) => {
+  await t.step("no_contact_days in milliseconds", () => {
+    assertEquals(noContactWindowMs(contactRules(null)), 14 * 86_400_000);
   });
 });

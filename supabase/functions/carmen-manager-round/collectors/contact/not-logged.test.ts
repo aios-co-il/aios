@@ -12,6 +12,7 @@ const RULES = {
 };
 const CALL_AT = "2026-11-02T08:00:00Z";
 
+/** A client with one unlogged 4-minute call by dana at CALL_AT. */
 function client(fields: Partial<ContactEvidence> = {}): ContactEvidence {
   return {
     clientId: "c1",

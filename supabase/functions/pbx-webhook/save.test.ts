@@ -9,6 +9,7 @@ const settings = { extensions: [{ extension: "101", user_id: "dana" }] };
 const NO_RECORDING = { url: null, path: null };
 const NO_OWNER = { leadId: null, clientId: null };
 
+/** A ringing call of client c1 whose caller is the fallback user. */
 function row(fields: Partial<CallLogRow> = {}): CallLogRow {
   return {
     id: "call-1",
@@ -22,6 +23,7 @@ function row(fields: Partial<CallLogRow> = {}): CallLogRow {
   };
 }
 
+/** A completed 300 s outbound event from extension 101 (mapped to dana). */
 function event(fields: Partial<PbxEvent> = {}): PbxEvent {
   return {
     callId: "pbx-1",

@@ -10,6 +10,7 @@ const RULES = {
   noContactDays: 14,
 };
 
+/** A long-standing client with no contact or log on record. */
 function client(fields: Partial<ContactEvidence> = {}): ContactEvidence {
   return {
     clientId: "c1",

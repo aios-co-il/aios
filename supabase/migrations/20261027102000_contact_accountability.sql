@@ -1,26 +1,11 @@
 -- Contact accountability for Carmen's manager round (AIO-253, plan component
--- C19). Nothing is sent by this migration.
---
--- 1. call_logs.caller_resolution: how caller_user_id was chosen.
---    'extension' = pbx-webhook mapped the PBX extension to that person;
---    'click_to_call' = the person started the call from AIOS (make-pbx-call);
---    'fallback' = the extension was unknown and the row carries the tenant's
---    first user (caller_user_id is NOT NULL). Rows written before this
---    migration and by other providers stay NULL. Only 'extension' and
---    'click_to_call' name the person who spoke, so no one is held to a call
---    they did not make.
--- 2. get_client_contact_evidence: per client the tenant follows up, the last
---    logged contact on the card, the last contact and the oldest call and
---    meeting still waiting to be logged. Service role only (the round reads
---    it; Carmen's chat tools never do).
--- 3. carmen_finding_confirm_contact: a staff member's "תעדי <code>" reply.
---    Decides in the tenant whether this person may log the finding's
---    contact, then writes the card entry and resolves the finding in one
---    transaction. Service role only; run-ai-agent passes the person talking
---    to Carmen.
+-- C19): who made a call, the contact evidence per client, and logging a
+-- finding's contact on a staff member's "תעדי <code>". Sends nothing.
 
 -- ─── 1. call_logs.caller_resolution ─────────────────────────────────────────
 
+-- How caller_user_id was chosen; only 'extension' and 'click_to_call' name
+-- the person who spoke, so nobody is held to a call they did not make.
 ALTER TABLE public.call_logs
   ADD COLUMN IF NOT EXISTS caller_resolution text;
 
@@ -39,46 +24,12 @@ COMMENT ON COLUMN public.call_logs.caller_resolution IS
 
 -- ─── 2. Contact evidence per client ─────────────────────────────────────────
 
--- Clients in scope: active clients whose card the tenant may write (its own,
--- or of an agency shared with it read_write, as record_client_card_entry
--- requires) that one of its active campaigners is assigned to today, plus its
--- own clients nobody is assigned to. A client staffed only
--- by another tenant is that tenant's to follow up.
---
--- Per client:
--- client_since    when the client started (created, or a later start_date);
---                 no contact is expected before it.
--- last_log_at     the card's last counting contact (get_latest_client_call_updates,
---                 the pulse's own rule) or, since a plain meeting entry does
---                 not count as a call there, the last meeting a person (or
---                 Carmen at their request) logged.
--- last_contact_at the last call, meeting or message from one of the client's
---                 campaigners since p_contact_since (default p_since). The
---                 round reads it further back than the no-contact threshold,
---                 so the contact a silence started from is still known.
--- unlogged_call_* the oldest call since p_since that no log covers. A log
---                 covers a call when it was written no earlier than 30
---                 minutes before the call started (row time minus duration:
---                 the PBX reports a call when it ends). The person is named
---                 only for an attributed call by a member of the tenant.
--- unlogged_meeting_* the same for meetings: a done meeting-bot session, or a
---                 Zoom meeting with its recording files collapsed into one
---                 (the file with the summary first), compared with when it
---                 started and dated when it ended. Internal and lead meetings
---                 (summary_scope campaigner, agency or lead) are not client
---                 contact. unlogged_meeting_key stays the same across runs.
--- Calls count when completed and at least p_min_call_seconds long. A message
--- counts when one of the client's campaigners in this tenant wrote it: sent
--- from AIOS, typed on their own connected phone, or written in the client's
--- group from their phone (an @lid sender mapped through wa_lid_map), seen on
--- any of the tenant's lines. The group is read as the tenant's own copy of
--- it (same group_chat_id). Calls, meetings and messages are the tenant's own
--- rows and card entries are the client's card; only timestamps of messages
--- leave, never their text.
+-- Per client the tenant follows up: its last logged contact, its last contact
+-- and its oldest call and meeting no log covers (timestamps only, no text).
 CREATE OR REPLACE FUNCTION public.get_client_contact_evidence(
   p_tenant_id uuid,
   p_since timestamptz,
-  p_min_call_seconds integer DEFAULT 60,
+  p_min_call_seconds integer,
   p_client_ids uuid[] DEFAULT NULL,
   p_contact_since timestamptz DEFAULT NULL
 )
@@ -108,7 +59,9 @@ RETURNS TABLE (
 AS $$
   WITH bounds AS (
     SELECT (now() AT TIME ZONE 'Asia/Jerusalem')::date AS today,
-      least(coalesce(p_contact_since, p_since), p_since) AS contact_since
+      least(coalesce(p_contact_since, p_since), p_since) AS contact_since,
+      -- A log written up to this long before a call or meeting started covers it.
+      interval '30 minutes' AS log_lead
   ), assigned AS (
     SELECT ct.client_id, cp.tenant_id, pr.id AS user_id,
       public.phone_match_key(cp.phone) AS campaigner_key,
@@ -122,6 +75,9 @@ AS $$
   ), mine AS (
     SELECT a.* FROM assigned AS a WHERE a.tenant_id = p_tenant_id
   ), scope AS (
+    -- Active clients whose card the tenant may write (as record_client_card_entry
+    -- requires) and one of its campaigners is on today, plus its own clients
+    -- nobody is on; a client staffed only by another tenant is that tenant's.
     SELECT c.id, c.name, c.agency_id, c.whatsapp_group_id,
       greatest(c.created_at, c.start_date::timestamp AT TIME ZONE 'Asia/Jerusalem') AS since
     FROM public.clients AS c
@@ -143,6 +99,8 @@ AS $$
         )
       )
   ), logs AS (
+    -- The pulse's own counting rule, plus logged meetings, which it does not
+    -- count as a call.
     SELECT sc.id AS client_id, greatest(counted.at, meeting.at) AS at
     FROM scope AS sc
     LEFT JOIN (
@@ -158,6 +116,7 @@ AS $$
       GROUP BY u.client_id
     ) AS meeting ON meeting.client_id = sc.id
   ), calls AS (
+    -- The PBX reports a call when it ends, so it started duration earlier.
     SELECT cl.client_id, cl.id, cl.created_at AS at,
       cl.created_at - make_interval(secs => coalesce(cl.duration, 0)) AS started_at,
       cl.duration, cl.caller_user_id, cl.caller_resolution
@@ -166,9 +125,12 @@ AS $$
     WHERE cl.tenant_id = p_tenant_id
       AND cl.client_id IN (SELECT sc.id FROM scope AS sc)
       AND cl.status = 'completed'
-      AND coalesce(cl.duration, 0) >= greatest(coalesce(p_min_call_seconds, 60), 1)
+      AND coalesce(cl.duration, 0) >= greatest(p_min_call_seconds, 1)
       AND cl.created_at >= bounds.contact_since
   ), meetings AS (
+    -- Client meetings only (summary_scope campaigner, agency and lead are
+    -- not client contact); a Zoom meeting's files count once, the one with
+    -- the summary first, so its key stays the same across runs.
     SELECT m.*
     FROM (
       SELECT bot.client_id, bot.id, 'bot:' || bot.id AS key,
@@ -206,6 +168,7 @@ AS $$
     CROSS JOIN bounds
     WHERE m.at >= bounds.contact_since AND m.at <= now()
   ), client_groups AS (
+    -- The tenant's own copy of the client's group (same group_chat_id).
     SELECT sc.id AS client_id, own.id AS group_id
     FROM scope AS sc
     JOIN public.whatsapp_groups AS linked ON linked.id = sc.whatsapp_group_id
@@ -229,6 +192,7 @@ AS $$
     WHERE msg.tenant_id = p_tenant_id
       AND msg.created_at >= bounds.contact_since
   ), senders AS (
+    -- A group sender seen as an @lid is mapped to a phone through wa_lid_map.
     SELECT tm.*,
       public.phone_match_key(CASE
         WHEN tm.raw_provider_data -> 'senderData' ->> 'sender' LIKE '%@lid' THEN lid.phone
@@ -238,6 +202,8 @@ AS $$
       ON tm.raw_provider_data -> 'senderData' ->> 'sender' LIKE '%@lid'
       AND lid.lid = regexp_replace(coalesce(tm.sender_phone, ''), '\D', '', 'g')
   ), staff_messages AS (
+    -- Written by one of the client's campaigners in this tenant: sent from
+    -- AIOS, typed on their own connected phone, or in the group from their phone.
     SELECT s.client_id, max(s.created_at) AS at
     FROM senders AS s
     WHERE EXISTS (
@@ -253,6 +219,7 @@ AS $$
         ))
     GROUP BY s.client_id
   ), unlogged_calls AS (
+    -- The caller is named only for an attributed call by a member of the tenant.
     SELECT DISTINCT ON (ca.client_id) ca.*,
       coalesce(ca.caller_resolution IN ('extension', 'click_to_call'), false)
         AND EXISTS (
@@ -264,15 +231,17 @@ AS $$
         ) AS attributed
     FROM calls AS ca
     JOIN logs AS lg ON lg.client_id = ca.client_id
+    CROSS JOIN bounds
     WHERE ca.at >= p_since
-      AND (lg.at IS NULL OR lg.at < ca.started_at - interval '30 minutes')
+      AND (lg.at IS NULL OR lg.at < ca.started_at - bounds.log_lead)
     ORDER BY ca.client_id, ca.at, ca.id
   ), unlogged_meetings AS (
     SELECT DISTINCT ON (me.client_id) me.*
     FROM meetings AS me
     JOIN logs AS lg ON lg.client_id = me.client_id
+    CROSS JOIN bounds
     WHERE me.at >= p_since
-      AND (lg.at IS NULL OR lg.at < me.started_at - interval '30 minutes')
+      AND (lg.at IS NULL OR lg.at < me.started_at - bounds.log_lead)
     ORDER BY me.client_id, me.at, me.key
   )
   SELECT
@@ -315,14 +284,8 @@ COMMENT ON FUNCTION public.get_client_contact_evidence(uuid, timestamptz, intege
 
 -- ─── 3. Log a finding's contact at a staff member's request ─────────────────
 
--- "תעדי <code>" from p_user_id on a live contact_not_logged finding of
--- p_tenant_id. Who may: carmen_finding_may_confirm. Then, in one transaction:
--- the card entry (record_client_card_entry: carmen_confirmed, counts as
--- contact, in this person's name, idempotent on the finding), the finding
--- resolved as fixed by them, its planned messages cancelled and a 'resolved'
--- event. outcome: 'logged'; 'not_found' (no such live finding, or this
--- person may not log it: one answer, so codes cannot be probed);
--- 'read_only' (an agency shared without write access to the card).
+-- Logs a live contact_not_logged finding's contact in p_user_id's name and
+-- resolves the finding, in one transaction: 'logged', 'not_found' or 'read_only'.
 CREATE OR REPLACE FUNCTION public.carmen_finding_confirm_contact(
   p_tenant_id uuid,
   p_finding_id uuid,
@@ -338,7 +301,8 @@ AS $$
 #variable_conflict use_column
 DECLARE
   v_finding public.carmen_findings%ROWTYPE;
-  v_client_tenant uuid;
+  v_entry_id uuid;
+  v_inserted boolean;
 BEGIN
   IF p_update_type IS NULL OR p_update_type NOT IN ('call', 'meeting') THEN
     RAISE EXCEPTION 'invalid_update_type' USING ERRCODE = '22023';
@@ -351,6 +315,8 @@ BEGIN
     AND f.client_id IS NOT NULL
     AND f.status IN ('open', 'notified', 'acknowledged', 'snoozed')
   FOR UPDATE;
+  -- One answer for a missing finding and a person who may not log it, so
+  -- codes cannot be probed.
   IF NOT FOUND OR NOT public.carmen_finding_may_confirm(
     p_tenant_id, v_finding.client_id, v_finding.agency_id, v_finding.owner_user_id,
     coalesce(v_finding.evidence ->> 'attributed' = 'true', false), p_user_id
@@ -361,32 +327,25 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT c.tenant_id INTO v_client_tenant
-  FROM public.clients AS c WHERE c.id = v_finding.client_id;
-  IF v_client_tenant IS DISTINCT FROM p_tenant_id AND NOT EXISTS (
-    SELECT 1 FROM public.agency_tenant_access AS ata
-    WHERE ata.accessing_tenant_id = p_tenant_id
-      AND ata.source_tenant_id = v_client_tenant
-      AND ata.agency_id = v_finding.agency_id
-      AND ata.access_level = 'read_write'
-  ) THEN
+  BEGIN
+    SELECT e.entry_id, e.inserted INTO v_entry_id, v_inserted
+    FROM public.record_client_card_entry(
+      p_tenant_id, v_finding.client_id, p_content, p_update_type,
+      'carmen_confirmed', 'finding:' || v_finding.id, p_user_id, true,
+      jsonb_build_object(
+        'tool', 'confirm_finding_draft',
+        'finding_id', v_finding.id,
+        'short_code', v_finding.short_code,
+        'finding_owner_user_id', v_finding.owner_user_id,
+        'confirmed_by', p_user_id)) AS e;
+  EXCEPTION WHEN insufficient_privilege THEN
+    -- record_client_card_entry decides card write access: its client's agency
+    -- is shared with this tenant without write access.
     RAISE NOTICE 'carmen_finding_confirm_contact: tenant %, finding %, user %: read_only',
       p_tenant_id, p_finding_id, p_user_id;
     RETURN QUERY SELECT 'read_only'::text, NULL::uuid, NULL::boolean;
     RETURN;
-  END IF;
-
-  RETURN QUERY
-  SELECT 'logged'::text, e.entry_id, e.inserted
-  FROM public.record_client_card_entry(
-    p_tenant_id, v_finding.client_id, p_content, p_update_type,
-    'carmen_confirmed', 'finding:' || v_finding.id, p_user_id, true,
-    jsonb_build_object(
-      'tool', 'confirm_finding_draft',
-      'finding_id', v_finding.id,
-      'short_code', v_finding.short_code,
-      'finding_owner_user_id', v_finding.owner_user_id,
-      'confirmed_by', p_user_id)) AS e;
+  END;
 
   UPDATE public.carmen_findings AS f
   SET status = 'resolved',
@@ -394,7 +353,7 @@ BEGIN
       resolved_by = p_user_id,
       resolved_at = now(),
       next_action_at = NULL
-  WHERE f.id = v_finding.id;
+  WHERE f.tenant_id = p_tenant_id AND f.id = v_finding.id;
 
   UPDATE public.carmen_finding_deliveries AS d
   SET status = 'cancelled'
@@ -406,6 +365,8 @@ BEGIN
   VALUES (p_tenant_id, v_finding.id, 'resolved', p_user_id,
     left(p_content, 1000),
     jsonb_build_object('resolution', 'fixed', 'via', 'carmen_confirmed'));
+
+  RETURN QUERY SELECT 'logged'::text, v_entry_id, v_inserted;
 END;
 $$;
 
@@ -414,13 +375,8 @@ REVOKE ALL ON FUNCTION public.carmen_finding_confirm_contact(uuid, uuid, uuid, t
 GRANT EXECUTE ON FUNCTION public.carmen_finding_confirm_contact(uuid, uuid, uuid, text, text)
   TO service_role;
 
--- May p_user_id log the contact of a finding of p_tenant_id? Roles count
--- only in that tenant (a role elsewhere never does), as
--- carmen_finding_viewer_role decides for the browser: an owner or agency
--- owner, a super admin acting in the tenant, a team manager of the finding's
--- agency, the person an attributed call belongs to, or, when nobody was
--- named, a campaigner of the tenant assigned to the client today (Israel
--- date).
+-- May p_user_id log the contact of a finding of p_tenant_id? Roles count only
+-- in that tenant.
 CREATE OR REPLACE FUNCTION public.carmen_finding_may_confirm(
   p_tenant_id uuid,
   p_client_id uuid,
@@ -447,11 +403,13 @@ AS $$
     SELECT (now() AT TIME ZONE 'Asia/Jerusalem')::date AS d
   )
   SELECT p_user_id IS NOT NULL AND (
+    -- An owner or agency owner of the tenant, or a super admin acting in it.
     EXISTS (SELECT 1 FROM member WHERE role IN ('owner', 'agency_owner'))
     OR (
       public.is_super_admin(p_user_id)
       AND public.get_user_tenant_id(p_user_id) = p_tenant_id
     )
+    -- A team manager of the finding's agency.
     OR (
       p_agency_id IS NOT NULL
       AND EXISTS (SELECT 1 FROM member WHERE role = 'team_manager')
@@ -459,6 +417,8 @@ AS $$
         SELECT 1 FROM public.user_managed_agencies AS uma
         WHERE uma.user_id = p_user_id AND uma.agency_id = p_agency_id)
     )
+    -- The person an attributed call belongs to; when nobody was named, a
+    -- campaigner of the tenant on the client today (Israel date).
     OR (
       EXISTS (SELECT 1 FROM member)
       AND CASE
