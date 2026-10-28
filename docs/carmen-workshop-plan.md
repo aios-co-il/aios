@@ -202,3 +202,14 @@ RLS לפי `tenant_id`. Realtime מופעל על הטבלה. אין מיגרצי
 | 2. סטטי     | חלקי: `workshop_make_creative` (תמונות בגדלים מרובים, אישור עלות אחד), `workshop_save_concepts`, `workshop_save_copy`. עדיין חסרה עריכת תמונה                                                                                                                                                                                                                       |
 | 3. וידאו    | בוצע: `workshop_storyboard`, `workshop_make_stills`, `workshop_produce_video` (אישור עלות אחד, מנוע לפי מפתחות הדייר, `needs_client`), הטריגר שמעתיק נכסי וידאו ללוח וסוגר סרט שנכשל. עדיין חסרה עריכת סרט קיים מהסדנה. פרויקט יכול להתקיים וגם להיות מופק בלי לקוח (פייפליין "ללא לקוח" לדייר), והשיוך ללקוח אפשרי בכל שלב מהכותרת או דרך `workshop_assign_client` |
 | 4–6         | לא התחילו                                                                                                                                                                                                                                                                                                                                                           |
+
+## 11. אחרי המיזוג של PR 932
+
+מוסכם עם דוד (28 באוקטובר): PR 932 ממוזג כמו שהוא, והעבודה הזו נעשית מיד אחריו, ב-PR-ים קטנים לפי התקן (`CODING_STANDARDS.md`). Linear מלא כרגע, אז הרשימה כאן עד שייפתחו להן משימות.
+
+1. **render-worker ב-TypeScript:** ה-worker גדל מ-25 ל-91 קבצי ‎`.mjs`. ממירים ל-`.ts` (Node 22 מריץ TypeScript בלי build), מעדכנים את פרויקט Vitest, את ה-Dockerfile ואת שני ה-drains, ומעדכנים את כלל 16.
+2. **פיצול קבצים (כלל 8):** בערך 54 קבצים ש-932 מוסיף או מגדיל עוברים את `max-lines`. הגדולים: `run-ai-agent/index.ts` (התוספות של הסדנה עוברות ל-`_shared/workshop/`), `image-providers.ts`, `tool-definitions.ts`, `dev-task-approval.ts`, `video-cost.ts`, `produce-video.ts`, `workshop-manifest.mjs`, `workshop-film.tsx`, ושני קבצי ה-lipsync. גם `workshop-tools.test.ts` מתפצל לפי כלי.
+3. **בלי casts (כלל 13):** 23 `as any`, 8 `as unknown as`, `as never` אחד ו-4 `: any` בשורות ש-932 מוסיף. קודם מחדשים את הטיפוסים עם `scripts/gen-types.sh` מ-preview, ואז מורידים את ה-casts שהטיפוסים מייתרים.
+4. **מחירי קליפים במקום אחד (כלל 7):** היום הם ב-`videoEngines.ts`, ב-`video-cost.ts` וב-render-worker.
+5. **מיגרציות:** מאחדים את הגופים החוזרים של `produce_video`, `queue_video_sound`, `video_narration_ready` ו-`workshop_mirror_asset`. ל-`produce_video` עוברים לארגומנט `jsonb` אחד של אפשרויות. מוסיפים ל-`workshop_creative_stage` בדיקת דייר מפורשת.
+6. **בדיקות SQL ב-CI:** אף job לא מריץ את `supabase/tests/*.sql`. מוסיפים job שמריץ אותן.

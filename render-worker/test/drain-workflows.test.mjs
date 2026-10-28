@@ -179,3 +179,24 @@ test("a preview is looked up only under the Production project", () => {
   expect(unset.status).toBe(0);
   expect(unset.output).toBe("ref=\n");
 });
+
+test("the Staging drain reads its project from the staging environment", () => {
+  const text = workflow("render-worker.yml");
+  // The repo has no SUPABASE_STAGING_PROJECT_ID secret; the staging environment holds the ref.
+  expect(text).toMatch(/^ {4}environment: staging$/m);
+  expect(text).toMatch(/PROJECT_REF: \$\{\{ vars\.SUPABASE_PROJECT_REF \}\}/);
+  expect(text).not.toContain("SUPABASE_STAGING_PROJECT_ID");
+});
+
+test("the preview drain runs on its own only for video changes", () => {
+  const text = workflow("render-worker-preview.yml");
+  const paths = text.split(/^ {4}paths:\n/m)[1]?.split(/^ {2}\S/m)[0] ?? "";
+  for (const path of [
+    "render-worker/**",
+    "workers/creative-video/**",
+    "supabase/functions/_shared/workshop/**",
+  ])
+    expect(paths).toContain(`"${path}"`);
+  // Any other PR can still run it by hand.
+  expect(text).toMatch(/^ {2}workflow_dispatch:/m);
+});
