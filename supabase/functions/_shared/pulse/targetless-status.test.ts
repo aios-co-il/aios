@@ -78,7 +78,6 @@ Deno.test(
 Deno.test("a target-less exception is red only while its alerts are on", () => {
   const input = {
     goal: "leads",
-    useRoas: false,
     trend3: 50,
     trend7: 50,
     spend7d: 1000,
@@ -111,7 +110,6 @@ Deno.test(
   () => {
     const quiet = {
       goal: "ecommerce",
-      useRoas: true,
       trend3: 2,
       trend7: 3,
       spend7d: 1000,
@@ -123,12 +121,17 @@ Deno.test(
       "לא זוהתה חריגה; אין יעד להשוואה",
     );
     assertStrictEquals(
-      targetlessStatus({ ...quiet, target: { source: "carmen_market" } })
-        .reason,
+      targetlessStatus({
+        ...quiet,
+        target: { source: "carmen_market", kind: "roas" },
+      }).reason,
       "בתוך יעד שוק (כרמן)",
     );
     assertStrictEquals(
-      targetlessStatus({ ...quiet, target: { source: "approved" } }).status,
+      targetlessStatus({
+        ...quiet,
+        target: { source: "approved", kind: "roas" },
+      }).status,
       "healthy",
     );
   },

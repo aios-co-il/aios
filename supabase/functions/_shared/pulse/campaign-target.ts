@@ -66,11 +66,14 @@ export function campaignTarget(
       integrationType: table.integration_type ?? null,
       settings: table.integration_settings || {},
       campaignId: identity.id,
-      campaignName: identity.name === "ללא שם" ? null : identity.name,
+      campaignName: identity.name === UNNAMED_CAMPAIGN ? null : identity.name,
     })),
     goal,
   );
 }
+
+/** The name the pulse gives a campaign whose rows carry none; never a target key. */
+export const UNNAMED_CAMPAIGN = "ללא שם";
 
 /** The target columns of a pulse row (campaign_breakdown). */
 export function campaignTargetFields(

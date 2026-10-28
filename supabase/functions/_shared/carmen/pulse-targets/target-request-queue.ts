@@ -17,10 +17,11 @@ export type TargetRequestInput = {
 
 /**
  * The requester's open request for the same target place, kind and value, so a
- * repeat call reuses it instead of piling up. This is a select before the insert:
+ * repeat call reuses it instead of piling up. An expired row is skipped:
+ * carmen-approval-execute answers 410 for it. This is a select before the insert:
  * agent_approval_queue has no unique key on tool_input to upsert on, and a rare
  * duplicate row is still approved or expires on its own. A unique index or a
- * reservation replaces it in AIO-???.
+ * reservation replaces it in AIO-275.
  */
 export async function findPendingTargetRequest(
   db: PulseTargetDb,
@@ -35,6 +36,7 @@ export async function findPendingTargetRequest(
     .eq("status", "pending")
     .eq("tool_name", "set_pulse_target")
     .eq("requested_by", requester)
+    .gt("expires_at", (ctx.now?.() ?? new Date()).toISOString())
     .order("created_at", { ascending: false })
     .limit(20);
   // A failed lookup must not read as "none open" and queue a duplicate.

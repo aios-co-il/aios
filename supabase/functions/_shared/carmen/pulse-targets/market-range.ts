@@ -1,5 +1,8 @@
 import type { JsonObject } from "../../pulse/json.ts";
-import { pulseTargetKindLabel } from "../../pulse/targets/kinds.ts";
+import {
+  pulseMeasuredKind,
+  pulseTargetKindLabel,
+} from "../../pulse/targets/kinds.ts";
 import type { TargetInput } from "./parse-target-input.ts";
 
 /** A market estimate must stay within this share of the client's own 7-day baseline. */
@@ -67,13 +70,7 @@ function measuresTarget(row: JsonObject, input: TargetInput): boolean {
   if (input.campaignId && String(row.campaign_id ?? "") !== input.campaignId) {
     return false;
   }
-  const measured =
-    row.goal === "ecommerce"
-      ? row.target_kind === "cpa"
-        ? "cpa"
-        : "roas"
-      : "cpl";
-  return measured === input.kind;
+  return pulseMeasuredKind(input.goal, row.target_kind) === input.kind;
 }
 
 /** Rounded to 2 decimals. */

@@ -7,6 +7,7 @@ import {
   pulseTargetDirection,
   pulseTargetKindLabel,
   pulseTargetKindsForGoal,
+  pulseMeasuredKind,
 } from "./kinds.ts";
 
 Deno.test("each goal has its target kinds, the default first", () => {
@@ -16,6 +17,21 @@ Deno.test("each goal has its target kinds, the default first", () => {
   assertEquals(pulseTargetKindsForGoal("unknown"), []);
   assertEquals(pulseTargetKindsForGoal("constructor"), []);
 });
+
+Deno.test(
+  "a campaign is measured on its target's kind, else the goal's default",
+  () => {
+    assertStrictEquals(pulseMeasuredKind("ecommerce", "cpa"), "cpa");
+    assertStrictEquals(pulseMeasuredKind("ecommerce", null), "roas");
+    assertStrictEquals(pulseMeasuredKind("ecommerce", "cpl"), "roas");
+    assertStrictEquals(pulseMeasuredKind("leads", "roas"), "cpl");
+    assertStrictEquals(
+      pulseMeasuredKind("engagement", null),
+      "cost_per_result",
+    );
+    assertStrictEquals(pulseMeasuredKind("unknown", "cpl"), "cost_per_result");
+  },
+);
 
 Deno.test("only leads and ecommerce take a cost target", () => {
   assertStrictEquals(isPulseTargetGoal("leads"), true);

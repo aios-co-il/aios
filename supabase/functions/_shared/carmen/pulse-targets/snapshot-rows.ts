@@ -133,7 +133,8 @@ export function campaignProblem(
   return null;
 }
 
-const GOAL_LABELS = new Map(PULSE_CATEGORY_LABELS);
+/** Each pulse goal's Hebrew name ("לידים", "איקומרס"), from the pulse's category labels. */
+export const GOAL_LABELS = new Map(PULSE_CATEGORY_LABELS);
 
 /** A non-empty value as text, else null. */
 function textOrNull(value: unknown): string | null {

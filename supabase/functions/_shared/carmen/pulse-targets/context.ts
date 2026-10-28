@@ -28,16 +28,17 @@ export type ToolRefusal = { error: string; message: string };
 
 /**
  * A refusal when the caller's role may not set targets: managers (run-ai-agent's
- * isManagerRole and isTeamManager) and campaigners may. A caller with no role (an
- * automation, Carmen on her own, a user with no user_roles row) may still set a
- * market target; set_pulse_target checks for a person separately.
+ * isManagerRole and isTeamManager) and campaigners may. A run with no person
+ * behind it (an automation, Carmen on her own) has no role and may still set a
+ * market target, as the ADR lets Carmen do. A person with no role (no user_roles
+ * row) is refused: a missing role must not read as a manager's.
  */
 export function roleProblem(ctx: PulseTargetToolContext): ToolRefusal | null {
   if (
-    !ctx.callerRole ||
     ctx.isManagerRole ||
     ctx.isTeamManager ||
-    ctx.callerRole === "campaigner"
+    ctx.callerRole === "campaigner" ||
+    (!ctx.callerRole && !ctx.actorUserId)
   ) {
     return null;
   }

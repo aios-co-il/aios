@@ -15,6 +15,7 @@ type Query = {
   limit: () => Query;
   eq: (column: string, value: unknown) => Query;
   in: (column: string, values: unknown[]) => Query;
+  gt: (column: string, value: string) => Query;
   not: (column: string) => Query;
   update: (patch: Row) => Query;
   insert: (row: Row) => Query;
@@ -118,6 +119,12 @@ export function fakeDb(
       in(column, values) {
         filtered.push(column);
         filters.push((row) => values.includes(row[column]));
+        return api;
+      },
+      gt(column, value) {
+        filtered.push(column);
+        // ISO timestamps, which compare as text.
+        filters.push((row) => String(row[column] ?? "") > value);
         return api;
       },
       not(column) {

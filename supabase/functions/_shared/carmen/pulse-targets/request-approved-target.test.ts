@@ -9,7 +9,7 @@ import {
 import { at } from "../../pulse/test-fixtures.ts";
 import { fakeDb } from "./fake-db.ts";
 import { requestApprovedTarget } from "./request-approved-target.ts";
-import { ctx, seed } from "./test-fixtures.ts";
+import { ctx, NOW, seed } from "./test-fixtures.ts";
 
 const CAMPAIGN_CPL = {
   client_id: "client-1",
@@ -46,9 +46,21 @@ Deno.test(
     assertMatch(String(row.title), /CPL 45/);
     assert(!db.writes.some((w) => w.table === "crm_tables"));
 
-    const again = await requestApprovedTarget(db, ctx(), CAMPAIGN_CPL);
-    assertStrictEquals(at(again, "reused_existing"), true);
-    assertStrictEquals(db.tables.agent_approval_queue.length, 1);
+    // A repeat reuses the open request until it expires (24h), then queues a
+    // new one: carmen-approval-execute would answer 410 for the expired row.
+    for (const [hoursLater, reused, rows] of [
+      [23, true, 1],
+      [25, undefined, 2],
+    ] as const) {
+      const later = new Date(NOW.getTime() + hoursLater * 60 * 60 * 1000);
+      const again = await requestApprovedTarget(
+        db,
+        ctx({ now: () => later }),
+        CAMPAIGN_CPL,
+      );
+      assertStrictEquals(at(again, "reused_existing"), reused);
+      assertStrictEquals(db.tables.agent_approval_queue.length, rows);
+    }
   },
 );
 

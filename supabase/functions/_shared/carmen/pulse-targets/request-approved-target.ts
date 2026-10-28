@@ -7,6 +7,7 @@ import { parseTargetInput, type TargetInput } from "./parse-target-input.ts";
 import { loadPlatformTables, noCampaignTable } from "./platform-tables.ts";
 import {
   campaignProblem,
+  GOAL_LABELS,
   latestCampaignRows,
   matchCampaign,
 } from "./snapshot-rows.ts";
@@ -75,7 +76,7 @@ export async function requestApprovedTarget(
   const name = await clientName(db, ctx, parsed.clientId);
   const where = campaign
     ? `קמפיין ${campaign.campaignName || campaign.campaignId}`
-    : `כל קמפייני ה${parsed.goal === "leads" ? "לידים" : "איקומרס"}`;
+    : `כל קמפייני ה${GOAL_LABELS.get(parsed.goal)}`;
   const title = `יעד ${pulseTargetKindLabel(parsed.kind)} ${parsed.value} ל${name} (${pulsePlatformName(parsed.platform)}, ${where})`;
   const toolInput: TargetRequestInput = {
     client_id: parsed.clientId,

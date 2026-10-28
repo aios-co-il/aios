@@ -22,7 +22,7 @@ export type TargetTablesWrite =
  * back: integration_settings is JSON on separate rows, so a compensating write
  * stands in for a transaction. Each write is a read-modify-write of the settings
  * read before the loop, so a sync writing the same JSON in between can lose one
- * side's change; an atomic jsonb_set RPC (a migration) replaces it in AIO-???.
+ * side's change; an atomic jsonb_set RPC (a migration) replaces it in AIO-271.
  */
 export async function writeTargetToTables(
   db: PulseTargetDb,

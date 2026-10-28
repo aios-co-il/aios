@@ -34,7 +34,7 @@ export function pulseTargetSaveKey(
  * table's stored settings are read right before the write (syncs write
  * integration_settings too, so the cached copy may be stale), patched and written
  * back. A sync landing between that read and the write can still lose one side's
- * change until an atomic jsonb_set RPC (a migration) replaces it in AIO-???. A
+ * change until an atomic jsonb_set RPC (a migration) replaces it in AIO-271. A
  * platform target goes to every table of the client × platform, as Carmen's
  * set_pulse_target does, so the pulse finds the same target whichever table it
  * reads the campaigns from. When a table fails, the tables already written get

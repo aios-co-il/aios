@@ -1,10 +1,10 @@
 import type { PulseCostRules } from "./cost-rules.ts";
 import { evaluateTargetlessCostTrend } from "./targetless-cost-trend.ts";
 import {
+  pulseMeasuredKind,
   pulseTargetKindLabel,
   pulseTargetSourceLabel,
   type PulseTarget,
-  type PulseTargetKind,
 } from "./targets/kinds.ts";
 
 /** A campaign's pulse status: colour, tier, why, and whether it alerts on WhatsApp. */
@@ -75,16 +75,15 @@ export function noResultsIn3Days(
  */
 export function targetlessStatus(input: {
   goal: string;
-  useRoas: boolean;
   trend3: number | null;
   trend7: number | null;
   spend7d: number;
   guard: BaselineGuard;
   rules: PulseCostRules;
-  target: Pick<PulseTarget, "source"> | null;
+  target: Pick<PulseTarget, "source" | "kind"> | null;
 }): PulseCampaignStatus {
   const verdict = evaluateTargetlessCostTrend({
-    metric: targetlessMetric(input.goal, input.useRoas),
+    metric: pulseMeasuredKind(input.goal, input.target?.kind),
     trend3: input.trend3,
     trend7: input.trend7,
     spend7d: input.spend7d,
@@ -116,17 +115,6 @@ export function targetlessStatus(input: {
     reason: healthyReason(input.target),
     alertEligible: false,
   };
-}
-
-/** The metric a target-less campaign is measured on. */
-function targetlessMetric(goal: string, useRoas: boolean): PulseTargetKind {
-  if (useRoas) {
-    return "roas";
-  }
-  if (goal === "ecommerce") {
-    return "cpa";
-  }
-  return goal === "leads" ? "cpl" : "cost_per_result";
 }
 
 /** Nothing stands out: within the target, or no target to compare with. */

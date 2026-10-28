@@ -4,6 +4,7 @@ import {
   type PulseTargetSaveInput,
 } from "@/components/pulse/pulseTargetSave";
 import { formatPulseTargetValue } from "@/components/pulse/formatPulseTargetValue";
+import { pulseMeasuredKind } from "../../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 import { TargetRow } from "./TargetRow";
 import type { CampaignTargetRow } from "./useCampaignTargetRows";
 
@@ -55,7 +56,7 @@ function campaignSubtitle(
   const current =
     row.efficiency_7d !== null
       ? ` · נוכחי ${formatPulseTargetValue(
-          goal === "ecommerce" && row.target_kind !== "cpa" ? "roas" : "cpl",
+          pulseMeasuredKind(goal, row.target_kind),
           row.efficiency_7d,
         )}`
       : "";

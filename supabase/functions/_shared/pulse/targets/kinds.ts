@@ -37,6 +37,21 @@ export function pulseTargetKindsForGoal(
   return TARGET_KINDS_BY_GOAL.get(goal) ?? [];
 }
 
+/**
+ * The metric a campaign of this goal is measured on: its target's kind when the
+ * goal is measured on that kind, else the goal's default (ROAS for ecommerce).
+ * A goal with no target kinds is measured on cost per result.
+ */
+export function pulseMeasuredKind(
+  goal: string,
+  targetKind: unknown,
+): PulseTargetKind {
+  const kinds = pulseTargetKindsForGoal(goal);
+  return (
+    kinds.find((kind) => kind === targetKind) ?? kinds[0] ?? "cost_per_result"
+  );
+}
+
 /** Is this one of the four target kinds? */
 export function isTargetKind(value: unknown): value is PulseTargetKind {
   return TARGET_KINDS.some((kind) => kind === value);

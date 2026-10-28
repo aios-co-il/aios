@@ -10,6 +10,7 @@ import {
   campaignTarget,
   campaignTargetFields,
   compareCampaignItems,
+  UNNAMED_CAMPAIGN,
 } from "./pulse/campaign-target.ts";
 import { resolvePulseCostRules } from "./pulse/cost-rules.ts";
 import {
@@ -634,7 +635,7 @@ function recordScore(record, table) {
 }
 
 function normalizeCampaignName(name) {
-  return String(name || "ללא שם")
+  return String(name || UNNAMED_CAMPAIGN)
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
@@ -647,7 +648,7 @@ function campaignIdentity(data, platform) {
   const normalizedName = normalizeCampaignName(name);
   return {
     id: id ? String(id) : null,
-    name: name ? String(name) : "ללא שם",
+    name: name ? String(name) : UNNAMED_CAMPAIGN,
     normalizedName,
     key: `${platform}:${id ? `id:${id}` : `name:${normalizedName || "unknown"}`}`,
   };
@@ -891,7 +892,6 @@ function classifyStatus({
   );
   return targetlessStatus({
     goal,
-    useRoas,
     trend3,
     trend7,
     spend7d: current7.spend,
