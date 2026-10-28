@@ -14,8 +14,8 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
-  FB_ADSET_FIELDS,
   buildDestinationTypeMaps,
+  fetchAdsets,
 } from "../_shared/fb-insights/adsets.ts";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
 import {
@@ -203,26 +203,11 @@ Deno.serve(async (req) => {
         // is optimized for (its "Result" in Ads Manager) — e.g. the custom pixel
         // event "NewLead" rather than the broad fb_pixel_lead. This is what keeps
         // the lead counts matching Facebook instead of inflating them.
-        const adsets: any[] = [];
-        {
-          let next: string | null =
-            `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=${FB_ADSET_FIELDS}&limit=500&access_token=${accessToken}`;
-          while (next) {
-            const r = await fetch(next);
-            const d: any = await r.json();
-            if (d.error) {
-              // Without ad sets every row loses its result, optimization goal and
-              // destination, so say why instead of syncing on silently.
-              console.error(
-                `[cron-sync-facebook-insights] ad sets fetch failed:`,
-                d.error.message || JSON.stringify(d.error),
-              );
-              break;
-            }
-            if (Array.isArray(d.data)) adsets.push(...d.data);
-            next = d.paging?.next || null;
-          }
-        }
+        const adsets = await fetchAdsets(
+          adAccountId,
+          accessToken,
+          "cron-sync-facebook-insights",
+        );
         const campaignObjectives: Record<string, string | null | undefined> =
           {};
         for (const c of Object.values(campaignStatuses))

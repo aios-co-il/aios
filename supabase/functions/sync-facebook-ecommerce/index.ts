@@ -11,8 +11,8 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
-  FB_ADSET_FIELDS,
   buildDestinationTypeMaps,
+  fetchAdsets,
 } from "../_shared/fb-insights/adsets.ts";
 import {
   replacedRecordsFilter,
@@ -306,32 +306,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    const adsets: Array<{
-      id?: string;
-      campaign_id?: string;
-      optimization_goal?: string;
-      promoted_object?: unknown;
-      destination_type?: string;
-    }> = [];
-    {
-      let next: string | null =
-        `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=${FB_ADSET_FIELDS}&limit=500&access_token=${accessToken}`;
-      while (next) {
-        const r = await fetch(next);
-        const d: any = await r.json();
-        if (d.error) {
-          // Without ad sets every row loses its result, optimization goal and
-          // destination, so say why instead of syncing on silently.
-          console.error(
-            `[sync-facebook-ecommerce] ad sets fetch failed:`,
-            d.error.message || JSON.stringify(d.error),
-          );
-          break;
-        }
-        if (Array.isArray(d.data)) adsets.push(...d.data);
-        next = d.paging?.next || null;
-      }
-    }
+    const adsets = await fetchAdsets(
+      adAccountId,
+      accessToken,
+      "sync-facebook-ecommerce",
+    );
     const campaignObjectives: Record<string, string | null | undefined> = {};
     for (const c of Object.values(campaignStatuses))
       campaignObjectives[c.id] = c.objective;

@@ -6,6 +6,55 @@
 export const FB_ADSET_FIELDS =
   "id,campaign_id,optimization_goal,promoted_object,destination_type";
 
+/** An ad set row as the Facebook syncs read it from the Graph API. */
+export type GraphAdset = {
+  id?: string;
+  campaign_id?: string;
+  optimization_goal?: string;
+  promoted_object?: unknown;
+  destination_type?: string;
+};
+
+/** One page of the Graph API's ad set list. */
+type AdsetPage = {
+  data?: GraphAdset[];
+  error?: { message?: string };
+  paging?: { next?: string };
+};
+
+/**
+ * Read every ad set of an ad account. A Graph error ends the read and is
+ * logged; the sync goes on, and rows of the unread ad sets store no result,
+ * optimization goal or destination. Recording that failure on the table waits
+ * for AIO-228's sync outcome (AIO-264 phase 2).
+ */
+export async function fetchAdsets(
+  adAccountId: string,
+  accessToken: string,
+  logLabel: string,
+  fetchPage: typeof fetch = fetch,
+): Promise<GraphAdset[]> {
+  const adsets: GraphAdset[] = [];
+  let next: string | null =
+    `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=${FB_ADSET_FIELDS}&limit=500&access_token=${accessToken}`;
+  while (next) {
+    const response = await fetchPage(next);
+    const page: AdsetPage = await response.json();
+    if (page.error) {
+      console.error(
+        `[${logLabel}] ad sets fetch failed:`,
+        page.error.message || JSON.stringify(page.error),
+      );
+      break;
+    }
+    if (Array.isArray(page.data)) {
+      adsets.push(...page.data);
+    }
+    next = page.paging?.next || null;
+  }
+  return adsets;
+}
+
 /** An ad set as the Graph API returns it; values are checked, not trusted. */
 type Adset = {
   id?: unknown;
