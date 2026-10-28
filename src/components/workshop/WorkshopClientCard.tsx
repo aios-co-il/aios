@@ -29,16 +29,20 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 const EMPTY = <span className="text-muted-foreground">—</span>;
 
 export function WorkshopClientCard({
+  tenantId,
   clientId,
   onNewCreative,
 }: {
+  tenantId: string | undefined;
   clientId: string;
   onNewCreative: () => void;
 }) {
   const { buildPath } = useTenantPath();
 
-  const { client, sites, seoReport, ranks, gsc, pbn } =
-    useWorkshopClientCard(clientId);
+  const { client, sites, seoReport, ranks, gsc, pbn } = useWorkshopClientCard(
+    tenantId,
+    clientId,
+  );
 
   const name = client.data?.name?.trim() || "לקוח";
   const website = client.data?.website?.trim();

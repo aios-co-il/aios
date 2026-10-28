@@ -255,20 +255,27 @@ export default function CarmenWorkshop() {
     if (board && tenantId) assign.mutate({ itemId: board.id, clientId });
   };
 
+  // Only a client the client picker lists (the tenant's active clients) is named, as the list
+  // shows only theirs; any other id in the URL is an unknown client.
   const viewClient = useQuery({
-    queryKey: ["carmen-workshop-client", viewClientId],
-    queryFn: viewClientId
-      ? async () => {
-          const { data } = await supabase
-            .from("clients")
-            .select("name")
-            .eq("id", viewClientId)
-            .maybeSingle();
-          return (data?.name as string | undefined) ?? null;
-        }
-      : skipToken,
+    queryKey: ["carmen-workshop-client", tenantId, viewClientId],
+    queryFn:
+      tenantId && viewClientId
+        ? async () => {
+            const { data } = await supabase
+              .from("clients")
+              .select("name")
+              .eq("id", viewClientId)
+              .eq("tenant_id", tenantId)
+              .eq("status", "active")
+              .maybeSingle();
+            return (data?.name as string | undefined) ?? null;
+          }
+        : skipToken,
   });
   const viewClientName = viewClientId ? (viewClient.data ?? null) : null;
+  // Carmen starts no project for a client the picker does not list: its projects would not show.
+  const contextClientId = viewClient.data === null ? null : viewClientId;
 
   // The board's list row brings the film's format and edit flag, so both hold from its first render.
   const boardId = board?.id ?? null;
@@ -295,7 +302,7 @@ export default function CarmenWorkshop() {
       selectedArtifactId: artifactId,
       selectedSceneId: sceneId,
       selectedSceneNumber: sceneNumber,
-      clientId: viewClientId,
+      clientId: contextClientId,
       clientName: viewClientName,
     });
   }, [
@@ -304,7 +311,7 @@ export default function CarmenWorkshop() {
     artifactId,
     sceneId,
     sceneNumber,
-    viewClientId,
+    contextClientId,
     viewClientName,
   ]);
 
@@ -422,6 +429,7 @@ export default function CarmenWorkshop() {
         <main className="min-h-0 min-w-0 flex-1">
           {showClientCard && viewClientId ? (
             <WorkshopClientCard
+              tenantId={tenantId}
               clientId={viewClientId}
               onNewCreative={startNew}
             />

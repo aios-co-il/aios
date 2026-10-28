@@ -44,7 +44,39 @@ const wrapper = ({ children }: { children: ReactNode }) => (
   </QueryClientProvider>
 );
 
+const client = (over: Record<string, unknown> = {}) => ({
+  id: "c-1",
+  tenant_id: "t-1",
+  status: "active",
+  name: "פיצה",
+  website: null,
+  ...over,
+});
+
+test("a client the picker does not list reads like an unknown client", async () => {
+  tables.social_media_wordpress_sites = [
+    { id: "s-1", client_id: "c-1", tenant_id: "t-1", site_url: "pizza.co.il" },
+  ];
+  // A paused client, and another tenant's client (seen through a shared agency).
+  for (const outside of [
+    client({ status: "paused" }),
+    client({ tenant_id: "t-2" }),
+  ]) {
+    tables.clients = [outside];
+    const { result, unmount } = renderHook(
+      () => useWorkshopClientCard("t-1", "c-1"),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.client.isSuccess).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(result.current.client.data).toBeNull();
+    expect(result.current.sites.data).toBeUndefined();
+    unmount();
+  }
+});
+
 test("the rank block counts active projects and keywords, as the SEO screen does", async () => {
+  tables.clients = [client()];
   tables.rank_tracking_projects = [
     { id: "p-on", client_id: "c-1", is_active: true },
     { id: "p-off", client_id: "c-1", is_active: false },
@@ -57,7 +89,7 @@ test("the rank block counts active projects and keywords, as the SEO screen does
     { id: "k4", project_id: "p-off", is_active: true },
     { id: "k5", project_id: "p-other", is_active: true },
   ];
-  const { result } = renderHook(() => useWorkshopClientCard("c-1"), {
+  const { result } = renderHook(() => useWorkshopClientCard("t-1", "c-1"), {
     wrapper,
   });
   await waitFor(() => expect(result.current.ranks.isSuccess).toBe(true));

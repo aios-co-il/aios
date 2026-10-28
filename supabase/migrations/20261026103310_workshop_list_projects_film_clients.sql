@@ -2,6 +2,10 @@
 -- payload.workshop_edit), so the board draws a film at its aspect and saves scene text in its
 -- layout from the first render, with no second read of the payload. The return type changes,
 -- so the function is dropped and created again with the grants and security of 20261026103300.
+--
+-- It also lists only the clients the workshop's client picker shows (ClientSelector: the
+-- tenant's active clients), as AIO-235 asks. RLS alone let in a paused or ended client's items,
+-- and those of another tenant's client seen through a shared agency.
 
 drop function if exists public.workshop_list_projects(uuid, text, int);
 
@@ -75,7 +79,7 @@ begin
   left join public.marketing_pipeline_stages s on s.id = w.current_stage_id
   where w.tenant_id = p_tenant_id
     and w.status <> 'archived'
-    and (w.client_id is null or c.id is not null)
+    and (w.client_id is null or (c.tenant_id = p_tenant_id and c.status = 'active'))
     and case v_mode
       when 'all' then true
       when 'general' then w.client_id is null
