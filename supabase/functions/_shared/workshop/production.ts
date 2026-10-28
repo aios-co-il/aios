@@ -31,6 +31,21 @@ export function productionRunning(
   return !Number.isFinite(started) || started > now - 60 * 60_000;
 }
 
+/**
+ * What Carmen is told when a scene or the storyboard would change while the film is produced:
+ * the running production would take the change in unpriced, or lose the scenes its runs are for.
+ */
+export const PRODUCTION_LOCKED = {
+  error:
+    "הסרט בהפקה עכשיו, ובזמן ההפקה לא משנים סצנות: שינוי באמצע היה נכנס להפקה הזו בלי הצעת מחיר. אמרי למשתמש שאפשר לשנות סצנות כשההפקה מסתיימת (workshop_get_state מראה את מצב ההפקה), ואל תפיקי שוב.",
+  production_running: true,
+} as const;
+
+/** The database refused the write under the same lock (object_in_use, 20261026103258). */
+export const productionLockError = (
+  error: { code?: string } | null | undefined,
+) => error?.code === "55006";
+
 /** Clips of this production that the free preview made because the paid engine refused them. */
 function previewFallbacks(
   runs: RunRow[],
