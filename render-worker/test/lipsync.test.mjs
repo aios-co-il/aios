@@ -194,9 +194,17 @@ function fakeDb({
   voiceUrl = "t1/c1/i1/s1/voice-r0.audio",
   voiceText = LINE,
   stillUrl = "t1/c1/i1/s1/still-v1.png",
+  clipUrl = "t1/c1/i1/s1/clip-v1.mp4",
   scene = {},
 } = {}) {
-  const calls = { uploads: [], rpcs: [], updates: [], order: [], buckets: [] };
+  const calls = {
+    uploads: [],
+    rpcs: [],
+    updates: [],
+    order: [],
+    buckets: [],
+    signs: [],
+  };
   return {
     calls,
     download: async (bucket, path) => {
@@ -237,20 +245,17 @@ function fakeDb({
           query.includes("id=eq.clip-1") &&
           query.includes("type=eq.video_clip")
         )
-          return [
-            {
-              id: "clip-1",
-              url: "t1/c1/i1/s1/clip-v1.mp4",
-              meta: { aspect: "9:16" },
-            },
-          ];
+          return [{ id: "clip-1", url: clipUrl, meta: { aspect: "9:16" } }];
         return [];
       }
       return [];
     },
     upload: async (bucket, path, bytes) =>
       calls.uploads.push({ bucket, path, size: bytes.length }),
-    sign: async (bucket, path) => `https://p.supabase.co/sign/${path}`,
+    sign: async (bucket, path) => {
+      calls.signs.push(`${bucket}:${path}`);
+      return `https://p.supabase.co/sign/${path}`;
+    },
     rpc: async (name, args) => calls.rpcs.push({ name, args }),
     update: async (table, query, patch) => {
       calls.order.push("update");
@@ -437,6 +442,59 @@ test("the user's own picture is read from its private bucket with the worker's k
     expect([...seen.submits[0].imageBytes]).toStrictEqual([...PNG]);
   } finally {
     globalThis.fetch = realFetch;
+    if (project === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = project;
+  }
+});
+
+test("Kling lip-syncs the user's own video through a signed link of its private bucket", async () => {
+  const project = process.env.SUPABASE_URL;
+  process.env.SUPABASE_URL = "https://p.supabase.co";
+  try {
+    // workshop_edit_from_assets keeps the upload's address in the private entity-attachments bucket.
+    const db = fakeDb({
+      clipUrl:
+        "https://p.supabase.co/storage/v1/object/public/entity-attachments/t1/workshop/i1/intro.mp4",
+    });
+    const kling = fakeProvider("kling");
+    const provider = {
+      ...kling.provider,
+      needs: "video",
+      needsPublicMedia: true,
+    };
+    await generateLipsync({
+      db,
+      run: RUN,
+      keys: {},
+      providerFor: () => provider,
+      env: { LIPSYNC_PROVIDER: "kling" },
+      log: () => {},
+    });
+    expect(db.calls.signs).toContain(
+      "entity-attachments:t1/workshop/i1/intro.mp4",
+    );
+    expect(kling.seen.submits[0].videoUrl).toBe(
+      "https://p.supabase.co/sign/t1/workshop/i1/intro.mp4",
+    );
+
+    // Another tenant's upload is refused before any provider call.
+    const other = fakeDb({
+      clipUrl:
+        "https://p.supabase.co/storage/v1/object/public/entity-attachments/t2/workshop/i9/x.mp4",
+    });
+    const refused = fakeProvider("kling");
+    await expect(
+      generateLipsync({
+        db: other,
+        run: RUN,
+        keys: {},
+        providerFor: () => ({ ...provider, submit: refused.provider.submit }),
+        env: { LIPSYNC_PROVIDER: "kling" },
+        log: () => {},
+      }),
+    ).rejects.toThrow(/outside the tenant folder/);
+    expect(refused.seen.submits.length).toBe(0);
+  } finally {
     if (project === undefined) delete process.env.SUPABASE_URL;
     else process.env.SUPABASE_URL = project;
   }

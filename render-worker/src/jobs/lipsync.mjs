@@ -9,6 +9,7 @@ import {
   loadRunScene,
   readMedia,
   safeSegment,
+  storedObject,
 } from "../guard.mjs";
 import {
   isTalkingScene,
@@ -269,9 +270,14 @@ async function providerInput(
     await db.upload(BUCKET, audioPath, audioBytes, audioType);
     input.audioUrl = await db.sign(BUCKET, audioPath, 3600);
     if (provider.needs === "video") {
+      // A clip in the tenant folder, or the user's own video in the private bucket it was kept in.
+      const clip = storedObject(picture.url, BUCKET) ?? {
+        bucket: BUCKET,
+        path: picture.url,
+      };
       input.videoUrl = await db.sign(
-        BUCKET,
-        assertTenantPath(run.tenant_id, picture.url),
+        clip.bucket,
+        assertTenantPath(run.tenant_id, clip.path),
         3600,
       );
     } else {
