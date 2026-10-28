@@ -191,6 +191,7 @@ Deno.test("a yes that names the other agent does not approve", () => {
   assertStrictEquals(namedDevAgent("כן תשלחי לקלוד"), "claude");
   assertStrictEquals(namedDevAgent("כן, ל-Cursor"), "cursor");
   assertStrictEquals(namedDevAgent("כן"), null);
+  assertStrictEquals(namedDevAgent("כן, מנוסה מספיק"), null);
   assertStrictEquals(
     reason(yes({ userText: "כן תשלחי לקלוד" })),
     "target_mismatch",

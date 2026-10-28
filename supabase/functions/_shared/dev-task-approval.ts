@@ -66,6 +66,17 @@ export type DevAgent = keyof typeof AGENT_SPELLINGS;
 
 const AGENT_WORDS = Object.values(AGENT_SPELLINGS).flat();
 
+/** One of these names as a word of its own, maybe after "ל" ("לקרסר"): "מנוסה" is not Manus. */
+const asWord = (names: string[]) =>
+  `(?<![א-תa-z0-9])(?:ו?ל-?)?(?:${names.join("|")})(?![א-תa-z0-9])`;
+
+const AGENT_NAME = Object.fromEntries(
+  Object.entries(AGENT_SPELLINGS).map(([agent, names]) => [
+    agent,
+    new RegExp(asWord(names), "iu"),
+  ]),
+) as Record<DevAgent, RegExp>;
+
 /** Words that may stand around the yes ("כן, תשלחי את זה לקרסר"). */
 const FILLERS = new Set([
   "את",
@@ -131,7 +142,7 @@ export function isExplicitDevTaskApproval(text: unknown): boolean {
 
 /** A choice that asks whether to send a dev task ("לשלוח את משימת הפיתוח?", "לשלוח לקרסר?"). */
 const OFFER_LABEL = new RegExp(
-  `משימ(?:ת|ה|ות)\\s+(?:ה)?פיתוח|לפיתוח|${AGENT_WORDS.join("|")}`,
+  `משימ(?:ת|ה|ות)\\s+(?:ה)?פיתוח|לפיתוח|${asWord(AGENT_WORDS)}`,
   "iu",
 );
 
@@ -241,9 +252,9 @@ const time = (value: string | Date | null | undefined) =>
 
 /** The coding agent the user's yes names ("כן, לקלוד"), if exactly one. */
 export function namedDevAgent(text: unknown): DevAgent | null {
-  const t = normalizeApprovalText(text).toLowerCase();
-  const named = (Object.keys(AGENT_SPELLINGS) as DevAgent[]).filter((agent) =>
-    AGENT_SPELLINGS[agent].some((name) => t.includes(name)),
+  const t = normalizeApprovalText(text);
+  const named = (Object.keys(AGENT_NAME) as DevAgent[]).filter((agent) =>
+    AGENT_NAME[agent].test(t),
   );
   return named.length === 1 ? named[0] : null;
 }
@@ -344,8 +355,12 @@ function codingAgentStarted(
   if (!match) return undefined;
   const [, connection, asked] = match;
   if (asked) return asked as DevAgent;
-  // The bare legacy request_dev_task is Cursor's.
-  return connection ? namedDevAgent(connection) : "cursor";
+  // The bare legacy request_dev_task is Cursor's; a connection is named after its agent.
+  if (!connection) return "cursor";
+  const named = (Object.keys(AGENT_SPELLINGS) as DevAgent[]).filter((agent) =>
+    connection.toLowerCase().includes(agent),
+  );
+  return named.length === 1 ? named[0] : null;
 }
 
 const DIRECT_ASK =
