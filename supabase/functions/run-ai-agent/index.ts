@@ -11267,8 +11267,10 @@ async function executeTool(
             activeCount: 0,
             pausedCount: 0,
           };
-          if (r.data?.date && r.data.date >= d7Str)
-            cur.spend7 += parseFloat(r.data?.spend) || 0;
+          const date = r.data?.date;
+          if (typeof date === "string" && date >= d7Str) {
+            cur.spend7 += parseFloat(String(r.data?.spend)) || 0;
+          }
           const eff = String(r.data?.effective_status || "").toUpperCase();
           if (eff === "ACTIVE") cur.activeCount += 1;
           else if (eff === "PAUSED" || eff === "OFF") cur.pausedCount += 1;
