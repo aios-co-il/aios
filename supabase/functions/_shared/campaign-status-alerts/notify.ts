@@ -1,5 +1,5 @@
 /** The WhatsApp of a monitor finding: who gets it and the send itself. */
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import type { DbClient } from "../supabase-clients.ts";
 import { findingMessage } from "./finding-message.ts";
 import type { Finding, ReportAccount } from "./types.ts";
 
@@ -88,7 +88,7 @@ export async function notifyWhatsapp(
         }),
       });
     } catch (e) {
-      console.warn("[fb-campaign-monitor] WA send failed", phone, e);
+      console.warn("[campaign-status-alerts] WA send failed", phone, e);
     }
   }
   await db

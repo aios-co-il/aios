@@ -5,7 +5,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { readFile } from "node:fs/promises";
-import { MONITOR_ALERT_TYPES } from "../fb-campaign-monitor/types.ts";
+import { STATUS_ALERT_TYPES } from "./campaign-status-alerts/types.ts";
 import { checkOutbound } from "./integration-guard.ts";
 
 Deno.test(
@@ -55,7 +55,7 @@ Deno.test(
   async () => {
     // KPI exceptions belong to campaign-pulse-snapshot; the monitor records and
     // sends platform-operational failures only.
-    assertEquals([...MONITOR_ALERT_TYPES].sort(), [
+    assertEquals([...STATUS_ALERT_TYPES].sort(), [
       "account_disabled",
       "ad_account_billing_issue",
       "ad_disapproved",
@@ -63,12 +63,17 @@ Deno.test(
       "campaign_with_issues",
       "no_live_ads",
     ]);
-    const dir = new URL("../fb-campaign-monitor/", import.meta.url);
-    for await (const entry of Deno.readDir(dir)) {
-      if (!entry.isFile || entry.name.includes(".test.")) continue;
-      const source = await readFile(new URL(entry.name, dir), "utf8");
-      assertNotMatch(source, /cpl_spike/);
-      assertNotMatch(source, /כרמן נתחי/);
+    for (const path of [
+      "../fb-campaign-monitor/",
+      "./campaign-status-alerts/",
+    ]) {
+      const dir = new URL(path, import.meta.url);
+      for await (const entry of Deno.readDir(dir)) {
+        if (!entry.isFile || entry.name.includes(".test.")) continue;
+        const source = await readFile(new URL(entry.name, dir), "utf8");
+        assertNotMatch(source, /cpl_spike/);
+        assertNotMatch(source, /כרמן נתחי/);
+      }
     }
   },
 );

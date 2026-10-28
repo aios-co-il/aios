@@ -1,13 +1,11 @@
 /** One tenant's scan: every active Meta report's ad account, a few at a time. */
 import { resolveMetaReportToken } from "../_shared/meta-report-token.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
+import { recordFindings } from "../_shared/campaign-status-alerts/record.ts";
+import type { ReportAccount } from "../_shared/campaign-status-alerts/types.ts";
 import { findingsFor } from "./findings.ts";
-import { NOTIFY_ALERT_TYPES, type ReportAccount } from "./types.ts";
 import { readAccount } from "./meta-account.ts";
-import { notifyWhatsapp } from "./notify.ts";
 import { loadReportAccounts } from "./report-accounts.ts";
-import { resolveClearedAlerts } from "./resolve-cleared.ts";
-import { upsertCampaignAlert } from "./upsert-alert.ts";
 
 /** Accounts read at once per tenant, to stay under Graph rate limits. */
 const ACCOUNT_CONCURRENCY = 4;
@@ -38,33 +36,13 @@ async function scanReport(
     stats.errors++;
     return;
   }
-  const findings = findingsFor(report, read.snapshot);
-  for (const finding of findings) {
-    const notify = NOTIFY_ALERT_TYPES.has(finding.alert_type)
-      ? (alertId: string) =>
-          notifyWhatsapp(db, tenantId, report, finding, alertId)
-      : null;
-    const created = await upsertCampaignAlert(
-      db,
-      {
-        tenant_id: tenantId,
-        client_id: report.clientId,
-        ad_account_id: report.adAccountId,
-        campaign_id: finding.campaign_id,
-        campaign_name: finding.campaign_name,
-        alert_type: finding.alert_type,
-        severity: finding.severity,
-        details: finding.details,
-      },
-      notify,
-    );
-    if (created) stats.alerts_created++;
-  }
-  stats.alerts_resolved += await resolveClearedAlerts(db, {
+  const { created, resolved } = await recordFindings(db, {
     tenantId,
-    adAccountId: report.adAccountId,
-    findings,
+    report,
+    findings: findingsFor(report, read.snapshot),
   });
+  stats.alerts_created += created;
+  stats.alerts_resolved += resolved;
 }
 
 // Single-tenant scan (called per tenant, in its own invocation for CPU limits).

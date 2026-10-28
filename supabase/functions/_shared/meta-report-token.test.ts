@@ -1,6 +1,6 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
-import { fakeDb } from "../fb-campaign-monitor/tests/fake-db.ts";
+import { fakeDb } from "./campaign-status-alerts/tests/fake-db.ts";
 import { resolveMetaReportToken } from "./meta-report-token.ts";
 
 Deno.test(

@@ -3,8 +3,8 @@
  * longer finds, so a campaign that runs again stops counting as stopped (the
  * pulse reads open alerts) and a later stop alerts again.
  */
-import type { DbClient } from "../_shared/supabase-clients.ts";
-import { type Finding, MONITOR_ALERT_TYPES } from "./types.ts";
+import type { DbClient } from "../supabase-clients.ts";
+import { type Finding, STATUS_ALERT_TYPES } from "./types.ts";
 
 export async function resolveClearedAlerts(
   db: Pick<DbClient, "from">,
@@ -20,11 +20,11 @@ export async function resolveClearedAlerts(
     .select("id, campaign_id, alert_type")
     .eq("tenant_id", input.tenantId)
     .eq("ad_account_id", input.adAccountId)
-    .in("alert_type", [...MONITOR_ALERT_TYPES])
+    .in("alert_type", [...STATUS_ALERT_TYPES])
     .is("resolved_at", null);
   if (error) {
     console.error(
-      "[fb-campaign-monitor] open alerts lookup failed",
+      "[campaign-status-alerts] open alerts lookup failed",
       input.adAccountId,
       error.message,
     );
@@ -46,7 +46,7 @@ export async function resolveClearedAlerts(
     .is("resolved_at", null);
   if (updateError) {
     console.error(
-      "[fb-campaign-monitor] resolving cleared alerts failed",
+      "[campaign-status-alerts] resolving cleared alerts failed",
       input.adAccountId,
       updateError.message,
     );

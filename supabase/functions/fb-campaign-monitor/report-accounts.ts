@@ -5,7 +5,7 @@
  * nothing.
  */
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import type { ReportAccount } from "./types.ts";
+import type { ReportAccount } from "../_shared/campaign-status-alerts/types.ts";
 
 export const META_REPORT_TABLE_TYPES = [
   "facebook_insights",
@@ -41,6 +41,7 @@ export async function loadReportAccounts(
       continue;
     }
     candidates.push({
+      platform: "meta",
       adAccountId,
       clientId: table.client_id,
       integrationId:

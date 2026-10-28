@@ -4,12 +4,12 @@
  * active report with nothing live alerts; one stopped campaign while another is
  * live does not.
  */
-import type {
-  AccountSnapshot,
-  Finding,
-  MetaAd,
-  ReportAccount,
-} from "./types.ts";
+import {
+  accountKey,
+  type Finding,
+  type ReportAccount,
+} from "../_shared/campaign-status-alerts/types.ts";
+import type { AccountSnapshot, MetaAd } from "./types.ts";
 
 /** Graph account_status values other than 1, as the WhatsApp names them. */
 const ACCOUNT_STATUS_LABELS: Record<number, string> = {
@@ -27,11 +27,6 @@ export function accountStatusLabel(status: number): string {
   return (
     ACCOUNT_STATUS_LABELS[status] || `חשבון הפרסום אינו פעיל (סטטוס ${status})`
   );
-}
-
-/** The account-level dedupe key. */
-export function accountKey(adAccountId: string): string {
-  return `account:${adAccountId}`;
 }
 
 /**

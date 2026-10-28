@@ -4,11 +4,13 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 
-import { findingMessage } from "./finding-message.ts";
+import { findingMessage } from "../_shared/campaign-status-alerts/finding-message.ts";
+import type { ReportAccount } from "../_shared/campaign-status-alerts/types.ts";
 import { findingsFor } from "./findings.ts";
-import type { AccountSnapshot, MetaAd, ReportAccount } from "./types.ts";
+import type { AccountSnapshot, MetaAd } from "./types.ts";
 
 const REPORT: ReportAccount = {
+  platform: "meta",
   adAccountId: "act_1",
   clientId: "client-1",
   clientName: "פיצה רומא",

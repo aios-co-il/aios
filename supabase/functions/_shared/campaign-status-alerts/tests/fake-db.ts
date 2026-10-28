@@ -3,7 +3,7 @@
  * query is answered by `answer` once it is awaited (or ends in maybeSingle /
  * single) with everything the chain recorded.
  */
-import type { DbClient } from "../../_shared/supabase-clients.ts";
+import type { DbClient } from "../../supabase-clients.ts";
 
 export type FakeCall = {
   table: string;

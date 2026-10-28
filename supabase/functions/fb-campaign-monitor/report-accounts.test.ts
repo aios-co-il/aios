@@ -1,7 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 
 import { graphAccountId, loadReportAccounts } from "./report-accounts.ts";
-import { fakeDb } from "./tests/fake-db.ts";
+import { fakeDb } from "../_shared/campaign-status-alerts/tests/fake-db.ts";
 
 const TABLES = [
   // Active report, bare id and a stored connection.
@@ -45,6 +45,7 @@ Deno.test(
     const accounts = await loadReportAccounts(db, "tenant-1");
     assertEquals(accounts, [
       {
+        platform: "meta",
         adAccountId: "act_111",
         clientId: "c-roma",
         clientName: "פיצה רומא",
