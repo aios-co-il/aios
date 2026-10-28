@@ -11,12 +11,11 @@ Migrations in `supabase/migrations/**` are applied by the Supabase GitHub integr
 
 ### GitHub config
 
-| Kind                                  | Name                                                                              |
-| ------------------------------------- | --------------------------------------------------------------------------------- |
-| Environment variable                  | `SUPABASE_PROJECT_REF` (`staging` environment, used by the mirror and type check) |
-| Repo variable                         | `PROD_PROJECT_REF`                                                                |
-| Environment secret                    | `DB_PASSWORD` (per environment)                                                   |
-| Repo secret                           | `BASE_ACCESS_TOKEN`                                                               |
-| Repo secret                           | `SUPABASE_STAGING_PROJECT_ID` (Staging render-worker drain)                       |
-| Branch protection (`develop`, `main`) | PR required; 1 approving review; merge restricted to authorised humans            |
-| Required checks                       | `Supabase Preview` replaces the removed `Staging deploy result`                   |
+| Kind                                  | Name                                                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Environment variable                  | `SUPABASE_PROJECT_REF` (`staging` environment, used by the mirror, type check and render drain) |
+| Repo variable                         | `PROD_PROJECT_REF`                                                                              |
+| Environment secret                    | `DB_PASSWORD` (per environment)                                                                 |
+| Repo secret                           | `BASE_ACCESS_TOKEN`                                                                             |
+| Branch protection (`develop`, `main`) | PR required; 1 approving review; merge restricted to authorised humans                          |
+| Required checks                       | `Supabase Preview` replaces the removed `Staging deploy result`                                 |

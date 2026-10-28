@@ -133,7 +133,7 @@ Branch protection on `main` / `develop` is a GitHub settings change; the freshne
 The render worker claims paid media jobs (`marketing_runs`) for one environment at a time:
 
 - **Production:** only a Droplet container built from `main` (`render-worker/README.md`, "One container per environment").
-- **Staging:** `.github/workflows/render-worker.yml` runs `develop`'s worker every 10 minutes. One REST request first checks for a waiting run, and the run installs nothing when there is none. The Staging ref comes from the repo secret `SUPABASE_STAGING_PROJECT_ID`.
+- **Staging:** `.github/workflows/render-worker.yml` runs `develop`'s worker every 10 minutes. One REST request first checks for a waiting run, and the run installs nothing when there is none. It runs in the `staging` environment and reads the Staging ref from that environment's `SUPABASE_PROJECT_REF` variable.
 - **PR previews:** `.github/workflows/render-worker-preview.yml` drains a PR's own Supabase preview branch, found under `PROD_PROJECT_REF`, on every push and on "Run workflow", and keeps listening 15 minutes after the queue empties.
 
 Neither GitHub drain claims Production runs. Both resolve their service key with `BASE_ACCESS_TOKEN` before anything from the branch is checked out or installed. A Staging or preview tenant with real provider keys pays for the jobs these drains run.

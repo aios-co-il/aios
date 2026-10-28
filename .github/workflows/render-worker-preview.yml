@@ -1,8 +1,17 @@
-name: Render worker (PR preview)
+# Makes the films a PR's preview asks for: it runs the PR's own render worker against the PR's
+# Supabase preview until its video queue stays empty, so video changes are tested before merge.
+# It runs on PRs that change the worker, the film renderer or the workshop's video tools; any
+# other PR can run it from the Actions tab (Run workflow on its branch).
+name: Drain render worker (PR preview)
 
 on:
   pull_request:
     branches: [develop]
+    paths:
+      - "render-worker/**"
+      - "workers/creative-video/**"
+      - "supabase/functions/_shared/workshop/**"
+      - ".github/workflows/render-worker-preview.yml"
   workflow_dispatch:
 
 permissions:
