@@ -6,6 +6,11 @@ import {
   fetchPublicWebsiteSnippet,
   gatherSeoClientContext,
 } from "../_shared/gather-seo-client-context.ts";
+import {
+  ensureSeoProgram,
+  findSeoProgram,
+  PROGRAM_OF_ANOTHER_CLIENT,
+} from "./program.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -68,13 +73,9 @@ serve(async (req) => {
       if (!membership) return respond({ error: "Forbidden" }, 403);
     }
     // The program belongs to the client it was made for: never point it at another one.
-    const { data: program } = await admin
-      .from("seo_geo_programs")
-      .select("client_id")
-      .eq("work_item_id", item.id)
-      .maybeSingle();
+    const program = await findSeoProgram(admin, item.id);
     if (program && program.client_id !== item.client_id)
-      return respond({ error: "תוכנית ה-SEO של הפרויקט שייכת ללקוח אחר" }, 409);
+      return respond({ error: PROGRAM_OF_ANOTHER_CLIENT }, 409);
 
     const context = await gatherSeoClientContext(
       admin,
@@ -185,6 +186,17 @@ serve(async (req) => {
 
     if (!briefText) return respond({ error: "Brief is empty" }, 400);
 
+    // Before the brief is saved: a program another intake just made on another client refuses.
+    const saved = await ensureSeoProgram(
+      admin,
+      item,
+      program,
+      wpSite?.id ?? null,
+    );
+    if (!saved) return respond({ error: PROGRAM_OF_ANOTHER_CLIENT }, 409);
+    // The site the program publishes to, which the intake does not change once it exists.
+    const siteId = saved.wordpress_site_id;
+
     const nextPayload = {
       ...(item.payload as Record<string, unknown>),
       ...(seoResearch ? { seo_research: seoResearch } : {}),
@@ -192,27 +204,13 @@ serve(async (req) => {
       department: "seo",
       intake_source: intakeSource,
       client_website: website || null,
-      wordpress_site_id: wpSite?.id ?? null,
+      wordpress_site_id: siteId,
     };
 
     await admin
       .from("marketing_work_items")
       .update({ payload: nextPayload })
       .eq("id", item.id);
-
-    // An existing program keeps its client: only its site changes.
-    if (program)
-      await admin
-        .from("seo_geo_programs")
-        .update({ wordpress_site_id: wpSite?.id ?? null })
-        .eq("work_item_id", item.id);
-    else
-      await admin.from("seo_geo_programs").insert({
-        tenant_id: item.tenant_id,
-        client_id: item.client_id,
-        work_item_id: item.id,
-        wordpress_site_id: wpSite?.id ?? null,
-      });
 
     let planResult: unknown = null;
     if (run_research && mode === "carmen_full") {
@@ -245,7 +243,7 @@ serve(async (req) => {
           ok: true,
           brief_length: briefText.length,
           website,
-          wordpress_site_id: wpSite?.id ?? null,
+          wordpress_site_id: siteId,
           prior_briefs: context.prior_briefs,
           plan: null,
           plan_error: errMsg,
@@ -257,7 +255,7 @@ serve(async (req) => {
       ok: true,
       brief_length: briefText.length,
       website,
-      wordpress_site_id: wpSite?.id ?? null,
+      wordpress_site_id: siteId,
       prior_briefs: context.prior_briefs,
       plan: planResult,
     });
