@@ -16674,6 +16674,28 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      workshop_list_projects: {
+        Args: { p_client?: string; p_limit?: number; p_tenant_id: string };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          department_hint: string;
+          format: string;
+          has_board: boolean;
+          has_copy: boolean;
+          has_creative: boolean;
+          has_seo_plan: boolean;
+          id: string;
+          project_type: string;
+          stage_type: string;
+          status: string;
+          target_channel: string;
+          title: string;
+          track: string;
+          updated_at: string;
+          workshop_edit: boolean;
+        }[];
+      };
     };
     Enums: {
       agency_status: "active" | "paused" | "former";

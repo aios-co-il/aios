@@ -440,25 +440,36 @@ export function CreativeDepartment({
       let query = supabase
         .from("marketing_work_items")
         .select(
-          "id,title,status,client_id,payload,current_stage_id,target_channel,created_at,updated_at",
+          "id,title,status,client_id,payload,current_stage_id,pipeline_id,target_channel,created_at,updated_at",
         )
         .eq("tenant_id", tenantId)
         .order("updated_at", { ascending: false });
       query = applyClientFilter(query, listFilter);
-      const [{ data, error }, { data: creativeStages, error: stageError }] =
-        await Promise.all([
-          query,
-          supabase
-            .from("marketing_pipeline_stages")
-            .select("id")
-            .eq("tenant_id", tenantId)
-            .eq("stage_type", "creative"),
-        ]);
+      // Social pipelines: their untagged items are social work, never listed here (AIO-235).
+      const [
+        { data, error },
+        { data: creativeStages, error: stageError },
+        { data: socialPipelines, error: pipelineError },
+      ] = await Promise.all([
+        query,
+        supabase
+          .from("marketing_pipeline_stages")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("stage_type", "creative"),
+        supabase
+          .from("marketing_pipelines")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("track", "social_organic"),
+      ]);
       if (error) throw error;
       if (stageError) throw stageError;
+      if (pipelineError) throw pipelineError;
       return filterCreativeDepartmentItems(
         (data ?? []) as CreativeItem[],
         (creativeStages ?? []).map((stage) => stage.id),
+        (socialPipelines ?? []).map((pipeline) => pipeline.id),
       );
     },
   });

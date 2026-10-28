@@ -65,6 +65,8 @@ export interface WorkshopDeps {
   voiceSample?: (voiceId: string) => Promise<{ path?: string; error?: string }>;
   /** David approved this exact call in the approvals queue. */
   approvedOutOfBand?: boolean;
+  /** The client open in the workshop view; a new project starts for it when none is named. */
+  viewClientId?: string | null;
   newToken?: () => string;
 }
 

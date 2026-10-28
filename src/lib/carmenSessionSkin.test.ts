@@ -13,6 +13,7 @@ const openWorkshop = () =>
     selectedArtifactId: null,
     selectedSceneId: null,
     selectedSceneNumber: null,
+    clientId: null,
   });
 
 test("a role the workshop switched Carmen to ends when the workshop closes", () => {

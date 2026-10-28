@@ -154,6 +154,87 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a project started with no client named goes to the client open in the workshop",
+  async () => {
+    const db = fakeDb({
+      "rpc:workshop_creative_stage": {
+        pipeline_id: "pipe-1",
+        stage_id: "st-1",
+      },
+    });
+    const checked: string[] = [];
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "מודעה לחג" },
+      async (clientId) => {
+        checked.push(clientId);
+      },
+      "user-1",
+      { viewClientId: "client-7" },
+    )) as Record<string, any>;
+    assertStrictEquals(result.success, true);
+    assertEquals(checked, ["client-7"]);
+    assertStrictEquals(result.client_known, true);
+    assertStrictEquals(result.client_from_view, true);
+    const row = db.calls.find((c) => c.table === "marketing_work_items")
+      ?.value as Record<string, any>;
+    assertStrictEquals(row.client_id, "client-7");
+    assertStrictEquals(row.pipeline_id, "pipe-1");
+  },
+);
+
+Deno.test(
+  "a client in view the caller cannot reach starts the project without a client",
+  async () => {
+    const db = fakeDb();
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "מודעה לחג" },
+      async () => {
+        throw new Error("אין הרשאה ללקוח הזה");
+      },
+      "user-1",
+      { viewClientId: "client-7" },
+    )) as Record<string, any>;
+    assertStrictEquals(result.success, true);
+    assertStrictEquals(result.client_known, false);
+    assertMatch(result.client_note, /בלי לקוח/);
+    const row = db.calls.find((c) => c.table === "marketing_work_items")
+      ?.value as Record<string, any>;
+    assertStrictEquals(row.client_id, null);
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "rpc:workshop_creative_stage"),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "a client Carmen names is checked instead of the one in view",
+  async () => {
+    const checked: string[] = [];
+    const result = (await executeWorkshopTool(
+      fakeDb(),
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "מודעה", client_id: "client-9" },
+      async (clientId) => {
+        checked.push(clientId);
+        throw new Error("אין הרשאה ללקוח הזה");
+      },
+      null,
+      { viewClientId: "client-7" },
+    )) as Record<string, unknown>;
+    assertEquals(checked, ["client-9"]);
+    assertStrictEquals(result.error, "אין הרשאה ללקוח הזה");
+  },
+);
+
 Deno.test("an empty brief is refused", async () => {
   const result = (await executeWorkshopTool(
     fakeDb(),

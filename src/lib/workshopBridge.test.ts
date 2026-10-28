@@ -24,10 +24,14 @@ test("an open project goes to Carmen with its id, a new board tells her to start
     selectedArtifactId: "a-9",
     selectedSceneId: null,
     selectedSceneNumber: null,
+    clientId: null,
   });
   expect(open?.taskSkills).toStrictEqual(["carmen_workshop"]);
   expect(open!.promptAddon).toMatch(/item_id=p-1 \(חג שמח\)/);
   expect(open!.promptAddon).toMatch(/artifact_id=a-9/);
+  expect(open!.promptAddon).not.toMatch(/client_id=/);
+  expect(open?.workshopItemId).toBe("p-1");
+  expect(open?.workshopClientId).toBe(null);
 
   const blank = workshopRequestParts({
     projectId: null,
@@ -35,9 +39,37 @@ test("an open project goes to Carmen with its id, a new board tells her to start
     selectedArtifactId: null,
     selectedSceneId: null,
     selectedSceneNumber: null,
+    clientId: null,
   });
   expect(blank!.promptAddon).toMatch(/workshop_start_project/);
   expect(blank!.promptAddon).not.toMatch(/artifact_id/);
+  expect(blank?.workshopItemId).toBe(null);
+});
+
+test("the client in view is named to Carmen and sent with the request", () => {
+  const named = workshopRequestParts({
+    projectId: null,
+    title: null,
+    selectedArtifactId: null,
+    selectedSceneId: null,
+    selectedSceneNumber: null,
+    clientId: "c-1",
+    clientName: "פיצה בעיר",
+  });
+  expect(named!.promptAddon).toMatch(/client_id=c-1 \(פיצה בעיר\)/);
+  expect(named?.workshopClientId).toBe("c-1");
+
+  const unnamed = workshopRequestParts({
+    projectId: "p-1",
+    title: null,
+    selectedArtifactId: null,
+    selectedSceneId: null,
+    selectedSceneNumber: null,
+    clientId: "c-2",
+  });
+  expect(unnamed!.promptAddon).toMatch(/client_id=c-2\./);
+  expect(unnamed?.workshopItemId).toBe("p-1");
+  expect(unnamed?.workshopClientId).toBe("c-2");
 });
 
 test("on a new board a question about Carmen is answered without a project", () => {
@@ -47,6 +79,7 @@ test("on a new board a question about Carmen is answered without a project", () 
     selectedArtifactId: null,
     selectedSceneId: null,
     selectedSceneNumber: null,
+    clientId: null,
   })!.promptAddon;
   expect(blank).toMatch(/בקשת עבודה חדשה .*workshop_start_project/);
   expect(blank).toMatch(
@@ -85,6 +118,7 @@ test("the board hears events and the context is shared", () => {
     selectedArtifactId: null,
     selectedSceneId: null,
     selectedSceneNumber: null,
+    clientId: null,
   });
   expect(getWorkshopContext()?.projectId).toBe("p");
   setWorkshopContext(null);
@@ -98,6 +132,7 @@ test("a scene picked on the board goes to Carmen with its id and number", () => 
     selectedArtifactId: null,
     selectedSceneId: "s-7",
     selectedSceneNumber: 3,
+    clientId: null,
   })!.promptAddon;
   expect(addon).toContain(
     'הסצנה שהמשתמש בחר בלוח: scene_id=s-7 (סצנה 3). "את זה", "הסצנה הזאת" ו"שני" מתייחסים אליה; שינוי בה עם workshop_update_scene.',
@@ -109,6 +144,7 @@ test("a scene picked on the board goes to Carmen with its id and number", () => 
       selectedArtifactId: null,
       selectedSceneId: null,
       selectedSceneNumber: null,
+      clientId: null,
     })!.promptAddon,
   ).not.toMatch(/scene_id/);
 });

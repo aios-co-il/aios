@@ -482,6 +482,8 @@ export const CarmenChatBar = forwardRef<
             context_metadata: ctxMeta ?? undefined,
             active_skin: getSessionSkin(tenantId) ?? undefined,
             task_skills: workshop?.taskSkills,
+            workshop_item_id: workshop?.workshopItemId ?? undefined,
+            workshop_client_id: workshop?.workshopClientId ?? undefined,
             brain_slug: runBrain || undefined,
           }),
         },

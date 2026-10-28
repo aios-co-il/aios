@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 import { StoryboardGrid } from "@/components/workshop/StoryboardGrid";
 import { storyboardScenes } from "@/components/workshop/storyboardScenes";
@@ -31,6 +32,7 @@ const state = vi.hoisted(() => ({
   scenes: [] as unknown[],
   /** marketing_work_items, newest first, as the query orders them. */
   items: [] as Record<string, unknown>[],
+  clients: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -45,8 +47,8 @@ vi.mock("@/integrations/supabase/client", () => {
             : undefined,
         row,
       );
-  const from = () => {
-    let rows = state.items;
+  const from = (table: string) => {
+    let rows = table === "clients" ? state.clients : state.items;
     const chain: Record<string, unknown> = {};
     for (const name of ["select", "order", "limit", "in"])
       chain[name] = () => chain;
@@ -63,11 +65,34 @@ vi.mock("@/integrations/supabase/client", () => {
         rows = rows.filter((row) => valueAt(row, column) != null);
       return chain;
     };
+    chain.maybeSingle = () =>
+      Promise.resolve({ data: rows[0] ?? null, error: null });
     chain.then = (resolve: (value: unknown) => unknown) =>
       resolve({ data: rows, error: null });
     return chain;
   };
-  return { supabase: { from, rpc: vi.fn() } };
+  // workshop_list_projects: every marketing item of the tenant, a board where payload.workshop is.
+  const rpc = (name: string, args: { p_tenant_id: string }) =>
+    Promise.resolve({
+      data:
+        name === "workshop_list_projects"
+          ? state.items
+              .filter((row) => row.tenant_id === args.p_tenant_id)
+              .map((row) => {
+                const payload = (row.payload ?? {}) as Record<string, unknown>;
+                return {
+                  ...row,
+                  client_name: null,
+                  department_hint: payload.department ?? null,
+                  has_board: payload.workshop != null,
+                  format: payload.format ?? null,
+                  workshop_edit: payload.workshop_edit === true,
+                };
+              })
+          : null,
+      error: null,
+    });
+  return { supabase: { from, rpc } };
 });
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenant: { id: "t-1" } }),
@@ -121,16 +146,19 @@ const scene = (id: string, position: number) => ({
 beforeEach(() => {
   state.scenes = storyboardScenes([scene("s1", 1), scene("s2", 2)], new Map());
   state.items = [workshopProject];
+  state.clients = [];
 });
 
-function renderPage() {
+function renderPage(path = "/") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <CarmenWorkshop />
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={[path]}>
+      <QueryClientProvider client={client}>
+        <CarmenWorkshop />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -211,4 +239,19 @@ test("the board opens the newest workshop project, never another marketing item"
     }),
   );
   expect(screen.queryByText("קופי לדף נחיתה")).toBeNull();
+});
+
+const CLIENT = "c0000000-0000-4000-8000-000000000001";
+test.each([
+  ["an active client of the tenant", "t-1", "active", CLIENT, "פיצה"],
+  // Outside the client picker: handled as an unknown client, so Carmen starts nothing for it.
+  ["a paused client", "t-1", "paused", null, null],
+  ["another tenant's client", "t-2", "active", null, null],
+])("%s in the URL: the client Carmen is told about", async (...cell) => {
+  const [, tenant_id, status, clientId, clientName] = cell;
+  state.clients = [{ id: CLIENT, tenant_id, status, name: "פיצה" }];
+  renderPage(`/?client=${CLIENT}`);
+  await waitFor(() =>
+    expect(getWorkshopContext()).toMatchObject({ clientId, clientName }),
+  );
 });

@@ -90,6 +90,7 @@ import {
   workshopProjectKind,
   workshopSceneIdFrom,
 } from "../_shared/workshop/role-project.ts";
+import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 
@@ -5705,6 +5706,8 @@ async function executeTool(
     /** Carmen's previous message; the workshop reads the taps that answer it. */
     lastAssistant?: string | null;
     outOfBand?: boolean;
+    /** The client open in the workshop view (workshop_client_id). */
+    viewClientId?: string | null;
     /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
     devTaskTurn?: {
       /** When the user's message of this turn arrived; the offered task must be older. */
@@ -5777,6 +5780,7 @@ async function executeTool(
         userText: approval.userText ?? null,
         lastAssistant: approval.lastAssistant ?? null,
         approvedOutOfBand: approval.outOfBand === true,
+        viewClientId: approval.viewClientId ?? null,
         imageEngines: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -16088,6 +16092,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               {
                 turnId,
                 userText: String(command_text ?? ""),
+                viewClientId: inWorkshop
+                  ? workshopClientIdFrom(bodyJson)
+                  : null,
                 // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
                 devTaskTurn: {
                   turnStartedAt,

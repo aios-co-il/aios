@@ -6,19 +6,25 @@ import { creativeStageFor, recordArtifact } from "../record.ts";
 import { briefPayload } from "../scene-helpers.ts";
 import { tappedAnswers } from "../tapped-answers.ts";
 import { type ToolContext } from "../tool-context.ts";
+import { VIEW_CLIENT_DENIED, startProjectClient } from "../view-client.ts";
 
 export async function workshopStartProject(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, userId, deps } = ctx;
   const brief = String(args.brief ?? "").trim();
   if (!brief) return { error: "brief נדרש" };
-  const clientId = String(args.client_id ?? "").trim() || null;
+  const start = startProjectClient(args.client_id, deps.viewClientId);
+  let clientId = start.clientId;
+  let clientNote: string | undefined;
   if (clientId) {
     try {
       await assertClientAccess(clientId);
     } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : "אין הרשאה ללקוח הזה",
-      };
+      if (!start.fromView)
+        return {
+          error: error instanceof Error ? error.message : "אין הרשאה ללקוח הזה",
+        };
+      clientId = null;
+      clientNote = VIEW_CLIENT_DENIED;
     }
   }
   const plan = planProject({
@@ -102,6 +108,8 @@ export async function workshopStartProject(ctx: ToolContext) {
     },
     summary: plan.summary,
     client_known: !!clientId,
+    ...(start.fromView && clientId ? { client_from_view: true } : {}),
+    ...(clientNote ? { client_note: clientNote } : {}),
     artifact,
     workshop: { event: "project", item_id: itemId, artifact_id: artifact.id },
   };
