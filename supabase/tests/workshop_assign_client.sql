@@ -1,11 +1,13 @@
 -- One assign path for every department (20261026103400_workshop_assign_any_department,
--- 20261026103410_workshop_assign_keep_stage): synthetic work items of two clients of one tenant,
--- inside one transaction that is rolled back. The department cases mirror departments.test.ts
--- (projectDepartment, isClientLocked), so the SQL and TypeScript rules cannot drift apart.
--- Assigning a project to the client it already has changes nothing; a move keeps the stage type
--- when the other client's pipeline has it; SEO and social projects stay with their client, and
--- a project with an SEO program only ever takes the program's client, even through a direct
--- update. Runs as the database owner.
+-- 20261026103410_workshop_assign_keep_stage): a tenant, two clients and their pipelines with the
+-- standard stages, built inside one transaction that is rolled back, so the data already in the
+-- database does not matter. Assigning a project to the client it already has changes nothing; a
+-- move keeps the stage type when the other client's pipeline has it; SEO and social projects stay
+-- with their client, and a project with an SEO program only ever takes the program's client, even
+-- through a direct update. Runs as the database owner.
+-- The department cases are copied by hand from departments.test.ts (projectDepartment,
+-- isClientLocked): nothing checks that the two still agree, and no CI job runs supabase/tests yet,
+-- so a change to departments.ts needs this file and the migration changed with it.
 BEGIN;
 
 -- Where a project is: "<client> <pipeline's client>/<track>/<stage type>", A or B for the two
@@ -20,6 +22,28 @@ LANGUAGE sql AS $$
   LEFT JOIN public.marketing_pipelines p ON p.id = w.pipeline_id
   LEFT JOIN public.marketing_pipeline_stages s ON s.id = w.current_stage_id
   WHERE w.id = p_item
+$$;
+
+-- A pipeline of p_client (the tenant's "no client" one when null) on p_track, with the standard
+-- stages of buildDefaultStages (src/components/marketing/lib/ensurePipeline.ts).
+CREATE FUNCTION pg_temp.qa_pipeline(p_tenant uuid, p_client uuid, p_track text) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_pipeline uuid;
+BEGIN
+  INSERT INTO public.marketing_pipelines (tenant_id, client_id, track, name, is_active)
+  VALUES (p_tenant, p_client, p_track, 'QA ROLLBACK assign', true)
+  RETURNING id INTO v_pipeline;
+  INSERT INTO public.marketing_pipeline_stages (pipeline_id, tenant_id, stage_type, name, sort_order)
+  SELECT v_pipeline, p_tenant, d.stage_type::public.marketing_stage_type, d.stage_type, d.sort_order
+    FROM (VALUES
+      ('strategy', 0), ('copy', 1), ('creative', 2),
+      (CASE p_track WHEN 'seo_geo' THEN 'target_seo'
+                    WHEN 'social_organic' THEN 'target_organic'
+                    ELSE 'target_paid' END, 3),
+      ('measurement', 4)
+    ) AS d(stage_type, sort_order);
+END;
 $$;
 
 -- A project of p_client on that client's p_track pipeline at p_stage (nowhere when p_track is null).
@@ -54,6 +78,7 @@ $$;
 DO $test$
 DECLARE
   v_tenant uuid;
+  v_agency uuid;
   v_a uuid;
   v_b uuid;
   v_item uuid;
@@ -61,11 +86,18 @@ DECLARE
   v_failed boolean;
   c record;
 BEGIN
-  SELECT tenant_id INTO v_tenant FROM public.clients
-   WHERE tenant_id IS NOT NULL GROUP BY tenant_id HAVING count(*) >= 2 ORDER BY tenant_id LIMIT 1;
-  IF v_tenant IS NULL THEN RAISE EXCEPTION 'Requires a tenant with two clients'; END IF;
-  SELECT id INTO v_a FROM public.clients WHERE tenant_id = v_tenant ORDER BY id LIMIT 1;
-  SELECT id INTO v_b FROM public.clients WHERE tenant_id = v_tenant ORDER BY id OFFSET 1 LIMIT 1;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK assign', 'qa-rollback-assign-' || gen_random_uuid())
+  RETURNING id INTO v_tenant;
+  INSERT INTO public.agencies (name, tenant_id) VALUES ('QA ROLLBACK assign', v_tenant)
+  RETURNING id INTO v_agency;
+  INSERT INTO public.clients (agency_id, tenant_id, name, status)
+  VALUES (v_agency, v_tenant, 'QA ROLLBACK client A', 'active') RETURNING id INTO v_a;
+  INSERT INTO public.clients (agency_id, tenant_id, name, status)
+  VALUES (v_agency, v_tenant, 'QA ROLLBACK client B', 'active') RETURNING id INTO v_b;
+  PERFORM pg_temp.qa_pipeline(v_tenant, o.client, t.track)
+     FROM (VALUES (v_a), (v_b), (NULL::uuid)) AS o(client),
+          (VALUES ('campaigns'), ('seo_geo'), ('social_organic')) AS t(track);
 
   -- Assigning a project to the client it has changes nothing: a brief at the strategy stage stays
   -- there, and so does a campaign being measured or an unassigned project.
