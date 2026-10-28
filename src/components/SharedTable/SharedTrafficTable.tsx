@@ -16,6 +16,7 @@ import {
   showsFollowerColumns,
   sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
+import { ratio } from "@/lib/reportNumber";
 import type { SharedCampaignRow } from "./sharedCampaignTables";
 
 /** What a traffic row needs, so the dashboards pass their campaign rows as-is. */
@@ -59,9 +60,7 @@ export function SharedTrafficTable({
       <TableCell>{formatNumber(metrics.clicks)}</TableCell>
       <TableCell>{ctr(metrics.clicks, metrics.impressions)}</TableCell>
       <TableCell>
-        {formatUnitCost(
-          metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0,
-        )}
+        {formatUnitCost(ratio(metrics.spend, metrics.clicks))}
       </TableCell>
       {withFollowers && (
         <>
@@ -150,5 +149,5 @@ function trafficMetrics(rows: TrafficRow[]): TrafficMetrics {
 
 /** Click-through rate as a percentage with two decimals. */
 function ctr(clicks: number, impressions: number): string {
-  return `${(impressions > 0 ? (clicks / impressions) * 100 : 0).toFixed(2)}%`;
+  return `${(ratio(clicks, impressions) * 100).toFixed(2)}%`;
 }
