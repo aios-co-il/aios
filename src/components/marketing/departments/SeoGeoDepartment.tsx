@@ -150,6 +150,8 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
       query = applyClientFilter(query, clientFilter);
       const { data, error } = await query;
       if (error) throw error;
+      // public.workshop_assign_client repeats this rule to land an assigned project where this
+      // screen lists it (20261026103411): change both together.
       return ((data ?? []) as SeoItem[]).filter(
         (item) =>
           item.current_stage_id === context?.seoStage?.id ||

@@ -36,7 +36,12 @@ export const isDepartmentId = (value: unknown): value is DepartmentId =>
 export const departmentLabel = (dept: DepartmentId) =>
   BY_ID.get(dept)?.label ?? dept;
 
-/** The department's own screen in the marketing area, or null when it has none yet. */
+/**
+ * The department's own screen in the marketing area, or null when it has none yet. Moving or
+ * assigning a project lands it where this screen lists it: public.workshop_assign_client
+ * (20261026103411) repeats in SQL which projects the creative, copy and SEO screens list at any
+ * stage, so a change to their filters needs that function changed with it.
+ */
 export const departmentScreen = (dept: DepartmentId): DepartmentScreen | null =>
   BY_ID.get(dept)?.screen ?? null;
 

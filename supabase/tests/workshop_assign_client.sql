@@ -1,13 +1,15 @@
 -- One assign path for every department (20261026103400_workshop_assign_any_department,
--- 20261026103410_workshop_assign_keep_stage): a tenant, two clients and their pipelines with the
--- standard stages, built inside one transaction that is rolled back, so the data already in the
--- database does not matter. Assigning a project to the client it already has changes nothing; a
--- move keeps the stage type when the other client's pipeline has it; SEO and social projects stay
--- with their client, and a project with an SEO program only ever takes the program's client, even
--- through a direct update. Runs as the database owner.
--- The department cases are copied by hand from departments.test.ts (projectDepartment,
--- isClientLocked): nothing checks that the two still agree, and no CI job runs supabase/tests yet,
--- so a change to departments.ts needs this file and the migration changed with it.
+-- 20261026103410_workshop_assign_keep_stage, 20261026103411_workshop_assign_screen_stage): a
+-- tenant, two clients and their pipelines with the standard stages, built inside one transaction
+-- that is rolled back, so the data already in the database does not matter. Assigning a project
+-- to the client it already has changes nothing; a move keeps the stage type when the other
+-- client's pipeline has it and the department's screen lists the project there; SEO and social
+-- projects stay with their client, and a project with an SEO program only ever takes the
+-- program's client, even through a direct update. Runs as the database owner.
+-- The cases are copied by hand: the department ones from departments.test.ts (projectDepartment,
+-- isClientLocked), the screen ones from the filters of the creative, copy and SEO screens.
+-- Nothing checks that they still agree, and no CI job runs supabase/tests yet, so a change to
+-- those rules needs this file and the migration changed with it.
 BEGIN;
 
 -- Where a project is: "<client> <pipeline's client>/<track>/<stage type>", A or B for the two
@@ -124,11 +126,23 @@ BEGIN
   END IF;
 
   -- Moving to another client keeps the stage type when that client's pipeline of the department's
-  -- track has it; otherwise the project starts at its department's stage. A web project keeps its
-  -- track.
+  -- track has it and the department's screen lists the project there; otherwise the project
+  -- starts at its department's stage. The Creative screen (isCreativeDepartmentItem) lists a
+  -- project at any stage for what it holds, or else at a creative stage; the Copy screen
+  -- (isCopyDepartmentItem) for a copy tag or copy text, or else at a copy stage. Social, web and
+  -- campaigns have no screen and keep their stage; a web project keeps its track.
   FOR c IN SELECT * FROM (VALUES
     ('campaigns', 'measurement', '{"brief_text":"x"}', 'B B/campaigns/measurement'),
-    ('campaigns', 'copy', '{"workshop":{}}', 'B B/campaigns/copy'),
+    ('campaigns', 'strategy', '{"department":"copy"}', 'B B/campaigns/strategy'),
+    ('campaigns', 'strategy', '{"brief_text":""}', 'B B/campaigns/copy'),
+    ('campaigns', 'copy', '{"workshop":{},"department":"creative"}', 'B B/campaigns/copy'),
+    ('campaigns', 'measurement', '{"project_type":"static"}', 'B B/campaigns/measurement'),
+    ('campaigns', 'strategy', '{"brief_text":"x","variations":[]}', 'B B/campaigns/strategy'),
+    ('campaigns', 'strategy', '{"handoff_from":"copy"}', 'B B/campaigns/strategy'),
+    ('campaigns', 'strategy', '{"image_url":"x"}', 'B B/campaigns/strategy'),
+    ('campaigns', 'strategy', '{}', 'B B/campaigns/creative'),
+    ('campaigns', 'measurement', '{}', 'B B/campaigns/creative'),
+    ('campaigns', 'copy', '{"workshop":{}}', 'B B/campaigns/creative'),
     ('campaigns', 'target_paid', '{"department":"campaigns"}', 'B B/campaigns/target_paid'),
     ('seo_geo', 'target_seo', '{"workshop":{}}', 'B B/campaigns/creative'),
     ('seo_geo', 'target_seo', '{"department":"copy"}', 'B B/campaigns/copy'),
@@ -139,6 +153,33 @@ BEGIN
     v_place := pg_temp.qa_place(v_item, v_a, v_b);
     IF v_place <> c.expected THEN
       RAISE EXCEPTION 'move: % at %/% should land at %, not %', c.payload, c.track, c.stage, c.expected, v_place;
+    END IF;
+  END LOOP;
+
+  -- Releasing follows the same rule: a project that is Creative only by default leaves the
+  -- measurement stage for the creative one.
+  v_item := pg_temp.qa_item(v_tenant, v_a, 'campaigns', 'measurement', '{}');
+  PERFORM public.workshop_assign_client(v_item, NULL);
+  v_place := pg_temp.qa_place(v_item, v_a, v_b);
+  IF v_place <> '- -/campaigns/creative' THEN
+    RAISE EXCEPTION 'release: a Creative-by-default project lands at the creative stage, not %', v_place;
+  END IF;
+
+  -- Assigning an unassigned SEO project: the SEO screen (SeoGeoDepartment) lists a project tagged
+  -- seo or with a plan at any stage, and any other one only at the client's target_seo stage.
+  FOR c IN SELECT * FROM (VALUES
+    ('seo_geo', 'strategy', '{}', 'A A/seo_geo/target_seo'),
+    ('seo_geo', 'creative', '{"brief_text":"x"}', 'A A/seo_geo/target_seo'),
+    ('seo_geo', 'strategy', '{"seo_plan":null}', 'A A/seo_geo/target_seo'),
+    ('seo_geo', 'strategy', '{"department":"seo"}', 'A A/seo_geo/strategy'),
+    ('seo_geo', 'measurement', '{"seo_plan":{}}', 'A A/seo_geo/measurement'),
+    ('campaigns', 'strategy', '{"seo_plan":{}}', 'A A/seo_geo/strategy')
+  ) AS t(track, stage, payload, expected) LOOP
+    v_item := pg_temp.qa_item(v_tenant, NULL, c.track, c.stage, c.payload::jsonb);
+    PERFORM public.workshop_assign_client(v_item, v_a);
+    v_place := pg_temp.qa_place(v_item, v_a, v_b);
+    IF v_place <> c.expected THEN
+      RAISE EXCEPTION 'seo: % at -/%/% should land at %, not %', c.payload, c.track, c.stage, c.expected, v_place;
     END IF;
   END LOOP;
 

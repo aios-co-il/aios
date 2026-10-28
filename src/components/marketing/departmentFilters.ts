@@ -14,6 +14,8 @@ const otherDepartments = new Set([
 // Not "campaigns": the Creative handoff tags an approved creative with it and keeps its
 // variations, and Creative stays the screen that shows it until a campaigns screen exists.
 const nonCreativeDepartments = new Set(["copy", "seo", "social", "web"]);
+// public.workshop_assign_client repeats which items the two filters below list at any stage, to
+// land a moved project where its screen lists it (20261026103411): change both together.
 
 export function isCopyDepartmentItem(
   item: WorkItemLike,
