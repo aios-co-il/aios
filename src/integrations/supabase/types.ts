@@ -15337,6 +15337,10 @@ export type Database = {
         Args: { p_integration: string; p_phone: string; p_tenant: string };
         Returns: Json;
       };
+      chat_allowed_connection_user_ids: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: string[];
+      };
       check_circuit_breaker: {
         Args: { p_provider: string; p_tenant_id: string };
         Returns: boolean;
