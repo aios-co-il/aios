@@ -72,10 +72,12 @@ export default function CarmenWorkshop() {
             .select("id,title,status,updated_at,client_id,payload")
             .eq("tenant_id", tenantId)
             .neq("status", "archived")
+            // The table holds every marketing item; workshop projects carry payload.workshop.
+            .not("payload->workshop", "is", null)
             .order("updated_at", { ascending: false })
             .limit(40);
           if (error) throw error;
-          return (data ?? []) as unknown as ProjectRow[];
+          return (data ?? []) as ProjectRow[];
         }
       : skipToken,
   });
@@ -94,10 +96,11 @@ export default function CarmenWorkshop() {
       itemId: string;
       clientId: string | null;
     }) => {
-      const { error } = await supabase.rpc(
-        "workshop_assign_client" as never,
-        { p_item_id: itemId, p_client_id: clientId } as never,
-      );
+      // No client: the function's null default takes the project off its client.
+      const { error } = await supabase.rpc("workshop_assign_client", {
+        p_item_id: itemId,
+        p_client_id: clientId ?? undefined,
+      });
       if (error) throw error;
       const synced = await syncClientAssets(
         supabase,

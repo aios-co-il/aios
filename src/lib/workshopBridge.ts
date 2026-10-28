@@ -1,3 +1,5 @@
+import { releaseWorkshopSkins, setWorkshopSkin } from "./carmenSessionSkin";
+
 /**
  * The link between the workshop board and Carmen's session chat. They sit in different parts
  * of the page, so they share this small store: the board says which project and page is open,
@@ -27,23 +29,30 @@ const EVENTS = new Set<string>(["project", "artifacts"]);
 let context: WorkshopContext | null = null;
 /** A composer line the board asked for before any composer listened (prefillComposer). */
 let pendingPrefill: string | null = null;
-const contextListeners = new Set<() => void>();
 const eventListeners = new Set<(event: WorkshopEvent) => void>();
 
 export const getWorkshopContext = () => context;
 
 export function setWorkshopContext(next: WorkshopContext | null) {
   context = next;
-  // The workshop closed: a composer line it asked for must not fill a later, unrelated chat.
-  if (next === null) pendingPrefill = null;
-  contextListeners.forEach((listener) => listener());
+  // The workshop closed: a composer line it asked for must not fill a later, unrelated chat,
+  // and a role skin it switched Carmen to must not answer the next page's questions.
+  if (next === null) {
+    pendingPrefill = null;
+    releaseWorkshopSkins();
+  }
 }
 
-export function subscribeWorkshopContext(listener: () => void) {
-  contextListeners.add(listener);
-  return () => {
-    contextListeners.delete(listener);
-  };
+/**
+ * A workshop turn's `skin` event: the server switched Carmen to one of its role skins. It counts
+ * only while the workshop is open; a turn the user left keeps streaming, and a later tool's
+ * event must not switch the Carmen of the page they went to.
+ */
+export function applyWorkshopSkin(
+  tenantId: string | null | undefined,
+  slug: string,
+) {
+  if (context) setWorkshopSkin(tenantId, slug);
 }
 
 export function emitWorkshopEvent(event: WorkshopEvent) {

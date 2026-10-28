@@ -66,15 +66,13 @@ export function useWorkshopAssets(
       tenantId && projectId
         ? async (): Promise<WorkshopAsset[]> => {
             const { data, error } = await supabase
-              .from("workshop_assets" as never)
+              .from("workshop_assets")
               .select(COLUMNS)
               .eq("tenant_id", tenantId)
               .eq("item_id", projectId)
               .order("created_at", { ascending: true });
             if (error) throw error;
-            return Promise.all(
-              ((data ?? []) as unknown as WorkshopAsset[]).map(viewable),
-            );
+            return Promise.all(((data ?? []) as WorkshopAsset[]).map(viewable));
           }
         : skipToken,
   });
