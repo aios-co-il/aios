@@ -32,6 +32,7 @@ const state = vi.hoisted(() => ({
   scenes: [] as unknown[],
   /** marketing_work_items, newest first, as the query orders them. */
   items: [] as Record<string, unknown>[],
+  clients: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -46,8 +47,8 @@ vi.mock("@/integrations/supabase/client", () => {
             : undefined,
         row,
       );
-  const from = () => {
-    let rows = state.items;
+  const from = (table: string) => {
+    let rows = table === "clients" ? state.clients : state.items;
     const chain: Record<string, unknown> = {};
     for (const name of ["select", "order", "limit", "in"])
       chain[name] = () => chain;
@@ -84,6 +85,8 @@ vi.mock("@/integrations/supabase/client", () => {
                   client_name: null,
                   department_hint: payload.department ?? null,
                   has_board: payload.workshop != null,
+                  format: payload.format ?? null,
+                  workshop_edit: payload.workshop_edit === true,
                 };
               })
           : null,
@@ -143,14 +146,15 @@ const scene = (id: string, position: number) => ({
 beforeEach(() => {
   state.scenes = storyboardScenes([scene("s1", 1), scene("s2", 2)], new Map());
   state.items = [workshopProject];
+  state.clients = [];
 });
 
-function renderPage() {
+function renderPage(path = "/") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={client}>
         <CarmenWorkshop />
       </QueryClientProvider>
@@ -235,4 +239,19 @@ test("the board opens the newest workshop project, never another marketing item"
     }),
   );
   expect(screen.queryByText("קופי לדף נחיתה")).toBeNull();
+});
+
+const CLIENT = "c0000000-0000-4000-8000-000000000001";
+test.each([
+  ["an active client of the tenant", "t-1", "active", CLIENT, "פיצה"],
+  // Outside the client picker: handled as an unknown client, so Carmen starts nothing for it.
+  ["a paused client", "t-1", "paused", null, null],
+  ["another tenant's client", "t-2", "active", null, null],
+])("%s in the URL: the client Carmen is told about", async (...cell) => {
+  const [, tenant_id, status, clientId, clientName] = cell;
+  state.clients = [{ id: CLIENT, tenant_id, status, name: "פיצה" }];
+  renderPage(`/?client=${CLIENT}`);
+  await waitFor(() =>
+    expect(getWorkshopContext()).toMatchObject({ clientId, clientName }),
+  );
 });

@@ -143,7 +143,8 @@ Deno.test(
   "creative work with a brief or copy goes to Creative, the screen that lists it",
   () => {
     // isCopyDepartmentItem leaves out variations and static or video projects, whatever
-    // brief, copy or copy stage they carry; isCreativeDepartmentItem lists them.
+    // brief, copy or copy stage they carry; isCreativeDepartmentItem lists them, a static
+    // project before its first picture too (departmentFilters.test.ts).
     assertStrictEquals(
       projectDepartment({ has_copy: true, has_creative: true }),
       "creative",

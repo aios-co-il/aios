@@ -270,46 +270,36 @@ export default function CarmenWorkshop() {
       });
   };
 
+  // Only a client the client picker lists (the tenant's active clients) is named, as the list
+  // shows only theirs; any other id in the URL is an unknown client.
   const viewClient = useQuery({
-    queryKey: ["carmen-workshop-client", viewClientId],
-    queryFn: viewClientId
-      ? async () => {
-          const { data } = await supabase
-            .from("clients")
-            .select("name")
-            .eq("id", viewClientId)
-            .maybeSingle();
-          return (data?.name as string | undefined) ?? null;
-        }
-      : skipToken,
+    queryKey: ["carmen-workshop-client", tenantId, viewClientId],
+    queryFn:
+      tenantId && viewClientId
+        ? async () => {
+            const { data } = await supabase
+              .from("clients")
+              .select("name")
+              .eq("id", viewClientId)
+              .eq("tenant_id", tenantId)
+              .eq("status", "active")
+              .maybeSingle();
+            return (data?.name as string | undefined) ?? null;
+          }
+        : skipToken,
   });
   const viewClientName = viewClientId ? (viewClient.data ?? null) : null;
+  // Carmen starts no project for a client the picker does not list: its projects would not show.
+  const contextClientId = viewClient.data === null ? null : viewClientId;
 
-  // The list rows carry no payload; the storyboard needs the board's film format and edit flag.
-  // Under the list's key, so a workshop event refreshes it with the list.
+  // The board's list row brings the film's format and edit flag, so both hold from its first render.
   const boardId = board?.id ?? null;
-  const film = useQuery({
-    queryKey: ["carmen-workshop-projects", tenantId, "film", boardId],
-    queryFn: boardId
-      ? async () => {
-          const { data, error } = await supabase
-            .from("marketing_work_items")
-            .select("payload")
-            .eq("id", boardId)
-            .maybeSingle();
-          if (error) throw error;
-          return (data?.payload ?? null) as Record<string, unknown> | null;
-        }
-      : skipToken,
-  });
-  const filmPayload = boardId ? (film.data ?? null) : null;
-
   const artifacts = useWorkshopArtifacts(tenantId, boardId);
   const sceneBoard = useStoryboardBoard({
     tenantId,
     projectId: boardId,
-    aspect: filmAspect(filmPayload),
-    edit: filmPayload?.workshop_edit === true,
+    aspect: filmAspect(board ? { format: board.format } : null),
+    edit: board?.workshop_edit === true,
     onPickScene: () => setArtifactId(null),
     openChat: () => setOpen(true),
   });
@@ -327,7 +317,7 @@ export default function CarmenWorkshop() {
       selectedArtifactId: artifactId,
       selectedSceneId: sceneId,
       selectedSceneNumber: sceneNumber,
-      clientId: viewClientId,
+      clientId: contextClientId,
       clientName: viewClientName,
     });
   }, [
@@ -336,7 +326,7 @@ export default function CarmenWorkshop() {
     artifactId,
     sceneId,
     sceneNumber,
-    viewClientId,
+    contextClientId,
     viewClientName,
   ]);
 
@@ -450,6 +440,7 @@ export default function CarmenWorkshop() {
         <main className="min-h-0 min-w-0 flex-1">
           {showClientCard && viewClientId ? (
             <WorkshopClientCard
+              tenantId={tenantId}
               clientId={viewClientId}
               onNewCreative={startNew}
             />

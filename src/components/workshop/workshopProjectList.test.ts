@@ -24,6 +24,8 @@ const row = (over: Partial<WorkshopListRow>): WorkshopListRow => ({
   has_creative: false,
   has_seo_plan: false,
   updated_at: "2026-10-26T10:00:00Z",
+  format: null,
+  workshop_edit: false,
   ...over,
 });
 
@@ -100,4 +102,7 @@ test("a department screen opens on the project's client, or on general content",
   expect(departmentPath("seo", null)).toBe(
     "marketing/department/seo?client=general",
   );
+  // Only an open screen: marketing/department/campaigns is still the coming-soon placeholder.
+  // @ts-expect-error campaigns is not a DepartmentScreen (checked by npm run typecheck)
+  expect(departmentPath("campaigns", null)).toContain("campaigns");
 });

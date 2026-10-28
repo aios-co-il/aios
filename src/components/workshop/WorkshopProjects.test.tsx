@@ -19,6 +19,8 @@ const row = (over: Partial<WorkshopListRow>): WorkshopListRow => ({
   has_creative: false,
   has_seo_plan: false,
   updated_at: "2026-10-26T10:00:00Z",
+  format: null,
+  workshop_edit: false,
   ...over,
 });
 

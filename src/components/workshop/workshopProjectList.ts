@@ -2,6 +2,7 @@ import { clientFilterToParam } from "@/components/marketing/clientFilter";
 import {
   DEPARTMENTS,
   type DepartmentId,
+  type DepartmentScreen,
   projectDepartment,
 } from "../../../supabase/functions/_shared/workshop/departments.ts";
 
@@ -22,6 +23,10 @@ export interface WorkshopListRow {
   has_creative: boolean;
   has_seo_plan: boolean;
   updated_at: string;
+  /** The film's payload.format, which the board draws its scenes at. */
+  format: string | null;
+  /** The film is cut from the user's materials (payload.workshop_edit). */
+  workshop_edit: boolean;
 }
 
 export interface DepartmentGroup {
@@ -110,8 +115,10 @@ export function groupProjects(
 }
 
 /** The marketing screen of a department, filtered to a client (or to general content). */
-export const departmentPath = (screen: string, clientId: string | null) =>
-  `marketing/department/${screen}?client=${clientFilterToParam(clientId)}`;
+export const departmentPath = (
+  screen: DepartmentScreen,
+  clientId: string | null,
+) => `marketing/department/${screen}?client=${clientFilterToParam(clientId)}`;
 
 /** The project opened when the URL names none: the latest one with a workshop board. */
 export const defaultProject = (rows: WorkshopListRow[]) =>

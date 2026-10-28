@@ -16619,6 +16619,7 @@ export type Database = {
           client_id: string;
           client_name: string;
           department_hint: string;
+          format: string;
           has_board: boolean;
           has_copy: boolean;
           has_creative: boolean;
@@ -16631,6 +16632,7 @@ export type Database = {
           title: string;
           track: string;
           updated_at: string;
+          workshop_edit: boolean;
         }[];
       };
     };
