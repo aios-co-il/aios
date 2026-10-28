@@ -220,6 +220,7 @@ import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -11128,12 +11129,14 @@ async function executeTool(
         { spend7: number; activeCount: number; pausedCount: number }
       >();
       if (tableIds.length > 0) {
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("table_id, data")
-          .in("table_id", tableIds)
-          .in("tenant_id", accessibleTenantIds);
-        for (const r of recs || []) {
+        // Campaign-level rows of the last 7 days, paged: one unfiltered request
+        // stopped at 1000 rows of any level/date and missed real spend.
+        const recs = await fetchCampaignLevelRecords(supabase, {
+          tableIds,
+          sinceYmd: d7Str,
+          tenantIds: accessibleTenantIds,
+        });
+        for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
           if (!cid) continue;
           const cur = spendByClient.get(cid) || {
@@ -11141,8 +11144,10 @@ async function executeTool(
             activeCount: 0,
             pausedCount: 0,
           };
-          if (r.data?.date && r.data.date >= d7Str)
-            cur.spend7 += parseFloat(r.data?.spend) || 0;
+          const date = r.data?.date;
+          if (typeof date === "string" && date >= d7Str) {
+            cur.spend7 += parseFloat(String(r.data?.spend)) || 0;
+          }
           const eff = String(r.data?.effective_status || "").toUpperCase();
           if (eff === "ACTIVE") cur.activeCount += 1;
           else if (eff === "PAUSED" || eff === "OFF") cur.pausedCount += 1;
