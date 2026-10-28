@@ -4,6 +4,9 @@ import {
   taskOverdueNotifyAt,
   taskReminderAt,
 } from "./schedule.ts";
+import { postTriggerAutomation } from "./post-trigger-automation.ts";
+import { releaseHeldTaskNotifications } from "./release-held.ts";
+import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,41 +46,28 @@ type TaskRow = {
   completion_creator_notified_at: string | null;
   overdue_notified_at: string | null;
   overdue_creator_notified_at: string | null;
+  recurrence_frequency: string | null;
+  recurrence_previous_task_id: string | null;
 };
+
+const TASK_COLUMNS =
+  "id,tenant_id,title,status,priority,created_at,due_date,due_time,created_by,campaigner_id,sales_person_id,self_reminder_at,self_reminder_sent_at,assignment_notification_sent_at,high_priority_reminder_sent_at,high_priority_creator_notified_at,completion_creator_notified_at,overdue_notified_at,overdue_creator_notified_at,recurrence_frequency,recurrence_previous_task_id";
 
 async function invokeNotification(
   task: TaskRow,
   triggerType: NotificationType,
 ) {
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/trigger-automation`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        trigger_type: triggerType,
-        data: {
-          task_id: task.id,
-          title: task.title,
-          tenant_id: task.tenant_id,
-          campaigner_id: task.campaigner_id,
-          sales_person_id: task.sales_person_id,
-          created_by: task.created_by,
-        },
-      }),
+  const body = await postTriggerAutomation({
+    trigger_type: triggerType,
+    data: {
+      task_id: task.id,
+      title: task.title,
+      tenant_id: task.tenant_id,
+      campaigner_id: task.campaigner_id,
+      sales_person_id: task.sales_person_id,
+      created_by: task.created_by,
     },
-  );
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok && response.status !== 202) {
-    throw new Error(
-      body?.reason ||
-        body?.error ||
-        `trigger-automation returned ${response.status}`,
-    );
-  }
+  });
   if (body?.sent === true) return { delivered: true, body };
   if (body?.handled === true && body?.sent === false) {
     return { delivered: false, body };
@@ -159,9 +149,7 @@ async function fetchTask(
 ) {
   const { data, error } = await supabase
     .from("tasks")
-    .select(
-      "id,tenant_id,title,status,priority,created_at,due_date,due_time,created_by,campaigner_id,sales_person_id,self_reminder_at,self_reminder_sent_at,assignment_notification_sent_at,high_priority_reminder_sent_at,high_priority_creator_notified_at,completion_creator_notified_at,overdue_notified_at,overdue_creator_notified_at",
-    )
+    .select(TASK_COLUMNS)
     .eq("id", taskId)
     .maybeSingle();
   if (error) throw error;
@@ -409,6 +397,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    // Task markers stay NULL while held, so the run after Shabbat sends each once.
+    const shabbatHold = shabbatHeldResponse(corsHeaders);
+    if (shabbatHold) {
+      return shabbatHold;
+    }
     let tasks: TaskRow[] = [];
 
     if (body?.task_id) {
@@ -416,8 +409,6 @@ Deno.serve(async (req) => {
       if (task) tasks = [task];
     } else {
       const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
-      const taskColumns =
-        "id,tenant_id,title,status,priority,created_at,due_date,due_time,created_by,campaigner_id,sales_person_id,self_reminder_at,self_reminder_sent_at,assignment_notification_sent_at,high_priority_reminder_sent_at,high_priority_creator_notified_at,completion_creator_notified_at,overdue_notified_at,overdue_creator_notified_at";
       const [
         assignments,
         reminders,
@@ -429,42 +420,42 @@ Deno.serve(async (req) => {
       ] = await Promise.all([
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .or("campaigner_id.not.is.null,sales_person_id.not.is.null")
           .neq("status", "done")
           .is("assignment_notification_sent_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("campaigner_id", "is", null)
           .eq("status", "open")
           .is("high_priority_reminder_sent_at", null)
           .limit(100),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("created_by", "is", null)
           .lte("high_priority_reminder_sent_at", oneMinuteAgo)
           .is("high_priority_creator_notified_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("created_by", "is", null)
           .lte("overdue_notified_at", oneMinuteAgo)
           .is("overdue_creator_notified_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("created_by", "is", null)
           .eq("status", "done")
           .is("completion_creator_notified_at", null)
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("self_reminder_at", "is", null)
           .lte("self_reminder_at", new Date().toISOString())
           .neq("status", "done")
@@ -472,7 +463,7 @@ Deno.serve(async (req) => {
           .limit(25),
         supabase
           .from("tasks")
-          .select(taskColumns)
+          .select(TASK_COLUMNS)
           .not("campaigner_id", "is", null)
           .not("due_date", "is", null)
           .lt("due_date", new Date().toISOString().slice(0, 10))
@@ -515,6 +506,15 @@ Deno.serve(async (req) => {
           error: error instanceof Error ? error.message : String(error),
         });
       }
+    }
+
+    if (!body?.task_id) {
+      results.push(
+        ...(await releaseHeldTaskNotifications(
+          supabase,
+          postTriggerAutomation,
+        )),
+      );
     }
 
     console.log("[task-notification-worker]", {

@@ -970,13 +970,6 @@
       "count": 1
     },
     {
-      "file": "src/components/pulse/PulseClientRawCard.tsx",
-      "code": 2322,
-      "message": "Type 'PulseSnapshotRow | { client_id: string; agency_id: null; status: \"no_data\"; is_ecommerce: false; spend_7d: number; leads_7d: null; cpl_7d: null; cpl_change_pct: null; purchases_7d: null; ... 6 more ...; last_client_call_by: null; }' is not assignable to type 'PulseSnapshotRow'.\n  Type '{ client_id: string; agency_id: null; status: \"no_data\"; is_ecommerce: false; spend_7d: number; leads_7d: null; cpl_7d: null; cpl_change_pct: null; purchases_7d: null; revenue_7d: null; roas_7d: null; ... 4 more ...; last_client_call_by: null; }' is missing the following properties from type 'PulseSnapshotRow': last_meta_change_at, last_meta_change_type, last_meta_change_actor, last_meta_change_object, meta_change_availability",
-      "source": "callSnapshot",
-      "count": 1
-    },
-    {
       "file": "src/components/seo/SeoMonthlyLandingPage.tsx",
       "code": 2322,
       "message": "Type 'RefObject<HTMLDivElement | null>' is not assignable to type 'LegacyRef<HTMLDivElement> | undefined'.\n  Type 'RefObject<HTMLDivElement | null>' is not assignable to type 'RefObject<HTMLDivElement>'.\n    Type 'HTMLDivElement | null' is not assignable to type 'HTMLDivElement'.\n      Type 'null' is not assignable to type 'HTMLDivElement'.",
@@ -1287,7 +1280,7 @@
     {
       "file": "src/lib/cursorTaskSessions.ts",
       "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 258 more ... | \"wordpress_sites_shared_tenants\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 258 more ... | \"wordpress_sites_shared_tenants\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"14.17\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 266 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type 'never'.",
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 259 more ... | \"wordpress_sites_shared_tenants\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 259 more ... | \"wordpress_sites_shared_tenants\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"14.17\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 267 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type 'never'.",
       "source": "\"cursor_task_sessions\"",
       "count": 1
     },

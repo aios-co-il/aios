@@ -5161,6 +5161,8 @@ export type Database = {
           integration_type: string | null;
           integrations: Json | null;
           last_sync_at: string | null;
+          last_sync_attempt_at: string | null;
+          last_sync_outcome: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5180,6 +5182,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5199,6 +5203,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name?: string;
           slug?: string;
           tenant_id?: string;
@@ -12553,6 +12559,53 @@ export type Database = {
           },
         ];
       };
+      task_notification_holds: {
+        Row: {
+          created_at: string;
+          hold_key: string;
+          hold_reason: string;
+          hold_until: string;
+          id: string;
+          notification_type: string;
+          release_result: Json | null;
+          released_at: string | null;
+          request_body: Json;
+          task_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          hold_key?: string;
+          hold_reason?: string;
+          hold_until: string;
+          id?: string;
+          notification_type: string;
+          release_result?: Json | null;
+          released_at?: string | null;
+          request_body: Json;
+          task_id: string;
+        };
+        Update: {
+          created_at?: string;
+          hold_key?: string;
+          hold_reason?: string;
+          hold_until?: string;
+          id?: string;
+          notification_type?: string;
+          release_result?: Json | null;
+          released_at?: string | null;
+          request_body?: Json;
+          task_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_notification_holds_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       task_updates: {
         Row: {
           attachments: Json | null;
@@ -15292,6 +15345,10 @@ export type Database = {
       carmen_send_activation: {
         Args: { p_integration: string; p_phone: string; p_tenant: string };
         Returns: Json;
+      };
+      chat_allowed_connection_user_ids: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: string[];
       };
       check_circuit_breaker: {
         Args: { p_provider: string; p_tenant_id: string };
