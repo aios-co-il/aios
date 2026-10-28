@@ -5,21 +5,9 @@ import { Globe, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTenantPath } from "@/hooks/useTenantPath";
-import {
-  DEPARTMENTS,
-  type DepartmentId,
-} from "../../../supabase/functions/_shared/workshop/departments.ts";
+import { DEPARTMENTS } from "../../../supabase/functions/_shared/workshop/departments.ts";
 import { departmentPath } from "./workshopProjectList";
 import { useWorkshopClientCard } from "./useWorkshopClientCard";
-
-const NEW_PROJECT_DEPARTMENTS: DepartmentId[] = [
-  "creative",
-  "copy",
-  "seo",
-  "social",
-  "web",
-  "campaigns",
-];
 
 const siteHref = (url: string) =>
   /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -143,8 +131,8 @@ export function WorkshopClientCard({
         <div className="mt-5">
           <h3 className="text-sm font-medium">פרויקט חדש</h3>
           <div className="mt-2 flex flex-wrap gap-2">
-            {NEW_PROJECT_DEPARTMENTS.map((id) => {
-              const label = DEPARTMENTS.find((dept) => dept.id === id)?.label;
+            {/* Creative starts here on the board; the rest open their own screen, if it is open. */}
+            {DEPARTMENTS.map(({ id, label, screen }) => {
               if (id === "creative")
                 return (
                   <Button
@@ -157,7 +145,7 @@ export function WorkshopClientCard({
                     {label}
                   </Button>
                 );
-              if (id === "copy" || id === "seo")
+              if (screen)
                 return (
                   <Button
                     key={id}
@@ -166,7 +154,7 @@ export function WorkshopClientCard({
                     variant="outline"
                     className="gap-1"
                   >
-                    <Link to={buildPath(departmentPath(id, clientId))}>
+                    <Link to={buildPath(departmentPath(screen, clientId))}>
                       <Plus className="h-3.5 w-3.5" />
                       {label}
                     </Link>

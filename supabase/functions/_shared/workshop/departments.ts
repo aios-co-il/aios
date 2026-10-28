@@ -7,8 +7,11 @@
 export type DepartmentId =
   "creative" | "copy" | "seo" | "social" | "web" | "campaigns";
 
-/** The MarketingDepartment route ids (/t/:slug/marketing/department/:department). */
-export type DepartmentScreen = "creative" | "copy" | "seo" | "campaigns";
+/**
+ * The open MarketingDepartment screens (/t/:slug/marketing/department/:department). The
+ * campaigns route exists but is still a coming-soon placeholder, so nothing links to it.
+ */
+export type DepartmentScreen = "creative" | "copy" | "seo";
 
 export interface Department {
   id: DepartmentId;
@@ -22,7 +25,7 @@ export const DEPARTMENTS: readonly Department[] = [
   { id: "seo", label: "SEO / GEO", screen: "seo" },
   { id: "social", label: "סושיאל", screen: null },
   { id: "web", label: "בניית אתרים", screen: null },
-  { id: "campaigns", label: "קמפיינים", screen: "campaigns" },
+  { id: "campaigns", label: "קמפיינים", screen: null },
 ];
 
 const BY_ID = new Map(DEPARTMENTS.map((dept) => [dept.id, dept]));

@@ -24,7 +24,8 @@ Deno.test("only departments with a marketing screen link to one", () => {
   assertStrictEquals(departmentScreen("creative"), "creative");
   assertStrictEquals(departmentScreen("copy"), "copy");
   assertStrictEquals(departmentScreen("seo"), "seo");
-  assertStrictEquals(departmentScreen("campaigns"), "campaigns");
+  // marketing/department/campaigns is still the coming-soon placeholder.
+  assertStrictEquals(departmentScreen("campaigns"), null);
   assertStrictEquals(departmentScreen("social"), null);
   assertStrictEquals(departmentScreen("web"), null);
   assertStrictEquals(isDepartmentId("web"), true);
