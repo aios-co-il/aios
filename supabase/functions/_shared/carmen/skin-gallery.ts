@@ -163,6 +163,6 @@ export function carmenSkinsResult(
       portrait_url: absolutePortraitUrl(entry.portrait_url, origin),
     })),
     how_to_show:
-      "בצ׳אט של AIOS שמציג Markdown: ![שם](portrait_url). בוואטסאפ ובצ׳אט סטודיו הווידאו (טקסט בלבד): שם הפרסונה והקישור portrait_url, בלי Markdown. source=custom היא תמונה שהעסק העלה (קישור זמני לשעה), builtin היא התמונה המובנית, default היא התמונה הכללית של כרמן לפרסונה בלי דיוקן משלה.",
+      "בצ׳אטים של AIOS (גם בסטודיו הווידאו): ![שם](portrait_url). בוואטסאפ (טקסט בלבד): שם הפרסונה והקישור portrait_url, בלי Markdown. source=custom היא תמונה שהעסק העלה (קישור זמני לשעה), builtin היא התמונה המובנית, default היא התמונה הכללית של כרמן לפרסונה בלי דיוקן משלה.",
   };
 }

@@ -99,7 +99,11 @@ export const EDIT_TOOL = {
 
 export interface EditHelpers {
   loadAssets: (itemId: string) => Promise<AssetView[]>;
-  loadScenes: (itemId: string) => Promise<{ id: string }[]>;
+  loadScenes: (itemId: string) => Promise<Record<string, any>[]>;
+  /** Why the old scenes may not be replaced (they hold paid stills or clips), or null. */
+  replaceRefusal: (
+    old: Record<string, any>[],
+  ) => Promise<{ error: string } | null>;
 }
 
 /** Saves the scenes and attaches each material; returns the saved rows or an error. */
@@ -122,6 +126,8 @@ export async function buildEditScenes(
   const old = await helpers.loadScenes(itemId);
   if (old.length > 0 && args.replace !== true)
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
+  const keepsPaid = await helpers.replaceRefusal(old);
+  if (keepsPaid) return keepsPaid;
   const plan = planEditScenes(materials, args);
   const saved = await supabase.rpc("save_video_storyboard", {
     p_item_id: itemId,

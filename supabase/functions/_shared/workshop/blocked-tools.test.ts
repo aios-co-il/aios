@@ -7,6 +7,7 @@ import {
   isBlockedInWorkshop,
   stripServerOnlyPayloadKeys,
   workshopBlockedResult,
+  workshopToolRefusal,
 } from "./blocked-tools.ts";
 import { ROLE_TOOLS, toolsForRole, type WorkshopRole } from "./roles.ts";
 import { isWorkshopTool } from "./tool-definitions.ts";
@@ -198,5 +199,25 @@ Deno.test(
       // Outside the workshop nothing changes.
       assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
     }
+  },
+);
+
+Deno.test(
+  "outside the workshop a workshop tool called by name does not run",
+  () => {
+    // Not offered outside the workshop (WhatsApp, other chats), and with no board to work on.
+    for (const name of ["workshop_check_connections", "workshop_storyboard"]) {
+      const refused = workshopToolRefusal(name, false);
+      assertStrictEquals(refused?.error, "workshop_only", name);
+      assertMatch(String(refused?.message), /בסדנה/);
+      assertStrictEquals(workshopToolRefusal(name, true), null, name);
+    }
+    assertStrictEquals(workshopToolRefusal("list_clients", false), null);
+    // In the workshop a tool that acts outside the board is still refused.
+    assertEquals(
+      workshopToolRefusal("publish_social_post", true),
+      workshopBlockedResult("publish_social_post"),
+    );
+    assertStrictEquals(workshopToolRefusal("publish_social_post", false), null);
   },
 );
