@@ -62,6 +62,8 @@ import {
   bearerToken,
 } from "../_shared/automation-run-auth.ts";
 import { userClient } from "../_shared/supabase-clients.ts";
+import { prepareAgentRun } from "./agent-run.ts";
+import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1475,6 +1477,12 @@ Deno.serve(async (req) => {
 
     const requestBody = await req.json();
 
+    // Who this run acts for, from the caller the auth check below proved
+    // (AIO-241): the signed-in user who started it, or the sender a WhatsApp
+    // provider webhook relayed. Any other run (lead intake, flow webhooks, cron)
+    // acts for no one, so Carmen never takes an identity from outside data.
+    let runCaller: AutomationRunCaller | null = null;
+
     // Running one automation by id (tests, manual triggers, reruns) is limited
     // to the service role and to users who may manage that automation.
     if (requestBody?.automationId) {
@@ -1501,6 +1509,7 @@ Deno.serve(async (req) => {
           status: decision.status,
         });
       }
+      runCaller = automationRunCaller(requestBody, decision.caller);
     }
 
     // Backward-compat alias: old name → new name
@@ -1550,6 +1559,7 @@ Deno.serve(async (req) => {
           status: decision.status,
         });
       }
+      runCaller = automationRunCaller(requestBody, decision.caller);
     }
 
     // ===== AUTOMATION SAFETY GUARDS =====
@@ -3088,13 +3098,22 @@ Deno.serve(async (req) => {
                         payloadData?.sender_phone || payloadData?.phone || null,
                     });
                     if (waNotify) agentBody.wa_notify = waNotify;
+                    const agentRun = await prepareAgentRun(
+                      supabase,
+                      runCaller,
+                      { tenantId, agentId },
+                      agentBody,
+                    );
+                    if ("refusal" in agentRun) {
+                      throw new Error(agentRun.refusal);
+                    }
                     const agentRes = await fetch(agentUrl, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                       },
-                      body: JSON.stringify(agentBody),
+                      body: JSON.stringify(agentRun.body),
                     });
                     stepResponse = await agentRes.json();
                     previousStepOutput = stepResponse;
@@ -3757,13 +3776,11 @@ Deno.serve(async (req) => {
               const agentId = agentConfig.agent_id;
               if (agentId) {
                 const agentUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-ai-agent`;
-                const agentRes = await fetch(agentUrl, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                  },
-                  body: JSON.stringify({
+                const agentRun = await prepareAgentRun(
+                  supabase,
+                  runCaller,
+                  { tenantId, agentId },
+                  {
                     agent_id: agentId,
                     command_text:
                       payloadData?.command_text ||
@@ -3783,9 +3800,21 @@ Deno.serve(async (req) => {
                       pipeline_stage: payloadData?.pipeline_stage,
                       agency_name: payloadData?.agency_name,
                     },
-                  }),
-                });
-                response = await agentRes.json();
+                  },
+                );
+                if ("refusal" in agentRun) {
+                  response = { error: agentRun.refusal };
+                } else {
+                  const agentRes = await fetch(agentUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify(agentRun.body),
+                  });
+                  response = await agentRes.json();
+                }
               } else {
                 response = { error: "No agent_id configured in automation" };
               }
