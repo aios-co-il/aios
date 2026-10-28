@@ -397,7 +397,7 @@ legacy manual process.
 
 ### 2026-08-04 — Smooth WhatsApp Meta approval confirm → execute
 
-- **Retired 2026-10-27 (AIO-230, migration `20261026124000`):** the skin is inactive in every org. A bare "כן" runs only the caller's own pending row from the same conversation; see `docs/agents/carmen.md` § Approvals.
+- **Retired 2026-10-27 (AIO-230, migration `20261026124000`):** the skin is inactive in every org; keep it off. A bare "כן" runs only the caller's own pending row from the same conversation, and any other row needs "כן <קוד>"; see `docs/agents/carmen.md` § Approvals.
 - **Skin slug:** `wa_meta_approval_confirm_flow` (tenant: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019`)
 - **What Carmen can now do:** On WhatsApp confirms (`כן` / `מאשר` / `כן מאשר` / `תעשי את זה`), reliably bind to the latest matching pending Meta approval and execute it. If none pending — recover the last prepared request once, show a clear summary, and ask for one final confirmation. Never claim Meta execution without `execute_pending_approval` success.
 - **How:** Engine: phrase detector + auto-execute short confirms; smarter `execute_pending_approval` / `list_pending_approvals`; reuse existing pending duplicate instead of re-queue loops; prompt guardrails. Shared helper `_shared/wa-approval-flow`.
