@@ -7,6 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { CarmenReportRecipient } from "./carmen-report-recipients/resolve.ts";
+import type { Json } from "./database.types.ts";
 import {
   isLostConnectionFlag,
   isNoDataWithoutTable,
@@ -20,6 +21,7 @@ import {
   noContactFingerprint,
 } from "./pulse/instant-alert-fingerprint.ts";
 import { resolveInstantAlertRecipients } from "./pulse/instant-alert-recipients.ts";
+import { queueAndLogInstantAlert } from "./pulse/instant-alert-send.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
 
 export type PulseAlertRuleType =
@@ -51,7 +53,7 @@ export type PulseInstantAlertCandidate = {
   campaign_key?: string | null;
   fingerprint?: string | null;
   severity_score?: number | null;
-  evidence?: Record<string, unknown>;
+  evidence?: Record<string, Json>;
   /** connection_lost only: may go out on Shabbat (see isRealConnectionLoss). */
   shabbat_critical?: boolean;
 };
@@ -91,7 +93,7 @@ type CriticalIssueLike = {
   campaignName?: string | null;
 };
 
-type QueueWhatsApp = (
+export type QueueWhatsApp = (
   message: string,
   chatId: string | null,
 ) => Promise<boolean>;
@@ -383,6 +385,31 @@ export async function deliverInstantPulseAlerts(input: {
       continue;
     }
 
+    const agencyId = input.snapshots.find(
+      (snapshot) => snapshot.client_id === candidate.client_id,
+    )?.agency_id;
+    const tenantRecipients = await resolveInstantAlertRecipients(
+      input.supabase,
+      input.tenantId,
+      agencyId,
+      input.reportRecipients,
+      input.tenantSlug,
+    );
+    // Before the AI check, so a campaign_exception everyone already got from
+    // another org costs no AI call.
+    const recipients = await withoutPhonesAlertedElsewhere(
+      input,
+      candidate,
+      agencyId,
+      tenantRecipients,
+      throttleHours,
+      now,
+    );
+    if (!recipients.length) {
+      skipped += 1;
+      continue;
+    }
+
     if (candidate.rule_type === "campaign_exception") {
       // AI is never used during collection or trend calculation. It receives
       // only a deterministic exception candidate and may veto the notification.
@@ -401,48 +428,8 @@ export async function deliverInstantPulseAlerts(input: {
       candidate.evidence = confirmed.evidence;
     }
 
-    const tenantRecipients = await resolveInstantAlertRecipients(
-      input.supabase,
-      input.tenantId,
-      input.snapshots.find(
-        (snapshot) => snapshot.client_id === candidate.client_id,
-      )?.agency_id,
-      input.reportRecipients,
-      input.tenantSlug,
-    );
-    const recipients = await withoutPhonesAlertedElsewhere(
-      input,
-      candidate,
-      tenantRecipients,
-      throttleHours,
-      now,
-    );
-    if (!recipients.length) {
-      skipped += 1;
-      continue;
-    }
-
-    let delivered = false;
-    for (const recipient of recipients) {
-      const queued = await input.queueWhatsApp(
-        candidate.message,
-        recipient.phone,
-      );
-      if (queued) delivered = true;
-    }
-    if (delivered) {
+    if (await queueAndLogInstantAlert(input, candidate, recipients)) {
       sent += 1;
-      await input.supabase.from("pulse_instant_alert_log").insert({
-        tenant_id: input.tenantId,
-        client_id: candidate.client_id,
-        rule_type: candidate.rule_type,
-        message: candidate.message,
-        recipient_phone: recipients.map((row) => row.phone).join(","),
-        campaign_key: candidate.campaign_key || null,
-        fingerprint: candidate.fingerprint || null,
-        severity_score: candidate.severity_score || null,
-        evidence: candidate.evidence || {},
-      });
     } else {
       skipped += 1;
     }

@@ -6,26 +6,15 @@ import {
   isSameInstantAlertFinding,
 } from "./instant-alert-dedupe.ts";
 
-/** A pulse_instant_alert_log whose every read fails. */
-function failingLog() {
-  const builder = {
-    select: () => builder,
-    eq: () => builder,
-    gte: () => builder,
-    order: () => builder,
-    limit: () => builder,
-    then: (resolve: (value: unknown) => void) =>
-      resolve({ data: null, error: { message: "connection reset" } }),
-  };
-  return { from: () => builder };
-}
-
 Deno.test("isInstantAlertSuppressed", async (t) => {
   await t.step(
     "a failed dedupe lookup suppresses the send instead of resending",
     async () => {
       const suppressed = await isInstantAlertSuppressed(
-        { supabase: failingLog(), tenantId: "t1" },
+        {
+          supabase: fakeSupabase([], { failing: ["pulse_instant_alert_log"] }),
+          tenantId: "t1",
+        },
         {
           client_id: "c1",
           client_name: "Acme",
