@@ -1,10 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { requireAuth } from "../_shared/security.ts";
-import {
-  authorizeTenantPublisher,
-  publishAccessLookups,
-} from "../_shared/tenant-publish-access.ts";
+import { publishAccessLookups } from "../_shared/tenant-publish-access.ts";
+import { authorizePostPublisher } from "./publish-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,7 +25,8 @@ serve(async (req) => {
 
   try {
     // The service role publishes as today; a signed-in user only a post of a
-    // tenant they belong to (AIO-234).
+    // tenant they belong to, and to a client's WordPress site only with access
+    // to that client (AIO-234).
     const auth = await requireAuth(req);
     if (!auth) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -59,10 +58,10 @@ serve(async (req) => {
       });
     }
 
-    const access = await authorizeTenantPublisher(
+    const access = await authorizePostPublisher(
+      supabase,
       auth,
-      post.tenant_id,
-      [],
+      post,
       publishAccessLookups(supabase),
     );
     if (!access.allowed) {

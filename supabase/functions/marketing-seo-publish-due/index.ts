@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/security.ts";
 import { timingSafeEqualStr } from "../_shared/timing-safe-equal.ts";
-import { authorizePublishTarget } from "../_shared/tenant-publish-access.ts";
+import { publishAccessLookups } from "../_shared/tenant-publish-access.ts";
+import { authorizeUserPublishTarget } from "./publish-target.ts";
 import {
   loadWordPressSite,
   publishToWordPress,
@@ -41,7 +42,8 @@ serve(async (req) => {
     } = await req.json().catch(() => ({}));
 
     // Only cron sweeps every tenant. The service role must name one entry or
-    // work item; a signed-in user, one of a tenant they belong to.
+    // work item; a signed-in user, one of a tenant they belong to and a client
+    // they can access.
     let scopeTenantId: string | null = null;
     if (!isCron) {
       const auth = await requireAuth(req);
@@ -49,17 +51,16 @@ serve(async (req) => {
       if (!entry_id && !work_item_id)
         return respond({ error: "entry_id or work_item_id required" }, 400);
       if (auth.kind === "user") {
-        // The row's tenant and its client (AIO-234).
-        const decision = await authorizePublishTarget(
-          auth,
+        const target = await authorizeUserPublishTarget(
           admin,
-          entry_id
-            ? { table: "seo_geo_calendar_entries", id: entry_id }
-            : { table: "marketing_work_items", id: work_item_id },
+          auth,
+          { entryId: entry_id, workItemId: work_item_id },
+          publishAccessLookups(admin),
         );
-        if (!decision.allowed)
-          return respond({ error: decision.error }, decision.status);
-        scopeTenantId = decision.tenantId;
+        if (!target.allowed) {
+          return respond({ error: target.error }, target.status);
+        }
+        scopeTenantId = target.tenantId;
       }
     }
 
