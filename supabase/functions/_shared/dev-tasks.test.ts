@@ -167,14 +167,26 @@ Deno.test(
   "dispatchDevTask sends a task a person approved, and reports one already sent",
   async () => {
     const approved = { ...DRAFT, status: "approved", approved_by: "user-1" };
-    // Past the approval check it goes on to the send, which needs its keys.
-    const error = await assertRejects(() =>
-      dispatchDevTask(taskDb(approved), {
-        tenantId: "tenant-1",
-        taskId: "task-1",
-      }),
+    // Past the approval check it goes on to the send, which needs its keys. The keys are
+    // removed here, so a machine that has them set never sends a real task to Cursor.
+    const keys = ["SUPABASE_URL", "CURSOR_MCP_BEARER"].map(
+      (name) => [name, Deno.env.get(name)] as const,
     );
-    assertEquals(error instanceof DevTaskNotApprovedError, false);
+    for (const [name] of keys) Deno.env.delete(name);
+    try {
+      await assertRejects(
+        () =>
+          dispatchDevTask(taskDb(approved), {
+            tenantId: "tenant-1",
+            taskId: "task-1",
+          }),
+        Error,
+        "CURSOR_MCP_BEARER missing",
+      );
+    } finally {
+      for (const [name, value] of keys)
+        if (value !== undefined) Deno.env.set(name, value);
+    }
     const sent = await dispatchDevTask(
       taskDb({
         ...DRAFT,
