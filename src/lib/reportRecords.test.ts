@@ -12,7 +12,7 @@ test("concurrent combined/table views share one authorised request", async () =>
     functions: {
       invoke: async () => {
         calls++;
-        return { data: [{ id: "row" }], error: null };
+        return { data: [{ id: "row", data: {} }], error: null };
       },
     },
   };
@@ -229,4 +229,21 @@ test("disabled weekly observer does not request records until enabled", async ()
     stop();
     cache.clear();
   }
+});
+
+test("rejects rows that do not match the record shape", async () => {
+  const cache = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  for (const data of [[{ id: "row" }], [{ id: 1, data: {} }], [null], {}]) {
+    const client = {
+      functions: { invoke: async () => ({ data, error: null }) },
+    };
+    await expect(
+      cache.fetchQuery(
+        reportRecordsQuery(client, `table-${JSON.stringify(data)}`, "all"),
+      ),
+    ).rejects.toThrow("Invalid report response");
+  }
+  cache.clear();
 });

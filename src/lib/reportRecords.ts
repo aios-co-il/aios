@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Tables } from "@/integrations/supabase/types";
 import {
   REPORT_QUERY_STALE_MS,
@@ -7,6 +8,10 @@ import {
 export type CrmRecord = Pick<Tables<"crm_records">, "id"> & {
   data: Record<string, unknown>;
 };
+
+const crmRecordsSchema = z.array(
+  z.object({ id: z.string(), data: z.record(z.unknown()) }).passthrough(),
+);
 
 type ReportClient = {
   functions: {
@@ -46,9 +51,9 @@ export function reportRecordsQuery(
         signal,
       });
       if (response.error) throw response.error;
-      if (!Array.isArray(response.data))
-        throw new Error("Invalid report response");
-      return response.data as CrmRecord[];
+      const parsed = crmRecordsSchema.safeParse(response.data);
+      if (!parsed.success) throw new Error("Invalid report response");
+      return parsed.data satisfies CrmRecord[];
     },
   };
 }
