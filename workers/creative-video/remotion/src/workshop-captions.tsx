@@ -8,6 +8,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import type { WorkshopCaption } from "./manifest";
+import { accentColours, captionLayout } from "./workshop-layout";
 
 const clamp = {
   extrapolateLeft: "clamp",
@@ -27,6 +28,8 @@ const Line: React.FC<{
   const appear = spring({ frame, fps, config: { damping: 18, mass: 0.5 } });
   const leave = interpolate(frame, [length - 5, length], [1, 0], clamp);
   const fontSize = Math.round(height * 0.042);
+  // The spoken word over the dark box: a dark brand colour is lightened to stay legible.
+  const said = accentColours(accent).text;
   return (
     <AbsoluteFill
       style={{
@@ -67,7 +70,7 @@ const Line: React.FC<{
               key={`${word.startFrame}-${index}`}
               style={{
                 display: "inline-block",
-                color: active ? accent : "white",
+                color: active ? said : "white",
                 opacity: spoken ? 1 : 0.55,
                 transform: `scale(${active ? 1 + 0.08 * pop : 1})`,
                 textShadow: "0 2px 10px rgba(0,0,0,0.55)",
@@ -83,30 +86,35 @@ const Line: React.FC<{
 };
 
 /**
- * A scene's own caption when the film has no word timings: a boxed line at the bottom, in from
- * below after the scene's transition, with an accent bar on its right.
+ * A scene's own on-screen text as a boxed line with an accent bar on its right, in after the
+ * scene's transition. Without word timings it sits at the bottom, where captions would; over
+ * spoken captions (`at` "top") it sits at the top of the frame, clear of a phone's top band.
  */
 export const SceneCaption: React.FC<{
   text: string;
   enter: number;
   accent: string;
-}> = ({ text, enter, accent }) => {
+  at: "top" | "bottom";
+}> = ({ text, enter, accent, at }) => {
   const frame = useCurrentFrame();
-  const { fps, height } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const layout = captionLayout(width, height);
   const appear = spring({
     frame: frame - enter,
     fps,
     config: { damping: 16, mass: 0.55 },
   });
+  // In from the nearest edge of the frame.
+  const away = at === "top" ? -28 : 28;
   return (
     <div
       dir="rtl"
       style={{
         position: "absolute",
         right: "6%",
-        bottom: "8%",
+        ...(at === "top" ? { top: layout.top } : { bottom: layout.bottom }),
         width: "88%",
-        transform: `translateY(${(1 - appear) * 28}px)`,
+        transform: `translateY(${(1 - appear) * away}px)`,
         opacity: appear,
       }}
     >
@@ -119,7 +127,7 @@ export const SceneCaption: React.FC<{
           width: 5,
           background: accent,
           transform: `scaleY(${appear})`,
-          transformOrigin: "bottom",
+          transformOrigin: at === "top" ? "top" : "bottom",
         }}
       />
       <div
@@ -127,7 +135,7 @@ export const SceneCaption: React.FC<{
           background: "rgba(6,16,28,0.78)",
           color: "white",
           fontWeight: 700,
-          fontSize: Math.round(height * 0.032),
+          fontSize: layout.sceneFontSize,
           lineHeight: 1.25,
           textAlign: "right",
           padding: "16px 22px 16px 18px",

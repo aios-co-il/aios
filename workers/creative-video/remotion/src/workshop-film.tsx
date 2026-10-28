@@ -23,6 +23,7 @@ import { KaraokeCaptions, SceneCaption } from "./workshop-captions";
 import { EndCard } from "./workshop-end-card";
 import { Kicker } from "./workshop-kicker";
 import { MotionCaptions } from "./workshop-motion-captions";
+import { sceneHeadline } from "./workshop-scene-text";
 import { SkinFlash, SkinSweep } from "./workshop-skin";
 import { TitleCard } from "./workshop-title-card";
 import {
@@ -110,9 +111,11 @@ const Picture: React.FC<{
   /** Frames of the next scene's skin switch over this scene's end (0 for another cut). */
   exitFrames: number;
   accent: string;
-  showCaption: boolean;
+  /** The scene's on-screen text to draw ("" for none), at the bottom or at the top. */
+  caption: string;
+  captionAt: "top" | "bottom";
   title: TitleMode;
-}> = ({ scene, enter, exitFrames, accent, showCaption, title }) => {
+}> = ({ scene, enter, exitFrames, accent, caption, captionAt, title }) => {
   const frame = useCurrentFrame();
   const { durationInFrames, fps } = useVideoConfig();
   const progress = interpolate(
@@ -123,7 +126,6 @@ const Picture: React.FC<{
   );
   const { scale, x, y } = camera(scene.move || "push", progress);
   const sheen = interpolate(progress, [0, 1], [-40, 140]);
-  const caption = showCaption ? (scene.caption || "").trim() : "";
   const kicker = title !== "none" ? (scene.kicker || "").trim() : "";
   const skin =
     scene.transition === "skin" && enter > 0
@@ -193,7 +195,12 @@ const Picture: React.FC<{
           {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
         </AbsoluteFill>
         {caption ? (
-          <SceneCaption text={caption} enter={enter} accent={accent} />
+          <SceneCaption
+            text={caption}
+            enter={enter}
+            accent={accent}
+            at={captionAt}
+          />
         ) : null}
         {kicker && title === "kicker" ? (
           <Kicker text={kicker} enter={enter} accent={accent} />
@@ -286,6 +293,16 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
     const start = starts[index];
     const enter = enterOf(index);
     const next = scenes[index + 1];
+    // Over spoken captions the scene's text shows at the top unless its title or the
+    // captions already show it; without them, as the scene's caption at the bottom.
+    const caption = spoken.length
+      ? sceneHeadline(
+          scene,
+          spoken,
+          start - enter,
+          start + scene.durationFrames,
+        )
+      : (scene.caption || "").trim();
     return (
       <Sequence
         key={scene.id}
@@ -297,7 +314,8 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
           enter={enter}
           exitFrames={next?.transition === "skin" ? enterOf(index + 1) : 0}
           accent={accent}
-          showCaption={!spoken.length}
+          caption={caption}
+          captionAt={spoken.length ? "top" : "bottom"}
           title={title}
         />
       </Sequence>
