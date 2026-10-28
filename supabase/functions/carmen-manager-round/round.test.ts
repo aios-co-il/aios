@@ -1,7 +1,17 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import { withConsoleErrors } from "../_shared/testing/console-errors.ts";
 import { runRound, tenantsToRun } from "./round.ts";
 import { deps } from "./tests/fakes.ts";
 import { rules, world } from "./tests/fake-world.ts";
+
+const request = {
+  tenantId: null,
+  clientId: null,
+  collectorIds: null,
+  dryRun: false,
+  fixtures: null,
+  now: null,
+};
 
 /** A tenant row with this mode (null: no stored settings) and last run. */
 const tenant = (
@@ -42,17 +52,32 @@ Deno.test("round", async (t) => {
         tenants: [tenant("t1", null, null), tenant("t2", "off", null)],
         failOn: "findings",
       });
-      const report = await runRound(deps(w), {
-        tenantId: null,
-        clientId: null,
-        collectorIds: null,
-        dryRun: false,
-        fixtures: null,
-        now: null,
-      });
+      const report = await runRound(deps(w), request);
       assertEquals(
         report.tenants.map((t) => [t.tenant_id, t.error ?? t.skipped ?? "ok"]),
         [["t1", "db down"]],
+      );
+    },
+  );
+
+  await t.step(
+    "runRound logs a lease failure and records it in heartbeat_logs",
+    async () => {
+      const w = world({
+        tenants: [tenant("t1", null, null)],
+        failOn: "lease",
+      });
+      const { result, logged } = await withConsoleErrors(() =>
+        runRound(deps(w), request),
+      );
+      assertEquals(
+        result.tenants.map((t) => [t.tenant_id, t.error]),
+        [["t1", "lease down"]],
+      );
+      assertStringIncludes(logged, "tenant t1 failed: lease down");
+      assertEquals(
+        w.heartbeats.map((row) => [row.tenant_id, row.status]),
+        [["t1", "error"]],
       );
     },
   );

@@ -8,14 +8,21 @@ export const MANAGER_ROUND_MIGRATION = new URL(
   import.meta.url,
 );
 
-/** The quoted values of the first `<marker> ( ... )` list after `anchor`. */
+/**
+ * The quoted values of the first `<marker> ( ... )` list after `anchor`;
+ * throws when either is missing, so a pin never reads the wrong list.
+ */
 export function quotedList(
   sql: string,
   anchor: string,
   marker: string,
 ): string[] {
   const from = sql.indexOf(anchor);
-  const open = sql.indexOf(marker, from) + marker.length;
+  const at = from < 0 ? -1 : sql.indexOf(marker, from);
+  if (at < 0) {
+    throw new Error(`migration list not found: ${anchor} ${marker}`);
+  }
+  const open = at + marker.length;
   const close = sql.indexOf(")", open);
   return [...sql.slice(open, close).matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
 }

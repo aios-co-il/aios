@@ -6,8 +6,9 @@ import type { TenantReport } from "./tenant-run.ts";
 
 /**
  * True when the run collected, wrote or failed to write the card, routed,
- * briefed, sent or failed. A failed card write is swallowed by design (the
- * rest go on), so its row is the only durable record of it.
+ * lost a routing gap, briefed, sent or failed. A failed card write is
+ * swallowed by design (the rest go on), so its row is the only durable record
+ * of it.
  */
 export function hasActivity(report: TenantReport): boolean {
   return (
@@ -17,6 +18,7 @@ export function hasActivity(report: TenantReport): boolean {
     (report.card_writes?.written ?? 0) > 0 ||
     (report.card_writes?.failed ?? 0) > 0 ||
     (report.routed ?? 0) > 0 ||
+    unexpectedDrops(report.gaps_dropped ?? {}) > 0 ||
     !!report.brief ||
     (report.dispatch?.messages ?? 0) > 0
   );

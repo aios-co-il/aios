@@ -20,6 +20,21 @@ Deno.test("hasActivity and roundLog", async (t) => {
     );
   });
 
+  await t.step(
+    "a routing gap the database did not store writes a row; a dismissed one does not",
+    () => {
+      const quiet = { tenant_id: "t", mode: "observe" as const, routed: 0 };
+      assertEquals(
+        hasActivity({ ...quiet, gaps_dropped: { conflict: 1 } }),
+        true,
+      );
+      assertEquals(
+        hasActivity({ ...quiet, gaps_dropped: { suppressed: 2 } }),
+        false,
+      );
+    },
+  );
+
   await t.step("the row carries counts, LLM use and the run kind", () => {
     const row = roundLog(
       {
