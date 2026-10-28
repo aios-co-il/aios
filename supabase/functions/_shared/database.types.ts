@@ -16492,6 +16492,10 @@ export type Database = {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
       };
+      tenant_holds_agency: {
+        Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };
+        Returns: boolean;
+      };
       try_acquire_manychat_destination_lock: {
         Args: { p_destination_key: string; p_ttl_seconds?: number };
         Returns: boolean;
