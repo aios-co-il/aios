@@ -53,6 +53,19 @@ const ANCHORS = new Set([
   "go",
 ]);
 
+/** The coding agents Carmen sends work to, by the names users write for them. */
+const AGENT_SPELLINGS = {
+  cursor: ["קרסר", "קורסור", "cursor"],
+  claude: ["קלוד", "claude"],
+  grok: ["גרוק", "grok"],
+  manus: ["מנוס", "מאנוס", "manus"],
+  github: ["גיטהאב", "github"],
+};
+
+export type DevAgent = keyof typeof AGENT_SPELLINGS;
+
+const AGENT_WORDS = Object.values(AGENT_SPELLINGS).flat();
+
 /** Words that may stand around the yes ("כן, תשלחי את זה לקרסר"). */
 const FILLERS = new Set([
   "את",
@@ -66,18 +79,8 @@ const FILLERS = new Set([
   "הפיתוח",
   "לפיתוח",
   "פיתוח",
-  "קרסר",
-  "לקרסר",
-  "קלוד",
-  "לקלוד",
-  "ל-קרסר",
-  "ל-קלוד",
-  "cursor",
-  "claude",
-  "ל-cursor",
-  "ל-claude",
-  "לcursor",
-  "לclaude",
+  // An agent's name, bare or after "to": "קרסר", "לקרסר", "ל-Claude".
+  ...AGENT_WORDS.flatMap((name) => [name, `ל${name}`, `ל-${name}`]),
   "code",
   "קוד",
   "עכשיו",
@@ -127,8 +130,10 @@ export function isExplicitDevTaskApproval(text: unknown): boolean {
 }
 
 /** A choice that asks whether to send a dev task ("לשלוח את משימת הפיתוח?", "לשלוח לקרסר?"). */
-const OFFER_LABEL =
-  /משימ(?:ת|ה|ות)\s+(?:ה)?פיתוח|לפיתוח|cursor|claude|קרסר|קורסור|קלוד/iu;
+const OFFER_LABEL = new RegExp(
+  `משימ(?:ת|ה|ות)\\s+(?:ה)?פיתוח|לפיתוח|${AGENT_WORDS.join("|")}`,
+  "iu",
+);
 
 /**
  * Carmen's message asks the user whether to send a dev task: a tap-to-answer choice about the
@@ -235,12 +240,12 @@ const time = (value: string | Date | null | undefined) =>
   value instanceof Date ? value.getTime() : Date.parse(String(value ?? ""));
 
 /** The coding agent the user's yes names ("כן, לקלוד"), if exactly one. */
-export function namedDevAgent(text: unknown): "cursor" | "claude" | null {
+export function namedDevAgent(text: unknown): DevAgent | null {
   const t = normalizeApprovalText(text).toLowerCase();
-  const cursor = /קרסר|קורסור|cursor/u.test(t);
-  const claude = /קלוד|claude/u.test(t);
-  if (cursor === claude) return null;
-  return cursor ? "cursor" : "claude";
+  const named = (Object.keys(AGENT_SPELLINGS) as DevAgent[]).filter((agent) =>
+    AGENT_SPELLINGS[agent].some((name) => t.includes(name)),
+  );
+  return named.length === 1 ? named[0] : null;
 }
 
 const agentOf = (task: { assigned_agent?: string | null }) =>
@@ -297,17 +302,45 @@ export function devTaskApprovalDecision(
   return { ok: true };
 }
 
-/** Connector tools that start new work at Cursor or Claude (a dev task, a research run). */
-const DIRECT_DEV_SEND =
-  /^(?:mcp_(?:Cursor|Claude)__)?(?:request_dev_task|ask_cursor|ask_claude)$/;
-
-const DIRECT_ASK =
-  "ספרי למשתמש במשפט מה תשלחי ולמי (Cursor או Claude), ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. שולחים רק אחרי 'כן' שלו בהודעה הבאה; השרת מסרב באותה הודעה שבה ביקש.";
+/** A connector's tool that starts new work at a coding agent: a dev task or a research run. */
+const CONNECTOR_SEND =
+  /^(?:mcp_([A-Za-z0-9_-]+?)__)?(?:request_dev_task|ask_(cursor|claude|grok|manus))$/;
 
 /**
- * Why a direct send to Cursor or Claude (mcp_Cursor__request_dev_task, ask_claude, ...) may not
- * run now, or null: like a dev task, it waits for the user's own plain yes in an AIOS chat to
- * Carmen's previous message, which offered it. Other tools are not sends and are never refused.
+ * The coding agent a tool call starts, or undefined when it starts none: a connector's
+ * request_dev_task or ask_* (Cursor, Claude, Grok, Manus), the GitHub agent, or Cursor through
+ * the CRM task queue. Replying into a session the user already sent (reply_to_cursor_session)
+ * or moving the queue on (complete_human_task) starts none. The agent is null when the
+ * connector's name does not say which one it is.
+ */
+function codingAgentStarted(
+  toolName: string,
+  args: Record<string, unknown>,
+): DevAgent | null | undefined {
+  if (toolName === "delegate_to_github_agent") return "github";
+  if (toolName === "assign_task_to_cursor") return "cursor";
+  // take_task hands a task to Cursor's queue when agent_name names Cursor (run-ai-agent).
+  if (toolName === "take_task")
+    return /cursor/i.test(String(args.agent_name ?? "")) ? "cursor" : undefined;
+  const match = CONNECTOR_SEND.exec(toolName);
+  if (!match) return undefined;
+  const [, connection, asked] = match;
+  if (asked) return asked as DevAgent;
+  // The bare legacy request_dev_task is Cursor's.
+  return connection ? namedDevAgent(connection) : "cursor";
+}
+
+const DIRECT_ASK =
+  "ספרי למשתמש במשפט מה תשלחי ולמי (Cursor, Claude, Grok, Manus או סוכן GitHub), ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. שולחים רק אחרי 'כן' שלו בהודעה הבאה; השרת מסרב באותה הודעה שבה ביקש.";
+
+const DIRECT_MISMATCH =
+  "המשתמש ביקש סוכן אחר מזה שאת שולחת אליו. ספרי לו למי זה נשלח, ושאלי שוב: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]].";
+
+/**
+ * Why a tool call that starts a coding agent (mcp_Cursor__request_dev_task, mcp_Grok__ask_grok,
+ * delegate_to_github_agent, assign_task_to_cursor, ...) may not run now, or null: like a dev
+ * task, it waits for the user's own plain yes in an AIOS chat to Carmen's previous message,
+ * which offered it, and a yes that names an agent names this one. Other tools are never refused.
  */
 export function directDevSendRefusal(
   toolName: string,
@@ -316,8 +349,10 @@ export function directDevSendRefusal(
     userText?: string | null;
     lastAssistantText?: string | null;
   },
+  args: Record<string, unknown> = {},
 ): { error: string; message: string } | null {
-  if (!DIRECT_DEV_SEND.test(toolName)) return null;
+  const agent = codingAgentStarted(toolName, args);
+  if (agent === undefined) return null;
   if (!turn.appChatUser)
     return { error: "dev_task_approval_not_app_chat", message: NOT_APP_CHAT };
   if (
@@ -325,15 +360,18 @@ export function directDevSendRefusal(
     !offersDevTask(turn.lastAssistantText)
   )
     return { error: "dev_send_needs_yes", message: DIRECT_ASK };
-  const agent = /claude/i.test(toolName) ? "claude" : "cursor";
   const named = namedDevAgent(turn.userText);
   if (named && named !== agent)
     return {
       error: "dev_task_approval_target_mismatch",
-      message: REFUSAL_MESSAGES.target_mismatch,
+      message: DIRECT_MISMATCH,
     };
   return null;
 }
+
+/** The tools that start a coding agent, as Carmen's rules name them. */
+const DIRECT_SENDS =
+  "request_dev_task ו-ask_* של mcp_Cursor__, mcp_Claude__, mcp_Grok__ ו-mcp_Manus__, delegate_to_github_agent, assign_task_to_cursor";
 
 /**
  * How a dev task is sent outside the workshop, for a caller allowed to send one: in an AIOS chat
@@ -342,9 +380,10 @@ export function directDevSendRefusal(
  */
 export function devTaskSendRule(appChat: boolean): string {
   return appChat
-    ? "\n\n✋ **שליחה ל-Cursor או ל-Claude (חובה):** משימת פיתוח (create_dev_task) או שליחה ישירה (mcp_Cursor__request_dev_task, ask_cursor, mcp_Claude__*): ספרי במשפט מה תשלחי ולמי, ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. " +
-        "approve_dev_task ואז dispatch_dev_task (או השליחה הישירה) רק אחרי 'כן' של המשתמש בהודעה הבאה; השרת מסרב באותה הודעה, גם כשהמשתמש כבר כתב 'שלחי'."
-    : "\n\n✋ **שליחה ל-Cursor או ל-Claude (חובה):** מכאן לא שולחים: פתחי משימה עם create_dev_task, ואמרי למשתמש שהיא מחכה לאישור שלו במרכז משימות הפיתוח באפליקציה (כפתור 'שלח').";
+    ? `\n\n✋ **שליחה לסוכן קוד (חובה):** משימת פיתוח (create_dev_task) או שליחה ישירה (${DIRECT_SENDS}): ספרי במשפט מה תשלחי ולמי, ושאלי: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. ` +
+        "approve_dev_task ואז dispatch_dev_task (או השליחה הישירה) רק אחרי 'כן' של המשתמש בהודעה הבאה; השרת מסרב באותה הודעה, גם כשהמשתמש כבר כתב 'שלחי'. " +
+        "תשובה בתוך סשן שהמשתמש כבר שלח (reply_to_cursor_session) לא צריכה אישור חדש."
+    : `\n\n✋ **שליחה לסוכן קוד (חובה, גובר על כל הנחיה אחרת):** מכאן לא שולחים לאף סוכן קוד (${DIRECT_SENDS}): פתחי משימה עם create_dev_task, ואמרי למשתמש שהיא מחכה לאישור שלו במרכז משימות הפיתוח באפליקציה (כפתור 'שלח').`;
 }
 
 const WORKSHOP_OFFER =

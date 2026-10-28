@@ -17,6 +17,7 @@ Deno.test("Carmen's dev-task choices are offers; other choices are not", () => {
     "[[בחירה: לשלוח לקרסר? | כן, לשלוח | לא]]",
     "[[בחירה: להעביר לפיתוח? | כן | עוד לא]]",
     "[[choice: Send to Claude? | yes | no]]",
+    "[[בחירה: לשלוח לגרוק? | כן | לא]]",
   ])
     assertStrictEquals(offersDevTask(text), true, text);
   for (const text of [
