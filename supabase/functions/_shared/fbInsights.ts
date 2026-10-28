@@ -1,4 +1,7 @@
-import { metaObjectiveGoal } from "./meta-ads/campaign-objectives.ts";
+import {
+  metaObjectiveGoal,
+  type FacebookCampaignType,
+} from "./meta-ads/campaign-objectives.ts";
 
 // Shared Facebook Insights → CRM record logic.
 //
@@ -67,7 +70,7 @@ export interface InsightRecord {
   roas: number;
   campaign_objective: string | null;
   optimization_goal: string | null;
-  campaign_type: "lead" | "ecommerce" | "traffic" | "other";
+  campaign_type: FacebookCampaignType;
   /** Facebook Page and Instagram profile follows attributed to the ads. */
   new_followers: number;
   /** Where the ad set sends people (WEBSITE, FACEBOOK_PAGE, INSTAGRAM_PROFILE, …). */
@@ -926,7 +929,7 @@ export function buildInsightRecord(
       "link_clicks",
       "landing_page_views",
     ].includes(configuredMetric.kind);
-  const campaignType: "lead" | "ecommerce" | "traffic" | "other" =
+  const campaignType: FacebookCampaignType =
     isEcommerceObjective || configuredEcommerce
       ? "ecommerce"
       : isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized

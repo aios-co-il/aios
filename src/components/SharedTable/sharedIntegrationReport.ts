@@ -68,7 +68,6 @@ export function sharedIntegrationReport(
   const manualRoi = summary
     ? sharedManualRoiFigures({
         leadRows: campaigns.leads,
-        summary,
         integrationSettings,
       })
     : null;
