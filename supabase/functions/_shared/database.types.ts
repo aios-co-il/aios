@@ -12559,6 +12559,53 @@ export type Database = {
           },
         ];
       };
+      task_notification_holds: {
+        Row: {
+          created_at: string;
+          hold_key: string;
+          hold_reason: string;
+          hold_until: string;
+          id: string;
+          notification_type: string;
+          release_result: Json | null;
+          released_at: string | null;
+          request_body: Json;
+          task_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          hold_key?: string;
+          hold_reason?: string;
+          hold_until: string;
+          id?: string;
+          notification_type: string;
+          release_result?: Json | null;
+          released_at?: string | null;
+          request_body: Json;
+          task_id: string;
+        };
+        Update: {
+          created_at?: string;
+          hold_key?: string;
+          hold_reason?: string;
+          hold_until?: string;
+          id?: string;
+          notification_type?: string;
+          release_result?: Json | null;
+          released_at?: string | null;
+          request_body?: Json;
+          task_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_notification_holds_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       task_updates: {
         Row: {
           attachments: Json | null;

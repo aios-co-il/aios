@@ -34,7 +34,8 @@ import {
   scopeSnapshotsForPlan,
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
-import { deliverInstantPulseAlerts } from "../_shared/pulse-instant-alerts.ts";
+import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
+import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -269,12 +270,13 @@ Deno.serve(async (req) => {
     const retention = await runDailyClientRetention(supabase, body.tenant_id);
     return json(retention, retention.error ? 500 : 200);
   }
-  // Only explicit deliver:true may send WhatsApp — sync crons refresh snapshots only.
+  // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
+  // Instant alerts: see gatedInstantAlerts.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
-    body.force_delivery === true && body.source === "approved_manual_trigger";
+    body.force_delivery === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const previewOnlyDelivery =
-    body.preview_only === true && body.source === "approved_manual_trigger";
+    body.preview_only === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const campaignerNameFilter =
     manualDeliveryBypass && typeof body.campaigner_name === "string"
       ? body.campaigner_name.trim()
@@ -877,10 +879,10 @@ Deno.serve(async (req) => {
       .eq("id", tenantId)
       .maybeSingle();
     const tenantSlug = tenantRow?.slug || tenantId;
-    let instantAlerts = { sent: 0, skipped: 0, candidates: 0, analyzed: 0 };
+    let instantAlerts = noInstantAlerts();
     if (snapshots.length) {
       try {
-        instantAlerts = await deliverInstantPulseAlerts({
+        instantAlerts = await gatedInstantAlerts(setting, body, {
           supabase,
           tenantId,
           tenantSlug,

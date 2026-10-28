@@ -17,4 +17,8 @@ export const APPROVAL_ERROR_MESSAGES_HE: Readonly<Record<string, string>> =
     unknown_tool: "אין מנגנון ביצוע לפעולה הזו",
     // 401 from the edge function: the browser session is no longer valid.
     unauthorized: "צריך להתחבר מחדש",
+    // run-ai-agent decision tools in a run no person typed (AIO-241).
+    approval_not_allowed_in_automation:
+      "אוטומציה לא מאשרת ולא דוחה בקשות ממתינות.",
+    approval_not_allowed_in_task: "משימה לא מאשרת ולא דוחה בקשות ממתינות.",
   });
