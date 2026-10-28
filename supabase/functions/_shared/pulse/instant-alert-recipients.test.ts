@@ -22,6 +22,7 @@ function tables() {
       { tenant_id: TENANT, user_id: "m-2", role: "team_manager" },
       { tenant_id: TENANT, user_id: "o-1", role: "owner" },
       { tenant_id: TENANT, user_id: "o-2", role: "agency_owner" },
+      { tenant_id: TENANT, user_id: "o-4", role: "owner" },
       { tenant_id: TENANT, user_id: "c-1", role: "campaigner" },
       { tenant_id: "tenant-b", user_id: "m-3", role: "team_manager" },
       { tenant_id: "tenant-b", user_id: "o-3", role: "owner" },
@@ -49,6 +50,12 @@ function tables() {
         campaigners: { phone: "0500000025" },
       },
       {
+        id: "o-4",
+        full_name: "Inactive Owner",
+        status: "inactive",
+        campaigners: { phone: "0500000028" },
+      },
+      {
         id: "c-1",
         full_name: "Campaigner",
         campaigners: { phone: "0500000026" },
@@ -69,7 +76,7 @@ function tables() {
 
 Deno.test("resolveInstantAlertRecipients", async (t) => {
   await t.step(
-    "report recipients first, then the owners, then the agency's managers",
+    "report recipients first, then the active owners, then the agency's managers",
     async () => {
       const recipients = await resolveInstantAlertRecipients(
         fakeSupabase(tables()),

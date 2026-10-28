@@ -100,7 +100,8 @@ async function managersOfAgency(
 }
 
 /**
- * Campaigner phone and name of each user, in the order of userIds. userIds
+ * Campaigner phone and name of each active user, in the order of userIds.
+ * Inactive profiles are not staff, as in carmen_report_staff_rows. userIds
  * come from this tenant's user_roles; profiles.tenant_id is a user's home
  * organization, so filtering on it would drop staff of several organizations.
  */
@@ -113,7 +114,7 @@ async function staffPhones(
   }
   const { data: profiles, error } = await supabase
     .from("profiles")
-    .select("id, full_name, campaigners ( phone )")
+    .select("id, full_name, status, campaigners ( phone )")
     .in("id", userIds);
   if (error) {
     console.warn(
@@ -127,7 +128,7 @@ async function staffPhones(
   );
   return userIds.flatMap((id) => {
     const profile = byId.get(id);
-    return profile
+    return profile && profile.status !== "inactive"
       ? [
           {
             phone: profile.campaigners?.phone ?? null,
