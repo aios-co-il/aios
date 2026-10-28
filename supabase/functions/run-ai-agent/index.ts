@@ -132,6 +132,13 @@ import {
 } from "./approvals/chat-text.ts";
 import { approvalDisplayCode } from "./approvals/codes.ts";
 import {
+  approvalDecisionRefusal,
+  approvalScopedTools,
+  isApprovalDecisionTool,
+  isAutomationRun,
+  runMayDecideApprovals,
+} from "./approvals/decision-scope.ts";
+import {
   postApprovalDecision,
   runApprovalExecutor,
 } from "./approvals/executor.ts";
@@ -195,6 +202,11 @@ import {
   pulseSurfacePrefersWhatsAppDigest,
   selectPulseCriticalAlerts,
 } from "../_shared/campaign-pulse.ts";
+import {
+  NO_RECENT_CLIENT_CALL_TEXT,
+  normalizePulseRowClientCall,
+  pulseRowHasNoRecentClientCall,
+} from "../_shared/pulse/client-call.ts";
 import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
@@ -7261,7 +7273,6 @@ async function executeTool(
           .order("calculated_at", { ascending: false });
         if (args.client_id) query = query.eq("client_id", args.client_id);
         if (args.agency_id) query = query.eq("agency_id", args.agency_id);
-        if (args.status) query = query.eq("status", args.status);
         if (callerManagedAgencyIds && callerManagedAgencyIds.length > 0) {
           query = query.in("agency_id", callerManagedAgencyIds);
         }
@@ -7309,15 +7320,19 @@ async function executeTool(
           freshestByClient.set(row.client_id, row);
         }
       }
-      let normalizedRows = Array.from(freshestByClient.values()).map(
-        (row: any) => ({
-          ...row,
-          client_name: row.clients?.name || null,
-          agency_name: row.agencies?.name || null,
-          clients: undefined,
-          agencies: undefined,
-        }),
-      );
+      // Status is performance-only; no_recent_client_call is the separate contact flag (AIO-227).
+      // Filter status here, not in SQL: a legacy call-only warning reads as healthy only after normalising.
+      let normalizedRows = Array.from(freshestByClient.values())
+        .map((row: any) =>
+          normalizePulseRowClientCall({
+            ...row,
+            client_name: row.clients?.name || null,
+            agency_name: row.agencies?.name || null,
+            clients: undefined,
+            agencies: undefined,
+          }),
+        )
+        .filter((row) => !args.status || row.status === args.status);
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
         const { data: links, error: linksError } = await supabase
@@ -7416,7 +7431,11 @@ async function executeTool(
             (client: any) => client.client_id === row.client_id,
           );
           const agencyName = snapshotRow?.agency_name;
-          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(fmtDate(snapshotRow?.last_client_call_at))} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
+          const lastCall = fmtDate(snapshotRow?.last_client_call_at);
+          const callCell = snapshotRow?.no_recent_client_call
+            ? `${lastCall} · ${NO_RECENT_CLIENT_CALL_TEXT}`
+            : lastCall;
+          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(callCell)} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
         }),
       ];
       const { data: tenantRow } = await supabase
@@ -7427,6 +7446,9 @@ async function executeTool(
       const tenantSlug = tenantRow?.slug || tenantId;
       const dashboardUrl = buildPulseDashboardAbsoluteUrl(tenantSlug);
       const statusCounts = countPulseStatuses(goalRows);
+      const noRecentClientCallCount = normalizedRows.filter(
+        pulseRowHasNoRecentClientCall,
+      ).length;
       const criticalIssues = await loadPulseCriticalIssues(
         supabase,
         accessibleTenantIds,
@@ -7445,6 +7467,7 @@ async function executeTool(
           count: 0,
           freshness: null,
           status_counts: statusCounts,
+          no_recent_client_call_count: 0,
           dashboard_url: dashboardUrl,
           whatsapp_digest: null,
           rows: preferDigest ? undefined : [],
@@ -7463,6 +7486,7 @@ async function executeTool(
           count: goalRows.length,
           freshness: normalizedRows[0]?.calculated_at || null,
           status_counts: statusCounts,
+          no_recent_client_call_count: noRecentClientCallCount,
           dashboard_url: dashboardUrl,
           whatsapp_digest: whatsappDigest,
           formatted_markdown: null,
@@ -7478,13 +7502,14 @@ async function executeTool(
         count: normalizedRows.length,
         freshness: normalizedRows[0]?.calculated_at || null,
         status_counts: statusCounts,
+        no_recent_client_call_count: noRecentClientCallCount,
         dashboard_url: dashboardUrl,
         whatsapp_digest: whatsappDigest,
         manual_overrides: manualOverrides,
         rows: normalizedRows,
         formatted_markdown: tableLines.join("\n"),
         instructions_to_agent:
-          "בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
+          "status משקף ביצועי קמפיין ונתונים בלבד. היעדר שיחה מתועדת עם הלקוח מופיע בנפרד ב-no_recent_client_call וב-no_recent_client_call_count, ואינו הופך לקוח ל'תשומת לב'. בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
     }
     case "analyze_campaign_performance": {
@@ -13409,7 +13434,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
-import { bindRunAgentCaller } from "./caller-trust.ts";
+import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -13453,6 +13478,8 @@ async function handleRunAgent(
       bodyJson.pin_skills_only === true &&
       Array.isArray(task_skills) &&
       task_skills.length > 0;
+    const automationRun = isAutomationRun(bodyJson);
+    const mayDecideApprovals = runMayDecideApprovals(bodyJson, surface);
     console.log(
       `[AGENT] Starting run: agent=${bodyAgentId}, command="${command_text?.substring(0, 80)}", surface=${surface}, stream=${!!emit}, pin_skills_only=${pinSkillsOnly}`,
     );
@@ -13517,7 +13544,7 @@ async function handleRunAgent(
     // lead_data is service-only: stripped from user-JWT requests in Deno.serve.
     let callerCampaignerId: string | null = null;
     let callerName: string | null = user_name || null;
-    const callerPhone = lead_data?.phone || null;
+    const callerPhone = runCallerPhone(bodyJson);
     if (callerPhone && resolvedTenantId) {
       // Normalize: take last 9 digits for comparison
       const normalizedPhone = callerPhone.replace(/[^0-9]/g, "").slice(-9);
@@ -13561,10 +13588,14 @@ async function handleRunAgent(
       callerUserId = resolvedUserId;
     }
     if (callerUserId) {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", callerUserId);
+        .eq("user_id", callerUserId)
+        .or(`tenant_id.eq.${resolvedTenantId},tenant_id.is.null`);
+      if (rolesError) {
+        throw rolesError;
+      }
       const roleList = (roles || []).map((r: any) => r.role);
       // Priority order
       const order = [
@@ -13630,7 +13661,8 @@ async function handleRunAgent(
       (surface === "internal_chat" ||
         surface === "aios" ||
         surface === "grok_bot") &&
-      callerUserId
+      callerUserId &&
+      !automationRun
     ) {
       if (conversation_id) {
         const { data: existingConversation } = await supabase
@@ -13700,7 +13732,8 @@ async function handleRunAgent(
       const m = cmdRaw.match(TRIGGER_RE);
       const looksLikeInstruction =
         !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
-      if (looksLikeInstruction && resolvedTenantId) {
+      // An automation's text is not someone teaching Carmen (AIO-241).
+      if (looksLikeInstruction && resolvedTenantId && !automationRun) {
         // Extract the surrounding sentence/paragraph (split on . ! ? newlines, max ~400 chars)
         const triggerIdx = m!.index ?? 0;
         const before =
@@ -14800,7 +14833,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const rebuildToolsForApi = () => {
       toolsForAPI.length = 0;
       toolsForAPI.push(
-        ...buildToolApiEntries(filteredTools, promotedToolNames, tokenOptimize),
+        ...buildToolApiEntries(
+          approvalScopedTools(filteredTools, mayDecideApprovals),
+          promotedToolNames,
+          tokenOptimize,
+        ),
       );
       toolsForAPI.push(
         ...buildToolApiEntries(
@@ -15075,7 +15112,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const userSaidApprove = approvalReply.approve;
     const userSaidReject = approvalReply.reject;
     let approvalPick: ApprovalPick | null = null;
-    if (isCarmen && !pinSkillsOnly && (userSaidApprove || userSaidReject)) {
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      mayDecideApprovals &&
+      (userSaidApprove || userSaidReject)
+    ) {
       approvalPick = await loadApprovalPick(supabase, resolvedTenantId, {
         ...approvalConversation,
         userId: callerUserId,
@@ -15096,6 +15138,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (
       isCarmen &&
       !pinSkillsOnly &&
+      mayDecideApprovals &&
       userSaidApprove &&
       approvalPick &&
       isDeterministicApprovalPick(approvalPick, String(command_text || ""))
@@ -15626,6 +15669,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
+          } else if (!mayDecideApprovals && isApprovalDecisionTool(toolName)) {
+            result = approvalDecisionRefusal(toolName, bodyJson, surface);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {
