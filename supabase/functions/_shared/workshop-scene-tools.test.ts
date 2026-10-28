@@ -920,7 +920,11 @@ const madeStills = () =>
     })),
   });
 
-const storyboard = (db: ReturnType<typeof memoryDb>, userText: string) =>
+const storyboard = (
+  db: ReturnType<typeof memoryDb>,
+  userText: string,
+  lastAssistant = "",
+) =>
   executeWorkshopTool(
     db,
     "tenant-1",
@@ -932,7 +936,7 @@ const storyboard = (db: ReturnType<typeof memoryDb>, userText: string) =>
     },
     async () => {},
     null,
-    { userText },
+    { userText, lastAssistant },
   ) as Promise<Row>;
 
 Deno.test(
@@ -966,6 +970,39 @@ Deno.test(
       assertEquals(
         db.tables.marketing_video_scenes.some((scene) => scene.id === "s-1"),
         false,
+      );
+    }
+  },
+);
+
+Deno.test(
+  "a tapped yes to Carmen's question about a new storyboard replaces the paid one",
+  async () => {
+    // The refusal tells Carmen to ask with this button; the tap sends only "כן".
+    const refusal = await storyboard(madeStills(), "תנסי שוב");
+    const question = String(refusal.error).match(/\[\[בחירה:[^\]]*\]\]/)?.[0];
+    assertMatch(String(question), /\| כן \| לא\]\]$/);
+    const asked = `לסטוריבורד הזה כבר יש תמונות בתשלום.\n${question}`;
+    const db = madeStills();
+    const replaced = await storyboard(db, "כן", asked);
+    assertStrictEquals(replaced.success, true, JSON.stringify(replaced));
+    assertEquals(
+      db.tables.marketing_video_scenes.some((scene) => scene.id === "s-1"),
+      false,
+    );
+    // A no, or a yes to another question, keeps the paid stills, even when the message names
+    // the new storyboard.
+    for (const [userText, lastAssistant] of [
+      ["לא", asked],
+      ["כן", "הסטוריבורד החדש מוכן.\n[[בחירה: להפיק את הסרט? | כן | לא]]"],
+      ["כן", "רוצה סטוריבורד חדש במקום הקיים?"],
+    ]) {
+      const kept = madeStills();
+      const refused = await storyboard(kept, userText, lastAssistant);
+      assertMatch(String(refused.error), /סיפור חדש/, lastAssistant);
+      assertEquals(
+        kept.tables.marketing_video_scenes.map((scene) => scene.id),
+        ["s-1", "s-2"],
       );
     }
   },

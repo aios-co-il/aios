@@ -50,12 +50,7 @@ export async function workshopStoryboard(ctx: ToolContext) {
   const old = await loadScenes(supabase, tenantId, itemId);
   if (old.length > 0 && args.replace !== true)
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
-  const keepsPaid = await paidReplaceRefusal(
-    supabase,
-    tenantId,
-    old,
-    deps.userText,
-  );
+  const keepsPaid = await paidReplaceRefusal(supabase, tenantId, old, deps);
   if (keepsPaid) return keepsPaid;
   const rows = input.map((scene, index) => ({
     id: crypto.randomUUID(),

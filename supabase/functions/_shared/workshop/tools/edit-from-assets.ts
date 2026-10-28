@@ -31,8 +31,7 @@ export async function workshopEditFromAssets(ctx: ToolContext) {
   const built = await buildEditScenes(supabase, tenantId, itemId, args, {
     loadAssets: (id) => loadAssets(supabase, tenantId, id),
     loadScenes: (id) => loadScenes(supabase, tenantId, id),
-    replaceRefusal: (old) =>
-      paidReplaceRefusal(supabase, tenantId, old, deps.userText),
+    replaceRefusal: (old) => paidReplaceRefusal(supabase, tenantId, old, deps),
   });
   if ("error" in built) return built;
   await savePayload(supabase, tenantId, itemId, {

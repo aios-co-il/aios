@@ -1,6 +1,8 @@
+import { isExplicitApprovalPhrase } from "../wa-approval-flow.ts";
 import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { type Db } from "./db.ts";
 import { type StartProjectPlan } from "./defaults.ts";
+import { tappedAnswers } from "./tapped-answers.ts";
 
 export const briefPayload = (plan: StartProjectPlan, brief: string) => ({
   brief_text: brief,
@@ -69,6 +71,29 @@ export const asksForNewStory = (text: string | null | undefined) =>
   STORY_NOUN.test(String(text ?? "")) &&
   STORY_CHANGE_WORD.test(String(text ?? ""));
 
+/** The question Carmen asks before she replaces a storyboard that cost money. */
+const NEW_STORYBOARD_QUESTION =
+  "[[בחירה: סטוריבורד חדש במקום הקיים? | כן | לא]]";
+
+/**
+ * The user asked for a new story in their own words, or tapped yes to Carmen's question about one
+ * (a tap sends only "כן"). A yes to any other question is not one.
+ */
+function wantsNewStory(turn: {
+  userText?: string | null;
+  lastAssistant?: string | null;
+}) {
+  if (asksForNewStory(turn.userText)) return true;
+  const answers = tappedAnswers(
+    String(turn.lastAssistant ?? ""),
+    String(turn.userText ?? ""),
+  );
+  return Object.entries(answers).some(
+    ([question, answer]) =>
+      asksForNewStory(question) && isExplicitApprovalPhrase(answer),
+  );
+}
+
 /**
  * Replacing a storyboard deletes its scenes, and with them the stills and clips that were paid
  * for. Only the user's own material and a free preview cost nothing; an asset that cannot be
@@ -79,12 +104,12 @@ export async function paidReplaceRefusal(
   supabase: Db,
   tenantId: string,
   old: Record<string, any>[],
-  userText: string | null | undefined,
+  turn: { userText?: string | null; lastAssistant?: string | null },
 ): Promise<{ error: string } | null> {
   const ids = old
     .flatMap((scene) => [scene.still_asset_id, scene.clip_asset_id])
     .filter((id): id is string => typeof id === "string" && id !== "");
-  if (ids.length === 0 || asksForNewStory(userText)) return null;
+  if (ids.length === 0 || wantsNewStory(turn)) return null;
   const { data } = await supabase
     .from("marketing_assets")
     .select("id, meta")
@@ -100,8 +125,7 @@ export async function paidReplaceRefusal(
   );
   if (ids.every((id) => free.has(id))) return null;
   return {
-    error:
-      "לסטוריבורד הזה כבר יש תמונות או סרטונים בתשלום, והמשתמש לא ביקש סיפור חדש. אל תחליפי אותו: דווחי למשתמש מה נכשל, או שאלי אם הוא רוצה סטוריבורד חדש.",
+    error: `לסטוריבורד הזה כבר יש תמונות או סרטונים בתשלום, והמשתמש לא ביקש סיפור חדש. אל תחליפי אותו: דווחי למשתמש מה נכשל, או שאלי אם הוא רוצה סטוריבורד חדש, בדיוק עם השאלה הזו: ${NEW_STORYBOARD_QUESTION}`,
   };
 }
 
