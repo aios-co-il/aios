@@ -2,7 +2,6 @@ import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { ACME, fakeSupabase, run, WEDNESDAY } from "./fake-alert-log.ts";
 import {
   decideInstantAlertDelivery,
-  isInstantAlertSuppressed,
   isSameInstantAlertFinding,
 } from "./instant-alert-dedupe.ts";
 
@@ -10,22 +9,13 @@ Deno.test("isInstantAlertSuppressed", async (t) => {
   await t.step(
     "a failed dedupe lookup suppresses the send instead of resending",
     async () => {
-      const suppressed = await isInstantAlertSuppressed(
-        {
-          supabase: fakeSupabase([], { failing: ["pulse_instant_alert_log"] }),
-          tenantId: "t1",
-        },
-        {
-          client_id: "c1",
-          client_name: "Acme",
-          rule_type: "connection_lost",
-          message: "",
-          fingerprint: "connection_lost:c1:open",
-        },
-        24,
-        WEDNESDAY,
-      );
-      assertStrictEquals(suppressed, true);
+      const supabase = fakeSupabase([], {
+        failing: ["pulse_instant_alert_log"],
+      });
+      const { result, sends } = await run(supabase, WEDNESDAY);
+      assertEquals(sends, []);
+      assertStrictEquals(result.sent, 0);
+      assertStrictEquals(result.skipped, 2);
     },
   );
 });
