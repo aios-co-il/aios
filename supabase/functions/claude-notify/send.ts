@@ -122,8 +122,8 @@ function planMeta(plan: TenantNotifyPlan) {
     automation_id: plan.transport.automationId,
     integration_id: plan.transport.integrationId,
     source: plan.target.source,
-    ...(plan.reportRecipientsError
-      ? { report_recipients_error: plan.reportRecipientsError }
+    ...(plan.reportRecipientsUnavailable
+      ? { report_recipients_unavailable: true }
       : {}),
   };
 }

@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
   });
 
   // A failed report-list read leaves the staff chain below to decide; each
-  // response names the bypass (JSON drops the field when there is no error).
+  // response flags the bypass (JSON drops the field when the list was read).
   const [reportList, { data: sessions }, { data: campaigners }] =
     await Promise.all([
       loadNotifyReportRecipients(sb, tenantId, "manus-notify"),
@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
         target.reason ||
         "no resolvable Carmen WhatsApp recipient for this tenant",
       source: target.source,
-      report_recipients_error: reportList.error ?? undefined,
+      report_recipients_unavailable: reportList.unavailable || undefined,
     });
   }
 
@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
       reason: "no Carmen WhatsApp automation/session bridge for this tenant",
       source: target.source,
       chat_id: delivery.chatId,
-      report_recipients_error: reportList.error ?? undefined,
+      report_recipients_unavailable: reportList.unavailable || undefined,
     });
   }
 
@@ -239,6 +239,6 @@ Deno.serve(async (req) => {
     phone: delivery.phoneNumber,
     contact_name: target.contactName,
     source: target.source,
-    report_recipients_error: reportList.error ?? undefined,
+    report_recipients_unavailable: reportList.unavailable || undefined,
   });
 });

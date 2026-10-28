@@ -46,22 +46,23 @@ export async function loadCarmenReportRecipients(
 
 /**
  * loadCarmenReportRecipients for a notify to one person (claude-notify,
- * manus-notify): a failed read is logged and returned, and the notify keeps
- * its staff session chain.
+ * manus-notify): a failed read is logged here and returned only as
+ * `unavailable`, because these senders answer an HTTP caller and Postgres
+ * error text stays out of responses. The notify keeps its staff session chain.
  */
 export async function loadNotifyReportRecipients(
   db: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
   sender: string,
-): Promise<LoadedReportRecipients> {
-  const report = await loadCarmenReportRecipients(db, tenantId);
-  if (report.error) {
+): Promise<NotifyReportRecipients> {
+  const { error, ...report } = await loadCarmenReportRecipients(db, tenantId);
+  if (error) {
     console.warn(`[${sender}] report recipients unavailable`, {
       tenantId,
-      error: report.error,
+      error,
     });
   }
-  return report;
+  return { ...report, unavailable: error !== null };
 }
 
 /**
@@ -90,4 +91,8 @@ export function warnListUnreachable(
 
 export type LoadedReportRecipients = CarmenReportRecipients & {
   error: string | null;
+};
+
+export type NotifyReportRecipients = CarmenReportRecipients & {
+  unavailable: boolean;
 };
