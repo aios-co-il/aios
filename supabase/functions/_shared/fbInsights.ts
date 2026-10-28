@@ -876,7 +876,7 @@ export function buildInsightRecord(
   if (configuredMetric) {
     results = Math.max(
       0,
-      ...configuredMetric.actionTypes.map((type) => sumByTypes([type])),
+      ...configuredMetric.actionTypes.map((type: string) => sumByTypes([type])),
     );
     resultKind = configuredMetric.kind;
   }
