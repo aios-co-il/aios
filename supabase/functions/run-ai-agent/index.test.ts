@@ -15,6 +15,9 @@ const read = (path: string) =>
   Deno.readTextFileSync(new URL(path, import.meta.url));
 const runAiAgent = read("./index.ts");
 
+// These steps read index.ts as text: handleRunAgent is too large to run with
+// fakes here. A handler-level test waits for its prompt assembly and tool pool
+// to move out of index.ts (AIO-123).
 Deno.test("run-ai-agent index.ts", async (t) => {
   await t.step(
     "run-ai-agent appends the pulse block after the V1/V2 branch and wires the refresh tool",
