@@ -9,6 +9,7 @@ import {
   resolveCampaignDeliveryStatus,
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
+import { hasRepeatedSyncFailures } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
 import {
   isLegacyClientCallFlag,
   stripLegacyClientCallFlag,
@@ -969,7 +970,9 @@ function resolveLastSyncAt(table: PulseCampaignTable): string | null {
   )[0];
 }
 
+/** Same rule as the snapshot (campaign-pulse.ts isSyncStale). */
 function isSyncStale(table: PulseCampaignTable, nowMs = Date.now()): boolean {
+  if (hasRepeatedSyncFailures(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
