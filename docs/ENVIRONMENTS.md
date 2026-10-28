@@ -95,6 +95,7 @@ The following setup is documented for these environments; Vercel variables, Supa
 - Every source request uses the Supabase **read-only** query endpoint. Fingerprints detect changes even if `updated_at` was not maintained. Only changed rows are transferred. Parent rows load before children. Deletion mirroring requires explicit approval and a manual `--apply-deletes` run; runs only insert/update. Import transactions restore the prior USER-trigger state and keep FK checks enabled.
 - A newer Staging revision supersedes an older deployment/mirror run. Each completed import transaction keeps its row checkpoint; the new run closes the gate, verifies containment, and resumes. Report definitions/records and their dependency chain load before unrelated history tables.
 - Staging-only test rows are retained. Existing Staging schema, RLS policies, function bodies, operational queues, credentials and environment/agent connections are not replaced by a data refresh. New user IDs are provisioned for data/RLS relations without cloning passwords or sessions; existing Staging logins remain unchanged. A new identity that matches an old Staging invitation fails reconciliation rather than activating the invitation's permissions. New integration parent rows are inactive placeholders until configured in Staging.
+- The video job queue `marketing_runs` is one of those operational queues, so it is not mirrored. The render worker drains it on Staging and on each PR preview, and a Production run mirrored in as queued would be made and paid for a second time there. Every run the Staging drain claims was created on Staging. The rows mirrored before the queue was excluded are marketing-pipeline runs with no `kind`, which `claim_video_run` never takes (read-only check on 2026-10-28: 57 of Staging's 66 rows, none queued or running).
 - Structural differences fail preflight instead of replaying Production's migration history over Staging. The additive reconciliation SQL adds the observed missing report columns only.
 - Import joins use equality on validated non-null keys so PostgreSQL can use primary-key lookups; typed batch rows are expanded once with `jsonb_populate_recordset`.
 - Legacy IDs are aligned only for reviewed, unambiguous logical keys in module permissions, menu items, monthly SEO updates and global skills. The transaction refuses inbound foreign keys or a canonical ID already in use, preserves record fields, records the ID mapping privately and suppresses user-trigger side effects. Conflicting Carmen instructions and referenced route/tag IDs remain explicit rejections.
@@ -126,6 +127,16 @@ Supabase Staging already allows `https://*.vercel.app/**` as redirect URLs. Goog
 **Workaround:** email + password on Staging works if Google is not configured yet.
 
 Branch protection on `main` / `develop` is a GitHub settings change; the freshness and shared-agency guards must be required. Local checkouts still need Staging variables before running the frontend.
+
+## Video render workers
+
+The render worker claims paid media jobs (`marketing_runs`) for one environment at a time:
+
+- **Production:** only a Droplet container built from `main` (`render-worker/README.md`, "One container per environment").
+- **Staging:** `.github/workflows/render-worker.yml` runs `develop`'s worker every 10 minutes. One REST request first checks for a waiting run, and the run installs nothing when there is none. The Staging ref comes from the repo secret `SUPABASE_STAGING_PROJECT_ID`.
+- **PR previews:** `.github/workflows/render-worker-preview.yml` drains a PR's own Supabase preview branch, found under `PROD_PROJECT_REF`, on every push and on "Run workflow", and keeps listening 15 minutes after the queue empties.
+
+Neither GitHub drain claims Production runs. Both resolve their service key with `BASE_ACCESS_TOKEN` before anything from the branch is checked out or installed. A Staging or preview tenant with real provider keys pays for the jobs these drains run.
 
 ## Agent working rules
 
