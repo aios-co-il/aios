@@ -71,6 +71,32 @@ test("copy, creative and unassigned SEO projects can be assigned", () => {
   }
 });
 
+test("picking the client the project already has assigns nothing", async () => {
+  const onAssign = vi.fn();
+  const pick = async (item: WorkshopListRow) => {
+    const { unmount } = render(
+      <TooltipProvider>
+        <WorkshopAssignControl
+          tenantId="tenant-1"
+          item={item}
+          onAssign={onAssign}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    await screen.findByText("בחר סוכנות");
+    // The last one is the popover's option; an unassigned picker is labelled the same.
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /ללא לקוח/ }).at(-1) as HTMLElement,
+    );
+    unmount();
+  };
+  await pick(row({ client_id: null, client_name: null }));
+  expect(onAssign).not.toHaveBeenCalled();
+  await pick(row({ department_hint: "copy" }));
+  expect(onAssign).toHaveBeenCalledWith(null);
+});
+
 test("busy disables the picker while an assignment runs", () => {
   render(
     <TooltipProvider>

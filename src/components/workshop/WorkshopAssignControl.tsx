@@ -32,7 +32,10 @@ export function WorkshopAssignControl({
       tenantId={tenantId}
       value={item.client_id}
       valueLabel={item.client_name}
-      onChange={onAssign}
+      // The client it already has: nothing to assign.
+      onChange={(clientId) => {
+        if (clientId !== item.client_id) onAssign(clientId);
+      }}
       allowGeneral
       generalLabel={UNASSIGNED_LABEL}
       disabled={locked || busy}
