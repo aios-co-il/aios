@@ -2600,6 +2600,76 @@ Deno.test(
 );
 
 Deno.test(
+  "a film cut from the user's own videos is quoted for the narration and music it gets",
+  async () => {
+    // Nothing is animated, but produce_video narrates the whole script and makes a music bed.
+    const line = "א".repeat(500);
+    const asked = (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { clip_asset_id: "own-1", voiceover_text: line }),
+          scene("s-2", { clip_asset_id: "own-2", voiceover_text: line }),
+        ],
+      }),
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", sound_design: false },
+      async () => {},
+      null,
+      { defaultEngine: async () => "elevenlabs" as const },
+    )) as Record<string, any>;
+    assertStrictEquals(asked.needs_budget, true);
+    // 1000 characters at $0.12, and a bed for 6 s planned (15.4 s with headroom) at $0.50 a minute.
+    assertStrictEquals(asked.estimated_usd, 0.25);
+  },
+);
+
+Deno.test(
+  "a narration that reads the script in the film's voice and its music bed are not quoted again",
+  async () => {
+    const line = "א".repeat(500);
+    const produce = async (args: Record<string, unknown> = {}) => {
+      const db = fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { clip_asset_id: "own-1", voiceover_text: line }),
+          scene("s-2", { still_asset_id: "still-2", voiceover_text: line }),
+        ],
+        "rpc:video_narration_ready": true,
+        "marketing_assets:select": [
+          { id: "m-1", type: "music", url: "item-1/music/bed.mp3" },
+        ],
+        "rpc:produce_video": { status: "working", clips: 1 },
+      });
+      await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, sound_design: false, ...args },
+        async () => {},
+        null,
+        { defaultEngine: async () => "elevenlabs" as const },
+      );
+      return (
+        db.calls.find((c) => c.table === "rpc:produce_video")?.value as Record<
+          string,
+          any
+        >
+      ).p_estimate;
+    };
+    const again = await produce();
+    // Scene 2's 3 s become a 4 s ElevenLabs clip at $0.15 a second.
+    assertStrictEquals(again.clips.usd, 0.6);
+    assertStrictEquals(again.voice.usd, 0);
+    assertStrictEquals(again.music.usd, 0);
+    // A new voice narrates the whole script again.
+    const tamar = await produce({ voice_id: "p7J75VowGmxi3K0it9lN" });
+    assertStrictEquals(tamar.voice.usd, 0.12);
+  },
+);
+
+Deno.test(
   "the closing call to action Carmen gives is kept for the film's end card",
   async () => {
     const db = fakeDb({
@@ -2655,6 +2725,83 @@ Deno.test(
       ),
       false,
     );
+  },
+);
+
+/** fakeDb whose work item keeps the payload last written to it, as the database would. */
+function savingDb(script: Record<string, any>) {
+  const db = fakeDb(script);
+  const from = db.from;
+  db.from = (table: string) => {
+    const builder = from(table) as Record<string, any>;
+    if (table !== "marketing_work_items") return builder;
+    const update = builder.update as (value: unknown) => unknown;
+    builder.update = (value: Record<string, any>) => {
+      if (value?.payload)
+        script["marketing_work_items:select"] = {
+          ...script["marketing_work_items:select"],
+          payload: value.payload,
+        };
+      return update(value);
+    };
+    return builder;
+  };
+  return db;
+}
+
+Deno.test(
+  "a production that never started gives its quote back to the budget",
+  async () => {
+    const produce = async (answer: Record<string, unknown>) => {
+      const script: Record<string, any> = {
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        ...answer,
+      };
+      script["marketing_work_items:select"].payload.workshop_budget = {
+        cap_usd: 20,
+        spent_usd: 1,
+        unit_usd: {},
+      };
+      await executeWorkshopTool(
+        savingDb(script),
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1" },
+        async () => {},
+        null,
+        { defaultEngine: async () => "elevenlabs" as const },
+      );
+      return script["marketing_work_items:select"].payload.workshop_budget;
+    };
+    for (const answer of [
+      { "rpc:produce_video:error": "stage missing" },
+      {
+        "rpc:produce_video": {
+          status: "failed",
+          error: "no clips to assemble",
+        },
+      },
+      // Another production already runs: this call queued nothing.
+      {
+        "rpc:produce_video": {
+          status: "running",
+          clips: 0,
+          voices: 0,
+          music: 0,
+        },
+      },
+    ]) {
+      const budget = await produce(answer);
+      assertStrictEquals(budget.spent_usd, 1, JSON.stringify(answer));
+    }
+    // A production that started keeps its quote on the budget.
+    const started = await produce({
+      "rpc:produce_video": { status: "working", clips: 1 },
+    });
+    assert(started.spent_usd > 1);
   },
 );
 

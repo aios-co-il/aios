@@ -78,6 +78,26 @@ Deno.test(
 );
 
 Deno.test(
+  "a message that only contains the code approves nothing at the start of the turn",
+  () => {
+    const at = new Date("2026-10-25T14:05:00Z");
+    const asked = requestBudget(
+      {},
+      4,
+      "turn-1",
+      "tok-2026",
+      new Date("2026-10-25T14:00:00Z"),
+    );
+    assertStrictEquals(asked.request.code, "2026");
+    assertStrictEquals(
+      approveFromMessage(asked.payload, "סרטון לקמפיין 2026", at),
+      null,
+    );
+    assert(approveFromMessage(asked.payload, "מאשר תקציב 2026", at));
+  },
+);
+
+Deno.test(
   "pictures a cut-off request left pending turn into failed pages",
   async () => {
     const { failStalePictures } = await import("./turn-note.ts");

@@ -152,6 +152,9 @@ async function refreshStoryboardPage(
   }
 }
 
+/** workshop_edit_scene_text refuses while the film is being produced (object_in_use). */
+const FILM_IN_PRODUCTION = "55006";
+
 /**
  * Saves the texts the user changed on one scene (on-screen text, narration, dialogue). The card
  * shows them at once; a failed save puts the old texts back and says so. `edit`: the film is cut
@@ -196,9 +199,13 @@ export function useEditSceneText(
         );
       return { before };
     },
-    onError: (_error, _vars, context) => {
+    onError: (error, _vars, context) => {
       if (context?.before) queryClient.setQueryData(queryKey, context.before);
-      toast.error("לא הצלחנו לשמור את הטקסט של הסצנה");
+      toast.error(
+        (error as { code?: string } | null)?.code === FILM_IN_PRODUCTION
+          ? "הסרט בהפקה עכשיו. אפשר לשנות את הטקסט כשההפקה מסתיימת."
+          : "לא הצלחנו לשמור את הטקסט של הסצנה",
+      );
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });

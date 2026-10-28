@@ -241,6 +241,11 @@ export interface ProductionOptions {
   withMusic: boolean;
   /** Trailer sound effects, made in the production's render (see SOUND_EFFECTS_USD). */
   withSoundEffects?: boolean;
+  /**
+   * The whole storyboard, when only some scenes are animated: produce_video narrates the whole
+   * script again and makes one bed for the whole film, so withVoice and withMusic price these.
+   */
+  film?: CostScene[];
 }
 
 /** Everything produce_video will queue for scenes that have a still and no clip yet. */
@@ -250,8 +255,9 @@ export function productionEstimate(
   options: ProductionOptions,
 ) {
   const clips = clipEstimate(engine, scenes);
+  const film = options.film ?? scenes;
   // A talking scene is not narrated; its own line is priced with its lip sync.
-  const spoken = scenes.filter(
+  const spoken = film.filter(
     (scene) => !scene.lipsync && scene.voiceover_text.trim(),
   );
   const voice =
@@ -259,7 +265,7 @@ export function productionEstimate(
       ? voiceEstimate(spoken)
       : { usd: 0, credits: 0 };
   const music = options.withMusic
-    ? musicEstimate(scenes)
+    ? musicEstimate(film)
     : { usd: 0, credits: 0 };
   const talking = lipsyncEstimate(engine, scenes);
   const lipsync = { usd: talking.usd, credits: talking.credits };
@@ -280,10 +286,6 @@ export function productionEstimate(
   };
 }
 
-/**
- * The price to approve. The worker moves a clip that a paid engine refuses to OpenRouter when
- * the tenant has it (render-worker/src/clip-fallback.mjs), so the quote covers the dearer one.
- */
 /**
  * A talking scene on an engine that cannot speak goes through the worker's lip-sync chain, which
  * ends at OpenRouter Veo when the tenant has it (render-worker providers/lipsync.mjs): quote that.
@@ -349,8 +351,11 @@ export function relipEstimate(
 }
 
 /**
- * The quote for the scenes produce_video animates, plus `relip`: talking scenes kept as they are
- * that only need a new voice line and lip sync (relipEstimate).
+ * The price to approve: the scenes produce_video animates, plus `relip`, talking scenes kept as
+ * they are that only need a new voice line and lip sync (relipEstimate). The narration and music
+ * it makes are priced for `options.film` when given (the workshop passes the whole storyboard).
+ * The worker moves a clip that a paid engine refuses to OpenRouter when the tenant has it
+ * (render-worker/src/clip-fallback.mjs), so the quote covers the dearer one.
  */
 export function quotedProductionEstimate(
   engine: SceneEngine,

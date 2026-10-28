@@ -80,8 +80,21 @@ const OUTSIDE_TOOLS = [
   "assign_task_to_cursor",
 ];
 
-const WORKSHOP_BLOCKED_TOOLS = new Set([...APPROVAL_TOOLS, ...OUTSIDE_TOOLS]);
+/**
+ * Paid steps outside the project budget: a picture here is made by workshop_make_creative or
+ * workshop_make_stills, which go through the budget gate first (their deps.generateImage then
+ * runs the image code itself, never through Carmen's tool call). The studio's buttons have their
+ * own cost window and spend outside the budget too.
+ */
+const UNBUDGETED_TOOLS = ["generate_ad_image", "studio_ui_action"];
+
+const WORKSHOP_BLOCKED_TOOLS = new Set([
+  ...APPROVAL_TOOLS,
+  ...OUTSIDE_TOOLS,
+  ...UNBUDGETED_TOOLS,
+]);
 const APPROVAL_TOOL_SET = new Set(APPROVAL_TOOLS);
+const UNBUDGETED_TOOL_SET = new Set(UNBUDGETED_TOOLS);
 
 /**
  * Tenant connector tools (mcp_<Connector>__*): Gmail, WordPress, Meta Ads, SQL and others can
@@ -103,7 +116,9 @@ export function workshopBlockedResult(toolName: string) {
     error: "not_in_workshop",
     message: APPROVAL_TOOL_SET.has(toolName)
       ? "אישורים של וואטסאפ ומטא לא מטופלים מהסדנה. המשיכי בעבודה על הפרויקט."
-      : "מהסדנה לא מפרסמים, לא שולחים הודעות ולא משנים דברים מחוץ ללוח. אמרי למשתמש שאת זה עושים מחוץ לסדנה, והמשיכי בעבודה על הפרויקט.",
+      : UNBUDGETED_TOOL_SET.has(toolName)
+        ? "בסדנה כל שלב בתשלום עובר דרך תקציב הפרויקט: תמונה נוצרת עם workshop_make_creative (או workshop_make_stills לסצנות), וסרט עם workshop_produce_video."
+        : "מהסדנה לא מפרסמים, לא שולחים הודעות ולא משנים דברים מחוץ ללוח. אמרי למשתמש שאת זה עושים מחוץ לסדנה, והמשיכי בעבודה על הפרויקט.",
   };
 }
 

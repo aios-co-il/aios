@@ -1,6 +1,6 @@
 import { spendBudget } from "../budget.ts";
 import { imageFormatsFrom } from "../defaults.ts";
-import { gatePaid } from "../gate.ts";
+import { gatePaid, refundMissing } from "../gate.ts";
 import { productionRunning } from "../production.ts";
 import { loadProject, savePayload, voiceHelpers } from "../project-io.ts";
 import { asRecord, creativeStageFor, recordArtifact } from "../record.ts";
@@ -61,6 +61,38 @@ async function relipScenes(
         talkingLine(scene.meta, scene.voiceover_text),
       ),
   );
+}
+
+/**
+ * What produce_video makes for the whole film besides the clips: a narration when the current one
+ * does not read the script in the film's voice (video_narration_ready; a new voice narrates
+ * again), and a music bed when the film has none. A check that cannot be read counts as due, so
+ * the quote never leaves them out.
+ */
+async function soundDue(
+  supabase: ToolContext["supabase"],
+  tenantId: string,
+  itemId: string,
+  newVoice: boolean,
+) {
+  try {
+    const ready = newVoice
+      ? null
+      : await supabase.rpc("video_narration_ready", { p_item_id: itemId });
+    const { data } = await supabase
+      .from("marketing_assets")
+      .select("id, type, url")
+      .eq("tenant_id", tenantId)
+      .eq("item_id", itemId)
+      .eq("type", "music")
+      .limit(5);
+    const bed = (Array.isArray(data) ? data : []).some(
+      (row: Scene) => row.type === "music" && String(row.url ?? "") !== "",
+    );
+    return { narration: ready?.data !== true, music: !bed };
+  } catch {
+    return { narration: true, music: true };
+  }
 }
 
 export async function workshopProduceVideo(ctx: ToolContext) {
@@ -206,16 +238,30 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     choice: args.sound_design,
     userText: deps.userText,
   });
+  // The narration is checked against this voice; a new one re-narrates the film.
+  const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
+  // Narration and music are made for the whole film, also when no scene is animated (a film cut
+  // from the user's own videos, or one line changed).
+  const due = await soundDue(
+    supabase,
+    tenantId,
+    itemId,
+    voiceId !== narrationVoiceId(undefined, video.voice_id),
+  );
   const estimate = quotedProductionEstimate(
     engine,
     costScenes,
-    { withVoice, withMusic, withSoundEffects: soundDesign },
+    {
+      withVoice: withVoice && due.narration,
+      withMusic: withMusic && due.music,
+      withSoundEffects: soundDesign,
+      film: scenes.map(costSceneOf),
+    },
     deps.videoConnections ? await deps.videoConnections() : {},
     relip,
   );
   // Narration needs a voice the user chose after hearing it.
-  const chosenVoice = narrationVoiceId(args.voice_id, video.voice_id);
-  if ((withVoice || talking) && !chosenVoice)
+  if ((withVoice || talking) && !voiceId)
     return await chooseVoice(
       {},
       voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
@@ -269,8 +315,12 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     typeof args.cta_text === "string"
       ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 120)
       : "";
-  const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
   const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
+  // The quote is charged before the RPC (the payload's video settings must be saved first); a
+  // production that never started gives it back.
+  const units = costScenes.length + relip.length || 1;
+  const refund = () =>
+    refundMissing(supabase, tenantId, itemId, "workshop_produce_video", units);
   try {
     await savePayload(
       supabase,
@@ -289,7 +339,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
           },
         },
         "workshop_produce_video",
-        costScenes.length + relip.length || 1,
+        units,
       ),
     );
   } catch (error) {
@@ -317,7 +367,8 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     p_music_prompt: musicPrompt,
     p_generate_audio: false,
   });
-  if (produced.error)
+  if (produced.error) {
+    await refund();
     return {
       error: [
         produced.error.message,
@@ -327,18 +378,24 @@ export async function workshopProduceVideo(ctx: ToolContext) {
         .filter(Boolean)
         .join(" | "),
     };
+  }
   const state = asRecord(produced.data);
-  // A production that failed at once gets no pending film page (it would spin forever).
-  if (state.status === "failed")
+  // A production that failed at once queued nothing paid, and gets no pending film page (it
+  // would spin forever).
+  if (state.status === "failed") {
+    await refund();
     return {
       success: false,
       status: "failed",
       error: String(state.error ?? "ההפקה נכשלה"),
     };
+  }
+  // produce_video's lock: another production runs, and this call queued nothing.
   const alreadyRunning =
     state.status === "running" &&
     Number(state.clips ?? 0) + Number(state.voices ?? 0) === 0 &&
     Number(state.music ?? 0) === 0;
+  if (alreadyRunning) await refund();
   const open = alreadyRunning ? await pendingFilm() : null;
   if (alreadyRunning && open?.data)
     return runningReply(engine, clientId, open.data);

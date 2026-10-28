@@ -546,6 +546,43 @@ Deno.test(
 );
 
 Deno.test(
+  "a scene is not changed while its film is being produced",
+  async () => {
+    // The running production would lip-sync a new line, or miss its narration, unpriced.
+    const producing = (startedAt: string) =>
+      film({
+        marketing_work_items: [
+          project({
+            payload: payload({
+              video: {
+                voice_id: "yael-voice",
+                production: { status: "running", started_at: startedAt },
+              },
+            }),
+          }),
+        ],
+      });
+    const db = producing(new Date().toISOString());
+    const refused = await update(db, {
+      scene_id: "s-2",
+      lipsync: true,
+      dialogue: "שורה חדשה",
+    });
+    assertMatch(String(refused.error), /בהפקה/);
+    assertStrictEquals(refused.production_running, true);
+    assertStrictEquals(sceneUpdates(db).length, 0);
+    // produce_video's own lock: a production started over an hour ago was cut off.
+    const cutOff = producing(new Date(Date.now() - 2 * 3600_000).toISOString());
+    const changed = await update(cutOff, {
+      scene_id: "s-2",
+      overlay_text: "חדש",
+    });
+    assertStrictEquals(changed.success, true);
+    assertStrictEquals(String(changed.message).includes("הפקה רצה"), false);
+  },
+);
+
+Deno.test(
   "a change that changes nothing is reported, not written",
   async () => {
     const db = film();
