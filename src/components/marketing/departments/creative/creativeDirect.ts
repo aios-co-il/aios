@@ -7,11 +7,7 @@ export const CREATIVE_DIRECT_LABEL_HE = "קריאייטיב דיירקט";
 
 export const CREATIVE_DIRECT_SKIN_SLUG = "creative_direct";
 
-/**
- * Standing skill read by the image chat. It must keep telling the chat to honor
- * the four-fact JOB BRIEF (JOB BRIEF, Critical reference URLs, Project style,
- * STYLE CHANGE) that `CREATIVE_DIRECT_JOB_PREAMBLE` hands over per job.
- */
+/** Standing skill; its JOB BRIEF contract is noted at the top of the file. */
 export const CREATIVE_DIRECT_SKILL_PATH =
   ".cursor/skills/creative-direct/SKILL.md";
 
