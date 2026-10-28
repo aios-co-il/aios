@@ -105,46 +105,6 @@ export function publishAccessLookups(
   };
 }
 
-export type PublishTarget = {
-  table: "seo_geo_calendar_entries" | "marketing_work_items";
-  id: string;
-};
-
-export type PublishTargetDecision =
-  | { allowed: true; tenantId: string }
-  | { allowed: false; status: 401 | 403 | 404; error: string };
-
-/** Decide whether `caller` may publish the row `target` names: the row's
- * tenant and its client, as authorizeTenantPublisher decides them. A missing
- * row is 404; a failed lookup throws rather than reading as missing. */
-export async function authorizePublishTarget(
-  caller: PublishCaller,
-  db: PublishAccessDb,
-  target: PublishTarget,
-  lookups: PublishAccessLookups = publishAccessLookups(db),
-): Promise<PublishTargetDecision> {
-  const { data, error } = await db
-    .from(target.table)
-    .select("tenant_id, client_id")
-    .eq("id", target.id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    const what =
-      target.table === "marketing_work_items" ? "Work item" : "Entry";
-    return { allowed: false, status: 404, error: `${what} not found` };
-  }
-  const decision = await authorizeTenantPublisher(
-    caller,
-    data.tenant_id,
-    [data.client_id],
-    lookups,
-  );
-  return decision.allowed
-    ? { allowed: true, tenantId: data.tenant_id }
-    : decision;
-}
-
 /** Why a WordPress site may not be used for a row of `tenantId`/`clientId`,
  * or null when it may. A site of another tenant is never allowed; a site tied
  * to a client must be that client's. */
