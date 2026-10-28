@@ -5,8 +5,9 @@
  * budget / 30, or $1 when no budget is set; a share of 0 turns the model off
  * (markers only). The month spend is the project's, as the health probe sums
  * it (UTC month, every tenant's LLM tables), because the OpenAI key and its
- * budget are project-wide today. Calls of this run are added as they finish,
- * since the usage log is written asynchronously.
+ * budget are project-wide today (the tenant's own spend: AIO-252 phase 2).
+ * Calls of this run are added as they finish, since the usage log is written
+ * asynchronously.
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import { jerusalemYmd } from "../../../_shared/calendarTimeZone.ts";

@@ -52,9 +52,42 @@ Deno.test("createReviewCache", async (t) => {
     );
   });
 
+  await t.step(
+    "reads many threads in requests of at most 100 keys, all of the tenant",
+    async () => {
+      const keys = Array.from({ length: 250 }, (_, i) => `group:${i}@g.us`);
+      const { db, calls } = recordingClient((call) =>
+        inList(call.query.get("thread_key")).includes("group:249@g.us")
+          ? [
+              {
+                thread_key: "group:249@g.us",
+                last_reviewed_message_id: "m9",
+                verdict,
+              },
+            ]
+          : [],
+      );
+      const cached = await createReviewCache(db, TENANT).load(keys);
+      assertEquals(
+        calls.map((call) => inList(call.query.get("thread_key")).length),
+        [100, 100, 50],
+      );
+      assertEquals(
+        calls.every((call) => call.query.get("tenant_id") === `eq.${TENANT}`),
+        true,
+      );
+      assertEquals(cached.get("group:249@g.us")?.messageId, "m9");
+    },
+  );
+
   await t.step("nothing to load, no query", async () => {
     const { db, calls } = recordingClient();
     assertEquals((await createReviewCache(db, TENANT).load([])).size, 0);
     assertEquals(calls.length, 0);
   });
 });
+
+/** The values of a PostgREST `in.(...)` filter. */
+function inList(filter: string | null | undefined): string[] {
+  return (filter ?? "").replace(/^in\.\(|\)$/g, "").split(",");
+}

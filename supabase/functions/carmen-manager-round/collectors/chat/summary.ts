@@ -1,8 +1,8 @@
 /**
  * The Hebrew line staff receive for a chat finding. A group open to the team
- * (staff write there) is quoted (at most 200 characters). A direct chat, or a
- * group no team member writes in, is never quoted: the line carries only the
- * time and a link to the chat.
+ * (staff write there) is quoted (at most QUOTE_MAX characters). A direct
+ * chat, or a group no team member writes in, is never quoted: the line
+ * carries only the time and a link to the chat.
  */
 import { clip } from "./clip.ts";
 import { israelDayAndClock } from "./israel-time.ts";
@@ -47,7 +47,7 @@ export function complaintSummary(
   );
 }
 
-/** The client message to quote (groups open to the team only), cut to 200 characters. */
+/** The client message to quote (groups open to the team only), cut to QUOTE_MAX. */
 export function quoteOf(
   thread: Thread,
   turns: Turn[],

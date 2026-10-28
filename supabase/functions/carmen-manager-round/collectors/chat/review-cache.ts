@@ -10,6 +10,12 @@ import { type ChatVerdict, parseStoredVerdict } from "./verdict.ts";
 
 export type CachedReview = { messageId: string; verdict: ChatVerdict };
 
+/**
+ * Thread keys per request: each is sent URL-encoded in the query string, and a
+ * tenant's first run can ask about hundreds of groups.
+ */
+const KEYS_PER_READ = 100;
+
 export type ReviewCache = {
   /** Stored verdicts by thread key. */
   load(threadKeys: string[]): Promise<Map<string, CachedReview>>;
@@ -23,17 +29,18 @@ export type ReviewCache = {
 export function createReviewCache(db: DbClient, tenantId: string): ReviewCache {
   return {
     async load(threadKeys) {
-      if (!threadKeys.length) {
-        return new Map();
+      const rows = [];
+      for (let at = 0; at < threadKeys.length; at += KEYS_PER_READ) {
+        const { data, error } = await db
+          .from("carmen_chat_thread_reviews")
+          .select("thread_key, last_reviewed_message_id, verdict")
+          .eq("tenant_id", tenantId)
+          .in("thread_key", threadKeys.slice(at, at + KEYS_PER_READ));
+        throwIf(error, "carmen_chat_thread_reviews");
+        rows.push(...(data ?? []));
       }
-      const { data, error } = await db
-        .from("carmen_chat_thread_reviews")
-        .select("thread_key, last_reviewed_message_id, verdict")
-        .eq("tenant_id", tenantId)
-        .in("thread_key", threadKeys);
-      throwIf(error, "carmen_chat_thread_reviews");
       return new Map(
-        (data ?? []).flatMap((row) => {
+        rows.flatMap((row) => {
           const verdict = parseStoredVerdict(row.verdict);
           return verdict
             ? [

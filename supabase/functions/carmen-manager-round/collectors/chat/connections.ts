@@ -4,7 +4,8 @@
  * the tenant (the operator's own phone), or are shared with the whole
  * organisation (connection_visibility 'org', which every member already sees
  * in Chat). Carmen's Manus line and Meta business numbers store rows under
- * their own provider and are not read until David decides to monitor them.
+ * their own provider and are not read until David decides to monitor them
+ * (AIO-252 phase 2).
  * Nothing is ever sent through these lines.
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";

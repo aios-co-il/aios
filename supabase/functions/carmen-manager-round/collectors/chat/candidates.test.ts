@@ -47,7 +47,8 @@ Deno.test("requestCandidates", async (t) => {
       ),
     );
     assert(found.summary_he.endsWith("ועדיין לא קיבל מענה (5 שעות עסקיות)"));
-    const quote = String(found.evidence.quote);
+    const quote = found.evidence.quote;
+    assert(typeof quote === "string");
     assertEquals([quote.length, quote.endsWith("…")], [200, true]);
     assertEquals(found.source_event_at, il("09:05"));
   });
@@ -55,7 +56,8 @@ Deno.test("requestCandidates", async (t) => {
   await t.step("an emoji at the quote's cut is kept whole or dropped", () => {
     const text = `אפשר לעדכן? ${"א".repeat(186)}🙏 תודה רבה על הכל`;
     const [found] = requestCandidates([review(teamGroup(text), asks)], noLink);
-    const quote = String(found.evidence.quote);
+    const quote = found.evidence.quote;
+    assert(typeof quote === "string");
     assert(!LONE_SURROGATE.test(quote), JSON.stringify(quote));
     assert(!LONE_SURROGATE.test(found.summary_he));
     assertEquals(quote.endsWith("🙏…"), true);

@@ -73,7 +73,7 @@ export function dbChatSources(
   };
 }
 
-/** gpt-4o-mini in JSON mode, logged under the tenant. */
+/** The chat model (AI_CHAT_MODEL) in JSON mode, logged under the tenant. */
 function modelAsk(tenantId: string): AskModel {
   return async (prompt) => {
     let costUsd = 0;

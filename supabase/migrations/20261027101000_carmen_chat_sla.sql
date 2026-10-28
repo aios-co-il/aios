@@ -359,9 +359,10 @@ GRANT EXECUTE ON FUNCTION public.get_unlinked_client_groups(uuid, uuid[], timest
 -- project_month_usd: the project's LLM spend since p_month_start, the sum the
 -- health probe guards (ai_usage_log, agent_action_log and marketing_runs of
 -- every tenant), because the OpenAI key and its budget are project-wide
--- today (_shared/ai.ts resolveOpenAIKey). day_usd: the tenant round's own
--- spend (ai_usage_log sources starting with p_source_prefix) since
--- p_day_start. Only the two sums leave.
+-- today (_shared/ai.ts resolveOpenAIKey); a tenant's own month sum, and the
+-- health probe reading this one, are AIO-252 phase 2. day_usd: the tenant
+-- round's own spend (ai_usage_log sources starting with p_source_prefix)
+-- since p_day_start. Only the two sums leave.
 CREATE OR REPLACE FUNCTION public.carmen_round_llm_spend(
   p_tenant_id uuid,
   p_month_start timestamptz,

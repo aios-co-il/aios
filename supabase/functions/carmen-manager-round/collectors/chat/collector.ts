@@ -4,8 +4,9 @@
  * client complaints at any age (client_complaint) and unlinked groups that
  * look like a client's (unlinked_group), from the client threads stored from
  * the tenant's own monitored lines. It only reads, only for the kinds the
- * tenant has not turned off, and only messages within 7 days and after the
- * kinds' notify_since, so nothing older is ever raised. A wait that staff
+ * tenant has not turned off, and only messages inside the read window
+ * (scope.ts) and after the kinds' notify_since, so nothing older is ever
+ * raised. A wait that staff
  * answered (reply or completed call) is closed as answered with its response
  * time. The lines it read are kept in its watermark, so a tenant sharing a
  * group with this one leaves the group to it (get_client_thread_activity).

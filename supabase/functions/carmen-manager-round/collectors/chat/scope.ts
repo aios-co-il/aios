@@ -31,9 +31,9 @@ export function enabledKinds(settings: ManagerSettings): FindingKind[] {
 }
 
 /**
- * Where the read starts: 7 days back, or later when every given kind sends
- * and started sending later (its notify_since; nothing before it is ever
- * raised). A kind that only observes has no stamp and reads the 7 days.
+ * Where the read starts: WINDOW_DAYS back, or later when every given kind
+ * sends and started sending later (its notify_since; nothing before it is
+ * ever raised). A kind that only observes has no stamp and reads the window.
  */
 export function readSince(
   ctx: Pick<CollectorContext, "settings" | "now">,

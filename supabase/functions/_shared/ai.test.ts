@@ -15,8 +15,8 @@ Deno.test("aiChat", async (t) => {
       const posts: { url: string; body: unknown }[] = [];
       globalThis.fetch = (input, init) => {
         posts.push({
-          url: String(input),
-          body: JSON.parse(String(init?.body)),
+          url: new URL(input instanceof Request ? input.url : input).href,
+          body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
         });
         return Promise.resolve(
           Response.json({
