@@ -47,22 +47,50 @@ jobs:
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> "$GITHUB_ENV"
           echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
 
+      # Most runs find the queue empty. One request decides before anything is installed:
+      # what claim_video_run takes, a queued video run or one left running for 45 minutes.
+      - name: Check the queue
+        id: queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          STALE="$(date -u -d '45 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          RUNS="$(curl --fail --silent --show-error --get \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --data-urlencode "select=id" \
+            --data-urlencode "kind=not.is.null" \
+            --data-urlencode "or=(status.eq.queued,and(status.eq.running,started_at.lt.$STALE))" \
+            --data-urlencode "limit=1" \
+            "$SUPABASE_URL/rest/v1/marketing_runs")"
+          if [ "$(jq length <<<"$RUNS")" -gt 0 ]; then
+            echo "work=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "work=false" >> "$GITHUB_OUTPUT"
+            echo "No video run is waiting on Staging; nothing to install"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.queue.outputs.work == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@v4
+        if: steps.queue.outputs.work == 'true'
         with:
           node-version: "22"
 
       - name: Install ffmpeg
+        if: steps.queue.outputs.work == 'true'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
 
       - name: Install Remotion
+        if: steps.queue.outputs.work == 'true'
         working-directory: workers/creative-video/remotion
         run: npm ci --ignore-scripts --no-audit --no-fund && npx remotion browser ensure
 
       - name: Drain queued video runs
+        if: steps.queue.outputs.work == 'true'
         working-directory: render-worker
         env:
           DRAIN: "1"
