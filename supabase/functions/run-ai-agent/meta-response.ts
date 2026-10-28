@@ -1,3 +1,4 @@
+import { z } from "npm:zod@3.25.76";
 import { isObject } from "./json-config.ts";
 
 export interface MetaAction {
@@ -53,78 +54,78 @@ interface MetaResponse extends MetaNode {
   paging?: { next?: string | null } | null;
 }
 
-function hasOptionalFields(
-  value: object,
-  keys: readonly string[],
-  allowed: readonly string[],
-): boolean {
-  return keys.every(
-    (key) =>
-      !(key in value) ||
-      Reflect.get(value, key) == null ||
-      allowed.includes(typeof Reflect.get(value, key)),
-  );
-}
+const text = z.string().nullish();
+const metric = z.union([z.string(), z.number()]).nullish();
+const actions = z
+  .array(
+    z
+      .object({
+        action_type: text,
+        value: metric,
+      })
+      .passthrough(),
+  )
+  .nullish();
+
+// Extra provider fields pass through so metric spreads keep working.
+const metaNodeSchema: z.ZodType<MetaNode> = z
+  .object({
+    id: text,
+    name: text,
+    account_id: text,
+    account_status: z.number().nullish(),
+    status: text,
+    effective_status: text,
+    objective: text,
+    campaign_id: text,
+    campaign_name: text,
+    ad_id: text,
+    ad_name: text,
+    daily_budget: text,
+    lifetime_budget: text,
+    access_token: text,
+    spend: metric,
+    impressions: metric,
+    clicks: metric,
+    ctr: metric,
+    cpc: metric,
+    cpm: metric,
+    frequency: metric,
+    reach: metric,
+    actions,
+    cost_per_action_type: actions,
+    questions: z
+      .array(
+        z
+          .object({
+            key: text,
+            label: text,
+            type: text,
+          })
+          .passthrough(),
+      )
+      .nullish(),
+  })
+  .passthrough();
+
+const metaResponseSchema: z.ZodType<MetaResponse> = z
+  .object({
+    data: z.array(metaNodeSchema).nullish(),
+    error: z
+      .object({
+        message: text,
+        code: z.number().nullish(),
+        type: text,
+      })
+      .passthrough()
+      .nullish(),
+    paging: z.object({ next: text }).passthrough().nullish(),
+  })
+  .passthrough()
+  .and(metaNodeSchema) as z.ZodType<MetaResponse>;
 
 export function isMetaNode(value: unknown): value is MetaNode {
-  if (!isObject(value)) return false;
-  if (
-    !hasOptionalFields(
-      value,
-      [
-        "id",
-        "name",
-        "account_id",
-        "status",
-        "effective_status",
-        "objective",
-        "campaign_id",
-        "campaign_name",
-        "ad_id",
-        "ad_name",
-        "daily_budget",
-        "lifetime_budget",
-        "access_token",
-      ],
-      ["string"],
-    )
-  )
-    return false;
-  if (!hasOptionalFields(value, ["account_status"], ["number"])) return false;
-  if (
-    !hasOptionalFields(
-      value,
-      [
-        "spend",
-        "impressions",
-        "clicks",
-        "ctr",
-        "cpc",
-        "cpm",
-        "frequency",
-        "reach",
-      ],
-      ["string", "number"],
-    )
-  )
-    return false;
-  for (const key of ["actions", "cost_per_action_type", "questions"] as const) {
-    if (!(key in value) || Reflect.get(value, key) == null) continue;
-    const entries: unknown = Reflect.get(value, key);
-    if (
-      !Array.isArray(entries) ||
-      !entries.every(
-        (entry: unknown) =>
-          isObject(entry) &&
-          (key === "questions"
-            ? hasOptionalFields(entry, ["key", "label", "type"], ["string"])
-            : hasOptionalFields(entry, ["action_type"], ["string"]) &&
-              hasOptionalFields(entry, ["value"], ["string", "number"])),
-      )
-    )
-      return false;
-  }
-  return true;
+  return metaNodeSchema.safeParse(value).success;
 }
 
 /** Thrown when a Graph body fails validation; keeps the raw body so callers can surface Meta's own error. */
@@ -141,9 +142,10 @@ export class MetaResponseError extends Error {
 
   /** Meta's `error` object when the raw body carries one, else a generic message. */
   get fbError(): Record<string, unknown> {
-    if (isObject(this.body) && isObject(this.body.error))
-      return this.body.error;
-    return { message: this.message };
+    const error: unknown = isObject(this.body)
+      ? Reflect.get(this.body, "error")
+      : undefined;
+    return isObject(error) ? { ...error } : { message: this.message };
   }
 }
 
@@ -152,29 +154,16 @@ export async function readMetaResponse(
   response: Response,
 ): Promise<MetaResponse> {
   const value: unknown = await response.json();
-  const invalid = (message: string) =>
-    new MetaResponseError(message, response.status, value);
-  if (!isMetaNode(value)) throw invalid("Invalid Meta response");
-  if (
-    "data" in value &&
-    value.data != null &&
-    (!Array.isArray(value.data) || !value.data.every(isMetaNode))
-  )
-    throw invalid("Invalid Meta response data");
-  if (
-    "error" in value &&
-    value.error != null &&
-    (!isObject(value.error) ||
-      !hasOptionalFields(value.error, ["message", "type"], ["string"]) ||
-      !hasOptionalFields(value.error, ["code"], ["number"]))
-  )
-    throw invalid("Invalid Meta response error");
-  if (
-    "paging" in value &&
-    value.paging != null &&
-    (!isObject(value.paging) ||
-      !hasOptionalFields(value.paging, ["next"], ["string"]))
-  )
-    throw invalid("Invalid Meta response paging");
-  return value;
+  const parsed = metaResponseSchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const section = parsed.error.issues[0]?.path[0];
+  const suffix =
+    section === "data" || section === "error" || section === "paging"
+      ? ` ${section}`
+      : "";
+  throw new MetaResponseError(
+    `Invalid Meta response${suffix}`,
+    response.status,
+    value,
+  );
 }
