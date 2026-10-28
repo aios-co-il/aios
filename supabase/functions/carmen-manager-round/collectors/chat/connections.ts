@@ -11,7 +11,11 @@ import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
 import { MONITORED_PROVIDER } from "./activity.ts";
 
-/** The roles whose own lines are read (carmen_manager_is_owner's owner level). */
+/**
+ * The roles whose own lines are read: the owner level carmen_manager_is_owner
+ * grants a member through user_roles or tenant_users. Its third path, a super
+ * admin acting in the tenant, is a session, not the owner of a line.
+ */
 const OWNER_ROLES = ["owner", "agency_owner"] as const;
 
 export type MonitoredLines = {
@@ -26,7 +30,7 @@ export async function monitoredLines(
   db: DbClient,
   tenantId: string,
 ): Promise<MonitoredLines> {
-  const [lines, owners] = await Promise.all([
+  const [lines, roles, members] = await Promise.all([
     db
       .from("tenant_integrations")
       .select("user_id, connection_visibility")
@@ -38,10 +42,17 @@ export async function monitoredLines(
       .select("user_id")
       .eq("tenant_id", tenantId)
       .in("role", [...OWNER_ROLES]),
+    db
+      .from("tenant_users")
+      .select("user_id")
+      .eq("tenant_id", tenantId)
+      .in("role", [...OWNER_ROLES]),
   ]);
   throwIf(lines.error, "tenant_integrations");
-  throwIf(owners.error, "user_roles");
-  const ownerIds = new Set((owners.data ?? []).map((row) => row.user_id));
+  throwIf(roles.error, "user_roles");
+  throwIf(members.error, "tenant_users");
+  const owners = [...(roles.data ?? []), ...(members.data ?? [])];
+  const ownerIds = new Set(owners.map((row) => row.user_id));
   const all = lines.data ?? [];
   const ids = all.flatMap((line) =>
     line.user_id &&

@@ -1,6 +1,7 @@
 -- Carmen chat SLA (20261027101000_carmen_chat_sla): get_unlinked_client_groups,
--- carmen_round_llm_spend, carmen_finding_resolve and the grants, over a
--- synthetic tenant inside one transaction that is rolled back.
+-- carmen_round_llm_spend, carmen_finding_resolve (with the cancel of planned
+-- deliveries) and the grants, over a synthetic tenant inside one transaction
+-- that is rolled back.
 BEGIN;
 DO $test$
 DECLARE
@@ -14,6 +15,7 @@ DECLARE
   v_lookalike uuid;
   v_linked uuid;
   v_round uuid := gen_random_uuid();
+  v_finding uuid;
   v_month numeric;
   v_day numeric;
   v_n integer;
@@ -73,6 +75,12 @@ BEGIN
   SELECT count(*) INTO v_n FROM public.carmen_finding_resolve(v_tenant, v_round, 'qa_chat',
     jsonb_build_array(jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag, 'resolution', 'dismissed')));
   IF v_n <> 0 THEN RAISE EXCEPTION 'resolve: a resolution other than answered is skipped'; END IF;
+  -- Closing cancels the finding's planned messages; a sent one stays sent.
+  SELECT f.id INTO v_finding FROM public.carmen_findings AS f
+  WHERE f.tenant_id = v_tenant AND f.fingerprint = 'qa-chat-' || v_tag;
+  INSERT INTO public.carmen_finding_deliveries (tenant_id, finding_id, level, recipient_key, channel, slot, status)
+  VALUES (v_tenant, v_finding, 0, 'qa-planned', 'in_app', 'now', 'planned'),
+    (v_tenant, v_finding, 1, 'qa-sent', 'in_app', 'now', 'sent');
   SELECT count(*) INTO v_n FROM public.carmen_finding_resolve(v_tenant, v_round, 'qa_chat',
     jsonb_build_array(jsonb_build_object('kind', 'unanswered_request', 'fingerprint', 'qa-chat-' || v_tag,
       'resolution', 'answered', 'details', jsonb_build_object('response_minutes', 42))));
@@ -84,6 +92,12 @@ BEGIN
       AND f.status = 'resolved' AND f.resolution = 'answered'
       AND e.details = '{"response_minutes": 42, "resolution": "answered"}'::jsonb) THEN
     RAISE EXCEPTION 'resolve: status, resolution and event details';
+  END IF;
+  IF (SELECT string_agg(d.recipient_key || '=' || d.status, ',' ORDER BY d.recipient_key)
+      FROM public.carmen_finding_deliveries AS d
+      WHERE d.tenant_id = v_tenant AND d.finding_id = v_finding)
+     IS DISTINCT FROM 'qa-planned=cancelled,qa-sent=sent' THEN
+    RAISE EXCEPTION 'resolve: the planned delivery must be cancelled, the sent one kept';
   END IF;
 
   -- Grants: service role only, the review cache included (plan C6).

@@ -10,7 +10,8 @@ import { onlyAcknowledgements, readMarkers } from "./markers.ts";
 import type { Thread, Turn } from "./threads.ts";
 
 const QUOTE_MAX = 200;
-const SUMMARY_MAX = 500;
+/** carmen_findings.summary_he holds at most this many characters. */
+export const SUMMARY_MAX = 500;
 
 type Marker = "request" | "complaint";
 

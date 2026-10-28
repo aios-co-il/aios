@@ -1,36 +1,12 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import type { FindingKind } from "../../../_shared/manager-round/kinds.ts";
 import {
   il,
   liveFinding,
-  NOW,
-  receiptRows,
   REPORT_VERDICT,
   row,
   staffRow,
 } from "../../tests/chat-fixtures.ts";
-import {
-  chatContext,
-  type FakeChatFields,
-  fakeChatSources,
-} from "../../tests/fake-chat-sources.ts";
-import { TENANT } from "../../tests/fake-world.ts";
-import type { ActivityRow } from "./activity.ts";
-import { threadFindings } from "./thread-findings.ts";
-
-const ALL: FindingKind[] = ["unanswered_request", "client_complaint"];
-const query = {
-  tenantId: TENANT,
-  connectionIds: ["owner"],
-  since: new Date(NOW.getTime() - 7 * 86_400_000),
-  clientIds: null,
-};
-
-function find(rows: ActivityRow[], fields: FakeChatFields = {}, kinds = ALL) {
-  const sources = fakeChatSources(rows, fields);
-  const run = threadFindings(chatContext(), sources.fake, query, kinds);
-  return run.then((found) => ({ ...found, asked: sources.asked }));
-}
+import { findInThreads as find } from "../../tests/fake-chat-sources.ts";
 
 const complaint = row({
   message_id: "c1",
@@ -164,68 +140,6 @@ Deno.test("threadFindings", async (t) => {
         "the request is quoted, not the thanks",
       );
       assertEquals(request.evidence.quote, "הדוח של החודש עוד לא הגיע");
-    },
-  );
-
-  const met = {
-    needs_reply: false,
-    is_request: false,
-    complaint_lines: [],
-    urgency: "normal",
-    summary_he: "הלקוח קיבל את הדוח",
-    confidence: 0.9,
-  };
-  const receipt = receiptRows();
-  const readUpToC1 = new Map([
-    ["group:111@g.us", { messageId: "c1", verdict: REPORT_VERDICT }],
-  ]);
-
-  await t.step(
-    "a receipt after the read sends the wait back to the model",
-    async () => {
-      const found = await find(receipt, {
-        reviews: readUpToC1,
-        answer: JSON.stringify(met),
-      });
-      assertEquals(found.asked.length, 1, "'קיבלתי' is read again");
-      assertEquals(found.candidates, []);
-    },
-  );
-
-  await t.step(
-    "a receipt is not read once the request is open; the finding keeps the read that raised it",
-    async () => {
-      const live = [
-        liveFinding(
-          "unanswered_request",
-          "chat:group:111@g.us:c1",
-          il("09:00"),
-        ),
-      ];
-      for (const kinds of [ALL, ["unanswered_request" as const]]) {
-        const found = await find(
-          receipt,
-          { live, reviews: readUpToC1, answer: JSON.stringify(met) },
-          kinds,
-        );
-        assertEquals(found.asked.length, 0, "no paid call it cannot use");
-        assertEquals(
-          found.candidates.map((c) => [
-            c.kind,
-            c.fingerprint,
-            c.evidence.classified_by,
-            c.evidence.llm_summary_he,
-          ]),
-          [
-            [
-              "unanswered_request",
-              "chat:group:111@g.us:c1",
-              "llm",
-              "הדוח החודשי לא הגיע",
-            ],
-          ],
-        );
-      }
     },
   );
 

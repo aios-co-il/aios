@@ -5,7 +5,9 @@
  * clients read are searched too. A call stored as completed with zero
  * seconds (a missed call some PBXs report as completed) is no answer.
  * Calls are read by tenant and time and matched to the clients here, so the
- * request never lists every client id.
+ * request never lists every client id. They are read newest first: a read
+ * stopped at its page cap drops the oldest calls, not the recent ones most
+ * likely to answer a wait.
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
@@ -38,8 +40,8 @@ export async function loadCompletedCalls(
       .not("client_id", "is", null)
       .or("duration.is.null,duration.gt.0")
       .gte("created_at", since.toISOString())
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, from + PAGE_ROWS - 1);
     throwIf(error, "call_logs");
     for (const row of data ?? []) {

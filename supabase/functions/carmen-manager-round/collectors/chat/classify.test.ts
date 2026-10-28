@@ -37,7 +37,7 @@ const group = (text = "יש עדכון", key = "group:111@g.us"): Thread =>
   ]);
 
 const none = new Set<string>();
-const all = { dueKeys: none, openKeys: none, complaints: true };
+const all = { dueKeys: none, raisedKeys: none, complaints: true };
 
 const classify = (threads: Thread[], p: ClassifyPorts, dryRun = false) =>
   classifyThreads(threads, all, p, run(dryRun));
@@ -192,21 +192,21 @@ Deno.test("classifyThreads", async (t) => {
   );
 
   await t.step(
-    "markers that found everything need no model; a bad answer is ignored",
+    "markers that found everything need no model; a bad or billed empty answer is ignored",
     async () => {
       const first = fakeClassifyPorts();
       await classify([group("אני לא מרוצה, מתי זה יסתדר?")], first.fake);
       assertEquals(first.prompts.length, 0);
-      const broken = fakeClassifyPorts({ answer: "{oops" });
-      const { verdicts, llm, rejected } = await classify(
-        [group()],
-        broken.fake,
-      );
-      assertEquals(
-        [verdicts.size, broken.saved.length, llm.calls, rejected],
-        [0, 0, 1, 1],
-        "metered, not cached, and counted",
-      );
+      for (const answer of ["{oops", null]) {
+        const broken = fakeClassifyPorts({ answer, costUsd: 0.002 });
+        const run = await classify([group()], broken.fake);
+        assertEquals(
+          [run.verdicts.size, broken.saved.length, run.llm, run.rejected],
+          [0, 0, { calls: 1, costUsd: 0.002 }, 1],
+          "metered, not cached, and counted",
+        );
+        assertEquals(run.modelDown, false, "a billed reply is no model down");
+      }
     },
   );
 
@@ -227,7 +227,7 @@ Deno.test("classifyThreads", async (t) => {
   );
 
   await t.step(
-    "a receipt is read again only while the wait's finding is not open",
+    "a receipt is read again only while the wait has no finding",
     async () => {
       const receipt = thread(receiptRows());
       const cached = new Map([
@@ -237,7 +237,7 @@ Deno.test("classifyThreads", async (t) => {
         const closed = fakeClassifyPorts({ cached });
         await classifyThreads(
           [receipt],
-          { dueKeys: none, openKeys: none, complaints },
+          { dueKeys: none, raisedKeys: none, complaints },
           closed.fake,
           run(),
         );
@@ -245,7 +245,7 @@ Deno.test("classifyThreads", async (t) => {
         const open = fakeClassifyPorts({ cached });
         await classifyThreads(
           [receipt],
-          { dueKeys: none, openKeys: new Set([receipt.key]), complaints },
+          { dueKeys: none, raisedKeys: new Set([receipt.key]), complaints },
           open.fake,
           run(),
         );

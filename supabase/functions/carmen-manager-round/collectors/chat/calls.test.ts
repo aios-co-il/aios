@@ -8,7 +8,7 @@ const AT = "2026-10-27T10:00:00Z";
 
 Deno.test("loadCompletedCalls", async (t) => {
   await t.step(
-    "completed calls of the tenants, matched to the clients here",
+    "completed calls of the tenants, newest first, matched to the clients here",
     async () => {
       const { db, calls } = recordingClient(() => [
         { client_id: "c1", created_at: AT },
@@ -28,6 +28,7 @@ Deno.test("loadCompletedCalls", async (t) => {
           query.get("client_id"),
           query.get("or"),
           query.get("created_at"),
+          query.get("order"),
         ],
         [
           "call_logs",
@@ -36,6 +37,7 @@ Deno.test("loadCompletedCalls", async (t) => {
           "not.is.null",
           "(duration.is.null,duration.gt.0)",
           `gte.${NOW.toISOString()}`,
+          "created_at.desc,id.desc",
         ],
       );
     },

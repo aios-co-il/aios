@@ -65,10 +65,10 @@ export function onlyThanks(texts: string[]): boolean {
 
 /** A question, or a request verb in a message that is not just thanks. */
 function isRequest(text: string): boolean {
-  if (QUESTION.test(text)) {
-    return true;
-  }
-  return !isAcknowledgement(text) && REQUEST_WORDS.test(text);
+  return (
+    QUESTION.test(text) ||
+    (!isAcknowledgement(text) && REQUEST_WORDS.test(text))
+  );
 }
 
 /** Only thanks, acknowledgements, punctuation or emoji. */

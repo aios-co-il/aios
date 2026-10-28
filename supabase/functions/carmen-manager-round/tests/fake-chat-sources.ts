@@ -1,10 +1,16 @@
-/** A chat collector context and in-memory sources that record what was read and asked. */
+/**
+ * A chat collector context, in-memory sources that record what was read and
+ * asked, and threadFindings over them.
+ */
 import { RoundBudget } from "../budget.ts";
+import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
 import type { ActivityRow } from "../collectors/chat/activity.ts";
 import type { LiveChatFinding } from "../collectors/chat/gate.ts";
 import { createLlmMeter } from "../collectors/chat/llm-meter.ts";
 import type { CachedReview } from "../collectors/chat/review-cache.ts";
+import { THREAD_KINDS } from "../collectors/chat/scope.ts";
 import type { ChatSources } from "../collectors/chat/sources.ts";
+import { threadFindings } from "../collectors/chat/thread-findings.ts";
 import type { CollectorContext } from "../collectors/types.ts";
 import { il, NOW, SETTINGS, STAFF_KEY } from "./chat-fixtures.ts";
 import { TENANT } from "./fake-world.ts";
@@ -39,6 +45,8 @@ export type FakeChatFields = {
   answer?: string;
   /** The activity read stopped at its page cap. */
   capped?: boolean;
+  /** The completed-call read stopped at its page cap. */
+  callsCapped?: boolean;
 };
 
 /** Sources over `rows`; `asked` holds the prompts, `reads` the sources read. */
@@ -68,7 +76,7 @@ export function fakeChatSources(
         },
       ]),
     staffKeys: () => read("staffKeys", new Set([STAFF_KEY])),
-    calls: () => read("calls", { calls: [], complete: true }),
+    calls: () => read("calls", { calls: [], complete: !fields.callsCapped }),
     live: () => read("live", fields.live ?? []),
     closed: () => read("closed", new Set(fields.closed ?? [])),
     chatLinkBase: () => Promise.resolve("https://app.test/t/acme/chat/"),
@@ -93,4 +101,21 @@ export function fakeChatSources(
     },
   };
   return { fake, asked, reads };
+}
+
+/** threadFindings over `rows` for `kinds` in the 7-day read, with the prompts the model was asked. */
+export async function findInThreads(
+  rows: ActivityRow[],
+  fields: FakeChatFields = {},
+  kinds: readonly FindingKind[] = THREAD_KINDS,
+) {
+  const sources = fakeChatSources(rows, fields);
+  const query = {
+    tenantId: TENANT,
+    connectionIds: ["owner"],
+    since: new Date(NOW.getTime() - 7 * 86_400_000),
+    clientIds: null,
+  };
+  const found = await threadFindings(chatContext(), sources.fake, query, kinds);
+  return { ...found, asked: sources.asked };
 }

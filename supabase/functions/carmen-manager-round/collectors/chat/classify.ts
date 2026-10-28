@@ -17,7 +17,10 @@ import type { Thread, Turn } from "./threads.ts";
 import { needsModel, unreviewedTurns } from "./unreviewed.ts";
 import { parseModelVerdict } from "./verdict.ts";
 
-/** One model call: its JSON text (null on failure) and its cost. */
+/**
+ * One model call: its JSON text (null on failure or an empty reply) and its
+ * cost (0 when the call was not billed).
+ */
 export type AskModel = (
   prompt: string,
 ) => Promise<{ text: string | null; costUsd: number }>;
@@ -45,11 +48,12 @@ const LOGGED_ANSWER_CHARS = 300;
 
 /**
  * What the run reads: the waits past the SLA, the waits whose
- * unanswered_request is already open, and complaints or not.
+ * unanswered_request was already raised (open, or closed), and complaints
+ * or not.
  */
 export type ClassifyScope = {
   dueKeys: ReadonlySet<string>;
-  openKeys: ReadonlySet<string>;
+  raisedKeys: ReadonlySet<string>;
   complaints: boolean;
 };
 
@@ -70,10 +74,10 @@ export async function classifyThreads(
   ports: ClassifyPorts,
   run: { tenantId: string; budget: RoundBudget; dryRun: boolean },
 ): Promise<Classified> {
-  const { dueKeys, openKeys, complaints } = scope;
+  const { dueKeys, raisedKeys, complaints } = scope;
   const readScope = (thread: Thread) => ({
     complaints,
-    waitOpen: openKeys.has(thread.key),
+    waitRaised: raisedKeys.has(thread.key),
   });
   const askable = threads
     .filter((thread) =>
@@ -122,8 +126,8 @@ function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
 
 /**
  * One model read of a thread's unread lines, up to the client message
- * `lastId`: the cached review, "rejected" (a malformed answer, metered) or
- * "down" (no answer). Both failures are logged.
+ * `lastId`: the cached review, "rejected" (a malformed or empty answer,
+ * metered) or "down" (no billed answer). Both failures are logged.
  */
 async function askThread(
   ports: ClassifyPorts,
@@ -137,19 +141,22 @@ async function askThread(
   );
   const { text, costUsd } = await ports.ask(prompt.text);
   const where = { tenant_id: read.tenantId, thread_key: thread.key };
-  if (text === null) {
+  // A billed reply without content (aiChat logs its cost, then returns null)
+  // is a bad answer, not a model that is down.
+  if (text === null && costUsd === 0) {
     logModelProblem("no answer; the rest of the run uses the markers", where);
     return "down";
   }
+  const answer = text ?? "";
   const review = await keep(ports, meter, thread.key, read.lastId, {
-    text,
+    text: answer,
     costUsd,
     lineIds: prompt.lineIds,
   });
   if (!review) {
     logModelProblem("malformed answer dropped", {
       ...where,
-      answer: clip(text, LOGGED_ANSWER_CHARS),
+      answer: clip(answer, LOGGED_ANSWER_CHARS),
     });
     return "rejected";
   }

@@ -24,8 +24,8 @@ const thanked = thread([
 const ids = (turns: { id: string }[]) => turns.map((turn) => turn.id);
 
 /** Requests and complaints are read; requests only. No finding is open. */
-const ALL = { complaints: true, waitOpen: false };
-const REQUESTS = { complaints: false, waitOpen: false };
+const ALL = { complaints: true, waitRaised: false };
+const REQUESTS = { complaints: false, waitRaised: false };
 
 Deno.test("unreviewedTurns", async (t) => {
   await t.step("the client lines after the last one read", () => {
@@ -149,7 +149,7 @@ Deno.test("readCoversWait", async (t) => {
     () => {
       assertEquals(readCoversWait(receipt, "c1", false), false);
       for (const complaints of [true, false]) {
-        const scope = { complaints, waitOpen: false };
+        const scope = { complaints, waitRaised: false };
         assertEquals(
           needsModel(receipt, unreviewedTurns(receipt, "c1"), scope),
           true,
@@ -159,11 +159,11 @@ Deno.test("readCoversWait", async (t) => {
   );
 
   await t.step(
-    "while the wait's finding is open a receipt is not read, and the read still covers it",
+    "once the wait's finding is raised a receipt is not read, and the read still covers it",
     () => {
       assertEquals(readCoversWait(receipt, "c1", true), true);
       for (const complaints of [true, false]) {
-        const scope = { complaints, waitOpen: true };
+        const scope = { complaints, waitRaised: true };
         assertEquals(
           needsModel(receipt, unreviewedTurns(receipt, "c1"), scope),
           false,

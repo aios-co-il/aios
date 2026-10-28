@@ -118,7 +118,7 @@ BEGIN
 
   SELECT string_agg(a.message_text || '/' || a.direction, ',' ORDER BY a.thread_key, a.created_at)
   INTO v_texts
-  FROM public.get_client_thread_activity(v_reader, ARRAY[v_line, v_org_line], now() - interval '30 days', 'qa_chat', v_kinds) AS a;
+  FROM public.get_client_thread_activity(v_reader, ARRAY[v_line, v_org_line], now() - interval '7 days', 'qa_chat', v_kinds) AS a;
   IF v_texts IS DISTINCT FROM 'QA dm/inbound,QA lid reply/outbound,QA ask?/inbound,QA org reply/outbound,QA report/outbound,QA chat send/outbound,QA shared/inbound' THEN
     RAISE EXCEPTION 'activity: client threads only, one copy per message (the sender''s), got %', v_texts;
   END IF;

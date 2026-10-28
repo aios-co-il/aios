@@ -29,8 +29,11 @@ export function unreviewedTurns(
 export type ReadScope = {
   /** Complaints are read (client_complaint is on). */
   complaints: boolean;
-  /** The thread's current wait already has an open unanswered_request. */
-  waitOpen: boolean;
+  /**
+   * The thread's current wait already has an unanswered_request, open or
+   * closed: no verdict changes it.
+   */
+  waitRaised: boolean;
 };
 
 /**
@@ -39,9 +42,10 @@ export type ReadScope = {
  * complaints are read), or in the open wait when no request marker shows.
  * Otherwise the markers already say everything a verdict could add. An
  * unread receipt ('קיבלתי') is read too when the open wait it ends has a
- * line beyond acknowledgements, no request marker and no open finding: the
+ * line beyond acknowledgements, no request marker and no finding yet: the
  * request a verdict found there may have been met outside the thread. Once
- * the finding is open no verdict can drop it, so the receipt is not read.
+ * the finding is raised no verdict can drop it while it is open, nor raise
+ * it again once closed, so the receipt is not read.
  */
 export function needsModel(
   thread: Thread,
@@ -66,7 +70,7 @@ export function needsModel(
     if (onlyAcknowledgements(texts)) {
       return (
         waiting &&
-        !scope.waitOpen &&
+        !scope.waitRaised &&
         !markers.request &&
         !onlyThanks(texts) &&
         !onlyAcknowledgements(all)

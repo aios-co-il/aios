@@ -66,7 +66,8 @@ function settingsPhone(settings: Json): string | null {
     return null;
   }
   const phone = settings.phone_number;
-  return typeof phone === "string" || typeof phone === "number"
-    ? String(phone)
-    : null;
+  if (typeof phone === "number") {
+    return String(phone);
+  }
+  return typeof phone === "string" ? phone : null;
 }

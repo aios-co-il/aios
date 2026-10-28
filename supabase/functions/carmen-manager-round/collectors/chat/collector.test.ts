@@ -2,6 +2,7 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../../_shared/manager-round/settings.ts";
 import { dmRow, il, row, staffRow } from "../../tests/chat-fixtures.ts";
 import { chatContext, fakeChatSources } from "../../tests/fake-chat-sources.ts";
+import { modelAnswer } from "../../tests/fake-classify.ts";
 import type { CollectorContext } from "../types.ts";
 import { createChatCollector } from "./collector.ts";
 import type { ChatSources } from "./sources.ts";
@@ -124,6 +125,21 @@ Deno.test("chat collector", async (t) => {
       assertEquals(
         [capped.note, capped.coverage.complete],
         ["read_capped,verdict_rejected:1", false],
+      );
+    },
+  );
+
+  await t.step(
+    "a call read stopped at its page cap makes the run incomplete",
+    async () => {
+      const capped = await collect(
+        fakeChatSources(late, { callsCapped: true, answer: modelAnswer() })
+          .fake,
+      );
+      assertEquals(
+        [capped.note, capped.coverage.complete],
+        ["read_capped", false],
+        "a dropped call may have answered a wait, so nothing is auto-cleared",
       );
     },
   );

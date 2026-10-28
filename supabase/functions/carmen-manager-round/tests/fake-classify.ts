@@ -20,12 +20,16 @@ export function modelAnswer(lines: number[] = []): string {
   return JSON.stringify({ ...rest, complaint_lines: lines });
 }
 
-/** Ports with these cached reviews, daily cap and answer (null: the model is down); each call costs $0.002. */
+/**
+ * Ports with these cached reviews, daily cap and answer (null: the model is
+ * down). Each call costs `costUsd`: $0.002 by default, $0 when the model is down.
+ */
 export function fakeClassifyPorts(
   fields: {
     cached?: Map<string, CachedReview>;
     dailyCapUsd?: number;
     answer?: string | null;
+    costUsd?: number;
   } = {},
 ) {
   const prompts: string[] = [];
@@ -47,7 +51,8 @@ export function fakeClassifyPorts(
     ask: (prompt) => {
       prompts.push(prompt);
       const text = fields.answer === undefined ? modelAnswer() : fields.answer;
-      return Promise.resolve({ text, costUsd: 0.002 });
+      const costUsd = fields.costUsd ?? (text === null ? 0 : 0.002);
+      return Promise.resolve({ text, costUsd });
     },
     meter: () => Promise.resolve(meter),
   };

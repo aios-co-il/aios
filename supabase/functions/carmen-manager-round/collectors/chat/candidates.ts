@@ -21,6 +21,9 @@ export type ChatLink = (clientId: string) => string | null;
  * The reviews with the verdict that read their wait, when there is one: it
  * read the wait up to its last message, or up to a line followed only by
  * the client's thanks (or, while the wait's finding is open, by a receipt).
+ * An open request stays reported whatever a later read says, so a read that
+ * no longer sees a request (one that also read a receipt, say) never
+ * describes it.
  */
 export function withVerdicts(
   reviews: ThreadReview[],
@@ -28,10 +31,16 @@ export function withVerdicts(
 ): ThreadReview[] {
   return reviews.map((review) => {
     const cached = verdicts.get(review.thread.key);
-    return cached &&
-      readCoversWait(review.thread, cached.messageId, review.open)
-      ? { ...review, verdict: cached.verdict }
-      : review;
+    if (
+      !cached ||
+      !readCoversWait(review.thread, cached.messageId, review.open)
+    ) {
+      return review;
+    }
+    if (review.open && !verdictSaysRequest(cached.verdict)) {
+      return review;
+    }
+    return { ...review, verdict: cached.verdict };
   });
 }
 

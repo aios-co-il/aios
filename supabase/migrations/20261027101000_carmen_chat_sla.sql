@@ -57,12 +57,13 @@ GRANT ALL ON public.carmen_chat_thread_reviews TO service_role;
 -- ─── 2. get_client_thread_activity ──────────────────────────────────────────
 
 -- Up to p_per_thread recent messages (oldest first) of every client thread
--- of the lines p_connection_user_ids, since p_since (never more than 7 days
--- back), in thread_key order after p_after_thread_key (keyset paging: each
--- page holds whole threads). A thread is a group linked to exactly one client
--- the tenant may act on, or a direct chat whose counterpart is such a client
--- or one of its contacts. Clients: the tenant's own and those of agencies
--- shared with it, not ended or inactive.
+-- of the lines p_connection_user_ids, since p_since (the caller's read
+-- window: collectors/chat/scope.ts), in thread_key order after
+-- p_after_thread_key (keyset paging: each page holds whole threads). A
+-- thread is a group linked to exactly one client the tenant may act on, or a
+-- direct chat whose counterpart is such a client or one of its contacts.
+-- Clients: the tenant's own and those of agencies shared with it, not ended
+-- or inactive.
 -- A group linked to another tenant's client is read here unless that tenant
 -- reads it itself: its p_collector run succeeded in the last 40 hours (the
 -- round skips Saturday) and stored, in watermark.read_lines, a line with
@@ -151,7 +152,7 @@ AS $$
     WHERE cm.tenant_id = p_tenant_id
       AND cm.provider = p_provider
       AND cm.connection_user_id = ANY (p_connection_user_ids)
-      AND cm.created_at >= greatest(p_since, now() - interval '7 days')
+      AND cm.created_at >= p_since
       AND cm.is_blocked = false
   ),
   senders AS (
@@ -188,7 +189,7 @@ AS $$
         AND (rs.watermark -> 'read_lines') ? ocm.connection_user_id::text
         AND ocm.tenant_id = own.tenant_id
         AND ocm.provider = p_provider
-        AND ocm.created_at >= greatest(p_since, now() - interval '7 days'))
+        AND ocm.created_at >= p_since)
   ),
   -- A direct chat's client: the one client the stored rows are linked to
   -- (none when a linked client is out of scope or there are several), else
@@ -264,7 +265,7 @@ GRANT EXECUTE ON FUNCTION public.get_client_thread_activity(uuid, uuid[], timest
 -- ─── 3. get_unlinked_client_groups ──────────────────────────────────────────
 
 -- Groups of the tenant with at least p_min_messages messages on the given
--- lines since p_since (at most 7 days back), linked to no client in the
+-- lines since p_since (the caller's read window), linked to no client in the
 -- tenant or a related one, whose name contains the name (3+ characters) of
 -- exactly one client the tenant may act on as whole words (spaces and
 -- punctuation separate words, so 'אור' never matches 'אורית'). Only the
@@ -297,7 +298,7 @@ AS $$
       AND cm.provider = p_provider
       AND cm.connection_user_id = ANY (p_connection_user_ids)
       AND cm.group_id IS NOT NULL
-      AND cm.created_at >= greatest(p_since, now() - interval '7 days')
+      AND cm.created_at >= p_since
       AND cm.is_blocked = false
     GROUP BY cm.group_id
     HAVING count(*) >= greatest(coalesce(p_min_messages, 3), 1)

@@ -22,6 +22,7 @@ export const THREAD_KINDS: readonly FindingKind[] = [
   "client_complaint",
 ];
 
+/** How far back every read goes; the SQL reads take it as their p_since. */
 const WINDOW_DAYS = 7;
 
 /** The collector's kinds the tenant has not turned off. */
