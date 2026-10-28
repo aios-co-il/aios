@@ -4,7 +4,10 @@
  * is not on the card, and the drafted entry is written to the client card.
  * Wired into run-ai-agent with one import, one spread and one dispatch block.
  */
-import { parseApproveDraftReply } from "../../_shared/manager-round/card-draft.ts";
+import {
+  APPROVE_DRAFT_WORD_HE,
+  parseApproveDraftReply,
+} from "../../_shared/manager-round/card-draft.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { approveCardDraft, type ApproveInput } from "./approve.ts";
 import { approvalPorts } from "./store.ts";
@@ -14,8 +17,7 @@ const TOOL_NAME = "approve_card_draft";
 export const CARD_DRAFT_TOOLS = [
   {
     name: TOOL_NAME,
-    description:
-      'רישום בכרטיס הלקוח של טיוטת עדכון שכרמן הכינה מקבוצת הוואטסאפ של הלקוח. להפעיל כשאיש צוות עונה "אשר <מספר>" (או "אשר #<מספר>") על פריט שכרמן שלחה. רושם את הטיוטה שבפריט, או את הנוסח שאיש הצוות כתב, כסיכום קבוצה על שם הקמפיינר של הלקוח (לא נספר כשיחה). רק בצ׳אט פרטי עם כרמן, לא בקבוצה. מותר למי שרואה את הפריט אצל כרמן (קמפיינר של הלקוח או מנהל); לאחרים הכלי מסרב.',
+    description: `רישום בכרטיס הלקוח של טיוטת עדכון שכרמן הכינה מקבוצת הוואטסאפ של הלקוח. להפעיל כשאיש צוות עונה "${APPROVE_DRAFT_WORD_HE} <מספר>" (או "${APPROVE_DRAFT_WORD_HE} #<מספר>") על פריט שכרמן שלחה. רושם את הטיוטה שבפריט, או את הנוסח שאיש הצוות כתב, כסיכום קבוצה על שם הקמפיינר של הלקוח (לא נספר כשיחה). רק בצ׳אט פרטי עם כרמן, לא בקבוצה. מותר למי שרואה את הפריט אצל כרמן (קמפיינר של הלקוח או מנהל); לאחרים הכלי מסרב.`,
     parameters: {
       type: "object",
       properties: {

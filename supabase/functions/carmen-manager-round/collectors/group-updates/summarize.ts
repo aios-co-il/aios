@@ -112,7 +112,10 @@ function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
   );
 }
 
-/** One metered call; a failed or malformed answer is null. */
+/**
+ * One metered call; a failed, late or malformed answer is null and logged,
+ * so a broken model shows while the markers decide.
+ */
 async function ask(
   ports: SummarizePorts,
   meter: LlmMeter,
@@ -120,5 +123,11 @@ async function ask(
 ): Promise<Digest | null> {
   const { text, costUsd } = await ports.ask(prompt);
   meter.add(costUsd);
-  return parseDigest(text);
+  const digest = parseDigest(text);
+  if (!digest) {
+    console.warn(
+      `[carmen-manager-round] group digest: no usable model answer (${text === null ? "none" : "malformed"}); the markers decide`,
+    );
+  }
+  return digest;
 }

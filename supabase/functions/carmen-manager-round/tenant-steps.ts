@@ -47,17 +47,20 @@ export async function runSteps(
   const floors = notifyFloors(deps.collectors, state, now);
   // The owner may change the rollout while the collectors run; the database
   // then cancels what was planned, so write the card and route under the
-  // settings stored now.
-  const routing = await currentSettings(deps, tenantId);
+  // settings stored now, read again when a change stopped the writes.
+  const writing = await currentSettings(deps, tenantId);
   const virtual = dryRun ? virtualFindings(collected.candidates) : undefined;
   const cardWrites = await writeTeamDrafts(deps, {
     tenantId,
-    settings: routing,
+    settings: writing,
     floors,
     dryRun,
-    settingsChanged: changedSince(deps, tenantId, routing),
+    settingsChanged: changedSince(deps, tenantId, writing),
     virtual,
   });
+  const routing = cardWrites?.stopped
+    ? await currentSettings(deps, tenantId)
+    : writing;
   const routed = await routeTenant(deps, {
     tenantId,
     roundId: run.roundId,

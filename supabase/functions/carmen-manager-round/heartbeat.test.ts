@@ -112,28 +112,39 @@ Deno.test("hasActivity and roundLog", async (t) => {
     assertEquals(stats.gaps_dropped, { invalid: 1 });
   });
 
-  await t.step("a failed card write alone writes a row that counts it", () => {
-    const report = {
-      tenant_id: "t",
-      mode: "team" as const,
-      collectors: [],
-      card_writes: {
+  await t.step(
+    "a failed card write alone writes a row that counts it and keeps its error",
+    () => {
+      const report = {
+        tenant_id: "t",
+        mode: "team" as const,
+        collectors: [],
+        card_writes: {
+          written: 0,
+          planned: 0,
+          failed: 1,
+          already_closed: 0,
+          finding_ids: [],
+          stopped: false,
+          error: "client_ended",
+        },
+        routed: 0,
+        brief: null,
+        dispatch: null,
+      };
+      assertEquals(hasActivity(report), true);
+      const row = roundLog(report, 10);
+      assertEquals(
+        row.summary,
+        "סבב כרמן (team): 0 ממצאים חדשים, 0 נסגרו, 0 הודעות, 1 רישומים בכרטיס נכשלו",
+      );
+      const stats = row.stats as { card_writes: unknown };
+      assertEquals(stats.card_writes, {
         written: 0,
-        planned: 0,
         failed: 1,
         already_closed: 0,
-        finding_ids: [],
-      },
-      routed: 0,
-      brief: null,
-      dispatch: null,
-    };
-    assertEquals(hasActivity(report), true);
-    const stats = roundLog(report, 10).stats as { card_writes: unknown };
-    assertEquals(stats.card_writes, {
-      written: 0,
-      failed: 1,
-      already_closed: 0,
-    });
-  });
+        error: "client_ended",
+      });
+    },
+  );
 });

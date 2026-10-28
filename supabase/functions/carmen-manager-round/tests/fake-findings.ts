@@ -88,11 +88,17 @@ export function fakeFindingsStore(w: World): FindingsStore {
                     Date.parse(f.next_action_at) <= now.getTime())),
             ),
           ),
-    listLive: (_tenant, _limit, kinds) =>
+    listLive: (_tenant, limit, kinds, eventSince) =>
       Promise.resolve(
-        w.findings.filter(
-          (f) => LIVE.includes(f.status) && (!kinds || kinds.includes(f.kind)),
-        ),
+        w.findings
+          .filter(
+            (f) =>
+              LIVE.includes(f.status) &&
+              (!kinds || kinds.includes(f.kind)) &&
+              (!eventSince ||
+                Date.parse(f.source_event_at) >= Date.parse(eventSince)),
+          )
+          .slice(0, limit),
       ),
     byIds: (_tenant, ids) =>
       Promise.resolve(w.findings.filter((f) => ids.includes(f.id))),

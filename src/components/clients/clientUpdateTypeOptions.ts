@@ -7,6 +7,7 @@ import {
   StickyNote,
   Video,
 } from "lucide-react";
+import { CARD_DRAFT_TYPES } from "../../../supabase/functions/_shared/manager-round/card-draft.ts";
 
 export const INTERACTION_TYPES = [
   { value: "call", label: "שיחה", icon: Phone },
@@ -25,6 +26,6 @@ export const DISPLAY_UPDATE_TYPES = [
   ...INTERACTION_TYPES,
   { value: "note", label: "הערה", icon: StickyNote },
   { value: "complaint", label: "תלונה", icon: AlertTriangle },
-  // Carmen's group digest entries (CARD_DRAFT_TYPES, AIO-254).
-  { value: "group_summary", label: "סיכום קבוצה", icon: MessageSquare },
+  // Carmen's group digest entries (AIO-254).
+  ...CARD_DRAFT_TYPES.map((type) => ({ ...type, icon: MessageSquare })),
 ];

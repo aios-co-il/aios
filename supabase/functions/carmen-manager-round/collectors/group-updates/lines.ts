@@ -16,7 +16,10 @@ import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 /** The provider the monitored lines store their rows under. */
 export const MONITORED_PROVIDER = "green_api";
 
-/** The roles whose own lines are read (carmen_manager_is_owner's owner level). */
+/**
+ * The user_roles roles whose own lines are read. carmen_manager_is_owner_of
+ * also counts tenant_users owners; one owner-role reader is AIO-275.
+ */
 const OWNER_ROLES = ["owner", "agency_owner"] as const;
 
 /** chat_messages.connection_user_id of each monitored line. */

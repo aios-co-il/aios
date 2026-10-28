@@ -18,7 +18,10 @@ import {
   type FindingKind,
   isFindingKind,
 } from "../../_shared/manager-round/kinds.ts";
-import { kindMode } from "../../_shared/manager-round/modes.ts";
+import {
+  kindMode,
+  kindNotifySince,
+} from "../../_shared/manager-round/modes.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
 import type { FindingsStore } from "../findings/store.ts";
 import type { FindingRow } from "../findings/types.ts";
@@ -36,6 +39,10 @@ export type CardWriteReport = {
   already_closed: number;
   /** Findings written (or, in a dry run, to be written); never routed. */
   finding_ids: string[];
+  /** A settings change stopped the writes; the rest wait for the next round. */
+  stopped: boolean;
+  /** The first failed write's error, kept in the heartbeat row. */
+  error: string | null;
 };
 
 export type AutowriteRun = {
@@ -61,7 +68,12 @@ export async function writeTeamDrafts(
   if (!kinds.length) {
     return null;
   }
-  const stored = await deps.findings.listLive(run.tenantId, SCAN_LIMIT, kinds);
+  const stored = await deps.findings.listLive(
+    run.tenantId,
+    SCAN_LIMIT,
+    kinds,
+    earliestNotifySince(kinds, run.settings),
+  );
   const due = [...stored, ...(run.virtual ?? [])].filter((finding) =>
     isDue(finding, kinds, run),
   );
@@ -78,6 +90,22 @@ export function writingKinds(settings: ManagerSettings): FindingKind[] {
       kindMode(settings, kind) === "team" &&
       settings.kinds[kind]?.card_write === true,
   );
+}
+
+/**
+ * The earliest notify_since of the writing kinds. No older event is ever
+ * written (isDeliverable), so the scan starts there and older drafts cannot
+ * fill it.
+ */
+function earliestNotifySince(
+  kinds: FindingKind[],
+  settings: ManagerSettings,
+): string | undefined {
+  const times = kinds.flatMap((kind) => {
+    const since = kindNotifySince(settings, kind);
+    return since ? [Date.parse(since)] : [];
+  });
+  return times.length ? new Date(Math.min(...times)).toISOString() : undefined;
 }
 
 /** A finding of a writing kind with a draft, a client and an event Carmen may act on. */
@@ -113,6 +141,7 @@ async function writeAll(
       continue;
     }
     if (await run.settingsChanged()) {
+      done.stopped = true;
       break;
     }
     try {
@@ -129,6 +158,7 @@ async function writeAll(
       }
     } catch (error) {
       done.failed += 1;
+      done.error ??= error instanceof Error ? error.message : String(error);
       console.error("[carmen-manager-round] card write", finding.id, error);
     }
   }
@@ -143,6 +173,8 @@ function report(fields: Partial<CardWriteReport>): CardWriteReport {
     failed: 0,
     already_closed: 0,
     finding_ids: [],
+    stopped: false,
+    error: null,
     ...fields,
   };
 }

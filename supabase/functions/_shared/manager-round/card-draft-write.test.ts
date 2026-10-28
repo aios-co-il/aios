@@ -5,6 +5,8 @@ import {
   type CardDraftWritePorts,
   writeCardDraft,
 } from "./card-draft-write.ts";
+import { FINDING_LIVE_STATUSES } from "./kinds.ts";
+import { quotedList } from "./migration-lists.ts";
 
 const draft: CardDraft = {
   source: "group_digest",
@@ -94,4 +96,19 @@ Deno.test("writeCardDraft", async (t) => {
       assertEquals(entries.length, 1);
     },
   );
+});
+
+Deno.test("carmen_finding_resolve_card_written", async (t) => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../../migrations/20261027103000_carmen_group_updates.sql",
+      import.meta.url,
+    ),
+  );
+
+  await t.step("closes a finding only while it is live", () => {
+    assertEquals(quotedList(sql, "SET status = 'resolved'", "f.status IN ("), [
+      ...FINDING_LIVE_STATUSES,
+    ]);
+  });
 });

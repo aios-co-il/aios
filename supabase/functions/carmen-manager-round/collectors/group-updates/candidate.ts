@@ -9,6 +9,7 @@
  * after a lost watermark updates its finding instead of adding one.
  */
 import {
+  APPROVE_DRAFT_WORD_HE,
   cardDraftContent,
   type CardDraft,
 } from "../../../_shared/manager-round/card-draft.ts";
@@ -39,7 +40,7 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
     agency_id: null,
     source_event_at: first.at,
     summary_he: clamp(
-      `${window.clientName}: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס – ${clamp(digest.update_text, MAX_ITEM_CHARS)}. לרישום בכרטיס: "אשר" ומספר הפריט`,
+      `${window.clientName}: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס – ${clamp(digest.update_text, MAX_ITEM_CHARS)}. לרישום בכרטיס: "${APPROVE_DRAFT_WORD_HE}" ומספר הפריט`,
       500,
     ),
     evidence: {

@@ -131,6 +131,7 @@ Deno.test("writeTeamDrafts", async (t) => {
       const w = world({ findings: [stale()], failOn: "card" });
       const report = await writeTeamDrafts(deps(w), run());
       assertEquals([report?.written, report?.failed], [0, 1]);
+      assertEquals(report?.error, "card write refused");
       assertEquals(w.findings[0].status, "open");
     },
   );
@@ -151,7 +152,7 @@ Deno.test("writeTeamDrafts", async (t) => {
         ...run(),
         settingsChanged: () => Promise.resolve(++checks > 1),
       });
-      assertEquals(report?.written, 1);
+      assertEquals([report?.written, report?.stopped], [1, true]);
       assertEquals(
         w.findings.map((f) => f.status),
         ["resolved", "open"],
@@ -211,7 +212,7 @@ Deno.test("Carmen's own card writes in the round", async (t) => {
         stats && typeof stats === "object" && !Array.isArray(stats)
           ? stats.card_writes
           : null,
-        { written: 1, failed: 0, already_closed: 0 },
+        { written: 1, failed: 0, already_closed: 0, error: null },
       );
     },
   );

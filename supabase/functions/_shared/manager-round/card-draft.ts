@@ -17,16 +17,24 @@ import { jsonObject } from "./json-object.ts";
 /** The reply word, sent before the finding's code. */
 export const APPROVE_DRAFT_WORD_HE = "אשר";
 
+/** The reply word (or its plural or feminine imperative), then the code. */
+const APPROVE_REPLY = new RegExp(
+  `(?:^|\\s)${APPROVE_DRAFT_WORD_HE}[יו]?\\s*#?(\\d{1,7})(?!\\d)`,
+);
+
 /** The card sources a finding may draft; each is a client card source. */
 export const CARD_DRAFT_SOURCES = [
   "group_digest",
 ] as const satisfies readonly ClientCardSource[];
 
-export const CARD_DRAFT_TYPES = ["group_summary"] as const;
+/** The card update types a finding may draft, with the card's label for each. */
+export const CARD_DRAFT_TYPES = [
+  { value: "group_summary", label: "סיכום קבוצה" },
+] as const;
 
 export type CardDraft = {
   source: (typeof CARD_DRAFT_SOURCES)[number];
-  update_type: (typeof CARD_DRAFT_TYPES)[number];
+  update_type: (typeof CARD_DRAFT_TYPES)[number]["value"];
   /** The card's dedupe key, e.g. `<group_id>:<last_message_id>`. */
   source_ref: string;
   content: string;
@@ -43,7 +51,9 @@ export type DraftedFinding = {
 export function cardDraftOf(evidence: Json): CardDraft | null {
   const draft = jsonObject(jsonObject(evidence)?.card_draft);
   const source = CARD_DRAFT_SOURCES.find((s) => s === draft?.source);
-  const type = CARD_DRAFT_TYPES.find((t) => t === draft?.update_type);
+  const type = CARD_DRAFT_TYPES.find(
+    (t) => t.value === draft?.update_type,
+  )?.value;
   const ref = text(draft?.source_ref);
   const content = text(draft?.content);
   return source && type && ref && content
@@ -94,7 +104,7 @@ export function cardDraftContent(
 
 /** The finding code in a reply such as "אשר 123", "אשרי #123" or "אשרו 123"; else null. */
 export function parseApproveDraftReply(message: string): number | null {
-  const match = /(?:^|\s)אשר[יו]?\s*#?(\d{1,7})(?!\d)/.exec(message);
+  const match = APPROVE_REPLY.exec(message);
   return match ? Number(match[1]) : null;
 }
 

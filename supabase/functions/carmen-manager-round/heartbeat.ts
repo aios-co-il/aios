@@ -49,6 +49,10 @@ export function roundLog(
     report.gaps_dropped ?? {},
   ].reduce((sum, counts) => sum + unexpectedDrops(counts), 0);
   const notStoredText = notStored ? `, ${notStored} לא נשמרו` : "";
+  const cardFailed = report.card_writes?.failed ?? 0;
+  const cardFailedText = cardFailed
+    ? `, ${cardFailed} רישומים בכרטיס נכשלו`
+    : "";
   return {
     tenant_id: report.tenant_id,
     run_kind: MANAGER_ROUND_RUN_KIND,
@@ -56,7 +60,7 @@ export function roundLog(
     tasks_reviewed: report.routed ?? 0,
     summary: report.error
       ? `סבב כרמן נכשל: ${report.error.slice(0, 200)}`
-      : `סבב כרמן (${report.mode}): ${found} ממצאים חדשים, ${cleared} נסגרו, ${messages} הודעות${notStoredText}`,
+      : `סבב כרמן (${report.mode}): ${found} ממצאים חדשים, ${cleared} נסגרו, ${messages} הודעות${notStoredText}${cardFailedText}`,
     stats: {
       mode: report.mode,
       collectors: collectors.map(
@@ -83,6 +87,7 @@ export function roundLog(
             written: report.card_writes.written,
             failed: report.card_writes.failed,
             already_closed: report.card_writes.already_closed,
+            error: report.card_writes.error,
           }
         : null,
       routed: report.routed ?? 0,

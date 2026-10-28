@@ -1,9 +1,8 @@
 -- Group updates to the client card (20261027103000_carmen_group_updates):
 -- carmen_finding_role_of, carmen_finding_resolve_card_written and
 -- carmen_round_llm_spend inside one transaction that is rolled back. Run on a
--- Preview branch or Staging (needs a client with a tenant and an owner of
--- that tenant). carmen_group_updates.sql covers
--- get_client_group_digest_messages.
+-- Preview branch or Staging (needs a client whose tenant has an owner).
+-- carmen_group_updates.sql covers get_client_group_digest_messages.
 BEGIN;
 DO $test$
 DECLARE
@@ -18,13 +17,15 @@ DECLARE
   v_ok boolean;
   v_failed boolean;
 BEGIN
-  SELECT c.tenant_id, c.id INTO v_tenant, v_client
-  FROM public.clients AS c WHERE c.tenant_id IS NOT NULL ORDER BY c.id LIMIT 1;
-  IF v_client IS NULL THEN RAISE EXCEPTION 'Requires a client with a tenant'; END IF;
-  SELECT ur.user_id INTO v_person FROM public.user_roles AS ur
+  SELECT c.tenant_id, c.id, ur.user_id INTO v_tenant, v_client, v_person
+  FROM public.clients AS c
+  JOIN public.user_roles AS ur
+    ON ur.tenant_id = c.tenant_id AND ur.role IN ('owner', 'agency_owner')
   JOIN public.profiles AS p ON p.id = ur.user_id
-  WHERE ur.tenant_id = v_tenant AND ur.role IN ('owner', 'agency_owner') LIMIT 1;
-  IF v_person IS NULL THEN RAISE EXCEPTION 'Requires an owner of the tenant'; END IF;
+  ORDER BY c.id LIMIT 1;
+  IF v_client IS NULL THEN
+    RAISE EXCEPTION 'Requires a client whose tenant has an owner';
+  END IF;
 
   -- One rule: the feed's caller rule is carmen_finding_role_of for auth.uid().
   IF public.carmen_finding_role_of(v_person, v_tenant, v_client, NULL) IS DISTINCT FROM 'owner'

@@ -41,11 +41,15 @@ export type FindingsStore = {
     now: Date,
     limit: number,
   ): Promise<FindingRow[]>;
-  /** Live findings, newest first (for the brief), optionally of some kinds only. */
+  /**
+   * Live findings, newest first (for the brief), optionally of some kinds
+   * only; `eventSince` skips findings about older events.
+   */
   listLive(
     tenantId: string,
     limit: number,
     kinds?: readonly string[],
+    eventSince?: string,
   ): Promise<FindingRow[]>;
   byIds(tenantId: string, ids: string[]): Promise<FindingRow[]>;
   applyRoute(
@@ -108,13 +112,16 @@ export function createFindingsStore(db: DbClient): FindingsStore {
       return data ?? [];
     },
 
-    async listLive(tenantId, limit, kinds) {
+    async listLive(tenantId, limit, kinds, eventSince) {
       const live = db
         .from("carmen_findings")
         .select(FINDING_COLUMNS)
         .eq("tenant_id", tenantId)
         .in("status", [...FINDING_LIVE_STATUSES]);
-      const { data, error } = await (kinds ? live.in("kind", [...kinds]) : live)
+      const ofKinds = kinds ? live.in("kind", [...kinds]) : live;
+      const { data, error } = await (
+        eventSince ? ofKinds.gte("source_event_at", eventSince) : ofKinds
+      )
         .order("last_seen_at", { ascending: false })
         .limit(limit);
       throwIf(error, "carmen_findings live");

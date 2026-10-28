@@ -7,6 +7,7 @@
 import type { Database, Json } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
+import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
 import { MONITORED_PROVIDER } from "./lines.ts";
 
 type GroupRow =
@@ -85,10 +86,11 @@ function parseMessages(raw: Json): GroupMessage[] {
 
 /** One message, or null when a required field is missing. */
 function parseMessage(item: Json): GroupMessage | null {
-  if (!item || typeof item !== "object" || Array.isArray(item)) {
+  const row = jsonObject(item);
+  if (!row) {
     return null;
   }
-  const { id, at, out, key, lid_unmapped, text } = item;
+  const { id, at, out, key, lid_unmapped, text } = row;
   if (typeof id !== "string" || typeof at !== "string") {
     return null;
   }

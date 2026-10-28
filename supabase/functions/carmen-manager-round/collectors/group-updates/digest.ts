@@ -3,6 +3,11 @@
  * Hebrew line for the card and the items behind it. Parsed from the model's
  * JSON, with every field checked and clamped; anything else is no digest.
  */
+import type { Json } from "../../../_shared/database.types.ts";
+import {
+  jsonObject,
+  type JsonObject,
+} from "../../../_shared/manager-round/json-object.ts";
 import { clamp } from "./clamp.ts";
 
 /** Item types, in the order the card line lists them. */
@@ -54,28 +59,21 @@ export function parseDigest(raw: string | null): Digest | null {
 }
 
 /** One item with a known type and some text, or null. */
-function parseItem(raw: unknown): DigestItem | null {
-  if (!raw || typeof raw !== "object" || !("type" in raw) || !("text" in raw)) {
-    return null;
-  }
-  const type = DIGEST_ITEM_TYPES.find((known) => known === raw.type);
+function parseItem(raw: Json): DigestItem | null {
+  const item = jsonObject(raw);
+  const type = DIGEST_ITEM_TYPES.find((known) => known === item?.type);
   const text =
-    typeof raw.text === "string" ? clamp(raw.text, MAX_ITEM_CHARS) : "";
+    typeof item?.text === "string" ? clamp(item.text, MAX_ITEM_CHARS) : "";
   return type && text ? { type, text } : null;
 }
 
 /** A parsed JSON object, or null. */
-function parseJson(
-  raw: string | null,
-): { material?: unknown; update_text?: unknown; items?: unknown } | null {
+function parseJson(raw: string | null): JsonObject | null {
   if (!raw) {
     return null;
   }
   try {
-    const value: unknown = JSON.parse(raw);
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? value
-      : null;
+    return jsonObject(JSON.parse(raw));
   } catch {
     return null;
   }
