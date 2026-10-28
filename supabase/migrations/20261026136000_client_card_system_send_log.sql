@@ -21,19 +21,22 @@
 --      target_type 'meeting_summary'            -> meeting_summary_sent
 --      target_type 'dashboard', no schedule_id  -> dashboard_shared
 --      anything else (table, scheduled dashboard) -> report_sent
---    source_ref = the delivery id. The content is the title, the channels
---    that went out and the share link, never the report text. The person who
---    sent it (auth.uid(), or the schedule owner) is the attributed user.
+--    source_ref = the delivery id. The content is the kind, the title and
+--    the channels that went out; metadata adds target_type and target_id
+--    (the table, dashboard or recording id). Never the report text, and never
+--    details.share_url: it is a public bearer link, and the shared card shows
+--    the entry to every org that can see the client. The person who sent it
+--    (auth.uid(), or the schedule owner) is the attributed user.
 --
 --    Example: a manual WhatsApp + email send of table "דוח לידים"
 --      INSERT INTO report_deliveries (tenant_id, client_id, target_type,
 --        target_id, channels, status, details)
 --      VALUES (T, C, 'table', <table>, '{whatsapp,email}', 'sent',
 --        '{"share_url": "https://aios.co.il/shared/table/abc"}');
---    writes one client_updates row:
+--    writes one client_updates row, without the link:
 --      update_type 'report_sent', source 'system_send', source_ref <delivery>,
 --      content: דוח "דוח לידים" נשלח ללקוח בוואטסאפ ובאימייל
---               קישור: https://aios.co.il/shared/table/abc
+--      metadata: target_type 'table', target_id <table>, channels, status
 --    A 'failed' delivery, or one where no channel went out, writes nothing; a
 --    'partial' one lists only the channels that succeeded and says some
 --    channels failed. A meeting summary's date (details.meeting_date) follows
@@ -68,7 +71,8 @@
 --    Inbound rows, service-role rows without a kind, rows with no
 --    resolvable client and rows in a group linked to several clients
 --    (ambiguous) write nothing. Nor does a row whose tenant may not write the
---    client's card (not its client, and no agency read_write access to it).
+--    client's card (tenant_can_write_client from 20261026126000: not its
+--    client, and no agency read_write access to it).
 --    A row written with a signed-in person's token (the browser, or a sender
 --    acting for that person) logs only chat, attributed to that person
 --    (auth.uid()), never to the sent_by_user_id it names: broadcast, carmen
@@ -91,6 +95,15 @@
 --    panel and meeting summary dialog, which now record a report_deliveries
 --    row instead). Every system_send entry is written by these triggers, so
 --    nobody can forge one or claim its dedupe key ahead of the trigger.
+--    Because every reader of a client sees every entry on it, anyone but a
+--    super admin inserts only as themselves, in their own tenant, on a client
+--    they can see that their tenant may write (tenant_can_write_client, the
+--    rule record_client_card_entry uses). An edit keeps the entry on a client
+--    its org may still write, and no edit moves an entry to another client
+--    or org or changes its source, source_ref or person, so an edit cannot
+--    forge a system_send entry or claim a trigger's dedupe key either. A
+--    former or read-only agency partner can neither add an entry to the card
+--    nor change one.
 --
 -- 6. One chat row per Green API message. A Green API send stored by its
 --    sender with send_kind carmen or automation (trigger-automation, Carmen's
@@ -257,7 +270,6 @@ DECLARE
   v_channels text[];
   v_channel_words text[] := ARRAY[]::text[];
   v_channel text;
-  v_link text;
   v_content text;
   v_actor uuid;
 BEGIN
@@ -321,8 +333,6 @@ BEGIN
       END IF;
     END LOOP;
 
-    v_link := nullif(btrim(NEW.details ->> 'share_url'), '');
-
     v_content := v_label
       || CASE WHEN v_title IS NOT NULL THEN ' "' || v_title || '"' ELSE '' END
       || CASE WHEN v_meeting_date IS NOT NULL THEN ' (' || v_meeting_date || ')' ELSE '' END
@@ -333,8 +343,7 @@ BEGIN
            ELSE ''
          END
       || CASE WHEN NEW.schedule_id IS NOT NULL THEN ' (שליחה מתוזמנת)' ELSE '' END
-      || CASE WHEN NEW.status = 'partial' THEN '. חלק מהערוצים נכשלו' ELSE '' END
-      || CASE WHEN v_link IS NOT NULL THEN E'\nקישור: ' || v_link ELSE '' END;
+      || CASE WHEN NEW.status = 'partial' THEN '. חלק מהערוצים נכשלו' ELSE '' END;
 
     -- Who sent it: the signed-in person, else the schedule owner.
     v_actor := public.client_card_profile_or_null(auth.uid());
@@ -361,8 +370,7 @@ BEGIN
         'target_id', NEW.target_id,
         'schedule_id', NEW.schedule_id,
         'channels', to_jsonb(v_channels),
-        'status', NEW.status,
-        'share_url', v_link
+        'status', NEW.status
       ))
     );
   EXCEPTION WHEN OTHERS THEN
@@ -401,7 +409,6 @@ DECLARE
   v_sender uuid;
   v_client uuid := NEW.client_id;
   v_client_tenant uuid;
-  v_client_agency uuid;
   v_sent_at timestamptz := coalesce(NEW.created_at, now());
   v_day date;
   v_where text := '';
@@ -449,27 +456,17 @@ BEGIN
       RETURN NULL;
     END IF;
 
-    -- The sending tenant must be allowed to write this client's card: its
-    -- own client, or an agency client it has read_write access to. Same rule
-    -- as record_client_card_entry, checked here because a later chat send
-    -- only updates today's entry.
-    SELECT c.tenant_id, c.agency_id
-    INTO v_client_tenant, v_client_agency
+    -- The sending tenant must be allowed to write this client's card, the
+    -- rule record_client_card_entry also checks: here too, because a later
+    -- chat send only updates today's entry.
+    IF NOT public.tenant_can_write_client(NEW.tenant_id, v_client) THEN
+      RAISE NOTICE 'log_system_send_on_client_card: tenant % may not write client %, message % not logged',
+        NEW.tenant_id, v_client, NEW.id;
+      RETURN NULL;
+    END IF;
+    SELECT c.tenant_id INTO v_client_tenant
     FROM public.clients AS c
     WHERE c.id = v_client;
-    IF NOT FOUND THEN
-      RETURN NULL;
-    END IF;
-    IF v_client_tenant IS DISTINCT FROM NEW.tenant_id AND NOT EXISTS (
-      SELECT 1
-      FROM public.agency_tenant_access AS ata
-      WHERE ata.accessing_tenant_id = NEW.tenant_id
-        AND ata.source_tenant_id = v_client_tenant
-        AND ata.agency_id = v_client_agency
-        AND ata.access_level = 'read_write'
-    ) THEN
-      RETURN NULL;
-    END IF;
 
     IF NEW.group_id IS NOT NULL THEN
       -- Only a group of the sending tenant or the client's tenant is named.
@@ -754,14 +751,17 @@ CREATE TRIGGER chat_messages_merge_green_api_send_echo
   )
   EXECUTE FUNCTION public.merge_green_api_send_echo();
 
--- ─── 7. Browser inserts: human rows only ────────────────────────────────────
+-- ─── 7. Browser writes: human rows on writable clients ──────────────────────
 
 -- AIO-232 let the browser insert system_send rows for the report panel and
 -- the meeting summary dialog; both now record a report_deliveries row and the
 -- triggers above write the entry. A browser system_send row could only forge
 -- an entry or claim a trigger's dedupe key ahead of it.
--- Checks: human rows only, in the caller's tenant (any tenant for a super
--- admin).
+-- Checks: human rows only; a super admin anywhere; anyone else as themselves,
+-- in their own tenant, on a client they can see (the clients subquery runs
+-- under their own clients policies) that their tenant may write
+-- (tenant_can_write_client). The shared card shows this row to the client's
+-- org, so a tenant that may not write the card cannot put text on it.
 DROP POLICY IF EXISTS "Users can create client updates in their tenant" ON public.client_updates;
 CREATE POLICY "Users can create client updates in their tenant"
   ON public.client_updates
@@ -770,6 +770,89 @@ CREATE POLICY "Users can create client updates in their tenant"
     source = 'human'
     AND (
       public.is_super_admin(auth.uid())
-      OR tenant_id = public.get_user_tenant_id(auth.uid())
+      OR (
+        tenant_id = public.get_user_tenant_id(auth.uid())
+        AND user_id = auth.uid()
+        AND EXISTS (
+          SELECT 1
+          FROM public.clients AS c
+          WHERE c.id = client_updates.client_id
+        )
+        AND public.tenant_can_write_client(
+          public.get_user_tenant_id(auth.uid()),
+          client_id
+        )
+      )
     )
   );
+
+-- Updates (replaces the AIO-232 policy): authors edit their own human rows;
+-- tenant and agency owners edit rows no person wrote, which stay non-human.
+-- The edited row stays on a client the editor can see and that the row's org
+-- may still write (tenant_can_write_client), so a read_only or former agency
+-- partner cannot change text on the shared card. client_updates_keep_owner
+-- below stops an edit from moving the row to another client or org, or from
+-- changing its source, source_ref or person.
+DROP POLICY IF EXISTS "Users can update own client updates" ON public.client_updates;
+CREATE POLICY "Users can update own client updates"
+  ON public.client_updates
+  FOR UPDATE
+  USING (
+    (source = 'human' AND user_id = auth.uid())
+    OR (
+      source <> 'human'
+      AND public.user_can_manage_client_card_entries(tenant_id)
+    )
+  )
+  WITH CHECK (
+    (
+      (source = 'human' AND user_id = auth.uid())
+      OR (
+        source <> 'human'
+        AND public.user_can_manage_client_card_entries(tenant_id)
+      )
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.clients AS c
+      WHERE c.id = client_updates.client_id
+    )
+    AND public.tenant_can_write_client(tenant_id, client_id)
+  );
+
+-- Rejects an update that changes a card entry's client_id, tenant_id, source,
+-- source_ref or user_id: an entry stays on the client and in the org it was
+-- written for, and keeps who and what wrote it, whoever edits it. Otherwise an
+-- owner could turn a row into a system_send entry attributed to another org's
+-- person, holding a trigger's dedupe key so the trigger's own entry is never
+-- written (a WITH CHECK cannot compare the new row with the old one).
+CREATE OR REPLACE FUNCTION public.client_updates_keep_owner()
+RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path TO ''
+AS $$
+BEGIN
+  IF TG_OP = 'UPDATE'
+    AND (
+      NEW.client_id IS DISTINCT FROM OLD.client_id
+      OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+      OR NEW.source IS DISTINCT FROM OLD.source
+      OR NEW.source_ref IS DISTINCT FROM OLD.source_ref
+      OR NEW.user_id IS DISTINCT FROM OLD.user_id
+    ) THEN
+    RAISE EXCEPTION 'client_updates: client_id, tenant_id, source, source_ref and user_id cannot change'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.client_updates_keep_owner()
+  FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS client_updates_keep_owner ON public.client_updates;
+CREATE TRIGGER client_updates_keep_owner
+  BEFORE UPDATE OF client_id, tenant_id, source, source_ref, user_id
+  ON public.client_updates
+  FOR EACH ROW
+  EXECUTE FUNCTION public.client_updates_keep_owner();
