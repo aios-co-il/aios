@@ -66,7 +66,7 @@ import {
 import {
   isBlockedInWorkshop,
   stripServerOnlyPayloadKeys,
-  workshopBlockedResult,
+  workshopToolRefusal,
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import {
@@ -16186,6 +16186,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         if (emit) emit({ type: "tool_call", tool: toolName, args: toolArgs });
 
         let result: any;
+        // A workshop tap is never an approval, and nothing leaves the board from the workshop;
+        // outside it a workshop tool has no board. Either way, even a tool never offered.
+        const workshopRefusal = workshopToolRefusal(toolName, inWorkshop);
         try {
           // Defense in depth: even if a tool slipped into the schema, refuse
           // coding-agent escalations outside the caller's tier (full vs bugfix).
@@ -16194,18 +16197,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               error: "isolated_session",
               message: "סשן מבודד — כלים כבויים.",
             };
-          } else if (isBlockedInWorkshop(toolName, inWorkshop)) {
-            // A workshop tap is never an approval, and nothing leaves the board from here,
-            // whatever is called (even a tool that was never offered).
-            result = workshopBlockedResult(toolName);
-          } else if (!inWorkshop && isWorkshopTool(toolName)) {
-            // Workshop tools are not offered outside the workshop; one called by name has no
-            // board to work on and does not run.
-            result = {
-              error: "workshop_only",
-              message:
-                "הכלי הזה עובד רק בסדנה של כרמן, עם פרויקט פתוח. כאן עני בלעדיו, ואם צריך, הציעי למשתמש לעבוד על זה בסדנה.",
-            };
+          } else if (workshopRefusal) {
+            result = workshopRefusal;
           } else if (toolName === "search_agent_tools") {
             const discovered = (
               await searchToolsFromIndex(

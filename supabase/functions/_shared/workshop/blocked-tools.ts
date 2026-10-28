@@ -3,6 +3,7 @@
  * approves only its own budget; anything that acts outside the board (publishing, messaging
  * people, ad changes, deletes, background runs) happens outside the workshop.
  */
+import { isWorkshopTool } from "./tool-definitions.ts";
 
 /** The approval queue: a workshop tap is not an approval of a WhatsApp/Meta action. */
 const APPROVAL_TOOLS = [
@@ -105,6 +106,23 @@ export function workshopBlockedResult(toolName: string) {
       ? "אישורים של וואטסאפ ומטא לא מטופלים מהסדנה. המשיכי בעבודה על הפרויקט."
       : "מהסדנה לא מפרסמים, לא שולחים הודעות ולא משנים דברים מחוץ ללוח. אמרי למשתמש שאת זה עושים מחוץ לסדנה, והמשיכי בעבודה על הפרויקט.",
   };
+}
+
+/**
+ * Why a tool Carmen called does not run in this chat, or null. In the workshop a tool that acts
+ * outside the board is refused; outside it a workshop tool is not offered, and one called by name
+ * has no board to work on.
+ */
+export function workshopToolRefusal(toolName: string, inWorkshop: boolean) {
+  if (isBlockedInWorkshop(toolName, inWorkshop))
+    return workshopBlockedResult(toolName);
+  if (!inWorkshop && isWorkshopTool(toolName))
+    return {
+      error: "workshop_only",
+      message:
+        "הכלי הזה עובד רק בסדנה של כרמן, עם פרויקט פתוח. כאן עני בלעדיו, ואם צריך, הציעי למשתמש לעבוד על זה בסדנה.",
+    };
+  return null;
 }
 
 /** Payload keys only the workshop's own server code writes (budget approval, project state). */
