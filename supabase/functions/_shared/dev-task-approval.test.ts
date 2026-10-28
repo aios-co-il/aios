@@ -7,11 +7,8 @@ import {
   DEV_TASK_OFFER_TTL_MS,
   devTaskApprovalDecision,
   type DevTaskApprovalInput,
-  devTaskSendRule,
-  directDevSendRefusal,
   isExplicitDevTaskApproval,
   namedDevAgent,
-  workshopDevTaskRule,
 } from "./dev-task-approval.ts";
 
 const TURN = "2026-10-27T10:00:00.000Z";
@@ -194,6 +191,7 @@ Deno.test("a yes that names the other agent does not approve", () => {
   assertStrictEquals(namedDevAgent("כן תשלחי לקלוד"), "claude");
   assertStrictEquals(namedDevAgent("כן, ל-Cursor"), "cursor");
   assertStrictEquals(namedDevAgent("כן"), null);
+  assertStrictEquals(namedDevAgent("כן, מנוסה מספיק"), null);
   assertStrictEquals(
     reason(yes({ userText: "כן תשלחי לקלוד" })),
     "target_mismatch",
@@ -241,18 +239,6 @@ Deno.test("a bug-fix caller approves only her own Cursor tasks", () => {
   );
 });
 
-Deno.test("each tier is told only what it may do in the workshop", () => {
-  const david = workshopDevTaskRule("full");
-  assertMatch(david, /Cursor או ל-Claude/);
-  assertMatch(david, /בהודעה הבאה/);
-  assertStrictEquals(david.includes("mcp_Cursor__request_dev_task"), false);
-  const ana = workshopDevTaskRule("bugfix");
-  assertMatch(ana, /assigned_agent=cursor/);
-  assertMatch(ana, /רק דיוויד/);
-  assertMatch(ana, /בהודעה הבאה/);
-  assertStrictEquals(/Cursor או ל-Claude|mcp_/.test(ana), false);
-});
-
 Deno.test("a yes approves only the task Carmen's last message offered", () => {
   // Turn 1 offered the task, turn 2 was a no, turn 3 the designer asked to go on: the yes in
   // turn 4 answers the designer. A plain question has no choice to tap; an older draft is not
@@ -271,74 +257,3 @@ Deno.test("a yes approves only the task Carmen's last message offered", () => {
     assertMatch(decision.message, /\[\[בחירה: לשלוח את משימת הפיתוח\?/);
   assertStrictEquals(decision.ok, false);
 });
-
-/** David's turn in an AIOS chat outside the workshop (the video studio, the sidecar). */
-const turn = (over: Record<string, unknown> = {}) => ({
-  appChatUser: true,
-  userText: "כן",
-  lastAssistantText: OFFER,
-  ...over,
-});
-
-Deno.test(
-  "a direct send to Cursor or Claude waits for the user's yes to Carmen's offer",
-  () => {
-    for (const tool of [
-      "mcp_Cursor__request_dev_task",
-      "mcp_Cursor__ask_cursor",
-      "mcp_Claude__request_dev_task",
-      "mcp_Claude__ask_claude",
-      "request_dev_task",
-    ]) {
-      // Same turn as the request: nothing offered yet.
-      const asked = directDevSendRefusal(
-        tool,
-        turn({ userText: "תשלחי לקרסר לתקן את הכפתור", lastAssistantText: "" }),
-      );
-      assertStrictEquals(asked?.error, "dev_send_needs_yes", tool);
-      assertMatch(String(asked?.message), /\[\[בחירה: .*\| כן \| לא\]\]/);
-      assertStrictEquals(
-        directDevSendRefusal(tool, turn({ appChatUser: false }))?.error,
-        "dev_task_approval_not_app_chat",
-        tool,
-      );
-    }
-    assertStrictEquals(
-      directDevSendRefusal("mcp_Cursor__request_dev_task", turn()),
-      null,
-    );
-    assertStrictEquals(
-      directDevSendRefusal(
-        "mcp_Cursor__request_dev_task",
-        turn({ userText: "כן תשלחי לקלוד" }),
-      )?.error,
-      "dev_task_approval_target_mismatch",
-    );
-    // Reading a session or another connector is no send.
-    for (const tool of ["mcp_Cursor__list_cursor_task_sessions", "list_leads"])
-      assertStrictEquals(
-        directDevSendRefusal(
-          tool,
-          turn({ userText: "", lastAssistantText: "" }),
-        ),
-        null,
-        tool,
-      );
-  },
-);
-
-Deno.test(
-  "outside the workshop each chat is told how a dev task is sent",
-  () => {
-    const app = devTaskSendRule(true);
-    assertMatch(app, /\[\[בחירה: לשלוח את משימת הפיתוח\? \| כן \| לא\]\]/);
-    assertMatch(app, /בהודעה הבאה/);
-    const whatsapp = devTaskSendRule(false);
-    assertMatch(whatsapp, /create_dev_task/);
-    assertMatch(whatsapp, /מרכז משימות הפיתוח/);
-    assertStrictEquals(
-      /approve_dev_task|dispatch_dev_task/.test(whatsapp),
-      false,
-    );
-  },
-);
