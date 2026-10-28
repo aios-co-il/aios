@@ -100,3 +100,49 @@ test("stored custom sources normalize to policy while preserving escalation meta
   expect(merged[0].source).toBe("policy");
   expect(merged[0].dev_escalation_tier).toBe("custom-tier");
 });
+
+test("mergePrivatePhoneAllowlist: a bare policy row keeps the identity's tier and note", () => {
+  const out = mergePrivatePhoneAllowlist({
+    identities: [
+      {
+        phone: "972502222222",
+        display_name: "אנה",
+        surfaces: ["whatsapp_private"],
+        dev_escalation_tier: "full",
+        relationship_note: "דבר קצר",
+      },
+    ],
+    policyPhones: decodePrivatePhoneRows([{ phone: "972502222222" }]),
+  });
+  expect(out).toHaveLength(1);
+  expect(out[0]).toMatchObject({
+    source: "policy",
+    label: "אנה",
+    dev_escalation_tier: "full",
+    relationship_note: "דבר קצר",
+  });
+});
+
+test("decodePrivatePhoneRows: emits only present keys and keeps campaigner/client ids", () => {
+  const [bare, full, cleared] = decodePrivatePhoneRows([
+    { phone: "972501111111" },
+    {
+      phone: "972502222222",
+      campaigner_id: "camp-1",
+      client_id: "client-1",
+      source: "custom",
+    },
+    { phone: "972503333333", dev_escalation_tier: null },
+  ]);
+  expect(bare).toStrictEqual({ phone: "972501111111" });
+  expect(full).toStrictEqual({
+    phone: "972502222222",
+    campaigner_id: "camp-1",
+    client_id: "client-1",
+    source: "custom",
+  });
+  expect(cleared).toStrictEqual({
+    phone: "972503333333",
+    dev_escalation_tier: null,
+  });
+});

@@ -52,8 +52,9 @@ export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
 
   const save = useMutation({
     mutationFn: async (p: ProfileDraft) => {
+      if (!currentTenantId) throw new Error("חסר ארגון");
       const payload = {
-        tenant_id: currentTenantId!,
+        tenant_id: currentTenantId,
         agent_id: agent.id,
         contact_phone: p.contact_phone,
         display_name: p.display_name || null,

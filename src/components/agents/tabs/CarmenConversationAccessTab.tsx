@@ -170,29 +170,13 @@ export function CarmenConversationAccessTab({
     queryKey: ["carmen-identities", tenantId],
     queryFn: tenantId
       ? async () => {
-          const columns =
-            "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note";
-          // relationship_note is newer than the generated types; fall back if absent.
-          const primary = await supabase
+          const { data } = await supabase
             .from("carmen_whatsapp_identities")
-            .select(columns)
+            .select(
+              "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type, relationship_note",
+            )
             .eq("tenant_id", tenantId)
             .order("display_name");
-          let data = primary.data;
-          if (primary.error) {
-            const fallback = await supabase
-              .from("carmen_whatsapp_identities")
-              .select(
-                "id, phone, display_name, status, surfaces, dev_escalation_tier, entity_type",
-              )
-              .eq("tenant_id", tenantId)
-              .order("display_name");
-            data =
-              fallback.data?.map((row) => ({
-                ...row,
-                relationship_note: null,
-              })) ?? null;
-          }
           return data || [];
         }
       : skipToken,
@@ -264,17 +248,10 @@ export function CarmenConversationAccessTab({
           dev_escalation_tier: entry.dev_escalation_tier || null,
           relationship_note: entry.relationship_note?.trim() || null,
         };
-        const { error: noteError } = await supabase
+        await supabase
           .from("carmen_whatsapp_identities")
           .update(patch)
           .eq("id", existing.id);
-        if (noteError && /relationship_note/.test(noteError.message || "")) {
-          const { relationship_note: _note, ...withoutNote } = patch;
-          await supabase
-            .from("carmen_whatsapp_identities")
-            .update(withoutNote)
-            .eq("id", (existing as unknown as { id: string }).id);
-        }
       }
     }
   };
