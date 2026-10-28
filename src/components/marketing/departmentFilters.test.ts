@@ -81,3 +81,15 @@ test("video projects stay in creative without a payload storyboard", () => {
     }),
   ).toBe(false);
 });
+
+test("a static project is in creative before it has a picture, and never in copy", () => {
+  // The workshop groups it under Creative (has_creative) whatever brief or copy stage it has,
+  // as the Creative screen's own new projects start: a brief, a format, no picture yet.
+  for (const item of [
+    { payload: { project_type: "static", brief_text: "בריף" } },
+    { payload: { project_type: "static" }, current_stage_id: "copy-1" },
+  ]) {
+    expect(isCreativeDepartmentItem(item)).toBe(true);
+    expect(isCopyDepartmentItem(item, "copy-1")).toBe(false);
+  }
+});

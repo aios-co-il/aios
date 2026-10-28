@@ -67,9 +67,10 @@ const STAGE_DEPARTMENT: Record<string, DepartmentId> = {
 /**
  * A project's department, strongest signal first: the department it was tagged with, a workshop
  * board, its pipeline track, its current stage, then what its payload holds. Creative otherwise.
- * Untagged creative work (variations, a static or video project, a picture) goes to Creative
- * whatever brief, copy or copy stage it carries: isCreativeDepartmentItem lists it and
- * isCopyDepartmentItem leaves most of it out, so the card links to a screen that shows it.
+ * Untagged creative work (has_creative: variations, a static or video project, a picture) goes
+ * to Creative whatever brief, copy or copy stage it carries. isCreativeDepartmentItem lists each
+ * of these, a static project before its first picture too, and isCopyDepartmentItem leaves out
+ * variations and static or video projects, so the card links to the screen that shows them.
  */
 export function projectDepartment(row: ProjectDepartmentInput): DepartmentId {
   if (isDepartmentId(row.department_hint)) return row.department_hint;
