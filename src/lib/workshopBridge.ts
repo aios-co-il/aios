@@ -1,3 +1,5 @@
+import { releaseWorkshopSkins, setWorkshopSkin } from "./carmenSessionSkin";
+
 /**
  * The link between the workshop board and Carmen's session chat. They sit in different parts
  * of the page, so they share this small store: the board says which project and page is open,
@@ -8,6 +10,10 @@ export interface WorkshopContext {
   projectId: string | null;
   title: string | null;
   selectedArtifactId: string | null;
+  /** The storyboard scene the user picked on the board (marketing_video_scenes.id). */
+  selectedSceneId: string | null;
+  /** Its number in the film, as the board shows it. */
+  selectedSceneNumber: number | null;
   /** The client in view (?client=<id>); null for all clients or general content. */
   clientId: string | null;
   clientName?: string | null;
@@ -17,24 +23,39 @@ export interface WorkshopEvent {
   event: "project" | "artifacts";
   item_id: string;
   artifact_id?: string;
+  /** The scene a tool changed (workshop_update_scene); the grid reloads on any event. */
+  scene_id?: string;
 }
 
+const EVENTS = new Set<string>(["project", "artifacts"]);
+
 let context: WorkshopContext | null = null;
-const contextListeners = new Set<() => void>();
+/** A composer line the board asked for before any composer listened (prefillComposer). */
+let pendingPrefill: string | null = null;
 const eventListeners = new Set<(event: WorkshopEvent) => void>();
 
 export const getWorkshopContext = () => context;
 
 export function setWorkshopContext(next: WorkshopContext | null) {
   context = next;
-  contextListeners.forEach((listener) => listener());
+  // The workshop closed: a composer line it asked for must not fill a later, unrelated chat,
+  // and a role skin it switched Carmen to must not answer the next page's questions.
+  if (next === null) {
+    pendingPrefill = null;
+    releaseWorkshopSkins();
+  }
 }
 
-export function subscribeWorkshopContext(listener: () => void) {
-  contextListeners.add(listener);
-  return () => {
-    contextListeners.delete(listener);
-  };
+/**
+ * A workshop turn's `skin` event: the server switched Carmen to one of its role skins. It counts
+ * only while the workshop is open; a turn the user left keeps streaming, and a later tool's
+ * event must not switch the Carmen of the page they went to.
+ */
+export function applyWorkshopSkin(
+  tenantId: string | null | undefined,
+  slug: string,
+) {
+  if (context) setWorkshopSkin(tenantId, slug);
 }
 
 export function emitWorkshopEvent(event: WorkshopEvent) {
@@ -55,13 +76,16 @@ export function workshopEventFrom(parsed: unknown): WorkshopEvent | null {
   if (!parsed || typeof parsed !== "object") return null;
   const row = parsed as Record<string, unknown>;
   if (row.type !== "workshop") return null;
-  if (row.event !== "project" && row.event !== "artifacts") return null;
+  if (typeof row.event !== "string" || !EVENTS.has(row.event)) return null;
   if (typeof row.item_id !== "string" || !row.item_id) return null;
   return {
-    event: row.event,
+    event: row.event as WorkshopEvent["event"],
     item_id: row.item_id,
     artifact_id:
       typeof row.artifact_id === "string" ? row.artifact_id : undefined,
+    ...(typeof row.scene_id === "string" && row.scene_id
+      ? { scene_id: row.scene_id }
+      : {}),
   };
 }
 
@@ -80,6 +104,12 @@ export function workshopRequestParts(ctx: WorkshopContext | null) {
   if (ctx.selectedArtifactId)
     lines.push(
       `העמוד שהמשתמש בחר בלוח: artifact_id=${ctx.selectedArtifactId}. "את זה" ו"שני את זה" מתייחסים אליו.`,
+    );
+  if (ctx.selectedSceneId)
+    lines.push(
+      `הסצנה שהמשתמש בחר בלוח: scene_id=${ctx.selectedSceneId}${
+        ctx.selectedSceneNumber ? ` (סצנה ${ctx.selectedSceneNumber})` : ""
+      }. "את זה", "הסצנה הזאת" ו"שני" מתייחסים אליה; שינוי בה עם workshop_update_scene.`,
     );
   if (ctx.clientId)
     lines.push(
@@ -100,6 +130,9 @@ const TOOL_LABELS: Record<string, string> = {
   workshop_save_concepts: "כותבת קונספטים",
   workshop_save_copy: "כותבת קופי",
   workshop_storyboard: "כותבת סטוריבורד",
+  workshop_update_scene: "משנה סצנה",
+  workshop_edit_from_assets: "עורכת סרט מהחומרים",
+  workshop_choose_voice: "בוחרת קול",
   workshop_make_stills: "יוצרת תמונות לסצנות",
   workshop_produce_video: "מפיקה את הסרט",
   workshop_assign_client: "משייכת ללקוח",
@@ -111,3 +144,45 @@ const TOOL_LABELS: Record<string, string> = {
 /** The line shown in the chat while a workshop tool runs; other tools keep their own name. */
 export const workshopToolLabel = (tool: string | undefined) =>
   tool ? (TOOL_LABELS[tool] ?? tool) : tool;
+
+/**
+ * The board asks Carmen's composer to show a line (e.g. "סצנה 3: ") and take the focus. The
+ * chat may mount after the board asks (the session column opens on the same click), so a
+ * request nobody heard waits for the first composer that subscribes.
+ */
+const prefillListeners = new Set<(text: string) => void>();
+
+export function prefillComposer(text: string) {
+  if (prefillListeners.size === 0) {
+    pendingPrefill = text;
+    return;
+  }
+  pendingPrefill = null;
+  prefillListeners.forEach((listener) => listener(text));
+}
+
+export function subscribeComposerPrefill(listener: (text: string) => void) {
+  prefillListeners.add(listener);
+  if (pendingPrefill !== null) {
+    const text = pendingPrefill;
+    pendingPrefill = null;
+    listener(text);
+  }
+  return () => {
+    prefillListeners.delete(listener);
+  };
+}
+
+const SCENE_PREFIX = /^סצנה \d+:\s*/;
+
+/** What the board puts in the composer when the user asks to comment on a scene. */
+export const scenePrefix = (number: number) => `סצנה ${number}: `;
+
+/**
+ * The composer text after a prefill: a scene prefix replaces an earlier one, and a draft the
+ * user already typed stays after it instead of being thrown away.
+ */
+export function prefilledDraft(current: string, prefix: string) {
+  const draft = current.replace(SCENE_PREFIX, "").trim();
+  return draft ? `${prefix}${draft}` : prefix;
+}

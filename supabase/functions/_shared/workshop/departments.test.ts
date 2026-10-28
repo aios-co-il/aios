@@ -26,7 +26,8 @@ Deno.test("only departments with a marketing screen link to one", () => {
   assertStrictEquals(departmentScreen("creative"), "creative");
   assertStrictEquals(departmentScreen("copy"), "copy");
   assertStrictEquals(departmentScreen("seo"), "seo");
-  assertStrictEquals(departmentScreen("campaigns"), "campaigns");
+  // marketing/department/campaigns is still the coming-soon placeholder.
+  assertStrictEquals(departmentScreen("campaigns"), null);
   assertStrictEquals(departmentScreen("social"), null);
   assertStrictEquals(departmentScreen("web"), null);
   assertStrictEquals(isDepartmentId("web"), true);
@@ -91,10 +92,7 @@ Deno.test("payload content decides last, and creative is the default", () => {
     projectDepartment({ has_seo_plan: true, has_copy: true }),
     "seo",
   );
-  assertStrictEquals(
-    projectDepartment({ has_copy: true, has_creative: true }),
-    "copy",
-  );
+  assertStrictEquals(projectDepartment({ has_copy: true }), "copy");
   assertStrictEquals(projectDepartment({ has_creative: true }), "creative");
   assertStrictEquals(projectDepartment({}), "creative");
 });
@@ -137,6 +135,26 @@ Deno.test(
     assertStrictEquals(
       assignClientErrorMessage(null),
       "לא הצלחנו לשייך את הפרויקט ללקוח",
+    );
+  },
+);
+
+Deno.test(
+  "creative work with a brief or copy goes to Creative, the screen that lists it",
+  () => {
+    // isCopyDepartmentItem leaves out variations and static or video projects, whatever
+    // brief, copy or copy stage they carry; isCreativeDepartmentItem lists them.
+    assertStrictEquals(
+      projectDepartment({ has_copy: true, has_creative: true }),
+      "creative",
+    );
+    assertStrictEquals(
+      projectDepartment({ stage_type: "copy", has_creative: true }),
+      "creative",
+    );
+    assertStrictEquals(
+      projectDepartment({ department_hint: "copy", has_creative: true }),
+      "copy",
     );
   },
 );

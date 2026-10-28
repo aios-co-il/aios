@@ -69,7 +69,8 @@ src/components/carmen-command/
 - **טבלאות:** `dev_tasks` + `dev_task_events` (מיגרציה `20260831170000`).
 - **API:** edge function `dev-task-center` (JWT).
 - **כלי כרמן:** `find_dev_task_duplicates`, `create_dev_task`, `approve_dev_task`, `dispatch_dev_task`, `list_dev_tasks`, `update_dev_task`, `attach_dev_task_session`.
-- **בסדנה בלבד:** `approve_dev_task` ו-`dispatch_dev_task` פועלים רק כשההודעה של המשתמש בצ׳אט ("כן", "כן תשלחי", "מאשר", "יאללה") עונה למשימה שהוצעה בתור קודם של אותה שיחה, עד 30 דקות אחורה (`_shared/dev-task-approval.ts`). בשאר המקומות (וואטסאפ, sidecar, Command Center) הזרימה לא השתנתה.
+- **שליחה (שרת):** `dispatchDevTask` שולח רק משימה בסטטוס `approved` עם `approved_by` (אדם אישר), מכל מקום שקורא לו. "שלח" על טיוטה ב-Command Center מאשר אותה בשם המשתמש המחובר.
+- **אישור בכל מקום:** `approve_dev_task` ו-`dispatch_dev_task` פועלים רק כשההודעה של המשתמש המחובר בצ׳אט של AIOS (הסדנה, סטודיו הווידאו, ה-sidecar, צ׳אט Command Center: "כן", "כן תשלחי", "מאשר", "יאללה") עונה למשימה שכרמן הציעה בתור קודם של אותה שיחה, עד 30 דקות אחורה (`_shared/dev-task-approval.ts`). אותו כלל לשליחה ישירה (`mcp_Cursor__request_dev_task`, `ask_cursor`, `mcp_Claude__request_dev_task`, `ask_claude`). מוואטסאפ ומאוטומציות אי אפשר לבדוק את ה"כן": כרמן רק פותחת טיוטה, ושולחים אותה בכפתור "שלח" כאן.
 - **דדופ:** חיפוש כותרות דומות במשימות פתוחות לפני יצירה/שליחה.
 - **reconcile:** `dispatch_dev_task` בודק אוטומטית `cursor_dispatches` / `cursor_task_sessions` אחרי שגיאת כלי; אם `delivered=true` — לדווח נשלח. אחרת — `attach_dev_task_session` ידני.
 - **אין הגבלת מקביליות** — ניהול לפי עדיפות, סטטוס, דדופ וקישורים בלבד.

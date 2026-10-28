@@ -5,10 +5,12 @@
 //   poll(jobId)            -> { status: "pending" | "succeeded" | "failed", url?, bytes?, error? }
 // input: { imageBytes, imageUrl, prompt, negativePrompt, durationS, aspect }
 import { elevenLabsProvider } from "./elevenlabs.mjs";
+import { higgsfieldCredential } from "./higgsfield-credential.mjs";
 import { higgsfieldProvider } from "./higgsfield.mjs";
 import { klingProvider } from "./kling.mjs";
 import {
   elevenLabsLipsyncProvider,
+  heygenLipsyncProvider,
   higgsfieldLipsyncProvider,
   klingLipsyncProvider,
   openRouterLipsyncProvider,
@@ -20,7 +22,12 @@ import { openRouterProvider } from "./openrouter.mjs";
 const LIPSYNC_PROVIDERS = {
   elevenlabs: (keys) =>
     elevenLabsLipsyncProvider({ apiKey: keys?.elevenLabsKey }),
-  kling: () => klingLipsyncProvider(),
+  kling: (keys) =>
+    klingLipsyncProvider({
+      accessKey: keys?.klingAccessKey,
+      secretKey: keys?.klingSecretKey,
+    }),
+  heygen: (keys) => heygenLipsyncProvider({ apiKey: keys?.openRouterKey }),
   higgsfield: (keys) =>
     higgsfieldLipsyncProvider({
       keyId: keys?.higgsfieldKeyId,
@@ -30,7 +37,16 @@ const LIPSYNC_PROVIDERS = {
     openRouterLipsyncProvider({ apiKey: keys?.openRouterKey }),
 };
 
-/** A lip-sync provider by name (elevenlabs | kling | higgsfield). */
+/**
+ * Lip-sync providers whose mouth follows the voice file as it is (Creatify Aurora, Kling
+ * audio2video, HeyGen Avatar IV), so the line's word timings hold for the film's captions.
+ */
+export const AUDIO_DRIVEN_LIPSYNC = new Set(["elevenlabs", "kling", "heygen"]);
+
+/** A lip-sync provider that says the line in its own voice (OpenRouter Veo), never the chosen one. */
+export const speaksInOwnVoice = (name) => name === "openrouter";
+
+/** A lip-sync provider by name (elevenlabs | kling | heygen | higgsfield | openrouter). */
 export function getLipsyncProvider(name, keys = {}) {
   const factory = LIPSYNC_PROVIDERS[name];
   if (!factory)
@@ -86,8 +102,35 @@ const PROVIDERS = {
     }),
 };
 
+/** The free preview engine: no key, no charge, and where a refused paid clip ends. */
+export const PREVIEW_PROVIDER = "mock";
+
+/**
+ * The paid engine a clip moves to when its engine refused it, before the free preview. Its key
+ * is the tenant's OpenRouter brain, read from Vault only when a run needs it (usesVaultKey).
+ */
+export const FALLBACK_VIDEO_PROVIDER = "openrouter";
+
+/** An engine whose key is read from Vault (the tenant's OpenRouter brain) only when needed. */
+export const usesVaultKey = (name) => name === FALLBACK_VIDEO_PROVIDER;
+
+/**
+ * The engines to try first when `name`'s plan cannot make video (a plan refusal): an ElevenLabs
+ * plan moves to Higgsfield when the tenant has its key. null: the engine has no such refusal.
+ */
+export function planFallbacks(name, keys) {
+  if (name !== "elevenlabs") return null;
+  return higgsfieldCredential(keys?.higgsfieldKeyId, keys?.higgsfieldKeySecret)
+    ? ["higgsfield"]
+    : [];
+}
+
+/** The model a clip is made with: the engine's talking model when the clip speaks. */
+export const clipModel = (provider, talking) =>
+  (talking && provider.talkingModel) || provider.model;
+
 export function getVideoProvider(
-  name = process.env.VIDEO_PROVIDER || "mock",
+  name = process.env.VIDEO_PROVIDER || PREVIEW_PROVIDER,
   keys = {},
 ) {
   const factory = PROVIDERS[name];

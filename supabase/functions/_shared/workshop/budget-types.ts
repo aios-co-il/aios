@@ -26,8 +26,10 @@ export type Budget = {
   unit_usd: Partial<Record<PaidTool, number>>;
   /** What each tool was quoted so far; the film's real cost replaces its quote as runs finish. */
   quoted_usd?: Partial<Record<PaidTool, number>>;
-  /** The part of spent_usd that is the film's production. */
+  /** The part of spent_usd that is the film's production, as the last settle counted it. */
   production_usd?: number;
+  /** quoted_usd.workshop_produce_video at the last settle: a later quote is not in production_usd. */
+  production_quoted_usd?: number;
   request?: BudgetRequest;
 };
 

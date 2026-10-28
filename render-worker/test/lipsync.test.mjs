@@ -9,6 +9,7 @@ import {
   talkingLine,
 } from "../src/narration.mjs";
 import {
+  getLipsyncProvider,
   lipsyncProviderNames,
   talkingPrompt,
 } from "../src/providers/index.mjs";
@@ -101,6 +102,42 @@ test("Kling lip sync posts audio2video with the clip and audio urls, and reads t
   }
 });
 
+test("Kling lip sync signs with the tenant's own Kling keys before the worker's", async () => {
+  process.env.KLING_ACCESS_KEY = "env-ak";
+  process.env.KLING_SECRET_KEY = "env-sk";
+  const realFetch = globalThis.fetch;
+  let auth = "";
+  globalThis.fetch = async (_url, init) => {
+    auth = init.headers.Authorization;
+    return new Response(JSON.stringify({ code: 0, data: { task_id: "k-1" } }));
+  };
+  try {
+    const provider = getLipsyncProvider("kling", {
+      klingAccessKey: "tenant-ak",
+      klingSecretKey: "tenant-sk",
+    });
+    await provider.submit({
+      videoUrl: "https://p.supabase.co/v.mp4",
+      audioUrl: "https://p.supabase.co/a.mp3",
+    });
+    const [, payload] = auth.replace("Bearer ", "").split(".");
+    expect(JSON.parse(Buffer.from(payload, "base64url").toString()).iss).toBe(
+      "tenant-ak",
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.KLING_ACCESS_KEY;
+    delete process.env.KLING_SECRET_KEY;
+  }
+  // A tenant with its own pair is offered Kling on a worker without Kling keys.
+  expect(
+    lipsyncCandidates(
+      { klingAccessKey: "tenant-ak", klingSecretKey: "tenant-sk" },
+      {},
+    ),
+  ).toStrictEqual(["kling"]);
+});
+
 test("Higgsfield lip sync and talking clips use the documented Seedance 2.5 fields", () => {
   const body = higgsfieldLipsyncBody({
     imageUrl: "https://p.supabase.co/s.png",
@@ -156,13 +193,23 @@ test("lip-sync providers follow the keys; a saved job only resumes its own provi
 function fakeDb({
   voiceUrl = "t1/c1/i1/s1/voice-r0.audio",
   voiceText = LINE,
+  stillUrl = "t1/c1/i1/s1/still-v1.png",
+  clipUrl = "t1/c1/i1/s1/clip-v1.mp4",
   scene = {},
 } = {}) {
-  const calls = { uploads: [], rpcs: [], updates: [], order: [] };
+  const calls = {
+    uploads: [],
+    rpcs: [],
+    updates: [],
+    order: [],
+    buckets: [],
+    signs: [],
+  };
   return {
     calls,
     download: async (bucket, path) => {
       calls.order.push(`download:${path}`);
+      calls.buckets.push(`${bucket}:${path}`);
       return path.includes("voice") ? MP3 : PNG;
     },
     select: async (table, query) => {
@@ -193,25 +240,22 @@ function fakeDb({
           query.includes("id=eq.still-1") &&
           !/type=eq\.(?!video_still)/.test(query)
         )
-          return [{ id: "still-1", url: "t1/c1/i1/s1/still-v1.png", meta: {} }];
+          return [{ id: "still-1", url: stillUrl, meta: {} }];
         if (
           query.includes("id=eq.clip-1") &&
           query.includes("type=eq.video_clip")
         )
-          return [
-            {
-              id: "clip-1",
-              url: "t1/c1/i1/s1/clip-v1.mp4",
-              meta: { aspect: "9:16" },
-            },
-          ];
+          return [{ id: "clip-1", url: clipUrl, meta: { aspect: "9:16" } }];
         return [];
       }
       return [];
     },
     upload: async (bucket, path, bytes) =>
       calls.uploads.push({ bucket, path, size: bytes.length }),
-    sign: async (bucket, path) => `https://p.supabase.co/sign/${path}`,
+    sign: async (bucket, path) => {
+      calls.signs.push(`${bucket}:${path}`);
+      return `https://p.supabase.co/sign/${path}`;
+    },
     rpc: async (name, args) => calls.rpcs.push({ name, args }),
     update: async (table, query, patch) => {
       calls.order.push("update");
@@ -369,6 +413,91 @@ test("a voice path outside the run's tenant folder is refused before any provide
     }),
   ).rejects.toThrow(/outside the tenant folder/);
   expect(seen.submits.length).toBe(0);
+});
+
+test("the user's own picture is read from its private bucket with the worker's key", async () => {
+  const project = process.env.SUPABASE_URL;
+  process.env.SUPABASE_URL = "https://p.supabase.co";
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("a private upload is never fetched as a public link");
+  };
+  try {
+    const db = fakeDb({
+      stillUrl:
+        "https://p.supabase.co/storage/v1/object/public/entity-attachments/t1/workshop/i1/designer.png",
+    });
+    const { provider, seen } = fakeProvider();
+    await generateLipsync({
+      db,
+      run: RUN,
+      keys: { elevenLabsKey: "xi" },
+      providerFor: () => provider,
+      env: {},
+      log: () => {},
+    });
+    expect(db.calls.buckets).toContain(
+      "entity-attachments:t1/workshop/i1/designer.png",
+    );
+    expect([...seen.submits[0].imageBytes]).toStrictEqual([...PNG]);
+  } finally {
+    globalThis.fetch = realFetch;
+    if (project === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = project;
+  }
+});
+
+test("Kling lip-syncs the user's own video through a signed link of its private bucket", async () => {
+  const project = process.env.SUPABASE_URL;
+  process.env.SUPABASE_URL = "https://p.supabase.co";
+  try {
+    // workshop_edit_from_assets keeps the upload's address in the private entity-attachments bucket.
+    const db = fakeDb({
+      clipUrl:
+        "https://p.supabase.co/storage/v1/object/public/entity-attachments/t1/workshop/i1/intro.mp4",
+    });
+    const kling = fakeProvider("kling");
+    const provider = {
+      ...kling.provider,
+      needs: "video",
+      needsPublicMedia: true,
+    };
+    await generateLipsync({
+      db,
+      run: RUN,
+      keys: {},
+      providerFor: () => provider,
+      env: { LIPSYNC_PROVIDER: "kling" },
+      log: () => {},
+    });
+    expect(db.calls.signs).toContain(
+      "entity-attachments:t1/workshop/i1/intro.mp4",
+    );
+    expect(kling.seen.submits[0].videoUrl).toBe(
+      "https://p.supabase.co/sign/t1/workshop/i1/intro.mp4",
+    );
+
+    // Another tenant's upload is refused before any provider call.
+    const other = fakeDb({
+      clipUrl:
+        "https://p.supabase.co/storage/v1/object/public/entity-attachments/t2/workshop/i9/x.mp4",
+    });
+    const refused = fakeProvider("kling");
+    await expect(
+      generateLipsync({
+        db: other,
+        run: RUN,
+        keys: {},
+        providerFor: () => ({ ...provider, submit: refused.provider.submit }),
+        env: { LIPSYNC_PROVIDER: "kling" },
+        log: () => {},
+      }),
+    ).rejects.toThrow(/outside the tenant folder/);
+    expect(refused.seen.submits.length).toBe(0);
+  } finally {
+    if (project === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = project;
+  }
 });
 
 test("a scene from another tenant is not found", async () => {
@@ -581,8 +710,8 @@ test("OpenRouter is the last lip-sync option and says the line itself with audio
   const { lipsyncCandidates, openRouterLipsyncProvider } =
     await import("../src/providers/lipsync.mjs");
   expect(
-    lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}),
-  ).toStrictEqual(["elevenlabs", "openrouter"]);
+    lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}).at(-1),
+  ).toBe("openrouter");
   let sent = null;
   const provider = openRouterLipsyncProvider({
     apiKey: "or-key",
@@ -601,4 +730,301 @@ test("OpenRouter is the last lip-sync option and says the line itself with audio
   expect(sent.generate_audio).toBe(true);
   expect(sent.model).toBe(provider.model);
   expect(sent.prompt).toMatch(/שלום/);
+});
+
+/** fakeDb whose scene clip is an older lip sync over the animated clip "motion-1". */
+function relippedDb() {
+  const db = fakeDb();
+  const select = db.select;
+  db.select = async (table, query) => {
+    if (table === "marketing_assets" && query.includes("type=eq.video_clip")) {
+      if (query.includes("id=eq.clip-1"))
+        return [
+          {
+            id: "clip-1",
+            url: "t1/c1/i1/s1/lipsync-v1.mp4",
+            meta: {
+              lipsync: true,
+              dialogue: "שורה ישנה",
+              source_kind: "still",
+              motion_clip_asset_id: "motion-1",
+            },
+          },
+        ];
+      if (query.includes("id=eq.motion-1"))
+        return [
+          {
+            id: "motion-1",
+            url: "t1/c1/i1/s1/clip-v1.mp4",
+            meta: { aspect: "9:16" },
+          },
+        ];
+    }
+    return select(table, query);
+  };
+  return db;
+}
+
+test("a lip sync of the still keeps the scene's animated clip for the film", async () => {
+  const db = fakeDb();
+  const { provider } = fakeProvider();
+  await generateLipsync({
+    db,
+    run: RUN,
+    keys: { elevenLabsKey: "xi" },
+    providerFor: () => provider,
+    env: {},
+    log: () => {},
+  });
+  const attach = db.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(attach.args.p_meta.source_kind).toBe("still");
+  // The silent clip with the skin's movement plays after the line (workshop-manifest.mjs).
+  expect(attach.args.p_meta.motion_clip_asset_id).toBe("clip-1");
+});
+
+test("a new line keeps the movement: the earlier animated clip is reused, never the old lip sync", async () => {
+  // Still-based (Aurora): the animated clip behind the old lip sync is carried over.
+  const still = relippedDb();
+  const aurora = fakeProvider();
+  await generateLipsync({
+    db: still,
+    run: RUN,
+    keys: { elevenLabsKey: "xi" },
+    providerFor: () => aurora.provider,
+    env: {},
+    log: () => {},
+  });
+  const attached = still.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(attached.args.p_meta.motion_clip_asset_id).toBe("motion-1");
+  // Clip-based (Kling): the mouth is re-timed on the animated clip, not on the old lip sync.
+  const clip = relippedDb();
+  const kling = fakeProvider("kling");
+  const klingProvider = {
+    ...kling.provider,
+    needs: "video",
+    needsPublicMedia: true,
+  };
+  await generateLipsync({
+    db: clip,
+    run: RUN,
+    keys: {},
+    providerFor: () => klingProvider,
+    env: { LIPSYNC_PROVIDER: "kling" },
+    log: () => {},
+  });
+  expect(kling.seen.submits[0].videoUrl).toBe(
+    "https://p.supabase.co/sign/t1/c1/i1/s1/clip-v1.mp4",
+  );
+  const relipped = clip.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(relipped.args.p_meta.source_asset_id).toBe("motion-1");
+  expect(relipped.args.p_meta.motion_clip_asset_id).toBeUndefined();
+});
+
+/** OpenRouter's video API: a POST starts job "hg-1", which is done and charged `cost`. */
+function fakeOpenRouterFetch(cost, posted = []) {
+  return async (url, init = {}) => {
+    if (init.method === "POST") {
+      posted.push(JSON.parse(init.body));
+      return { ok: true, json: async () => ({ id: "hg-1" }) };
+    }
+    if (url.endsWith("/content?index=0"))
+      return {
+        ok: true,
+        arrayBuffer: async () => new Uint8Array([0, 0, 0, 1]).buffer,
+      };
+    return {
+      ok: true,
+      json: async () => ({ status: "completed", usage: { cost } }),
+    };
+  };
+}
+
+test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voice line", async () => {
+  const { heygenLipsyncBody, heygenLipsyncProvider } =
+    await import("../src/providers/lipsync.mjs");
+  const body = heygenLipsyncBody({
+    imageUrl: "https://p.supabase.co/sign/still.png",
+    audioUrl: "https://p.supabase.co/sign/voice.mp3",
+    line: "שלום",
+    motionPrompt: "She raises one eyebrow and smiles.",
+    aspect: "9:16",
+  });
+  // The prompt is only the line, so even read as a script it says the right words; the
+  // scene's own movement goes to Avatar IV's motion_prompt.
+  expect(body).toStrictEqual({
+    model: "heygen/avatar-iv",
+    prompt: "שלום",
+    resolution: "1080p",
+    aspect_ratio: "9:16",
+    input_references: [
+      {
+        type: "image_url",
+        image_url: { url: "https://p.supabase.co/sign/still.png" },
+      },
+      {
+        type: "audio_url",
+        audio_url: { url: "https://p.supabase.co/sign/voice.mp3" },
+      },
+    ],
+    provider: {
+      options: {
+        heygen: { motion_prompt: "She raises one eyebrow and smiles." },
+      },
+    },
+  });
+  // No movement written: no passthrough at all.
+  expect(
+    heygenLipsyncBody({ imageUrl: "a", audioUrl: "b", line: "שלום" }).provider,
+  ).toBe(undefined);
+  // Avatar IV renders 16:9, 9:16 and 1:1 only.
+  expect(
+    heygenLipsyncBody({ ...body, imageUrl: "a", audioUrl: "b", aspect: "4:5" })
+      .aspect_ratio,
+  ).toBe("9:16");
+  expect(() => heygenLipsyncBody({ imageUrl: "a" })).toThrow(/voice line/);
+
+  const posted = [];
+  const provider = heygenLipsyncProvider({
+    apiKey: "or-key",
+    fetchImpl: fakeOpenRouterFetch(0.2, posted),
+  });
+  expect(provider.name).toBe("heygen");
+  expect(provider.needs).toBe("image");
+  expect(provider.needsPublicMedia).toBe(true);
+  // $0.05 per second of the line.
+  expect(provider.estimate({ durationS: 3.2 }).usd).toBe(0.2);
+  const { jobId } = await provider.submit({
+    imageUrl: "https://p.supabase.co/sign/still.png",
+    audioUrl: "https://p.supabase.co/sign/voice.mp3",
+    line: "שלום",
+    aspect: "9:16",
+  });
+  expect(jobId).toBe("hg-1");
+  expect(posted[0].model).toBe("heygen/avatar-iv");
+  const done = await provider.poll("hg-1");
+  expect(done.status).toBe("succeeded");
+  expect(done.costUsd).toBe(0.2);
+  // A job OpenRouter has not priced yet (cost 0) reports no cost, so the estimate stands.
+  const unpriced = heygenLipsyncProvider({
+    apiKey: "or-key",
+    fetchImpl: fakeOpenRouterFetch(0),
+  });
+  expect((await unpriced.poll("hg-1")).costUsd).toBe(undefined);
+});
+
+test("HeyGen comes before the Veo fallback, and a refused plan moves the line on to it", async () => {
+  const { elevenLabsLipsyncProvider, heygenLipsyncProvider } =
+    await import("../src/providers/lipsync.mjs");
+  expect(
+    lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}),
+  ).toStrictEqual(["elevenlabs", "heygen", "openrouter"]);
+  // A line in the chosen voice (Yael): never Veo, which speaks in its own voice.
+  const db = fakeDb({
+    scene: {
+      meta: { ...talkingMeta, chosen_voice: true },
+      motion_prompt: "She leans toward the camera and raises one eyebrow.",
+    },
+  });
+  const sent = [];
+  const result = await generateLipsync({
+    db,
+    run: RUN,
+    keys: { elevenLabsKey: "xi", openRouterKey: "or" },
+    providerFor: (name, keys) =>
+      name === "elevenlabs"
+        ? elevenLabsLipsyncProvider({
+            apiKey: keys.elevenLabsKey,
+            fetchImpl: async () => ({
+              ok: false,
+              status: 402,
+              json: async () => ({
+                detail: { code: "paid_plan_required" },
+              }),
+            }),
+          })
+        : heygenLipsyncProvider({
+            apiKey: keys.openRouterKey,
+            fetchImpl: fakeOpenRouterFetch(0.21, sent),
+          }),
+    env: {},
+    log: () => {},
+  });
+  expect(result.provider).toBe("heygen");
+  expect(sent.length).toBe(1);
+  const [image, audio] = sent[0].input_references;
+  expect(image.image_url.url).toMatch(
+    /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-still-r1\.png$/,
+  );
+  // The voice copy is named by its real type, so a provider that reads the extension takes it.
+  expect(audio.audio_url.url).toMatch(
+    /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-audio-r1\.mp3$/,
+  );
+  expect(sent[0].prompt).toBe(LINE);
+  expect(sent[0].provider.options.heygen.motion_prompt).toBe(
+    "She leans toward the camera and raises one eyebrow.",
+  );
+  // The run records what OpenRouter charged, not the estimate.
+  expect(result.costUsd).toBe(0.21);
+  const attach = db.calls.rpcs.find(
+    (call) => call.name === "attach_video_scene_asset",
+  );
+  expect(attach.args.p_meta.provider).toBe("heygen");
+  expect(attach.args.p_meta.generation_cost.usd).toBe(0.21);
+});
+
+test("a HeyGen lip sync keeps the voice line's word timings for the captions; a Veo clip does not", async () => {
+  const alignment = { characters: ["ש"], character_start_times_seconds: [0] };
+  const sourcesWith = async (provider) => {
+    const scene = {
+      id: "b",
+      position: 1,
+      overlay_text: "",
+      voiceover_text: "",
+      duration_s: 3,
+      clip_asset_id: "cb",
+      voice_asset_id: "vb",
+      still_asset_id: null,
+      meta: talkingMeta,
+    };
+    const assets = [
+      {
+        id: "cb",
+        type: "video_clip",
+        url: "t1/c1/i1/b/lipsync-v1.mp4",
+        meta: {
+          provider,
+          lipsync: true,
+          dialogue: LINE,
+          source_kind: "still",
+          voice_asset_id: "vb",
+        },
+      },
+      {
+        id: "vb",
+        type: "voiceover",
+        url: "t1/c1/i1/b/voice.audio",
+        meta: { text: LINE, alignment },
+      },
+    ];
+    const db = {
+      select: async (table, query) =>
+        table === "marketing_video_scenes"
+          ? [scene]
+          : table === "marketing_assets" && query.startsWith("id=in.")
+            ? assets
+            : [],
+    };
+    return (await loadFilmSources(db, { item_id: "i1", tenant_id: "t1" }))
+      .scenes[0];
+  };
+  const heygen = await sourcesWith("heygen");
+  const veo = await sourcesWith("openrouter");
+  expect(heygen.spokenAlignment).toStrictEqual(alignment);
+  expect(veo.spokenAlignment).toBe(null);
 });

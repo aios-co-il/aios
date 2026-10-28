@@ -1,4 +1,7 @@
 /** The edit decision list the ffmpeg assembly renders. */
+import { captionStyleOf } from "./motion-captions.mjs";
+
+import { cutSoundPlan } from "./transition-sounds.mjs";
 
 export const FRAME_SIZE = {
   "16:9": [1280, 720],
@@ -8,6 +11,30 @@ export const FRAME_SIZE = {
 };
 
 export const frameSize = (aspect) => FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
+
+/** A scene's planned seconds: the storyboard length, 3 s when unset, within 0.5–120 s. */
+export const sceneSeconds = (value) =>
+  Math.min(120, Math.max(0.5, Number(value) || 3));
+
+/**
+ * The film's effects: the sound of each of its `cuts` cuts ({ path, pitch }: one of its
+ * transition sounds, a lone whooshPath being a set of one, and the semitones its round shifts
+ * it by; cutSoundPlan, drawn from `seed`) and its impact.
+ */
+function soundDesignEffects(effects, cuts) {
+  const transitionPaths = (
+    effects?.transitionPaths ?? [effects?.whooshPath]
+  ).filter(Boolean);
+  if (!transitionPaths.length && !effects?.impactPath) return null;
+  return {
+    cuts: cutSoundPlan(
+      transitionPaths.length,
+      cuts,
+      String(effects.seed ?? ""),
+    ).map(({ sound, pitch }) => ({ path: transitionPaths[sound], pitch })),
+    impactPath: effects.impactPath || null,
+  };
+}
 
 /**
  * Approved scenes, in storyboard order. A scene without a clip is skipped.
@@ -23,6 +50,9 @@ export function buildTimeline(
     brand = null,
     clipAudio = true,
     effects = null,
+    soundDesign = false,
+    captionStyle = "motion",
+    brandName = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -39,16 +69,29 @@ export function buildTimeline(
       voiceAlignment: narration ? null : scene.voiceAlignment || null,
       // This scene's part of the continuous narration, to cut the scene where it starts.
       narrationText: narration ? String(scene.voiceoverText ?? "").trim() : "",
+      // What the narrator says over this scene (its own title must not just repeat it).
+      voiceoverText: String(scene.voiceoverText ?? "").trim(),
       // A lip-synced clip keeps its own speech and is not moved by the camera.
       lipsync: scene.lipsync === true,
-      // What a talking clip says, for its captions.
+      // What a talking clip says, for its captions, with the word timings of the voice line
+      // that drove its lips when there is one.
       spokenText:
         scene.lipsync === true ? String(scene.spokenText ?? "").trim() : "",
+      spokenAlignment:
+        scene.lipsync === true ? scene.spokenAlignment || null : null,
+      // A line lip-synced on the still: the scene's animated clip plays after it (the move).
+      moveClipPath: scene.lipsync === true ? scene.moveClipPath || null : null,
       // A talking clip made for an older line: its speech is muted.
       muteClip: scene.muteClip === true,
       transition: scene.transition || null,
+      // A skin switch into this scene (skin-switch.mjs isSkinSwitch): the scene's own say
+      // (true/false, else null), its skin reference and which picture it shows.
+      skinSwitch:
+        typeof scene.skinSwitch === "boolean" ? scene.skinSwitch : null,
+      skinRef: scene.skinRef || null,
+      pictureKey: scene.pictureKey || null,
       overlayText: String(scene.overlayText ?? "").trim(),
-      durationS: Math.min(120, Math.max(0.5, Number(scene.durationS) || 3)),
+      durationS: sceneSeconds(scene.durationS),
     }));
   const [width, height] = frameSize(aspect);
   const totalS = frames.reduce((sum, frame) => sum + frame.durationS, 0);
@@ -62,14 +105,21 @@ export function buildTimeline(
     narrationAlignment: narration ? narrationAlignment : null,
     brand,
     clipAudio: clipAudio !== false,
-    // Trailer sound design: a whoosh at each cut, an impact on the title and the end card.
-    effects:
-      effects?.whooshPath || effects?.impactPath
-        ? {
-            whooshPath: effects.whooshPath || null,
-            impactPath: effects.impactPath || null,
-          }
-        : null,
+    // Trailer sound design: a transition sound at each cut (a different one each time,
+    // transition-sounds.mjs, drawn from `seed`, the film's id) and an impact on the title and
+    // the end card.
+    effects: soundDesignEffects(effects, frames.length - 1),
+    // The brief asked for trailer sound design: the film gets the trailer mix (music-bed.mjs),
+    // also when its effects could not be made.
+    soundDesign: soundDesign === true,
+    // Remotion's captions: motion graphics, or karaoke lines when the film asks for them
+    // (payload.video.caption_style). The ffmpeg edit draws plain titles either way.
+    captionStyle: captionStyleOf(captionStyle),
+    // The brand's name, for the key words of motion captions.
+    brandName:
+      String(brandName ?? "")
+        .trim()
+        .slice(0, 60) || null,
     totalS: Math.round(totalS * 100) / 100,
     scenes: frames,
   };

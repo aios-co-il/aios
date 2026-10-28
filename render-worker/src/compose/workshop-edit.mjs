@@ -9,8 +9,7 @@ export const MIX = {
   musicDucked: 0.06,
   clipSolo: 0.9,
   clipUnderSpeech: 0.15,
-  effects: 0.5,
-  effectsDucked: 0.14,
+  // The sound effects' gains are the trailer mix's (mixProfile in music-bed.mjs).
 };
 
 /** Seconds a whoosh plays before the cut it marks: its swell passes at the cut. */
@@ -18,8 +17,9 @@ export const WHOOSH_LEAD = 0.4;
 
 /**
  * When each sound effect plays, in frames: a low impact on the opening title and on the end
- * card, a whoosh building into every cut (centred on the cut's transition). Each cue lasts its
- * effect's length and never runs past the film.
+ * card, a whoosh building into every cut (centred on the cut's transition). `cutSounds` gives
+ * each cut its own sound ({ file, frames }, one per cut in order); without it every cut plays
+ * `whoosh`. Each cue lasts its effect's length and never runs past the film.
  */
 export function effectCues(
   scenes,
@@ -31,6 +31,7 @@ export function effectCues(
     whooshFrames = 0,
     impactFrames = 0,
     endCardStart = null,
+    cutSounds = null,
   },
 ) {
   const cues = [];
@@ -42,15 +43,17 @@ export function effectCues(
   const whooshLength = whooshFrames || Math.round(fps * 1.2);
   const impactLength = impactFrames || Math.round(fps * 2.5);
   if (impact) add(impact, 0, impactLength);
-  if (whoosh)
-    for (const scene of scenes.slice(1))
-      add(
-        whoosh,
-        scene.startFrame -
-          Math.round((scene.transitionFrames ?? 0) / 2) -
-          Math.min(Math.round(fps * WHOOSH_LEAD), Math.round(whooshLength / 2)),
-        whooshLength,
-      );
+  for (const [cut, scene] of scenes.slice(1).entries()) {
+    const sound = cutSounds?.[cut] ?? { file: whoosh, frames: whooshLength };
+    const length = sound.frames || whooshLength;
+    add(
+      sound.file,
+      scene.startFrame -
+        Math.round((scene.transitionFrames ?? 0) / 2) -
+        Math.min(Math.round(fps * WHOOSH_LEAD), Math.round(length / 2)),
+      length,
+    );
+  }
   if (impact && Number.isInteger(endCardStart))
     add(impact, endCardStart - Math.round(fps * 0.2), impactLength);
   return cues.sort((a, b) => a.startFrame - b.startFrame);
@@ -106,18 +109,30 @@ export function speechSpans(spans, gap = 18) {
 /**
  * Music volume keyframes ({ frames, volumes }, strictly increasing frames): the bed dips
  * under every speaking span and comes back up between them. Fades are applied on top.
+ * Pauses shorter than the ramps (plus `hold`) keep the bed down.
  */
 export function musicEnvelope(
   spans,
   totalFrames,
-  { base = MIX.music, ducked = MIX.musicDucked, attack = 8, release = 14 } = {},
+  {
+    base = MIX.music,
+    ducked = MIX.musicDucked,
+    attack = 8,
+    release = 14,
+    hold = 0,
+  } = {},
 ) {
   const points = [[0, base]];
-  for (const [start, end] of speechSpans(spans, attack + release)) {
+  for (const [start, end] of speechSpans(spans, attack + release + hold)) {
     const s = Math.max(0, start);
     const e = Math.min(totalFrames, end);
     if (e <= s) continue;
-    points.push([Math.max(0, s - attack), base], [s, ducked], [e, ducked]);
+    // Speech from the first frames: the film opens already under the voice.
+    points.push(
+      s - attack > 0 ? [s - attack, base] : [0, ducked],
+      [s, ducked],
+      [e, ducked],
+    );
     points.push([e + release, base]);
   }
   points.push([totalFrames, base]);

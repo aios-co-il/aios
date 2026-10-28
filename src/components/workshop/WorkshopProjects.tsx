@@ -15,15 +15,14 @@ const STATUS_TONE: Record<string, string> = {
   failed: "bg-red-400/15 text-red-200",
 };
 
+/** A project in the list; its client is named by the group it sits in, not on the row. */
 function ProjectRow({
   item,
   selected,
-  showClient,
   onSelect,
 }: {
   item: WorkshopListRow;
   selected: boolean;
-  showClient: boolean;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -48,11 +47,6 @@ function ProjectRow({
           {statusLabel(item.status)}
         </span>
       </span>
-      {showClient ? (
-        <span className="mt-0.5 block truncate text-xs font-normal text-slate-400">
-          {item.client_name?.trim() || "ללא לקוח"}
-        </span>
-      ) : null}
     </button>
   );
 }
@@ -121,7 +115,6 @@ export function WorkshopProjects({
                       key={item.id}
                       item={item}
                       selected={selectedId === item.id}
-                      showClient={byClient}
                       onSelect={onSelect}
                     />
                   ))}

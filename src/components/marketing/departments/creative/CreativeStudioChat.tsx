@@ -7,12 +7,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { uploadCreativeAsset } from "./brandKit";
 import {
+  chatParts,
   fileLine,
   needsChatApproval,
   parseSseBuffer,
   parseUiAction,
   STUDIO_STALL_MESSAGE,
   STUDIO_STALL_MS,
+  studioRunBody,
   studioToolLine,
   uiActionLabel,
   type StudioUiAction,
@@ -46,8 +48,31 @@ const greeting = (mode: "video" | "static") =>
     ? "היי, אני כאן איתך על הסרטון. אפשר לבקש ממני לערוך סצנות, להחליף מנוע, להעלות לוגו או רפרנס (פשוט גררו לכאן), או להפיק את כל הסרט."
     : "היי, אני כאן איתך על הפוסט. גררו לכאן לוגו או רפרנס, בקשו וריאציות או תיקון לוריאציה שעל המסך, ואני אדאג לשאר.";
 
+/** Carmen's answer: its text as written, and the pictures she shows (skin portraits) as images. */
+function AssistantText({ text }: { text: string }) {
+  return (
+    <div className="me-6 whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 leading-relaxed">
+      {chatParts(text).map((part, index) =>
+        part.kind === "image" ? (
+          <img
+            key={index}
+            src={part.url}
+            alt={part.alt}
+            loading="lazy"
+            className="my-1 max-h-40 rounded-md"
+          />
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </div>
+  );
+}
+
 /** Per project, kept while the studio is open so switching projects keeps each thread. */
 const threads = new Map<string, ChatEntry[]>();
+/** Per project, the server conversation its thread continues. */
+const conversations = new Map<string, string>();
 
 export function CreativeStudioChat({
   tenantId,
@@ -150,18 +175,16 @@ export function CreativeStudioChat({
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            command_text: message,
-            tenant_id: tenantId,
-            client_id: clientId,
-            surface: "internal_chat",
-            stream: true,
-            task_mode: "marketing_creative",
-            task_skills: ["creative_studio"],
-            system_prompt_addon: contextAddon(),
-            conversation_history: history,
-            user_name: "סטודיו קריאייטיב",
-          }),
+          body: JSON.stringify(
+            studioRunBody({
+              message,
+              tenantId,
+              clientId,
+              contextAddon: contextAddon(),
+              history,
+              conversationId: conversations.get(itemId),
+            }),
+          ),
           signal: controller.signal,
         },
       );
@@ -185,6 +208,11 @@ export function CreativeStudioChat({
           if (event.type === "token" && typeof event.content === "string") {
             answer += event.content;
             setStreaming(answer);
+          } else if (
+            event.type === "conversation_id" &&
+            typeof event.id === "string"
+          ) {
+            conversations.set(itemId, event.id);
           } else if (event.type === "tool_call") {
             pushTool(studioToolLine(event.tool));
           } else if (event.type === "ui_action") {
@@ -317,25 +345,18 @@ export function CreativeStudioChat({
                 </p>
               )}
             </div>
-          ) : (
+          ) : entry.kind === "user" ? (
             <p
               key={index}
-              className={cn(
-                "whitespace-pre-wrap break-words rounded-lg px-3 py-2 leading-relaxed",
-                entry.kind === "user"
-                  ? "ms-6 bg-pink-600 text-white"
-                  : "me-6 bg-muted",
-              )}
+              className="ms-6 whitespace-pre-wrap break-words rounded-lg bg-pink-600 px-3 py-2 leading-relaxed text-white"
             >
               {entry.text}
             </p>
+          ) : (
+            <AssistantText key={index} text={entry.text} />
           ),
         )}
-        {streaming && (
-          <p className="me-6 whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 leading-relaxed">
-            {streaming}
-          </p>
-        )}
+        {streaming && <AssistantText text={streaming} />}
         {busy && !streaming && (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         )}

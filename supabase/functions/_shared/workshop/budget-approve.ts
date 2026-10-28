@@ -1,4 +1,9 @@
-import { budgetOf, requestFresh, withBudget } from "./budget.ts";
+import {
+  approvesRequest,
+  budgetOf,
+  requestFresh,
+  withBudget,
+} from "./budget.ts";
 import type { PaidTool } from "./budget-types.ts";
 
 /**
@@ -17,12 +22,7 @@ export function approveFromMessage(
   const budget = budgetOf(payload);
   const request = budget.request;
   if (!request || !requestFresh(request, now)) return null;
-  if (
-    !String(userText ?? "")
-      .toUpperCase()
-      .includes(request.code)
-  )
-    return null;
+  if (!approvesRequest(userText, request.code)) return null;
   return {
     payload: withBudget(payload, {
       ...budget,

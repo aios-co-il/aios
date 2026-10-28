@@ -1,15 +1,17 @@
 import {
-  assertMediaUrl,
   assertTenantPath,
   finalError,
   loadRunItem,
   loadRunScene,
+  readMedia,
   safeSegment,
 } from "../guard.mjs";
-import { talkingLine } from "../narration.mjs";
+import { speaksInChosenVoice, talkingLine } from "../narration.mjs";
 import {
+  clipModel,
   clipPrompt,
   getVideoProvider,
+  PREVIEW_PROVIDER,
   talkingPrompt,
 } from "../providers/index.mjs";
 import { publicStill } from "./still-image.mjs";
@@ -20,17 +22,32 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Still bytes from a creative-video path in the tenant folder, or an allowed media URL. */
-async function loadStill(db, tenantId, url) {
-  if (/^https?:\/\//.test(url)) {
-    const response = await fetch(assertMediaUrl(url));
-    if (!response.ok)
-      throw new Error(
-        `still download ${response.status}: ${url.slice(0, 200)}`,
-      );
-    return new Uint8Array(await response.arrayBuffer());
-  }
-  return db.download(BUCKET, assertTenantPath(tenantId, url));
+/**
+ * The line an engine says in the clip itself: a talking scene on an engine that speaks (Veo 3.1,
+ * Seedance 2.5). A line in the chosen voice is never spoken by the engine (its voice would not be
+ * the chosen one); LIPSYNC_NATIVE=0 turns this off.
+ */
+const nativeLine = (provider, scene) =>
+  provider.nativeSpeech &&
+  process.env.LIPSYNC_NATIVE !== "0" &&
+  !speaksInChosenVoice(scene)
+    ? talkingLine(scene)
+    : "";
+
+/**
+ * Whether a replacement engine stays within the price approved for the chosen one, for this
+ * scene: each is priced as it would make it, so a talking clip on an engine that speaks costs
+ * its talking price. The scene is read for the run's tenant.
+ */
+export async function withinApprovedPrice({ db, run, approved, replacement }) {
+  const scene = await loadRunScene(db, run, "id,voiceover_text,meta");
+  const durationS = Number(run.input?.duration_s) || 5;
+  const price = (provider) =>
+    provider.estimate({
+      durationS,
+      talking: Boolean(nativeLine(provider, scene)),
+    }).usd;
+  return price(replacement) <= price(approved) + 0.005;
 }
 
 /** <item folder>/<scene>/clip-v<n>.mp4, n = the next clip version of the scene. */
@@ -70,13 +87,10 @@ export async function generateClip({
     run,
     "id,still_asset_id,voiceover_text,meta",
   );
-  // A talking scene on an engine that speaks (Veo 3.1, Seedance 2.5) is made in one pass:
-  // the line goes in the prompt and the clip carries the speech. Otherwise the clip is silent
-  // and advance_video_production queues a separate lip-sync run for the scene.
-  const line =
-    provider.nativeSpeech && process.env.LIPSYNC_NATIVE !== "0"
-      ? talkingLine(scene)
-      : "";
+  // A talking scene on an engine that speaks is made in one pass: the line goes in the prompt
+  // and the clip carries the speech. Otherwise the clip is silent and advance_video_production
+  // queues a separate lip-sync run for the scene.
+  const line = nativeLine(provider, scene);
   const talking = line
     ? { line, speaker: String(scene.meta?.speaker ?? "").trim() || null }
     : null;
@@ -93,13 +107,14 @@ export async function generateClip({
   const estimate = provider.estimate({ durationS, talking: Boolean(talking) });
 
   let jobId =
-    run.provider === provider.name && provider.name !== "mock"
+    run.provider === provider.name && provider.name !== PREVIEW_PROVIDER
       ? run.provider_job_id
       : null;
   if (jobId) {
     log(`[clip] ${run.id} resumes ${provider.name} job ${jobId}`);
   } else {
-    const imageBytes = await loadStill(db, run.tenant_id, still.url);
+    // A creative-video path, the user's own upload (workshop_edit_from_assets) or a media link.
+    const imageBytes = await readMedia(db, run.tenant_id, still.url, BUCKET);
     let imageUrl = null;
     if (provider.needsPublicImage) {
       // Stored stills can be expiring signed links; hand the provider a fresh one of a copy,
@@ -196,7 +211,9 @@ async function finishClip({
   // preview makes a new clip on retry, so its failure may be retried.
   if (result.status !== "succeeded") {
     const message = result.error || `${provider.name} job ${jobId} failed`;
-    throw provider.name === "mock" ? new Error(message) : finalError(message);
+    throw provider.name === PREVIEW_PROVIDER
+      ? new Error(message)
+      : finalError(message);
   }
 
   // The provider's own charge when it reports one (OpenRouter), else the estimate.
@@ -213,7 +230,7 @@ async function finishClip({
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const path = await clipPath(db, run, item.folder);
-  const model = (talking && provider.talkingModel) || provider.model;
+  const model = clipModel(provider, Boolean(talking));
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {
     p_scene_id: run.scene_id,

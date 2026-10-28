@@ -166,7 +166,7 @@ const CATEGORIES: Category[] = [
         description: "וויטבורד אחד לכל סקין של כרמן",
         route: "/workshop",
         icon: Share2,
-        permission: "dashboard",
+        permission: "social_media",
         color: "bg-blue-500/10 text-blue-600",
       },
 

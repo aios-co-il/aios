@@ -1,3 +1,4 @@
+import { clientFilterToParam } from "@/components/marketing/clientFilter";
 import {
   DEPARTMENTS,
   type DepartmentId,
@@ -110,7 +111,7 @@ export function groupProjects(
 
 /** The marketing screen of a department, filtered to a client (or to general content). */
 export const departmentPath = (screen: string, clientId: string | null) =>
-  `marketing/department/${screen}?client=${clientId ?? "general"}`;
+  `marketing/department/${screen}?client=${clientFilterToParam(clientId)}`;
 
 /** The project opened when the URL names none: the latest one with a workshop board. */
 export const defaultProject = (rows: WorkshopListRow[]) =>

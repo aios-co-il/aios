@@ -9,14 +9,15 @@ RUN apt-get update \
 WORKDIR /opt/aios
 COPY render-worker/package.json render-worker/package.json
 COPY render-worker/src render-worker/src
-COPY workers/creative-video/remotion/package.json workers/creative-video/remotion/package.json
+# The lockfile pins Remotion and React to what CI and Staging rendered with.
+COPY workers/creative-video/remotion/package.json workers/creative-video/remotion/package-lock.json workers/creative-video/remotion/
 COPY workers/creative-video/remotion/render-job.mjs workers/creative-video/remotion/render-job.mjs
 COPY workers/creative-video/remotion/src workers/creative-video/remotion/src
 COPY workers/creative-video/remotion/public workers/creative-video/remotion/public
 RUN chown -R node:node /opt/aios
 USER node
 RUN cd /opt/aios/workers/creative-video/remotion \
-  && npm install --omit=dev --no-audit --no-fund \
+  && npm ci --omit=dev --no-audit --no-fund \
   && npx remotion browser ensure
 WORKDIR /opt/aios/render-worker
 CMD ["node", "src/index.mjs"]

@@ -12,6 +12,7 @@ import {
   WORKSHOP_TOOLS,
 } from "./workshop-tools.ts";
 import { shouldNudgeSilentTurn } from "./workshop/reply.ts";
+import { importWebImage } from "./workshop/tools/add-assets.ts";
 
 type RunArgs = Parameters<typeof runWorkshopTool>;
 
@@ -828,7 +829,7 @@ Deno.test(
     assertStrictEquals(trailer.saved.sound_design, true);
     assertStrictEquals(trailer.result.sound_design, true);
     // The effects are made in this production's render, so its quote includes them.
-    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.05);
+    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.09);
 
     const calm = await run("קצב: רגוע ורגשי. מוזיקה: אקוסטית חמה.");
     assertMatch(calm.rpc.p_music_prompt, /warm acoustic/);
@@ -1876,10 +1877,11 @@ Deno.test(
     const alone = await ask(false);
     const covered = await ask(true);
     assertStrictEquals(covered.needs_budget, true);
-    // Film $4.19 on OpenRouter instead of $1.95 on Higgsfield, plus the stills, with 20% room.
+    // Film $4.28 on OpenRouter instead of $2.04 on Higgsfield (clips and the $0.24 music bed,
+    // priced for 29.2 s), plus the stills, with 20% room.
     assertStrictEquals(
       covered.proposed_budget_usd,
-      Math.ceil((alone.step_usd + 4.19) * 1.2),
+      Math.ceil((alone.step_usd + 4.28) * 1.2),
     );
     assert(covered.proposed_budget_usd > alone.proposed_budget_usd);
   },
@@ -1952,7 +1954,7 @@ Deno.test(
       { defaultEngine: async () => "mock" as const },
     )) as Record<string, any>;
     assertStrictEquals(effects.needs_budget, true);
-    assertStrictEquals(effects.estimated_usd, 0.05);
+    assertStrictEquals(effects.estimated_usd, 0.09);
     assertStrictEquals(effects.with_sound_effects, true);
   },
 );
@@ -2178,6 +2180,73 @@ Deno.test(
   },
 );
 
+const LOGO_SITE = `<html><head><title>קפה הגינה</title></head>
+<body><img src="/img/logo.png" alt="קפה הגינה logo"></body></html>`;
+
+/** workshop_inspect_site with apply_brand on a site with a logo; importImage answers `copy`. */
+async function brandFromSite(copy: { url?: string; error?: string }) {
+  const db = fakeDb({
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "x",
+      client_id: null,
+      current_stage_id: null,
+      payload: { workshop: {} },
+    },
+  });
+  const imported: string[] = [];
+  const result = (await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_inspect_site",
+    {
+      item_id: "item-1",
+      url: "https://garden.example.com/",
+      apply_brand: true,
+    },
+    async () => {},
+    null,
+    {
+      fetchPublic: async (url) => ({
+        ok: true,
+        url,
+        contentType: "text/html",
+        bytes: encode(LOGO_SITE),
+      }),
+      importImage: async (url) => {
+        imported.push(url);
+        return copy;
+      },
+    },
+  )) as Record<string, any>;
+  const saved = db.calls.filter(
+    (c) => c.table === "marketing_work_items" && c.op === "update",
+  );
+  const payload = (saved[saved.length - 1].value as Record<string, any>)
+    .payload;
+  return { result, imported, payload };
+}
+
+Deno.test(
+  "the site's logo is copied into storage for the brand, never kept as the site's own link",
+  async () => {
+    const stored =
+      "https://p.supabase.co/storage/v1/object/public/social-media/workshop-imports/tenant-1/item-1/logo.png";
+    const { result, imported, payload } = await brandFromSite({ url: stored });
+    assertEquals(imported, ["https://garden.example.com/img/logo.png"]);
+    // The worker reads storage links; it refuses the client's own host.
+    assertStrictEquals(payload.logo_url, stored);
+    assertStrictEquals(result.brand_applied, true);
+    assertStrictEquals(result.logo_url, stored);
+
+    const failed = await brandFromSite({ error: "הקובץ אינו תמונה נתמכת" });
+    assertStrictEquals(failed.payload.logo_url, undefined);
+    assertStrictEquals(failed.result.brand_applied, true);
+    assertMatch(failed.result.logo_error, /אינו תמונה נתמכת/);
+    assertMatch(failed.result.message, /הלוגו מהאתר לא נשמר/);
+  },
+);
+
 Deno.test(
   "a site that cannot be read says so, and a missing address is asked for",
   async () => {
@@ -2272,6 +2341,130 @@ Deno.test(
       "https://garden.example.com/hero.jpg",
       "https://garden.example.com/broken.jpg",
     ]);
+  },
+);
+
+/** Storage that records uploads and answers public links as Supabase does. */
+function fakeStorage() {
+  const uploads: { bucket: string; path: string; contentType?: string }[] = [];
+  return {
+    uploads,
+    storage: {
+      from: (bucket: string) => ({
+        upload: (
+          path: string,
+          _bytes: Uint8Array,
+          options?: { contentType?: string },
+        ) => {
+          uploads.push({ bucket, path, contentType: options?.contentType });
+          return Promise.resolve({ error: null });
+        },
+        getPublicUrl: (path: string) => ({
+          data: {
+            publicUrl: `https://p.supabase.co/storage/v1/object/public/${bucket}/${path}`,
+          },
+        }),
+      }),
+    },
+  };
+}
+
+const PNG_BYTES = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+
+Deno.test(
+  "a picture copied from the web is kept where every reader can fetch it, not in the private bucket",
+  async () => {
+    const { storage, uploads } = fakeStorage();
+    const imported = await importWebImage(
+      { storage },
+      async (url) => ({
+        ok: true,
+        url,
+        contentType: "image/png",
+        bytes: PNG_BYTES,
+      }),
+      "https://garden.example.com/logo.png",
+      { tenantId: "tenant-1", itemId: "item-1" },
+    );
+    assertStrictEquals(uploads.length, 1);
+    assertStrictEquals(uploads[0].bucket, "social-media");
+    assertMatch(
+      uploads[0].path,
+      /^workshop-imports\/tenant-1\/item-1\/[^/]+\.png$/,
+    );
+    assertStrictEquals(uploads[0].contentType, "image/png");
+    // A public link: image references, the film's end card and the board read it as it is.
+    assertStrictEquals(
+      imported.url,
+      `https://p.supabase.co/storage/v1/object/public/social-media/${uploads[0].path}`,
+    );
+
+    const refused = await importWebImage(
+      { storage },
+      async (url) => ({
+        ok: true,
+        url,
+        contentType: "text/html",
+        bytes: encode("<html></html>"),
+      }),
+      "https://garden.example.com/",
+      { tenantId: "tenant-1", itemId: "item-1" },
+    );
+    assertMatch(String(refused.error), /אינו תמונה נתמכת/);
+    assertStrictEquals(uploads.length, 1);
+  },
+);
+
+Deno.test(
+  "an uploaded picture the user names as the logo becomes the project's logo",
+  async () => {
+    const db = fakeDb({
+      ...project,
+      "workshop_assets:select": [
+        {
+          id: "a-1",
+          asset_type: "image",
+          url: "https://files.test/wordmark.png",
+        },
+      ],
+    });
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_add_assets",
+      {
+        item_id: "item-1",
+        assets: [
+          {
+            kind: "image",
+            url: "https://files.test/wordmark.png",
+            use_as_logo: true,
+          },
+        ],
+      },
+      async () => {},
+      null,
+      {
+        importImage: async () => {
+          throw new Error("an uploaded picture is not imported again");
+        },
+      },
+    )) as Record<string, any>;
+    assertStrictEquals(result.logo_url, "https://files.test/wordmark.png");
+    assertMatch(result.message, /הלוגו נשמר לפרויקט/);
+    const saved = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map((c) => (c.value as Record<string, any>).payload);
+    assertStrictEquals(
+      saved[saved.length - 1].logo_url,
+      "https://files.test/wordmark.png",
+    );
+    const inserted = db.calls.filter(
+      (c) => c.table === "workshop_assets" && c.op === "insert",
+    );
+    assertStrictEquals(inserted.length, 0);
   },
 );
 
@@ -2678,6 +2871,76 @@ Deno.test(
 );
 
 Deno.test(
+  "a film cut from the user's own videos is quoted for the narration and music it gets",
+  async () => {
+    // Nothing is animated, but produce_video narrates the whole script and makes a music bed.
+    const line = "א".repeat(500);
+    const asked = (await executeWorkshopTool(
+      fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { clip_asset_id: "own-1", voiceover_text: line }),
+          scene("s-2", { clip_asset_id: "own-2", voiceover_text: line }),
+        ],
+      }),
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", sound_design: false },
+      async () => {},
+      null,
+      { defaultEngine: async () => "elevenlabs" as const },
+    )) as Record<string, any>;
+    assertStrictEquals(asked.needs_budget, true);
+    // 1000 characters at $0.12, and a bed for 6 s planned (15.4 s with headroom) at $0.50 a minute.
+    assertStrictEquals(asked.estimated_usd, 0.25);
+  },
+);
+
+Deno.test(
+  "a narration that reads the script in the film's voice and its music bed are not quoted again",
+  async () => {
+    const line = "א".repeat(500);
+    const produce = async (args: Record<string, unknown> = {}) => {
+      const db = fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { clip_asset_id: "own-1", voiceover_text: line }),
+          scene("s-2", { still_asset_id: "still-2", voiceover_text: line }),
+        ],
+        "rpc:video_narration_ready": true,
+        "marketing_assets:select": [
+          { id: "m-1", type: "music", url: "item-1/music/bed.mp3" },
+        ],
+        "rpc:produce_video": { status: "working", clips: 1 },
+      });
+      await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, sound_design: false, ...args },
+        async () => {},
+        null,
+        { defaultEngine: async () => "elevenlabs" as const },
+      );
+      return (
+        db.calls.find((c) => c.table === "rpc:produce_video")?.value as Record<
+          string,
+          any
+        >
+      ).p_estimate;
+    };
+    const again = await produce();
+    // Scene 2's 3 s become a 4 s ElevenLabs clip at $0.15 a second.
+    assertStrictEquals(again.clips.usd, 0.6);
+    assertStrictEquals(again.voice.usd, 0);
+    assertStrictEquals(again.music.usd, 0);
+    // A new voice narrates the whole script again.
+    const tamar = await produce({ voice_id: "p7J75VowGmxi3K0it9lN" });
+    assertStrictEquals(tamar.voice.usd, 0.12);
+  },
+);
+
+Deno.test(
   "the closing call to action Carmen gives is kept for the film's end card",
   async () => {
     const db = fakeDb({
@@ -2733,6 +2996,83 @@ Deno.test(
       ),
       false,
     );
+  },
+);
+
+/** fakeDb whose work item keeps the payload last written to it, as the database would. */
+function savingDb(script: Record<string, any>) {
+  const db = fakeDb(script);
+  const from = db.from;
+  db.from = (table: string) => {
+    const builder = from(table) as Record<string, any>;
+    if (table !== "marketing_work_items") return builder;
+    const update = builder.update as (value: unknown) => unknown;
+    builder.update = (value: Record<string, any>) => {
+      if (value?.payload)
+        script["marketing_work_items:select"] = {
+          ...script["marketing_work_items:select"],
+          payload: value.payload,
+        };
+      return update(value);
+    };
+    return builder;
+  };
+  return db;
+}
+
+Deno.test(
+  "a production that never started gives its quote back to the budget",
+  async () => {
+    const produce = async (answer: Record<string, unknown>) => {
+      const script: Record<string, any> = {
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        ...answer,
+      };
+      script["marketing_work_items:select"].payload.workshop_budget = {
+        cap_usd: 20,
+        spent_usd: 1,
+        unit_usd: {},
+      };
+      await executeWorkshopTool(
+        savingDb(script),
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1" },
+        async () => {},
+        null,
+        { defaultEngine: async () => "elevenlabs" as const },
+      );
+      return script["marketing_work_items:select"].payload.workshop_budget;
+    };
+    for (const answer of [
+      { "rpc:produce_video:error": "stage missing" },
+      {
+        "rpc:produce_video": {
+          status: "failed",
+          error: "no clips to assemble",
+        },
+      },
+      // Another production already runs: this call queued nothing.
+      {
+        "rpc:produce_video": {
+          status: "running",
+          clips: 0,
+          voices: 0,
+          music: 0,
+        },
+      },
+    ]) {
+      const budget = await produce(answer);
+      assertStrictEquals(budget.spent_usd, 1, JSON.stringify(answer));
+    }
+    // A production that started keeps its quote on the budget.
+    const started = await produce({
+      "rpc:produce_video": { status: "working", clips: 1 },
+    });
+    assert(started.spent_usd > 1);
   },
 );
 

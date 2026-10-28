@@ -6,11 +6,13 @@ import {
 } from "../../../../src/components/marketing/departments/creative/videoEngines.ts";
 import {
   clipEstimate,
+  costSceneOf,
   engineFromKeys,
   lipsyncEstimate,
   musicEstimate,
   productionEstimate,
   quotedProductionEstimate,
+  relipEstimate,
   SOUND_EFFECTS_USD,
   sceneEngineFor,
   speaksNatively,
@@ -324,7 +326,127 @@ Deno.test(
         .soundEffects.usd,
       SOUND_EFFECTS_USD,
     );
-    // 3.7 s of effects at 40 credits a second and $0.0003 a credit, rounded up to the cent.
-    assert(SOUND_EFFECTS_USD >= 3.7 * 40 * 0.0003);
+    // The whole set: six transition sounds (5.5 s) and the impact (2 s) at 40 credits a
+    // second and $0.0003 a credit.
+    assertStrictEquals(SOUND_EFFECTS_USD, 0.09);
+    assert(SOUND_EFFECTS_USD >= Math.round(7.5 * 40 * 0.0003 * 10000) / 10000);
   },
 );
+
+Deno.test(
+  "a talking scene in the chosen voice pays for its lip-sync pass even on an engine that speaks",
+  () => {
+    const own = {
+      duration_s: 5,
+      voiceover_text: "",
+      lipsync: true,
+      dialogue: "שלום",
+      chosen_voice: true,
+    };
+    const engineVoice = { ...own, chosen_voice: false };
+    // 5 s of lip sync at $0.10; a four-letter line costs less than a cent.
+    for (const engine of ["elevenlabs", "higgsfield", "kling", "mock"] as const)
+      assertEquals(lipsyncEstimate(engine, [own]), {
+        usd: 0.5,
+        credits: 0,
+        scenes: 1,
+        native: false,
+      });
+    assertStrictEquals(lipsyncEstimate("elevenlabs", [engineVoice]).usd, 0);
+    // On OpenRouter the engine-spoken scene adds the Veo difference, the chosen voice its pass.
+    const mixed = lipsyncEstimate("openrouter", [own, engineVoice]);
+    const veoOnly = lipsyncEstimate("openrouter", [engineVoice]);
+    assertStrictEquals(mixed.native, false);
+    assertStrictEquals(mixed.usd, Math.round((veoOnly.usd + 0.5) * 100) / 100);
+    // The quote counts the pass in the film's total; the line is not narrated as well.
+    const film = productionEstimate("elevenlabs", [own], {
+      withVoice: true,
+      withMusic: false,
+    });
+    assertStrictEquals(film.lipsync.usd, 0.5);
+    assertStrictEquals(film.voice.usd, 0);
+    assertStrictEquals(
+      film.totalUsd,
+      Math.round((film.clips.usd + 0.5) * 100) / 100,
+    );
+    // Veo, the end of the lip-sync chain, would speak in its own voice: it is never used for a
+    // line in the chosen voice, so it is not quoted for one either.
+    const quoted = quotedProductionEstimate(
+      "kling",
+      [own],
+      { withVoice: true, withMusic: false },
+      { openrouter: true },
+    );
+    assertStrictEquals(quoted.lipsync.usd, 0.5);
+    const engineLine = quotedProductionEstimate(
+      "kling",
+      [engineVoice],
+      { withVoice: true, withMusic: false },
+      { openrouter: true },
+    );
+    assert(engineLine.lipsync.usd >= 6 * 0.4 - 0.01);
+  },
+);
+
+Deno.test(
+  "a kept talking scene with a new line is quoted as its lip sync alone",
+  () => {
+    const relip = [
+      {
+        duration_s: 4,
+        voiceover_text: "",
+        lipsync: true,
+        dialogue: "אני הקמפיינרית שלך",
+        chosen_voice: true,
+      },
+    ];
+    const again = relipEstimate(relip);
+    // 4 s of lip sync at $0.10 plus the voice line.
+    assert(again.usd >= 0.4 && again.usd < 0.5, String(again.usd));
+    // A line in the chosen voice never goes to Veo, so OpenRouter does not change its price.
+    assertEquals(relipEstimate(relip, { openrouter: true }), again);
+    // Not a chosen voice: the worker's chain may end at Veo, so the dearer one is quoted.
+    const engineVoice = [{ ...relip[0], chosen_voice: false }];
+    assertEquals(relipEstimate(engineVoice, { openrouter: true }).usd, 1.6);
+    const quote = quotedProductionEstimate(
+      "elevenlabs",
+      [],
+      { withVoice: false, withMusic: false },
+      {},
+      relip,
+    );
+    assertEquals(quote.totalUsd, again.usd);
+    assertEquals(quote.lipsync.usd, again.usd);
+    assertEquals(quote.talkingScenes, 1);
+    // Nothing kept to redo: the quote is unchanged.
+    assertEquals(
+      quotedProductionEstimate("elevenlabs", [], {
+        withVoice: false,
+        withMusic: false,
+      }).totalUsd,
+      0,
+    );
+  },
+);
+
+Deno.test("a scene row is priced from its talking meta", () => {
+  assertEquals(
+    costSceneOf({
+      duration_s: "4",
+      voiceover_text: "שלום",
+      meta: { lipsync: true, dialogue: "היי", chosen_voice: true },
+    }),
+    {
+      duration_s: 4,
+      voiceover_text: "שלום",
+      lipsync: true,
+      dialogue: "היי",
+      chosen_voice: true,
+    },
+  );
+  // chosen_voice counts only on a talking scene.
+  assertEquals(
+    costSceneOf({ meta: { chosen_voice: true } }).chosen_voice,
+    false,
+  );
+});

@@ -114,6 +114,7 @@ test.skipIf(!hasFfmpeg)(
       await rm(dir, { recursive: true, force: true });
     }
   },
+  60_000,
 );
 
 test.skipIf(!hasFfmpeg)(
@@ -170,6 +171,7 @@ test.skipIf(!hasFfmpeg)(
       await rm(dir, { recursive: true, force: true });
     }
   },
+  60_000,
 );
 
 test.skipIf(!hasFfmpeg)(
@@ -223,4 +225,31 @@ test.skipIf(!hasFfmpeg)(
       await rm(dir, { recursive: true, force: true });
     }
   },
+  60_000,
 );
+
+test("a talking clip carries its move and its line's word timings; another scene does not", () => {
+  const alignment = { words: [{ text: "אני", start: 0, end: 0.3 }] };
+  const { scenes } = buildTimeline([
+    {
+      id: "talk",
+      position: 1,
+      clipPath: "t1/talk.mp4",
+      lipsync: true,
+      spokenText: "אני",
+      spokenAlignment: alignment,
+      moveClipPath: "t1/move.mp4",
+    },
+    {
+      id: "quiet",
+      position: 2,
+      clipPath: "t1/quiet.mp4",
+      spokenAlignment: alignment,
+      moveClipPath: "t1/move.mp4",
+    },
+  ]);
+  expect(scenes[0].spokenAlignment).toStrictEqual(alignment);
+  expect(scenes[0].moveClipPath).toBe("t1/move.mp4");
+  expect(scenes[1].spokenAlignment).toBe(null);
+  expect(scenes[1].moveClipPath).toBe(null);
+});

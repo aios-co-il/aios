@@ -216,7 +216,7 @@ interface Project {
 }
 
 const SCENE_COLUMNS =
-  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, voice_asset_id, clip_stale";
+  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, voice_asset_id, clip_stale, meta";
 
 async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
   const { data, error } = await supabase
@@ -347,6 +347,8 @@ export async function executeCreativeStudioTool(
       production: asRecord(video.production).status ?? null,
       scenes: scenes.map((scene, index) => ({
         number: index + 1,
+        // The id workshop_update_scene changes this scene by.
+        scene_id: scene.id,
         title: scene.title,
         status: scene.status,
         duration_s: scene.duration_s,
@@ -357,6 +359,14 @@ export async function executeCreativeStudioTool(
         visual_prompt: text(scene.visual_prompt, 300),
         overlay_text: text(scene.overlay_text, 160),
         voiceover_text: text(scene.voiceover_text, 300),
+        motion_prompt: text(scene.motion_prompt, 200),
+        // A talking scene: the character says this line to the camera, lip-synced.
+        ...(asRecord(scene.meta).lipsync === true
+          ? {
+              lipsync: true,
+              dialogue: text(asRecord(scene.meta).dialogue, 300),
+            }
+          : {}),
       })),
       variations: variations.slice(0, 24).map((variation, index) => ({
         number: index + 1,

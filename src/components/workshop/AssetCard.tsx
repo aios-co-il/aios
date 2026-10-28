@@ -12,6 +12,7 @@ import { hostLabel } from "../../../supabase/functions/_shared/workshop/assets.t
 import {
   MAX_USER_REFERENCES,
   canBeReference,
+  webHref,
   type WorkshopAsset,
 } from "./workshopAssets";
 
@@ -33,6 +34,7 @@ export function AssetCard({
     : [];
   const inspected = !!asset.meta.inspected_at;
   const isPicture = asset.asset_type === "image" && !!asset.url;
+  const href = webHref(asset.url);
   const Icon =
     asset.asset_type === "site"
       ? Globe
@@ -43,10 +45,10 @@ export function AssetCard({
           : Paperclip;
   return (
     <article className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
-      {isPicture ? (
-        <a href={asset.url ?? undefined} target="_blank" rel="noreferrer">
+      {isPicture && href ? (
+        <a href={href} target="_blank" rel="noreferrer">
           <img
-            src={asset.url ?? undefined}
+            src={href}
             alt={asset.title}
             loading="lazy"
             className="aspect-square w-full object-cover"
@@ -111,14 +113,14 @@ export function AssetCard({
               {asset.use_as_reference ? "רפרנס" : "השתמשי כרפרנס"}
             </Button>
           ) : null}
-          {asset.url && asset.asset_type !== "image" ? (
+          {href && asset.asset_type !== "image" ? (
             <Button
               asChild
               size="sm"
               variant="ghost"
               className="h-7 gap-1 px-2 text-xs"
             >
-              <a href={asset.url} target="_blank" rel="noreferrer">
+              <a href={href} target="_blank" rel="noreferrer">
                 <ExternalLink className="h-3 w-3" />
                 פתחי
               </a>

@@ -7,6 +7,7 @@ import {
   isBlockedInWorkshop,
   stripServerOnlyPayloadKeys,
   workshopBlockedResult,
+  workshopToolRefusal,
 } from "./blocked-tools.ts";
 import { ROLE_TOOLS, toolsForRole, type WorkshopRole } from "./roles.ts";
 import { isWorkshopTool } from "./tool-definitions.ts";
@@ -80,7 +81,6 @@ Deno.test(
       "list_facebook_campaigns",
       "get_marketing_work_item",
       "create_social_post",
-      "generate_ad_image",
       "save_memory",
       "kb_search",
       "edit_scene",
@@ -88,6 +88,22 @@ Deno.test(
     ]) {
       assertStrictEquals(isBlockedInWorkshop(name, true), false, name);
     }
+  },
+);
+
+Deno.test(
+  "paid tools outside the project budget are blocked inside the workshop only",
+  () => {
+    // A picture in the workshop is made by workshop_make_creative or workshop_make_stills, which
+    // ask for the budget; the studio's own buttons have their own cost window, outside it.
+    for (const name of ["generate_ad_image", "studio_ui_action"]) {
+      assertStrictEquals(isBlockedInWorkshop(name, true), true, name);
+      assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
+    }
+    assertMatch(
+      workshopBlockedResult("generate_ad_image").message,
+      /workshop_make_creative/,
+    );
   },
 );
 
@@ -183,5 +199,25 @@ Deno.test(
       // Outside the workshop nothing changes.
       assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
     }
+  },
+);
+
+Deno.test(
+  "outside the workshop a workshop tool called by name does not run",
+  () => {
+    // Not offered outside the workshop (WhatsApp, other chats), and with no board to work on.
+    for (const name of ["workshop_check_connections", "workshop_storyboard"]) {
+      const refused = workshopToolRefusal(name, false);
+      assertStrictEquals(refused?.error, "workshop_only", name);
+      assertMatch(String(refused?.message), /בסדנה/);
+      assertStrictEquals(workshopToolRefusal(name, true), null, name);
+    }
+    assertStrictEquals(workshopToolRefusal("list_clients", false), null);
+    // In the workshop a tool that acts outside the board is still refused.
+    assertEquals(
+      workshopToolRefusal("publish_social_post", true),
+      workshopBlockedResult("publish_social_post"),
+    );
+    assertStrictEquals(workshopToolRefusal("publish_social_post", false), null);
   },
 );

@@ -1,7 +1,10 @@
 import { expect, test } from "vitest";
-import { brandFromPayload } from "../src/compose/brand.mjs";
+import {
+  brandFromPayload,
+  brandNameFromPayload,
+} from "../src/compose/brand.mjs";
 import { buildTimeline } from "../src/compose/timeline.mjs";
-import { loadFilmBrand } from "../src/jobs/render.mjs";
+import { loadFilmBrand, loadFilmSettings } from "../src/jobs/render.mjs";
 import {
   captionChunks,
   wordsFromAlignment,
@@ -158,6 +161,53 @@ test("loadFilmBrand reads the payload of the run's item in the run's tenant", as
   expect(queries).toStrictEqual([
     ["marketing_work_items", "id=eq.i%201&tenant_id=eq.t1&select=payload"],
   ]);
+});
+
+test("loadFilmSettings reads the caption style and the brand's name", async () => {
+  const settingsFor = (payload) =>
+    loadFilmSettings(
+      { select: async () => [{ payload }] },
+      { item_id: "i1", tenant_id: "t1" },
+    );
+  const motion = await settingsFor({ brand_book: { name: "כרמן" } });
+  expect(motion.captionStyle).toBe("motion");
+  expect(motion.brandName).toBe("כרמן");
+  const karaoke = await settingsFor({ video: { caption_style: "karaoke" } });
+  expect(karaoke.captionStyle).toBe("karaoke");
+  expect(karaoke.brandName).toBe(null);
+  expect(brandNameFromPayload({ client_name: "  Carmen  OS " })).toBe(
+    "Carmen OS",
+  );
+});
+
+test("buildTimeline carries the caption style, brand name and skin-switch signals", () => {
+  const timeline = buildTimeline(
+    [
+      {
+        id: "a",
+        position: 1,
+        clipPath: "a.mp4",
+        skinSwitch: true,
+        skinRef: "https://x/skin.jpg",
+        pictureKey: "https://x/skin.jpg",
+      },
+      { id: "b", position: 2, clipPath: "b.mp4", skinSwitch: "yes" },
+    ],
+    { captionStyle: "karaoke", brandName: " כרמן " },
+  );
+  expect(timeline.captionStyle).toBe("karaoke");
+  expect(timeline.brandName).toBe("כרמן");
+  expect(timeline.scenes[0]).toMatchObject({
+    skinSwitch: true,
+    skinRef: "https://x/skin.jpg",
+    pictureKey: "https://x/skin.jpg",
+  });
+  expect(timeline.scenes[1]).toMatchObject({
+    skinSwitch: null,
+    skinRef: null,
+    pictureKey: null,
+  });
+  expect(buildTimeline([]).captionStyle).toBe("motion");
 });
 
 test("buildTimeline carries lip-sync, transitions, word timings and the brand", () => {

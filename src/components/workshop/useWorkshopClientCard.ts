@@ -58,18 +58,21 @@ export function useWorkshopClientCard(clientId: string) {
     return data as { month: string; status: string } | null;
   });
 
+  // Active projects and keywords only, the numbers the SEO / GEO screen shows for the client.
   const ranks = useBlock("rank-tracking", clientId, async () => {
     const { data, error } = await supabase
       .from("rank_tracking_projects")
       .select("id")
-      .eq("client_id", clientId);
+      .eq("client_id", clientId)
+      .eq("is_active", true);
     if (error) throw error;
     const ids = (data ?? []).map((row) => row.id as string);
     if (ids.length === 0) return null;
     const keywords = await supabase
       .from("rank_tracking_keywords")
       .select("id", { count: "exact", head: true })
-      .in("project_id", ids);
+      .in("project_id", ids)
+      .eq("is_active", true);
     if (keywords.error) throw keywords.error;
     return { projects: ids.length, keywords: keywords.count ?? 0 };
   });

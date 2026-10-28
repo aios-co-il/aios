@@ -7,8 +7,11 @@
 export type DepartmentId =
   "creative" | "copy" | "seo" | "social" | "web" | "campaigns";
 
-/** The MarketingDepartment route ids (/t/:slug/marketing/department/:department). */
-export type DepartmentScreen = "creative" | "copy" | "seo" | "campaigns";
+/**
+ * The open MarketingDepartment screens (/t/:slug/marketing/department/:department). The
+ * campaigns route exists but is still a coming-soon placeholder, so nothing links to it.
+ */
+export type DepartmentScreen = "creative" | "copy" | "seo";
 
 export interface Department {
   id: DepartmentId;
@@ -22,7 +25,7 @@ export const DEPARTMENTS: readonly Department[] = [
   { id: "seo", label: "SEO / GEO", screen: "seo" },
   { id: "social", label: "סושיאל", screen: null },
   { id: "web", label: "בניית אתרים", screen: null },
-  { id: "campaigns", label: "קמפיינים", screen: "campaigns" },
+  { id: "campaigns", label: "קמפיינים", screen: null },
 ];
 
 const BY_ID = new Map(DEPARTMENTS.map((dept) => [dept.id, dept]));
@@ -64,6 +67,9 @@ const STAGE_DEPARTMENT: Record<string, DepartmentId> = {
 /**
  * A project's department, strongest signal first: the department it was tagged with, a workshop
  * board, its pipeline track, its current stage, then what its payload holds. Creative otherwise.
+ * Untagged creative work (variations, a static or video project, a picture) goes to Creative
+ * whatever brief, copy or copy stage it carries: isCreativeDepartmentItem lists it and
+ * isCopyDepartmentItem leaves most of it out, so the card links to a screen that shows it.
  * public.workshop_assign_client mirrors this rule in SQL: change both together.
  */
 export function projectDepartment(row: ProjectDepartmentInput): DepartmentId {
@@ -72,10 +78,10 @@ export function projectDepartment(row: ProjectDepartmentInput): DepartmentId {
   const byTrack = row.track ? TRACK_DEPARTMENT[row.track] : undefined;
   if (byTrack) return byTrack;
   const byStage = row.stage_type ? STAGE_DEPARTMENT[row.stage_type] : undefined;
+  if (byStage === "copy" && row.has_creative) return "creative";
   if (byStage) return byStage;
   if (row.has_seo_plan) return "seo";
-  if (row.has_copy) return "copy";
-  if (row.has_creative) return "creative";
+  if (row.has_copy && !row.has_creative) return "copy";
   return "creative";
 }
 

@@ -97,6 +97,10 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { CarmenWhatsAppAccess } from "@/components/carmen/CarmenWhatsAppAccess";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
+import { permissionForSubpath } from "@/lib/moduleRoutePermissions";
+
+/** What the workshop route asks for, so the link shows only to whoever may open it. */
+const WORKSHOP_PERMISSION = permissionForSubpath("workshop");
 
 interface ClientsChatViewProps {
   clients: any[];
@@ -1227,8 +1231,8 @@ export function ClientsChatView({
                     )}
                   </Button>
 
-                  {/* The workshop route needs social_media (moduleRoutePermissions). */}
-                  {hasPermission("social_media") && (
+                  {(!WORKSHOP_PERMISSION ||
+                    hasPermission(WORKSHOP_PERMISSION)) && (
                     <Button
                       asChild
                       variant="outline"

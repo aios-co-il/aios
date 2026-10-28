@@ -278,19 +278,42 @@ async function viaElevenLabs(
   const started = await submit.json().catch(() => ({}));
   if (!submit.ok || !started?.id)
     throw new Error(elevenLabsReason(submit.status, JSON.stringify(started)));
+  try {
+    return await awaitElevenLabs(started.id, base, headers, deps, fetchImpl);
+  } catch (error) {
+    // Only a job ElevenLabs reports as failed holds no picture; after any other stop (a failed
+    // check, a lost download, running out of polls) it may still finish and charge.
+    throw (error as { ended?: boolean }).ended ? error : accepted(error);
+  }
+}
+
+/** ElevenLabs ended the job without a picture: another engine may make it. */
+function endedJob(message: string) {
+  const error = new Error(message);
+  (error as Error & { ended?: boolean }).ended = true;
+  return error;
+}
+
+async function awaitElevenLabs(
+  id: string,
+  base: string,
+  headers: Record<string, string>,
+  deps: ImageDeps,
+  fetchImpl: typeof fetch,
+): Promise<MadeImage> {
   const sleep =
     deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const polls = deps.maxPolls ?? 40;
   for (let attempt = 0; attempt < polls; attempt++) {
     await sleep(deps.pollMs ?? 2000);
-    const poll = await fetchImpl(`${base}/${encodeURIComponent(started.id)}`, {
+    const poll = await fetchImpl(`${base}/${encodeURIComponent(id)}`, {
       headers,
     });
     const state = await poll.json().catch(() => ({}));
     if (!poll.ok)
       throw new Error(elevenLabsReason(poll.status, JSON.stringify(state)));
     if (state.status === "failed")
-      throw new Error(
+      throw endedJob(
         ELEVENLABS_FAILURES[String(state.failure_reason)] ??
           clip(String(state.error_message ?? state.failure_reason ?? "נכשל")),
       );
