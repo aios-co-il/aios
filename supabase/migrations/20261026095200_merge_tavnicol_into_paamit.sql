@@ -112,7 +112,7 @@ begin
   get diagnostics v_reports = row_count;
 
   -- An article of another tenant may name the target only if the target's
-  -- agency is shared with that tenant (20261026095100).
+  -- agency is shared read_write with that tenant (20261026095100).
   select count(*) into v_unshared
   from public.publishing_articles pa
   join public.clients t on t.id = v_target
@@ -122,11 +122,12 @@ begin
       select 1 from public.agency_tenant_access ata
        where ata.agency_id = t.agency_id
          and ata.accessing_tenant_id = pa.tenant_id
+         and ata.access_level = 'read_write'
     );
 
   if v_unshared > 0 then
     v_articles := 0;
-    raise notice 'merge tavnicol: % article(s) belong to a tenant DMM-MC is not shared with; articles not moved',
+    raise notice 'merge tavnicol: % article(s) belong to a tenant DMM-MC is not shared read_write with; articles not moved',
       v_unshared;
   else
     update public.publishing_articles set client_id = v_target where client_id = v_dup;

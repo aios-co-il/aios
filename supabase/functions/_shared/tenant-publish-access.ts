@@ -1,12 +1,14 @@
 /** Who may publish on behalf of a tenant (AIO-234).
  *
  * Publishing functions run with the service role, which bypasses RLS, so they
- * must check the caller themselves before acting on a tenant's pages or sites.
- * The rule mirrors the RLS on the rows they publish (social_pages,
- * seo_geo_calendar_entries): a member of the tenant (tenant_users) or a super
- * admin. When the row belongs to a client, the caller must also pass
- * `user_can_access_client`, the check the client-scoped RLS uses. The service
- * role (internal callers such as run-ai-agent) is always allowed.
+ * must check the caller themselves before acting on the rows they publish
+ * (social_pages, social_media_posts, seo_geo_calendar_entries and their
+ * marketing_work_items). A user must be a member of the row's tenant
+ * (tenant_users) or a super admin, and when the row or the request names a
+ * client, must also pass `user_can_access_client`. This is stricter than the
+ * RLS of some of those tables: social_pages also admits the tenants a page is
+ * shared with. The service role (internal callers such as run-ai-agent) is
+ * always allowed.
  */
 
 export type PublishCaller = {
