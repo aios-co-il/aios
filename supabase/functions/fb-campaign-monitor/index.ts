@@ -1,17 +1,9 @@
 // Cron: scans all tenants' active Facebook campaigns, detects anomalies, writes to campaign_alerts.
 import type {} from "../_shared/edge-runtime.d.ts";
-import {
-  createClient,
-  type SupabaseClient,
-} from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import {
-  asArray,
-  asRecord,
-  errorMessage,
-  isJsonObject,
-  optString,
-} from "../_shared/provider-json.ts";
-import { upsertCampaignAlert } from "./upsert-alert.ts";
+import { z } from "npm:zod@3.25.76";
+import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
+import type { Json } from "../_shared/database.types.ts";
+import { asArray, errorMessage } from "../_shared/provider-json.ts";
 import { upsertCampaignAlert } from "./upsert-alert.ts";
 
 const corsHeaders = {
@@ -29,7 +21,7 @@ type AlertInput = {
   ad_account_id?: string;
   alert_type: string;
   severity: "info" | "warning" | "critical";
-  details: Record<string, unknown>;
+  details: { [key: string]: Json | undefined };
 };
 
 type ScanStats = {
@@ -39,30 +31,55 @@ type ScanStats = {
   errors: number;
 };
 
-type FbAccount = { id?: string; name?: string; account_status: unknown };
+const jsonValue = z.custom<Json>(() => true);
+const optionalString = z.string().optional().catch(undefined);
+const rowList = z.array(z.unknown()).catch([]);
 
-type FbCampaign = {
-  id?: string;
-  name?: string;
-  effective_status?: string;
-  issues_info: unknown;
-};
+/** A Graph API list body; `error` is set when the request failed. */
+const graphListSchema = z
+  .object({ error: z.unknown(), data: rowList })
+  .catch({ error: undefined, data: [] });
 
-const toAccount = (row: unknown): FbAccount => {
-  const acc = asRecord(row);
-  return {
-    id: optString(acc.id),
-    name: optString(acc.name),
-    account_status: acc.account_status,
-  };
-};
+/** Every listed account is scanned; a row that is not an object reads as empty. */
+const fbAccountSchema = z
+  .object({
+    id: optionalString,
+    name: optionalString,
+    account_status: jsonValue.optional(),
+  })
+  .catch({});
 
-const toCampaign = (row: Record<string, unknown>): FbCampaign => ({
-  id: optString(row.id),
-  name: optString(row.name),
-  effective_status: optString(row.effective_status),
-  issues_info: row.issues_info,
+type FbAccount = z.infer<typeof fbAccountSchema>;
+
+const fbCampaignSchema = z.object({
+  id: optionalString,
+  name: optionalString,
+  effective_status: optionalString,
+  issues_info: jsonValue.optional(),
 });
+
+type FbCampaign = z.infer<typeof fbCampaignSchema>;
+
+const fbAdSchema = z.object({
+  id: jsonValue.optional(),
+  name: jsonValue.optional(),
+  effective_status: jsonValue.optional(),
+  campaign: z.object({ id: optionalString, name: optionalString }).catch({}),
+});
+
+function parseRows<T>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  rows: unknown[],
+) {
+  return rows.flatMap((row) => {
+    const parsed = schema.safeParse(row);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+const requestBodySchema = z
+  .object({ tenant_id: z.unknown() })
+  .catch({ tenant_id: undefined });
 
 // KPI exceptions are owned by campaign-pulse-snapshot so they share its
 // target-aware filter, AI verification and campaign-level dedupe. This monitor
@@ -74,7 +91,7 @@ const NOTIFY_TYPES = new Set([
 ]);
 
 async function resolveRecipients(
-  supabase: SupabaseClient,
+  supabase: DbClient,
   tenant_id: string,
   client_id?: string | null,
 ) {
@@ -126,7 +143,7 @@ async function resolveRecipients(
 }
 
 async function notifyWhatsapp(
-  supabase: SupabaseClient,
+  supabase: DbClient,
   alert: AlertInput,
   alert_id: string,
 ) {
@@ -187,11 +204,7 @@ async function notifyWhatsapp(
 }
 
 /** Records one detected alert; only NOTIFY_TYPES send a WhatsApp. */
-async function upsertAlert(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  alert: AlertInput,
-) {
+async function upsertAlert(supabase: DbClient, alert: AlertInput) {
   const notify = NOTIFY_TYPES.has(alert.alert_type)
     ? (alertId: string) => notifyWhatsapp(supabase, alert, alertId)
     : null;
@@ -199,7 +212,7 @@ async function upsertAlert(
 }
 
 async function scanCampaign(
-  supabase: SupabaseClient,
+  supabase: DbClient,
   tenant_id: string,
   acc: FbAccount,
   c: FbCampaign,
@@ -243,7 +256,7 @@ async function scanCampaign(
 }
 
 async function scanAccount(
-  supabase: SupabaseClient,
+  supabase: DbClient,
   tenant_id: string,
   token: string,
   acc: FbAccount,
@@ -271,14 +284,14 @@ async function scanAccount(
       `https://graph.facebook.com/v21.0/${acc.id}/ads?fields=id,name,effective_status,campaign{id,name}&limit=200&effective_status=["DISAPPROVED","PENDING_REVIEW"]&access_token=${token}`,
     ).then((r) => r.json()),
   ]);
-  if (asRecord(campJson).error) {
+  const campaignList = graphListSchema.parse(campJson);
+  if (campaignList.error) {
     stats.errors++;
     return;
   }
 
-  const rawCampaigns = asArray(asRecord(campJson).data);
-  stats.campaigns_scanned += rawCampaigns.length;
-  const campaigns = rawCampaigns.filter(isJsonObject).map(toCampaign);
+  stats.campaigns_scanned += campaignList.data.length;
+  const campaigns = parseRows(fbCampaignSchema, campaignList.data);
   // Parallel per-campaign in chunks to limit concurrency
   const chunkSize = 8;
   for (let i = 0; i < campaigns.length; i += chunkSize) {
@@ -289,9 +302,10 @@ async function scanAccount(
     );
   }
 
-  for (const ad of asArray(asRecord(adsJ).data).filter(isJsonObject)) {
-    const campaign = asRecord(ad.campaign);
-    const campaignId = optString(campaign.id) || optString(ad.id);
+  const ads = parseRows(fbAdSchema, graphListSchema.parse(adsJ).data);
+  for (const ad of ads) {
+    const { campaign } = ad;
+    const campaignId = campaign.id || optionalString.parse(ad.id);
     if (
       campaignId &&
       (ad.effective_status === "DISAPPROVED" ||
@@ -300,7 +314,7 @@ async function scanAccount(
       const r = await upsertAlert(supabase, {
         tenant_id,
         campaign_id: campaignId,
-        campaign_name: optString(campaign.name),
+        campaign_name: campaign.name,
         ad_account_id: acc.id,
         alert_type: "ad_disapproved",
         severity:
@@ -317,7 +331,7 @@ async function scanAccount(
 }
 
 async function scanTenant(
-  supabase: SupabaseClient,
+  supabase: DbClient,
   tenant_id: string,
   token: string,
   stats: ScanStats,
@@ -327,12 +341,12 @@ async function scanTenant(
     const accRes = await fetch(
       `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status&limit=50&access_token=${token}`,
     );
-    const accJson = asRecord(await accRes.json());
+    const accJson = graphListSchema.parse(await accRes.json());
     if (accJson.error) {
       stats.errors++;
       return;
     }
-    const accounts = asArray(accJson.data).map(toAccount);
+    const accounts = accJson.data.map((row) => fbAccountSchema.parse(row));
     // Parallel accounts
     await Promise.all(
       accounts.map((acc) =>
@@ -356,7 +370,7 @@ async function scanTenant(
   }
 }
 
-async function getTokensByTenant(supabase: SupabaseClient) {
+async function getTokensByTenant(supabase: DbClient) {
   const { data: integrations } = await supabase
     .from("tenant_integrations")
     .select("tenant_id, api_key, shared_from_integration_id")
@@ -364,7 +378,7 @@ async function getTokensByTenant(supabase: SupabaseClient) {
     .eq("is_active", true);
   const tokensByTenant = new Map<string, string>();
   for (const integ of integrations || []) {
-    let token = integ.api_key as string | null;
+    let token = integ.api_key;
     if (!token && integ.shared_from_integration_id) {
       const { data: src } = await supabase
         .from("tenant_integrations")
@@ -381,10 +395,7 @@ async function getTokensByTenant(supabase: SupabaseClient) {
 
 // Single-tenant scan (called per-tenant, runs in its own invocation to stay within CPU limits)
 async function runTenantScan(tenant_id: string) {
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const supabase = serviceClient();
   const tokens = await getTokensByTenant(supabase);
   const token = tokens.get(tenant_id);
   if (!token) return { error: "no_token" };
@@ -405,10 +416,7 @@ async function runTenantScan(tenant_id: string) {
 
 // Fan-out: invokes self once per tenant in background so each runs in its own CPU budget
 async function fanOutAllTenants() {
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const supabase = serviceClient();
   const tokens = await getTokensByTenant(supabase);
   const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/fb-campaign-monitor`;
   const auth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
@@ -439,7 +447,7 @@ Deno.serve(async (req) => {
   } catch (_) {
     /* ignore */
   }
-  const rawTenantId = asRecord(body).tenant_id;
+  const rawTenantId = requestBodySchema.parse(body).tenant_id;
   const tenant_id: string | undefined = rawTenantId
     ? String(rawTenantId)
     : undefined;
