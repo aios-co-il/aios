@@ -287,7 +287,7 @@ async function generateArticleImage(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-image-1",
+      model: "gpt-image-2.5-sunburst",
       prompt: `${prompt}. Editorial magazine photography, natural and credible, landscape composition, no text, no logos, no watermarks.`,
       n: 1,
       size: "1536x1024",

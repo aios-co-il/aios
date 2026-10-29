@@ -3,6 +3,18 @@
  * Shared by campaign-pulse-snapshot (and unit-tested) so connected clients with
  * stale sync are never collapsed into no_data.
  */
+import { hasRepeatedSyncFailures } from "./ads-sync/freshness.ts";
+import { getSpendFromData } from "./campaign-goal/ads-metrics.ts";
+import { adsRowOutcomes, goalResultCount } from "./campaign-goal/outcomes.ts";
+import {
+  isEcommerceReportTable,
+  reportTableGoal,
+} from "./campaign-goal/table-goal.ts";
+import {
+  NO_RECENT_CLIENT_CALL_TEXT,
+  isLegacyClientCallFlag,
+  pulseRowHasNoRecentClientCall,
+} from "./pulse/client-call.ts";
 
 export const CAMPAIGN_SERVICES = new Set(["ppc_meta", "ppc_google"]);
 export const CAMPAIGN_TABLE_TYPES = [
@@ -10,7 +22,6 @@ export const CAMPAIGN_TABLE_TYPES = [
   "facebook_ecommerce",
   "google_ads",
 ] as const;
-export const CLIENT_CALL_STALE_MS = 14 * 24 * 60 * 60 * 1000;
 /** Alert types worth interrupting someone's morning for. */
 export const PULSE_CRITICAL_ALERT_TYPES = [
   "campaign_stopped",
@@ -49,11 +60,18 @@ export function resolveLastSyncAt(table: CampaignTableLike): string | null {
   )[0];
 }
 
+/**
+ * Stale = the last two runs in a row failed or came back empty (the morning sync
+ * and the next one), or no successful write within `staleMs` (the syncs stopped
+ * running). One failed run alone is not stale, so a transient platform error (a
+ * rate limit) raises no connection alert; the report pages show it at once.
+ */
 export function isSyncStale(
   table: CampaignTableLike,
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
+  if (hasRepeatedSyncFailures(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
@@ -164,6 +182,9 @@ export function buildHealthWhatsAppDigest(input: {
 const ALERT_TYPE_LABELS: Record<string, string> = {
   campaign_stopped: "קמפיין נעצר",
   ad_disapproved: "מודעה נדחתה",
+  account_disabled: "חשבון הפרסום הושבת או הוגבל",
+  ad_account_billing_issue: "בעיית חיוב בחשבון הפרסום",
+  no_live_ads: "אין מודעה באוויר",
   campaign_with_issues: "תקלה בקמפיין",
   cpl_spike: "CPL חורג",
 };
@@ -369,8 +390,6 @@ export type ClassifyPulseInput = {
   purchases7: number;
   roas: number | null;
   cplChangePct: number | null;
-  /** Latest client-card update with update_type='call'. Undefined skips this rule. */
-  lastClientCallAt?: string | null;
   /** Open `campaign_stopped` alerts attributed to this client's active tables. */
   stoppedCampaignCount?: number;
   nowMs?: number;
@@ -387,35 +406,15 @@ function applyStoppedCampaigns(
   return { status: "critical", flags };
 }
 
-function applyClientCallFreshness(
-  status: PulseStatus,
-  flags: string[],
-  lastClientCallAt: string | null | undefined,
-  nowMs: number,
-): { status: PulseStatus; flags: string[] } {
-  if (lastClientCallAt === undefined) return { status, flags };
-
-  const timestamp = lastClientCallAt
-    ? new Date(lastClientCallAt).getTime()
-    : Number.NaN;
-  const missing = Number.isNaN(timestamp);
-  const stale = !missing && nowMs - timestamp > CLIENT_CALL_STALE_MS;
-  if (!missing && !stale) return { status, flags };
-
-  flags.push(
-    missing
-      ? "לא תועדה שיחה טלפונית עם הלקוח"
-      : "לא תועדה שיחה טלפונית עם הלקוח ב-14 הימים האחרונים",
-  );
-  return { status: status === "healthy" ? "warning" : status, flags };
-}
-
 /**
  * Classify a client row for the deterministic campaign pulse.
  *
  * - no_data: no campaign report table connected for expected services
  * - warning: tables connected but sync/data stale, or soft metric issues
  * - critical / healthy: metric-driven when recent data exists
+ *
+ * A missing client call never changes the status (AIO-227): it is reported as
+ * the separate `no_recent_client_call` indicator (see pulse/client-call.ts).
  */
 export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
   status: PulseStatus;
@@ -430,14 +429,9 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
     .map((table) => platformLabel(table.integration_type));
 
   if (!input.hasConfiguredCampaignTable || input.activeTables.length === 0) {
-    const result = applyClientCallFreshness(
-      "no_data",
-      ["אין טבלת קמפיין מחוברת"],
-      input.lastClientCallAt,
-      nowMs,
-    );
     return {
-      ...result,
+      status: "no_data",
+      flags: ["אין טבלת קמפיין מחוברת"],
       stalePlatforms,
     };
   }
@@ -451,13 +445,7 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
       [`סנכרון ישן או חסר — אין נתונים ב-30 הימים האחרונים${staleNote}`],
       input.stoppedCampaignCount,
     );
-    const result = applyClientCallFreshness(
-      stopped.status,
-      stopped.flags,
-      input.lastClientCallAt,
-      nowMs,
-    );
-    return { ...result, stalePlatforms };
+    return { ...stopped, stalePlatforms };
   }
 
   let status: PulseStatus = "healthy";
@@ -490,13 +478,7 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
     flags,
     input.stoppedCampaignCount,
   );
-  const result = applyClientCallFreshness(
-    stopped.status,
-    stopped.flags,
-    input.lastClientCallAt,
-    nowMs,
-  );
-  return { ...result, stalePlatforms };
+  return { ...stopped, stalePlatforms };
 }
 
 export type PulseStatusCounts = {
@@ -555,20 +537,16 @@ export function isPulseDeliveryExcludedPhone(
   );
 }
 
-import {
-  isEcommerceReportTable,
-  integrationTypeToGoal,
-} from "./pulse-campaign-goals.mjs";
+export { isEcommerceReportTable, reportTableGoal };
 
-export { isEcommerceReportTable, integrationTypeToGoal };
-
+/** A client's goal mode from its active report tables' own goals (reportTableGoal). */
 export function detectCampaignGoalMode(
   tables: CampaignTableLike[],
 ): CampaignGoalMode {
   const goals = new Set<CampaignGoal>();
   for (const table of tables) {
     if (table.campaign_active === false) continue;
-    const goal = integrationTypeToGoal(table.integration_type, table);
+    const goal = reportTableGoal(table);
     if (goal) goals.add(goal);
   }
   if (goals.has("leads") && goals.has("ecommerce")) return "hybrid";
@@ -586,14 +564,21 @@ export type GoalMetricBundle = {
 
 type RecordLike = { data?: Record<string, unknown> | null };
 
-function sumRecordFields(rows: RecordLike[], fields: string[]): number {
-  return rows.reduce((total, row) => {
+/** A window's spend, results and revenue as the report counts them for `goal`. */
+type GoalWindowTotals = { spend: number; outcomes: number; revenue: number };
+
+function goalWindowTotals(
+  rows: Array<RecordLike>,
+  goal: CampaignGoal,
+): GoalWindowTotals {
+  const totals = { spend: 0, outcomes: 0, revenue: 0 };
+  for (const row of rows) {
     const data = row.data || {};
-    const field = fields.find(
-      (candidate) => data[candidate] !== undefined && data[candidate] !== null,
-    );
-    return total + (field ? Number(data[field]) || 0 : 0);
-  }, 0);
+    totals.spend += getSpendFromData(data);
+    totals.outcomes += goalResultCount(data, goal) ?? 0;
+    totals.revenue += adsRowOutcomes(data, goal).revenue;
+  }
+  return totals;
 }
 
 function roundMetric(value: number | null, digits = 2): number | null {
@@ -609,7 +594,12 @@ function isCampaignLevelAdsRow(
   return level === "campaign";
 }
 
-/** Aggregate 7d + prior-window metrics for one campaign goal from CRM rows. */
+/**
+ * Aggregate 7d + prior-window metrics for one campaign goal from CRM rows.
+ * Spend, results and revenue are the report's (getSpendFromData,
+ * goalResultCount, adsRowOutcomes): purchases and revenue for ecommerce, leads
+ * for leads. The caller passes the records whose campaign has that report goal.
+ */
 export function computeGoalMetricsFromRecords(
   records: RecordLike[],
   goal: CampaignGoal,
@@ -621,63 +611,47 @@ export function computeGoalMetricsFromRecords(
     const date = typeof row.data?.date === "string" ? row.data.date : null;
     return date && date >= d14Str;
   });
-  const current = recent.filter(
-    (row) => typeof row.data?.date === "string" && row.data.date >= d7Str,
+  const current = goalWindowTotals(
+    recent.filter(
+      (row) => typeof row.data?.date === "string" && row.data.date >= d7Str,
+    ),
+    goal,
   );
-  const previous = recent.filter((row) => {
-    const date = row.data?.date;
-    return typeof date === "string" && date >= d14Str && date < d7Str;
-  });
-
-  const spend = sumRecordFields(current, ["spend", "cost"]);
-  const prevSpend = sumRecordFields(previous, ["spend", "cost"]);
+  const previous = goalWindowTotals(
+    recent.filter((row) => {
+      const date = row.data?.date;
+      return typeof date === "string" && date >= d14Str && date < d7Str;
+    }),
+    goal,
+  );
 
   if (goal === "ecommerce") {
-    const purchases = sumRecordFields(current, ["purchases"]);
-    const revenue = sumRecordFields(current, [
-      "purchase_value",
-      "conversions_value",
-      "revenue",
-    ]);
-    const prevRevenue = sumRecordFields(previous, [
-      "purchase_value",
-      "conversions_value",
-      "revenue",
-    ]);
-    const roas = spend > 0 ? revenue / spend : null;
-    const prevRoas = prevSpend > 0 ? prevRevenue / prevSpend : null;
+    const roas = current.spend > 0 ? current.revenue / current.spend : null;
+    const prevRoas =
+      previous.spend > 0 ? previous.revenue / previous.spend : null;
     const changePct =
       roas !== null && prevRoas !== null && prevRoas > 0
         ? ((roas - prevRoas) / prevRoas) * 100
         : null;
     return {
-      spend: roundMetric(spend) ?? 0,
-      outcomes: roundMetric(purchases) ?? 0,
-      revenue: roundMetric(revenue) ?? 0,
+      spend: roundMetric(current.spend) ?? 0,
+      outcomes: roundMetric(current.outcomes) ?? 0,
+      revenue: roundMetric(current.revenue) ?? 0,
       efficiency: roundMetric(roas),
       changePct: roundMetric(changePct, 1),
     };
   }
 
-  const leads = sumRecordFields(current, [
-    "leads",
-    "conversions",
-    "all_conversions",
-  ]);
-  const prevLeads = sumRecordFields(previous, [
-    "leads",
-    "conversions",
-    "all_conversions",
-  ]);
-  const cpl = leads > 0 ? spend / leads : null;
-  const prevCpl = prevLeads > 0 ? prevSpend / prevLeads : null;
+  const cpl = current.outcomes > 0 ? current.spend / current.outcomes : null;
+  const prevCpl =
+    previous.outcomes > 0 ? previous.spend / previous.outcomes : null;
   const changePct =
     cpl !== null && prevCpl !== null && prevCpl > 0
       ? ((cpl - prevCpl) / prevCpl) * 100
       : null;
   return {
-    spend: roundMetric(spend) ?? 0,
-    outcomes: roundMetric(leads) ?? 0,
+    spend: roundMetric(current.spend) ?? 0,
+    outcomes: roundMetric(current.outcomes) ?? 0,
     revenue: 0,
     efficiency: roundMetric(cpl),
     changePct: roundMetric(changePct, 1),
@@ -836,7 +810,7 @@ export type PulseCampaignBreakdownRow = {
   status_reason?: string | null;
 };
 
-const PULSE_CATEGORY_LABELS: Array<[string, string]> = [
+export const PULSE_CATEGORY_LABELS: Array<[string, string]> = [
   ["leads", "לידים"],
   ["engagement", "אינגייג׳מנט"],
   ["ecommerce", "איקומרס"],
@@ -945,6 +919,7 @@ export function buildPulseWhatsAppDigest(
     client_name?: string | null;
     agency_name?: string | null;
     flags?: unknown;
+    no_recent_client_call?: boolean | null;
     campaign_goal_mode?: string | null;
     is_ecommerce?: boolean | null;
     lead_goal_status?: string | null;
@@ -983,10 +958,14 @@ export function buildPulseWhatsAppDigest(
       row.efficiency_kind === "roas"
         ? `רכישות: ${row.outcomes_7d} · ROAS: ${row.efficiency ?? "—"}${row.change_pct !== null && row.change_pct !== undefined ? ` · שינוי ${row.change_pct > 0 ? "+" : ""}${row.change_pct}%` : ""}`
         : `לידים: ${row.outcomes_7d} · CPL: ₪${row.efficiency ?? "—"}${row.change_pct !== null && row.change_pct !== undefined ? ` · שינוי ${row.change_pct > 0 ? "+" : ""}${row.change_pct}%` : ""}`;
+    const callLine = pulseRowHasNoRecentClientCall(rows[0])
+      ? [`📞 ${NO_RECENT_CLIENT_CALL_TEXT}`]
+      : [];
     return [
       `*בדיקת דופק${name}${goalSuffix}*`,
       `סטטוס: ${label}`,
       metricLine,
+      ...callLine,
       ...(categoryLines.length ? ["", ...categoryLines] : []),
       ...issueLines,
       "",
@@ -1032,8 +1011,12 @@ export function buildPulseWhatsAppDigest(
     `🟢 *${tally.healthy}* תקינים`,
     ...(tally.ops
       ? [
-          `⚙️ *${tally.ops}* עם בעיית תפעול (בלי טבלה מחוברת / בלי שיחה / סנכרון ישן) — בדשבורד`,
+          `⚙️ *${tally.ops}* עם בעיית תפעול (בלי טבלה מחוברת / סנכרון ישן) — בדשבורד`,
         ]
+      : []),
+    // Contact gap is its own count, never part of the status counts above.
+    ...(tally.noCall
+      ? ["", `📞 *${tally.noCall}* ${NO_RECENT_CLIENT_CALL_TEXT}`]
       : []),
     ...agencyLines,
     ...issueLines,
@@ -1049,6 +1032,7 @@ type PulseDigestClientRow = {
   agency_name?: string | null;
   flags?: unknown;
   campaign_breakdown?: PulseCampaignBreakdownRow[] | null;
+  no_recent_client_call?: boolean | null;
 };
 
 type ClientPerformance = {
@@ -1057,27 +1041,34 @@ type ClientPerformance = {
   status: "critical" | "warning" | "healthy" | null;
   reason: string | null;
   ops: boolean;
+  /** Separate contact indicator: no client call logged in 14 days. */
+  noRecentCall: boolean;
 };
 
-/** Flags about our process (call log, report table, sync), not about campaign results. */
-const OPERATIONAL_FLAG = /שיחה|סנכרון|אין טבלת קמפיין/;
+/** Flags about our data pipeline (report table, sync), not about campaign results. */
+const OPERATIONAL_FLAG = /סנכרון|אין טבלת קמפיין/;
 
 /**
- * Campaign-performance status of one client, with operational gaps set aside so a
- * missing phone-call log does not paint a healthy account yellow.
+ * Campaign-performance status of one client, with operational gaps set aside.
+ * The client-call gap is reported separately and never paints an account yellow.
  */
 export function clientPerformance(
   row: PulseDigestClientRow,
 ): ClientPerformance {
-  const flags = (Array.isArray(row.flags) ? row.flags : []).map(String);
+  const allFlags = (Array.isArray(row.flags) ? row.flags : []).map(String);
+  // Snapshots written before AIO-227 still carry the call gap as a flag.
+  const flags = allFlags.filter((flag) => !isLegacyClientCallFlag(flag));
   const perfFlags = flags.filter((flag) => !OPERATIONAL_FLAG.test(flag));
   const ops = row.status === "no_data" || flags.length > perfFlags.length;
   let status: ClientPerformance["status"] = null;
-  if (row.status === "critical") status = "critical";
-  // Only a warning explained entirely by operational flags counts as healthy performance.
-  else if (row.status === "warning")
-    status = perfFlags.length || !flags.length ? "warning" : "healthy";
-  else if (row.status === "healthy") status = "healthy";
+  if (row.status === "critical") {
+    status = "critical";
+  } else if (row.status === "warning") {
+    // Only a warning explained entirely by operational (or legacy call) flags counts as healthy performance.
+    status = perfFlags.length || !allFlags.length ? "warning" : "healthy";
+  } else if (row.status === "healthy") {
+    status = "healthy";
+  }
   const criticalCampaign = (
     Array.isArray(row.campaign_breakdown) ? row.campaign_breakdown : []
   ).find((campaign) => campaign.status === "critical");
@@ -1093,6 +1084,7 @@ export function clientPerformance(
         ? campaignReason || perfFlags[0] || null
         : perfFlags[0] || null,
     ops,
+    noRecentCall: pulseRowHasNoRecentClientCall(row),
   };
 }
 
@@ -1102,6 +1094,7 @@ function tallyPerformance(clients: ClientPerformance[]) {
     warning: clients.filter((c) => c.status === "warning").length,
     healthy: clients.filter((c) => c.status === "healthy").length,
     ops: clients.filter((c) => c.ops).length,
+    noCall: clients.filter((c) => c.noRecentCall).length,
   };
 }
 

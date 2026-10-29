@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchTableRecords } from "../_shared/ads-sync/campaign-records.ts";
+import { recordWebhookRun } from "./record-run.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -174,10 +176,8 @@ Deno.serve(async (req) => {
     }
 
     // === BATCH UPSERT: fetch all existing records ONCE ===
-    const { data: allExisting } = await supabase
-      .from("crm_records")
-      .select("id, data")
-      .eq("table_id", table_id);
+    // Paged: a row missing from this map would be inserted a second time instead of updated.
+    const allExisting = await fetchTableRecords(supabase, table_id);
 
     // Build lookup map: "campaign_id|date" -> record id
     const existingMap = new Map<string, string>();
@@ -298,12 +298,14 @@ Deno.serve(async (req) => {
 
     // Batch insert (Supabase handles arrays)
     let insertedCount = 0;
+    let writeErrors = 0;
     if (toInsert.length > 0) {
       // Insert in chunks of 500 to avoid payload limits
       for (let i = 0; i < toInsert.length; i += 500) {
         const chunk = toInsert.slice(i, i + 500);
         const { error } = await supabase.from("crm_records").insert(chunk);
         if (error) {
+          writeErrors++;
           console.error("Batch insert error:", error);
         } else {
           insertedCount += chunk.length;
@@ -318,14 +320,18 @@ Deno.serve(async (req) => {
         .from("crm_records")
         .update({ data: item.data, updated_at: new Date().toISOString() })
         .eq("id", item.id);
-      if (!error) updatedCount++;
+      if (error) {
+        writeErrors++;
+        console.error("Record update error:", error.message);
+      } else {
+        updatedCount++;
+      }
     }
 
-    // Update last_sync_at
-    await supabase
-      .from("crm_tables")
-      .update({ last_sync_at: new Date().toISOString() })
-      .eq("id", table_id);
+    await recordWebhookRun(supabase, table, {
+      written: insertedCount + updatedCount,
+      writeErrors,
+    });
 
     console.log(
       `Synced ${records.length} records: ${insertedCount} inserted, ${updatedCount} updated, ${skippedInvalidCount} skipped invalid, ${skippedOutOfRangeCount} skipped out-of-range`,

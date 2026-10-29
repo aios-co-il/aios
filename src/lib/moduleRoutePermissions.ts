@@ -17,6 +17,7 @@ export type ModuleRouteHandle = {
 const MODULE_ROUTE_PERMISSIONS: Record<string, ModulePermission> = {
   "": "dashboard",
   dashboard: "dashboard",
+  workshop: "social_media",
   agencies: "agencies",
   clients: "clients",
   campaigners: "campaigners",

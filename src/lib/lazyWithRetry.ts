@@ -14,43 +14,39 @@ const RETRY_KEY = "aios-lazy-chunk-reload";
  */
 export function lazyWithRetry<T extends ComponentType<ComponentProps<T>>>(
   factory: () => Promise<{ default: T }>,
-): LazyExoticComponent<ComponentType<ComponentProps<T>>> {
-  return lazy(
-    async (): Promise<{ default: ComponentType<ComponentProps<T>> }> => {
+): LazyExoticComponent<T> {
+  return lazy(async () => {
+    try {
+      const mod = await factory();
       try {
-        const mod = await factory();
-        try {
-          sessionStorage.removeItem(RETRY_KEY);
-        } catch {
-          // ignore
-        }
-        return mod;
-      } catch (error) {
-        if (!isChunkLoadError(error)) throw error;
-
-        let alreadyReloaded = false;
-        try {
-          alreadyReloaded = sessionStorage.getItem(RETRY_KEY) === "1";
-        } catch {
-          // ignore
-        }
-
-        if (!alreadyReloaded) {
-          try {
-            sessionStorage.setItem(RETRY_KEY, "1");
-          } catch {
-            // ignore
-          }
-          window.location.reload();
-          return {
-            default: function ChunkReloadPlaceholder() {
-              return null;
-            },
-          };
-        }
-
-        throw error;
+        sessionStorage.removeItem(RETRY_KEY);
+      } catch {
+        // ignore
       }
-    },
-  );
+      return mod;
+    } catch (error) {
+      if (!isChunkLoadError(error)) throw error;
+
+      let alreadyReloaded = false;
+      try {
+        alreadyReloaded = sessionStorage.getItem(RETRY_KEY) === "1";
+      } catch {
+        // ignore
+      }
+
+      if (!alreadyReloaded) {
+        try {
+          sessionStorage.setItem(RETRY_KEY, "1");
+        } catch {
+          // ignore
+        }
+        window.location.reload();
+        // The page is reloading: stay suspended instead of resolving to a
+        // placeholder component that would not satisfy `T`.
+        return new Promise<never>(() => {});
+      }
+
+      throw error;
+    }
+  });
 }

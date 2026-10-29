@@ -108,7 +108,7 @@ export function CallHistoryTab({ leadId, clientId }: CallHistoryTabProps) {
                     <StatusIcon className={`h-3 w-3 ${config.color}`} />
                     {config.label}
                   </Badge>
-                  {log.duration > 0 && (
+                  {log.duration !== null && log.duration > 0 && (
                     <span className="text-xs text-muted-foreground font-mono">
                       {formatDuration(log.duration)}
                     </span>

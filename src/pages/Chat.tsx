@@ -1,6 +1,11 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  useMutation,
+  skipToken,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Tables } from "@/integrations/supabase/types";
 
@@ -69,6 +74,7 @@ import {
   ChatConnectionSelector,
   type ChatFilter,
 } from "@/components/chat/ChatConnectionSelector";
+import { fetchTenantContactTags } from "@/components/chat/fetchTenantContactTags";
 
 /**
  * Row of get_chat_contacts(p_tenant_id, p_connection_user_ids, p_provider).
@@ -211,25 +217,9 @@ export default function Chat() {
   // Fetch contact-tag associations for the list view
   const { data: allContactTags = [] } = useQuery({
     queryKey: ["contact-tags-for-list", tenantId],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user || !tenantId) return [];
-
-      const { data, error } = await supabase
-        .from("chat_contact_tags")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("tenant_id", tenantId);
-
-      if (error) {
-        console.error("Error fetching contact tags:", error);
-        return [];
-      }
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? () => fetchTenantContactTags(supabase, tenantId)
+      : skipToken,
   });
 
   // Get tags for a specific contact

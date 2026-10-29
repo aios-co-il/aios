@@ -1348,7 +1348,11 @@ export default function Signatures() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {format(new Date(doc.created_at), "dd/MM/yyyy HH:mm")}
+                          {/* Preserve null-to-epoch coercion; missing-date UX: AIO-482. */}
+                          {format(
+                            new Date(doc.created_at ?? 0),
+                            "dd/MM/yyyy HH:mm",
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">

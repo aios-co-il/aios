@@ -357,7 +357,9 @@ export async function updateExistingCalendarEvent({
   conferenceType = "none",
   extraEmails = [],
   extraNamed = [],
-  createZoomMeetingFn = null,
+  createZoomMeetingFn = /** @type {null | ((existing: import("./calendar-recording-match.ts").CalendarEventLike) => Promise<{join_url?: string, configured?: boolean, error?: string}>)} */ (
+    null
+  ),
   fetchImpl = fetch,
 }) {
   const got = await googleCalendarGetEvent(accessToken, eventId, fetchImpl);

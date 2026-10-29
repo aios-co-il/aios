@@ -1,9 +1,21 @@
 type WorkItemLike = {
   payload?: Record<string, unknown> | null;
   current_stage_id?: string | null;
+  pipeline_id?: string | null;
 };
 
-const otherDepartments = new Set(["creative", "seo", "campaigns"]);
+const otherDepartments = new Set([
+  "creative",
+  "seo",
+  "campaigns",
+  "social",
+  "web",
+]);
+// Not "campaigns": the Creative handoff tags an approved creative with it and keeps its
+// variations, and Creative stays the screen that shows it until a campaigns screen exists.
+const nonCreativeDepartments = new Set(["copy", "seo", "social", "web"]);
+// public.workshop_assign_client repeats which items the two filters below list at any stage, to
+// land a moved project where its screen lists it (20261026103411): change both together.
 
 export function isCopyDepartmentItem(
   item: WorkItemLike,
@@ -30,21 +42,31 @@ export function isCopyDepartmentItem(
   return false;
 }
 
+/**
+ * `socialPipelineIds`: the tenant's social_organic pipelines. An untagged item in one is social
+ * work, wherever it stands and whatever it holds, as the workshop groups it (projectDepartment).
+ */
 export function isCreativeDepartmentItem(
   item: WorkItemLike,
   creativeStageId?: string | null,
+  socialPipelineIds?: ReadonlySet<string>,
 ) {
   const payload = item.payload ?? {};
   const department = payload.department;
-  if (department === "copy") return false;
+  if (typeof department === "string" && nonCreativeDepartments.has(department))
+    return false;
   if (department === "creative") return true;
+  if (item.pipeline_id && socialPipelineIds?.has(item.pipeline_id))
+    return false;
   if (payload.handoff_from === "copy") return true;
   if (payload.intake_source === "copy_link") return true;
   if (creativeStageId && item.current_stage_id === creativeStageId) return true;
   if (Array.isArray(payload.variations)) return true;
   // Video scenes live in marketing_video_scenes; older items may still carry payload.storyboard.
-  if (payload.project_type === "video") return true;
-  if (payload.project_type === "static" && !!payload.image_url) return true;
+  // A static project is work in progress here before its first picture, as the screen's own new
+  // projects are; the workshop groups both under Creative (projectDepartment, has_creative).
+  if (payload.project_type === "video" || payload.project_type === "static")
+    return true;
   if (!department && !!payload.image_url) return true;
   return false;
 }
@@ -52,14 +74,16 @@ export function isCreativeDepartmentItem(
 export function filterCreativeDepartmentItems<T extends WorkItemLike>(
   items: T[],
   creativeStageIds: Iterable<string> = [],
+  socialPipelineIds: Iterable<string> = [],
 ): T[] {
   const ids = new Set(creativeStageIds);
+  const social = new Set(socialPipelineIds);
   return items.filter((item) => {
     const stageId =
       item.current_stage_id && ids.has(item.current_stage_id)
         ? item.current_stage_id
         : undefined;
-    return isCreativeDepartmentItem(item, stageId);
+    return isCreativeDepartmentItem(item, stageId, social);
   });
 }
 

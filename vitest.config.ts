@@ -5,7 +5,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@functions": fileURLToPath(
+        new URL("./supabase/functions", import.meta.url),
+      ),
+    },
     dedupe: ["react", "react-dom"],
   },
   test: {
@@ -17,7 +22,7 @@ export default defineConfig({
           name: "frontend",
           environment: "happy-dom",
           setupFiles: ["./src/test/setup.ts"],
-          include: ["src/**/*.test.{ts,tsx}"],
+          include: ["src/**/*.test.{ts,tsx,mjs}"],
         },
       },
       {
@@ -26,9 +31,11 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: [
-            "render-worker/test/**/*.test.mjs",
+            "render-worker/test/**/*.test.ts",
             "scripts/**/*.test.mjs",
+            "scripts/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",
+            ".claude/hooks/**/*.test.mjs",
           ],
         },
       },

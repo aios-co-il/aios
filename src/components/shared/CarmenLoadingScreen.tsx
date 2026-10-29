@@ -11,23 +11,13 @@ import {
  * Carmen "working" loading screen — shown while a route chunk or its data is
  * still resolving, so pages never flash an empty state before data lands.
  *
- * The typing motion is a two-pose cut (A/B) plus an occasional glance frame,
- * the same trick limited animation uses: no video, three cached webp frames.
+ * The motion is a 5-second silent loop of Carmen typing (she turns to wink
+ * halfway, so a frame swap could not line up), 640×480 and about 75 KB. Its
+ * first frame is the poster, shown at once and alone under reduced motion.
  */
 
-const FRAME_KEYS_DOWN = "/carmen/carmen-working-a.webp";
-const FRAME_KEYS_UP = "/carmen/carmen-working-b.webp";
-const FRAME_GLANCE = "/carmen/carmen-working-c.webp";
-
-const ALL_FRAMES = [FRAME_KEYS_UP, FRAME_KEYS_DOWN, FRAME_GLANCE];
-
-/** Feathered ellipse over the keyboard, where the two typing poses differ. */
-const HANDS_MASK =
-  "radial-gradient(ellipse 26% 19% at 57% 79%, #000 40%, rgba(0,0,0,0.6) 70%, transparent 100%)";
-
-/** Same idea for the wink: borrow only the eyes from the glance frame. */
-const EYES_MASK =
-  "radial-gradient(ellipse 12% 8% at 49% 30%, #000 45%, rgba(0,0,0,0.5) 75%, transparent 100%)";
+const SCENE_VIDEO = "/carmen/carmen-working.mp4";
+const SCENE_POSTER = "/carmen/carmen-working.webp";
 
 const DEFAULT_MESSAGES = [
   "כרמן אוספת את הנתונים…",
@@ -36,16 +26,16 @@ const DEFAULT_MESSAGES = [
   "עוד רגע הכול על המסך…",
 ];
 
-let framesPrefetched = false;
+let posterPrefetched = false;
 
 /** Warm the browser cache so the loader itself never arrives late. */
-function prefetchCarmenFrames() {
-  if (framesPrefetched || typeof window === "undefined") return;
-  framesPrefetched = true;
-  for (const src of ALL_FRAMES) {
-    const img = new Image();
-    img.src = src;
+function prefetchCarmenPoster() {
+  if (posterPrefetched || typeof window === "undefined") {
+    return;
   }
+  posterPrefetched = true;
+  const img = new Image();
+  img.src = SCENE_POSTER;
 }
 
 function prefersReducedMotion() {
@@ -183,7 +173,8 @@ export function CarmenWorkingScene({
   size?: CarmenSceneSize;
   className?: string;
 }) {
-  useEffect(prefetchCarmenFrames, []);
+  useEffect(prefetchCarmenPoster, []);
+  const [still] = useState(prefersReducedMotion);
 
   return (
     <div
@@ -194,36 +185,32 @@ export function CarmenWorkingScene({
       )}
     >
       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-primary/15 bg-[#0b1020] shadow-[0_18px_45px_-20px_rgba(15,23,42,0.75)]">
-        <img
-          src={FRAME_KEYS_UP}
-          alt=""
-          aria-hidden
-          decoding="async"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        {/* Second pose, masked to the hands: swapping the full render makes the
-            whole picture twitch, because the two frames differ everywhere. */}
-        <img
-          src={FRAME_KEYS_DOWN}
-          alt=""
-          aria-hidden
-          decoding="async"
-          style={{ maskImage: HANDS_MASK, WebkitMaskImage: HANDS_MASK }}
-          className="absolute inset-0 h-full w-full animate-carmen-keystroke object-cover motion-reduce:animate-none motion-reduce:opacity-100"
-        />
-        <img
-          src={FRAME_GLANCE}
-          alt=""
-          aria-hidden
-          decoding="async"
-          style={{ maskImage: EYES_MASK, WebkitMaskImage: EYES_MASK }}
-          className="absolute inset-0 h-full w-full animate-carmen-glance object-cover opacity-0 motion-reduce:hidden"
-        />
+        {still ? (
+          <img
+            src={SCENE_POSTER}
+            alt=""
+            aria-hidden
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <video
+            src={SCENE_VIDEO}
+            poster={SCENE_POSTER}
+            aria-hidden
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
 
         {/* Keyboard light spill, tied to the keystroke rhythm. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-[38%] bottom-[8%] h-[22%] animate-carmen-screen-flicker rounded-full bg-sky-400/40 blur-2xl motion-reduce:animate-none"
+          className="pointer-events-none absolute left-[48%] right-[22%] bottom-[2%] h-[14%] animate-carmen-screen-flicker rounded-full bg-sky-400/40 blur-2xl motion-reduce:animate-none"
         />
 
         {/* Data bits lifting off the keyboard toward the holo panels. */}
@@ -231,8 +218,8 @@ export function CarmenWorkingScene({
           {[0, 1, 2, 3].map((i) => (
             <span
               key={i}
-              className="absolute bottom-[22%] h-1.5 w-1.5 rounded-[2px] bg-cyan-300/90 animate-carmen-data-rise motion-reduce:hidden"
-              style={{ left: `${52 + i * 6}%`, animationDelay: `${i * 0.8}s` }}
+              className="absolute bottom-[10%] h-1.5 w-1.5 rounded-[2px] bg-cyan-300/90 animate-carmen-data-rise motion-reduce:hidden"
+              style={{ left: `${55 + i * 5}%`, animationDelay: `${i * 0.8}s` }}
             />
           ))}
         </div>

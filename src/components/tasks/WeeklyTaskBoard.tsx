@@ -1,3 +1,24 @@
+interface RawCalendarEvent {
+  id: string;
+  summary?: string;
+  start?: { dateTime?: string };
+  end?: { dateTime?: string };
+  colorId?: string;
+  calendarId?: string;
+}
+
+type TimedCalendarEvent = RawCalendarEvent & {
+  start: { dateTime: string };
+  end: { dateTime: string };
+};
+
+function isTimedCalendarEvent(
+  event: RawCalendarEvent,
+): event is TimedCalendarEvent {
+  return !!(event.start?.dateTime && event.end?.dateTime);
+}
+
+import type { Task } from "./taskTypes";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { markLinkedTaskDoneForCalendarEvent } from "@/lib/taskCalendarSync";
@@ -75,6 +96,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useViewAs } from "@/contexts/ViewAsContext";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
+import { useOwnedAgencyShares } from "./useOwnedAgencyShares";
 import { useAgency } from "@/contexts/AgencyContext";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -83,7 +105,7 @@ import {
   resolveNewTaskAgency,
   buildTasksBoardScopeOrFilter,
   resolveTasksBoardScope,
-  filterTasksForBoardView,
+  filterTasksBySelectedAgency,
   syncLocalTasksForAgencyFilter,
   filterTasksByBoardTenantScope,
 } from "@/lib/taskBoardAgency";
@@ -129,60 +151,6 @@ import {
   startCalendarOAuth,
 } from "@/lib/calendarApi";
 
-interface Task {
-  id: string;
-  title: string;
-  notes: string | null;
-  status: string;
-  priority: number;
-  due_date: string | null;
-  due_time: string | null;
-  client_id: string | null;
-  lead_id: string | null;
-  agency_id: string | null;
-  campaigner_id: string | null;
-  sales_person_id?: string | null;
-  tenant_id: string | null;
-  created_by?: string | null;
-  creator_name?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  sort_order?: number;
-  target_date?: string | null;
-  duration_minutes?: number;
-  google_calendar_event_id?: string | null;
-  recurrence_frequency?: "daily" | "weekly" | "monthly" | null;
-  recurrence_interval?: number;
-  recurrence_weekday?: number | null;
-  recurrence_monthday?: number | null;
-  recurrence_series_id?: string | null;
-  recurrence_previous_task_id?: string | null;
-  clients?: { name: string; agency_id?: string | null } | null;
-  leads?: { company_name?: string | null; contact_name?: string | null } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
-}
-
-interface RawCalendarEvent {
-  id: string;
-  summary?: string;
-  start?: { dateTime?: string };
-  end?: { dateTime?: string };
-  colorId?: string;
-  calendarId?: string;
-}
-
-type TimedCalendarEvent = RawCalendarEvent & {
-  start: { dateTime: string };
-  end: { dateTime: string };
-};
-
-function isTimedCalendarEvent(
-  event: RawCalendarEvent,
-): event is TimedCalendarEvent {
-  return !!(event.start?.dateTime && event.end?.dateTime);
-}
-
 interface CalendarEvent {
   id: string;
   title: string;
@@ -226,6 +194,7 @@ export function WeeklyTaskBoard() {
 
   // Fetch clients for inline selector
   const { crossTenantAgencyIds } = useCrossTenantAgencyIds();
+  const ownedAgencyShares = useOwnedAgencyShares(tenantId);
 
   // Fetch campaigners for quick filter (include cross-tenant via shared agencies)
   const { data: campaignersList = [] } = useQuery({
@@ -237,7 +206,7 @@ export function WeeklyTaskBoard() {
     queryFn: () => fetchActiveCampaigners(tenantId!, crossTenantAgencyIds),
     enabled: !!tenantId,
   });
-  const { selectedAgency, setSelectedAgency, agencies } = useAgency();
+  const { selectedAgency, agencies } = useAgency();
 
   const { data: clientsList = [] } = useQuery({
     queryKey: ["clients-for-task-selector", tenantId, crossTenantAgencyIds],
@@ -310,14 +279,6 @@ export function WeeklyTaskBoard() {
     }
   }, [isViewingAs, user?.id]);
 
-  // Personal queue: default header to "all agencies" so cross-agency
-  // assignments are visible. User can still narrow by agency afterward.
-  useLayoutEffect(() => {
-    if (isMineQueueFilter(effectiveCampaignerFilter)) {
-      setSelectedAgency("all");
-    }
-  }, [effectiveCampaignerFilter, setSelectedAgency]);
-
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
   const [filtersIncludeToolbar, setFiltersIncludeToolbar] = useState(false);
   const [selectedCalendarEvent, setSelectedCalendarEvent] =
@@ -330,14 +291,6 @@ export function WeeklyTaskBoard() {
   const [quickAddTitle, setQuickAddTitle] = useState("");
   // Mobile: full task list by default; calendar opens only via the calendar icon.
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
-
-  // Full task type from DB
-  type FullTask = Task & {
-    clients?: { name: string; agency_id?: string | null } | null;
-    campaigners?: { full_name: string } | null;
-    task_updates?: { id: string }[];
-    task_collaborators?: { id?: string; campaigner_id?: string }[];
-  };
 
   const linkedTaskId = searchParams.get("task");
   useEffect(() => {
@@ -364,7 +317,7 @@ export function WeeklyTaskBoard() {
         toast.error("המשימה לא נמצאה או שאין לך הרשאה לצפות בה");
         return;
       }
-      setSelectedTask(data as FullTask);
+      setSelectedTask(data as Task);
       setViewMode("chat");
       setDialogOpen(false);
     };
@@ -545,6 +498,7 @@ export function WeeklyTaskBoard() {
       "tasks",
       tenantId,
       crossTenantAgencyIds,
+      ownedAgencyShares,
       (agencies || []).map((agency) => agency.id).join(","),
       viewMode === "chat" ? "chat" : format(dateRange.start, "yyyy-MM-dd"),
       viewMode === "chat" ? "chat" : format(dateRange.end, "yyyy-MM-dd"),
@@ -584,6 +538,7 @@ export function WeeklyTaskBoard() {
       const boardScope = resolveTasksBoardScope({
         tenantId: tenantId!,
         crossTenantAgencyIds,
+        ownedAgencyShares,
       });
 
       let collaboratorTaskIds: string[] = [];
@@ -687,7 +642,7 @@ export function WeeklyTaskBoard() {
 
       query = applyBoardFilters(query);
 
-      let taskRows: FullTask[] = [];
+      let taskRows: Task[] = [];
       if (!skipAssignedQuery) {
         const { data, error } = await query
           .order("due_date", { ascending: true })
@@ -695,7 +650,7 @@ export function WeeklyTaskBoard() {
           .order("sort_order", { ascending: true });
 
         if (error) throw error;
-        taskRows = (data || []) as FullTask[];
+        taskRows = (data || []) as Task[];
       }
 
       if (collaboratorTaskIds.length > 0) {
@@ -726,7 +681,7 @@ export function WeeklyTaskBoard() {
           );
           const { data: extra, error: extraError } = await extraQuery;
           if (extraError) throw extraError;
-          taskRows = taskRows.concat((extra || []) as FullTask[]);
+          taskRows = taskRows.concat((extra || []) as Task[]);
         }
       }
 
@@ -776,7 +731,7 @@ export function WeeklyTaskBoard() {
         const { data: recurringExtra, error: recurringError } =
           await recurringQuery;
         if (recurringError) throw recurringError;
-        taskRows = taskRows.concat((recurringExtra || []) as FullTask[]);
+        taskRows = taskRows.concat((recurringExtra || []) as Task[]);
         const seenRecurring = new Set<string>();
         taskRows = taskRows.filter((task) => {
           if (seenRecurring.has(task.id)) return false;
@@ -812,7 +767,7 @@ export function WeeklyTaskBoard() {
   });
 
   // Local tasks state for optimistic updates
-  const [localTasks, setLocalTasks] = useState<FullTask[]>([]);
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
   // View-as preview: show the selected user's queue, not the admin's.
   useEffect(() => {
@@ -826,15 +781,12 @@ export function WeeklyTaskBoard() {
   }, [isViewingAs, viewAsUserId, tenantId, queryClient]);
 
   const applyBoardViewFilters = useMemo(
-    () => (rows: FullTask[]) => {
+    () => (rows: Task[]) => {
       let filtered = filterTasksByBoardTenantScope(
-        filterTasksForBoardView(
-          rows,
-          selectedAgency,
-          effectiveCampaignerFilter,
-        ),
+        filterTasksBySelectedAgency(rows, selectedAgency),
         tenantId!,
         crossTenantAgencyIds,
+        ownedAgencyShares,
       );
       filtered = filterTasksByCampaignerBoardFilter(
         filtered,
@@ -879,6 +831,7 @@ export function WeeklyTaskBoard() {
       viewMode,
       tenantId,
       crossTenantAgencyIds,
+      ownedAgencyShares,
       mineIdentity,
       isViewingAs,
       boardUserId,
@@ -896,7 +849,6 @@ export function WeeklyTaskBoard() {
       fetchedTasks,
       previousLocal: localTasks,
       selectedAgency,
-      campaignerFilter: effectiveCampaignerFilter,
       applyCampaignerFilter: applyBoardViewFilters,
     });
     setLocalTasks(next);
@@ -974,7 +926,7 @@ export function WeeklyTaskBoard() {
       const { data } = await supabase
         .from("agencies")
         .select("id")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .limit(1)
         .single();
       return data;
@@ -1090,7 +1042,7 @@ export function WeeklyTaskBoard() {
       );
 
       let newTask: { id: string } | null = null;
-      let createdTask: FullTask | null = null;
+      let createdTask: Task | null = null;
       if (fanOut) {
         const payloads = assigneeIds.map((campaignerId) => ({
           ...insertData,
@@ -1111,7 +1063,7 @@ export function WeeklyTaskBoard() {
           .single();
         if (error) throw error;
         newTask = created;
-        createdTask = created as FullTask;
+        createdTask = created as Task;
 
         const uniqueCollaborators = Array.from(
           new Set(
@@ -1315,7 +1267,7 @@ export function WeeklyTaskBoard() {
       newTime?: string | null;
       title?: string;
       googleCalendarEventId?: string | null;
-      durationMinutes?: number;
+      durationMinutes?: number | null;
     }) => {
       const updateData: {
         due_date: string | null;
@@ -1397,7 +1349,7 @@ export function WeeklyTaskBoard() {
     onMutate: async ({ taskId, clientId }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
       const client = clientsList?.find((c) => c.id === clientId) ?? null;
-      const patch = (t: FullTask): FullTask =>
+      const patch = (t: Task): Task =>
         t?.id === taskId
           ? {
               ...t,
@@ -1408,7 +1360,7 @@ export function WeeklyTaskBoard() {
                 : null,
             }
           : t;
-      queryClient.setQueriesData<FullTask[]>({ queryKey: ["tasks"] }, (old) => {
+      queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (old) => {
         if (!Array.isArray(old)) return old;
         return old.map(patch);
       });
@@ -1443,7 +1395,7 @@ export function WeeklyTaskBoard() {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
       const campaignerName =
         campaignersList?.find((c) => c.id === campaignerId)?.full_name ?? null;
-      const patch = (t: FullTask): FullTask =>
+      const patch = (t: Task): Task =>
         t?.id === taskId
           ? {
               ...t,
@@ -1453,7 +1405,7 @@ export function WeeklyTaskBoard() {
                 : null,
             }
           : t;
-      queryClient.setQueriesData<FullTask[]>({ queryKey: ["tasks"] }, (old) => {
+      queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (old) => {
         if (!Array.isArray(old)) return old;
         return old.map(patch);
       });

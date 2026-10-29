@@ -71,6 +71,24 @@ test("scenes become frames ordered by position, with the current still and its c
   expect(frames[1].generationCost?.costUsd).toBe(0.05);
 });
 
+test("a continuous narration keeps each scene's own spoken line", () => {
+  const [frame] = scenesToFrames(
+    [row({ id: "a", voiceover_text: "אחת", voice_asset_id: "voice" })],
+    new Map([
+      [
+        "voice",
+        {
+          id: "voice",
+          url: "narration.mp3",
+          meta: { text: "אחת שתיים", lines: { a: "אחת" } },
+        },
+      ],
+    ]),
+    defaultX,
+  );
+  expect(frame.voiceText).toBe("אחת");
+});
+
 test("a missing still row leaves the frame without a picture", () => {
   const [frame] = scenesToFrames(
     [row({ still_asset_id: "gone" })],

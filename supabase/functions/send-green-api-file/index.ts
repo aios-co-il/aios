@@ -1,25 +1,18 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
   resolveGreenApiChatTarget,
   withTimeout,
   GREEN_API_UPSTREAM_TIMEOUT_MS,
   CHAT_MESSAGES_INSERT_TIMEOUT_MS,
 } from "../_shared/send-green-api-file-chat-resolve.mjs";
-import type { Tables } from "../_shared/database.types.ts";
-import { jsonField } from "../_shared/json-fields.ts";
-
-type GreenApiIntegration = Pick<
-  Tables<"tenant_integrations">,
-  "api_key" | "settings"
->;
-
-function isConfigured(
-  integration: GreenApiIntegration | null | undefined,
-): integration is GreenApiIntegration {
-  return !!(
-    integration?.api_key && jsonField(integration.settings, "instance_id")
-  );
-}
+import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
+import { lineStore } from "../_shared/report-sender/line-store.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { internalError } from "../_shared/telephony/response.ts";
+import { prepareGreenFileSend } from "./prepare.ts";
+import { legacyGreenLine } from "./sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,14 +86,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: { headers: { Authorization: authHeader } },
-        auth: { persistSession: false, autoRefreshToken: false },
-      },
-    );
+    const supabaseClient = userClient(authHeader);
 
     const token = authHeader.replace("Bearer ", "");
     const {
@@ -125,6 +111,14 @@ Deno.serve(async (req) => {
     const fileType = (formData.get("fileType") as string) || "document";
     // Optional explicit sender instance chosen by the caller (report/dashboard sender picker).
     const chosenIntegrationId = formData.get("integrationId") as string | null;
+    // getUser above admits signed-in users only: every send here is a
+    // person's, so an unnamed kind is "chat" and the client guard passes it.
+    const isServiceRole = false;
+    const sendColumns = sendKindColumns({
+      sendKind: formData.get("sendKind"),
+      sendRef: formData.get("sendRef"),
+      isServiceRole,
+    });
 
     if (!rawFile) {
       return new Response(JSON.stringify({ error: "No file provided" }), {
@@ -171,14 +165,14 @@ Deno.serve(async (req) => {
         .select("tenant_id")
         .eq("id", clientId)
         .single();
-      resolvedTenantId = client?.tenant_id;
+      resolvedTenantId = client?.tenant_id ?? null;
     } else if (!resolvedTenantId && leadId) {
       const { data: lead } = await supabaseClient
         .from("leads")
         .select("tenant_id")
         .eq("id", leadId)
         .single();
-      resolvedTenantId = lead?.tenant_id;
+      resolvedTenantId = lead?.tenant_id ?? null;
     }
 
     // Always resolve group_chat_id when groupId is present (do not nest under client/lead else-if).
@@ -188,7 +182,7 @@ Deno.serve(async (req) => {
         .select("tenant_id, group_chat_id")
         .eq("id", groupId)
         .maybeSingle();
-      resolvedTenantId = resolvedTenantId || group?.tenant_id;
+      resolvedTenantId = resolvedTenantId || group?.tenant_id || null;
       groupChatId = group?.group_chat_id || undefined;
     }
 
@@ -198,7 +192,7 @@ Deno.serve(async (req) => {
         .select("tenant_id")
         .eq("user_id", user.id)
         .single();
-      resolvedTenantId = activeTenant?.tenant_id;
+      resolvedTenantId = activeTenant?.tenant_id ?? null;
     }
 
     if (!resolvedTenantId) {
@@ -208,83 +202,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Sender selection (backward compatible — no integrationId ⇒ identical to before):
-    //   1) explicit instance chosen by the caller (validated to this tenant + active),
-    //   2) else the current user's own connection,
-    //   3) else any active green_api connection within the same tenant.
-    let integration: GreenApiIntegration | null = null;
-
-    if (chosenIntegrationId) {
-      const { data: chosen } = await supabaseClient
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", chosenIntegrationId)
-        .eq("tenant_id", resolvedTenantId)
-        .eq("integration_type", "green_api")
-        .eq("is_active", true)
-        .maybeSingle();
-      if (isConfigured(chosen)) integration = chosen;
-    }
-
-    if (!isConfigured(integration)) {
-      const { data: userIntegration } = await supabaseClient
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", resolvedTenantId)
-        .eq("user_id", user.id)
-        .eq("integration_type", "green_api")
-        .eq("is_active", true)
-        .maybeSingle();
-      if (userIntegration) integration = userIntegration;
-    }
-
-    if (!isConfigured(integration)) {
-      const { data: tenantIntegration } = await supabaseClient
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", resolvedTenantId)
-        .eq("integration_type", "green_api")
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      integration = tenantIntegration;
-    }
-
-    if (!isConfigured(integration)) {
-      return new Response(
-        JSON.stringify({ error: "Green API not configured" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const instanceId = jsonField(integration.settings, "instance_id");
-    const apiToken = integration.api_key;
-    const defaultCountryCode = String(
-      jsonField(integration.settings, "country_code") || "972",
+    const admin = serviceClient();
+    const send = await prepareGreenFileSend(
+      {
+        store: lineStore(admin),
+        legacyLine: (tenantId, userId) =>
+          legacyGreenLine(supabaseClient, tenantId, userId),
+        guard: checkWhatsAppSend,
+        clientSendGuard: (request) => authorizeClientSend(admin, request),
+      },
+      {
+        tenantId: resolvedTenantId,
+        userId: user.id,
+        integrationId: chosenIntegrationId,
+        groupId,
+        groupChatId,
+        phoneNumber,
+        clientId,
+        isServiceRole,
+        sendKind: formData.get("sendKind"),
+        sendRef: formData.get("sendRef"),
+      },
     );
-
-    // Determine chatId — reject missing group chat id; phone fallback when provided
-    const chatTarget = resolveGreenApiChatTarget({
-      groupId,
-      groupChatId,
-      phoneNumber,
-      countryCode: defaultCountryCode,
-    });
-    if (!chatTarget.ok) {
-      return new Response(
-        JSON.stringify({ error: chatTarget.message, code: chatTarget.error }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    if ("refusal" in send) {
+      return new Response(JSON.stringify(send.refusal.body), {
+        status: send.refusal.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-    const chatId: string = chatTarget.chatId;
-    const usedGroupChat = chatTarget.via === "group";
+    const { line, chatId, usedGroupChat } = send;
+    const instanceId = lineSetting(line.settings, "instance_id");
+    const apiToken = line.api_key;
 
     // Determine API endpoint based on file type
     let endpoint: string;
@@ -319,6 +267,7 @@ Deno.serve(async (req) => {
             group_id: groupId || null,
             tenant_id: resolvedTenantId,
             connection_user_id: user.id,
+            integration_id: line.id,
             message_text: `[הודעה קולית]${caption ? ": " + caption : ""}`,
             direction: "outbound",
             channel: "whatsapp",
@@ -326,6 +275,7 @@ Deno.serve(async (req) => {
             sent_by_user_id: user.id,
             raw_provider_data: responseData,
             sender_phone: !usedGroupChat ? chatId.replace("@c.us", "") : null,
+            ...sendColumns,
           }),
           CHAT_MESSAGES_INSERT_TIMEOUT_MS,
           "chat_messages_insert",
@@ -387,6 +337,7 @@ Deno.serve(async (req) => {
           group_id: groupId || null,
           tenant_id: resolvedTenantId,
           connection_user_id: user.id,
+          integration_id: line.id,
           message_text: messageText,
           direction: "outbound",
           channel: "whatsapp",
@@ -394,6 +345,7 @@ Deno.serve(async (req) => {
           sent_by_user_id: user.id,
           raw_provider_data: responseData,
           sender_phone: !usedGroupChat ? chatId.replace("@c.us", "") : null,
+          ...sendColumns,
         }),
         CHAT_MESSAGES_INSERT_TIMEOUT_MS,
         "chat_messages_insert",
@@ -412,20 +364,20 @@ Deno.serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error("❌ Error in send-green-api-file:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    // Database and upstream text stays in the log, never in the response.
     const isTimeout =
-      errorMessage.includes("timeout") ||
-      (error instanceof Error &&
-        (error.name === "TimeoutError" || error.name === "AbortError"));
+      error instanceof Error &&
+      (error.name === "TimeoutError" ||
+        error.name === "AbortError" ||
+        error.message.includes("timeout"));
+    if (!isTimeout) {
+      return internalError("send-green-api-file", error);
+    }
+    console.error("❌ Timeout in send-green-api-file:", error);
     return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        code: isTimeout ? "timeout" : undefined,
-      }),
+      JSON.stringify({ error: "Green API timeout", code: "timeout" }),
       {
-        status: isTimeout ? 504 : 500,
+        status: 504,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

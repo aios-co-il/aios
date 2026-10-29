@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { PRIVACY_EMAIL } from "@/components/DataDeletionPage/constants";
+import { PrivacyEmailLink } from "@/components/DataDeletionPage/PrivacyEmailLink";
 
 export default function Privacy() {
   return (
@@ -10,9 +12,9 @@ export default function Privacy() {
           <CardHeader>
             <CardTitle className="text-3xl">מדיניות פרטיות</CardTitle>
             <p className="text-muted-foreground mt-2">
-              AfterLead ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על פרטיותך.
-              מדיניות פרטיות זו מסבירה כיצד אנו אוספים, משתמשים, שומרים ומגנים
-              על המידע שלך בעת השימוש בפלטפורמת AfterLead.
+              Carmen Marketing OS ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על
+              פרטיותך. מדיניות פרטיות זו מסבירה כיצד אנו אוספים, משתמשים, שומרים
+              ומגנים על המידע שלך בעת השימוש בפלטפורמת Carmen Marketing OS.
             </p>
           </CardHeader>
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
@@ -72,8 +74,29 @@ export default function Privacy() {
                   אירועים ופגישות, כתובת האימייל המקושרת לחשבון Google שלך
                 </li>
                 <li>
-                  <strong>Facebook Lead Ads:</strong> לידים מקמפיינים פרסומיים,
-                  מידע על טפסים וקמפיינים, שם מלא, אימייל וטלפון של לידים
+                  <strong>Meta (Facebook / Instagram):</strong> רשימת הדפים
+                  והחשבונות העסקיים שלך, ניהול וקריאת קמפיינים וחשבונות מודעות
+                  (ads_management), לידים מטפסי Lead Ads (שם מלא, אימייל,
+                  טלפון), פרסום וניהול פוסטים, תגובות והודעות בדפים, ופרסום תוכן
+                  וניהול תגובות ב-Instagram. המידע משמש רק להפעלת הפעולות שהגדרת
+                  במערכת
+                </li>
+                <li>
+                  <strong>Google Ads:</strong> קריאת נתוני קמפיינים, עלויות
+                  וביצועים מחשבון המודעות המחובר לצורך דוחות ומעקב
+                </li>
+                <li>
+                  <strong>Google Analytics:</strong> קריאה בלבד של נתוני תנועה
+                  והמרות מהנכסים שבחרת, לצורך דוחות
+                </li>
+                <li>
+                  <strong>Google Search Console:</strong> קריאה בלבד של נתוני
+                  חיפוש, שאילתות ומיקומים מהאתרים שאימתת, לצורך דוחות SEO
+                </li>
+                <li>
+                  <strong>Gmail:</strong> קריאה, שליחה ותיוג של הודעות בתיבה
+                  שחיברת, לצורך תיעוד תקשורת עם לקוחות ושליחת הודעות מהמערכת
+                  בשמך
                 </li>
                 <li>
                   <strong>WhatsApp (Green API):</strong> הודעות נכנסות ויוצאות,
@@ -148,8 +171,10 @@ export default function Privacy() {
               </h3>
               <ul className="list-disc pr-6 space-y-1">
                 <li>Supabase - אחסון מידע ואימות משתמשים</li>
-                <li>Google Cloud - שירותי יומן</li>
-                <li>Meta (Facebook) - קבלת לידים מפרסום</li>
+                <li>
+                  Google - יומן, Google Ads, Analytics, Search Console, Gmail
+                </li>
+                <li>Meta (Facebook / Instagram) - לידים, מודעות, דפים ותוכן</li>
                 <li>Green API - אינטגרציית WhatsApp</li>
                 <li>ManyChat - אוטומציות הודעות</li>
               </ul>
@@ -177,8 +202,8 @@ export default function Privacy() {
                 </p>
                 <ul className="list-disc pr-6 space-y-1">
                   <li>
-                    ניגשים רק למידע הנדרש לפונקציונליות שביקשת (יצירת אירועים
-                    ביומן, שליפת פרטי יומן)
+                    ניגשים רק למידע הנדרש לפונקציונליות שביקשת (יומן, Google
+                    Ads, Analytics, Search Console, Gmail)
                   </li>
                   <li>
                     לא נעביר מידע מ-Google לצדדים שלישיים, למעט לצורך אספקת
@@ -274,7 +299,14 @@ export default function Privacy() {
                   <strong>תיקון:</strong> לתקן מידע לא מדויק או חסר
                 </li>
                 <li>
-                  <strong>מחיקה:</strong> לבקש מחיקת המידע שלך ("הזכות להישכח")
+                  <strong>מחיקה:</strong> לבקש מחיקת המידע שלך ("הזכות להישכח").
+                  למחיקת מידע מאינטגרציות Meta ו-Google ראה{" "}
+                  <Link
+                    to="/data-deletion"
+                    className="text-primary hover:underline"
+                  >
+                    הוראות מחיקת מידע
+                  </Link>
                 </li>
                 <li>
                   <strong>העברה:</strong> לקבל את המידע שלך בפורמט מובנה
@@ -291,7 +323,7 @@ export default function Privacy() {
               </ul>
               <p className="mt-3">
                 לממש את זכויותיך, פנה אלינו בכתובת:{" "}
-                <strong>privacy@afterlead.com</strong>
+                <strong>{PRIVACY_EMAIL}</strong>
               </p>
             </section>
 
@@ -319,24 +351,18 @@ export default function Privacy() {
               <p className="mb-3">לשאלות, בקשות או תלונות בנוגע לפרטיות:</p>
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p>
-                  <strong>AfterLead</strong>
+                  <strong>Carmen Marketing OS</strong>
                 </p>
                 <p>
-                  אימייל:{" "}
-                  <a
-                    href="mailto:privacy@afterlead.com"
-                    className="text-primary hover:underline"
-                  >
-                    privacy@afterlead.com
-                  </a>
+                  אימייל: <PrivacyEmailLink />
                 </p>
                 <p>
                   אתר:{" "}
                   <a
-                    href="https://afterlead.com"
+                    href="https://aios.co.il"
                     className="text-primary hover:underline"
                   >
-                    afterlead.com
+                    aios.co.il
                   </a>
                 </p>
               </div>
@@ -349,7 +375,7 @@ export default function Privacy() {
             {/* Footer Links */}
             <div className="flex items-center justify-between pt-6 border-t">
               <Link
-                to="/landing"
+                to="/"
                 className="text-primary hover:underline flex items-center gap-1"
               >
                 <ArrowRight className="h-4 w-4" />

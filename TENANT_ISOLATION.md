@@ -8,9 +8,10 @@
 
 ### 1. Tenant Context
 
-- כל משתמש שייך לארגון אחד בלבד (tenant_users table)
+- משתמש יכול להיות חבר בכמה ארגונים (שורה לכל ארגון ב-`tenant_users`), ופועל בכל רגע בארגון פעיל אחד (`user_active_tenant`)
+- הגישה לארגון באה משורת `tenant_users` עצמה. חבר שהושבת או נמחק מארגון יוצא מ-`tenant_users` ומ-`user_roles` של הארגון, ונרשם ב-`tenant_inactive_members` (`inactive` או `deleted`). חברי הארגון קוראים את הטבלה ואת השם והסטטוס שלו דרך `tenant_departed_members`, כך שההיסטוריה ממשיכה להציג את שמו, אבל לא את שאר הפרופיל. רק הפונקציות `offboard_tenant_member` ו-`reactivate_tenant_member` (service role) כותבות בה. השבתה, הפעלה מחדש ומחיקה (`set-user-active`, `delete-user`) פועלות על ארגון אחד, ומותרות רק למי שמדורג מעל המשתמש בארגון הזה: super admin שפועל בארגון מעל כולם חוץ מ-super admin אחר, בעלים של ארגון אב מעל כל המשתמשים בתתי-הארגונים שלו, ובעלים מעל כל המשתמשים בארגון שלו חוץ מבעלים אחר. החברות בארגונים אחרים לא משתנה, והחשבון עצמו (התחברות, סשנים, מחיקה) נפגע רק כשזה היה הארגון האחרון של המשתמש. פעולה על החשבון כולו, כמו איפוס סיסמה, דורשת דירוג מעליו בכל ארגון שהוא חבר בו. אף אחד לא פועל על super admin, ואת הבעלים האחרון לא מוציאים. הכלל כתוב פעמיים וחייב להישאר זהה: `actor_may_manage_member` ב-SQL ו-`_shared/user-admin/member-rank.ts` ב-edge (`20261104100000_user_deactivate_keep_history.sql`)
 - המערכת משתמשת ב-TenantProvider לניהול הארגון הנוכחי
-- Super admins יכולים לצפות בכל הארגונים אבל לא לשנות נתונים בין ארגונים
+- Super admins יכולים לצפות בכל הארגונים ולעבור לכל ארגון, אבל כותבים נתונים רק בארגון הפעיל שלהם
 
 ### 2. Row Level Security (RLS)
 
@@ -38,15 +39,13 @@ USING (
 
 #### get_user_tenant_id
 
-מחזירה את ה-tenant_id של המשתמש:
-
-```sql
-SELECT tenant_id FROM tenant_users WHERE user_id = auth.uid() LIMIT 1
-```
+מחזירה את ה-tenant הפעיל של המשתמש (`user_active_tenant`), ואם אין כזה את החברות הראשונה שלו ב-`tenant_users`.
 
 #### get_effective_tenant_id
 
-מחזירה את ה-tenant הפעיל כרגע (לעתיד: תמיכה במעבר בין tenants ל-super admin)
+אותו כלל עבור המשתמש המחובר (`auth.uid()`).
+
+מעבר tenant: משתמש כותב רק את השורה שלו ב-`user_active_tenant`, ורק ל-tenant שהוא חבר בו (`user_is_tenant_member`); super admin עובר לכל tenant. trigger על הטבלה אוכף את אותו כלל גם בכתיבה של service role, ושורה של super admin שאיבד את התפקיד ואינו חבר ב-tenant שלה נמחקת. שתי הפונקציות סומכות על הכלל הזה ואינן בודקות חברות בעצמן.
 
 #### is_super_admin
 
@@ -69,6 +68,10 @@ SELECT tenant_id FROM tenant_users WHERE user_id = auth.uid() LIMIT 1
 - ✅ automations
 - ✅ time_entries
 - ✅ import_history
+- ✅ workshop_artifacts
+- ✅ workshop_assets
+- ✅ cursor_task_sessions
+- ✅ tenant_inactive_members
 
 ### 5. טבלאות גלובליות (ללא tenant_id)
 
@@ -155,7 +158,11 @@ Super admin יכול:
 - ✅ לצפות בכל הארגונים
 - ✅ ליצור ארגונים חדשים
 - ✅ לנהל משתמשים
-- ❌ **לא יכול לשנות נתונים בין ארגונים** (RLS מונע)
+- ❌ **לא יכול לשנות נתונים בין ארגונים** (RLS מונע): קורא בכל הארגונים, וכותב רק בארגון שהוא פועל בו (`get_user_tenant_id`). כדי לעבוד בארגון אחר הוא עובר אליו.
+
+כלל לפוליסות: ענף `or is_super_admin(...)` מותר רק בקריאה (SELECT). בפוליסת INSERT, UPDATE או DELETE ה-super admin נבדק רק יחד עם הארגון הפעיל, ופוליסת FOR ALL עם ענף כזה מתפצלת ל-`<table>_select` (ארגון או super admin) ול-`<table>_write` (ארגון בלבד).
+
+חריג יחיד: `tenant_templates` ו-`terminology_presets` הם קטלוגים גלובליים שמהם נבנים ארגונים חדשים, ולא נתונים של ארגון אחד, ולכן super admin כותב בהם בכל ארגון (`20261102113700_rls_super_admin_acting_tenant.sql`).
 
 ## תחזוקה שוטפת
 

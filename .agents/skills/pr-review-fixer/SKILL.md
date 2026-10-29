@@ -7,13 +7,17 @@ description: >
   PR comments", "address review feedback", "fix review comments", "what comments are
   on this PR", "respond to code review", or similar. Trigger even if they just say
   "let's fix the PR comments" or "what did reviewers say".
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-review-threads.sh) Bash(${CLAUDE_SKILL_DIR}/scripts/resolve-thread.sh *) Bash(gh pr comment *) Bash(command -v gh) mcp__github__pull_request_read mcp__github__resolve_review_thread mcp__github__add_reply_to_pull_request_comment mcp__github__add_issue_comment
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-review-threads.sh) Bash(${CLAUDE_SKILL_DIR}/scripts/resolve-thread.sh *) Bash(${CLAUDE_SKILL_DIR}/scripts/reply-thread.sh *) Bash(git log *) Bash(gh issue create *) Bash(gh issue list *) mcp__github__issue_write mcp__github__search_issues Bash(gh pr comment *) Bash(command -v gh) mcp__github__pull_request_read mcp__github__resolve_review_thread mcp__github__add_reply_to_pull_request_comment mcp__github__add_issue_comment
 ---
 
 # PR Review Comment Fixer
 
 Fetch unresolved PR review threads, analyze each one, propose fixes, then implement
 whatever the user approves.
+
+**Unattended:** when invoked with `unattended` (a long-running agent with no human
+to ask), read [`unattended.md`](./unattended.md) after Phase 2 and follow it in place
+of Phases 3 and 4.
 
 ## Phase 1: Fetch threads
 
@@ -52,6 +56,24 @@ For each unresolved thread:
   - **Question**: only when the reviewer genuinely wants an explanation and no code
     change is implied (rare)
   - **Revert**: reviewer explicitly says "revert", "remove", or "this is out of scope"
+- Judge every action-required, suggestion, and revert comment on evidence and give it a
+  **verdict**; questions get none:
+  - **Needed**: you can name the concrete failure (input, state, or event) and it can
+    happen in this repo's real usage. Estimate how often from repo facts such as
+    history, rulesets, or how the code is triggered, not from the reviewer's tone.
+  - **Optional**: correct, but the failure is rare, cosmetic, or cheaper to accept.
+  - **False positive**: the claim is wrong. Prove it first (read the code, or run the
+    command on a scratch repo) and quote what you found.
+  - **Pre-existing**: the failure occurs on the PR's base branch too, and the
+    commented lines are unchanged by this PR (`gh pr view --json baseRefName`, then
+    `git log origin/<base>..HEAD -s --format=%h -L<start>,<end>:<file>` prints
+    nothing for that range). Check only `diffSide` `RIGHT` comments this way: a
+    `LEFT` comment is on a deleted line, which this PR changed. A PR that changes a
+    caller can make an unchanged line fail; that failure is Needed. Unrelated edits
+    elsewhere in the file don't count. Skip Pre-existing comments in this PR; if the
+    failure is Needed, name or file a follow-up issue.
+- Prefer the fix that deletes the thing the comment is about over one that adds
+  machinery around it: every added line is new surface for the next review.
 - Draft a concrete, specific fix for action-required and revert items. For questions,
   draft a brief answer. For suggestions, note whether it's worth doing.
 - Estimate size: `small` (a few lines), `medium` (one function/file), `large`
@@ -74,6 +96,7 @@ Output a numbered list. Standalone items:
 
 > <exact quote of the comment body>
 
+**Verdict:** <Needed | Optional | False positive | Pre-existing>: <the failure, and how likely it is here>
 **Analysis:** <1-2 sentences: what they mean and why it matters>
 **Proposed fix:** <concrete description of what to change>
 ```
@@ -86,13 +109,18 @@ Cascade groups:
 
 > <quote from the root comment>
 
+**Verdict:** <Needed | Optional | False positive | Pre-existing>: <the failure, and how likely it is here>
 **Analysis:** <why these are linked>
 **Proposed fix:** <single description covering all files in the group>
   - file-a.ts line X: ...
   - file-b.ts line Y: ...
 ```
 
-After the list, ask:
+After the list, say which comments you would fix and which you would skip, and why:
+recommend fixing the Needed ones and skipping the Optional, False positive, and Pre-existing ones.
+Leave skipped threads unresolved until the user says to resolve or reply to them.
+
+Then ask:
 
 > "Which of these would you like me to address? (e.g. "fix 1, 2, 4" or "all" or
 > "skip 3, fix the rest") For large ones I'll flag if they need a separate session."

@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import {
   useAgencyClients,
@@ -55,23 +55,27 @@ export function AhrefsTableDialog({
   // Fetch Ahrefs integration
   const { data: integration, isLoading: integrationLoading } = useQuery({
     queryKey: ["ahrefs-integration", activeTenantId],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
+    queryFn: activeTenantId
+      ? async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user) {
+            return null;
+          }
 
-      const { data } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", activeTenantId)
-        .eq("integration_type", "ahrefs")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("*")
+            .eq("tenant_id", activeTenantId)
+            .eq("integration_type", "ahrefs")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .maybeSingle();
 
-      return data;
-    },
+          return data;
+        }
+      : skipToken,
     enabled: open && !!activeTenantId,
   });
 

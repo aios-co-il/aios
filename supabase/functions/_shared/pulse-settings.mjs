@@ -1,6 +1,6 @@
 // Keep snapshot calculation available during a rolling schema deployment.
 const BASE_COLUMNS =
-  "tenant_id, campaign_pulse_enabled, campaign_pulse_last_sent_at, campaign_pulse_phone, campaign_pulse_deliver_to_campaigners, campaign_pulse_deliver_to_team_managers, campaign_pulse_preview_phone";
+  "tenant_id, campaign_pulse_enabled, campaign_pulse_last_sent_at, campaign_pulse_deliver_to_campaigners, campaign_pulse_deliver_to_team_managers, campaign_pulse_preview_phone";
 
 export async function loadPulseSettings(supabase, tenantId) {
   const read = (columns) => {

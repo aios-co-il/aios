@@ -1,20 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { claimIdenticalWhatsAppSend } from "../_shared/facebook-lead-dedup.ts";
 import type { Tables } from "../_shared/database.types.ts";
 import { jsonField } from "../_shared/json-fields.ts";
-import { serviceClient } from "../_shared/supabase-clients.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
+import { sendLine } from "../_shared/report-sender/text-line.ts";
+import { liveLineDeps } from "./line.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-type GreenApiIntegration = Pick<
-  Tables<"tenant_integrations">,
-  "id" | "tenant_id" | "user_id" | "api_key" | "settings"
->;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -96,6 +96,8 @@ Deno.serve(async (req) => {
       quotedMessageId,
       senderUserId,
       integrationId,
+      sendKind,
+      sendRef,
     } = await req.json();
 
     // For service role calls, use senderUserId from the body
@@ -192,42 +194,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Resolve either the caller's own connection or one explicitly shared with
-    // their tenant. The canonical credential row stays in the owner tenant.
-    let integration: GreenApiIntegration | null = null;
-    if (integrationId) {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .eq("integration_type", "green_api")
-        .eq("is_active", true)
-        .maybeSingle();
-      integration = data;
-      if (integration?.tenant_id !== tenantId) {
-        const { data: canUse, error: accessError } = await admin.rpc(
-          "tenant_can_use_integration",
-          {
-            p_tenant_id: tenantId,
-            p_integration_id: integrationId,
-          },
-        );
-        if (accessError) throw accessError;
-        if (canUse !== true && superAdmin !== true) integration = null;
-      }
-    } else {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .eq("integration_type", "green_api")
-        .eq("is_active", true)
-        .maybeSingle();
-      integration = data;
+    const lineStep = await sendLine(liveLineDeps(serviceClient()), {
+      type: "green_api",
+      isServiceRole,
+      tenantId,
+      userId,
+      integrationId,
+      superAdmin: superAdmin === true,
+    });
+    if ("refusal" in lineStep) {
+      return new Response(JSON.stringify(lineStep.refusal.body), {
+        status: lineStep.refusal.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const integration = lineStep.line;
+    const instanceId =
+      integration && lineSetting(integration.settings, "instance_id");
 
-    const instanceId = jsonField(integration?.settings, "instance_id");
     if (!integration?.api_key || !instanceId) {
       console.error("Green API integration not configured for user:", userId);
       return new Response(
@@ -259,11 +243,10 @@ Deno.serve(async (req) => {
       }
 
       // Determine country code from integration settings or fallback to IL (972)
-      const configuredCc = String(
-        jsonField(integration.settings, "country_code") ||
-          jsonField(integration.settings, "default_country_code") ||
-          "",
-      );
+      const configuredCc =
+        lineSetting(integration.settings, "country_code") ??
+        lineSetting(integration.settings, "default_country_code") ??
+        "";
       const defaultCountryCode =
         configuredCc && /^(\d{1,3})$/.test(configuredCc) ? configuredCc : "972";
 
@@ -278,6 +261,19 @@ Deno.serve(async (req) => {
       }
 
       chatId = `${e164Digits}@c.us`;
+    }
+
+    const refused = await refuseClientSend(serviceClient(), {
+      functionName: "send-green-api-message",
+      tenantId,
+      channel: "whatsapp",
+      address: chatId,
+      groupId: groupChatId ? groupId : null,
+      isServiceRole,
+      body: { sendKind, sendRef, clientId },
+    });
+    if (refused) {
+      return refused;
     }
 
     const guard = checkWhatsAppSend(
@@ -366,6 +362,7 @@ Deno.serve(async (req) => {
       sent_by_user_id: userId,
       raw_provider_data: responseData,
       sender_phone: senderPhoneForDb,
+      ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
 
     if (insertError) {

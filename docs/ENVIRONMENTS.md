@@ -28,11 +28,13 @@ When a task finishes, **always send David the development environment link**: th
 
 ## Canonical URLs
 
-| Environment                  | Git                           | Frontend URL                                                                                                            | When it updates          |
-| ---------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **Production**               | `main`                        | `https://aios.co.il`                                                                                                    | merge to `main`          |
-| **Staging (persistent dev)** | `develop`                     | `https://after-lead-git-develop-aios-crm.vercel.app` (custom domain `https://staging.aios.co.il` requires verification) | merge to `develop`       |
-| **Feature Preview**          | `feature/*`, `cursor/*`, etc. | `https://after-lead-git-{branch}-aios-crm.vercel.app`                                                                   | push to that branch only |
+Work branches follow [Git conventions](git-conventions.md#branch-naming); each receives its own Vercel Preview.
+
+| Environment                  | Git         | Frontend URL                                                                                                            | When it updates          |
+| ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Production**               | `main`      | `https://aios.co.il`                                                                                                    | merge to `main`          |
+| **Staging (persistent dev)** | `develop`   | `https://after-lead-git-develop-aios-crm.vercel.app` (custom domain `https://staging.aios.co.il` requires verification) | merge to `develop`       |
+| **Feature Preview**          | Work branch | `https://after-lead-git-{branch}-aios-crm.vercel.app`                                                                   | push to that branch only |
 
 ### Staging domain
 
@@ -47,7 +49,7 @@ The in-app amber frame (subtle yellow border glow) marks Staging/Preview — no 
 ## Flow (staging-first)
 
 ```
-feature/* or fix/*
+Work branch (named per docs/git-conventions.md)
     → Vercel Preview (optional — quick check on this branch)
     → merge to develop
     → Staging (after-lead-git-develop / staging.aios.co.il) — verify full picture
@@ -64,7 +66,7 @@ feature/* or fix/*
 | Git         | Deploy             | Data                                                      |
 | ----------- | ------------------ | --------------------------------------------------------- |
 | local       | `pnpm dev`         | [Local development](#local-development) uses AIOS Staging |
-| `feature/*` | Vercel Preview     | AIOS Staging (every Preview deploy)                       |
+| Work branch | Vercel Preview     | AIOS Staging (every Preview deploy)                       |
 | `develop`   | Persistent Staging | AIOS Staging Supabase                                     |
 | `main`      | Production         | Production Supabase                                       |
 
@@ -95,6 +97,7 @@ The following setup is documented for these environments; Vercel variables, Supa
 - Every source request uses the Supabase **read-only** query endpoint. Fingerprints detect changes even if `updated_at` was not maintained. Only changed rows are transferred. Parent rows load before children. Deletion mirroring requires explicit approval and a manual `--apply-deletes` run; runs only insert/update. Import transactions restore the prior USER-trigger state and keep FK checks enabled.
 - A newer Staging revision supersedes an older deployment/mirror run. Each completed import transaction keeps its row checkpoint; the new run closes the gate, verifies containment, and resumes. Report definitions/records and their dependency chain load before unrelated history tables.
 - Staging-only test rows are retained. Existing Staging schema, RLS policies, function bodies, operational queues, credentials and environment/agent connections are not replaced by a data refresh. New user IDs are provisioned for data/RLS relations without cloning passwords or sessions; existing Staging logins remain unchanged. A new identity that matches an old Staging invitation fails reconciliation rather than activating the invitation's permissions. New integration parent rows are inactive placeholders until configured in Staging.
+- The video job queue `marketing_runs` is one of those operational queues, so it is not mirrored. The render worker drains it on Staging and on each PR preview, and a Production run mirrored in as queued would be made and paid for a second time there. Every run the Staging drain claims was created on Staging. The rows mirrored before the queue was excluded are marketing-pipeline runs with no `kind`, which `claim_video_run` never takes (read-only check on 2026-10-28: 57 of Staging's 66 rows, none queued or running).
 - Structural differences fail preflight instead of replaying Production's migration history over Staging. The additive reconciliation SQL adds the observed missing report columns only.
 - Import joins use equality on validated non-null keys so PostgreSQL can use primary-key lookups; typed batch rows are expanded once with `jsonb_populate_recordset`.
 - Legacy IDs are aligned only for reviewed, unambiguous logical keys in module permissions, menu items, monthly SEO updates and global skills. The transaction refuses inbound foreign keys or a canonical ID already in use, preserves record fields, records the ID mapping privately and suppresses user-trigger side effects. Conflicting Carmen instructions and referenced route/tag IDs remain explicit rejections.
@@ -127,6 +130,16 @@ Supabase Staging already allows `https://*.vercel.app/**` as redirect URLs. Goog
 
 Branch protection on `main` / `develop` is a GitHub settings change; the freshness and shared-agency guards must be required. Local checkouts still need Staging variables before running the frontend.
 
+## Video render workers
+
+The render worker claims paid media jobs (`marketing_runs`) for one environment at a time:
+
+- **Production:** only a Droplet container built from `main` (`render-worker/README.md`, "One container per environment").
+- **Staging:** `.github/workflows/render-worker.yml` runs `develop`'s worker every 10 minutes. One REST request first checks for a waiting run, and the run installs nothing when there is none. It runs in the `staging` environment and reads the Staging ref from that environment's `SUPABASE_PROJECT_REF` variable.
+- **PR previews:** `.github/workflows/render-worker-preview.yml` drains a PR's own Supabase preview branch, found under `PROD_PROJECT_REF`, on every push and on "Run workflow", and keeps listening 15 minutes after the queue empties.
+
+Neither GitHub drain claims Production runs. Both resolve their service key with `BASE_ACCESS_TOKEN` before anything from the branch is checked out or installed. A Staging or preview tenant with real provider keys pays for the jobs these drains run.
+
 ## Agent working rules
 
 1. Branch from `develop`. Hotfixes David asked for on Production may branch from `main`.
@@ -155,6 +168,12 @@ How we keep them working:
 2. **Copy from Production, do not re-type.** The gated function `copy-edge-secrets-to-staging` runs on Production, reads allowlisted agent secrets from `Deno.env`, and writes them to Staging. WhatsApp / Meta / project keys stay out. David is not asked to paste keys.
 3. **Health probe.** Command Center calls `agent-channel-send` `action=channel_health`. If the key is rejected, the HUD shows a banner. After a copy, hashes of the allowlist should match Production; no function redeploy is required.
 4. **After a copy:** from Preview → Command Center, send a one-word ping on Cursor Direct or the table. Expect `agent_channel_sessions.external_url` and no 401.
+
+## Carmen Android app
+
+- `mobile/carmen-android` has two variants that install side by side. **Staging** (`co.il.aios.carmen.staging`, "Carmen Staging", debug-signed) reads the repository variables `CARMEN_ANDROID_SUPABASE_URL` / `CARMEN_ANDROID_SUPABASE_KEY` (Staging URL and publishable key; the **Carmen Android** workflow fails without them) and opens the Staging alias as its Command Center. **Production** (`co.il.aios.carmen`, "Carmen") takes the Production URL and publishable key from the tracked `.env` and opens `https://aios.co.il`.
+- Google sign-in returns through `carmen-aios-staging://auth/**` (base `[auth]` redirect list in `supabase/config.toml`, used by `develop`) and `carmen-aios://auth/**` (`[remotes.production.auth]`, applied on merge to `main`).
+- The Production APK is built only from `main`, signed with the release key from the secrets `CARMEN_RELEASE_KEYSTORE_BASE64`, `CARMEN_RELEASE_STORE_PASSWORD`, `CARMEN_RELEASE_KEY_ALIAS` and `CARMEN_RELEASE_KEY_PASSWORD`; without them the build fails instead of shipping a debug-signed app. Keep a copy of the keystore outside GitHub: a new key cannot update an installed app.
 
 ## Report loading
 

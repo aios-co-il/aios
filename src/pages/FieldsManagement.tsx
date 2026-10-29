@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Save, Edit } from "lucide-react";
 import TerminologyManagement from "@/components/TerminologyManagement";
 import { isLeadTableColumnPreferenceKey } from "@/lib/leadTableColumns";
+import { requireTenantId } from "@/lib/requireTenantId";
 import {
   Table,
   TableBody,
@@ -142,7 +143,7 @@ export default function FieldsManagement() {
       const { data, error } = await supabase
         .from("custom_fields")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .eq("entity_type", selectedEntity)
         .order("sort_order");
 
@@ -156,11 +157,12 @@ export default function FieldsManagement() {
     mutationFn: async (
       field: Omit<CustomField, "id" | "sort_order" | "options">,
     ) => {
+      const writeTenantId = requireTenantId(tenantId);
       const { data, error } = await supabase
         .from("custom_fields")
         .insert({
           ...field,
-          tenant_id: tenantId,
+          tenant_id: writeTenantId,
           sort_order: (fields?.length || 0) + 1,
         })
         .select()

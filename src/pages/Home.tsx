@@ -163,11 +163,11 @@ const CATEGORIES: Category[] = [
     modules: [
       {
         key: "marketing",
-        label: "מחלקת שיווק",
-        description: "פס יצור שיווקי מאוחד לכל לקוח",
-        route: "/marketing",
+        label: "הסדנה של כרמן",
+        description: "וויטבורד אחד לכל סקין של כרמן",
+        route: "/workshop",
         icon: Share2,
-        permission: "dashboard",
+        permission: "social_media",
         color: "bg-blue-500/10 text-blue-600",
       },
 

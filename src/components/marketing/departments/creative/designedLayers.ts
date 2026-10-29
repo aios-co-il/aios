@@ -415,7 +415,7 @@ export const parseCreativeCopy = (
   fallbackTitle?: string,
 ): CopyParts => {
   const parts: CopyParts = {};
-  let pending: keyof CopyParts | "skip" | null = null;
+  let pending: keyof CopyParts | null = null;
   const source = typeof copyText === "string" ? copyText : "";
 
   for (const raw of source.split("\n")) {
@@ -439,7 +439,7 @@ export const parseCreativeCopy = (
 
     if (isInternalCopyLine(line)) continue;
 
-    if (pending && pending !== "skip") {
+    if (pending) {
       parts[pending] ??= line;
       pending = null;
       continue;

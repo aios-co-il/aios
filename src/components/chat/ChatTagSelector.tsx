@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
+import { removeContactTag } from "./removeContactTag";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Popover,
@@ -23,7 +24,7 @@ interface ChatTag {
 
 interface ChatTagSelectorProps {
   contactId: string;
-  contactType: "client" | "lead" | "group" | "unknown" | "telegram";
+  contactType: "client" | "lead" | "group" | "unknown";
   senderPhone?: string;
   /** Pre-fetched tag IDs to avoid N+1 queries - pass this from parent when available */
   initialTagIds?: string[];
@@ -109,25 +110,11 @@ export function ChatTagSelector({
       if (!user || !tenantId) throw new Error("No user or tenant");
 
       if (isAssigned) {
-        // Remove tag
-        let query = supabase
-          .from("chat_contact_tags")
-          .delete()
-          .eq("tag_id", tagId)
-          .eq("user_id", user.id);
-
-        if (contactType === "client") {
-          query = query.eq("client_id", contactId);
-        } else if (contactType === "lead") {
-          query = query.eq("lead_id", contactId);
-        } else if (contactType === "group") {
-          query = query.eq("group_id", contactId);
-        } else if (contactType === "unknown" && senderPhone) {
-          query = query.eq("sender_phone", senderPhone);
-        }
-
-        const { error } = await query;
-        if (error) throw error;
+        await removeContactTag(supabase, tenantId, tagId, {
+          type: contactType,
+          id: contactId,
+          senderPhone,
+        });
       } else {
         // Add tag
         const insertData: TablesInsert<"chat_contact_tags"> = {
@@ -189,7 +176,7 @@ export function ChatTagSelector({
 
       return { previousContactTags, previousListTags };
     },
-    onError: (_err, _variables, context) => {
+    onError: (err, _variables, context) => {
       // Rollback on error
       if (context?.previousContactTags !== undefined) {
         queryClient.setQueryData(
@@ -203,7 +190,7 @@ export function ChatTagSelector({
           context.previousListTags,
         );
       }
-      toast.error("שגיאה בעדכון התגיות");
+      toast.error(err.message || "שגיאה בעדכון התגיות");
     },
     onSettled: () => {
       // Sync with server after mutation completes
@@ -283,7 +270,7 @@ export function ChatTagSelector({
 
 interface ContactTagBadgesProps {
   contactId: string;
-  contactType: "client" | "lead" | "group" | "unknown" | "telegram";
+  contactType: "client" | "lead" | "group" | "unknown";
   senderPhone?: string;
   allTags: ChatTag[];
   contactTagIds: string[];

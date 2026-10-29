@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useNavigate } from "react-router-dom";
+import { legacyModelId } from "../../../supabase/functions/_shared/models.ts";
 
 interface BrainSelectorProps {
   value: string | null;
@@ -99,8 +100,10 @@ export function BrainSelector({
     return acc;
   }, {});
 
-  // Resolve current display value (match alias or full id from full catalog)
-  const current = allModels.find((m) => m.alias === value || m.id === value);
+  // Resolve current display value (match alias or full id from full catalog); a retired engine
+  // such as gpt-5.5-pro shows the model it now runs on.
+  const engine = (value && legacyModelId(value)) || value;
+  const current = allModels.find((m) => m.alias === engine || m.id === engine);
   const selectedValue = current ? current.alias || current.id : value || "";
 
   // If the current engine's provider is not connected, show a warning
