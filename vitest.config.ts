@@ -5,7 +5,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@functions": fileURLToPath(
+        new URL("./supabase/functions", import.meta.url),
+      ),
+    },
     dedupe: ["react", "react-dom"],
   },
   test: {
