@@ -237,9 +237,10 @@ Deno.test("automation and task runs: source guards", async (t) => {
         agent.indexOf("// ─── 2.7. Code-level instruction capture"),
         agent.indexOf('await supabase.from("ai_memory").upsert('),
       );
+      // The guard may also skip a workshop brief (PR 932); it must always skip an automation.
       assertMatch(
         capture,
-        /if \(looksLikeInstruction && resolvedTenantId && !automationRun\) \{/,
+        /if \(\s*looksLikeInstruction &&\s*resolvedTenantId &&(?:\s*![A-Za-z]+ &&)*\s*!automationRun\s*\) \{/,
       );
     },
   );

@@ -2967,6 +2967,7 @@ export type Database = {
           provider: string | null;
           provider_call_id: string | null;
           recording_duration: number | null;
+          recording_path: string | null;
           recording_url: string | null;
           status: string;
           tenant_id: string;
@@ -2985,6 +2986,7 @@ export type Database = {
           provider?: string | null;
           provider_call_id?: string | null;
           recording_duration?: number | null;
+          recording_path?: string | null;
           recording_url?: string | null;
           status?: string;
           tenant_id: string;
@@ -3003,6 +3005,7 @@ export type Database = {
           provider?: string | null;
           provider_call_id?: string | null;
           recording_duration?: number | null;
+          recording_path?: string | null;
           recording_url?: string | null;
           status?: string;
           tenant_id?: string;
@@ -8518,7 +8521,7 @@ export type Database = {
       };
       marketing_pipelines: {
         Row: {
-          client_id: string;
+          client_id: string | null;
           created_at: string;
           id: string;
           is_active: boolean;
@@ -8528,7 +8531,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          client_id: string;
+          client_id?: string | null;
           created_at?: string;
           id?: string;
           is_active?: boolean;
@@ -8538,7 +8541,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          client_id?: string;
+          client_id?: string | null;
           created_at?: string;
           id?: string;
           is_active?: boolean;
@@ -9263,6 +9266,33 @@ export type Database = {
           },
         ];
       };
+      meta_data_deletion_requests: {
+        Row: {
+          confirmation_code: string;
+          created_at: string;
+          fb_user_id: string | null;
+          id: string;
+          issued_at: string | null;
+          status: string;
+        };
+        Insert: {
+          confirmation_code: string;
+          created_at?: string;
+          fb_user_id?: string | null;
+          id?: string;
+          issued_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          confirmation_code?: string;
+          created_at?: string;
+          fb_user_id?: string | null;
+          id?: string;
+          issued_at?: string | null;
+          status?: string;
+        };
+        Relationships: [];
+      };
       meta_whatsapp_tenant_credentials: {
         Row: {
           access_token: string;
@@ -9498,6 +9528,47 @@ export type Database = {
           used_at?: string | null;
         };
         Relationships: [];
+      };
+      pbx_settings: {
+        Row: {
+          config: Json;
+          created_at: string;
+          id: string;
+          inbound_secret: string;
+          is_active: boolean;
+          outbound_auth_value: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          inbound_secret: string;
+          is_active?: boolean;
+          outbound_auth_value?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          inbound_secret?: string;
+          is_active?: boolean;
+          outbound_auth_value?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pbx_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       processed_events: {
         Row: {
@@ -14981,6 +15052,141 @@ export type Database = {
           },
         ];
       };
+      workshop_artifacts: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          folder: string;
+          id: string;
+          item_id: string;
+          kind: string;
+          meta: Json;
+          ref_id: string | null;
+          ref_table: string | null;
+          status: string;
+          tenant_id: string;
+          thumb_url: string | null;
+          title: string;
+          updated_at: string;
+          url: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          folder?: string;
+          id?: string;
+          item_id: string;
+          kind: string;
+          meta?: Json;
+          ref_id?: string | null;
+          ref_table?: string | null;
+          status?: string;
+          tenant_id: string;
+          thumb_url?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          folder?: string;
+          id?: string;
+          item_id?: string;
+          kind?: string;
+          meta?: Json;
+          ref_id?: string | null;
+          ref_table?: string | null;
+          status?: string;
+          tenant_id?: string;
+          thumb_url?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workshop_artifacts_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workshop_artifacts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      workshop_assets: {
+        Row: {
+          asset_type: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          item_id: string;
+          meta: Json;
+          source: string;
+          storage_path: string | null;
+          tenant_id: string;
+          text: string | null;
+          title: string;
+          updated_at: string;
+          url: string | null;
+          use_as_reference: boolean;
+        };
+        Insert: {
+          asset_type: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          item_id: string;
+          meta?: Json;
+          source?: string;
+          storage_path?: string | null;
+          tenant_id: string;
+          text?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+          use_as_reference?: boolean;
+        };
+        Update: {
+          asset_type?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          item_id?: string;
+          meta?: Json;
+          source?: string;
+          storage_path?: string | null;
+          tenant_id?: string;
+          text?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+          use_as_reference?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workshop_assets_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workshop_assets_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       zoom_recordings: {
         Row: {
           agency_id: string | null;
@@ -15151,6 +15357,33 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"];
         };
         Returns: string;
+      };
+      attach_video_narration: {
+        Args: {
+          p_item_id: string;
+          p_lines?: Json;
+          p_meta?: Json;
+          p_run_id?: string;
+          p_url: string;
+        };
+        Returns: {
+          content: string | null;
+          created_at: string;
+          id: string;
+          item_id: string;
+          meta: Json;
+          run_id: string | null;
+          stage_id: string | null;
+          tenant_id: string;
+          type: string;
+          url: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_assets";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       attach_video_scene_asset: {
         Args: {
@@ -15504,6 +15737,13 @@ export type Database = {
           name: string;
           slug: string;
           table_id: string;
+        }[];
+      };
+      find_phone_owner: {
+        Args: { p_match_key: string; p_tenant_id: string };
+        Returns: {
+          client_id: string;
+          lead_id: string;
         }[];
       };
       format_client_mood_status_label: {
@@ -15956,10 +16196,25 @@ export type Database = {
       };
       normalize_google_customer_id: { Args: { raw: string }; Returns: string };
       normalize_meta_ad_account_id: { Args: { raw: string }; Returns: string };
+      patch_marketing_work_item: {
+        Args: {
+          p_item_id: string;
+          p_payload_patch?: Json;
+          p_status?: string;
+          p_tenant_id: string;
+          p_title?: string;
+        };
+        Returns: {
+          id: string;
+          status: Database["public"]["Enums"]["marketing_item_status"];
+          title: string;
+        }[];
+      };
       permanently_delete_archived_leads: {
         Args: { p_lead_ids: string[] };
         Returns: number;
       };
+      phone_match_key: { Args: { p_phone: string }; Returns: string };
       produce_video: {
         Args: {
           p_aspect?: string;
@@ -15968,6 +16223,7 @@ export type Database = {
           p_item_id: string;
           p_music_prompt?: string;
           p_provider?: string;
+          p_redo_preview?: boolean;
           p_stage_id?: string;
           p_voice_id?: string;
           p_with_music?: boolean;
@@ -15982,6 +16238,46 @@ export type Database = {
           p_generate_audio?: boolean;
           p_item_id: string;
           p_provider?: string;
+          p_scene_ids: string[];
+          p_stage_id?: string;
+        };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      queue_video_lipsync: {
+        Args: {
+          p_estimate?: Json;
+          p_item_id: string;
+          p_retry?: boolean;
           p_scene_ids: string[];
           p_stage_id?: string;
         };
@@ -16223,6 +16519,10 @@ export type Database = {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
       };
+      tenant_holds_agency: {
+        Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };
+        Returns: boolean;
+      };
       try_acquire_manychat_destination_lock: {
         Args: { p_destination_key: string; p_ttl_seconds?: number };
         Returns: boolean;
@@ -16317,6 +16617,111 @@ export type Database = {
       validate_crm_record: {
         Args: { p_data: Json; p_table_id: string };
         Returns: boolean;
+      };
+      video_narration_line: {
+        Args: { p_meta: Json; p_voiceover: string };
+        Returns: string;
+      };
+      video_narration_ready: { Args: { p_item_id: string }; Returns: boolean };
+      video_talking_line: {
+        Args: { p_meta: Json; p_voiceover: string };
+        Returns: string;
+      };
+      video_voice_matches: {
+        Args: { p_meta: Json; p_voice: string };
+        Returns: boolean;
+      };
+      workshop_assign_client: {
+        Args: { p_client_id?: string; p_item_id: string };
+        Returns: {
+          client_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          current_stage_id: string | null;
+          id: string;
+          links: Json;
+          payload: Json;
+          pipeline_id: string | null;
+          scheduled_date: string | null;
+          status: Database["public"]["Enums"]["marketing_item_status"];
+          target_channel: string | null;
+          tenant_id: string;
+          title: string | null;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_work_items";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      workshop_creative_stage: {
+        Args: { p_client_id?: string; p_tenant_id: string };
+        Returns: {
+          pipeline_id: string;
+          stage_id: string;
+        }[];
+      };
+      workshop_edit_scene_text: {
+        Args: {
+          p_dialogue?: string;
+          p_overlay_text?: string;
+          p_scene_id: string;
+          p_voiceover_text?: string;
+        };
+        Returns: {
+          clip_asset_id: string | null;
+          clip_stale: boolean;
+          created_at: string;
+          created_by: string | null;
+          duration_s: number;
+          focal_x: number;
+          id: string;
+          item_id: string;
+          locked: boolean;
+          meta: Json;
+          motion_prompt: string;
+          overlay_text: string;
+          position: number;
+          shot: string;
+          status: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id: string | null;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+          visual_prompt: string;
+          voice_asset_id: string | null;
+          voiceover_text: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_video_scenes";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      workshop_list_projects: {
+        Args: { p_client?: string; p_limit?: number; p_tenant_id: string };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          department_hint: string;
+          format: string;
+          has_board: boolean;
+          has_copy: boolean;
+          has_creative: boolean;
+          has_seo_plan: boolean;
+          id: string;
+          project_type: string;
+          stage_type: string;
+          status: string;
+          target_channel: string;
+          title: string;
+          track: string;
+          updated_at: string;
+          workshop_edit: boolean;
+        }[];
       };
     };
     Enums: {

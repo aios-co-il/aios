@@ -3,7 +3,7 @@ export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
 export type ImageCostSource = "api" | "official_table" | "inferred";
 
 export interface ImageGenerationCost {
-  model: "gpt-image-1" | "gemini-3-pro-image";
+  model: "gpt-image-1" | "gpt-image-2.5-sunburst" | "gemini-3-pro-image";
   quality: ImageQuality;
   size: ImageSize;
   textTokens: number;
@@ -78,7 +78,9 @@ export const isImageGenerationCost = (
   if (!value || typeof value !== "object") return false;
   const cost = value as ImageGenerationCost;
   return (
-    (cost.model === "gpt-image-1" || cost.model === "gemini-3-pro-image") &&
+    (cost.model === "gpt-image-1" ||
+      cost.model === "gpt-image-2.5-sunburst" ||
+      cost.model === "gemini-3-pro-image") &&
     isImageQuality(cost.quality) &&
     isImageSize(cost.size) &&
     typeof cost.totalTokens === "number" &&
@@ -95,7 +97,7 @@ const makeCost = (
   source: ImageCostSource,
   referenceCount = 0,
 ): ImageGenerationCost => ({
-  model: "gpt-image-1",
+  model: "gpt-image-2.5-sunburst",
   quality,
   size,
   textTokens,
