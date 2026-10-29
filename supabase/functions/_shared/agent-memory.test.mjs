@@ -93,7 +93,13 @@ Deno.test(
   "summarizeAndStoreAgentMemory skips non-object or incomplete LLM output",
   async () => {
     embeddingOk = true;
-    for (const content of ["null", '"text"', "42", '{"title":"T"}']) {
+    for (const content of [
+      "null",
+      '"text"',
+      "42",
+      '["T","S"]',
+      '{"title":"T"}',
+    ]) {
       chatContent = content;
       const client = fakeClient();
       await summarizeAndStoreAgentMemory(storeOpts(client));

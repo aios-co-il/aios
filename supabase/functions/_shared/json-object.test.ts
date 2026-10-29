@@ -3,15 +3,15 @@ import {
   assertStrictEquals,
   assertThrows,
 } from "jsr:@std/assert@1";
-import { objectOrEmpty } from "../carmen-memory-backfill/legacy-rows.ts";
 import { errorMessage } from "./error-message.ts";
 import { jsonObject, jsonText } from "./json-object.ts";
 
 Deno.test(
   "jsonObject returns objects and throws on null like property access",
   () => {
-    const value = { id: "a", n: 1 };
-    assertStrictEquals(jsonObject(value), value);
+    const value = { id: "a", n: 1, nested: { list: [1, "x", null, true] } };
+    assertEquals(jsonObject(value), value);
+    assertEquals(jsonObject({}), {});
     assertEquals(jsonObject("text"), {});
     assertEquals(jsonObject([1, 2]), {});
     assertEquals(jsonObject(3), {});
@@ -36,17 +36,10 @@ Deno.test(
     assertStrictEquals(errorMessage(new Error("boom")), "boom");
     assertStrictEquals(errorMessage({ message: "postgrest" }), "postgrest");
     assertStrictEquals(errorMessage({ message: 42 }), "42");
+    assertStrictEquals(errorMessage({ code: "x" }), undefined);
+    assertStrictEquals(errorMessage({ message: null }), undefined);
     assertStrictEquals(errorMessage("plain string"), undefined);
+    assertStrictEquals(errorMessage(["boom"]), undefined);
     assertStrictEquals(errorMessage(null), undefined);
-  },
-);
-
-Deno.test(
-  "objectOrEmpty keeps objects and maps other values to an empty object",
-  () => {
-    const row = { id: "x" };
-    assertStrictEquals(objectOrEmpty(row), row);
-    assertEquals(objectOrEmpty(null), {});
-    assertEquals(objectOrEmpty("s"), {});
   },
 );

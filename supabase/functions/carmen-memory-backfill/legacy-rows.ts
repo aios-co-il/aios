@@ -1,33 +1,45 @@
 // Row shapes for backfill selects that name columns missing from the generated
 // schema (tasks.description; chat_messages.message/body/text), so the typed
 // client cannot infer them. Fields stay unknown and are read defensively.
+import { z } from "npm:zod@3.25.76";
 
-export type LegacyTaskRow = {
-  id?: unknown;
-  title?: unknown;
-  description?: unknown;
-  status?: unknown;
-  due_date?: unknown;
-  created_at?: unknown;
-  client_id?: unknown;
-  campaigner_id?: unknown;
-  assigned_to_campaigner_id?: unknown;
-};
+const legacyTaskRowSchema = z
+  .object({
+    id: z.unknown(),
+    title: z.unknown(),
+    description: z.unknown(),
+    status: z.unknown(),
+    due_date: z.unknown(),
+    created_at: z.unknown(),
+    client_id: z.unknown(),
+    campaigner_id: z.unknown(),
+    assigned_to_campaigner_id: z.unknown(),
+  })
+  .catch({});
 
-export type LegacyMessageRow = {
-  id?: unknown;
-  message?: unknown;
-  body?: unknown;
-  text?: unknown;
-  provider?: unknown;
-  direction?: unknown;
-  sender_name?: unknown;
-  sender_phone?: unknown;
-  client_id?: unknown;
-  lead_id?: unknown;
-  created_at?: unknown;
-};
+const legacyMessageRowSchema = z
+  .object({
+    id: z.unknown(),
+    message: z.unknown(),
+    body: z.unknown(),
+    text: z.unknown(),
+    provider: z.unknown(),
+    direction: z.unknown(),
+    sender_name: z.unknown(),
+    sender_phone: z.unknown(),
+    client_id: z.unknown(),
+    lead_id: z.unknown(),
+    created_at: z.unknown(),
+  })
+  .catch({});
 
-export function objectOrEmpty(raw: unknown): object {
-  return typeof raw === "object" && raw !== null ? raw : {};
+export type LegacyTaskRow = z.infer<typeof legacyTaskRowSchema>;
+export type LegacyMessageRow = z.infer<typeof legacyMessageRowSchema>;
+
+export function readLegacyTaskRow(raw: unknown): LegacyTaskRow {
+  return legacyTaskRowSchema.parse(raw);
+}
+
+export function readLegacyMessageRow(raw: unknown): LegacyMessageRow {
+  return legacyMessageRowSchema.parse(raw);
 }

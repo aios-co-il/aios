@@ -1,4 +1,5 @@
 // Per-agent automatic memory: summarize + embed + store after each non-Carmen run.
+import { z } from "npm:zod@3.25.76";
 import { aiChatJSON, aiEmbed, hasAiKey } from "./ai.ts";
 import type { Json } from "./database.types.ts";
 import { errorMessage } from "./error-message.ts";
@@ -9,21 +10,16 @@ const embed = aiEmbed;
 const embeddingText = (emb: number[] | null) =>
   emb ? JSON.stringify(emb) : null;
 
-type ParsedMemorySummary = {
-  title: unknown;
-  summary: unknown;
-  category: unknown;
-  importance: unknown;
-};
+const memorySummarySchema = z.object({
+  title: z.unknown(),
+  summary: z.unknown(),
+  category: z.unknown(),
+  importance: z.unknown(),
+});
 
-function readMemorySummary(raw: unknown): ParsedMemorySummary | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  return {
-    title: "title" in raw ? raw.title : undefined,
-    summary: "summary" in raw ? raw.summary : undefined,
-    category: "category" in raw ? raw.category : undefined,
-    importance: "importance" in raw ? raw.importance : undefined,
-  };
+function readMemorySummary(raw: unknown) {
+  const parsed = memorySummarySchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 export async function summarizeAndStoreAgentMemory(opts: {
