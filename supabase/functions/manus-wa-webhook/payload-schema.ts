@@ -52,8 +52,7 @@ const wrapperLayer = layer(messageLayer);
 const manusPayloadSchema = layer(wrapperLayer);
 
 export type ManusBodyResult =
-  | { status: "ok"; payload: Payload }
-  | { status: "not_object" };
+  { status: "ok"; payload: Payload } | { status: "not_object" };
 
 /**
  * Non-object JSON is reported so the caller can ACK it (a 4xx can get the

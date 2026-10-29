@@ -2078,8 +2078,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     const carmenTargetPhone = privateTarget.phone || counterpartPhone;
     const chatIdForCarmen = privateTarget.chatId || `${carmenTargetPhone}@c.us`;
     const senderName = (payload.senderName || payload.fromName || null) as
-      | string
-      | null;
+      string | null;
 
     // Direct channels: "קלוד ..." / "קרסר ..." from the owner's own phone skip Carmen
     // and go straight to Claude Direct / Cursor Direct. Replies come back to this chat.
