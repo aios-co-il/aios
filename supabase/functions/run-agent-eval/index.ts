@@ -3,6 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { errorMessage } from "../_shared/error-message.ts";
 import { resolveModelId } from "../_shared/models.ts";
+import { readEvalCase } from "./eval-case.ts";
 import type { Json } from "../_shared/database.types.ts";
 
 type EvalCaseResult = {
@@ -14,18 +15,6 @@ type EvalCaseResult = {
   passed: boolean;
   run_id?: string;
 };
-
-/** A dataset case's input/expected value; "" when missing or the case is not an object. */
-function caseField(testCase: Json, key: "input" | "expected"): Json {
-  if (
-    typeof testCase !== "object" ||
-    testCase === null ||
-    Array.isArray(testCase)
-  ) {
-    return "";
-  }
-  return testCase[key] ?? "";
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,8 +112,7 @@ Deno.serve(async (req) => {
     let passed = 0;
 
     for (const tc of dataset) {
-      const input = caseField(tc, "input");
-      const expected = caseField(tc, "expected");
+      const { input, expected } = readEvalCase(tc);
       try {
         const { data: invokeData } = await supabase.functions.invoke(
           "run-ai-agent-v2",

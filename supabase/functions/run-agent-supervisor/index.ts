@@ -1,6 +1,7 @@
 // run-agent-supervisor — routes a goal to one or more sub-agents and aggregates results.
 // Body: { supervisor_agent_id, goal, context?, tenant_id, user_id? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { type Delegation, parseRoutingDelegations } from "./delegations.ts";
 import { errorMessage } from "../_shared/error-message.ts";
 import { resolveModelId } from "../_shared/models.ts";
 import type { Database, Tables } from "../_shared/database.types.ts";
@@ -12,18 +13,6 @@ type SupervisorChild = Pick<
 > & {
   child: Pick<Tables<"ai_agents">, "name" | "talent" | "system_prompt">;
 };
-/** One routing choice from the LLM; fields are unvalidated model output. */
-type Delegation = { agent_id: unknown; sub_goal: unknown };
-
-function readDelegation(raw: unknown): Delegation {
-  if (typeof raw !== "object" || raw === null) {
-    return { agent_id: undefined, sub_goal: undefined };
-  }
-  return {
-    agent_id: "agent_id" in raw ? raw.agent_id : undefined,
-    sub_goal: "sub_goal" in raw ? raw.sub_goal : undefined,
-  };
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,21 +71,7 @@ async function route(
     throw new Error(`routing LLM ${resp.status}: ${await resp.text()}`);
   const data = await resp.json();
   const content = data.choices?.[0]?.message?.content ?? "{}";
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    parsed = { delegations: [] };
-  }
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    !("delegations" in parsed) ||
-    !Array.isArray(parsed.delegations)
-  ) {
-    return [];
-  }
-  return parsed.delegations.map(readDelegation);
+  return parseRoutingDelegations(content);
 }
 
 Deno.serve(async (req) => {

@@ -9,7 +9,6 @@ import type { Database, Json, Tables } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
   asJsonObject,
-  isJsonObject,
   type JsonObject,
   readWhatsAppNotify,
   type WhatsAppNotify,
@@ -19,7 +18,7 @@ import { errorMessage } from "../_shared/error-message.ts";
 type AgentTaskRow = Tables<"agent_tasks">;
 
 function surfaceIsWhatsApp(notify: Json | undefined): boolean {
-  return isJsonObject(notify) && notify.surface === "whatsapp";
+  return asJsonObject(notify).surface === "whatsapp";
 }
 
 /** The stored notify target, only when it is pinned to a valid originating WhatsApp chat. */

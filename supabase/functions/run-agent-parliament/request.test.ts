@@ -8,31 +8,37 @@ Deno.test(
       tenant_id: "t1",
       action: "clarify",
       brain_route_id: 7,
+      extra: true,
     });
-    assertStrictEquals(body.tenant_id, "t1");
-    assertStrictEquals(body.action, "clarify");
-    assertStrictEquals(body.brain_route_id, 7);
+    assertEquals(body, {
+      tenant_id: "t1",
+      action: "clarify",
+      brain_route_id: 7,
+    });
     assertStrictEquals(body.content, undefined);
-    assertEquals(readParliamentRequest(null), {});
-    assertEquals(readParliamentRequest("x"), {});
+    for (const raw of [null, "x", 3, ["a"]]) {
+      assertEquals(readParliamentRequest(raw), {});
+    }
   },
 );
 
-Deno.test(
-  "readHistory keeps string role/content entries and drops malformed ones",
-  () => {
-    const ok = { role: "user", content: "hi" };
-    assertEquals(
-      readHistory([
-        ok,
-        null,
-        { role: "assistant" },
-        { role: 1, content: "x" },
-        "s",
-      ]),
-      [ok],
-    );
-    assertEquals(readHistory("not-an-array"), []);
-    assertEquals(readHistory(undefined), []);
-  },
-);
+Deno.test("readHistory keeps object entries as role/content text", () => {
+  assertEquals(
+    readHistory([
+      { role: "user", content: "hi" },
+      { role: "assistant" },
+      { role: 1, content: 2 },
+    ]),
+    [
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "" },
+      { role: "1", content: "2" },
+    ],
+  );
+});
+
+Deno.test("readHistory skips non-object entries and non-arrays", () => {
+  assertEquals(readHistory([null, "s", 3, ["user"]]), []);
+  assertEquals(readHistory("not-an-array"), []);
+  assertEquals(readHistory(undefined), []);
+});

@@ -1,19 +1,38 @@
-// Readers for the agent_tasks.result jsonb checkpoint (written by run-agent-task,
-// spawnSubagent and run-ai-agent's task creation).
+// Zod readers for the agent_tasks.result jsonb checkpoint (written by
+// run-agent-task, spawnSubagent and run-ai-agent's task creation).
+import { z } from "npm:zod@3.25.76";
 import type { Json } from "./database.types.ts";
-import type { SpawnSubagentParams } from "./subagent.ts";
 
 export type JsonObject = { [key: string]: Json | undefined };
-export type WhatsAppNotify = NonNullable<SpawnSubagentParams["notify"]>;
 
-export function isJsonObject(value: Json | undefined): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+export const jsonValueSchema: z.ZodType<Json> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ]),
+);
+
+const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
+
+/** The value as a JSON object, or null for null, arrays and scalars. */
+export function jsonObjectOrNull(value: unknown): JsonObject | null {
+  const parsed = jsonObjectSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 /** The value itself when it is a JSON object, otherwise an empty object. */
-export function asJsonObject(value: Json | undefined): JsonObject {
-  return isJsonObject(value) ? value : {};
+export function asJsonObject(value: unknown): JsonObject {
+  return jsonObjectOrNull(value) ?? {};
 }
+
+const assistantTextSchema = z.object({
+  role: z.literal("assistant"),
+  content: z.string().refine((text) => text.trim().length > 0),
+});
 
 /** Last non-blank assistant message in a stored conversation_history. */
 export function lastAssistantContent(
@@ -21,15 +40,8 @@ export function lastAssistantContent(
 ): string | undefined {
   if (!Array.isArray(history)) return undefined;
   for (let i = history.length - 1; i >= 0; i--) {
-    const message = history[i];
-    if (
-      isJsonObject(message) &&
-      message.role === "assistant" &&
-      typeof message.content === "string" &&
-      message.content.trim().length > 0
-    ) {
-      return message.content;
-    }
+    const message = assistantTextSchema.safeParse(history[i]);
+    if (message.success) return message.data.content;
   }
   return undefined;
 }
@@ -40,42 +52,21 @@ export function taskResultOutput(result: JsonObject): string | undefined {
   return lastAssistantContent(result.conversation_history);
 }
 
-function isNullableString(value: Json | undefined): value is string | null {
-  return value === null || typeof value === "string";
-}
+const whatsAppNotifySchema = z.object({
+  surface: z.literal("whatsapp"),
+  chat_id: z.string(),
+  tenant_id: z.string().catch(""),
+  automation_id: z.string().nullable().catch(null),
+  connection_user_id: z.string().nullable().catch(null),
+  phone_number: z.string().nullable().catch(null),
+  is_group: z.unknown().transform(Boolean),
+});
 
-/** A complete WhatsApp notify target as spawnSubagent / run-ai-agent store it; anything else is null. */
-export function readWhatsAppNotify(
-  value: Json | undefined,
-): WhatsAppNotify | null {
-  if (!isJsonObject(value)) return null;
-  const {
-    surface,
-    tenant_id,
-    automation_id = null,
-    connection_user_id,
-    chat_id,
-    phone_number = null,
-    is_group,
-  } = value;
-  if (
-    surface !== "whatsapp" ||
-    typeof tenant_id !== "string" ||
-    !isNullableString(automation_id) ||
-    typeof connection_user_id !== "string" ||
-    typeof chat_id !== "string" ||
-    !isNullableString(phone_number) ||
-    typeof is_group !== "boolean"
-  ) {
-    return null;
-  }
-  return {
-    surface,
-    tenant_id,
-    automation_id,
-    connection_user_id,
-    chat_id,
-    phone_number,
-    is_group,
-  };
+/** A stored WhatsApp notify target; only surface and chat_id are required. */
+export type WhatsAppNotify = z.infer<typeof whatsAppNotifySchema>;
+
+/** The WhatsApp notify target stored by spawnSubagent / run-ai-agent; null when it is not one. */
+export function readWhatsAppNotify(value: unknown): WhatsAppNotify | null {
+  const parsed = whatsAppNotifySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }

@@ -5,16 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { requireAuth } from "../_shared/security.ts";
 import { authorizeRunDecision } from "./authorize.ts";
 import { errorMessage } from "../_shared/error-message.ts";
-
-/** Handlers report a failed execution as `{ ok: false, ... }`. */
-function reportsFailure(result: unknown): boolean {
-  return (
-    typeof result === "object" &&
-    result !== null &&
-    "ok" in result &&
-    result.ok === false
-  );
-}
+import { reportsFailure } from "./execution-result.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

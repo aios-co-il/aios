@@ -7,7 +7,11 @@ import { requireAuth } from "../_shared/security.ts";
 import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
 import type { Database, Json, Tables } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { asJsonObject, isJsonObject } from "../_shared/agent-task-result.ts";
+import {
+  asJsonObject,
+  jsonObjectOrNull,
+} from "../_shared/agent-task-result.ts";
+import { readChatCompletion, readToolCall } from "./llm-response.ts";
 import { errorMessage as thrownMessage } from "../_shared/error-message.ts";
 
 const corsHeaders = {
@@ -187,14 +191,7 @@ async function callLLM(
     const text = await resp.text();
     throw new Error(`LLM ${resp.status}: ${text}`);
   }
-  const data: Json = await resp.json();
-  const { choices, usage } = asJsonObject(data);
-  const choice = Array.isArray(choices) ? choices[0] : undefined;
-  return {
-    message: asJsonObject(asJsonObject(choice).message),
-    usage: asJsonObject(usage),
-    duration_ms,
-  };
+  return { ...readChatCompletion(await resp.json()), duration_ms };
 }
 
 async function executeTool(
@@ -250,7 +247,7 @@ async function executeTool(
         parsed = m ? JSON.parse(m[1]) : { result: text };
       } else parsed = JSON.parse(text);
       if (parsed === null) return { ok: true, raw: text.slice(0, 500) };
-      return (isJsonObject(parsed) ? parsed.result : undefined) ?? parsed;
+      return jsonObjectOrNull(parsed)?.result ?? parsed;
     } catch {
       return { ok: true, raw: text.slice(0, 500) };
     }
@@ -477,20 +474,13 @@ Deno.serve(async (req) => {
         messages,
         openaiTools,
       );
-      const content =
-        typeof message.content === "string" ? message.content : null;
-      const tokens_in =
-        typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0;
-      const tokens_out =
-        typeof usage.completion_tokens === "number"
-          ? usage.completion_tokens
-          : 0;
+      const { content } = message;
+      const tokens_in = usage.prompt_tokens;
+      const tokens_out = usage.completion_tokens;
       totalIn += tokens_in;
       totalOut += tokens_out;
 
-      const toolCalls = Array.isArray(message.tool_calls)
-        ? message.tool_calls
-        : [];
+      const toolCalls = message.tool_calls;
 
       if (!toolCalls.length) {
         // Final answer
@@ -521,16 +511,11 @@ Deno.serve(async (req) => {
       }
 
       // Handle first tool call (sequential — simpler & checkpoint-friendly)
-      const call = asJsonObject(toolCalls[0]);
-      const callFunction = asJsonObject(call.function);
-      const toolName = callFunction.name;
+      const call = readToolCall(toolCalls[0]);
+      const toolName = call.name;
       let toolInput: Json = {};
       try {
-        toolInput = JSON.parse(
-          typeof callFunction.arguments === "string" && callFunction.arguments
-            ? callFunction.arguments
-            : "{}",
-        );
+        toolInput = JSON.parse(call.arguments);
       } catch {
         // Keep the empty tool-input default when arguments are not valid JSON.
       }

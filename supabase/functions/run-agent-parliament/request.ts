@@ -1,49 +1,42 @@
-export type HistoryMessage = { role: string; content: string };
+import { z } from "npm:zod@3.25.76";
+
+const parliamentRequestSchema = z
+  .object({
+    tenant_id: z.unknown(),
+    action: z.unknown(),
+    conversation_id: z.unknown(),
+    provider: z.unknown(),
+    content: z.unknown(),
+    question: z.unknown(),
+    goal: z.unknown(),
+    brain_route_id: z.unknown(),
+    idempotency_key: z.unknown(),
+    conversation_history: z.unknown(),
+  })
+  .catch({});
 
 /** Request body fields; values are unvalidated client JSON. */
-export type ParliamentRequest = {
-  tenant_id?: unknown;
-  action?: unknown;
-  conversation_id?: unknown;
-  provider?: unknown;
-  content?: unknown;
-  question?: unknown;
-  goal?: unknown;
-  brain_route_id?: unknown;
-  idempotency_key?: unknown;
-  conversation_history?: unknown;
-};
+export type ParliamentRequest = z.infer<typeof parliamentRequestSchema>;
 
 /** Field view of a parsed JSON body; a non-object body reads as having no fields. */
 export function readParliamentRequest(raw: unknown): ParliamentRequest {
-  if (typeof raw !== "object" || raw === null) return {};
-  return {
-    tenant_id: "tenant_id" in raw ? raw.tenant_id : undefined,
-    action: "action" in raw ? raw.action : undefined,
-    conversation_id: "conversation_id" in raw ? raw.conversation_id : undefined,
-    provider: "provider" in raw ? raw.provider : undefined,
-    content: "content" in raw ? raw.content : undefined,
-    question: "question" in raw ? raw.question : undefined,
-    goal: "goal" in raw ? raw.goal : undefined,
-    brain_route_id: "brain_route_id" in raw ? raw.brain_route_id : undefined,
-    idempotency_key: "idempotency_key" in raw ? raw.idempotency_key : undefined,
-    conversation_history:
-      "conversation_history" in raw ? raw.conversation_history : undefined,
-  };
+  return parliamentRequestSchema.parse(raw);
 }
 
-function isHistoryMessage(value: unknown): value is HistoryMessage {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "role" in value &&
-    typeof value.role === "string" &&
-    "content" in value &&
-    typeof value.content === "string"
-  );
-}
+const historyMessageSchema = z
+  .object({ role: z.unknown(), content: z.unknown() })
+  .transform((m) => ({
+    role: String(m.role),
+    content: String(m.content || ""),
+  }));
 
-/** conversation_history entries shaped { role, content } as strings; anything else is dropped. */
+export type HistoryMessage = z.infer<typeof historyMessageSchema>;
+
+/** Object entries of conversation_history as role/content text, the way the direct prompt renders them. */
 export function readHistory(value: unknown): HistoryMessage[] {
-  return Array.isArray(value) ? value.filter(isHistoryMessage) : [];
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const parsed = historyMessageSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
 }
