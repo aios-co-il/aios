@@ -83,7 +83,7 @@ export default function AgentHub() {
       setCreateOpen(false);
       toast.success("סוכן נוצר");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const list: AgentListItem[] = agents.map((a) => ({
