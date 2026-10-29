@@ -33,10 +33,6 @@ const linkSchema = z.object({
 });
 
 type LinkFormValues = z.infer<typeof linkSchema>;
-type ContactType = LinkFormValues["type"];
-
-const isContactType = (value: string): value is ContactType =>
-  value === "client" || value === "lead" || value === "group";
 
 interface LinkContactDialogProps {
   open: boolean;
@@ -124,7 +120,7 @@ export function LinkContactDialog({
       if (!tenantId) return [];
       let query = supabase
         .from("whatsapp_groups")
-        .select("id, group_name, group_id")
+        .select("id, group_name")
         .eq("tenant_id", tenantId)
         .order("group_name");
 
@@ -220,9 +216,10 @@ export function LinkContactDialog({
             <Select
               value={selectedType}
               onValueChange={(value) => {
-                if (!isContactType(value)) return;
-                setSelectedType(value);
-                form.setValue("type", value);
+                const contactType = linkSchema.shape.type.safeParse(value);
+                if (!contactType.success) return;
+                setSelectedType(contactType.data);
+                form.setValue("type", contactType.data);
                 form.setValue("contact_id", "");
               }}
             >

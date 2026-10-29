@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { z } from "zod";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -68,8 +69,7 @@ interface CRMSettingsSectionProps {
 
 type ClientCrmPatch = Partial<Pick<Tables<"clients">, "tier" | "services">>;
 
-const hasClientId = (row: unknown, id: string): row is { id: string } =>
-  typeof row === "object" && row !== null && "id" in row && row.id === id;
+const cachedClientSchema = z.object({ id: z.unknown() }).passthrough();
 
 export function CRMSettingsSection({
   client,
@@ -92,7 +92,7 @@ export function CRMSettingsSection({
       try {
         const { data, error } = await supabase
           .from("seo_monthly_updates")
-          .select("month, status, notes, updated_at")
+          .select("month, status, notes")
           .eq("client_id", client.id)
           .order("month", { ascending: false })
           .limit(3);
@@ -111,9 +111,10 @@ export function CRMSettingsSection({
     const snapshot = queryClient.getQueriesData({ queryKey: ["clients"] });
     queryClient.setQueriesData({ queryKey: ["clients"] }, (old: unknown) =>
       Array.isArray(old)
-        ? old.map((c: unknown) =>
-            hasClientId(c, client.id) ? { ...c, ...patch } : c,
-          )
+        ? old.map((c: unknown) => {
+            const cached = cachedClientSchema.safeParse(c).data;
+            return cached?.id === client.id ? { ...cached, ...patch } : c;
+          })
         : old,
     );
     return snapshot;

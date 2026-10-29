@@ -361,13 +361,6 @@
       "count": 1
     },
     {
-      "file": "src/components/clients/ClientsChatView.tsx",
-      "code": 2345,
-      "message": "Argument of type '{ [x: string]: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ active_chat_provider?: \"manychat\" | \"green_api\" | \"internal\" | \"manus_wa\" | \"meta_whatsapp\" | null | undefined; active_flags?: Json | undefined; agency_id?: string | undefined; ... 38 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n  Type '{ [x: string]: any; }' is not assignable to type '{ [x: string]: never; [x: number]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "{ [field]: value }",
-      "count": 1
-    },
-    {
       "file": "src/components/dynamic-tables/AddIntegrationDialog.tsx",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
@@ -1236,20 +1229,6 @@
       "count": 1
     },
     {
-      "file": "src/lib/exportLeads.ts",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type '{ lead_id: string | null; tag_id: string; chat_tags?: { name?: string | null | undefined; } | null | undefined; }'.",
-      "source": "...chunkRows",
-      "count": 1
-    },
-    {
-      "file": "src/lib/exportLeads.ts",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type '{ lead_id: string; content: string; created_at: string; user_id: string; profiles?: { full_name?: string | null | undefined; } | null | undefined; }'.",
-      "source": "...chunkRows",
-      "count": 1
-    },
-    {
       "file": "src/lib/gaPropertyMatch.ts",
       "code": 18047,
       "message": "'group.properties' is possibly 'null'.",
@@ -1514,13 +1493,6 @@
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
       "source": "tenantId",
       "count": 4
-    },
-    {
-      "file": "src/pages/Clients.tsx",
-      "code": 18047,
-      "message": "'editingFolderLink' is possibly 'null'.",
-      "source": "editingFolderLink",
-      "count": 6
     },
     {
       "file": "src/pages/Clients.tsx",
