@@ -346,6 +346,7 @@ import {
   parseRunAgentRequest,
   readConversationTurns,
   readHistoryMessages,
+  readJsonRecord,
 } from "./run-request.ts";
 import type {
   DirectToolRequest,
@@ -357,6 +358,8 @@ import {
   parseToolArguments,
   readChatCompletionMessage,
   readChatUsage,
+  readErrorStack,
+  readManusTask,
   readToolResult,
   toJson,
 } from "./run-loop-contracts.ts";
@@ -16022,7 +16025,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         }
         throw new Error(`Manus API error [${manusRes.status}]: ${detail}`);
       }
-      const manusData = jsonObject(await manusRes.json());
+      const manusData = readManusTask(await manusRes.json());
       const taskUrl = manusData.task_url || manusData.share_url || "";
       finalOutput = `✅ משימה נשלחה ל-Manus AI${taskUrl ? `\n🔗 ${taskUrl}` : ""}\nמזהה: ${manusData.task_id || "—"}`;
       if (emit) emit({ type: "token", content: finalOutput });
@@ -16552,8 +16555,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         SUPABASE_URL,
         SUPABASE_SERVICE_ROLE_KEY,
       );
-      const errorStack =
-        isObject(error) && "stack" in error ? error.stack : undefined;
+      const errorStack = readErrorStack(error);
       await sb.from("error_logs").insert({
         source: "run-ai-agent",
         tenant_id: bodyJson?.tenant_id || null,
@@ -16931,7 +16933,7 @@ Deno.serve(async (req) => {
         );
         let final: JsonRecord = {};
         try {
-          final = jsonObject(await resp.json());
+          final = readJsonRecord(await resp.json());
         } catch {
           /* ignore */
         }

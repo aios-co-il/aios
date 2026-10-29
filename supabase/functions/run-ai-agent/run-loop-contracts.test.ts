@@ -4,6 +4,8 @@ import {
   parseToolArguments,
   readChatCompletionMessage,
   readChatUsage,
+  readErrorStack,
+  readManusTask,
   readToolResult,
   toJson,
 } from "./run-loop-contracts.ts";
@@ -105,3 +107,19 @@ Deno.test(
     assertStrictEquals(toJson(new Date(0)), "1970-01-01T00:00:00.000Z");
   },
 );
+
+Deno.test("Manus task responses expose their ids and links", () => {
+  assertEquals(readManusTask({ task_id: "t1", task_url: "u", x: 1 }), {
+    task_id: "t1",
+    task_url: "u",
+  });
+  assertEquals(readManusTask("oops"), {});
+});
+
+Deno.test("error stacks are read from thrown objects only", () => {
+  const error = new Error("boom");
+  assertStrictEquals(readErrorStack(error), error.stack);
+  assertStrictEquals(readErrorStack({ stack: "s" }), "s");
+  assertStrictEquals(readErrorStack("boom"), undefined);
+  assertStrictEquals(readErrorStack(null), undefined);
+});

@@ -4,6 +4,7 @@ import {
   parseRunAgentRequest,
   readConversationTurns,
   readHistoryMessages,
+  readJsonRecord,
 } from "./run-request.ts";
 
 Deno.test(
@@ -160,3 +161,13 @@ Deno.test(
     assertStrictEquals(embeddedName("column 'type' does not exist"), undefined);
   },
 );
+
+Deno.test("JSON bodies read as objects; anything else is empty", () => {
+  assertEquals(readJsonRecord({ success: true, output: "x" }), {
+    success: true,
+    output: "x",
+  });
+  for (const value of [null, "x", [1], 3]) {
+    assertEquals(readJsonRecord(value), {});
+  }
+});

@@ -18,6 +18,13 @@ const optionalString = z.string().optional().catch(undefined);
 const optionalBoolean = z.boolean().optional().catch(undefined);
 const optionalRecord = z.record(z.unknown()).optional().catch(undefined);
 
+const jsonRecordSchema = z.record(z.unknown()).catch({});
+
+/** A JSON body read as an object; anything else reads as `{}`. */
+export function readJsonRecord(value: unknown): JsonRecord {
+  return jsonRecordSchema.parse(value);
+}
+
 /** `direct_tool` (carmen-tools-mcp); each field is narrowed where it is used. */
 const directToolSchema = z.object({
   action: z.unknown(),
