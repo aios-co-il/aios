@@ -1,15 +1,53 @@
-import type { JsonRecord } from "./run-request.ts";
+import { z } from "npm:zod@3.25.76";
+import { jsonSchema, type JsonRecord } from "./run-request.ts";
 
 /**
  * Readers for LLM tool-call arguments (already JSON-parsed). Well-formed input reads
  * exactly as before; values of the wrong JSON type read as absent unless noted.
  */
 
-/** String argument. Numbers are accepted as their text form, as filters and templates rendered them. */
+/** Numbers are accepted as their text form, as filters and templates rendered them. */
+const textArg = z.union([z.string(), z.number().transform(String)]);
+const optionalTextArg = textArg.optional().catch(undefined);
+const nullableTextArg = z
+  .union([z.null(), textArg])
+  .optional()
+  .catch(undefined);
+
+/** LLMs often quote numbers; numeric strings convert like `Number(x)`. */
+const numericText = z
+  .string()
+  .refine((value) => value.trim() !== "")
+  .transform(Number)
+  .pipe(z.number().finite());
+const numberArg = z.union([z.number(), numericText]);
+const optionalNumberArg = numberArg.optional().catch(undefined);
+const nullableNumberArg = z
+  .union([z.null(), numberArg])
+  .optional()
+  .catch(undefined);
+
+const stringArrayArg = z
+  .array(z.unknown())
+  .transform((items) =>
+    items.filter((item): item is string => typeof item === "string"),
+  )
+  .optional()
+  .catch(undefined);
+
+const objectArg = z.record(jsonSchema).optional().catch(undefined);
+
+/** LLMs often quote booleans, so "true"/"false" count too. */
+const booleanArg = z
+  .union([
+    z.boolean(),
+    z.enum(["true", "false"]).transform((value) => value === "true"),
+  ])
+  .optional();
+
+/** String argument; numbers read as their text form. */
 export function argString(args: JsonRecord, key: string): string | undefined {
-  const value = args[key];
-  if (typeof value === "string") return value;
-  return typeof value === "number" ? String(value) : undefined;
+  return optionalTextArg.parse(args[key]);
 }
 
 /** String argument the tool cannot run without; missing values fail before any request. */
@@ -24,16 +62,12 @@ export function argNullableString(
   args: JsonRecord,
   key: string,
 ): string | null | undefined {
-  return args[key] === null ? null : argString(args, key);
+  return nullableTextArg.parse(args[key]);
 }
 
-/** Numeric argument; numeric strings (LLMs often quote numbers) convert like `Number(x)`. */
+/** Numeric argument; numeric strings convert like `Number(x)`. */
 export function argNumber(args: JsonRecord, key: string): number | undefined {
-  const value = args[key];
-  if (typeof value === "number") return value;
-  if (typeof value !== "string" || value.trim() === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return optionalNumberArg.parse(args[key]);
 }
 
 /** Partial-update value: `null` clears the column; otherwise as `argNumber`. */
@@ -41,7 +75,7 @@ export function argNullableNumber(
   args: JsonRecord,
   key: string,
 ): number | null | undefined {
-  return args[key] === null ? null : argNumber(args, key);
+  return nullableNumberArg.parse(args[key]);
 }
 
 /** Array of strings; non-string entries are dropped. */
@@ -49,10 +83,7 @@ export function argStringArray(
   args: JsonRecord,
   key: string,
 ): string[] | undefined {
-  const value = args[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : undefined;
+  return stringArrayArg.parse(args[key]);
 }
 
 /** Plain JSON object argument (not an array). */
@@ -60,10 +91,7 @@ export function argObject(
   args: JsonRecord,
   key: string,
 ): JsonRecord | undefined {
-  const value = args[key];
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : undefined;
+  return objectArg.parse(args[key]);
 }
 
 /**
@@ -77,18 +105,19 @@ export function argEnum<Value extends string>(
 ): Value | undefined {
   const value = args[key];
   if (!value) return undefined;
-  const match = allowed.find((option) => option === value);
-  if (match === undefined) {
+  const parsed = z
+    .string()
+    .refine((text): text is Value => allowed.some((option) => option === text))
+    .safeParse(value);
+  if (!parsed.success) {
     throw new Error(`${key} must be one of: ${allowed.join(", ")}`);
   }
-  return match;
+  return parsed.data;
 }
 
-/** Boolean argument; LLMs often quote booleans, so "true"/"false" count too. Other present values throw. */
+/** Boolean argument; any other present value throws. */
 export function argBoolean(args: JsonRecord, key: string): boolean | undefined {
-  const value = args[key];
-  if (value === undefined) return undefined;
-  if (typeof value === "boolean") return value;
-  if (value === "true" || value === "false") return value === "true";
-  throw new Error(`${key} must be boolean`);
+  const parsed = booleanArg.safeParse(args[key]);
+  if (!parsed.success) throw new Error(`${key} must be boolean`);
+  return parsed.data;
 }

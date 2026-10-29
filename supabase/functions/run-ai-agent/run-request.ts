@@ -1,138 +1,181 @@
+import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
-import { isObject, jsonObject } from "./json-config.ts";
-import {
-  readWaChatScope,
-  readWaNotifyTarget,
-  type WaChatScope,
-  type WaNotifyTarget,
-} from "./wa-notify.ts";
+import type { SpawnSubagentParams } from "../_shared/subagent.ts";
 
 export type JsonRecord = { [key: string]: Json | undefined };
 
-/** Fields of `direct_tool` (carmen-tools-mcp); each is narrowed where it is used. */
-export interface DirectToolRequest {
-  action?: Json;
-  caller?: Json;
-  approval_id?: Json;
-  approved_by?: Json;
-  name?: Json;
-  args?: Json;
+export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonSchema),
+    z.record(jsonSchema),
+  ]),
+);
+
+const optionalString = z.string().optional().catch(undefined);
+const optionalBoolean = z.boolean().optional().catch(undefined);
+const optionalRecord = z.record(jsonSchema).optional().catch(undefined);
+
+const jsonRecordSchema = z.record(jsonSchema).catch({});
+
+/** A JSON body read as an object; anything else reads as `{}`. */
+export function readJsonRecord(value: unknown): JsonRecord {
+  return jsonRecordSchema.parse(value);
 }
+
+/** `direct_tool` (carmen-tools-mcp); each field is narrowed where it is used. */
+const directToolSchema = z.object({
+  action: z.unknown(),
+  caller: z.unknown(),
+  approval_id: z.unknown(),
+  approved_by: z.unknown(),
+  name: z.unknown(),
+  args: z.record(jsonSchema).catch({}),
+});
+
+export type DirectToolRequest = z.infer<typeof directToolSchema>;
 
 /**
- * The run-ai-agent request body. Values of the wrong JSON type are treated as
- * absent, the same way the brain guard reads `tenant_id` / `agent_id`.
+ * Delivery target sent by Carmen's WhatsApp webhooks; kept as sent because the
+ * chat scope and reminders read its fields one by one.
  */
-export interface RunAgentRequest {
-  agent_id?: string;
-  command_text?: string;
-  temperature?: number;
-  automation_id?: string;
-  user_name?: string;
-  lead_data?: JsonRecord;
-  tenant_id?: string;
-  user_id?: string | null;
-  task_skills?: string[];
-  task_mode?: string;
-  conversation_history?: Json[];
-  conversation_id?: string;
-  wa_notify?: WaNotifyTarget | null;
-  wa_chat_scope?: WaChatScope;
-  model_override?: string;
-  pin_skills_only?: boolean;
-  active_skin?: Json;
-  carmen_automation?: JsonRecord;
-  system_prompt_addon?: string;
-  context_metadata?: JsonRecord;
-  stream?: boolean;
-  surface?: string;
-  brain_slug?: Json;
-  direct_tool?: DirectToolRequest;
+const waNotifySchema = z
+  .object({
+    surface: z.unknown(),
+    tenant_id: z.unknown(),
+    automation_id: z.unknown(),
+    connection_user_id: z.unknown(),
+    chat_id: z.unknown(),
+    phone_number: z.unknown(),
+    is_group: z.unknown(),
+  })
+  .passthrough();
+
+/**
+ * A truthy non-string automation_id still marks an automation run
+ * (isAutomationRun), so it is kept as text instead of being dropped.
+ */
+const automationId = z.preprocess(
+  (value) =>
+    typeof value === "string" || !value ? value || undefined : String(value),
+  z.string().optional(),
+);
+
+/**
+ * The run-ai-agent request body. Known fields of the wrong JSON type read as
+ * absent; other fields pass through for the readers that take the raw body.
+ */
+const runAgentRequestSchema = z
+  .object({
+    agent_id: optionalString,
+    command_text: optionalString,
+    temperature: z.number().optional().catch(undefined),
+    automation_id: automationId,
+    user_name: optionalString,
+    lead_data: optionalRecord,
+    tenant_id: optionalString,
+    user_id: z.string().nullish().catch(undefined),
+    task_skills: z
+      .array(z.unknown())
+      .transform((skills) =>
+        skills.filter((skill): skill is string => typeof skill === "string"),
+      )
+      .optional()
+      .catch(undefined),
+    task_mode: optionalString,
+    conversation_history: z.array(z.unknown()).optional().catch(undefined),
+    conversation_id: optionalString,
+    wa_notify: waNotifySchema.nullish().catch(undefined),
+    model_override: optionalString,
+    pin_skills_only: optionalBoolean,
+    active_skin: z.unknown(),
+    carmen_automation: optionalRecord,
+    system_prompt_addon: optionalString,
+    context_metadata: optionalRecord,
+    stream: optionalBoolean,
+    surface: optionalString,
+    brain_slug: z.unknown(),
+    /** Any truthy direct_tool asks for a direct call (service-only). */
+    direct_tool: z.preprocess(
+      (value) => (value ? value : undefined),
+      directToolSchema.optional().catch({ args: {} }),
+    ),
+  })
+  .passthrough();
+
+export type RunAgentRequest = z.infer<typeof runAgentRequestSchema>;
+
+export type WaNotifyRequest = z.infer<typeof waNotifySchema>;
+
+const waNotifyTargetSchema = z
+  .object({
+    surface: z.literal("whatsapp"),
+    tenant_id: z.string(),
+    automation_id: z
+      .string()
+      .nullish()
+      .transform((id) => id ?? null),
+    connection_user_id: z.string(),
+    chat_id: z.string(),
+    phone_number: z
+      .string()
+      .nullish()
+      .transform((phone) => phone ?? null),
+    is_group: z.boolean(),
+  })
+  .passthrough();
+
+/** Originating WhatsApp chat for subagent results; a partial target delivers nowhere. */
+export function waNotifyTarget(
+  value: unknown,
+): NonNullable<SpawnSubagentParams["notify"]> | null {
+  const parsed = waNotifyTargetSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
-function stringField(value: Json | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
+export function parseRunAgentRequest(value: unknown): RunAgentRequest {
+  const parsed = runAgentRequestSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
 }
 
-function recordField(value: Json | undefined): JsonRecord | undefined {
-  return isObject(value) ? jsonObject(value) : undefined;
-}
-
-function directToolField(
-  value: Json | undefined,
-): DirectToolRequest | undefined {
-  if (!value) return undefined;
-  const raw = jsonObject(value);
-  return {
-    action: raw.action,
-    caller: raw.caller,
-    approval_id: raw.approval_id,
-    approved_by: raw.approved_by,
-    name: raw.name,
-    args: raw.args,
-  };
-}
-
-export function parseRunAgentRequest(value: Json): RunAgentRequest {
-  const body = jsonObject(value);
-  const taskSkills = body.task_skills;
-  return {
-    agent_id: stringField(body.agent_id),
-    command_text: stringField(body.command_text),
-    temperature:
-      typeof body.temperature === "number" ? body.temperature : undefined,
-    automation_id: stringField(body.automation_id),
-    user_name: stringField(body.user_name),
-    lead_data: recordField(body.lead_data),
-    tenant_id: stringField(body.tenant_id),
-    user_id: stringField(body.user_id),
-    task_skills: Array.isArray(taskSkills)
-      ? taskSkills.filter((s): s is string => typeof s === "string")
-      : undefined,
-    task_mode: stringField(body.task_mode),
-    conversation_history: Array.isArray(body.conversation_history)
-      ? body.conversation_history
-      : undefined,
-    conversation_id: stringField(body.conversation_id),
-    wa_notify: readWaNotifyTarget(body.wa_notify),
-    wa_chat_scope: readWaChatScope(body.wa_notify) ?? undefined,
-    model_override: stringField(body.model_override),
-    pin_skills_only:
-      typeof body.pin_skills_only === "boolean"
-        ? body.pin_skills_only
-        : undefined,
-    active_skin: body.active_skin,
-    carmen_automation: recordField(body.carmen_automation),
-    system_prompt_addon: stringField(body.system_prompt_addon),
-    context_metadata: recordField(body.context_metadata),
-    stream: typeof body.stream === "boolean" ? body.stream : undefined,
-    surface: stringField(body.surface),
-    brain_slug: body.brain_slug,
-    direct_tool: directToolField(body.direct_tool),
-  };
-}
+const embeddedNameSchema = z.object({ name: z.string() });
 
 /** `name` of a row whose select type is unresolved (bad column, ambiguous embed). */
 export function embeddedName(value: unknown): string | undefined {
-  return isObject(value) && "name" in value && typeof value.name === "string"
-    ? value.name
-    : undefined;
+  const parsed = embeddedNameSchema.safeParse(value);
+  return parsed.success ? parsed.data.name : undefined;
 }
 
-export type ConversationTurn = {
-  role: "user" | "assistant";
-  content: string;
-};
+const conversationTurnSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.unknown().transform((content) => String(content || "")),
+});
+
+export type ConversationTurn = z.output<typeof conversationTurnSchema>;
+
+const historyMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.unknown(),
+});
+
+/** User/assistant entries of the history sent to the model, content as stored. */
+export function readHistoryMessages(
+  history: unknown[],
+): z.output<typeof historyMessageSchema>[] {
+  return history.flatMap((entry) => {
+    const message = historyMessageSchema.safeParse(entry);
+    return message.success ? [message.data] : [];
+  });
+}
 
 /** User/assistant turns of a stored or client-sent history; other entries are dropped. */
-export function readConversationTurns(
-  value: Json | undefined,
-): ConversationTurn[] {
+export function readConversationTurns(value: unknown): ConversationTurn[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((entry): ConversationTurn[] => {
-    const turn = jsonObject(entry);
-    return turn.role === "user" || turn.role === "assistant"
-      ? [{ role: turn.role, content: String(turn.content || "") }]
-      : [];
+  return value.flatMap((entry) => {
+    const turn = conversationTurnSchema.safeParse(entry);
+    return turn.success ? [turn.data] : [];
   });
 }

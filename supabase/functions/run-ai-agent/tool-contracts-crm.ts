@@ -5,9 +5,7 @@ import type {
   PulseStatus,
 } from "../_shared/campaign-pulse.ts";
 import type { AgentRow } from "./database-contracts.ts";
-import { jsonObject } from "./json-config.ts";
-
-export type { WaNotifyTarget } from "./wa-notify.ts";
+import { z } from "npm:zod@3.25.76";
 
 /** Output of normalizeAdCopyVariants (fb-ad-duplicate.mjs). */
 export type AdCopyVariant = {
@@ -128,8 +126,29 @@ export type BatchHealthResult = {
   error?: string;
 };
 
+const crmRecordDaySchema = z.object({ date: z.string().min(1) });
+
 /** Day string of a synced insight row; non-string dates never match a day window. */
-export function crmRecordDay(data: Json | undefined): string | null {
-  const { date } = jsonObject(data);
-  return typeof date === "string" && date !== "" ? date : null;
+export function crmRecordDay(data: unknown): string | null {
+  const parsed = crmRecordDaySchema.safeParse(data);
+  return parsed.success ? parsed.data.date : null;
+}
+
+/** `name` of an embedded relation (`clients(name)`) whose select type is unresolved. */
+const relationNameSchema = z.object({ name: z.unknown() }).catch({});
+
+export function relationName(value: unknown): unknown {
+  return relationNameSchema.parse(value).name;
+}
+
+/** Legacy finance row; the embedded client name is read from `clients`. */
+const financeEntrySchema = z.object({ clients: z.unknown() }).passthrough();
+
+export function financeEntries(rows: unknown[]) {
+  return rows.flatMap((row) => {
+    const entry = financeEntrySchema.safeParse(row);
+    return entry.success
+      ? [{ ...entry.data, client_name: relationName(entry.data.clients) }]
+      : [];
+  });
 }
