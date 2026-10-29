@@ -13,6 +13,8 @@ import {
   isChatCompletionMessage,
   parseToolArguments,
   readChatUsage,
+  readErrorStack,
+  readManusTask,
   readToolResult,
   toJson,
 } from "./run-loop-contracts.ts";
@@ -86,12 +88,7 @@ Deno.test(
       [],
     );
     assertEquals(parseRunAgentRequest({ direct_tool: true }).direct_tool, {
-      action: undefined,
-      caller: undefined,
-      approval_id: undefined,
-      approved_by: undefined,
-      name: undefined,
-      args: undefined,
+      args: {},
     });
     assertStrictEquals(
       parseRunAgentRequest({ direct_tool: 0 }).direct_tool,
@@ -345,3 +342,18 @@ Deno.test(
     );
   },
 );
+Deno.test("Manus task responses expose their ids and links", () => {
+  assertEquals(readManusTask({ task_id: "t1", task_url: "u", x: 1 }), {
+    task_id: "t1",
+    task_url: "u",
+  });
+  assertEquals(readManusTask("oops"), {});
+});
+
+Deno.test("error stacks are read from thrown objects only", () => {
+  const error = new Error("boom");
+  assertStrictEquals(readErrorStack(error), error.stack);
+  assertStrictEquals(readErrorStack({ stack: "s" }), "s");
+  assertStrictEquals(readErrorStack("boom"), undefined);
+  assertStrictEquals(readErrorStack(null), undefined);
+});

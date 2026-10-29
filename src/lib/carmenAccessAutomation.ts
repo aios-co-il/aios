@@ -1,6 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { mergePrivatePhoneAllowlist as mergePrivatePhoneAllowlistCore } from "./carmenPrivatePhoneAllowlist.mjs";
-
 export type CarmenAutomationConfig = Record<string, unknown> & {
   agent_id?: string;
   carmen_allowed_phones?: string[];
@@ -15,6 +13,14 @@ export type ManusGroupRow = {
   group_name: string;
   group_chat_id: string;
 };
+
+function isAutomationConfig(value: unknown): value is CarmenAutomationConfig {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toAutomationConfig(value: unknown): CarmenAutomationConfig | null {
+  return isAutomationConfig(value) ? value : null;
+}
 
 function normalizePhone(p: string) {
   return (p || "").replace(/\D/g, "");
@@ -33,8 +39,8 @@ export async function fetchCarmenAutomationConfig(
   if (error) throw error;
 
   const configs = (steps || [])
-    .map((s: { configuration?: CarmenAutomationConfig }) => s.configuration)
-    .filter((c): c is CarmenAutomationConfig => !!c)
+    .map((s) => toAutomationConfig(s.configuration))
+    .filter((c): c is CarmenAutomationConfig => c !== null)
     .filter((c) => !c.agent_id || c.agent_id === agentId);
 
   if (!configs.length) return null;
@@ -95,32 +101,4 @@ export function buildPolicyFromAutomation(
     openMemberGroups: cfg.carmen_open_member_groups === true,
     requireDirectAddress: true,
   };
-}
-
-export type PrivatePhoneRow = {
-  phone: string;
-  label?: string;
-  status?: string;
-  source?: "policy" | "identity" | "automation";
-  dev_escalation_tier?: "full" | "bugfix" | null;
-  surfaces?: string[];
-  relationship_note?: string;
-};
-
-type IdentityRow = {
-  phone: string;
-  display_name?: string | null;
-  status?: string;
-  surfaces?: string[] | null;
-  dev_escalation_tier?: string | null;
-  relationship_note?: string | null;
-};
-
-/** Merge all sources that grant private WhatsApp access for display in Agent Hub. */
-export function mergePrivatePhoneAllowlist(params: {
-  policyPhones?: PrivatePhoneRow[];
-  identities?: IdentityRow[];
-  automationPhones?: string[];
-}): PrivatePhoneRow[] {
-  return mergePrivatePhoneAllowlistCore(params) as PrivatePhoneRow[];
 }

@@ -43,11 +43,13 @@ export async function generateGeminiImage({
   apiKey,
   prompt,
   images,
+  mimeTypes,
   aspectRatio,
 }: {
   apiKey: string;
   prompt: string;
   images: Uint8Array[];
+  mimeTypes?: string[];
   aspectRatio: GeminiAspectRatio;
 }): Promise<{
   bytes: Uint8Array;
@@ -55,8 +57,11 @@ export async function generateGeminiImage({
   usage: Record<string, unknown> | null;
 }> {
   const parts = [
-    ...images.map((bytes) => ({
-      inline_data: { mime_type: "image/png", data: toBase64(bytes) },
+    ...images.map((bytes, index) => ({
+      inline_data: {
+        mime_type: mimeTypes?.[index] ?? "image/png",
+        data: toBase64(bytes),
+      },
     })),
     { text: prompt },
   ];

@@ -11,6 +11,8 @@ import {
   livingSeats,
   markParliamentFailed,
   parliamentRounds,
+  parseBrainRoute,
+  withParliamentContext,
   parliamentSeatsFromConfig,
   recordParliamentAnswer,
   type ParliamentState,
@@ -34,17 +36,6 @@ function stateFromRun(run: { context?: unknown }): ParliamentState | null {
   if (!raw || typeof raw !== "object") return null;
   if (!raw.seats || !raw.status) return null;
   return raw;
-}
-
-function withParliament(
-  context: unknown,
-  state: ParliamentState,
-): Record<string, unknown> {
-  const ctx = (context && typeof context === "object" ? context : {}) as Record<
-    string,
-    unknown
-  >;
-  return { ...ctx, parliament: state };
 }
 
 export async function startParliament(ctx: SendContext): Promise<SendResult> {
@@ -134,7 +125,7 @@ export async function startParliament(ctx: SendContext): Promise<SendResult> {
   });
   await sb
     .from("agent_runs")
-    .update({ context: withParliament(parent.context, nextState) })
+    .update({ context: withParliamentContext(parent.context, nextState) })
     .eq("id", parent.id);
 
   const living = livingSeats(nextState);
@@ -239,7 +230,7 @@ export async function onParliamentCallback(args: {
   state = recordParliamentAnswer(state, args.origin, args.content, round);
   await sb
     .from("agent_runs")
-    .update({ context: withParliament(run.context, state) })
+    .update({ context: withParliamentContext(run.context, state) })
     .eq("id", runId);
 
   if (
@@ -250,7 +241,7 @@ export async function onParliamentCallback(args: {
     state = { ...state, round: 2, status: "round2" };
     await sb
       .from("agent_runs")
-      .update({ context: withParliament(run.context, state) })
+      .update({ context: withParliamentContext(run.context, state) })
       .eq("id", runId);
     await insertMessage(sb, {
       tenant_id: args.tenantId,
@@ -279,7 +270,7 @@ export async function onParliamentCallback(args: {
           );
           await sb
             .from("agent_runs")
-            .update({ context: withParliament(run.context, failed) })
+            .update({ context: withParliamentContext(run.context, failed) })
             .eq("id", runId);
         }),
       );
@@ -313,18 +304,22 @@ async function rebuildCtx(
     .select("brain_route_id")
     .eq("id", conversationId)
     .maybeSingle();
-  const { data: route } = await sb
-    .from("agent_brain_routes")
-    .select("*")
-    .eq("id", conv?.brain_route_id)
-    .maybeSingle();
+  const routeId = conv?.brain_route_id;
+  const { data: storedRoute } = routeId
+    ? await sb
+        .from("agent_brain_routes")
+        .select("*")
+        .eq("id", routeId)
+        .maybeSingle()
+    : { data: null };
+  const route = parseBrainRoute(storedRoute);
   return {
     tenantId: run.tenant_id,
     userId: run.user_id || "system",
     agentId: run.agent_id,
     conversationId,
     route: route || {
-      id: conv?.brain_route_id,
+      id: routeId || `fallback-parliament-${conversationId}`,
       tenant_id: run.tenant_id,
       agent_id: run.agent_id,
       slug: "parliament",
@@ -352,7 +347,10 @@ async function synthesizeParliament(
   const sb = serviceClient();
   await sb
     .from("agent_runs")
-    .update({ context: withParliament(context, state), status: "running" })
+    .update({
+      context: withParliamentContext(context, state),
+      status: "running",
+    })
     .eq("id", runId);
   const prompt = buildSynthesisPrompt(state);
   const synthesis = (await aiChat(prompt)) || fallbackSynthesis(state);
@@ -373,7 +371,7 @@ async function synthesizeParliament(
     .update({
       status: "completed",
       final_answer: synthesis,
-      context: withParliament(context, { ...state, status: "done" }),
+      context: withParliamentContext(context, { ...state, status: "done" }),
       completed_at: new Date().toISOString(),
     })
     .eq("id", runId);
@@ -424,7 +422,7 @@ export async function cancelParliament(conversationId: string): Promise<void> {
     .update({
       status: "cancelled",
       context: state
-        ? withParliament(run.context, { ...state, status: "cancelled" })
+        ? withParliamentContext(run.context, { ...state, status: "cancelled" })
         : run.context,
       completed_at: new Date().toISOString(),
     })
@@ -492,7 +490,7 @@ export async function forceContinueParliament(
   let state = skipSilentSeats(loaded.state);
   await sb
     .from("agent_runs")
-    .update({ context: withParliament(run.context, state) })
+    .update({ context: withParliamentContext(run.context, state) })
     .eq("id", run.id);
 
   const living = livingSeats(state);
@@ -504,7 +502,7 @@ export async function forceContinueParliament(
     state = { ...state, round: 2, status: "round2" };
     await sb
       .from("agent_runs")
-      .update({ context: withParliament(run.context, state) })
+      .update({ context: withParliamentContext(run.context, state) })
       .eq("id", run.id);
     await insertMessage(sb, {
       tenant_id: run.tenant_id,

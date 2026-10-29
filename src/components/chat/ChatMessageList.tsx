@@ -36,7 +36,7 @@ interface Message {
   raw_provider_data?: any;
   profiles?: {
     full_name: string;
-  };
+  } | null;
 }
 
 interface ChatMessageListProps {
@@ -44,7 +44,7 @@ interface ChatMessageListProps {
   isLoading: boolean;
   contactId?: string;
   contactType?: "client" | "lead" | "group" | "unknown" | "telegram";
-  agencyId?: string;
+  agencyId?: string | null;
   anchorMessageId?: string;
   currentPeriod?: "week" | "month" | "all";
   onLoadMore?: (period: "week" | "month" | "all") => void;

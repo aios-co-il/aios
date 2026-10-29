@@ -55,8 +55,22 @@ const NO_FREE_BRAIN =
   "נתב חכם: אין מוח חינמי שמאושר לנתוני לקוחות, ואין לך הרשאה למוח הראשי של כרמן.";
 
 /** A connection with endpoint, model and key. */
-function ready(c: EngineConnection): boolean {
+function ready(
+  c: Pick<EngineConnection, "base_url" | "model" | "key_last4">,
+): boolean {
   return !!c.base_url && !!c.model && !!c.key_last4;
+}
+
+/**
+ * A brain that may run without the user picking it: ready, free and approved for client
+ * data. A paid brain never runs automatically, because nothing tracks its spend yet (AIO-211).
+ */
+export function runsUnpicked(
+  c: Pick<EngineConnection, "base_url" | "model" | "key_last4" | "profile">,
+): boolean {
+  return (
+    ready(c) && c.profile.tier === "free" && c.profile.client_data_ok === true
+  );
 }
 
 /**
@@ -76,10 +90,7 @@ export function planBrainEngine(
 
   if (route.config?.router === "free_first") {
     const free = pickableConnections(conns, modelRoutes, allowed).filter(
-      (c) =>
-        ready(c) &&
-        c.profile.tier === "free" &&
-        c.profile.client_data_ok === true,
+      runsUnpicked,
     );
     const fallbackInternal = allowed("internal");
     if (free.length === 0)

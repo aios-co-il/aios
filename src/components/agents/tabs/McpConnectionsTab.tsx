@@ -40,7 +40,7 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
       const { data } = await supabase
         .from("agent_mcp_connections")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .or(`agent_id.eq.${agent.id},agent_id.is.null`)
         .order("created_at", { ascending: false });
       return data ?? [];

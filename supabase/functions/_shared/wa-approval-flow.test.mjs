@@ -1,4 +1,10 @@
-import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assert,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
+import { APPROVAL_ERROR_MESSAGES_HE } from "./carmen/approvals/error-messages.ts";
 import {
   buildApprovalFlowAcceptanceCases,
   buildNoPendingRecovery,
@@ -128,3 +134,67 @@ Deno.test("isMetaApprovalTool covers duplicate variants", () => {
   assertStrictEquals(isMetaApprovalTool("fb_duplicate_ad_variants"), true);
   assertStrictEquals(isMetaApprovalTool("list_clients"), false);
 });
+
+Deno.test(
+  "execution replies speak Hebrew and do not blame Meta for other tools",
+  () => {
+    const broadcast = {
+      title: "שליחת ברודקאסט",
+      tool_name: "send_broadcast_now",
+    };
+    const refused = formatApprovalExecutionReply(
+      { success: false, error: "approver_role_required" },
+      broadcast,
+    );
+    assertMatch(refused, /בעלים או מנהל\/ת סוכנות/);
+    assertMatch(refused, /לא בוצע כלום\.$/);
+    assertNotMatch(refused, /approver_role_required|Meta/);
+    for (const code of [
+      "expired",
+      "not_pending",
+      "no_identity",
+      "unknown_tool",
+    ])
+      assert(
+        formatApprovalExecutionReply({ error: code }, broadcast).includes(
+          APPROVAL_ERROR_MESSAGES_HE[code],
+        ),
+        code,
+      );
+    // Someone else is running it right now: do not say nothing was done.
+    const busy = formatApprovalExecutionReply(
+      { error: "in_progress" },
+      broadcast,
+    );
+    assertMatch(busy, /כבר בביצוע/);
+    assertNotMatch(busy, /לא בוצע כלום/);
+    // Unknown upstream errors pass through as text, objects are not "[object Object]".
+    assertMatch(
+      formatApprovalExecutionReply({ error: "Meta API 500" }, broadcast),
+      /Meta API 500/,
+    );
+    assertNotMatch(
+      formatApprovalExecutionReply(
+        { result: { error: { code: 1 } } },
+        broadcast,
+      ),
+      /object Object/,
+    );
+    assertNotMatch(
+      formatApprovalExecutionReply({ error: "constructor" }, broadcast),
+      /function/,
+    );
+  },
+);
+
+Deno.test(
+  "an execution with an unknown outcome never claims nothing was done",
+  () => {
+    const reply = formatApprovalExecutionReply(
+      { error: "boom", outcome_unknown: true },
+      { title: "השהיית קמפיין" },
+    );
+    assertMatch(reply, /ייתכן שהפעולה כן בוצעה/);
+    assertNotMatch(reply, /לא בוצע כלום/);
+  },
+);

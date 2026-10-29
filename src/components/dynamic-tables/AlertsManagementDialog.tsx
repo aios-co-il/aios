@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Dialog,
@@ -104,7 +105,7 @@ export function AlertsManagementDialog({
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const { error } = await supabase.from("report_alerts").insert({
-        tenant_id: tenantId,
+        tenant_id: requireTenantId(tenantId),
         table_id: tableId,
         ...data,
       });
@@ -115,7 +116,8 @@ export function AlertsManagementDialog({
       toast.success("התראה נוצרה בהצלחה");
       resetForm();
     },
-    onError: () => {
+    onError: (error: Error) => {
+      console.error("Report alert creation failed:", error.message);
       toast.error("שגיאה ביצירת התראה");
     },
   });

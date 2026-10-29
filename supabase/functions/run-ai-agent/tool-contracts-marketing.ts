@@ -1,5 +1,5 @@
+import { z } from "npm:zod@3.25.76";
 import type { AgentRow } from "./database-contracts.ts";
-import { isObject } from "./json-config.ts";
 
 type ClientName = Pick<AgentRow<"clients">, "name">;
 
@@ -51,20 +51,6 @@ export type ChatHistorySearchRow = Pick<
   | "provider"
 > & { clients: ClientName | null };
 
-export type InboundMessageRow = Pick<
-  AgentRow<"chat_messages">,
-  | "id"
-  | "message_text"
-  | "sender_name"
-  | "sender_phone"
-  | "created_at"
-  | "client_id"
-  | "lead_id"
-> & {
-  clients: ClientName | null;
-  leads: Pick<AgentRow<"leads">, "company_name"> | null;
-};
-
 export type FinanceListRow = Pick<
   AgentRow<"finance">,
   "id" | "amount" | "type" | "date" | "client_id"
@@ -107,25 +93,47 @@ export type PrioritizedTaskRow = Pick<
   campaigners: Pick<AgentRow<"campaigners">, "full_name"> | null;
 };
 
-/** Graph `me/adaccounts` entry; fields are passed through unvalidated as before. */
-export type GraphAdAccount = {
-  id?: unknown;
-  name?: unknown;
-  account_status?: unknown;
-  currency?: unknown;
-};
+const graphAdAccountSchema = z
+  .object({
+    id: z.unknown(),
+    name: z.unknown(),
+    account_status: z.unknown(),
+    currency: z.unknown(),
+  })
+  .catch({});
+
+export type GraphAdAccount = z.infer<typeof graphAdAccountSchema>;
+
+/** Graph `me/adaccounts` page; account fields are passed through unvalidated. */
+const graphAdAccountsPageSchema = z
+  .object({
+    data: z.array(graphAdAccountSchema).nullish().catch(null),
+    error: z
+      .object({ message: z.unknown() })
+      .nullish()
+      .catch({ message: undefined }),
+    paging: z
+      .object({ next: z.string().nullish().catch(null) })
+      .nullish()
+      .catch(null),
+  })
+  .catch({});
+
+export function readGraphAdAccountsPage(value: unknown) {
+  return graphAdAccountsPageSchema.parse(value);
+}
 
 export type MetaLeadQuestion = { type: string; label?: string };
 
 /** LLM-supplied lead form question; only `type` and `label` are read. */
-export type MetaLeadQuestionInput = { type?: unknown; label?: unknown };
+const metaLeadQuestionInputSchema = z
+  .object({ type: z.unknown(), label: z.unknown() })
+  .catch({});
+
+export type MetaLeadQuestionInput = z.infer<typeof metaLeadQuestionInputSchema>;
 
 export function readMetaLeadQuestionInput(
   value: unknown,
 ): MetaLeadQuestionInput {
-  if (!isObject(value)) return {};
-  return {
-    type: "type" in value ? value.type : undefined,
-    label: "label" in value ? value.label : undefined,
-  };
+  return metaLeadQuestionInputSchema.parse(value);
 }

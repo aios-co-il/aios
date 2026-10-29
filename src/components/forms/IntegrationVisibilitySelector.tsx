@@ -25,7 +25,7 @@ type Visibility = "private" | "org" | "shared";
 interface Props {
   integrationId: string;
   integrationName: string;
-  ownerId: string | null;
+  ownerId?: string | null | undefined;
   tenantId: string;
 }
 
@@ -195,7 +195,6 @@ export function IntegrationVisibilitySelector({
         integrationId={integrationId}
         integrationName={integrationName}
         integrationOwnerId={ownerId || ""}
-        tenantId={tenantId}
       />
     </div>
   );
