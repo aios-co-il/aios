@@ -84,6 +84,7 @@ import {
 import {
   reportQueryOptions,
   getReportLastSyncAt,
+  getReportSyncProblem,
   refetchOnMountIfEmpty,
 } from "@/lib/reportQueryOptions";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
@@ -365,6 +366,10 @@ export default function DashboardView() {
     if (!stamps.length) return null;
     return stamps.sort().reverse()[0];
   }, [tables]);
+  const dashboardSyncProblem = useMemo(
+    () => getReportSyncProblem(tables),
+    [tables],
+  );
 
   // Fetch fields for all tables (for raw table display)
   const { data: tableFields = {} } = useQuery({
@@ -458,7 +463,7 @@ export default function DashboardView() {
           ),
           // Reuse fresh table data when navigating between report views.
         });
-        return records.map((r: any) => ({
+        return records.map((r) => ({
           ...r,
           _source: table.integration_type,
           _tableName: table.name,
@@ -499,7 +504,7 @@ export default function DashboardView() {
             const records = await queryClient.fetchQuery({
               ...reportRecordsQuery(supabase, table.id, "last_365_days"),
             });
-            return records.map((record: any) => ({
+            return records.map((record) => ({
               ...record,
               _source: table.integration_type,
             }));
@@ -1930,6 +1935,7 @@ export default function DashboardView() {
           </div>
           <ReportDataFreshness
             lastSyncAt={dashboardLastSyncAt}
+            syncProblem={dashboardSyncProblem}
             dataUpdatedAt={recordsUpdatedAt}
             isFetching={recordsFetching}
             className="mt-2"

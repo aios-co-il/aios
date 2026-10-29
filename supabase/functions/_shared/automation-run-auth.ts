@@ -9,10 +9,18 @@
 import type { DbClient } from "./supabase-clients.ts";
 import { isServiceKey } from "./timing-safe-equal.ts";
 
-/** Result of the check: run it, or the HTTP status and error to return. */
+/**
+ * Who the request proved to be: the service role, or a signed-in user. A run a
+ * user started must not take its identity from the payload (AIO-241).
+ */
+export type RunCaller = { kind: "service" } | { kind: "user"; userId: string };
+
+/** Result of the check: run it as this caller, or the HTTP status and error to return. */
 export type DirectRunDecision =
-  | { allowed: true }
+  | { allowed: true; caller: RunCaller }
   | { allowed: false; status: 400 | 401 | 403; error: string };
+
+const SERVICE_CALLER: RunCaller = Object.freeze({ kind: "service" });
 
 type AuthRpcClient = Pick<DbClient, "auth" | "rpc">;
 
@@ -25,7 +33,7 @@ async function callerUserId(
   return error ? null : (data?.user?.id ?? null);
 }
 
-async function isSuperAdmin(supabase: AuthRpcClient, userId: string) {
+async function isSuperAdmin(supabase: Pick<DbClient, "rpc">, userId: string) {
   const admin = await supabase.rpc("is_super_admin", { _user_id: userId });
   if (admin.error) throw admin.error;
   return admin.data === true;
@@ -41,7 +49,9 @@ export async function authorizeDirectAutomationRun(
   serviceKey: string,
   automationTenantId: string | null,
 ): Promise<DirectRunDecision> {
-  if (isServiceKey(token, serviceKey)) return { allowed: true };
+  if (isServiceKey(token, serviceKey)) {
+    return { allowed: true, caller: SERVICE_CALLER };
+  }
 
   const userId = await callerUserId(supabase, token);
   if (!userId) return { allowed: false, status: 401, error: "Unauthorized" };
@@ -54,10 +64,14 @@ export async function authorizeDirectAutomationRun(
       _role: "owner",
     });
     if (owner.error) throw owner.error;
-    if (owner.data === true) return { allowed: true };
+    if (owner.data === true) {
+      return { allowed: true, caller: { kind: "user", userId } };
+    }
   }
 
-  if (await isSuperAdmin(supabase, userId)) return { allowed: true };
+  if (await isSuperAdmin(supabase, userId)) {
+    return { allowed: true, caller: { kind: "user", userId } };
+  }
 
   return {
     allowed: false,
@@ -79,7 +93,9 @@ export async function authorizeTenantCaller(
   tenantId: unknown,
 ): Promise<DirectRunDecision> {
   const token = bearerToken(authHeader);
-  if (isServiceKey(token, serviceKey)) return { allowed: true };
+  if (isServiceKey(token, serviceKey)) {
+    return { allowed: true, caller: SERVICE_CALLER };
+  }
 
   const userId = await callerUserId(service, token);
   if (!userId) return { allowed: false, status: 401, error: "Unauthorized" };
@@ -91,8 +107,13 @@ export async function authorizeTenantCaller(
     check_tenant_id: tenantId,
   });
   if (member.error) throw member.error;
-  if (member.data === true) return { allowed: true };
-  if (await isSuperAdmin(service, userId)) return { allowed: true };
+  if (member.data === true) {
+    return { allowed: true, caller: { kind: "user", userId } };
+  }
+
+  if (await isSuperAdmin(service, userId)) {
+    return { allowed: true, caller: { kind: "user", userId } };
+  }
 
   return {
     allowed: false,
@@ -100,3 +121,7 @@ export async function authorizeTenantCaller(
     error: "Not a member of this tenant",
   };
 }
+
+// The same caller and super-admin lookups gate the Manus senders
+// (_shared/auth/tenant-access.ts, manage-manus-wa/send-auth.ts).
+export { callerUserId, isSuperAdmin };

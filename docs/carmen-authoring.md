@@ -13,7 +13,7 @@
 
 ## שני נתיבי אישור (שניהם מנותבים נכון)
 
-- **UI** (`ApprovalsTab` → `resume-agent-run`): special-case ל-`create_automation` → `carmen-approval-execute`.
+- **UI** (`ApprovalsTab` → `carmen-approval-execute` ישירות, עם בדיקת תפקיד המאשר).
 - **כרמן עצמה** (`run-ai-agent` → `execute_pending_approval` → `carmen-approval-execute`).
 
 ## בטיחות
@@ -29,4 +29,4 @@
 - הפעלה/כיבוי באישור (כרגע ידני בעורך).
 - תצוגה מקדימה ויזואלית של ההצעה בתוך ה-approval לפני אישור.
 
-_קוד: `run-ai-agent` (כלי `propose_automation`), `carmen-approval-execute` (handler), `resume-agent-run` (ניתוב)._
+_קוד: `run-ai-agent` (כלי `propose_automation`), `carmen-approval-execute` (handler)._
