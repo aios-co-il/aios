@@ -36,6 +36,26 @@ Deno.test(
 );
 
 Deno.test(
+  "reference pictures go in input_references as data URLs",
+  async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body));
+      return new Response(JSON.stringify({ data: [{ b64_json: "aGk=" }] }));
+    }) as typeof fetch;
+    await generateOpenRouterImage({
+      apiKey: "k",
+      prompt: "p",
+      references: [{ bytes: new Uint8Array([104, 105]), mime: "image/png" }],
+      fetchImpl,
+    });
+    assertEquals(body.input_references, [
+      { type: "image_url", image_url: { url: "data:image/png;base64,aGk=" } },
+    ]);
+  },
+);
+
+Deno.test(
   "an OpenRouter error is thrown, so the caller can fall back",
   async () => {
     const fetchImpl = (async () =>
