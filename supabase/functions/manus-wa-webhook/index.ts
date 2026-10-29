@@ -1,4 +1,4 @@
-import { providerId } from "./payload-schema.ts";
+import { unwrapSerializedId } from "./payload-schema.ts";
 import { createWebhookHandler } from "./request-handler.ts";
 // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
@@ -590,7 +590,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       key.fromMe ??
       (outer.direction === "outgoing" || inner.direction === "outgoing");
     const directionField = outer.direction ?? inner.direction;
-    const idField = providerId(
+    const idField = unwrapSerializedId(
       outer.id ?? inner.id ?? outer.messageId ?? inner.messageId ?? key.id,
     );
     const senderNameField =
@@ -632,7 +632,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       fromMe: fromMeField,
       direction: directionField,
       id: idField,
-      messageId: providerId(outer.messageId ?? inner.messageId) ?? idField,
+      messageId:
+        unwrapSerializedId(outer.messageId ?? inner.messageId) ?? idField,
       senderName: senderNameField,
       author: authorField,
       hasMedia: hasMediaField,

@@ -24,44 +24,32 @@ const json: z.ZodType<Json> = z.lazy(() =>
 // numeric bodies) that the handler compares or stringifies, so only the nested
 // containers are modelled. A non-object container is dropped, mirroring the
 // handler's `pickObj`, so the rest of the envelope is still processed.
-function container<Child extends z.ZodTypeAny>(child: Child) {
+function objectOrDropped<Child extends z.ZodTypeAny>(child: Child) {
   return z.preprocess(
     (value) => (isPlainObject(value) ? value : undefined),
     child.nullish(),
   );
 }
 
-const opaque = z.record(z.string(), json);
+const jsonObject = z.record(z.string(), json);
 
 // Normalization reads the outer event, one wrapper, then its message container.
 // Model those three layers; deeper provider extensions stay opaque and unknown
 // fields pass through unchanged.
-const messageLayer = z
-  .object({
-    data: container(opaque),
-    payload: container(opaque),
-    message: container(opaque),
-    key: container(opaque),
-  })
-  .catchall(json);
+function layer<Child extends z.ZodTypeAny>(child: Child) {
+  return z
+    .object({
+      data: objectOrDropped(child),
+      payload: objectOrDropped(child),
+      message: objectOrDropped(child),
+      key: objectOrDropped(jsonObject),
+    })
+    .catchall(json);
+}
 
-const wrapperLayer = z
-  .object({
-    data: container(messageLayer),
-    payload: container(messageLayer),
-    message: container(messageLayer),
-    key: container(opaque),
-  })
-  .catchall(json);
-
-const manusPayloadSchema = z
-  .object({
-    data: container(wrapperLayer),
-    payload: container(wrapperLayer),
-    message: container(wrapperLayer),
-    key: container(opaque),
-  })
-  .catchall(json);
+const messageLayer = layer(jsonObject);
+const wrapperLayer = layer(messageLayer);
+const manusPayloadSchema = layer(wrapperLayer);
 
 export type ManusBodyResult =
   | { status: "ok"; payload: Payload }
@@ -79,7 +67,7 @@ export function parseManusBody(body: unknown): ManusBodyResult {
 }
 
 /** whatsapp-web.js sends message ids as `{ _serialized, ... }` objects. */
-export function providerId(value: Json | undefined) {
+export function unwrapSerializedId(value: Json | undefined) {
   if (
     value &&
     typeof value === "object" &&

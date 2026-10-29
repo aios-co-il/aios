@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { parseManusBody, providerId } from "./payload-schema.ts";
+import { parseManusBody, unwrapSerializedId } from "./payload-schema.ts";
 
 for (const value of [null, [], "invalid", 42, true]) {
   Deno.test(`rejects non-object JSON ${JSON.stringify(value)}`, () => {
@@ -79,8 +79,19 @@ for (const [name, payload, expected] of [
   });
 }
 
-Deno.test("providerId reads _serialized from an id object", () => {
-  assertEquals(providerId({ _serialized: "a@c.us", id: "a" }), "a@c.us");
-  assertEquals(providerId(42), 42);
-  assertEquals(providerId(undefined), undefined);
+Deno.test("unwrapSerializedId reads _serialized from an id object", () => {
+  assertEquals(
+    unwrapSerializedId({ _serialized: "a@c.us", id: "a" }),
+    "a@c.us",
+  );
+  assertEquals(unwrapSerializedId(42), 42);
+  assertEquals(unwrapSerializedId(undefined), undefined);
+});
+
+// index.ts reads the id with `String(payload.messageId || payload.id)`; an
+// unwrapped object id must not collapse to "[object Object]".
+Deno.test("unwrapped object ids stringify to the serialized id", () => {
+  const id = { _serialized: "true_972500000000@c.us_ABC", id: "ABC" };
+  assertEquals(String(unwrapSerializedId(id)), "true_972500000000@c.us_ABC");
+  assertEquals(String(id), "[object Object]");
 });
