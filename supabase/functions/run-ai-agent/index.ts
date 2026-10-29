@@ -10137,14 +10137,14 @@ async function executeTool(
           .is("group_id", null)
           .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
       else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const data = await readScopedChatRows(
+      const data = await readScopedChatRows<ChatHistorySearchRow>(
         supabase,
         q,
         chatScope,
         accessibleTenantIds,
       );
-      const fmt = (iso: string) =>
-        new Date(iso).toLocaleString("he-IL", {
+      const fmt = (iso: string | null) =>
+        new Date(iso === null ? 0 : iso).toLocaleString("he-IL", {
           timeZone: "Asia/Jerusalem",
           dateStyle: "short",
           timeStyle: "short",
@@ -10160,7 +10160,7 @@ async function executeTool(
               ? "אין הודעות בחלון הזמן בצ׳אט הנוכחי — נסי days_back גדול יותר או browse_all_chats=true."
               : "אין תוצאות בצ׳אט הנוכחי — נסי מילת תוכן אחרת או browse_all_chats=true."
             : undefined,
-        messages: data.reverse().map((m: ChatHistorySearchRow) => ({
+        messages: data.reverse().map((m) => ({
           when_israel: fmt(m.created_at),
           direction: m.direction,
           from: m.sender_name || m.sender_phone || "",
