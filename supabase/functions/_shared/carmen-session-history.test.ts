@@ -1,7 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   buildCarmenMergedHistory,
-  chatTurnsOnly,
+  conversationMirrorMessages,
   lastAssistantReply,
   sessionHistoryEntries,
 } from "./carmen-session-history.ts";
@@ -15,21 +15,31 @@ Deno.test("sessionHistoryEntries reads only arrays", () => {
   assertEquals(sessionHistoryEntries({ role: "user" }), []);
 });
 
-Deno.test("chatTurnsOnly drops non-turn entries and extra fields", () => {
+Deno.test("mirror messages keep role and content of every object entry", () => {
   assertEquals(
-    chatTurnsOnly([
+    conversationMirrorMessages([
       { role: "user", content: "hi", timestamp: "2026-01-01T00:00:00Z" },
-      null,
-      "noise",
       { role: "system", content: "x" },
-      { role: "assistant" },
+      { role: "assistant", content: [{ type: "text" }] },
       { role: "assistant", content: "hello" },
     ]),
     [
       { role: "user", content: "hi" },
+      { role: "system", content: "x" },
+      { role: "assistant", content: [{ type: "text" }] },
       { role: "assistant", content: "hello" },
     ],
   );
+});
+
+Deno.test("mirror messages skip non-object entries", () => {
+  assertEquals(
+    conversationMirrorMessages([null, "noise", 3, ["user", "hi"]]),
+    [],
+  );
+  const [entry] = conversationMirrorMessages([{ role: "assistant" }]);
+  assertStrictEquals(entry.role, "assistant");
+  assertStrictEquals(entry.content, undefined);
 });
 
 Deno.test("lastAssistantReply finds the newest reply and its age", () => {

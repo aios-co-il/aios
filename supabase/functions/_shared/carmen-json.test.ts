@@ -2,9 +2,12 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   asJsonObject,
   isChatTurn,
+  isPermanentError,
   jsonField,
+  jsonObjectOrNull,
   jsonString,
   mergeCarmenStepConfig,
+  policyEntriesAreParsed,
   toCarmenAutomationConfig,
 } from "./carmen-json.ts";
 
@@ -14,6 +17,42 @@ Deno.test("asJsonObject reads only plain objects", () => {
   assertEquals(asJsonObject(undefined), {});
   assertEquals(asJsonObject(["a"]), {});
   assertEquals(asJsonObject("abc"), {});
+  assertEquals(asJsonObject({ a: { b: [1, null] } }), { a: { b: [1, null] } });
+});
+
+Deno.test("jsonObjectOrNull is null for non-objects", () => {
+  assertEquals(jsonObjectOrNull({ a: 1 }), { a: 1 });
+  for (const value of [null, undefined, ["a"], "abc", 3, true]) {
+    assertStrictEquals(jsonObjectOrNull(value), null);
+  }
+});
+
+Deno.test(
+  "policyEntriesAreParsed checks the first entry for a string phone",
+  () => {
+    assertStrictEquals(
+      policyEntriesAreParsed([{ phone: "972501234567" }]),
+      true,
+    );
+    assertStrictEquals(
+      policyEntriesAreParsed([{ phone: 972501234567 }]),
+      false,
+    );
+    assertStrictEquals(policyEntriesAreParsed(["972501234567"]), false);
+    assertStrictEquals(policyEntriesAreParsed([]), false);
+    assertStrictEquals(policyEntriesAreParsed(null), false);
+  },
+);
+
+Deno.test("isPermanentError reads a truthy permanent flag", () => {
+  assertStrictEquals(
+    isPermanentError(Object.assign(new Error("x"), { permanent: true })),
+    true,
+  );
+  assertStrictEquals(isPermanentError({ permanent: false }), false);
+  assertStrictEquals(isPermanentError(new Error("x")), false);
+  assertStrictEquals(isPermanentError("permanent"), false);
+  assertStrictEquals(isPermanentError(null), false);
 });
 
 Deno.test("jsonString and jsonField", () => {

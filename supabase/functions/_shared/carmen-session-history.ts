@@ -1,16 +1,17 @@
 // Pure helpers over a Carmen session's conversation_history (a `Json` column).
-import { isChatTurn, jsonField, type ChatTurn } from "./carmen-json.ts";
+import { jsonField, jsonObjectOrNull, type JsonObject } from "./carmen-json.ts";
 import type { Json } from "./database.types.ts";
 
 export function sessionHistoryEntries(value: Json | undefined): Json[] {
   return Array.isArray(value) ? value : [];
 }
 
-/** Chat turns only (role + content), for mirroring into ai_conversations. */
-export function chatTurnsOnly(history: Json[]): ChatTurn[] {
-  return history
-    .filter(isChatTurn)
-    .map((m) => ({ role: m.role, content: m.content }));
+/** role + content of every object entry, for mirroring into ai_conversations. */
+export function conversationMirrorMessages(history: Json[]): JsonObject[] {
+  return history.flatMap((m) => {
+    const entry = jsonObjectOrNull(m);
+    return entry ? [{ role: entry.role, content: entry.content }] : [];
+  });
 }
 
 function timestampMs(value: Json | undefined): number {

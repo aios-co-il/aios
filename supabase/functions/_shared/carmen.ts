@@ -37,14 +37,16 @@ import {
 import {
   asJsonObject,
   isChatTurn,
+  isPermanentError,
   jsonString,
   mergeCarmenStepConfig,
+  policyEntriesAreParsed,
   type CarmenAutomationConfig,
   type JsonObject,
 } from "./carmen-json.ts";
 import {
   buildCarmenMergedHistory,
-  chatTurnsOnly,
+  conversationMirrorMessages,
   lastAssistantReply,
   sessionHistoryEntries,
 } from "./carmen-session-history.ts";
@@ -80,7 +82,7 @@ type CarmenTriggerStep = { automation_id: string; configuration: JsonObject };
 
 type ActionStepSendBody = {
   tenantId: string;
-  senderUserId: string;
+  senderUserId: string | null;
   message: string;
   integrationId?: Json;
   groupId?: string;
@@ -1154,13 +1156,7 @@ export async function runCarmenAI(
     return await attempt();
   } catch (firstErr) {
     console.error("❌ runCarmenAI attempt 1 failed:", firstErr);
-    if (
-      typeof firstErr === "object" &&
-      firstErr !== null &&
-      "permanent" in firstErr &&
-      firstErr.permanent
-    )
-      throw firstErr;
+    if (isPermanentError(firstErr)) throw firstErr;
     await new Promise((r) => setTimeout(r, 1000));
     try {
       return await attempt();
@@ -1189,7 +1185,7 @@ export async function syncCarmenToAIConversation(
     const tenantId = session.tenant_id;
     if (!userId || !tenantId) return null;
 
-    const messages = chatTurnsOnly(conversationHistory);
+    const messages = conversationMirrorMessages(conversationHistory);
 
     if (session.ai_conversation_id) {
       await supabase
@@ -1240,7 +1236,7 @@ export async function findActiveCarmenSession(
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("status", "active")
-    .eq("connection_user_id", connectionUserId)
+    .filter("connection_user_id", "eq", connectionUserId)
     .eq("chat_id", origin.chatId)
     .order("created_at", { ascending: false })
     .limit(5);
@@ -1657,18 +1653,9 @@ async function resolveCarmenGroupIdentity(
   }
 
   const staff = await findCarmenTenantStaffByPhone(supabase, tenantId, digits);
-  const firstPolicyEntry = Array.isArray(policyPhoneEntries)
-    ? policyPhoneEntries[0]
-    : undefined;
-  const parsedEntries =
-    Array.isArray(policyPhoneEntries) &&
-    policyPhoneEntries.length &&
-    typeof firstPolicyEntry === "object" &&
-    firstPolicyEntry !== null &&
-    "phone" in firstPolicyEntry &&
-    typeof firstPolicyEntry.phone === "string"
-      ? policyPhoneEntries
-      : parsePolicyPhones(policyPhoneEntries);
+  const parsedEntries = policyEntriesAreParsed(policyPhoneEntries)
+    ? policyPhoneEntries
+    : parsePolicyPhones(policyPhoneEntries);
   const phoneAllowList = policyPhoneList(parsedEntries).length
     ? policyPhoneList(parsedEntries)
     : Array.isArray(allowedPhones)
@@ -1777,7 +1764,7 @@ export async function handleCarmenMessage(
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("status", "active")
-      .eq("connection_user_id", connectionUserId)
+      .filter("connection_user_id", "eq", connectionUserId)
       .eq("chat_id", chatId)
       .limit(5);
     if (stale && stale.length > 0) {
