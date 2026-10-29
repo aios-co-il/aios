@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { errorMessage } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const results: any[] = [];
+    const results: Record<string, unknown>[] = [];
 
     for (const table of tables || []) {
       try {
@@ -51,13 +52,13 @@ Deno.serve(async (req) => {
           ok: res.ok,
           ...body,
         });
-      } catch (e: any) {
-        console.error(`[cron-tiktok] failed for ${table.id}:`, e.message);
+      } catch (e) {
+        console.error(`[cron-tiktok] failed for ${table.id}:`, errorMessage(e));
         results.push({
           table_id: table.id,
           name: table.name,
           ok: false,
-          error: e.message,
+          error: errorMessage(e),
         });
       }
     }
@@ -68,9 +69,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("cron-sync-tiktok-content error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: errorMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

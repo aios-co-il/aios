@@ -9,13 +9,19 @@
 //   - text  → reuse send-green-api-message / send-manus-wa-message (service role)
 //   - image → manus: reuse send-manus-wa-file ; green_api: call Green API sendFileByUrl
 //             directly (the green file function requires a real user, not service role)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
 import {
-  buildTemplateVars,
-  renderTemplate,
-  type TemplateVars,
-} from "../_shared/broadcast/template/template-vars.ts";
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import type { Tables } from "../_shared/database.types.ts";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
+import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
+import { renderTemplate } from "../_shared/broadcast/template/template-vars.ts";
+import {
+  providerMessageId,
+  recipientVars,
+  type RecipientRow,
+} from "./recipient-vars.ts";
 import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
@@ -42,18 +48,9 @@ function jitter(minS: number, maxS: number, seed: number): number {
   return Math.round((lo + frac * (hi - lo)) * 1000);
 }
 
-// Merge fields come from the recipient's vars snapshot; older rows (before
-// vars existed) fall back to name / phone / email columns.
-function recipientVars(r: any): TemplateVars {
-  const base = buildTemplateVars({
-    contact_name: r.contact_name,
-    email: r.email,
-    phone: r.entity_type === "wa_group" ? null : r.phone,
-  });
-  return { ...base, ...(r.vars && typeof r.vars === "object" ? r.vars : {}) };
-}
+type BroadcastRow = Tables<"broadcasts">;
 
-async function invokeEdgeFn(name: string, payload: any) {
+async function invokeEdgeFn(name: string, payload: object) {
   const res = await fetch(`${SB_URL}/functions/v1/${name}`, {
     method: "POST",
     headers: {
@@ -63,18 +60,18 @@ async function invokeEdgeFn(name: string, payload: any) {
     },
     body: JSON.stringify(payload),
   });
-  const json = await res.json().catch(() => ({}));
+  const json: unknown = await res.json().catch(() => ({}));
   return { ok: res.ok, json };
 }
 
 // Direct Green API image send (sendFileByUrl) — used because send-green-api-file needs a user token.
 async function greenApiSendImage(
-  db: any,
-  integrationId: string,
+  db: SupabaseClient,
+  integrationId: string | null,
   tenantId: string,
   senderUserId: string,
   chatPhone: string,
-  imageUrl: string,
+  imageUrl: string | null,
   caption: string,
 ) {
   const { data: integ } = await db
@@ -107,7 +104,7 @@ async function greenApiSendImage(
       caption,
     }),
   });
-  const json = await res.json().catch(() => ({}));
+  const json: unknown = await res.json().catch(() => ({}));
   if (res.ok) {
     await db.from("chat_messages").insert({
       tenant_id: tenantId,
@@ -125,9 +122,9 @@ async function greenApiSendImage(
 }
 
 async function sendOne(
-  db: any,
-  b: any,
-  r: any,
+  db: SupabaseClient,
+  b: BroadcastRow,
+  r: RecipientRow,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const vars = recipientVars(r);
   const body = renderTemplate(b.body_text || "", vars);
@@ -165,7 +162,7 @@ async function sendOne(
       ),
     });
     return res.ok
-      ? { ok: true, messageId: res.json?.id }
+      ? { ok: true, messageId: providerMessageId(res.json, "id") }
       : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
   }
 
@@ -191,7 +188,7 @@ async function sendOne(
             senderUserId,
           });
           return res.ok
-            ? { ok: true, messageId: res.json?.messageId }
+            ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
             : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
         }
         const res = await invokeEdgeFn("send-manus-wa-message", {
@@ -202,7 +199,7 @@ async function sendOne(
           senderUserId,
         });
         return res.ok
-          ? { ok: true, messageId: res.json?.messageId }
+          ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
           : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
       }
       // green_api
@@ -228,9 +225,9 @@ async function sendOne(
             caption: body,
           }),
         });
-        const json2 = await res2.json().catch(() => ({}));
+        const json2: unknown = await res2.json().catch(() => ({}));
         return res2.ok
-          ? { ok: true, messageId: json2?.idMessage }
+          ? { ok: true, messageId: providerMessageId(json2, "idMessage") }
           : { ok: false, error: JSON.stringify(json2).slice(0, 300) };
       }
       const res = await invokeEdgeFn("send-green-api-message", {
@@ -240,10 +237,10 @@ async function sendOne(
         senderUserId,
       });
       return res.ok
-        ? { ok: true, messageId: res.json?.messageId }
+        ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
         : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
-    } catch (e: any) {
-      return { ok: false, error: String(e?.message || e).slice(0, 300) };
+    } catch (e) {
+      return { ok: false, error: String(errorMessage(e) || e).slice(0, 300) };
     }
   }
 
@@ -266,7 +263,7 @@ async function sendOne(
           senderUserId,
         });
         return res.ok
-          ? { ok: true, messageId: res.json?.messageId }
+          ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
           : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
       }
       const res = await invokeEdgeFn("send-manus-wa-message", {
@@ -277,7 +274,7 @@ async function sendOne(
         senderUserId,
       });
       return res.ok
-        ? { ok: true, messageId: res.json?.messageId }
+        ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
         : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
     }
 
@@ -293,7 +290,7 @@ async function sendOne(
         body,
       );
       return res.ok
-        ? { ok: true, messageId: res.json?.idMessage }
+        ? { ok: true, messageId: providerMessageId(res.json, "idMessage") }
         : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
     }
     const res = await invokeEdgeFn("send-green-api-message", {
@@ -303,10 +300,10 @@ async function sendOne(
       senderUserId,
     });
     return res.ok
-      ? { ok: true, messageId: res.json?.messageId }
+      ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
       : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message || e).slice(0, 300) };
+  } catch (e) {
+    return { ok: false, error: String(errorMessage(e) || e).slice(0, 300) };
   }
 }
 
@@ -359,7 +356,11 @@ Deno.serve(async (req) => {
     );
     if (candidatesError) throw candidatesError;
 
-    const summary: any[] = [];
+    const summary: (
+      | { id: string; done: true }
+      | { id: string; capped: true }
+      | { id: string; sentThisRun: number; remainingPending: number }
+    )[] = [];
     let worked = 0;
 
     for (const b of sending || []) {
@@ -476,9 +477,13 @@ Deno.serve(async (req) => {
         .select("stats")
         .eq("id", b.id)
         .maybeSingle();
-      const update: any = {
+      const update: {
+        stats: Record<string, unknown>;
+        status?: string;
+        completed_at?: string;
+      } = {
         stats: {
-          ...(fresh?.stats || {}),
+          ...asRecord(fresh?.stats),
           total: totalCnt ?? 0,
           sent: sentCnt ?? 0,
           failed: failCnt ?? 0,
@@ -502,11 +507,14 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, processed: summary.length, summary }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[broadcast-dispatch]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return new Response(
+      JSON.stringify({ error: String(errorMessage(e) || e) }),
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
   }
 });

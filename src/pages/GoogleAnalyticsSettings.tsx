@@ -441,8 +441,8 @@ export default function GoogleAnalyticsSettings() {
                     const s = integ.settings as Record<string, unknown> | null;
                     const email =
                       (s?.google_email as string) || "חשבון לא ידוע";
-                    const isOwn = (integ as any)._isOwn;
-                    const sharedByName = (integ as any)._sharedByName;
+                    const isOwn = integ._isOwn;
+                    const sharedByName = integ._sharedByName;
                     const needsReauth = Boolean(s?.needs_reauth);
                     return (
                       <div
@@ -517,7 +517,7 @@ export default function GoogleAnalyticsSettings() {
                             onClick={() => {
                               setSharingIntegrationId(integ.id);
                               setSharingIntegrationName(email);
-                              setSharingOwnerId(integ.user_id);
+                              setSharingOwnerId(integ.user_id ?? null);
                             }}
                             title={
                               isOwn

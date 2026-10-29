@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { jsonString } from "@/lib/jsonFields";
 import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +28,9 @@ export function MarketingCalendarView({ pipelineId, onSelectItem }: Props) {
   return (
     <div className="p-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {(items ?? []).map((item: any) => {
-          const imageUrl = item.payload?.image_url;
-          const copy = item.payload?.copy_text;
+        {(items ?? []).map((item) => {
+          const imageUrl = jsonString(item.payload, "image_url");
+          const copy = jsonString(item.payload, "copy_text");
           return (
             <Card
               key={item.id}

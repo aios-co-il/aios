@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
+import type { TablesInsert } from "../_shared/database.types.ts";
+import { getObject, getPath, getString } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,10 +34,12 @@ serve(async (req) => {
       throw new Error("Table not found");
     }
 
-    const settings = table.integration_settings as any;
+    const settings = getObject(table.integration_settings);
     // Support both camelCase and snake_case keys
-    const integrationId = settings?.integration_id || settings?.integrationId;
-    const siteUrl = settings?.site_url || settings?.siteUrl;
+    const integrationId =
+      getPath(settings, "integration_id") || getPath(settings, "integrationId");
+    const siteUrl =
+      getString(settings, "site_url") || getString(settings, "siteUrl");
 
     if (!integrationId || !siteUrl) {
       throw new Error("Missing integration settings");
@@ -52,14 +56,17 @@ serve(async (req) => {
     }
 
     let accessToken = integration.api_key;
-    const integrationSettings = integration.settings as any;
+    const integrationSettings = getObject(integration.settings);
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
 
     // Refresh token if needed
+    const storedExpiresAt = integrationSettings?.expires_at;
     if (
-      integrationSettings?.expires_at &&
-      new Date(integrationSettings.expires_at) < new Date()
+      (typeof storedExpiresAt === "string" ||
+        typeof storedExpiresAt === "number") &&
+      storedExpiresAt &&
+      new Date(storedExpiresAt) < new Date()
     ) {
       const refreshResponse = await fetch(
         "https://oauth2.googleapis.com/token",
@@ -69,7 +76,7 @@ serve(async (req) => {
           body: new URLSearchParams({
             client_id: clientId!,
             client_secret: clientSecret!,
-            refresh_token: integrationSettings.refresh_token,
+            refresh_token: String(integrationSettings?.refresh_token),
             grant_type: "refresh_token",
           }),
         },
@@ -163,7 +170,7 @@ serve(async (req) => {
     }
 
     // Process and insert data
-    const records: any[] = [];
+    const records: TablesInsert<"crm_records">[] = [];
 
     if (searchData.rows) {
       for (const row of searchData.rows) {
@@ -213,10 +220,10 @@ serve(async (req) => {
       JSON.stringify({ success: true, records_synced: records.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Sync error:", error);
     return new Response(
-      JSON.stringify({ error: error.message || String(error) }),
+      JSON.stringify({ error: getString(error, "message") || String(error) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

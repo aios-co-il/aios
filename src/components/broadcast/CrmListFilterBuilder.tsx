@@ -34,14 +34,14 @@ export function CrmListFilterBuilder({
   // the stable key and show the current label. A disabled one that is already
   // selected stays visible so it can be removed.
   const stageOptions = (stages || [])
-    .filter((s: any) => s.is_active || value.stageKeys?.includes(s.stage_key))
-    .map((s: any) => ({
+    .filter((s) => s.is_active || value.stageKeys?.includes(s.stage_key))
+    .map((s) => ({
       value: s.stage_key,
       label: `${s.label || s.stage_key}${s.is_active ? "" : " (לא פעיל)"}`,
     }));
   const statusOptions = (statuses || [])
-    .filter((s: any) => s.is_active || value.statusKeys?.includes(s.status_key))
-    .map((s: any) => ({
+    .filter((s) => s.is_active || value.statusKeys?.includes(s.status_key))
+    .map((s) => ({
       value: s.status_key,
       label: `${s.label || s.status_key}${s.is_active ? "" : " (לא פעיל)"}`,
     }));
@@ -114,7 +114,7 @@ export function CrmListFilterBuilder({
           />
           <BroadcastAudienceMultiSelect
             label="קמפיינר"
-            options={(campaigners.data || []).map((c: any) => ({
+            options={(campaigners.data || []).map((c) => ({
               value: c.id,
               label: c.full_name || "—",
             }))}

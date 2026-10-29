@@ -1,5 +1,41 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Json, TablesInsert } from "../_shared/database.types.ts";
+import {
+  getArray,
+  getObject,
+  getPath,
+  getString,
+  isJsonObject,
+} from "../_shared/provider-json.ts";
+
+type IntegrationSettings = { [key: string]: Json | undefined };
+
+interface IntegrationRow {
+  id: string;
+  tenant_id: string;
+  api_key: string | null;
+  settings: Json | null;
+}
+
+function copySettings(value: Json | null | undefined): IntegrationSettings {
+  return isJsonObject(value) ? { ...value } : {};
+}
+
+function settingsTime(value: Json | undefined): number {
+  if (!value) return 0;
+  return typeof value === "string" || typeof value === "number"
+    ? new Date(value).getTime()
+    : NaN;
+}
+
+function gaCell(
+  row: unknown,
+  kind: "dimensionValues" | "metricValues",
+  index: number,
+): string | undefined {
+  return getString(getArray(row, kind)[index], "value");
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,19 +67,22 @@ serve(async (req) => {
       throw new Error("Table not found");
     }
 
-    const settings = table.integration_settings as any;
+    const settings = getObject(table.integration_settings);
     // Support both integrationId and integration_id
-    const integrationId = settings?.integrationId || settings?.integration_id;
-    const propertyIdRaw = settings?.propertyId || settings?.property_id;
+    const integrationId =
+      getPath(settings, "integrationId") || getPath(settings, "integration_id");
+    const propertyIdSetting =
+      getPath(settings, "propertyId") || getPath(settings, "property_id");
 
-    if (!integrationId || !propertyIdRaw) {
+    if (!integrationId || !propertyIdSetting) {
       throw new Error(
         "Missing integration settings: integrationId=" +
           integrationId +
           ", propertyId=" +
-          propertyIdRaw,
+          propertyIdSetting,
       );
     }
+    const propertyIdRaw = String(propertyIdSetting);
 
     // Get integration (may be repointed to another org email below)
     const { data: initialIntegration, error: integrationError } = await supabase
@@ -58,7 +97,7 @@ serve(async (req) => {
     }
 
     let accessToken = integration.api_key;
-    const integrationSettings = { ...((integration.settings as any) || {}) };
+    const integrationSettings = copySettings(integration.settings);
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
 
@@ -71,9 +110,7 @@ serve(async (req) => {
         return accessToken;
       }
 
-      const expiresAt = integrationSettings?.expires_at
-        ? new Date(integrationSettings.expires_at).getTime()
-        : 0;
+      const expiresAt = settingsTime(integrationSettings?.expires_at);
       const fiveMinFromNow = Date.now() + 5 * 60 * 1000;
       const stale = !expiresAt || expiresAt < fiveMinFromNow;
 
@@ -87,7 +124,7 @@ serve(async (req) => {
           body: new URLSearchParams({
             client_id: clientId!,
             client_secret: clientSecret!,
-            refresh_token: refreshToken,
+            refresh_token: String(refreshToken),
             grant_type: "refresh_token",
           }),
         },
@@ -172,7 +209,7 @@ serve(async (req) => {
 
     // If the stored connection lacks Data API access, try other org GA emails
     // (Anna / Yuval / David's other accounts) and persist the working one.
-    async function loadCandidateIntegrations(): Promise<any[]> {
+    async function loadCandidateIntegrations(): Promise<IntegrationRow[]> {
       const preferredNorm = String(propertyIdRaw).startsWith("properties/")
         ? propertyIdRaw
         : `properties/${propertyId}`;
@@ -183,24 +220,27 @@ serve(async (req) => {
         .eq("is_active", true)
         .order("updated_at", { ascending: false });
 
-      const sameTenant = (rows || []).filter(
-        (r: any) => r.tenant_id === table.tenant_id,
+      const candidateRows: IntegrationRow[] = rows || [];
+      const sameTenant = candidateRows.filter(
+        (r) => r.tenant_id === table.tenant_id,
       );
-      const others = (rows || []).filter(
-        (r: any) => r.tenant_id !== table.tenant_id,
+      const others = candidateRows.filter(
+        (r) => r.tenant_id !== table.tenant_id,
       );
       const ordered = [...sameTenant, ...others].filter(
-        (r: any) => r.id !== integration.id,
+        (r) => r.id !== integration.id,
       );
 
-      const listsProperty = (r: any) => {
-        const props = (r.settings as any)?.available_properties;
+      const listsProperty = (r: IntegrationRow) => {
+        const props = getPath(r.settings, "available_properties");
         if (!Array.isArray(props)) return false;
-        return props.some((p: any) => {
+        return props.some((p: unknown) => {
           const id =
             typeof p === "string"
               ? p
-              : p?.id || p?.propertyId || p?.property_id;
+              : getPath(p, "id") ||
+                getPath(p, "propertyId") ||
+                getPath(p, "property_id");
           return (
             id === preferredNorm ||
             id === propertyId ||
@@ -210,22 +250,20 @@ serve(async (req) => {
       };
 
       const listed = ordered.filter(listsProperty);
-      const rest = ordered.filter((r: any) => !listsProperty(r));
+      const rest = ordered.filter((r) => !listsProperty(r));
       // Preferred first, then those listing the property, then remaining tokens.
       return [integration, ...listed, ...rest];
     }
 
     async function refreshTokenFor(
-      integ: any,
-      settingsObj: any,
+      integ: IntegrationRow,
+      settingsObj: IntegrationSettings,
       force = false,
     ): Promise<string> {
-      let token = integ.api_key as string;
+      let token = String(integ.api_key);
       const refreshToken = settingsObj?.refresh_token;
       if (!refreshToken) return token;
-      const expiresAt = settingsObj?.expires_at
-        ? new Date(settingsObj.expires_at).getTime()
-        : 0;
+      const expiresAt = settingsTime(settingsObj?.expires_at);
       const stale = !expiresAt || expiresAt < Date.now() + 5 * 60 * 1000;
       if (!force && !stale) return token;
 
@@ -237,7 +275,7 @@ serve(async (req) => {
           body: new URLSearchParams({
             client_id: clientId!,
             client_secret: clientSecret!,
-            refresh_token: refreshToken,
+            refresh_token: String(refreshToken),
             grant_type: "refresh_token",
           }),
         },
@@ -291,7 +329,7 @@ serve(async (req) => {
       let resolved = false;
       let lastErr = "";
       for (const cand of candidates) {
-        const candSettings = { ...((cand.settings as any) || {}) };
+        const candSettings = copySettings(cand.settings);
         if (candSettings.needs_reauth) continue;
         try {
           const token = await refreshTokenFor(cand, candSettings, false);
@@ -334,8 +372,8 @@ serve(async (req) => {
           }
           resolved = true;
           break;
-        } catch (e: any) {
-          lastErr = String(e?.message || e);
+        } catch (e) {
+          lastErr = String(getPath(e, "message") || e);
           continue;
         }
       }
@@ -623,7 +661,7 @@ serve(async (req) => {
     }
 
     // Process and insert data
-    const records: any[] = [];
+    const records: TablesInsert<"crm_records">[] = [];
 
     // Traffic sources
     if (trafficData.rows) {
@@ -815,8 +853,8 @@ serve(async (req) => {
       limit: 500,
     };
 
-    let eventsData: any = { rows: [] };
-    let aggregateEventsData: any = { rows: [] };
+    let eventsData: unknown = { rows: [] };
+    let aggregateEventsData: unknown = { rows: [] };
     try {
       const [eventsResponse, aggregateEventsResponse] = await Promise.all([
         fetch(
@@ -844,14 +882,14 @@ serve(async (req) => {
       ]);
       eventsData = await eventsResponse.json();
       aggregateEventsData = await aggregateEventsResponse.json();
-      if (eventsData.error) {
-        console.error("Events report error:", eventsData.error);
+      if (getPath(eventsData, "error")) {
+        console.error("Events report error:", getPath(eventsData, "error"));
         eventsData = { rows: [] };
       }
-      if (aggregateEventsData.error) {
+      if (getPath(aggregateEventsData, "error")) {
         console.error(
           "Aggregate events report error:",
-          aggregateEventsData.error,
+          getPath(aggregateEventsData, "error"),
         );
         aggregateEventsData = { rows: [] };
       }
@@ -860,12 +898,13 @@ serve(async (req) => {
     }
 
     // Process daily event data
-    if (eventsData.rows) {
-      for (const row of eventsData.rows) {
-        const rawDate = row.dimensionValues[0].value;
-        const eventName = row.dimensionValues[1].value;
-        const eventCount = parseInt(row.metricValues[0].value) || 0;
-        const keyEvents = parseInt(row.metricValues[1]?.value) || 0;
+    const eventRows = getArray(eventsData, "rows");
+    if (eventRows.length > 0) {
+      for (const row of eventRows) {
+        const rawDate = gaCell(row, "dimensionValues", 0);
+        const eventName = gaCell(row, "dimensionValues", 1);
+        const eventCount = parseInt(gaCell(row, "metricValues", 0) ?? "") || 0;
+        const keyEvents = parseInt(gaCell(row, "metricValues", 1) ?? "") || 0;
         const finalCount = Math.max(eventCount, keyEvents);
         const formattedDate = rawDate
           ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
@@ -900,11 +939,12 @@ serve(async (req) => {
     }
 
     // Process aggregate event totals (accurate counts without date thresholding)
-    if (aggregateEventsData.rows) {
-      for (const row of aggregateEventsData.rows) {
-        const eventName = row.dimensionValues[0].value;
-        const eventCount = parseInt(row.metricValues[0].value) || 0;
-        const keyEvents = parseInt(row.metricValues[1]?.value) || 0;
+    const aggregateEventRows = getArray(aggregateEventsData, "rows");
+    if (aggregateEventRows.length > 0) {
+      for (const row of aggregateEventRows) {
+        const eventName = gaCell(row, "dimensionValues", 0);
+        const eventCount = parseInt(gaCell(row, "metricValues", 0) ?? "") || 0;
+        const keyEvents = parseInt(gaCell(row, "metricValues", 1) ?? "") || 0;
         const finalCount = Math.max(eventCount, keyEvents);
 
         records.push({
@@ -965,7 +1005,7 @@ serve(async (req) => {
       limit: 100,
     };
 
-    let monthlyOrganicData: any = { rows: [] };
+    let monthlyOrganicData: unknown = { rows: [] };
     try {
       const monthlyOrganicResponse = await fetch(
         `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
@@ -979,10 +1019,10 @@ serve(async (req) => {
         },
       );
       monthlyOrganicData = await monthlyOrganicResponse.json();
-      if (monthlyOrganicData.error) {
+      if (getPath(monthlyOrganicData, "error")) {
         console.error(
           "Monthly organic report error:",
-          monthlyOrganicData.error,
+          getPath(monthlyOrganicData, "error"),
         );
         monthlyOrganicData = { rows: [] };
       }
@@ -991,12 +1031,13 @@ serve(async (req) => {
     }
 
     // Process monthly organic data
-    if (monthlyOrganicData.rows) {
-      for (const row of monthlyOrganicData.rows) {
-        const yearMonth = row.dimensionValues[0].value; // YYYYMM
+    const monthlyOrganicRows = getArray(monthlyOrganicData, "rows");
+    if (monthlyOrganicRows.length > 0) {
+      for (const row of monthlyOrganicRows) {
+        const yearMonth = gaCell(row, "dimensionValues", 0) ?? ""; // YYYYMM
         const formattedMonth = `${yearMonth.substring(0, 4)}-${yearMonth.substring(4, 6)}`;
-        const sessions = parseInt(row.metricValues[0].value) || 0;
-        const users = parseInt(row.metricValues[1].value) || 0;
+        const sessions = parseInt(gaCell(row, "metricValues", 0) ?? "") || 0;
+        const users = parseInt(gaCell(row, "metricValues", 1) ?? "") || 0;
 
         records.push({
           table_id: tableId,
@@ -1060,10 +1101,10 @@ serve(async (req) => {
       JSON.stringify({ success: true, records_synced: records.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Sync error:", error);
     return new Response(
-      JSON.stringify({ error: error.message || String(error) }),
+      JSON.stringify({ error: getPath(error, "message") || String(error) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

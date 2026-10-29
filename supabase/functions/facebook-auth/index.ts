@@ -1,5 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asRecord, asRecords, optString } from "../_shared/provider-json.ts";
+
+/** OAuth state row written by get_auth_url (tenant_settings.setting_value). */
+const parseOAuthState = (value: unknown) => {
+  const state = asRecord(value);
+  return {
+    user_id: optString(state.user_id),
+    integration_type: optString(state.integration_type),
+    frontend_redirect_uri: optString(state.frontend_redirect_uri),
+    redirect_uri: optString(state.redirect_uri),
+  };
+};
+
+const settingsPages = (settings: unknown) =>
+  asRecords(asRecord(settings).pages);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,13 +53,14 @@ serve(async (req) => {
     let action = url.searchParams.get("action");
 
     // Also check for action in body for POST requests
-    let bodyData: any = null;
+    let bodyData: unknown = null;
     if (req.method === "POST" && !action) {
       try {
         const clonedReq = req.clone();
         bodyData = await clonedReq.json();
-        if (bodyData?.action) {
-          action = bodyData.action;
+        const bodyAction = asRecord(bodyData).action;
+        if (typeof bodyAction === "string" && bodyAction) {
+          action = bodyAction;
         }
       } catch {
         // Body parsing failed, continue with URL action
@@ -171,7 +187,7 @@ serve(async (req) => {
       }
 
       const { user_id, integration_type, frontend_redirect_uri } =
-        stateData.setting_value as any;
+        parseOAuthState(stateData.setting_value);
 
       // Clean up state
       await supabase
@@ -236,7 +252,7 @@ serve(async (req) => {
       const finalExpiry = longLivedData.expires_in || expires_in;
 
       // Get user's pages with pagination - Page tokens from long-lived user tokens are PERMANENT!
-      let allPages: any[] = [];
+      let allPages: unknown[] = [];
       let pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&limit=100&access_token=${finalToken}`;
 
       while (pagesUrl) {
@@ -347,7 +363,7 @@ serve(async (req) => {
         user_id,
         integration_type,
         redirect_uri: storedRedirectUri,
-      } = stateData.setting_value as any;
+      } = parseOAuthState(stateData.setting_value);
 
       // Clean up state
       await supabase
@@ -533,9 +549,8 @@ serve(async (req) => {
       }
 
       // First get page access token
-      const settings = integration.settings as any;
-      const pages = settings?.pages || [];
-      const page = pages.find((p: any) => p.id === page_id);
+      const pages = settingsPages(integration.settings);
+      const page = pages.find((p) => p.id === page_id);
       const pageAccessToken = page?.access_token || integration.api_key;
 
       const formsResponse = await fetch(
@@ -563,7 +578,7 @@ serve(async (req) => {
 
     // Subscribe to page webhooks
     if (action === "subscribe_page") {
-      const data = bodyData || (await req.json());
+      const data = asRecord(bodyData || (await req.json()));
       const { integration_id, page_id } = data;
 
       const { data: integration, error } = await supabase
@@ -596,9 +611,8 @@ serve(async (req) => {
         }
       }
 
-      const settings = pagesSource.settings as any;
-      const pages = settings?.pages || [];
-      const page = pages.find((p: any) => p.id === page_id);
+      const pages = settingsPages(pagesSource.settings);
+      const page = pages.find((p) => p.id === page_id);
       const pageAccessToken = page?.access_token;
 
       if (!pageAccessToken) {
@@ -606,7 +620,7 @@ serve(async (req) => {
           "Page access token not found. Page ID:",
           page_id,
           "Available pages:",
-          pages.map((p: any) => p.id),
+          pages.map((p) => p.id),
         );
         return new Response(
           JSON.stringify({ error: "Page access token not found" }),
@@ -639,7 +653,7 @@ serve(async (req) => {
 
       // Update integration settings with selected page
       // IMPORTANT: Use the current integration's settings, not the source settings
-      const currentSettings = (integration.settings as any) || {};
+      const currentSettings = asRecord(integration.settings);
       await supabase
         .from("tenant_integrations")
         .update({

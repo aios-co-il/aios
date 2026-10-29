@@ -1,6 +1,7 @@
 // Syncs connected Facebook Pages (and their IG business accounts) into social_pages table.
 // Stores per-page access tokens for content publishing.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,8 +10,14 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
+interface SyncedPage {
+  platform: string;
+  page_id: string;
+  name: string | undefined;
+}
+
 async function getUserToken(
-  supabase: any,
+  supabase: DbClient,
   tenant_id: string,
 ): Promise<string | null> {
   let { data: integ } = await supabase
@@ -37,10 +44,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const supabase = serviceClient();
     const { tenant_id, client_id } = await req.json().catch(() => ({}));
     if (!tenant_id)
       return new Response(JSON.stringify({ error: "tenant_id required" }), {
@@ -65,7 +69,7 @@ Deno.serve(async (req) => {
         { status: 400, headers: corsHeaders },
       );
 
-    const upserted: any[] = [];
+    const upserted: SyncedPage[] = [];
     for (const p of j?.data || []) {
       // Facebook page
       const fbRow = {
@@ -117,10 +121,13 @@ Deno.serve(async (req) => {
       }),
       { headers: corsHeaders },
     );
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: String(getPath(e, "message") || e) }),
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
   }
 });

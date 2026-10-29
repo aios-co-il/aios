@@ -1,5 +1,16 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asRecord, asRecords, optString } from "../_shared/provider-json.ts";
+
+type GmailTokenRow = {
+  user_id: string;
+  access_token: string;
+  refresh_token: string;
+  expires_at: string;
+};
 // Gmail API proxy v1
 
 const corsHeaders = {
@@ -8,7 +19,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
+async function refreshTokenIfNeeded(
+  supabaseService: SupabaseClient,
+  tokenData: GmailTokenRow,
+): Promise<string> {
   const expiresAt = new Date(tokenData.expires_at);
   if (expiresAt > new Date(Date.now() + 60000)) {
     return tokenData.access_token;
@@ -28,27 +42,31 @@ async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
     }),
   });
 
-  const tokens = await res.json();
-  if (!tokens.access_token) throw new Error("Token refresh failed");
+  const tokens = asRecord(await res.json());
+  const refreshedToken = tokens.access_token;
+  if (!refreshedToken || typeof refreshedToken !== "string")
+    throw new Error("Token refresh failed");
 
-  const newExpires = new Date(Date.now() + tokens.expires_in * 1000);
+  const newExpires = new Date(Date.now() + Number(tokens.expires_in) * 1000);
   await supabaseService
     .from("gmail_tokens")
     .update({
-      access_token: tokens.access_token,
+      access_token: refreshedToken,
       expires_at: newExpires.toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", tokenData.user_id);
 
-  return tokens.access_token;
+  return refreshedToken;
 }
 
-function parseEmailHeader(payload: any, headerName: string): string {
-  const header = payload?.headers?.find(
-    (h: any) => h.name.toLowerCase() === headerName.toLowerCase(),
+function parseEmailHeader(payload: unknown, headerName: string): string {
+  const header = asRecords(asRecord(payload).headers).find(
+    (h) =>
+      typeof h.name === "string" &&
+      h.name.toLowerCase() === headerName.toLowerCase(),
   );
-  return header?.value || "";
+  return optString(header?.value) || "";
 }
 
 function decodeBase64Utf8(base64url: string): string {
@@ -61,22 +79,26 @@ function decodeBase64Utf8(base64url: string): string {
   return new TextDecoder("utf-8").decode(bytes);
 }
 
-function getEmailBody(payload: any): string {
-  if (payload.body?.data) {
-    return decodeBase64Utf8(payload.body.data);
+const bodyData = (part: Record<string, unknown> | undefined) =>
+  optString(asRecord(part?.body).data);
+
+function getEmailBody(message: unknown): string {
+  const payload = asRecord(message);
+  const payloadData = bodyData(payload);
+  if (payloadData) {
+    return decodeBase64Utf8(payloadData);
   }
   if (payload.parts) {
+    const parts = asRecords(payload.parts);
     // Prefer text/html, fallback to text/plain
-    const htmlPart = payload.parts.find((p: any) => p.mimeType === "text/html");
-    const textPart = payload.parts.find(
-      (p: any) => p.mimeType === "text/plain",
-    );
-    const part = htmlPart || textPart;
-    if (part?.body?.data) {
-      return decodeBase64Utf8(part.body.data);
+    const htmlPart = parts.find((p) => p.mimeType === "text/html");
+    const textPart = parts.find((p) => p.mimeType === "text/plain");
+    const partData = bodyData(htmlPart || textPart);
+    if (partData) {
+      return decodeBase64Utf8(partData);
     }
     // Nested multipart
-    for (const p of payload.parts) {
+    for (const p of parts) {
       if (p.parts) {
         const body = getEmailBody(p);
         if (body) return body;
@@ -140,7 +162,7 @@ serve(async (req) => {
             typeof item === "string"
               ? item
               : item && typeof item === "object"
-                ? (item as any).label_id || (item as any).id || ""
+                ? asRecord(item).label_id || asRecord(item).id || ""
                 : "";
           if (typeof id === "string" && id.trim())
             params.append("labelIds", id.trim());
@@ -159,9 +181,9 @@ serve(async (req) => {
       if (!res.ok) throw new Error(data.error?.message || "Gmail API error");
 
       // Fetch metadata for each message
-      const messages = data.messages || [];
+      const messages = asRecords(data.messages);
       const detailed = await Promise.all(
-        messages.slice(0, maxResults).map(async (msg: any) => {
+        messages.slice(0, maxResults).map(async (msg) => {
           const msgRes = await fetch(
             `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`,
             { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -247,7 +269,10 @@ serve(async (req) => {
       // Inline images use Content-Disposition: inline + Content-ID, referenced from HTML via cid:<id>.
       const hasInline =
         hasAttachments &&
-        attachments.some((a: any) => a?.disposition === "inline" && a?.cid);
+        attachments.some((a: unknown) => {
+          const attachment = asRecord(a);
+          return attachment.disposition === "inline" && attachment.cid;
+        });
 
       let rawMessage = "";
 
@@ -296,7 +321,7 @@ serve(async (req) => {
         .replace(/\//g, "_")
         .replace(/=+$/, "");
 
-      const sendBody: any = { raw: encoded };
+      const sendBody: { raw: string; threadId?: unknown } = { raw: encoded };
       if (threadId) sendBody.threadId = threadId;
 
       const res = await fetch(
@@ -382,7 +407,7 @@ serve(async (req) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || "Gmail API error");
 
-      const labels = (data.labels || []).map((l: any) => ({
+      const labels = asRecords(data.labels).map((l) => ({
         id: l.id,
         name: l.name,
         type: l.type, // 'system' or 'user'

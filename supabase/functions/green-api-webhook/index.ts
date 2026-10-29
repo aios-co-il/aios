@@ -6,7 +6,10 @@ import {
   resolveCarmenConnectionRole,
   type CarmenConnectionRole,
 } from "../_shared/carmen-connection-role.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
+import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
+import { getArray, getPath, getString } from "../_shared/provider-json.ts";
+import { extractMessageText } from "./message-text.ts";
 import {
   handleCarmenMessage,
   fetchKnownEntityNames,
@@ -104,7 +107,7 @@ async function fetchMessageContent(
   apiToken: string,
   chatId: string,
   idMessage: string,
-): Promise<any | null> {
+): Promise<unknown> {
   try {
     const response = await fetch(
       `https://api.green-api.com/waInstance${instanceId}/getMessage/${apiToken}`,
@@ -132,89 +135,15 @@ async function fetchMessageContent(
   }
 }
 
-// Helper function to extract message text from various message types
-function extractMessageText(messageData: any, typeMessage: string): string {
-  if (typeMessage === "textMessage") {
-    return (
-      messageData?.textMessageData?.textMessage ||
-      messageData?.textMessage ||
-      ""
-    );
-  } else if (typeMessage === "extendedTextMessage") {
-    return (
-      messageData?.extendedTextMessageData?.text ||
-      messageData?.extendedTextMessage?.text ||
-      ""
-    );
-  } else if (typeMessage === "imageMessage") {
-    return (
-      messageData?.fileMessageData?.caption || messageData?.caption || "[תמונה]"
-    );
-  } else if (typeMessage === "videoMessage") {
-    return (
-      messageData?.fileMessageData?.caption || messageData?.caption || "[וידאו]"
-    );
-  } else if (typeMessage === "audioMessage") {
-    return "[הודעת קול · transcription_failed]";
-  } else if (typeMessage === "documentMessage") {
-    return (
-      messageData?.fileMessageData?.caption ||
-      `[מסמך: ${messageData?.fileMessageData?.fileName || messageData?.fileName || "קובץ"}]`
-    );
-  } else if (typeMessage === "templateMessage") {
-    const templateData = messageData?.templateMessage;
-    return (
-      templateData?.contentText || templateData?.titleText || "[הודעת תבנית]"
-    );
-  } else if (typeMessage === "buttonsMessage") {
-    return messageData?.buttonsMessage?.contentText || "[הודעת כפתורים]";
-  } else if (typeMessage === "listMessage") {
-    return (
-      messageData?.listMessage?.description ||
-      messageData?.listMessage?.title ||
-      "[הודעת רשימה]"
-    );
-  } else if (typeMessage === "contactMessage") {
-    const contactData = messageData?.contactMessageData;
-    if (contactData) {
-      const displayName = contactData.displayName || "איש קשר";
-      const vcard = contactData.vcard || "";
-      const phoneMatch = vcard.match(/TEL[^:]*:([+\d\s-]+)/i);
-      const phoneFromVcard = phoneMatch ? phoneMatch[1].replace(/\s/g, "") : "";
-      return `[איש קשר: ${displayName}${phoneFromVcard ? ` - ${phoneFromVcard}` : ""}]`;
-    }
-    return "[איש קשר]";
-  } else if (typeMessage === "contactsArrayMessage") {
-    const contacts = messageData?.contactsArrayMessageData?.contacts || [];
-    const contactNames = contacts
-      .map((c: any) => c.displayName || "איש קשר")
-      .join(", ");
-    return `[אנשי קשר: ${contactNames || "מספר אנשי קשר"}]`;
-  } else if (typeMessage === "locationMessage") {
-    const locData = messageData?.locationMessageData;
-    return `[מיקום${locData?.nameLocation ? ": " + locData.nameLocation : ""}]`;
-  } else if (typeMessage === "stickerMessage") {
-    return "[סטיקר]";
-  } else if (typeMessage === "reactionMessage") {
-    const reaction =
-      messageData?.reactionMessage?.reaction ||
-      messageData?.extendedTextMessageData?.text ||
-      "👍";
-    return `[תגובה: ${reaction}]`;
-  } else {
-    return `[${typeMessage}]`;
-  }
-}
-
 // Helper function to forward a message to linked team channels
 async function forwardToTeamChannels(
-  supabaseClient: any,
+  supabaseClient: DbClient,
   tenantId: string,
-  connectionUserId: string,
+  connectionUserId: string | null,
   chatId: string,
   senderName: string | null,
   messageText: string,
-  messageData: any,
+  messageData: unknown,
   whatsappGroupId?: string | null,
 ) {
   try {
@@ -245,22 +174,35 @@ async function forwardToTeamChannels(
     }
 
     // Extract file attachments from message data
-    const attachments: any[] = [];
-    const fileData = messageData?.fileMessageData;
-    if (fileData?.downloadUrl) {
-      const isImage = messageData?.typeMessage === "imageMessage";
+    const attachments: { name: string; url: string; type: string }[] = [];
+    const downloadUrl = getString(
+      messageData,
+      "fileMessageData",
+      "downloadUrl",
+    );
+    if (downloadUrl) {
+      const isImage = getPath(messageData, "typeMessage") === "imageMessage";
       attachments.push({
-        name: fileData.fileName || (isImage ? "image.jpg" : "file"),
-        url: fileData.downloadUrl,
+        name:
+          getString(messageData, "fileMessageData", "fileName") ||
+          (isImage ? "image.jpg" : "file"),
+        url: downloadUrl,
         type: isImage ? "image" : "file",
       });
     }
 
     for (const link of links) {
+      if (!connectionUserId) {
+        console.error(
+          "❌ Failed to forward to team channel:",
+          "integration has no connection user",
+        );
+        continue;
+      }
       const prefix = `📱 *וואטסאפ* | ${senderName || chatId.split("@")[0]}`;
       const content = `${prefix}\n${messageText}`;
 
-      const insertData: any = {
+      const insertData: TablesInsert<"team_messages"> = {
         channel_id: link.channel_id,
         tenant_id: tenantId,
         sender_id: connectionUserId,
@@ -315,10 +257,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
+    const supabaseClient = serviceClient();
 
     // Quick health check - if DB is under pressure, return early to avoid piling up
     const healthCheck = await Promise.race([
@@ -385,12 +324,14 @@ Deno.serve(async (req) => {
     }
 
     const tenantId = integration.tenant_id;
+    // user_id can be null: such messages are still stored. Filters use match() so the
+    // request stays `connection_user_id=eq.null`, exactly as before.
     const connectionUserId = integration.user_id;
     const apiToken = integration.api_key;
     const { data: connectionProfile } = await supabaseClient
       .from("profiles")
       .select("full_name")
-      .eq("id", connectionUserId)
+      .match({ id: connectionUserId })
       .maybeSingle();
     const connectionDisplayName = connectionProfile?.full_name || null;
 
@@ -441,7 +382,7 @@ Deno.serve(async (req) => {
         .from("chat_messages")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("raw_provider_data->>idMessage", idMessage)
         .maybeSingle();
 
@@ -475,7 +416,7 @@ Deno.serve(async (req) => {
       }
 
       // Extract message text from fetched content
-      const typeMessage = messageContent?.typeMessage || "unknown";
+      const typeMessage = getString(messageContent, "typeMessage") || "unknown";
       const messageText = messageContent
         ? extractMessageText(messageContent, typeMessage)
         : "[הודעה]";
@@ -533,7 +474,7 @@ Deno.serve(async (req) => {
           const newGroupName =
             realGroupName || `קבוצה ${groupChatId.split("@")[0].slice(-4)}`;
 
-          const insertData: any = {
+          const insertData: TablesInsert<"whatsapp_groups"> = {
             tenant_id: tenantId,
             group_chat_id: groupChatId,
             group_name: newGroupName,
@@ -568,7 +509,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("group_id", groupId)
           .maybeSingle();
 
@@ -643,7 +584,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("client_id", clientId)
           .maybeSingle();
 
@@ -672,7 +613,7 @@ Deno.serve(async (req) => {
             .from("blocked_contacts")
             .select("id")
             .eq("tenant_id", tenantId)
-            .eq("connection_user_id", connectionUserId)
+            .match({ connection_user_id: connectionUserId })
             .eq("lead_id", leadId)
             .maybeSingle();
 
@@ -693,7 +634,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("sender_phone", phoneNumber)
           .maybeSingle();
 
@@ -780,7 +721,7 @@ Deno.serve(async (req) => {
               .from("chat_messages")
               .update({ read_at: new Date().toISOString() })
               .eq("tenant_id", tenantId)
-              .eq("connection_user_id", connectionUserId)
+              .match({ connection_user_id: connectionUserId })
               .eq("group_id", group.id)
               .eq("direction", "inbound")
               .is("read_at", null);
@@ -803,7 +744,7 @@ Deno.serve(async (req) => {
               .from("chat_messages")
               .update({ read_at: new Date().toISOString() })
               .eq("tenant_id", tenantId)
-              .eq("connection_user_id", connectionUserId)
+              .match({ connection_user_id: connectionUserId })
               .eq("client_id", client.id)
               .eq("direction", "inbound")
               .is("read_at", null);
@@ -827,7 +768,7 @@ Deno.serve(async (req) => {
                 .from("chat_messages")
                 .update({ read_at: new Date().toISOString() })
                 .eq("tenant_id", tenantId)
-                .eq("connection_user_id", connectionUserId)
+                .match({ connection_user_id: connectionUserId })
                 .eq("lead_id", lead.id)
                 .eq("direction", "inbound")
                 .is("read_at", null);
@@ -841,7 +782,7 @@ Deno.serve(async (req) => {
                 .from("chat_messages")
                 .update({ read_at: new Date().toISOString() })
                 .eq("tenant_id", tenantId)
-                .eq("connection_user_id", connectionUserId)
+                .match({ connection_user_id: connectionUserId })
                 .eq("sender_phone", phoneNumber)
                 .is("client_id", null)
                 .is("lead_id", null)
@@ -889,7 +830,7 @@ Deno.serve(async (req) => {
         .from("chat_messages")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("raw_provider_data->>idMessage", incomingIdMessage)
         .limit(1)
         .maybeSingle();
@@ -917,6 +858,7 @@ Deno.serve(async (req) => {
 
     // Extract message text based on message type
     let messageText = "";
+    let voiceResolveMeta: ReturnType<typeof buildVoiceMeta> | null = null;
     const messageType = messageData.typeMessage;
 
     if (messageType === "textMessage") {
@@ -987,7 +929,7 @@ Deno.serve(async (req) => {
         isVoice: true,
       });
       // Stash for chat_messages.raw_provider_data._voice (attached at insert).
-      (webhookData as any)._voiceResolve = buildVoiceMeta({
+      voiceResolveMeta = buildVoiceMeta({
         status: voiceStatus,
         transcript: transcription || null,
         source: voiceStatus === VOICE_STATUSES.OK ? "direct_whisper" : "none",
@@ -1030,9 +972,13 @@ Deno.serve(async (req) => {
         messageText = "[איש קשר]";
       }
     } else if (messageType === "contactsArrayMessage") {
-      const contacts = messageData.contactsArrayMessageData?.contacts || [];
+      const contacts = getArray(
+        messageData,
+        "contactsArrayMessageData",
+        "contacts",
+      );
       const contactNames = contacts
-        .map((c: any) => c.displayName || "איש קשר")
+        .map((c) => getString(c, "displayName") || "איש קשר")
         .join(", ");
       messageText = `[אנשי קשר: ${contactNames || "מספר אנשי קשר"}]`;
     } else if (messageType === "locationMessage") {
@@ -1116,7 +1062,7 @@ Deno.serve(async (req) => {
         const newGroupName =
           groupApiData.name || `קבוצה ${groupChatId.split("@")[0].slice(-4)}`;
 
-        const insertData: any = {
+        const insertData: TablesInsert<"whatsapp_groups"> = {
           tenant_id: tenantId,
           group_chat_id: groupChatId,
           group_name: newGroupName,
@@ -1153,7 +1099,7 @@ Deno.serve(async (req) => {
         if (looksLikePlaceholder || looksLikeSenderName) {
           const groupApiData = await fetchGroupDataFromApi(groupChatId);
 
-          const updateFields: any = {};
+          const updateFields: TablesUpdate<"whatsapp_groups"> = {};
           if (groupApiData.name && groupApiData.name !== currentName) {
             updateFields.group_name = groupApiData.name;
           }
@@ -1182,7 +1128,7 @@ Deno.serve(async (req) => {
         .from("blocked_contacts")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("group_id", groupId)
         .maybeSingle();
 
@@ -1251,7 +1197,9 @@ Deno.serve(async (req) => {
           sender_phone: participantPhone,
           sender_name: senderData.senderName || null,
           is_blocked: false,
-          raw_provider_data: webhookData,
+          raw_provider_data: voiceResolveMeta
+            ? { ...webhookData, _voiceResolve: voiceResolveMeta }
+            : webhookData,
         });
 
       if (insertError) {
@@ -1318,7 +1266,7 @@ Deno.serve(async (req) => {
           .or("name.ilike.%לא נקרא%,name.ilike.%unread%")
           .maybeSingle();
 
-        if (unreadTag) {
+        if (unreadTag && connectionUserId) {
           const tagData = {
             tag_id: unreadTag.id,
             user_id: connectionUserId,
@@ -1348,7 +1296,7 @@ Deno.serve(async (req) => {
             .eq("tenant_id", tenantId)
             .eq("group_id", groupId);
           if (groupTagsData) {
-            groupTags = groupTagsData.map((t: any) => t.tag_id);
+            groupTags = groupTagsData.map((t) => t.tag_id);
           }
 
           // Fetch group name and invite link
@@ -1476,7 +1424,7 @@ Deno.serve(async (req) => {
       .from("blocked_contacts")
       .select("id")
       .eq("tenant_id", tenantId)
-      .eq("connection_user_id", connectionUserId)
+      .match({ connection_user_id: connectionUserId })
       .eq("sender_phone", phoneNumber)
       .maybeSingle();
 
@@ -1520,7 +1468,7 @@ Deno.serve(async (req) => {
         .from("blocked_contacts")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("connection_user_id", connectionUserId)
+        .match({ connection_user_id: connectionUserId })
         .eq("client_id", clientId)
         .maybeSingle();
 
@@ -1580,7 +1528,7 @@ Deno.serve(async (req) => {
           .from("blocked_contacts")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("connection_user_id", connectionUserId)
+          .match({ connection_user_id: connectionUserId })
           .eq("lead_id", leadId)
           .maybeSingle();
 
@@ -1655,14 +1603,12 @@ Deno.serve(async (req) => {
     }
 
     // Save the message to THIS tenant only
-    const voiceMetaForStore = (webhookData as any)._voiceResolve || null;
+    const voiceMetaForStore = voiceResolveMeta || null;
     const rawDataWithAvatar = {
       ...webhookData,
       ...(senderProfileImage ? { senderProfileImage } : {}),
       ...(voiceMetaForStore ? { _voice: voiceMetaForStore } : {}),
     };
-    // Don't persist the transient resolve helper field.
-    delete (rawDataWithAvatar as any)._voiceResolve;
 
     const { error: insertError } = await supabaseClient
       .from("chat_messages")
@@ -1707,9 +1653,9 @@ Deno.serve(async (req) => {
         .or("name.ilike.%לא נקרא%,name.ilike.%unread%")
         .maybeSingle();
 
-      if (unreadTag) {
+      if (unreadTag && connectionUserId) {
         // Prepare the tag association data
-        const tagData: any = {
+        const tagData: TablesInsert<"chat_contact_tags"> = {
           tag_id: unreadTag.id,
           user_id: connectionUserId,
           tenant_id: tenantId,
@@ -1766,7 +1712,9 @@ Deno.serve(async (req) => {
         err,
       );
       carmenRole =
-        integration?.settings?.carmen_role === "none" ? "none" : "secondary";
+        getPath(integration.settings, "carmen_role") === "none"
+          ? "none"
+          : "secondary";
     }
     if (isGroup && isIncoming && sourcePhoneNumber) {
       try {
@@ -1777,11 +1725,10 @@ Deno.serve(async (req) => {
           .in("integration_type", ["manus_wa", "green_api"])
           .eq("is_active", true)
           .limit(100);
-        isKnownBotGroupMessage = (botIntegrations || []).some((row: any) => {
-          const botPhone = String(row?.settings?.phone_number || "").replace(
-            /\D/g,
-            "",
-          );
+        isKnownBotGroupMessage = (botIntegrations || []).some((row) => {
+          const botPhone = String(
+            getPath(row.settings, "phone_number") || "",
+          ).replace(/\D/g, "");
           return botPhone && botPhone.slice(-9) === sourceTail;
         });
         if (isKnownBotGroupMessage) {
@@ -1804,7 +1751,8 @@ Deno.serve(async (req) => {
     if (
       (isIncoming || isManualOutgoing) &&
       !isKnownBotGroupMessage &&
-      carmenRole !== "none"
+      carmenRole !== "none" &&
+      connectionUserId
     ) {
       try {
         // A manual outgoing message inside a group is still a GROUP turn. Keep
@@ -1841,7 +1789,7 @@ Deno.serve(async (req) => {
           sendMessage: async (chatId: string, message: string) => {
             return await sendGreenApiMessage(
               instanceId,
-              apiToken,
+              String(apiToken),
               chatId,
               message,
             );
@@ -1876,7 +1824,7 @@ Deno.serve(async (req) => {
 
         const { data: contactTagsData } = await tagQuery;
         if (contactTagsData) {
-          contactTags = contactTagsData.map((t: any) => t.tag_id);
+          contactTags = contactTagsData.map((t) => t.tag_id);
         }
 
         // Determine contact name

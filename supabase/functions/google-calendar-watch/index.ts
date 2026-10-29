@@ -7,6 +7,9 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, Tables } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import { getString } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,8 +18,11 @@ const corsHeaders = {
 };
 
 async function refreshAccessTokenIfNeeded(
-  serviceClient: any,
-  token: any,
+  serviceClient: DbClient,
+  token: Pick<
+    Tables<"calendar_tokens">,
+    "expires_at" | "access_token" | "refresh_token" | "user_id"
+  >,
 ): Promise<{ accessToken: string; needsReconnect: boolean }> {
   const expiresAt = new Date(token.expires_at);
   if (expiresAt > new Date(Date.now() + 60_000)) {
@@ -83,7 +89,7 @@ async function stopExistingChannel(
   }
 }
 
-async function startWatch(serviceClient: any, userId: string) {
+async function startWatch(serviceClient: DbClient, userId: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 
   const { data: token, error } = await serviceClient
@@ -169,16 +175,16 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const serviceClient = createClient(supabaseUrl, serviceKey);
+    const serviceClient = createClient<Database>(supabaseUrl, serviceKey);
 
-    let body: any = {};
+    let body: unknown = {};
     try {
       body = await req.json();
     } catch {
       /* ignore */
     }
 
-    let userId: string | null = body?.user_id || null;
+    let userId: string | null = getString(body, "user_id") || null;
     if (!userId) {
       const authHeader = req.headers.get("Authorization") || "";
       const anonClient = createClient(

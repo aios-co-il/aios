@@ -17,6 +17,8 @@ import {
   CalendarProvider,
 } from "@/lib/calendarApi";
 import { markLinkedTaskDoneForCalendarEvent } from "@/lib/taskCalendarSync";
+import { parseCalendarEventsPayload } from "@/lib/calendarEventsPayload";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 
 function getStoredProvider(): CalendarProvider {
   return (
@@ -104,10 +106,10 @@ export function InteractiveCalendar() {
       });
 
       await openUnifiedCalendarConnection({ tenantId });
-    } catch (e: any) {
+    } catch (e) {
       listenerCleanupRef.current?.();
       listenerCleanupRef.current = null;
-      toast.error(`שגיאה בהתחברות ליומן: ${e?.message || ""}`);
+      toast.error(`שגיאה בהתחברות ליומן: ${errorMessage(e)}`);
     }
   };
   // Fetch events
@@ -122,11 +124,12 @@ export function InteractiveCalendar() {
       const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const twoMonthsLater = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
-      return await getCalendarEvents(
+      const data: unknown = await getCalendarEvents(
         oneMonthAgo.toISOString(),
         twoMonthsLater.toISOString(),
         { tenantId: tenantId!, provider: getStoredProvider() },
       );
+      return parseCalendarEventsPayload(data);
     },
     enabled: !!userId && !!tenantId,
     staleTime: 1000 * 60 * 2,
@@ -186,7 +189,7 @@ export function InteractiveCalendar() {
   const events: CalendarEvent[] = useMemo(() => {
     if (!eventsData?.events) return [];
     return eventsData.events
-      .map((event: any) => {
+      .map((event) => {
         const startStr = event?.start?.dateTime || event?.start?.date;
         const endStr = event?.end?.dateTime || event?.end?.date;
         if (!startStr) return null;
@@ -199,7 +202,7 @@ export function InteractiveCalendar() {
           end = new Date(start.getTime() + 60 * 60 * 1000);
         }
         return {
-          id: event.id,
+          id: event.id ?? "",
           title: event.summary || "ללא כותרת",
           start,
           end,
@@ -260,7 +263,7 @@ export function InteractiveCalendar() {
           <AlertTitle>יומנים מחוברים ({calendars.length})</AlertTitle>
           <AlertDescription>
             <div className="flex flex-wrap gap-2 mt-2">
-              {calendars.map((cal: any) => (
+              {calendars.map((cal) => (
                 <div
                   key={cal.id}
                   className="flex items-center gap-2 px-3 py-1 rounded-full border bg-background"
@@ -277,9 +280,9 @@ export function InteractiveCalendar() {
           </AlertDescription>
         </Alert>
       )}
-      {(error as any)?.message &&
-        (((error as any).message || "").includes("invalid_grant") ||
-          ((error as any).message || "").includes("401")) && (
+      {error?.message &&
+        ((error.message || "").includes("invalid_grant") ||
+          (error.message || "").includes("401")) && (
           <Alert>
             <AlertTitle>נדרש להתחבר מחדש ליומן</AlertTitle>
             <AlertDescription className="flex items-center justify-between gap-2">

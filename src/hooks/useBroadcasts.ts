@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { EmailAttachment } from "../../supabase/functions/_shared/broadcast/template/email-attachments.ts";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { requireTenantId } from "@/lib/requireTenantId";
@@ -10,7 +11,7 @@ export type BroadcastStatus =
 
 export type AudienceFilterMode = "include" | "exclude";
 
-export interface AudienceFilter {
+export type AudienceFilter = {
   source: "clients" | "leads" | "campaigners" | "list" | "wa_groups";
   statuses?: string[]; // clients
   statusMode?: AudienceFilterMode;
@@ -29,7 +30,7 @@ export interface AudienceFilter {
   groupIds?: string[]; // source = wa_groups (whatsapp_groups UUIDs)
   includeIds?: string[]; // manual selection within a source
   excludeIds?: string[];
-}
+};
 
 export interface Broadcast {
   id: string;
@@ -112,9 +113,7 @@ export function useBroadcasts() {
           from_email: payload.from_email ?? null,
           from_name: payload.from_name ?? null,
           reply_to: payload.reply_to ?? null,
-          audience_filter: (payload.audience_filter ?? {
-            source: "leads",
-          }) as any,
+          audience_filter: payload.audience_filter ?? { source: "leads" },
           scheduled_at: payload.scheduled_at ?? null,
           throttle_min_seconds: payload.throttle_min_seconds ?? 12,
           throttle_max_seconds: payload.throttle_max_seconds ?? 20,
@@ -136,7 +135,7 @@ export function useBroadcasts() {
     }: Partial<Broadcast> & { id: string }) => {
       const { error } = await supabase
         .from("broadcasts")
-        .update(patch as any)
+        .update(patch)
         .eq("id", id);
       if (error) throw error;
     },
@@ -165,7 +164,7 @@ export function useBroadcasts() {
       },
     );
     if (error) throw error;
-    return data as { success: boolean; total: number; sample: any[] };
+    return data as { success: boolean; total: number; sample: unknown[] };
   };
 
   /** Freeze the recipient snapshot for a saved broadcast. */
@@ -199,7 +198,7 @@ export function useBroadcasts() {
       if (!res?.total && res?.total !== 0)
         throw new Error("אין נמענים תקינים לדיוור");
       if (res.total === 0) throw new Error("אין נמענים תקינים לדיוור");
-      const patch: any = sendNow
+      const patch: TablesUpdate<"broadcasts"> = sendNow
         ? {
             status: "sending",
             scheduled_at: new Date().toISOString(),

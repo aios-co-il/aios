@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import {
   Plus,
   Trash2,
@@ -107,10 +108,11 @@ export function BroadcastDomainSettings() {
       setFromName("");
       setLocal("noreply");
       toast.success(`נוסף: ${result.email}`);
-    } catch (e: any) {
+    } catch (e) {
+      const message = errorMessage(e);
       toast.error(
         "שגיאה: " +
-          (e?.message?.includes("duplicate") ? "הדומיין כבר קיים" : e?.message),
+          (message.includes("duplicate") ? "הדומיין כבר קיים" : message),
       );
     }
   };
@@ -141,8 +143,8 @@ export function BroadcastDomainSettings() {
       showSwapToast(result.wasSwapped);
       toast.success(`עודכן: ${result.email}`);
       cancelEdit();
-    } catch (e: any) {
-      toast.error("שגיאה בעדכון: " + e?.message);
+    } catch (e) {
+      toast.error("שגיאה בעדכון: " + errorMessage(e));
     }
   };
 

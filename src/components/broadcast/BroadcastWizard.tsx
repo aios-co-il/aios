@@ -47,6 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import {
   Users,
   Image as ImageIcon,
@@ -258,7 +259,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
 
   const selectedProvider = useMemo<"green_api" | "manus_wa" | "resend">(() => {
     if (channel === "email") return "resend";
-    const i = (integrations || []).find((x: any) => x.id === integrationId);
+    const i = (integrations || []).find((x) => x.id === integrationId);
     return (i?.integration_type as "green_api" | "manus_wa") || "green_api";
   }, [integrations, integrationId, channel]);
 
@@ -320,12 +321,12 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         const { data } = await q.limit(1000);
         let rows = data || [];
         if (clientStatuses.length) {
-          rows = rows.filter((c: any) => {
+          rows = rows.filter((c) => {
             const matches = clientStatuses.includes(c.status);
             return clientStatusMode === "include" ? matches : !matches;
           });
         }
-        return rows.map((c: any) => ({
+        return rows.map((c) => ({
           id: c.id,
           label: c.contact_name || c.name || c.phone,
           phone: c.phone,
@@ -343,18 +344,20 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         const { data } = await q.limit(1000);
         let rows = data || [];
         if (leadStageKeys.length) {
-          rows = rows.filter((l: any) => {
+          rows = rows.filter((l) => {
             const matches = leadStageKeys.includes(l.status);
             return leadStageMode === "include" ? matches : !matches;
           });
         }
         if (leadStatusKeys.length) {
-          rows = rows.filter((l: any) => {
-            const matches = leadStatusKeys.includes(l.response_status);
+          rows = rows.filter((l) => {
+            const matches =
+              l.response_status !== null &&
+              leadStatusKeys.includes(l.response_status);
             return leadStatusMode === "include" ? matches : !matches;
           });
         }
-        return rows.map((l: any) => ({
+        return rows.map((l) => ({
           id: l.id,
           label: l.contact_name || l.company_name || l.phone,
           phone: l.phone,
@@ -367,7 +370,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         .eq("tenant_id", tenantId);
       if (activeOnly) q = q.eq("active", true);
       const { data } = await q.limit(1000);
-      return (data || []).map((c: any) => ({
+      return (data || []).map((c) => ({
         id: c.id,
         label: c.full_name || c.phone,
         phone: c.phone,
@@ -386,8 +389,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
     try {
       const res = await previewAudience(buildFilter(), channel);
       setAudienceCount(res.total);
-    } catch (e: any) {
-      toast.error("שגיאה בחישוב קהל: " + (e?.message || ""));
+    } catch (e) {
+      toast.error("שגיאה בחישוב קהל: " + errorMessage(e));
       setAudienceCount(null);
     } finally {
       setPreviewing(false);
@@ -513,15 +516,15 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       );
       onOpenChange(false);
       onDone?.();
-    } catch (e: any) {
-      toast.error("שגיאה: " + (e?.message || "לא ניתן ליצור דיוור"));
+    } catch (e) {
+      toast.error("שגיאה: " + (errorMessage(e) || "לא ניתן ליצור דיוור"));
     } finally {
       setSubmitting(false);
     }
   };
 
   const filteredGroups = (waGroups || []).filter(
-    (g: any) =>
+    (g) =>
       !groupSearch ||
       g.group_name.toLowerCase().includes(groupSearch.toLowerCase()),
   );
@@ -609,7 +612,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             </div>
           ) : (
             <WaProviderConnectionPicker
-              integrations={integrations as any}
+              integrations={integrations}
               value={integrationId}
               onChange={setIntegrationId}
             />
@@ -683,7 +686,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                         type="button"
                         className="underline"
                         onClick={() => {
-                          const allIds = filteredGroups.map((g: any) => g.id);
+                          const allIds = filteredGroups.map((g) => g.id);
                           setSelectedGroupIds(
                             selectedGroupIds.length === allIds.length
                               ? []
@@ -697,7 +700,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                       </button>
                     </div>
                     <div className="max-h-56 overflow-y-auto space-y-1 rounded-lg border p-2">
-                      {filteredGroups.map((g: any) => (
+                      {filteredGroups.map((g) => (
                         <label
                           key={g.id}
                           className="flex items-center gap-2 rounded p-1.5 text-sm hover:bg-muted cursor-pointer"
@@ -797,7 +800,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                 />
                 <BroadcastAudienceMultiSelect
                   label="סטטוס מענה"
-                  options={(leadStatuses || []).map((s: any) => ({
+                  options={(leadStatuses || []).map((s) => ({
                     value: s.status_key,
                     label: s.label || s.status_key,
                   }))}
@@ -824,7 +827,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
               (chatTags || []).length > 0 && (
                 <BroadcastAudienceMultiSelect
                   label="תגיות (אופציונלי)"
-                  options={(chatTags || []).map((t: any) => ({
+                  options={(chatTags || []).map((t) => ({
                     value: t.id,
                     label: t.name,
                   }))}
@@ -862,9 +865,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                         type="button"
                         className="underline"
                         onClick={() => {
-                          const all = (candidates.data || []).map(
-                            (c: any) => c.id,
-                          );
+                          const all = (candidates.data || []).map((c) => c.id);
                           setSelectedIds(
                             selectedIds.length === all.length ? [] : all,
                           );
@@ -879,13 +880,13 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                       ) : (
                         (candidates.data || [])
                           .filter(
-                            (c: any) =>
+                            (c) =>
                               !candidateSearch ||
                               (c.label || "").includes(candidateSearch) ||
                               (c.phone || "").includes(candidateSearch),
                           )
                           .slice(0, 300)
-                          .map((c: any) => (
+                          .map((c) => (
                             <label
                               key={c.id}
                               className="flex items-center gap-2 text-sm"

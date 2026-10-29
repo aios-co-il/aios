@@ -3,6 +3,7 @@
 // shows an "edge function" error (404 on the OPTIONS preflight).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { asArray, asRecord } from "../_shared/provider-json.ts";
 import {
   GSC_PERIOD_DEFINITIONS,
   fetchGscKeywordsFromApi,
@@ -77,14 +78,14 @@ serve(async (req) => {
 
     // Refresh token if needed
     let accessToken = integration.api_key;
-    const settings = integration.settings as any;
-    const ownerEmail = settings?.google_email || null;
+    const settings = asRecord(integration.settings);
+    const ownerEmail = settings.google_email || null;
 
     const refreshAccessToken = async (): Promise<{
       ok: boolean;
       reason?: string;
     }> => {
-      if (!settings?.refresh_token)
+      if (!settings.refresh_token)
         return { ok: false, reason: "missing_refresh_token" };
       const refreshResponse = await fetch(
         "https://oauth2.googleapis.com/token",
@@ -94,7 +95,7 @@ serve(async (req) => {
           body: new URLSearchParams({
             client_id: clientId,
             client_secret: clientSecret,
-            refresh_token: settings.refresh_token,
+            refresh_token: String(settings.refresh_token),
             grant_type: "refresh_token",
           }),
         },
@@ -117,7 +118,12 @@ serve(async (req) => {
       return { ok: false, reason: refreshData.error || "refresh_failed" };
     };
 
-    if (settings?.expires_at && new Date(settings.expires_at) < new Date()) {
+    const expiresAt = settings.expires_at;
+    if (
+      (typeof expiresAt === "string" || typeof expiresAt === "number") &&
+      expiresAt &&
+      new Date(expiresAt) < new Date()
+    ) {
       await refreshAccessToken();
     }
 
@@ -167,7 +173,13 @@ serve(async (req) => {
     }
 
     // Build request body for GSC API
-    const requestBody: any = {
+    const requestBody: {
+      startDate: string;
+      endDate: string;
+      dimensions: string[];
+      rowLimit: number;
+      dataState: string;
+    } = {
       startDate: start,
       endDate: end,
       dimensions: ["query"],
@@ -189,7 +201,7 @@ serve(async (req) => {
     // Otherwise, fetch a single page (1,000 rows).
     const maxPages = aggregateAll ? 5 : 1;
     const pageSize = 1000;
-    const collectedRows: any[] = [];
+    const collectedRows: unknown[] = [];
 
     for (let page = 0; page < maxPages; page++) {
       const pagedBody = {
@@ -282,12 +294,12 @@ serve(async (req) => {
     }
 
     // Transform response
-    const rows = collectedRows.map((row: any) => ({
-      keyword: row.keys?.[0] || "",
+    const rows = collectedRows.map(asRecord).map((row) => ({
+      keyword: String(asArray(row.keys)[0] || ""),
       clicks: row.clicks || 0,
       impressions: row.impressions || 0,
-      ctr: row.ctr ? Math.round(row.ctr * 10000) / 100 : 0,
-      position: row.position ? Math.round(row.position * 10) / 10 : 0,
+      ctr: row.ctr ? Math.round(Number(row.ctr) * 10000) / 100 : 0,
+      position: row.position ? Math.round(Number(row.position) * 10) / 10 : 0,
     }));
 
     // Filter by specific keywords if provided
@@ -296,7 +308,7 @@ serve(async (req) => {
       const keywordSet = new Set(
         keywords.map((k: string) => k.toLowerCase().trim()),
       );
-      filteredRows = rows.filter((r: any) =>
+      filteredRows = rows.filter((r) =>
         keywordSet.has(r.keyword.toLowerCase().trim()),
       );
     }

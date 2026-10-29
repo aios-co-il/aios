@@ -8,6 +8,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
+import { errorMessage } from "@/components/broadcast/templateUtils";
+import { isJsonObject, jsonString } from "@/lib/jsonFields";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -38,6 +41,17 @@ import { CampaignLauncher } from "./CampaignLauncher";
 import { SEOPublishPanel } from "./SEOPublishPanel";
 import { ABTestPanel } from "./ABTestPanel";
 
+type SidePanelStage = Pick<
+  Tables<"marketing_pipeline_stages">,
+  | "id"
+  | "name"
+  | "stage_type"
+  | "sort_order"
+  | "agent_id"
+  | "approval_mode"
+  | "configuration"
+>;
+
 interface Props {
   itemId: string | null;
   onClose: () => void;
@@ -61,8 +75,8 @@ const STATUS_LABELS: Record<
 export function WorkItemSidePanel({ itemId, onClose }: Props) {
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
-  const [item, setItem] = useState<any>(null);
-  const [stages, setStages] = useState<any[]>([]);
+  const [item, setItem] = useState<Tables<"marketing_work_items"> | null>(null);
+  const [stages, setStages] = useState<SidePanelStage[]>([]);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
 
@@ -148,7 +162,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
 
   const [activeAssetTab, setActiveAssetTab] = useState<string>("");
   const availableTypes = Object.keys(
-    (assets ?? []).reduce((acc: Record<string, true>, a: any) => {
+    (assets ?? []).reduce((acc: Record<string, true>, a) => {
       acc[a.type] = true;
       return acc;
     }, {}),
@@ -161,7 +175,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
 
   if (!itemId) return null;
 
-  const save = async (patch: Partial<any>) => {
+  const save = async (patch: TablesUpdate<"marketing_work_items">) => {
     setSaving(true);
     const { error } = await supabase
       .from("marketing_work_items")
@@ -174,7 +188,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
         variant: "destructive",
       });
     } else {
-      setItem({ ...item, ...patch });
+      setItem((prev) => (prev ? { ...prev, ...patch } : prev));
     }
     setSaving(false);
   };
@@ -189,7 +203,8 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
         },
       );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      const result = isJsonObject(data) ? data : {};
+      if (result.error) throw new Error(String(result.error));
       toast({ title: "✓ הופעל", description: "השלב הסתיים" });
       refetchRuns();
       refetchAssets();
@@ -197,8 +212,12 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["marketing-items-calendar", tenantId],
       });
-    } catch (e: any) {
-      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+    } catch (e) {
+      toast({
+        title: "שגיאה",
+        description: errorMessage(e) || undefined,
+        variant: "destructive",
+      });
     } finally {
       setRunning(null);
     }
@@ -221,22 +240,23 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
         queryKey: ["marketing-items-calendar", tenantId],
       });
       if (error) throw error;
-      if ((data as any)?.error) {
+      const result = isJsonObject(data) ? data : {};
+      if (result.error) {
         toast({
           title: "שגיאה בהרצת הפייפליין",
-          description: (data as any).error,
+          description: String(result.error),
           variant: "destructive",
         });
         return;
       }
-      if ((data as any)?.awaiting_approval) {
+      if (result.awaiting_approval) {
         toast({
           title: "⏸ ממתין לאישורך",
           description: "שלב הסתיים ומחכה לאישור להמשיך",
         });
         return;
       }
-      if ((data as any)?.completed) {
+      if (result.completed) {
         toast({
           title: "✓ הפייפליין הושלם!",
           description: "כל השלבים הורצו בהצלחה",
@@ -244,12 +264,16 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
         return;
       }
       toast({ title: "✓ ה-Pipeline הופעל" });
-    } catch (e: any) {
+    } catch (e) {
       // Still refresh even on error
       refetchRuns();
       refetchAssets();
       loadItem();
-      toast({ title: "שגיאה", description: e.message, variant: "destructive" });
+      toast({
+        title: "שגיאה",
+        description: errorMessage(e) || undefined,
+        variant: "destructive",
+      });
     } finally {
       setRunning(null);
     }
@@ -271,7 +295,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
       }
     } else {
       // Last stage approved — mark item as completed
-      await save({ status: "completed" });
+      await save({ status: "approved" });
     }
     refetchRuns();
     toast({ title: "✓ אושר" });
@@ -286,7 +310,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
   };
 
   // Group assets by type for tabbed preview
-  const assetsByType: Record<string, any[]> = {};
+  const assetsByType: Record<string, NonNullable<typeof assets>> = {};
   for (const a of assets ?? []) {
     (assetsByType[a.type] ??= []).push(a);
   }
@@ -298,7 +322,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
   };
 
   const stageHasAsset = (stageId: string) =>
-    (assets ?? []).some((a: any) => a.stage_id === stageId);
+    (assets ?? []).some((a) => a.stage_id === stageId);
 
   return (
     <Sheet open={!!itemId} onOpenChange={(o) => !o && onClose()}>
@@ -348,7 +372,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                   </div>
                 )}
                 <div className="space-y-3">
-                  {(assetsByType[activeAssetTab] ?? []).map((a: any) => (
+                  {(assetsByType[activeAssetTab] ?? []).map((a) => (
                     <div
                       key={a.id}
                       className="rounded-md border bg-background p-3"
@@ -357,7 +381,10 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                         <Badge variant="outline" className="text-[10px]">
                           {TYPE_LABELS[a.type] ?? a.type}
                         </Badge>
-                        <span>{a.marketing_pipeline_stages?.name ?? ""}</span>
+                        <span>
+                          {jsonString(a.marketing_pipeline_stages, "name") ??
+                            ""}
+                        </span>
                         <span className="ms-auto">
                           {new Date(a.created_at).toLocaleString("he-IL")}
                         </span>
@@ -394,7 +421,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
             {/* Awaiting approval — prominent banner */}
             {(() => {
               const pendingRuns = (runs ?? []).filter(
-                (r: any) => r.status === "awaiting_approval",
+                (r) => r.status === "awaiting_approval",
               );
               if (pendingRuns.length === 0) return null;
               return (
@@ -411,11 +438,12 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                   </div>
                   {/* Each pending run */}
                   <div className="divide-y divide-amber-200/60">
-                    {pendingRuns.map((r: any) => {
+                    {pendingRuns.map((r) => {
                       const stageName =
-                        r.marketing_pipeline_stages?.name ?? "שלב";
+                        jsonString(r.marketing_pipeline_stages, "name") ??
+                        "שלב";
                       const nextStageIdx = stages.findIndex(
-                        (s: any) => s.id === r.stage_id,
+                        (s) => s.id === r.stage_id,
                       );
                       const nextStageName =
                         nextStageIdx >= 0 && nextStageIdx < stages.length - 1
@@ -482,12 +510,12 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
               );
               if (currentStage?.stage_type === "copy") {
                 const brief =
-                  item.payload?.brief_text ??
-                  item.payload?.notes ??
+                  jsonString(item.payload, "brief_text") ??
+                  jsonString(item.payload, "notes") ??
                   item.title ??
                   "";
                 // Infer channel from pipeline track (stored in item payload or default to meta)
-                const channel = item.payload?.channel ?? "meta";
+                const channel = jsonString(item.payload, "channel") ?? "meta";
                 return (
                   <ABTestPanel
                     workItemId={item.id}
@@ -525,9 +553,9 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                     workItemId={item.id}
                     tenantId={item.tenant_id}
                     clientId={item.client_id}
-                    copyText={item.payload?.copy_text}
-                    imageUrl={item.payload?.image_url}
-                    campaignName={item.title}
+                    copyText={jsonString(item.payload, "copy_text")}
+                    imageUrl={jsonString(item.payload, "image_url")}
+                    campaignName={item.title ?? undefined}
                   />
                 );
               }
@@ -537,8 +565,8 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                     workItemId={item.id}
                     tenantId={item.tenant_id}
                     clientId={item.client_id}
-                    copyText={item.payload?.copy_text}
-                    title={item.title}
+                    copyText={jsonString(item.payload, "copy_text")}
+                    title={item.title ?? undefined}
                   />
                 );
               }
@@ -564,9 +592,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
               <Label className="mb-2 block">הרצת שלבים</Label>
               <div className="space-y-1.5">
                 {stages.map((s) => {
-                  const lastRun = (runs ?? []).find(
-                    (r: any) => r.stage_id === s.id,
-                  );
+                  const lastRun = (runs ?? []).find((r) => r.stage_id === s.id);
                   const hasAsset = stageHasAsset(s.id);
                   return (
                     <div
@@ -651,11 +677,11 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                   <Label>הערות</Label>
                   <Textarea
                     rows={3}
-                    defaultValue={item.payload?.notes ?? ""}
+                    defaultValue={jsonString(item.payload, "notes") ?? ""}
                     onBlur={(e) =>
                       save({
                         payload: {
-                          ...(item.payload ?? {}),
+                          ...(isJsonObject(item.payload) ? item.payload : {}),
                           notes: e.target.value,
                         },
                       })
@@ -675,7 +701,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                   היסטוריית ריצות ושימוש בטוקנים
                 </summary>
                 <div className="mt-2 space-y-1 text-xs">
-                  {(runs ?? []).map((r: any) => (
+                  {(runs ?? []).map((r) => (
                     <div key={r.id} className="flex items-center gap-2">
                       <Badge
                         variant={STATUS_LABELS[r.status]?.variant ?? "outline"}
@@ -683,7 +709,9 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
                       >
                         {STATUS_LABELS[r.status]?.label ?? r.status}
                       </Badge>
-                      <span>{r.marketing_pipeline_stages?.name}</span>
+                      <span>
+                        {jsonString(r.marketing_pipeline_stages, "name")}
+                      </span>
                       <span className="ms-auto text-muted-foreground">
                         {(r.tokens_in ?? 0) + (r.tokens_out ?? 0)} tok · $
                         {Number(r.cost_usd ?? 0).toFixed(4)}

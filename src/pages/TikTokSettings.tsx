@@ -25,6 +25,7 @@ import {
   Heart,
   Video,
 } from "lucide-react";
+import { asJsonObject } from "@/lib/jsonFields";
 
 export default function TikTokSettings() {
   const { currentTenantId } = useTenant();
@@ -46,7 +47,7 @@ export default function TikTokSettings() {
     enabled: !!currentTenantId,
   });
 
-  const account = (integration?.settings as any) || {};
+  const account = parseTikTokAccount(integration?.settings);
   const isConnected = !!integration?.is_active;
 
   const connect = useMutation({
@@ -56,7 +57,8 @@ export default function TikTokSettings() {
         { method: "POST" },
       );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      const providerError = asJsonObject(data).error;
+      if (providerError) throw new Error(String(providerError));
       return data;
     },
     onSuccess: () => {
@@ -68,7 +70,7 @@ export default function TikTokSettings() {
         queryKey: ["tiktok-integration-status", currentTenantId],
       });
     },
-    onError: (e: any) =>
+    onError: (e) =>
       toast.error("כשל בחיבור: " + (e?.message || "שגיאה לא ידועה")),
     onSettled: () => setBusy(null),
   });
@@ -91,7 +93,7 @@ export default function TikTokSettings() {
         queryKey: ["tiktok-integration-status", currentTenantId],
       });
     },
-    onError: (e: any) => toast.error("שגיאה בניתוק: " + (e?.message || "")),
+    onError: (e) => toast.error("שגיאה בניתוק: " + (e?.message || "")),
     onSettled: () => setBusy(null),
   });
 
@@ -264,6 +266,39 @@ export default function TikTokSettings() {
       </div>
     </div>
   );
+}
+
+interface TikTokAccount {
+  avatar_url?: string;
+  display_name?: string;
+  is_verified: boolean;
+  open_id?: string;
+  follower_count?: number;
+  following_count?: number;
+  likes_count?: number;
+  video_count?: number;
+  bio?: string;
+  profile_url?: string;
+}
+
+function parseTikTokAccount(settings: unknown): TikTokAccount {
+  const s = asJsonObject(settings);
+  const text = (value: unknown) =>
+    typeof value === "string" ? value : undefined;
+  const count = (value: unknown) =>
+    typeof value === "number" ? value : undefined;
+  return {
+    avatar_url: text(s.avatar_url),
+    display_name: text(s.display_name),
+    is_verified: !!s.is_verified,
+    open_id: text(s.open_id),
+    follower_count: count(s.follower_count),
+    following_count: count(s.following_count),
+    likes_count: count(s.likes_count),
+    video_count: count(s.video_count),
+    bio: text(s.bio),
+    profile_url: text(s.profile_url),
+  };
 }
 
 function Stat({

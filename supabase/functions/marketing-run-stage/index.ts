@@ -4,6 +4,20 @@ import { requireAuth } from "../_shared/security.ts";
 import { resolveOpenAIKey } from "../_shared/ai.ts";
 import { buildSkillsBlockBySlug } from "../_shared/skills/registry.ts";
 import { formatApprovedConceptsFromPayload } from "../_shared/copy-concepts.ts";
+import type { Tables } from "../_shared/database.types.ts";
+import { getPath, getString } from "../_shared/provider-json.ts";
+
+type StageAgent = Pick<
+  Tables<"ai_agents">,
+  "system_prompt" | "personality" | "writing_style"
+>;
+
+interface StageOutput {
+  image_url?: string | null;
+  image_model?: string;
+  image_size?: string;
+  text?: string | null;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -145,7 +159,7 @@ serve(async (req) => {
       .eq("id", item.client_id)
       .maybeSingle();
 
-    let agent: any = null;
+    let agent: StageAgent | null = null;
     if (stage.agent_id) {
       const { data: a } = await admin
         .from("ai_agents")
@@ -186,8 +200,8 @@ serve(async (req) => {
     // Get OpenAI API key from tenant_integrations
     const OPENAI_API_KEY = await getOpenAIKey(item.tenant_id);
 
-    const cfg = (stage.configuration as any) ?? {};
-    const instructions: string = cfg.instructions ?? "";
+    const cfg: unknown = stage.configuration ?? {};
+    const instructions: string = getString(cfg, "instructions") ?? "";
     const stageType: string = stage.stage_type;
     const defaultSkinByStage: Record<string, string> = {
       strategy: "campaigner",
@@ -199,8 +213,8 @@ serve(async (req) => {
       measurement: "analyst",
     };
     const skinSlug: string =
-      cfg.skin ??
-      cfg.skin_slug ??
+      getString(cfg, "skin") ??
+      getString(cfg, "skin_slug") ??
       defaultSkinByStage[stageType] ??
       "campaigner";
     const skinBlock = await buildSkillsBlockBySlug([skinSlug], item.tenant_id);
@@ -288,7 +302,7 @@ serve(async (req) => {
     let assetUrl: string | null = null;
     let tokensIn = 0;
     let tokensOut = 0;
-    let outputJson: any = {};
+    let outputJson: StageOutput = {};
 
     if (stageType === "creative") {
       const imageSize = imageSizeForFormat(item.payload?.format);
@@ -545,7 +559,9 @@ serve(async (req) => {
         .eq("pipeline_id", item.pipeline_id)
         .order("sort_order");
       const stages = allStages ?? [];
-      const currentIdx = stages.findIndex((s: any) => s.id === stage_id);
+      const currentIdx = stages.findIndex(
+        (s: { id: string }) => s.id === stage_id,
+      );
       if (currentIdx >= 0 && currentIdx < stages.length - 1) {
         const nextStage = stages[currentIdx + 1];
         nextStageId = nextStage.id;
@@ -592,19 +608,20 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("marketing-run-stage error:", e);
+    const errorText = String(getPath(e, "message") ?? e);
     if (runId) {
       await admin
         .from("marketing_runs")
         .update({
           status: "failed",
-          error: String(e.message ?? e),
+          error: errorText,
           finished_at: new Date().toISOString(),
         })
         .eq("id", runId);
     }
-    return new Response(JSON.stringify({ error: String(e.message ?? e) }), {
+    return new Response(JSON.stringify({ error: errorText }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

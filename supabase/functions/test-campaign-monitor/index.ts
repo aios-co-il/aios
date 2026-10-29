@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Tables } from "../_shared/database.types.ts";
+import { getPath } from "../_shared/provider-json.ts";
+
+type MonitoredTable = Pick<
+  Tables<"crm_tables">,
+  "id" | "name" | "tenant_id" | "integration_settings"
+>;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +18,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 async function runCron(fnName: string, maxBatches = 20) {
-  const summary = { invocations: 0, last_response: null as any };
+  const summary: { invocations: number; last_response: unknown } = {
+    invocations: 0,
+    last_response: null,
+  };
   for (let i = 0; i < maxBatches; i++) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
       method: "POST",
@@ -66,14 +76,17 @@ serve(async (req) => {
     const { data: tables } = await tablesQ;
 
     const billingIssues = (tables || [])
-      .map((t: any) => ({
+      .map((t: MonitoredTable) => ({
         table_id: t.id,
         tenant_id: t.tenant_id,
         table_name: t.name,
-        ad_account_id: t.integration_settings?.ad_account_id,
-        account_status: t.integration_settings?.account_status,
-        disable_reason: t.integration_settings?.account_disable_reason,
-        last_sync_at: t.integration_settings?.last_sync_at,
+        ad_account_id: getPath(t.integration_settings, "ad_account_id"),
+        account_status: getPath(t.integration_settings, "account_status"),
+        disable_reason: getPath(
+          t.integration_settings,
+          "account_disable_reason",
+        ),
+        last_sync_at: getPath(t.integration_settings, "last_sync_at"),
       }))
       .filter((t) => t.account_status && t.account_status !== "active");
 
@@ -81,7 +94,7 @@ serve(async (req) => {
     const DAVID_PHONE = "972507677613";
     const DAVID_GREEN_API_TENANT = "2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019";
     const DAVID_GREEN_API_USER = "bcd21d1c-3b39-4a7c-9dbf-4c89679110b9";
-    let waSend: any = null;
+    let waSend: { status: number; body: unknown } | null = null;
     if (body?.notify === true) {
       const lines: string[] = [];
       lines.push("🧪 *בדיקת ניטור קמפיינים*");
@@ -154,10 +167,10 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("test-campaign-monitor error:", err);
     return new Response(
-      JSON.stringify({ error: err?.message || String(err) }),
+      JSON.stringify({ error: getPath(err, "message") || String(err) }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,

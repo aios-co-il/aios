@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +22,10 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization");
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient<Database>(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    );
     const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
@@ -46,7 +51,7 @@ Deno.serve(async (req) => {
       throw new Error("OPENAI_API_KEY not configured");
     }
 
-    let result: any;
+    let result: unknown;
 
     if (action === "generate_copy") {
       result = await generateCopy(
@@ -79,7 +84,7 @@ Deno.serve(async (req) => {
 // ─── generate_day_ideas ────────────────────────────────────────────────────
 async function generateDayIdeas(
   params: { date: string; tenant_id: string },
-  _supabase: any,
+  _supabase: DbClient,
 ) {
   const { date } = params;
 
@@ -179,7 +184,7 @@ async function generateCopy(
     post_id: string;
     tenant_id: string;
   },
-  supabase: any,
+  supabase: DbClient,
 ) {
   const { prompt, tone, target_audience, call_to_action, post_id, tenant_id } =
     params;
@@ -271,7 +276,7 @@ async function generateCreativePrompt(
     post_id: string;
     tenant_id: string;
   },
-  supabase: any,
+  supabase: DbClient,
 ) {
   const { prompt, style, additional_notes, post_id } = params;
 

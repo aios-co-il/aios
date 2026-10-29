@@ -4,6 +4,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asRecord } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -145,9 +146,10 @@ serve(async (req) => {
     }
 
     // Update integration.settings (delivery_mode + page_subscriptions[page_id])
-    const settings = (integration.settings as Record<string, any> | null) ?? {};
-    const pageSubs =
-      (settings.page_subscriptions as Record<string, any> | undefined) ?? {};
+    const settings = asRecord(integration.settings);
+    const pageSubs: Record<string, unknown> = {
+      ...asRecord(settings.page_subscriptions),
+    };
     if (action === "subscribe") {
       pageSubs[page_id] = {
         status: "subscribed",

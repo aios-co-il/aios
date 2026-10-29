@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -141,17 +142,15 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${settings.api_token}` },
     });
     const maskyooBody = await maskyooRes.text();
-    let maskyooData: any = {};
+    let maskyooData: unknown = {};
     try {
       maskyooData = JSON.parse(maskyooBody);
     } catch {
       maskyooData = { raw: maskyooBody };
     }
 
-    if (
-      !maskyooRes.ok ||
-      (maskyooData?.status?.code && maskyooData.status.code !== "200")
-    ) {
+    const maskyooStatusCode = getPath(maskyooData, "status", "code");
+    if (!maskyooRes.ok || (maskyooStatusCode && maskyooStatusCode !== "200")) {
       await supabase
         .from("call_logs")
         .update({
@@ -174,7 +173,9 @@ Deno.serve(async (req) => {
 
     // Save provider call uuid if returned
     const callUuid =
-      maskyooData?.result?.call_uuid || maskyooData?.call_uuid || null;
+      getPath(maskyooData, "result", "call_uuid") ||
+      getPath(maskyooData, "call_uuid") ||
+      null;
     if (callUuid) {
       await supabase
         .from("call_logs")

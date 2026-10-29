@@ -4,6 +4,14 @@ import {
   META_TEMPLATE_HEADER_FORMAT_BY_MIME,
   uploadMetaTemplateMediaHandle,
 } from "../_shared/meta-whatsapp.ts";
+import {
+  getArray,
+  getObject,
+  getPath,
+  getString,
+  isJsonObject,
+  type JsonObject,
+} from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +29,14 @@ const reply = (body: unknown, status = 200) =>
     },
   });
 
-const graphRequest = async (url: URL, token: string, init?: RequestInit) => {
+const graphRequest = async (
+  url: URL,
+  token: string,
+  init?: RequestInit,
+): Promise<
+  | { ok: true; data: JsonObject }
+  | { ok: false; status: number; error: string; metaError: JsonObject }
+> => {
   const response = await fetch(url, {
     ...init,
     headers: {
@@ -31,19 +46,22 @@ const graphRequest = async (url: URL, token: string, init?: RequestInit) => {
     },
   });
   const text = await response.text();
-  let data: any = {};
+  let parsed: unknown = {};
   try {
-    data = text ? JSON.parse(text) : {};
+    parsed = text ? JSON.parse(text) : {};
   } catch {
-    data = { raw: text };
+    parsed = { raw: text };
   }
-  if (!response.ok || data?.error) {
-    const error = data?.error ?? {};
+  const data: JsonObject = isJsonObject(parsed) ? parsed : {};
+  if (!response.ok || data.error) {
+    const error = getObject(data, "error") ?? {};
     return {
       ok: false as const,
       status: response.status || 502,
       error:
-        error.error_user_msg || error.message || "Meta template request failed",
+        getString(error, "error_user_msg") ||
+        getString(error, "message") ||
+        "Meta template request failed",
       metaError: error,
     };
   }
@@ -179,7 +197,7 @@ Deno.serve(async (request) => {
     if (action !== "list" && !canManage)
       return reply({ error: "manage_access_required" }, 403);
 
-    const settings = (integration.settings ?? {}) as Record<string, any>;
+    const settings: JsonObject = getObject(integration, "settings") ?? {};
     const wabaId = String(settings.waba_id ?? "");
     const graphVersion = String(
       settings.graph_version ??
@@ -202,7 +220,7 @@ Deno.serve(async (request) => {
     const baseUrl = `https://graph.facebook.com/${graphVersion}/${wabaId}/message_templates`;
 
     if (action === "list") {
-      const templates: any[] = [];
+      const templates: unknown[] = [];
       let after = "";
       let pageCount = 0;
       do {
@@ -219,10 +237,12 @@ Deno.serve(async (request) => {
             { error: result.error, meta_error: result.metaError },
             result.status,
           );
-        templates.push(...(result.data.data ?? []));
-        after = String(result.data.paging?.cursors?.after ?? "");
+        templates.push(...getArray(result.data, "data"));
+        after = String(
+          getPath(result.data, "paging", "cursors", "after") ?? "",
+        );
         pageCount++;
-        if (!result.data.paging?.next) after = "";
+        if (!getPath(result.data, "paging", "next")) after = "";
       } while (after && pageCount < 20);
       return reply({
         templates,
@@ -421,10 +441,13 @@ Deno.serve(async (request) => {
       const quickReplies: Array<{ text: string; payload?: string }> =
         Array.isArray(template.quick_replies)
           ? template.quick_replies
-              .map((row: any) => ({
-                text: String(row?.text ?? "").trim(),
-                payload: row?.payload ? String(row.payload).trim() : undefined,
-              }))
+              .map((row: unknown) => {
+                const payload = getPath(row, "payload");
+                return {
+                  text: String(getPath(row, "text") ?? "").trim(),
+                  payload: payload ? String(payload).trim() : undefined,
+                };
+              })
               .filter((row: { text: string }) => row.text.length > 0)
           : [];
       if (quickReplies.length > 3) {

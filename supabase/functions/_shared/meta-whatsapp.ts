@@ -1,3 +1,5 @@
+import { asArray, asRecord, asRecords } from "./provider-json.ts";
+
 export const DEFAULT_META_GRAPH_VERSION = "v25.0";
 
 /** Meta Resumable Upload API — sample media for WhatsApp template headers. */
@@ -97,13 +99,8 @@ export type MetaWhatsAppSessionInfo = {
   business_id?: string;
 };
 
-export type MetaWhatsAppMessage = Record<string, any> & {
-  id?: string;
-  from?: string;
-  to?: string;
-  timestamp?: string;
-  type?: string;
-};
+/** Raw message object from a Meta webhook; every field is read through narrowing. */
+export type MetaWhatsAppMessage = Record<string, unknown>;
 
 export function digitsOnly(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
@@ -125,15 +122,17 @@ export function inboundButtonPayload(
 ): string | null {
   const type = String(message.type ?? "");
   if (type === "button") {
-    const payload = String(message.button?.payload ?? "").trim();
+    const button = asRecord(message.button);
+    const payload = String(button.payload ?? "").trim();
     if (payload) return payload;
-    const text = String(message.button?.text ?? "").trim();
+    const text = String(button.text ?? "").trim();
     return text || null;
   }
   if (type === "interactive") {
-    const id = String(message.interactive?.button_reply?.id ?? "").trim();
+    const reply = asRecord(asRecord(message.interactive).button_reply);
+    const id = String(reply.id ?? "").trim();
     if (id) return id;
-    const title = String(message.interactive?.button_reply?.title ?? "").trim();
+    const title = String(reply.title ?? "").trim();
     return title || null;
   }
   return null;
@@ -149,16 +148,17 @@ export const DEFAULT_LEAD_THANKS_TEXT =
 
 export function messageText(message: MetaWhatsAppMessage): string {
   const type = String(message.type ?? "unknown");
-  if (type === "text") return String(message.text?.body ?? "");
-  if (type === "button") return String(message.button?.text ?? "");
+  if (type === "text") return String(asRecord(message.text).body ?? "");
+  if (type === "button") return String(asRecord(message.button).text ?? "");
   if (type === "interactive") {
+    const interactive = asRecord(message.interactive);
     return String(
-      message.interactive?.button_reply?.title ??
-        message.interactive?.list_reply?.title ??
+      asRecord(interactive.button_reply).title ??
+        asRecord(interactive.list_reply).title ??
         "[הודעה אינטראקטיבית]",
     );
   }
-  const caption = message[type]?.caption;
+  const caption = asRecord(message[type]).caption;
   if (caption) return String(caption);
   const labels: Record<string, string> = {
     audio: "[הודעת קול]",
@@ -174,11 +174,11 @@ export function messageText(message: MetaWhatsAppMessage): string {
   return labels[type] ?? `[הודעת WhatsApp מסוג ${type}]`;
 }
 
-export function collectWebhookMessages(
-  value: Record<string, any>,
-  field: string,
-) {
-  const businessPhone = digitsOnly(value.metadata?.display_phone_number);
+export function collectWebhookMessages(webhookValue: unknown, field: string) {
+  const value = asRecord(webhookValue);
+  const businessPhone = digitsOnly(
+    asRecord(value.metadata).display_phone_number,
+  );
   const messages: Array<{
     message: MetaWhatsAppMessage;
     direction: "inbound" | "outbound";
@@ -186,7 +186,7 @@ export function collectWebhookMessages(
     source: "live" | "echo" | "history";
   }> = [];
 
-  for (const message of value.messages ?? []) {
+  for (const message of asRecords(value.messages)) {
     const from = digitsOnly(message.from);
     const historyOutbound =
       field === "history" && Boolean(businessPhone && from === businessPhone);
@@ -198,7 +198,7 @@ export function collectWebhookMessages(
     });
   }
 
-  for (const message of value.message_echoes ?? []) {
+  for (const message of asRecords(value.message_echoes)) {
     messages.push({
       message,
       direction: "outbound",
@@ -207,9 +207,9 @@ export function collectWebhookMessages(
     });
   }
 
-  for (const chunk of value.history ?? []) {
-    for (const thread of chunk.threads ?? []) {
-      for (const message of thread.messages ?? []) {
+  for (const chunk of asArray(value.history)) {
+    for (const thread of asRecords(asRecord(chunk).threads)) {
+      for (const message of asRecords(thread.messages)) {
         const from = digitsOnly(message.from);
         const outbound = Boolean(businessPhone && from === businessPhone);
         messages.push({

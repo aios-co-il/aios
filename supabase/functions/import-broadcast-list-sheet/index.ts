@@ -7,6 +7,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import { fieldKeyFromHeader } from "../_shared/broadcast/template/template-vars.ts";
+import { getPath } from "../_shared/provider-json.ts";
+
+interface SheetListMember {
+  entity_type: "manual";
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  custom_fields: Record<string, string>;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,7 +124,7 @@ Deno.serve(async (req) => {
       );
     }
     const sheet = await res.json();
-    const rows: any[][] = sheet.values || [];
+    const rows: unknown[][] = sheet.values || [];
     if (rows.length < 1)
       return new Response(JSON.stringify({ error: "empty_sheet" }), {
         status: 400,
@@ -164,7 +173,7 @@ Deno.serve(async (req) => {
     const db = createClient(SB_URL, SB_SERVICE, {
       auth: { persistSession: false },
     });
-    const members: any[] = [];
+    const members: SheetListMember[] = [];
     const seen = new Set<string>();
     for (const row of rows.slice(1)) {
       const phone =
@@ -239,11 +248,14 @@ Deno.serve(async (req) => {
       }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[import-broadcast-list-sheet]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return new Response(
+      JSON.stringify({ error: String(getPath(e, "message") || e) }),
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
   }
 });

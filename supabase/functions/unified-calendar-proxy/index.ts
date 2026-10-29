@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -125,20 +126,26 @@ Deno.serve(async (req) => {
 
         // Transform Unified.to event format to match our existing format
         const transformedEvents = (Array.isArray(events) ? events : []).map(
-          (event: any) => ({
-            id: event.id,
-            summary: event.title || event.subject || "ללא כותרת",
-            description: event.description || event.notes || "",
+          (event: unknown) => ({
+            id: getPath(event, "id"),
+            summary:
+              getPath(event, "title") ||
+              getPath(event, "subject") ||
+              "ללא כותרת",
+            description:
+              getPath(event, "description") || getPath(event, "notes") || "",
             start: {
-              dateTime: event.start_at || event.start,
-              timeZone: event.timezone || "Asia/Jerusalem",
+              dateTime: getPath(event, "start_at") || getPath(event, "start"),
+              timeZone: getPath(event, "timezone") || "Asia/Jerusalem",
             },
             end: {
-              dateTime: event.end_at || event.end,
-              timeZone: event.timezone || "Asia/Jerusalem",
+              dateTime: getPath(event, "end_at") || getPath(event, "end"),
+              timeZone: getPath(event, "timezone") || "Asia/Jerusalem",
             },
-            calendarId: event.calendar_id,
-            calendarName: event.calendar_id ? "Unified Calendar" : undefined,
+            calendarId: getPath(event, "calendar_id"),
+            calendarName: getPath(event, "calendar_id")
+              ? "Unified Calendar"
+              : undefined,
             calendarColor: "#4285f4",
           }),
         );

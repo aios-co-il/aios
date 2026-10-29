@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asRecord, asRecords } from "../_shared/provider-json.ts";
+
+const eventStart = (event: Record<string, unknown>) => {
+  const start = asRecord(event.start);
+  return new Date(String(start.dateTime || start.date));
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -182,7 +188,7 @@ serve(async (req) => {
     const calendars = calendarListData.items || [];
 
     // Fetch events from all calendars
-    const allEvents: any[] = [];
+    const allEvents: Record<string, unknown>[] = [];
 
     for (const calendar of calendars) {
       try {
@@ -204,7 +210,7 @@ serve(async (req) => {
 
         if (calendarResponse.ok) {
           const eventsData = await calendarResponse.json();
-          const events = (eventsData.items || []).map((event: any) => ({
+          const events = asRecords(eventsData.items).map((event) => ({
             ...event,
             calendarId: calendar.id,
             calendarName: calendar.summary,
@@ -226,8 +232,8 @@ serve(async (req) => {
 
     // Sort all events by start time
     allEvents.sort((a, b) => {
-      const aStart = new Date(a.start?.dateTime || a.start?.date);
-      const bStart = new Date(b.start?.dateTime || b.start?.date);
+      const aStart = eventStart(a);
+      const bStart = eventStart(b);
       return aStart.getTime() - bStart.getTime();
     });
 
@@ -235,7 +241,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         events: allEvents,
-        calendars: calendars.map((cal: any) => ({
+        calendars: asRecords(calendars).map((cal) => ({
           id: cal.id,
           name: cal.summary,
           color: cal.backgroundColor || cal.foregroundColor,

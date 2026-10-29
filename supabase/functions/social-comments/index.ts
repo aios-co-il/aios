@@ -4,6 +4,7 @@
 // action='hide' — hides a comment
 // action='delete' — deletes our own comment
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -156,7 +157,7 @@ Deno.serve(async (req) => {
         status: 404,
         headers: corsHeaders,
       });
-    const token = (comment as any).social_pages.page_access_token;
+    const token = String(getPath(comment, "social_pages", "page_access_token"));
 
     if (action === "reply") {
       if (!message)
@@ -227,10 +228,13 @@ Deno.serve(async (req) => {
       status: 400,
       headers: corsHeaders,
     });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: String(getPath(e, "message") || e) }),
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
   }
 });

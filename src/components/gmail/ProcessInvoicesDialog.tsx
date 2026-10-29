@@ -115,7 +115,7 @@ export function ProcessInvoicesDialog({
         `נמצאו ${valid.length} חשבוניות${skipped.length ? `, ${skipped.length} בלי קבצים מצורפים` : ""}`,
       );
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       toast.error("שגיאה בעיבוד: " + (e.message || ""));
     },
     onSettled: () => setProcessing(false),

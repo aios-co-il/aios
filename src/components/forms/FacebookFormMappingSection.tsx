@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isJsonObject, jsonString } from "@/lib/jsonFields";
+import { parseFormMappings, rawFormMappings } from "./facebookFormMappings";
 import {
   Card,
   CardContent,
@@ -53,16 +55,6 @@ interface FacebookForm {
   name: string;
   status: string;
   fields: FormField[];
-}
-
-interface FormMapping {
-  field_mappings: Record<string, string>;
-  agency_id: string | null;
-  client_id?: string | null;
-  create_crm_lead?: boolean;
-  sales_person_id: string | null; // legacy single
-  sales_person_ids?: string[]; // new multi-select
-  tag_id: string | null;
 }
 
 interface Props {
@@ -287,17 +279,17 @@ export function FacebookFormMappingSection({
         .single();
 
       if (error) throw error;
-      return data?.settings as any;
+      return isJsonObject(data?.settings) ? data.settings : null;
     },
     enabled: !!integrationId,
   });
 
   // Load existing mappings when form is selected
   useEffect(() => {
-    if (selectedFormId && existingSettings?.form_mappings?.[selectedFormId]) {
-      const mapping = existingSettings.form_mappings[
-        selectedFormId
-      ] as FormMapping;
+    const mapping = selectedFormId
+      ? parseFormMappings(existingSettings ?? null)[selectedFormId]
+      : undefined;
+    if (mapping) {
       setFieldMappings(mapping.field_mappings || {});
       setSelectedAgency(mapping.agency_id || "");
       setSelectedClient(mapping.client_id || "none");
@@ -336,8 +328,9 @@ export function FacebookFormMappingSection({
 
   // Load existing page_id from settings
   useEffect(() => {
-    if (existingSettings?.page_id) {
-      setSelectedPageId(existingSettings.page_id);
+    const pageId = jsonString(existingSettings, "page_id");
+    if (pageId) {
+      setSelectedPageId(pageId);
     }
   }, [existingSettings]);
 
@@ -349,7 +342,7 @@ export function FacebookFormMappingSection({
       }
 
       const currentSettings = existingSettings || {};
-      const formMappings = currentSettings.form_mappings || {};
+      const formMappings = rawFormMappings(existingSettings ?? null);
 
       formMappings[selectedFormId] = {
         field_mappings: fieldMappings,
@@ -430,7 +423,7 @@ export function FacebookFormMappingSection({
       if (!integrationId) throw new Error("חסר מזהה אינטגרציה");
 
       const currentSettings = existingSettings || {};
-      const formMappings = { ...(currentSettings.form_mappings || {}) };
+      const formMappings = rawFormMappings(existingSettings ?? null);
       delete formMappings[formIdToDelete];
 
       const updatedSettings = {
@@ -463,11 +456,7 @@ export function FacebookFormMappingSection({
   });
 
   // Get existing form mappings
-  const existingFormMappings = (existingSettings?.form_mappings ||
-    {}) as Record<
-    string,
-    FormMapping & { form_name?: string; page_id?: string; tag_id?: string }
-  >;
+  const existingFormMappings = parseFormMappings(existingSettings ?? null);
   const mappedFormIds = Object.keys(existingFormMappings);
   const hasMappedForms = mappedFormIds.length > 0;
   const showFormEditor = isAddingNewForm || editingFormId;
@@ -625,7 +614,9 @@ export function FacebookFormMappingSection({
                       onClick={() => {
                         setEditingFormId(formId);
                         setSelectedPageId(
-                          mapping.page_id || existingSettings?.page_id || "",
+                          mapping.page_id ||
+                            jsonString(existingSettings, "page_id") ||
+                            "",
                         );
                         setSelectedFormId(formId);
                         setFieldMappings(mapping.field_mappings || {});

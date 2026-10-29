@@ -1,4 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  getArray,
+  getNumber,
+  getPath,
+  getString,
+} from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,13 +141,15 @@ Deno.serve(async (req) => {
       "share_count",
       "view_count",
     ];
-    const all: any[] = [];
+    const all: unknown[] = [];
     let cursor: number | undefined = undefined;
     let hasMore = true;
     let pages = 0;
     while (hasMore && all.length < maxVideos && pages < 10) {
       const url = `${GATEWAY_URL}/video/list/?fields=${videoFields.join(",")}`;
-      const pageBody: any = { max_count: Math.min(20, maxVideos - all.length) };
+      const pageBody: { max_count: number; cursor?: number } = {
+        max_count: Math.min(20, maxVideos - all.length),
+      };
       if (cursor !== undefined) pageBody.cursor = cursor;
       const res = await fetch(url, {
         method: "POST",
@@ -167,33 +175,33 @@ Deno.serve(async (req) => {
           },
         );
       }
-      const json = JSON.parse(text);
-      const videos = json?.data?.videos || [];
-      all.push(...videos);
-      cursor = json?.data?.cursor;
-      hasMore = !!json?.data?.has_more;
+      const json: unknown = JSON.parse(text);
+      all.push(...getArray(json, "data", "videos"));
+      cursor = getNumber(json, "data", "cursor");
+      hasMore = !!getPath(json, "data", "has_more");
       pages++;
     }
 
-    const records: VideoRecord[] = all.slice(0, maxVideos).map((v: any) => {
-      const views = Number(v.view_count) || 0;
-      const likes = Number(v.like_count) || 0;
-      const comments = Number(v.comment_count) || 0;
-      const shares = Number(v.share_count) || 0;
+    const records: VideoRecord[] = all.slice(0, maxVideos).map((v) => {
+      const views = Number(getPath(v, "view_count")) || 0;
+      const likes = Number(getPath(v, "like_count")) || 0;
+      const comments = Number(getPath(v, "comment_count")) || 0;
+      const shares = Number(getPath(v, "share_count")) || 0;
       const engagement =
         views > 0 ? ((likes + comments + shares) / views) * 100 : 0;
-      const createIso = v.create_time
-        ? new Date(Number(v.create_time) * 1000).toISOString().split("T")[0]
+      const createTime = getPath(v, "create_time");
+      const createIso = createTime
+        ? new Date(Number(createTime) * 1000).toISOString().split("T")[0]
         : "";
       return {
-        video_id: String(v.id ?? ""),
-        title: v.title || v.video_description || "",
-        description: v.video_description || "",
+        video_id: String(getPath(v, "id") ?? ""),
+        title: getString(v, "title") || getString(v, "video_description") || "",
+        description: getString(v, "video_description") || "",
         create_time: createIso,
-        cover_image_url: v.cover_image_url || "",
-        share_url: v.share_url || "",
-        embed_link: v.embed_link || "",
-        duration_sec: Number(v.duration) || 0,
+        cover_image_url: getString(v, "cover_image_url") || "",
+        share_url: getString(v, "share_url") || "",
+        embed_link: getString(v, "embed_link") || "",
+        duration_sec: Number(getPath(v, "duration")) || 0,
         view_count: views,
         like_count: likes,
         comment_count: comments,
@@ -289,7 +297,7 @@ Deno.serve(async (req) => {
         table_id,
         tenant_id: tableTenantId,
         created_by: userId,
-        data: r as any,
+        data: r,
       }));
       const { error: insErr, count } = await supabaseAdmin
         .from("crm_records")
@@ -319,9 +327,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("sync-tiktok-content error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: getPath(error, "message") }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

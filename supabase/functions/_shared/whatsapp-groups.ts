@@ -3,8 +3,24 @@
  * same group_chat_id) when operators sync the same phone into MC and DMM.
  * Invite links fetched via one tenant's Green API should propagate to siblings.
  */
+import { asRecords, optString, type QueryResult } from "./provider-json.ts";
+
+interface GroupsFilter extends PromiseLike<QueryResult> {
+  match(filter: { group_chat_id: string }): GroupsFilter;
+  filter(column: "invite_link", operator: "neq", value: string): GroupsFilter;
+  not(column: "invite_link", operator: "is", value: null): GroupsFilter;
+  limit(count: number): GroupsFilter;
+}
+
+interface GroupsDb {
+  from(table: "whatsapp_groups"): {
+    update(values: { invite_link: string }): GroupsFilter;
+    select(columns: string): GroupsFilter;
+  };
+}
+
 export async function propagateWhatsappGroupInviteLink(
-  supabase: { from: (table: string) => any },
+  supabase: GroupsDb,
   groupChatId: string,
   inviteLink: string | null | undefined,
 ): Promise<void> {
@@ -14,8 +30,8 @@ export async function propagateWhatsappGroupInviteLink(
   const { error } = await supabase
     .from("whatsapp_groups")
     .update({ invite_link: link })
-    .eq("group_chat_id", groupChatId)
-    .neq("invite_link", link);
+    .match({ group_chat_id: groupChatId })
+    .filter("invite_link", "neq", link);
 
   if (error) {
     console.warn("[whatsapp-groups] invite_link propagation failed", {
@@ -27,7 +43,7 @@ export async function propagateWhatsappGroupInviteLink(
 
 /** Use cached link, or copy from a sibling row with the same group_chat_id. */
 export async function resolveWhatsappGroupInviteLink(
-  supabase: { from: (table: string) => any },
+  supabase: GroupsDb,
   groupChatId: string | null | undefined,
   cachedLink: string | null | undefined,
 ): Promise<string | null> {
@@ -38,11 +54,12 @@ export async function resolveWhatsappGroupInviteLink(
   const { data: siblings } = await supabase
     .from("whatsapp_groups")
     .select("invite_link")
-    .eq("group_chat_id", groupChatId)
+    .match({ group_chat_id: groupChatId })
     .not("invite_link", "is", null)
     .limit(1);
 
-  const siblingLink = siblings?.[0]?.invite_link?.trim() || null;
+  const siblingLink =
+    optString(asRecords(siblings)[0]?.invite_link)?.trim() || null;
   if (siblingLink) {
     await propagateWhatsappGroupInviteLink(supabase, groupChatId, siblingLink);
   }

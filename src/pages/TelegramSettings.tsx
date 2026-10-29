@@ -126,7 +126,7 @@ export default function TelegramSettings() {
   });
 
   const isConnected = botState?.is_active;
-  const isShared = !!(botState as any)?.shared_from_state_id;
+  const isShared = !!botState?.shared_from_state_id;
 
   return (
     <div className="h-full overflow-y-auto">

@@ -41,9 +41,11 @@ import {
   useUpdatePostStatus,
 } from "@/hooks/useSocialMedia";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import { cn } from "@/lib/utils";
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -203,8 +205,8 @@ function PostEditorDialog({
 
         setLocalImage(urlData.publicUrl);
         toast.success("התמונה הועלתה בהצלחה");
-      } catch (err: any) {
-        toast.error("שגיאה בהעלאת התמונה: " + err.message);
+      } catch (err) {
+        toast.error("שגיאה בהעלאת התמונה: " + errorMessage(err));
         setLocalImage(post?.media_urls?.[0] ?? null);
       } finally {
         setUploading(false);
@@ -240,8 +242,8 @@ function PostEditorDialog({
       } else {
         throw new Error("לא התקבלה תמונה");
       }
-    } catch (err: any) {
-      toast.error("שגיאה ביצירת תמונה: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה ביצירת תמונה: " + errorMessage(err));
     } finally {
       setGeneratingAI(false);
     }
@@ -268,7 +270,7 @@ function PostEditorDialog({
         });
       } else {
         // Update existing post
-        const updateData: Record<string, unknown> = {
+        const updateData: TablesUpdate<"social_media_posts"> = {
           title,
           content,
           updated_at: new Date().toISOString(),
@@ -278,7 +280,7 @@ function PostEditorDialog({
           updateData.post_type = "image";
         }
 
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from("social_media_posts")
           .update(updateData)
           .eq("id", post!.id);
@@ -291,8 +293,8 @@ function PostEditorDialog({
       }
       onSaved();
       onClose();
-    } catch (err: any) {
-      toast.error("שגיאה בשמירה: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה בשמירה: " + errorMessage(err));
     } finally {
       setSaving(false);
     }

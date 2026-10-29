@@ -4,6 +4,11 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getCalendarEvents, addCalendarEvent } from "@/lib/calendarApi";
 import {
+  parseCalendarEventsPayload,
+  type CalendarPayloadEvent,
+} from "@/lib/calendarEventsPayload";
+import { errorMessage } from "@/components/broadcast/templateUtils";
+import {
   formatMeetingLeadUpdate,
   formatMeetingWhatsappMessage,
 } from "@/lib/meetingLeadUpdate";
@@ -26,7 +31,9 @@ export function useMeetingScheduler(tenantId?: string) {
   const [personalMessage, setPersonalMessage] = useState("");
   const [isSchedulingMeeting, setIsSchedulingMeeting] = useState(false);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
-  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarPayloadEvent[]>(
+    [],
+  );
   const [calendarError, setCalendarError] = useState<string | null>(null);
 
   /**
@@ -44,18 +51,18 @@ export function useMeetingScheduler(tenantId?: string) {
       const endOfDay = new Date(selectedDate);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const data = await getCalendarEvents(
+      const data: unknown = await getCalendarEvents(
         startOfDay.toISOString(),
         endOfDay.toISOString(),
         { tenantId },
       );
 
-      if (data?.events) {
-        setCalendarEvents(data.events);
+      if (typeof data === "object" && data && "events" in data && data.events) {
+        setCalendarEvents(parseCalendarEventsPayload(data).events);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error fetching calendar events:", err);
-      setCalendarError(err.message || "שגיאה בטעינת היומן");
+      setCalendarError(errorMessage(err) || "שגיאה בטעינת היומן");
     } finally {
       setIsLoadingCalendar(false);
     }
@@ -359,9 +366,9 @@ export function useMeetingScheduler(tenantId?: string) {
       if (onSuccess) {
         onSuccess();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Meeting scheduling error:", error);
-      toast.error(`שגיאה בקביעת פגישה: ${error.message}`);
+      toast.error(`שגיאה בקביעת פגישה: ${errorMessage(error)}`);
     } finally {
       setIsSchedulingMeeting(false);
     }

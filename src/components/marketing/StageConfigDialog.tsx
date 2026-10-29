@@ -22,16 +22,33 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { useClientConnections } from "./lib/useClientConnections";
+import {
+  useClientConnections,
+  type ClientConnections,
+} from "./lib/useClientConnections";
+import type { Json } from "@/integrations/supabase/types";
+import { errorMessage } from "@/components/broadcast/templateUtils";
+import {
+  isJsonObject,
+  jsonString,
+  jsonStringArray,
+  type JsonColumnObject,
+} from "@/lib/jsonFields";
+import {
+  isApprovalMode,
+  parseStageConfiguration,
+  type MarketingApprovalMode,
+  type MarketingStageType,
+} from "@/types/marketingPipeline";
 import { Loader2, Plus, Save, Download, Globe } from "lucide-react";
 
 interface Stage {
   id: string;
   name: string;
-  stage_type: string;
+  stage_type: MarketingStageType;
   agent_id: string | null;
-  approval_mode: "manual" | "auto" | "hybrid";
-  configuration: any;
+  approval_mode: MarketingApprovalMode;
+  configuration: Json;
   pipeline_id: string;
 }
 
@@ -119,7 +136,7 @@ export function StageConfigDialog({
   >("manual");
   const [instructions, setInstructions] = useState("");
   const [tools, setTools] = useState<string[]>([]);
-  const [target, setTarget] = useState<any>({});
+  const [target, setTarget] = useState<JsonColumnObject>({});
   const [saving, setSaving] = useState(false);
 
   const connections = useClientConnections(clientId);
@@ -158,10 +175,10 @@ export function StageConfigDialog({
     setName(stage.name ?? "");
     setAgentId(stage.agent_id ?? null);
     setApprovalMode(stage.approval_mode ?? "manual");
-    const cfg = stage.configuration ?? {};
-    setInstructions(cfg.instructions ?? "");
-    setTools(cfg.tools ?? []);
-    setTarget(cfg.target ?? {});
+    const cfg = parseStageConfiguration(stage.configuration);
+    setInstructions(cfg.instructions);
+    setTools(cfg.tools);
+    setTarget(cfg.target);
   }, [stage?.id]);
 
   if (!stage) return null;
@@ -192,8 +209,8 @@ export function StageConfigDialog({
       });
       onSaved();
       onClose();
-    } catch (e: any) {
-      toast.error("שגיאה: " + (e.message || ""));
+    } catch (e) {
+      toast.error("שגיאה: " + errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -213,10 +230,16 @@ export function StageConfigDialog({
       return;
     }
     setAgentId(template.default_agent_id ?? null);
-    setApprovalMode((template.default_approval_mode as any) ?? "manual");
+    setApprovalMode(
+      isApprovalMode(template.default_approval_mode)
+        ? template.default_approval_mode
+        : "manual",
+    );
     setInstructions(template.default_instructions ?? "");
-    setTools((template.default_tools as string[]) ?? []);
-    setTarget(template.default_target ?? {});
+    setTools(jsonStringArray(template.default_tools));
+    setTarget(
+      isJsonObject(template.default_target) ? template.default_target : {},
+    );
     toast.success("נטען מתבנית כללית");
   };
 
@@ -234,7 +257,7 @@ export function StageConfigDialog({
         default_agent_id: agentId,
         default_approval_mode: approvalMode,
         default_instructions: instructions,
-        default_tools: tools as any,
+        default_tools: tools,
         default_target: target,
         is_system: false,
       },
@@ -270,10 +293,10 @@ export function StageConfigDialog({
       .from("marketing_pipeline_stages")
       .select("id, configuration, agent_id")
       .in("pipeline_id", pipelineIds)
-      .eq("stage_type", stage.stage_type as any);
+      .eq("stage_type", stage.stage_type);
     let updated = 0;
     for (const s of stages ?? []) {
-      const existingCfg = (s.configuration as any) ?? {};
+      const existingCfg = isJsonObject(s.configuration) ? s.configuration : {};
       const hasManualOverride = existingCfg.instructions || s.agent_id;
       if (hasManualOverride && s.id !== stage.id) continue;
       await supabase
@@ -339,7 +362,9 @@ export function StageConfigDialog({
               <Label>מצב אישור</Label>
               <Select
                 value={approvalMode}
-                onValueChange={(v: any) => setApprovalMode(v)}
+                onValueChange={(v) => {
+                  if (isApprovalMode(v)) setApprovalMode(v);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -380,7 +405,7 @@ export function StageConfigDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">ללא אייג'נט</SelectItem>
-                  {agents.map((a: any) => (
+                  {agents.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.name}
                     </SelectItem>
@@ -389,7 +414,7 @@ export function StageConfigDialog({
               </Select>
               {agentId && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {agents.find((a: any) => a.id === agentId)?.personality ?? ""}
+                  {agents.find((a) => a.id === agentId)?.personality ?? ""}
                 </p>
               )}
             </div>
@@ -456,9 +481,9 @@ function TargetSection({
   onConnectionsChanged,
 }: {
   stageType: string;
-  target: any;
-  setTarget: (t: any) => void;
-  connections: any;
+  target: JsonColumnObject;
+  setTarget: (t: JsonColumnObject) => void;
+  connections: ClientConnections | undefined;
   clientId: string;
   tenantId: string;
   onConnectionsChanged: () => void;
@@ -467,7 +492,7 @@ function TargetSection({
 
   if (stageType === "target_organic") {
     const pages = connections.socialPages || [];
-    const selected: string[] = target.page_ids ?? [];
+    const selected = jsonStringArray(target.page_ids);
     const togglePage = (id: string) =>
       setTarget({
         ...target,
@@ -486,7 +511,7 @@ function TargetSection({
             </p>
           ) : (
             <div className="mt-2 space-y-2">
-              {pages.map((p: any) => (
+              {pages.map((p) => (
                 <label
                   key={p.id}
                   className="flex items-center gap-2 rounded-md border p-2 cursor-pointer hover:bg-muted/40"
@@ -522,7 +547,7 @@ function TargetSection({
         <Label>אתר היעד לפרסום (SEO/GEO)</Label>
         <div className="flex gap-2">
           <Input
-            value={target.website ?? website}
+            value={jsonString(target, "website") ?? website}
             onChange={(e) => setTarget({ ...target, website: e.target.value })}
             placeholder="https://example.com"
           />
@@ -531,7 +556,7 @@ function TargetSection({
           size="sm"
           variant="outline"
           onClick={async () => {
-            const url = target.website || website;
+            const url = jsonString(target, "website") || website;
             if (!url) return;
             await supabase
               .from("clients")
@@ -554,7 +579,11 @@ function TargetSection({
         <div>
           <Label>חשבון Meta Ads</Label>
           <Input
-            value={target.meta_ad_account ?? c?.meta_ads_account_id ?? ""}
+            value={
+              jsonString(target, "meta_ad_account") ??
+              c?.meta_ads_account_id ??
+              ""
+            }
             onChange={(e) =>
               setTarget({ ...target, meta_ad_account: e.target.value })
             }
@@ -564,7 +593,11 @@ function TargetSection({
         <div>
           <Label>חשבון Google Ads</Label>
           <Input
-            value={target.google_ad_account ?? c?.google_ads_account_id ?? ""}
+            value={
+              jsonString(target, "google_ad_account") ??
+              c?.google_ads_account_id ??
+              ""
+            }
             onChange={(e) =>
               setTarget({ ...target, google_ad_account: e.target.value })
             }
@@ -623,8 +656,8 @@ function AddSocialPageInline({
       setPageName("");
       setOpen(false);
       onAdded();
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e) {
+      toast.error(errorMessage(e));
     } finally {
       setSaving(false);
     }

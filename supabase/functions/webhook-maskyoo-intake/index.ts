@@ -4,6 +4,7 @@ import {
   updateLeadWithRepeatReopen,
 } from "../_shared/lead-repeat-reopen.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -250,7 +251,7 @@ Deno.serve(async (req) => {
         ? `${existingNotes}\n${newNote}`
         : newNote;
 
-      const updates: Record<string, any> = {
+      const updates: TablesUpdate<"leads"> = {
         notes: updatedNotes,
         updated_at: new Date().toISOString(),
       };
