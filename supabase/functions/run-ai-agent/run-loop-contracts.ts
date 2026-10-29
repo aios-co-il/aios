@@ -1,27 +1,34 @@
+import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
 import type { ToolDef } from "../_shared/carmen-token-optimizer.ts";
-import { isObject, jsonObject } from "./json-config.ts";
-import type { JsonRecord } from "./run-request.ts";
+import { jsonSchema } from "./run-request.ts";
 
 /** An OpenAI-compatible tool call as returned in `choices[0].message.tool_calls`. */
-export interface ChatToolCall {
-  id?: string;
-  type?: string;
-  function: { name: string; arguments?: unknown };
-}
+const chatToolCallSchema = z
+  .object({
+    id: z.string().optional(),
+    function: z
+      .object({ name: z.string(), arguments: z.unknown() })
+      .passthrough(),
+  })
+  .passthrough();
 
 /**
  * An assistant message from an OpenAI-compatible chat completion. It is sent
  * back to the provider as received, so fields not listed here are kept.
  */
-export interface ChatCompletionMessage {
-  role?: unknown;
-  content?: unknown;
-  tool_calls?: ChatToolCall[] | null;
-}
+const chatCompletionMessageSchema = z
+  .object({
+    role: z.unknown(),
+    content: z.unknown(),
+    tool_calls: z.array(chatToolCallSchema).nullish(),
+  })
+  .passthrough();
+
+export type ChatCompletionMessage = z.infer<typeof chatCompletionMessageSchema>;
 
 export type ChatRequestMessage =
-  | { role: "system" | "user" | "assistant"; content: Json | undefined }
+  | { role: "system" | "user" | "assistant"; content: unknown }
   | ChatCompletionMessage
   | { role: "tool"; tool_call_id: string | undefined; content: string };
 
@@ -35,95 +42,86 @@ export interface ChatCompletionRequest {
   tool_choice?: { type: "function"; function: { name: string } };
 }
 
-function isChatToolCall(value: unknown): value is ChatToolCall {
-  if (!isObject(value)) return false;
-  if ("id" in value && value.id !== undefined && typeof value.id !== "string")
-    return false;
-  if (!("function" in value) || !isObject(value.function)) return false;
-  return "name" in value.function && typeof value.function.name === "string";
+export function readChatCompletionMessage(
+  value: unknown,
+): ChatCompletionMessage | null {
+  const parsed = chatCompletionMessageSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
-export function isChatCompletionMessage(
-  value: unknown,
-): value is ChatCompletionMessage {
-  if (!isObject(value)) return false;
-  if (!("tool_calls" in value)) return true;
-  const toolCalls = value.tool_calls;
-  return (
-    toolCalls === undefined ||
-    toolCalls === null ||
-    (Array.isArray(toolCalls) && toolCalls.every(isChatToolCall))
-  );
-}
+const firstChoiceSchema = z.object({
+  choices: z.array(z.object({ message: z.unknown() }).catch({})).nonempty(),
+});
 
 /** `choices[0].message` of a chat completion body, or undefined. */
-export function firstChoiceMessage(data: Json): Json | undefined {
-  const choices = jsonObject(data).choices;
-  if (!Array.isArray(choices) || choices.length === 0) return undefined;
-  return jsonObject(choices[0]).message;
+export function firstChoiceMessage(data: unknown): unknown {
+  const parsed = firstChoiceSchema.safeParse(data);
+  return parsed.success ? parsed.data.choices[0].message : undefined;
 }
 
-function tokenCount(value: Json | undefined): number | undefined {
-  return typeof value === "number" ? value : undefined;
-}
+const tokenCount = z.number().optional().catch(undefined);
+
+const usageFieldsSchema = z
+  .object({
+    prompt_tokens: tokenCount,
+    input_tokens: tokenCount,
+    completion_tokens: tokenCount,
+    output_tokens: tokenCount,
+  })
+  .catch({});
+
+const chatUsageSchema = z.object({ usage: z.unknown() }).catch({});
 
 /** Token usage of a chat completion (OpenAI or Anthropic field names). */
 export function readChatUsage(
-  data: Json,
+  data: unknown,
 ): { input: number; output: number } | null {
-  const usage = jsonObject(data).usage;
+  const { usage } = chatUsageSchema.parse(data);
   if (!usage) return null;
-  const fields = jsonObject(usage);
+  const fields = usageFieldsSchema.parse(usage);
   return {
-    input:
-      tokenCount(fields.prompt_tokens) ?? tokenCount(fields.input_tokens) ?? 0,
-    output:
-      tokenCount(fields.completion_tokens) ??
-      tokenCount(fields.output_tokens) ??
-      0,
+    input: fields.prompt_tokens ?? fields.input_tokens ?? 0,
+    output: fields.completion_tokens ?? fields.output_tokens ?? 0,
   };
 }
 
+const toolArgumentsSchema = z.record(z.unknown()).catch({});
+
 /** Tool arguments from a tool call's JSON `arguments` string; anything else is `{}`. */
-export function parseToolArguments(raw: unknown): JsonRecord {
+export function parseToolArguments(raw: unknown): Record<string, unknown> {
   try {
-    const parsed: Json = JSON.parse(String(raw || "{}"));
-    return jsonObject(parsed);
+    return toolArgumentsSchema.parse(JSON.parse(String(raw || "{}")));
   } catch {
     return {};
   }
 }
 
 /** The result fields the run loop reads; every tool returns its own shape. */
-export interface ToolResultView {
-  success?: unknown;
-  message?: unknown;
-  error?: unknown;
-  whatsapp_digest?: unknown;
-  sub_task_id?: unknown;
-  ui_action?: unknown;
-  pending_approval?: unknown;
-}
+const toolResultSchema = z
+  .object({
+    success: z.unknown(),
+    message: z.unknown(),
+    error: z.unknown(),
+    whatsapp_digest: z.unknown(),
+    sub_task_id: z.unknown(),
+    ui_action: z.unknown(),
+    pending_approval: z.unknown(),
+    approval_id: z.unknown(),
+    workshop: z.unknown(),
+    say_to_user: z.unknown(),
+    needs_budget: z.unknown(),
+  })
+  .catch({});
+
+export type ToolResultView = z.infer<typeof toolResultSchema>;
 
 export function readToolResult(value: unknown): ToolResultView {
-  if (value === null || typeof value !== "object") return {};
-  return {
-    success: "success" in value ? value.success : undefined,
-    message: "message" in value ? value.message : undefined,
-    error: "error" in value ? value.error : undefined,
-    whatsapp_digest:
-      "whatsapp_digest" in value ? value.whatsapp_digest : undefined,
-    sub_task_id: "sub_task_id" in value ? value.sub_task_id : undefined,
-    ui_action: "ui_action" in value ? value.ui_action : undefined,
-    pending_approval:
-      "pending_approval" in value ? value.pending_approval : undefined,
-  };
+  return toolResultSchema.parse(value);
 }
 
 /** A tool result as the JSON that supabase-js would serialize for a jsonb column. */
 export function toJson(value: unknown): Json | undefined {
   const text = JSON.stringify(value);
   if (text === undefined) return undefined;
-  const parsed: Json = JSON.parse(text);
-  return parsed;
+  return jsonSchema.parse(JSON.parse(text));
 }

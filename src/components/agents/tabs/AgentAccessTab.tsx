@@ -1,5 +1,11 @@
+import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
@@ -22,7 +28,7 @@ import { AGENT_TOOLS_CATALOG } from "@/lib/agentToolsCatalog";
 // denylist on ai_agents (disabled_tools / disabled_skins / disabled_integrations),
 // which run-ai-agent subtracts at runtime.
 
-export function AgentAccessTab({ agent }: { agent: any }) {
+export function AgentAccessTab({ agent }: { agent: Tables<"ai_agents"> }) {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [offTools, setOffTools] = useState<Set<string>>(new Set());
@@ -41,7 +47,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
     queryKey: ["agent-access-skins", tenantId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("ai_skills" as any)
+        .from("ai_skills")
         .select("slug,name,scope,is_active")
         .eq("is_active", true)
         .or(
@@ -49,11 +55,15 @@ export function AgentAccessTab({ agent }: { agent: any }) {
             ? `scope.eq.global,and(scope.eq.tenant,tenant_id.eq.${tenantId})`
             : "scope.eq.global",
         );
-      const bySlug = new Map<string, any>();
-      for (const r of (data as any[]) || []) {
+      const bySlug = new Map<
+        string,
+        NonNullable<typeof data>[number] & { slug: string }
+      >();
+      for (const r of data || []) {
         if (!r.slug) continue;
         const ex = bySlug.get(r.slug);
-        if (!ex || r.scope === "tenant") bySlug.set(r.slug, r);
+        if (!ex || r.scope === "tenant")
+          bySlug.set(r.slug, { ...r, slug: r.slug });
       }
       return Array.from(bySlug.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
@@ -64,16 +74,18 @@ export function AgentAccessTab({ agent }: { agent: any }) {
 
   const { data: integrations } = useQuery({
     queryKey: ["agent-access-integrations", agent.id, tenantId],
-    queryFn: async () => {
-      // Load both: connections scoped to this agent AND tenant-wide connections (agent_id = null)
-      const { data } = await supabase
-        .from("agent_mcp_connections" as any)
-        .select("id,name,state,agent_id")
-        .eq("tenant_id", tenantId)
-        .or(`agent_id.eq.${agent.id},agent_id.is.null`);
-      return (data as any[]) || [];
-    },
-    enabled: !!agent.id && !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          // Load both: connections scoped to this agent AND tenant-wide connections (agent_id = null)
+          const { data } = await supabase
+            .from("agent_mcp_connections")
+            .select("id,name,state,agent_id")
+            .eq("tenant_id", tenantId)
+            .or(`agent_id.eq.${agent.id},agent_id.is.null`);
+          return data || [];
+        }
+      : skipToken,
+    enabled: !!agent.id,
   });
 
   const toolGroups = useMemo(() => {
@@ -85,7 +97,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
   const save = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from("ai_agents" as any)
+        .from("ai_agents")
         .update({
           disabled_tools: Array.from(offTools),
           disabled_skins: Array.from(offSkins),
@@ -98,7 +110,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
       toast.success("הגישות נשמרו");
       queryClient.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
     },
-    onError: (e: any) => toast.error("שמירה נכשלה: " + (e?.message || e)),
+    onError: (e) => toast.error("שמירה נכשלה: " + (e?.message || e)),
   });
 
   const toggle = (
@@ -203,7 +215,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
               <Sparkles className="h-4 w-4 text-orange-500" />
               סקינז
             </h2>
-            {(skins || []).map((s: any) => (
+            {(skins || []).map((s) => (
               <Row
                 key={s.slug}
                 on={!offSkins.has(s.slug)}
@@ -225,7 +237,7 @@ export function AgentAccessTab({ agent }: { agent: any }) {
               <Plug className="h-4 w-4 text-blue-500" />
               אינטגרציות (MCP)
             </h2>
-            {(integrations || []).map((c: any) => (
+            {(integrations || []).map((c) => (
               <Row
                 key={c.id}
                 on={!offIntegrations.has(c.name)}
