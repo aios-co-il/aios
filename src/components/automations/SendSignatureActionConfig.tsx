@@ -3,7 +3,7 @@ import {
   cfgText,
   type StepConfig,
   type StepConfigChange,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import {

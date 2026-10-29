@@ -12,7 +12,7 @@ import {
   errorMessage,
   isJsonObject,
   type JsonObject,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 
 interface Props {
   integrationId?: string;

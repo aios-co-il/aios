@@ -3,7 +3,7 @@ import {
   cfgText,
   type StepConfig,
   type StepConfigChange,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +21,7 @@ import {
   EmailRecipientsListEditor,
   migrateLegacyEmailRecipients,
 } from "./EmailRecipientsListEditor";
-import { toStoredRecipients } from "@/lib/storedRecipients";
+import { toStoredRecipients } from "./storedRecipients";
 import { EmailWebhookMappingPanel } from "./EmailWebhookMappingPanel";
 
 interface Props {

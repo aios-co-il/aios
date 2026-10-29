@@ -1,9 +1,12 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import { isAutomationPayload } from "./automation-payload.ts";
+import { automationPayloadSchema } from "./automation-payload.ts";
+
+const accepts = (value: unknown) =>
+  automationPayloadSchema.safeParse(value).success;
 
 Deno.test("accepts trigger bodies, direct runs and null optionals", () => {
   assertStrictEquals(
-    isAutomationPayload({
+    accepts({
       trigger_type: "lead_created",
       tenant_id: "t1",
       data: { lead_id: "l1" },
@@ -13,11 +16,11 @@ Deno.test("accepts trigger bodies, direct runs and null optionals", () => {
     true,
   );
   assertStrictEquals(
-    isAutomationPayload({ automationId: "a1", payload: { test: true } }),
+    accepts({ automationId: "a1", payload: { test: true } }),
     true,
   );
   assertStrictEquals(
-    isAutomationPayload({
+    accepts({
       trigger_type: "x",
       tenant_id: null,
       data: null,
@@ -29,13 +32,28 @@ Deno.test("accepts trigger bodies, direct runs and null optionals", () => {
   );
 });
 
+Deno.test("keeps unknown keys and nested data", () => {
+  assertEquals(
+    automationPayloadSchema.parse({
+      trigger_type: "lead_created",
+      data: { lead_id: "l1", tags: ["a"] },
+      extra: { nested: true },
+    }),
+    {
+      trigger_type: "lead_created",
+      data: { lead_id: "l1", tags: ["a"] },
+      extra: { nested: true },
+    },
+  );
+});
+
 Deno.test("rejects non-objects and mistyped known fields", () => {
-  assertStrictEquals(isAutomationPayload(null), false);
-  assertStrictEquals(isAutomationPayload([]), false);
-  assertStrictEquals(isAutomationPayload("x"), false);
-  assertStrictEquals(isAutomationPayload({ trigger_type: 5 }), false);
-  assertStrictEquals(isAutomationPayload({ data: [] }), false);
-  assertStrictEquals(isAutomationPayload({ data: "x" }), false);
-  assertStrictEquals(isAutomationPayload({ _execution_depth: "1" }), false);
-  assertStrictEquals(isAutomationPayload({ _execution_chain: [1] }), false);
+  assertStrictEquals(accepts(null), false);
+  assertStrictEquals(accepts([]), false);
+  assertStrictEquals(accepts("x"), false);
+  assertStrictEquals(accepts({ trigger_type: 5 }), false);
+  assertStrictEquals(accepts({ data: [] }), false);
+  assertStrictEquals(accepts({ data: "x" }), false);
+  assertStrictEquals(accepts({ _execution_depth: "1" }), false);
+  assertStrictEquals(accepts({ _execution_chain: [1] }), false);
 });

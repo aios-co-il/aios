@@ -71,7 +71,7 @@ import {
   type StepConfigBulkChange,
   type StepConfigChange,
   type StepConfigValue,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useToast } from "@/hooks/use-toast";
@@ -79,7 +79,7 @@ import {
   RecipientsListEditor,
   migrateLegacyRecipients,
 } from "./RecipientsListEditor";
-import { toStoredRecipients } from "@/lib/storedRecipients";
+import { toStoredRecipients } from "./storedRecipients";
 import { EmailActionConfig } from "./EmailActionConfig";
 import SendSignatureActionConfig from "./SendSignatureActionConfig";
 import MailingActionConfig from "./MailingActionConfig";

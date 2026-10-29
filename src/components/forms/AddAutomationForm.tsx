@@ -41,7 +41,7 @@ import {
   StatusStageSelect,
 } from "@/components/automations/StatusStageSelect";
 import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
-import type { JsonObject } from "@/lib/automationStepConfig";
+import type { JsonObject } from "@/components/automations/automationStepConfig";
 import {
   FORM_TRIGGER_OPTIONS,
   FORM_TRIGGER_VALUES,

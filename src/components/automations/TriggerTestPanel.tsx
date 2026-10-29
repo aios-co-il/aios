@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useToast } from "@/hooks/use-toast";
@@ -46,12 +47,13 @@ import { ACTION_TYPE_LABELS } from "./FlowNode";
 import { cn } from "@/lib/utils";
 import {
   cfgObject,
-  cfgText,
   errorMessage,
-  isJsonObject,
+  jsonObjectTextSchema,
+  listOf,
+  optionalTextSchema,
   type JsonObject,
   type StepConfig,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import {
   parseFlowStepResults,
   type FlowStepResult,
@@ -73,51 +75,38 @@ interface TestResult {
   raw: unknown;
 }
 
-interface PickerEntity {
-  id: string;
-  contact_name?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  source?: string | null;
-  status?: string | null;
-  notes?: string | null;
-  title?: string | null;
-  description?: string | null;
-}
+const pickerText = z.string().nullish();
 
-const PICKER_TEXT_KEYS = [
-  "contact_name",
-  "phone",
-  "email",
-  "source",
-  "status",
-  "notes",
-  "title",
-  "description",
-] as const;
+const pickerEntitySchema = z.object({
+  id: z.string(),
+  contact_name: pickerText,
+  phone: pickerText,
+  email: pickerText,
+  source: pickerText,
+  status: pickerText,
+  notes: pickerText,
+  title: pickerText,
+  description: pickerText,
+});
 
-function isPickerEntity(row: unknown): row is PickerEntity {
-  if (!isJsonObject(row) || typeof row.id !== "string") return false;
-  return PICKER_TEXT_KEYS.every((key) => {
-    const value = row[key];
-    return value === undefined || value === null || typeof value === "string";
-  });
-}
+type PickerEntity = z.infer<typeof pickerEntitySchema>;
 
 function toPickerEntities(
   rows: readonly unknown[] | undefined,
 ): PickerEntity[] {
-  return (rows ?? []).filter(isPickerEntity);
+  return listOf(pickerEntitySchema, rows ?? []) ?? [];
 }
 
+const testResponseSchema = z
+  .object({
+    error: optionalTextSchema,
+    steps: z.unknown().transform(parseFlowStepResults),
+    agent_output: optionalTextSchema,
+  })
+  .catch({ steps: [] });
+
 function toTestResult(data: unknown): TestResult {
-  const result = cfgObject(data);
-  return {
-    error: cfgText(result?.error),
-    steps: parseFlowStepResults(result?.steps),
-    agent_output: cfgText(result?.agent_output),
-    raw: data,
-  };
+  return { ...testResponseSchema.parse(data), raw: data };
 }
 
 // ─── Helper: build default payload per trigger type ──────────────────────────
@@ -672,12 +661,11 @@ export function TriggerTestPanel({
 
   const handleFieldChange = (key: string, value: string) => {
     if (key === "_json_payload") {
-      try {
-        const parsed: unknown = JSON.parse(value);
-        if (!isJsonObject(parsed)) throw new Error("payload must be an object");
-        setPayload(parsed);
+      const parsed = jsonObjectTextSchema.safeParse(value);
+      if (parsed.success) {
+        setPayload(parsed.data);
         setJsonError(null);
-      } catch {
+      } else {
         setJsonError("JSON לא תקין");
         setPayload((prev) => ({ ...prev, _raw_json: value }));
       }

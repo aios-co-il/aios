@@ -5,7 +5,7 @@ import {
   type StepConfig,
   type StepConfigBulkChange,
   type StepConfigChange,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import {
   decodeStatusSelection,
   encodeStoredTriggerFilters,

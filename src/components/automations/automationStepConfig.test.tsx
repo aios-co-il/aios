@@ -2,13 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
+import { z } from "zod";
 import {
   cfgNumeric,
+  cfgObject,
+  cfgObjectArray,
   cfgStringArray,
   cfgText,
+  cfgTextArray,
   errorMessage,
+  isJsonObject,
+  jsonObjectTextSchema,
+  listOf,
   parseStepConfig,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import {
   FORM_TRIGGER_OPTIONS,
   FORM_TRIGGER_VALUES,
@@ -17,7 +24,7 @@ import {
 import { flowStepRowToNodeData } from "./flowStepRow";
 import { migrateLegacyRecipients } from "./RecipientsListEditor";
 import { migrateLegacyEmailRecipients } from "./EmailRecipientsListEditor";
-import { toStoredRecipients } from "@/lib/storedRecipients";
+import { toStoredRecipients } from "./storedRecipients";
 
 describe("parseStepConfig", () => {
   it("returns objects as-is, keeping unknown keys", () => {
@@ -175,6 +182,58 @@ describe("migrateLegacyEmailRecipients", () => {
     );
     expect(migrateLegacyEmailRecipients({})).toEqual([
       { type: "email_field", field: "email" },
+    ]);
+  });
+});
+
+describe("jsonObjectSchema helpers", () => {
+  it("isJsonObject accepts plain objects only", () => {
+    expect(isJsonObject({ a: 1 })).toBe(true);
+    expect(isJsonObject([])).toBe(false);
+    expect(isJsonObject(null)).toBe(false);
+    expect(isJsonObject("x")).toBe(false);
+  });
+
+  it("cfgObject keeps the same object", () => {
+    const value = { a: 1 };
+    expect(cfgObject(value)).toBe(value);
+    expect(cfgObject([1])).toBeUndefined();
+  });
+
+  it("cfgObjectArray and cfgTextArray drop unsupported items", () => {
+    expect(cfgObjectArray([{ a: 1 }, null, [2], "x"])).toEqual([{ a: 1 }]);
+    expect(cfgTextArray(["a", 2, true, null, {}])).toEqual(["a", "2", "true"]);
+    expect(cfgTextArray("a")).toBeUndefined();
+  });
+
+  it("listOf keeps items matching the schema", () => {
+    expect(listOf(z.number(), [1, "2", 3])).toEqual([1, 3]);
+    expect(listOf(z.number(), { a: 1 })).toBeUndefined();
+  });
+
+  it("jsonObjectTextSchema parses JSON object text only", () => {
+    expect(jsonObjectTextSchema.safeParse('{"a":1}').data).toEqual({ a: 1 });
+    expect(jsonObjectTextSchema.safeParse("[1]").success).toBe(false);
+    expect(jsonObjectTextSchema.safeParse("{").success).toBe(false);
+    expect(jsonObjectTextSchema.safeParse(5).success).toBe(false);
+  });
+});
+
+describe("migrateLegacyRecipients schemas", () => {
+  it("rejects non-finite ids and unknown contact entities", () => {
+    expect(
+      migrateLegacyRecipients({
+        recipients: [
+          { type: "contact_lookup", entity: "vendor", id: "1" },
+          { type: "group_lookup", group_id: 12, extra: "x" },
+        ],
+      }),
+    ).toEqual([
+      {
+        type: "unsupported",
+        raw: { type: "contact_lookup", entity: "vendor", id: "1" },
+      },
+      { type: "group_lookup", group_id: "12" },
     ]);
   });
 });

@@ -49,7 +49,7 @@ import {
   cfgText,
   errorMessage,
   type JsonObject,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import {
   parseFacebookPreviewLeads,
   parseFlowStepResults,

@@ -38,7 +38,7 @@ import {
   Zap,
 } from "lucide-react";
 import { FlowNodeRF, FlowNodeData } from "./FlowNode";
-import { isJsonObject } from "@/lib/automationStepConfig";
+import { isJsonObject } from "./automationStepConfig";
 import { flowStepRowToNodeData } from "./flowStepRow";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { AddStepMenu } from "./AddStepMenu";

@@ -20,7 +20,13 @@ import { useUserTenants } from "@/hooks/useUserTenants";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Loader2, Search } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
-import { errorMessage, isJsonObject } from "@/lib/automationStepConfig";
+import { z } from "zod";
+import { cfgObjectArray, errorMessage } from "./automationStepConfig";
+
+const cloneResponseSchema = z
+  .object({ results: z.unknown().transform(cfgObjectArray) })
+  .transform(({ results }) => results ?? [])
+  .catch([]);
 
 interface ShareTargetTenant {
   id: string;
@@ -107,10 +113,7 @@ export function ShareAutomationDialog({
         },
       );
       if (error) throw error;
-      const rawResults = isJsonObject(data) ? data.results : undefined;
-      const results = Array.isArray(rawResults)
-        ? rawResults.filter(isJsonObject)
-        : [];
+      const results = cloneResponseSchema.parse(data);
       const ok = results.filter((r) => r.success).length;
       const failed = results.filter((r) => !r.success);
       toast({

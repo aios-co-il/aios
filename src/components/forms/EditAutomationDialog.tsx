@@ -43,7 +43,7 @@ import {
   cfgObject,
   cfgText,
   type JsonObject,
-} from "@/lib/automationStepConfig";
+} from "@/components/automations/automationStepConfig";
 import {
   FORM_TRIGGER_OPTIONS,
   FORM_TRIGGER_VALUES,

@@ -15,17 +15,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Search } from "lucide-react";
+import { z } from "zod";
+import { cfgText, type StepConfig } from "./automationStepConfig";
 import {
-  cfgString,
-  cfgText,
-  type JsonObject,
-  type StepConfig,
-} from "@/lib/automationStepConfig";
-import {
-  idText,
+  contactLookupRecipientSchema,
+  idTextSchema,
   parseStoredRecipients,
+  type RecipientSchema,
   type UnsupportedRecipient,
-} from "@/lib/storedRecipients";
+} from "./storedRecipients";
 import { UnsupportedRecipientRow } from "./UnsupportedRecipientRow";
 
 export type Recipient =
@@ -520,41 +518,22 @@ function GroupLookupEditor({
   );
 }
 
-// Legacy → recipients[] migration helper
-function parseRecipient(value: JsonObject): Recipient | undefined {
-  switch (value.type) {
-    case "phone_field":
-    case "group_field": {
-      const field = cfgString(value.field);
-      return field === undefined ? undefined : { type: value.type, field };
-    }
-    case "phone_manual": {
-      const phone = idText(value.phone);
-      return phone === undefined ? undefined : { type: value.type, phone };
-    }
-    case "group_manual":
-    case "group_lookup": {
-      const groupId = idText(value.group_id);
-      return groupId === undefined
-        ? undefined
-        : { type: value.type, group_id: groupId };
-    }
-    case "contact_lookup": {
-      const id = idText(value.id);
-      const entity = value.entity;
-      if (id === undefined || (entity !== "lead" && entity !== "client")) {
-        return undefined;
-      }
-      return { type: value.type, entity, id };
-    }
-    default:
-      return undefined;
-  }
-}
+const recipientSchema: RecipientSchema<Recipient> = z.discriminatedUnion(
+  "type",
+  [
+    z.object({ type: z.literal("phone_field"), field: z.string() }),
+    z.object({ type: z.literal("group_field"), field: z.string() }),
+    z.object({ type: z.literal("phone_manual"), phone: idTextSchema }),
+    z.object({ type: z.literal("group_manual"), group_id: idTextSchema }),
+    z.object({ type: z.literal("group_lookup"), group_id: idTextSchema }),
+    contactLookupRecipientSchema,
+  ],
+);
 
+// Legacy → recipients[] migration helper
 export function migrateLegacyRecipients(cfg: StepConfig): RecipientEntry[] {
   if (Array.isArray(cfg?.recipients) && cfg.recipients.length > 0) {
-    return parseStoredRecipients(cfg.recipients, parseRecipient);
+    return parseStoredRecipients(cfg.recipients, recipientSchema);
   }
   const mode = cfg?.phone_mode;
   const manualPhone = cfgText(cfg?.manual_phone);

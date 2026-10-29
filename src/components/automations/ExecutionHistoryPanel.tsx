@@ -38,7 +38,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
-import { cfgObject, cfgText, errorMessage } from "@/lib/automationStepConfig";
+import { cfgObject, cfgText, errorMessage } from "./automationStepConfig";
 import { parseFlowStepResults } from "./automationRunResults";
 import { MAILING_ACTION_ICONS, MAILING_ACTION_LABELS } from "./mailingActions";
 

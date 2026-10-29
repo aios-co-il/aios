@@ -1,5 +1,5 @@
 import type { Tables } from "@/integrations/supabase/types";
-import { cfgStringArray, parseStepConfig } from "@/lib/automationStepConfig";
+import { cfgStringArray, parseStepConfig } from "./automationStepConfig";
 import type { FlowNodeData } from "./FlowNode";
 
 export function flowStepRowToNodeData(

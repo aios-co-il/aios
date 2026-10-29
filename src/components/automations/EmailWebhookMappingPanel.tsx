@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { type StepConfig } from "@/lib/automationStepConfig";
+import { type StepConfig } from "./automationStepConfig";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Copy, Braces } from "lucide-react";

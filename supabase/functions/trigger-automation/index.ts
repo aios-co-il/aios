@@ -88,7 +88,7 @@ import {
 } from "../_shared/database.types.ts";
 import {
   type AutomationPayload,
-  isAutomationPayload,
+  automationPayloadSchema,
 } from "./automation-payload.ts";
 
 /** One run's variables: trigger data plus step outputs, keyed by user-configured field names. */
@@ -1567,11 +1567,11 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
-    const rawBody: unknown = await req.json();
-    if (!isAutomationPayload(rawBody)) {
+    const parsedBody = automationPayloadSchema.safeParse(await req.json());
+    if (!parsedBody.success) {
       throw new Error("Invalid automation request body");
     }
-    const requestBody = rawBody;
+    const requestBody = parsedBody.data;
 
     // Who this run acts for, from the caller the auth check below proved
     // (AIO-241): the signed-in user who started it, or the sender a WhatsApp

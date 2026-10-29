@@ -25,7 +25,7 @@ import {
   cfgStringArray,
   cfgText,
   type StepConfig,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import type { StoredFlowStepType } from "./flowStepTypes";
 
 export interface FlowNodeData {

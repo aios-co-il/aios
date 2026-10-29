@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Bot, User } from "lucide-react";
-import { cfgObject, cfgText, errorMessage } from "@/lib/automationStepConfig";
+import { cfgObject, cfgText, errorMessage } from "./automationStepConfig";
 import { parseFlowStepResults } from "./automationRunResults";
 
 interface ManualTriggerDialogProps {

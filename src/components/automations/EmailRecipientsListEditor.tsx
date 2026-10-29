@@ -15,17 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Search } from "lucide-react";
+import { z } from "zod";
+import { cfgText, type StepConfig } from "./automationStepConfig";
 import {
-  cfgString,
-  cfgText,
-  type JsonObject,
-  type StepConfig,
-} from "@/lib/automationStepConfig";
-import {
-  idText,
+  contactLookupRecipientSchema,
   parseStoredRecipients,
+  type RecipientSchema,
   type UnsupportedRecipient,
-} from "@/lib/storedRecipients";
+} from "./storedRecipients";
 import { UnsupportedRecipientRow } from "./UnsupportedRecipientRow";
 
 export type EmailRecipient =
@@ -399,34 +396,18 @@ function ContactLookupEditor({
   );
 }
 
-function parseEmailRecipient(value: JsonObject): EmailRecipient | undefined {
-  switch (value.type) {
-    case "email_field": {
-      const field = cfgString(value.field);
-      return field === undefined ? undefined : { type: value.type, field };
-    }
-    case "email_manual": {
-      const email = cfgString(value.email);
-      return email === undefined ? undefined : { type: value.type, email };
-    }
-    case "contact_lookup": {
-      const id = idText(value.id);
-      const entity = value.entity;
-      if (id === undefined || (entity !== "lead" && entity !== "client")) {
-        return undefined;
-      }
-      return { type: value.type, entity, id };
-    }
-    default:
-      return undefined;
-  }
-}
+const emailRecipientSchema: RecipientSchema<EmailRecipient> =
+  z.discriminatedUnion("type", [
+    z.object({ type: z.literal("email_field"), field: z.string() }),
+    z.object({ type: z.literal("email_manual"), email: z.string() }),
+    contactLookupRecipientSchema,
+  ]);
 
 export function migrateLegacyEmailRecipients(
   cfg: StepConfig,
 ): EmailRecipientEntry[] {
   if (Array.isArray(cfg?.email_recipients) && cfg.email_recipients.length > 0) {
-    return parseStoredRecipients(cfg.email_recipients, parseEmailRecipient);
+    return parseStoredRecipients(cfg.email_recipients, emailRecipientSchema);
   }
   const toEmail = cfgText(cfg?.to_email);
   if (toEmail) {

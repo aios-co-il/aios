@@ -3,7 +3,7 @@ import {
   cfgText,
   type StepConfig,
   type StepConfigChange,
-} from "@/lib/automationStepConfig";
+} from "./automationStepConfig";
 import { Input } from "@/components/ui/input";
 import { useMailingActionOptions } from "@/components/automations/useMailingActionOptions";
 import {

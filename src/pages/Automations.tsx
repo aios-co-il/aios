@@ -59,7 +59,11 @@ import {
 } from "@/components/ui/table";
 import { MAILING_ACTION_LABELS } from "@/components/automations/mailingActions";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
-import { cfgObject, cfgStringArray, cfgText } from "@/lib/automationStepConfig";
+import {
+  cfgObject,
+  cfgStringArray,
+  cfgText,
+} from "@/components/automations/automationStepConfig";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 
 type AutomationListItem = Tables<"automations"> & {

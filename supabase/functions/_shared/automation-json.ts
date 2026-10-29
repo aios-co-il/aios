@@ -1,10 +1,31 @@
+import { z } from "npm:zod@3.25.76";
 import type { Json } from "./database.types.ts";
 
 export type JsonObject = { [key: string]: Json | undefined };
 
+/** Plain object decoded from JSON (request bodies, API responses, json columns). */
+export const jsonObjectSchema: z.ZodType<JsonObject, z.ZodTypeDef, unknown> =
+  z.record(z.custom<Json | undefined>());
+
+const textSchema = z.union([
+  z.string(),
+  z.union([z.number(), z.nan()]).transform(String),
+]);
+
+const listSchema = z.array(z.unknown()).catch([]);
+
+function parsedOr<T, F>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  value: unknown,
+  fallback: F,
+): T | F {
+  const result = schema.safeParse(value);
+  return result.success ? result.data : fallback;
+}
+
 /** Plain-object check for values decoded from JSON (request bodies, API responses, json columns). */
 export function isObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return jsonObjectSchema.safeParse(value).success;
 }
 
 export function isJsonObject(value: Json | undefined): value is JsonObject {
@@ -17,7 +38,7 @@ export function jsonObject(value: Json | undefined): JsonObject {
 }
 
 export function asList(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+  return listSchema.parse(value);
 }
 
 export function objectList(value: unknown): JsonObject[] {
@@ -26,26 +47,23 @@ export function objectList(value: unknown): JsonObject[] {
 
 /** Strings pass through, numbers are stringified, anything else is "". */
 export function asText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "number") return String(value);
-  return "";
+  return parsedOr(textSchema, value, "");
 }
 
 export function optString(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
+  return parsedOr(z.string(), value, null);
 }
 
 /** Strings pass through, numbers are stringified, anything else is null. */
 export function optText(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (typeof value === "number") return String(value);
-  return null;
+  return parsedOr(textSchema, value, null);
 }
+
+const errorLikeSchema = z.object({ message: z.unknown() });
 
 /** `error.message` for Error and error-like objects (e.g. PostgREST errors). */
 export function messageOf(error: unknown): string | undefined {
-  if (!isObject(error)) return undefined;
-  const message = error.message;
+  const message = parsedOr(errorLikeSchema, error, undefined)?.message;
   return message ? String(message) : undefined;
 }
 

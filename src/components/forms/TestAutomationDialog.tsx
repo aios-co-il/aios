@@ -59,7 +59,7 @@ import {
   cfgText,
   isJsonObject,
   type JsonObject,
-} from "@/lib/automationStepConfig";
+} from "@/components/automations/automationStepConfig";
 
 interface TestAutomationDialogProps {
   automation: Tables<"automations">;

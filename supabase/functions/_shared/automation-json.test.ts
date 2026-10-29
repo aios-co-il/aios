@@ -2,6 +2,7 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   asList,
   asText,
+  isObject,
   jsonObject,
   messageOf,
   nullableText,
@@ -79,4 +80,12 @@ Deno.test("toJson matches what JSON.stringify sends", () => {
     JSON.stringify({ payload: toJson({ d: new Date(0) }) }),
     JSON.stringify({ payload: { d: new Date(0) } }),
   );
+});
+
+Deno.test("isObject accepts plain and error objects, rejects the rest", () => {
+  assertStrictEquals(isObject({ a: 1 }), true);
+  assertStrictEquals(isObject(new Error("boom")), true);
+  assertStrictEquals(isObject([]), false);
+  assertStrictEquals(isObject(null), false);
+  assertStrictEquals(isObject("x"), false);
 });

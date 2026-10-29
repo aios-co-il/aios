@@ -1,17 +1,19 @@
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 import {
-  cfgObject,
-  cfgString,
-  cfgText,
-  isJsonObject,
+  jsonObjectTextSchema,
+  listOf,
+  optionalStringSchema,
+  optionalTextSchema,
   type JsonObject,
-} from "@/lib/automationStepConfig";
+} from "@/components/automations/automationStepConfig";
 
-export interface ManyChatTag {
-  id: string | number;
-  name: string;
-}
+const manyChatTagSchema = z.object({
+  id: z.union([z.string(), z.number(), z.nan()]),
+  name: optionalTextSchema.transform((name) => name ?? ""),
+});
+
+export type ManyChatTag = z.infer<typeof manyChatTagSchema>;
 
 export interface MessagingIntegrationOption {
   id: string;
@@ -21,28 +23,28 @@ export interface MessagingIntegrationOption {
   owner_name?: string | null;
 }
 
+const manyChatTagsResponseSchema = z
+  .object({ tags: z.unknown() })
+  .transform(({ tags }) => listOf(manyChatTagSchema, tags) ?? []);
+
 export function parseManyChatTags(data: unknown): ManyChatTag[] {
-  const tags = isJsonObject(data) ? data.tags : undefined;
-  if (!Array.isArray(tags)) return [];
-  return tags.flatMap((tag) => {
-    if (!isJsonObject(tag)) return [];
-    const { id } = tag;
-    if (typeof id !== "string" && typeof id !== "number") return [];
-    return [{ id, name: cfgText(tag.name) ?? "" }];
-  });
+  return parseOrUndefined(manyChatTagsResponseSchema, data) ?? [];
 }
+
+const instanceSettingsSchema = z.object({
+  idInstance: optionalStringSchema,
+  instanceId: optionalStringSchema,
+});
 
 export function integrationInstanceSuffix(
   settings: Json | null | undefined,
 ): string | undefined {
-  const s = cfgObject(settings);
-  return (
-    cfgString(s?.idInstance)?.slice(-4) || cfgString(s?.instanceId)?.slice(-4)
-  );
+  const s = parseOrUndefined(instanceSettingsSchema, settings);
+  return s?.idInstance?.slice(-4) || s?.instanceId?.slice(-4);
 }
 
 export function parseOrUndefined<T>(
-  schema: ZodType<T>,
+  schema: ZodType<T, z.ZodTypeDef, unknown>,
   value: unknown,
 ): T | undefined {
   const result = schema.safeParse(value);
@@ -53,35 +55,30 @@ export function parseConditionsObject(
   text: string,
   invalidMessage: string,
 ): JsonObject {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error(invalidMessage);
-  }
-  if (!isJsonObject(parsed)) throw new Error(invalidMessage);
-  return parsed;
+  const result = jsonObjectTextSchema.safeParse(text);
+  if (!result.success) throw new Error(invalidMessage);
+  return result.data;
 }
+
+const triggerFilterSourceSchema = z.object({
+  filter_statuses: z.custom<Json | undefined>(),
+  new_statuses: z.custom<Json | undefined>(),
+  filter_status: optionalTextSchema,
+  filter_status_kind: optionalStringSchema,
+  new_status: optionalTextSchema,
+  status_kind: optionalStringSchema,
+});
 
 export function triggerFilterSource(conditions: Json | null | undefined) {
-  const c = cfgObject(conditions);
-  if (!c) return null;
-  return {
-    filter_statuses: c.filter_statuses,
-    new_statuses: c.new_statuses,
-    filter_status: cfgText(c.filter_status),
-    filter_status_kind: cfgString(c.filter_status_kind),
-    new_status: cfgText(c.new_status),
-    status_kind: cfgString(c.status_kind),
-  };
+  return parseOrUndefined(triggerFilterSourceSchema, conditions) ?? null;
 }
 
+const actionStatusSourceSchema = z.object({
+  status: optionalStringSchema,
+  status_field: optionalStringSchema,
+  entity: optionalStringSchema,
+});
+
 export function actionStatusSource(configuration: Json | null | undefined) {
-  const c = cfgObject(configuration);
-  if (!c) return null;
-  return {
-    status: cfgString(c.status),
-    status_field: cfgString(c.status_field),
-    entity: cfgString(c.entity),
-  };
+  return parseOrUndefined(actionStatusSourceSchema, configuration) ?? null;
 }
