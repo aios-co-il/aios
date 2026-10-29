@@ -36,8 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { attachmentsFromMetadata } from "@/lib/chatMessageAttachments";
-import { readErrorMessage } from "@/lib/readErrorMessage";
+import { attachmentsFromMetadata } from "./chatMessageAttachments";
+import { readErrorMessage } from "@/lib/response";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
 import { getSessionSkin } from "@/lib/carmenSessionSkin";
@@ -67,7 +67,11 @@ import {
   lastConversationStorageKeyForSeat,
   seatKeyFromRoute,
 } from "@/lib/agentSeats";
-import { hudStage, routeForRestoredChat } from "@/lib/agentChannelRouting";
+import {
+  conversationChannelStatusSchema,
+  hudStage,
+  routeForRestoredChat,
+} from "@/lib/agentChannelRouting";
 import {
   composerLockedForChat,
   lastConversationStorageKey,
@@ -105,20 +109,6 @@ import {
   uploadCommandCenterAttachments,
   type CommandCenterAttachment,
 } from "@/lib/commandCenterAttachments";
-
-const CHANNEL_STATUSES: readonly ConversationChannelStatus[] = [
-  "idle",
-  "streaming",
-  "waiting_external",
-  "debating",
-  "error",
-];
-
-function isConversationChannelStatus(
-  status: string,
-): status is ConversationChannelStatus {
-  return CHANNEL_STATUSES.some((s) => s === status);
-}
 
 interface ChatMessage {
   id?: string;
@@ -1400,7 +1390,7 @@ export const CarmenChatBar = forwardRef<
           const status = payload.new?.status;
           if (status)
             brain.setStatus(
-              isConversationChannelStatus(status) ? status : "idle",
+              conversationChannelStatusSchema.catch("idle").parse(status),
             );
         },
       )

@@ -4,7 +4,7 @@ import { Loader2, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
-import { asJsonObject } from "@/lib/jsonObject";
+import { asJsonObject } from "@/lib/response";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

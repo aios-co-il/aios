@@ -1,9 +1,9 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json, Tables } from "@/integrations/supabase/types";
-import { readErrorMessage } from "@/lib/readErrorMessage";
-import { asJsonObject, type JsonObject } from "@/lib/jsonObject";
+import type { Tables } from "@/integrations/supabase/types";
+import { readErrorMessage } from "@/lib/response";
+import { toTranscriptLines } from "@/lib/carmenSessionTranscript";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,11 +63,6 @@ const CATEGORY_META: Record<
 
 type SessionRow = Tables<"carmen_whatsapp_sessions">;
 type PointerRow = Tables<"carmen_memory_pointers">;
-
-/** Primitive transcript values render as before; nested objects are not renderable. */
-function renderable(value: Json | undefined) {
-  return value !== null && typeof value === "object" ? undefined : value;
-}
 
 export interface CarmenInsightsProps {
   /**
@@ -507,23 +502,21 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
           </SheetHeader>
           <ScrollArea className="h-[calc(100vh-100px)] mt-4 pl-3">
             <div className="space-y-3">
-              {Array.isArray(openSession?.conversation_history) &&
-                openSession.conversation_history.map((entry, i) => {
-                  const m: JsonObject = asJsonObject(entry) ?? {};
-                  return (
-                    <div
-                      key={i}
-                      className={`p-3 rounded-lg ${m.role === "assistant" || m.direction === "outbound" ? "bg-primary/10 mr-8" : "bg-muted ml-8"}`}
-                    >
-                      <div className="text-xs text-muted-foreground mb-1">
-                        {renderable(m.role || m.direction)}
-                      </div>
-                      <div className="text-sm whitespace-pre-wrap">
-                        {renderable(m.content || m.message || m.text)}
-                      </div>
+              {toTranscriptLines(openSession?.conversation_history).map(
+                (line, i) => (
+                  <div
+                    key={i}
+                    className={`p-3 rounded-lg ${line.fromAssistant ? "bg-primary/10 mr-8" : "bg-muted ml-8"}`}
+                  >
+                    <div className="text-xs text-muted-foreground mb-1">
+                      {line.speaker}
                     </div>
-                  );
-                })}
+                    <div className="text-sm whitespace-pre-wrap">
+                      {line.text}
+                    </div>
+                  </div>
+                ),
+              )}
             </div>
           </ScrollArea>
         </SheetContent>

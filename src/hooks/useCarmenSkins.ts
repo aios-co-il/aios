@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { asJsonObject, type JsonObject } from "@/lib/jsonObject";
+import { asJsonObject, type JsonObject } from "@/lib/response";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { setSessionSkin, useSessionSkin } from "@/lib/carmenSessionSkin";
 import {

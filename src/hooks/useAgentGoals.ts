@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { toast } from "sonner";
-import { toAgentGoal, type AgentGoal } from "@/lib/agentGoalRows";
+import { toAgentGoal, type AgentGoal } from "./agentGoalRows";
 
 export type { AgentGoal };
 

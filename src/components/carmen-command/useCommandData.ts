@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { asJsonObject } from "@/lib/jsonObject";
+import { asJsonObject } from "@/lib/response";
 
 const daysAgo = (n: number) =>
   new Date(Date.now() - n * 86400000).toISOString();
@@ -16,9 +17,8 @@ const safeRows = async <T>(p: PromiseLike<{ data: T[] | null }>) => {
   }
 };
 
-type ProbeStatus = "ok" | "warn" | "down";
-const isProbeStatus = (status: string): status is ProbeStatus =>
-  status === "ok" || status === "warn" || status === "down";
+const probeStatusSchema = z.enum(["ok", "warn", "down"]);
+type ProbeStatus = z.infer<typeof probeStatusSchema>;
 
 export type Severity = "info" | "warning" | "critical";
 
@@ -296,12 +296,12 @@ export function useHealth(tenantId: string | null) {
         }[]
       >();
       for (const r of probeRows) {
-        const status = r.status;
-        if (!isProbeStatus(status)) continue;
+        const status = probeStatusSchema.safeParse(r.status);
+        if (!status.success) continue;
         const key = logical(r.service);
         if (!histories.has(key)) histories.set(key, []);
         histories.get(key)!.push({
-          status,
+          status: status.data,
           latency_ms: r.latency_ms,
           detail: r.detail ?? "",
           checked_at: r.checked_at,

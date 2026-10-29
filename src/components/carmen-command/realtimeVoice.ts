@@ -2,6 +2,11 @@
 // The ephemeral client secret comes from the carmen-realtime-session edge
 // function; audio flows browser<->OpenAI directly, events over a data channel.
 
+import {
+  parseRealtimeServerEvent,
+  readAskCarmenQuestion,
+} from "./realtimeVoiceEvents";
+
 export interface RealtimeCallbacks {
   /** Final transcript of what the user said (one turn) */
   onUserTranscript: (text: string) => void;
@@ -26,24 +31,6 @@ export interface RealtimeHandle {
   setOutputMuted: (muted: boolean) => void;
   /** Speak an external-channel callback while Live is still open. */
   speakText: (text: string) => void;
-}
-
-type RealtimeServerEvent = {
-  type?: unknown;
-  delta?: unknown;
-  transcript?: unknown;
-  item?: unknown;
-  error?: unknown;
-};
-type RealtimeOutputItem = {
-  type?: unknown;
-  name?: unknown;
-  arguments?: unknown;
-  call_id?: unknown;
-};
-
-function objectOrNull(value: unknown): object | null {
-  return typeof value === "object" && value !== null ? value : null;
 }
 
 export async function startRealtimeVoice(
@@ -121,13 +108,7 @@ export async function startRealtimeVoice(
     );
   };
   dc.onmessage = async (e) => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(e.data);
-    } catch {
-      return;
-    }
-    const ev: RealtimeServerEvent | null = objectOrNull(parsed);
+    const ev = parseRealtimeServerEvent(e.data);
     if (!ev) return;
     switch (ev.type) {
       case "response.created":
@@ -159,21 +140,13 @@ export async function startRealtimeVoice(
           cb.onUserTranscript(ev.transcript.trim());
         break;
       case "response.output_item.done": {
-        const item: RealtimeOutputItem | null = objectOrNull(ev.item);
+        const item = ev.item;
         if (
           item?.type === "function_call" &&
           item.name === "ask_carmen" &&
           !stopped
         ) {
-          let question = "";
-          try {
-            const args: { question?: unknown } | null = objectOrNull(
-              JSON.parse(String(item.arguments)),
-            );
-            if (typeof args?.question === "string") question = args.question;
-          } catch {
-            /* malformed args */
-          }
+          const question = readAskCarmenQuestion(item.arguments);
           const answer = await cb.onToolCall(question);
           if (stopped) break;
           dc.send(
@@ -191,13 +164,9 @@ export async function startRealtimeVoice(
         }
         break;
       }
-      case "error": {
-        const error: { message?: unknown } | null = objectOrNull(ev.error);
-        cb.onError(
-          typeof error?.message === "string" ? error.message : "Realtime error",
-        );
+      case "error":
+        cb.onError(ev.error?.message ?? "Realtime error");
         break;
-      }
     }
   };
 

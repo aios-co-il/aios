@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { asJsonObject } from "@/lib/jsonObject";
+import { asJsonObject } from "@/lib/response";
 import {
   Sheet,
   SheetContent,

@@ -2,7 +2,10 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
-import { toSessionMessages, type SessionMessage } from "@/lib/sessionMessages";
+import {
+  toSessionMessages,
+  type SessionMessage,
+} from "@/lib/carmenSessionTranscript";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

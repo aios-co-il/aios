@@ -25,6 +25,16 @@ describe("attachmentsFromMetadata", () => {
     expect(attachmentsFromMetadata({ attachments: [] })).toEqual([]);
   });
 
+  it("drops a malformed size or path but keeps the attachment", () => {
+    expect(
+      attachmentsFromMetadata({
+        attachments: [
+          { name: "a", url: "u", type: "file", size: "10", path: 1, x: true },
+        ],
+      }),
+    ).toEqual([{ name: "a", url: "u", type: "file" }]);
+  });
+
   it("skips malformed entries", () => {
     expect(
       attachmentsFromMetadata({
