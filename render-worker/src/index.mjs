@@ -2,61 +2,136 @@
 // them at once, so one slow or failed clip never holds up the others.
 import { createSupabaseRest } from "./supabaseRest.mjs";
 import { analyzeReference } from "./jobs/referenceAnalysis.mjs";
-import { failClip, generateClip } from "./jobs/clip.mjs";
+import { failClip, generateClip, withinApprovedPrice } from "./jobs/clip.mjs";
+import { generateLipsync } from "./jobs/lipsync.mjs";
 import { generateMusic, generateVoice } from "./jobs/sound.mjs";
 import { renderFilm } from "./jobs/render.mjs";
-import { getVideoProvider } from "./providers/index.mjs";
+import {
+  getVideoProvider,
+  PREVIEW_PROVIDER,
+  usesVaultKey,
+} from "./providers/index.mjs";
+import { runClipWithFallback } from "./clip-fallback.mjs";
+import { createInFlight } from "./inflight.mjs";
+import { claimableKinds, runSlots } from "./loop.mjs";
+import { loadTargets } from "./targets.mjs";
 
 const HANDLERS = {
   reference_analysis: {
     run: async (ctx) =>
-      analyzeReference({ ...ctx, keys: await resolveKeys(ctx.run.tenant_id) }),
+      analyzeReference({
+        ...ctx,
+        keys: await resolveKeys(ctx.db, ctx.run.tenant_id),
+      }),
   },
   clip: {
     run: async (ctx) => {
-      const keys = await resolveMediaKeys(ctx.run.tenant_id);
+      const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
       const name =
-        ctx.run.input?.provider || process.env.VIDEO_PROVIDER || "mock";
-      // Read from Vault only for the engine that needs it.
-      if (name === "openrouter")
-        keys.openRouterKey = await openRouterKey(ctx.run.tenant_id);
-      return generateClip({
-        ...ctx,
-        provider: getVideoProvider(name, keys),
+        ctx.run.input?.provider ||
+        process.env.VIDEO_PROVIDER ||
+        PREVIEW_PROVIDER;
+      // Read from Vault only for the engine that needs it: the chosen engine, a saved
+      // OpenRouter fallback job being resumed, or the fallback itself (resolved on demand).
+      if (usesVaultKey(name) || usesVaultKey(ctx.run.provider))
+        keys.openRouterKey = await openRouterKey(ctx.db, ctx.run.tenant_id);
+      return runClipWithFallback({
+        name,
+        keys,
+        resolveOpenRouterKey: async () =>
+          (keys.openRouterKey ??= await openRouterKey(
+            ctx.db,
+            ctx.run.tenant_id,
+          )),
+        savedProvider: ctx.run.provider ?? null,
+        savedJobId: ctx.run.provider_job_id ?? null,
+        affordable: async (next) => {
+          try {
+            return await withinApprovedPrice({
+              db: ctx.db,
+              run: ctx.run,
+              approved: getVideoProvider(name, keys),
+              replacement: getVideoProvider(next, keys),
+            });
+          } catch {
+            return false;
+          }
+        },
+        run: (providerName, fallbackFrom) =>
+          generateClip({
+            ...ctx,
+            provider: getVideoProvider(providerName, keys),
+            fallbackFrom,
+          }),
+        log: (line) => console.log(`[clip] ${ctx.run.id} ${line}`),
       });
     },
     onFailed: failClip,
   },
   voice: {
-    run: async (ctx) =>
-      generateVoice({
+    run: async (ctx) => {
+      const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
+      return generateVoice({
         ...ctx,
-        apiKey: (await resolveMediaKeys(ctx.run.tenant_id)).elevenLabsKey,
-      }),
+        apiKey: keys.elevenLabsKey,
+        googleKey: keys.googleKey,
+        // ElevenLabs through OpenRouter, read from Vault only when the direct key cannot narrate.
+        resolveOpenRouterKey: () => openRouterKey(ctx.db, ctx.run.tenant_id),
+      });
+    },
   },
   music: {
     run: async (ctx) =>
       generateMusic({
         ...ctx,
-        apiKey: (await resolveMediaKeys(ctx.run.tenant_id)).elevenLabsKey,
+        apiKey: (await resolveMediaKeys(ctx.db, ctx.run.tenant_id))
+          .elevenLabsKey,
       }),
   },
+  lipsync: {
+    run: async (ctx) => {
+      const keys = await resolveMediaKeys(ctx.db, ctx.run.tenant_id);
+      // HeyGen Avatar IV and the Veo fallback run on the tenant's OpenRouter key, read from Vault.
+      keys.openRouterKey = await openRouterKey(ctx.db, ctx.run.tenant_id).catch(
+        () => null,
+      );
+      return generateLipsync({ ...ctx, keys });
+    },
+  },
   render: {
-    run: (ctx) => renderFilm(ctx),
+    run: (ctx) =>
+      renderFilm({
+        ...ctx,
+        // Trailer sound effects are made with the tenant's ElevenLabs key, read only when needed.
+        resolveElevenLabsKey: async () =>
+          (await resolveMediaKeys(ctx.db, ctx.run.tenant_id)).elevenLabsKey,
+      }),
   },
 };
 const POLL_MS = Number(process.env.POLL_MS) || 5000;
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY) || 8);
+const DRAIN = process.env.DRAIN === "1";
+/** With DRAIN, keep polling this long after the queue empties (preview runners). */
+const DRAIN_IDLE_MS = Number(process.env.DRAIN_IDLE_MS) || 0;
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS) || 3;
 const WORKER_ID = process.env.WORKER_ID || `render-worker-${process.pid}`;
+/** A runner with a time limit stops claiming clips and lip syncs this long after start (unset: never). */
+const STOP_CLAIMING_AT = Number(process.env.STOP_CLAIMING_AFTER_MS)
+  ? Date.now() + Number(process.env.STOP_CLAIMING_AFTER_MS)
+  : Infinity;
+const inFlight = createInFlight({ maxAttempts: MAX_ATTEMPTS });
 
-const db = createSupabaseRest({
-  url: process.env.SUPABASE_URL,
-  serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-});
+const targets = loadTargets().map((target) => ({
+  ...target,
+  workerId: `${WORKER_ID}-${target.name}`,
+  db: createSupabaseRest({
+    url: target.url,
+    serviceRoleKey: target.serviceRoleKey,
+  }),
+}));
 
 /** Env keys first, then the tenant's LLM integration (the same place the Edge Functions read). */
-async function resolveKeys(tenantId) {
+async function resolveKeys(db, tenantId) {
   let openaiKey = process.env.OPENAI_API_KEY || null;
   if (!openaiKey) {
     const rows = await db.select(
@@ -69,7 +144,7 @@ async function resolveKeys(tenantId) {
     throw new Error(
       "No OpenAI key: set OPENAI_API_KEY or the tenant LLM integration",
     );
-  const media = await resolveMediaKeys(tenantId);
+  const media = await resolveMediaKeys(db, tenantId);
   return { openaiKey, elevenLabsKey: media.elevenLabsKey };
 }
 
@@ -77,7 +152,7 @@ async function resolveKeys(tenantId) {
  * Keys for scene and sound engines. The tenant's own key wins, so each tenant pays for its
  * own generations; the env key is only a fallback for the agency's own workspace.
  */
-async function resolveMediaKeys(tenantId) {
+async function resolveMediaKeys(db, tenantId) {
   const rows = await db.select(
     "tenant_integrations",
     `tenant_id=eq.${tenantId}&integration_type=eq.llm&is_active=eq.true&select=settings&order=updated_at.desc&limit=1`,
@@ -86,6 +161,11 @@ async function resolveMediaKeys(tenantId) {
   return {
     elevenLabsKey:
       settings.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY || null,
+    googleKey:
+      settings.google_api_key ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      null,
     higgsfieldKeyId:
       settings.higgsfield_api_key_id || process.env.HF_API_KEY_ID || null,
     higgsfieldKeySecret:
@@ -104,7 +184,7 @@ async function resolveMediaKeys(tenantId) {
  * settings (מוחות, חיבורים ומפתחות AI), read from Vault. No env fallback, so
  * every tenant pays for its own generations.
  */
-async function openRouterKey(tenantId) {
+async function openRouterKey(db, tenantId) {
   const rows = await db.select(
     "carmen_brain_connections",
     `tenant_id=eq.${tenantId}&kind=eq.chat_model&provider_preset=eq.openrouter&key_last4=not.is.null&select=id&order=created_at.asc&limit=1`,
@@ -117,13 +197,19 @@ async function openRouterKey(tenantId) {
   return typeof secret === "string" && secret ? secret : null;
 }
 
-const PRODUCTION_KINDS = new Set(["clip", "voice", "music", "render"]);
+const PRODUCTION_KINDS = new Set([
+  "clip",
+  "voice",
+  "music",
+  "lipsync",
+  "render",
+]);
 
 /**
  * One-click production: after each clip, voice, music or render job the project's
  * production moves on (queues the assembly once nothing is in flight, then finishes).
  */
-async function advanceProduction(run) {
+async function advanceProduction(db, run) {
   if (!PRODUCTION_KINDS.has(run.kind) || !run.item_id) return;
   try {
     const state = await db.rpc("advance_video_production", {
@@ -139,26 +225,37 @@ async function advanceProduction(run) {
   }
 }
 
-async function finish(run, patch) {
+async function finish(db, run, patch) {
   await db.update("marketing_runs", `id=eq.${run.id}`, {
     finished_at: new Date().toISOString(),
     ...patch,
   });
 }
 
-async function processOne() {
-  const claimed = await db.rpc("claim_video_run", {
-    p_kinds: Object.keys(HANDLERS),
-    p_worker: WORKER_ID,
-  });
+async function processOne(db, workerId) {
+  const claimed = await inFlight.claim(
+    db.rpc("claim_video_run", {
+      p_kinds: claimableKinds(
+        Object.keys(HANDLERS),
+        Date.now(),
+        STOP_CLAIMING_AT,
+      ),
+      p_worker: workerId,
+    }),
+  );
   const run = Array.isArray(claimed) ? claimed[0] : null;
   if (!run) return false;
+  inFlight.hold(db, run);
   console.log(
-    `[worker] claimed ${run.kind} ${run.id} (attempt ${run.attempts})`,
+    `[worker] ${workerId} claimed ${run.kind} ${run.id} (attempt ${run.attempts})`,
   );
   try {
-    const result = await HANDLERS[run.kind].run({ db, run });
-    await finish(run, {
+    const result = await HANDLERS[run.kind].run({
+      db,
+      run,
+      submitting: (submit) => inFlight.submitting(run, submit),
+    });
+    await finish(db, run, {
       status: "completed",
       error: null,
       output: { ...(run.output ?? {}), ...result.output },
@@ -168,8 +265,8 @@ async function processOne() {
       credits: result.credits ?? null,
       provider: result.provider ?? "render-worker",
     });
-    console.log(`[worker] completed ${run.id}`);
-    await advanceProduction(run);
+    console.log(`[worker] ${workerId} completed ${run.id}`);
+    await advanceProduction(db, run);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const retry =
@@ -179,7 +276,7 @@ async function processOne() {
     console.error(
       `[worker] ${run.id} failed (${retry ? "will retry" : "final"}): ${message}`,
     );
-    await finish(run, {
+    await finish(db, run, {
       status: retry ? "queued" : "failed",
       error: message.slice(0, 2000),
     });
@@ -190,32 +287,48 @@ async function processOne() {
           console.error(`[worker] ${run.id} failure hook`, hookError),
         );
     // After the scene is marked failed, so the film is assembled without it.
-    if (!retry) await advanceProduction(run);
+    if (!retry) await advanceProduction(db, run);
+  } finally {
+    inFlight.release(run);
   }
   return true;
 }
 
+// A stop (GitHub cancels a job with SIGINT, then SIGTERM, then kills it ~10 s later) puts this
+// worker's runs back to queued and exits, so the next worker resumes them at once.
 let stopping = false;
+let exiting = null;
 for (const signal of ["SIGINT", "SIGTERM"])
-  process.on(signal, () => (stopping = true));
-
-/** One slot: claim, process, repeat; sleeps only when the queue is empty. */
-async function slot() {
-  while (!stopping) {
-    let worked = false;
-    try {
-      worked = await processOne();
-    } catch (error) {
-      console.error(
-        "[worker] poll error",
-        error instanceof Error ? error.message : error,
-      );
-    }
-    if (!worked) await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-  }
-}
+  process.on(signal, () => {
+    stopping = true;
+    exiting ??= inFlight
+      .requeue()
+      .then(
+        (ids) =>
+          ids.length &&
+          console.log(`[worker] ${signal}: queued again ${ids.join(", ")}`),
+        (error) => console.error(`[worker] ${signal}: requeue failed`, error),
+      )
+      .finally(() => process.exit(0));
+  });
 
 console.log(
-  `[worker] ${WORKER_ID} polling ${Object.keys(HANDLERS).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots`,
+  `[worker] ${WORKER_ID} ${DRAIN ? "draining" : "polling"} ${targets.map((target) => target.name).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots each`,
 );
-await Promise.all(Array.from({ length: CONCURRENCY }, slot));
+await Promise.all(
+  targets.map((target) =>
+    runSlots({
+      processOne: () => processOne(target.db, target.workerId),
+      concurrency: CONCURRENCY,
+      drain: DRAIN,
+      idleMs: DRAIN_IDLE_MS,
+      shouldStop: () => stopping,
+      sleep: () => new Promise((resolve) => setTimeout(resolve, POLL_MS)),
+      onError: (error) =>
+        console.error(
+          `[worker] ${target.workerId} poll error`,
+          error instanceof Error ? error.message : error,
+        ),
+    }),
+  ),
+);

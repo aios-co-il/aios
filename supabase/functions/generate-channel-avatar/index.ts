@@ -41,7 +41,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-image-1",
+          model: "gpt-image-2.5-sunburst",
           prompt: `A clean, modern square avatar/icon for a chat channel that works well as a small icon, on a solid white background. ${prompt}`,
           n: 1,
           size: "1024x1024",

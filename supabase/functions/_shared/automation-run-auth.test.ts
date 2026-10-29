@@ -42,16 +42,22 @@ const client = {
 const run = (token: string) =>
   authorizeDirectAutomationRun(client, token, SERVICE, TENANT);
 
+const asService = { allowed: true, caller: { kind: "service" } };
+const asUser = (userId: string) => ({
+  allowed: true,
+  caller: { kind: "user", userId },
+});
+
 Deno.test("service role may run any automation", async () => {
-  assertEquals(await run(SERVICE), { allowed: true });
+  assertEquals(await run(SERVICE), asService);
 });
 
-Deno.test("tenant owner may run their automation", async () => {
-  assertEquals(await run("owner-a"), { allowed: true });
+Deno.test("tenant owner may run their automation, as themselves", async () => {
+  assertEquals(await run("owner-a"), asUser("u1"));
 });
 
-Deno.test("super admin may run it", async () => {
-  assertEquals(await run("super"), { allowed: true });
+Deno.test("super admin may run it, as themselves", async () => {
+  assertEquals(await run("super"), asUser("u4"));
 });
 
 Deno.test("owner of another tenant is refused", async () => {
@@ -104,20 +110,23 @@ Deno.test(
   "tenant caller: service role is allowed without a caller client",
   async () => {
     callerHeaders.length = 0;
-    assertEquals(await tenantRun(SERVICE, null), { allowed: true });
+    assertEquals(await tenantRun(SERVICE, null), asService);
     assertEquals(callerHeaders, []);
   },
 );
 
-Deno.test("tenant caller: a member of the body tenant is allowed", async () => {
-  assertEquals(await tenantRun("member-a"), { allowed: true });
-  assertEquals(await tenantRun("owner-a"), { allowed: true });
-});
+Deno.test(
+  "tenant caller: a member of the body tenant is allowed, as themselves",
+  async () => {
+    assertEquals(await tenantRun("member-a"), asUser("u3"));
+    assertEquals(await tenantRun("owner-a"), asUser("u1"));
+  },
+);
 
 Deno.test(
-  "tenant caller: a super admin of another tenant is allowed",
+  "tenant caller: a super admin of another tenant is allowed, as themselves",
   async () => {
-    assertEquals(await tenantRun("super"), { allowed: true });
+    assertEquals(await tenantRun("super"), asUser("u4"));
   },
 );
 

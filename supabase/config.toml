@@ -364,6 +364,10 @@ verify_jwt = false
 [functions.run-ai-agent]
 verify_jwt = false
 
+# One workshop picture per request (run-ai-agent calls it with the service role key).
+[functions.workshop-image]
+verify_jwt = false
+
 [functions.campaign-pulse-snapshot]
 verify_jwt = false
 
@@ -908,3 +912,7 @@ verify_jwt = true
 
 [functions.webhook-meta-leads]
 verify_jwt = true
+
+# Meta Data Deletion Request Callback; Meta posts a signed_request verified inside the function.
+[functions.meta-data-deletion]
+verify_jwt = false

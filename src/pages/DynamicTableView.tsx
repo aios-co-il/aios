@@ -121,6 +121,7 @@ import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import {
   reportQueryOptions,
   getReportLastSyncAt,
+  getReportSyncProblem,
 } from "@/lib/reportQueryOptions";
 import {
   adAccountShortcutLabel,
@@ -2134,6 +2135,7 @@ export default function DynamicTableView({
             )}
             <ReportDataFreshness
               lastSyncAt={getReportLastSyncAt(table)}
+              syncProblem={getReportSyncProblem([table])}
               dataUpdatedAt={recordsUpdatedAt}
               isFetching={recordsFetching}
               className="mt-1"

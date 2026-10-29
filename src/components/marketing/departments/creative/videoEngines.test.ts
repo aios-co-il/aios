@@ -9,6 +9,7 @@ import {
   sceneClipSeconds,
   sceneEstimate,
   soundRunsSeparately,
+  framesToVoice,
   voiceEstimate,
 } from "./videoEngines.ts";
 
@@ -71,9 +72,32 @@ test("voice bills the spoken characters and music bills the storyboard length", 
     frame({ voiceover: "   ", duration: 6 }),
   ];
   expect(voiceEstimate(frames).count).toBe(1);
+  expect(
+    framesToVoice([
+      frame({
+        id: "a",
+        voiceover: "אחת",
+        voiceAssetId: "v",
+        voiceText: "אחת",
+      }),
+      frame({
+        id: "b",
+        voiceover: "שתיים",
+        voiceAssetId: "v",
+        voiceText: "ישנה",
+      }),
+    ]).map((item) => item.id),
+  ).toStrictEqual(["a", "b"]);
   expect(voiceEstimate(frames).usd).toBe(0.12);
   expect(musicEstimate(frames).seconds).toBe(10);
-  expect(musicEstimate(frames).usd).toBe(0.08);
+  // Priced for the film the bed covers: 10 s with 15% headroom, the end card and the tail.
+  expect(musicEstimate(frames).usd).toBe(0.17);
+  // The showcase: 12 scenes of 3.5 s, quoted for 56.8 s ($0.47), asked for 56.2 s.
+  expect(
+    musicEstimate(Array.from({ length: 12 }, () => frame({ duration: 3.5 })))
+      .usd,
+  ).toBe(0.47);
+  expect(musicEstimate([]).usd).toBe(0);
   expect(soundRunsSeparately("elevenlabs")).toBe(true);
   expect(soundRunsSeparately("higgsfield", "higgsfield")).toBe(false);
   // Higgsfield sound only exists inside Higgsfield clips: other engines still need voice.
