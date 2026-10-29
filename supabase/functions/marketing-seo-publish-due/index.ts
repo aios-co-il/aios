@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/security.ts";
+import { timingSafeEqualStr } from "../_shared/timing-safe-equal.ts";
+import { publishAccessLookups } from "../_shared/tenant-publish-access.ts";
+import {
+  authorizeUserPublishTarget,
+  type EntryResult,
+  splitByClientAccess,
+} from "./publish-target.ts";
 import {
   loadWordPressSite,
   publishToWordPress,
@@ -27,20 +34,45 @@ serve(async (req) => {
   try {
     const cronSecret = Deno.env.get("CRON_SECRET");
     const headerSecret = req.headers.get("x-cron-secret");
-    const isCron = cronSecret && headerSecret === cronSecret;
-    if (!isCron) {
-      const auth = await requireAuth(req);
-      if (!auth) return respond({ error: "Unauthorized" }, 401);
-    }
+    const isCron =
+      !!cronSecret &&
+      !!headerSecret &&
+      timingSafeEqualStr(headerSecret, cronSecret);
 
     const {
       entry_id,
       work_item_id,
       dry_run = false,
     } = await req.json().catch(() => ({}));
+
+    // Only cron sweeps every tenant. The service role must name one entry or
+    // work item; a signed-in user, one of a tenant they belong to and a client
+    // they can access, and gets only the entries whose client they can access.
+    let scopeTenantId: string | null = null;
+    const auth = isCron ? null : await requireAuth(req);
+    const lookups = publishAccessLookups(admin);
+    if (!isCron) {
+      if (!auth) return respond({ error: "Unauthorized" }, 401);
+      if (!entry_id && !work_item_id)
+        return respond({ error: "entry_id or work_item_id required" }, 400);
+      if (auth.kind === "user") {
+        const target = await authorizeUserPublishTarget(
+          admin,
+          auth,
+          { entryId: entry_id, workItemId: work_item_id },
+          lookups,
+        );
+        if (!target.allowed) {
+          return respond({ error: target.error }, target.status);
+        }
+        scopeTenantId = target.tenantId;
+      }
+    }
+
     const today = new Date().toISOString().slice(0, 10);
 
     let query = admin.from("seo_geo_calendar_entries").select("*");
+    if (scopeTenantId) query = query.eq("tenant_id", scopeTenantId);
     if (entry_id) query = query.eq("id", entry_id);
     else if (work_item_id)
       query = query
@@ -53,14 +85,12 @@ serve(async (req) => {
       .in("generation_status", ["draft"])
       .limit(20);
 
-    const results: Array<{
-      id: string;
-      ok: boolean;
-      error?: string;
-      link?: string;
-    }> = [];
+    const { publishable, refused } = auth
+      ? await splitByClientAccess(auth, entries ?? [], lookups)
+      : { publishable: entries ?? [], refused: [] };
+    const results: EntryResult[] = [...refused];
 
-    for (const entry of entries ?? []) {
+    for (const entry of publishable) {
       if (!entry.content_html?.trim()) {
         results.push({ id: entry.id, ok: false, error: "missing content" });
         continue;
@@ -69,6 +99,7 @@ serve(async (req) => {
         .from("seo_geo_programs")
         .select("wordpress_site_id")
         .eq("work_item_id", entry.work_item_id)
+        .eq("tenant_id", entry.tenant_id)
         .maybeSingle();
       if (!program?.wordpress_site_id) {
         results.push({
@@ -83,7 +114,10 @@ serve(async (req) => {
         continue;
       }
       try {
-        const site = await loadWordPressSite(admin, program.wordpress_site_id);
+        const site = await loadWordPressSite(admin, program.wordpress_site_id, {
+          tenantId: entry.tenant_id,
+          clientId: entry.client_id,
+        });
         if (!site) throw new Error("WordPress site not found");
         const post = await publishToWordPress(site, {
           title: entry.title_draft || entry.title,

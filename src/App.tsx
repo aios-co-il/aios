@@ -35,6 +35,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const ChatInvite = lazy(() => import("./pages/ChatInvite"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
+const DataDeletion = lazy(() => import("./pages/DataDeletion"));
 const SharedDashboard = lazy(() => import("./pages/SharedDashboard"));
 const SharedTable = lazy(() => import("./pages/SharedTable"));
 const SharedSeoMonthly = lazy(() => import("./pages/SharedSeoMonthly"));
@@ -146,6 +147,7 @@ const App = () => (
                   element={<SharedSeoMonthly />}
                 />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="/data-deletion" element={<DataDeletion />} />
 
                 {tenantRoutes()}
 
