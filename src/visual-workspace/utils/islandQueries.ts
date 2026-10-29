@@ -18,7 +18,7 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
       (
         await supabase
           .from("automations")
-          .select("id,name,is_active,trigger_type")
+          .select("id,name,active,trigger_type")
           .eq("tenant_id", tenantId)
           .order("created_at", { ascending: false })
           .limit(15)
@@ -29,7 +29,7 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
       (
         await supabase
           .from("leads")
-          .select("id,name,phone,status,created_at")
+          .select("id,name:contact_name,phone,status,created_at")
           .eq("tenant_id", tenantId)
           .order("created_at", { ascending: false })
           .limit(15)
@@ -40,9 +40,9 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
       (
         await supabase
           .from("social_publications")
-          .select("id,content,status,scheduled_at")
+          .select("id,content:caption,status,created_at")
           .eq("tenant_id", tenantId)
-          .order("scheduled_at", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false })
           .limit(15)
       ).data,
     ),
@@ -51,7 +51,7 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
       (
         await supabase
           .from("supplier_invoices")
-          .select("id,supplier_name,amount,status,invoice_date")
+          .select("id,name:invoice_name,invoice_amount,invoice_date")
           .eq("tenant_id", tenantId)
           .order("invoice_date", { ascending: false })
           .limit(15)
@@ -62,9 +62,9 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
       (
         await supabase
           .from("automation_executions")
-          .select("id,automation_id,status,created_at")
+          .select("id,automation_id,status,started_at")
           .eq("tenant_id", tenantId)
-          .order("created_at", { ascending: false })
+          .order("started_at", { ascending: false })
           .limit(15)
       ).data,
     ),
@@ -84,7 +84,7 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
       (
         await supabase
           .from("tenant_integrations")
-          .select("id,integration_name,is_active")
+          .select("id,integration_name:display_name,active:is_active")
           .eq("tenant_id", tenantId)
           .limit(20)
       ).data,
@@ -95,7 +95,7 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
       (
         await supabase
           .from("goals")
-          .select("id,title,status,progress")
+          .select("id,title,status,progress_percent")
           .eq("tenant_id", tenantId)
           .neq("status", "completed")
           .limit(15)
@@ -106,7 +106,7 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
 function fetchAgentRows(tenantId: string, limit: number) {
   return supabase
     .from("ai_agents")
-    .select("id,name,role,model,active")
+    .select("id,name,active")
     .eq("tenant_id", tenantId)
     .limit(limit);
 }

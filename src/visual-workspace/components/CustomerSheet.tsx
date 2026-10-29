@@ -44,7 +44,7 @@ export function CustomerSheet({ clientId, onClose }: Props) {
         .limit(10),
       supabase
         .from("chat_messages")
-        .select("id,direction,message,created_at,sender_name")
+        .select("id,direction,message:message_text,created_at,sender_name")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(5),

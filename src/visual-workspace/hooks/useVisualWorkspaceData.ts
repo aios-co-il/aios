@@ -88,7 +88,6 @@ export function useVisualWorkspaceData() {
         goalsOpen,
         incomePayments,
         expensePayments,
-        unpaidInvoices,
       ] = await Promise.all([
         safeCount(
           sb
@@ -131,7 +130,7 @@ export function useVisualWorkspaceData() {
             .from("campaign_alerts")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .eq("status", "open"),
+            .is("resolved_at", null),
         ),
         safeCount(
           sb
@@ -166,14 +165,14 @@ export function useVisualWorkspaceData() {
             .from("automations")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .eq("is_active", true),
+            .eq("active", true),
         ),
         safeCount(
           sb
             .from("automation_executions")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .gte("created_at", weekAgo),
+            .gte("started_at", weekAgo),
         ),
         safeCount(
           sb
@@ -222,13 +221,6 @@ export function useVisualWorkspaceData() {
             .select("amount")
             .eq("tenant_id", tid)
             .gte("payment_date", monthStart),
-        ),
-        safeCount(
-          sb
-            .from("supplier_invoices")
-            .select("id", { count: "exact", head: true })
-            .eq("tenant_id", tid)
-            .neq("status", "paid"),
         ),
       ]);
 
@@ -337,15 +329,10 @@ export function useVisualWorkspaceData() {
               label: "הוצאות החודש",
               value: `₪${Math.round(expenseMonth).toLocaleString()}`,
             },
-            {
-              label: "חשבוניות פתוחות",
-              value: unpaidInvoices,
-              tone: unpaidInvoices ? "warning" : "default",
-            },
           ],
           openTasks: 0,
           alerts: 0,
-          status: deriveStatus(unpaidInvoices > 5 ? 1 : 0),
+          status: deriveStatus(0),
         },
         {
           id: "development",
