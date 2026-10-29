@@ -55,7 +55,7 @@ const parseImageUsage = (usage: unknown, quality: string, size: string) => {
     1e6
   ).toFixed(6);
   return {
-    model: "gpt-image-1",
+    model: "gpt-image-2.5-sunburst",
     quality,
     size,
     textTokens,
@@ -220,7 +220,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-image-1",
+          model: "gpt-image-2.5-sunburst",
           prompt: wrapSocialImagePrompt(prompt),
           n: 1,
           size,
@@ -368,7 +368,7 @@ serve(async (req) => {
     let aiResponse: Response;
     if (files.length > 0) {
       const form = new FormData();
-      form.append("model", "gpt-image-1");
+      form.append("model", "gpt-image-2.5-sunburst");
       form.append("prompt", `${referencePrefix}${prompt}`);
       form.append("n", "1");
       form.append("size", size);
@@ -420,7 +420,7 @@ serve(async (req) => {
     if (usage) {
       logAiUsage({
         source: "ai-generate-social-image",
-        model: "gpt-image-1",
+        model: "gpt-image-2.5-sunburst",
         tenant_id,
         tokens_in: usage.textTokens + usage.imageInTokens,
         tokens_out: usage.outputTokens,

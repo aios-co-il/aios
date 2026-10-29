@@ -11,6 +11,8 @@ import {
   isJsonObject,
   optString,
 } from "../_shared/provider-json.ts";
+import { upsertCampaignAlert } from "./upsert-alert.ts";
+import { upsertCampaignAlert } from "./upsert-alert.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -184,26 +186,16 @@ async function notifyWhatsapp(
     .eq("id", alert_id);
 }
 
-async function upsertAlert(supabase: SupabaseClient, alert: AlertInput) {
-  // Avoid duplicates: skip if same open alert exists in last 24h
-  const { data: existing } = await supabase
-    .from("campaign_alerts")
-    .select("id")
-    .eq("tenant_id", alert.tenant_id)
-    .eq("campaign_id", alert.campaign_id)
-    .eq("alert_type", alert.alert_type)
-    .is("resolved_at", null)
-    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-    .limit(1)
-    .maybeSingle();
-  if (existing) return null;
-  const { data } = await supabase
-    .from("campaign_alerts")
-    .insert(alert)
-    .select("id")
-    .single();
-  if (data?.id) await notifyWhatsapp(supabase, alert, data.id);
-  return data;
+/** Records one detected alert; only NOTIFY_TYPES send a WhatsApp. */
+async function upsertAlert(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  alert: AlertInput,
+) {
+  const notify = NOTIFY_TYPES.has(alert.alert_type)
+    ? (alertId: string) => notifyWhatsapp(supabase, alert, alertId)
+    : null;
+  return await upsertCampaignAlert(supabase, alert, notify);
 }
 
 async function scanCampaign(

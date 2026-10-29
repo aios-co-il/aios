@@ -14,7 +14,11 @@
  */
 
 const FORMATS = ["1:1", "4:5", "9:16", "16:9"] as const;
-const STILL_MODELS = ["gpt-image-1", "nano-banana-pro"] as const;
+const STILL_MODELS = [
+  "gpt-image-2.5-sunburst",
+  "gpt-image-1",
+  "nano-banana-pro",
+] as const;
 const SCENE_ENGINES = [
   "mock",
   "kling",
@@ -239,7 +243,7 @@ interface Project {
 }
 
 const SCENE_COLUMNS =
-  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, voice_asset_id, clip_stale";
+  "id, position, title, status, duration_s, visual_prompt, motion_prompt, overlay_text, voiceover_text, still_asset_id, clip_asset_id, voice_asset_id, clip_stale, meta";
 
 async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
   const { data, error } = await supabase
@@ -355,7 +359,10 @@ export async function executeCreativeStudioTool(
       },
       engines: isVideo(payload)
         ? {
-            still_model: video.still_model ?? "gpt-image-1",
+            still_model:
+              video.still_model === "nano-banana-pro"
+                ? "nano-banana-pro"
+                : "gpt-image-2.5-sunburst",
             scene_engine: video.scene_engine ?? "mock",
             sound_engine: video.sound_engine ?? "elevenlabs",
             voice_id: video.voice_id ?? null,
@@ -364,6 +371,8 @@ export async function executeCreativeStudioTool(
       production: asRecord(video.production).status ?? null,
       scenes: scenes.map((scene, index) => ({
         number: index + 1,
+        // The id workshop_update_scene changes this scene by.
+        scene_id: scene.id,
         title: scene.title,
         status: scene.status,
         duration_s: scene.duration_s,
@@ -374,6 +383,14 @@ export async function executeCreativeStudioTool(
         visual_prompt: text(scene.visual_prompt, 300),
         overlay_text: text(scene.overlay_text, 160),
         voiceover_text: text(scene.voiceover_text, 300),
+        motion_prompt: text(scene.motion_prompt, 200),
+        // A talking scene: the character says this line to the camera, lip-synced.
+        ...(asRecord(scene.meta).lipsync === true
+          ? {
+              lipsync: true,
+              dialogue: text(asRecord(scene.meta).dialogue, 300),
+            }
+          : {}),
       })),
       variations: variations.slice(0, 24).map((variation, index) => ({
         number: index + 1,
@@ -406,7 +423,10 @@ export async function executeCreativeStudioTool(
     }
     const stillModel = pick(STILL_MODELS, args.still_model);
     if (stillModel) {
-      nextVideo.still_model = stillModel;
+      nextVideo.still_model =
+        stillModel === "nano-banana-pro"
+          ? "nano-banana-pro"
+          : "gpt-image-2.5-sunburst";
       changed.push(`מודל פריימים ${stillModel}`);
     }
     const sceneEngine = pick(SCENE_ENGINES, args.scene_engine);

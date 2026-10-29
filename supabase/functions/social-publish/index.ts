@@ -3,6 +3,11 @@
 // post_type: 'post' | 'photo' | 'video' | 'reel' | 'story' | 'link'
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getPath } from "../_shared/provider-json.ts";
+import { requireAuth } from "../_shared/security.ts";
+import {
+  authorizeTenantPublisher,
+  publishAccessLookups,
+} from "../_shared/tenant-publish-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -225,6 +230,22 @@ Deno.serve(async (req) => {
       );
     }
 
+    // The service role (run-ai-agent) publishes as today; a signed-in user
+    // only for a tenant they belong to (AIO-234).
+    const auth = await requireAuth(req);
+    const lookups = publishAccessLookups(supabase);
+    const tenantAccess = await authorizeTenantPublisher(
+      auth,
+      tenant_id,
+      [],
+      lookups,
+    );
+    if (!tenantAccess.allowed)
+      return new Response(JSON.stringify({ error: tenantAccess.error }), {
+        status: tenantAccess.status,
+        headers: corsHeaders,
+      });
+
     const { data: page } = await supabase
       .from("social_pages")
       .select("*")
@@ -243,6 +264,22 @@ Deno.serve(async (req) => {
         }),
         { status: 400, headers: corsHeaders },
       );
+
+    // A client's page, or a publication filed under a client, also needs
+    // access to that client.
+    if (auth?.kind === "user" && (page.client_id || client_id)) {
+      const clientAccess = await authorizeTenantPublisher(
+        auth,
+        tenant_id,
+        [page.client_id, client_id],
+        lookups,
+      );
+      if (!clientAccess.allowed)
+        return new Response(JSON.stringify({ error: clientAccess.error }), {
+          status: clientAccess.status,
+          headers: corsHeaders,
+        });
+    }
 
     // Insert pending publication
     const { data: pub } = await supabase

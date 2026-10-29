@@ -3,6 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database, Tables } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { errorText, getString } from "../_shared/provider-json.ts";
+import { requireAuth } from "../_shared/security.ts";
+import { publishAccessLookups } from "../_shared/tenant-publish-access.ts";
+import { authorizePostPublisher } from "./publish-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,8 +41,21 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
+  // The publish-access lookups take table names as plain strings.
+  const accessDb = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    // The service role publishes as today; a signed-in user only a post of a
+    // tenant they belong to, and to a client's WordPress site only with access
+    // to that client (AIO-234).
+    const auth = await requireAuth(req);
+    if (!auth) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { post_id }: PublishRequest = await req.json();
 
     if (!post_id) {
@@ -59,6 +75,19 @@ serve(async (req) => {
     if (postError || !post) {
       return new Response(JSON.stringify({ error: "Post not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const access = await authorizePostPublisher(
+      accessDb,
+      auth,
+      post,
+      publishAccessLookups(accessDb),
+    );
+    if (!access.allowed) {
+      return new Response(JSON.stringify({ error: access.error }), {
+        status: access.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -89,6 +118,11 @@ serve(async (req) => {
         if (!channel) continue;
 
         try {
+          // Never post with another tenant's channel token (AIO-234).
+          if (channel.tenant_id !== post.tenant_id) {
+            throw new Error("Channel belongs to another tenant");
+          }
+
           await supabase
             .from("social_media_post_channels")
             .update({ status: "publishing" })
