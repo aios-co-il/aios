@@ -21,7 +21,6 @@ Deno.test(
       agencyIds: ["a1", "a2"],
       modulePermissions: ["crm"],
       campaignerId: "c1",
-      salesPersonId: undefined,
     });
   },
 );
@@ -34,4 +33,9 @@ Deno.test("drops non-string values", () => {
 
 Deno.test("throws when metadata is missing", () => {
   assertThrows(() => parseInvitationMetadata(null), TypeError);
+});
+
+Deno.test("reads metadata that is not an object as empty", () => {
+  assertEquals(parseInvitationMetadata(["role"]), {});
+  assertEquals(parseInvitationMetadata("x"), {});
 });

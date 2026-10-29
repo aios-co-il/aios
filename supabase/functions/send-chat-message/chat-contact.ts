@@ -1,4 +1,12 @@
-import { unknownField } from "../_shared/json-fields.ts";
+import { z } from "npm:zod@3.25.76";
+
+/** A clients/leads row carrying the fields send-chat-message reads. */
+const chatContactSchema = z.object({
+  id: z.string(),
+  name: z.string().nullish(),
+  manychat_subscriber_id: z.string().nullish(),
+  tenant_id: z.string(),
+});
 
 export interface ChatContact {
   id: string;
@@ -7,15 +15,6 @@ export interface ChatContact {
   tenant_id: string;
 }
 
-const isNullableString = (value: unknown) =>
-  value === null || value === undefined || typeof value === "string";
-
-/** A clients/leads row carrying the fields send-chat-message reads. */
 export function isChatContact(value: unknown): value is ChatContact {
-  return (
-    typeof unknownField(value, "id") === "string" &&
-    typeof unknownField(value, "tenant_id") === "string" &&
-    isNullableString(unknownField(value, "name")) &&
-    isNullableString(unknownField(value, "manychat_subscriber_id"))
-  );
+  return chatContactSchema.safeParse(value).success;
 }

@@ -1,14 +1,30 @@
-import { unknownField } from "../_shared/json-fields.ts";
+import { z } from "npm:zod@3.25.76";
 
-function filesOf(meeting: unknown): unknown[] {
-  const files = unknownField(meeting, "recording_files");
-  return Array.isArray(files) ? files : [];
-}
+/** A value that is not an object reads as one with no fields. */
+const lenient = <T extends z.ZodRawShape>(shape: T) =>
+  z.object(shape).catch(() => z.object(shape).parse({}));
 
-function urlsOf(file: unknown): string[] {
-  return [unknownField(file, "download_url"), unknownField(file, "play_url")]
-    .filter((url) => typeof url === "string" && url !== "")
-    .map(String);
+const recordingFileSchema = lenient({
+  recording_type: z.unknown(),
+  download_url: z.unknown(),
+  play_url: z.unknown(),
+});
+
+const meetingSchema = lenient({
+  id: z.unknown(),
+  uuid: z.unknown(),
+  recording_files: z.array(z.unknown()).catch([]),
+});
+
+const recordingsListSchema = z.object({ meetings: z.array(z.unknown()) });
+
+const url = z.string().min(1);
+
+function urlsOf(file: z.infer<typeof recordingFileSchema>): string[] {
+  return [file.download_url, file.play_url].flatMap((value) => {
+    const parsed = url.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  });
 }
 
 /**
@@ -21,21 +37,19 @@ export function freshZoomRecordingUrls(
   meetingId: string,
   recordingType: string,
 ): string[] | null {
-  const meetings = unknownField(listData, "meetings");
-  if (!Array.isArray(meetings)) return null;
-  const matched = meetings.find(
-    (m) =>
-      m != null &&
-      (String(unknownField(m, "id")) === meetingId ||
-        String(unknownField(m, "uuid")) === meetingId),
-  );
+  const list = recordingsListSchema.safeParse(listData);
+  if (!list.success) return null;
+  const matched = list.data.meetings
+    .filter((m) => m != null)
+    .map((m) => meetingSchema.parse(m))
+    .find((m) => String(m.id) === meetingId || String(m.uuid) === meetingId);
   if (matched === undefined) return null;
-  const files = filesOf(matched);
+  const files = matched.recording_files.map((f) =>
+    recordingFileSchema.parse(f),
+  );
   const targetType = recordingType.toLowerCase();
   const exactType = files.filter(
-    (f) =>
-      String(unknownField(f, "recording_type") || "").toLowerCase() ===
-      targetType,
+    (f) => String(f.recording_type || "").toLowerCase() === targetType,
   );
   return [...new Set([...exactType, ...files].flatMap(urlsOf))];
 }

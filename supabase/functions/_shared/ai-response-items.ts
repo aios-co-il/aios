@@ -1,4 +1,4 @@
-import { unknownField } from "./json-fields.ts";
+import { z } from "npm:zod@3.25.76";
 
 export interface EmbeddingItem {
   index?: number;
@@ -20,50 +20,53 @@ export interface ScribeWord {
   end?: number;
 }
 
-function numberAt(value: unknown, key: string): number | undefined {
-  const field = unknownField(value, key);
-  return typeof field === "number" ? field : undefined;
-}
+const numberAt = z.number().optional().catch(undefined);
 
-function textAt(value: unknown, key: string): string | undefined {
-  const field = unknownField(value, key);
-  return field == null ? undefined : String(field);
-}
+/** Any present value as text; null and absent read as undefined. */
+const textAt = z
+  .unknown()
+  .transform((value) => (value == null ? undefined : String(value)));
 
-function isNumberArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every((n) => typeof n === "number");
-}
+const items = z.array(z.unknown()).catch([]);
+
+/** Every list entry is kept; one that is not an object reads as all-undefined. */
+const lenient = <T extends z.ZodRawShape>(shape: T) =>
+  z.object(shape).catch(() => z.object(shape).parse({}));
+
+const embeddingItemSchema = z.object({
+  index: numberAt,
+  embedding: z.array(z.number()),
+});
+
+const whisperSegmentSchema = lenient({
+  no_speech_prob: numberAt,
+  text: textAt,
+  start: numberAt,
+  end: numberAt,
+});
+
+const scribeWordSchema = lenient({
+  type: textAt,
+  text: textAt,
+  speaker_id: textAt,
+  start: numberAt,
+  end: numberAt,
+});
 
 /** OpenAI embeddings `data`; items without a numeric embedding are dropped. */
 export function readEmbeddingItems(value: unknown): EmbeddingItem[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const embedding = unknownField(item, "embedding");
-    return isNumberArray(embedding)
-      ? [{ index: numberAt(item, "index"), embedding }]
-      : [];
+  return items.parse(value).flatMap((item) => {
+    const parsed = embeddingItemSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
   });
 }
 
 /** Whisper verbose_json `segments`. */
 export function readWhisperSegments(value: unknown): WhisperSegment[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((s) => ({
-    no_speech_prob: numberAt(s, "no_speech_prob"),
-    text: textAt(s, "text"),
-    start: numberAt(s, "start"),
-    end: numberAt(s, "end"),
-  }));
+  return items.parse(value).map((s) => whisperSegmentSchema.parse(s));
 }
 
 /** ElevenLabs Scribe `words`. */
 export function readScribeWords(value: unknown): ScribeWord[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((w) => ({
-    type: textAt(w, "type"),
-    text: textAt(w, "text"),
-    speaker_id: textAt(w, "speaker_id"),
-    start: numberAt(w, "start"),
-    end: numberAt(w, "end"),
-  }));
+  return items.parse(value).map((w) => scribeWordSchema.parse(w));
 }
