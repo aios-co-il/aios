@@ -1,5 +1,7 @@
+import type { Database, Json } from "../database.types.ts";
 import type {
   AdapterCapabilities,
+  BrainRouteRow,
   ChannelProvider,
   CloudDirectProvider,
   ConversationStatus,
@@ -376,4 +378,56 @@ function isMessageEventType(value: unknown): value is MessageEventType {
 export function parseCallbackEventType(raw: unknown): MessageEventType | null {
   if (raw === undefined || raw === null || raw === "") return "message";
   return isMessageEventType(raw) ? raw : null;
+}
+
+/** Narrow generated database strings before exposing a route to channel code. */
+export function parseBrainRoute(
+  row: Database["public"]["Tables"]["agent_brain_routes"]["Row"] | null,
+): BrainRouteRow | null {
+  if (!row) {
+    return null;
+  }
+
+  const { route_type, provider, config } = row;
+  if (
+    route_type !== "internal" &&
+    route_type !== "direct_channel" &&
+    route_type !== "parliament"
+  ) {
+    console.warn("[agent-channel] unknown route_type", row.id, route_type);
+    return null;
+  }
+
+  if (
+    provider !== null &&
+    provider !== "cursor" &&
+    provider !== "grok" &&
+    provider !== "codex" &&
+    provider !== "claude" &&
+    provider !== "chatgpt" &&
+    provider !== "internal" &&
+    provider !== "parliament"
+  ) {
+    console.warn("[agent-channel] unknown provider", row.id, provider);
+    return null;
+  }
+
+  return {
+    ...row,
+    route_type,
+    provider,
+    config:
+      config && typeof config === "object" && !Array.isArray(config)
+        ? config
+        : {},
+  };
+}
+
+/** Preserve run metadata while storing a JSON-compatible parliament state. */
+export function withParliamentContext(
+  context: unknown,
+  state: ParliamentState,
+): Json {
+  const previous = context && typeof context === "object" ? context : {};
+  return { ...previous, parliament: state };
 }

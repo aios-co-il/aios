@@ -10,6 +10,8 @@ import {
   capabilitiesForProvider,
   markParliamentFailed,
   parliamentSeatsFromConfig,
+  parseBrainRoute,
+  withParliamentContext,
   recordParliamentAnswer,
   parseCallbackEventType,
   resolveCallbackOrigin,
@@ -98,5 +100,50 @@ Deno.test(
     assertStrictEquals(parseCallbackEventType("Message"), null);
     assertStrictEquals(parseCallbackEventType(1), null);
     assertStrictEquals(parseCallbackEventType({ type: "message" }), null);
+  },
+);
+
+Deno.test(
+  "database route parser validates enums and handles absent routes",
+  () => {
+    const row = {
+      id: "route",
+      tenant_id: "tenant",
+      agent_id: null,
+      slug: "parliament",
+      label: "Parliament",
+      route_type: "parliament",
+      provider: "parliament",
+      connection_id: null,
+      config: { rounds: 2 },
+      active: true,
+      created_at: "now",
+      updated_at: "now",
+    };
+    assertEquals(parseBrainRoute(row)?.config, { rounds: 2 });
+    assertStrictEquals(parseBrainRoute(row)?.route_type, "parliament");
+    assertStrictEquals(parseBrainRoute(null), null);
+    assertStrictEquals(
+      parseBrainRoute({ ...row, route_type: "invalid" }),
+      null,
+    );
+    assertStrictEquals(parseBrainRoute({ ...row, provider: "invalid" }), null);
+    assertEquals(parseBrainRoute({ ...row, config: null })?.config, {});
+  },
+);
+
+Deno.test(
+  "parliament context keeps existing metadata and serializable state",
+  () => {
+    const state = base();
+    const context = { conversation_id: "conversation", nested: { keep: true } };
+    const result = withParliamentContext(context, state);
+    assertEquals(result, { ...context, parliament: state });
+    assertEquals(JSON.parse(JSON.stringify(result)), result);
+    assertEquals(context, {
+      conversation_id: "conversation",
+      nested: { keep: true },
+    });
+    assertEquals(withParliamentContext(null, state), { parliament: state });
   },
 );
