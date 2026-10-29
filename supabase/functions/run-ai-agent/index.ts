@@ -314,14 +314,15 @@ import type {
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
 import {
+  adAccountDisableReason,
   automationStepArg,
-  isParallelTaskArg,
-  nestedErrorMessage,
-  readField,
+  parallelTaskArgs,
+  providerErrorMessage,
+  readGoogleAdsCampaignRow,
+  readGoogleCalendarEvents,
 } from "./tool-contracts-admin.ts";
 import type {
   AdAccountHealthIssue,
-  GoogleCalendarEventItem,
   ReportMetaCheck,
 } from "./tool-contracts-admin.ts";
 import type {
@@ -11443,12 +11444,12 @@ async function executeTool(
               accountStatusById.set(String(a.id), {
                 status: a.account_status,
                 name: a.name,
-                disable_reason: readField(a, "disable_reason"),
+                disable_reason: adAccountDisableReason(a),
               });
               accountStatusById.set(`act_${a.account_id}`, {
                 status: a.account_status,
                 name: a.name,
-                disable_reason: readField(a, "disable_reason"),
+                disable_reason: adAccountDisableReason(a),
               });
             }
             url = j.paging?.next || null;
@@ -11959,7 +11960,7 @@ async function executeTool(
       if (items.length === 0)
         throw new Error("tasks (array of {title, prompt}) is required");
       if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
-      const cleaned = items.filter(isParallelTaskArg).map((it) => ({
+      const cleaned = parallelTaskArgs(items).map((it) => ({
         title: String(it.title),
         prompt: String(it.prompt),
         taskSkills: Array.isArray(it.task_skills) ? it.task_skills : undefined,
@@ -12458,20 +12459,14 @@ async function executeTool(
 
       const searchRows: unknown[] = searchData.results || [];
       let campaigns = searchRows.map((row) => {
-        const campaign = readField(row, "campaign");
-        const budgetMicros = readField(
-          readField(row, "campaignBudget"),
-          "amountMicros",
-        );
-        const metrics = readField(row, "metrics");
-        const costMicros = readField(metrics, "costMicros");
-        const clicks = readField(metrics, "clicks");
-        const impressions = readField(metrics, "impressions");
-        const conversions = readField(metrics, "conversions");
+        const { campaign, campaignBudget, metrics } =
+          readGoogleAdsCampaignRow(row);
+        const budgetMicros = campaignBudget.amountMicros;
+        const { costMicros, clicks, impressions, conversions } = metrics;
         return {
-          campaign_id: String(readField(campaign, "id") || ""),
-          name: readField(campaign, "name") || null,
-          status: readField(campaign, "status") || null,
+          campaign_id: String(campaign.id || ""),
+          name: campaign.name || null,
+          status: campaign.status || null,
           daily_budget:
             budgetMicros != null ? Number(budgetMicros) / 1_000_000 : null,
           cost: costMicros != null ? Number(costMicros) / 1_000_000 : null,
@@ -13327,20 +13322,20 @@ async function executeTool(
           headers: { Authorization: `Bearer ${cal.accessToken}` },
         },
       );
-      const data = await resp.json();
+      const data: unknown = await resp.json();
       if (!resp.ok)
         return {
-          error: `שגיאת Google Calendar: ${data?.error?.message || resp.status}`,
+          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
         };
-      const calendarItems: GoogleCalendarEventItem[] = data.items || [];
+      const calendarItems = readGoogleCalendarEvents(data);
       return {
         count: calendarItems.length,
         events: calendarItems.map((e) => ({
           event_id: e.id,
           title: e.summary,
-          start: readField(e.start, "dateTime") || readField(e.start, "date"),
-          end: readField(e.end, "dateTime") || readField(e.end, "date"),
-          attendees: (e.attendees || []).map((a) => readField(a, "email")),
+          start: e.start.dateTime || e.start.date,
+          end: e.end.dateTime || e.end.date,
+          attendees: (e.attendees || []).map((a) => a.email),
           link: e.htmlLink,
           conference_url: extractConferenceUrl(e),
           conference_type: conferenceKindFromUrl(extractConferenceUrl(e)),
@@ -13445,7 +13440,7 @@ async function executeTool(
       if (!resp.ok && resp.status !== 204 && resp.status !== 410) {
         const data: unknown = await resp.json().catch(() => ({}));
         return {
-          error: `שגיאת Google Calendar: ${nestedErrorMessage(data) || resp.status}`,
+          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
         };
       }
       return {
