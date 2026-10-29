@@ -20,7 +20,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BroadcastLists } from "@/components/broadcast/BroadcastLists";
 import { BroadcastDomainSettings } from "@/components/broadcast/BroadcastDomainSettings";
 import { BroadcastTemplates } from "@/components/broadcast/BroadcastTemplates";
-import { BroadcastStatsDialog } from "@/components/broadcast/BroadcastStatsDialog";
+import { BroadcastStatsDialog } from "@/components/broadcast/stats/BroadcastStatsDialog";
+import { OpenRateCell } from "@/components/broadcast/stats/OpenRateCell";
 import {
   Send,
   Plus,
@@ -164,24 +165,7 @@ export default function Broadcast() {
                               : "—"}
                           </TableCell>
                           <TableCell>
-                            {b.channel === "email" ? (
-                              <>
-                                {b.stats?.opened ?? 0}
-                                {(b.stats?.delivered ?? 0) > 0 && (
-                                  <span className="mr-1 text-xs text-muted-foreground">
-                                    (
-                                    {Math.round(
-                                      ((b.stats?.opened ?? 0) /
-                                        (b.stats?.delivered ?? 1)) *
-                                        100,
-                                    )}
-                                    %)
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              "—"
-                            )}
+                            <OpenRateCell broadcast={b} />
                           </TableCell>
                           <TableCell>
                             {b.channel === "email"

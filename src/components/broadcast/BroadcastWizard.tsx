@@ -41,8 +41,10 @@ import { WizardEmailBody } from "@/components/broadcast/wizard/WizardEmailBody";
 import { WizardTestSend } from "@/components/broadcast/wizard/WizardTestSend";
 import {
   emailBodyHasContent,
-  parseManualContacts,
+  wizardSender,
 } from "@/components/broadcast/wizard/wizardHelpers";
+import { WizardManualAudience } from "@/components/broadcast/wizard/WizardManualAudience";
+import { splitContacts } from "../../../supabase/functions/_shared/broadcast/email-address.ts";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -275,7 +277,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       return { source: "wa_groups", groupIds: selectedGroupIds };
     if (source === "list") return { source: "list", listId };
     if (source === "manual")
-      return { source: "manual", manualContacts: parseManualContacts(manualText) };
+      return { source: "manual", manualContacts: splitContacts(manualText) };
     const include = pickMode ? { includeIds: selectedIds } : {};
     if (source === "clients")
       return {
@@ -441,20 +443,19 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-  const senderEmail =
-    channel !== "email"
-      ? null
-      : fromMode === "custom"
-        ? `${fromLocal}@${fromDomain}`
-        : defaultDomain
-          ? `${defaultDomain.default_local}@${defaultDomain.domain}`
-          : null;
-  const senderName =
-    channel !== "email"
-      ? null
-      : fromMode === "custom"
-        ? fromName.trim() || null
-        : defaultDomain?.from_name || null;
+  const sender =
+    channel === "email"
+      ? wizardSender({
+          custom: fromMode === "custom",
+          fromLocal,
+          fromDomain,
+          fromName,
+          defaultDomain,
+        })
+      : { email: null, name: null };
+  // Lists, groups and typed contacts have no CRM records to pick from.
+  const canPickRecipients =
+    source !== "list" && source !== "wa_groups" && source !== "manual";
   // Email without a template is written in the editor / HTML box.
   const emailEditable = channel === "email" && !templateId;
 
@@ -494,8 +495,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         provider: selectedProvider,
         integration_id: channel === "email" ? null : integrationId,
         subject: channel === "email" ? subject : null,
-        from_email: senderEmail,
-        from_name: senderName,
+        from_email: sender.email,
+        from_name: sender.name,
         reply_to: channel === "email" && replyTo.trim() ? replyTo.trim() : null,
         body_text: bodyText,
         body_html: channel === "email" && bodyHtml ? bodyHtml : null,
@@ -764,25 +765,11 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
             )}
 
             {source === "manual" && (
-              <div className="space-y-1">
-                <Label>
-                  {channel === "email" ? "כתובות מייל" : "מספרי טלפון"}
-                </Label>
-                <Textarea
-                  dir="ltr"
-                  rows={4}
-                  value={manualText}
-                  onChange={(e) => setManualText(e.target.value)}
-                  placeholder={
-                    channel === "email"
-                      ? "name@example.com, other@example.com"
-                      : "0501234567"
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  כתובת אחת או יותר, מופרדות בפסיק או בשורה חדשה — בלי לבחור ליד, לקוח או צוות.
-                </p>
-              </div>
+              <WizardManualAudience
+                channel={channel}
+                value={manualText}
+                onChange={setManualText}
+              />
             )}
 
             {/* ── Existing sources ── */}
@@ -882,7 +869,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                 />
               )}
 
-            {source !== "list" && source !== "wa_groups" && source !== "manual" && (
+            {canPickRecipients && (
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -1107,7 +1094,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
               <WizardTestSend
                 disabled={
                   !subject.trim() ||
-                  !senderEmail ||
+                  !sender.email ||
                   !(emailBodyHasContent(bodyHtml) || bodyText.trim())
                 }
                 getPayload={() => ({
@@ -1118,8 +1105,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                   htmlMode: !!bodyHtml && htmlMode,
                   vars: {},
                   attachments,
-                  fromEmail: senderEmail,
-                  fromName: senderName,
+                  fromEmail: sender.email,
+                  fromName: sender.name,
                   replyTo: replyTo.trim() || null,
                 })}
               />

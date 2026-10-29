@@ -188,17 +188,20 @@ Deno.test("includeIds and excludeIds narrow the source", async () => {
   );
 });
 
-Deno.test("manual source: typed emails and phones, malformed emails dropped", async () => {
-  const r = await resolveAudience(db().db, T, {
-    source: "manual",
-    manualContacts: [" Dana@Example.com ", "0501234567", "not-an@email", ""],
-  });
-  assertEquals(
-    r.map((x) => [x.entity_type, x.email, x.phone]),
-    [
-      ["manual", "dana@example.com", null],
-      ["manual", null, "0501234567"],
-    ],
-  );
-  assertStrictEquals(r[0].vars.email, "dana@example.com");
-});
+Deno.test(
+  "manual source: typed emails and phones, malformed emails dropped",
+  async () => {
+    const r = await resolveAudience(db().db, T, {
+      source: "manual",
+      manualContacts: [" Dana@Example.com ", "0501234567", "not-an@email", ""],
+    });
+    assertEquals(
+      r.map((x) => [x.entity_type, x.email, x.phone]),
+      [
+        ["manual", "dana@example.com", null],
+        ["manual", null, "0501234567"],
+      ],
+    );
+    assertStrictEquals(r[0].vars.email, "dana@example.com");
+  },
+);

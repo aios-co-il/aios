@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { TestSendPayload } from "@/components/broadcast/TemplateEditorFooter";
 import { useSendTestEmail } from "@/components/broadcast/useSendTestEmail";
-import { parseManualContacts } from "./wizardHelpers";
+import { splitContacts } from "../../../../supabase/functions/_shared/broadcast/email-address.ts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ export function WizardTestSend({
 }) {
   const [to, setTo] = useState("");
   const sendTest = useSendTestEmail();
-  const recipients = parseManualContacts(to);
+  const recipients = splitContacts(to);
 
   return (
     <div className="space-y-1 rounded-lg border p-3">
@@ -46,7 +46,8 @@ export function WizardTestSend({
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        עד 5 כתובות, מופרדות בפסיק. הנושא יסומן [בדיקה] והשדות הדינמיים יישארו ריקים.
+        עד 5 כתובות, מופרדות בפסיק. הנושא יסומן [בדיקה] והשדות הדינמיים יישארו
+        ריקים.
       </p>
     </div>
   );
