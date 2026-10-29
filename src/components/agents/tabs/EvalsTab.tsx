@@ -7,6 +7,7 @@ import {
   asJsonObject,
   jsonPrimitive,
   type JsonObject,
+  parseJsonArray,
 } from "../agentUiHelpers";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -84,12 +85,13 @@ export function EvalsTab({
       } catch {
         throw new Error("JSON לא תקין");
       }
-      if (!Array.isArray(dataset)) throw new Error("ה-dataset חייב להיות מערך");
+      const cases = parseJsonArray(dataset);
+      if (!cases) throw new Error("ה-dataset חייב להיות מערך");
       const { error } = await supabase.from("agent_evals").insert({
         tenant_id: tenantId,
         agent_id: agent.id,
         name,
-        dataset,
+        dataset: cases,
       });
       if (error) throw error;
     },

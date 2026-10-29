@@ -31,13 +31,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { jsonString, thrownMessage } from "./agentUiHelpers";
-
-interface ChatSupportResponse {
-  response?: string;
-  action_needed?: string;
-  requires_approval?: boolean;
-  severity?: string;
-}
+import {
+  type ChatSupportResponse,
+  parseChatSupportResponse,
+} from "./githubChatResponse";
 
 export function GithubAgentPanel() {
   const { tenantId } = useCurrentTenant();
@@ -146,17 +143,16 @@ export function GithubAgentPanel() {
     setChatResponse(null);
 
     try {
-      const { data, error } =
-        await supabase.functions.invoke<ChatSupportResponse>("github-agent", {
-          body: {
-            action: "chat_support",
-            tenant_id: tenantId,
-            message: chatMessage,
-          },
-        });
+      const { data, error } = await supabase.functions.invoke("github-agent", {
+        body: {
+          action: "chat_support",
+          tenant_id: tenantId,
+          message: chatMessage,
+        },
+      });
 
       if (error) throw error;
-      setChatResponse(data);
+      setChatResponse(parseChatSupportResponse(data));
       setChatMessage("");
       queryClient.invalidateQueries({
         queryKey: ["agent-approvals", tenantId],
