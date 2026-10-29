@@ -7,6 +7,7 @@ export const CREATIVE_DIRECT_LABEL_HE = "קריאייטיב דיירקט";
 
 export const CREATIVE_DIRECT_SKIN_SLUG = "creative_direct";
 
+/** Standing skill; its JOB BRIEF contract is noted at the top of the file. */
 export const CREATIVE_DIRECT_SKILL_PATH =
   ".cursor/skills/creative-direct/SKILL.md";
 

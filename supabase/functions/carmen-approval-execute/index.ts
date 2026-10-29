@@ -1,7 +1,9 @@
 // Carmen Approval Execute — runs a pending row from agent_approval_queue.
 // Routes to carmen-fb-tools / carmen-google-tools / carmen-save-media based on tool_name.
-// Used by run-ai-agent (when Carmen calls execute_pending_approval) and by campaign-scheduler-cron.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// Used by run-ai-agent (when Carmen calls execute_pending_approval) and by the
+// approvals UI (ApprovalsTab), which also rejects through { decision: "reject" }.
+// AIO-230: approver gate and claim: _shared/carmen/approvals/approver.ts.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   Constants,
   type Database,
@@ -19,6 +21,14 @@ import {
 } from "../_shared/json-narrow.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import { buildFlowStepRows, flowStepSpecs } from "./flow-steps.ts";
+import { requireAuth } from "../_shared/security.ts";
+import { authorizeApprovalActor } from "../_shared/carmen/approvals/approver.ts";
+import {
+  claimForRun,
+  markApprovalFailed,
+  rejectApproval,
+  type Reply,
+} from "./decision.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -95,30 +105,64 @@ function agentRefs(agents: AgentRef[] | null): AgentRef[] {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
+  const supabase = createClient<Database>(SB_URL, SB_SERVICE);
+  // Set once this call has claimed a row ('executing'); the catch below closes it.
+  let claimed: { id: string; tenant_id: string } | null = null;
   try {
-    const supabase = createClient<Database>(SB_URL, SB_SERVICE);
+    const auth = await requireAuth(req);
+    if (!auth) {
+      return reply({ status: 401, body: { error: "unauthorized" } });
+    }
+
     const body = await req.json().catch(() => ({}));
-    // Accept `_approval_id` too: resume-agent-run (the UI approval path) invokes
-    // this function with {...tool_input, _approval_id} when routing via agent_tools.
-    const approval_id = body.approval_id || body._approval_id;
+    // Accept `_approval_id` too: resume-agent-run invokes agent_tools handlers
+    // with {...tool_input, _approval_id, _approved_by}.
+    const approval_id = asUuidOrNull(body.approval_id || body._approval_id);
+    // A signed-in caller approves as themselves; only service callers name the approver.
     // Never write literal "system" into uuid columns (WhatsApp / automation callers).
-    const approved_by = asUuidOrNull(body.approved_by);
+    const approved_by =
+      auth.kind === "user"
+        ? auth.userId
+        : asUuidOrNull(body.approved_by ?? body._approved_by);
     if (!approval_id)
       return new Response(JSON.stringify({ error: "approval_id required" }), {
         status: 400,
         headers: corsHeaders,
       });
 
-    const { data: row, error } = await supabase
+    const { data: loaded, error } = await supabase
       .from("agent_approval_queue")
       .select("*")
       .eq("id", approval_id)
       .maybeSingle();
-    if (error || !row)
+    if (error || !loaded) {
       return new Response(JSON.stringify({ error: "approval_not_found" }), {
         status: 404,
         headers: corsHeaders,
       });
+    }
+
+    let row = loaded;
+    const mode = body.decision === "reject" ? "reject" : "execute";
+    const authz = await authorizeApprovalActor(
+      supabase,
+      row,
+      approved_by,
+      mode,
+    );
+    if (!authz.ok) {
+      return reply({
+        status: authz.status,
+        body: { error: authz.error, approval_id },
+      });
+    }
+
+    if (mode === "reject") {
+      return reply(
+        await rejectApproval(supabase, row, approved_by, body.reason),
+      );
+    }
+
     if (row.status === "executed")
       return new Response(
         JSON.stringify({
@@ -133,6 +177,13 @@ Deno.serve(async (req) => {
         status: 400,
         headers: corsHeaders,
       });
+    const run = await claimForRun(supabase, row, approved_by);
+    if ("reply" in run) {
+      return reply(run.reply);
+    }
+
+    row = run.claimed;
+    claimed = row;
 
     // Special handling: schedule_campaign_toggle inserts into campaign_schedules instead of running FB/Google
     if (row.tool_name === "schedule_campaign_toggle") {
@@ -344,7 +395,7 @@ Deno.serve(async (req) => {
       await supabase
         .from("broadcasts")
         .update({ status: "sending", started_at: new Date().toISOString() })
-        .eq("id", inp.broadcast_id);
+        .eq("id", String(inp.broadcast_id));
       const result = {
         success: true,
         broadcast_id: inp.broadcast_id,
@@ -386,7 +437,7 @@ Deno.serve(async (req) => {
       const { error: upErr } = await supabase
         .from("broadcasts")
         .update({ status: "scheduled", scheduled_at: scheduledAt })
-        .eq("id", inp.broadcast_id);
+        .eq("id", String(inp.broadcast_id));
       const result = upErr
         ? { error: upErr.message }
         : {
@@ -429,7 +480,7 @@ Deno.serve(async (req) => {
       const { error: upErr } = await supabase
         .from("broadcasts")
         .update({ status: "canceled" })
-        .eq("id", inp.broadcast_id);
+        .eq("id", String(inp.broadcast_id));
       const result = upErr
         ? { error: upErr.message }
         : { success: true, broadcast_id: inp.broadcast_id, status: "canceled" };
@@ -545,7 +596,7 @@ Deno.serve(async (req) => {
         const { data: auto } = await supabase
           .from("automations")
           .select("id, name, tenant_id, is_flow, trigger_type")
-          .eq("id", inp.automation_id)
+          .eq("id", String(inp.automation_id))
           .eq("tenant_id", row.tenant_id)
           .maybeSingle();
         if (!auto) throw new Error("automation_not_found");
@@ -554,7 +605,7 @@ Deno.serve(async (req) => {
           const { data, error } = await supabase
             .from("automations")
             .update({ active: !!inp.active })
-            .eq("id", inp.automation_id)
+            .eq("id", String(inp.automation_id))
             .eq("tenant_id", row.tenant_id)
             .select("id, name, active")
             .single();
@@ -564,7 +615,7 @@ Deno.serve(async (req) => {
           const { error } = await supabase
             .from("automations")
             .delete()
-            .eq("id", inp.automation_id)
+            .eq("id", String(inp.automation_id))
             .eq("tenant_id", row.tenant_id);
           if (error) throw error;
           result = { deleted: inp.automation_id, name: auto.name };
@@ -590,7 +641,7 @@ Deno.serve(async (req) => {
             const { error } = await supabase
               .from("automations")
               .update(patch)
-              .eq("id", inp.automation_id)
+              .eq("id", String(inp.automation_id))
               .eq("tenant_id", row.tenant_id);
             if (error) throw error;
           }
@@ -599,7 +650,7 @@ Deno.serve(async (req) => {
             await supabase
               .from("automation_flow_steps")
               .delete()
-              .eq("automation_id", inp.automation_id);
+              .eq("automation_id", String(inp.automation_id));
             const { data: agents } = await supabase
               .from("ai_agents")
               .select("id,name")
@@ -627,7 +678,7 @@ Deno.serve(async (req) => {
             await supabase
               .from("automations")
               .update({ is_flow: true })
-              .eq("id", inp.automation_id);
+              .eq("id", String(inp.automation_id));
           }
           result = {
             automation_id: inp.automation_id,
@@ -797,6 +848,12 @@ Deno.serve(async (req) => {
       const r = await invokeEdgeFn("run-ai-agent", {
         direct_tool: { action: "execute_approved", approval_id, approved_by },
       });
+      // run-ai-agent records the outcome; if it never got that far, do not leave
+      // the claimed row in 'executing'.
+      if (!r.ok) {
+        await markApprovalFailed(supabase, row, r.json);
+      }
+
       return new Response(
         JSON.stringify({
           success: r.ok,
@@ -808,11 +865,13 @@ Deno.serve(async (req) => {
     }
 
     const route = TOOL_TO_FUNCTION[row.tool_name ?? ""];
-    if (!route)
+    if (!route) {
+      await markApprovalFailed(supabase, row, { error: "unknown_tool" });
       return new Response(
         JSON.stringify({ error: "unknown_tool", tool_name: row.tool_name }),
         { status: 400, headers: corsHeaders },
       );
+    }
 
     // Normalize legacy update_facebook_budget → carmen-fb-tools entity_id
     const rawInput = jsonObject(row.tool_input);
@@ -847,12 +906,31 @@ Deno.serve(async (req) => {
     );
   } catch (e) {
     console.error("[carmen-approval-execute]", e);
-    return new Response(
-      JSON.stringify({ error: String(thrownMessage(e) || e) }),
-      {
-        status: 500,
-        headers: corsHeaders,
+    // A row this call claimed must not stay 'executing' forever. The action may or
+    // may not have run, so it is closed as failed and never retried automatically.
+    if (claimed) {
+      try {
+        await markApprovalFailed(supabase, claimed, {
+          error: String(thrownMessage(e) || e),
+          outcome_unknown: true,
+        });
+      } catch (markErr) {
+        console.error("[carmen-approval-execute] mark failed", markErr);
+      }
+    }
+
+    return reply({
+      status: 500,
+      body: {
+        error: String(thrownMessage(e) || e),
+        // The row was claimed, so the action may have run.
+        outcome_unknown: Boolean(claimed),
       },
-    );
+    });
   }
 });
+
+/** JSON response with this function's CORS headers. */
+function reply({ status, body }: Reply): Response {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
+}

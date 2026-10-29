@@ -1,6 +1,8 @@
 // Carmen FB Tools — single dispatcher for create/update/pause/resume/replace_lead_form on Meta.
 // All write actions require confirmed=true. Approval gating is handled upstream by run-ai-agent
 // via agent_approval_queue; this function performs the actual API call once approved.
+// Callers (AIO-239, ./gate.ts): the service role (approval execute, scheduler,
+// shutdown runner) with the tenant in the body, or a user JWT scoped to the user's own tenant.
 import {
   createClient,
   type SupabaseClient,
@@ -11,6 +13,13 @@ import {
   type JsonObject,
   thrownMessage,
 } from "../_shared/json-narrow.ts";
+import { fbTokenSource } from "../_shared/ad-tools/fb-gate.ts";
+import {
+  META_SETTING_KEYS,
+  META_TABLE_TYPES,
+} from "../_shared/ad-tools/meta-links.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { authorizeFbCall } from "./gate.ts";
 import {
   applyVariantToAssetFeedSpec,
   applyVariantToObjectStorySpec,
@@ -89,11 +98,11 @@ async function getClientAdAccount(
     .from("crm_tables")
     .select("integration_settings, last_sync_at")
     .eq("client_id", client_id)
-    .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
+    .in("integration_type", META_TABLE_TYPES)
     .order("last_sync_at", { ascending: false, nullsFirst: false });
   for (const t of tables || []) {
     const s = jsonObject(t?.integration_settings);
-    const acc = s.ad_account_id || s.account_id || s.meta_account_id;
+    const acc = META_SETTING_KEYS.map((k) => s[k]).find(Boolean);
     if (acc) return String(acc).replace(/^act_/, "");
   }
   return null;
@@ -137,12 +146,28 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
   try {
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      serviceRoleKey,
     );
-    const body = await req.json().catch(() => ({}));
-    const { tenant_id, action, confirmed } = body;
+    const parsed = await req.json().catch(() => ({}));
+    const body = parsed && typeof parsed === "object" ? parsed : {};
+    const { action, confirmed } = body;
+
+    // Never trust tenant_id from the body for a user: the gate derives it.
+    const gate = await authorizeFbCall(req, body, {
+      db: serviceClient(),
+      serviceRoleKey,
+      resolveFbToken: (tenantId, clientId) =>
+        resolveFbToken(supabase, tenantId, clientId),
+      fbGet,
+    });
+    if (!gate.ok) {
+      return err(gate.error, gate.status, { message: gate.message });
+    }
+    const caller = gate.caller;
+    const tenant_id = caller.tenantId;
 
     if (!tenant_id || !action) return err("tenant_id and action required");
     if (!confirmed)
@@ -150,7 +175,8 @@ Deno.serve(async (req) => {
         message: "דורש אישור מפורש (confirmed=true)",
       });
 
-    const token = await resolveFbToken(supabase, tenant_id, body.client_id);
+    const src = fbTokenSource(caller, body.client_id);
+    const token = await resolveFbToken(supabase, src.tenantId, src.clientId);
     if (!token) return err("fb_not_connected", 400);
 
     let result: JsonObject = {};
@@ -633,9 +659,10 @@ Deno.serve(async (req) => {
       .from("agent_action_log")
       .insert({
         tenant_id,
+        user_id: caller.kind === "user" ? caller.userId : null,
         action_type: `fb_${action}`,
         status: "success",
-        action_details: { request: body, result },
+        action_details: { request: body, result, caller: caller.kind },
       })
       .then(
         () => {},
