@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { asObject } from "../_shared/lead-json.ts";
-import { manyChatSuccessId } from "../_shared/manychat-reply.ts";
+import {
+  isManyChatSuccess,
+  manyChatSuccessId,
+} from "../_shared/manychat-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -332,7 +334,7 @@ Deno.serve(async (req) => {
 
       const tagData = await safeJson(tagRes);
 
-      if (asObject(tagData)?.status !== "success") {
+      if (!isManyChatSuccess(tagData)) {
         // Tag failed but we still have the subscriber - mark it anyway
       }
 

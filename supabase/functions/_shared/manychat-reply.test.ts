@@ -2,6 +2,7 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   cachedManyChatFieldId,
   findManyChatPhoneField,
+  isManyChatSuccess,
   manyChatSuccessId,
   mentionsManyChatRateLimit,
 } from "./manychat-reply.ts";
@@ -68,3 +69,10 @@ Deno.test(
     }
   },
 );
+
+Deno.test("isManyChatSuccess accepts only status success objects", () => {
+  assertStrictEquals(isManyChatSuccess({ status: "success" }), true);
+  assertStrictEquals(isManyChatSuccess({ status: "error" }), false);
+  assertStrictEquals(isManyChatSuccess([]), false);
+  assertStrictEquals(isManyChatSuccess(null), false);
+});

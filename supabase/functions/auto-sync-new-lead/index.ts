@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { asJsonObject, asObject } from "../_shared/lead-json.ts";
+import { asJsonObject } from "../_shared/lead-json.ts";
 import {
   cachedManyChatFieldId,
   findManyChatPhoneField,
+  isManyChatSuccess,
   manyChatSuccessId,
   mentionsManyChatRateLimit,
 } from "../_shared/manychat-reply.ts";
@@ -296,7 +297,7 @@ async function setPhoneCustomField(
 
     const data = await safeJson(res);
 
-    return asObject(data)?.status === "success";
+    return isManyChatSuccess(data);
   } catch (e) {
     console.error("Error setting custom field:", e);
     return false;
@@ -411,7 +412,7 @@ async function addTagToSubscriber(
 
     const tagData = await safeJson(tagRes);
 
-    return asObject(tagData)?.status === "success";
+    return isManyChatSuccess(tagData);
   } catch (e) {
     console.error("Error adding tag:", e);
     return false;

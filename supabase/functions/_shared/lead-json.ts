@@ -1,3 +1,4 @@
+import { z } from "npm:zod@3.25.76";
 import type { Json } from "./database.types.ts";
 
 export type UnknownObject = { readonly [key: string]: unknown };
@@ -17,9 +18,9 @@ export function asJsonObject(value: Json | undefined): JsonObject | null {
     : null;
 }
 
+const thrownWithMessageSchema = z.object({ message: z.unknown() });
+
 /** `e.message` when the thrown value carries one, otherwise undefined. */
 export function thrownMessage(e: unknown): unknown {
-  return typeof e === "object" && e !== null && "message" in e
-    ? e.message
-    : undefined;
+  return thrownWithMessageSchema.safeParse(e).data?.message;
 }

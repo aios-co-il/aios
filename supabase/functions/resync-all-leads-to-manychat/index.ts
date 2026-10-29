@@ -3,10 +3,11 @@ import {
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2";
 import type { Database } from "../_shared/database.types.ts";
-import { asJsonObject, asObject } from "../_shared/lead-json.ts";
+import { asJsonObject } from "../_shared/lead-json.ts";
 import {
   cachedManyChatFieldId,
   findManyChatPhoneField,
+  isManyChatSuccess,
   manyChatSuccessId,
 } from "../_shared/manychat-reply.ts";
 
@@ -279,7 +280,7 @@ async function setCustomField(
   );
 
   const data = await safeJson(res);
-  return asObject(data)?.status === "success";
+  return isManyChatSuccess(data);
 }
 
 Deno.serve(async (req) => {

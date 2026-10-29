@@ -1,4 +1,4 @@
-import { asObject, type UnknownObject } from "../_shared/lead-json.ts";
+import { z } from "npm:zod@3.25.76";
 
 export interface ParsedLead {
   name?: string;
@@ -15,18 +15,78 @@ export interface ParsedLead {
 }
 
 /** Payload text: strings as-is, numbers stringified, anything else absent. */
-export function optionalText(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  return typeof value === "number" ? String(value) : undefined;
-}
+const optionalTextSchema = z
+  .union([z.string(), z.number().transform(String), z.nan().transform(String)])
+  .optional()
+  .catch(undefined);
 
 /** `a || b || ""` over payload values, as text. */
 export function firstText(...values: unknown[]): string {
-  return optionalText(values.find(Boolean)) ?? "";
+  return optionalTextSchema.parse(values.find(Boolean)) ?? "";
 }
 
-const asList = (value: unknown): unknown[] =>
-  Array.isArray(value) ? value : [];
+const listSchema = z.array(z.unknown()).catch([]);
+
+const payloadObjectSchema = z.record(z.unknown());
+
+const metaEntrySchema = z
+  .object({ changes: listSchema })
+  .catch({ changes: [] });
+
+const metaLeadgenChangeSchema = z.object({
+  field: z.literal("leadgen"),
+  value: z.unknown().refine(Boolean),
+});
+
+const metaLeadgenValueSchema = z
+  .object({
+    leadgen_id: optionalTextSchema,
+    form_id: optionalTextSchema,
+    ad_id: optionalTextSchema,
+  })
+  .catch({});
+
+const leadItemSchema = z
+  .object({
+    id: z.unknown(),
+    name: z.unknown(),
+    full_name: z.unknown(),
+    contact_name: z.unknown(),
+    company_name: z.unknown(),
+    company: z.unknown(),
+    business_name: z.unknown(),
+    email: z.unknown(),
+    Email: z.unknown(),
+    EMAIL: z.unknown(),
+    phone: z.unknown(),
+    Phone: z.unknown(),
+    PHONE: z.unknown(),
+    phone_number: z.unknown(),
+    form_name: z.unknown(),
+    form_id: z.unknown(),
+    campaign_name: z.unknown(),
+    campaign_id: z.unknown(),
+    ad_name: z.unknown(),
+    ad_id: z.unknown(),
+    leadgen_id: z.unknown(),
+  })
+  .catch({});
+
+const unifiedLeadSchema = z.object({
+  name: z.unknown(),
+  company_name: z.unknown(),
+  company: z.unknown(),
+  email: optionalTextSchema,
+  phone: optionalTextSchema,
+  emails: z
+    .array(z.object({ email: optionalTextSchema }).catch({}))
+    .optional()
+    .catch(undefined),
+  telephones: z
+    .array(z.object({ telephone: optionalTextSchema }).catch({}))
+    .optional()
+    .catch(undefined),
+});
 
 export function extractLeads(rawBody: unknown): ParsedLead[] {
   const leads: ParsedLead[] = [];
@@ -39,29 +99,29 @@ export function extractLeads(rawBody: unknown): ParsedLead[] {
     return leads;
   }
 
-  const body = asObject(rawBody);
-  if (!body) return leads;
+  const parsedBody = payloadObjectSchema.safeParse(rawBody);
+  if (!parsedBody.success) return leads;
+  const body = parsedBody.data;
 
   // Format 2: Unified.to single lead
   if (body.id && (body.emails || body.telephones || body.name)) {
-    leads.push(parseUnifiedLead(body));
+    leads.push(parseUnifiedLead(rawBody));
     return leads;
   }
 
   // Format 3: Meta direct webhook format
   if (body.entry) {
-    for (const entry of asList(body.entry)) {
-      for (const rawChange of asList(asObject(entry)?.changes)) {
-        const change = asObject(rawChange);
-        if (change?.field === "leadgen" && change.value) {
-          const value = asObject(change.value);
-          leads.push({
-            leadgen_id: optionalText(value?.leadgen_id),
-            form_name: optionalText(value?.form_id),
-            campaign_name: optionalText(value?.ad_id),
-            raw: change.value,
-          });
-        }
+    for (const entry of listSchema.parse(body.entry)) {
+      for (const rawChange of metaEntrySchema.parse(entry).changes) {
+        const change = metaLeadgenChangeSchema.safeParse(rawChange);
+        if (!change.success) continue;
+        const value = metaLeadgenValueSchema.parse(change.data.value);
+        leads.push({
+          leadgen_id: value.leadgen_id,
+          form_name: value.form_id,
+          campaign_name: value.ad_id,
+          raw: change.data.value,
+        });
       }
     }
     return leads;
@@ -77,7 +137,7 @@ export function extractLeads(rawBody: unknown): ParsedLead[] {
 
   // Format 5: Single lead object
   if (body.email || body.phone || body.name || body.contact_name) {
-    leads.push(parseLeadItem(body));
+    leads.push(parseLeadItem(rawBody));
     return leads;
   }
 
@@ -90,23 +150,20 @@ export function extractLeads(rawBody: unknown): ParsedLead[] {
   return leads;
 }
 
-export function parseUnifiedLead(item: UnknownObject): ParsedLead {
+export function parseUnifiedLead(rawItem: unknown): ParsedLead {
+  const item = unifiedLeadSchema.catch({}).parse(rawItem);
   return {
     name: firstText(item.name, item.company_name),
     contact_name: firstText(item.name),
-    email: Array.isArray(item.emails)
-      ? optionalText(asObject(item.emails[0])?.email)
-      : optionalText(item.email),
-    phone: Array.isArray(item.telephones)
-      ? optionalText(asObject(item.telephones[0])?.telephone)
-      : optionalText(item.phone),
+    email: item.emails ? item.emails[0]?.email : item.email,
+    phone: item.telephones ? item.telephones[0]?.telephone : item.phone,
     company_name: firstText(item.company_name, item.company),
-    raw: item,
+    raw: rawItem,
   };
 }
 
 export function parseLeadItem(rawItem: unknown): ParsedLead {
-  const item: UnknownObject = asObject(rawItem) ?? {};
+  const item = leadItemSchema.parse(rawItem);
   return {
     name: firstText(item.name, item.company_name, item.full_name),
     contact_name: firstText(item.contact_name, item.full_name, item.name),

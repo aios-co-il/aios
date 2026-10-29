@@ -127,3 +127,43 @@ Deno.test("buildLeadNotes lists the known Meta identifiers", () => {
     "מקור: Meta Lead Ads\nטופס: 987\nleadgen_id: 1234567890123456",
   );
 });
+
+Deno.test(
+  "extractLeads keeps leadgen changes whose value is not an object",
+  () => {
+    const leads = extractLeads({
+      entry: [
+        {
+          changes: [
+            { field: "leadgen", value: "opaque" },
+            { field: "leadgen", value: null },
+            ["leadgen"],
+          ],
+        },
+      ],
+    });
+    assertEquals(leads, [
+      {
+        leadgen_id: undefined,
+        form_name: undefined,
+        campaign_name: undefined,
+        raw: "opaque",
+      },
+    ]);
+  },
+);
+
+Deno.test(
+  "extractLeads reads Unified.to leads with missing contact lists",
+  () => {
+    const [lead] = extractLeads({
+      id: "u2",
+      name: "Noa",
+      emails: [],
+      telephones: "050",
+      phone: 501234567,
+    });
+    assertStrictEquals(lead.email, undefined);
+    assertStrictEquals(lead.phone, "501234567");
+  },
+);
