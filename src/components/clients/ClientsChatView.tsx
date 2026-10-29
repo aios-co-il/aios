@@ -31,7 +31,10 @@ import {
   Video,
   ArrowRight,
   Menu,
+  Palette,
 } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
+import { useTenantPath } from "@/hooks/useTenantPath";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DuplicateClientDialog } from "@/components/forms/DuplicateClientDialog";
 import { CreateOrgForClientDialog } from "@/components/clients/CreateOrgForClientDialog";
@@ -91,12 +94,14 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { CarmenWhatsAppAccess } from "@/components/carmen/CarmenWhatsAppAccess";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import type { AgencyOption, ClientListRow } from "@/types/crm";
 import { isClientMoodStatus, isClientStatus } from "@/lib/crmEnums";
 import { errorMessageOf } from "@/lib/errorMessage";
+import { permissionForSubpath } from "@/lib/moduleRoutePermissions";
 
 type ClientUpdate = TablesUpdate<"clients">;
 type EditableClientField =
@@ -109,6 +114,9 @@ type EditableClientField =
   | "retainer"
   | "monthly_budget"
   | "monthly_fixed_expense";
+
+/** What the workshop route asks for, so the link shows only to whoever may open it. */
+const WORKSHOP_PERMISSION = permissionForSubpath("workshop");
 
 interface ClientsChatViewProps {
   clients: ClientListRow[];
@@ -202,7 +210,9 @@ export function ClientsChatView({
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const queryClient = useQueryClient();
+  const { buildPath } = useTenantPath();
   const { tenantId } = useCurrentTenant();
+  const { hasPermission } = useUserPermissions();
   const { provision, provisioning } = useProvisionClientChannels();
 
   const { data: whatsappGroups = [] } = useQuery({
@@ -1248,6 +1258,26 @@ export function ClientsChatView({
                       <BarChart3 className="h-4 w-4" />
                     )}
                   </Button>
+
+                  {(!WORKSHOP_PERMISSION ||
+                    hasPermission(WORKSHOP_PERMISSION)) && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      title="פתח בסדנה"
+                    >
+                      <RouterLink
+                        to={buildPath(
+                          `workshop?client=${encodeURIComponent(selectedClient.id)}`,
+                        )}
+                      >
+                        <Palette className="h-4 w-4" />
+                        פתח בסדנה
+                      </RouterLink>
+                    </Button>
+                  )}
 
                   <Button
                     variant="outline"

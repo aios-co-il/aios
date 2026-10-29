@@ -3,6 +3,7 @@ import type { Database } from "../_shared/database.types.ts";
 import { asObject } from "../_shared/lead-json.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { isFollowUpDue } from "./schedule.ts";
+import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -344,6 +345,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    // Follow-up markers stay NULL while held, so the run after Shabbat sends each once.
+    const shabbatHold = shabbatHeldResponse(corsHeaders);
+    if (shabbatHold) {
+      return shabbatHold;
+    }
     let clients: ClientRow[] = [];
     const clientColumns =
       "id,tenant_id,agency_id,name,status,follow_up_date,follow_up_campaigner_notified_at,follow_up_manager_notified_at";
