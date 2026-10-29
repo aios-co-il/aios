@@ -68,6 +68,24 @@ Deno.test(
     }
   },
 );
+Deno.test(
+  "drops non-object containers but still processes the message",
+  async () => {
+    const handler = createWebhookHandler(async (_request, received) => {
+      assert(received.body === "hi", "Expected body to reach processing");
+      assert(received.fromMe === "1", "Expected flag passed through");
+      assert(received.data === undefined, "Expected string data dropped");
+      return new Response("processed");
+    });
+    const response = await handler(
+      new Request("https://example.test", {
+        method: "POST",
+        body: JSON.stringify({ body: "hi", fromMe: "1", data: "invalid" }),
+      }),
+    );
+    assert((await response.text()) === "processed", "Expected processing");
+  },
+);
 Deno.test("OPTIONS does not parse a body or invoke processing", async () => {
   const handler = createWebhookHandler(async () => {
     throw new Error("Unexpected processing");

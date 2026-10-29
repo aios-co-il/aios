@@ -1,15 +1,10 @@
-import type { Json } from "../_shared/database.types.ts";
+import { parseManusBody, type Payload } from "./payload-schema.ts";
 
-type Payload = Record<string, Json>;
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-wa-gateway-instance, x-wa-gateway-secret, x-webhook-secret, x-manus-secret, x-webhook-signature",
 };
-
-function isPayload(value: unknown): value is Payload {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 /** Keep request decoding importable without starting a server or loading providers. */
 export function createWebhookHandler(
@@ -19,14 +14,15 @@ export function createWebhookHandler(
     if (request.method === "OPTIONS")
       return new Response(null, { headers: corsHeaders });
     try {
-      const payload: unknown = await request.json();
-      if (!isPayload(payload))
+      const parsed = parseManusBody(await request.json());
+      if (parsed.status === "not_object") {
         // ACK so Manus doesn't disable the webhook on a stray non-object body.
         return Response.json(
           { received: true, ignored: "invalid_payload" },
           { headers: corsHeaders },
         );
-      return await processPayload(request, payload);
+      }
+      return await processPayload(request, parsed.payload);
     } catch (error) {
       console.error("Manus webhook request failed:", error);
       return Response.json(

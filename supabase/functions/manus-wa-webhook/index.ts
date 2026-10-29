@@ -1,3 +1,4 @@
+import { providerId } from "./payload-schema.ts";
 import { createWebhookHandler } from "./request-handler.ts";
 // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
@@ -589,8 +590,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       key.fromMe ??
       (outer.direction === "outgoing" || inner.direction === "outgoing");
     const directionField = outer.direction ?? inner.direction;
-    const idField =
-      outer.id ?? inner.id ?? outer.messageId ?? inner.messageId ?? key.id;
+    const idField = providerId(
+      outer.id ?? inner.id ?? outer.messageId ?? inner.messageId ?? key.id,
+    );
     const senderNameField =
       outer.senderName ??
       inner.senderName ??
@@ -630,7 +632,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       fromMe: fromMeField,
       direction: directionField,
       id: idField,
-      messageId: outer.messageId ?? inner.messageId ?? idField,
+      messageId: providerId(outer.messageId ?? inner.messageId) ?? idField,
       senderName: senderNameField,
       author: authorField,
       hasMedia: hasMediaField,
@@ -2075,7 +2077,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     const carmenTargetPhone = privateTarget.phone || counterpartPhone;
     const chatIdForCarmen = privateTarget.chatId || `${carmenTargetPhone}@c.us`;
     const senderName = (payload.senderName || payload.fromName || null) as
-      string | null;
+      | string
+      | null;
 
     // Direct channels: "קלוד ..." / "קרסר ..." from the owner's own phone skip Carmen
     // and go straight to Claude Direct / Cursor Direct. Replies come back to this chat.
