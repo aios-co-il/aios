@@ -96,8 +96,8 @@ export function CreativeCostDialog({
             עלות טוקנים לפי פרויקט
           </DialogTitle>
           <p className="text-[11px] text-muted-foreground">
-            gpt-image-1 לפי מחירון רשמי. כשה־API מחזיר usage זה מדויק; אחרת
-            הערכה לפי איכות, גודל ואורך הפרומפט.
+            gpt-image-2.5-sunburst לפי מחירון התמונות. כשה־API מחזיר usage זה
+            מדויק; אחרת הערכה לפי איכות, גודל ואורך הפרומפט.
           </p>
         </DialogHeader>
 

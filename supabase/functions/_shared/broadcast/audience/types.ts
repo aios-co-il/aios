@@ -7,7 +7,7 @@ import type { TemplateVars } from "../template/template-vars.ts";
 export type AudienceDb = Pick<DbClient, "from" | "rpc">;
 
 export type AudienceFilter = {
-  source: "clients" | "leads" | "campaigners" | "list" | "wa_groups";
+  source: "clients" | "leads" | "campaigners" | "list" | "wa_groups" | "manual";
   statuses?: string[];
   statusMode?: "include" | "exclude";
   serviceTags?: string[];
@@ -23,6 +23,8 @@ export type AudienceFilter = {
   activeOnly?: boolean;
   listId?: string;
   groupIds?: string[];
+  /** source = manual: typed email addresses / phone numbers */
+  manualContacts?: string[];
   includeIds?: string[];
   excludeIds?: string[];
 };

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,55 +38,62 @@ export function InvoiceIntakeTab() {
 
   const { data: invoices, isLoading } = useQuery({
     queryKey: ["invoice-uploads", tenantId, statusFilter],
-    queryFn: async () => {
-      if (!tenantId) return [];
-      let q = supabase
-        .from("invoice_uploads")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false });
-      if (statusFilter !== "all") q = q.eq("status", statusFilter);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          let q = supabase
+            .from("invoice_uploads")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .order("created_at", { ascending: false });
+          if (statusFilter !== "all") {
+            q = q.eq("status", statusFilter);
+          }
+          const { data, error } = await q;
+          if (error) {
+            throw error;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: suppliers } = useQuery({
     queryKey: ["accounting-suppliers-list", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("suppliers")
-        .select("id, name")
-        .eq("tenant_id", tenantId);
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("suppliers")
+            .select("id, name")
+            .eq("tenant_id", tenantId);
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: clients } = useQuery({
     queryKey: ["accounting-clients-list", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("clients")
-        .select("id, name, agency_id")
-        .eq("tenant_id", tenantId);
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("clients")
+            .select("id, name, agency_id")
+            .eq("tenant_id", tenantId);
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: agencies } = useQuery({
     queryKey: ["accounting-agencies-list", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("agencies")
-        .select("id, name")
-        .eq("tenant_id", tenantId);
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("agencies")
+            .select("id, name")
+            .eq("tenant_id", tenantId);
+          return data || [];
+        }
+      : skipToken,
   });
 
   const handleFiles = async (files: FileList | null) => {

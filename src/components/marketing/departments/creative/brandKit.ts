@@ -1,20 +1,14 @@
+import { z } from "zod";
+import {
+  creativeBrandBook,
+  creativeStyleReference,
+} from "./creativeProjectSettings";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sanitizeFileName } from "../../../../lib/sanitizeFileName.ts";
 
-export interface BrandBook {
-  name?: string;
-  colors: string[];
-  fonts?: string[];
-  voice?: string;
-  notes: string;
-  source: "upload" | "auto" | "manual";
-  fileUrl?: string;
-  fileName?: string;
-}
+export type BrandBook = z.output<typeof creativeBrandBook>;
 
-export interface StyleReference {
-  url: string;
-  name?: string;
-}
+export type StyleReference = z.output<typeof creativeStyleReference>;
 
 export interface CreativeBrandKit {
   logoUrl?: string;
@@ -41,46 +35,39 @@ const asColors = (value: unknown) =>
       )
     : [];
 
-export const getBrandKit = (
-  payload: Record<string, unknown> | null | undefined,
-): CreativeBrandKit => {
-  const book =
-    payload?.brand_book && typeof payload.brand_book === "object"
-      ? (payload.brand_book as Record<string, unknown>)
-      : null;
-  const refs = payload?.style_references;
+/** Decode stored brand data while retaining metadata outside the named fields. */
+export const getBrandKit = (payload: unknown): CreativeBrandKit => {
+  const parsed = z.record(z.unknown()).safeParse(payload);
+  if (payload != null && !parsed.success) {
+    console.error("Invalid creative brand container", { fields: ["payload"] });
+  }
+  const raw = parsed.success ? parsed.data : {};
+  const book = creativeBrandBook.safeParse(raw.brand_book);
+  if (raw.brand_book != null && !book.success) {
+    console.error("Invalid creative brand book", {
+      fields: book.error.issues.map((issue) => issue.path.join(".")),
+    });
+  }
+  const refs = Array.isArray(raw.style_references) ? raw.style_references : [];
+  if (raw.style_references != null && !Array.isArray(raw.style_references)) {
+    console.error("Invalid creative brand container", {
+      fields: ["style_references"],
+    });
+  }
   return {
-    logoUrl: asString(payload?.logo_url),
-    website: asString(payload?.client_website),
-    brandBook: book
-      ? {
-          name: asString(book.name),
-          colors: asColors(book.colors),
-          fonts: Array.isArray(book.fonts)
-            ? book.fonts.filter(
-                (item): item is string => typeof item === "string",
-              )
-            : undefined,
-          voice: asString(book.voice),
-          notes: asString(book.notes) ?? "",
-          source:
-            book.source === "upload" ||
-            book.source === "manual" ||
-            book.source === "auto"
-              ? book.source
-              : "manual",
-          fileUrl: asString(book.fileUrl),
-          fileName: asString(book.fileName),
-        }
+    logoUrl: asString(raw.logo_url),
+    website: asString(raw.client_website),
+    brandBook: book.success
+      ? { ...book.data, colors: asColors(book.data.colors) }
       : undefined,
-    styleReferences: Array.isArray(refs)
-      ? refs.filter(
-          (item): item is StyleReference =>
-            !!item &&
-            typeof item === "object" &&
-            typeof (item as StyleReference).url === "string",
-        )
-      : [],
+    styleReferences: refs.flatMap((reference, index) => {
+      const validated = creativeStyleReference.safeParse(reference);
+      if (validated.success) {
+        return [validated.data];
+      }
+      console.error("Invalid creative style reference", { index });
+      return [];
+    }),
   };
 };
 
@@ -176,17 +163,29 @@ export const deriveBrandBook = ({
     .filter(Boolean)
     .join("\n\n");
   return {
+    ...existing,
     name: clientName || existing?.name,
     colors: palette,
     fonts: existing?.fonts ?? ["Rubik"],
     voice,
     notes,
     source: "auto",
+    fileUrl: undefined,
+    fileName: undefined,
   };
 };
 
-const sanitizeFileName = (name: string) =>
-  name.replace(/[^\w.\u0590-\u05FF-]+/g, "_").slice(0, 80);
+export type CreativeAssetKind = "logo" | "reference" | "brandbook";
+
+/** Supabase Storage rejects non-ASCII keys, including Hebrew file names. */
+export const creativeAssetStoragePath = (
+  tenantId: string,
+  itemId: string,
+  kind: CreativeAssetKind,
+  fileName: string,
+  now: number,
+) =>
+  `${tenantId}/creative/${itemId}/${kind}/${now}_${sanitizeFileName(fileName)}`;
 
 export const uploadCreativeAsset = async ({
   supabase,
@@ -199,9 +198,15 @@ export const uploadCreativeAsset = async ({
   tenantId: string;
   itemId: string;
   file: File;
-  kind: "logo" | "reference" | "brandbook";
+  kind: CreativeAssetKind;
 }) => {
-  const path = `${tenantId}/creative/${itemId}/${kind}/${Date.now()}_${sanitizeFileName(file.name)}`;
+  const path = creativeAssetStoragePath(
+    tenantId,
+    itemId,
+    kind,
+    file.name,
+    Date.now(),
+  );
   const { error } = await supabase.storage
     .from("entity-attachments")
     .upload(path, file);

@@ -17,7 +17,6 @@ function field(
     label: "",
     required: false,
     recipient_index: 0,
-    position: { x: 10, y: 10, width: 20, height: 5, page: 1 },
     ...partial,
     position: {
       x: 10,

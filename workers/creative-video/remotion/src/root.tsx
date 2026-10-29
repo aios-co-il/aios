@@ -1,6 +1,7 @@
 import React from "react";
 import { Composition } from "remotion";
 import { CarmenVideo, type CarmenVideoProps } from "./video";
+import { WorkshopFilm, type WorkshopFilmProps } from "./workshop-film";
 const demo: CarmenVideoProps = {
   title: "CARMEN MARKETING OS",
   scenes: [
@@ -43,13 +44,35 @@ const demo: CarmenVideoProps = {
   ],
 };
 export const Root: React.FC = () => (
-  <Composition
-    id="CarmenVideo"
-    component={CarmenVideo}
-    width={1080}
-    height={1920}
-    fps={30}
-    durationInFrames={demo.scenes.reduce((n, s) => n + s.durationFrames, 0)}
-    defaultProps={demo}
-  />
+  <>
+    <Composition
+      id="CarmenVideo"
+      component={CarmenVideo}
+      width={1080}
+      height={1920}
+      fps={30}
+      durationInFrames={demo.scenes.reduce((n, s) => n + s.durationFrames, 0)}
+      defaultProps={demo}
+    />
+    <Composition
+      id="WorkshopFilm"
+      component={WorkshopFilm}
+      width={1080}
+      height={1080}
+      fps={30}
+      durationInFrames={90}
+      defaultProps={
+        {
+          scenes: [
+            {
+              id: "open",
+              durationFrames: 90,
+              caption: "כרמן",
+              move: "push",
+            },
+          ],
+        } satisfies WorkshopFilmProps
+      }
+    />
+  </>
 );

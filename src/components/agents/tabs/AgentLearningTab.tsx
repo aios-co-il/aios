@@ -154,19 +154,17 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
               {expanded &&
                 node.subcategories?.map((s) => (
                   <button
-                    key={s.subcategory ?? "__root__"}
+                    key={s.name}
                     className={cn(
                       "w-full text-right text-xs px-2 py-1 rounded hover:bg-muted pr-6",
-                      cat === node.category &&
-                        sub === s.subcategory &&
-                        "bg-accent",
+                      cat === node.category && sub === s.name && "bg-accent",
                     )}
                     onClick={() => {
                       setCat(node.category);
-                      setSub(s.subcategory);
+                      setSub(s.name);
                     }}
                   >
-                    {s.subcategory ?? "—"}
+                    {s.name}
                     <Badge variant="outline" className="text-[9px] px-1 mr-1">
                       {s.count}
                     </Badge>

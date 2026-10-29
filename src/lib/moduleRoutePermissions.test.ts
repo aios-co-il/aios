@@ -13,6 +13,13 @@ test("leads and lead-integrations keep distinct permissions", () => {
   ).toBe("lead_integrations");
 });
 
+test("the workshop route needs the same permission as its menu item", () => {
+  expect(permissionForSubpath("workshop")).toBe("social_media");
+  expect(permissionHandleForPathname("/t/acme/workshop")?.permission).toBe(
+    "social_media",
+  );
+});
+
 test("chat-integrations is not treated as chat/:id", () => {
   expect(permissionForSubpath("chat-integrations")).toBe("chat_integrations");
   expect(permissionForSubpath("chat/abc-123")).toBe("chat");

@@ -74,7 +74,7 @@ export default function Products() {
 
       const sharedAgencyIds = sharedAccess?.map((a) => a.agency_id) || [];
 
-      let sharedProducts = [];
+      let sharedProducts: NonNullable<typeof ownProducts> = [];
       if (sharedAgencyIds.length > 0) {
         const { data: shared, error: sharedProdError } = await supabase
           .from("products")

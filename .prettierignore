@@ -13,3 +13,7 @@ extension/bun.lock
 # Local environment files
 .env
 .env.*
+
+# Carmen Android build output (see mobile/carmen-android/.gitignore)
+mobile/carmen-android/**/build/
+mobile/carmen-android/.gradle/

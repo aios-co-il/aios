@@ -46,7 +46,7 @@ export const SignatureDocumentViewer = forwardRef<
   },
   ref,
 ) {
-  const pageStageRef = useRef<HTMLDivElement>(null);
+  const pageStageRef = useRef<HTMLDivElement | null>(null);
   const setPageStageRef = (node: HTMLDivElement | null) => {
     pageStageRef.current = node;
     if (typeof ref === "function") ref(node);

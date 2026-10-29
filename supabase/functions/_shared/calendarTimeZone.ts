@@ -41,7 +41,7 @@ export function shiftYmd(dateYmd: string, days: number): string {
   return utcDate.toISOString().slice(0, 10);
 }
 
-function timeZoneOffsetMs(date: Date, timeZone: string): number {
+export function timeZoneOffsetMs(date: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { manualPreviewRequest } from "./preview-request.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -69,13 +70,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${SERVICE_KEY}`,
         },
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          deliver: true,
-          force_delivery: true,
-          preview_only: true,
-          source: "approved_manual_trigger",
-        }),
+        body: JSON.stringify(manualPreviewRequest(tenantId)),
       },
     );
     const payload = await response

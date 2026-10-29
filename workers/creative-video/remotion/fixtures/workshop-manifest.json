@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 3,
+  "composition": "WorkshopFilm",
+  "fps": 30,
+  "width": 640,
+  "height": 360,
+  "totalFrames": 195,
+  "narration": "narration.wav",
+  "music": "music.wav",
+  "musicLoops": [
+    {
+      "startFrame": 0,
+      "frameCount": 54,
+      "fadeInFrames": 0,
+      "fadeOutFrames": 18
+    },
+    {
+      "startFrame": 36,
+      "frameCount": 54,
+      "fadeInFrames": 18,
+      "fadeOutFrames": 18
+    },
+    {
+      "startFrame": 72,
+      "frameCount": 54,
+      "fadeInFrames": 18,
+      "fadeOutFrames": 18
+    },
+    {
+      "startFrame": 108,
+      "frameCount": 54,
+      "fadeInFrames": 18,
+      "fadeOutFrames": 18
+    },
+    {
+      "startFrame": 144,
+      "frameCount": 51,
+      "fadeInFrames": 18,
+      "fadeOutFrames": 0
+    }
+  ],
+  "musicEnvelope": {
+    "frames": [0, 3, 102, 114, 195],
+    "volumes": [0.168, 0.168, 0.168, 0.596, 0.596]
+  },
+  "captionStyle": "motion",
+  "captions": [
+    {
+      "startFrame": 3,
+      "endFrame": 58,
+      "words": [
+        {
+          "text": "היא",
+          "startFrame": 3,
+          "endFrame": 11,
+          "line": 0
+        },
+        {
+          "text": "קוראת",
+          "startFrame": 13,
+          "endFrame": 26,
+          "line": 0
+        },
+        {
+          "text": "את",
+          "startFrame": 29,
+          "endFrame": 34,
+          "line": 0
+        },
+        {
+          "text": "הנתונים",
+          "startFrame": 37,
+          "endFrame": 55,
+          "line": 0
+        }
+      ]
+    },
+    {
+      "startFrame": 58,
+      "endFrame": 113,
+      "words": [
+        {
+          "text": "ומקדמת",
+          "startFrame": 58,
+          "endFrame": 73,
+          "line": 0
+        },
+        {
+          "text": "אותך",
+          "startFrame": 76,
+          "endFrame": 86,
+          "line": 0
+        },
+        {
+          "text": "בגוגל",
+          "startFrame": 89,
+          "endFrame": 102,
+          "line": 0
+        }
+      ]
+    }
+  ],
+  "clipAudio": true,
+  "brand": {
+    "primaryColor": "#0ea5e9",
+    "secondaryColor": null,
+    "logo": null,
+    "fontFamily": null,
+    "ctaText": "הירשמו עכשיו",
+    "ctaUrl": null,
+    "ctaLines": ["הירשמו עכשיו"]
+  },
+  "endCard": {
+    "startFrame": 120,
+    "frameCount": 75
+  },
+  "scenes": [
+    {
+      "id": "analyst",
+      "order": 0,
+      "startFrame": 0,
+      "frameCount": 58,
+      "still": "still-0.png",
+      "clip": null,
+      "clipFrames": null,
+      "voice": null,
+      "caption": "אנליסטית",
+      "kicker": "אנליסטית",
+      "move": "push",
+      "transition": "cut",
+      "transitionFrames": 0,
+      "lipsync": false,
+      "hasAudio": true,
+      "clipVolume": 0
+    },
+    {
+      "id": "seo",
+      "order": 1,
+      "startFrame": 58,
+      "frameCount": 62,
+      "still": "still-1.png",
+      "clip": null,
+      "clipFrames": null,
+      "voice": null,
+      "caption": "SEO ו-GEO",
+      "kicker": "SEO ו-GEO",
+      "move": "drift-left",
+      "transition": "skin",
+      "transitionFrames": 10,
+      "lipsync": false,
+      "hasAudio": true,
+      "clipVolume": 0
+    }
+  ]
+}

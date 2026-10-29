@@ -272,13 +272,17 @@ export async function maybeCreateMarketingBrief(
             }
           }
 
-          const { data: pipeline } = await admin
+          // A client can have duplicate pipelines: the oldest one, as the department screens use.
+          const { data: pipelines } = await admin
             .from("marketing_pipelines")
             .select("id")
             .eq("client_id", client_id)
             .eq("tenant_id", tenant_id)
             .eq("track", track)
-            .maybeSingle();
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+            .limit(1);
+          const pipeline = pipelines?.[0];
           if (!pipeline) {
             console.warn(
               `[MARKETING] No ${track} pipeline for client ${client_id}`,

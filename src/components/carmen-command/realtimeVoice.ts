@@ -11,6 +11,8 @@ export interface RealtimeCallbacks {
   onAssistantDone: (text: string) => void;
   /** The model delegated a question to Carmen's full brain; return the answer */
   onToolCall: (question: string) => Promise<string>;
+  /** The user corrected how Carmen said a word; save it and return what she reports back */
+  onSavePronunciation: (term: string, spoken: string) => Promise<string>;
   onStateChange: (state: "listening" | "speaking") => void;
   onError: (message: string) => void;
   /** Written every frame with Carmen's output level (drives the face) */
@@ -140,19 +142,11 @@ export async function startRealtimeVoice(
         break;
       case "response.output_item.done": {
         const item = ev.item;
-        if (
-          item?.type === "function_call" &&
-          item.name === "ask_carmen" &&
-          !stopped
-        ) {
-          let question = "";
-          try {
-            question = JSON.parse(item.arguments)?.question ?? "";
-          } catch {
-            /* malformed args */
+        if (item?.type === "function_call" && !stopped) {
+          const answer = await runTool(item.name, item.arguments, cb);
+          if (answer === null || stopped) {
+            break;
           }
-          const answer = await cb.onToolCall(question);
-          if (stopped) break;
           dc.send(
             JSON.stringify({
               type: "conversation.item.create",
@@ -242,4 +236,30 @@ export async function startRealtimeVoice(
       cb.audioLevelRef.current = 0;
     },
   };
+}
+
+/**
+ * Runs one of the session's tools (ask_carmen, save_pronunciation) and returns its output,
+ * or null for a tool this client does not handle.
+ */
+async function runTool(
+  name: string,
+  rawArgs: string,
+  cb: RealtimeCallbacks,
+): Promise<string | null> {
+  let args: Record<string, unknown> = {};
+  try {
+    args = JSON.parse(rawArgs) ?? {};
+  } catch {
+    console.warn("[realtime] malformed tool arguments", name);
+  }
+  const text = (key: string) =>
+    typeof args[key] === "string" ? (args[key] as string) : "";
+  if (name === "ask_carmen") {
+    return cb.onToolCall(text("question"));
+  }
+  if (name === "save_pronunciation") {
+    return cb.onSavePronunciation(text("term"), text("spoken"));
+  }
+  return null;
 }

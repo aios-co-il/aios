@@ -80,6 +80,24 @@ function buildDefaultStages(track: MarketingTrack): DefaultStage[] {
   ];
 }
 
+/**
+ * A client's pipeline of one track. A client can have duplicates, so this takes the oldest one,
+ * the same one the workshop's assign RPC (public.workshop_department_stage) picks. A failed
+ * lookup throws: reading it as "no pipeline" would make the caller create a duplicate.
+ */
+async function findOldestPipeline(clientId: string, track: MarketingTrack) {
+  const { data, error } = await supabase
+    .from("marketing_pipelines")
+    .select("*")
+    .eq("client_id", clientId)
+    .eq("track", track)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(1);
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
 export async function ensurePipelineForClient({
   clientId,
   tenantId,
@@ -90,12 +108,7 @@ export async function ensurePipelineForClient({
   track: MarketingTrack;
 }) {
   // First try to find existing pipeline
-  const { data: existing, error: selectError } = await supabase
-    .from("marketing_pipelines")
-    .select("*")
-    .eq("client_id", clientId)
-    .eq("track", track)
-    .maybeSingle();
+  const existing = await findOldestPipeline(clientId, track);
 
   if (existing) {
     // Check if stages exist — if not, seed them (handles legacy pipelines created before stage seeding)
@@ -138,7 +151,7 @@ export async function ensurePipelineForClient({
     return existing;
   }
 
-  // If select failed (e.g. RLS timing), try upsert approach
+  // No pipeline yet: create one
   const { data: created, error } = await supabase
     .from("marketing_pipelines")
     .insert({ client_id: clientId, tenant_id: tenantId, track })
@@ -147,12 +160,7 @@ export async function ensurePipelineForClient({
 
   // If insert failed (e.g. duplicate), try fetching again
   if (error) {
-    const { data: retry } = await supabase
-      .from("marketing_pipelines")
-      .select("*")
-      .eq("client_id", clientId)
-      .eq("track", track)
-      .maybeSingle();
+    const retry = await findOldestPipeline(clientId, track);
     if (retry) return retry;
     console.error("ensurePipeline error:", error);
     return null;

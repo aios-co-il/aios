@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { removeTagFromChats, type SelectedChat } from "./removeTagFromChats";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -10,14 +11,8 @@ import { Tag, X, CheckCheck, MinusCircle, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
-interface Contact {
-  id: string;
-  contact_type: "client" | "lead" | "group" | "unknown" | "telegram";
-  sender_phone?: string;
-}
-
 interface ChatMultiSelectToolbarProps {
-  selectedContacts: Contact[];
+  selectedContacts: Array<SelectedChat>;
   onClearSelection: () => void;
   onSelectAll?: () => void;
   tenantId: string;
@@ -119,40 +114,25 @@ export function ChatMultiSelectToolbar({
         data: { user },
       } = await supabase.auth.getUser();
       if (!user || !tenantId) throw new Error("No user or tenant");
-
-      for (const contact of selectedContacts) {
-        let query = supabase
-          .from("chat_contact_tags")
-          .delete()
-          .eq("tag_id", tagId)
-          .eq("user_id", user.id)
-          .eq("tenant_id", tenantId);
-
-        if (contact.contact_type === "client") {
-          query = query.eq("client_id", contact.id);
-        } else if (contact.contact_type === "lead") {
-          query = query.eq("lead_id", contact.id);
-        } else if (contact.contact_type === "group") {
-          query = query.eq("group_id", contact.id);
-        } else if (contact.contact_type === "unknown" && contact.sender_phone) {
-          query = query.eq("sender_phone", contact.sender_phone);
-        }
-
-        await query;
-      }
+      return removeTagFromChats(supabase, tenantId, tagId, selectedContacts);
     },
-    onSuccess: () => {
+    onSuccess: (removed) => {
+      setRemoveTagOpen(false);
+      toast.success(
+        removed ? `התג הוסר מ-${removed} צ'אטים` : "לצ'אטים שנבחרו אין את התג",
+      );
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "שגיאה בהסרת התג");
+    },
+    // A partial failure still removed tags, so refresh either way.
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["chat-contact-tags", tenantId],
       });
       queryClient.invalidateQueries({
         queryKey: ["contact-tags-for-list", tenantId],
       });
-      setRemoveTagOpen(false);
-      toast.success(`התג הוסר מ-${selectedContacts.length} צ'אטים`);
-    },
-    onError: () => {
-      toast.error("שגיאה בהסרת התג");
     },
   });
 
