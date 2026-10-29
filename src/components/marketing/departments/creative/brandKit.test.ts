@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   brandKitPrompt,
+  creativeAssetStoragePath,
   deriveBrandBook,
   filesFromAttachments,
   getBrandKit,
@@ -11,6 +12,26 @@ import {
   throwIfGenerationAborted,
   websiteHref,
 } from "./brandKit.ts";
+
+const SUPABASE_STORAGE_KEY =
+  /^(\w|\/|!|-|\.|\*|'|\(|\)| |&|\$|@|=|;|:|\+|,|\?)*$/;
+
+test("hebrew reference filenames become a supabase-safe storage key", () => {
+  const path = creativeAssetStoragePath(
+    "2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019",
+    "25deb6c0-6bc6-43c0-aaf5-23863413c9e5",
+    "reference",
+    "כרמן.jpeg",
+    1792753113831,
+  );
+  expect(path).toBe(
+    "2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019/creative/25deb6c0-6bc6-43c0-aaf5-23863413c9e5/reference/1792753113831_file.jpeg",
+  );
+  expect(path).toMatch(SUPABASE_STORAGE_KEY);
+  expect(creativeAssetStoragePath("t", "i", "logo", "carmen.jpg", 1)).toMatch(
+    /\/1_carmen\.jpg$/,
+  );
+});
 
 test("getBrandKit reads logo, book, and style references from payload", () => {
   const kit = getBrandKit({
