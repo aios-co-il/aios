@@ -7,8 +7,9 @@ import {
 } from "./manus-json.ts";
 
 Deno.test("asJsonObject keeps objects and rejects other JSON values", () => {
-  const obj = { instance_id: "i1" };
-  assertStrictEquals(asJsonObject(obj), obj);
+  const obj = { instance_id: "i1", nested: { list: [1, null, true] } };
+  assertEquals(asJsonObject(obj), obj);
+  assertEquals(asJsonObject({}), {});
   assertStrictEquals(asJsonObject(null), null);
   assertStrictEquals(asJsonObject(undefined), null);
   assertStrictEquals(asJsonObject([1]), null);
@@ -30,4 +31,6 @@ Deno.test("thrownMessage and thrownName read error-like values only", () => {
   assertStrictEquals(thrownMessage("text"), undefined);
   assertStrictEquals(thrownMessage(null), undefined);
   assertStrictEquals(thrownName(undefined), undefined);
+  assertStrictEquals(thrownMessage({ code: "x" }), undefined);
+  assertStrictEquals(thrownMessage(["boom"]), undefined);
 });

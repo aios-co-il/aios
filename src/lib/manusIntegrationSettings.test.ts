@@ -5,9 +5,9 @@ import {
   readManusWaSettings,
 } from "./manusIntegrationSettings.ts";
 
-test("integrationSettingsObject returns objects as-is", () => {
-  const settings = { webhook_id: "w1", api_key: "k" };
-  expect(integrationSettingsObject(settings)).toBe(settings);
+test("integrationSettingsObject keeps object settings", () => {
+  const settings = { webhook_id: "w1", api_key: "k", nested: { a: [1, null] } };
+  expect(integrationSettingsObject(settings)).toStrictEqual(settings);
 });
 
 test("integrationSettingsObject returns {} for null, arrays and scalars", () => {
@@ -38,6 +38,8 @@ test("readManusWaSettings treats non-string values and missing settings as absen
   expect(s.instance_id).toBe(undefined);
   expect(s.status).toBe(undefined);
   expect(readManusWaSettings(null).webhook_secret).toBe(undefined);
+  expect(readManusWaSettings([1]).instance_id).toBe(undefined);
+  expect(readManusWaSettings("x")).toStrictEqual({});
 });
 
 test("manusOutputText joins output_text parts across items", () => {
@@ -60,7 +62,14 @@ test("manusOutputText returns null for non-arrays and outputs without text", () 
     manusOutputText([
       null,
       { content: "no" },
-      { content: [{ type: "output_text", text: 3 }] },
+      { content: [{ type: "output_text", text: "" }] },
+      { content: [{ type: "output_text" }, "text"] },
     ]),
   ).toBe(null);
+});
+
+test("manusOutputText keeps non-string output_text values as text", () => {
+  expect(
+    manusOutputText([{ content: [{ type: "output_text", text: 3 }] }]),
+  ).toBe("3");
 });
