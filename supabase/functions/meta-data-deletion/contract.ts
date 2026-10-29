@@ -1,6 +1,6 @@
 // Response of GET /functions/v1/meta-data-deletion?code=, shared with the
 // /data-deletion page. Statuses match the CHECK constraint in
-// supabase/migrations/20261023100000_meta_data_deletion_requests.sql.
+// supabase/migrations/20261029120000_meta_data_deletion_requests.sql.
 
 export const DELETION_REQUEST_STATUSES = [
   "received",
