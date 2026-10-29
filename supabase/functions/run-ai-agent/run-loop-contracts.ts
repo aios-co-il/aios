@@ -127,3 +127,22 @@ export function toJson(value: unknown): Json | undefined {
   const parsed: Json = JSON.parse(text);
   return parsed;
 }
+
+const manusTaskSchema = z
+  .object({
+    task_id: z.unknown(),
+    task_url: z.unknown(),
+    share_url: z.unknown(),
+  })
+  .catch({});
+
+/** Manus `create_task` response fields shown to the user. */
+export function readManusTask(value: unknown) {
+  return manusTaskSchema.parse(value);
+}
+
+const errorStackSchema = z.object({ stack: z.unknown() }).catch({});
+
+export function readErrorStack(error: unknown): unknown {
+  return errorStackSchema.parse(error).stack;
+}
