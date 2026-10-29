@@ -4,11 +4,7 @@
 import { svc, upsertPointer, shortText } from "../_shared/carmen-memory.ts";
 import { jsonObject, jsonText } from "../_shared/json-object.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import {
-  type LegacyMessageRow,
-  type LegacyTaskRow,
-  objectOrEmpty,
-} from "./legacy-rows.ts";
+import { readLegacyMessageRow, readLegacyTaskRow } from "./legacy-rows.ts";
 
 type SeedModule =
   "system_map" | "clients" | "team" | "tasks" | "messages" | "conversations";
@@ -207,7 +203,7 @@ async function seedTasks(supabase: DbClient, tenant_id: string) {
   const rows: unknown[] = data ?? [];
   let n = 0;
   for (const raw of rows) {
-    const t: LegacyTaskRow = objectOrEmpty(raw);
+    const t = readLegacyTaskRow(raw);
     const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
     if (!assignee) continue;
     await upsertPointer(supabase, {
@@ -249,7 +245,7 @@ async function seedMessages(
   const rows: unknown[] = data ?? [];
   let n = 0;
   for (const raw of rows) {
-    const m: LegacyMessageRow = objectOrEmpty(raw);
+    const m = readLegacyMessageRow(raw);
     const body = m.message ?? m.body ?? m.text ?? "";
     if (!body || String(body).trim().length < 2) continue;
     const date = (jsonText(m.created_at) ?? "").slice(0, 10);
