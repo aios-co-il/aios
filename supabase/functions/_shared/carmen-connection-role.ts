@@ -28,6 +28,17 @@ export function resolveCarmenConnectionRole(
   return opts.tenantHasActiveManus ? "secondary" : "primary";
 }
 
+/** True when a connection may send Carmen's system notifications and staff alerts. */
+export function isPrimaryCarmenLine(
+  integration: Parameters<typeof resolveCarmenConnectionRole>[0],
+  tenantHasActiveManus: boolean,
+): boolean {
+  return (
+    resolveCarmenConnectionRole(integration, { tenantHasActiveManus }) ===
+    "primary"
+  );
+}
+
 export type SecondaryGateInput = {
   isIncoming: boolean;
   isManualOutgoing: boolean;

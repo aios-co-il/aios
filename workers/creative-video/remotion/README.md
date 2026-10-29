@@ -1,6 +1,6 @@
 # Carmen Remotion motion engine (initial implementation)
 
-This package is deliberately isolated from the Vite browser application. It is an actual frame-by-frame motion composition, not FFmpeg zooming on a still. It animates the website, floating devices, underwater particles, camera movement, titles and transitions. For production-quality human motion, supply transparent character animation assets or rendered AI video clips; Remotion does not infer articulated motion from a flat image.
+This package is deliberately isolated from the Vite browser application. `CarmenVideo` is the original demo. `WorkshopFilm` is the edit the render worker calls: it animates storyboard stills (or drops in a real video clip), sets Hebrew lower-thirds, and mixes narration and music. Remotion does not invent a person walking out of a flat image; that motion comes from Kling, ElevenLabs or Higgsfield, and the clip is then cut into this composition.
 
 ## Run locally
 

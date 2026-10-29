@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -93,30 +93,11 @@ serve(async (req) => {
         },
       );
 
-      const refreshData = await refreshResponse.json();
+      // A 5xx or proxy page is not JSON; it fails the run like any refusal.
+      const refreshData = await refreshResponse.json().catch(() => ({}));
 
       if (!refreshResponse.ok || !refreshData.access_token) {
-        // Mark as needing reauth so the UI can prompt the user.
-        await supabase
-          .from("tenant_integrations")
-          .update({
-            settings: {
-              ...integrationSettings,
-              needs_reauth: true,
-              last_auth_error:
-                refreshData?.error ||
-                refreshData?.error_description ||
-                "refresh_failed",
-              last_auth_error_at: new Date().toISOString(),
-            },
-          })
-          .eq("id", integration.id);
-        throw new Error(
-          "GOOGLE_AUTH_REVOKED: " +
-            (refreshData?.error_description ||
-              refreshData?.error ||
-              "Refresh token rejected by Google. Please reconnect Google Analytics."),
-        );
+        await failRefresh(refreshResponse.status, refreshData);
       }
 
       accessToken = refreshData.access_token;
@@ -138,6 +119,53 @@ serve(async (req) => {
         .eq("id", integration.id);
 
       return accessToken;
+    }
+
+    /**
+     * A refused token refresh fails this run. Only a permanent OAuth error
+     * flags the connection needs_reauth, which opens a disconnect and Carmen's
+     * lost-connection pulse alert (AIO-342); a 5xx or 429 leaves it connected.
+     */
+    async function failRefresh(
+      status: number,
+      refreshData: { error?: unknown; error_description?: unknown },
+    ): Promise<never> {
+      const reason = String(
+        refreshData?.error ||
+          refreshData?.error_description ||
+          `http_${status}`,
+      );
+      if (!isPermanentGoogleOAuthError(refreshData?.error)) {
+        throw new Error(
+          `GOOGLE_TOKEN_REFRESH_FAILED (HTTP ${status}): ${reason}`,
+        );
+      }
+      const { error } = await supabase
+        .from("tenant_integrations")
+        .update({
+          settings: {
+            ...integrationSettings,
+            needs_reauth: true,
+            last_auth_error: reason,
+            last_auth_error_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", integration.id);
+      if (error) {
+        console.error(
+          "[sync-ga] needs_reauth not saved",
+          integration.id,
+          error.message,
+        );
+      }
+      throw new Error(
+        "GOOGLE_AUTH_REVOKED: " +
+          String(
+            refreshData?.error_description ||
+              refreshData?.error ||
+              "Refresh token rejected by Google. Please reconnect Google Analytics.",
+          ),
+      );
     }
 
     // Wrap any GA fetch so 401 triggers a refresh and one retry.

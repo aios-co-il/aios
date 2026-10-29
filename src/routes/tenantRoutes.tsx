@@ -25,6 +25,7 @@ const LeadIntegrations = lazy(() => import("@/pages/LeadIntegrations"));
 const Tenants = lazy(() => import("@/pages/Tenants"));
 const Automations = lazy(() => import("@/pages/Automations"));
 const MarketingDepartment = lazy(() => import("@/pages/MarketingDepartment"));
+const CarmenWorkshop = lazy(() => import("@/pages/CarmenWorkshop"));
 const CampaignAlerts = lazy(() => import("@/pages/CampaignAlerts"));
 const Broadcast = lazy(() => import("@/pages/Broadcast"));
 const Products = lazy(() => import("@/pages/Products"));
@@ -146,6 +147,7 @@ export function tenantRoutes() {
       <Route path="/t/:tenantSlug" element={<TenantAppShell />}>
         <Route index element={<Home />} />
         <Route path="home" element={<Home />} />
+        <Route path="workshop" element={<CarmenWorkshop />} />
         <Route path="dashboard" element={<DashboardRouter />} />
         <Route path="agencies" element={<Agencies />} />
         <Route path="clients" element={<Clients />} />

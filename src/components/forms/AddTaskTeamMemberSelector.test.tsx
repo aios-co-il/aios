@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Form, FormField } from "@/components/ui/form";
 import { AddTaskTeamMemberSelector } from "./AddTaskTeamMemberSelector";
 
@@ -114,12 +114,3 @@ function SelectorHarness({
     </Form>
   );
 }
-
-beforeAll(() => {
-  if (!HTMLElement.prototype.scrollIntoView) {
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value() {},
-    });
-  }
-});

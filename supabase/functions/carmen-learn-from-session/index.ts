@@ -8,6 +8,7 @@ import {
 } from "../_shared/carmen-memory.ts";
 import type { Json } from "../_shared/database.types.ts";
 import { readHistoryEntry } from "./history-entry.ts";
+import { analysisKey } from "./analysis-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -148,8 +149,11 @@ function buildSchema() {
   };
 }
 
-async function analyze(history: unknown[]): Promise<Insight | null> {
-  if (!OPENAI_API_KEY) return null;
+async function analyze(
+  history: unknown[],
+  apiKey: string | null,
+): Promise<Insight | null> {
+  if (!apiKey) return null;
   const trimmed = history.slice(-40);
   const transcript = trimmed
     .map((raw) => {
@@ -162,7 +166,7 @@ async function analyze(history: unknown[]): Promise<Insight | null> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: MODEL,
@@ -256,6 +260,7 @@ Deno.serve(async (req) => {
         id: data.id,
         tenant_id: data.tenant_id,
         conversation_history: data.messages,
+        user_id: data.user_id,
         sender_name: data.title || "שיחת דשבורד",
         phone: null,
         chat_id: null,
@@ -293,7 +298,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const insight = await analyze(history);
+    const insight = await analyze(
+      history,
+      await analysisKey(
+        req.headers.get("Authorization") ?? "",
+        session.user_id ?? null,
+        OPENAI_API_KEY ?? null,
+      ),
+    );
     if (!insight) {
       return new Response(JSON.stringify({ error: "ai_failed" }), {
         status: 500,

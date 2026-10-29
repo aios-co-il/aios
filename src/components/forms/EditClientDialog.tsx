@@ -46,6 +46,7 @@ import {
   Plug,
 } from "lucide-react";
 import { ClientConnectionsTab } from "@/components/clients/ClientConnectionsTab";
+import { ClientAutoSendTab } from "@/components/clients/ClientAutoSendTab/ClientAutoSendTab";
 import { FolderLinksField } from "@/components/forms/FolderLinksField";
 import { AttachmentsField } from "@/components/forms/AttachmentsField";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -116,7 +117,7 @@ export function EditClientDialog({
     filesCount,
   } = useFolderLinksAndAttachments(client);
 
-  const meetingScheduler = useMeetingScheduler(tenantId);
+  const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
   const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<string[]>(
     [],
   );
@@ -395,8 +396,9 @@ export function EditClientDialog({
     },
   });
 
-  const { canViewFinance } = useUserPermissions();
+  const { canViewFinance, canEditFinance } = useUserPermissions();
   const showFinanceFields = canViewFinance();
+  const financeFieldsReadOnly = !canEditFinance();
 
   // Fetch tenant-specific financial data
   const { data: financialData } = useQuery({
@@ -533,8 +535,9 @@ export function EditClientDialog({
         throw new Error("אין הרשאה לעדכן את הלקוח (או שהלקוח לא נמצא)");
       }
 
-      // Update or insert tenant-specific financial data
-      if (canViewFinance()) {
+      // Retainer and budget follow the finance write rule (RLS on
+      // client_tenant_financial_data); anyone else saves the client without them.
+      if (canEditFinance()) {
         const financialPayload = {
           client_id: client.id,
           tenant_id: tenantId,
@@ -640,7 +643,7 @@ export function EditClientDialog({
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-6">
             <TabsTrigger value="details">פרטי לקוח</TabsTrigger>
             <TabsTrigger
               value="connections"
@@ -663,6 +666,9 @@ export function EditClientDialog({
               פגישה
             </TabsTrigger>
             <TabsTrigger value="updates">עדכונים</TabsTrigger>
+            <TabsTrigger value="auto-send" className="min-w-0">
+              <span className="truncate">שליחה אוטומטית ללקוח</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="details">
@@ -921,7 +927,11 @@ export function EditClientDialog({
                               {getFieldLabel("retainer", "ריטיינר")} (₪)
                             </FormLabel>
                             <FormControl>
-                              <Input {...field} type="number" />
+                              <Input
+                                {...field}
+                                type="number"
+                                disabled={financeFieldsReadOnly}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -938,7 +948,11 @@ export function EditClientDialog({
                               (₪)
                             </FormLabel>
                             <FormControl>
-                              <Input {...field} type="number" />
+                              <Input
+                                {...field}
+                                type="number"
+                                disabled={financeFieldsReadOnly}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1637,6 +1651,10 @@ export function EditClientDialog({
               clientName={client.name}
               currentMoodStatus={(client as any).mood_status}
             />
+          </TabsContent>
+
+          <TabsContent value="auto-send" className="mt-4">
+            <ClientAutoSendTab clientId={client.id} />
           </TabsContent>
         </Tabs>
       </DialogContent>

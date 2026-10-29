@@ -1,3 +1,4 @@
+import type { TaskRelations } from "./taskRelations";
 import { useState, useRef, useCallback } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -14,16 +15,14 @@ import { cn } from "@/lib/utils";
 import { embedCount } from "@/lib/embedCount";
 
 interface ResizableTaskItemProps {
-  task: {
+  task: TaskRelations & {
     id: string;
     title: string;
     status: string;
     client_id: string | null;
-    duration_minutes?: number;
+    duration_minutes?: number | null;
     creator_name?: string | null;
     clients?: { name: string } | null;
-    task_updates?: { id: string }[];
-    task_collaborators?: { id?: string; campaigner_id?: string }[];
   };
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onClick: () => void;

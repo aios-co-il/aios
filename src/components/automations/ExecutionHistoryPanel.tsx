@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/formatDateTime";
 import { MAILING_ACTION_ICONS, MAILING_ACTION_LABELS } from "./mailingActions";
 
 interface ExecutionHistoryPanelProps {
@@ -254,7 +255,7 @@ export function ExecutionHistoryPanel({
                 const flowSteps = response?.steps || [];
                 const isFlow = response?.flow === true;
                 const agentOutput = response?.agent_output;
-                const triggeredAt = new Date(log.triggered_at);
+                const triggeredAt = formatDateTime(log.triggered_at) || "—";
 
                 return (
                   <Collapsible
@@ -274,10 +275,7 @@ export function ExecutionHistoryPanel({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium">
-                                  {triggeredAt.toLocaleDateString("he-IL")}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {triggeredAt.toLocaleTimeString("he-IL")}
+                                  {triggeredAt}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 mt-0.5">

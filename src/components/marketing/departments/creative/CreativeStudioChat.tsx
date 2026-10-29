@@ -7,10 +7,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { uploadCreativeAsset } from "./brandKit";
 import {
+  chatParts,
   fileLine,
   needsChatApproval,
   parseSseBuffer,
   parseUiAction,
+  STUDIO_STALL_MESSAGE,
+  STUDIO_STALL_MS,
+  studioRunBody,
+  studioToolLine,
   uiActionLabel,
   type StudioUiAction,
 } from "./studioChat";
@@ -23,19 +28,6 @@ type ChatEntry =
       action: StudioUiAction;
       status: "pending" | "done" | "dismissed";
     };
-
-/** Tool names shown while Carmen works, so the user sees what she is touching. */
-const TOOL_LABELS: Record<string, string> = {
-  get_studio_state: "בודקת את הפרויקט",
-  update_studio_settings: "מעדכנת הגדרות",
-  attach_to_project: "מצרפת קובץ לפרויקט",
-  edit_scene: "עורכת סצנה",
-  add_scene: "מוסיפה סצנה",
-  delete_scene: "מוחקת סצנה",
-  studio_ui_action: "מפעילה בסטודיו",
-  get_video_storyboard: "קוראת את הסטוריבורד",
-  render_video_film: "מרכיבה סרט",
-};
 
 interface Props {
   tenantId: string;
@@ -56,8 +48,31 @@ const greeting = (mode: "video" | "static") =>
     ? "היי, אני כאן איתך על הסרטון. אפשר לבקש ממני לערוך סצנות, להחליף מנוע, להעלות לוגו או רפרנס (פשוט גררו לכאן), או להפיק את כל הסרט."
     : "היי, אני כאן איתך על הפוסט. גררו לכאן לוגו או רפרנס, בקשו וריאציות או תיקון לוריאציה שעל המסך, ואני אדאג לשאר.";
 
+/** Carmen's answer: its text as written, and the pictures she shows (skin portraits) as images. */
+function AssistantText({ text }: { text: string }) {
+  return (
+    <div className="me-6 whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 leading-relaxed">
+      {chatParts(text).map((part, index) =>
+        part.kind === "image" ? (
+          <img
+            key={index}
+            src={part.url}
+            alt={part.alt}
+            loading="lazy"
+            className="my-1 max-h-40 rounded-md"
+          />
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </div>
+  );
+}
+
 /** Per project, kept while the studio is open so switching projects keeps each thread. */
 const threads = new Map<string, ChatEntry[]>();
+/** Per project, the server conversation its thread continues. */
+const conversations = new Map<string, string>();
 
 export function CreativeStudioChat({
   tenantId,
@@ -95,6 +110,14 @@ export function CreativeStudioChat({
   }, [entries, streaming]);
 
   const push = (entry: ChatEntry) => setEntries((list) => [...list, entry]);
+  /** A progress line, once: the same line right after itself is not repeated. */
+  const pushTool = (text: string) =>
+    setEntries((list) => {
+      const last = list[list.length - 1];
+      return last?.kind === "tool" && last.text === text
+        ? list
+        : [...list, { kind: "tool", text }];
+    });
 
   const handleAction = (action: StudioUiAction) => {
     if (action.item_id !== itemId) return;
@@ -127,6 +150,18 @@ export function CreativeStudioChat({
     setDraft("");
     setBusy(true);
     let answer = "";
+    // No stream event for STUDIO_STALL_MS: stop waiting instead of looking frozen.
+    const controller = new AbortController();
+    let stalled = false;
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const armStallTimer = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        stalled = true;
+        controller.abort();
+      }, STUDIO_STALL_MS);
+    };
+    armStallTimer();
     try {
       const {
         data: { session },
@@ -140,18 +175,17 @@ export function CreativeStudioChat({
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            command_text: message,
-            tenant_id: tenantId,
-            client_id: clientId,
-            surface: "internal_chat",
-            stream: true,
-            task_mode: "marketing_creative",
-            task_skills: ["creative_studio"],
-            system_prompt_addon: contextAddon(),
-            conversation_history: history,
-            user_name: "סטודיו קריאייטיב",
-          }),
+          body: JSON.stringify(
+            studioRunBody({
+              message,
+              tenantId,
+              clientId,
+              contextAddon: contextAddon(),
+              history,
+              conversationId: conversations.get(itemId),
+            }),
+          ),
+          signal: controller.signal,
         },
       );
       if (!res.ok || !res.body) {
@@ -169,13 +203,18 @@ export function CreativeStudioChat({
         buffer += decoder.decode(value, { stream: true });
         const { events, rest } = parseSseBuffer(buffer);
         buffer = rest;
+        if (events.length > 0) armStallTimer();
         for (const event of events) {
           if (event.type === "token" && typeof event.content === "string") {
             answer += event.content;
             setStreaming(answer);
+          } else if (
+            event.type === "conversation_id" &&
+            typeof event.id === "string"
+          ) {
+            conversations.set(itemId, event.id);
           } else if (event.type === "tool_call") {
-            const label = TOOL_LABELS[String(event.tool)];
-            if (label) push({ kind: "tool", text: label });
+            pushTool(studioToolLine(event.tool));
           } else if (event.type === "ui_action") {
             const action = parseUiAction(event.action);
             if (action) handleAction(action);
@@ -187,9 +226,15 @@ export function CreativeStudioChat({
       }
       push({ kind: "assistant", text: answer.trim() || "סיימתי." });
     } catch (error: unknown) {
-      const text = error instanceof Error ? error.message : "שגיאה";
-      push({ kind: "assistant", text: `לא הצלחתי: ${text}` });
+      if (stalled) {
+        if (answer.trim()) push({ kind: "assistant", text: answer.trim() });
+        push({ kind: "assistant", text: STUDIO_STALL_MESSAGE });
+      } else {
+        const text = error instanceof Error ? error.message : "שגיאה";
+        push({ kind: "assistant", text: `לא הצלחתי: ${text}` });
+      }
     } finally {
+      clearTimeout(stallTimer);
       setStreaming("");
       setBusy(false);
       onTurnDone();
@@ -300,25 +345,18 @@ export function CreativeStudioChat({
                 </p>
               )}
             </div>
-          ) : (
+          ) : entry.kind === "user" ? (
             <p
               key={index}
-              className={cn(
-                "whitespace-pre-wrap break-words rounded-lg px-3 py-2 leading-relaxed",
-                entry.kind === "user"
-                  ? "ms-6 bg-pink-600 text-white"
-                  : "me-6 bg-muted",
-              )}
+              className="ms-6 whitespace-pre-wrap break-words rounded-lg bg-pink-600 px-3 py-2 leading-relaxed text-white"
             >
               {entry.text}
             </p>
+          ) : (
+            <AssistantText key={index} text={entry.text} />
           ),
         )}
-        {streaming && (
-          <p className="me-6 whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 leading-relaxed">
-            {streaming}
-          </p>
-        )}
+        {streaming && <AssistantText text={streaming} />}
         {busy && !streaming && (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         )}

@@ -44,7 +44,7 @@ interface LeadContact {
 
 interface SendSignatureFromLeadPanelProps {
   lead: LeadContact;
-  tenantId: string | undefined;
+  tenantId: string | null | undefined;
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {

@@ -1,3 +1,4 @@
+import { hasIntegrationId } from "@/lib/integrationIdentity";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -341,9 +342,13 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   // RLS still gates what the user can actually see, but we no longer restrict by
   // the active session tenant — that previously hid integrations created in
   // a sibling tenant for shared-agency clients.
-  const { data: gscUserIntegrations } = useUserIntegrations(
+  const { data: gscIntegrationRows } = useUserIntegrations(
     accessibleTenantIds,
     "google_search_console",
+  );
+  const gscUserIntegrations = useMemo(
+    () => gscIntegrationRows?.filter(hasIntegrationId),
+    [gscIntegrationRows],
   );
   const { data: gaUserIntegrations } = useUserIntegrations(
     accessibleTenantIds,

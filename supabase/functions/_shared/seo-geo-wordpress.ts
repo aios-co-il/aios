@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { wordPressSiteScopeError } from "./tenant-publish-access.ts";
 
 type WpSite = {
   id: string;
@@ -7,16 +8,28 @@ type WpSite = {
   app_password: string;
 };
 
+/** Load the WordPress site a row of `scope` publishes to. Throws when the site
+ * belongs to another tenant, or to another client than `scope.clientId`, so a
+ * program can never publish through someone else's credentials (AIO-234). */
 export async function loadWordPressSite(
   admin: SupabaseClient,
   siteId: string,
+  scope: { tenantId: string; clientId: string | null },
 ): Promise<WpSite | null> {
   const { data } = await admin
     .from("social_media_wordpress_sites")
-    .select("id,site_url,username,app_password")
+    .select("id,tenant_id,client_id,site_url,username,app_password")
     .eq("id", siteId)
     .maybeSingle();
-  return (data as WpSite | null) ?? null;
+  if (!data) return null;
+  const scopeError = wordPressSiteScopeError(
+    data as { tenant_id: string; client_id: string | null },
+    scope.tenantId,
+    scope.clientId,
+  );
+  if (scopeError) throw new Error(scopeError);
+  const { id, site_url, username, app_password } = data as WpSite;
+  return { id, site_url, username, app_password };
 }
 
 export async function publishToWordPress(

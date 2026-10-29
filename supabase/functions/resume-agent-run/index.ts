@@ -1,6 +1,9 @@
 // resume-agent-run — apply approval decision, log the outcome on the action trace,
 // and re-invoke run-ai-agent-v2 to continue the ReAct loop from the next step.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// AIO-230: run steps only; reviewer gate and claim: ./authorize.ts.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { requireAuth } from "../_shared/security.ts";
+import { authorizeRunDecision } from "./authorize.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +16,11 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
+    const auth = await requireAuth(req);
+    if (!auth) {
+      return json(401, { error: "unauthorized" });
+    }
+
     const { approval_id, decision, reviewer_id } = await req.json();
     if (
       !approval_id ||
@@ -37,45 +45,22 @@ Deno.serve(async (req) => {
       .single();
     if (aErr || !approval) throw aErr ?? new Error("not found");
 
-    if (approval.status !== "pending") {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "approval already decided",
-          status: approval.status,
-        }),
-        {
-          status: 409,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    const gate = await authorizeRunDecision(
+      supabase,
+      auth,
+      approval,
+      decision,
+      reviewer_id,
+    );
+    if (!gate.ok) {
+      return json(gate.status, gate.body);
     }
+
+    const { reviewerId } = gate;
 
     let executionResult: any = null;
 
-    if (
-      decision === "approved" &&
-      (approval.tool_name === "create_automation" ||
-        approval.action_type === "agent_direct_tool")
-    ) {
-      // Carmen authoring: route to carmen-approval-execute, which materializes the
-      // (disabled) flow automation from the approved spec. Direct agent tool calls
-      // (carmen-tools-mcp) also execute there. Kept as explicit special-cases so no
-      // other tool's behavior changes.
-      try {
-        const { data, error } = await supabase.functions.invoke(
-          "carmen-approval-execute",
-          {
-            body: { approval_id, approved_by: reviewer_id ?? null },
-          },
-        );
-        executionResult = error
-          ? { ok: false, error: String(error?.message ?? error) }
-          : (data ?? { ok: true });
-      } catch (e: any) {
-        executionResult = { ok: false, error: String(e?.message ?? e) };
-      }
-    } else if (decision === "approved" && approval.tool_name) {
+    if (decision === "approved" && approval.tool_name) {
       // Look up the tool handler
       const { data: tool } = await supabase
         .from("agent_tools")
@@ -92,6 +77,7 @@ Deno.serve(async (req) => {
               body: {
                 ...(approval.tool_input ?? {}),
                 _approval_id: approval_id,
+                _approved_by: reviewerId,
                 _run_id: approval.run_id,
                 _tenant_id: approval.tenant_id,
                 _agent_id: approval.agent_id,
@@ -121,15 +107,13 @@ Deno.serve(async (req) => {
     await supabase
       .from("agent_approval_queue")
       .update({
-        // A direct agent tool that failed keeps "failed" (carmen-approval-execute already wrote it).
         status:
           decision !== "approved"
             ? "rejected"
-            : approval.action_type === "agent_direct_tool" &&
-                executionResult?.ok === false
+            : executionResult?.ok === false
               ? "failed"
               : "executed",
-        approved_by: reviewer_id ?? null,
+        approved_by: reviewerId,
         approved_at: new Date().toISOString(),
         executed_at: decision === "approved" ? new Date().toISOString() : null,
         execution_result: executionResult,
@@ -210,3 +194,11 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+/** JSON response with this function's CORS headers. */
+function json(status: number, body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}

@@ -269,6 +269,9 @@ Deno.serve(async (req) => {
         agencyName: group.agency_name,
         clientName: group.client_name,
       }),
+      // Carmen introduces herself in the client's group: logged on the
+      // client card when the group belongs to one client (AIO-242).
+      sendKind: "carmen",
     });
   }
   for (const activation of activations) {

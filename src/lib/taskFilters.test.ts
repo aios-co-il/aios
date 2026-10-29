@@ -235,6 +235,7 @@ test("filter preset round-trips campaigner, period, and related entity", () => {
     relatedId: "lead-1",
     relatedLabel: "דלתא",
     openClosed: "done",
+    showAllRecurring: false,
   });
   const parsed = parseTasksFilterPreset(stored);
   expect(parsed.campaignerId).toBe("mine");

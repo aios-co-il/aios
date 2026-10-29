@@ -15,8 +15,9 @@ const NEW_TARGET = "new";
 
 const projectKind = (item: HandoffWorkItem) => {
   const payload = item.payload ?? {};
-  if (payload.project_type === "video" || Array.isArray(payload.storyboard))
+  if (payload.project_type === "video" || item.hasStoryboard) {
     return "וידאו";
+  }
   return "סטטי";
 };
 
