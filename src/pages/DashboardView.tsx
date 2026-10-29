@@ -86,6 +86,7 @@ import {
 import {
   reportQueryOptions,
   getReportLastSyncAt,
+  getReportSyncProblem,
   refetchOnMountIfEmpty,
 } from "@/lib/reportQueryOptions";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
@@ -367,6 +368,10 @@ export default function DashboardView() {
     if (!stamps.length) return null;
     return stamps.sort().reverse()[0];
   }, [tables]);
+  const dashboardSyncProblem = useMemo(
+    () => getReportSyncProblem(tables),
+    [tables],
+  );
 
   // Fetch fields for all tables (for raw table display)
   const { data: tableFields = {} } = useQuery({
@@ -1855,6 +1860,7 @@ export default function DashboardView() {
           </div>
           <ReportDataFreshness
             lastSyncAt={dashboardLastSyncAt}
+            syncProblem={dashboardSyncProblem}
             dataUpdatedAt={recordsUpdatedAt}
             isFetching={recordsFetching}
             className="mt-2"

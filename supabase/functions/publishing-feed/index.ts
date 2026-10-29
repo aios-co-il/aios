@@ -38,7 +38,7 @@ Deno.serve(async (request) => {
   });
   const { data: site, error: siteError } = await admin
     .from("publishing_sites")
-    .select("id,site_key,name,base_url,categories,status")
+    .select("id,tenant_id,site_key,name,base_url,categories,status")
     .eq("id", siteId)
     .eq("status", "active")
     .maybeSingle();
@@ -52,13 +52,18 @@ Deno.serve(async (request) => {
       status: 404,
       headers: jsonHeaders,
     });
+  // tenant_id scopes the article query and is not part of the public feed.
+  const { tenant_id: siteTenantId, ...publicSite } = site;
 
+  // Only the site owner's articles: site_id alone could be set by another
+  // tenant (AIO-234).
   const { data: articles, error } = await admin
     .from("publishing_articles")
     .select(
       "id,slug,title,excerpt,category,source_month,published_at,content,sources,internal_links,target_url,anchor_text,hero_image_url,inline_image_url,image_alt,faq,infographic",
     )
     .eq("site_id", site.id)
+    .eq("tenant_id", siteTenantId)
     .eq("status", "published")
     .not("slug", "is", null)
     .not("title", "is", null)
@@ -85,7 +90,7 @@ Deno.serve(async (request) => {
 
   return new Response(
     JSON.stringify({
-      site,
+      site: publicSite,
       articles: datedArticles,
       generatedAt: new Date().toISOString(),
     }),
