@@ -293,7 +293,10 @@ import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.
 
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
-import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
+import {
+  readGraphAdAccountsPage,
+  readMetaLeadQuestionInput,
+} from "./tool-contracts-marketing.ts";
 import type {
   AccountingClientRow,
   AutomationFlowStepRow,
@@ -11074,10 +11077,10 @@ async function executeTool(
       let nextUrl = `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`;
       while (nextUrl) {
         const resp = await fetch(nextUrl);
-        const data = await resp.json();
-        if (data.error) return { error: `Facebook API: ${data.error.message}` };
-        if (data.data) allAccounts = [...allAccounts, ...data.data];
-        nextUrl = data.paging?.next || null;
+        const page = readGraphAdAccountsPage(await resp.json());
+        if (page.error) return { error: `Facebook API: ${page.error.message}` };
+        if (page.data) allAccounts = [...allAccounts, ...page.data];
+        nextUrl = page.paging?.next || "";
       }
       return {
         count: allAccounts.length,
