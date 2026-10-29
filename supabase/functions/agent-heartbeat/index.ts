@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
 
       const anomalyCount = anomalyTasks?.length || 0;
 
-      // 6. Generate daily summary
+      // 6. Summary for heartbeat_logs
       const summaryLines = [
         `סקירת Heartbeat - ${now.toISOString().split("T")[0]}`,
         `משימות שנסקרו: ${tasksReviewed}`,
@@ -189,44 +189,9 @@ Deno.serve(async (req) => {
       }
       const summary = summaryLines.join("\n");
 
-      // 7. Send daily anomaly digest once per day to assigned campaigner (only at 09:00 IL ≈ 06:00 UTC)
-      const isDigestHour = now.getUTCHours() === 6;
-      if (
-        isDigestHour &&
-        anomalyCount > 0 &&
-        allowedActions.includes("reminders")
-      ) {
-        // Find any campaigner with a phone in this tenant
-        const { data: campaigner } = await supabase
-          .from("campaigners")
-          .select("full_name, phone")
-          .eq("tenant_id", tenantId)
-          .eq("active", true)
-          .not("phone", "is", null)
-          .limit(1)
-          .maybeSingle();
-        if (campaigner?.phone) {
-          await fetch(`${SUPABASE_URL}/functions/v1/send-green-api-message`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({
-              phone: campaigner.phone,
-              message: summary,
-              tenantId,
-            }),
-          }).catch(() => {});
-          actionsLog.push({
-            type: "daily_digest_sent",
-            to: campaigner.full_name,
-            anomalies: anomalyCount,
-          });
-        }
-      }
+      // Heartbeat sends no WhatsApp; Carmen's morning brief owns digests.
 
-      // 8. Log heartbeat
+      // 7. Log heartbeat
       await supabase.from("heartbeat_logs").insert({
         tenant_id: tenantId,
         tasks_reviewed: tasksReviewed,

@@ -2,6 +2,10 @@
 
 This is the canonical instruction file for all coding agents; `CLAUDE.md` is a relative symlink to it. Edit shared rules here and keep task-specific procedures in the linked docs.
 
+## Work standard
+
+- **Before the first edit, before each push, and when reviewing code:** read the work standard, `CODING_STANDARDS.md`, in full and apply it. Include this line in the brief of every agent you start on this repo.
+
 ## Environments and production safeguards
 
 - Development exists: each feature branch's Vercel Preview talks to AIOS Staging; `develop` is Staging and `main` is Production.
