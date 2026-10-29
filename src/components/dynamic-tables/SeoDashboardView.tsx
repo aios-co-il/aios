@@ -565,7 +565,7 @@ export function SeoDashboardView({
   }
 
   const organicKeywords = useMemo(() => {
-    const enriched = rawOrganic.map((kw) =>
+    const enriched = rawOrganic.map((kw: Partial<AhrefsKeyword>) =>
       enrichKeyword(kw, effectiveComparison),
     );
     // Add keywords from Ahrefs comparison API that don't exist in webhook data
@@ -629,7 +629,7 @@ export function SeoDashboardView({
   );
   const trackedKeywords = useMemo(
     () =>
-      rawTracked.map((kw) => {
+      rawTracked.map((kw: Partial<AhrefsKeyword>) => {
         const enriched = enrichKeyword(kw, effectiveComparison);
         if (displayRank(enriched.position) != null) return enriched;
         const stored = trackedAhrefsPositions.get(

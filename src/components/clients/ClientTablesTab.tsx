@@ -36,6 +36,7 @@ import { TableCardAlerts } from "@/components/dynamic-tables/TableCardAlerts";
 import { ClientReportPanel } from "@/components/clients/ClientReportPanel";
 import { ClientDashboardPanel } from "@/components/clients/ClientDashboardPanel";
 import { ClientReportScheduleSettings } from "@/components/clients/ClientReportScheduleSettings";
+import { ReportSenderDefaultCard } from "@/components/report-sender/ReportSenderDefaultCard";
 import { getIntegrationIcon } from "@/lib/integrationIcons";
 import { fetchAccessibleDashboards } from "@/lib/crmDashboards";
 import {
@@ -605,6 +606,10 @@ export function ClientTablesTab({
             />
           </div>
         </div>
+      )}
+
+      {activeItem && tenantId && (
+        <ReportSenderDefaultCard tenantId={tenantId} />
       )}
 
       {activeItem && tenantId && (

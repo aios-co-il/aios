@@ -1,24 +1,32 @@
 import { ASSET_BUCKET, type AssetView, isHttpUrl } from "./assets.ts";
 import {
+  answerFor,
   answersFromArgs,
   answersFromMessage,
   briefAnswersOf,
   briefAsked,
   filmFromAnswers,
+  REFERENCE,
   styleFromAnswers,
   unanswered,
   withBriefAnswers,
   withBriefAsked,
+  withBriefReadTurn,
 } from "./brief-answers.ts";
+import { readRequest, referenceThisTurn, turnKey } from "./brief-reading.ts";
+import { withoutUnpickedConcept } from "./concept-choice.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
 import { briefingGate } from "./briefing.ts";
 import { PROVIDER_LABEL } from "./capabilities.ts";
 import { type Db } from "./db.ts";
 import { type WorkshopDeps } from "./gate.ts";
-import { type ImageProvider, normalizeEngine } from "./image-providers.ts";
+import { normalizeEngine } from "./image-engine-name.ts";
+import { type ImageProvider } from "./image-providers.ts";
 import { lookOf, withLook } from "./look.ts";
+import { syncBriefPage } from "./project-brief.ts";
 import { asRecord, recordArtifact } from "./record.ts";
+import { isAutoMode, WORKSHOP_MODE_KEY } from "./workshop-mode.ts";
 
 export function voiceHelpers(
   supabase: Db,
@@ -30,6 +38,7 @@ export function voiceHelpers(
   return {
     voiceSample: deps.voiceSample,
     userText: deps.userText ?? null,
+    auto: isAutoMode(payload),
     addSamplePage: async (title: string, path: string, voiceId: string) => {
       // One sample page per voice in a project, however often the menu is shown.
       const { data: existing } = await supabase
@@ -75,24 +84,41 @@ export async function savePayload(
   itemId: string,
   payload: Record<string, unknown>,
 ) {
-  // asset_references belongs to the assets trigger: keep what the database holds right now, so a
-  // save from an older copy of the project never wipes the pictures the user just marked.
+  // asset_references belongs to the assets trigger and workshop_mode to the toggle
+  // (workshop_set_mode): keep what the database holds right now, so a save from the copy a tool
+  // loaded at its start never wipes the pictures the user just marked or undoes a mode switch.
+  // The workshop_keep_mode trigger enforces the mode in the same statement as well.
   const current = await supabase
     .from("marketing_work_items")
     .select("payload")
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  const held = asRecord(current?.data?.payload).asset_references;
+  const held = asRecord(current?.data?.payload);
   const next = { ...payload };
-  if (Array.isArray(held)) next.asset_references = held;
-  else delete next.asset_references;
+  if (Array.isArray(held.asset_references)) {
+    next.asset_references = held.asset_references;
+  } else {
+    delete next.asset_references;
+  }
+  if (WORKSHOP_MODE_KEY in held) {
+    next[WORKSHOP_MODE_KEY] = held[WORKSHOP_MODE_KEY];
+  } else {
+    delete next[WORKSHOP_MODE_KEY];
+  }
   const { error } = await supabase
     .from("marketing_work_items")
     .update({ payload: next })
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
   if (error) throw new Error(error.message);
+  await syncBriefPage(
+    supabase,
+    tenantId,
+    itemId,
+    asRecord(current?.data?.payload),
+    next,
+  );
 }
 
 /**
@@ -147,8 +173,22 @@ export async function briefProject(
       deps.userText ?? "",
       unanswered(questions, briefAnswersOf(payload)),
     ),
-    ...answersFromArgs(args.brief_answers),
+    // A concept Carmen names counts only when the user picked it (concept-choice.ts).
+    ...withoutUnpickedConcept(answersFromArgs(args.brief_answers), {
+      userText: deps.userText ?? "",
+      lastAssistant: deps.lastAssistant ?? "",
+    }),
   };
+  const reference = referenceThisTurn(args, deps.userText ?? "");
+  if (reference && !answerFor(fresh, REFERENCE)) {
+    fresh[REFERENCE] = reference.answer;
+  }
+  // A picture given in the message joins the look like the reference_urls Carmen passes, so the
+  // pictures follow it; kept on the project even when the tool stops to ask.
+  const referenceUrls = [
+    ...(Array.isArray(args.reference_urls) ? args.reference_urls : []),
+    ...(reference?.picture ? [reference.picture] : []),
+  ];
   const briefed = withBriefAnswers(payload, fresh);
   const answers = briefAnswersOf(briefed);
   const writtenFilm =
@@ -163,7 +203,12 @@ export async function briefProject(
     ...(writtenFilm && !args.film_brief ? { film_brief: writtenFilm } : {}),
     ...(writtenStyle ? { style_bible: writtenStyle } : {}),
   };
-  const folded = withLook(briefed, { ...args, engine: asked, ...written });
+  const folded = withLook(briefed, {
+    ...args,
+    reference_urls: referenceUrls,
+    engine: asked,
+    ...written,
+  });
   const look = lookOf(folded.payload);
   const gate = briefingGate({
     look,
@@ -178,16 +223,32 @@ export async function briefProject(
     needsStyle: options.needsStyle,
     answers,
     asked: briefAsked(payload),
+    read: readRequest(payload, args, deps, Boolean(options.save)),
+    auto: isAutoMode(payload),
   });
   if (gate) {
     // Shown to the user now: from the next turn Carmen may fill in what they leave open.
     const asking = typeof gate.say_to_user === "string" && gate.say_to_user;
     if (
       options.save &&
-      (Object.keys(fresh).length > 0 || writtenFilm || writtenStyle || asking)
+      (Object.keys(fresh).length > 0 ||
+        writtenFilm ||
+        writtenStyle ||
+        asking ||
+        gate.reading ||
+        referenceUrls.length > 0)
     ) {
-      const kept = withLook(briefed, written).payload;
-      await options.save(asking ? withBriefAsked(kept) : kept);
+      let kept = withLook(briefed, {
+        ...written,
+        reference_urls: referenceUrls,
+      }).payload;
+      if (asking) {
+        kept = withBriefAsked(kept);
+      }
+      if (gate.reading) {
+        kept = withBriefReadTurn(kept, turnKey(deps));
+      }
+      await options.save(kept);
     }
     return { gate: gate as unknown as Record<string, unknown> };
   }

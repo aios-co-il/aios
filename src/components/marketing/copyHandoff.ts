@@ -1,4 +1,9 @@
 import {
+  InvalidCopyPayloadError,
+  readCopyPayload,
+  type CopyPayload,
+} from "./copyPayload";
+import {
   approvedCopyConcepts,
   formatCopyConceptsForCreative,
   formatCopyConceptsForImagePrompt,
@@ -17,7 +22,8 @@ import { isCreativeDepartmentItem } from "./departmentFilters.ts";
 export type HandoffWorkItem = {
   id: string;
   title: string | null;
-  payload: Record<string, unknown> | null;
+  payload: CopyPayload | null;
+  hasStoryboard?: boolean;
   client_id: string | null;
   status?: string | null;
   current_stage_id?: string | null;
@@ -113,15 +119,15 @@ export function overlayCopyHandoffPayload({
   approved,
   at,
 }: {
-  existingPayload: Record<string, unknown> | null | undefined;
-  copyPayload: Record<string, unknown> | null | undefined;
+  existingPayload: unknown;
+  copyPayload: unknown;
   copyItem: { id: string; title: string | null };
   concepts: CopyConcept[];
   approved: CopyConcept[];
   at: string;
-}): Record<string, unknown> {
-  const existing = existingPayload ?? {};
-  const copy = copyPayload ?? {};
+}): CopyPayload {
+  const existing = readCopyPayload(existingPayload);
+  const copy = readCopyPayload(copyPayload);
   const copyVariations = hydrateCopyVariations(
     asText(copy.copy_text) || asText(existing.copy_text),
     parseCopyVariationsFromPayload(copy).length > 0
@@ -195,9 +201,17 @@ export function overlayCopyHandoffPayload({
 }
 
 /** Copy items that still have text or concepts worth attaching to a creative project. */
-export function copyPullSummary(
-  payload: Record<string, unknown> | null | undefined,
-) {
+export function copyPullSummary(rawPayload: unknown) {
+  let payload: CopyPayload;
+  try {
+    payload = readCopyPayload(rawPayload);
+  } catch (error: unknown) {
+    if (!(error instanceof InvalidCopyPayloadError)) {
+      throw error;
+    }
+    // The boundary already logged this invalid row; keep other copy choices usable.
+    payload = {};
+  }
   const concepts = parseCopyConceptsFromPayload(payload);
   const approved = approvedCopyConcepts(concepts);
   const copyText = asText(payload?.copy_text);
@@ -215,12 +229,12 @@ export function copyPullSummary(
 }
 
 export function stampCopyPayloadAfterHandoff(
-  copyPayload: Record<string, unknown> | null | undefined,
+  copyPayload: unknown,
   creativeItemId: string,
   at: string,
-): Record<string, unknown> {
+): CopyPayload {
   return {
-    ...(copyPayload ?? {}),
+    ...readCopyPayload(copyPayload),
     department: "copy",
     handoff_to_creative_item_id: creativeItemId,
     last_handoff_at: at,

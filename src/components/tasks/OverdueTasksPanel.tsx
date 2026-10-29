@@ -1,3 +1,4 @@
+import type { Task } from "./taskTypes";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -35,29 +36,6 @@ import { embedCount } from "@/lib/embedCount";
 import { useState } from "react";
 import { QuickTaskInput, QuickTaskPayload } from "./QuickTaskInput";
 import { isTaskOverdue } from "@/lib/taskDeadline";
-
-interface Task {
-  id: string;
-  title: string;
-  notes: string | null;
-  status: string;
-  priority: number;
-  due_date: string | null;
-  due_time: string | null;
-  target_date?: string | null;
-  client_id: string | null;
-  lead_id: string | null;
-  agency_id: string | null;
-  campaigner_id: string | null;
-  tenant_id: string | null;
-  created_at?: string;
-  created_by?: string | null;
-  creator_name?: string | null;
-  clients?: { name: string } | null;
-  campaigners?: { full_name: string } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
-}
 
 interface TaskBacklogPanelProps {
   tasks: Task[];

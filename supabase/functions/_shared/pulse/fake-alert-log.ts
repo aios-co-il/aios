@@ -1,11 +1,13 @@
 /**
  * In-memory stand-in for the Supabase client, for the Deno tests of pulse
  * instant alerts: pulse_instant_alert_log, agency_tenant_access and, when a
- * test seeds them, user_roles and profiles.
+ * test seeds them, user_roles, user_managed_agencies and profiles.
  */
+import type { CarmenReportRecipient } from "../carmen-report-recipients/resolve.ts";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   deliverInstantPulseAlerts,
+  type InstantPulseAlertsInput,
   type PulseSnapshotAlertInput,
 } from "../pulse-instant-alerts.ts";
 
@@ -18,6 +20,7 @@ type Result =
 type FakeQuery = {
   select: () => FakeQuery;
   eq: (col: string, val: unknown) => FakeQuery;
+  is: (col: string, val: null) => FakeQuery;
   in: (col: string, vals: unknown[]) => FakeQuery;
   or: (filter: string) => FakeQuery;
   gte: (col: string, val: string) => FakeQuery;
@@ -26,8 +29,6 @@ type FakeQuery = {
   insert: (row: Row) => Promise<{ error: { message: string } | null }>;
   then: (resolve: (value: Result) => void) => void;
 };
-
-type DeliverInput = Parameters<typeof deliverInstantPulseAlerts>[0];
 
 export const ACME: PulseSnapshotAlertInput = {
   client_id: "c1",
@@ -38,6 +39,16 @@ export const ACME: PulseSnapshotAlertInput = {
 };
 
 export const WEDNESDAY = new Date("2026-10-28T07:00:00Z"); // 09:00 Israel
+
+/** The organization name run() puts in each run message's header. */
+export const TEST_ORG = "Test Org";
+
+/** The owner run() alerts when the organization has no report list. */
+export const OWNER_RECIPIENT: CarmenReportRecipient = {
+  name: "Owner",
+  phone: "972501234567",
+  source: "owner_fallback",
+};
 
 /** Pulse rules without no_contact, so a run checks the other rules alone. */
 export const NO_CONTACT_OFF = {
@@ -56,15 +67,16 @@ export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
 
 /**
  * pulse_instant_alert_log, agency_tenant_access `grants` and the staff tables
- * (user_roles `roles`, profiles) in memory; inserts are stamped with `clock`.
- * Every read of a `failing` table and every insert into a `failingInserts`
- * table returns an error.
+ * (user_roles `roles`, user_managed_agencies `managedAgencies`, profiles) in
+ * memory; inserts are stamped with `clock`. Every read of a `failing` table
+ * and every insert into a `failingInserts` table returns an error.
  */
 export function fakeSupabase(
   log: Row[] = [],
   options: {
     grants?: Row[];
     roles?: Row[];
+    managedAgencies?: Row[];
     profiles?: Row[];
     failing?: string[];
     failingInserts?: string[];
@@ -74,6 +86,7 @@ export function fakeSupabase(
     pulse_instant_alert_log: log,
     agency_tenant_access: options.grants ?? [],
     user_roles: options.roles ?? [],
+    user_managed_agencies: options.managedAgencies ?? [],
     profiles: options.profiles ?? [],
   };
   const fake = { from, log, clock: "" };
@@ -84,6 +97,10 @@ export function fakeSupabase(
     const builder: FakeQuery = {
       select: () => builder,
       eq: (col, val) => (filters.push((row) => row[col] === val), builder),
+      is: (col, val) => (
+        filters.push((row) => (row[col] ?? null) === val),
+        builder
+      ),
       in: (col, vals) => (
         filters.push((row) => vals.includes(row[col])),
         builder
@@ -139,7 +156,7 @@ export async function run(
   supabase: ReturnType<typeof fakeSupabase>,
   now: Date,
   snapshots: PulseSnapshotAlertInput[] = [ACME],
-  extra: Partial<DeliverInput> = {},
+  extra: Partial<InstantPulseAlertsInput> = {},
 ) {
   supabase.clock = now.toISOString();
   const sends: Array<{ message: string; phone: string | null }> = [];
@@ -147,7 +164,8 @@ export async function run(
     supabase,
     tenantId: "t1",
     tenantSlug: "test-tenant",
-    pulsePhone: "0501234567",
+    orgName: TEST_ORG,
+    reportRecipients: [OWNER_RECIPIENT],
     snapshots,
     criticalIssues: [],
     rules: DEFAULT_PULSE_ALERT_RULES,

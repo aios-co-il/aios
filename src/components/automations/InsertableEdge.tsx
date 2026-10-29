@@ -7,9 +7,9 @@ import {
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface InsertableEdgeData {
+export type InsertableEdgeData = {
   onInsert?: (sourceId: string, targetId: string) => void;
-}
+};
 
 export function InsertableEdge({
   id,

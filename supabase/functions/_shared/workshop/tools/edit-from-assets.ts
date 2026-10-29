@@ -10,6 +10,7 @@ import { asRecord, recordArtifact } from "../record.ts";
 import { loadScenes, paidReplaceRefusal } from "../scene-helpers.ts";
 import { storyboardText } from "../storyboard-text.ts";
 import { type ToolContext } from "../tool-context.ts";
+import { forgetKeptDesign } from "./keep-design.ts";
 
 export async function workshopEditFromAssets(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
@@ -41,7 +42,7 @@ export async function workshopEditFromAssets(ctx: ToolContext) {
   });
   if ("error" in built) return built;
   await savePayload(supabase, tenantId, itemId, {
-    ...brief.payload,
+    ...forgetKeptDesign(brief.payload),
     project_type: "video",
     workshop_edit: true,
   });

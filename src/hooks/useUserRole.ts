@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { useViewAs } from "@/contexts/ViewAsContext";
 
@@ -131,7 +132,8 @@ export function useUserRole() {
     refetchOnWindowFocus: false,
   });
 
-  const hasRole = (role: UserRole) => roles?.includes(role) || false;
+  const hasRole = (role: Enums<"app_role">) =>
+    roles?.some((userRole) => userRole === role) || false;
   const isTenantOwner =
     tenantMembership === "owner" || tenantMembership === "agency_owner";
   const isSeoTaggedCampaigner = (campaignerRoleTags || []).includes("SEO");
