@@ -1,4 +1,4 @@
-// Campaigner and WhatsApp-group sources.
+// Campaigner, WhatsApp-group and manually typed sources.
 import { buildTemplateVars } from "../template/template-vars.ts";
 import { hasItems } from "./query.ts";
 import type { AudienceDb, AudienceFilter, Recipient } from "./types.ts";
@@ -57,4 +57,28 @@ export async function resolveWaGroups(
     group_chat_id: g.group_chat_id || null,
     vars: buildTemplateVars({ contact_name: g.group_name }),
   }));
+}
+
+const MANUAL_EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
+
+/**
+ * Typed contacts: an entry with "@" is an email (dropped when malformed),
+ * anything else a phone (normalized later by reachability).
+ */
+export function resolveManualContacts(f: AudienceFilter): Recipient[] {
+  return (f.manualContacts || [])
+    .map((c) => String(c ?? "").trim())
+    .filter((c) => c && (!c.includes("@") || MANUAL_EMAIL_RE.test(c)))
+    .map((c): Recipient => {
+      const email = c.includes("@") ? c.toLowerCase() : null;
+      const phone = email ? null : c;
+      return {
+        entity_type: "manual",
+        entity_id: null,
+        phone,
+        email,
+        contact_name: null,
+        vars: buildTemplateVars({ email, phone }),
+      };
+    });
 }
