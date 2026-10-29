@@ -1,69 +1,81 @@
 import type { FbActionStat, FbInsightRow } from "./fbInsights.ts";
-import { unknownField } from "./json-fields.ts";
+import { z } from "npm:zod@3.25.76";
 
 export interface FbInsightsPage {
   rows: FbInsightRow[];
   next: string | null;
 }
 
-function text(value: unknown): string {
-  return value == null ? "" : String(value);
-}
+/** Any present value as text; null and absent read as "". */
+const text = z
+  .unknown()
+  .transform((value) => (value == null ? "" : String(value)));
 
-function optionalText(value: unknown): string | undefined {
-  return value == null ? undefined : String(value);
-}
+/** Any present value as text; null and absent read as undefined. */
+const optionalText = z
+  .unknown()
+  .transform((value) => (value == null ? undefined : String(value)));
 
-function readActionStats(value: unknown): FbActionStat[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  return value.map((item) => {
-    const actionType = unknownField(item, "action_type");
-    const statValue = unknownField(item, "value");
-    return {
-      action_type: typeof actionType === "string" ? actionType : undefined,
-      value:
-        typeof statValue === "string" || typeof statValue === "number"
-          ? statValue
-          : undefined,
-    };
-  });
-}
+/** A row or stat that is not an object reads as all-empty. */
+const lenient = <T extends z.ZodRawShape>(shape: T) =>
+  z.object(shape).catch(() => z.object(shape).parse({}));
+
+const actionStatSchema = lenient({
+  action_type: z.string().optional().catch(undefined),
+  value: z.union([z.string(), z.number()]).optional().catch(undefined),
+});
+
+const actionStats = z
+  .array(z.unknown())
+  .transform((stats): FbActionStat[] =>
+    stats.map((stat) => actionStatSchema.parse(stat)),
+  )
+  .optional()
+  .catch(undefined);
+
+const fbInsightRowSchema = lenient({
+  campaign_id: text,
+  campaign_name: text,
+  adset_id: optionalText,
+  adset_name: optionalText,
+  ad_id: optionalText,
+  ad_name: optionalText,
+  date_start: text,
+  spend: text,
+  impressions: text,
+  reach: text,
+  frequency: text,
+  clicks: text,
+  inline_link_clicks: text,
+  cpm: text,
+  ctr: text,
+  actions: actionStats,
+  conversions: actionStats,
+  action_values: actionStats,
+});
 
 export function readFbInsightRow(value: unknown): FbInsightRow {
-  const field = (key: string) => unknownField(value, key);
-  return {
-    campaign_id: text(field("campaign_id")),
-    campaign_name: text(field("campaign_name")),
-    adset_id: optionalText(field("adset_id")),
-    adset_name: optionalText(field("adset_name")),
-    ad_id: optionalText(field("ad_id")),
-    ad_name: optionalText(field("ad_name")),
-    date_start: text(field("date_start")),
-    spend: text(field("spend")),
-    impressions: text(field("impressions")),
-    reach: text(field("reach")),
-    frequency: text(field("frequency")),
-    clicks: text(field("clicks")),
-    inline_link_clicks: text(field("inline_link_clicks")),
-    cpm: text(field("cpm")),
-    ctr: text(field("ctr")),
-    actions: readActionStats(field("actions")),
-    conversions: readActionStats(field("conversions")),
-    action_values: readActionStats(field("action_values")),
-  };
+  return fbInsightRowSchema.parse(value);
 }
+
+const graphErrorSchema = lenient({ message: z.unknown() });
+
+const insightsPageSchema = lenient({
+  error: z.unknown(),
+  data: z.array(z.unknown()).optional().catch(undefined),
+  paging: lenient({ next: z.unknown() }),
+});
 
 /** One Graph insights response page; throws the Graph error like the API reports it. */
 export function readFbInsightsPage(body: unknown): FbInsightsPage {
-  const error = unknownField(body, "error");
-  if (error) {
-    const message = unknownField(error, "message");
-    throw new Error(message ? String(message) : JSON.stringify(error));
+  const page = insightsPageSchema.parse(body);
+  if (page.error) {
+    const { message } = graphErrorSchema.parse(page.error);
+    throw new Error(message ? String(message) : JSON.stringify(page.error));
   }
-  const data = unknownField(body, "data");
-  const next = unknownField(unknownField(body, "paging"), "next");
+  const next = z.string().min(1).nullable().catch(null).parse(page.paging.next);
   return {
-    rows: Array.isArray(data) ? data.map(readFbInsightRow) : [],
-    next: typeof next === "string" && next ? next : null,
+    rows: (page.data ?? []).map(readFbInsightRow),
+    next,
   };
 }
