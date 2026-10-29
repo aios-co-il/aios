@@ -51,20 +51,6 @@ export type ChatHistorySearchRow = Pick<
   | "provider"
 > & { clients: ClientName | null };
 
-export type InboundMessageRow = Pick<
-  AgentRow<"chat_messages">,
-  | "id"
-  | "message_text"
-  | "sender_name"
-  | "sender_phone"
-  | "created_at"
-  | "client_id"
-  | "lead_id"
-> & {
-  clients: ClientName | null;
-  leads: Pick<AgentRow<"leads">, "company_name"> | null;
-};
-
 export type FinanceListRow = Pick<
   AgentRow<"finance">,
   "id" | "amount" | "type" | "date" | "client_id"

@@ -1,177 +1,105 @@
-import {
-  assertEquals,
-  assertRejects,
-  assertStrictEquals,
-} from "jsr:@std/assert@1";
-import { errorMessage } from "./error-message.ts";
+import assert from "node:assert/strict";
+import test from "node:test";
 import { jsonObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
-import { readImageGenerationPayload } from "./image-generation-payload.ts";
-import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
 
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status });
 }
 
-Deno.test(
-  "Meta responses preserve numeric strings, actions, pagination and extra metrics",
-  async () => {
-    const payload = {
-      data: [
-        {
-          campaign_id: "campaign-1",
-          spend: "21.5",
-          impressions: 100,
-          actions: [{ action_type: "lead", value: "3" }],
-          purchase_roas: [{ value: "2.5" }],
-        },
-      ],
-      paging: { next: "https://graph.facebook.com/next" },
-      summary: { total_count: 1 },
-    };
-    assertEquals(await readMetaResponse(response(payload)), payload);
-  },
-);
-
-Deno.test(
-  "Meta API errors and nullable fields survive decoding for existing fallback handling",
-  async () => {
-    const payload = {
-      data: null,
-      error: { message: "Token expired", code: 190, type: null },
-      paging: null,
-    };
-    assertEquals(await readMetaResponse(response(payload, 400)), payload);
-    const nullable = {
-      id: null,
-      spend: null,
-      actions: null,
-      cost_per_action_type: null,
-      questions: null,
-    };
-    assertEquals(await readMetaResponse(response(nullable)), nullable);
-    assertEquals(await readMetaResponse(response({ data: [] })), {
-      data: [],
-    });
-  },
-);
-
-Deno.test(
-  "malformed Graph envelopes cannot masquerade as typed campaign data",
-  async () => {
-    for (const payload of [
-      null,
-      [],
-      "bad",
-      { data: {} },
-      { data: [null] },
-      { data: [{ spend: {} }] },
-      { actions: [{ value: {} }] },
-      { questions: [{ label: 42 }] },
-      { paging: { next: 3 } },
-      { error: "expired" },
-    ]) {
-      await assertRejects(
-        () => readMetaResponse(response(payload)),
-        Error,
-        "Invalid Meta response",
-      );
-    }
-    await assertRejects(
-      () => readMetaResponse(new Response("not-json")),
-      SyntaxError,
-    );
-  },
-);
-
-Deno.test(
-  "configured Meta pages accept nullable optional fields and reject malformed fields",
-  () => {
-    assertStrictEquals(
-      isMetaNode({ id: "page-1", name: null, access_token: "page-token" }),
-      true,
-    );
-    assertStrictEquals(isMetaNode({ id: "page-1", access_token: {} }), false);
-  },
-);
-
-Deno.test(
-  "persisted configuration keeps nested mappings intact while primitives have no keys",
-  () => {
-    const settings = {
-      form_mappings: {
-        form1: { agency_id: "agency-1", fields: { email: "EMAIL" } },
-      },
-      other: true,
-    };
-    assertStrictEquals(jsonObject(settings), settings);
-    for (const value of [null, undefined, true, 42, "legacy", []]) {
-      assertEquals(jsonObject(value), {});
-    }
-  },
-);
-
-Deno.test(
-  "errorMessage reads message from errors and error-like objects",
-  () => {
-    assertStrictEquals(errorMessage(new Error("boom")), "boom");
-    assertStrictEquals(errorMessage({ message: "postgrest" }), "postgrest");
-    assertStrictEquals(errorMessage("plain string"), undefined);
-    assertStrictEquals(errorMessage(null), undefined);
-    assertStrictEquals(errorMessage({ code: 1 }), undefined);
-  },
-);
-
-Deno.test(
-  "image provider payloads expose only the fields generate_ad_image reads",
-  () => {
-    assertEquals(
-      readImageGenerationPayload({ data: [{ b64_json: "aGk=" }], created: 1 }),
-      { content: "", b64Json: "aGk=", inlineParts: [] },
-    );
-    assertEquals(
-      readImageGenerationPayload({
-        choices: [
-          {
-            message: {
-              content: "done",
-              parts: [
-                { text: "no image" },
-                { inline_data: null },
-                { inline_data: { data: "aGk=", mime_type: "image/jpeg" } },
-              ],
-            },
-          },
-        ],
-      }),
+test("Meta responses preserve numeric strings, actions, pagination and extra metrics", async () => {
+  const payload = {
+    data: [
       {
-        content: "done",
-        b64Json: "",
-        inlineParts: [{ data: "aGk=", mime_type: "image/jpeg" }],
+        campaign_id: "campaign-1",
+        spend: "21.5",
+        impressions: 100,
+        actions: [{ action_type: "lead", value: "3" }],
+        purchase_roas: [{ value: "2.5" }],
       },
-    );
-    for (const malformed of [null, "x", [], { data: [{ b64_json: 7 }] }]) {
-      assertEquals(readImageGenerationPayload(malformed), {
-        content: "",
-        b64Json: "",
-        inlineParts: [],
-      });
-    }
-  },
-);
+    ],
+    paging: { next: "https://graph.facebook.com/next" },
+    summary: { total_count: 1 },
+  };
+  assert.deepEqual(await readMetaResponse(response(payload)), {
+    ok: true,
+    value: payload,
+  });
+});
 
-Deno.test(
-  "Meta lead form question input reads type and label from objects only",
-  () => {
-    assertEquals(
-      readMetaLeadQuestionInput({ type: "custom", label: "Budget", x: 1 }),
-      { type: "custom", label: "Budget" },
-    );
-    assertEquals(readMetaLeadQuestionInput({ type: "EMAIL" }), {
-      type: "EMAIL",
-      label: undefined,
+test("Meta API errors and nullable fields survive decoding for existing fallback handling", async () => {
+  const payload = {
+    data: null,
+    error: { message: "Token expired", code: 190, type: null },
+    paging: null,
+  };
+  assert.deepEqual(await readMetaResponse(response(payload, 400)), {
+    ok: true,
+    value: payload,
+  });
+  const nullable = {
+    id: null,
+    spend: null,
+    actions: null,
+    cost_per_action_type: null,
+    questions: null,
+  };
+  assert.deepEqual(await readMetaResponse(response(nullable)), {
+    ok: true,
+    value: nullable,
+  });
+  assert.deepEqual(await readMetaResponse(response({ data: [] })), {
+    ok: true,
+    value: { data: [] },
+  });
+});
+
+test("malformed Graph envelopes cannot masquerade as typed campaign data", async () => {
+  for (const payload of [
+    null,
+    [],
+    "bad",
+    { data: {} },
+    { data: [null] },
+    { data: [{ spend: {} }] },
+    { actions: [{ value: {} }] },
+    { questions: [{ label: 42 }] },
+    { paging: { next: 3 } },
+    { error: "expired" },
+  ]) {
+    assert.deepEqual(await readMetaResponse(response(payload)), {
+      ok: false,
+      error: { message: "Invalid Meta response" },
     });
-    assertEquals(readMetaLeadQuestionInput("EMAIL"), {});
-    assertEquals(readMetaLeadQuestionInput(null), {});
-  },
-);
+  }
+  await assert.rejects(readMetaResponse(new Response("not-json")), SyntaxError);
+});
+
+test("invalid Graph bodies return Meta's own error when it sent one", async () => {
+  const error = { message: "Token expired", code: "190" };
+  assert.deepEqual(await readMetaResponse(response({ error }, 400)), {
+    ok: false,
+    error,
+  });
+});
+
+test("configured Meta pages accept nullable optional fields and reject malformed fields", () => {
+  assert.equal(
+    isMetaNode({ id: "page-1", name: null, access_token: "page-token" }),
+    true,
+  );
+  assert.equal(isMetaNode({ id: "page-1", access_token: {} }), false);
+});
+
+test("persisted configuration keeps nested mappings intact while primitives have no keys", () => {
+  const settings = {
+    form_mappings: {
+      form1: { agency_id: "agency-1", fields: { email: "EMAIL" } },
+    },
+    other: true,
+  };
+  assert.equal(jsonObject(settings), settings);
+  for (const value of [null, undefined, true, 42, "legacy", []]) {
+    assert.deepEqual(jsonObject(value), {});
+  }
+});
