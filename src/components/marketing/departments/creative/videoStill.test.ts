@@ -14,12 +14,12 @@ test("studio names are replaced and the no-text rule is appended", () => {
 });
 
 test("video settings read from payload.video with safe defaults", () => {
-  expect(getStillModel(null)).toBe("gpt-image-1");
+  expect(getStillModel(null)).toBe("gpt-image-2.5-sunburst");
   expect(getStillModel({ video: { still_model: "nano-banana-pro" } })).toBe(
     "nano-banana-pro",
   );
   expect(getStillModel({ video: { still_model: "other" } })).toBe(
-    "gpt-image-1",
+    "gpt-image-2.5-sunburst",
   );
   expect(
     getCharacterRefUrl({ video: { character_ref_url: "https://x/c.png" } }),
