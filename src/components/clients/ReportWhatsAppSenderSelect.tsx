@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -9,17 +10,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import type { Json } from "@/integrations/supabase/types";
 
-const settingValue = (settings: Json, key: string): unknown =>
-  settings && typeof settings === "object" && !Array.isArray(settings)
-    ? settings[key]
-    : undefined;
+const settingText = z.string().min(1).optional().catch(undefined);
 
-const settingText = (settings: Json, key: string): string | undefined => {
-  const value = settingValue(settings, key);
-  return typeof value === "string" && value ? value : undefined;
-};
+const senderSettingsSchema = z
+  .object({
+    instance_id: z.unknown(),
+    instance_name: settingText,
+    connection_name: settingText,
+  })
+  .catch({});
 
 interface Props {
   tenantId: string | undefined;
@@ -63,11 +63,12 @@ export function ReportWhatsAppSenderSelect({
   if (instances.length <= 1) return null;
 
   const labelFor = (i: (typeof instances)[number]): string => {
-    const instanceId = settingValue(i.settings, "instance_id");
+    const settings = senderSettingsSchema.parse(i.settings);
+    const instanceId = settings.instance_id;
     return (
       i.display_name ||
-      settingText(i.settings, "instance_name") ||
-      settingText(i.settings, "connection_name") ||
+      settings.instance_name ||
+      settings.connection_name ||
       (instanceId ? `WhatsApp ··${String(instanceId).slice(-4)}` : "WhatsApp")
     );
   };

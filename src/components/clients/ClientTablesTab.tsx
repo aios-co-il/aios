@@ -48,6 +48,10 @@ import {
 } from "@/lib/prefetchReportChunks";
 import { toast } from "sonner";
 import { parseCrmTableList, type CrmTableSummary } from "@/lib/crmTableSummary";
+import { z } from "zod";
+
+const functionsErrorSchema = z.object({ context: z.instanceof(Response) });
+const errorBodySchema = z.object({ error: z.string().min(1) });
 
 interface ClientTablesTabProps {
   clientId: string;
@@ -163,20 +167,10 @@ export function ClientTablesTab({
   // Link/unlink table
   const serverErrorMessage = async (error: unknown, fallback: string) => {
     try {
-      const context =
-        typeof error === "object" && error !== null && "context" in error
-          ? error.context
-          : undefined;
-      const details: unknown =
-        context instanceof Response ? await context.json() : undefined;
-      if (
-        typeof details === "object" &&
-        details !== null &&
-        "error" in details &&
-        typeof details.error === "string" &&
-        details.error
-      )
-        return details.error;
+      const context = functionsErrorSchema.safeParse(error).data?.context;
+      const details: unknown = context ? await context.json() : undefined;
+      const message = errorBodySchema.safeParse(details).data?.error;
+      if (message) return message;
     } catch {
       /* keep fallback */
     }

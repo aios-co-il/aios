@@ -12,6 +12,10 @@ import {
 } from "@/lib/clientConnectionProvision";
 import type { Tables } from "@/integrations/supabase/types";
 import { parseCrmTableList } from "@/lib/crmTableSummary";
+import { clientServiceListSchema } from "@/lib/clientServices";
+import { z } from "zod";
+
+const createdTableSchema = z.object({ id: z.string() });
 
 type TableSettings = Record<string, string | boolean | undefined>;
 
@@ -244,11 +248,7 @@ export function useProvisionClientChannels() {
       if (clientErr || !client) throw clientErr || new Error("הלקוח לא נמצא");
 
       const c = { ...client };
-      const services: string[] = Array.isArray(c.services)
-        ? c.services.filter(
-            (service): service is string => typeof service === "string",
-          )
-        : [];
+      const services = clientServiceListSchema.catch([]).parse(c.services);
       const tenantId: string | null = c.tenant_id ?? null;
       const agencyId: string | null = c.agency_id ?? null;
 
@@ -371,14 +371,7 @@ export function useProvisionClientChannels() {
             summary.skipped.push(`${meta.label}: ${create.error.message}`);
           else {
             summary.created.push(meta.label);
-            const created: unknown = create.data;
-            const newId =
-              typeof created === "object" &&
-              created !== null &&
-              "id" in created &&
-              typeof created.id === "string"
-                ? created.id
-                : undefined;
+            const newId = createdTableSchema.safeParse(create.data).data?.id;
             if (newId)
               provisioned.push({
                 id: newId,

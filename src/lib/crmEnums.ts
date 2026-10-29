@@ -1,20 +1,26 @@
+import { z } from "zod";
 import { Constants, type Enums } from "@/integrations/supabase/types";
 
 export type ClientMoodStatusEnum = Enums<"client_mood_status">;
 export type ClientStatusEnum = Enums<"client_status">;
+export type LeadSourceEnum = Enums<"lead_source">;
+
+export const clientMoodStatusSchema = z.enum(
+  Constants.public.Enums.client_mood_status,
+);
+export const clientStatusSchema = z.enum(Constants.public.Enums.client_status);
+export const leadSourceSchema = z.enum(Constants.public.Enums.lead_source);
 
 export const isClientMoodStatus = (
   value: unknown,
 ): value is ClientMoodStatusEnum =>
-  Constants.public.Enums.client_mood_status.some((status) => status === value);
+  clientMoodStatusSchema.safeParse(value).success;
 
 export const isClientStatus = (value: unknown): value is ClientStatusEnum =>
-  Constants.public.Enums.client_status.some((status) => status === value);
-
-export type LeadSourceEnum = Enums<"lead_source">;
+  clientStatusSchema.safeParse(value).success;
 
 export const isLeadSource = (value: unknown): value is LeadSourceEnum =>
-  Constants.public.Enums.lead_source.some((source) => source === value);
+  leadSourceSchema.safeParse(value).success;
 
 /** The message zod gives for a value outside a `z.enum` (shown when a stored value can't be edited in a form). */
 export const invalidEnumMessage = (

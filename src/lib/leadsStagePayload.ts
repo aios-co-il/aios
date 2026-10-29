@@ -1,53 +1,60 @@
+import { z } from "zod";
 import type {
   LeadRelationsRow,
   LeadsKanbanCache,
   LeadsPageLead,
 } from "../types/leadsPage.ts";
 
+const leadIdSchema = z.object({ id: z.string() });
+
 /** A JSON row the page treats as a lead: an object with a string id. */
-export function isLeadsPageLead(value: unknown): value is LeadsPageLead {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "id" in value &&
-    typeof value.id === "string"
+export const leadsPageLeadSchema = z.custom<LeadsPageLead>(
+  (value) => leadIdSchema.safeParse(value).success,
+);
+
+const stageLeadListSchema = z
+  .array(z.unknown())
+  .catch([])
+  .transform((items) =>
+    items.flatMap((item) => {
+      const parsed = leadsPageLeadSchema.safeParse(item);
+      return parsed.success ? [parsed.data] : [];
+    }),
   );
-}
 
-function field(value: unknown, key: string): unknown {
-  if (typeof value !== "object" || value === null) return undefined;
-  return Object.entries(value).find(([k]) => k === key)?.[1];
-}
+const stageBucketSchema = z
+  .object({
+    stage: z.unknown(),
+    leads: stageLeadListSchema,
+    total_count: z.number().catch(0),
+  })
+  .catch({ stage: undefined, leads: [], total_count: 0 });
 
-function stageLeads(stageData: unknown): LeadsPageLead[] {
-  const leads = field(stageData, "leads");
-  return Array.isArray(leads) ? leads.filter(isLeadsPageLead) : [];
-}
-
-function stageTotal(stageData: unknown): number {
-  const total = field(stageData, "total_count");
-  return typeof total === "number" ? total || 0 : 0;
-}
+type StageBucketPayload = z.infer<typeof stageBucketSchema>;
 
 /** Each `[stage key, stage payload]` of a get_leads_by_stages result (array or object form). */
-function stageEntries(data: unknown): Array<[string, unknown]> {
-  if (!data) return [];
-  if (Array.isArray(data)) {
-    return data.map((stageData) => [
-      String(field(stageData, "stage")),
-      stageData,
-    ]);
-  }
-  if (typeof data === "object") return Object.entries(data);
-  return [];
-}
+const stagePayloadSchema = z
+  .union([
+    z
+      .array(stageBucketSchema)
+      .transform((stages) =>
+        stages.map((stage): [string, StageBucketPayload] => [
+          String(stage.stage),
+          stage,
+        ]),
+      ),
+    z.record(stageBucketSchema).transform((stages) => Object.entries(stages)),
+  ])
+  .catch([]);
+
+const stageEntries = (data: unknown) => stagePayloadSchema.parse(data);
 
 export function parseStageBuckets(data: unknown): LeadsKanbanCache {
   const stageMap: LeadsKanbanCache = {};
   for (const [stageKey, stageData] of stageEntries(data)) {
     stageMap[stageKey] = {
-      leads: stageLeads(stageData),
-      totalCount: stageTotal(stageData),
+      leads: stageData.leads,
+      totalCount: stageData.total_count || 0,
     };
   }
   return stageMap;
@@ -56,7 +63,7 @@ export function parseStageBuckets(data: unknown): LeadsKanbanCache {
 export function parseStageCounts(data: unknown): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const [stageKey, stageData] of stageEntries(data)) {
-    counts[stageKey] = stageTotal(stageData);
+    counts[stageKey] = stageData.total_count || 0;
   }
   return counts;
 }
@@ -66,11 +73,10 @@ export function stageLeadsFromPayload(
   data: unknown,
   stageId: string,
 ): LeadsPageLead[] {
-  if (!data) return [];
-  if (Array.isArray(data)) {
-    return stageLeads(data.find((item) => field(item, "stage") === stageId));
-  }
-  return stageLeads(field(data, stageId));
+  return (
+    stageEntries(data).find(([stageKey]) => stageKey === stageId)?.[1].leads ??
+    []
+  );
 }
 
 /** Overlay campaign, source, response status, agency and sales person from a relations query. */

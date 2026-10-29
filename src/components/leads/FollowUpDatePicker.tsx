@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -30,8 +31,11 @@ interface FollowUpDatePickerProps {
   onOptimisticUpdate?: (leadId: string, newDate: string | null) => void;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const cachedLeadSchema = z.object({ id: z.unknown() }).passthrough();
+const cachedLeadBucketSchema = z
+  .object({ leads: z.array(z.unknown()) })
+  .passthrough();
+const cachedLeadMapSchema = z.record(z.unknown());
 
 function getOverdueInfo(dateStr: string | null) {
   if (!dateStr) return { isOverdue: false, isToday: false, daysLate: 0 };
@@ -90,29 +94,29 @@ export function FollowUpDatePicker({
 
       if (onOptimisticUpdate) {
         onOptimisticUpdate(leadId, dateString);
-        const withFollowUpDate = (l: unknown) =>
-          isRecord(l) && l.id === leadId
-            ? { ...l, follow_up_date: dateString }
+        const withFollowUpDate = (l: unknown) => {
+          const lead = cachedLeadSchema.safeParse(l).data;
+          return lead?.id === leadId
+            ? { ...lead, follow_up_date: dateString }
             : l;
+        };
         const updateLeadInCache = (old: unknown): unknown => {
           if (!old) return old;
           if (Array.isArray(old)) {
             return old.map(withFollowUpDate);
           }
-          if (isRecord(old)) {
-            const updated: Record<string, unknown> = { ...old };
+          const cachedMap = cachedLeadMapSchema.safeParse(old);
+          if (cachedMap.success) {
+            const updated: Record<string, unknown> = { ...cachedMap.data };
             for (const key of Object.keys(updated)) {
               const value = updated[key];
+              const bucket = cachedLeadBucketSchema.safeParse(value);
               if (Array.isArray(value)) {
                 updated[key] = value.map(withFollowUpDate);
-              } else if (
-                isRecord(value) &&
-                value.leads &&
-                Array.isArray(value.leads)
-              ) {
+              } else if (bucket.success) {
                 updated[key] = {
-                  ...value,
-                  leads: value.leads.map(withFollowUpDate),
+                  ...bucket.data,
+                  leads: bucket.data.leads.map(withFollowUpDate),
                 };
               }
             }

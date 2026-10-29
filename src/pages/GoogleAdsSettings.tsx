@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -78,15 +79,18 @@ const MakeIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
   </svg>
 );
 
-function settingsObject(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value))
-    : null;
-}
+const optionalString = z.string().optional().catch(undefined);
 
-function settingString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
+const googleAdsSettingsSchema = z
+  .object({
+    needs_reauth: z.unknown(),
+    last_auth_error: optionalString,
+    connected_at: optionalString,
+    google_email: optionalString,
+    customer_name: optionalString,
+  })
+  .nullable()
+  .catch(null);
 
 interface MakeConnection {
   id: number;
@@ -512,7 +516,9 @@ export default function GoogleAdsSettings() {
   const isConnected = isGoogleIntegrationConnected(googleAdsIntegration);
   const isMakeConfigured = makeIntegration?.is_active;
   const isViaMakeConnected = googleAdsViaMakeIntegration?.is_active;
-  const settings = settingsObject(googleAdsIntegration?.settings);
+  const settings = googleAdsSettingsSchema.parse(
+    googleAdsIntegration?.settings,
+  );
   const viaMakeSettings = googleAdsViaMakeIntegration?.settings as {
     connection_name?: string;
   } | null;
@@ -521,7 +527,7 @@ export default function GoogleAdsSettings() {
     (googleAdsIntegration &&
       googleAdsIntegration.is_active === false &&
       googleAdsIntegration.has_credential);
-  const lastAuthError = settingString(settings?.last_auth_error);
+  const lastAuthError = settings?.last_auth_error;
 
   return (
     <div className="container mx-auto p-6 space-y-6" dir="rtl">
@@ -1038,13 +1044,11 @@ export default function GoogleAdsSettings() {
                 <div className="space-y-4">
                   {adsConnections.map((integ) => {
                     const integId = String(integ.id);
-                    const ownerId = settingString(integ.user_id) ?? null;
-                    const s = settingsObject(integ.settings);
-                    const connectedAt = settingString(s?.connected_at);
+                    const ownerId = optionalString.parse(integ.user_id) ?? null;
+                    const s = googleAdsSettingsSchema.parse(integ.settings);
+                    const connectedAt = s?.connected_at;
                     const email =
-                      settingString(s?.google_email) ||
-                      settingString(s?.customer_name) ||
-                      "חשבון Google Ads";
+                      s?.google_email || s?.customer_name || "חשבון Google Ads";
                     const isOwn = integ._isOwn;
                     const sharedByName = integ._sharedByName;
                     const needsReauthRow = Boolean(s?.needs_reauth);

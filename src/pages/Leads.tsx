@@ -152,7 +152,7 @@ import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
 import {
-  isLeadsPageLead,
+  leadsPageLeadSchema,
   mergeLeadRelations,
   moveLeadInKanbanCache,
   parseStageBuckets,
@@ -3934,11 +3934,13 @@ export default function Leads() {
                       Object.entries(old).map(([key, leads]) => [
                         key,
                         Array.isArray(leads)
-                          ? leads.map((l: unknown) =>
-                              isLeadsPageLead(l) && l.id === leadId
-                                ? { ...l, follow_up_date: newDate }
-                                : l,
-                            )
+                          ? leads.map((l: unknown) => {
+                              const lead =
+                                leadsPageLeadSchema.safeParse(l).data;
+                              return lead?.id === leadId
+                                ? { ...lead, follow_up_date: newDate }
+                                : l;
+                            })
                           : leads,
                       ]),
                     );

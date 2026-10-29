@@ -67,3 +67,17 @@ describe("parseCrmTableList", () => {
     expect(table.integration_settings).toBeNull();
   });
 });
+
+describe("crmTableSummarySchema", () => {
+  it("treats array integration settings as missing settings", () => {
+    const [table] = parseCrmTableList([
+      { ...base, id: "t5", integration_settings: ["act_1"] },
+    ]);
+    expect(table.integration_settings).toBeNull();
+  });
+
+  it("leaves absent integration settings undefined", () => {
+    const [table] = parseCrmTableList([{ ...base, id: "t6" }]);
+    expect(table.integration_settings).toBeUndefined();
+  });
+});

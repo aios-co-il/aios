@@ -5,6 +5,7 @@ import {
   parseStageBuckets,
   parseStageCounts,
   patchLeadInKanbanCache,
+  leadsPageLeadSchema,
   stageLeadsFromPayload,
 } from "./leadsStagePayload.ts";
 import type { LeadsKanbanCache, LeadsPageLead } from "../types/leadsPage.ts";
@@ -90,4 +91,30 @@ test("kanban cache helpers move and patch a lead", () => {
   });
   expect(patched?.new.leads[1].response_status).toBe("not_relevant");
   expect(cache.new.leads[1].response_status).toBe(null);
+});
+
+test("stage payload parsing tolerates malformed stages", () => {
+  expect(
+    parseStageBuckets({
+      new: { leads: "x", total_count: "3" },
+      won: null,
+      lost: [lead("z", "lost")],
+    }),
+  ).toStrictEqual({
+    new: { leads: [], totalCount: 0 },
+    won: { leads: [], totalCount: 0 },
+    lost: { leads: [], totalCount: 0 },
+  });
+  expect(parseStageCounts("text")).toStrictEqual({});
+  expect(parseStageCounts(42)).toStrictEqual({});
+  expect(stageLeadsFromPayload([null, { stage: "new" }], "new")).toStrictEqual(
+    [],
+  );
+});
+
+test("leadsPageLeadSchema keeps rows with a string id as-is", () => {
+  const row = lead("a", "new");
+  expect(leadsPageLeadSchema.safeParse(row).data).toBe(row);
+  expect(leadsPageLeadSchema.safeParse({ id: 1 }).success).toBe(false);
+  expect(leadsPageLeadSchema.safeParse(null).success).toBe(false);
 });
