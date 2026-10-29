@@ -22,7 +22,7 @@ import {
   wantsStreamableHttp,
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
-import { isRecord, thrownMessage } from "../_shared/json-narrow.ts";
+import { asRecord, thrownMessage } from "../_shared/json-narrow.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -102,7 +102,7 @@ async function runDirect(
     }),
   });
   const json: unknown = await res.json().catch(() => ({}));
-  const data: Record<string, unknown> = isRecord(json) ? json : {};
+  const data = asRecord(json);
   if (!res.ok)
     throw new Error(String(data?.error || `run-ai-agent ${res.status}`));
   return data;
@@ -115,7 +115,7 @@ type McpToolEntry = {
 };
 
 function toMcpTool(entry: unknown): McpToolEntry {
-  const t: Record<string, unknown> = isRecord(entry) ? entry : {};
+  const t = asRecord(entry);
   return {
     name: t.name,
     description:
@@ -159,14 +159,14 @@ async function handleRpc(msg: McpRpcMessage, ctx: Ctx): Promise<Response> {
       case "tools/call": {
         const name = String(params?.name || "");
         const rawArgs = params?.arguments;
-        const args = isRecord(rawArgs) ? rawArgs : {};
+        const args = asRecord(rawArgs);
         try {
           const data = await runDirect(ctx, { action: "call", name, args });
           const result = data.result;
           const text = JSON.stringify(result ?? null).slice(0, MAX_RESULT);
           return rpcResult(id, {
             content: [{ type: "text", text }],
-            isError: isRecord(result) && !!result.error,
+            isError: !!asRecord(result).error,
           });
         } catch (e) {
           return rpcResult(id, {

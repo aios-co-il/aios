@@ -11,6 +11,7 @@ import { type JsonObject, thrownMessage } from "../_shared/json-narrow.ts";
 import { isNumericId } from "../_shared/ad-tools/ids.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { authorizeGoogleCall } from "./gate.ts";
+import { type GadsAuth, gadsAuthFromIntegration } from "./gads-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,15 +21,6 @@ const corsHeaders = {
 };
 
 const GADS_API = "https://googleads.googleapis.com/v23";
-
-type GadsAuth = {
-  access_token?: string;
-  developer_token?: string;
-  login_customer_id?: string;
-  refresh_token?: string;
-  client_id?: string;
-  client_secret?: string;
-};
 
 async function getGadsAuth(
   supabase: SupabaseClient<Database>,
@@ -43,15 +35,11 @@ async function getGadsAuth(
     .limit(1)
     .maybeSingle();
   if (!data) return null;
-  const cfg = data.additional_config || {};
-  return {
-    refresh_token: cfg.refresh_token || data.api_key,
-    developer_token:
-      Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || cfg.developer_token,
-    login_customer_id: cfg.login_customer_id || cfg.mcc_id,
-    client_id: Deno.env.get("GOOGLE_CLIENT_ID") || cfg.client_id,
-    client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET") || cfg.client_secret,
-  };
+  return gadsAuthFromIntegration(data, {
+    developerToken: Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN"),
+    clientId: Deno.env.get("GOOGLE_CLIENT_ID"),
+    clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
+  });
 }
 
 async function exchangeAccessToken(auth: GadsAuth): Promise<string | null> {

@@ -2,8 +2,8 @@
 // Input: { tenant_id, message_id?, media_url?, mime_type?, client_id?, lead_id?, caption?, tags? }
 // If message_id given, pulls media URL from chat_messages.raw_provider_data; otherwise uses media_url directly.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import type { Json } from "../_shared/database.types.ts";
-import { jsonObject, thrownMessage } from "../_shared/json-narrow.ts";
+import { thrownMessage } from "../_shared/json-narrow.ts";
+import { pickMediaFromRaw } from "./raw-media.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,47 +20,6 @@ const SUPPORTED_AD_MIME = new Set([
   "video/mp4",
   "video/quicktime",
 ]);
-
-function textField(value: Json | undefined): string | undefined {
-  return typeof value === "string" && value ? value : undefined;
-}
-
-function pickMediaFromRaw(raw: Json | undefined): {
-  url?: string;
-  mime?: string;
-  caption?: string;
-} {
-  if (!raw || typeof raw !== "object") return {};
-  const data = jsonObject(raw);
-  const message = jsonObject(data.message);
-  const imageMessage = jsonObject(message.imageMessage);
-  const videoMessage = jsonObject(message.videoMessage);
-  // Manus/Green API common shapes
-  const candidates = [
-    data.media_url,
-    data.mediaUrl,
-    data.url,
-    data.file_url,
-    data.fileUrl,
-    imageMessage.url,
-    videoMessage.url,
-    data.downloadUrl,
-    data.downloadURL,
-  ]
-    .map(textField)
-    .filter(Boolean);
-  const url = candidates[0];
-  const mime =
-    textField(data.mime_type) ||
-    textField(data.mimeType) ||
-    textField(imageMessage.mimetype) ||
-    textField(videoMessage.mimetype);
-  const caption =
-    textField(data.caption) ||
-    textField(message.caption) ||
-    textField(data.text);
-  return { url, mime, caption };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")

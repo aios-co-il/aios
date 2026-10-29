@@ -26,7 +26,7 @@ import {
   notifyRecallCreditRecovered,
 } from "../_shared/recall-credit-alert.ts";
 import { probeMcp, resyncInternalMcpBearer } from "../_shared/mcp-bearer.ts";
-import { jsonObject } from "../_shared/json-narrow.ts";
+import { jsonObject, jsonString } from "../_shared/json-narrow.ts";
 
 // Periodic infrastructure health probe for the Carmen Command Center.
 // Invoked by pg_cron (see migration 20260722160000_service_health_checks.sql).
@@ -289,9 +289,7 @@ Deno.serve(async (req) => {
         detail = "Cursor MCP connection missing";
         status = "down";
       } else {
-        const storedBearer = jsonObject(row.oauth_tokens).bearer;
-        const bearer =
-          typeof storedBearer === "string" ? storedBearer : undefined;
+        const bearer = jsonString(jsonObject(row.oauth_tokens).bearer);
         let probe = await probeMcp(row.url, bearer);
         if (probe.state !== "ready") {
           const resynced = await resyncInternalMcpBearer(supabase, row);

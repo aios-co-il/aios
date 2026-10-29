@@ -250,12 +250,7 @@ Deno.serve(async (req) => {
       const spec = jsonObject(row.tool_input);
       const steps = Array.isArray(spec.steps) ? spec.steps : [];
       const stepSpecs = flowStepSpecs(steps);
-      if (
-        !spec.name ||
-        !spec.trigger_type ||
-        steps.length === 0 ||
-        !stepSpecs
-      ) {
+      if (!spec.name || !spec.trigger_type || steps.length === 0) {
         await supabase
           .from("agent_approval_queue")
           .update({
@@ -625,7 +620,6 @@ Deno.serve(async (req) => {
             Array.isArray(inp.steps) && inp.steps.length > 0
               ? flowStepSpecs(inp.steps)
               : [];
-          if (!stepSpecs) throw new Error("invalid_steps");
           const patch: TablesUpdate<"automations"> = {};
           if (inp.name != null) patch.name = String(inp.name);
           const description = jsonText(inp.description);

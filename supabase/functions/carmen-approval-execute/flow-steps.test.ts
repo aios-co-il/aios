@@ -6,24 +6,20 @@ function sequentialIds() {
   return () => `id-${n++}`;
 }
 
-Deno.test(
-  "flowStepSpecs rejects non-object steps within the built range",
-  () => {
-    assertStrictEquals(flowStepSpecs([{ type: "agent" }, null]), null);
-    assertStrictEquals(flowStepSpecs(["text"]), null);
-    assertStrictEquals(flowStepSpecs([[{ type: "agent" }]]), null);
-  },
-);
+Deno.test("flowStepSpecs reads non-object steps as empty steps", () => {
+  assertEquals(flowStepSpecs([{ type: "agent" }, null]), [
+    { type: "agent" },
+    {},
+  ]);
+  assertEquals(flowStepSpecs(["text", 3, [{ type: "agent" }]]), [{}, {}, {}]);
+});
 
 Deno.test(
   "flowStepSpecs keeps the first 20 object steps and ignores the rest",
   () => {
     const steps = Array.from({ length: 21 }, (_, i) => ({ label: `s${i}` }));
     assertStrictEquals(flowStepSpecs(steps)?.length, 20);
-    assertStrictEquals(
-      flowStepSpecs([...steps.slice(0, 20), null])?.length,
-      20,
-    );
+    assertStrictEquals(flowStepSpecs([...steps.slice(0, 20), null]).length, 20);
   },
 );
 
@@ -78,6 +74,25 @@ Deno.test("buildFlowStepRows chains a trigger, agent and action step", () => {
   assertEquals(rows[2].configuration, {});
   assertStrictEquals(rows[3].action_type, "send_whatsapp");
   assertStrictEquals(rows[3].label, "action");
+});
+
+Deno.test("buildFlowStepRows keeps array configs and drops scalar ones", () => {
+  const rows = buildFlowStepRows({
+    automationId: "a",
+    tenantId: "t",
+    triggerType: "manual_command",
+    triggerConfig: {},
+    agentId: null,
+    steps: [
+      { type: "action", config: ["x", "y"] },
+      { type: "action", config: "text" },
+      { type: "action", label: { a: 1 } },
+    ],
+    newId: sequentialIds(),
+  });
+  assertEquals(rows[1].configuration, { 0: "x", 1: "y" });
+  assertEquals(rows[2].configuration, {});
+  assertStrictEquals(rows[3].label, '{"a":1}');
 });
 
 Deno.test("buildFlowStepRows lets step config override agent defaults", () => {

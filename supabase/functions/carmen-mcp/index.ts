@@ -23,7 +23,7 @@ import {
   wantsStreamableHttp,
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
-import { isRecord, thrownMessage } from "../_shared/json-narrow.ts";
+import { asRecord, thrownMessage } from "../_shared/json-narrow.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -225,7 +225,7 @@ async function invokeCarmen(opts: {
   } catch {
     throw new Error("Carmen returned non-JSON response");
   }
-  const data: Record<string, unknown> = isRecord(parsed) ? parsed : {};
+  const data = asRecord(parsed);
 
   if (!data?.success && data?.error) throw new Error(String(data.error));
   const output = String(data?.output ?? "").trim();
@@ -362,7 +362,7 @@ async function handleRpcMessage(
       case "tools/call": {
         const toolName = typeof params?.name === "string" ? params.name : "";
         const rawArgs = params?.arguments ?? {};
-        const toolArgs = isRecord(rawArgs) ? rawArgs : {};
+        const toolArgs = asRecord(rawArgs);
         try {
           const text = await handleToolCall(toolName, toolArgs, ctx);
           return rpcResult(id, { content: [{ type: "text", text }] });

@@ -10,7 +10,7 @@
 // Auth: Authorization: Bearer == CLAUDE_MCP_BEARER.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { McpRpcMessage } from "../_shared/mcp-streamable-http.ts";
-import { isRecord, thrownMessage } from "../_shared/json-narrow.ts";
+import { asRecord, thrownMessage } from "../_shared/json-narrow.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
       case "tools/call": {
         const name = params?.name;
         const rawArgs = params?.arguments ?? {};
-        const args = isRecord(rawArgs) ? rawArgs : {};
+        const args = asRecord(rawArgs);
         try {
           const tenantId = await resolveTenant(bearerFrom(req));
           const text = await handleToolCall(name, args, tenantId);

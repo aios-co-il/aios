@@ -1,7 +1,9 @@
+import { z } from "npm:zod@3.25.76";
 import type { Json, TablesInsert } from "../_shared/database.types.ts";
 import {
-  isJsonObject,
+  jsonObject,
   type JsonObject,
+  jsonValueSchema,
   textOr,
 } from "../_shared/json-narrow.ts";
 
@@ -9,11 +11,21 @@ export type FlowStepRow = TablesInsert<"automation_flow_steps">;
 
 export const MAX_FLOW_STEPS = 20;
 
-/** The step specs that will be built, or null when any of them is not an object. */
-export function flowStepSpecs(steps: Json[]): JsonObject[] | null {
-  const specs = steps.slice(0, MAX_FLOW_STEPS);
-  return specs.every(isJsonObject) ? specs : null;
+/** The step specs that will be built; a non-object step reads as an empty (default agent) step. */
+export function flowStepSpecs(steps: Json[]): JsonObject[] {
+  return steps.slice(0, MAX_FLOW_STEPS).map(jsonObject);
 }
+
+const stepConfigSchema = z
+  .union([
+    z.record(z.string(), jsonValueSchema),
+    z
+      .array(jsonValueSchema)
+      .transform((items): JsonObject =>
+        Object.fromEntries(items.map((item, i) => [String(i), item])),
+      ),
+  ])
+  .catch({});
 
 type FlowStepInput = {
   automationId: string;
@@ -52,10 +64,7 @@ export function buildFlowStepRows(input: FlowStepInput): FlowStepRow[] {
     const id = newId();
     const type = String(s.type || "agent");
     let action_type: string | null = null;
-    let config: JsonObject =
-      s.config && typeof s.config === "object"
-        ? Object.fromEntries(Object.entries<Json | undefined>(s.config))
-        : {};
+    let config: JsonObject = stepConfigSchema.parse(s.config);
     if (type === "agent") {
       action_type = "agent";
       config = {
