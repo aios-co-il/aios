@@ -344,7 +344,7 @@ export function buildDevTaskPrompt(task: DevTaskRow): {
 }
 
 export async function logDevTaskEvent(
-  supabase: DbClient,
+  supabase: Pick<DbClient, "from">,
   args: {
     devTaskId: string;
     tenantId: string;
@@ -469,6 +469,29 @@ export async function approveDevTask(
   return data as DevTaskRow;
 }
 
+/**
+ * A signed-in person pressing "send" in the Command Center approves the task as themselves
+ * (dispatchDevTask sends only an approved task). A service call is not a person and approves
+ * nothing.
+ */
+export async function approveOnSend(
+  supabase: DbClient,
+  tenantId: string,
+  taskId: string,
+  userId: string | null,
+): Promise<void> {
+  if (!userId) return;
+  const { data: task } = await supabase
+    .from("dev_tasks")
+    .select("status, approved_by")
+    .eq("id", taskId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!task || task.approved_by) return;
+  if (task.status === "draft" || task.status === "approved")
+    await approveDevTask(supabase, tenantId, taskId, userId);
+}
+
 /** Pulls the Claude Code session link out of claude-mcp's reply text. */
 export function extractClaudeSessionUrl(text: string): string {
   const m = text.match(/https:\/\/claude\.ai\/code\/[^\s)"'<>]+/i);
@@ -591,6 +614,18 @@ async function dispatchDevTaskToClaude(
   };
 }
 
+const DEV_TASK_NOT_APPROVED_HE =
+  "המשימה עוד לא אושרה על ידי אדם, אז היא לא נשלחת. ספרי למשתמש מה המשימה ולמי היא תישלח ושאלי אם לשלוח; אחרי ה'כן' שלו בהודעה הבאה approve_dev_task ואז dispatch_dev_task (או 'אשר' במרכז משימות הפיתוח).";
+
+/** Thrown by dispatchDevTask for a task that no person approved. */
+export class DevTaskNotApprovedError extends Error {
+  readonly code = "dev_task_not_approved";
+  constructor(message = DEV_TASK_NOT_APPROVED_HE) {
+    super(message);
+    this.name = "DevTaskNotApprovedError";
+  }
+}
+
 export async function dispatchDevTask(
   supabase: DbClient,
   args: { tenantId: string; taskId: string; actorUserId?: string | null },
@@ -616,6 +651,14 @@ export async function dispatchDevTask(
   }
 
   const agent = String(task.assigned_agent || "cursor").toLowerCase();
+  // Only a task a person approved goes out, whoever calls (Carmen on any surface, the
+  // Command Center, a coding agent's direct tool). One Claude already has is reported, not sent.
+  const withClaude =
+    agent === "claude" &&
+    !!task.cursor_session_url &&
+    task.status === "in_progress";
+  if (!withClaude && !(task.status === "approved" && task.approved_by))
+    throw new DevTaskNotApprovedError();
   if (agent === "claude") {
     return await dispatchDevTaskToClaude(supabase, task as DevTaskRow, args);
   }

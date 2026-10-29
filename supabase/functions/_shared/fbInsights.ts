@@ -12,6 +12,8 @@
 import { readFbInsightsPage } from "./fbInsightsPage.ts";
 import { unknownField } from "./json-fields.ts";
 
+import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
+
 export interface CampaignStatus {
   id: string;
   name: string;
@@ -20,8 +22,6 @@ export interface CampaignStatus {
   objective?: string | null;
   updated_time?: string | null;
 }
-
-export type AdsEntityLevel = "campaign" | "adset" | "ad";
 
 /** Graph API shapes below are provider JSON, described rather than validated. */
 export interface FbActionStat {
@@ -929,7 +929,7 @@ export function buildInsightRecord(
   if (configuredMetric) {
     results = Math.max(
       0,
-      ...configuredMetric.actionTypes.map((type) => sumByTypes([type])),
+      ...configuredMetric.actionTypes.map((type: string) => sumByTypes([type])),
     );
     resultKind = configuredMetric.kind;
   }
@@ -1089,16 +1089,18 @@ export async function buildAllLevelInsightRecords(
 ): Promise<{
   records: InsightRecord[];
   levelCounts: Record<AdsEntityLevel, number>;
+  /** Levels whose fetch failed, with the error. A failed level contributes no rows. */
+  levelErrors: Partial<Record<AdsEntityLevel, string>>;
 }> {
-  const levels: AdsEntityLevel[] = ["campaign", "adset", "ad"];
   const allRows: InsightRecord[] = [];
   const levelCounts: Record<AdsEntityLevel, number> = {
     campaign: 0,
     adset: 0,
     ad: 0,
   };
+  const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
-  for (const level of levels) {
+  for (const level of ADS_LEVELS) {
     try {
       const raw = await fetchFacebookInsightsAtLevel(
         adAccountId,
@@ -1121,14 +1123,13 @@ export async function buildAllLevelInsightRecords(
       levelCounts[level] = raw.length;
       console.log(`[fbInsights] level=${level} rows=${raw.length}`);
     } catch (err) {
-      console.error(
-        `[fbInsights] level=${level} fetch failed:`,
-        err instanceof Error ? err.message : err,
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      levelErrors[level] = message || "fetch failed";
+      console.error(`[fbInsights] level=${level} fetch failed:`, message);
     }
   }
 
-  return { records: allRows, levelCounts };
+  return { records: allRows, levelCounts, levelErrors };
 }
 
 export type LastMetaActivity = {

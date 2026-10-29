@@ -10,11 +10,20 @@
  *   get_status       — Return live status of an instance
  *   send_message     — Send a text message via a specific instance (uses per-instance API key)
  *
- * Auth: requires a valid Supabase Bearer token (service role key from run-ai-agent).
+ * Auth: requires a Supabase Bearer token; the public anon key gets 401.
+ * send_message accepts this project's service-role key (run-ai-agent) or a
+ * user JWT that send-auth.ts accepts, and passes the Staging outbound guard
+ * (send-guard.ts). A failed integration lookup is a logged 500.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { syncManusGroupsForTenant } from "../_shared/manus-wa-sync-groups-core.mjs";
+import {
+  anonRefusal,
+  integrationLookupFailure,
+  manusSendRefusal,
+  stagingBlockResponse,
+} from "./send-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,6 +115,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    const anon = anonRefusal(
+      authHeader,
+      SUPABASE_SERVICE_ROLE_KEY,
+      corsHeaders,
+    );
+    if (anon) {
+      return anon;
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { action, tenantId, integrationId, instanceId, ...rest } =
@@ -126,6 +144,8 @@ Deno.serve(async (req) => {
 
     // ── Fetch integration record from DB (if integrationId provided) ──────────
     let integration: {
+      id: string;
+      tenant_id: string | null;
       api_key: string | null;
       settings: Record<string, unknown>;
     } | null = null;
@@ -133,13 +153,16 @@ Deno.serve(async (req) => {
     let resolvedApiKey: string | null = null;
 
     if (integrationId) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tenant_integrations")
-        .select("api_key, settings")
+        .select("id, tenant_id, api_key, settings")
         .eq("id", integrationId)
         .maybeSingle();
+      if (error) {
+        return integrationLookupFailure(integrationId, error, corsHeaders);
+      }
       if (data) {
-        integration = data as typeof integration;
+        integration = data;
         resolvedApiKey = data.api_key;
         resolvedInstanceId =
           resolvedInstanceId ||
@@ -312,6 +335,20 @@ Deno.serve(async (req) => {
 
     // ── send_message ──────────────────────────────────────────────────────────
     if (action === "send_message") {
+      const refused = await manusSendRefusal(
+        {
+          authorization: authHeader,
+          serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+          integration,
+          requestedTenantId: tenantId ?? null,
+          supabase,
+        },
+        corsHeaders,
+      );
+      if (refused) {
+        return refused;
+      }
+
       const { phone, message, countryCode } = rest as {
         phone?: string;
         message?: string;
@@ -340,6 +377,11 @@ Deno.serve(async (req) => {
         countryCode ||
         "972";
       const normalizedPhone = normalizePhone(phone, cc);
+
+      const blocked = stagingBlockResponse(normalizedPhone, corsHeaders);
+      if (blocked) {
+        return blocked;
+      }
 
       const result = await gatewayRest(
         `/api/v1/instances/${resolvedInstanceId}/send/text`,

@@ -1,0 +1,133 @@
+# Makes the films a PR's preview asks for: it runs the PR's own render worker against the PR's
+# Supabase preview until its video queue stays empty, so video changes are tested before merge.
+# It runs on PRs that change the worker, the film renderer or the workshop's video tools; any
+# other PR can run it from the Actions tab (Run workflow on its branch).
+name: Drain render worker (PR preview)
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - "render-worker/**"
+      - "workers/creative-video/**"
+      - "supabase/functions/_shared/workshop/**"
+      - ".github/workflows/render-worker-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-worker-preview-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
+      PARENT_REF: ${{ vars.PROD_PROJECT_REF }}
+    steps:
+      # The account token can read every project's keys, Production's included. Only these two
+      # steps see it, and they run before anything from the branch is checked out or installed,
+      # so no branch code or dependency script can replace a program they call. The steps after
+      # them get the preview's own key only.
+      - name: Resolve this branch's Supabase preview
+        id: preview
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          token = os.environ["SUPABASE_ACCESS_TOKEN"]
+          want = os.environ["GIT_BRANCH"]
+          parent = os.environ.get("PARENT_REF", "").strip()
+
+          def get(url):
+              req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  return json.load(response)
+
+          # Previews are branches of the Production project only. Never search every project
+          # the token sees: another project's branch of the same name is not this PR's.
+          found = ""
+          if not parent:
+              print("::warning::PROD_PROJECT_REF is not set; no preview is drained")
+          elif want not in ("main", "develop"):
+              try:
+                  branches = get(f"https://api.supabase.com/v1/projects/{parent}/branches")
+              except urllib.error.HTTPError as error:
+                  print(f"::warning::Listing the preview branches failed: HTTP {error.code}")
+                  branches = []
+              if isinstance(branches, dict):
+                  branches = branches.get("branches") or []
+              for branch in branches:
+                  if branch.get("git_branch") == want and not branch.get("is_default"):
+                      found = branch.get("project_ref") or ""
+                      break
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"ref={found}\n")
+          if not found:
+              print(f"No Supabase preview for {want}; nothing to drain")
+          PY
+
+      - name: Resolve preview service key
+        if: steps.preview.outputs.ref != ''
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ steps.preview.outputs.ref }}
+        run: |
+          set -euo pipefail
+          KEYS="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys")"
+          SERVICE_KEY="$(jq -r '.[] | select(.name == "service_role") | .api_key' <<<"$KEYS")"
+          if [ -z "$SERVICE_KEY" ] || [ "$SERVICE_KEY" = "null" ]; then
+            echo "Could not resolve the preview service_role key" >&2
+            exit 1
+          fi
+          echo "::add-mask::$SERVICE_KEY"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> "$GITHUB_ENV"
+          echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        if: steps.preview.outputs.ref != ''
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        if: steps.preview.outputs.ref != ''
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        if: steps.preview.outputs.ref != ''
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install Remotion
+        if: steps.preview.outputs.ref != ''
+        working-directory: workers/creative-video/remotion
+        run: npm ci --ignore-scripts --no-audit --no-fund && npx remotion browser ensure
+
+      - name: Drain queued video runs on the preview
+        if: steps.preview.outputs.ref != ''
+        working-directory: render-worker
+        env:
+          DRAIN: "1"
+          # Keep listening 15 minutes after the queue empties, so a film started while
+          # testing the Preview is still made.
+          DRAIN_IDLE_MS: "900000"
+          # Stop claiming clips and lip syncs (they poll up to 15 minutes) 35 minutes in, so
+          # they end before the 60-minute cap; voice, music and the render are still taken.
+          # A killed run is queued again.
+          STOP_CLAIMING_AFTER_MS: "2100000"
+          CONCURRENCY: "2"
+          POLL_MS: "2000"
+          WORKER_ID: gha-preview
+          WORKER_ENV: preview
+        # exec: the runner's stop signal reaches node (not only bash), so it requeues its runs.
+        run: exec node src/index.mjs
