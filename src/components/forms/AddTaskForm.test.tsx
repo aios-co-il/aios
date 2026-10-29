@@ -1,15 +1,7 @@
 import type { ReactElement } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
 import AddTaskForm from "./AddTaskForm";
 
@@ -256,13 +248,6 @@ vi.mock("@/hooks/useAssignableCampaigners", () => ({
   useAssignableCampaigners: () => ({ data: fixtures.campaigners }),
 }));
 
-beforeAll(() => {
-  if (!HTMLElement.prototype.scrollIntoView)
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value() {},
-    });
-});
 beforeEach(() => {
   Object.assign(fixtures.role, {
     isCampaigner: false,

@@ -939,7 +939,7 @@ export async function sendCarmenReplyViaActionStep(args: {
   supabase: any;
   automationId: string;
   tenantId: string;
-  connectionUserId: string;
+  connectionUserId: string | null;
   chatId: string;
   phoneNumber: string;
   isGroup: boolean;
@@ -1073,7 +1073,7 @@ export interface CarmenWaNotify {
   surface: "whatsapp";
   tenant_id: string;
   automation_id: string | null;
-  connection_user_id: string;
+  connection_user_id: string | null;
   chat_id: string;
   phone_number: string | null;
   is_group: boolean;
@@ -1226,7 +1226,7 @@ export async function findActiveCarmenSession(
   supabase: DbClient,
   tenantId: string,
   chatId: string,
-  connectionUserId: string,
+  connectionUserId: string | null,
   idleMinutes: number = CARMEN_SESSION_IDLE_MINUTES_DEFAULT,
   integrationId?: string | null,
 ): Promise<CarmenSessionRow | null> {
@@ -1281,8 +1281,8 @@ export interface CarmenContext {
   tenantId: string;
   /** Row id of the tenant_integrations record that received this message. */
   integrationId: string;
-  /** User who owns the integration (used as Carmen session owner). */
-  connectionUserId: string;
+  /** User who owns the integration (used as Carmen session owner); null when unowned. */
+  connectionUserId: string | null;
   /** Provider chat id (e.g. "972501234567@c.us"). */
   chatId: string;
   /** Counterpart phone (digits only or with country code). */
