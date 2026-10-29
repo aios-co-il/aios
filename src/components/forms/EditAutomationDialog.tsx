@@ -37,6 +37,27 @@ import {
   StatusStageSelect,
 } from "@/components/automations/StatusStageSelect";
 import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  cfgNumeric,
+  cfgObject,
+  cfgText,
+  type JsonObject,
+} from "@/components/automations/automationStepConfig";
+import {
+  FORM_TRIGGER_OPTIONS,
+  FORM_TRIGGER_VALUES,
+  isAutomationTrigger,
+} from "@/lib/automationTriggers";
+import {
+  integrationInstanceSuffix,
+  parseConditionsObject,
+  parseManyChatTags,
+  parseOrUndefined,
+  actionStatusSource,
+  triggerFilterSource,
+  type MessagingIntegrationOption,
+} from "@/lib/automationFormHelpers";
 import {
   applyStatusActionFields,
   applyTriggerStatusFilters,
@@ -48,27 +69,13 @@ import {
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { WaProviderConnectionPicker } from "./WaProviderConnectionPicker";
 
+const triggerTypeSchema = z.enum(FORM_TRIGGER_VALUES);
+
 const formSchema = z
   .object({
     name: z.string().min(1, "שם האוטומציה הוא שדה חובה"),
     description: z.string().optional(),
-    trigger_type: z.enum([
-      "task_assigned",
-      "task_collaborator_added",
-      "task_update_added",
-      "task_status_changed",
-      "lead_status_changed",
-      "lead_created",
-      "client_created",
-      "client_status_changed",
-      "onboarding_status_changed",
-      "meeting_created",
-      "task_calendar_created",
-      "task_overdue",
-      "inbound_webhook_task",
-      "inbound_webhook_lead",
-      "report_alert_triggered",
-    ]),
+    trigger_type: triggerTypeSchema,
     action_type: z.enum([
       "webhook",
       "email",
@@ -134,6 +141,7 @@ const formSchema = z
   );
 
 type FormValues = z.infer<typeof formSchema>;
+const formShape = formSchema.innerType().shape;
 
 const LEAD_DATE_FIELDS = [
   { value: "won_date", label: "תאריך נסגר" },
@@ -144,26 +152,8 @@ const LEAD_DATE_FIELDS = [
 
 const TASK_DATE_FIELDS = [{ value: "due_date", label: "תאריך יעד" }];
 
-const EDIT_TRIGGER_OPTIONS = [
-  { value: "task_assigned", label: "משימה שוייכה" },
-  { value: "task_collaborator_added", label: "קמפיינר נוסף למשימה" },
-  { value: "task_update_added", label: "עדכון נוסף למשימה" },
-  { value: "task_status_changed", label: "סטטוס משימה השתנה" },
-  { value: "lead_status_changed", label: "סטטוס ליד השתנה" },
-  { value: "lead_created", label: "ליד נוצר" },
-  { value: "client_created", label: "לקוח נוצר" },
-  { value: "client_status_changed", label: "סטטוס לקוח השתנה" },
-  { value: "onboarding_status_changed", label: "סטטוס קליטה השתנה" },
-  { value: "meeting_created", label: "נוצרה פגישה" },
-  { value: "task_calendar_created", label: "משימה נוספה ליומן" },
-  { value: "task_overdue", label: "משימה לא הושלמה בזמן" },
-  { value: "inbound_webhook_task", label: "קבלת משימה מ-Webhook" },
-  { value: "inbound_webhook_lead", label: "קליטת ליד מ-Webhook" },
-  { value: "report_alert_triggered", label: "התראת דוח פייסבוק" },
-];
-
 interface EditAutomationDialogProps {
-  automation: any;
+  automation: Tables<"automations">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -176,49 +166,71 @@ export function EditAutomationDialog({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
 
+  const config = cfgObject(automation.configuration);
+  const fieldMapping = cfgObject(config?.field_mapping);
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: automation.name || "",
       description: automation.description || "",
-      trigger_type: automation.trigger_type,
-      trigger_types: readTriggerTypes(automation),
-      action_type: automation.action_type,
-      webhook_method: automation.configuration?.method || "POST",
-      webhook_url: automation.configuration?.url || "",
-      body_template: automation.configuration?.body_template || "",
+      trigger_type: parseOrUndefined(
+        formShape.trigger_type,
+        automation.trigger_type,
+      ),
+      trigger_types: readTriggerTypes({
+        trigger_type: automation.trigger_type,
+        configuration: { trigger_types: config?.trigger_types },
+      }),
+      action_type: parseOrUndefined(
+        formShape.action_type,
+        automation.action_type,
+      ),
+      webhook_method: parseOrUndefined(
+        formShape.webhook_method,
+        config?.method || "POST",
+      ),
+      webhook_url: cfgText(config?.url) || "",
+      body_template: cfgText(config?.body_template) || "",
       conditions: automation.conditions
         ? JSON.stringify(automation.conditions, null, 2)
         : "",
-      status_entity: automation.configuration?.entity || "lead",
-      status_value: encodeStoredActionStatus(automation.configuration),
-      trigger_status_values: encodeStoredTriggerFilters(automation.conditions),
-      update_field_name: automation.configuration?.update_field || "none",
-      update_field_value:
-        automation.configuration?.update_field_value || "today",
-      manychat_tag_id: automation.configuration?.manychat_tag_id || "",
-      field_mapping_date: automation.configuration?.field_mapping?.date || "",
-      field_mapping_time: automation.configuration?.field_mapping?.time || "",
-      field_mapping_location:
-        automation.configuration?.field_mapping?.location || "",
-      field_mapping_contact:
-        automation.configuration?.field_mapping?.contact || "",
-      message_template: automation.configuration?.message_template || "",
+      status_entity: parseOrUndefined(
+        formShape.status_entity,
+        config?.entity || "lead",
+      ),
+      status_value: encodeStoredActionStatus(
+        actionStatusSource(automation.configuration),
+      ),
+      trigger_status_values: encodeStoredTriggerFilters(
+        triggerFilterSource(automation.conditions),
+      ),
+      update_field_name: cfgText(config?.update_field) || "none",
+      update_field_value: cfgText(config?.update_field_value) || "today",
+      manychat_tag_id: cfgText(config?.manychat_tag_id) || "",
+      field_mapping_date: cfgText(fieldMapping?.date) || "",
+      field_mapping_time: cfgText(fieldMapping?.time) || "",
+      field_mapping_location: cfgText(fieldMapping?.location) || "",
+      field_mapping_contact: cfgText(fieldMapping?.contact) || "",
+      message_template: cfgText(config?.message_template) || "",
       update_template:
-        automation.configuration?.update_template ||
+        cfgText(config?.update_template) ||
         "אין מענה בתאריך {{date}} בשעה {{time}}",
-      campaigner_send_target: automation.configuration?.send_target || "phone",
-      green_api_integration_id: automation.configuration?.integration_id || "",
-      greenapi_send_to_type:
-        automation.configuration?.send_to_type || "contact",
-      greenapi_manual_phone: automation.configuration?.manual_phone || "",
-      greenapi_manual_group_id: automation.configuration?.manual_group_id || "",
+      campaigner_send_target: parseOrUndefined(
+        formShape.campaigner_send_target,
+        config?.send_target || "phone",
+      ),
+      green_api_integration_id: cfgText(config?.integration_id) || "",
+      greenapi_send_to_type: parseOrUndefined(
+        formShape.greenapi_send_to_type,
+        config?.send_to_type || "contact",
+      ),
+      greenapi_manual_phone: cfgText(config?.manual_phone) || "",
+      greenapi_manual_group_id: cfgText(config?.manual_group_id) || "",
       task_title_template:
-        automation.configuration?.task_title_template ||
-        "{{company_name}} - משימה חדשה",
-      task_notes_template: automation.configuration?.task_notes_template || "",
-      task_priority: automation.configuration?.task_priority || 5,
-      task_due_days: automation.configuration?.task_due_days || 0,
+        cfgText(config?.task_title_template) || "{{company_name}} - משימה חדשה",
+      task_notes_template: cfgText(config?.task_notes_template) || "",
+      task_priority: cfgNumeric(config?.task_priority) || 5,
+      task_due_days: cfgNumeric(config?.task_due_days) || 0,
     },
   });
 
@@ -234,7 +246,7 @@ export function EditAutomationDialog({
         },
       );
       if (error) throw error;
-      return Array.isArray(data?.tags) ? data.tags : [];
+      return parseManyChatTags(data);
     },
     enabled:
       !!automation.tenant_id &&
@@ -272,7 +284,9 @@ export function EditAutomationDialog({
 
       const permittedIds = permissions?.map((p) => p.integration_id) || [];
 
-      let allIntegrations = [...(tenantIntegrations || [])];
+      let allIntegrations: MessagingIntegrationOption[] = [
+        ...(tenantIntegrations || []),
+      ];
 
       if (permittedIds.length > 0) {
         // Fetch permitted integrations from other tenants
@@ -324,20 +338,13 @@ export function EditAutomationDialog({
 
   const updateAutomationMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      let conditions: any = null;
-      if (values.conditions) {
-        try {
-          conditions = JSON.parse(values.conditions);
-        } catch (e) {
-          throw new Error("JSON לא תקין בתנאים");
-        }
-      } else {
-        conditions = {};
-      }
+      const conditions: JsonObject = values.conditions
+        ? parseConditionsObject(values.conditions, "JSON לא תקין בתנאים")
+        : {};
 
       applyTriggerStatusFilters(conditions, values.trigger_status_values);
 
-      let configuration: any = {};
+      let configuration: JsonObject = {};
       if (values.action_type === "webhook") {
         configuration = {
           url: values.webhook_url,
@@ -346,7 +353,7 @@ export function EditAutomationDialog({
           body_template: values.body_template || "",
         };
       } else if (values.action_type === "update_status") {
-        const cfg: any = {
+        const cfg: JsonObject = {
           entity: values.status_entity,
         };
         applyStatusActionFields(cfg, values.status_value);
@@ -407,19 +414,25 @@ export function EditAutomationDialog({
         ...(configuration || {}),
         trigger_types: selectedTriggers,
       };
+      const scopeTenantId = tenantId || automation.tenant_id;
+      if (!scopeTenantId) throw new Error("Missing tenant");
+      const triggerType = selectedTriggers[0];
+      if (!isAutomationTrigger(triggerType)) {
+        throw new Error(`Unsupported automation trigger: ${triggerType}`);
+      }
 
       const { error } = await supabase
         .from("automations")
         .update({
           name: values.name,
           description: values.description,
-          trigger_type: selectedTriggers[0] as any,
+          trigger_type: triggerType,
           action_type: values.action_type,
           configuration: configuration,
           conditions: conditions,
         })
         .eq("id", automation.id)
-        .eq("tenant_id", tenantId || automation.tenant_id);
+        .eq("tenant_id", scopeTenantId);
 
       if (error) throw error;
     },
@@ -428,7 +441,7 @@ export function EditAutomationDialog({
       toast.success("האוטומציה עודכנה בהצלחה");
       onOpenChange(false);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(`שגיאה: ${error.message}`);
     },
   });
@@ -493,14 +506,20 @@ export function EditAutomationDialog({
                   <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
                   <FormControl>
                     <TriggerTypeMultiSelect
-                      options={EDIT_TRIGGER_OPTIONS}
+                      options={FORM_TRIGGER_OPTIONS}
                       value={field.value || []}
                       onChange={(next) => {
                         field.onChange(next);
                         if (next[0]) {
-                          form.setValue("trigger_type", next[0] as any, {
-                            shouldValidate: true,
-                          });
+                          const nextTrigger = parseOrUndefined(
+                            triggerTypeSchema,
+                            next[0],
+                          );
+                          if (nextTrigger) {
+                            form.setValue("trigger_type", nextTrigger, {
+                              shouldValidate: true,
+                            });
+                          }
                         }
                       }}
                     />
@@ -880,13 +899,11 @@ export function EditAutomationDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="bg-background z-[100]">
-                          {manychatTags?.map(
-                            (tag: { id: number; name: string }) => (
-                              <SelectItem key={tag.id} value={String(tag.id)}>
-                                {tag.name}
-                              </SelectItem>
-                            ),
-                          )}
+                          {manychatTags?.map((tag) => (
+                            <SelectItem key={tag.id} value={String(tag.id)}>
+                              {tag.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormDescription className="text-xs">
@@ -1012,7 +1029,7 @@ export function EditAutomationDialog({
                               טוען...
                             </SelectItem>
                           ) : (
-                            manychatTags?.map((tag: any) => (
+                            manychatTags?.map((tag) => (
                               <SelectItem
                                 key={tag.id}
                                 value={tag.id.toString()}
@@ -1067,7 +1084,7 @@ export function EditAutomationDialog({
                         <SelectContent className="bg-background z-[100]">
                           {greenApiIntegrations &&
                           greenApiIntegrations.length > 0 ? (
-                            greenApiIntegrations.map((integration: any) => {
+                            greenApiIntegrations.map((integration) => {
                               const providerLabel =
                                 integration.integration_type === "manus_wa"
                                   ? "Manus WA"
@@ -1079,13 +1096,9 @@ export function EditAutomationDialog({
                                 >
                                   [{providerLabel}]{" "}
                                   {integration.owner_name || "חיבור"} (
-                                  {integration.settings?.idInstance?.slice(
-                                    -4,
-                                  ) ||
-                                    integration.settings?.instanceId?.slice(
-                                      -4,
-                                    ) ||
-                                    "לא ידוע"}
+                                  {integrationInstanceSuffix(
+                                    integration.settings,
+                                  ) || "לא ידוע"}
                                   )
                                 </SelectItem>
                               );

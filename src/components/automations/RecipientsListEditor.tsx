@@ -15,6 +15,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Search } from "lucide-react";
+import { z } from "zod";
+import { cfgText, type StepConfig } from "./automationStepConfig";
+import {
+  contactLookupRecipientSchema,
+  idTextSchema,
+  parseStoredRecipients,
+  type RecipientSchema,
+  type UnsupportedRecipient,
+} from "./storedRecipients";
+import { UnsupportedRecipientRow } from "./UnsupportedRecipientRow";
 
 export type Recipient =
   | { type: "phone_field"; field: string }
@@ -23,6 +33,8 @@ export type Recipient =
   | { type: "group_manual"; group_id: string }
   | { type: "contact_lookup"; entity: "lead" | "client"; id: string }
   | { type: "group_lookup"; group_id: string };
+
+export type RecipientEntry = Recipient | UnsupportedRecipient;
 
 const TYPE_LABELS: Record<Recipient["type"], string> = {
   phone_field: "טלפון – שדה דינמי",
@@ -53,8 +65,8 @@ function defaultForType(type: Recipient["type"]): Recipient {
 interface Props {
   tenantId: string | undefined;
   availableFields: { key: string; label: string }[];
-  value: Recipient[];
-  onChange: (next: Recipient[]) => void;
+  value: RecipientEntry[];
+  onChange: (next: RecipientEntry[]) => void;
 }
 
 export function RecipientsListEditor({
@@ -63,7 +75,8 @@ export function RecipientsListEditor({
   value,
   onChange,
 }: Props) {
-  const recipients = value.length > 0 ? value : [defaultForType("phone_field")];
+  const recipients: RecipientEntry[] =
+    value.length > 0 ? value : [defaultForType("phone_field")];
 
   const updateAt = (idx: number, next: Recipient) => {
     const copy = [...recipients];
@@ -82,17 +95,26 @@ export function RecipientsListEditor({
     <div className="space-y-3">
       <Label className="text-right block">יעדי שליחה</Label>
       <div className="space-y-2">
-        {recipients.map((r, idx) => (
-          <RecipientRow
-            key={idx}
-            tenantId={tenantId}
-            availableFields={availableFields}
-            value={r}
-            onChange={(next) => updateAt(idx, next)}
-            onRemove={() => removeAt(idx)}
-            canRemove={recipients.length > 1}
-          />
-        ))}
+        {recipients.map((r, idx) =>
+          r.type === "unsupported" ? (
+            <UnsupportedRecipientRow
+              key={idx}
+              raw={r.raw}
+              onRemove={() => removeAt(idx)}
+              canRemove={recipients.length > 1}
+            />
+          ) : (
+            <RecipientRow
+              key={idx}
+              tenantId={tenantId}
+              availableFields={availableFields}
+              value={r}
+              onChange={(next) => updateAt(idx, next)}
+              onRemove={() => removeAt(idx)}
+              canRemove={recipients.length > 1}
+            />
+          ),
+        )}
       </div>
       <Button
         type="button"
@@ -321,19 +343,32 @@ function ContactLookupEditor({
     queryKey: ["recipient-contacts", tenantId, value.entity],
     queryFn: async () => {
       if (!tenantId) return [];
-      const table = value.entity === "lead" ? "leads" : "clients";
-      const nameField = value.entity === "lead" ? "contact_name" : "name";
+      if (value.entity === "lead") {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("id, phone, contact_name")
+          .eq("tenant_id", tenantId)
+          .not("phone", "is", null)
+          .order("contact_name")
+          .limit(500);
+        if (error) throw error;
+        return (data || []).map((r) => ({
+          id: r.id,
+          name: r.contact_name || "ללא שם",
+          phone: r.phone,
+        }));
+      }
       const { data, error } = await supabase
-        .from(table)
-        .select(`id, phone, ${nameField}`)
+        .from("clients")
+        .select("id, phone, name")
         .eq("tenant_id", tenantId)
         .not("phone", "is", null)
-        .order(nameField)
+        .order("name")
         .limit(500);
       if (error) throw error;
-      return (data || []).map((r: any) => ({
+      return (data || []).map((r) => ({
         id: r.id,
-        name: r[nameField] || "ללא שם",
+        name: r.name || "ללא שם",
         phone: r.phone,
       }));
     },
@@ -483,26 +518,44 @@ function GroupLookupEditor({
   );
 }
 
+const recipientSchema: RecipientSchema<Recipient> = z.discriminatedUnion(
+  "type",
+  [
+    z.object({ type: z.literal("phone_field"), field: z.string() }),
+    z.object({ type: z.literal("group_field"), field: z.string() }),
+    z.object({ type: z.literal("phone_manual"), phone: idTextSchema }),
+    z.object({ type: z.literal("group_manual"), group_id: idTextSchema }),
+    z.object({ type: z.literal("group_lookup"), group_id: idTextSchema }),
+    contactLookupRecipientSchema,
+  ],
+);
+
 // Legacy → recipients[] migration helper
-export function migrateLegacyRecipients(cfg: Record<string, any>): Recipient[] {
+export function migrateLegacyRecipients(cfg: StepConfig): RecipientEntry[] {
   if (Array.isArray(cfg?.recipients) && cfg.recipients.length > 0) {
-    return cfg.recipients as Recipient[];
+    return parseStoredRecipients(cfg.recipients, recipientSchema);
   }
   const mode = cfg?.phone_mode;
-  if (mode === "manual" && cfg?.manual_phone) {
-    return [{ type: "phone_manual", phone: cfg.manual_phone }];
+  const manualPhone = cfgText(cfg?.manual_phone);
+  if (mode === "manual" && manualPhone) {
+    return [{ type: "phone_manual", phone: manualPhone }];
   }
-  if (mode === "group_manual" && cfg?.manual_group_id) {
-    return [{ type: "group_manual", group_id: cfg.manual_group_id }];
+  const manualGroupId = cfgText(cfg?.manual_group_id);
+  if (mode === "group_manual" && manualGroupId) {
+    return [{ type: "group_manual", group_id: manualGroupId }];
   }
   if (mode === "group_field") {
     return [
-      { type: "group_field", field: cfg.group_id_field || "group_chat_id" },
+      {
+        type: "group_field",
+        field: cfgText(cfg.group_id_field) || "group_chat_id",
+      },
     ];
   }
-  if (mode === "field" && cfg?.phone_field) {
-    return [{ type: "phone_field", field: cfg.phone_field }];
+  const phoneField = cfgText(cfg?.phone_field);
+  if (mode === "field" && phoneField) {
+    return [{ type: "phone_field", field: phoneField }];
   }
   // Default to dynamic phone field
-  return [{ type: "phone_field", field: cfg?.phone_field || "phone" }];
+  return [{ type: "phone_field", field: phoneField || "phone" }];
 }

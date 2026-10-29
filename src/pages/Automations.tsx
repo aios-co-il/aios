@@ -58,6 +58,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MAILING_ACTION_LABELS } from "@/components/automations/mailingActions";
+import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import {
+  cfgObject,
+  cfgStringArray,
+  cfgText,
+} from "@/components/automations/automationStepConfig";
+import { isAutomationTrigger } from "@/lib/automationTriggers";
+
+type AutomationListItem = Tables<"automations"> & {
+  _isSharedMirror?: boolean;
+};
+type FlowStepInsert = TablesInsert<"automation_flow_steps">;
+type FlowStepTemplate = Omit<
+  FlowStepInsert,
+  "automation_id" | "tenant_id" | "id"
+>;
+
+const CAMPAIGN_PULSE_TRIGGER = "scheduled_daily";
 
 const TRIGGER_LABELS: Record<string, string> = {
   carmen_whatsapp_session: "שיחת כרמן ב-WhatsApp",
@@ -105,7 +123,8 @@ export default function Automations() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [cloneOrgOpen, setCloneOrgOpen] = useState(false);
   const [webhookDocsOpen, setWebhookDocsOpen] = useState(false);
-  const [selectedAutomation, setSelectedAutomation] = useState<any>(null);
+  const [selectedAutomation, setSelectedAutomation] =
+    useState<AutomationListItem | null>(null);
   const { tenantId } = useCurrentTenant();
   const { buildPath } = useTenantPath();
 
@@ -138,21 +157,22 @@ export default function Automations() {
         .eq("tenant_id", tenantId);
       if (shareErr) throw shareErr;
 
-      const sharedIds = (shareRows || []).map((r: any) => r.automation_id);
-      let shared: any[] = [];
+      const sharedIds = (shareRows || []).map((r) => r.automation_id);
+      let shared: AutomationListItem[] = [];
       if (sharedIds.length > 0) {
         const { data: sharedAutos, error: sharedErr } = await supabase
           .from("automations")
           .select("*")
           .in("id", sharedIds);
         if (sharedErr) throw sharedErr;
-        shared = (sharedAutos || []).map((a: any) => ({
+        shared = (sharedAutos || []).map((a) => ({
           ...a,
           _isSharedMirror: true,
         }));
       }
 
-      return [...(own || []), ...shared];
+      const ownItems: AutomationListItem[] = own || [];
+      return [...ownItems, ...shared];
     },
     enabled: !!tenantId,
   });
@@ -194,7 +214,7 @@ export default function Automations() {
         title: "אוטומציה עודכנה",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "שגיאה",
         description: error.message,
@@ -219,7 +239,7 @@ export default function Automations() {
         title: "אוטומציה נמחקה",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "שגיאה",
         description: error.message,
@@ -249,7 +269,7 @@ export default function Automations() {
         source_automation_id,
         source_tenant_id,
         ...rest
-      } = src as any;
+      } = src;
       const { data: clone, error: insErr } = await supabase
         .from("automations")
         .insert({
@@ -271,9 +291,9 @@ export default function Automations() {
 
       if (steps && steps.length > 0) {
         const idMap = new Map<string, string>();
-        steps.forEach((s: any) => idMap.set(s.id, crypto.randomUUID()));
+        steps.forEach((s) => idMap.set(s.id, crypto.randomUUID()));
 
-        const newSteps = steps.map((s: any) => ({
+        const newSteps = steps.map((s) => ({
           id: idMap.get(s.id)!,
           automation_id: clone.id,
           tenant_id: tenantId,
@@ -305,7 +325,7 @@ export default function Automations() {
         description: "נוצר עותק כבוי. הפעל אותו לאחר העריכה.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "שגיאה בשכפול",
         description: error.message,
@@ -319,16 +339,15 @@ export default function Automations() {
     mutationFn: async () => {
       if (!tenantId) throw new Error("No tenant");
       const { data: agentsList } = await supabase
-        .from("ai_agents" as any)
+        .from("ai_agents")
         .select("id,name,active")
         .eq("tenant_id", tenantId)
         .eq("active", true);
       // Use Carmen as the routing agent — she has manus-mcp connected and will
       // forward the request to Manus via ask_manus / request_dev_task tools.
       const carmenAgent =
-        ((agentsList as any[]) || []).find((a) =>
-          /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
+        (agentsList || []).find((a) => /כרמן|carmen/i.test(a.name || "")) ||
+        (agentsList || [])[0];
       if (!carmenAgent)
         throw new Error("לא נמצאה כרמן פעילה. ודא שסוכן כרמן קיים.");
       const { data, error } = await supabase
@@ -343,12 +362,12 @@ export default function Automations() {
           configuration: {},
           is_flow: true,
           active: true,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
       const { data: waInt } = await supabase
-        .from("tenant_integrations" as any)
+        .from("tenant_integrations")
         .select("id")
         .eq("tenant_id", tenantId)
         .eq("integration_type", "manus_wa")
@@ -356,14 +375,14 @@ export default function Automations() {
         .limit(1)
         .maybeSingle();
       const { data: gaInt } = await supabase
-        .from("tenant_integrations" as any)
+        .from("tenant_integrations")
         .select("id")
         .eq("tenant_id", tenantId)
         .eq("integration_type", "green_api")
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
-      const mk = (over: any) => ({
+      const mk = (over: FlowStepTemplate) => ({
         id: crypto.randomUUID(),
         automation_id: data.id,
         tenant_id: tenantId,
@@ -420,14 +439,14 @@ export default function Automations() {
           sort_order: 2,
         }),
       ];
-      await supabase.from("automation_flow_steps" as any).insert(steps);
+      await supabase.from("automation_flow_steps").insert(steps);
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["automations", tenantId] });
       navigate(buildPath(`automations/flow/${data.id}`));
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "שגיאה",
         description: err.message,
@@ -455,7 +474,7 @@ export default function Automations() {
             end_keyword: "סיימנו כרמן",
           },
           is_flow: true,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
@@ -464,7 +483,7 @@ export default function Automations() {
     onSuccess: (data) => {
       navigate(buildPath(`automations/flow/${data.id}`));
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "שגיאה",
         description: err.message,
@@ -482,15 +501,20 @@ export default function Automations() {
       if (!tenantId) throw new Error("No tenant");
       // Find Carmen (or any active agent) for the agent nodes.
       const { data: agentsList } = await supabase
-        .from("ai_agents" as any)
+        .from("ai_agents")
         .select("id,name,active")
         .eq("tenant_id", tenantId)
         .eq("active", true);
       const carmen =
-        ((agentsList as any[]) || []).find((a) =>
-          /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
+        (agentsList || []).find((a) => /כרמן|carmen/i.test(a.name || "")) ||
+        (agentsList || [])[0];
       if (!carmen) throw new Error("לא נמצא סוכן פעיל (כרמן). צרי סוכן תחילה.");
+      // Pre-existing bug: scheduled_daily is not an automation_trigger enum value, so this always fails.
+      if (!isAutomationTrigger(CAMPAIGN_PULSE_TRIGGER)) {
+        throw new Error(
+          `Unsupported automation trigger: ${CAMPAIGN_PULSE_TRIGGER}`,
+        );
+      }
 
       const { data: automation, error: autoErr } = await supabase
         .from("automations")
@@ -499,18 +523,18 @@ export default function Automations() {
           description:
             "סריקת בוקר יומית: קמפיינרית → SEO → אנליסטית → דוח. תבנית כבויה לעריכה.",
           tenant_id: tenantId,
-          trigger_type: "scheduled_daily",
+          trigger_type: CAMPAIGN_PULSE_TRIGGER,
           action_type: "notification",
           configuration: { hour: 8, minute: 0 },
           is_flow: true,
           active: false,
-        } as any)
+        })
         .select()
         .single();
       if (autoErr) throw autoErr;
 
       const aid = automation.id;
-      const mk = (over: any) => ({
+      const mk = (over: FlowStepTemplate) => ({
         id: crypto.randomUUID(),
         automation_id: aid,
         tenant_id: tenantId,
@@ -587,7 +611,7 @@ export default function Automations() {
 
       const { error: stepErr } = await supabase
         .from("automation_flow_steps")
-        .insert([trigger, campaigner, seo, analyst, report] as any);
+        .insert([trigger, campaigner, seo, analyst, report]);
       if (stepErr) throw stepErr;
       return automation;
     },
@@ -598,7 +622,7 @@ export default function Automations() {
       });
       navigate(buildPath(`automations/flow/${data.id}`));
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "שגיאה ביצירת התבנית",
         description: err.message,
@@ -613,14 +637,13 @@ export default function Automations() {
       if (!tenantId) throw new Error("No tenant");
       // Find Carmen or any active agent for the agent node
       const { data: agentsList } = await supabase
-        .from("ai_agents" as any)
+        .from("ai_agents")
         .select("id,name,active")
         .eq("tenant_id", tenantId)
         .eq("active", true);
       const carmenAgent =
-        ((agentsList as any[]) || []).find((a) =>
-          /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
+        (agentsList || []).find((a) => /כרמן|carmen/i.test(a.name || "")) ||
+        (agentsList || [])[0];
       // Create the automation header
       const { data, error } = await supabase
         .from("automations")
@@ -634,11 +657,11 @@ export default function Automations() {
           configuration: {},
           is_flow: true,
           active: true,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
-      const mk = (over: any) => ({
+      const mk = (over: FlowStepTemplate) => ({
         id: crypto.randomUUID(),
         automation_id: data.id,
         tenant_id: tenantId,
@@ -708,14 +731,14 @@ export default function Automations() {
           sort_order: carmenAgent ? 2 : 1,
         }),
       ];
-      await supabase.from("automation_flow_steps" as any).insert(steps);
+      await supabase.from("automation_flow_steps").insert(steps);
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["automations", tenantId] });
       navigate(buildPath(`automations/flow/${data.id}`));
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "שגיאה",
         description: err.message,
@@ -729,7 +752,7 @@ export default function Automations() {
     mutationFn: async () => {
       if (!tenantId) throw new Error("No tenant");
       const { data: metaInt } = await supabase
-        .from("tenant_integrations" as any)
+        .from("tenant_integrations")
         .select("id")
         .eq("tenant_id", tenantId)
         .eq("integration_type", "meta_whatsapp")
@@ -748,11 +771,11 @@ export default function Automations() {
           configuration: {},
           is_flow: true,
           active: false,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
-      const mk = (over: any) => ({
+      const mk = (over: FlowStepTemplate) => ({
         id: crypto.randomUUID(),
         automation_id: data.id,
         tenant_id: tenantId,
@@ -788,7 +811,7 @@ export default function Automations() {
         parent_step_id: trigger.id,
       });
       const { error: stepErr } = await supabase
-        .from("automation_flow_steps" as any)
+        .from("automation_flow_steps")
         .insert([trigger, send]);
       if (stepErr) throw stepErr;
       return data;
@@ -802,7 +825,7 @@ export default function Automations() {
       });
       navigate(buildPath(`automations/flow/${data.id}`));
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "שגיאה ביצירת התבנית",
         description: err.message,
@@ -826,13 +849,13 @@ export default function Automations() {
           action_type: "notification",
           configuration: {},
           is_flow: true,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
 
       const { error: stepError } = await supabase
-        .from("automation_flow_steps" as any)
+        .from("automation_flow_steps")
         .insert({
           id: triggerStepId,
           automation_id: data.id,
@@ -853,7 +876,7 @@ export default function Automations() {
     onSuccess: (data) => {
       navigate(buildPath(`automations/flow/${data.id}`));
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast({
         title: "שגיאה",
         description: err.message,
@@ -862,7 +885,7 @@ export default function Automations() {
     },
   });
 
-  const handleTest = (automation: any) => {
+  const handleTest = (automation: AutomationListItem) => {
     setSelectedAutomation(automation);
     setTestDialogOpen(true);
   };
@@ -872,7 +895,7 @@ export default function Automations() {
     setLogsDialogOpen(true);
   };
 
-  const handleEdit = (automation: any) => {
+  const handleEdit = (automation: AutomationListItem) => {
     setSelectedAutomation(automation);
     setEditDialogOpen(true);
   };
@@ -941,7 +964,7 @@ export default function Automations() {
 
       {/* Carmen WhatsApp Session Banner - shown when no carmen automation exists */}
       {!automations?.some(
-        (a: any) => a.configuration?.carmen_session_mode === true,
+        (a) => cfgObject(a.configuration)?.carmen_session_mode === true,
       ) && (
         <div className="rounded-xl border border-purple-500/30 bg-gradient-to-l from-purple-500/5 to-transparent p-4 flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
@@ -969,9 +992,7 @@ export default function Automations() {
       )}
 
       {/* Manus Direct Channel Banner */}
-      {!automations?.some((a: any) =>
-        (a.name || "").includes("מנוס / ישיר"),
-      ) && (
+      {!automations?.some((a) => (a.name || "").includes("מנוס / ישיר")) && (
         <div className="rounded-xl border border-blue-500/30 bg-gradient-to-l from-blue-500/5 to-transparent p-4 flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-blue-500/15 flex items-center justify-center shrink-0">
@@ -1078,15 +1099,12 @@ export default function Automations() {
       {/* Automations Grid */}
       <div className="grid gap-3 md:gap-4 grid-cols-1 lg:grid-cols-2">
         {automations?.map((automation) => {
-          const isMirror = (automation as any)._isSharedMirror === true;
-          const isCarmenMode =
-            (automation as any).configuration?.carmen_session_mode === true;
-          const isFlow = (automation as any).is_flow;
-          const configuredTriggers = Array.isArray(
-            (automation as any).configuration?.trigger_types,
-          )
-            ? ((automation as any).configuration.trigger_types as string[])
-            : [];
+          const isMirror = automation._isSharedMirror === true;
+          const config = cfgObject(automation.configuration);
+          const isCarmenMode = config?.carmen_session_mode === true;
+          const isFlow = automation.is_flow;
+          const configuredTriggers =
+            cfgStringArray(config?.trigger_types) ?? [];
           const triggerType = automation.trigger_type;
           const triggerLabel =
             configuredTriggers.length > 1
@@ -1169,7 +1187,7 @@ export default function Automations() {
                   </div>
 
                   <Switch
-                    checked={automation.active}
+                    checked={automation.active ?? false}
                     disabled={isMirror}
                     onCheckedChange={(checked) =>
                       !isMirror &&
@@ -1183,20 +1201,17 @@ export default function Automations() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0 space-y-2">
-                {(automation.configuration as any)?.url && (
+                {config?.url && (
                   <p className="text-xs text-muted-foreground truncate">
-                    URL: {(automation.configuration as any).url}
+                    URL: {cfgText(config.url)}
                   </p>
                 )}
 
                 {automation.action_type === "update_status" &&
-                  (automation.configuration as any)?.entity && (
+                  config?.entity && (
                     <p className="text-xs text-muted-foreground">
-                      עדכון סטטוס:{" "}
-                      {(automation.configuration as any).entity === "lead"
-                        ? "ליד"
-                        : "משימה"}{" "}
-                      → {(automation.configuration as any).status}
+                      עדכון סטטוס: {config.entity === "lead" ? "ליד" : "משימה"}{" "}
+                      → {cfgText(config.status)}
                     </p>
                   )}
 
@@ -1495,7 +1510,7 @@ export default function Automations() {
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-xs">
                       {log.error_message ||
-                        (log.response as any)?.statusText ||
+                        cfgText(cfgObject(log.response)?.statusText) ||
                         "OK"}
                     </TableCell>
                   </TableRow>

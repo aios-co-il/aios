@@ -1,4 +1,9 @@
 import { Label } from "@/components/ui/label";
+import {
+  cfgText,
+  type StepConfig,
+  type StepConfigChange,
+} from "./automationStepConfig";
 import { Input } from "@/components/ui/input";
 import { useMailingActionOptions } from "@/components/automations/useMailingActionOptions";
 import {
@@ -14,10 +19,10 @@ import {
 import { listKind } from "@/lib/broadcastListKind";
 
 interface Props {
-  tenantId: string;
+  tenantId?: string;
   actionType: string;
-  configuration: Record<string, any>;
-  onConfigChange: (key: string, value: any) => void;
+  configuration: StepConfig;
+  onConfigChange: StepConfigChange;
 }
 
 export default function MailingActionConfig({
@@ -57,7 +62,7 @@ export default function MailingActionConfig({
       {needsTemplate && (
         <MailingTemplateSelect
           templates={templates}
-          value={configuration?.template_id || ""}
+          value={cfgText(configuration?.template_id) || ""}
           onChange={(v) => onConfigChange("template_id", v)}
         />
       )}
@@ -66,14 +71,14 @@ export default function MailingActionConfig({
         <MailingListSelect
           lists={visibleLists}
           listOnlyStatic={listOnlyStatic}
-          value={configuration?.list_id || ""}
+          value={cfgText(configuration?.list_id) || ""}
           onChange={(v) => onConfigChange("list_id", v)}
         />
       )}
 
       {action?.pickEntity && (
         <MailingEntitySelect
-          value={configuration?.entity || "auto"}
+          value={cfgText(configuration?.entity) || "auto"}
           onChange={(v) => onConfigChange("entity", v)}
         />
       )}
@@ -81,7 +86,7 @@ export default function MailingActionConfig({
       {needsTemplate && selectedTemplate?.channel === "whatsapp" && (
         <MailingWhatsAppSelect
           integrations={waIntegrations}
-          value={configuration?.integration_id || "auto"}
+          value={cfgText(configuration?.integration_id) || "auto"}
           onChange={(v) =>
             onConfigChange("integration_id", v === "auto" ? null : v)
           }
@@ -96,7 +101,7 @@ export default function MailingActionConfig({
           <Input
             type="number"
             min={0}
-            value={configuration?.min_interval_hours ?? 24}
+            value={cfgText(configuration?.min_interval_hours) ?? 24}
             onChange={(e) =>
               onConfigChange("min_interval_hours", Number(e.target.value))
             }

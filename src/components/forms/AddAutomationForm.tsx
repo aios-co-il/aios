@@ -41,35 +41,32 @@ import {
   StatusStageSelect,
 } from "@/components/automations/StatusStageSelect";
 import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
+import type { JsonObject } from "@/components/automations/automationStepConfig";
+import {
+  FORM_TRIGGER_OPTIONS,
+  FORM_TRIGGER_VALUES,
+  isAutomationTrigger,
+} from "@/lib/automationTriggers";
+import {
+  integrationInstanceSuffix,
+  parseConditionsObject,
+  parseManyChatTags,
+  parseOrUndefined,
+  type MessagingIntegrationOption,
+} from "@/lib/automationFormHelpers";
 import {
   applyStatusActionFields,
   applyTriggerStatusFilters,
   scopesForTriggers,
 } from "../../../supabase/functions/_shared/automation-status.ts";
 
+const triggerTypeSchema = z.enum(FORM_TRIGGER_VALUES);
+
 const formSchema = z
   .object({
     name: z.string().min(1, "שם האוטומציה הוא שדה חובה"),
     description: z.string().optional(),
-    trigger_type: z.enum([
-      "task_assigned",
-      "task_collaborator_added",
-      "task_update_added",
-      "task_status_changed",
-      "lead_status_changed",
-      "lead_created",
-      "client_created",
-      "client_status_changed",
-      "onboarding_status_changed",
-      "meeting_created",
-      "meeting_day_after",
-      "meeting_same_day",
-      "task_calendar_created",
-      "task_overdue",
-      "inbound_webhook_task",
-      "inbound_webhook_lead",
-      "report_alert_triggered",
-    ]),
+    trigger_type: triggerTypeSchema,
     action_type: z.enum([
       "webhook",
       "email",
@@ -137,26 +134,6 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
-const TRIGGER_OPTIONS = [
-  { value: "task_assigned", label: "משימה שוייכה" },
-  { value: "task_collaborator_added", label: "קמפיינר נוסף למשימה" },
-  { value: "task_update_added", label: "עדכון נוסף למשימה" },
-  { value: "task_status_changed", label: "סטטוס משימה השתנה" },
-  { value: "lead_status_changed", label: "סטטוס ליד השתנה" },
-  { value: "lead_created", label: "ליד נוצר" },
-  { value: "client_created", label: "לקוח נוצר" },
-  { value: "client_status_changed", label: "סטטוס לקוח השתנה" },
-  { value: "onboarding_status_changed", label: "סטטוס קליטה השתנה" },
-  { value: "meeting_created", label: "נוצרה פגישה" },
-  { value: "meeting_day_after", label: "יום לאחר קביעת פגישה" },
-  { value: "meeting_same_day", label: "ביום הפגישה" },
-  { value: "task_calendar_created", label: "משימה נוספה ליומן" },
-  { value: "task_overdue", label: "משימה לא הושלמה בזמן" },
-  { value: "inbound_webhook_task", label: "קבלת משימה מ-Webhook" },
-  { value: "inbound_webhook_lead", label: "קליטת ליד מ-Webhook" },
-  { value: "report_alert_triggered", label: "התראת דוח פייסבוק" },
-];
-
 const LEAD_DATE_FIELDS = [
   { value: "won_date", label: "תאריך נסגר" },
   { value: "sale_date", label: "תאריך מכירה" },
@@ -222,7 +199,7 @@ export function AddAutomationForm() {
         },
       );
       if (error) throw error;
-      return Array.isArray(data?.tags) ? data.tags : [];
+      return parseManyChatTags(data);
     },
     enabled:
       !!tenantId &&
@@ -263,7 +240,9 @@ export function AddAutomationForm() {
 
       const permittedIds = permissions?.map((p) => p.integration_id) || [];
 
-      let allIntegrations = [...(tenantIntegrations || [])];
+      let allIntegrations: MessagingIntegrationOption[] = [
+        ...(tenantIntegrations || []),
+      ];
 
       if (permittedIds.length > 0) {
         // Fetch permitted integrations from other tenants
@@ -320,19 +299,18 @@ export function AddAutomationForm() {
       if (!tenantId) throw new Error("No tenant selected");
 
       // Parse conditions if provided
-      let conditions: any = {};
+      let conditions: JsonObject = {};
       if (values.conditions?.trim()) {
-        try {
-          conditions = JSON.parse(values.conditions);
-        } catch (e) {
-          throw new Error("תנאים חייבים להיות JSON תקין");
-        }
+        conditions = parseConditionsObject(
+          values.conditions,
+          "תנאים חייבים להיות JSON תקין",
+        );
       }
 
       applyTriggerStatusFilters(conditions, values.trigger_status_values);
 
       // Build configuration based on action type
-      let configuration: any = {};
+      let configuration: JsonObject = {};
       if (values.action_type === "webhook") {
         configuration = {
           url: values.webhook_url,
@@ -341,7 +319,7 @@ export function AddAutomationForm() {
           body_template: values.body_template || "",
         };
       } else if (values.action_type === "update_status") {
-        const cfg: any = {
+        const cfg: JsonObject = {
           entity: values.status_entity,
         };
         applyStatusActionFields(cfg, values.status_value);
@@ -405,13 +383,17 @@ export function AddAutomationForm() {
         ...(configuration || {}),
         trigger_types: selectedTriggers,
       };
+      const triggerType = selectedTriggers[0];
+      if (!isAutomationTrigger(triggerType)) {
+        throw new Error(`Unsupported automation trigger: ${triggerType}`);
+      }
 
       const { data, error } = await supabase
         .from("automations")
         .insert({
           name: values.name,
           description: values.description,
-          trigger_type: selectedTriggers[0] as any,
+          trigger_type: triggerType,
           action_type: values.action_type,
           configuration: configuration,
           conditions: conditions,
@@ -432,7 +414,7 @@ export function AddAutomationForm() {
       setOpen(false);
       form.reset();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "שגיאה ביצירת אוטומציה",
         description: error.message,
@@ -508,14 +490,20 @@ export function AddAutomationForm() {
                   <FormLabel>מתי להפעיל? אפשר לבחור כמה *</FormLabel>
                   <FormControl>
                     <TriggerTypeMultiSelect
-                      options={TRIGGER_OPTIONS}
+                      options={FORM_TRIGGER_OPTIONS}
                       value={field.value || []}
                       onChange={(next) => {
                         field.onChange(next);
                         if (next[0]) {
-                          form.setValue("trigger_type", next[0] as any, {
-                            shouldValidate: true,
-                          });
+                          const nextTrigger = parseOrUndefined(
+                            triggerTypeSchema,
+                            next[0],
+                          );
+                          if (nextTrigger) {
+                            form.setValue("trigger_type", nextTrigger, {
+                              shouldValidate: true,
+                            });
+                          }
                         }
                       }}
                     />
@@ -934,13 +922,11 @@ export function AddAutomationForm() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="bg-background z-[100]">
-                          {manychatTags?.map(
-                            (tag: { id: number; name: string }) => (
-                              <SelectItem key={tag.id} value={String(tag.id)}>
-                                {tag.name}
-                              </SelectItem>
-                            ),
-                          )}
+                          {manychatTags?.map((tag) => (
+                            <SelectItem key={tag.id} value={String(tag.id)}>
+                              {tag.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormDescription className="text-xs">
@@ -1066,7 +1052,7 @@ export function AddAutomationForm() {
                               טוען...
                             </SelectItem>
                           ) : (
-                            manychatTags?.map((tag: any) => (
+                            manychatTags?.map((tag) => (
                               <SelectItem
                                 key={tag.id}
                                 value={tag.id.toString()}
@@ -1121,7 +1107,7 @@ export function AddAutomationForm() {
                         <SelectContent className="bg-background z-[100]">
                           {greenApiIntegrations &&
                           greenApiIntegrations.length > 0 ? (
-                            greenApiIntegrations.map((integration: any) => {
+                            greenApiIntegrations.map((integration) => {
                               const providerLabel =
                                 integration.integration_type === "manus_wa"
                                   ? "Manus WA"
@@ -1133,13 +1119,9 @@ export function AddAutomationForm() {
                                 >
                                   [{providerLabel}]{" "}
                                   {integration.owner_name || "חיבור"} (
-                                  {integration.settings?.idInstance?.slice(
-                                    -4,
-                                  ) ||
-                                    integration.settings?.instanceId?.slice(
-                                      -4,
-                                    ) ||
-                                    "לא ידוע"}
+                                  {integrationInstanceSuffix(
+                                    integration.settings,
+                                  ) || "לא ידוע"}
                                   )
                                 </SelectItem>
                               );

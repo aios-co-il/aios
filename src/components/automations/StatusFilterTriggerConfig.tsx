@@ -1,5 +1,12 @@
 import { Label } from "@/components/ui/label";
 import {
+  cfgString,
+  cfgText,
+  type StepConfig,
+  type StepConfigBulkChange,
+  type StepConfigChange,
+} from "./automationStepConfig";
+import {
   decodeStatusSelection,
   encodeStoredTriggerFilters,
   triggerScope,
@@ -8,10 +15,10 @@ import { StatusStageMultiSelect } from "./StatusStageSelect";
 
 interface StatusFilterTriggerConfigProps {
   triggerType: string;
-  tenantId: string;
-  configuration: Record<string, any>;
-  onConfigChange: (key: string, value: any) => void;
-  onBulkConfigChange?: (updates: Record<string, any>) => void;
+  tenantId?: string;
+  configuration: StepConfig;
+  onConfigChange: StepConfigChange;
+  onBulkConfigChange?: StepConfigBulkChange;
 }
 
 export default function StatusFilterTriggerConfig({
@@ -24,11 +31,11 @@ export default function StatusFilterTriggerConfig({
   const scope = triggerScope(triggerType) || "lead";
   const selected = encodeStoredTriggerFilters({
     filter_statuses: configuration?.filter_statuses,
-    filter_status: configuration?.filter_status,
-    filter_status_kind: configuration?.filter_status_kind,
+    filter_status: cfgText(configuration?.filter_status),
+    filter_status_kind: cfgString(configuration?.filter_status_kind),
   });
 
-  const write = (updates: Record<string, any>) => {
+  const write = (updates: StepConfig) => {
     if (onBulkConfigChange) {
       onBulkConfigChange(updates);
       return;

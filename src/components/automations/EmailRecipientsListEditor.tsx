@@ -15,11 +15,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Search } from "lucide-react";
+import { z } from "zod";
+import { cfgText, type StepConfig } from "./automationStepConfig";
+import {
+  contactLookupRecipientSchema,
+  parseStoredRecipients,
+  type RecipientSchema,
+  type UnsupportedRecipient,
+} from "./storedRecipients";
+import { UnsupportedRecipientRow } from "./UnsupportedRecipientRow";
 
 export type EmailRecipient =
   | { type: "email_field"; field: string }
   | { type: "email_manual"; email: string }
   | { type: "contact_lookup"; entity: "lead" | "client"; id: string };
+
+export type EmailRecipientEntry = EmailRecipient | UnsupportedRecipient;
 
 const TYPE_LABELS: Record<EmailRecipient["type"], string> = {
   email_field: "אימייל – שדה דינמי",
@@ -41,8 +52,8 @@ function defaultForType(type: EmailRecipient["type"]): EmailRecipient {
 interface Props {
   tenantId: string | undefined;
   availableFields: { key: string; label: string }[];
-  value: EmailRecipient[];
-  onChange: (next: EmailRecipient[]) => void;
+  value: EmailRecipientEntry[];
+  onChange: (next: EmailRecipientEntry[]) => void;
 }
 
 export function EmailRecipientsListEditor({
@@ -51,7 +62,8 @@ export function EmailRecipientsListEditor({
   value,
   onChange,
 }: Props) {
-  const recipients = value.length > 0 ? value : [defaultForType("email_field")];
+  const recipients: EmailRecipientEntry[] =
+    value.length > 0 ? value : [defaultForType("email_field")];
 
   const updateAt = (idx: number, next: EmailRecipient) => {
     const copy = [...recipients];
@@ -83,22 +95,31 @@ export function EmailRecipientsListEditor({
     <div className="space-y-3">
       <Label className="text-right block">נמענים</Label>
       <div className="space-y-2">
-        {recipients.map((r, idx) => (
-          <RecipientRow
-            key={idx}
-            tenantId={tenantId}
-            emailFields={
-              emailFields.length
-                ? emailFields
-                : [{ key: "email", label: "אימייל" }]
-            }
-            availableFields={availableFields}
-            value={r}
-            onChange={(next) => updateAt(idx, next)}
-            onRemove={() => removeAt(idx)}
-            canRemove={recipients.length > 1}
-          />
-        ))}
+        {recipients.map((r, idx) =>
+          r.type === "unsupported" ? (
+            <UnsupportedRecipientRow
+              key={idx}
+              raw={r.raw}
+              onRemove={() => removeAt(idx)}
+              canRemove={recipients.length > 1}
+            />
+          ) : (
+            <RecipientRow
+              key={idx}
+              tenantId={tenantId}
+              emailFields={
+                emailFields.length
+                  ? emailFields
+                  : [{ key: "email", label: "אימייל" }]
+              }
+              availableFields={availableFields}
+              value={r}
+              onChange={(next) => updateAt(idx, next)}
+              onRemove={() => removeAt(idx)}
+              canRemove={recipients.length > 1}
+            />
+          ),
+        )}
       </div>
       <Button
         type="button"
@@ -275,19 +296,32 @@ function ContactLookupEditor({
     queryKey: ["email-recipient-contacts", tenantId, value.entity],
     queryFn: async () => {
       if (!tenantId) return [];
-      const table = value.entity === "lead" ? "leads" : "clients";
-      const nameField = value.entity === "lead" ? "contact_name" : "name";
+      if (value.entity === "lead") {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("id, email, contact_name")
+          .eq("tenant_id", tenantId)
+          .not("email", "is", null)
+          .order("contact_name")
+          .limit(500);
+        if (error) throw error;
+        return (data || []).map((r) => ({
+          id: r.id,
+          name: r.contact_name || "ללא שם",
+          email: r.email,
+        }));
+      }
       const { data, error } = await supabase
-        .from(table)
-        .select(`id, email, ${nameField}`)
+        .from("clients")
+        .select("id, email, name")
         .eq("tenant_id", tenantId)
         .not("email", "is", null)
-        .order(nameField)
+        .order("name")
         .limit(500);
       if (error) throw error;
-      return (data || []).map((r: any) => ({
+      return (data || []).map((r) => ({
         id: r.id,
-        name: r[nameField] || "ללא שם",
+        name: r.name || "ללא שם",
         email: r.email,
       }));
     },
@@ -362,17 +396,26 @@ function ContactLookupEditor({
   );
 }
 
+const emailRecipientSchema: RecipientSchema<EmailRecipient> =
+  z.discriminatedUnion("type", [
+    z.object({ type: z.literal("email_field"), field: z.string() }),
+    z.object({ type: z.literal("email_manual"), email: z.string() }),
+    contactLookupRecipientSchema,
+  ]);
+
 export function migrateLegacyEmailRecipients(
-  cfg: Record<string, any>,
-): EmailRecipient[] {
+  cfg: StepConfig,
+): EmailRecipientEntry[] {
   if (Array.isArray(cfg?.email_recipients) && cfg.email_recipients.length > 0) {
-    return cfg.email_recipients as EmailRecipient[];
+    return parseStoredRecipients(cfg.email_recipients, emailRecipientSchema);
   }
-  if (cfg?.to_email) {
-    return [{ type: "email_manual", email: cfg.to_email }];
+  const toEmail = cfgText(cfg?.to_email);
+  if (toEmail) {
+    return [{ type: "email_manual", email: toEmail }];
   }
-  if (cfg?.email_field) {
-    return [{ type: "email_field", field: cfg.email_field }];
+  const emailField = cfgText(cfg?.email_field);
+  if (emailField) {
+    return [{ type: "email_field", field: emailField }];
   }
   return [{ type: "email_field", field: "email" }];
 }
