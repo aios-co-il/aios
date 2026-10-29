@@ -54,6 +54,7 @@ function mapGscPeriodRow(row: Json) {
 }
 
 type GscPeriodRow = ReturnType<typeof mapGscPeriodRow>;
+import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -291,11 +292,12 @@ Deno.serve(async (req) => {
         return true;
       });
 
+      const publicSettings = toPublicTableSettings(table.integration_settings);
       return filteredRecords.map((r) => ({
         ...r,
         _source: table.integration_type,
         _tableName: table.name,
-        _integrationSettings: table.integration_settings,
+        _integrationSettings: publicSettings,
       }));
     };
 
@@ -822,7 +824,7 @@ Deno.serve(async (req) => {
           id: t.id,
           name: t.name,
           integration_type: t.integration_type,
-          integration_settings: t.integration_settings,
+          integration_settings: toPublicTableSettings(t.integration_settings),
         })),
         records: allRecords,
         woocommerce: {

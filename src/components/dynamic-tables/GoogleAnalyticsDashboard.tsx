@@ -1,4 +1,4 @@
-import { type JsonObject, readString, readText } from "@/lib/jsonReaders";
+import { readString, readText } from "@/lib/jsonReaders";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,7 +73,7 @@ import { getRevenueFromData } from "@/lib/adsMetrics";
 
 interface CrmRecord {
   id?: string;
-  data: JsonObject;
+  data: Record<string, unknown>;
 }
 
 const dateText = (r: CrmRecord): string => readString(r.data, "date") ?? "";

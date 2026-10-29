@@ -30,6 +30,19 @@ Deno.test(
 );
 
 Deno.test(
+  "paid workshop production waits for David when called directly",
+  () => {
+    for (const name of [
+      "workshop_make_creative",
+      "workshop_make_stills",
+      "workshop_produce_video",
+    ])
+      assertStrictEquals(classifyDirectTool(name), "approval", name);
+    assertStrictEquals(classifyDirectTool("workshop_get_state"), "direct");
+  },
+);
+
+Deno.test(
   "pool honours allow/deny lists and hides the system graph from non-managers",
   () => {
     const all = [
