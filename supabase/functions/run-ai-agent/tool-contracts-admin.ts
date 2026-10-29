@@ -1,6 +1,7 @@
 import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
 import type { compareReportToMeta } from "../_shared/report-meta-verify.mjs";
+import { jsonSchema } from "./run-request.ts";
 
 /** Graph `me/adaccounts` entry field that MetaNode does not declare. */
 const adAccountDisableReasonSchema = z
@@ -140,4 +141,13 @@ export function automationStepArg(value: unknown): AutomationStepArg {
     throw new TypeError(`Cannot read properties of ${value} (reading 'type')`);
   }
   return automationStepArgSchema.parse(value);
+}
+
+/** A step's JSON object or array config; anything else is `{}`. */
+const automationStepConfigSchema = z
+  .union([z.record(jsonSchema), z.array(jsonSchema)])
+  .catch({});
+
+export function automationStepConfig(config: unknown): Json {
+  return automationStepConfigSchema.parse(config);
 }

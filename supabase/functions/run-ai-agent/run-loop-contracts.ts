@@ -110,6 +110,7 @@ const toolResultSchema = z
     workshop: z.unknown(),
     say_to_user: z.unknown(),
     needs_budget: z.unknown(),
+    image_url: z.unknown(),
   })
   .catch({});
 
@@ -131,10 +132,11 @@ const manusTaskSchema = z
     task_id: z.unknown(),
     task_url: z.unknown(),
     share_url: z.unknown(),
+    error: z.unknown(),
   })
   .catch({});
 
-/** Manus `create_task` response fields shown to the user. */
+/** Manus `create_task` response (or error body) fields shown to the user. */
 export function readManusTask(value: unknown) {
   return manusTaskSchema.parse(value);
 }

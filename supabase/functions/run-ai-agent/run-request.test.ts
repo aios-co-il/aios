@@ -5,6 +5,7 @@ import {
   readConversationTurns,
   readHistoryMessages,
   readJsonRecord,
+  waNotifyTarget,
 } from "./run-request.ts";
 
 Deno.test(
@@ -170,4 +171,22 @@ Deno.test("JSON bodies read as objects; anything else is empty", () => {
   for (const value of [null, "x", [1], 3]) {
     assertEquals(readJsonRecord(value), {});
   }
+});
+
+Deno.test("subagent delivery needs a complete WhatsApp target", () => {
+  const target = {
+    surface: "whatsapp",
+    tenant_id: "t1",
+    connection_user_id: "u1",
+    chat_id: "123@g.us",
+    is_group: true,
+  };
+  assertEquals(waNotifyTarget(target), {
+    ...target,
+    automation_id: null,
+    phone_number: null,
+  });
+  assertStrictEquals(waNotifyTarget({ ...target, surface: "email" }), null);
+  assertStrictEquals(waNotifyTarget({ ...target, chat_id: 5 }), null);
+  assertStrictEquals(waNotifyTarget(undefined), null);
 });

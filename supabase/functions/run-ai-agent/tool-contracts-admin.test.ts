@@ -6,11 +6,18 @@ import {
 import {
   adAccountDisableReason,
   automationStepArg,
+  automationStepConfig,
   parallelTaskArgs,
   providerErrorMessage,
   readGoogleAdsCampaignRow,
   readGoogleCalendarEvents,
 } from "./tool-contracts-admin.ts";
+import { successCriterionArgs } from "./goal-args.ts";
+import {
+  googleAdsCredentials,
+  googleAdsRefreshToken,
+} from "./google-ads-config.ts";
+import { financeEntries, relationName } from "./tool-contracts-crm.ts";
 
 Deno.test("ad account disable_reason is read from objects only", () => {
   assertStrictEquals(adAccountDisableReason({ id: "1", disable_reason: 3 }), 3);
@@ -116,5 +123,60 @@ Deno.test(
     assertStrictEquals(automationStepArg(["agent"]).type, undefined);
     assertThrows(() => automationStepArg(null), TypeError);
     assertThrows(() => automationStepArg(undefined), TypeError);
+  },
+);
+
+Deno.test("automation step config keeps JSON objects and arrays only", () => {
+  assertEquals(automationStepConfig({ a: [1, null] }), { a: [1, null] });
+  assertEquals(automationStepConfig([1]), [1]);
+  for (const value of [null, undefined, "x", 3, true]) {
+    assertEquals(automationStepConfig(value), {});
+  }
+});
+
+Deno.test("success criteria keep valid entries with their extra fields", () => {
+  assertEquals(
+    successCriterionArgs([
+      { description: "done", required: true, verification_config: { a: 1 } },
+      { description: 3 },
+      { key: "k" },
+      "text",
+    ]),
+    [{ description: "done", required: true, verification_config: { a: 1 } }],
+  );
+  assertStrictEquals(successCriterionArgs(undefined), undefined);
+  assertStrictEquals(successCriterionArgs({ description: "x" }), undefined);
+});
+
+Deno.test("embedded relation names and finance entries", () => {
+  assertStrictEquals(relationName({ name: "Acme" }), "Acme");
+  assertStrictEquals(relationName(null), undefined);
+  assertEquals(
+    financeEntries([{ id: "f1", clients: { name: "Acme" } }, null, "x"]),
+    [{ id: "f1", clients: { name: "Acme" }, client_name: "Acme" }],
+  );
+});
+
+Deno.test(
+  "Google Ads credentials prefer settings over additional_config",
+  () => {
+    assertEquals(
+      googleAdsCredentials({
+        additional_config: { refresh_token: "old", mcc_id: "1-2" },
+        settings: { refresh_token: "new" },
+        api_key: "key",
+      }),
+      { refreshToken: "new", loginCustomerId: "1-2" },
+    );
+    assertEquals(googleAdsCredentials({ api_key: "key", settings: "x" }), {
+      refreshToken: "key",
+      loginCustomerId: undefined,
+    });
+    assertEquals(googleAdsCredentials(null), {
+      refreshToken: undefined,
+      loginCustomerId: undefined,
+    });
+    assertStrictEquals(googleAdsRefreshToken({ refresh_token: "t" }), "t");
+    assertStrictEquals(googleAdsRefreshToken(null), undefined);
   },
 );

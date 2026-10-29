@@ -1,5 +1,6 @@
 import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
+import type { SpawnSubagentParams } from "../_shared/subagent.ts";
 
 export type JsonRecord = { [key: string]: Json | undefined };
 
@@ -106,6 +107,34 @@ const runAgentRequestSchema = z
   .passthrough();
 
 export type RunAgentRequest = z.infer<typeof runAgentRequestSchema>;
+
+export type WaNotifyRequest = z.infer<typeof waNotifySchema>;
+
+const waNotifyTargetSchema = z
+  .object({
+    surface: z.literal("whatsapp"),
+    tenant_id: z.string(),
+    automation_id: z
+      .string()
+      .nullish()
+      .transform((id) => id ?? null),
+    connection_user_id: z.string(),
+    chat_id: z.string(),
+    phone_number: z
+      .string()
+      .nullish()
+      .transform((phone) => phone ?? null),
+    is_group: z.boolean(),
+  })
+  .passthrough();
+
+/** Originating WhatsApp chat for subagent results; a partial target delivers nowhere. */
+export function waNotifyTarget(
+  value: unknown,
+): NonNullable<SpawnSubagentParams["notify"]> | null {
+  const parsed = waNotifyTargetSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 export function parseRunAgentRequest(value: unknown): RunAgentRequest {
   const parsed = runAgentRequestSchema.safeParse(value);

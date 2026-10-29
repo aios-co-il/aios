@@ -114,6 +114,10 @@ Deno.test("Manus task responses expose their ids and links", () => {
     task_url: "u",
   });
   assertEquals(readManusTask("oops"), {});
+  assertStrictEquals(
+    readManusTask({ error: "not configured" }).error,
+    "not configured",
+  );
 });
 
 Deno.test("error stacks are read from thrown objects only", () => {
