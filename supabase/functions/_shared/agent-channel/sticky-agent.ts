@@ -5,9 +5,17 @@ import {
   resolveCursorDirectSession,
 } from "../cursor-direct-session.ts";
 import { lightweightBrainEnabled } from "../carmen-brain-flags.ts";
-import { asRecord } from "../unknown-record.ts";
+import { z } from "npm:zod@3.25.76";
 
 export type OpenChatProvider = "cursor";
+
+const openChatSessionRowsSchema = z
+  .array(
+    z
+      .object({ external_session_id: z.string().nullish().catch(null) })
+      .catch({ external_session_id: null }),
+  )
+  .catch([]);
 
 type OpenChatSessionsResult = { data: unknown };
 
@@ -149,10 +157,8 @@ export async function collectOpenChatIds(
       .not("external_session_id", "is", null)
       .order("last_activity_at", { ascending: false })
       .limit(5);
-    const rows: unknown[] = Array.isArray(sessions) ? sessions : [];
-    for (const row of rows) {
-      const id = asRecord(row).external_session_id;
-      ids.push(...uniqueCloudAgentIds(typeof id === "string" ? id : null));
+    for (const row of openChatSessionRowsSchema.parse(sessions)) {
+      ids.push(...uniqueCloudAgentIds(row.external_session_id));
     }
   } catch {
     /* ignore */

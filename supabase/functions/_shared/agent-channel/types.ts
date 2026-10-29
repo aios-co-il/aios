@@ -131,7 +131,7 @@ export type CallbackPayload = {
   session_id?: string;
   origin: ChannelProvider;
   content: string;
-  event_type?: MessageEventType;
+  event_type?: string;
   speaker?: string;
   idempotency_key?: string;
   external_message_id?: string;

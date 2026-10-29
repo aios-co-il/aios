@@ -17,18 +17,15 @@ import {
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
+import { type SendResult } from "../_shared/agent-channel/types.ts";
 import {
-  type ChannelAttachment,
-  type SendResult,
-} from "../_shared/agent-channel/types.ts";
-import {
+  parseAttachments,
   parseConversationHistory,
   parseInputMode,
 } from "../_shared/agent-channel/send-input.ts";
 import {
   asRecord,
   errorMessageOr,
-  isRecord,
   type UnknownRecord,
 } from "../_shared/unknown-record.ts";
 import {
@@ -50,29 +47,6 @@ import {
   setConversationStatus,
   userHasTenantAccess,
 } from "../_shared/agent-channel/store.ts";
-
-function parseAttachment(item: unknown): ChannelAttachment | null {
-  if (!isRecord(item)) return null;
-  const name = String(item.name || "").trim();
-  const url = String(item.url || "").trim();
-  const type = item.type === "image" ? "image" : "file";
-  if (!name || !url.startsWith("http")) return null;
-  return {
-    name,
-    url,
-    type,
-    size: typeof item.size === "number" ? item.size : undefined,
-    path: typeof item.path === "string" ? item.path : undefined,
-  };
-}
-
-function parseAttachments(raw: unknown): ChannelAttachment[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map(parseAttachment)
-    .filter((item): item is ChannelAttachment => item !== null)
-    .slice(0, 6);
-}
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -280,7 +254,7 @@ Deno.serve(async (req) => {
           routing_mode: route.route_type,
           agent_id: agentId,
         })
-        .eq("id", body.conversation_id)
+        .eq("id", String(body.conversation_id))
         .eq("tenant_id", tenantId);
     }
     await sb

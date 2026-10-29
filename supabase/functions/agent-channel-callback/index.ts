@@ -1,25 +1,14 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { ingestChannelReply } from "../_shared/agent-channel/ingest.ts";
-import {
-  parseCallbackEventType,
-  resolveCallbackOrigin,
-} from "../_shared/agent-channel/logic.ts";
+import { resolveCallbackOrigin } from "../_shared/agent-channel/logic.ts";
 import { verifyCallbackToken } from "../_shared/agent-channel/hmac.ts";
 import { loadSession, serviceClient } from "../_shared/agent-channel/store.ts";
 import type {
   CallbackPayload,
   ChannelProvider,
 } from "../_shared/agent-channel/types.ts";
-import {
-  asRecord,
-  errorMessageOr,
-  isRecord,
-  type UnknownRecord,
-} from "../_shared/unknown-record.ts";
-
-function optionalText(value: unknown): string | undefined {
-  return value ? String(value) : undefined;
-}
+import { errorMessageOr } from "../_shared/unknown-record.ts";
+import { type CallbackBody, parseCallbackBody } from "./callback-body.ts";
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -40,16 +29,16 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "POST only" });
 
-  let body: UnknownRecord;
+  let body: CallbackBody;
   try {
-    body = asRecord(await req.json());
+    body = parseCallbackBody(await req.json());
   } catch {
     return json(400, { error: "Invalid JSON" });
   }
 
-  const conversationId = String(body.conversation_id || "").trim();
-  const sessionId = String(body.session_id || "").trim();
-  const content = String(body.content || "").trim();
+  const conversationId = body.conversation_id;
+  const sessionId = body.session_id;
+  const content = body.content;
   if (!conversationId || !content)
     return json(400, { error: "conversation_id and content are required" });
 
@@ -58,10 +47,7 @@ Deno.serve(async (req) => {
 
   const sb = serviceClient();
   const session = sessionId ? await loadSession(sb, sessionId) : null;
-  const origin = resolveCallbackOrigin(
-    typeof body.origin === "string" ? body.origin : null,
-    session?.provider,
-  );
+  const origin = resolveCallbackOrigin(body.origin, session?.provider);
   const tenantId = String(body.tenant_id || session?.tenant_id || "").trim();
   if (!tenantId || !sessionId)
     return json(401, { error: "session_id and tenant_id are required" });
@@ -74,25 +60,19 @@ Deno.serve(async (req) => {
   });
   if (!ok) return json(401, { error: "Invalid callback token" });
 
-  const eventType = parseCallbackEventType(body.event_type);
-  if (!eventType) return json(400, { error: "Unknown event_type" });
-
   const payload: CallbackPayload = {
     tenant_id: tenantId,
     conversation_id: conversationId,
     session_id: sessionId,
     origin: origin || (session?.provider as ChannelProvider) || "cursor",
     content,
-    event_type: eventType,
-    speaker: optionalText(body.speaker),
-    idempotency_key:
-      req.headers.get("Idempotency-Key") || optionalText(body.idempotency_key),
-    external_message_id: optionalText(body.external_message_id),
+    event_type: body.event_type,
+    speaker: body.speaker,
+    idempotency_key: req.headers.get("Idempotency-Key") || body.idempotency_key,
+    external_message_id: body.external_message_id,
     parliament_round:
-      typeof body.parliament_round === "number"
-        ? body.parliament_round
-        : (session?.parliament_round ?? undefined),
-    metadata: isRecord(body.metadata) ? body.metadata : {},
+      body.parliament_round ?? session?.parliament_round ?? undefined,
+    metadata: body.metadata,
   };
 
   try {

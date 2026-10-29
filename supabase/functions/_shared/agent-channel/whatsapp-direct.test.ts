@@ -106,12 +106,32 @@ Deno.test(
     assertStrictEquals(
       replyTargetFrom({
         reply_whatsapp: {
-          integration_id: 7,
+          integration_id: "",
           phone_number: "972500000000",
           connection_user_id: "user-1",
         },
       }),
       null,
     );
+    assertStrictEquals(
+      replyTargetFrom({
+        reply_whatsapp: {
+          integration_id: "int-1",
+          phone_number: true,
+          connection_user_id: "user-1",
+        },
+      }),
+      null,
+    );
+    assertStrictEquals(replyTargetFrom({ reply_whatsapp: "x" }), null);
   },
 );
+
+Deno.test("keeps a numeric reply target field as stored", () => {
+  const target = {
+    integration_id: "int-1",
+    phone_number: 972500000000,
+    connection_user_id: "user-1",
+  };
+  assertEquals(replyTargetFrom({ reply_whatsapp: target }), target);
+});

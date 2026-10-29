@@ -3,7 +3,11 @@ import {
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2";
 import type { Database } from "../_shared/database.types.ts";
-import { asRecord } from "../_shared/unknown-record.ts";
+import {
+  readCredentialRepo,
+  readProfile,
+  readProposedFix,
+} from "./stored-records.ts";
 
 type GithubAgentClient = SupabaseClient<Database>;
 import { getRepoSlug } from "../_shared/github-repo.ts";
@@ -421,14 +425,9 @@ async function handleFixCode(
 
   if (!approval) throw new Error("Approved action not found");
 
-  const { file_path, new_code } = asRecord(approval.proposed_changes);
-  if (
-    typeof file_path !== "string" ||
-    typeof new_code !== "string" ||
-    !file_path ||
-    !new_code
-  )
-    throw new Error("Missing fix details");
+  const fix = readProposedFix(approval.proposed_changes);
+  if (!fix) throw new Error("Missing fix details");
+  const { filePath: file_path, newCode: new_code } = fix;
 
   // Get repo info from credentials metadata
   const { data: cred } = await supabase
@@ -438,9 +437,7 @@ async function handleFixCode(
     .eq("credential_type", "github_token")
     .single();
 
-  const credRepo = asRecord(cred?.metadata).repo;
-  const repo =
-    typeof credRepo === "string" && credRepo ? credRepo : getRepoSlug();
+  const repo = readCredentialRepo(cred?.metadata) || getRepoSlug();
   const [owner, repoName] = repo.split("/");
 
   try {
@@ -655,15 +652,12 @@ async function getUserContext(
       .single(),
   ]);
 
-  const { display_name, email } = asRecord(profileResult.data);
+  const { display_name, email } = readProfile(profileResult.data);
   return {
     user_id: userId,
     tenant_id: tenantId,
-    display_name:
-      typeof display_name === "string" && display_name
-        ? display_name
-        : "Unknown",
-    email: typeof email === "string" ? email : "",
+    display_name,
+    email,
     roles: (rolesResult.data || []).map((r) => r.role),
     permissions: Object.fromEntries(
       (permissionsResult.data || []).map((p) => [p.module, p.can_access]),

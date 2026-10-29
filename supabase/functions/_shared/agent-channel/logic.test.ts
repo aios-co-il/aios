@@ -86,7 +86,7 @@ Deno.test(
 );
 
 Deno.test(
-  "parseCallbackEventType defaults only when event_type is absent",
+  "parseCallbackEventType defaults absent event_type and keeps the rest",
   () => {
     assertStrictEquals(parseCallbackEventType(undefined), "message");
     assertStrictEquals(parseCallbackEventType(null), "message");
@@ -96,10 +96,10 @@ Deno.test(
       parseCallbackEventType("approval_request"),
       "approval_request",
     );
-    assertStrictEquals(parseCallbackEventType("bogus"), null);
-    assertStrictEquals(parseCallbackEventType("Message"), null);
-    assertStrictEquals(parseCallbackEventType(1), null);
-    assertStrictEquals(parseCallbackEventType({ type: "message" }), null);
+    assertStrictEquals(parseCallbackEventType(0), "message");
+    assertStrictEquals(parseCallbackEventType("bogus"), "bogus");
+    assertStrictEquals(parseCallbackEventType("Message"), "Message");
+    assertStrictEquals(parseCallbackEventType(1), "1");
   },
 );
 

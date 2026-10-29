@@ -1,24 +1,16 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import {
-  asRecord,
-  errorMessageOr,
-  isRecord,
-  parseJsonRecord,
-} from "./unknown-record.ts";
+import { asRecord, errorMessageOr, parseJsonRecord } from "./unknown-record.ts";
 
-Deno.test("isRecord accepts objects and rejects null and primitives", () => {
-  assertStrictEquals(isRecord({ a: 1 }), true);
-  assertStrictEquals(isRecord([]), true);
-  assertStrictEquals(isRecord(null), false);
-  assertStrictEquals(isRecord("x"), false);
-  assertStrictEquals(isRecord(3), false);
+Deno.test("asRecord keeps plain objects", () => {
+  const value = { id: "a", nested: { n: 1 } };
+  assertEquals(asRecord(value), value);
+  assertEquals(asRecord({}), {});
 });
 
-Deno.test("asRecord falls back to an empty record", () => {
-  const value = { id: "a" };
-  assertStrictEquals(asRecord(value), value);
-  assertEquals(asRecord(undefined), {});
-  assertEquals(asRecord("text"), {});
+Deno.test("asRecord falls back to an empty record for other values", () => {
+  for (const raw of [undefined, null, "text", 3, true, [1, 2]]) {
+    assertEquals(asRecord(raw), {});
+  }
 });
 
 Deno.test(
@@ -30,6 +22,7 @@ Deno.test(
     assertEquals(parseJsonRecord("not json"), {});
     assertEquals(parseJsonRecord("null"), {});
     assertEquals(parseJsonRecord("42"), {});
+    assertEquals(parseJsonRecord("[1]"), {});
   },
 );
 
@@ -41,6 +34,8 @@ Deno.test("errorMessageOr mirrors e?.message ?? e", () => {
   );
   const noMessage = { code: "x" };
   assertStrictEquals(errorMessageOr(noMessage), noMessage);
+  const nullMessage = { message: null };
+  assertStrictEquals(errorMessageOr(nullMessage), nullMessage);
   assertStrictEquals(errorMessageOr("plain"), "plain");
   assertStrictEquals(errorMessageOr(null), null);
 });

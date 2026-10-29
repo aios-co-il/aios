@@ -1,15 +1,15 @@
-// Narrowing helpers for untrusted JSON (request bodies, provider responses,
-// JSON columns): read fields as `unknown` and check each one before use.
+// Zod readers for untrusted JSON (request bodies, provider responses, JSON
+// columns): fields stay `unknown` until each caller checks them.
+import { z } from "npm:zod@3.25.76";
 
-export type UnknownRecord = { readonly [key: string]: unknown };
+export const unknownRecordSchema = z.record(z.string(), z.unknown());
 
-export function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === "object" && value !== null;
-}
+export type UnknownRecord = z.infer<typeof unknownRecordSchema>;
 
-/** The value when it is an object, else an empty record (reads yield undefined). */
+/** The value when it is a plain object, else an empty record (reads yield undefined). */
 export function asRecord(value: unknown): UnknownRecord {
-  return isRecord(value) ? value : {};
+  const parsed = unknownRecordSchema.safeParse(value);
+  return parsed.success ? parsed.data : {};
 }
 
 /** JSON.parse that yields an empty record for invalid JSON or non-objects. */
@@ -21,7 +21,10 @@ export function parseJsonRecord(raw: string): UnknownRecord {
   }
 }
 
+const errorLikeSchema = z.object({ message: z.unknown() });
+
 /** `e?.message ?? e` for a caught value of unknown shape. */
 export function errorMessageOr(e: unknown): unknown {
-  return (isRecord(e) ? e.message : undefined) ?? e;
+  const parsed = errorLikeSchema.safeParse(e);
+  return (parsed.success ? parsed.data.message : undefined) ?? e;
 }

@@ -1,3 +1,4 @@
+import { z } from "npm:zod@3.25.76";
 import type { Database, Json } from "../database.types.ts";
 import type {
   AdapterCapabilities,
@@ -5,7 +6,6 @@ import type {
   ChannelProvider,
   CloudDirectProvider,
   ConversationStatus,
-  MessageEventType,
   SendResult,
   WorkspaceProvider,
 } from "./types.ts";
@@ -363,21 +363,14 @@ export function resolveCallbackOrigin(
   return raw || session || "internal";
 }
 
-const EVENT_TYPES: ReadonlySet<string> = new Set<MessageEventType>([
-  "message",
-  "progress",
-  "approval_request",
-  "system",
-]);
+const callbackEventTypeSchema = z.preprocess(
+  (raw) => raw || "message",
+  z.coerce.string(),
+);
 
-function isMessageEventType(value: unknown): value is MessageEventType {
-  return typeof value === "string" && EVENT_TYPES.has(value);
-}
-
-/** Absent event_type defaults to "message"; an unknown one is rejected (null). */
-export function parseCallbackEventType(raw: unknown): MessageEventType | null {
-  if (raw === undefined || raw === null || raw === "") return "message";
-  return isMessageEventType(raw) ? raw : null;
+/** Absent event_type defaults to "message"; any other value is kept as text. */
+export function parseCallbackEventType(raw: unknown): string {
+  return callbackEventTypeSchema.parse(raw);
 }
 
 /** Narrow generated database strings before exposing a route to channel code. */

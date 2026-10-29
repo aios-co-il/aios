@@ -12,10 +12,13 @@ import type {
   ChannelSessionRow,
   ConversationMessageRow,
   ConversationStatus,
-  SendResult,
 } from "./types.ts";
 import { DEFAULT_BRAIN_ROUTE_SEEDS } from "./types.ts";
-import { errorMessageOr, isRecord } from "../unknown-record.ts";
+import {
+  errorMessageOr,
+  type UnknownRecord,
+  unknownRecordSchema,
+} from "../unknown-record.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -509,22 +512,10 @@ export async function logChannelAction(
   }
 }
 
+/** The dispatch result stored on a message, returned as-is for an idempotent replay. */
 export function duplicateSendResult(
   existing: ConversationMessageRow,
-): SendResult | null {
-  const dispatch = existing.metadata?.dispatch;
-  return isSendResult(dispatch) ? dispatch : null;
-}
-
-function isSendResult(value: unknown): value is SendResult {
-  return (
-    isRecord(value) &&
-    value.ok === true &&
-    typeof value.kind === "string" &&
-    typeof value.conversation_id === "string" &&
-    typeof value.status === "string" &&
-    typeof value.stream === "boolean" &&
-    typeof value.accepted_message === "string" &&
-    isRecord(value.capabilities)
-  );
+): UnknownRecord | null {
+  const parsed = unknownRecordSchema.safeParse(existing.metadata?.dispatch);
+  return parsed.success ? parsed.data : null;
 }

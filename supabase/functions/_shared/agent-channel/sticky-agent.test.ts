@@ -183,3 +183,27 @@ Deno.test(
     assertEquals(ids, []);
   },
 );
+
+Deno.test("open-chat session rows tolerate malformed entries", async () => {
+  const sb = {
+    from(table: string) {
+      return mockChain(
+        null,
+        table === "agent_channel_sessions"
+          ? [
+              null,
+              { external_session_id: 7 },
+              "bc-raw",
+              { external_session_id: "bc-ok" },
+            ]
+          : null,
+      );
+    },
+  };
+  const ids = await collectOpenChatIds(sb, {
+    tenantId: "t1",
+    provider: "cursor",
+    env: { CURSOR_DIRECT_STICKY: "true" },
+  });
+  assertEquals(ids, ["bc-ok"]);
+});
