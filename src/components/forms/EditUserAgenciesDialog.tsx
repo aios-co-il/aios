@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { errorMessageOf } from "@/lib/errorMessage";
 interface EditUserAgenciesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -225,8 +226,8 @@ export function EditUserAgenciesDialog({
         // Use the edge function for campaigners
         updateAgenciesMutation.mutate(selectedAgencies);
       }
-    } catch (error: any) {
-      toast.error("שגיאה בעדכון סוכנויות: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה בעדכון סוכנויות: " + errorMessageOf(error));
     }
   };
 

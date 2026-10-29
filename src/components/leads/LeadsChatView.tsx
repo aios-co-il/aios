@@ -70,9 +70,11 @@ import {
   LeadSourceLines,
 } from "@/components/leads/LeadOriginLines";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
+import { errorMessageOf } from "@/lib/errorMessage";
+import type { LeadsPageLead } from "@/types/leadsPage";
 
 interface LeadsChatViewProps {
-  leads: any[];
+  leads: LeadsPageLead[];
   pipelineStages: Array<{
     id: string;
     label: string;
@@ -142,7 +144,7 @@ export function LeadsChatView({
     initialLeadId ?? null,
   );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingLead, setEditingLead] = useState<any>(null);
+  const [editingLead, setEditingLead] = useState<LeadsPageLead | null>(null);
   const [editInitialTab, setEditInitialTab] = useState<string>("details");
   const [activeTab, setActiveTab] = useState("details");
   const [manageStagesOpen, setManageStagesOpen] = useState(false);
@@ -210,8 +212,8 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-archive", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה בהעברה לארכיון: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה בהעברה לארכיון: " + errorMessageOf(error));
     }
   };
 
@@ -255,8 +257,8 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-archive", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה בהעברה לארכיון: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה בהעברה לארכיון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }
@@ -276,8 +278,8 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-table", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה בעדכון: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }
@@ -297,8 +299,8 @@ export function LeadsChatView({
       queryClient.invalidateQueries({ queryKey: ["leads-table", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה בעדכון: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }
@@ -306,7 +308,7 @@ export function LeadsChatView({
 
   const getStageInfo = (statusKey: string) =>
     pipelineStages.find((s) => s.id === statusKey);
-  const getLeadStatusInfo = (statusKey: string) =>
+  const getLeadStatusInfo = (statusKey: string | null) =>
     findLeadStatus(statusKey, leadStatuses);
 
   return (
@@ -744,7 +746,7 @@ export function LeadsChatView({
                         selectedLead.response_status,
                         leadStatuses,
                       ) && (
-                        <SelectItem value={selectedLead.response_status}>
+                        <SelectItem value={selectedLead.response_status ?? ""}>
                           {selectedLead.response_status}
                         </SelectItem>
                       )}
@@ -1110,7 +1112,7 @@ export function LeadsChatView({
                                 מוצרים / שירותים
                               </h3>
                               <div className="flex flex-wrap gap-2">
-                                {items.map((p: any, i: number) => (
+                                {items.map((p, i) => (
                                   <Badge key={i} variant="secondary">
                                     {p.name}{" "}
                                     {p.price > 0 &&

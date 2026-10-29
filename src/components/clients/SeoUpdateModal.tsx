@@ -84,7 +84,7 @@ export function SeoUpdateModal({
     queryKey: ["seo-monthly-history", clientId],
     queryFn: async () => {
       if (!clientId) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_updates")
         .select("id, month, status, notes, work, created_at, tenant_id")
         .eq("client_id", clientId)
@@ -149,20 +149,18 @@ export function SeoUpdateModal({
         summary: notes,
       });
 
-      const { error } = await (supabase as any)
-        .from("seo_monthly_updates")
-        .upsert(
-          {
-            client_id: clientId,
-            tenant_id: saveTenantId,
-            month: selectedMonth,
-            status,
-            notes: nextWork.summary || null,
-            work: nextWork,
-            updated_by: user.id,
-          },
-          { onConflict: "client_id,month" },
-        );
+      const { error } = await supabase.from("seo_monthly_updates").upsert(
+        {
+          client_id: clientId,
+          tenant_id: saveTenantId,
+          month: selectedMonth,
+          status,
+          notes: nextWork.summary || null,
+          work: nextWork,
+          updated_by: user.id,
+        },
+        { onConflict: "client_id,month" },
+      );
       if (error) throw error;
     },
     onSuccess: () => {
@@ -186,7 +184,7 @@ export function SeoUpdateModal({
       setNotes("");
       onOpenChange(false);
     },
-    onError: (err: any) => {
+    onError: (err) => {
       toast.error(err?.message || "שגיאה בשמירת עדכון SEO");
     },
   });
@@ -233,7 +231,9 @@ export function SeoUpdateModal({
             <Label className="text-sm font-medium">סטטוס SEO</Label>
             <RadioGroup
               value={status}
-              onValueChange={(v) => setStatus(v as any)}
+              onValueChange={(v) => {
+                if (v === "up" || v === "stable" || v === "down") setStatus(v);
+              }}
               className="flex gap-4"
             >
               <label className="flex items-center gap-2 cursor-pointer">
@@ -277,7 +277,7 @@ export function SeoUpdateModal({
                 היסטוריה
               </Label>
               <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                {seoHistory.map((entry: any) => (
+                {seoHistory.map((entry) => (
                   <div
                     key={entry.id}
                     className="flex items-center gap-2 text-sm p-2 rounded-md bg-muted/40"

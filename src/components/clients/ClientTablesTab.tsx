@@ -47,6 +47,11 @@ import {
   prefetchReportTableView,
 } from "@/lib/prefetchReportChunks";
 import { toast } from "sonner";
+import { parseCrmTableList, type CrmTableSummary } from "@/lib/crmTableSummary";
+import { z } from "zod";
+
+const functionsErrorSchema = z.object({ context: z.instanceof(Response) });
+const errorBodySchema = z.object({ error: z.string().min(1) });
 
 interface ClientTablesTabProps {
   clientId: string;
@@ -86,10 +91,10 @@ export function ClientTablesTab({
         { method: "GET" },
       );
       if (response.error) throw response.error;
-      return Array.isArray(response.data) ? response.data : [];
+      return parseCrmTableList(response.data);
     },
     enabled: !!tenantId && !!clientId,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<CrmTableSummary[]>(),
     // Bust empty linked lists after permission grants; keep warm cache otherwise.
     refetchOnMount: refetchOnMountIfEmpty,
   });
@@ -103,18 +108,18 @@ export function ClientTablesTab({
         { method: "GET" },
       );
       if (response.error) throw response.error;
-      return Array.isArray(response.data) ? response.data : [];
+      return parseCrmTableList(response.data);
     },
     enabled: !!tenantId && showLinkSection,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<CrmTableSummary[]>(),
   });
 
   // Available tables not linked to this client
   const availableTables = useMemo(() => {
-    let filtered = allTables.filter((t: any) => t.client_id !== clientId);
+    let filtered = allTables.filter((t) => t.client_id !== clientId);
     if (tableSearch.trim()) {
       const q = tableSearch.toLowerCase();
-      filtered = filtered.filter((t: any) => t.name?.toLowerCase().includes(q));
+      filtered = filtered.filter((t) => t.name?.toLowerCase().includes(q));
     }
     return filtered;
   }, [allTables, clientId, tableSearch]);
@@ -150,20 +155,22 @@ export function ClientTablesTab({
   });
 
   const availableDashboards = useMemo(() => {
-    const linkedIds = new Set(dashboards.map((d: any) => d.id));
-    let filtered = allDashboards.filter((d: any) => !linkedIds.has(d.id));
+    const linkedIds = new Set(dashboards.map((d) => d.id));
+    let filtered = allDashboards.filter((d) => !linkedIds.has(d.id));
     if (dashboardSearch.trim()) {
       const q = dashboardSearch.toLowerCase();
-      filtered = filtered.filter((d: any) => d.name?.toLowerCase().includes(q));
+      filtered = filtered.filter((d) => d.name?.toLowerCase().includes(q));
     }
     return filtered;
   }, [allDashboards, dashboards, dashboardSearch]);
 
   // Link/unlink table
-  const serverErrorMessage = async (error: any, fallback: string) => {
+  const serverErrorMessage = async (error: unknown, fallback: string) => {
     try {
-      const details = await error?.context?.json();
-      if (details?.error) return details.error as string;
+      const context = functionsErrorSchema.safeParse(error).data?.context;
+      const details: unknown = context ? await context.json() : undefined;
+      const message = errorBodySchema.safeParse(details).data?.error;
+      if (message) return message;
     } catch {
       /* keep fallback */
     }
@@ -204,7 +211,10 @@ export function ClientTablesTab({
     queryClient.invalidateQueries({ queryKey: ["all-crm-tables", tenantId] });
   };
 
-  const toggleCampaignActive = async (table: any) => {
+  const toggleCampaignActive = async (table: {
+    id: string;
+    campaign_active?: unknown;
+  }) => {
     const next = !(table.campaign_active ?? true);
     const { error } = await supabase.functions.invoke("crm-tables", {
       method: "PATCH",
@@ -260,18 +270,18 @@ export function ClientTablesTab({
     queryClient.invalidateQueries({ queryKey: ["all-dashboards", tenantId] });
   };
 
-  const renderTableIcon = (table: any) =>
+  const renderTableIcon = (table: CrmTableSummary) =>
     getIntegrationIcon(table?.integration_type);
 
   const allItems = useMemo(() => {
-    const dashItems = dashboards.map((d: any) => ({
+    const dashItems = dashboards.map((d) => ({
       id: `dash-${d.id}`,
       kind: "dashboard" as const,
       label: d.name,
       icon: <LayoutDashboard className="h-4 w-4 shrink-0" />,
       raw: d,
     }));
-    const tableItems = tables.map((t: any) => ({
+    const tableItems = tables.map((t) => ({
       id: `table-${t.id}`,
       kind: "table" as const,
       label: t.name,
@@ -429,7 +439,7 @@ export function ClientTablesTab({
               {showTableDropdown && (
                 <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-md max-h-[200px] overflow-y-auto">
                   {availableTables.length > 0 ? (
-                    availableTables.map((t: any) => (
+                    availableTables.map((t) => (
                       <button
                         key={t.id}
                         className="w-full text-right px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center justify-between"
@@ -476,7 +486,7 @@ export function ClientTablesTab({
               {showDashboardDropdown && (
                 <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-md max-h-[200px] overflow-y-auto">
                   {availableDashboards.length > 0 ? (
-                    availableDashboards.map((d: any) => (
+                    availableDashboards.map((d) => (
                       <button
                         key={d.id}
                         className="w-full text-right px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center justify-between"

@@ -97,16 +97,32 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { CarmenWhatsAppAccess } from "@/components/carmen/CarmenWhatsAppAccess";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
+import type { TablesUpdate } from "@/integrations/supabase/types";
+import type { AgencyOption, ClientListRow } from "@/types/crm";
+import { isClientMoodStatus, isClientStatus } from "@/lib/crmEnums";
+import { errorMessageOf } from "@/lib/errorMessage";
 import { permissionForSubpath } from "@/lib/moduleRoutePermissions";
+
+type ClientUpdate = TablesUpdate<"clients">;
+type EditableClientField =
+  | "contact_name"
+  | "phone"
+  | "email"
+  | "website"
+  | "notes"
+  | "industry"
+  | "retainer"
+  | "monthly_budget"
+  | "monthly_fixed_expense";
 
 /** What the workshop route asks for, so the link shows only to whoever may open it. */
 const WORKSHOP_PERMISSION = permissionForSubpath("workshop");
 
 interface ClientsChatViewProps {
-  clients: any[];
-  agencies?: any[];
+  clients: ClientListRow[];
+  agencies?: AgencyOption[];
   canViewFinance?: boolean;
-  getClientFinancialData?: (clientId: string) => any;
+  getClientFinancialData?: (clientId: string) => unknown;
   initialClientId?: string; // deep-link: open this client on mount
   initialTab?: string; // deep-link: open this tab on mount (?tab=recordings)
   onSelectedClientChange?: (clientId: string | null) => void;
@@ -251,12 +267,12 @@ export function ClientsChatView({
   const filteredGroups = useMemo(() => {
     if (!groupSearch.trim()) return whatsappGroups;
     const q = groupSearch.toLowerCase();
-    return whatsappGroups.filter((g: any) =>
+    return whatsappGroups.filter((g) =>
       g.group_name?.toLowerCase().includes(q),
     );
   }, [whatsappGroups, groupSearch]);
 
-  const getClientDisplayName = useCallback((client: any) => {
+  const getClientDisplayName = useCallback((client: ClientListRow) => {
     const candidates = [
       client?.name,
       client?.contact_name,
@@ -339,8 +355,8 @@ export function ClientsChatView({
       const next = clients[idx + 1] || clients[idx - 1] || null;
       setSelectedClientId(next?.id || null);
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה במחיקת לקוח: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה במחיקת לקוח: " + errorMessageOf(error));
     } finally {
       setPendingDeleteId(null);
     }
@@ -395,8 +411,8 @@ export function ClientsChatView({
       }
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה במחיקה: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה במחיקה: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
       setConfirmingBulkDelete(false);
@@ -407,16 +423,18 @@ export function ClientsChatView({
     if (selectedClientIds.size === 0) return;
     setBulkActionLoading(true);
     try {
+      if (!isClientStatus(status))
+        throw new Error(`Invalid client status: ${status}`);
       const { error } = await supabase
         .from("clients")
-        .update({ status: status as any })
+        .update({ status })
         .in("id", Array.from(selectedClientIds));
       if (error) throw error;
       toast.success(`${selectedClientIds.size} לקוחות עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה בעדכון: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }
@@ -426,16 +444,18 @@ export function ClientsChatView({
     if (selectedClientIds.size === 0) return;
     setBulkActionLoading(true);
     try {
+      if (!isClientMoodStatus(moodStatus))
+        throw new Error(`Invalid mood status: ${moodStatus}`);
       const { error } = await supabase
         .from("clients")
-        .update({ mood_status: moodStatus as any })
+        .update({ mood_status: moodStatus })
         .in("id", Array.from(selectedClientIds));
       if (error) throw error;
       toast.success(`${selectedClientIds.size} לקוחות עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-    } catch (error: any) {
-      toast.error("שגיאה בעדכון: " + error.message);
+    } catch (error) {
+      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
     } finally {
       setBulkActionLoading(false);
     }
@@ -443,9 +463,11 @@ export function ClientsChatView({
 
   const handleStatusChange = async (clientId: string, status: string) => {
     try {
+      if (!isClientStatus(status))
+        throw new Error(`Invalid client status: ${status}`);
       const { error } = await supabase
         .from("clients")
-        .update({ status: status as any })
+        .update({ status })
         .eq("id", clientId);
       if (error) throw error;
       toast.success("הסטטוס עודכן בהצלחה");
@@ -457,9 +479,11 @@ export function ClientsChatView({
 
   const handleMoodChange = async (clientId: string, moodStatus: string) => {
     try {
+      if (!isClientMoodStatus(moodStatus))
+        throw new Error(`Invalid mood status: ${moodStatus}`);
       const { error } = await supabase
         .from("clients")
-        .update({ mood_status: moodStatus as any })
+        .update({ mood_status: moodStatus })
         .eq("id", clientId);
       if (error) throw error;
       toast.success("מצב הלקוח עודכן בהצלחה");
@@ -474,7 +498,7 @@ export function ClientsChatView({
   const getMoodInfo = (mood: string | null) =>
     MOOD_CONFIG[mood || "happy"] || MOOD_CONFIG.happy;
   const getAgencyName = (agencyId: string) =>
-    agencies?.find((a: any) => a.id === agencyId)?.name || "";
+    agencies?.find((a) => a.id === agencyId)?.name || "";
 
   const visibleClientTabs = useMemo(
     () =>
@@ -485,15 +509,17 @@ export function ClientsChatView({
     visibleClientTabs.find((tab) => tab.value === activeTab)?.label ??
     "פרטי לקוח";
 
-  const updateClientField = async (
+  const updateClientField = async <K extends keyof ClientUpdate>(
     clientId: string,
-    field: string,
-    value: any,
+    field: K,
+    value: ClientUpdate[K],
   ) => {
     try {
+      const patch: ClientUpdate = {};
+      patch[field] = value;
       const { error, data } = await supabase
         .from("clients")
-        .update({ [field]: value })
+        .update(patch)
         .eq("id", clientId)
         .select();
       if (error) throw error;
@@ -502,8 +528,8 @@ export function ClientsChatView({
       }
       toast.success("עודכן בהצלחה");
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-    } catch (err: any) {
-      toast.error(`שגיאה בעדכון: ${err?.message || "נסה שוב"}`);
+    } catch (err) {
+      toast.error(`שגיאה בעדכון: ${errorMessageOf(err) || "נסה שוב"}`);
     }
   };
 
@@ -518,7 +544,7 @@ export function ClientsChatView({
   }: {
     label: string;
     value: string | null;
-    field: string;
+    field: EditableClientField;
     clientId: string;
     type?: "text" | "number" | "textarea";
     isLink?: boolean;
@@ -1004,7 +1030,9 @@ export function ClientsChatView({
                       clientId={selectedClient.id}
                       currentName={selectedClientDisplayName}
                       agencyName={
-                        isMobile ? undefined : selectedClient.agencies?.name
+                        isMobile
+                          ? undefined
+                          : (selectedClient.agencies?.name ?? undefined)
                       }
                     />
                   </div>
@@ -1377,7 +1405,7 @@ export function ClientsChatView({
                     client={{
                       id: selectedClient.id,
                       name: selectedClient.name,
-                      tenant_id: selectedClient.tenant_id,
+                      tenant_id: selectedClient.tenant_id ?? undefined,
                     }}
                   />
                 </div>
@@ -1477,7 +1505,9 @@ export function ClientsChatView({
                               clientId={selectedClient.id}
                               field="start_date"
                               currentDate={selectedClient.start_date}
-                              onUpdate={updateClientField}
+                              onUpdate={(id, _field, value) =>
+                                updateClientField(id, "start_date", value)
+                              }
                             />
                             <span className="text-muted-foreground">
                               :תחילת פעילות
@@ -1487,8 +1517,10 @@ export function ClientsChatView({
                             <ClientTimelineDatePicker
                               clientId={selectedClient.id}
                               field="end_date"
-                              currentDate={(selectedClient as any).end_date}
-                              onUpdate={updateClientField}
+                              currentDate={selectedClient.end_date}
+                              onUpdate={(id, _field, value) =>
+                                updateClientField(id, "end_date", value)
+                              }
                             />
                             <span className="text-muted-foreground">
                               :סיום פעילות
@@ -1519,7 +1551,7 @@ export function ClientsChatView({
                             <ClientFollowUpDatePicker
                               clientId={selectedClient.id}
                               currentDate={
-                                (selectedClient as any).follow_up_date ?? null
+                                selectedClient.follow_up_date ?? null
                               }
                               variant="full"
                             />
@@ -1594,7 +1626,7 @@ export function ClientsChatView({
                                     onClick={() => setShowGroupDropdown(true)}
                                   >
                                     {whatsappGroups.find(
-                                      (g: any) =>
+                                      (g) =>
                                         g.id ===
                                         selectedClient.whatsapp_group_id,
                                     )?.group_name || "קבוצה מקושרת"}
@@ -1626,7 +1658,7 @@ export function ClientsChatView({
                               {showGroupDropdown && (
                                 <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-md max-h-[200px] overflow-y-auto">
                                   {filteredGroups.length > 0 ? (
-                                    filteredGroups.map((g: any) => (
+                                    filteredGroups.map((g) => (
                                       <button
                                         key={g.id}
                                         className="w-full text-right px-3 py-1.5 text-xs hover:bg-accent transition-colors"
@@ -1787,10 +1819,11 @@ export function ClientsChatView({
                                       selectedClient.id,
                                     ],
                                   });
-                                } catch (err: any) {
+                                } catch (err) {
+                                  const message = errorMessageOf(err);
                                   toast.error(
-                                    err?.message
-                                      ? `שגיאה בהוספת איש קשר: ${err.message}`
+                                    message
+                                      ? `שגיאה בהוספת איש קשר: ${message}`
                                       : "שגיאה בהוספת איש קשר",
                                   );
                                 }
@@ -1804,7 +1837,7 @@ export function ClientsChatView({
 
                       {clientContacts.length > 0 ? (
                         <div className="space-y-2">
-                          {clientContacts.map((contact: any) => (
+                          {clientContacts.map((contact) => (
                             <div
                               key={contact.id}
                               className="border border-border/60 rounded-lg p-3 group bg-muted/20 hover:bg-muted/40 transition-colors"
@@ -1903,10 +1936,11 @@ export function ClientsChatView({
                                               selectedClient.id,
                                             ],
                                           });
-                                        } catch (err: any) {
+                                        } catch (err) {
+                                          const message = errorMessageOf(err);
                                           toast.error(
-                                            err?.message
-                                              ? `שגיאה בעדכון איש קשר: ${err.message}`
+                                            message
+                                              ? `שגיאה בעדכון איש קשר: ${message}`
                                               : "שגיאה בעדכון איש קשר",
                                           );
                                         }
@@ -1937,10 +1971,11 @@ export function ClientsChatView({
                                               selectedClient.id,
                                             ],
                                           });
-                                        } catch (err: any) {
+                                        } catch (err) {
+                                          const message = errorMessageOf(err);
                                           toast.error(
-                                            err?.message
-                                              ? `שגיאה במחיקה: ${err.message}`
+                                            message
+                                              ? `שגיאה במחיקה: ${message}`
                                               : "שגיאה במחיקה",
                                           );
                                         }
@@ -2030,40 +2065,38 @@ export function ClientsChatView({
                         <Users className="h-4 w-4 text-primary" />
                       </h3>
                       <div className="flex flex-wrap gap-2 mb-2">
-                        {selectedClient.client_team?.map(
-                          (ct: any, i: number) => (
-                            <Badge
-                              key={i}
-                              variant="secondary"
-                              className="flex items-center gap-1"
-                            >
-                              {ct?.campaigners?.full_name ?? "—"}
-                              <X
-                                className="h-3 w-3 cursor-pointer hover:text-destructive"
-                                onClick={async () => {
-                                  const { error } = await supabase
-                                    .from("client_team")
-                                    .delete()
-                                    .eq("client_id", selectedClient.id)
-                                    .eq("campaigner_id", ct.campaigner_id);
-                                  if (error) {
-                                    toast.error("שגיאה בהסרת קמפיינר");
-                                  } else {
-                                    toast.success("הקמפיינר הוסר");
-                                    queryClient.invalidateQueries({
-                                      queryKey: ["clients", tenantId],
-                                    });
-                                  }
-                                }}
-                              />
-                            </Badge>
-                          ),
-                        )}
+                        {selectedClient.client_team?.map((ct, i) => (
+                          <Badge
+                            key={i}
+                            variant="secondary"
+                            className="flex items-center gap-1"
+                          >
+                            {ct?.campaigners?.full_name ?? "—"}
+                            <X
+                              className="h-3 w-3 cursor-pointer hover:text-destructive"
+                              onClick={async () => {
+                                const { error } = await supabase
+                                  .from("client_team")
+                                  .delete()
+                                  .eq("client_id", selectedClient.id)
+                                  .eq("campaigner_id", ct.campaigner_id);
+                                if (error) {
+                                  toast.error("שגיאה בהסרת קמפיינר");
+                                } else {
+                                  toast.success("הקמפיינר הוסר");
+                                  queryClient.invalidateQueries({
+                                    queryKey: ["clients", tenantId],
+                                  });
+                                }
+                              }}
+                            />
+                          </Badge>
+                        ))}
                       </div>
                       <CampaignerAssignmentPicker
                         assignedCampaignerIds={(
                           selectedClient.client_team || []
-                        ).map((assignment: any) => assignment.campaigner_id)}
+                        ).map((assignment) => assignment.campaigner_id)}
                         triggerClassName="h-7 text-xs"
                         onAssign={async (campaignerId) => {
                           const { error } = await supabase
@@ -2161,9 +2194,8 @@ export function ClientsChatView({
                           <EditableField
                             label=":הוצאות חודשיות קבועות"
                             value={
-                              (
-                                selectedClient as any
-                              ).monthly_fixed_expense?.toString() || "0"
+                              selectedClient.monthly_fixed_expense?.toString() ||
+                              "0"
                             }
                             field="monthly_fixed_expense"
                             clientId={selectedClient.id}
@@ -2226,7 +2258,7 @@ export function ClientsChatView({
                     <ClientUpdatesTab
                       clientId={selectedClient.id}
                       clientName={selectedClient.name || "לקוח"}
-                      currentMoodStatus={(selectedClient as any).mood_status}
+                      currentMoodStatus={selectedClient.mood_status}
                     />
                   </TabsContent>
 

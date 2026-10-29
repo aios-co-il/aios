@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { z } from "zod";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SeoUpdateModal } from "@/components/clients/SeoUpdateModal";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import { parseClientServices } from "@/lib/clientServices";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const TIER_OPTIONS = [
@@ -55,9 +58,18 @@ const SEO_STATUS_OPTIONS = [
 
 // ── Main component ─────────────────────────────────────────────────────────────
 interface CRMSettingsSectionProps {
-  client: any;
+  client: {
+    id: string;
+    name: string;
+    tier?: string | null;
+    services?: Json;
+  };
   onUpdate?: () => void;
 }
+
+type ClientCrmPatch = Partial<Pick<Tables<"clients">, "tier" | "services">>;
+
+const cachedClientSchema = z.object({ id: z.unknown() }).passthrough();
 
 export function CRMSettingsSection({
   client,
@@ -69,17 +81,8 @@ export function CRMSettingsSection({
   const [seoOpen, setSeoOpen] = useState(false);
 
   // Current values (graceful fallback if columns don't exist yet)
-  const currentTier: string = (client as any).tier ?? "";
-  const currentServices: string[] = (() => {
-    const raw = (client as any).services;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return [];
-    }
-  })();
+  const currentTier: string = client.tier ?? "";
+  const currentServices = parseClientServices(client.services);
   const hasSeo = currentServices.includes("seo");
 
   // Fetch last 3 SEO updates
@@ -87,9 +90,9 @@ export function CRMSettingsSection({
     queryKey: ["seo-history", client.id],
     queryFn: async () => {
       try {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from("seo_monthly_updates")
-          .select("month, status, notes, updated_at")
+          .select("month, status, notes")
           .eq("client_id", client.id)
           .order("month", { ascending: false })
           .limit(3);
@@ -104,11 +107,14 @@ export function CRMSettingsSection({
 
   // Optimistically patch one field of this client across all cached ["clients", ...] lists,
   // so toggles feel instant and we avoid refetching the whole (heavy) clients list per click.
-  const patchClientInCache = (patch: Record<string, any>) => {
+  const patchClientInCache = (patch: ClientCrmPatch) => {
     const snapshot = queryClient.getQueriesData({ queryKey: ["clients"] });
-    queryClient.setQueriesData({ queryKey: ["clients"] }, (old: any) =>
+    queryClient.setQueriesData({ queryKey: ["clients"] }, (old: unknown) =>
       Array.isArray(old)
-        ? old.map((c: any) => (c.id === client.id ? { ...c, ...patch } : c))
+        ? old.map((c: unknown) => {
+            const cached = cachedClientSchema.safeParse(c).data;
+            return cached?.id === client.id ? { ...cached, ...patch } : c;
+          })
         : old,
     );
     return snapshot;
@@ -124,7 +130,7 @@ export function CRMSettingsSection({
     mutationFn: async (tier: string) => {
       const { error } = await supabase
         .from("clients")
-        .update({ tier } as any)
+        .update({ tier })
         .eq("id", client.id);
       if (error) throw error;
     },
@@ -143,7 +149,7 @@ export function CRMSettingsSection({
     mutationFn: async (services: string[]) => {
       const { error } = await supabase
         .from("clients")
-        .update({ services } as any)
+        .update({ services })
         .eq("id", client.id);
       if (error) throw error;
     },
@@ -256,7 +262,7 @@ export function CRMSettingsSection({
 
               {seoHistory.length > 0 ? (
                 <div className="flex gap-2 flex-wrap justify-end">
-                  {seoHistory.map((entry: any) => {
+                  {seoHistory.map((entry) => {
                     const opt = SEO_STATUS_OPTIONS.find(
                       (o) => o.value === entry.status,
                     );

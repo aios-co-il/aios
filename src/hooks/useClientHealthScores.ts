@@ -29,6 +29,14 @@ export interface ClientHealthScore extends HealthResult {
   clientId: string;
 }
 
+const COMMUNICATION_STATUSES = ["normal", "sensitive", "complaint"] as const;
+
+function toCommunicationStatus(
+  status: string | null | undefined,
+): HealthInput["communicationStatus"] {
+  return COMMUNICATION_STATUSES.find((s) => s === status) ?? null;
+}
+
 export function useClientHealthScores(
   clientIds: string[],
   tenantId: string | null,
@@ -39,7 +47,7 @@ export function useClientHealthScores(
     queryKey: ["communication-logs-latest", clientIds.join(","), tenantId],
     queryFn: async () => {
       if (!clientIds.length || !tenantId) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("communication_logs")
         .select("client_id, status, created_at")
         .in("client_id", clientIds)
@@ -57,7 +65,7 @@ export function useClientHealthScores(
     queryKey: ["seo-monthly-latest", clientIds.join(","), tenantId],
     queryFn: async () => {
       if (!clientIds.length || !tenantId) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_updates")
         .select("client_id, month, status")
         .in("client_id", clientIds)
@@ -75,22 +83,22 @@ export function useClientHealthScores(
 
   for (const clientId of clientIds) {
     // Latest communication log
-    const latestComm = commLogs.find((l: any) => l.client_id === clientId);
+    const latestComm = commLogs.find((l) => l.client_id === clientId);
     const daysSinceComm = latestComm
-      ? differenceInDays(new Date(), new Date(latestComm.created_at))
+      ? differenceInDays(new Date(), new Date(latestComm.created_at ?? 0))
       : null;
 
     // SEO history (last 3 months)
     const seoHistory = seoUpdates
-      .filter((s: any) => s.client_id === clientId)
+      .filter((s) => s.client_id === clientId)
       .slice(0, 3)
-      .map((s: any) => s.status as "up" | "stable" | "down");
+      .map((s) => s.status);
 
     // Performance data from caller
     const perf = performanceData.find((p) => p.clientId === clientId);
 
     const input: HealthInput = {
-      communicationStatus: latestComm?.status ?? null,
+      communicationStatus: toCommunicationStatus(latestComm?.status),
       daysSinceLastCommunication: daysSinceComm,
       services: [], // caller should enrich via client.services
       performanceChangePct: perf?.performanceChangePct ?? null,
@@ -119,7 +127,7 @@ export function useClientHealthScore(
     queryKey: ["communication-logs-single", clientId, tenantId],
     queryFn: async () => {
       if (!clientId || !tenantId) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("communication_logs")
         .select("client_id, status, created_at")
         .eq("client_id", clientId)
@@ -137,7 +145,7 @@ export function useClientHealthScore(
     queryKey: ["seo-monthly-single", clientId, tenantId],
     queryFn: async () => {
       if (!clientId || !tenantId) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("seo_monthly_updates")
         .select("client_id, month, status")
         .eq("client_id", clientId)
@@ -153,15 +161,13 @@ export function useClientHealthScore(
 
   const latestComm = commLogs[0] ?? null;
   const daysSinceComm = latestComm
-    ? differenceInDays(new Date(), new Date(latestComm.created_at))
+    ? differenceInDays(new Date(), new Date(latestComm.created_at ?? 0))
     : null;
 
-  const seoHistory = seoUpdates.map(
-    (s: any) => s.status as "up" | "stable" | "down",
-  );
+  const seoHistory = seoUpdates.map((s) => s.status);
 
   const input: HealthInput = {
-    communicationStatus: latestComm?.status ?? null,
+    communicationStatus: toCommunicationStatus(latestComm?.status),
     daysSinceLastCommunication: daysSinceComm,
     services,
     performanceChangePct,

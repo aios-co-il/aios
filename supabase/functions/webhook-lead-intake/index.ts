@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 import {
   processAutomationOnlyLeadWebhook,
   resolveLeadAlertAutomation,
@@ -18,6 +19,7 @@ import { RETURNING_LEAD_TAG } from "./lead-duplicate-match.ts";
 import {
   applyTagToLead,
   getExistingLead,
+  leadLookup,
   returningLeadStatusUpdate,
 } from "./returning-lead.ts";
 
@@ -449,14 +451,14 @@ Deno.serve(async (req) => {
       : "other";
 
     // ========== DEDUPLICATION LOGIC ==========
-    const existingLead = await getExistingLead(supabase, tenantId, {
+    const existingLead = await getExistingLead(leadLookup(supabase), tenantId, {
       phone: payload.phone,
       email: payload.email,
     });
 
     // If existing lead found - update with new info if available
     if (existingLead) {
-      const updates: Record<string, any> = {};
+      const updates: TablesUpdate<"leads"> = {};
       let hasUpdates = false;
 
       // Only update fields that are empty in existing lead but have values in payload

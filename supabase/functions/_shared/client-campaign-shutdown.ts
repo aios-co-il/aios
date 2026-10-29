@@ -3,6 +3,8 @@
  * Default scope is all live client campaigns — not webinar-name filtering unless explicitly requested.
  */
 
+import { asObject } from "./lead-json.ts";
+
 export type CampaignShutdownScope =
   { mode: "all_client_campaigns" } | { mode: "name_includes"; terms: string[] };
 
@@ -126,7 +128,7 @@ export function buildCampaignShutdownReport(
 ): string {
   const lines = [
     `🕐 סיכום כיבוי/בדיקת קמפיינים — ${result.client_name}`,
-    `היקף: ${result.scope.mode === "all_client_campaigns" ? "כל קמפייני הלקוח" : `שמות שמכילים: ${(result.scope as any).terms?.join(", ") || ""}`}`,
+    `היקף: ${result.scope.mode === "all_client_campaigns" ? "כל קמפייני הלקוח" : `שמות שמכילים: ${result.scope.terms?.join(", ") || ""}`}`,
     `נבדקו: ${result.checked.length} | כבר PAUSED: ${result.already_paused.length} | הושהו עכשיו: ${result.newly_paused.length} | עדיין ACTIVE: ${result.still_active.length}`,
   ];
   if (result.skipped_out_of_scope.length > 0) {
@@ -197,17 +199,33 @@ export function buildCampaignShutdownJobFromBrief(
   };
 }
 
+const stringOrNull = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
+
+/** A stored scope; anything but "all_client_campaigns" filters by name terms. */
+function readShutdownScope(value: unknown): CampaignShutdownScope {
+  const scope = asObject(value);
+  if (scope?.mode === "all_client_campaigns") {
+    return { mode: "all_client_campaigns" };
+  }
+  const terms = Array.isArray(scope?.terms) ? scope.terms.map(String) : [];
+  return { mode: "name_includes", terms };
+}
+
 export function extractCampaignShutdownJob(task: {
   title?: string | null;
   description?: string | null;
-  result?: any;
+  result?: unknown;
 }): CampaignShutdownJob | null {
-  const embedded = task?.result?.campaign_shutdown_job;
+  const embedded = asObject(asObject(task?.result)?.campaign_shutdown_job);
   if (embedded && (embedded.client_id || embedded.client_name_search)) {
     return {
-      client_id: embedded.client_id ?? null,
-      client_name_search: embedded.client_name_search ?? null,
-      scope: embedded.scope ?? { mode: "all_client_campaigns" },
+      client_id: stringOrNull(embedded.client_id),
+      client_name_search: stringOrNull(embedded.client_name_search),
+      scope:
+        embedded.scope == null
+          ? { mode: "all_client_campaigns" }
+          : readShutdownScope(embedded.scope),
       auto_pause: embedded.auto_pause !== false,
       notify_david: embedded.notify_david !== false,
     };

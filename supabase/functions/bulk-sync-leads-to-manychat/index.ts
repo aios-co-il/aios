@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  isManyChatSuccess,
+  manyChatSuccessId,
+} from "../_shared/manychat-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +42,7 @@ function getPhoneLookupCandidates(phone: string): string[] {
   );
 }
 
-async function safeJson(res: Response): Promise<any> {
+async function safeJson(res: Response): Promise<unknown> {
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
   if (!contentType.includes("application/json")) {
@@ -68,8 +72,9 @@ async function findSubscriberIdByPhone(
     const data = await safeJson(res);
 
     // Expected: { status: 'success', data: { id: ... } }
-    if (data?.status === "success" && data?.data?.id) {
-      return String(data.data.id);
+    const foundId = manyChatSuccessId(data);
+    if (foundId) {
+      return String(foundId);
     }
   }
   return null;
@@ -92,8 +97,9 @@ async function findSubscriberIdByEmail(
 
   const data = await safeJson(res);
 
-  if (data?.status === "success" && data?.data?.id) {
-    return String(data.data.id);
+  const foundId = manyChatSuccessId(data);
+  if (foundId) {
+    return String(foundId);
   }
   return null;
 }
@@ -278,8 +284,9 @@ Deno.serve(async (req) => {
 
       const createData = await safeJson(createRes);
 
-      if (createData.status === "success" && createData.data?.id) {
-        subscriberId = createData.data.id;
+      const createdId = manyChatSuccessId(createData);
+      if (createdId) {
+        subscriberId = String(createdId);
       } else {
         // If creation failed because subscriber already exists, try lookup again
         const alreadyExistsMsg = JSON.stringify(createData).toLowerCase();
@@ -327,7 +334,7 @@ Deno.serve(async (req) => {
 
       const tagData = await safeJson(tagRes);
 
-      if (tagData?.status !== "success") {
+      if (!isManyChatSuccess(tagData)) {
         // Tag failed but we still have the subscriber - mark it anyway
       }
 

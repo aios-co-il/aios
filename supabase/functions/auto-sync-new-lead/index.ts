@@ -1,4 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asJsonObject } from "../_shared/lead-json.ts";
+import {
+  cachedManyChatFieldId,
+  findManyChatPhoneField,
+  isManyChatSuccess,
+  manyChatSuccessId,
+  mentionsManyChatRateLimit,
+} from "../_shared/manychat-reply.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,7 +105,7 @@ function getPhoneLookupCandidates(phone: string): string[] {
 }
 
 // Safe JSON parsing helper
-async function safeJson(res: Response): Promise<any> {
+async function safeJson(res: Response): Promise<unknown> {
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
   if (!contentType.includes("application/json")) {
@@ -113,7 +122,7 @@ async function safeJson(res: Response): Promise<any> {
 // This is required because findByCustomField needs field_id (numeric), not field_name
 async function getPhoneNumberFieldId(
   apiKey: string,
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<number | null> {
   // First, try to get cached field_id from tenant_integrations.settings
@@ -124,10 +133,9 @@ async function getPhoneNumberFieldId(
     .eq("integration_type", "manychat")
     .single();
 
-  const settings = integration?.settings || {};
-  if (settings.phone_number_field_id) {
-    return settings.phone_number_field_id;
-  }
+  const settings = asJsonObject(integration?.settings) ?? {};
+  const cachedFieldId = cachedManyChatFieldId(settings.phone_number_field_id);
+  if (cachedFieldId !== null) return cachedFieldId;
 
   // If not cached, fetch from ManyChat API
   try {
@@ -143,29 +151,21 @@ async function getPhoneNumberFieldId(
     );
 
     const data = await safeJson(res);
+    const phoneField = findManyChatPhoneField(data, PHONE_CUSTOM_FIELD_NAME);
 
-    if (data?.status === "success" && Array.isArray(data?.data)) {
-      // Find the phone_number field
-      const phoneField = data.data.find(
-        (field: any) =>
-          field.name === PHONE_CUSTOM_FIELD_NAME ||
-          field.name?.toLowerCase() === "phone_number",
-      );
+    if (phoneField?.id) {
+      const fieldId = parseInt(String(phoneField.id), 10);
 
-      if (phoneField?.id) {
-        const fieldId = parseInt(phoneField.id, 10);
+      // Cache the field_id in tenant_integrations.settings
+      await supabase
+        .from("tenant_integrations")
+        .update({
+          settings: { ...settings, phone_number_field_id: fieldId },
+        })
+        .eq("tenant_id", tenantId)
+        .eq("integration_type", "manychat");
 
-        // Cache the field_id in tenant_integrations.settings
-        await supabase
-          .from("tenant_integrations")
-          .update({
-            settings: { ...settings, phone_number_field_id: fieldId },
-          })
-          .eq("tenant_id", tenantId)
-          .eq("integration_type", "manychat");
-
-        return fieldId;
-      }
+      return fieldId;
     }
   } catch (e) {
     console.error("Error fetching custom fields:", e);
@@ -192,12 +192,13 @@ async function findSubscriberByPhone(
 
       const data = await safeJson(res);
 
-      if (data?.status === "success" && data?.data?.id) {
-        return String(data.data.id);
+      const foundId = manyChatSuccessId(data);
+      if (foundId) {
+        return String(foundId);
       }
 
       // If rate limited, wait and continue
-      if (res.status === 429 || data?.message?.includes("max rps")) {
+      if (res.status === 429 || mentionsManyChatRateLimit(data)) {
         await new Promise((r) => setTimeout(r, 2000));
       }
     } catch (e) {
@@ -226,8 +227,9 @@ async function findSubscriberByEmail(
 
     const data = await safeJson(res);
 
-    if (data?.status === "success" && data?.data?.id) {
-      return String(data.data.id);
+    const foundId = manyChatSuccessId(data);
+    if (foundId) {
+      return String(foundId);
     }
   } catch (e) {
     console.error(`Error searching by email:`, e);
@@ -256,12 +258,13 @@ async function findSubscriberByCustomField(
 
       const data = await safeJson(res);
 
-      if (data?.status === "success" && data?.data?.id) {
-        return String(data.data.id);
+      const foundId = manyChatSuccessId(data);
+      if (foundId) {
+        return String(foundId);
       }
 
       // If rate limited, wait and continue
-      if (res.status === 429 || data?.message?.includes("max rps")) {
+      if (res.status === 429 || mentionsManyChatRateLimit(data)) {
         await new Promise((r) => setTimeout(r, 2000));
       }
     } catch (e) {
@@ -294,7 +297,7 @@ async function setPhoneCustomField(
 
     const data = await safeJson(res);
 
-    return data?.status === "success";
+    return isManyChatSuccess(data);
   } catch (e) {
     console.error("Error setting custom field:", e);
     return false;
@@ -318,7 +321,7 @@ async function createManyChatSubscriber(
 
   // Some ManyChat accounts deny importing phone to system fields.
   // We first try with phone+whatsapp_phone, then retry without phone if needed.
-  const payloadWithPhone: any = {
+  const payloadWithPhone = {
     first_name: firstName,
     last_name: lastName,
     phone: `+${formattedPhone}`,
@@ -345,11 +348,11 @@ async function createManyChatSubscriber(
 
   // Check if first attempt SUCCEEDED (status=success with id) vs FAILED with permission error
   const createStr = JSON.stringify(createData);
-  const isSuccess = createData?.status === "success" && createData?.data?.id;
+  const isSuccess = Boolean(manyChatSuccessId(createData));
 
   // Only retry WITHOUT phone if first attempt actually FAILED (not just warning on success)
   if (!isSuccess && createStr.includes("Permission denied to import phone")) {
-    const payloadNoPhone: any = {
+    const payloadNoPhone = {
       first_name: firstName,
       last_name: lastName,
       whatsapp_phone: `+${formattedPhone}`,
@@ -372,8 +375,9 @@ async function createManyChatSubscriber(
     createData = await safeJson(createRes);
   }
 
-  if (createData.status === "success" && createData.data?.id) {
-    const subscriberId = String(createData.data.id);
+  const createdId = manyChatSuccessId(createData);
+  if (createdId) {
+    const subscriberId = String(createdId);
 
     // IMPORTANT: Save phone to custom field for future lookups
     await setPhoneCustomField(apiKey, subscriberId, `+${formattedPhone}`);
@@ -408,7 +412,7 @@ async function addTagToSubscriber(
 
     const tagData = await safeJson(tagRes);
 
-    return tagData?.status === "success";
+    return isManyChatSuccess(tagData);
   } catch (e) {
     console.error("Error adding tag:", e);
     return false;

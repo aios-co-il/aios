@@ -74,7 +74,7 @@ export function useTableDialogAgencies(options?: {
       const sharedIds = Array.from(
         new Set(
           (sharedAccess || [])
-            .map((row: any) => row.agency_id as string | null)
+            .map((row) => row.agency_id)
             .filter((id): id is string => !!id),
         ),
       ).filter((id) => !(ownedAgencies || []).some((a) => a.id === id));

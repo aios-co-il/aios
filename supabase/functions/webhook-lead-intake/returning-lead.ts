@@ -2,9 +2,65 @@ import {
   leadPhoneVariants,
   pickDuplicateLead,
 } from "./lead-duplicate-match.ts";
+import type { Tables } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 
-/** The slice of the Supabase client these helpers use, so tests can fake it. */
-export type LeadDb = { from: (table: string) => any };
+type LeadRow = Tables<"leads">;
+type IdRow = { id: string };
+type Rows<Lead> = PromiseLike<{ data: Lead[] | null }>;
+
+/** The two lead queries behind `getExistingLead`, newest first. */
+export interface LeadLookup<Lead> {
+  byPhones(tenantId: string, phones: string[]): Rows<Lead>;
+  recentWithPhone(tenantId: string): Rows<Lead>;
+}
+
+export const leadLookup = (db: DbClient): LeadLookup<LeadRow> => ({
+  byPhones: (tenantId, phones) =>
+    db
+      .from("leads")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .in("phone", phones)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  recentWithPhone: (tenantId) =>
+    db
+      .from("leads")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .not("phone", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(500),
+});
+
+type TagKey = { tenant_id: string; name: string };
+type ContactTag = {
+  tenant_id: string;
+  tag_id: string;
+  lead_id: string;
+  user_id: string;
+};
+
+/** Only the builder calls `applyTagToLead` makes; the Supabase client satisfies it. */
+export interface TagDb {
+  from(table: "chat_tags"): {
+    select(columns: "id"): {
+      match(filter: TagKey): {
+        maybeSingle(): PromiseLike<{ data: IdRow | null }>;
+      };
+    };
+    insert(values: TagKey & { color: string }): {
+      select(columns: "id"): { single(): PromiseLike<{ data: IdRow | null }> };
+    };
+  };
+  from(table: "chat_contact_tags"): {
+    upsert(
+      values: ContactTag,
+      options: { onConflict: string; ignoreDuplicates: boolean },
+    ): PromiseLike<unknown>;
+  };
+}
 
 type InboundContact = { phone?: string | null; email?: string | null };
 
@@ -20,33 +76,20 @@ const FINAL_LEAD_STATUSES = new Set([
  * Find the lead this inbound contact returns to: same phone and same email
  * (see lead-duplicate-match.ts).
  */
-export async function getExistingLead(
-  db: LeadDb,
+export async function getExistingLead<Lead extends InboundContact>(
+  leads: LeadLookup<Lead>,
   tenantId: string | null,
   incoming: InboundContact,
-) {
+): Promise<Lead | null> {
   const phoneVariants = leadPhoneVariants(incoming.phone);
-  if (phoneVariants.length === 0) return null;
+  if (phoneVariants.length === 0 || !tenantId) return null;
 
-  const { data: leadsByPhone } = await db
-    .from("leads")
-    .select("*")
-    .eq("tenant_id", tenantId)
-    .in("phone", phoneVariants)
-    .order("created_at", { ascending: false })
-    .limit(20);
-
+  const { data: leadsByPhone } = await leads.byPhones(tenantId, phoneVariants);
   const match = pickDuplicateLead(leadsByPhone, incoming);
   if (match) return match;
 
   // Stored phones may use other spellings; scan recent leads as a fallback
-  const { data: recentLeads } = await db
-    .from("leads")
-    .select("*")
-    .eq("tenant_id", tenantId)
-    .not("phone", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(500);
+  const { data: recentLeads } = await leads.recentWithPhone(tenantId);
   return pickDuplicateLead(recentLeads, incoming);
 }
 
@@ -68,7 +111,7 @@ export function returningLeadStatusUpdate(existing: {
 
 /** Find or create a tenant tag and attach it to the lead (idempotent). */
 export async function applyTagToLead(
-  db: LeadDb,
+  db: TagDb,
   tenantId: string,
   leadId: string,
   rawTagName: string,
@@ -80,8 +123,7 @@ export async function applyTagToLead(
   const { data: existingTag } = await db
     .from("chat_tags")
     .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("name", tagName)
+    .match({ tenant_id: tenantId, name: tagName })
     .maybeSingle();
 
   let tagId = existingTag?.id;

@@ -26,9 +26,10 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface ClientMeetingTabProps {
-  client: any;
+  client: Pick<Tables<"clients">, "id" | "name" | "email" | "contact_name">;
   tenantId?: string;
 }
 
@@ -69,7 +70,7 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
         source: "ראשי",
       });
     }
-    clientContacts?.forEach((c: any) => {
+    clientContacts?.forEach((c) => {
       if (c.email) {
         emails.push({
           email: c.email,
@@ -98,7 +99,7 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
   const handleScheduleMeeting = async () => {
     await meetingScheduler.scheduleMeeting({
       contactName: client.name,
-      contactEmail: client.email,
+      contactEmail: client.email ?? undefined,
       contactId: client.id,
       contactType: "client",
       additionalEmails: [...selectedMeetingEmails, ...selectedTeamMembers],
@@ -305,7 +306,7 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
               </p>
             ) : teamMembers.length > 0 ? (
               <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
-                {teamMembers.map((member: any) => (
+                {teamMembers.map((member) => (
                   <label
                     key={member.id}
                     className="flex items-center gap-2 p-2 rounded-md bg-muted/50 cursor-pointer text-sm"

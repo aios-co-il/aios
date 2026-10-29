@@ -4,6 +4,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
+import type { EditableLead } from "@/types/crm";
+import { isLeadSource } from "@/lib/crmEnums";
+import { toJson } from "@/lib/json";
 import { buildLeadStatusChangedData } from "../../../supabase/functions/_shared/automation-status.ts";
 import { Button } from "@/components/ui/button";
 import {
@@ -132,7 +136,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 interface EditLeadDialogProps {
-  lead: any;
+  lead: EditableLead;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
@@ -185,7 +189,10 @@ export function EditLeadDialog({
 
   // Shared hooks
   const { folderLinks, setFolderLinks, attachments, setAttachments } =
-    useFolderLinksAndAttachments(lead);
+    useFolderLinksAndAttachments({
+      ...lead,
+      folder_link: lead.folder_link ?? undefined,
+    });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -402,16 +409,19 @@ export function EditLeadDialog({
         return fromContact || "ליד";
       })();
 
-      const submitData: any = {
+      const source = inferLeadSource(
+        values.source || lead.source || "paid_ads",
+      );
+      if (!isLeadSource(source))
+        throw new Error(`Invalid lead source: ${source}`);
+      const submitData: TablesUpdate<"leads"> = {
         company_name: safeCompanyName,
         contact_name: values.contact_name || null,
         email: values.email || null,
         phone: values.phone || null,
         campaign_name: (values.campaign_name || "").trim() || null,
-        source: inferLeadSource(
-          values.source || lead.source || "paid_ads",
-        ) as any,
-        status: (values.status as any) || "new",
+        source,
+        status: values.status || "new",
         response_status:
           values.response_status && values.response_status !== "none"
             ? resolveResponseStatusKey(values.response_status, leadStatuses) ||
@@ -423,8 +433,8 @@ export function EditLeadDialog({
         monthly_budget: values.monthly_budget
           ? parseFloat(values.monthly_budget)
           : null,
-        proposal_date: values.proposal_date || null,
-        sale_date: values.sale_date || null,
+        proposal_date: values.proposal_date?.toISOString() || null,
+        sale_date: values.sale_date?.toISOString() || null,
         industry: values.industry || null,
         products:
           values.products && values.products.length > 0
@@ -439,15 +449,17 @@ export function EditLeadDialog({
             : null,
         folder_link: values.folder_link || null,
         lost_reason: values.lost_reason || null,
-        created_at: values.created_at || new Date(),
+        created_at: (values.created_at || new Date()).toISOString(),
         folder_links: folderLinks,
         attachments: attachments,
         ...(customFields.length > 0
           ? {
-              form_data: mergeLeadCustomFieldValues(
-                lead.form_data,
-                customFields,
-                customFieldValues,
+              form_data: toJson(
+                mergeLeadCustomFieldValues(
+                  lead.form_data,
+                  customFields,
+                  customFieldValues,
+                ),
               ),
             }
           : {}),
@@ -462,11 +474,12 @@ export function EditLeadDialog({
           .eq("lead_id", lead.id);
 
         // Insert new assignments
-        if (selectedSalesPeople.length > 0 && lead.tenant_id) {
+        const leadTenantId = lead.tenant_id;
+        if (selectedSalesPeople.length > 0 && leadTenantId) {
           const assignments = selectedSalesPeople.map((spId) => ({
             lead_id: lead.id,
             sales_person_id: spId,
-            tenant_id: lead.tenant_id,
+            tenant_id: leadTenantId,
           }));
           await supabase.from("lead_sales_people").insert(assignments);
         }
@@ -583,7 +596,7 @@ export function EditLeadDialog({
       queryClient.invalidateQueries({ queryKey: ["lead-tags", lead.id] });
       sonnerToast.success("ליד עודכן בהצלחה");
     },
-    onError: (error: any, _values, context) => {
+    onError: (error, _values, context) => {
       // Rollback to previous data on error
       if (context?.previousKanban) {
         queryClient.setQueryData(["leads-kanban"], context.previousKanban);
@@ -602,7 +615,7 @@ export function EditLeadDialog({
       .map((member) => member.full_name || member.email);
     await meetingScheduler.scheduleMeeting({
       contactName: lead.contact_name || lead.company_name,
-      contactEmail: lead.email,
+      contactEmail: lead.email ?? undefined,
       contactId: lead.id,
       contactType: "lead",
       additionalEmails: selectedTeamMembers,
@@ -1119,7 +1132,10 @@ export function EditLeadDialog({
             {leadCreatedAtWasBumped(lead) && (
               <div className="text-sm text-muted-foreground">
                 תאריך יצירה ראשוני:{" "}
-                {format(new Date(lead.first_created_at), "dd/MM/yyyy HH:mm")}
+                {format(
+                  new Date(lead.first_created_at ?? 0),
+                  "dd/MM/yyyy HH:mm",
+                )}
               </div>
             )}
 

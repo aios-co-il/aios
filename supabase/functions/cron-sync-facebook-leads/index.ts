@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asObject } from "../_shared/lead-json.ts";
 import {
   buildLeadRoutingPayload,
   resolveLeadClient,
@@ -31,7 +32,24 @@ interface FormMapping {
 interface IntegrationSettings {
   form_mappings?: Record<string, FormMapping>;
   pages?: Array<{ id: string; name: string; access_token: string }>;
+  delivery_mode?: string;
+  last_webhook_at?: string;
 }
+
+/** A leads row built from a Facebook lead; mapped form fields add columns. */
+interface FacebookLeadRecord {
+  [column: string]: string | null | Record<string, string> | undefined;
+  notes: string;
+  company_name: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  source?: string;
+  agency_id?: string;
+}
+
+const asList = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : [];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -95,11 +113,9 @@ serve(async (req) => {
       const formEntries = Object.entries(formMappings);
 
       // Skip integrations that opted into webhook delivery (with stale fallback: 15 min)
-      const deliveryMode = (settings as any)?.delivery_mode as
-        string | undefined;
+      const deliveryMode = settings?.delivery_mode;
       if (deliveryMode === "webhook") {
-        const lastWebhookAt = (settings as any)?.last_webhook_at as
-          string | undefined;
+        const lastWebhookAt = settings?.last_webhook_at;
         const ageMs = lastWebhookAt
           ? Date.now() - new Date(lastWebhookAt).getTime()
           : Infinity;
@@ -187,7 +203,7 @@ serve(async (req) => {
             );
 
             // Map fields according to configuration
-            const leadRecord: Record<string, any> = {
+            const leadRecord: FacebookLeadRecord = {
               tenant_id: integration.tenant_id,
               agency_id: mapping.agency_id,
               client_id: routedClient?.client_id || null,
@@ -455,7 +471,7 @@ serve(async (req) => {
                 fieldData,
               );
 
-              const leadRecord: Record<string, any> = {
+              const leadRecord: FacebookLeadRecord = {
                 tenant_id: integration.tenant_id,
                 agency_id: mapping.agency_id,
                 client_id: routedClient?.client_id || null,
@@ -667,10 +683,12 @@ serve(async (req) => {
       >();
 
       for (const step of allFlowSteps) {
-        const config = step.configuration as any;
-        const formId = config?.facebook_form_id;
-        const integrationId = config?.facebook_integration_id;
-        if (!formId || !integrationId) continue;
+        const config = asObject(step.configuration);
+        const configFormId = config?.facebook_form_id;
+        const configIntegrationId = config?.facebook_integration_id;
+        if (!configFormId || !configIntegrationId) continue;
+        const formId = String(configFormId);
+        const integrationId = String(configIntegrationId);
 
         const key = `${step.tenant_id}:${formId}`;
         if (coveredFormIds.has(key)) {
@@ -728,14 +746,18 @@ serve(async (req) => {
           .eq("step_type", "trigger")
           .maybeSingle();
 
-        const syncSinceDate = (triggerStep?.configuration as any)
-          ?.sync_since_date;
+        const triggerConfig = asObject(triggerStep?.configuration);
+        const syncSinceDate = triggerConfig?.sync_since_date;
 
         // Use last_sync_at from the integration, or sync_since_date from config, or default to 24h ago
         const flowSinceDate = fbInt?.last_sync_at
           ? new Date(fbInt.last_sync_at as string)
           : syncSinceDate
-            ? new Date(syncSinceDate)
+            ? new Date(
+                typeof syncSinceDate === "number"
+                  ? syncSinceDate
+                  : String(syncSinceDate),
+              )
             : new Date(Date.now() - 24 * 60 * 60 * 1000);
         const flowSinceTimestamp = Math.floor(flowSinceDate.getTime() / 1000);
 
@@ -826,27 +848,29 @@ serve(async (req) => {
             const flowClient = await resolveLeadClient(
               supabase,
               info.tenantId,
-              (triggerStep?.configuration as any)?.client_id,
+              triggerConfig?.client_id,
             );
             const flowRoutingPayload = buildLeadRoutingPayload(
               flowClient,
               fieldData,
             );
-            const formFields =
-              (triggerStep?.configuration as any)?.facebook_form_fields || [];
+            const formFields = asList(triggerConfig?.facebook_form_fields);
             let mappedName: string | null = null;
             let mappedPhone: string | null = null;
             let mappedEmail: string | null = null;
 
-            for (const ff of formFields) {
-              const val = fieldData[ff.key] || fieldData[ff.label] || "";
+            for (const rawField of formFields) {
+              const ff = asObject(rawField);
+              if (!ff) continue;
+              const val =
+                fieldData[String(ff.key)] || fieldData[String(ff.label)] || "";
               if (!val) continue;
               if (ff.type === "FULL_NAME") mappedName = val;
               else if (ff.type === "PHONE") mappedPhone = val;
               else if (ff.type === "EMAIL") mappedEmail = val;
               else if (ff.type === "CUSTOM") {
                 // Heuristic: check label/key for name/phone/email keywords
-                const lbl = (ff.label || ff.key || "").toLowerCase();
+                const lbl = String(ff.label || ff.key || "").toLowerCase();
                 if (!mappedName && (lbl.includes("שם") || lbl.includes("name")))
                   mappedName = val;
                 if (

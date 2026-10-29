@@ -22,6 +22,14 @@ import {
 } from "@/components/ui/select";
 import { ArrowRightLeft } from "lucide-react";
 
+type OrgType = "organization" | "sub_organization";
+
+type ConvertTenantPayload = {
+  tenant_id: string;
+  new_org_type: OrgType;
+  new_parent_id?: string;
+};
+
 interface ConvertTenantTypeDialogProps {
   tenant: { id: string; name: string; org_type: string } | null;
   availableParents: Array<{ id: string; name: string; org_type: string }>;
@@ -37,17 +45,11 @@ export function ConvertTenantTypeDialog({
 }: ConvertTenantTypeDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [newOrgType, setNewOrgType] = useState<
-    "organization" | "sub_organization"
-  >("organization");
+  const [newOrgType, setNewOrgType] = useState<OrgType>("organization");
   const [newParentId, setNewParentId] = useState<string>("");
 
   const convertMutation = useMutation({
-    mutationFn: async (data: {
-      tenant_id: string;
-      new_org_type: "organization" | "sub_organization";
-      new_parent_id?: string;
-    }) => {
+    mutationFn: async (data: ConvertTenantPayload) => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -86,14 +88,13 @@ export function ConvertTenantTypeDialog({
   const handleConvert = () => {
     if (!tenant) return;
 
-    const data: any = {
+    const data: ConvertTenantPayload = {
       tenant_id: tenant.id,
       new_org_type: newOrgType,
+      ...(newOrgType === "sub_organization" && newParentId
+        ? { new_parent_id: newParentId }
+        : {}),
     };
-
-    if (newOrgType === "sub_organization" && newParentId) {
-      data.new_parent_id = newParentId;
-    }
 
     convertMutation.mutate(data);
   };
@@ -138,7 +139,10 @@ export function ConvertTenantTypeDialog({
             <Label>סוג ארגון חדש:</Label>
             <RadioGroup
               value={newOrgType}
-              onValueChange={(v) => setNewOrgType(v as any)}
+              onValueChange={(v) => {
+                if (v === "organization" || v === "sub_organization")
+                  setNewOrgType(v);
+              }}
             >
               <div className="flex items-center space-x-2 space-x-reverse">
                 <RadioGroupItem value="organization" id="org" />

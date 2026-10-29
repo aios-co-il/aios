@@ -23,6 +23,7 @@ import {
   permanentlyDeleteArchivedLeads,
   restoreArchivedLeads,
 } from "@/lib/leadArchive";
+import { errorMessageOf } from "@/lib/errorMessage";
 import { leadMatchesPhoneSearch, leadSearchOrFilter } from "@/lib/leadPhone";
 import { PermanentDeleteLeadDialog } from "@/components/leads/PermanentDeleteLeadDialog";
 
@@ -87,8 +88,8 @@ export default function LeadsArchive() {
       setSelected(new Set());
       invalidate();
       await refetch();
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה בשחזור");
+    } catch (error) {
+      toast.error(errorMessageOf(error) || "שגיאה בשחזור");
     } finally {
       setBusy(false);
     }
@@ -103,8 +104,8 @@ export default function LeadsArchive() {
       setDeleteIds(null);
       invalidate();
       await refetch();
-    } catch (error: any) {
-      toast.error(error.message || "שגיאה במחיקה לצמיתות");
+    } catch (error) {
+      toast.error(errorMessageOf(error) || "שגיאה במחיקה לצמיתות");
     } finally {
       setBusy(false);
     }

@@ -195,16 +195,14 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { error } = await (supabase as any)
-        .from("user_active_tenant")
-        .upsert(
-          {
-            user_id: user.id,
-            tenant_id: currentTenantId,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        );
+      const { error } = await supabase.from("user_active_tenant").upsert(
+        {
+          user_id: user.id,
+          tenant_id: currentTenantId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
 
       if (cancelled) return;
       if (error) {
@@ -252,7 +250,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const { data: activeTenant } = await (supabase as any)
+      const { data: activeTenant } = await supabase
         .from("user_active_tenant")
         .select("tenant_id")
         .eq("user_id", user.id)
@@ -260,17 +258,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
       if (activeTenant) {
         const matchingTenant = userTenants.find(
-          (t: any) => t.tenant_id === activeTenant.tenant_id,
+          (t) => t.tenant_id === activeTenant.tenant_id,
         );
         if (matchingTenant) {
-          return matchingTenant as any;
+          return matchingTenant;
         }
       }
 
       const mcTenant = userTenants.find(
-        (t: any) => (t as any)?.tenants?.slug === "marketingcaptain",
+        (t) => t.tenants?.slug === "marketingcaptain",
       );
-      return (mcTenant || userTenants[0]) as any;
+      return mcTenant || userTenants[0];
     },
     staleTime: 1000 * 60 * 5,
     enabled: !tenantSlug,
