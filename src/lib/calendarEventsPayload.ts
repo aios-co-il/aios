@@ -1,68 +1,50 @@
-import { isJsonObject, type JsonObject } from "./jsonFields.ts";
+import { z } from "zod";
 
-type CalendarDate = { dateTime?: string; date?: string };
+const str = z.string().optional().catch(undefined);
 
-export interface CalendarPayloadEvent {
-  id?: string;
-  summary?: string;
-  description?: string;
-  start?: CalendarDate;
-  end?: CalendarDate;
-  calendarName?: string;
-  calendarColor?: string;
-}
+const calendarDateSchema = z
+  .object({ dateTime: str, date: str })
+  .optional()
+  .catch(undefined);
 
-export interface CalendarPayloadCalendar {
-  id?: string;
-  name?: string;
-  color?: string;
-}
+const calendarEventSchema = z.object({
+  id: str,
+  summary: str,
+  description: str,
+  start: calendarDateSchema,
+  end: calendarDateSchema,
+  calendarName: str,
+  calendarColor: str,
+});
 
-export interface CalendarEventsPayload {
-  events: CalendarPayloadEvent[];
-  calendars: CalendarPayloadCalendar[];
-}
+const calendarSchema = z.object({ id: str, name: str, color: str });
 
-function asObject(value: unknown): JsonObject | undefined {
-  return isJsonObject(value) ? value : undefined;
-}
+/** Each list keeps its object entries; anything else in it is dropped. */
+const objectList = <S extends z.ZodTypeAny>(schema: S) =>
+  z
+    .array(z.unknown())
+    .catch([])
+    .transform((items) =>
+      items.flatMap((item): z.output<S>[] => {
+        const parsed = schema.safeParse(item);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    );
 
-function str(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
+const calendarEventsPayloadSchema = z
+  .object({
+    events: objectList(calendarEventSchema),
+    calendars: objectList(calendarSchema),
+  })
+  .catch({ events: [], calendars: [] });
 
-function parseDate(value: unknown): CalendarDate | undefined {
-  const o = asObject(value);
-  return o ? { dateTime: str(o.dateTime), date: str(o.date) } : undefined;
-}
-
-function objects(value: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const o = asObject(item);
-    return o ? [o] : [];
-  });
-}
+export type CalendarPayloadEvent = z.infer<typeof calendarEventSchema>;
+export type CalendarPayloadCalendar = z.infer<typeof calendarSchema>;
+export type CalendarEventsPayload = z.infer<typeof calendarEventsPayloadSchema>;
 
 /** Narrows the get-calendar-events / unified list_events response. */
 export function parseCalendarEventsPayload(
   data: unknown,
 ): CalendarEventsPayload {
-  const root = asObject(data);
-  return {
-    events: objects(root?.events).map((e) => ({
-      id: str(e.id),
-      summary: str(e.summary),
-      description: str(e.description),
-      start: parseDate(e.start),
-      end: parseDate(e.end),
-      calendarName: str(e.calendarName),
-      calendarColor: str(e.calendarColor),
-    })),
-    calendars: objects(root?.calendars).map((c) => ({
-      id: str(c.id),
-      name: str(c.name),
-      color: str(c.color),
-    })),
-  };
+  return calendarEventsPayloadSchema.parse(data);
 }

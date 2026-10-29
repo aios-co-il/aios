@@ -1,22 +1,20 @@
-import { asRecords, optString } from "./provider-json.ts";
+import { z } from "npm:zod@3.25.76";
 
-export type IntegrationRow = {
-  id: string;
-  integration_type: string;
-  user_id?: string | null;
-};
+const integrationRowSchema = z.object({
+  id: z.string().min(1),
+  integration_type: z.string(),
+  user_id: z.string().nullable().catch(null),
+});
+
+export type IntegrationRow = z.infer<typeof integrationRowSchema>;
 
 /** tenant_integrations rows (id, integration_type, user_id) with string ids only. */
 export const integrationRows = (data: unknown): IntegrationRow[] =>
-  asRecords(data).flatMap((row) => {
-    const id = optString(row.id);
-    const integrationType = optString(row.integration_type);
-    if (!id || integrationType === undefined) return [];
-    return [
-      {
-        id,
-        integration_type: integrationType,
-        user_id: optString(row.user_id) ?? null,
-      },
-    ];
-  });
+  z
+    .array(z.unknown())
+    .catch([])
+    .parse(data)
+    .flatMap((row) => {
+      const parsed = integrationRowSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    });

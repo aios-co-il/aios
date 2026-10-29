@@ -1,24 +1,37 @@
+import { z } from "zod";
 import {
   Constants,
   type Enums,
   type Json,
   type Tables,
 } from "@/integrations/supabase/types";
-import {
-  isJsonObject,
-  jsonString,
-  jsonStringArray,
-  type JsonColumnObject,
-} from "@/lib/jsonFields";
+import { isJsonObject, type JsonColumnObject } from "@/lib/jsonFields";
 
 export type MarketingApprovalMode = Enums<"marketing_approval_mode">;
 export type MarketingStageType = Enums<"marketing_stage_type">;
 
+const approvalModeSchema = z.enum(
+  Constants.public.Enums.marketing_approval_mode,
+);
+
 export function isApprovalMode(value: unknown): value is MarketingApprovalMode {
-  return Constants.public.Enums.marketing_approval_mode.some(
-    (mode) => mode === value,
-  );
+  return approvalModeSchema.safeParse(value).success;
 }
+
+const jsonColumnObject = z.custom<JsonColumnObject>(isJsonObject);
+
+const stageConfigurationSchema = z
+  .object({
+    instructions: z.string().catch(""),
+    tools: z
+      .array(z.unknown())
+      .catch([])
+      .transform((tools) =>
+        tools.filter((tool): tool is string => typeof tool === "string"),
+      ),
+    target: jsonColumnObject.catch({}),
+  })
+  .catch({ instructions: "", tools: [], target: {} });
 
 /** Stage configuration JSON: instructions, tool ids and the raw target object. */
 export function parseStageConfiguration(value: Json): {
@@ -26,12 +39,7 @@ export function parseStageConfiguration(value: Json): {
   tools: string[];
   target: JsonColumnObject;
 } {
-  const cfg: JsonColumnObject = isJsonObject(value) ? value : {};
-  return {
-    instructions: jsonString(cfg, "instructions") ?? "",
-    tools: jsonStringArray(cfg.tools),
-    target: isJsonObject(cfg.target) ? cfg.target : {},
-  };
+  return stageConfigurationSchema.parse(value);
 }
 
 /** A pipeline stage as MarketingPipelineBoard selects it. */

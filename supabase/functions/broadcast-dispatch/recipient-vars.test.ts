@@ -41,3 +41,8 @@ Deno.test("providerMessageId reads a non-empty id as text", () => {
   assertStrictEquals(providerMessageId(null, "id"), undefined);
   assertStrictEquals(providerMessageId(["m1"], "0"), undefined);
 });
+
+Deno.test("recipientVars ignores a text vars snapshot", () => {
+  const vars = recipientVars({ ...row, vars: "contact_name=x" });
+  assertStrictEquals(vars.contact_name, "Dana Levi");
+});

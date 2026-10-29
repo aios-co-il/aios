@@ -1,4 +1,4 @@
-import type { Json } from "@/integrations/supabase/types";
+import { z } from "zod";
 import { isJsonObject, type JsonColumnObject } from "@/lib/jsonFields";
 
 export type FormMapping = {
@@ -16,40 +16,39 @@ export type StoredFormMapping = FormMapping & {
   page_id?: string | null;
 };
 
-const optString = (v: Json | undefined) =>
-  typeof v === "string" ? v : undefined;
-const nullableString = (v: Json | undefined) =>
-  typeof v === "string" ? v : null;
+const optString = z.string().optional().catch(undefined);
+const nullableString = z.string().nullable().catch(null);
 
-function stringRecord(value: Json | undefined): Record<string, string> {
-  if (!isJsonObject(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
+/** The string-valued entries of an object; anything else reads as `{}`. */
+const stringRecord = z
+  .record(z.unknown())
+  .catch({})
+  .transform((value) =>
+    Object.fromEntries(
+      Object.entries(value).flatMap(([key, entry]): [string, string][] => {
+        const text = z.string().safeParse(entry);
+        return text.success ? [[key, text.data]] : [];
+      }),
     ),
   );
-}
 
-function parseFormMapping(value: Json | undefined): StoredFormMapping | null {
-  if (!isJsonObject(value)) return null;
-  const ids = value.sales_person_ids;
-  return {
-    field_mappings: stringRecord(value.field_mappings),
-    agency_id: nullableString(value.agency_id),
-    client_id: nullableString(value.client_id),
-    create_crm_lead:
-      typeof value.create_crm_lead === "boolean"
-        ? value.create_crm_lead
-        : undefined,
-    sales_person_id: nullableString(value.sales_person_id),
-    sales_person_ids: Array.isArray(ids)
-      ? ids.filter((id): id is string => typeof id === "string")
-      : undefined,
-    tag_id: nullableString(value.tag_id),
-    form_name: optString(value.form_name),
-    page_id: optString(value.page_id),
-  };
-}
+const storedFormMappingSchema = z.object({
+  field_mappings: stringRecord,
+  agency_id: nullableString,
+  client_id: nullableString,
+  create_crm_lead: z.boolean().optional().catch(undefined),
+  sales_person_id: nullableString,
+  sales_person_ids: z
+    .array(z.unknown())
+    .transform((ids) =>
+      ids.filter((id): id is string => typeof id === "string"),
+    )
+    .optional()
+    .catch(undefined),
+  tag_id: nullableString,
+  form_name: optString,
+  page_id: optString,
+});
 
 /** The raw form_mappings object of a Facebook integration's settings. */
 export function rawFormMappings(
@@ -65,8 +64,8 @@ export function parseFormMappings(
 ): Record<string, StoredFormMapping> {
   const result: Record<string, StoredFormMapping> = {};
   for (const [formId, value] of Object.entries(rawFormMappings(settings))) {
-    const mapping = parseFormMapping(value);
-    if (mapping) result[formId] = mapping;
+    const mapping = storedFormMappingSchema.safeParse(value);
+    if (mapping.success) result[formId] = mapping.data;
   }
   return result;
 }

@@ -1,4 +1,4 @@
-import { isJsonObject } from "./jsonFields.ts";
+import { z } from "zod";
 
 export interface SyncResult {
   leadId: string;
@@ -28,48 +28,52 @@ export const SYNC_JOB_STATUSES = [
 
 export type SyncJobStatus = (typeof SYNC_JOB_STATUSES)[number];
 
-const optionalOf = <T>(
-  value: unknown,
-  check: (v: unknown) => v is T,
-): T | undefined => (check(value) ? value : undefined);
-
-const isString = (v: unknown): v is string => typeof v === "string";
-const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
-const countOf = (v: unknown): number =>
-  typeof v === "number" && Number.isFinite(v) ? v : 0;
+const syncJobStatusSchema = z.enum(SYNC_JOB_STATUSES);
 
 export function isSyncJobStatus(value: unknown): value is SyncJobStatus {
-  return SYNC_JOB_STATUSES.some((status) => status === value);
+  return syncJobStatusSchema.safeParse(value).success;
 }
 
-function parseSyncResult(value: unknown): SyncResult[] {
-  if (!isJsonObject(value)) return [];
-  if (typeof value.leadId !== "string" || typeof value.success !== "boolean") {
-    return [];
-  }
-  return [
-    {
-      leadId: value.leadId,
-      success: value.success,
-      leadName: optionalOf(value.leadName, isString),
-      error: optionalOf(value.error, isString),
-      subscriberId: optionalOf(value.subscriberId, isString),
-      skipped: optionalOf(value.skipped, isBoolean),
-    },
-  ];
-}
+const countOf = z.number().finite().catch(0);
+
+const syncResultSchema = z.object({
+  leadId: z.string(),
+  success: z.boolean(),
+  leadName: z.string().optional().catch(undefined),
+  error: z.string().optional().catch(undefined),
+  subscriberId: z.string().optional().catch(undefined),
+  skipped: z.boolean().optional().catch(undefined),
+});
+
+const syncResultList = z
+  .array(z.unknown())
+  .catch([])
+  .transform((items) =>
+    items.flatMap((item): SyncResult[] => {
+      const parsed = syncResultSchema.safeParse(item);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  );
+
+const syncProgressSchema = z
+  .object({
+    processed: countOf,
+    failed: countOf,
+    remaining: countOf,
+    conflicts: countOf,
+    total: countOf,
+    results: syncResultList,
+  })
+  .catch({
+    processed: 0,
+    failed: 0,
+    remaining: 0,
+    conflicts: 0,
+    total: 0,
+    results: [],
+  });
 
 /** Normalizes `sync_jobs.progress` JSON; missing or malformed fields become 0 / []. */
 export function parseSyncProgress(value: unknown): SyncProgress {
-  const progress = isJsonObject(value) ? value : {};
-  return {
-    processed: countOf(progress.processed),
-    failed: countOf(progress.failed),
-    remaining: countOf(progress.remaining),
-    conflicts: countOf(progress.conflicts),
-    total: countOf(progress.total),
-    results: Array.isArray(progress.results)
-      ? progress.results.flatMap(parseSyncResult)
-      : [],
-  };
+  return syncProgressSchema.parse(value);
 }

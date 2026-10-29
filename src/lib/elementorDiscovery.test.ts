@@ -49,3 +49,31 @@ test("parseElementorDiscovery tolerates missing and malformed data", () => {
   expect(result.per_form[0].slugs).toBe(undefined);
   expect(result.per_slug).toStrictEqual([]);
 });
+
+test("parseElementorDiscovery reads numeric ids as text and drops non-number sources", () => {
+  const { per_form, per_slug } = parseElementorDiscovery({
+    per_form: [
+      { form_id: 12, total: "3", sources: { google: 2, fb: "1" }, slugs: "x" },
+    ],
+    per_slug: [{ slug: "a", sample_gad_campaignids: [5, "", null] }, 4],
+  });
+  expect(per_form).toEqual([
+    {
+      form_id: "12",
+      form_name: "",
+      total: 0,
+      last_30_days: 0,
+      sources: { google: 2 },
+      slugs: undefined,
+      sample_referer: null,
+    },
+  ]);
+  expect(per_slug).toEqual([
+    {
+      slug: "a",
+      submissions: 0,
+      google_ads_submissions: 0,
+      sample_gad_campaignids: ["5"],
+    },
+  ]);
+});

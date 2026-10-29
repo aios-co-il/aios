@@ -1,4 +1,4 @@
-import { isJsonObject } from "./jsonFields.ts";
+import { z } from "zod";
 
 export interface DiscoveredForm {
   form_id: string;
@@ -22,70 +22,66 @@ export interface ElementorDiscovery {
   per_slug: DiscoveredSlug[];
 }
 
-const text = (value: unknown): string =>
-  typeof value === "string"
-    ? value
-    : typeof value === "number"
-      ? String(value)
-      : "";
+/** Text, or a number as text; anything else reads as "". */
+const text = z.union([z.string(), z.number().transform(String)]).catch("");
 
-const count = (value: unknown): number =>
-  typeof value === "number" && Number.isFinite(value) ? value : 0;
+const count = z.number().finite().catch(0);
 
-const textList = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value.flatMap((item: unknown) => {
-        const s = text(item);
-        return s ? [s] : [];
-      })
-    : [];
+const textList = z.array(z.unknown()).transform((items) =>
+  items.flatMap((item) => {
+    const value = text.parse(item);
+    return value ? [value] : [];
+  }),
+);
 
-function parseSources(value: unknown): Record<string, number> {
-  if (!isJsonObject(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value).flatMap(([key, n]) =>
-      typeof n === "number" ? [[key, n]] : [],
+const sourcesSchema = z
+  .record(z.unknown())
+  .catch({})
+  .transform((value) =>
+    Object.fromEntries(
+      Object.entries(value).flatMap(([key, n]): [string, number][] => {
+        const parsed = z.number().safeParse(n);
+        return parsed.success ? [[key, parsed.data]] : [];
+      }),
     ),
   );
-}
 
-function parseForm(value: unknown): DiscoveredForm[] {
-  if (!isJsonObject(value)) return [];
-  return [
-    {
-      form_id: text(value.form_id),
-      form_name: text(value.form_name),
-      total: count(value.total),
-      last_30_days: count(value.last_30_days),
-      sources: parseSources(value.sources),
-      slugs: Array.isArray(value.slugs) ? textList(value.slugs) : undefined,
-      sample_referer:
-        typeof value.sample_referer === "string" ? value.sample_referer : null,
-    },
-  ];
-}
+const discoveredFormSchema = z.object({
+  form_id: text,
+  form_name: text,
+  total: count,
+  last_30_days: count,
+  sources: sourcesSchema,
+  slugs: textList.optional().catch(undefined),
+  sample_referer: z.string().nullable().catch(null),
+});
 
-function parseSlug(value: unknown): DiscoveredSlug[] {
-  if (!isJsonObject(value)) return [];
-  return [
-    {
-      slug: text(value.slug),
-      submissions: count(value.submissions),
-      google_ads_submissions: count(value.google_ads_submissions),
-      sample_gad_campaignids: textList(value.sample_gad_campaignids),
-    },
-  ];
-}
+const discoveredSlugSchema = z.object({
+  slug: text,
+  submissions: count,
+  google_ads_submissions: count,
+  sample_gad_campaignids: textList.catch([]),
+});
+
+const objectList = <S extends z.ZodTypeAny>(schema: S) =>
+  z
+    .array(z.unknown())
+    .catch([])
+    .transform((items) =>
+      items.flatMap((item): z.output<S>[] => {
+        const parsed = schema.safeParse(item);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    );
+
+const elementorDiscoverySchema = z
+  .object({
+    per_form: objectList(discoveredFormSchema),
+    per_slug: objectList(discoveredSlugSchema),
+  })
+  .catch({ per_form: [], per_slug: [] });
 
 /** Narrows the `fetch-elementor-submissions` response; non-object entries are dropped. */
 export function parseElementorDiscovery(data: unknown): ElementorDiscovery {
-  const body = isJsonObject(data) ? data : {};
-  return {
-    per_form: Array.isArray(body.per_form)
-      ? body.per_form.flatMap(parseForm)
-      : [],
-    per_slug: Array.isArray(body.per_slug)
-      ? body.per_slug.flatMap(parseSlug)
-      : [],
-  };
+  return elementorDiscoverySchema.parse(data);
 }
