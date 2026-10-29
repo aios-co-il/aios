@@ -14,7 +14,9 @@ export function useWorkspaceLayout() {
     ...DEFAULT_LAYOUTS,
   }));
   const [loaded, setLoaded] = useState(false);
-  const saveTimers = useRef<Record<string, any>>({});
+  const saveTimers = useRef<
+    Record<string, ReturnType<typeof setTimeout> | undefined>
+  >({});
 
   // Resolve user id once
   useEffect(() => {
@@ -29,14 +31,14 @@ export function useWorkspaceLayout() {
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await (supabase as any)
+        const { data } = await supabase
           .from("user_workspace_layout")
           .select("module_id, x_position, y_position, width, height, is_open")
           .eq("user_id", userId)
           .eq("tenant_id", tenantId);
         if (cancelled) return;
         const merged: LayoutMap = { ...DEFAULT_LAYOUTS };
-        (data ?? []).forEach((row: any) => {
+        (data ?? []).forEach((row) => {
           merged[row.module_id] = {
             module_id: row.module_id,
             x_position: row.x_position,

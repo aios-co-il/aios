@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
@@ -36,6 +37,13 @@ export type GraphifyEdge = {
   weight: number | null;
 };
 
+const subgraphSchema = z
+  .object({
+    nodes: z.array(z.custom<GraphifyNode>()).catch([]),
+    edges: z.array(z.custom<GraphifyEdge>()).catch([]),
+  })
+  .catch({ nodes: [], edges: [] });
+
 export type GraphifySearchHit = {
   node_id: string;
   label: string;
@@ -52,7 +60,7 @@ export function useGraphifyOverview() {
   return useQuery({
     queryKey: ["graphify-overview", tenantId],
     queryFn: async (): Promise<GraphifyOverview> => {
-      const { data, error } = await supabase.rpc("graphify_overview" as any);
+      const { data, error } = await supabase.rpc("graphify_overview");
       if (error) throw error;
       return (data ?? { active: false }) as GraphifyOverview;
     },
@@ -70,19 +78,13 @@ export function useGraphifyCommunity(groupKey: string | null) {
       nodes: GraphifyNode[];
       edges: GraphifyEdge[];
     }> => {
-      const { data, error } = await supabase.rpc(
-        "graphify_group_subgraph" as any,
-        {
-          p_group: groupKey,
-          p_limit: 400,
-        },
-      );
+      if (!groupKey) return { nodes: [], edges: [] };
+      const { data, error } = await supabase.rpc("graphify_group_subgraph", {
+        p_group: groupKey,
+        p_limit: 400,
+      });
       if (error) throw error;
-      const parsed = (data ?? {}) as any;
-      return {
-        nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
-        edges: Array.isArray(parsed.edges) ? parsed.edges : [],
-      };
+      return subgraphSchema.parse(data);
     },
     enabled: !!groupKey && !!tenantId,
     staleTime: 1000 * 60 * 10,
@@ -96,7 +98,7 @@ export function useGraphifySearch(query: string) {
   return useQuery({
     queryKey: ["graphify-search", trimmed, tenantId],
     queryFn: async (): Promise<GraphifySearchHit[]> => {
-      const { data, error } = await supabase.rpc("graphify_search" as any, {
+      const { data, error } = await supabase.rpc("graphify_search", {
         p_query: trimmed,
         p_depth: 1,
         p_limit: 40,

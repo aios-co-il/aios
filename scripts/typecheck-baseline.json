@@ -466,13 +466,6 @@
       "count": 1
     },
     {
-      "file": "src/components/dynamic-tables/SeoDashboardView.tsx",
-      "code": 7006,
-      "message": "Parameter 'kw' implicitly has an 'any' type.",
-      "source": "kw",
-      "count": 2
-    },
-    {
       "file": "src/components/dynamic-tables/SeoReportTabs.tsx",
       "code": 2322,
       "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
@@ -1411,13 +1404,6 @@
       "count": 1
     },
     {
-      "file": "src/lib/wooDashboardQueries.ts",
-      "code": 2345,
-      "message": "Argument of type 'WooOrderRevenueRow[]' is not assignable to parameter of type '{ total?: string | number | undefined; status?: string | undefined; attribution?: WooOrderAttribution | null | undefined; }[]'.\n  Type 'WooOrderRevenueRow' is not assignable to type '{ total?: string | number | undefined; status?: string | undefined; attribution?: WooOrderAttribution | null | undefined; }'.\n    Types of property 'total' are incompatible.\n      Type 'string | number | null | undefined' is not assignable to type 'string | number | undefined'.\n        Type 'null' is not assignable to type 'string | number | undefined'.",
-      "source": "valid",
-      "count": 3
-    },
-    {
       "file": "src/pages/AccountingIntegrations.tsx",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ amount?: number | undefined; client_id: string; created_at?: string | undefined; created_by?: string | null | undefined; expense_amount?: number | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ amount?: number | undefined; client_id: string; created_at?: string | undefined; created_by?: string | null | undefined; expense_amount?: number | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ amount?: number | undefined; client_id: string; created_at?: string | undefined; created_by?: string | null | undefined; expense_amount?: number | undefined; id?: string | undefined; ... 7 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
@@ -1779,34 +1765,6 @@
       "code": 2322,
       "message": "Type 'string | null' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
       "source": "tenantId",
-      "count": 1
-    },
-    {
-      "file": "src/pages/SalesDashboard.tsx",
-      "code": 7006,
-      "message": "Parameter 'p' implicitly has an 'any' type.",
-      "source": "p",
-      "count": 1
-    },
-    {
-      "file": "src/pages/SharedDashboard.tsx",
-      "code": 2345,
-      "message": "Argument of type 'WooOrderRevenueRow[]' is not assignable to parameter of type '{ total?: string | number | undefined; status?: string | undefined; attribution?: WooOrderAttribution | null | undefined; }[]'.\n  Type 'WooOrderRevenueRow' is not assignable to type '{ total?: string | number | undefined; status?: string | undefined; attribution?: WooOrderAttribution | null | undefined; }'.\n    Types of property 'total' are incompatible.\n      Type 'string | number | null | undefined' is not assignable to type 'string | number | undefined'.\n        Type 'null' is not assignable to type 'string | number | undefined'.",
-      "source": "valid",
-      "count": 1
-    },
-    {
-      "file": "src/pages/SharedDashboard.tsx",
-      "code": 7006,
-      "message": "Parameter 'a' implicitly has an 'any' type.",
-      "source": "a",
-      "count": 1
-    },
-    {
-      "file": "src/pages/SharedDashboard.tsx",
-      "code": 7006,
-      "message": "Parameter 'b' implicitly has an 'any' type.",
-      "source": "b",
       "count": 1
     },
     {

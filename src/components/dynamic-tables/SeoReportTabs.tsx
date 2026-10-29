@@ -1,3 +1,13 @@
+import {
+  asArray,
+  asJsonArray,
+  asJsonObject,
+  type JsonObject,
+  readField,
+  readString,
+  readText,
+} from "@/lib/jsonReaders";
+import { toLangFilter } from "@/lib/dynamicTableTypes";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +70,13 @@ interface SeoReportTabsProps {
   clientId: string;
 }
 
+function toGaRecord(row: unknown): { id: string; data: JsonObject } {
+  return {
+    id: readString(row, "id") ?? "",
+    data: asJsonObject(readField(row, "data")),
+  };
+}
+
 export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   const queryClient = useQueryClient();
 
@@ -109,16 +126,14 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   const ahrefsTrackedKeywords = useMemo(() => {
     const valid = filterValidSeoReports(ownDomainReports);
     for (const report of valid) {
-      const rd = (report as any)?.report_data || {};
-      const tracked = Array.isArray(rd.tracked_keywords)
-        ? rd.tracked_keywords
-        : [];
+      const rd = asJsonObject(report?.report_data);
+      const tracked = asJsonArray(rd.tracked_keywords);
       const names = tracked
-        .map((k: any) => String(k?.keyword || k || "").trim())
+        .map((k) => String(readField(k, "keyword") || k || "").trim())
         .filter(Boolean);
       if (names.length > 0) {
-        return Array.from(new Set(names.map((n: string) => n.toLowerCase())))
-          .map((lower) => names.find((n: string) => n.toLowerCase() === lower)!)
+        return Array.from(new Set(names.map((n) => n.toLowerCase())))
+          .map((lower) => names.find((n) => n.toLowerCase() === lower)!)
           .filter(Boolean);
       }
     }
@@ -149,14 +164,13 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   });
   const clientWebsite = clientRow?.website || "";
 
-  const targetDomain =
-    (seoTable?.integration_settings as any)?.targetDomain || "";
-  const savedGaTableId =
-    (seoTable?.integration_settings as any)?.linkedGaTableId || "";
+  const seoTableSettings: unknown = seoTable?.integration_settings;
+  const targetDomain = readString(seoTableSettings, "targetDomain") || "";
+  const savedGaTableId = readString(seoTableSettings, "linkedGaTableId") || "";
   const savedGscTableId =
-    (seoTable?.integration_settings as any)?.linkedGscTableId || "";
+    readString(seoTableSettings, "linkedGscTableId") || "";
   const savedGscIntegrationId =
-    (seoTable?.integration_settings as any)?.gsc_integration_id || "";
+    readString(seoTableSettings, "gsc_integration_id") || "";
   const savedGscSiteUrl = resolveSeoLinkedGscSiteUrl({
     integrationSettings: (seoTable?.integration_settings || {}) as Record<
       string,
@@ -165,8 +179,9 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
     clientGscSiteUrl: scope?.clientGscSiteUrl,
     expectedDomain,
   });
-  const savedGscLangFilter = ((seoTable?.integration_settings as any)
-    ?.linkedGscLangFilter || "all") as "all" | "he" | "en";
+  const savedGscLangFilter = toLangFilter(
+    readField(seoTableSettings, "linkedGscLangFilter"),
+  );
 
   // Org-wide GSC fallback — same path as SeoDashboardView so the Search Console
   // tab works even when the viewer didn't OAuth personally (Anna's connection).
@@ -214,7 +229,7 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   const saveLinkMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
       if (!seoTable?.id) return;
-      const currentSettings = (seoTable.integration_settings as any) || {};
+      const currentSettings = asJsonObject(seoTable.integration_settings);
       const { error } = await supabase
         .from("crm_tables")
         .update({ integration_settings: { ...currentSettings, [key]: value } })
@@ -245,7 +260,7 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
         { method: "GET" },
       );
       if (response.error) throw response.error;
-      return Array.isArray(response.data) ? response.data : [];
+      return asArray(response.data).map(toGaRecord);
     },
     enabled: !!selectedGaTableId,
     staleTime: 5 * 60 * 1000,
@@ -269,7 +284,7 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
         .order("created_at", { ascending: false })
         .limit(600);
       if (error) throw error;
-      return data || [];
+      return (data || []).map(toGaRecord);
     },
     enabled: !!selectedGaTableId,
     staleTime: 5 * 60 * 1000,
@@ -280,8 +295,8 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
     const base = Array.isArray(gaRecordsRaw) ? gaRecordsRaw : [];
     const agg = Array.isArray(gaAggregateRecords) ? gaAggregateRecords : [];
     if (agg.length === 0) return base;
-    const existingIds = new Set(base.map((r: any) => r.id));
-    const newAgg = agg.filter((r: any) => !existingIds.has(r.id));
+    const existingIds = new Set(base.map((r) => r.id));
+    const newAgg = agg.filter((r) => !existingIds.has(r.id));
     return [...newAgg, ...base];
   }, [gaRecordsRaw, gaAggregateRecords]);
 
@@ -316,7 +331,7 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
         `נתוני Analytics סונכרנו (${data?.records_synced || 0} שורות)`,
       );
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בסנכרון Analytics: " + error.message);
     },
   });
@@ -608,10 +623,10 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
                       </SelectTrigger>
                       <SelectContent>
                         {gaTables.map((table) => {
-                          const settings = table.integration_settings as any;
+                          const settings: unknown = table.integration_settings;
                           const label =
-                            settings?.propertyName ||
-                            settings?.accountName ||
+                            readText(settings, "propertyName") ||
+                            readText(settings, "accountName") ||
                             table.name;
                           return (
                             <SelectItem key={table.id} value={table.id}>
@@ -664,10 +679,11 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
                   records={gaRecords}
                   tableId={selectedGaTableId}
                   defaultReportMode={resolveAnalyticsReportMode({
-                    tableMode: (
+                    tableMode: readString(
                       gaTables.find((t) => t.id === selectedGaTableId)
-                        ?.integration_settings as any
-                    )?.default_report_mode,
+                        ?.integration_settings,
+                      "default_report_mode",
+                    ),
                     tables: gaTables,
                   })}
                 />
@@ -728,7 +744,7 @@ function GscTableSelector({
   selectedId,
   onSelect,
 }: {
-  tables: any[];
+  tables: Array<{ id: string; name: string }>;
   selectedId: string;
   onSelect: (id: string) => void;
 }) {

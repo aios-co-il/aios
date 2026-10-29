@@ -32,8 +32,10 @@ export function useVisualWorkspaceData() {
       const weekAgo = sevenDaysAgo();
       const todayIso = new Date().toISOString();
 
-      const sb = supabase as any;
-      const safeCount = async (q: any): Promise<number> => {
+      const sb = supabase;
+      const safeCount = async (
+        q: PromiseLike<{ count: number | null }>,
+      ): Promise<number> => {
         try {
           const r = await q;
           return r?.count ?? 0;
@@ -41,7 +43,9 @@ export function useVisualWorkspaceData() {
           return 0;
         }
       };
-      const safeRows = async (q: any): Promise<any[]> => {
+      const safeRows = async <R extends { data: unknown[] | null }>(
+        q: PromiseLike<R>,
+      ): Promise<NonNullable<R["data"]> | []> => {
         try {
           const r = await q;
           return r?.data ?? [];
@@ -49,7 +53,9 @@ export function useVisualWorkspaceData() {
           return [];
         }
       };
-      const safeMaybe = async (q: any): Promise<any> => {
+      const safeMaybe = async <R extends { data: unknown }>(
+        q: PromiseLike<R>,
+      ): Promise<R["data"] | null> => {
         try {
           const r = await q;
           return r?.data ?? null;
@@ -82,7 +88,6 @@ export function useVisualWorkspaceData() {
         goalsOpen,
         incomePayments,
         expensePayments,
-        unpaidInvoices,
       ] = await Promise.all([
         safeCount(
           sb
@@ -125,7 +130,7 @@ export function useVisualWorkspaceData() {
             .from("campaign_alerts")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .eq("status", "open"),
+            .is("resolved_at", null),
         ),
         safeCount(
           sb
@@ -160,14 +165,14 @@ export function useVisualWorkspaceData() {
             .from("automations")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .eq("is_active", true),
+            .eq("active", true),
         ),
         safeCount(
           sb
             .from("automation_executions")
             .select("id", { count: "exact", head: true })
             .eq("tenant_id", tid)
-            .gte("created_at", weekAgo),
+            .gte("started_at", weekAgo),
         ),
         safeCount(
           sb
@@ -217,25 +222,18 @@ export function useVisualWorkspaceData() {
             .eq("tenant_id", tid)
             .gte("payment_date", monthStart),
         ),
-        safeCount(
-          sb
-            .from("supplier_invoices")
-            .select("id", { count: "exact", head: true })
-            .eq("tenant_id", tid)
-            .neq("status", "paid"),
-        ),
       ]);
 
-      const incomeMonth = (incomePayments as any[]).reduce(
-        (s: number, r: any) => s + Number(r.amount || 0),
+      const incomeMonth = incomePayments.reduce(
+        (s: number, r) => s + Number(r.amount || 0),
         0,
       );
-      const expenseMonth = (expensePayments as any[]).reduce(
-        (s: number, r: any) => s + Number(r.amount || 0),
+      const expenseMonth = expensePayments.reduce(
+        (s: number, r) => s + Number(r.amount || 0),
         0,
       );
 
-      const businessName = (tenantRow?.name as string) || "העסק שלי";
+      const businessName = tenantRow?.name || "העסק שלי";
       const totalAlerts = campaignAlertsOpen + reportAlertsOpen;
 
       const islands: IslandSummary[] = [
@@ -331,15 +329,10 @@ export function useVisualWorkspaceData() {
               label: "הוצאות החודש",
               value: `₪${Math.round(expenseMonth).toLocaleString()}`,
             },
-            {
-              label: "חשבוניות פתוחות",
-              value: unpaidInvoices,
-              tone: unpaidInvoices ? "warning" : "default",
-            },
           ],
           openTasks: 0,
           alerts: 0,
-          status: deriveStatus(unpaidInvoices > 5 ? 1 : 0),
+          status: deriveStatus(0),
         },
         {
           id: "development",

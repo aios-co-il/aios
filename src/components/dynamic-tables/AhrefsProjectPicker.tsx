@@ -14,16 +14,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Globe, Search, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-
-interface AhrefsProject {
-  project_id: string;
-  project_name: string;
-  url: string;
-  domain: string;
-  keyword_count: number;
-  mode?: string;
-  protocol?: string;
-}
+import { errorMessage } from "@/lib/jsonReaders";
+import {
+  readAhrefsProjectList,
+  readAhrefsSnapshotResponse,
+  type AhrefsProject,
+} from "@/lib/ahrefsResponses";
 
 interface AhrefsProjectPickerProps {
   open: boolean;
@@ -39,17 +35,18 @@ export function AhrefsProjectPicker({
   onSyncComplete,
 }: AhrefsProjectPickerProps) {
   const [search, setSearch] = useState("");
-  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | number | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["ahrefs-projects"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke(
+      const { data: body, error } = await supabase.functions.invoke(
         "list-ahrefs-projects",
       );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      return (data as any)?.projects as AhrefsProject[];
+      const data = readAhrefsProjectList(body);
+      if (data?.error) throw new Error(data.error);
+      return data?.projects;
     },
     enabled: open,
     staleTime: 5 * 60 * 1000,
@@ -69,7 +66,7 @@ export function AhrefsProjectPicker({
   const handleSync = async (project: AhrefsProject) => {
     setSyncingId(project.project_id);
     try {
-      const { data, error } = await supabase.functions.invoke(
+      const { data: body, error } = await supabase.functions.invoke(
         "fetch-ahrefs-snapshot",
         {
           body: {
@@ -82,17 +79,18 @@ export function AhrefsProjectPicker({
         },
       );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const organic = (data as any)?.keywords_count ?? 0;
-      const tracked = (data as any)?.tracked_count ?? 0;
+      const data = readAhrefsSnapshotResponse(body);
+      if (data.error) throw new Error(data.error);
+      const organic = data?.keywords_count ?? 0;
+      const tracked = data?.tracked_count ?? 0;
       toast.success(
         `הדוח של ${project.project_name} נטען בהצלחה (${organic} אורגניים, ${tracked} במעקב)`,
       );
       onSyncComplete?.();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error("sync from project picker failed:", err);
-      toast.error(err?.message || "סנכרון נכשל");
+      toast.error(errorMessage(err) || "סנכרון נכשל");
     } finally {
       setSyncingId(null);
     }

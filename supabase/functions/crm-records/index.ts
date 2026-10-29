@@ -1,5 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { aggregateGscQueryRows } from "../_shared/gscPosition.ts";
+import type { Database, Json, Tables } from "../_shared/database.types.ts";
+import { asJsonObject, jsonField, thrownMessage } from "../_shared/crm-json.ts";
+
+type RecordSlice = Pick<Tables<"crm_records">, "id" | "data">;
+
+function nonEmptyString(value: Json | undefined): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -159,11 +167,11 @@ function getDateRange(
 }
 
 /** Push date filtering into Postgres so report views don't scan full table history. */
-function applyJsonDateFilter(
-  query: any,
+function applyJsonDateFilter<Q extends { or(filters: string): Q }>(
+  query: Q,
   startDate: string,
   endDate?: string | null,
-) {
+): Q {
   if (endDate) {
     return query.or(
       `and(data->>date.gte.${startDate},data->>date.lte.${endDate}),data->>date.is.null`,
@@ -179,7 +187,7 @@ Deno.serve(async (req) => {
 
   try {
     // Use service role to bypass RLS row limits for reading
-    const supabaseAuth = createClient(
+    const supabaseAuth = createClient<Database>(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
@@ -234,13 +242,13 @@ Deno.serve(async (req) => {
     }
 
     // Use service role for data operations to bypass RLS row limits
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL") ?? "",
       serviceRoleKey,
     );
 
     const method = req.method;
-    let body: any = {};
+    let body: Json = {};
     try {
       const text = await req.text();
       if (text) body = JSON.parse(text);
@@ -305,14 +313,14 @@ Deno.serve(async (req) => {
               date_filter,
               date_from || undefined,
               date_to || undefined,
-              (tableInfo as any).integration_type,
+              tableInfo.integration_type,
             )
           : { startDate: null, endDate: null };
 
       // Check if aggregated data is requested (for dashboards like Search Console)
       if (aggregated === "search_console") {
         const pageSize = 1000;
-        const allRecords: any[] = [];
+        const allRecords: RecordSlice[] = [];
 
         for (let from = 0; ; from += pageSize) {
           let pageQuery = supabase
@@ -343,11 +351,11 @@ Deno.serve(async (req) => {
         // Impression-weighted position. A day with position 0 is not a rank and
         // must not pull the average into the top 20.
         const queryData = aggregateGscQueryRows(
-          scopedRecords.map((r: any) => ({
-            query: r.data?.query || "",
-            clicks: r.data?.clicks,
-            impressions: r.data?.impressions,
-            position: r.data?.position,
+          scopedRecords.map((r) => ({
+            query: String(jsonField(r.data, "query") || ""),
+            clicks: jsonField(r.data, "clicks"),
+            impressions: jsonField(r.data, "impressions"),
+            position: jsonField(r.data, "position"),
           })),
         );
 
@@ -385,7 +393,7 @@ Deno.serve(async (req) => {
       // Fetch records with pagination (PostgREST enforces a 1000-row cap per request)
       const pageSize = 1000;
       const maxRows = 100000;
-      const allRecords: any[] = [];
+      const allRecords: RecordSlice[] = [];
 
       for (let from = 0; from < maxRows; from += pageSize) {
         const to = from + pageSize - 1;
@@ -418,19 +426,20 @@ Deno.serve(async (req) => {
       const filteredRecords = allRecords;
 
       // Sort by date descending (newest first)
-      filteredRecords.sort((a: any, b: any) => {
-        const dateA = a.data?.date || "";
-        const dateB = b.data?.date || "";
+      filteredRecords.sort((a, b) => {
+        const dateA = String(jsonField(a.data, "date") || "");
+        const dateB = String(jsonField(b.data, "date") || "");
         return dateB.localeCompare(dateA);
       });
 
       // Calculate totals for logging
       const totalClicks = filteredRecords.reduce(
-        (sum: number, r: any) => sum + (Number(r.data?.clicks) || 0),
+        (sum: number, r) => sum + (Number(jsonField(r.data, "clicks")) || 0),
         0,
       );
       const totalImpressions = filteredRecords.reduce(
-        (sum: number, r: any) => sum + (Number(r.data?.impressions) || 0),
+        (sum: number, r) =>
+          sum + (Number(jsonField(r.data, "impressions")) || 0),
         0,
       );
 
@@ -440,7 +449,9 @@ Deno.serve(async (req) => {
     }
 
     if (method === "POST") {
-      const { table_id, data: recordData, agency_id } = body;
+      const table_id = nonEmptyString(jsonField(body, "table_id"));
+      const recordData = jsonField(body, "data");
+      const agency_id = nonEmptyString(jsonField(body, "agency_id"));
       if (!table_id || !recordData) {
         return new Response(
           JSON.stringify({ error: "table_id and data required" }),
@@ -471,7 +482,8 @@ Deno.serve(async (req) => {
     }
 
     if (method === "PATCH") {
-      const { record_id, data: recordData } = body;
+      const record_id = nonEmptyString(jsonField(body, "record_id"));
+      const recordData = jsonField(body, "data");
       if (!record_id || !recordData) {
         return new Response(
           JSON.stringify({ error: "record_id and data required" }),
@@ -497,7 +509,9 @@ Deno.serve(async (req) => {
 
       const { data: record, error } = await supabase
         .from("crm_records")
-        .update({ data: { ...existing.data, ...recordData } })
+        .update({
+          data: { ...asJsonObject(existing.data), ...asJsonObject(recordData) },
+        })
         .eq("id", record_id)
         .select()
         .single();
@@ -509,7 +523,7 @@ Deno.serve(async (req) => {
     }
 
     if (method === "DELETE") {
-      const { record_id } = body;
+      const record_id = nonEmptyString(jsonField(body, "record_id"));
       if (!record_id) {
         return new Response(JSON.stringify({ error: "record_id required" }), {
           status: 400,
@@ -545,8 +559,8 @@ Deno.serve(async (req) => {
       status: 405,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (error) {
+    return new Response(JSON.stringify({ error: thrownMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

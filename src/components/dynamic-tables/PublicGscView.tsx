@@ -1,3 +1,4 @@
+import type { JsonObject } from "@/lib/jsonReaders";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ import { aggregateGscQueryRows, visibleGscPosition } from "@/lib/gscPosition";
 import { cn } from "@/lib/utils";
 
 interface PublicGscViewProps {
-  records: Array<{ id: string; data: Record<string, any> }>;
+  records: Array<{ id?: string; data: JsonObject | null }>;
 }
 
 type GscDateFilter =
@@ -65,7 +66,7 @@ export function PublicGscView({ records }: PublicGscViewProps) {
     for (const r of records) {
       const d = r.data || {};
       const date = d.date || d.day || d.report_date;
-      if (cutoff && date && date < cutoff) continue;
+      if (cutoff && typeof date === "string" && date && date < cutoff) continue;
       samples.push({
         query: String(d.query || d.keyword || "").trim(),
         clicks: d.clicks,

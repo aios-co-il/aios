@@ -16,6 +16,15 @@ import { ISLAND_TOKENS } from "../utils/glassTokens";
 import type { IslandSummary } from "../types/visualWorkspaceTypes";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  toAgentRole,
+  type IslandAgent,
+  type IslandItem,
+} from "../utils/islandRows";
+import { fetchIslandAgents, fetchIslandItems } from "../utils/islandQueries";
+
+type IslandTask = Pick<Tables<"tasks">, "id" | "title" | "status">;
 
 interface Props {
   island: IslandSummary | null;
@@ -26,110 +35,29 @@ interface Props {
 export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
   const { tenantId } = useCurrentTenant();
   const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  const [items, setItems] = useState<IslandItem[]>([]);
+  const [tasks, setTasks] = useState<IslandTask[]>([]);
+  const [agents, setAgents] = useState<IslandAgent[]>([]);
 
   useEffect(() => {
     if (!island || !tenantId) return;
     setLoading(true);
-    const sb = supabase as any;
     (async () => {
-      const fetchTasks = sb
+      const fetchTasks = supabase
         .from("tasks")
         .select("id,title,status,due_date,client_id")
         .eq("tenant_id", tenantId)
         .in("status", ["open", "in_progress"])
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(20);
-      const fetchAgents = sb
-        .from("ai_agents")
-        .select("id,name,role,model,active")
-        .eq("tenant_id", tenantId)
-        .limit(10);
-
-      let itemsQ: any = null;
-      switch (island.id) {
-        case "marketing":
-          itemsQ = sb
-            .from("automations")
-            .select("id,name,is_active,trigger_type")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false })
-            .limit(15);
-          break;
-        case "sales":
-          itemsQ = sb
-            .from("leads")
-            .select("id,name,phone,status,created_at")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false })
-            .limit(15);
-          break;
-        case "creative":
-          itemsQ = sb
-            .from("social_publications")
-            .select("id,content,status,scheduled_at")
-            .eq("tenant_id", tenantId)
-            .order("scheduled_at", { ascending: false, nullsFirst: false })
-            .limit(15);
-          break;
-        case "finance":
-          itemsQ = sb
-            .from("supplier_invoices")
-            .select("id,supplier_name,amount,status,invoice_date")
-            .eq("tenant_id", tenantId)
-            .order("invoice_date", { ascending: false })
-            .limit(15);
-          break;
-        case "development":
-          itemsQ = sb
-            .from("automation_executions")
-            .select("id,automation_id,status,created_at")
-            .eq("tenant_id", tenantId)
-            .order("created_at", { ascending: false })
-            .limit(15);
-          break;
-        case "customer_success":
-          itemsQ = sb
-            .from("clients")
-            .select("id,name,status,mood_status,health_score")
-            .eq("tenant_id", tenantId)
-            .order("name")
-            .limit(20);
-          break;
-        case "system":
-          itemsQ = sb
-            .from("tenant_integrations")
-            .select("id,integration_name,is_active")
-            .eq("tenant_id", tenantId)
-            .limit(20);
-          break;
-        case "agents":
-          itemsQ = sb
-            .from("ai_agents")
-            .select("id,name,role,model,active")
-            .eq("tenant_id", tenantId)
-            .limit(20);
-          break;
-        case "management":
-          itemsQ = sb
-            .from("goals")
-            .select("id,title,status,progress")
-            .eq("tenant_id", tenantId)
-            .neq("status", "completed")
-            .limit(15);
-          break;
-      }
-
       const [it, tsk, ag] = await Promise.all([
-        itemsQ,
+        fetchIslandItems(island.id, tenantId),
         fetchTasks,
-        fetchAgents,
+        fetchIslandAgents(tenantId),
       ]);
-      setItems(it?.data ?? []);
+      setItems(it);
       setTasks(tsk?.data ?? []);
-      setAgents(ag?.data ?? []);
+      setAgents(ag);
       setLoading(false);
     })();
   }, [island, tenantId]);
@@ -226,7 +154,7 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {items.map((it: any) => (
+                  {items.map((it) => (
                     <div
                       key={it.id}
                       onClick={() => {
@@ -265,7 +193,7 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {tasks.map((t: any) => (
+                  {tasks.map((t) => (
                     <div
                       key={t.id}
                       onClick={() => onOpenSheet("task", t.id)}
@@ -284,14 +212,14 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
 
           <TabsContent value="agents" className="mt-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {agents.map((a: any) => (
+              {agents.map((a) => (
                 <div
                   key={a.id}
                   onClick={() => onOpenSheet("agent", a.id)}
                   className="rounded-2xl bg-white/70 border border-white/80 p-3 text-center hover:bg-white cursor-pointer transition"
                 >
                   <AgentAvatar
-                    role={(a.role as any) || "ceo"}
+                    role={toAgentRole(a.role)}
                     state={a.active ? "idle" : "waiting"}
                     size={48}
                     className="mx-auto"

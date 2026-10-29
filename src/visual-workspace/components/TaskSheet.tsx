@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface Props {
   taskId: string | null;
@@ -19,22 +20,21 @@ interface Props {
 
 export function TaskSheet({ taskId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
-  const [task, setTask] = useState<any>(null);
-  const [updates, setUpdates] = useState<any[]>([]);
+  const [task, setTask] = useState<Tables<"tasks"> | null>(null);
+  const [updates, setUpdates] = useState<Tables<"task_updates">[]>([]);
 
   useEffect(() => {
     if (!taskId) return;
     setLoading(true);
-    const sb = supabase as any;
     Promise.all([
-      sb.from("tasks").select("*").eq("id", taskId).maybeSingle(),
-      sb
+      supabase.from("tasks").select("*").eq("id", taskId).maybeSingle(),
+      supabase
         .from("task_updates")
         .select("*")
         .eq("task_id", taskId)
         .order("created_at", { ascending: false })
         .limit(10),
-    ]).then(([t, u]: any) => {
+    ]).then(([t, u]) => {
       setTask(t.data);
       setUpdates(u.data ?? []);
       setLoading(false);
@@ -64,14 +64,6 @@ export function TaskSheet({ taskId, onClose }: Props) {
                   <Badge variant="secondary">{task.priority}</Badge>
                 )}
               </div>
-              {task.description && (
-                <div>
-                  <div className="text-xs text-slate-500 mb-1">תיאור</div>
-                  <p className="text-xs whitespace-pre-wrap">
-                    {task.description}
-                  </p>
-                </div>
-              )}
               {task.due_date && (
                 <div>
                   <div className="text-xs text-slate-500">תאריך יעד</div>
@@ -88,7 +80,7 @@ export function TaskSheet({ taskId, onClose }: Props) {
                   <p className="text-xs text-slate-400">אין עדכונים</p>
                 ) : (
                   <div className="space-y-1">
-                    {updates.map((u: any) => (
+                    {updates.map((u) => (
                       <div
                         key={u.id}
                         className="rounded-lg bg-slate-50 px-3 py-2 text-xs"
@@ -99,7 +91,7 @@ export function TaskSheet({ taskId, onClose }: Props) {
                               locale: he,
                             })}
                         </div>
-                        <div>{u.content || u.update_text || u.note}</div>
+                        <div>{u.content}</div>
                       </div>
                     ))}
                   </div>

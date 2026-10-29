@@ -10,10 +10,13 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
+import type { Json } from "@/integrations/supabase/types";
+import { asJsonObject, parseJsonFloat } from "@/lib/jsonReaders";
+import { type CrmRecordRow, toCrmRecordRows } from "@/types/dashboardRows";
 
 interface TableCardAlertsProps {
   tableId: string;
-  integrationSettings?: any;
+  integrationSettings?: Json | null;
 }
 
 interface ReportAlert {
@@ -27,10 +30,7 @@ interface ReportAlert {
   is_active: boolean;
 }
 
-interface CrmRecord {
-  id: string;
-  data: Record<string, any>;
-}
+type CrmRecord = CrmRecordRow;
 
 interface TriggeredAlert {
   alert: ReportAlert;
@@ -97,7 +97,7 @@ export function TableCardAlerts({
         },
       );
       if (response.error) return [];
-      return Array.isArray(response.data) ? (response.data as CrmRecord[]) : [];
+      return toCrmRecordRows(response.data);
     },
     enabled: !!tableId && alerts.length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -108,8 +108,11 @@ export function TableCardAlerts({
     const today = new Date();
 
     // Check account-level blocking first
-    const accountStatus = integrationSettings?.account_status;
-    if (accountStatus && BLOCKED_ACCOUNT_STATUSES.includes(accountStatus)) {
+    const accountStatus = asJsonObject(integrationSettings).account_status;
+    if (
+      typeof accountStatus === "string" &&
+      BLOCKED_ACCOUNT_STATUSES.includes(accountStatus)
+    ) {
       const blockingAlert = alerts.find(
         (a) => a.comparison_type === "no_data" || a.operator === "no_data_days",
       );
@@ -147,7 +150,10 @@ export function TableCardAlerts({
           const configuredStatus = latestRecord?.data?.configured_status;
 
           // Only show alert if BLOCKED by Meta (not manually paused)
-          if (effectiveStatus && BLOCKED_STATUSES.includes(effectiveStatus)) {
+          if (
+            typeof effectiveStatus === "string" &&
+            BLOCKED_STATUSES.includes(effectiveStatus)
+          ) {
             if (configuredStatus === "PAUSED") continue;
 
             triggered.push({
@@ -348,8 +354,8 @@ function getCampaignBlockReason(effectiveStatus: string): string {
 function getLatestRecord(records: CrmRecord[]): CrmRecord | null {
   if (records.length === 0) return null;
   return records.reduce((latest, record) => {
-    const recordDate = record.data?.date || record.data?.Date || "";
-    const latestDate = latest?.data?.date || latest?.data?.Date || "";
+    const recordDate = String(record.data?.date || record.data?.Date || "");
+    const latestDate = String(latest?.data?.date || latest?.data?.Date || "");
     return recordDate > latestDate ? record : latest;
   }, records[0]);
 }
@@ -359,11 +365,12 @@ function groupRecordsByCampaign(
 ): Record<string, CrmRecord[]> {
   const groups: Record<string, CrmRecord[]> = {};
   for (const record of records) {
-    const campaignId =
+    const campaignId = String(
       record.data?.campaign_id ||
-      record.data?.campaignId ||
-      record.data?.campaign_name ||
-      "unknown";
+        record.data?.campaignId ||
+        record.data?.campaign_name ||
+        "unknown",
+    );
     if (!groups[campaignId]) groups[campaignId] = [];
     groups[campaignId].push(record);
   }
@@ -372,7 +379,9 @@ function groupRecordsByCampaign(
 
 function getCampaignName(records: CrmRecord[]): string {
   if (records.length === 0) return "";
-  return records[0].data?.campaign_name || records[0].data?.campaignName || "";
+  return String(
+    records[0].data?.campaign_name || records[0].data?.campaignName || "",
+  );
 }
 
 function calculateMetric(
@@ -387,8 +396,9 @@ function calculateMetric(
   const filtered = records.filter((r) => {
     const recordDate = r.data?.date || r.data?.Date;
     if (!recordDate) return false;
+    const day = String(recordDate);
     // Use >= startStr and < endStr to avoid overlap between periods
-    return recordDate >= startStr && recordDate < endStr;
+    return day >= startStr && day < endStr;
   });
 
   if (filtered.length === 0) return 0;
@@ -400,14 +410,14 @@ function calculateMetric(
 
     for (const record of filtered) {
       const spend =
-        parseFloat(record.data?.spend) ||
-        parseFloat(record.data?.amount_spent) ||
-        parseFloat(record.data?.Spend) ||
+        parseJsonFloat(record.data?.spend) ||
+        parseJsonFloat(record.data?.amount_spent) ||
+        parseJsonFloat(record.data?.Spend) ||
         0;
       const leads =
-        parseFloat(record.data?.leads) ||
-        parseFloat(record.data?.results) ||
-        parseFloat(record.data?.Leads) ||
+        parseJsonFloat(record.data?.leads) ||
+        parseJsonFloat(record.data?.results) ||
+        parseJsonFloat(record.data?.Leads) ||
         0;
       totalSpend += spend;
       totalLeads += leads;
@@ -424,13 +434,13 @@ function calculateMetric(
 
     for (const record of filtered) {
       const spend =
-        parseFloat(record.data?.spend) ||
-        parseFloat(record.data?.amount_spent) ||
-        parseFloat(record.data?.Spend) ||
+        parseJsonFloat(record.data?.spend) ||
+        parseJsonFloat(record.data?.amount_spent) ||
+        parseJsonFloat(record.data?.Spend) ||
         0;
       const impressions =
-        parseFloat(record.data?.impressions) ||
-        parseFloat(record.data?.Impressions) ||
+        parseJsonFloat(record.data?.impressions) ||
+        parseJsonFloat(record.data?.Impressions) ||
         0;
       totalSpend += spend;
       totalImpressions += impressions;
@@ -447,13 +457,13 @@ function calculateMetric(
 
     for (const record of filtered) {
       const clicks =
-        parseFloat(record.data?.clicks) ||
-        parseFloat(record.data?.link_clicks) ||
-        parseFloat(record.data?.Clicks) ||
+        parseJsonFloat(record.data?.clicks) ||
+        parseJsonFloat(record.data?.link_clicks) ||
+        parseJsonFloat(record.data?.Clicks) ||
         0;
       const impressions =
-        parseFloat(record.data?.impressions) ||
-        parseFloat(record.data?.Impressions) ||
+        parseJsonFloat(record.data?.impressions) ||
+        parseJsonFloat(record.data?.Impressions) ||
         0;
       totalClicks += clicks;
       totalImpressions += impressions;
@@ -476,7 +486,7 @@ function calculateMetric(
 
   for (const record of filtered) {
     for (const key of keys) {
-      const value = parseFloat(record.data?.[key]);
+      const value = parseJsonFloat(record.data?.[key]);
       if (!isNaN(value)) {
         total += value;
         break;

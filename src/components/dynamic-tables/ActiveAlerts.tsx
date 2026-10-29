@@ -11,11 +11,17 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
+import type { Json } from "@/integrations/supabase/types";
+import { readField, readFloat, readString } from "@/lib/jsonReaders";
+
+interface AlertRecord {
+  data?: unknown;
+}
 
 interface ActiveAlertsProps {
   tableId: string;
-  records: any[];
-  integrationSettings?: any;
+  records: AlertRecord[];
+  integrationSettings?: unknown;
 }
 
 interface ReportAlert {
@@ -102,7 +108,7 @@ export function ActiveAlerts({
     const today = new Date();
 
     // Check account-level blocking first
-    const accountStatus = integrationSettings?.account_status;
+    const accountStatus = readString(integrationSettings, "account_status");
     if (accountStatus && BLOCKED_ACCOUNT_STATUSES.includes(accountStatus)) {
       const blockingAlert = alerts.find(
         (a) => a.comparison_type === "no_data" || a.operator === "no_data_days",
@@ -110,7 +116,7 @@ export function ActiveAlerts({
       if (blockingAlert) {
         const reason = getAccountBlockReason(
           accountStatus,
-          integrationSettings?.account_disable_reason,
+          readField(integrationSettings, "account_disable_reason"),
         );
         triggered.push({
           alert: blockingAlert,
@@ -144,12 +150,18 @@ export function ActiveAlerts({
         for (const [campaignId, campaignRecords] of Object.entries(
           campaignGroups,
         )) {
-          const campaignName = getCampaignName(campaignRecords as any[]);
+          const campaignName = getCampaignName(campaignRecords);
 
           // Get the latest record's effective_status
-          const latestRecord = getLatestRecord(campaignRecords as any[]);
-          const effectiveStatus = latestRecord?.data?.effective_status;
-          const configuredStatus = latestRecord?.data?.configured_status;
+          const latestRecord = getLatestRecord(campaignRecords);
+          const effectiveStatus = readString(
+            latestRecord?.data,
+            "effective_status",
+          );
+          const configuredStatus = readField(
+            latestRecord?.data,
+            "configured_status",
+          );
 
           // Only show alert if the campaign is BLOCKED by Meta (not manually paused)
           if (effectiveStatus && BLOCKED_STATUSES.includes(effectiveStatus)) {
@@ -196,9 +208,9 @@ export function ActiveAlerts({
         for (const [campaignId, campaignRecords] of Object.entries(
           campaignGroups,
         )) {
-          const campaignName = getCampaignName(campaignRecords as any[]);
+          const campaignName = getCampaignName(campaignRecords);
           const currentMetrics = calculateMetrics(
-            campaignRecords as any[],
+            campaignRecords,
             subDays(today, 7),
             today,
             alert.metric,
@@ -232,16 +244,16 @@ export function ActiveAlerts({
       for (const [campaignId, campaignRecords] of Object.entries(
         campaignGroups,
       )) {
-        const campaignName = getCampaignName(campaignRecords as any[]);
+        const campaignName = getCampaignName(campaignRecords);
 
         const currentValue = calculateMetrics(
-          campaignRecords as any[],
+          campaignRecords,
           currentPeriodStart,
           currentPeriodEnd,
           alert.metric,
         );
         const previousValue = calculateMetrics(
-          campaignRecords as any[],
+          campaignRecords,
           previousPeriodStart,
           previousPeriodEnd,
           alert.metric,
@@ -388,7 +400,7 @@ function AlertCard({
   );
 }
 
-function getAccountBlockReason(status: string, disableReason?: string): string {
+function getAccountBlockReason(status: string, disableReason?: Json): string {
   switch (status) {
     case "disabled":
       return disableReason
@@ -424,25 +436,32 @@ function getCampaignBlockReason(effectiveStatus: string): string {
   }
 }
 
-function getLatestRecord(records: any[]): any | null {
+function recordDate(record: AlertRecord): string | undefined {
+  return readString(record.data, "date") || readString(record.data, "Date");
+}
+
+function getLatestRecord(records: AlertRecord[]): AlertRecord | null {
   if (records.length === 0) return null;
 
   return records.reduce((latest, record) => {
-    const recordDate = record.data?.date || record.data?.Date || "";
-    const latestDate = latest?.data?.date || latest?.data?.Date || "";
-    return recordDate > latestDate ? record : latest;
+    const recordDateValue = recordDate(record) || "";
+    const latestDate = recordDate(latest) || "";
+    return recordDateValue > latestDate ? record : latest;
   }, records[0]);
 }
 
-function groupRecordsByCampaign(records: any[]): Record<string, any[]> {
-  const groups: Record<string, any[]> = {};
+function groupRecordsByCampaign(
+  records: AlertRecord[],
+): Record<string, AlertRecord[]> {
+  const groups: Record<string, AlertRecord[]> = {};
 
   for (const record of records) {
-    const campaignId =
-      record.data?.campaign_id ||
-      record.data?.campaignId ||
-      record.data?.campaign_name ||
-      "unknown";
+    const campaignId = String(
+      readField(record.data, "campaign_id") ||
+        readField(record.data, "campaignId") ||
+        readField(record.data, "campaign_name") ||
+        "unknown",
+    );
     if (!groups[campaignId]) {
       groups[campaignId] = [];
     }
@@ -452,19 +471,19 @@ function groupRecordsByCampaign(records: any[]): Record<string, any[]> {
   return groups;
 }
 
-function getCampaignName(records: any[]): string {
+function getCampaignName(records: AlertRecord[]): string {
   if (records.length === 0) return "";
   const firstRecord = records[0];
-  return (
-    firstRecord.data?.campaign_name ||
-    firstRecord.data?.campaignName ||
-    firstRecord.data?.campaign_id ||
-    ""
+  return String(
+    readField(firstRecord.data, "campaign_name") ||
+      readField(firstRecord.data, "campaignName") ||
+      readField(firstRecord.data, "campaign_id") ||
+      "",
   );
 }
 
 function calculateMetrics(
-  records: any[],
+  records: AlertRecord[],
   startDate: Date,
   endDate: Date,
   metric: string,
@@ -473,10 +492,10 @@ function calculateMetrics(
   const endStr = format(endDate, "yyyy-MM-dd");
 
   const filtered = records.filter((r) => {
-    const recordDate = r.data?.date || r.data?.Date;
-    if (!recordDate) return false;
+    const date = recordDate(r);
+    if (!date) return false;
     // Use >= startStr and < endStr to avoid overlap between periods
-    return recordDate >= startStr && recordDate < endStr;
+    return date >= startStr && date < endStr;
   });
 
   if (filtered.length === 0) return 0;
@@ -488,14 +507,14 @@ function calculateMetrics(
 
     for (const record of filtered) {
       const spend =
-        parseFloat(record.data?.spend) ||
-        parseFloat(record.data?.amount_spent) ||
-        parseFloat(record.data?.Spend) ||
+        readFloat(record.data, "spend") ||
+        readFloat(record.data, "amount_spent") ||
+        readFloat(record.data, "Spend") ||
         0;
       const leads =
-        parseFloat(record.data?.leads) ||
-        parseFloat(record.data?.results) ||
-        parseFloat(record.data?.Leads) ||
+        readFloat(record.data, "leads") ||
+        readFloat(record.data, "results") ||
+        readFloat(record.data, "Leads") ||
         0;
       totalSpend += spend;
       totalLeads += leads;
@@ -512,13 +531,13 @@ function calculateMetrics(
 
     for (const record of filtered) {
       const spend =
-        parseFloat(record.data?.spend) ||
-        parseFloat(record.data?.amount_spent) ||
-        parseFloat(record.data?.Spend) ||
+        readFloat(record.data, "spend") ||
+        readFloat(record.data, "amount_spent") ||
+        readFloat(record.data, "Spend") ||
         0;
       const impressions =
-        parseFloat(record.data?.impressions) ||
-        parseFloat(record.data?.Impressions) ||
+        readFloat(record.data, "impressions") ||
+        readFloat(record.data, "Impressions") ||
         0;
       totalSpend += spend;
       totalImpressions += impressions;
@@ -535,13 +554,13 @@ function calculateMetrics(
 
     for (const record of filtered) {
       const clicks =
-        parseFloat(record.data?.clicks) ||
-        parseFloat(record.data?.link_clicks) ||
-        parseFloat(record.data?.Clicks) ||
+        readFloat(record.data, "clicks") ||
+        readFloat(record.data, "link_clicks") ||
+        readFloat(record.data, "Clicks") ||
         0;
       const impressions =
-        parseFloat(record.data?.impressions) ||
-        parseFloat(record.data?.Impressions) ||
+        readFloat(record.data, "impressions") ||
+        readFloat(record.data, "Impressions") ||
         0;
       totalClicks += clicks;
       totalImpressions += impressions;
@@ -564,7 +583,7 @@ function calculateMetrics(
 
   for (const record of filtered) {
     for (const key of keys) {
-      const value = parseFloat(record.data?.[key]);
+      const value = readFloat(record.data, key);
       if (!isNaN(value)) {
         total += value;
         break;

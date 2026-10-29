@@ -1,3 +1,5 @@
+import { errorMessage } from "@/lib/jsonReaders";
+import type { SeoReportRecord } from "@/lib/dynamicTableTypes";
 import { useMemo, useRef, useState } from "react";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { he } from "date-fns/locale";
@@ -50,7 +52,7 @@ type Props = {
   months: MonthlyRow[];
   /** @deprecated Prefer per-month share_token on months[]. */
   shareToken?: string | null;
-  ahrefsReports?: any[];
+  ahrefsReports?: SeoReportRecord[];
   forceRelevant?: string[];
   forceIrrelevant?: string[];
   /** Render as a standalone page: the report fills the screen, controls move into its sticky header. */
@@ -233,9 +235,9 @@ export function PublicSeoMonthlyWorkView({
         `seo-${safeName}.pdf`,
       );
       toast.success("ה־PDF הורד");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error(err?.message || "שגיאה ביצוא PDF");
+      toast.error(errorMessage(err) || "שגיאה ביצוא PDF");
     } finally {
       setExporting(false);
     }

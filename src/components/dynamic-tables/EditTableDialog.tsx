@@ -1,3 +1,4 @@
+import { asJsonObject, readText } from "@/lib/jsonReaders";
 import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
@@ -30,10 +31,19 @@ import { Loader2, AlertCircle, Search } from "lucide-react";
 import { GaDomainSearch } from "@/components/dynamic-tables/GaDomainSearch";
 import { invalidateClientCrmTablesQueries } from "@/lib/reportQueryCache";
 
+interface EditableTable {
+  id: string;
+  name?: string | null;
+  integration_type?: string | null;
+  integration_settings?: unknown;
+  agency_id?: string | null;
+  client_id?: string | null;
+}
+
 interface EditTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  table: any;
+  table: EditableTable | null;
   tenantId: string;
   onSaved?: () => void;
 }
@@ -71,7 +81,7 @@ export function EditTableDialog({
   onSaved,
 }: EditTableDialogProps) {
   const queryClient = useQueryClient();
-  const settings = (table?.integration_settings || {}) as Record<string, any>;
+  const settings = asJsonObject(table?.integration_settings);
   const type: string = table?.integration_type || "";
   const usesIntegrationId = INTEGRATION_ID_TYPES.includes(type);
   const isAds = ADS_TYPES.includes(type);
@@ -91,17 +101,32 @@ export function EditTableDialog({
   useEffect(() => {
     if (!open || !table) return;
     setName(table.name || "");
-    setIntegrationId(settings.integrationId || settings.integration_id || "");
-    if (type === "google_ads") setAccountId(settings.customer_id || "");
+    setIntegrationId(
+      readText(settings, "integrationId") ||
+        readText(settings, "integration_id") ||
+        "",
+    );
+    if (type === "google_ads")
+      setAccountId(readText(settings, "customer_id") || "");
     else if (type === "facebook_insights" || type === "facebook_ecommerce")
-      setAccountId(settings.ad_account_id || "");
+      setAccountId(readText(settings, "ad_account_id") || "");
     else if (type === "google_search_console")
-      setAccountId(settings.siteUrl || settings.site_url || "");
+      setAccountId(
+        readText(settings, "siteUrl") || readText(settings, "site_url") || "",
+      );
     else if (type === "ahrefs")
-      setAccountId(settings.targetDomain || settings.target_domain || "");
+      setAccountId(
+        readText(settings, "targetDomain") ||
+          readText(settings, "target_domain") ||
+          "",
+      );
     else setAccountId("");
-    setPropertyId(settings.propertyId || settings.property_id || "");
-    setCampaignType(settings.campaign_type || "");
+    setPropertyId(
+      readText(settings, "propertyId") ||
+        readText(settings, "property_id") ||
+        "",
+    );
+    setCampaignType(readText(settings, "campaign_type") || "");
     setAgencyId(table.agency_id || "");
     setClientId(table.client_id || "");
     setPropertySearch("");
@@ -114,7 +139,7 @@ export function EditTableDialog({
     useUserIntegrations(tenantId, type, { enabled: open && usesIntegrationId });
 
   const selectedConnection =
-    connections.find((c: any) => c.id === integrationId) || null;
+    connections.find((c) => c.id === integrationId) || null;
 
   // GA property list for the selected connection
   const { data: propertiesResponse, isLoading: propertiesLoading } = useQuery({
@@ -155,6 +180,7 @@ export function EditTableDialog({
   const { data: clients = [] } = useAgencyClients(agencyId || null);
 
   const handleSave = async () => {
+    if (!table) return;
     if (!name.trim()) {
       toast.error("נא למלא שם טבלה");
       return;
@@ -275,7 +301,7 @@ export function EditTableDialog({
                     <SelectValue placeholder="בחר חיבור" />
                   </SelectTrigger>
                   <SelectContent>
-                    {connections.map((integ: any) => {
+                    {connections.map((integ) => {
                       const s = integ.settings as Record<
                         string,
                         unknown
@@ -285,7 +311,10 @@ export function EditTableDialog({
                       const isOwn = integ._isOwn;
                       const sharedBy = integ._sharedByName;
                       return (
-                        <SelectItem key={integ.id} value={integ.id}>
+                        <SelectItem
+                          key={String(integ.id)}
+                          value={String(integ.id)}
+                        >
                           {email}{" "}
                           {!isOwn && sharedBy
                             ? `(שותף ע"י ${sharedBy})`
@@ -309,10 +338,10 @@ export function EditTableDialog({
 
           {type === "google_analytics" && connections.length > 0 && (
             <GaDomainSearch
-              connections={connections.map((integ: any) => {
+              connections={connections.map((integ) => {
                 const s = integ.settings as Record<string, unknown> | null;
                 return {
-                  id: integ.id,
+                  id: String(integ.id),
                   label: (s?.google_email as string) || "חשבון לא ידוע",
                   own: !!integ._isOwn,
                 };
@@ -441,7 +470,7 @@ export function EditTableDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">ללא סוכנות</SelectItem>
-                {agencies.map((agency: any) => (
+                {agencies.map((agency) => (
                   <SelectItem key={agency.id} value={agency.id}>
                     {agency.name}
                   </SelectItem>
@@ -462,7 +491,7 @@ export function EditTableDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">ללא לקוח</SelectItem>
-                  {clients.map((client: any) => (
+                  {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
                     </SelectItem>

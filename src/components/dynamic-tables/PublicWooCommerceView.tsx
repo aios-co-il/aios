@@ -1,3 +1,5 @@
+import type { Json } from "@/integrations/supabase/types";
+import { asJsonArray, asJsonObject } from "@/lib/jsonReaders";
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, TrendingUp, Package, Users } from "lucide-react";
@@ -24,15 +26,26 @@ import {
   WooAttributionSection,
   wooAttributionLabel,
 } from "@/components/dynamic-tables/WooAttributionSection";
+import type { WooOrderAttribution } from "@/lib/wooAttribution";
 import {
   filterWooOrdersForRevenue,
   sumWooRevenue,
   wooOrderRevenueTimestamp,
+  type WooOrderRevenueRow,
 } from "@/lib/wooOrderRevenue";
 
+type PublicWooOrder = WooOrderRevenueRow & {
+  order_number?: string | number | null;
+  customer_email?: string | null;
+  customer_first_name?: string | null;
+  customer_last_name?: string | null;
+  line_items?: Json;
+  attribution?: WooOrderAttribution | null;
+};
+
 interface PublicWooCommerceViewProps {
-  sites: any[];
-  orders: any[];
+  sites: unknown[];
+  orders: PublicWooOrder[];
 }
 
 const formatCurrency = (n: number) =>
@@ -51,12 +64,12 @@ export function PublicWooCommerceView({
     const valid = filterWooOrdersForRevenue(orders, null);
     const totalRevenue = sumWooRevenue(valid);
     const orderCount = valid.length;
-    const cancelledCount = orders.filter((o: any) =>
-      ["cancelled", "refunded", "failed"].includes(o.status),
+    const cancelledCount = orders.filter((o) =>
+      ["cancelled", "refunded", "failed"].includes(o.status ?? ""),
     ).length;
     const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
     const uniqueCustomers = new Set(
-      valid.map((o: any) => o.customer_email).filter(Boolean),
+      valid.map((o) => o.customer_email).filter(Boolean),
     ).size;
     return {
       totalRevenue,
@@ -73,7 +86,7 @@ export function PublicWooCommerceView({
       string,
       { date: string; revenue: number; orders: number }
     > = {};
-    filterWooOrdersForRevenue(orders, null).forEach((o: any) => {
+    filterWooOrdersForRevenue(orders, null).forEach((o) => {
       const ts = wooOrderRevenueTimestamp(o);
       if (!ts) return;
       const d = new Date(ts).toISOString().slice(0, 10);
@@ -91,11 +104,11 @@ export function PublicWooCommerceView({
     > = {};
     const validStatuses = ["completed", "processing", "on-hold"];
     orders
-      .filter((o: any) => validStatuses.includes(o.status))
-      .forEach((o: any) => {
-        const items = Array.isArray(o.line_items) ? o.line_items : [];
-        items.forEach((item: any) => {
-          const name = item.name || "מוצר ללא שם";
+      .filter((o) => validStatuses.includes(o.status ?? ""))
+      .forEach((o) => {
+        const items = asJsonArray(o.line_items).map(asJsonObject);
+        items.forEach((item) => {
+          const name = String(item.name || "מוצר ללא שם");
           if (!map[name]) map[name] = { name, quantity: 0, revenue: 0 };
           map[name].quantity += Number(item.quantity || 0);
           map[name].revenue += Number(item.total || 0);
@@ -181,7 +194,7 @@ export function PublicWooCommerceView({
                 <YAxis yAxisId="left" />
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip
-                  formatter={(value: any, name: string) =>
+                  formatter={(value, name) =>
                     name === "revenue"
                       ? formatCurrency(Number(value))
                       : formatNumber(Number(value))
@@ -265,11 +278,11 @@ export function PublicWooCommerceView({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.slice(0, 50).map((o: any) => (
+              {orders.slice(0, 50).map((o) => (
                 <TableRow key={o.id}>
                   <TableCell>#{o.order_number}</TableCell>
                   <TableCell>
-                    {new Date(o.date_created).toLocaleDateString("he-IL")}
+                    {new Date(o.date_created ?? "").toLocaleDateString("he-IL")}
                   </TableCell>
                   <TableCell>
                     {[o.customer_first_name, o.customer_last_name]
@@ -284,7 +297,7 @@ export function PublicWooCommerceView({
                   <TableCell>
                     <Badge
                       variant={
-                        ["completed", "processing"].includes(o.status)
+                        ["completed", "processing"].includes(o.status ?? "")
                           ? "default"
                           : "secondary"
                       }

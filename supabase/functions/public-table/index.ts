@@ -1,4 +1,7 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
 import {
   type GscKeywordRow,
   GSC_PERIOD_DEFINITIONS,
@@ -12,6 +15,41 @@ import {
   resolveGscAccessToken,
   writeSeoShareCacheToDb,
 } from "../_shared/gscKeywords.ts";
+import type { Database, Json, Tables } from "../_shared/database.types.ts";
+import {
+  asJsonObject,
+  firstTruthyText,
+  jsonField,
+  type JsonObject,
+} from "../_shared/crm-json.ts";
+
+type PublicClient = SupabaseClient<Database>;
+type RecordSlice = Pick<Tables<"crm_records">, "id" | "data">;
+type AhrefsReportSlice = Pick<
+  Tables<"ahrefs_reports">,
+  | "id"
+  | "domain"
+  | "report_type"
+  | "report_date"
+  | "received_at"
+  | "report_data"
+  | "comparison_data"
+  | "metadata"
+>;
+type LinkedTableSlice = Pick<
+  Tables<"crm_tables">,
+  "id" | "name" | "integration_settings"
+>;
+type MaskyooSnapshotSlice = Pick<
+  Tables<"seo_call_snapshots">,
+  "category" | "incoming_count" | "is_manual"
+>;
+type MonthlyShareSlice = Pick<
+  Tables<"seo_monthly_shares">,
+  "share_token" | "month" | "is_active" | "snapshot"
+>;
+type GscRecord =
+  RecordSlice | ReturnType<typeof mapGscRowsToCrmRecords>[number];
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
 import { toPublicCachedShareBody } from "./cached-share-body.ts";
 
@@ -183,7 +221,7 @@ function filterSeoReportsByDomain<T extends { domain?: string | null }>(
 
 /** Mirror of resolve-seo-gsc-integration — no auth required (service-role only). */
 async function resolveGscSiteForClient(
-  supabase: ReturnType<typeof createClient>,
+  supabase: PublicClient,
   tenantIdList: string[],
   clientId: string,
   expectedSiteUrl?: string | null,
@@ -199,16 +237,20 @@ async function resolveGscSiteForClient(
   const candidates: Candidate[] = [];
 
   for (const i of integrations || []) {
-    const s: any = i.settings || {};
-    const clientSites = s.client_sites || {};
-    const availableSites: any[] = Array.isArray(s.available_sites)
+    const s = asJsonObject(i.settings);
+    const clientSites = asJsonObject(s.client_sites);
+    const availableSites: Json[] = Array.isArray(s.available_sites)
       ? s.available_sites
       : [];
-    const mappedForClient: string | null = clientSites[clientId] || null;
+    const mappedForClient = firstTruthyText(clientSites[clientId]);
     const isMappingUsable = (siteUrl: string | null) => {
       if (!siteUrl) return false;
-      const meta = availableSites.find((x: any) => x?.siteUrl === siteUrl);
-      return !meta || meta.permissionLevel !== "siteUnverifiedUser";
+      const meta = availableSites.find(
+        (x) => jsonField(x, "siteUrl") === siteUrl,
+      );
+      return (
+        !meta || jsonField(meta, "permissionLevel") !== "siteUnverifiedUser"
+      );
     };
 
     if (mappedForClient && isMappingUsable(mappedForClient)) {
@@ -223,12 +265,16 @@ async function resolveGscSiteForClient(
 
     if (expectedSiteUrl) {
       const siteMatch = availableSites.find(
-        (x: any) =>
-          x?.permissionLevel !== "siteUnverifiedUser" &&
-          seoDomainsMatch(x?.siteUrl, expectedSiteUrl),
+        (x) =>
+          jsonField(x, "permissionLevel") !== "siteUnverifiedUser" &&
+          seoDomainsMatch(
+            firstTruthyText(jsonField(x, "siteUrl")),
+            expectedSiteUrl,
+          ),
       );
-      if (siteMatch?.siteUrl) {
-        candidates.push({ siteUrl: siteMatch.siteUrl, rank: 2 });
+      const matchedSiteUrl = firstTruthyText(jsonField(siteMatch, "siteUrl"));
+      if (matchedSiteUrl) {
+        candidates.push({ siteUrl: matchedSiteUrl, rank: 2 });
         continue;
       }
     }
@@ -270,7 +316,7 @@ function writeSeoShareCacheLocal(cacheKey: string, body: string) {
 }
 
 async function readSeoShareCache(
-  supabase: ReturnType<typeof createClient>,
+  supabase: PublicClient,
   cacheKey: string,
 ): Promise<string | null> {
   const local = readSeoShareCacheLocal(cacheKey);
@@ -281,7 +327,7 @@ async function readSeoShareCache(
 }
 
 async function writeSeoShareCache(
-  supabase: ReturnType<typeof createClient>,
+  supabase: PublicClient,
   cacheKey: string,
   body: string,
 ) {
@@ -306,11 +352,12 @@ function withTimeout<T>(
 }
 
 /** Strip bulky fields from Ahrefs reports for anonymous share links. Keywords stay intact. */
-function trimAhrefsReportsForPublic(reports: any[]): any[] {
+function trimAhrefsReportsForPublic(reports: AhrefsReportSlice[]) {
   return (reports || []).map((report, index) => {
-    const rd = report?.report_data;
-    if (!rd || typeof rd !== "object") return report;
-    const trimmedRd: Record<string, unknown> = {};
+    const reportData = report?.report_data;
+    if (!reportData || typeof reportData !== "object") return report;
+    const rd = asJsonObject(reportData);
+    const trimmedRd: JsonObject = {};
     for (const key of [
       "domain",
       "snapshot",
@@ -343,9 +390,9 @@ function trimAhrefsReportsForPublic(reports: any[]): any[] {
 
 /** Only the GA row types used by computeGaOrganicByMonth — not thousands of daily rows. */
 async function fetchGaRecordsForSeoChart(
-  supabase: ReturnType<typeof createClient>,
+  supabase: PublicClient,
   gaTableId: string,
-): Promise<any[]> {
+): Promise<RecordSlice[]> {
   const reportTypes = [
     "monthly_channel",
     "daily_source",
@@ -362,7 +409,7 @@ async function fetchGaRecordsForSeoChart(
         .limit(reportType === "daily_source" ? 800 : 120),
     ),
   );
-  const out: any[] = [];
+  const out: RecordSlice[] = [];
   for (const { data, error } of pages) {
     if (error) {
       console.error("Error fetching GA records for SEO chart:", error);
@@ -398,7 +445,7 @@ Deno.serve(async (req) => {
 
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, serviceKey);
+      const supabase = createClient<Database>(supabaseUrl, serviceKey);
 
       const { data: share } = await supabase
         .from("table_shares")
@@ -423,7 +470,7 @@ Deno.serve(async (req) => {
         .eq("id", share.table_id)
         .single();
 
-      const baseSettings = (tbl?.integration_settings as any) || {};
+      const baseSettings = asJsonObject(tbl?.integration_settings);
       const newSettings = {
         ...baseSettings,
         manual_roi: {
@@ -476,7 +523,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabase = createClient<Database>(supabaseUrl, serviceKey);
 
     // Look up the share
     const { data: share, error: shareError } = await supabase
@@ -512,7 +559,7 @@ Deno.serve(async (req) => {
         .select("agency_id, agencies(name)")
         .eq("id", table.client_id)
         .single();
-      agencyName = (client?.agencies as any)?.name || null;
+      agencyName = client?.agencies?.name || null;
     }
 
     // Fetch fields
@@ -549,13 +596,18 @@ Deno.serve(async (req) => {
         });
       }
 
-      const settings = (table.integration_settings as any) || {};
-      const targetClientId = settings.clientId || table.client_id;
-      const targetDomain = settings.targetDomain || null;
-      const linkedGscSiteUrl =
-        settings.linkedGscSiteUrl || settings.gsc_site_url || null;
-      const linkedGaTableId = settings.linkedGaTableId || null;
-      const linkedGscTableId = settings.linkedGscTableId || null;
+      const settings = asJsonObject(table.integration_settings);
+      const targetClientId = firstTruthyText(
+        settings.clientId,
+        table.client_id,
+      );
+      const targetDomain = firstTruthyText(settings.targetDomain);
+      const linkedGscSiteUrl = firstTruthyText(
+        settings.linkedGscSiteUrl,
+        settings.gsc_site_url,
+      );
+      const linkedGaTableId = firstTruthyText(settings.linkedGaTableId);
+      const linkedGscTableId = firstTruthyText(settings.linkedGscTableId);
 
       const accessibleTenantIds = new Set<string>();
       accessibleTenantIds.add(table.tenant_id);
@@ -578,9 +630,9 @@ Deno.serve(async (req) => {
           if (clientRow?.tenant_id)
             accessibleTenantIds.add(clientRow.tenant_id);
           clientAgencyId = clientRow?.agency_id || null;
-          clientName = (clientRow as any)?.name || null;
-          clientWebsite = (clientRow as any)?.website || null;
-          const relevance = (clientRow as any)?.seo_keyword_relevance || {};
+          clientName = clientRow?.name || null;
+          clientWebsite = clientRow?.website || null;
+          const relevance = asJsonObject(clientRow?.seo_keyword_relevance);
           const asList = (v: unknown): string[] =>
             Array.isArray(v)
               ? v.map((x) => String(x || "").trim()).filter(Boolean)
@@ -612,7 +664,7 @@ Deno.serve(async (req) => {
 
       const ahrefsPromise =
         seoPart === "gsc"
-          ? Promise.resolve([] as any[])
+          ? Promise.resolve<ReturnType<typeof trimAhrefsReportsForPublic>>([])
           : (async () => {
               await clientContextPromise;
               const tenants = tenantIdList();
@@ -639,8 +691,8 @@ Deno.serve(async (req) => {
       const gaGscTablesPromise = (async () => {
         await clientContextPromise;
         const tenants = tenantIdList();
-        let gaTable: any = null;
-        let gscTable: any = null;
+        let gaTable: LinkedTableSlice | null = null;
+        let gscTable: LinkedTableSlice | null = null;
         try {
           if (linkedGaTableId) {
             const { data } = await supabase
@@ -688,9 +740,12 @@ Deno.serve(async (req) => {
 
       const maskyooPromise =
         seoPart === "gsc"
-          ? Promise.resolve({ snapshots: [] as any[], period: null })
+          ? Promise.resolve({
+              snapshots: [] as MaskyooSnapshotSlice[],
+              period: null,
+            })
           : (async (): Promise<{
-              snapshots: any[];
+              snapshots: MaskyooSnapshotSlice[];
               period: { start: string; end: string } | null;
             }> => {
               await clientContextPromise;
@@ -779,14 +834,14 @@ Deno.serve(async (req) => {
                       .order("month", { ascending: false })
                       .limit(12),
                   ]);
-                const shareByMonth = new Map<string, any>();
+                const shareByMonth = new Map<string, MonthlyShareSlice>();
                 for (const shareRow of monthlyShare || []) {
                   shareByMonth.set(
                     String(shareRow.month || "").slice(0, 10),
                     shareRow,
                   );
                 }
-                seoMonthly.months = (monthlyRows || []).map((row: any) => {
+                seoMonthly.months = (monthlyRows || []).map((row) => {
                   const month = String(row.month || "").slice(0, 10);
                   const shareRow = shareByMonth.get(month);
                   return {
@@ -835,7 +890,7 @@ Deno.serve(async (req) => {
 
       const effectiveGscSiteUrl =
         linkedGscSiteUrl ||
-        (gscTable?.integration_settings as any)?.siteUrl ||
+        firstTruthyText(jsonField(gscTable?.integration_settings, "siteUrl")) ||
         (targetClientId
           ? await resolveGscSiteForClient(
               supabase,
@@ -847,19 +902,19 @@ Deno.serve(async (req) => {
 
       const gaRecordsPromise =
         seoPart === "gsc" || !gaTable?.id
-          ? Promise.resolve([] as any[])
+          ? Promise.resolve<RecordSlice[]>([])
           : fetchGaRecordsForSeoChart(supabase, gaTable.id);
 
       const gscBundlePromise = (async () => {
         if (seoPart === "core") {
           return {
-            gscRecords: [] as any[],
+            gscRecords: [] as GscRecord[],
             gscMultiPeriod: null,
             gscSyncedAt: null,
           };
         }
 
-        let gscRecords: any[] = [];
+        let gscRecords: GscRecord[] = [];
         let gscMultiPeriod: {
           prevMonth: GscKeywordRow[];
           threeMonth: GscKeywordRow[];
@@ -1062,7 +1117,7 @@ Deno.serve(async (req) => {
     );
 
     // Fetch records WITH PAGINATION (bypass 1000-row default limit)
-    const allRecords: any[] = [];
+    const allRecords: Tables<"crm_records">[] = [];
     const pageSize = 1000;
 
     for (let from = 0; ; from += pageSize) {
@@ -1087,9 +1142,10 @@ Deno.serve(async (req) => {
     // (startDate === null) — return everything.
     const filteredRecords = !startDate
       ? allRecords
-      : allRecords.filter((r: any) => {
-          const recordDate = r.data?.date;
-          if (!recordDate) return true; // keep non-dated records (matches internal)
+      : allRecords.filter((r) => {
+          const rawDate = jsonField(r.data, "date");
+          if (!rawDate) return true; // keep non-dated records (matches internal)
+          const recordDate = String(rawDate);
           if (endDate) return recordDate >= startDate && recordDate <= endDate;
           return recordDate >= startDate;
         });

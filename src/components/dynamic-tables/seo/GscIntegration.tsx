@@ -2,6 +2,10 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserIntegrations } from "@/hooks/useUserIntegrations";
+import type { Json } from "@/integrations/supabase/types";
+import type { ClientIntegration } from "@/lib/tenantIntegrationsClient";
+import { asJsonObject, isJsonObject } from "@/lib/jsonReaders";
+import { toGscSites, type GscSite } from "./gscSites";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,10 +138,22 @@ function computeRange(range: GscDateRange): {
   };
 }
 
-interface GscSite {
-  siteUrl: string;
-  permissionLevel?: string;
-}
+/** The integration whose GSC settings drive site selection (own, shared or org fallback). */
+type SelectedGscIntegration = {
+  id: string;
+  settings: unknown;
+  _isFallback?: boolean;
+};
+
+const toSelectedGscIntegration = (
+  integration: ClientIntegration,
+): SelectedGscIntegration | null =>
+  typeof integration.id === "string"
+    ? { id: integration.id, settings: integration.settings }
+    : null;
+
+const jsonString = (value: Json | undefined): string | null =>
+  typeof value === "string" ? value : null;
 
 export interface GscKeywordData {
   keyword: string;
@@ -201,8 +217,8 @@ export function GscIntegration({
   //   2. A personal/shared integration that has a USABLE mapping for THIS client.
   //   3. The org-wide fallback resolved server-side (if available).
   //   4. The first personal integration as a last resort (lets the user pick a site manually).
-  const gscIntegration = useMemo(() => {
-    const buildFallback = () => {
+  const gscIntegration = useMemo((): SelectedGscIntegration | null => {
+    const buildFallback = (): SelectedGscIntegration | null => {
       if (!resolvedFallback?.integrationId) return null;
       return {
         id: resolvedFallback.integrationId,
@@ -216,12 +232,15 @@ export function GscIntegration({
           available_sites: [],
         },
         _isFallback: true,
-      } as any;
+      };
     };
 
-    const usableIntegrations = gscIntegrations.filter(
-      (i: any) => !brokenIntegrationIds.has(i.id),
-    );
+    const usableIntegrations = gscIntegrations.flatMap((integration) => {
+      const selected = toSelectedGscIntegration(integration);
+      return selected && !brokenIntegrationIds.has(selected.id)
+        ? [selected]
+        : [];
+    });
 
     if (!usableIntegrations.length) {
       return buildFallback();
@@ -232,11 +251,12 @@ export function GscIntegration({
       : null;
     if (explicitlySelected) return explicitlySelected;
 
-    const withGoodMapping = usableIntegrations.find((i: any) => {
-      const mapped = (i.settings as any)?.client_sites?.[clientId];
+    const withGoodMapping = usableIntegrations.find((i) => {
+      const integrationSettings = asJsonObject(i.settings);
+      const mapped = asJsonObject(integrationSettings.client_sites)[clientId];
       if (!mapped) return false;
-      const sites = (i.settings as any)?.available_sites || [];
-      const site = sites.find((s: any) => s.siteUrl === mapped);
+      const sites = toGscSites(integrationSettings.available_sites);
+      const site = sites.find((s) => s.siteUrl === mapped);
       // Accept if we don't have permission metadata, or if it's not 'siteUnverifiedUser'
       return !site || site.permissionLevel !== "siteUnverifiedUser";
     });
@@ -255,9 +275,10 @@ export function GscIntegration({
     selectedIntegrationId,
   ]);
 
-  const isFallbackIntegration = !!(gscIntegration as any)?._isFallback;
+  const isFallbackIntegration = !!gscIntegration?._isFallback;
 
-  const settings = (gscIntegration?.settings as any) || {};
+  const settings = asJsonObject(gscIntegration?.settings);
+  const settingsGoogleEmail = jsonString(settings.google_email);
 
   const {
     data: sitesResult,
@@ -293,15 +314,14 @@ export function GscIntegration({
         return {
           sites: [] as GscSite[],
           needsReconnect: true,
-          ownerEmail: (settings?.google_email as string) || null,
+          ownerEmail: settingsGoogleEmail || null,
         };
       }
-      const data: any = response.data || {};
+      const data = asJsonObject(response.data);
       return {
-        sites: Array.isArray(data.sites) ? (data.sites as GscSite[]) : [],
+        sites: toGscSites(data.sites),
         needsReconnect: !!data.needs_reconnect,
-        ownerEmail:
-          data.owner_email || (settings?.google_email as string) || null,
+        ownerEmail: jsonString(data.owner_email) || settingsGoogleEmail || null,
       };
     },
     enabled: !!gscIntegration?.id && !isFallbackIntegration,
@@ -332,17 +352,14 @@ export function GscIntegration({
   ]);
 
   const cachedSites: GscSite[] = useMemo(
-    () =>
-      Array.isArray(settings?.available_sites)
-        ? (settings.available_sites as GscSite[])
-        : [],
+    () => toGscSites(settings.available_sites),
     [settings],
   );
 
   const liveSites = sitesResult?.sites || [];
   const needsReconnect = !!sitesResult?.needsReconnect;
   const reconnectOwnerEmail =
-    sitesResult?.ownerEmail || (settings?.google_email as string) || null;
+    sitesResult?.ownerEmail || settingsGoogleEmail || null;
 
   // Fall back to cached sites when the live call returned nothing (auth issue
   // or transient failure) so the user can still pick a property.
@@ -352,7 +369,7 @@ export function GscIntegration({
   // STRICT per-client isolation: do NOT fall back to global settings.site_url/siteUrl
   // (those caused selections to leak across clients).
   // Source-of-truth order: explicit user pick > report-level saved URL (initialSiteUrl) > integration mapping.
-  const clientSites = settings?.client_sites || {};
+  const clientSites = asJsonObject(settings.client_sites);
 
   // Filter out properties we have no API access to (siteUnverifiedUser → 403).
   // We still keep them in `availableSites` for diagnostics, but never auto-select them.
@@ -374,7 +391,7 @@ export function GscIntegration({
   };
 
   // Drop a stored mapping that points at an unverified (no-access) property.
-  const storedClientSite = clientSites[clientId];
+  const storedClientSite = jsonString(clientSites[clientId]) ?? undefined;
   const storedClientSiteIsUsable = isUsableSite(storedClientSite);
 
   const persistedSiteUrl =
@@ -552,7 +569,7 @@ export function GscIntegration({
       // If any of the parallel calls reported needs_reconnect, mark the
       // integration as broken so the selection memo falls back.
       const anyNeedsReconnect = responses.some(
-        (r: any) => r?.data?.needs_reconnect,
+        (r) => !!asJsonObject(r.data).needs_reconnect,
       );
       if (anyNeedsReconnect && gscIntegration?.id && !isFallbackIntegration) {
         const id = gscIntegration.id;
@@ -736,7 +753,7 @@ export function GscIntegration({
               Google Search Console
             </CardTitle>
             <Badge variant="secondary" className="text-xs">
-              {settings?.google_email || "מחובר"}
+              {settingsGoogleEmail || "מחובר"}
             </Badge>
             {isFallbackIntegration && (
               <Badge variant="outline" className="text-xs">

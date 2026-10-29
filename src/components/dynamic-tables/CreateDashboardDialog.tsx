@@ -1,3 +1,4 @@
+import { toDashboardTables } from "@/types/dashboardRows";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -146,8 +147,9 @@ export function CreateDashboardDialog({
       );
 
       if (response.error) throw response.error;
-      const tables = Array.isArray(response.data) ? response.data : [];
-      return tables.filter((t: any) => t.client_id === clientId);
+      return toDashboardTables(response.data).filter(
+        (t) => t.client_id === clientId,
+      );
     },
     enabled: !!clientId && !!tenantId && dashboardType === "client",
   });
@@ -213,7 +215,7 @@ export function CreateDashboardDialog({
       // Navigate to the new dashboard
       navigate(buildPath(`/dashboard/${data.id}`));
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה ביצירת הדשבורד: " + error.message);
     },
   });
@@ -431,7 +433,7 @@ export function CreateDashboardDialog({
                   טבלאות שיכללו בדשבורד:
                 </Label>
                 <div className="flex flex-wrap gap-2">
-                  {clientTables.map((table: any) => (
+                  {clientTables.map((table) => (
                     <Badge
                       key={table.id}
                       variant="secondary"

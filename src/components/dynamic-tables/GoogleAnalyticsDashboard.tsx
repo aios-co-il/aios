@@ -1,3 +1,4 @@
+import { readString, readText } from "@/lib/jsonReaders";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,9 +72,11 @@ import {
 import { getRevenueFromData } from "@/lib/adsMetrics";
 
 interface CrmRecord {
-  id: string;
-  data: Record<string, any>;
+  id?: string;
+  data: Record<string, unknown>;
 }
+
+const dateText = (r: CrmRecord): string => readString(r.data, "date") ?? "";
 
 interface GoogleAnalyticsDashboardProps {
   records: CrmRecord[];
@@ -346,7 +349,7 @@ export function GoogleAnalyticsDashboard({
 
       // Try to parse the date
       try {
-        const recordDate = parseISO(r.data.date);
+        const recordDate = parseISO(dateText(r));
         // Set time boundaries properly
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
@@ -417,11 +420,13 @@ export function GoogleAnalyticsDashboard({
 
       for (const r of sourceRecords) {
         const name = normalizeSourceName(
-          r.data.source_medium ||
-            (r.data.source && r.data.medium
-              ? `${r.data.source} / ${r.data.medium}`
-              : r.data.source) ||
-            "Unknown",
+          String(
+            r.data.source_medium ||
+              (r.data.source && r.data.medium
+                ? `${r.data.source} / ${r.data.medium}`
+                : r.data.source) ||
+              "Unknown",
+          ),
         );
 
         const existing = sourceMap.get(name) || {
@@ -483,7 +488,7 @@ export function GoogleAnalyticsDashboard({
       if (!r.data.date) return false;
 
       try {
-        const recordDate = parseISO(r.data.date);
+        const recordDate = parseISO(dateText(r));
         const start = new Date(currentRange.start);
         start.setHours(0, 0, 0, 0);
         const end = new Date(currentRange.end);
@@ -500,7 +505,7 @@ export function GoogleAnalyticsDashboard({
           if (!r.data.date) return false;
 
           try {
-            const recordDate = parseISO(r.data.date);
+            const recordDate = parseISO(dateText(r));
             const start = new Date(previousRange.start);
             start.setHours(0, 0, 0, 0);
             const end = new Date(previousRange.end);
@@ -518,7 +523,7 @@ export function GoogleAnalyticsDashboard({
       if (!r.data.date) return false;
 
       try {
-        const recordDate = parseISO(r.data.date);
+        const recordDate = parseISO(dateText(r));
         const start = new Date(currentRange.start);
         start.setHours(0, 0, 0, 0);
         const end = new Date(currentRange.end);
@@ -568,9 +573,9 @@ export function GoogleAnalyticsDashboard({
 
     const dailyData = currentDailyRecords
       .map((r) => ({
-        date: r.data.date,
-        displayDate: r.data.date
-          ? new Date(r.data.date).toLocaleDateString("he-IL", {
+        date: dateText(r),
+        displayDate: dateText(r)
+          ? new Date(dateText(r)).toLocaleDateString("he-IL", {
               day: "2-digit",
               month: "2-digit",
             })
@@ -606,7 +611,7 @@ export function GoogleAnalyticsDashboard({
     const topPages = records
       .filter((r) => r.data.report_type === "top_pages")
       .map((r) => ({
-        path: r.data.page_path || "/",
+        path: readText(r.data, "page_path") || "/",
         pageviews: toNumber(r.data.pageviews),
         sessions: toNumber(r.data.sessions),
         avgDuration: toNumber(r.data.avg_session_duration),
@@ -614,7 +619,9 @@ export function GoogleAnalyticsDashboard({
       .sort((a, b) => b.pageviews - a.pageviews)
       .slice(0, 10);
 
-    const calculateTotalsFromDaily = (data: typeof dailyData) => ({
+    const calculateTotalsFromDaily = (
+      data: Omit<(typeof dailyData)[number], "date" | "displayDate">[],
+    ) => ({
       sessions: data.reduce((sum, d) => sum + d.sessions, 0),
       users: data.reduce((sum, d) => sum + d.users, 0),
       newUsers: 0,
@@ -655,7 +662,7 @@ export function GoogleAnalyticsDashboard({
 
     const prevTotals =
       showComparison && prevDailyData.length > 0
-        ? calculateTotalsFromDaily(prevDailyData as any)
+        ? calculateTotalsFromDaily(prevDailyData)
         : null;
 
     // Classify traffic into organic vs paid
@@ -689,7 +696,7 @@ export function GoogleAnalyticsDashboard({
       if (r.data.report_type !== "channel_group") return false;
       if (!r.data.date) return false; // skip legacy records without date
       try {
-        const recordDate = parseISO(r.data.date);
+        const recordDate = parseISO(dateText(r));
         const start = new Date(currentRange.start);
         start.setHours(0, 0, 0, 0);
         const end = new Date(currentRange.end);
@@ -817,7 +824,7 @@ export function GoogleAnalyticsDashboard({
       if (reportType !== "event_total") return false;
       if (!r.data.date) return true;
       try {
-        const recordDate = parseISO(r.data.date);
+        const recordDate = parseISO(dateText(r));
         const start = new Date(currentRange.start);
         start.setHours(0, 0, 0, 0);
         const end = new Date(currentRange.end);
@@ -833,7 +840,7 @@ export function GoogleAnalyticsDashboard({
     const phoneCallEvents: { eventName: string; total: number }[] = [];
     const phoneEventMap = new Map<string, number>();
     for (const r of eventSourceRecords) {
-      const eventName = (r.data.event_name || "").toLowerCase();
+      const eventName = (readString(r.data, "event_name") || "").toLowerCase();
       if (
         eventName.includes("phone") ||
         eventName.includes("call") ||
@@ -841,7 +848,7 @@ export function GoogleAnalyticsDashboard({
         eventName.includes("click_to_call") ||
         eventName.includes("maskyoo")
       ) {
-        const displayName = r.data.event_name || "Unknown";
+        const displayName = readString(r.data, "event_name") || "Unknown";
         const keyEvents = Number(r.data.key_events) || 0;
         const eventCount = Number(r.data.event_count) || 0;
         const count = Math.max(eventCount, keyEvents);

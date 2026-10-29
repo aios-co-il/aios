@@ -1,6 +1,6 @@
 export type KeywordLike = {
   keyword?: string;
-  position?: number | null;
+  position?: unknown;
 };
 
 export type KeywordCluster<T extends KeywordLike> = {

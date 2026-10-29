@@ -1,3 +1,4 @@
+import { type JsonObject, readString } from "@/lib/jsonReaders";
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -38,7 +39,7 @@ interface CombinedDataViewProps {
   }>;
   records: Array<{
     id: string;
-    data: Record<string, any>;
+    data: JsonObject;
     source?: string;
   }>;
 }
@@ -75,15 +76,16 @@ export function CombinedDataView({
 }: CombinedDataViewProps) {
   // Group records by date for combined view
   const combinedData = useMemo(() => {
-    const byDate: Record<string, Record<string, any>> = {};
+    const byDate: Record<string, JsonObject & { date: string }> = {};
 
     records.forEach((record) => {
-      const date = record.data.date || record.data.day || "unknown";
+      const date = String(record.data.date || record.data.day || "unknown");
       if (!byDate[date]) {
         byDate[date] = { date };
       }
 
-      const source = record.source || record.data._source || "unknown";
+      const source =
+        record.source || readString(record.data, "_source") || "unknown";
       const prefix = source
         .replace("_insights", "")
         .replace("google_", "")
