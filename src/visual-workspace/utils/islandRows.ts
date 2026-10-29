@@ -1,4 +1,5 @@
-import { readField } from "@/lib/jsonReaders";
+import { z } from "zod";
+import { parseEach } from "@/lib/jsonReaders";
 import type { AgentRole } from "../types/visualWorkspaceTypes";
 
 const AGENT_ROLES: readonly AgentRole[] = [
@@ -16,90 +17,59 @@ export function toAgentRole(role: unknown): AgentRole {
   return AGENT_ROLES.find((known) => known === role) ?? "ceo";
 }
 
-export interface IslandItem {
-  id: string;
-  name?: string | null;
-  title?: string | null;
-  content?: string | null;
-  supplier_name?: string | null;
-  integration_name?: string | null;
-  status?: string | null;
-  active?: boolean | null;
-}
+/** Absent stays undefined, null stays null, anything else becomes text. */
+const textField = z
+  .unknown()
+  .transform((value): string | null | undefined =>
+    value === undefined || value === null || typeof value === "string"
+      ? value
+      : String(value),
+  );
 
-export interface IslandAgent {
-  id: string;
-  name?: string | null;
-  role?: string | null;
-  model?: string | null;
-  active?: boolean | null;
-}
+const boolField = z
+  .unknown()
+  .transform((value): boolean | null | undefined =>
+    value === undefined || value === null || typeof value === "boolean"
+      ? value
+      : Boolean(value),
+  );
 
-export interface RecentMessage {
-  id: string;
-  direction?: string | null;
-  message?: string | null;
-  created_at?: string | null;
-  sender_name?: string | null;
-}
+const islandItemSchema = z.object({
+  id: z.string(),
+  name: textField,
+  title: textField,
+  content: textField,
+  supplier_name: textField,
+  integration_name: textField,
+  status: textField,
+  active: boolField,
+});
+
+const islandAgentSchema = z.object({
+  id: z.string(),
+  name: textField,
+  role: textField,
+  model: textField,
+  active: boolField,
+});
+
+const recentMessageSchema = z.object({
+  id: z.string(),
+  direction: textField,
+  message: textField,
+  created_at: textField,
+  sender_name: textField,
+});
+
+export type IslandItem = z.infer<typeof islandItemSchema>;
+export type IslandAgent = z.infer<typeof islandAgentSchema>;
+export type RecentMessage = z.infer<typeof recentMessageSchema>;
 
 export type IdRows = readonly { id: string }[] | null;
 
-type FieldValue<T> = T | null | undefined;
-
-function textField(row: object, key: string): FieldValue<string> {
-  const value = readField(row, key);
-  if (value === undefined || value === null) return value;
-  return typeof value === "string" ? value : String(value);
-}
-
-function boolField(row: object, key: string): FieldValue<boolean> {
-  const value = readField(row, key);
-  if (value === undefined || value === null) return value;
-  return typeof value === "boolean" ? value : Boolean(value);
-}
-
-function rowsWithId(rows: unknown): (object & { id: string })[] {
-  if (!Array.isArray(rows)) return [];
-  return rows.flatMap((row: unknown) =>
-    typeof row === "object" &&
-    row !== null &&
-    "id" in row &&
-    typeof row.id === "string"
-      ? [{ ...row, id: row.id }]
-      : [],
-  );
-}
-
-export function readIslandItems(rows: unknown): IslandItem[] {
-  return rowsWithId(rows).map((row) => ({
-    id: row.id,
-    name: textField(row, "name"),
-    title: textField(row, "title"),
-    content: textField(row, "content"),
-    supplier_name: textField(row, "supplier_name"),
-    integration_name: textField(row, "integration_name"),
-    status: textField(row, "status"),
-    active: boolField(row, "active"),
-  }));
-}
-
-export function readIslandAgents(rows: unknown): IslandAgent[] {
-  return rowsWithId(rows).map((row) => ({
-    id: row.id,
-    name: textField(row, "name"),
-    role: textField(row, "role"),
-    model: textField(row, "model"),
-    active: boolField(row, "active"),
-  }));
-}
-
-export function readRecentMessages(rows: unknown): RecentMessage[] {
-  return rowsWithId(rows).map((row) => ({
-    id: row.id,
-    direction: textField(row, "direction"),
-    message: textField(row, "message"),
-    created_at: textField(row, "created_at"),
-    sender_name: textField(row, "sender_name"),
-  }));
-}
+export const readIslandItems = (rows: unknown) =>
+  parseEach(islandItemSchema, rows);
+export const readIslandAgents = (rows: unknown) =>
+  parseEach(islandAgentSchema, rows);
+export const readRecentMessages = (rows: unknown) =>
+  parseEach(recentMessageSchema, rows);

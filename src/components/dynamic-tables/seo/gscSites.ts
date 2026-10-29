@@ -1,25 +1,14 @@
+import { z } from "zod";
 import type { Json } from "@/integrations/supabase/types";
-import { isJsonObject } from "@/lib/jsonReaders";
+import { parseEach } from "@/lib/jsonReaders";
 
-export type GscSite = {
-  siteUrl: string;
-  permissionLevel?: string;
-};
+const gscSiteSchema = z.object({
+  siteUrl: z.string(),
+  permissionLevel: z.string().optional().catch(undefined),
+});
+
+export type GscSite = z.infer<typeof gscSiteSchema>;
 
 /** GSC site list from `available_sites` settings or a `gsc-list-sites` body. */
 export const toGscSites = (value: Json | undefined): GscSite[] =>
-  Array.isArray(value)
-    ? value.flatMap((site) =>
-        isJsonObject(site) && typeof site.siteUrl === "string"
-          ? [
-              {
-                siteUrl: site.siteUrl,
-                permissionLevel:
-                  typeof site.permissionLevel === "string"
-                    ? site.permissionLevel
-                    : undefined,
-              },
-            ]
-          : [],
-      )
-    : [];
+  parseEach(gscSiteSchema, value);

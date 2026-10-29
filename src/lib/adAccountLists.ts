@@ -1,37 +1,36 @@
-import { jsonObjects, readField, readString } from "@/lib/jsonReaders";
+import { z } from "zod";
+import { listOf } from "@/lib/jsonReaders";
 
-export interface FacebookAdAccount {
-  id: string;
-  name?: string;
-  currency?: string;
-}
+const optionalString = z.string().optional().catch(undefined);
 
-export interface GoogleAdsAccount {
-  id: string | number;
-  name?: string;
-}
+const facebookAdAccountSchema = z.object({
+  id: z.string(),
+  name: optionalString,
+  currency: optionalString,
+});
+
+const googleAdsAccountSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  name: optionalString,
+});
+
+export type FacebookAdAccount = z.infer<typeof facebookAdAccountSchema>;
+export type GoogleAdsAccount = z.infer<typeof googleAdsAccountSchema>;
+
+const facebookAccountsBody = z
+  .object({ ad_accounts: listOf(facebookAdAccountSchema) })
+  .catch({ ad_accounts: [] });
+
+const googleAccountsBody = z
+  .object({ accounts: listOf(googleAdsAccountSchema) })
+  .catch({ accounts: [] });
 
 /** `get-facebook-ad-accounts` response: `{ ad_accounts: [...] }`. */
 export function readFacebookAdAccounts(body: unknown): FacebookAdAccount[] {
-  return jsonObjects(readField(body, "ad_accounts")).flatMap((account) =>
-    typeof account.id === "string"
-      ? [
-          {
-            id: account.id,
-            name: readString(account, "name"),
-            currency: readString(account, "currency"),
-          },
-        ]
-      : [],
-  );
+  return facebookAccountsBody.parse(body).ad_accounts;
 }
 
 /** `google-ads-auth` `get_accounts` response: `{ accounts: [...] }`. */
 export function readGoogleAdsAccounts(body: unknown): GoogleAdsAccount[] {
-  return jsonObjects(readField(body, "accounts")).flatMap((account) => {
-    const { id } = account;
-    return typeof id === "string" || typeof id === "number"
-      ? [{ id, name: readString(account, "name") }]
-      : [];
-  });
+  return googleAccountsBody.parse(body).accounts;
 }

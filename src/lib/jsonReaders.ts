@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 
 export type JsonObject = { [key: string]: Json | undefined };
@@ -10,6 +11,29 @@ export function isJsonObject(value: unknown): value is JsonObject {
 export function asJsonObject(value: unknown): JsonObject {
   return isJsonObject(value) ? value : {};
 }
+
+/** Any JSON object (not null or an array), kept as-is. */
+export const jsonObjectSchema = z.custom<JsonObject>(isJsonObject);
+
+/** A JSON value passed through untouched. */
+export const jsonValueSchema = z.custom<Json>(() => true);
+
+const rowList = z.array(z.unknown()).catch([]);
+
+/** Parses each row of a list on its own; malformed rows and non-list input drop out. */
+export function parseEach<S extends z.ZodTypeAny>(
+  schema: S,
+  value: unknown,
+): z.output<S>[] {
+  return rowList.parse(value).flatMap((row) => {
+    const parsed = schema.safeParse(row);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+/** `parseEach` as a schema, for list fields of a larger body. */
+export const listOf = <S extends z.ZodTypeAny>(schema: S) =>
+  z.unknown().transform((value) => parseEach(schema, value));
 
 export function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];

@@ -1,9 +1,13 @@
 import { expect, test } from "vitest";
+import { z } from "zod";
 import {
   asJsonArray,
   asJsonObject,
   errorMessage,
   jsonObjects,
+  jsonObjectSchema,
+  listOf,
+  parseEach,
   parseJsonFloat,
   readDateInput,
   readField,
@@ -77,4 +81,19 @@ test("thrown values read message and code like optional chaining did", () => {
   expect(thrownMessage(new Error("boom"))).toBe("boom");
   expect(thrownMessage("text")).toBe(undefined);
   expect(thrownCode(null)).toBe(undefined);
+});
+
+test("parseEach keeps rows that parse and drops the rest", () => {
+  const row = z.object({ id: z.string() });
+  expect(parseEach(row, [{ id: "a" }, { id: 1 }, null, "x"])).toEqual([
+    { id: "a" },
+  ]);
+  expect(parseEach(row, { id: "a" })).toEqual([]);
+  expect(listOf(row).parse(undefined)).toEqual([]);
+});
+
+test("jsonObjectSchema accepts plain objects only", () => {
+  expect(jsonObjectSchema.safeParse({ a: 1 }).success).toBe(true);
+  expect(jsonObjectSchema.safeParse([]).success).toBe(false);
+  expect(jsonObjectSchema.safeParse(null).success).toBe(false);
 });

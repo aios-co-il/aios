@@ -1,5 +1,5 @@
-import { isJsonObject } from "@/lib/jsonReaders";
 import { useState, useRef, useEffect, useMemo } from "react";
+import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +46,23 @@ type LangFilter = "all" | "he" | "en";
 
 const HEBREW_REGEX = /[\u0590-\u05FF]/;
 const ENGLISH_REGEX = /[A-Za-z]/;
+
+/** A CSV row's first cell, or its keyword/query column when the file has headers. */
+const csvKeywordCell = z
+  .union([
+    z.array(z.unknown()).transform((row) => row[0]),
+    z
+      .record(z.unknown())
+      .transform(
+        (row) =>
+          row["keyword"] ||
+          row["ביטוי"] ||
+          row["query"] ||
+          row["מילת מפתח"] ||
+          Object.values(row)[0],
+      ),
+  ])
+  .catch(undefined);
 
 interface SearchConsoleDashboardProps {
   tableId: string;
@@ -310,15 +327,7 @@ export function SearchConsoleDashboard({
       complete: (results) => {
         const keywords: string[] = [];
         results.data.forEach((row) => {
-          const keyword: unknown = Array.isArray(row)
-            ? row[0]
-            : isJsonObject(row)
-              ? row["keyword"] ||
-                row["ביטוי"] ||
-                row["query"] ||
-                row["מילת מפתח"] ||
-                Object.values(row)[0]
-              : undefined;
+          const keyword = csvKeywordCell.parse(row);
           if (keyword && typeof keyword === "string" && keyword.trim()) {
             keywords.push(keyword.trim());
           }

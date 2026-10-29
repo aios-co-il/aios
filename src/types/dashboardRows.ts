@@ -1,22 +1,22 @@
-import type { Json } from "@/integrations/supabase/types";
-import { asJsonObject, isJsonObject, type JsonObject } from "@/lib/jsonReaders";
+import { z } from "zod";
+import {
+  jsonObjectSchema,
+  listOf,
+  parseEach,
+  type JsonObject,
+} from "@/lib/jsonReaders";
 
 /** A `crm-records` report row: `crm_records.id` + its user-defined `data` jsonb. */
 export type CrmRecordRow = { id: string; data: JsonObject | null };
 
+const crmRecordRowSchema = z.object({
+  id: z.string().catch(""),
+  data: jsonObjectSchema.nullable().catch(null),
+});
+
 /** Narrow a `crm-records` response; non-object rows are dropped. */
 export function toCrmRecordRows(value: unknown): CrmRecordRow[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((row: unknown) =>
-    isJsonObject(row)
-      ? [
-          {
-            id: typeof row.id === "string" ? row.id : "",
-            data: isJsonObject(row.data) ? row.data : null,
-          },
-        ]
-      : [],
-  );
+  return parseEach(crmRecordRowSchema, value);
 }
 
 /** A `crm-tables` row as read by the combined dashboard; other columns pass through. */
@@ -29,47 +29,38 @@ export type DashboardTable = {
   last_sync_at: string | null;
 };
 
-const stringOr = <T>(value: Json | undefined, fallback: T): string | T =>
-  typeof value === "string" ? value : fallback;
+const textOrNull = z.string().nullable().catch(null);
+
+const dashboardTableSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().catch(""),
+    client_id: textOrNull,
+    integration_type: textOrNull,
+    integration_settings: jsonObjectSchema.nullable().catch(null),
+    last_sync_at: textOrNull,
+  })
+  .passthrough();
 
 /** Narrow a `crm-tables` response; rows without a string id are dropped. */
 export function toDashboardTables(value: unknown): DashboardTable[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((row: unknown) =>
-    isJsonObject(row) && typeof row.id === "string"
-      ? [
-          {
-            ...row,
-            id: row.id,
-            name: stringOr(row.name, ""),
-            client_id: stringOr(row.client_id, null),
-            integration_type: stringOr(row.integration_type, null),
-            integration_settings: isJsonObject(row.integration_settings)
-              ? row.integration_settings
-              : null,
-            last_sync_at: stringOr(row.last_sync_at, null),
-          },
-        ]
-      : [],
-  );
+  return parseEach(dashboardTableSchema, value);
 }
 
 /** A `crm-fields` column definition (only what the raw report table renders). */
 export type DashboardField = { key: string; name: string; position: number };
 
+const dashboardFieldSchema = z.object({
+  key: z.string(),
+  name: z.string().catch(""),
+  position: z.unknown().transform(Number),
+});
+
+const fieldsBodySchema = z
+  .object({ fields: listOf(dashboardFieldSchema) })
+  .catch({ fields: [] });
+
 /** Narrow the `fields` of a `crm-fields` response; fields without a key are dropped. */
 export function toDashboardFields(value: unknown): DashboardField[] {
-  const fields = asJsonObject(value).fields;
-  if (!Array.isArray(fields)) return [];
-  return fields.flatMap((field) =>
-    isJsonObject(field) && typeof field.key === "string"
-      ? [
-          {
-            key: field.key,
-            name: stringOr(field.name, ""),
-            position: Number(field.position),
-          },
-        ]
-      : [],
-  );
+  return fieldsBodySchema.parse(value).fields;
 }

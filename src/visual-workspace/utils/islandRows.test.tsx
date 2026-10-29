@@ -46,6 +46,28 @@ describe("readIslandAgents / readRecentMessages", () => {
       readRecentMessages([
         { id: "m", direction: "outbound", created_at: "2026-01-01" },
       ])[0],
-    ).toMatchObject({ id: "m", direction: "outbound", message: undefined });
+    ).toEqual({
+      id: "m",
+      direction: "outbound",
+      created_at: "2026-01-01",
+      message: undefined,
+    });
+  });
+});
+
+describe("island row schemas", () => {
+  it("turns non-text values into text and truthy values into booleans", () => {
+    expect(
+      readIslandItems([{ id: "i", name: 42, active: 1, status: false }])[0],
+    ).toMatchObject({ name: "42", active: true, status: "false" });
+  });
+
+  it("drops rows with a non-string id and keeps the rest", () => {
+    expect(
+      readIslandAgents([{ id: 7, name: "x" }, [], { id: "a" }]).map(
+        (agent) => agent.id,
+      ),
+    ).toEqual(["a"]);
+    expect(readRecentMessages({ id: "m" })).toEqual([]);
   });
 });

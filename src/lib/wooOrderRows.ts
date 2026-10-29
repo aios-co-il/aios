@@ -1,6 +1,7 @@
+import { z } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 import type { WooOrderAttribution } from "@/lib/wooAttribution";
-import { isJsonObject } from "@/lib/jsonReaders";
+import { jsonValueSchema, parseEach } from "@/lib/jsonReaders";
 
 /** A `woocommerce_orders` row as selected by the Woo dashboards (any column subset). */
 export type WooOrderRow = {
@@ -19,53 +20,54 @@ export type WooOrderRow = {
   line_items: Json;
 };
 
-const stringOrNull = (value: Json | undefined): string | null =>
-  typeof value === "string" ? value : null;
+const textOrNull = z.string().nullable().catch(null);
 
 /** `woocommerce_orders.attribution` is jsonb written by the Woo sync. */
+const wooOrderAttributionSchema = z
+  .object({
+    source_type: textOrNull,
+    utm_source: textOrNull,
+    utm_medium: textOrNull,
+    utm_campaign: textOrNull,
+    utm_content: textOrNull,
+    utm_term: textOrNull,
+    referrer: textOrNull,
+    session_entry: textOrNull,
+    device_type: textOrNull,
+    label: z.string().catch(""),
+  })
+  .nullable()
+  .catch(null);
+
 export function toWooOrderAttribution(
   value: Json | undefined,
 ): WooOrderAttribution | null {
-  if (!isJsonObject(value)) return null;
-  return {
-    source_type: stringOrNull(value.source_type),
-    utm_source: stringOrNull(value.utm_source),
-    utm_medium: stringOrNull(value.utm_medium),
-    utm_campaign: stringOrNull(value.utm_campaign),
-    utm_content: stringOrNull(value.utm_content),
-    utm_term: stringOrNull(value.utm_term),
-    referrer: stringOrNull(value.referrer),
-    session_entry: stringOrNull(value.session_entry),
-    device_type: stringOrNull(value.device_type),
-    label: typeof value.label === "string" ? value.label : "",
-  };
+  return wooOrderAttributionSchema.parse(value);
 }
 
-/** Narrow one PostgREST row; columns that were not selected read as null. */
+/** Columns that were not selected read as null. */
+const wooOrderRowSchema = z.object({
+  id: z.string().optional().catch(undefined),
+  total: z.union([z.number(), z.string()]).nullable().catch(null),
+  status: textOrNull,
+  date_created: textOrNull,
+  date_completed: textOrNull,
+  date_paid: textOrNull,
+  attribution: wooOrderAttributionSchema,
+  customer_email: textOrNull,
+  customer_first_name: textOrNull,
+  customer_last_name: textOrNull,
+  order_number: textOrNull,
+  currency: textOrNull,
+  line_items: jsonValueSchema.transform((value): Json => value ?? null),
+});
+
+/** Narrow one PostgREST row. */
 export function toWooOrderRow(value: unknown): WooOrderRow | null {
-  if (!isJsonObject(value)) return null;
-  const total = value.total;
-  return {
-    id: typeof value.id === "string" ? value.id : undefined,
-    total:
-      typeof total === "number" || typeof total === "string" ? total : null,
-    status: stringOrNull(value.status),
-    date_created: stringOrNull(value.date_created),
-    date_completed: stringOrNull(value.date_completed),
-    date_paid: stringOrNull(value.date_paid),
-    attribution: toWooOrderAttribution(value.attribution),
-    customer_email: stringOrNull(value.customer_email),
-    customer_first_name: stringOrNull(value.customer_first_name),
-    customer_last_name: stringOrNull(value.customer_last_name),
-    order_number: stringOrNull(value.order_number),
-    currency: stringOrNull(value.currency),
-    line_items: value.line_items ?? null,
-  };
+  const parsed = wooOrderRowSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 export function toWooOrderRows(rows: readonly unknown[] | null): WooOrderRow[] {
-  return (rows ?? []).flatMap((row) => {
-    const order = toWooOrderRow(row);
-    return order ? [order] : [];
-  });
+  return parseEach(wooOrderRowSchema, rows);
 }

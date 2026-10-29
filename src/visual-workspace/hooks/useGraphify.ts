@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
@@ -35,6 +36,13 @@ export type GraphifyEdge = {
   relation: string;
   weight: number | null;
 };
+
+const subgraphSchema = z
+  .object({
+    nodes: z.array(z.custom<GraphifyNode>()).catch([]),
+    edges: z.array(z.custom<GraphifyEdge>()).catch([]),
+  })
+  .catch({ nodes: [], edges: [] });
 
 export type GraphifySearchHit = {
   node_id: string;
@@ -76,16 +84,7 @@ export function useGraphifyCommunity(groupKey: string | null) {
         p_limit: 400,
       });
       if (error) throw error;
-      const parsed =
-        data && typeof data === "object" && !Array.isArray(data) ? data : {};
-      return {
-        nodes: Array.isArray(parsed.nodes)
-          ? (parsed.nodes as GraphifyNode[])
-          : [],
-        edges: Array.isArray(parsed.edges)
-          ? (parsed.edges as GraphifyEdge[])
-          : [],
-      };
+      return subgraphSchema.parse(data);
     },
     enabled: !!groupKey && !!tenantId,
     staleTime: 1000 * 60 * 10,

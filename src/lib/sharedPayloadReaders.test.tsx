@@ -53,7 +53,8 @@ describe("toSharedTablePayload", () => {
       },
       seo_keyword_relevance: { force_relevant: ["a", 1] },
     });
-    expect(payload.table).toMatchObject({ id: "t1", client_id: undefined });
+    expect(payload.table).toMatchObject({ id: "t1" });
+    expect(payload.table?.client_id).toBeUndefined();
     expect(payload.fields).toEqual([
       { field_key: undefined, field_label: undefined },
     ]);
@@ -112,5 +113,39 @@ describe("toSharedDashboardPayload", () => {
     ]);
     expect(payload.woocommerce?.sites).toEqual([{ id: 1 }]);
     expect(payload.woocommerce?.orders?.map((o) => o.total)).toEqual(["10"]);
+  });
+});
+
+describe("shared payload schemas", () => {
+  it("drops malformed sections and keeps absent ones undefined", () => {
+    const payload = toSharedTablePayload({
+      table: { name: "no id" },
+      gsc_multi_period: "x",
+      maskyoo_period: { start: "2026-09-01" },
+      seo_monthly: [],
+      seo_keyword_relevance: null,
+      gsc_synced_at: 5,
+      maskyoo_snapshots: [{ category: "c", incoming_count: "4" }],
+    });
+    expect(payload.table).toBeUndefined();
+    expect(payload.gsc_multi_period).toBeNull();
+    expect(payload.maskyoo_period).toBeNull();
+    expect(payload.seo_monthly).toBeNull();
+    expect(payload.seo_keyword_relevance).toBeUndefined();
+    expect(payload.gsc_synced_at).toBeUndefined();
+    expect(payload.maskyoo_snapshots).toEqual([]);
+    expect(payload.records).toBeUndefined();
+    expect(toSharedDashboardPayload([1]).tables).toBeUndefined();
+  });
+
+  it("reads non-list woo orders as empty and keeps settings-less records", () => {
+    const payload = toSharedDashboardPayload({
+      woocommerce: { orders: "x" },
+      records: [{ id: "r", data: "bad", _integrationSettings: 3 }],
+    });
+    expect(payload.woocommerce).toEqual({ sites: undefined, orders: [] });
+    expect(payload.records).toEqual([
+      { id: "r", data: {}, _source: undefined, _integrationSettings: null },
+    ]);
   });
 });

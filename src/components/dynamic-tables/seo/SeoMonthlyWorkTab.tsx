@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { format, startOfMonth, subMonths } from "date-fns";
@@ -79,10 +80,8 @@ type Props = {
 
 const SHARE_ORIGIN = "https://aios.co.il";
 
-const SEO_MONTHLY_STATUSES = ["up", "stable", "down"] as const;
-type SeoMonthlyStatus = (typeof SEO_MONTHLY_STATUSES)[number];
-const isSeoMonthlyStatus = (value: string): value is SeoMonthlyStatus =>
-  SEO_MONTHLY_STATUSES.some((status) => status === value);
+const seoMonthlyStatusSchema = z.enum(["up", "stable", "down"]);
+type SeoMonthlyStatus = z.infer<typeof seoMonthlyStatusSchema>;
 
 export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const { tenantId: currentTenantId } = useCurrentTenant();
@@ -688,8 +687,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
               <Select
                 value={status}
                 onValueChange={(v) => {
-                  if (!isSeoMonthlyStatus(v)) return;
-                  setStatus(v);
+                  const next = seoMonthlyStatusSchema.safeParse(v);
+                  if (!next.success) return;
+                  setStatus(next.data);
                   setDirty(true);
                 }}
               >
