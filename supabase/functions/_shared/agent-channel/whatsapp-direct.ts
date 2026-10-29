@@ -25,7 +25,7 @@ export { parseWhatsAppDirectCommand } from "./whatsapp-direct-logic.ts";
 export async function routeWhatsAppDirect(args: {
   tenantId: string;
   integrationId: string;
-  connectionUserId: string;
+  connectionUserId: string | null;
   senderPhone: string;
   messageText: string;
 }): Promise<
