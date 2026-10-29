@@ -5835,7 +5835,7 @@ async function tryCreateCalendarEventForTask(
  * when it may. A call with no user turn (a service or out-of-band call) is never a yes.
  */
 async function devTaskApprovalRefusal(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   taskId: string,
   conversationId: string | null,
