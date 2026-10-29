@@ -1,7 +1,7 @@
 import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
 
-export type JsonRecord = Record<string, unknown>;
+export type JsonRecord = { [key: string]: Json | undefined };
 
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
@@ -16,9 +16,9 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 
 const optionalString = z.string().optional().catch(undefined);
 const optionalBoolean = z.boolean().optional().catch(undefined);
-const optionalRecord = z.record(z.unknown()).optional().catch(undefined);
+const optionalRecord = z.record(jsonSchema).optional().catch(undefined);
 
-const jsonRecordSchema = z.record(z.unknown()).catch({});
+const jsonRecordSchema = z.record(jsonSchema).catch({});
 
 /** A JSON body read as an object; anything else reads as `{}`. */
 export function readJsonRecord(value: unknown): JsonRecord {

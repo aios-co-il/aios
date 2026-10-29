@@ -1,7 +1,7 @@
 import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
 import type { ToolDef } from "../_shared/carmen-token-optimizer.ts";
-import { jsonSchema } from "./run-request.ts";
+import { jsonSchema, type JsonRecord } from "./run-request.ts";
 
 /** An OpenAI-compatible tool call as returned in `choices[0].message.tool_calls`. */
 const chatToolCallSchema = z
@@ -85,10 +85,10 @@ export function readChatUsage(
   };
 }
 
-const toolArgumentsSchema = z.record(z.unknown()).catch({});
+const toolArgumentsSchema = z.record(jsonSchema).catch({});
 
 /** Tool arguments from a tool call's JSON `arguments` string; anything else is `{}`. */
-export function parseToolArguments(raw: unknown): Record<string, unknown> {
+export function parseToolArguments(raw: unknown): JsonRecord {
   try {
     return toolArgumentsSchema.parse(JSON.parse(String(raw || "{}")));
   } catch {
