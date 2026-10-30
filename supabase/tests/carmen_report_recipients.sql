@@ -1,4 +1,4 @@
--- Carmen report recipients (20261027105000_carmen_report_recipients):
+-- Carmen report recipients (20261030085000_carmen_report_recipients):
 -- synthetic rows inside one transaction that is rolled back.
 BEGIN;
 DO $test$

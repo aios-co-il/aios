@@ -1,7 +1,7 @@
 import { assert, assertMatch, assertNotMatch } from "jsr:@std/assert@1";
 
 const MIGRATION = new URL(
-  "../../../migrations/20261027105000_carmen_report_recipients.sql",
+  "../../../migrations/20261030085000_carmen_report_recipients.sql",
   import.meta.url,
 );
 
