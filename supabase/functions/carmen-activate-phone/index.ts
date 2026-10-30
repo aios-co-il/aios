@@ -12,6 +12,7 @@
 //
 // Body: { activation_id, tenant_id, phone, code, integration_id? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, Tables } from "../_shared/database.types.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -24,7 +25,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function json(body: any, status = 200) {
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -47,18 +48,19 @@ Deno.serve(async (req) => {
   if (!tenant_id || !phone || !code)
     return json({ error: "missing tenant_id/phone/code" }, 400);
 
-  const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const sb = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // Resolve the sending integration: the automation's pinned one, else the
   // tenant's active manus_wa integration (Carmen's own number).
-  let integ: { id: string; user_id: string } | null = null;
+  let integ: Pick<Tables<"tenant_integrations">, "id" | "user_id"> | null =
+    null;
   if (integration_id) {
     const { data } = await sb
       .from("tenant_integrations")
       .select("id, user_id")
       .eq("id", integration_id)
       .maybeSingle();
-    if (data) integ = data as any;
+    if (data) integ = data;
   }
   if (!integ) {
     const { data } = await sb
@@ -70,7 +72,7 @@ Deno.serve(async (req) => {
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (data) integ = data as any;
+    if (data) integ = data;
   }
   if (!integ)
     return json({ error: "no active manus_wa integration for tenant" }, 404);

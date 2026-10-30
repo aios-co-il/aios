@@ -2,10 +2,16 @@
 // Per project memory: Google Ads API v23, micros costs, MCC-aware.
 // Callers (AIO-239, ./gate.ts): the service role (approval execute, scheduler)
 // with the tenant in the body, or a user JWT scoped to the user's own tenant.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import type { Database } from "../_shared/database.types.ts";
+import { type JsonObject, thrownMessage } from "../_shared/json-narrow.ts";
 import { isNumericId } from "../_shared/ad-tools/ids.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { authorizeGoogleCall } from "./gate.ts";
+import { type GadsAuth, gadsAuthFromIntegration } from "./gads-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,16 +23,9 @@ const corsHeaders = {
 const GADS_API = "https://googleads.googleapis.com/v23";
 
 async function getGadsAuth(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
-): Promise<{
-  access_token?: string;
-  developer_token?: string;
-  login_customer_id?: string;
-  refresh_token?: string;
-  client_id?: string;
-  client_secret?: string;
-} | null> {
+): Promise<GadsAuth | null> {
   const { data } = await supabase
     .from("tenant_integrations")
     .select("api_key, additional_config")
@@ -36,18 +35,14 @@ async function getGadsAuth(
     .limit(1)
     .maybeSingle();
   if (!data) return null;
-  const cfg = data.additional_config || {};
-  return {
-    refresh_token: cfg.refresh_token || data.api_key,
-    developer_token:
-      Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || cfg.developer_token,
-    login_customer_id: cfg.login_customer_id || cfg.mcc_id,
-    client_id: Deno.env.get("GOOGLE_CLIENT_ID") || cfg.client_id,
-    client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET") || cfg.client_secret,
-  };
+  return gadsAuthFromIntegration(data, {
+    developerToken: Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN"),
+    clientId: Deno.env.get("GOOGLE_CLIENT_ID"),
+    clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
+  });
 }
 
-async function exchangeAccessToken(auth: any): Promise<string | null> {
+async function exchangeAccessToken(auth: GadsAuth): Promise<string | null> {
   if (!auth?.refresh_token || !auth?.client_id || !auth?.client_secret)
     return null;
   const body = new URLSearchParams({
@@ -64,13 +59,13 @@ async function exchangeAccessToken(auth: any): Promise<string | null> {
   return j.access_token || null;
 }
 
-function err(message: string, status = 400, extra: any = {}) {
+function err(message: string, status = 400, extra: JsonObject = {}) {
   return new Response(JSON.stringify({ error: message, ...extra }), {
     status,
     headers: corsHeaders,
   });
 }
-function ok(payload: any) {
+function ok(payload: JsonObject) {
   return new Response(JSON.stringify({ success: true, ...payload }), {
     status: 200,
     headers: corsHeaders,
@@ -79,7 +74,7 @@ function ok(payload: any) {
 
 async function gadsMutate(
   customer_id: string,
-  body: any,
+  body: unknown,
   headers: Record<string, string>,
 ) {
   const r = await fetch(
@@ -99,7 +94,7 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   try {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL")!,
       serviceRoleKey,
     );
@@ -143,7 +138,7 @@ Deno.serve(async (req) => {
     const cleanCustomer = String(customer_id).trim().replace(/-/g, "");
     const cleanCampaign = String(campaign_id ?? "").trim();
 
-    let result: any = {};
+    let result: JsonObject = {};
     switch (action) {
       case "pause":
       case "resume": {
@@ -235,8 +230,8 @@ Deno.serve(async (req) => {
       );
 
     return ok({ action, ...result });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[carmen-google-tools]", e);
-    return err(String(e?.message || e), 500);
+    return err(String(thrownMessage(e) || e), 500);
   }
 });
