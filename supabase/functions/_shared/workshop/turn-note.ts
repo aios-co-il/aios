@@ -12,6 +12,10 @@ import {
   withBriefAnswers,
 } from "./brief-answers.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
+import {
+  loadSelectedArtifact,
+  selectedArtifactLine,
+} from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
 import { talkingLine } from "./talking.ts";
 
@@ -73,6 +77,7 @@ export async function workshopTurnNote(
   itemId: string | null,
   userText: string,
   lastAssistant = "",
+  selectedArtifactId: string | null = null,
 ): Promise<string | null> {
   if (!itemId || typeof tenantId !== "string" || !tenantId) return null;
   try {
@@ -103,6 +108,17 @@ export async function workshopTurnNote(
             `המשתמש אישר עכשיו תקציב של $${approved.capUsd} לפרויקט. אל תבקשי אישור שוב. המשיכי מיד ל${approved.tool ? TOOL_STEP[approved.tool] : "שלב שחיכה לאישור"}.`,
           );
       }
+    }
+    const marked = selectedArtifactLine(
+      await loadSelectedArtifact(
+        supabase,
+        tenantId,
+        itemId,
+        selectedArtifactId,
+      ),
+    );
+    if (marked) {
+      lines.push(marked);
     }
     const answers = Object.entries(briefAnswersOf(payload));
     if (answers.length > 0)

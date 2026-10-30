@@ -23,6 +23,24 @@ export function workshopItemIdFrom(body: Record<string, unknown>) {
   return addon.match(UUID)?.[1] ?? null;
 }
 
+const ARTIFACT =
+  /artifact_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+
+/** The page the user marked on the board: sent by the workshop chat, or read from its context line. */
+export function workshopArtifactIdFrom(body: Record<string, unknown>) {
+  if (
+    typeof body.workshop_artifact_id === "string" &&
+    body.workshop_artifact_id
+  ) {
+    return body.workshop_artifact_id;
+  }
+  const addon =
+    typeof body.system_prompt_addon === "string"
+      ? body.system_prompt_addon
+      : "";
+  return addon.match(ARTIFACT)?.[1] ?? null;
+}
+
 const SCENE =
   /scene_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
 

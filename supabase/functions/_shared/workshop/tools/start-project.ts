@@ -2,6 +2,7 @@ import { syncClientAssets } from "../assets.ts";
 import { withBriefAnswers } from "../brief-answers.ts";
 import { type StartProjectPlan, planProject } from "../defaults.ts";
 import { publicUrlOf } from "../project-io.ts";
+import { openProjectRefusal } from "./open-project.ts";
 import { creativeStageFor, recordArtifact } from "../record.ts";
 import { briefPayload } from "../scene-helpers.ts";
 import { tappedAnswers } from "../tapped-answers.ts";
@@ -12,6 +13,8 @@ export async function workshopStartProject(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, userId, deps } = ctx;
   const brief = String(args.brief ?? "").trim();
   if (!brief) return { error: "brief נדרש" };
+  const refusal = openProjectRefusal(deps.openItemId, deps.userText);
+  if (refusal) return refusal;
   const start = startProjectClient(args.client_id, deps.viewClientId);
   let clientId = start.clientId;
   let clientNote: string | undefined;
