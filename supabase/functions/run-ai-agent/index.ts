@@ -103,6 +103,7 @@ import {
   workshopRole,
 } from "../_shared/workshop/roles.ts";
 import {
+  workshopArtifactIdFrom,
   workshopItemIdFrom,
   workshopProjectKind,
   workshopSceneIdFrom,
@@ -5840,6 +5841,8 @@ async function executeTool(
     outOfBand?: boolean;
     /** The client open in the workshop view (workshop_client_id). */
     viewClientId?: string | null;
+    /** The project open on the workshop board (workshop_item_id). */
+    openItemId?: string | null;
     /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
     devTaskTurn?: {
       /** When the user's message of this turn arrived; the offered task must be older. */
@@ -5914,6 +5917,7 @@ async function executeTool(
         lastAssistant: approval.lastAssistant ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         viewClientId: approval.viewClientId ?? null,
+        openItemId: approval.openItemId ?? null,
         imageEngines: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -13734,6 +13738,7 @@ async function handleRunAgent(
           workshopItemIdFrom(bodyJson),
           String(command_text ?? ""),
           lastAssistantText(conversation_history),
+          workshopArtifactIdFrom(bodyJson),
         )
       : null;
     const workshopRoleForRun = inWorkshopRequest
@@ -16125,6 +16130,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 viewClientId: inWorkshop
                   ? workshopClientIdFrom(bodyJson)
                   : null,
+                openItemId: inWorkshop ? workshopItemIdFrom(bodyJson) : null,
                 // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
                 devTaskTurn: {
                   turnStartedAt,

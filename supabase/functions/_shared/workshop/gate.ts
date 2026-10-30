@@ -67,6 +67,8 @@ export interface WorkshopDeps {
   approvedOutOfBand?: boolean;
   /** The client open in the workshop view; a new project starts for it when none is named. */
   viewClientId?: string | null;
+  /** The project open on the board; a new project needs the user to ask for one (start-project.ts). */
+  openItemId?: string | null;
   newToken?: () => string;
 }
 
