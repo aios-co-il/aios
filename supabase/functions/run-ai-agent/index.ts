@@ -106,6 +106,7 @@ import {
 import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+import { addressByNameLine, callerProfileName } from "./address-by-name.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
@@ -14830,6 +14831,11 @@ async function handleRunAgent(
       }
       if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
+    // Hebrew verbs carry gender: Carmen addresses the caller by the gender their name shows.
+    systemPrompt +=
+      addressByNameLine(
+        callerName ?? (await callerProfileName(supabase, callerUserId)),
+      ) ?? "";
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
