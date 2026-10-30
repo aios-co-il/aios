@@ -3,10 +3,10 @@
  * recorded on Saturday; a non-critical one is stored with a marker and no
  * WhatsApp, and the first run after Shabbat that still sees it open sends it.
  */
-import type { Json } from "../_shared/database.types.ts";
-import { isAlertHeldForShabbat } from "../_shared/shabbat/critical-alerts.ts";
-import { isJerusalemShabbat } from "../_shared/shabbat/quiet-window.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import type { Json } from "../database.types.ts";
+import { isAlertHeldForShabbat } from "../shabbat/critical-alerts.ts";
+import { isJerusalemShabbat } from "../shabbat/quiet-window.ts";
+import type { DbClient } from "../supabase-clients.ts";
 
 /** Marker stored in campaign_alerts.details when WhatsApp was held for Shabbat. */
 export const CAMPAIGN_ALERT_SHABBAT_HOLD = "shabbat";
@@ -43,7 +43,7 @@ export async function releaseHeldAlert(
     .maybeSingle();
   if (claimError) {
     console.error(
-      "[fb-campaign-monitor] held alert claim failed",
+      "[campaign-status-alerts] held alert claim failed",
       existing.id,
       claimError.message,
     );

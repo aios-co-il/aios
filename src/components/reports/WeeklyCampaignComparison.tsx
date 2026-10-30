@@ -6,12 +6,16 @@ import {
   type WeeklyAdsRecord,
   type WeeklyAdsSource,
 } from "@/lib/weeklyAdsComparison";
+import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
+import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 
 type Props = {
   records: WeeklyAdsRecord[];
   currency?: string;
   defaultSource?: WeeklyAdsSource;
   sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
+  /** The report's tables: Google campaigns then show by their own goal. */
+  tables?: GoogleReportTable[];
   isLoading?: boolean;
 };
 
@@ -29,11 +33,18 @@ export function WeeklyCampaignComparison({
   currency = "₪",
   defaultSource,
   sourceModes,
+  tables,
   isLoading = false,
 }: Props) {
+  const googleCampaignGoals = useWeeklyGoogleCampaignGoals(
+    records,
+    tables,
+    defaultSource,
+  );
   const weeks = buildWeeklyCampaignSections(records, {
     defaultSource,
     sourceModes,
+    googleCampaignGoals,
     maxWeeks: 53,
   });
   const sources = new Set(

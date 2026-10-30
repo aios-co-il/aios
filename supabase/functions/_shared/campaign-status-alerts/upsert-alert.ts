@@ -1,5 +1,5 @@
-import type { Json } from "../_shared/database.types.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import type { Json } from "../database.types.ts";
+import type { DbClient } from "../supabase-clients.ts";
 import { holdMarker, releaseHeldAlert } from "./shabbat-hold.ts";
 
 type CampaignAlertInput = {
@@ -38,7 +38,7 @@ export async function upsertCampaignAlert<T extends CampaignAlertInput>(
     .single();
   if (error) {
     console.error(
-      "[fb-campaign-monitor] could not record alert",
+      "[campaign-status-alerts] could not record alert",
       alert.alert_type,
       alert.campaign_id,
       error.message,
@@ -74,7 +74,7 @@ async function openAlertFromLastDay(
     .maybeSingle();
   if (error) {
     console.error(
-      "[fb-campaign-monitor] open alert lookup failed",
+      "[campaign-status-alerts] open alert lookup failed",
       alert.alert_type,
       alert.campaign_id,
       error.message,
