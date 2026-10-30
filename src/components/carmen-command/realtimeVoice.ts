@@ -2,6 +2,11 @@
 // The ephemeral client secret comes from the carmen-realtime-session edge
 // function; audio flows browser<->OpenAI directly, events over a data channel.
 
+import {
+  parseRealtimeServerEvent,
+  readAskCarmenQuestion,
+} from "./realtimeVoiceEvents";
+
 export interface RealtimeCallbacks {
   /** Final transcript of what the user said (one turn) */
   onUserTranscript: (text: string) => void;
@@ -103,12 +108,8 @@ export async function startRealtimeVoice(
     );
   };
   dc.onmessage = async (e) => {
-    let ev: any;
-    try {
-      ev = JSON.parse(e.data);
-    } catch {
-      return;
-    }
+    const ev = parseRealtimeServerEvent(e.data);
+    if (!ev) return;
     switch (ev.type) {
       case "response.created":
         responseActive = true;
@@ -145,12 +146,7 @@ export async function startRealtimeVoice(
           item.name === "ask_carmen" &&
           !stopped
         ) {
-          let question = "";
-          try {
-            question = JSON.parse(item.arguments)?.question ?? "";
-          } catch {
-            /* malformed args */
-          }
+          const question = readAskCarmenQuestion(item.arguments);
           const answer = await cb.onToolCall(question);
           if (stopped) break;
           dc.send(

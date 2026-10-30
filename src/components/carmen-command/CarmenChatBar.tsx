@@ -35,6 +35,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { attachmentsFromMetadata } from "./chatMessageAttachments";
+import { readErrorMessage } from "@/lib/response";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
 import { getSessionSkin } from "@/lib/carmenSessionSkin";
@@ -64,7 +67,11 @@ import {
   lastConversationStorageKeyForSeat,
   seatKeyFromRoute,
 } from "@/lib/agentSeats";
-import { hudStage, routeForRestoredChat } from "@/lib/agentChannelRouting";
+import {
+  conversationChannelStatusSchema,
+  hudStage,
+  routeForRestoredChat,
+} from "@/lib/agentChannelRouting";
 import {
   composerLockedForChat,
   lastConversationStorageKey,
@@ -760,10 +767,10 @@ export const CarmenChatBar = forwardRef<
           ]);
           scrollDown();
         }
-      } catch (err: any) {
+      } catch (err) {
         toast({
           title: "שגיאה",
-          description: err.message ?? "שגיאה בשליחה",
+          description: readErrorMessage(err) ?? "שגיאה בשליחה",
           variant: "destructive",
         });
       } finally {
@@ -891,9 +898,9 @@ export const CarmenChatBar = forwardRef<
           );
         }
         runBrain = routed.run_brain;
-      } catch (e: any) {
+      } catch (e) {
         if (brain.sendPath !== "internal_stream") {
-          return `לא הצלחתי לשלוח לערוץ: ${e?.message ?? e}`;
+          return `לא הצלחתי לשלוח לערוץ: ${readErrorMessage(e) ?? e}`;
         }
       }
 
@@ -1277,9 +1284,8 @@ export const CarmenChatBar = forwardRef<
           data: { user },
         } = await supabase.auth.getUser();
         if (!user) return;
-        const sbAny = supabase as any;
         if (!conversationIdRef.current) {
-          const { data } = await sbAny
+          const { data } = await supabase
             .from("ai_conversations")
             .insert({
               user_id: user.id,
@@ -1292,7 +1298,7 @@ export const CarmenChatBar = forwardRef<
           conversationIdRef.current = data?.id ?? null;
           if (data?.id) setConversationId(data.id);
         } else {
-          await sbAny
+          await supabase
             .from("ai_conversations")
             .update({
               messages: textMsgs,
@@ -1316,9 +1322,9 @@ export const CarmenChatBar = forwardRef<
 
   useEffect(() => {
     if (!conversationId) return;
-    const channel = (supabase as any)
+    const channel = supabase
       .channel(`cc-channel-${conversationId}`)
-      .on(
+      .on<Tables<"ai_conversation_messages">>(
         "postgres_changes",
         {
           event: "INSERT",
@@ -1326,7 +1332,7 @@ export const CarmenChatBar = forwardRef<
           table: "ai_conversation_messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload: { new: any }) => {
+        (payload) => {
           const row = payload.new;
           if (!row?.content) return;
           if (row.role === "user") return;
@@ -1352,8 +1358,8 @@ export const CarmenChatBar = forwardRef<
                   row.event_type === "progress" || row.event_type === "system"
                     ? row.content
                     : undefined,
-                speaker: row.speaker,
-                channel: row.channel,
+                speaker: row.speaker ?? undefined,
+                channel: row.channel ?? undefined,
                 ...tagChatTurn(
                   row.channel && row.channel !== "internal"
                     ? "external_channel_callback"
@@ -1372,7 +1378,7 @@ export const CarmenChatBar = forwardRef<
           }
         },
       )
-      .on(
+      .on<Tables<"ai_conversations">>(
         "postgres_changes",
         {
           event: "UPDATE",
@@ -1380,13 +1386,17 @@ export const CarmenChatBar = forwardRef<
           table: "ai_conversations",
           filter: `id=eq.${conversationId}`,
         },
-        (payload: { new: any }) => {
-          if (payload.new?.status) brain.setStatus(payload.new.status);
+        (payload) => {
+          const status = payload.new?.status;
+          if (status)
+            brain.setStatus(
+              conversationChannelStatusSchema.catch("idle").parse(status),
+            );
         },
       )
       .subscribe();
     return () => {
-      (supabase as any).removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [conversationId, brain]);
 
@@ -1452,15 +1462,12 @@ export const CarmenChatBar = forwardRef<
       );
       setStreamingText(streamBufRef.current[conv.id] || "");
       setIsStreaming(liveStreamIdsRef.current.includes(conv.id));
-      let msgs: Array<{
-        id?: string;
-        role: string;
-        content?: string;
-        speaker?: string;
-        channel?: string;
-      }> = [];
+      let msgs: Pick<
+        Tables<"ai_conversation_messages">,
+        "id" | "role" | "content" | "speaker" | "channel" | "metadata"
+      >[] = [];
       try {
-        const { data } = await (supabase as any)
+        const { data } = await supabase
           .from("ai_conversation_messages")
           .select("id, role, content, speaker, channel, metadata, created_at")
           .eq("conversation_id", conv.id)
@@ -1479,15 +1486,13 @@ export const CarmenChatBar = forwardRef<
               m.role === "system",
           )
           .map((m) => ({
-            id: (m as any).id,
+            id: m.id,
             role: (m.role === "system" ? "assistant" : m.role) as
               "user" | "assistant",
             content: m.content ?? "",
-            speaker: m.speaker,
-            channel: m.channel,
-            attachments: Array.isArray((m as any).metadata?.attachments)
-              ? (m as any).metadata.attachments
-              : undefined,
+            speaker: m.speaker ?? undefined,
+            channel: m.channel ?? undefined,
+            attachments: attachmentsFromMetadata(m.metadata),
           })),
       );
       setHistory(false);
@@ -1500,12 +1505,13 @@ export const CarmenChatBar = forwardRef<
     queryKey: ["cc-conversations", tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("ai_conversations")
         .select("id, title, updated_at, status, routing_mode, brain_route_id")
         .order("updated_at", { ascending: false })
         .limit(40);
-      return (data ?? []) as TopicChat[];
+      const topics: TopicChat[] = data ?? [];
+      return topics;
     },
   });
 

@@ -15,8 +15,6 @@ import {
 import { computeNextRun } from "../../../../supabase/functions/_shared/agent-task-schedule.ts";
 import { carmenTasksKey } from "../useCarmenTasks";
 
-const db = supabase as any;
-
 const PRESETS = [
   { label: "כל 15 דקות", value: "*/15 * * * *" },
   { label: "כל 30 דקות", value: "*/30 * * * *" },
@@ -51,9 +49,9 @@ export function SystemJobEditor({
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ["system-cron-jobs"],
     queryFn: async () => {
-      const { data, error } = await db.rpc("list_system_cron_jobs");
+      const { data, error } = await supabase.rpc("list_system_cron_jobs");
       if (error) throw error;
-      return (data ?? []) as Record<string, any>[];
+      return data ?? [];
     },
   });
   const job = jobs.find((j) => Number(j.jobid) === jobid) ?? null;
@@ -77,12 +75,12 @@ export function SystemJobEditor({
     queryKey: ["cron-history", jobid],
     enabled: Number.isFinite(jobid),
     queryFn: async () => {
-      const { data, error } = await db.rpc("get_cron_job_history", {
+      const { data, error } = await supabase.rpc("get_cron_job_history", {
         p_jobid: jobid,
         p_limit: 10,
       });
       if (error) throw error;
-      return (data ?? []) as Record<string, any>[];
+      return data ?? [];
     },
   });
 
@@ -94,7 +92,7 @@ export function SystemJobEditor({
   const save = useMutation({
     mutationFn: async () => {
       if (!valid) throw new Error("תזמון לא תקין");
-      const { error } = await db.rpc("update_system_cron_job", {
+      const { error } = await supabase.rpc("update_system_cron_job", {
         p_jobid: jobid,
         p_schedule: schedule,
         p_active: active,
@@ -106,12 +104,12 @@ export function SystemJobEditor({
       toast.success("נשמר");
       onDone();
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   const runNow = useMutation({
     mutationFn: async () => {
-      const { error } = await db.rpc("run_system_cron_job_now", {
+      const { error } = await supabase.rpc("run_system_cron_job_now", {
         p_jobid: jobid,
       });
       if (error) throw error;
@@ -120,7 +118,7 @@ export function SystemJobEditor({
       toast.success("הופעל");
       setTimeout(invalidate, 2000);
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   if (isLoading) return <p className="text-sm text-muted-foreground">טוען…</p>;

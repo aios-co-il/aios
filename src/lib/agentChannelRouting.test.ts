@@ -17,6 +17,7 @@ import {
   billingNoteForRoute,
   initialSelectedRoute,
   routeForRestoredChat,
+  conversationChannelStatusSchema,
 } from "./agentChannelRouting.ts";
 
 test("selecting a direct channel changes the send path", () => {
@@ -148,4 +149,15 @@ test("parliament view maps seat replies and advances to review round", () => {
   expect(cursor.state).toBe("reviewing");
   expect(grok.state).toBe("waiting");
   expect(cursor.preview || "").toMatch(/JID/);
+});
+
+test("conversationChannelStatusSchema accepts only known channel statuses", () => {
+  expect(conversationChannelStatusSchema.parse("waiting_external")).toBe(
+    "waiting_external",
+  );
+  expect(conversationChannelStatusSchema.safeParse("done").success).toBe(false);
+  expect(conversationChannelStatusSchema.safeParse(null).success).toBe(false);
+  expect(conversationChannelStatusSchema.catch("idle").parse("done")).toBe(
+    "idle",
+  );
 });

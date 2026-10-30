@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { asJsonObject } from "@/lib/response";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +37,8 @@ import {
 } from "@/lib/taskSchedulePresets";
 import { carmenTasksKey, useTenantAgents } from "../useCarmenTasks";
 
-const db = supabase as any;
+type AgentTaskPayload = TablesUpdate<"agent_tasks"> &
+  Pick<TablesInsert<"agent_tasks">, "title" | "agent_id">;
 
 type When = "now" | "at" | "recurring";
 
@@ -99,13 +102,13 @@ export function AgentTaskEditor({
     queryKey: ["carmen-agent-task", taskId],
     enabled: !!taskId,
     queryFn: async () => {
-      const full = await db
+      const full = await supabase
         .from("agent_tasks")
         .select("*")
-        .eq("id", taskId)
+        .eq("id", taskId!)
         .maybeSingle();
       if (full.error) throw full.error;
-      return full.data as Record<string, any> | null;
+      return full.data;
     },
   });
 
@@ -185,7 +188,7 @@ export function AgentTaskEditor({
         throw new Error("תזמון לא תקין (או מהיר מדי)");
       if (when === "at" && !at) throw new Error("בחרו מועד");
 
-      const payload: Record<string, unknown> = {
+      const payload: AgentTaskPayload = {
         title: title.trim(),
         description: prompt.trim() || null,
         agent_id: agentId,
@@ -234,11 +237,11 @@ export function AgentTaskEditor({
       }
 
       let id = taskId;
-      if (isNew) {
+      if (!taskId) {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        const { data, error } = await db
+        const { data, error } = await supabase
           .from("agent_tasks")
           .insert({
             ...payload,
@@ -250,7 +253,7 @@ export function AgentTaskEditor({
         if (error) throw error;
         id = data.id;
       } else {
-        const { error } = await db
+        const { error } = await supabase
           .from("agent_tasks")
           .update(payload)
           .eq("id", taskId);
@@ -258,14 +261,14 @@ export function AgentTaskEditor({
       }
       if (id && enabled && (opts.runNow || (isNew && when === "now"))) {
         if (when === "recurring" || !isNew) {
-          await db
+          await supabase
             .from("agent_tasks")
             .update(
               when === "recurring"
                 ? {
                     status: "pending",
                     run_count: 0,
-                    result: freshOccurrenceResult(task?.result),
+                    result: freshOccurrenceResult(asJsonObject(task?.result)),
                   }
                 : { status: "pending" },
             )
@@ -287,12 +290,15 @@ export function AgentTaskEditor({
       );
       onDone();
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   const remove = useMutation({
     mutationFn: async () => {
-      const { error } = await db.from("agent_tasks").delete().eq("id", taskId);
+      const { error } = await supabase
+        .from("agent_tasks")
+        .delete()
+        .eq("id", taskId!);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -300,7 +306,7 @@ export function AgentTaskEditor({
       toast.success("המשימה נמחקה");
       onDone();
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   if (taskId && isLoading)
@@ -308,9 +314,9 @@ export function AgentTaskEditor({
   if (taskId && !task)
     return <p className="text-sm text-muted-foreground">המשימה לא נמצאה.</p>;
 
-  const lastOutput =
-    task?.result?.final_output ?? task?.result?.last_output ?? null;
-  const lastError = task?.result?.last_error ?? task?.result?.error ?? null;
+  const result = asJsonObject(task?.result);
+  const lastOutput = result?.final_output ?? result?.last_output ?? null;
+  const lastError = result?.last_error ?? result?.error ?? null;
 
   const setPreset = (preset: RecurringPreset) =>
     setRec((r) => ({

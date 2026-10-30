@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +33,6 @@ import {
 } from "@/lib/carmenTaskRows";
 import { computeNextRun } from "../../../../supabase/functions/_shared/agent-task-schedule.ts";
 import { carmenTasksKey, useCarmenTasks } from "../useCarmenTasks";
-
-const db = supabase as any;
 
 const KIND_ICON: Record<TaskKind, typeof Repeat> = {
   one_off: Bot,
@@ -113,21 +112,21 @@ export function CarmenTasksView({
     mutationFn: async (row: CarmenTaskRow) => {
       const on = !row.enabled;
       if (row.source === "agent_tasks") {
-        const raw = row.raw as Record<string, any>;
-        const patch: Record<string, unknown> = { enabled: on };
+        const raw = row.raw;
+        const patch: TablesUpdate<"agent_tasks"> = { enabled: on };
         // Resuming a cron task schedules from now — missed runs are not replayed.
         if (raw.schedule_type === "recurring" && raw.cron_expression)
           patch.next_run = on
             ? computeNextRun(raw.cron_expression, new Date(), raw.timezone)
             : null;
         if (on && raw.status === "paused") patch.status = "pending";
-        const { error: e } = await db
+        const { error: e } = await supabase
           .from("agent_tasks")
           .update(patch)
           .eq("id", row.id);
         if (e) throw e;
       } else if (row.source === "goals") {
-        const { error: e } = await db
+        const { error: e } = await supabase
           .from("goals")
           .update(
             on
@@ -137,9 +136,8 @@ export function CarmenTasksView({
           .eq("id", row.id);
         if (e) throw e;
       } else if (row.source === "cron_job") {
-        const { error: e } = await db.rpc("update_system_cron_job", {
+        const { error: e } = await supabase.rpc("update_system_cron_job", {
           p_jobid: Number(row.id),
-          p_schedule: null,
           p_active: on,
         });
         if (e) throw e;
@@ -151,7 +149,7 @@ export function CarmenTasksView({
       qc.invalidateQueries({ queryKey: ["system-cron-jobs"] });
       toast.success(on ? "הופעלה" : "הושהתה");
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   const showHeartbeat = filter === "all" || filter === "system";
@@ -159,7 +157,8 @@ export function CarmenTasksView({
     queryKey: ["carmen-max-parallel", tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data } = await db
+      if (!tenantId) return 3;
+      const { data } = await supabase
         .from("tenant_heartbeat_settings")
         .select("max_concurrent_tasks")
         .eq("tenant_id", tenantId)
@@ -169,15 +168,16 @@ export function CarmenTasksView({
   });
   const setMaxParallel = useMutation({
     mutationFn: async (n: number) => {
+      if (!tenantId) throw new Error("חסר tenant");
       // tenant_heartbeat_settings has no unique key on tenant_id, so no upsert.
-      const { data: updated, error: e } = await db
+      const { data: updated, error: e } = await supabase
         .from("tenant_heartbeat_settings")
         .update({ max_concurrent_tasks: n })
         .eq("tenant_id", tenantId)
         .select("tenant_id");
       if (e) throw e;
       if (!updated?.length) {
-        const { error: insertError } = await db
+        const { error: insertError } = await supabase
           .from("tenant_heartbeat_settings")
           .insert({ tenant_id: tenantId, max_concurrent_tasks: n });
         if (insertError) throw insertError;
@@ -187,7 +187,7 @@ export function CarmenTasksView({
       qc.invalidateQueries({ queryKey: ["carmen-max-parallel", tenantId] });
       toast.success("עודכן");
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   return (

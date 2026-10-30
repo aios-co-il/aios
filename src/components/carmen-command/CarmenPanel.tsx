@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { asJsonObject } from "@/lib/response";
 import {
   Sheet,
   SheetContent,
@@ -209,7 +211,7 @@ export function useCarmenAgent(tenantId: string | null) {
       if (error) throw error;
       return data ?? [];
     },
-    select: (agents: any[]) => agents.find((a) => isCarmenName(a.name)) ?? null,
+    select: (agents) => agents.find((a) => isCarmenName(a.name)) ?? null,
   });
 }
 
@@ -268,6 +270,11 @@ function MenuItem({
   );
 }
 
+type WaConnectionRow = Pick<
+  Tables<"tenant_integrations">,
+  "id" | "integration_type" | "display_name" | "is_active" | "settings"
+>;
+
 function WhatsAppConnections({
   tenantId,
   onNavigate,
@@ -291,20 +298,20 @@ function WhatsAppConnections({
   const qc = useQueryClient();
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
   const tenantHasActiveManus = rows.some(
-    (r: any) => r.integration_type === "manus_wa" && r.is_active,
+    (r) => r.integration_type === "manus_wa" && r.is_active,
   );
   const setRole = useMutation({
     mutationFn: async ({
       row,
       role,
     }: {
-      row: any;
+      row: WaConnectionRow;
       role: CarmenConnectionRole;
     }) => {
       if (
         role === "primary" &&
         rows.some(
-          (r: any) =>
+          (r) =>
             r.id !== row.id &&
             r.is_active &&
             resolveCarmenConnectionRole(r, { tenantHasActiveManus }) ===
@@ -317,7 +324,9 @@ function WhatsAppConnections({
       }
       const { error } = await supabase
         .from("tenant_integrations")
-        .update({ settings: { ...(row.settings || {}), carmen_role: role } })
+        .update({
+          settings: { ...asJsonObject(row.settings), carmen_role: role },
+        })
         .eq("id", row.id);
       if (error) throw error;
     },
@@ -325,7 +334,7 @@ function WhatsAppConnections({
       qc.invalidateQueries({ queryKey: ["carmen-wa-connections", tenantId] });
       toast.success("התפקיד עודכן");
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   return (
@@ -342,7 +351,7 @@ function WhatsAppConnections({
           אין עדיין חיבורי ווטסאפ.
         </p>
       )}
-      {rows.map((row: any) => {
+      {rows.map((row) => {
         const meta = WA_TYPES[row.integration_type];
         const role = resolveCarmenConnectionRole(row, {
           tenantHasActiveManus,
@@ -477,7 +486,7 @@ export function CarmenPanel({
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
       toast.success("המוח עודכן");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const manageKeys = () => onNavigate("settings/brain");
