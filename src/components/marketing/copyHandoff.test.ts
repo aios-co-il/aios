@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   formatCopyConceptsForImagePrompt,
   type CopyConcept,
@@ -57,7 +56,7 @@ test("findExistingCreativeSibling prefers the copy item pointer", () => {
       payload: { intake_source: "copy_link" },
     }),
   ]);
-  assert.equal(hit?.id, "creative-old");
+  expect(hit?.id).toBe("creative-old");
 });
 
 test("findExistingCreativeSibling falls back to linked_copy_item_id, newest first", () => {
@@ -74,7 +73,7 @@ test("findExistingCreativeSibling falls back to linked_copy_item_id, newest firs
       updated_at: "2026-08-24T00:00:00.000Z",
     }),
   ]);
-  assert.equal(hit?.id, "newer");
+  expect(hit?.id).toBe("newer");
 });
 
 test("findExistingCreativeSibling matches same title + copy_link on the same client", () => {
@@ -91,7 +90,7 @@ test("findExistingCreativeSibling matches same title + copy_link on the same cli
       payload: { department: "creative" },
     }),
   ]);
-  assert.equal(hit?.id, "creative-1");
+  expect(hit?.id).toBe("creative-1");
 });
 
 test("findExistingCreativeSibling ignores a same-title manual creative", () => {
@@ -102,7 +101,7 @@ test("findExistingCreativeSibling ignores a same-title manual creative", () => {
       payload: { department: "creative", intake_source: "manual" },
     }),
   ]);
-  assert.equal(hit, null);
+  expect(hit).toBe(null);
 });
 
 test("overlayCopyHandoffPayload keeps existing variations and writes visual_prompt first", () => {
@@ -122,22 +121,20 @@ test("overlayCopyHandoffPayload keeps existing variations and writes visual_prom
     approved,
     at: "2026-08-25T09:00:00.000Z",
   });
-  assert.equal(payload.department, "creative");
-  assert.equal(payload.project_type, "static");
-  assert.equal(payload.format, "4:5");
-  assert.equal(payload.intake_source, "copy_link");
-  assert.equal(payload.linked_copy_item_id, "copy-1");
-  assert.deepEqual(payload.variations, [
+  expect(payload.department).toBe("creative");
+  expect(payload.project_type).toBe("static");
+  expect(payload.format).toBe("4:5");
+  expect(payload.intake_source).toBe("copy_link");
+  expect(payload.linked_copy_item_id).toBe("copy-1");
+  expect(payload.variations).toStrictEqual([
     { id: "v1", imageUrl: "https://example.com/a.png" },
   ]);
-  assert.match(
-    String(payload.visual_prompt),
+  expect(String(payload.visual_prompt)).toMatch(
     /MUST FOLLOW THIS APPROVED VISUAL CONCEPT/,
   );
-  assert.match(String(payload.visual_prompt), /ארנק פעור/);
-  assert.match(String(payload.visual_prompt), /PHOTOGRAPH THIS SCENE/);
-  assert.equal(
-    (payload.approved_concepts as CopyConcept[])[0]?.name,
+  expect(String(payload.visual_prompt)).toMatch(/ארנק פעור/);
+  expect(String(payload.visual_prompt)).toMatch(/PHOTOGRAPH THIS SCENE/);
+  expect((payload.approved_concepts as CopyConcept[])[0]?.name).toBe(
     "הכיס הריק",
   );
 });
@@ -148,9 +145,9 @@ test("stampCopyPayloadAfterHandoff keeps the item in copy", () => {
     "creative-1",
     "2026-08-25T09:00:00.000Z",
   );
-  assert.equal(stamped.department, "copy");
-  assert.equal(stamped.handoff_to_creative_item_id, "creative-1");
-  assert.equal(isCopyDepartmentItem({ payload: stamped }, "copy-stage"), true);
+  expect(stamped.department).toBe("copy");
+  expect(stamped.handoff_to_creative_item_id).toBe("creative-1");
+  expect(isCopyDepartmentItem({ payload: stamped }, "copy-stage")).toBe(true);
 });
 
 test("formatCopyConceptsForImagePrompt leads with the approved concept", () => {
@@ -158,13 +155,12 @@ test("formatCopyConceptsForImagePrompt leads with the approved concept", () => {
     concept(),
     concept({ id: "c2", name: "וריאציה שנייה", bigIdea: "זווית אחרת" }),
   ]);
-  assert.equal(
-    prompt.startsWith("MUST FOLLOW THIS APPROVED VISUAL CONCEPT"),
+  expect(prompt.startsWith("MUST FOLLOW THIS APPROVED VISUAL CONCEPT")).toBe(
     true,
   );
-  assert.match(prompt, /Concept name: הכיס הריק/);
-  assert.match(prompt, /PHOTOGRAPH THIS SCENE/);
-  assert.match(prompt, /2\. וריאציה שנייה/);
+  expect(prompt).toMatch(/Concept name: הכיס הריק/);
+  expect(prompt).toMatch(/PHOTOGRAPH THIS SCENE/);
+  expect(prompt).toMatch(/2\. וריאציה שנייה/);
 });
 
 test("listOpenCreativeProjects returns every open creative for the client", () => {
@@ -191,10 +187,7 @@ test("listOpenCreativeProjects returns every open creative for the client", () =
     }),
     item({ id: "copy-self", payload: { department: "copy" } }),
   ]);
-  assert.deepEqual(
-    open.map((row) => row.id),
-    ["linked", "manual"],
-  );
+  expect(open.map((row) => row.id)).toStrictEqual(["linked", "manual"]);
 });
 
 test("overlayCopyHandoffPayload keeps existing concepts when the copy has none", () => {
@@ -211,9 +204,9 @@ test("overlayCopyHandoffPayload keeps existing concepts when the copy has none",
     approved: [],
     at: "2026-08-25T09:00:00.000Z",
   });
-  assert.equal((payload.copy_concepts as CopyConcept[])[0]?.id, "keep");
-  assert.equal((payload.approved_concepts as CopyConcept[])[0]?.id, "keep");
-  assert.equal(payload.copy_text, "כותרת חדשה");
+  expect((payload.copy_concepts as CopyConcept[])[0]?.id).toBe("keep");
+  expect((payload.approved_concepts as CopyConcept[])[0]?.id).toBe("keep");
+  expect(payload.copy_text).toBe("כותרת חדשה");
 });
 
 test("overlayCopyHandoffPayload keeps an existing visual_prompt when nothing is approved", () => {
@@ -229,21 +222,18 @@ test("overlayCopyHandoffPayload keeps an existing visual_prompt when nothing is 
     approved: [],
     at: "2026-08-25T09:00:00.000Z",
   });
-  assert.equal(payload.visual_prompt, "KEEP THIS");
-  assert.equal(payload.copy_text, "כותרת");
-  assert.equal(payload.linked_copy_item_id, "copy-1");
-  assert.equal((payload.copy_concepts as CopyConcept[])[0]?.approved, false);
+  expect(payload.visual_prompt).toBe("KEEP THIS");
+  expect(payload.copy_text).toBe("כותרת");
+  expect(payload.linked_copy_item_id).toBe("copy-1");
+  expect((payload.copy_concepts as CopyConcept[])[0]?.approved).toBe(false);
 });
 
 test("copyPullSummary marks items with copy or concepts as pullable", () => {
-  assert.equal(copyPullSummary({ copy_text: "כותרת" }).pullable, true);
-  assert.equal(copyPullSummary({ copy_concepts: [concept()] }).pullable, true);
-  assert.equal(
-    copyPullSummary({ copy_concepts: [concept()] }).approvedCount,
-    1,
-  );
-  assert.equal(copyPullSummary({ brief_text: "בריף בלבד" }).pullable, true);
-  assert.equal(copyPullSummary({}).pullable, false);
+  expect(copyPullSummary({ copy_text: "כותרת" }).pullable).toBe(true);
+  expect(copyPullSummary({ copy_concepts: [concept()] }).pullable).toBe(true);
+  expect(copyPullSummary({ copy_concepts: [concept()] }).approvedCount).toBe(1);
+  expect(copyPullSummary({ brief_text: "בריף בלבד" }).pullable).toBe(true);
+  expect(copyPullSummary({}).pullable).toBe(false);
 });
 
 test("suggestedCreativeTarget prefers the linked sibling among open projects", () => {
@@ -263,7 +253,7 @@ test("suggestedCreativeTarget prefers the linked sibling among open projects", (
       updated_at: "2026-08-24T10:00:00.000Z",
     }),
   ];
-  assert.equal(suggestedCreativeTarget(copy, open)?.id, "pointed");
+  expect(suggestedCreativeTarget(copy, open)?.id).toBe("pointed");
 });
 
 test("overlayCopyHandoffPayload writes approved copies only and pairs concept copyKey", () => {
@@ -294,14 +284,14 @@ test("overlayCopyHandoffPayload writes approved copies only and pairs concept co
     approved,
     at: "2026-08-26T09:00:00.000Z",
   });
-  assert.match(String(payload.copy_text), /בטא/);
-  assert.doesNotMatch(String(payload.copy_text), /אלפא/);
+  expect(String(payload.copy_text)).toMatch(/בטא/);
+  expect(String(payload.copy_text)).not.toMatch(/אלפא/);
   const variations = payload.copy_variations as Array<{
     key: string;
     approved: boolean;
   }>;
-  assert.equal(variations.length, 2);
-  assert.equal(variations.filter((row) => row.approved).length, 1);
-  assert.equal((payload.approved_concepts as CopyConcept[])[0]?.copyKey, "2");
-  assert.equal((payload.approved_concepts as CopyConcept[])[0]?.copyId, "b");
+  expect(variations.length).toBe(2);
+  expect(variations.filter((row) => row.approved).length).toBe(1);
+  expect((payload.approved_concepts as CopyConcept[])[0]?.copyKey).toBe("2");
+  expect((payload.approved_concepts as CopyConcept[])[0]?.copyId).toBe("b");
 });

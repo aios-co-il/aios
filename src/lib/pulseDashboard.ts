@@ -9,6 +9,11 @@ import {
   resolveCampaignDeliveryStatus,
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
+import { hasRepeatedSyncFailures } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
+import {
+  isLegacyClientCallFlag,
+  stripLegacyClientCallFlag,
+} from "../../supabase/functions/_shared/pulse/client-call.ts";
 
 /**
  * Helpers for the Pulse Check dashboard (דשבורד בדיקת דופק).
@@ -526,10 +531,15 @@ function isUnknownDelivery(status: string | null | undefined): boolean {
   return !status || status === "unknown" || status === "other";
 }
 
-/** Rollup status reflects confirmed-active campaigns only — never flash red on unknown/paused. */
+/**
+ * Rollup status reflects confirmed-active campaigns only — never flash red on
+ * unknown/paused. The rows come from active report tables only, so every
+ * campaign paused is a warning unless another campaign of the client on the
+ * same platform is live (`liveElsewhere`).
+ */
 export function rollupStatusFromCampaigns(
   campaigns: CampaignRowWithDelivery[],
-  options: { deliveryHintsPending?: boolean } = {},
+  options: { deliveryHintsPending?: boolean; liveElsewhere?: boolean } = {},
 ): {
   status: PulseStatus;
   status_reason: string;
@@ -563,13 +573,22 @@ export function rollupStatusFromCampaigns(
   }
 
   if (pausedOrRemoved.length) {
-    return {
-      status: "healthy",
-      status_reason:
-        unknown.length && options.deliveryHintsPending
-          ? "מאמתים סטטוס — הקמפיינים הפעילים מושהים"
-          : "כל הקמפיינים מושהים — אין הוצאה פעילה שדורשת טיפול",
-    };
+    if (unknown.length && options.deliveryHintsPending) {
+      return {
+        status: "healthy",
+        status_reason: "מאמתים סטטוס — הקמפיינים הפעילים מושהים",
+      };
+    }
+    return options.liveElsewhere
+      ? {
+          status: "healthy",
+          status_reason: "הקמפיינים כאן מושהים — קמפיין אחר של הלקוח באוויר",
+        }
+      : {
+          status: "warning",
+          status_reason:
+            "כל הקמפיינים מושהים והדוח פעיל — אם הלקוח הושהה, לסמן את הדוח כלא פעיל",
+        };
   }
 
   if (unknown.length) {
@@ -641,6 +660,16 @@ export function rollupCampaignRowsByClientGoal(input: {
     groups.set(key, list);
   }
 
+  // Client + platform pairs with a live campaign in any goal: a paused goal
+  // beside them is not a "nothing live" warning.
+  const liveClientPlatforms = new Set(
+    input.campaignRows
+      .filter(
+        (row) => row.goal !== "unknown" && row.delivery_status === "active",
+      )
+      .map((row) => `${row.client_id}:${row.platform}`),
+  );
+
   const rollups: PulseClientGoalRollup[] = [];
   for (const [key, campaigns] of groups) {
     const parts = key.split(":");
@@ -682,6 +711,7 @@ export function rollupCampaignRowsByClientGoal(input: {
       campaigns,
       {
         deliveryHintsPending: hintsPending,
+        liveElsewhere: liveClientPlatforms.has(`${client_id}:${platform}`),
       },
     );
     const flags = Array.from(
@@ -965,7 +995,9 @@ function resolveLastSyncAt(table: PulseCampaignTable): string | null {
   )[0];
 }
 
+/** Same rule as the snapshot (campaign-pulse.ts isSyncStale). */
 function isSyncStale(table: PulseCampaignTable, nowMs = Date.now()): boolean {
+  if (hasRepeatedSyncFailures(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
@@ -1157,7 +1189,9 @@ function classifyPlatformGoalStatus(input: {
     flags.push(`CPL עלה ב-${Math.round(input.metrics.changePct * 10) / 10}%`);
   }
 
-  const platformFlags = input.snapshotFlags.filter((flag) => {
+  // The client-call gap is a separate indicator, never a platform status (AIO-227).
+  const callFreeFlags = filterPulseCallFlags(input.snapshotFlags);
+  const platformFlags = callFreeFlags.filter((flag) => {
     if (flag.includes(platformName)) return true;
     if (platformName === "Meta" && /מטה|Meta|Facebook|פייסבוק/i.test(flag))
       return true;
@@ -1566,7 +1600,9 @@ export function formatMetaChange(row: PulseSnapshotRow): string {
   return "לא זמין";
 }
 
-export function formatLastClientCall(row: PulseSnapshotRow): string {
+export function formatLastClientCall(
+  row: Pick<PulseSnapshotRow, "last_client_call_at">,
+): string {
   if (!row.last_client_call_at) return "לא תועדה שיחה";
   return new Date(row.last_client_call_at).toLocaleString("he-IL", {
     timeZone: "Asia/Jerusalem",
@@ -1576,31 +1612,11 @@ export function formatLastClientCall(row: PulseSnapshotRow): string {
 }
 
 /** Call-freshness flags are shown in the dedicated call column, not under הערה. */
-export function isPulseCallFreshnessFlag(flag: string): boolean {
-  const normalized = flag.trim();
-  return (
-    normalized.startsWith("לא תועדה שיחה") ||
-    /שיחה טלפונית עם הלקוח/.test(normalized)
-  );
-}
-
 export function filterPulseCallFlags(
   flags: string[] | null | undefined,
 ): string[] {
   if (!Array.isArray(flags)) return [];
-  return flags.filter((flag) => !isPulseCallFreshnessFlag(flag));
-}
-
-export const CLIENT_CALL_STALE_MS = 14 * 24 * 60 * 60 * 1000;
-
-export function isClientCallFresh(
-  lastClientCallAt: string | null | undefined,
-  nowMs = Date.now(),
-): boolean {
-  if (!lastClientCallAt) return false;
-  const ts = new Date(lastClientCallAt).getTime();
-  if (Number.isNaN(ts)) return false;
-  return nowMs - ts <= CLIENT_CALL_STALE_MS;
+  return flags.filter((flag) => !isLegacyClientCallFlag(flag));
 }
 
 function isPulseCriticalFlag(flag: string): boolean {
@@ -1621,70 +1637,20 @@ export function inferPulseStatusFromFlags(flags: string[]): PulseStatus | null {
   return null;
 }
 
-export function worstPulseStatus(a: PulseStatus, b: PulseStatus): PulseStatus {
-  const rank: Record<PulseStatus, number> = {
-    critical: 0,
-    warning: 1,
-    no_data: 2,
-    healthy: 3,
-  };
-  return rank[a] <= rank[b] ? a : b;
-}
-
-function reconcileGoalStatusAfterFreshCall(
-  current: PulseStatus,
-  allFlags: string[] | null | undefined,
-  callApplies: boolean,
-  lastClientCallAt: string,
-): PulseStatus {
-  if (!callApplies || !isClientCallFresh(lastClientCallAt)) return current;
-  const remainingFlags = filterPulseCallFlags(allFlags);
-  const fromFlags = inferPulseStatusFromFlags(remainingFlags);
-  if (fromFlags !== null) return fromFlags;
-  if (current === "warning") return "healthy";
-  return current;
-}
-
-/** Update snapshot row after a fresh client call is logged from the dashboard. */
+/**
+ * Update snapshot row after a fresh client call is logged from the dashboard.
+ * The call only moves the contact indicator; the status is performance-only.
+ * Rows written before AIO-227 also drop the legacy call flag and the warning it caused.
+ */
 export function applyClientCallToPulseSnapshot(
   snapshot: PulseSnapshotRow,
   lastClientCallAt: string,
   lastClientCallBy: string,
 ): PulseSnapshotRow {
-  const mode: CampaignGoalMode =
-    snapshot.campaign_goal_mode ??
-    (snapshot.is_ecommerce ? "ecommerce" : "leads");
-  const leadStatus = reconcileGoalStatusAfterFreshCall(
-    (snapshot.lead_goal_status ??
-      (mode !== "ecommerce" ? snapshot.status : "healthy")) as PulseStatus,
-    snapshot.flags,
-    mode !== "ecommerce",
-    lastClientCallAt,
-  );
-  const ecommerceStatus = reconcileGoalStatusAfterFreshCall(
-    (snapshot.ecommerce_goal_status ??
-      (mode !== "leads" ? snapshot.status : "healthy")) as PulseStatus,
-    snapshot.flags,
-    mode === "ecommerce",
-    lastClientCallAt,
-  );
-  const status =
-    mode === "hybrid"
-      ? worstPulseStatus(leadStatus, ecommerceStatus)
-      : mode === "ecommerce"
-        ? ecommerceStatus
-        : leadStatus;
-
   return {
-    ...snapshot,
+    ...stripLegacyClientCallFlag(snapshot),
     last_client_call_at: lastClientCallAt,
     last_client_call_by: lastClientCallBy,
-    flags: filterPulseCallFlags(snapshot.flags),
-    status,
-    lead_goal_status:
-      mode === "ecommerce" ? snapshot.lead_goal_status : leadStatus,
-    ecommerce_goal_status:
-      mode === "leads" ? snapshot.ecommerce_goal_status : ecommerceStatus,
   };
 }
 

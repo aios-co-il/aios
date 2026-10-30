@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import { fakeDb } from "../fake-db.ts";
 import { isOptedOut } from "./reachability.ts";
 
@@ -29,29 +28,32 @@ const { db } = fakeDb({
   ],
 });
 
-test("a blacklisted phone is skipped on WhatsApp", async () => {
-  assert.equal(
+Deno.test("a blacklisted phone is skipped on WhatsApp", async () => {
+  assertStrictEquals(
     await isOptedOut(db, "t1", "whatsapp", { phone: "050-123-4567" }),
     true,
   );
 });
 
-test("a blacklisted email is skipped on email, case-insensitively", async () => {
-  assert.equal(
-    await isOptedOut(db, "t1", "email", { email: "Dana@Example.com" }),
-    true,
-  );
-});
+Deno.test(
+  "a blacklisted email is skipped on email, case-insensitively",
+  async () => {
+    assertStrictEquals(
+      await isOptedOut(db, "t1", "email", { email: "Dana@Example.com" }),
+      true,
+    );
+  },
+);
 
-test("an email-only opt-out does not block WhatsApp", async () => {
-  assert.equal(
+Deno.test("an email-only opt-out does not block WhatsApp", async () => {
+  assertStrictEquals(
     await isOptedOut(db, "t1", "whatsapp", { phone: "0509999999" }),
     false,
   );
 });
 
-test("another tenant's blacklist does not apply", async () => {
-  assert.equal(
+Deno.test("another tenant's blacklist does not apply", async () => {
+  assertStrictEquals(
     await isOptedOut(db, "t2", "whatsapp", { phone: "0501234567" }),
     false,
   );

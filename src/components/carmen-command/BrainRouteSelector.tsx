@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RouteIcon } from "./BrainRouteIcon";
+import { RouteIcon, routeColor } from "./BrainRouteIcon";
 import { BrainRouteNote } from "./BrainRouteNote";
 import { statusLabel } from "./brainRouteStatus";
 
@@ -70,7 +70,10 @@ export function BrainRouteSelector({
             }
             className={`flex ${compact ? "h-9 min-w-0" : "h-11 min-w-[11rem]"} w-full items-center gap-1.5 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-xs text-[var(--cc-text)] outline-none hover:border-[var(--cc-line-strong)] disabled:opacity-50`}
           >
-            <RouteIcon type={current?.route_type || "internal"} />
+            <RouteIcon
+              type={current?.route_type || "internal"}
+              color={routeColor(current)}
+            />
             <span className="min-w-0 flex-1 truncate text-right">
               {current?.label}
             </span>
@@ -97,7 +100,7 @@ export function BrainRouteSelector({
                   className="cursor-pointer gap-2 text-right"
                   onSelect={() => onChange(r)}
                 >
-                  <RouteIcon type={r.route_type} />
+                  <RouteIcon type={r.route_type} color={routeColor(r)} />
                   <span className="flex-1">{r.label}</span>
                 </DropdownMenuItem>
               ))}

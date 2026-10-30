@@ -6,6 +6,7 @@ sql_paths = [
   "./seeds/00_auth.sql",
   "./seeds/10_tenancy.sql",
   "./seeds/20_demo_business.sql",
+  "./seeds/30_carmen.sql",
   "./seeds/99_verify.sql",
 ]
 
@@ -37,6 +38,9 @@ GOAL_BRAIN_CALLBACK_SECRET = "env(GOAL_BRAIN_CALLBACK_SECRET)"
 AGENT_CHANNEL_CALLBACK_SECRET = "env(AGENT_CHANNEL_CALLBACK_SECRET)"
 WEBHOOK_LEAD_INTAKE_SECRET = "env(WEBHOOK_LEAD_INTAKE_SECRET)"
 WEBHOOK_TASK_INTAKE_SECRET = "env(WEBHOOK_TASK_INTAKE_SECRET)"
+GOOGLE_CLIENT_ID = "env(GOOGLE_CLIENT_ID)"
+GOOGLE_CLIENT_SECRET = "env(GOOGLE_CLIENT_SECRET)"
+
 
 # Production overrides. Every branch, including `develop`, uses the base config above;
 # Production keeps its live Auth values (read from the live project on 2026-10-22); its secrets come from .env.production.
@@ -104,6 +108,10 @@ verify_jwt = false
 
 # Channel gateway — Command Center Direct / Parliament. JWT is checked in-function.
 [functions.agent-channel-send]
+verify_jwt = false
+
+# Carmen settings → מוחות: manager-only brain connections; keys go to Vault.
+[functions.carmen-brain-connections]
 verify_jwt = false
 
 [functions.agent-channel-callback]
@@ -354,6 +362,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.run-ai-agent]
+verify_jwt = false
+
+# One workshop picture per request (run-ai-agent calls it with the service role key).
+[functions.workshop-image]
 verify_jwt = false
 
 [functions.campaign-pulse-snapshot]
@@ -900,3 +912,7 @@ verify_jwt = true
 
 [functions.webhook-meta-leads]
 verify_jwt = true
+
+# Meta Data Deletion Request Callback; Meta posts a signed_request verified inside the function.
+[functions.meta-data-deletion]
+verify_jwt = false

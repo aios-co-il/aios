@@ -152,7 +152,9 @@ export async function createCloudAgent(args: {
   return { ...parsed, reused: false };
 }
 
-export function cursorApiKey(): string {
+/** Pass a send's env (see brain-env.ts) to honour a tenant's UI key. */
+export function cursorApiKey(env?: Record<string, string | undefined>): string {
+  if (env) return env.CURSOR_API_KEY || env.GROK_BOT_API_KEY || "";
   return (
     Deno.env.get("CURSOR_API_KEY") || Deno.env.get("GROK_BOT_API_KEY") || ""
   );

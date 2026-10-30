@@ -16,7 +16,7 @@ export function parseTestEmails(raw: string | undefined | null): string[] {
 
 /** STAGING_ALLOWED_EMAILS from the edge runtime. Reads Deno through
  * globalThis (same as envTestNumbers) so the module also loads under
- * `node --test`, where Deno does not exist and the list is simply empty. */
+ * Vitest or other Node runners, where Deno does not exist and the list is simply empty. */
 export function envTestEmails(): string[] {
   const deno = (
     globalThis as { Deno?: { env: { get(key: string): string | undefined } } }
