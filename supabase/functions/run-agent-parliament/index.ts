@@ -23,6 +23,11 @@ import {
   serviceClient,
   userHasTenantAccess,
 } from "../_shared/agent-channel/store.ts";
+import {
+  type ParliamentRequest,
+  readHistory,
+  readParliamentRequest,
+} from "./request.ts";
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -40,9 +45,9 @@ Deno.serve(async (req) => {
   if (!auth || auth.kind !== "user" || !auth.userId)
     return json(401, { error: "Unauthorized" });
 
-  let body: any;
+  let body: ParliamentRequest;
   try {
-    body = await req.json();
+    body = readParliamentRequest(await req.json());
   } catch {
     return json(400, { error: "Invalid JSON" });
   }
@@ -100,11 +105,12 @@ Deno.serve(async (req) => {
   if (!content) return json(400, { error: "content is required" });
   const route = await loadRoute(sb, tenantId, {
     slug: "parliament",
-    routeId: body.brain_route_id,
+    routeId:
+      typeof body.brain_route_id === "string" ? body.brain_route_id : null,
   });
   if (!route) return json(400, { error: "parliament route missing" });
   const conv = await ensureConversation(sb, {
-    conversationId: body.conversation_id || null,
+    conversationId: conversationId || null,
     tenantId,
     userId: auth.userId,
     agentId: carmen.id,
@@ -120,9 +126,7 @@ Deno.serve(async (req) => {
     content: limit(content),
     inputMode: "typed",
     idempotencyKey: String(body.idempotency_key || crypto.randomUUID()),
-    history: Array.isArray(body.conversation_history)
-      ? body.conversation_history
-      : [],
+    history: readHistory(body.conversation_history),
   });
   return json(200, result);
 });

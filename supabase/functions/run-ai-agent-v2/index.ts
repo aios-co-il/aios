@@ -5,6 +5,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
+import type { Database, Json, Tables } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import {
+  asJsonObject,
+  jsonObjectOrNull,
+} from "../_shared/agent-task-result.ts";
+import { readChatCompletion, readToolCall } from "./llm-response.ts";
+import { errorMessage as thrownMessage } from "../_shared/error-message.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,38 +25,27 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const AI_GATEWAY_URL = "https://api.openai.com/v1/chat/completions";
 
-type Json = Record<string, any>;
+type ToolRow = Pick<
+  Tables<"agent_tools">,
+  | "id"
+  | "name"
+  | "display_name"
+  | "description"
+  | "input_schema"
+  | "handler_kind"
+  | "handler_ref"
+  | "requires_approval"
+  | "enabled"
+>;
 
-interface ToolRow {
-  id: string;
-  name: string;
-  display_name: string | null;
-  description: string | null;
-  input_schema: Json | null;
-  handler_kind: "edge" | "internal" | "mcp" | null;
-  handler_ref: string | null;
-  requires_approval: boolean | null;
-  enabled: boolean | null;
-}
+type RunRow = Tables<"agent_runs">;
 
-interface RunRow {
-  id: string;
-  tenant_id: string;
-  agent_id: string;
-  user_id: string | null;
-  goal: string;
-  context: Json;
-  status: string;
-  current_step: number;
-  max_steps: number;
-  model: string | null;
-  total_tokens_in: number;
-  total_tokens_out: number;
-  total_cost_usd: number;
-  conversation_id: string | null;
-}
+type ChatMessage =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string | null; tool_calls: Json[] }
+  | { role: "tool"; tool_call_id: Json | undefined; content: string };
 
-function jsonResponse(body: any, status = 200) {
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -56,7 +53,7 @@ function jsonResponse(body: any, status = 200) {
 }
 
 async function logStep(
-  supabase: any,
+  supabase: DbClient,
   run: RunRow,
   stepIndex: number,
   stepKind:
@@ -68,7 +65,7 @@ async function logStep(
     | "approval_pending",
   details: {
     thought?: string;
-    tool_name?: string;
+    tool_name?: Json;
     tool_input?: Json;
     observation?: Json;
     status?: "success" | "error" | "pending";
@@ -100,7 +97,10 @@ async function logStep(
   });
 }
 
-async function loadTools(supabase: any, tenantId: string): Promise<ToolRow[]> {
+async function loadTools(
+  supabase: DbClient,
+  tenantId: string,
+): Promise<ToolRow[]> {
   const { data } = await supabase
     .from("agent_tools")
     .select("*")
@@ -122,11 +122,11 @@ function buildOpenAITools(tools: ToolRow[]) {
 
 // Reconstruct OpenAI-style messages from action log (for resume).
 async function reconstructMessages(
-  supabase: any,
+  supabase: DbClient,
   run: RunRow,
   systemPrompt: string,
-) {
-  const messages: any[] = [
+): Promise<ChatMessage[]> {
+  const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
     { role: "user", content: run.goal },
   ];
@@ -137,8 +137,9 @@ async function reconstructMessages(
     .order("step_index", { ascending: true });
   for (const row of log ?? []) {
     if (row.step_kind === "tool") {
-      const toolName = row.action_details?.tool_name;
-      const toolInput = row.action_details?.tool_input ?? {};
+      const actionDetails = asJsonObject(row.action_details);
+      const toolName = actionDetails.tool_name;
+      const toolInput = actionDetails.tool_input ?? {};
       const callId = `call_${row.step_index}`;
       messages.push({
         role: "assistant",
@@ -166,7 +167,11 @@ async function reconstructMessages(
   return messages;
 }
 
-async function callLLM(model: string, messages: any[], openaiTools: any[]) {
+async function callLLM(
+  model: string,
+  messages: ChatMessage[],
+  openaiTools: ReturnType<typeof buildOpenAITools>,
+) {
   const t0 = Date.now();
   const resp = await fetch(AI_GATEWAY_URL, {
     method: "POST",
@@ -186,16 +191,11 @@ async function callLLM(model: string, messages: any[], openaiTools: any[]) {
     const text = await resp.text();
     throw new Error(`LLM ${resp.status}: ${text}`);
   }
-  const data = await resp.json();
-  return {
-    choice: data.choices?.[0],
-    usage: data.usage ?? {},
-    duration_ms,
-  };
+  return { ...readChatCompletion(await resp.json()), duration_ms };
 }
 
 async function executeTool(
-  supabase: any,
+  supabase: DbClient,
   tool: ToolRow,
   input: Json,
   run: RunRow,
@@ -203,7 +203,7 @@ async function executeTool(
   if (tool.handler_kind === "edge" && tool.handler_ref) {
     const { data, error } = await supabase.functions.invoke(tool.handler_ref, {
       body: {
-        ...input,
+        ...asJsonObject(input),
         _run_id: run.id,
         _tenant_id: run.tenant_id,
         _agent_id: run.agent_id,
@@ -224,7 +224,7 @@ async function executeTool(
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
     };
-    const bearer = conn.oauth_tokens?.bearer;
+    const bearer = asJsonObject(conn.oauth_tokens).bearer;
     if (bearer) headers["Authorization"] = `Bearer ${bearer}`;
     const resp = await fetch(conn.url, {
       method: "POST",
@@ -241,12 +241,13 @@ async function executeTool(
       return { ok: false, error: `MCP ${resp.status}: ${text.slice(0, 300)}` };
     try {
       const ct = resp.headers.get("content-type") ?? "";
-      let parsed: any;
+      let parsed: Json;
       if (ct.includes("text/event-stream")) {
         const m = text.match(/data:\s*(\{[^\n]+\})/);
         parsed = m ? JSON.parse(m[1]) : { result: text };
       } else parsed = JSON.parse(text);
-      return parsed.result ?? parsed;
+      if (parsed === null) return { ok: true, raw: text.slice(0, 500) };
+      return jsonObjectOrNull(parsed)?.result ?? parsed;
     } catch {
       return { ok: true, raw: text.slice(0, 500) };
     }
@@ -261,7 +262,7 @@ async function executeTool(
 }
 
 async function finalizeRun(
-  supabase: any,
+  supabase: DbClient,
   run: RunRow,
   finalAnswer: string,
   status: "completed" | "failed",
@@ -312,8 +313,8 @@ async function finalizeRun(
         }
       }
     }
-  } catch (e: any) {
-    console.error("[reflection] failed:", e?.message);
+  } catch (e) {
+    console.error("[reflection] failed:", thrownMessage(e));
   }
 
   await supabase
@@ -333,7 +334,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient<Database>(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    );
 
     let run: RunRow;
     let isResume = false;
@@ -347,7 +351,7 @@ Deno.serve(async (req) => {
         .eq("id", body.run_id)
         .single();
       if (error || !data) throw new Error("run not found");
-      run = data as RunRow;
+      run = data;
       if (
         run.status === "completed" ||
         run.status === "failed" ||
@@ -393,7 +397,7 @@ Deno.serve(async (req) => {
         .select()
         .single();
       if (error) throw error;
-      run = data as RunRow;
+      run = data;
     }
 
     // Load agent + tools
@@ -422,12 +426,16 @@ Deno.serve(async (req) => {
     const mcpTools: ToolRow[] = [];
     for (const c of mcpConns ?? []) {
       const list = Array.isArray(c.available_tools) ? c.available_tools : [];
-      for (const t of list) {
+      for (const listed of list) {
+        const t = asJsonObject(listed);
         mcpTools.push({
           id: `mcp_${c.id}_${t.name}`,
           name: `mcp__${c.id.replace(/-/g, "")}__${t.name}`.slice(0, 64),
           display_name: `${c.name} • ${t.name}`,
-          description: t.description ?? `MCP tool from ${c.name}`,
+          description:
+            typeof t.description === "string"
+              ? t.description
+              : `MCP tool from ${c.name}`,
           input_schema: t.inputSchema ?? { type: "object", properties: {} },
           handler_kind: "mcp",
           handler_ref: `${c.id}::${t.name}`,
@@ -444,7 +452,7 @@ Deno.serve(async (req) => {
       (agent.system_prompt as string | null) ??
       "אתה סוכן AI אוטונומי. עבוד בלולאת ReAct: חשוב על הצעד הבא, השתמש בכלים זמינים, צפה בתוצאות, והמשך עד שתשיג את המטרה. ענה בקצרה ובעברית.";
 
-    const messages = isResume
+    const messages: ChatMessage[] = isResume
       ? await reconstructMessages(supabase, run, systemPrompt)
       : [
           { role: "system", content: systemPrompt },
@@ -461,22 +469,22 @@ Deno.serve(async (req) => {
     // Run loop
     while (step < run.max_steps) {
       step++;
-      const { choice, usage, duration_ms } = await callLLM(
+      const { message, usage, duration_ms } = await callLLM(
         model,
         messages,
         openaiTools,
       );
-      const message = choice?.message;
-      const tokens_in = usage.prompt_tokens ?? 0;
-      const tokens_out = usage.completion_tokens ?? 0;
+      const { content } = message;
+      const tokens_in = usage.prompt_tokens;
+      const tokens_out = usage.completion_tokens;
       totalIn += tokens_in;
       totalOut += tokens_out;
 
-      const toolCalls = message?.tool_calls ?? [];
+      const toolCalls = message.tool_calls;
 
       if (!toolCalls.length) {
         // Final answer
-        const finalAnswer = message?.content ?? "";
+        const finalAnswer = content ?? "";
         await logStep(supabase, run, step, "final", {
           thought: finalAnswer,
           tokens_in,
@@ -503,27 +511,28 @@ Deno.serve(async (req) => {
       }
 
       // Handle first tool call (sequential — simpler & checkpoint-friendly)
-      const call = toolCalls[0];
-      const toolName = call.function?.name;
+      const call = readToolCall(toolCalls[0]);
+      const toolName = call.name;
       let toolInput: Json = {};
       try {
-        toolInput = JSON.parse(call.function?.arguments || "{}");
+        toolInput = JSON.parse(call.arguments);
       } catch {
         // Keep the empty tool-input default when arguments are not valid JSON.
       }
-      const tool = toolsByName.get(toolName);
+      const tool =
+        typeof toolName === "string" ? toolsByName.get(toolName) : undefined;
 
       // Append assistant message + tool call to messages
       messages.push({
         role: "assistant",
-        content: message?.content ?? null,
+        content,
         tool_calls: toolCalls,
       });
 
       if (!tool) {
         const obs = { ok: false, error: `Unknown tool: ${toolName}` };
         await logStep(supabase, run, step, "tool", {
-          thought: message?.content ?? undefined,
+          thought: content ?? undefined,
           tool_name: toolName,
           tool_input: toolInput,
           observation: obs,
@@ -559,7 +568,7 @@ Deno.serve(async (req) => {
           .single();
 
         await logStep(supabase, run, step, "approval_pending", {
-          thought: message?.content ?? undefined,
+          thought: content ?? undefined,
           tool_name: toolName,
           tool_input: toolInput,
           observation: { approval_id: approval?.id },
@@ -594,13 +603,13 @@ Deno.serve(async (req) => {
       let status: "success" | "error" = "success";
       try {
         observation = await executeTool(supabase, tool, toolInput, run);
-      } catch (e: any) {
-        observation = { ok: false, error: String(e?.message ?? e) };
+      } catch (e) {
+        observation = { ok: false, error: String(thrownMessage(e) ?? e) };
         status = "error";
       }
 
       await logStep(supabase, run, step, "tool", {
-        thought: message?.content ?? undefined,
+        thought: content ?? undefined,
         tool_name: toolName,
         tool_input: toolInput,
         observation,
@@ -640,8 +649,8 @@ Deno.serve(async (req) => {
       status: "failed",
       error: "max_steps_reached",
     });
-  } catch (e: any) {
-    console.error("[run-ai-agent-v2] error:", e?.message);
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+  } catch (e) {
+    console.error("[run-ai-agent-v2] error:", thrownMessage(e));
+    return jsonResponse({ error: String(thrownMessage(e) ?? e) }, 500);
   }
 });

@@ -8,6 +8,20 @@ import {
   decideRecurringRun,
   freshOccurrenceResult,
 } from "../_shared/agent-task-schedule.ts";
+import { errorMessage } from "../_shared/error-message.ts";
+
+interface DispatchedTask {
+  id: string;
+  title: string;
+  schedule_type: string | null;
+  next_run?: string | null;
+}
+
+interface DispatchError {
+  stage?: string;
+  id?: string;
+  error: string;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,8 +44,8 @@ Deno.serve(async (req) => {
     Date.now() - 7 * 24 * 60 * 60 * 1000,
   ).toISOString();
 
-  const dispatched: any[] = [];
-  const errors: any[] = [];
+  const dispatched: DispatchedTask[] = [];
+  const errors: DispatchError[] = [];
 
   // Per-tenant cap on agent tasks running at the same time
   // (tenant_heartbeat_settings.max_concurrent_tasks, default 3). Tasks left
@@ -54,10 +68,7 @@ Deno.serve(async (req) => {
           .eq("status", "running")
           .gte("last_run", stuckCutoffIso),
       ]);
-      const limit = Math.max(
-        1,
-        Number((settings as any)?.max_concurrent_tasks) || 3,
-      );
+      const limit = Math.max(1, Number(settings?.max_concurrent_tasks) || 3);
       slots.set(tenantId, limit - (count ?? 0));
     }
     const left = slots.get(tenantId)!;
@@ -130,7 +141,7 @@ Deno.serve(async (req) => {
       .limit(25);
     if (cronErr) errors.push({ stage: "cron_select", error: cronErr.message });
 
-    const skipped: any[] = [];
+    const skipped: Array<{ id: string; missed: string | null }> = [];
     for (const task of cronDue || []) {
       const decision = decideRecurringRun(task, new Date(nowIso));
       if (decision.action === "invalid") {
@@ -209,7 +220,7 @@ Deno.serve(async (req) => {
     }
 
     for (const task of allTasks) {
-      if (!(await takeSlot((task as any).tenant_id))) {
+      if (!(await takeSlot(task.tenant_id))) {
         deferred.push(task.id);
         continue;
       }
@@ -274,9 +285,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[dispatch-agent-tasks] error:", e);
-    return new Response(JSON.stringify({ ok: false, error: e.message }), {
+    return new Response(JSON.stringify({ ok: false, error: errorMessage(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
