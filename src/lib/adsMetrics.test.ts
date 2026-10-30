@@ -1,8 +1,6 @@
 import { expect, test } from "vitest";
 import {
   aggregateFacebookCampaignsFromRecords,
-  classifyFacebookCampaignTotals,
-  classifyFacebookRecord,
   effectiveFacebookCampaignType,
   facebookTableUsesMixedRows,
   getLeadsFromData,
@@ -212,74 +210,15 @@ test("mixed Facebook table is detected when campaign_type is unset", () => {
   expect(facebookTableUsesMixedRows("facebook_ecommerce", {})).toBe(false);
 });
 
-test("classifyFacebookRecord splits ecommerce vs leads rows", () => {
-  expect(
-    classifyFacebookRecord({
-      campaign_name: "מכירות",
-      purchases: 2,
-      purchase_value: 500,
-    }),
-  ).toBe("ecommerce");
-  expect(
-    classifyFacebookRecord({
-      campaign_name: "לידים",
-      form_leads: 12,
-      purchases: 0,
-      purchase_value: 0,
-    }),
-  ).toBe("leads");
-  expect(
-    classifyFacebookRecord({
-      campaign_name: "לידים עם רעש",
-      form_leads: 5,
-      add_to_cart: 3,
-    }),
-  ).toBe("leads");
-});
-
-test("classifyFacebookCampaignTotals mirrors per-row rules on aggregates", () => {
-  const salesTotals = {
-    name: "מכירות",
-    purchases: 4,
-    purchase_value: 1200,
-    leads: 0,
-  };
-  expect(classifyFacebookCampaignTotals(salesTotals)).toBe("ecommerce");
-  expect(
-    classifyFacebookCampaignTotals({
-      name: "לידים",
-      purchases: 0,
-      purchase_value: 0,
-      leads: 18,
-    }),
-  ).toBe("leads");
-});
-
 test("sales campaign with pixel leads and zero purchases stays in the ecommerce table", () => {
-  const grouped = groupFacebookCampaigns([
-    {
-      name: "SmartAir - Genesis - מכירות",
-      impressions: 1000,
-      clicks: 50,
-      spend: 1975,
-      leads: 100,
-      purchases: 0,
-      purchase_value: 0,
-      add_to_cart: 0,
-      campaign_type: "ecommerce",
-    },
-  ]);
-  expect(grouped.ecommerce.length).toBe(1);
-  expect(grouped.ecommerce[0].leads).toBe(100);
-  expect(grouped.leads.length).toBe(0);
   expect(
-    classifyFacebookCampaignTotals({
-      campaign_type: "ecommerce",
+    isFacebookEcommerceCampaign({
       leads: 100,
       purchases: 0,
       purchase_value: 0,
+      campaign_type: "ecommerce",
     }),
-  ).toBe("ecommerce");
+  ).toBe(true);
 });
 
 test("checkout result stays on the ecommerce table beside its leads", () => {
@@ -296,23 +235,9 @@ test("checkout result stays on the ecommerce table beside its leads", () => {
     result_kind: "initiate_checkout",
   };
   expect(isFacebookEcommerceCampaign(row)).toBe(true);
-  const grouped = groupFacebookCampaigns([
-    row,
-    {
-      name: "SmartAir - Genesis - שווקי חג המולד",
-      impressions: 49539,
-      clicks: 1749,
-      spend: 716,
-      leads: 55,
-      purchases: 0,
-      purchase_value: 0,
-      add_to_cart: 0,
-      campaign_type: "lead",
-      result_kind: "purchases",
-    },
-  ]);
-  expect(grouped.ecommerce.map((c) => c.leads)).toStrictEqual([34, 55]);
-  expect(grouped.leads.length).toBe(0);
+  expect(
+    isFacebookEcommerceCampaign({ ...row, result_kind: "purchases" }),
+  ).toBe(true);
 });
 
 test("preferFacebookCampaignType keeps a sales label over a later lead day", () => {
@@ -322,7 +247,7 @@ test("preferFacebookCampaignType keeps a sales label over a later lead day", () 
   expect(preferFacebookCampaignType("traffic", "lead")).toBe("lead");
 });
 
-test("groupFacebookCampaigns splits Avieli-like mixed account like DynamicTableView", () => {
+test("a dashboard without a mixed table keeps traffic in its own table", () => {
   const campaigns = [
     {
       name: "מכירות אוגוסט 2",
@@ -370,22 +295,20 @@ test("groupFacebookCampaigns splits Avieli-like mixed account like DynamicTableV
     },
   ];
 
-  const mixed = groupFacebookCampaigns(campaigns);
-  expect(mixed.ecommerce.length).toBe(1);
-  expect(mixed.leads.length).toBe(2);
-  expect(mixed.traffic.length).toBe(1);
-
-  const leadsOnly = groupFacebookCampaigns(campaigns, { forceLeadsOnly: true });
-  expect(leadsOnly.ecommerce.length).toBe(0);
-  expect(leadsOnly.leads.length).toBe(3);
-  expect(leadsOnly.traffic.length).toBe(1);
-
   // Ecommerce-only reports keep known lead campaigns (by objective) in the leads table.
   const singleEcom = groupFacebookCampaigns(campaigns, {
     singleTableMode: "ecommerce",
   });
   expect(singleEcom.ecommerce.length).toBe(2);
   expect(singleEcom.leads.length).toBe(1);
+  expect(singleEcom.traffic.length).toBe(1);
+
+  const singleLeads = groupFacebookCampaigns(campaigns, {
+    singleTableMode: "leads",
+  });
+  expect(singleLeads.ecommerce.length).toBe(0);
+  expect(singleLeads.leads.length).toBe(3);
+  expect(singleLeads.traffic.length).toBe(1);
 });
 
 test("summarizeFacebookCampaignGroup totals match campaign rows for All-tab breakdown", () => {
@@ -439,22 +362,6 @@ test("WhatsApp campaigns stored as traffic render as leads (אלהם פארמה 
   expect(effectiveFacebookCampaignType(row)).toBe("lead");
   expect(getMessagingLeadsFromData(row)).toBe(12);
   expect(getLeadsFromData(row)).toBe(12);
-  expect(classifyFacebookRecord(row)).toBe("leads");
-  const grouped = groupFacebookCampaigns([
-    {
-      name: row.campaign_name,
-      impressions: 8950,
-      clicks: 394,
-      spend: 250,
-      leads: 12,
-      purchases: 0,
-      purchase_value: 0,
-      add_to_cart: 0,
-      campaign_type: effectiveFacebookCampaignType(row),
-    },
-  ]);
-  expect(grouped.traffic.length).toBe(0);
-  expect(grouped.leads.length).toBe(1);
 });
 
 test("Meta objective decides the Facebook campaign kind over stale stored types", () => {
@@ -473,18 +380,16 @@ test("Meta objective decides the Facebook campaign kind over stale stored types"
       optimization_goal: "CONVERSATIONS",
     }),
   ).toBe("ecommerce");
-  // A lead campaign with a stray pixel purchase stays leads.
-  expect(
-    classifyFacebookRecord({
-      campaign_objective: "OUTCOME_LEADS",
-      purchases: 1,
-      purchase_value: 90,
-      leads: 0,
-    }),
-  ).toBe("leads");
+  // Traffic is traffic unless the campaign is set up for messages or calls.
   expect(facebookObjectiveKind({ campaign_objective: "OUTCOME_TRAFFIC" })).toBe(
-    null,
+    "traffic",
   );
+  expect(
+    facebookObjectiveKind({
+      campaign_objective: "OUTCOME_TRAFFIC",
+      optimization_goal: "CONVERSATIONS",
+    }),
+  ).toBe("lead");
 });
 
 test("ecommerce-only report still lists its lead campaigns as leads", () => {
@@ -517,4 +422,22 @@ test("ecommerce-only report still lists its lead campaigns as leads", () => {
   );
   expect(grouped.ecommerce.map((c) => c.name)).toStrictEqual(["מכירות"]);
   expect(grouped.leads.map((c) => c.name)).toStrictEqual(["דרושים | לידים"]);
+});
+
+test("aggregateFacebookCampaignsFromRecords types a campaign by its Meta setup", () => {
+  const day = (data: Record<string, unknown>) => ({
+    data: {
+      campaign_name: "מבצע",
+      entity_level: "campaign",
+      campaign_objective: "OUTCOME_AWARENESS",
+      optimization_goal: "REACH",
+      spend: 100,
+      ...data,
+    },
+  });
+  const rows = aggregateFacebookCampaignsFromRecords([
+    day({ campaign_type: "ecommerce", purchases: 1 }),
+    day({ campaign_type: "other" }),
+  ]);
+  expect(rows.map((row) => row.campaign_type)).toStrictEqual(["traffic"]);
 });

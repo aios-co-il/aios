@@ -1,3 +1,7 @@
+import {
+  META_LEAD_OBJECTIVES,
+  META_SALES_OBJECTIVES,
+} from "./meta-ads/campaign-objectives.ts";
 import { campaignGoalOverride } from "./pulse/campaign-goal-override.ts";
 import { classifyGoogleCampaignGoal } from "./pulse/google-campaign-goal.ts";
 import {
@@ -115,8 +119,8 @@ function includesTerm(values, terms) {
 }
 
 const META_OBJECTIVE_GOAL = [
-  ["ecommerce", ["OUTCOME_SALES", "PRODUCT_CATALOG_SALES", "CATALOG_SALES"]],
-  ["leads", ["OUTCOME_LEADS", "LEAD_GENERATION"]],
+  ["ecommerce", [...META_SALES_OBJECTIVES]],
+  ["leads", [...META_LEAD_OBJECTIVES]],
   [
     "engagement",
     [
