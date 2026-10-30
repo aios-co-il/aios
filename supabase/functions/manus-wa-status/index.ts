@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { syncManusGroupsForTenant } from "../_shared/manus-wa-sync-groups-core.mjs";
+import type { Json } from "../_shared/database.types.ts";
+import { asJsonObject, parseJsonOrRaw } from "../_shared/manus-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,7 +94,7 @@ Deno.serve(async (req) => {
     }
 
     const { instanceId, apiKey, integrationId } = body;
-    let realInstanceId = instanceId;
+    let realInstanceId: Json | undefined = instanceId;
     let realApiKey = apiKey;
 
     if (!realApiKey && integrationId) {
@@ -103,7 +105,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (integ) {
         realApiKey = integ.api_key;
-        realInstanceId = (integ.settings as any)?.instance_id || realInstanceId;
+        realInstanceId =
+          asJsonObject(integ.settings)?.instance_id || realInstanceId;
       }
     }
 
@@ -126,12 +129,8 @@ Deno.serve(async (req) => {
     );
 
     const text = await res.text();
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { raw: text };
-    }
+    const data = parseJsonOrRaw(text);
+    const dataObject = asJsonObject(data);
 
     if (!res.ok) {
       return new Response(
@@ -148,7 +147,7 @@ Deno.serve(async (req) => {
     }
 
     // Persist status + phone_number to settings if integrationId provided
-    if (integrationId && data?.success) {
+    if (integrationId && dataObject?.success) {
       const supabaseSvc = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -159,9 +158,9 @@ Deno.serve(async (req) => {
         .eq("id", integrationId)
         .maybeSingle();
       const merged = {
-        ...((cur?.settings as any) || {}),
-        status: data.status,
-        phone_number: data.phoneNumber,
+        ...asJsonObject(cur?.settings),
+        status: dataObject.status,
+        phone_number: dataObject.phoneNumber,
       };
       await supabaseSvc
         .from("tenant_integrations")

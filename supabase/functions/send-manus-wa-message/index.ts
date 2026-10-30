@@ -2,6 +2,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { lineAccess, senderAccess } from "./sender-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import type { Json, Tables } from "../_shared/database.types.ts";
+import {
+  asJsonObject,
+  parseJsonOrRaw,
+  thrownMessage,
+  thrownName,
+} from "../_shared/manus-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +17,11 @@ const corsHeaders = {
 };
 
 const BASE_URL = "https://whatsappgw-pzpyrrww.manus.space";
+
+type ManusWaIntegration = Pick<
+  Tables<"tenant_integrations">,
+  "id" | "tenant_id" | "api_key" | "settings" | "user_id"
+>;
 
 // Normalize Israeli/intl phone to digits-only with country code default 972.
 function toGatewayPhone(input: string, defaultCc = "972"): string {
@@ -168,7 +180,7 @@ Deno.serve(async (req) => {
     }
 
     // Find integration
-    let integ: any = null;
+    let integ: ManusWaIntegration | null = null;
     if (integrationId) {
       const { data } = await admin
         .from("tenant_integrations")
@@ -199,7 +211,8 @@ Deno.serve(async (req) => {
       integ = data?.[0] || null;
     }
 
-    if (!integ?.api_key || !(integ?.settings as any)?.instance_id) {
+    const settings = asJsonObject(integ?.settings);
+    if (!integ?.api_key || !settings?.instance_id) {
       return new Response(
         JSON.stringify({ error: "Manus WhatsApp not configured" }),
         {
@@ -209,14 +222,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const settings = integ.settings as any;
     const instanceId = settings.instance_id;
     const apiKey = integ.api_key;
-    const cc = (
-      settings.country_code ||
-      settings.default_country_code ||
-      "972"
-    ).toString();
+    const cc = String(
+      settings.country_code || settings.default_country_code || "972",
+    );
     // For groups, send chat id as-is (e.g. "1234567890-9876543210@g.us"); otherwise normalize phone.
     const to = groupChatId
       ? groupChatId
@@ -266,8 +276,8 @@ Deno.serve(async (req) => {
     const FETCH_TIMEOUT_MS = 60000; // was 25s — too short; Manus can take 30-40s on slow paths
     let res: Response | null = null;
     let respText = "";
-    let respData: any = null;
-    let lastErr: any = null;
+    let respData: Json = null;
+    let lastErr: unknown = null;
     let abortedOnce = false;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -283,11 +293,7 @@ Deno.serve(async (req) => {
         });
         clearTimeout(timer);
         respText = await res.text();
-        try {
-          respData = JSON.parse(respText);
-        } catch {
-          respData = { raw: respText };
-        }
+        respData = parseJsonOrRaw(respText);
         const elapsed = Date.now() - started;
         console.log("[send-manus-wa] attempt", attempt, "response", {
           status: res.status,
@@ -297,10 +303,11 @@ Deno.serve(async (req) => {
         });
 
         // Manus-internal timeout in body (e.g. "timeout of 8000ms exceeded") => Manus itself reports failure, retry is safer.
+        const respError = asJsonObject(respData)?.error;
         const isManusTimeout =
-          typeof respData?.error === "string" &&
-          /timeout of \d+ms exceeded/i.test(respData.error);
-        if (res.ok && respData?.success !== false) break;
+          typeof respError === "string" &&
+          /timeout of \d+ms exceeded/i.test(respError);
+        if (res.ok && asJsonObject(respData)?.success !== false) break;
         if (!isManusTimeout && res.status < 500) {
           // non-retryable client error
           break;
@@ -308,17 +315,17 @@ Deno.serve(async (req) => {
         lastErr = new Error(
           `Manus WA error [${res.status}]: ${respText.slice(0, 300)}`,
         );
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         const elapsed = Date.now() - started;
-        const isAbort = err?.name === "AbortError";
+        const isAbort = thrownName(err) === "AbortError";
         console.error(
           "[send-manus-wa] attempt",
           attempt,
           isAbort
             ? "aborted (timeout) — NOT retrying to avoid duplicate delivery"
             : "fetch error",
-          { elapsedMs: elapsed, msg: err?.message },
+          { elapsedMs: elapsed, msg: thrownMessage(err) },
         );
         lastErr = err;
         if (isAbort) {
@@ -353,7 +360,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!res || !res.ok || respData?.success === false) {
+    const respObject = asJsonObject(respData);
+    if (!res || !res.ok || respObject?.success === false) {
       throw (
         lastErr ||
         new Error(
@@ -381,7 +389,7 @@ Deno.serve(async (req) => {
     if (insertError) console.error("Failed to save message:", insertError);
 
     return new Response(
-      JSON.stringify({ success: true, messageId: respData.messageId }),
+      JSON.stringify({ success: true, messageId: respObject?.messageId }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
