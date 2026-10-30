@@ -1,8 +1,8 @@
 /**
  * Who works on a workshop request. Static creative goes to the designer, film concepts and
  * generated films to the producer, and a film cut from the user's own materials to the video
- * editor. The server decides before Carmen acts, pins that role's skin and offers only that
- * role's workshop tools, so the right specialist answers with the tools her task needs.
+ * editor. The server decides before Carmen acts and pins that role's skin, so the right
+ * specialist answers. Every role gets every workshop tool (offered-tools.ts).
  */
 import { isExplicitDevTaskApproval } from "../dev-task-approval.ts";
 import {
@@ -30,39 +30,6 @@ export const ROLE_PERSONA: Record<WorkshopRole, string> = {
   designer: "creative_direct",
   producer: "video_director",
   editor: "video_editor",
-};
-
-const SHARED = [
-  "workshop_start_project",
-  "workshop_get_state",
-  "workshop_check_connections",
-  "workshop_inspect_site",
-  "workshop_add_assets",
-  "workshop_assign_client",
-  "workshop_save_copy",
-];
-
-/** The workshop tools each role may call; other workshop tools are not offered. */
-export const ROLE_TOOLS: Record<WorkshopRole, string[]> = {
-  designer: [...SHARED, "workshop_save_concepts", "workshop_make_creative"],
-  producer: [
-    ...SHARED,
-    "workshop_save_concepts",
-    "workshop_storyboard",
-    "workshop_update_scene",
-    "workshop_make_stills",
-    "workshop_choose_voice",
-    "workshop_produce_video",
-  ],
-  editor: [
-    ...SHARED,
-    "workshop_edit_from_assets",
-    "workshop_storyboard",
-    "workshop_update_scene",
-    "workshop_make_stills",
-    "workshop_choose_voice",
-    "workshop_produce_video",
-  ],
 };
 
 // JS \b does not see Hebrew letters, so short Hebrew words use [א-ת] lookarounds: "סרט" also
@@ -196,16 +163,4 @@ export function workshopRole(
   // (say, a dev task she offered after a question about herself), not a designer's brief.
   if (!project && !roleOfPersona(current) && bareReply(text)) return null;
   return roleOfPersona(current) ?? "designer";
-}
-
-/** Keeps non-workshop tools; of the workshop tools keeps only the role's. */
-export function toolsForRole<T extends { name: string }>(
-  tools: T[],
-  role: WorkshopRole,
-  isWorkshopTool: (name: string) => boolean,
-): T[] {
-  const allowed = new Set(ROLE_TOOLS[role]);
-  return tools.filter(
-    (tool) => !isWorkshopTool(tool.name) || allowed.has(tool.name),
-  );
 }
