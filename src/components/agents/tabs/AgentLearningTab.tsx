@@ -31,6 +31,7 @@ import {
   FileText,
   BookOpen,
   Brain,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
@@ -45,7 +46,7 @@ function isCarmenName(name: string) {
   return n.includes("carmen") || name?.includes("כרמן");
 }
 
-const CATEGORY_META: Record<string, { icon: any; label: string }> = {
+const CATEGORY_META: Record<string, { icon: LucideIcon; label: string }> = {
   clients: { icon: Users, label: "לקוחות" },
   conversations: { icon: MessageSquare, label: "שיחות" },
   team: { icon: UserCog, label: "צוות" },
@@ -283,7 +284,11 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
   );
 }
 
-export function AgentLearningTab({ agent }: { agent: any }) {
+export function AgentLearningTab({
+  agent,
+}: {
+  agent: { id: string; name: string };
+}) {
   if (isCarmenName(agent.name)) {
     // Rendered inside an agent-settings tab — never as a standalone page.
     return <CarmenInsights embedded />;

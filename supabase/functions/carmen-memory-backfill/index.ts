@@ -2,6 +2,12 @@
 // Carmen Memory Backfill — seed knowledge kingdom from existing data
 // Idempotent. Run per-tenant or for all tenants.
 import { svc, upsertPointer, shortText } from "../_shared/carmen-memory.ts";
+import { jsonObject, jsonText } from "../_shared/json-object.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import { readLegacyMessageRow, readLegacyTaskRow } from "./legacy-rows.ts";
+
+type SeedModule =
+  "system_map" | "clients" | "team" | "tasks" | "messages" | "conversations";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,10 +28,10 @@ Deno.serve(async (req) => {
   if (tenantParam) tenants = [tenantParam];
   else {
     const { data } = await supabase.from("tenants").select("id");
-    tenants = (data ?? []).map((t: any) => t.id);
+    tenants = (data ?? []).map((t) => t.id);
   }
 
-  const stats: Record<string, any> = {};
+  const stats: Record<string, Partial<Record<SeedModule, number>>> = {};
   for (const tenant_id of tenants) {
     stats[tenant_id] = {};
     if (module === "all" || module === "system_map")
@@ -84,7 +90,7 @@ const SYSTEM_MAP_ENTRIES = [
   ["finance", "תנועות כספיות (income/expense) פר לקוח."],
 ];
 
-async function seedSystemMap(supabase: any, tenant_id: string) {
+async function seedSystemMap(supabase: DbClient, tenant_id: string) {
   let n = 0;
   for (const [name, desc] of SYSTEM_MAP_ENTRIES) {
     await upsertPointer(supabase, {
@@ -104,7 +110,7 @@ async function seedSystemMap(supabase: any, tenant_id: string) {
   return n;
 }
 
-async function seedClients(supabase: any, tenant_id: string) {
+async function seedClients(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("clients")
     .select("id,name,agency_id,status,mood_status,tier,industry,contact_name")
@@ -139,7 +145,7 @@ async function seedClients(supabase: any, tenant_id: string) {
   return n;
 }
 
-async function seedTeam(supabase: any, tenant_id: string) {
+async function seedTeam(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("campaigners")
     .select("id,full_name,role,phone,active")
@@ -178,7 +184,7 @@ async function seedTeam(supabase: any, tenant_id: string) {
       path: `team/${l.campaigner_id}/assigned_clients`,
       entity_type: "client",
       entity_id: l.client_id,
-      title: (l as any).clients?.name ?? "לקוח",
+      title: l.clients?.name ?? "לקוח",
       importance: 50,
       metadata: { campaigner_id: l.campaigner_id },
     });
@@ -186,7 +192,7 @@ async function seedTeam(supabase: any, tenant_id: string) {
   return n;
 }
 
-async function seedTasks(supabase: any, tenant_id: string) {
+async function seedTasks(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("tasks")
     .select(
@@ -194,8 +200,10 @@ async function seedTasks(supabase: any, tenant_id: string) {
     )
     .eq("tenant_id", tenant_id)
     .limit(2000);
+  const rows: unknown[] = data ?? [];
   let n = 0;
-  for (const t of data ?? []) {
+  for (const raw of rows) {
+    const t = readLegacyTaskRow(raw);
     const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
     if (!assignee) continue;
     await upsertPointer(supabase, {
@@ -204,19 +212,26 @@ async function seedTasks(supabase: any, tenant_id: string) {
       subcategory: "tasks",
       path: `team/${assignee}/tasks`,
       entity_type: "task",
-      entity_id: t.id,
+      entity_id: jsonText(t.id),
       title: shortText(t.title, 100),
       summary: shortText(t.description, 200),
-      ref_date: t.due_date ?? t.created_at,
+      ref_date: jsonText(t.due_date ?? t.created_at),
       importance: t.status === "open" ? 70 : 30,
-      metadata: { status: t.status, client_id: t.client_id },
+      metadata: {
+        status: jsonText(t.status),
+        client_id: jsonText(t.client_id),
+      },
     });
     n++;
   }
   return n;
 }
 
-async function seedMessages(supabase: any, tenant_id: string, days: number) {
+async function seedMessages(
+  supabase: DbClient,
+  tenant_id: string,
+  days: number,
+) {
   const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
   const { data } = await supabase
     .from("chat_messages")
@@ -227,29 +242,31 @@ async function seedMessages(supabase: any, tenant_id: string, days: number) {
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(5000);
+  const rows: unknown[] = data ?? [];
   let n = 0;
-  for (const m of data ?? []) {
-    const body = m.message ?? (m as any).body ?? (m as any).text ?? "";
+  for (const raw of rows) {
+    const m = readLegacyMessageRow(raw);
+    const body = m.message ?? m.body ?? m.text ?? "";
     if (!body || String(body).trim().length < 2) continue;
-    const date = (m.created_at ?? "").slice(0, 10);
-    const channel = m.provider ?? "unknown";
+    const date = (jsonText(m.created_at) ?? "").slice(0, 10);
+    const channel = jsonText(m.provider) ?? "unknown";
     await upsertPointer(supabase, {
       tenant_id,
       category: "messages",
       subcategory: channel,
       path: `messages/${date}/${channel}`,
       entity_type: "chat_message",
-      entity_id: m.id,
+      entity_id: jsonText(m.id),
       title:
         `${m.direction ?? ""} ${m.sender_name ?? m.sender_phone ?? ""}`.trim(),
       summary: shortText(body, 200),
-      ref_date: m.created_at,
+      ref_date: jsonText(m.created_at),
       importance: 30,
       metadata: {
-        direction: m.direction,
-        client_id: m.client_id,
-        lead_id: m.lead_id,
-        sender_phone: m.sender_phone,
+        direction: jsonText(m.direction),
+        client_id: jsonText(m.client_id),
+        lead_id: jsonText(m.lead_id),
+        sender_phone: jsonText(m.sender_phone),
       },
     });
     n++;
@@ -257,7 +274,7 @@ async function seedMessages(supabase: any, tenant_id: string, days: number) {
   return n;
 }
 
-async function seedConversations(supabase: any, tenant_id: string) {
+async function seedConversations(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("ai_conversations")
     .select("id,title,messages,user_id,created_at,updated_at")
@@ -268,7 +285,10 @@ async function seedConversations(supabase: any, tenant_id: string) {
     const messages = Array.isArray(c.messages) ? c.messages : [];
     const summary = messages
       .slice(-4)
-      .map((m: any) => `${m.role}: ${shortText(m.content, 80)}`)
+      .map((raw) => {
+        const m = jsonObject(raw);
+        return `${m.role}: ${shortText(m.content, 80)}`;
+      })
       .join("\n");
     const month = (c.created_at ?? "").slice(0, 7);
     const topic = c.title ?? "שיחה";
