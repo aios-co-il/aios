@@ -59,6 +59,7 @@ import {
   aggregateFacebookCampaignsFromRecords,
   groupFacebookCampaigns,
   facebookTableUsesMixedRows,
+  facebookObjectiveKind,
   isFacebookLeadsOnlyTable,
   summarizeFacebookCampaignGroup,
 } from "@/lib/adsMetrics";
@@ -625,7 +626,14 @@ export default function SharedDashboard({
       if (explicitlySet.has(source)) return;
       if (map[source] === "ecommerce") return;
       const d = record.data || {};
+      // As on the internal dashboard: the Meta setup decides when known, so
+      // pixel noise on a lead or traffic campaign does not flip the platform.
+      const byObjective = isFacebookPlatform(source)
+        ? facebookObjectiveKind(d)
+        : null;
+      if (byObjective === "lead" || byObjective === "traffic") return;
       if (
+        byObjective === "ecommerce" ||
         Number(d.purchases) > 0 ||
         Number(d.purchase_value) > 0 ||
         Number(d.add_to_cart) > 0 ||

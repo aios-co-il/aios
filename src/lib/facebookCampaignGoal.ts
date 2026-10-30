@@ -1,8 +1,7 @@
 import {
-  effectiveFacebookCampaignType,
+  addFacebookCampaignTypeRow,
   getLeadsFromData,
   isFacebookEcommerceCampaign,
-  preferFacebookCampaignType,
 } from "@/lib/adsMetrics";
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import type { FacebookCampaignType } from "../../supabase/functions/_shared/meta-ads/campaign-objectives.ts";
@@ -11,8 +10,16 @@ type RecordData = Record<string, unknown>;
 
 /** What decides a Facebook campaign's goal, gathered over its stored rows. */
 export type FacebookGoalInputs = {
-  /** Strongest stored type across the rows: sales, then leads, then traffic. */
+  /**
+   * The type the campaign's Meta setup decides (objective, optimization goal),
+   * else the strongest stored type across the rows: sales, then leads, then
+   * traffic. The sync stores each day's type from that day's results.
+   */
   campaignType: FacebookCampaignType;
+  /** The type the Meta setup decides, from the first row that tells it. */
+  configuredType: FacebookCampaignType | null;
+  /** The strongest stored type across the rows. */
+  storedType: FacebookCampaignType;
   objective: string | null;
   resultKind: string | null;
   leads: number;
@@ -72,6 +79,8 @@ export function facebookCampaignGoals(
 export function emptyFacebookGoalInputs(): FacebookGoalInputs {
   return {
     campaignType: "other",
+    configuredType: null,
+    storedType: "other",
     objective: null,
     resultKind: null,
     leads: 0,
@@ -90,11 +99,14 @@ export function addFacebookGoalRecord(
 ): FacebookGoalInputs {
   const objective = String(data.campaign_objective || "").toUpperCase();
   const resultKind = data.result_kind ? String(data.result_kind) : null;
+  const type = addFacebookCampaignTypeRow(
+    { configured: inputs.configuredType, stored: inputs.storedType },
+    data,
+  );
   return {
-    campaignType: preferFacebookCampaignType(
-      inputs.campaignType,
-      effectiveFacebookCampaignType(data),
-    ),
+    campaignType: type.configured ?? type.stored,
+    configuredType: type.configured,
+    storedType: type.stored,
     objective: inputs.objective || objective || null,
     resultKind: inputs.resultKind || resultKind,
     leads: inputs.leads + getLeadsFromData(data),

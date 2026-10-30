@@ -380,9 +380,16 @@ test("Meta objective decides the Facebook campaign kind over stale stored types"
       optimization_goal: "CONVERSATIONS",
     }),
   ).toBe("ecommerce");
+  // Traffic is traffic unless the campaign is set up for messages or calls.
   expect(facebookObjectiveKind({ campaign_objective: "OUTCOME_TRAFFIC" })).toBe(
-    null,
+    "traffic",
   );
+  expect(
+    facebookObjectiveKind({
+      campaign_objective: "OUTCOME_TRAFFIC",
+      optimization_goal: "CONVERSATIONS",
+    }),
+  ).toBe("lead");
 });
 
 test("ecommerce-only report still lists its lead campaigns as leads", () => {
@@ -415,4 +422,22 @@ test("ecommerce-only report still lists its lead campaigns as leads", () => {
   );
   expect(grouped.ecommerce.map((c) => c.name)).toStrictEqual(["מכירות"]);
   expect(grouped.leads.map((c) => c.name)).toStrictEqual(["דרושים | לידים"]);
+});
+
+test("aggregateFacebookCampaignsFromRecords types a campaign by its Meta setup", () => {
+  const day = (data: Record<string, unknown>) => ({
+    data: {
+      campaign_name: "מבצע",
+      entity_level: "campaign",
+      campaign_objective: "OUTCOME_AWARENESS",
+      optimization_goal: "REACH",
+      spend: 100,
+      ...data,
+    },
+  });
+  const rows = aggregateFacebookCampaignsFromRecords([
+    day({ campaign_type: "ecommerce", purchases: 1 }),
+    day({ campaign_type: "other" }),
+  ]);
+  expect(rows.map((row) => row.campaign_type)).toStrictEqual(["traffic"]);
 });

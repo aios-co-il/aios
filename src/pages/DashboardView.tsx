@@ -777,7 +777,7 @@ export default function DashboardView() {
       const byObjective = isFacebookPlatform(source)
         ? facebookObjectiveKind(d)
         : null;
-      if (byObjective === "lead") return;
+      if (byObjective === "lead" || byObjective === "traffic") return;
       if (
         byObjective === "ecommerce" ||
         Number(d.purchases) > 0 ||
