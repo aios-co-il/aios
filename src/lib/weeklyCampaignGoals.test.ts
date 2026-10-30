@@ -110,6 +110,36 @@ describe("groupWeeklyRowsByGoal", () => {
     });
   });
 
+  it("a group's ROAS leaves out the spend of Google lead campaigns", () => {
+    const [week] = buildWeeklyCampaignSections(
+      [
+        fb("Facebook leads", {
+          campaign_type: "lead",
+          spend: 100,
+          leads: 5,
+          purchase_value: 250,
+        }),
+        {
+          _source: "google_ads",
+          data: {
+            date: "2026-09-14",
+            campaign_id: "Google leads",
+            campaign_name: "Google leads",
+            cost: 300,
+            conversions: 4,
+            conversions_value: 3,
+          },
+        },
+      ],
+      { now: NOW },
+    );
+    const [leads] = week.groups;
+    expect(leads.kind).toBe("leads");
+    expect(leads.totals).toMatchObject({ spend: 400, revenue: 250 });
+    // 250 ÷ 100 Facebook spend; dividing by all 400 would give 0.625.
+    expect(leads.totals.roas).toBe(2.5);
+  });
+
   it("traffic campaigns get their own group, last, measured by clicks", () => {
     const [week] = buildWeeklyCampaignSections(
       [
@@ -131,6 +161,38 @@ describe("groupWeeklyRowsByGoal", () => {
     expect(week.groups[0].rows.map((row) => row.campaign).sort()).toStrictEqual(
       ["Leads", "Shop"],
     );
+  });
+
+  it("a traffic group totals its followers and prices profile campaigns only", () => {
+    const traffic = (campaign: string, data: Record<string, unknown>) =>
+      fb(campaign, { campaign_type: "traffic", ...data });
+    const [week] = buildWeeklyCampaignSections(
+      [
+        traffic("Profile", {
+          destination_type: "INSTAGRAM_PROFILE",
+          spend: 120,
+          new_followers: 30,
+        }),
+        traffic("Profile", {
+          date: "2026-09-15",
+          optimization_goal: "PROFILE_VISIT",
+          spend: 300,
+        }),
+        traffic("Blog", {
+          destination_type: "WEBSITE",
+          spend: 300,
+          new_followers: 2,
+        }),
+      ],
+      { now: NOW },
+    );
+    const [group] = week.groups;
+    expect(group.totals.followers).toStrictEqual({
+      newFollowers: 32,
+      followerSpend: 420,
+      profileTraffic: true,
+    });
+    expect(group.totals.costPerFollower).toBe(4);
   });
 });
 

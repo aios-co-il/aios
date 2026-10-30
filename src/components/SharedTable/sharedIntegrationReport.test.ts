@@ -82,6 +82,49 @@ describe("sharedIntegrationReport", () => {
     expect(report.manualRoi).toStrictEqual({ spend: 150, leads: 6 });
   });
 
+  it("a Facebook table's traffic rows carry their new followers", () => {
+    for (const level of ["campaign", "adset"] as const) {
+      const traffic = (name: string, data: Record<string, unknown>) =>
+        facebook(name, {
+          entity_level: level,
+          adset_id: `${name} set`,
+          adset_name: `${name} set`,
+          campaign_type: "traffic",
+          ...data,
+        });
+      const report = sharedIntegrationReport(
+        [
+          traffic("profile", {
+            destination_type: "INSTAGRAM_PROFILE",
+            spend: 60,
+            new_followers: 12,
+          }),
+          traffic("profile", {
+            date: "2026-10-21",
+            destination_type: "INSTAGRAM_PROFILE",
+            spend: 60,
+            new_followers: 8,
+          }),
+          traffic("blog", { destination_type: "WEBSITE", spend: 100 }),
+        ],
+        {
+          integrationType: "facebook_insights",
+          level,
+          integrationSettings: {},
+          tableGoals: singleGoal,
+          tableMode: "leads",
+        },
+      );
+      // SharedTrafficTable shows the follower columns from these totals.
+      expect(
+        report.campaigns.traffic.map((row) => row.followers),
+      ).toStrictEqual([
+        { newFollowers: 20, followerSpend: 120, profileTraffic: true },
+        { newFollowers: null, followerSpend: 0, profileTraffic: false },
+      ]);
+    }
+  });
+
   it("a Google table splits by each campaign's goal", () => {
     const table = {
       id: "g",

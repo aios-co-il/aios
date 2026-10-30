@@ -217,6 +217,10 @@ async function runMetaSync(db: FakeDb, catchup = false, window = WINDOW) {
     window.endDate,
     "token",
     {},
+    {},
+    {},
+    { byCampaign: {}, byAdset: {} },
+    { byCampaign: {}, byAdset: {} },
   );
   const outcome = await syncAdsWindow(
     { deleteClient: client },

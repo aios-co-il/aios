@@ -1,5 +1,10 @@
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
 import {
+  addFacebookFollowers,
+  emptyFacebookFollowers,
+  type FacebookFollowerTotals,
+} from "@/lib/facebookFollowers";
+import {
   metaObjectiveGoal,
   type FacebookCampaignType,
 } from "../../supabase/functions/_shared/meta-ads/campaign-objectives.ts";
@@ -147,6 +152,8 @@ export type FacebookCampaignRow = {
   campaign_objective?: string | null;
   result_kind?: string | null;
   result?: { result_kind?: string | null } | null;
+  /** Set by the record aggregators; traffic tables show it. */
+  followers?: FacebookFollowerTotals;
 };
 
 /** Result kinds that belong on the ecommerce table, next to leads when both fire. */
@@ -398,7 +405,10 @@ export function facebookCampaignKey(data: NullableAdsMetricData): string {
 export function aggregateFacebookCampaignsFromRecords(
   records: Array<{ data?: NullableAdsMetricData }>,
 ): FacebookCampaignRow[] {
-  const map: Record<string, FacebookCampaignRow> = {};
+  const map: Record<
+    string,
+    FacebookCampaignRow & { followers: FacebookFollowerTotals }
+  > = {};
   const types: Record<
     string,
     ReturnType<typeof addFacebookCampaignTypeRow>
@@ -419,6 +429,7 @@ export function aggregateFacebookCampaignsFromRecords(
         purchases: 0,
         purchase_value: 0,
         add_to_cart: 0,
+        followers: emptyFacebookFollowers(),
       };
     }
     map[name].impressions += Number(d.impressions) || 0;
@@ -428,6 +439,7 @@ export function aggregateFacebookCampaignsFromRecords(
     map[name].purchases += getAdsPurchasesFromData(d);
     map[name].purchase_value += getRevenueFromData(d);
     map[name].add_to_cart += getAddToCartFromData(d);
+    map[name].followers = addFacebookFollowers(map[name].followers, d);
     types[name] = addFacebookCampaignTypeRow(
       types[name] ?? { configured: null, stored: "other" },
       d,
