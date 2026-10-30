@@ -14,7 +14,9 @@ export async function workshopStartProject(ctx: ToolContext) {
   const brief = String(args.brief ?? "").trim();
   if (!brief) return { error: "brief נדרש" };
   const refusal = openProjectRefusal(deps.openItemId, deps.userText);
-  if (refusal) return refusal;
+  if (refusal) {
+    return refusal;
+  }
   const start = startProjectClient(args.client_id, deps.viewClientId);
   let clientId = start.clientId;
   let clientNote: string | undefined;

@@ -7,6 +7,7 @@ import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
   type SelectedArtifact,
   selectedArtifactLine,
+  selectedArtifactScope,
 } from "./selected-artifact.ts";
 
 const image: SelectedArtifact = {
@@ -45,5 +46,15 @@ describe("selectedArtifactLine", () => {
 
   it("says nothing when nothing is marked", () => {
     assertStrictEquals(selectedArtifactLine(null), null);
+  });
+});
+
+describe("selectedArtifactScope", () => {
+  it("limits the read to this tenant's open project", () => {
+    assertEquals(selectedArtifactScope("tenant-1", "item-1", "a-1"), {
+      id: "a-1",
+      tenant_id: "tenant-1",
+      item_id: "item-1",
+    });
   });
 });

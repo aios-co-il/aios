@@ -25,15 +25,22 @@ export async function loadSelectedArtifact(
   const { data, error } = await db
     .from("workshop_artifacts")
     .select("id, kind, title, status, url, thumb_url")
-    .eq("id", artifactId)
-    .eq("tenant_id", tenantId)
-    .eq("item_id", itemId)
+    .match(selectedArtifactScope(tenantId, itemId, artifactId))
     .maybeSingle();
   if (error) {
     console.error("[workshop] selected artifact lookup failed", error.message);
     return null;
   }
   return data;
+}
+
+/** The marked page is read only inside this tenant's open project. */
+export function selectedArtifactScope(
+  tenantId: string,
+  itemId: string,
+  artifactId: string,
+) {
+  return { id: artifactId, tenant_id: tenantId, item_id: itemId };
 }
 
 /** The turn-note line that tells Carmen what the user marked and the link to use for it. */

@@ -9,8 +9,14 @@ import type { ProjectKind } from "./roles.ts";
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
-const UUID =
-  /item_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+/** A context-line id ("item_id=<uuid>"), as workshopBridge.ts writes it. */
+const contextId = (key: string) =>
+  new RegExp(
+    `${key}=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`,
+    "i",
+  );
+
+const UUID = contextId("item_id");
 
 /** The open project id: sent by the workshop chat, or read from its context line. */
 export function workshopItemIdFrom(body: Record<string, unknown>) {
@@ -23,8 +29,7 @@ export function workshopItemIdFrom(body: Record<string, unknown>) {
   return addon.match(UUID)?.[1] ?? null;
 }
 
-const ARTIFACT =
-  /artifact_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+const ARTIFACT = contextId("artifact_id");
 
 /** The page the user marked on the board: sent by the workshop chat, or read from its context line. */
 export function workshopArtifactIdFrom(body: Record<string, unknown>) {
@@ -41,8 +46,7 @@ export function workshopArtifactIdFrom(body: Record<string, unknown>) {
   return addon.match(ARTIFACT)?.[1] ?? null;
 }
 
-const SCENE =
-  /scene_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+const SCENE = contextId("scene_id");
 
 /** The scene the user picked on the board, from the workshop context line (workshopBridge.ts). */
 export function workshopSceneIdFrom(body: Record<string, unknown>) {
