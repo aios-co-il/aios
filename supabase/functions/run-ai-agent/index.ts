@@ -30,6 +30,11 @@ import { makeAdImage } from "../_shared/creative/ad-image.ts";
 import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
+  createReplyRecorder,
+  parseReplyKey,
+  saveCarmenReply,
+} from "../_shared/carmen/background-reply.ts";
+import {
   activeSkinBlock,
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
@@ -136,6 +141,12 @@ import {
   shouldUseV2Prompt,
 } from "../_shared/carmen-prompt-v2.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
+import {
+  PULSE_TARGET_TOOLS,
+  PULSE_TARGET_TOOL_NAMES,
+  isPulseTargetTool,
+} from "../_shared/carmen/pulse-targets/tool-defs.ts";
+import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
 import {
   spawnSubagent,
   getSubagentResult,
@@ -804,6 +815,7 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  ...PULSE_TARGET_TOOL_NAMES,
   // Questions about Carmen herself: her personas and their portraits, on every surface.
   "get_carmen_skins",
   ...NATIVE_DEV_TASK_TOOLS,
@@ -2576,6 +2588,7 @@ const ALL_TOOLS = [
   // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
+  ...PULSE_TARGET_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -6037,6 +6050,27 @@ async function executeTool(
       args,
       (clientId) =>
         assertCallerCanAccessClient(supabase, clientId, callerScope),
+    );
+  }
+  if (isPulseTargetTool(name)) {
+    return executePulseTargetTool(
+      supabase,
+      {
+        tenantId,
+        accessibleTenantIds,
+        actorUserId,
+        agentId: agentId || null,
+        callerRole: callerRole || null,
+        callerPhone: callerPhone || null,
+        isManagerRole,
+        isTeamManager,
+        managedAgencyIds,
+        callerCampaignerId: callerCampaignerId || null,
+        assertClientAccess: (clientId) =>
+          assertCallerCanAccessClient(supabase, clientId, callerScope),
+      },
+      name,
+      args,
     );
   }
   switch (name) {
@@ -16674,51 +16708,80 @@ Deno.serve(async (req) => {
 
   // Streaming mode: AIOS-compatible SSE.
   // Events emitted: {type:'tool_call',tool,args}, {type:'token',content}, {type:'done',...}
+  // The turn keeps running after the client disconnects (closed chat panel,
+  // reloaded tab), and the server saves the answer (_shared/carmen/background-reply).
   const enc = new TextEncoder();
+  const recorder = createReplyRecorder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (obj: any) => {
+        recorder.observe(obj);
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {
-          /* ignore */
+          /* client gone: keep working, the reply is saved below */
         }
       };
-      try {
-        const resp = await handleRunAgent(
-          bodyJson,
-          surface,
-          emit,
-          brainEngine,
-          {
-            authKind: auth.kind,
-            origin: req.headers.get("origin"),
-          },
-          internalTail,
-        );
+      const turn = (async () => {
         let final: any = {};
         try {
-          final = await resp.json();
-        } catch {
-          /* ignore */
+          const resp = await handleRunAgent(
+            bodyJson,
+            surface,
+            emit,
+            brainEngine,
+            {
+              authKind: auth.kind,
+              origin: req.headers.get("origin"),
+            },
+            internalTail,
+          );
+          try {
+            final = await resp.json();
+          } catch {
+            /* ignore */
+          }
+          emit({
+            type: "done",
+            success: final.success !== false,
+            output: final.output,
+            tools_used: final.tools_used,
+            error: final.error,
+          });
+        } catch (e: any) {
+          emit({ type: "error", error: e?.message || String(e) });
+          emit({
+            type: "done",
+            success: false,
+            error: e?.message || String(e),
+          });
+        } finally {
+          try {
+            controller.close();
+          } catch {
+            /* ignore */
+          }
         }
-        emit({
-          type: "done",
-          success: final.success !== false,
-          output: final.output,
-          tools_used: final.tools_used,
-          error: final.error,
-        });
-      } catch (e: any) {
-        emit({ type: "error", error: e?.message || String(e) });
-        emit({ type: "done", success: false, error: e?.message || String(e) });
-      } finally {
-        try {
-          controller.close();
-        } catch {
-          /* ignore */
+        // Only the chat that sent a reply_key gets its answer saved here; the
+        // other streaming callers keep saving their own replies.
+        const replyKey = parseReplyKey(bodyJson.reply_key);
+        if (
+          surface === "internal_chat" &&
+          replyKey &&
+          recorder.conversationId
+        ) {
+          await saveCarmenReply(
+            createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
+            {
+              conversationId: recorder.conversationId,
+              content: recorder.reply(final.output),
+              replyKey,
+            },
+          ).catch((e) => console.error("[carmen] reply save failed:", e));
         }
-      }
+      })();
+      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(turn);
+      await turn;
     },
   });
 

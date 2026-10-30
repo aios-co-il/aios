@@ -1,3 +1,6 @@
+import type { PulseCostRules } from "../../supabase/functions/_shared/pulse/cost-rules.ts";
+import { isJsonObject } from "../../supabase/functions/_shared/pulse/json.ts";
+
 export type PulseAlertRules = {
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
@@ -5,6 +8,16 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  manager?: PulseManagerSettings;
+};
+
+/**
+ * pulse_alert_rules.manager: only cost is edited from the dashboard (read by
+ * resolvePulseCostRules); any other key is kept as stored.
+ */
+export type PulseManagerSettings = {
+  cost?: Partial<PulseCostRules>;
+  [key: string]: unknown;
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -33,5 +46,45 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    ...(isManagerSettings(input.manager) ? { manager: input.manager } : {}),
   };
+}
+
+/**
+ * The stored pulse_alert_rules with the dialog's values on top. Keys the dialog
+ * does not know (future settings, other manager keys) survive a save instead of
+ * being wiped; manager.cost is merged key by key, and manager is written only
+ * when it is stored or edited.
+ */
+export function mergePulseAlertRules(
+  stored: unknown,
+  edited: PulseAlertRules,
+): Record<string, unknown> {
+  const base = isJsonObject(stored) ? stored : {};
+  const { manager: editedManager, ...rules } = parsePulseAlertRules(edited);
+  const merged: Record<string, unknown> = { ...base, ...rules };
+  const storedManager = isJsonObject(base.manager) ? base.manager : null;
+  if (!storedManager && !editedManager) {
+    return merged;
+  }
+  const manager: Record<string, unknown> = {
+    ...storedManager,
+    ...editedManager,
+  };
+  const storedCost = isJsonObject(storedManager?.cost)
+    ? storedManager.cost
+    : null;
+  if (storedCost || editedManager?.cost) {
+    manager.cost = { ...storedCost, ...editedManager?.cost };
+  }
+  merged.manager = manager;
+  return merged;
+}
+
+/** A stored manager block: an object whose cost, when present, is an object too. */
+function isManagerSettings(value: unknown): value is PulseManagerSettings {
+  return (
+    isJsonObject(value) &&
+    (value.cost === undefined || isJsonObject(value.cost))
+  );
 }
