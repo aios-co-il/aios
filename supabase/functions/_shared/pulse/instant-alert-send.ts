@@ -6,11 +6,9 @@ import type {
 import type { DbClient } from "../supabase-clients.ts";
 
 /**
- * Queues the alert to each recipient and logs the phones whose send was
- * queued; true when at least one was. Only queued phones go in the log,
- * because another org's dedupe drops the phones it reads there
- * (cross-tenant-recipients.ts). A failed log insert is logged, and the next
- * run then resends.
+ * Queues the alert to each phone and logs the phones whose send was queued;
+ * returns those phones. Only queued phones go in the log, because another
+ * org's dedupe drops the phones it reads there (cross-tenant-recipients.ts).
  */
 export async function queueAndLogInstantAlert(
   input: {
@@ -19,17 +17,30 @@ export async function queueAndLogInstantAlert(
     queueWhatsApp: QueueWhatsApp;
   },
   candidate: PulseInstantAlertCandidate,
-  recipients: Array<{ phone: string }>,
-): Promise<boolean> {
+  phones: string[],
+): Promise<string[]> {
   const queuedPhones: string[] = [];
-  for (const recipient of recipients) {
-    if (await input.queueWhatsApp(candidate.message, recipient.phone)) {
-      queuedPhones.push(recipient.phone);
+  for (const phone of phones) {
+    if (await input.queueWhatsApp(candidate.message, phone)) {
+      queuedPhones.push(phone);
     }
   }
-  if (!queuedPhones.length) {
-    return false;
+  if (queuedPhones.length) {
+    await logInstantAlert(input, candidate, queuedPhones);
   }
+  return queuedPhones;
+}
+
+/**
+ * The pulse_instant_alert_log row dedupe reads, for `phones`, which received
+ * `candidate.message` (its own text, or the summary that listed it). A failed
+ * insert is logged, and the next run then resends.
+ */
+export async function logInstantAlert(
+  input: { supabase: Pick<DbClient, "from">; tenantId: string },
+  candidate: PulseInstantAlertCandidate,
+  phones: string[],
+): Promise<void> {
   const { error } = await input.supabase
     .from("pulse_instant_alert_log")
     .insert({
@@ -37,7 +48,7 @@ export async function queueAndLogInstantAlert(
       client_id: candidate.client_id,
       rule_type: candidate.rule_type,
       message: candidate.message,
-      recipient_phone: joinRecipientPhones(queuedPhones),
+      recipient_phone: joinRecipientPhones(phones),
       campaign_key: candidate.campaign_key || null,
       fingerprint: candidate.fingerprint || null,
       severity_score: candidate.severity_score || null,
@@ -49,7 +60,6 @@ export async function queueAndLogInstantAlert(
       error.message,
     );
   }
-  return true;
 }
 
 /** pulse_instant_alert_log.recipient_phone: the phones, comma-joined. */
