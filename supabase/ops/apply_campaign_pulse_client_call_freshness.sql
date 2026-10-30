@@ -37,38 +37,10 @@ REVOKE ALL ON FUNCTION public.client_update_documents_phone_call(text)
 GRANT EXECUTE ON FUNCTION public.client_update_documents_phone_call(text)
   TO service_role;
 
-CREATE OR REPLACE FUNCTION public.get_latest_client_call_updates(p_client_ids uuid[])
-RETURNS TABLE (
-  client_id uuid,
-  last_client_call_at timestamptz,
-  last_client_call_by text
-)
-LANGUAGE sql
-STABLE
-SECURITY INVOKER
-SET search_path = public
-AS $$
-  SELECT DISTINCT ON (updates.client_id)
-    updates.client_id,
-    updates.created_at AS last_client_call_at,
-    COALESCE(NULLIF(profiles.full_name, ''), profiles.email) AS last_client_call_by
-  FROM public.client_updates AS updates
-  LEFT JOIN public.profiles AS profiles ON profiles.id = updates.user_id
-  WHERE updates.client_id = ANY (p_client_ids)
-    AND (
-      updates.update_type = 'call'
-      OR (
-        updates.update_type = 'weekly_update'
-        AND public.client_update_documents_phone_call(updates.content)
-      )
-    )
-  ORDER BY updates.client_id, updates.created_at DESC;
-$$;
-
-REVOKE ALL ON FUNCTION public.get_latest_client_call_updates(uuid[])
-  FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_latest_client_call_updates(uuid[])
-  TO service_role;
+-- get_latest_client_call_updates is owned by the migrations: see
+-- supabase/migrations/20261030092000_client_card_provenance.sql (AIO-232).
+-- It is not redefined here, so re-running this script cannot drop the
+-- client-card source filter or start counting plain meeting rows.
 
 -- Mark existing qualifying weekly notes as calls so the client-card history and
 -- future pulse reads use the same structured update type.
@@ -76,4 +48,5 @@ UPDATE public.client_updates
 SET update_type = 'call',
     updated_at = now()
 WHERE update_type = 'weekly_update'
+  AND source = 'human'
   AND public.client_update_documents_phone_call(content);

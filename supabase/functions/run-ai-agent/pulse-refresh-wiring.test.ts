@@ -154,7 +154,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       );
       assertMatch(
         runAiAgent,
-        /const pool = keepCarmenPulseTools\(\s*directToolPool\(ALL_TOOLS, \{/,
+        /const pool = keepCarmenPulseTools\(\s*directToolPool\(ALL_TOOLS(?: as any\[\])?, \{/,
       );
       // Nor do matched or pinned skins hand that caller the pulse tools.
       assertMatch(

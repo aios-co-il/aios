@@ -58,10 +58,10 @@ import {
   classifyDirectTool,
   directToolPool,
 } from "../_shared/carmen-direct-tools.mjs";
-import {
-  compareReportToMeta,
-  facebookReportType,
-} from "../_shared/report-meta-verify.mjs";
+import { listVerifyTables } from "./verify-tables.ts";
+import { verifyReportVsMeta } from "./verify-report-vs-meta.ts";
+import { reconciliationStatusTool } from "./status-tool.ts";
+import { MANAGER_ROLES } from "./manager-roles.ts";
 import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
@@ -76,6 +76,19 @@ import { readScopedChatRows } from "./chat-scope/rows.ts";
 import { scopedChatRead } from "./chat-scope/scoped-read.ts";
 import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  CARMEN_CLIENT_UPDATE_TYPES,
+  CLIENT_CARD_SOURCES,
+} from "../_shared/client-card/sources.ts";
+import {
+  addClientUpdateFromCarmen,
+  HEALTH_CARD_ENTRY_ERROR_HINT,
+  recordHealthCardEntryAfterUpdate,
+} from "./carmen-client-card-tools.ts";
+import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { setClientMoodStatus } from "./client-health-status.ts";
+import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
@@ -1403,12 +1416,19 @@ const ALL_TOOLS = [
   },
   {
     name: "add_client_update",
-    description: "הוספת עדכון ללקוח",
+    description:
+      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. שיחה (call) או פגישה (meeting) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק note, complaint או weekly_update.",
     parameters: {
       type: "object",
       properties: {
         client_id: { type: "string" },
         content: { type: "string" },
+        update_type: {
+          type: "string",
+          enum: [...CARMEN_CLIENT_UPDATE_TYPES],
+          description:
+            "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
+        },
       },
       required: ["client_id", "content"],
     },
@@ -1994,8 +2014,7 @@ const ALL_TOOLS = [
   },
   {
     name: "update_client_health",
-    description:
-      "עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים).",
+    description: `עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים). ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -2030,8 +2049,7 @@ const ALL_TOOLS = [
   },
   {
     name: "batch_update_client_health",
-    description:
-      "עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור.",
+    description: `עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור. ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -3134,7 +3152,7 @@ const ALL_TOOLS = [
   // UPDATES
   {
     name: "list_updates",
-    description: "רשימת עדכונים ללקוח או ליד",
+    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
     parameters: {
       type: "object",
       properties: {
@@ -3486,7 +3504,7 @@ const ALL_TOOLS = [
   {
     name: "verify_report_vs_meta",
     description:
-      'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים וימים — הוצאה לכל קמפיין, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד). ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.',
+      'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים, יום אחר יום לפי אזור הזמן של חשבון המודעות — הוצאה, תוצאה עיקרית (לידים/רכישות) והכנסות לכל קמפיין, ימים חסרים, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד); לתוצאות הבדיקה הלילית לכל הלקוחות (כולל גוגל) השתמשי ב-get_reconciliation_status. ימים שעוד לא סונכרנו מופיעים ב-not_yet_synced — אל תציגי אותם כתואמים. ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.',
     parameters: {
       type: "object",
       properties: {
@@ -3499,6 +3517,17 @@ const ALL_TOOLS = [
           type: "integer",
           description: "כמה ימים מלאים אחורה (ברירת מחדל 7, עד 30)",
         },
+      },
+    },
+  },
+  {
+    name: "get_reconciliation_status",
+    description:
+      'תוצאות הבדיקה הלילית שמשווה את הדוחות ב-AIOS מול מטא וגוגל (7 ימים מלאים, לכל קמפיין ולכל יום: הוצאה, תוצאה עיקרית והכנסות; ימים חסרים; קמפיינים שחסרים בצד אחד; ולבעלים — חשבונות מודעות עם הוצאה שלא משויכים ללקוח). קריאה בלבד מהתוצאה השמורה האחרונה — לא פונה לפלטפורמות. השתמשי כששואלים "הדוחות תואמים?", "יש פערים מול הפלטפורמה?" או לפני דוח ללקוח. בלי client_id מחזיר את כל הלקוחות (מנהלים בלבד).',
+    parameters: {
+      type: "object",
+      properties: {
+        client_id: { type: "string" },
       },
     },
   },
@@ -5833,6 +5862,9 @@ async function executeTool(
   } = {},
   /** The chat's app origin (request Origin), for full links to files the app serves. */
   appLinkOrigin?: string | null,
+  // The person talking to Carmen in this run (resolveHumanRequesterUserId).
+  // Omitted = nobody can vouch for a client contact, so calls are not logged.
+  humanRequesterUserId?: string | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5857,12 +5889,10 @@ async function executeTool(
     };
   }
   const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
-  // Role-based scope: managers (owner/agency_owner/agency_manager/super_admin) bypass the campaigner narrow-scope.
-  const isManagerRole =
-    !!callerRole &&
-    ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-      callerRole,
-    );
+  // callerRole is the highest role in any of the caller's tenants, not only this
+  // one, until AIO-275 scopes it to this tenant; get_reconciliation_status
+  // already re-reads the roles held in this tenant.
+  const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
   const isTeamManager = callerRole === "team_manager";
   const managedAgencyIds = Array.isArray(callerManagedAgencyIds)
     ? callerManagedAgencyIds
@@ -6721,18 +6751,15 @@ async function executeTool(
     }
     case "add_client_update": {
       await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      const { data, error } = await supabase
-        .from("client_updates")
-        .insert({
-          client_id: args.client_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { update_id: data.id };
+      // Tenant check, attribution and dedupe happen in record_client_card_entry.
+      return await addClientUpdateFromCarmen(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        content: args.content,
+        updateType: args.update_type,
+        humanRequesterUserId,
+        surface,
+      });
     }
     case "send_message": {
       const { phone, contactName } = await sendTargetFor(
@@ -8359,13 +8386,11 @@ async function executeTool(
       }
 
       // 1. Update mood_status on client
-      const updateData: any = { mood_status: args.mood_status };
-      const { error: clientErr } = await supabase
-        .from("clients")
-        .update(updateData)
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds);
-      if (clientErr) throw clientErr;
+      await setClientMoodStatus(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        moodStatus: args.mood_status,
+      });
 
       // 2. Create communication_log entry
       const commStatus =
@@ -8387,19 +8412,15 @@ async function executeTool(
         });
       if (logErr) throw logErr;
 
-      // 3. Also create a client_update so it's visible in the client updates tab
-      if (effectiveUserId) {
-        const { error: clientUpdateErr } = await supabase
-          .from("client_updates")
-          .insert({
-            client_id: args.client_id,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: `[עדכון אוטומטי - כרמן] ${args.note}`,
-          });
-
-        if (clientUpdateErr) throw clientUpdateErr;
-      }
+      // 3. Card entry as source carmen, so it never counts as client contact.
+      const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        note: args.note,
+        moodStatus: args.mood_status,
+        requesterUserId: humanRequesterUserId,
+        tool: "update_client_health",
+      });
 
       return {
         success: true,
@@ -8407,6 +8428,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
+        ...cardEntry,
       };
     }
     case "get_client_retention_scan": {
@@ -8551,12 +8573,11 @@ async function executeTool(
         }
         try {
           await assertCallerCanAccessClient(supabase, clientId, callerScope);
-          const { error: clientErr } = await supabase
-            .from("clients")
-            .update({ mood_status: mood })
-            .eq("id", clientId)
-            .in("tenant_id", accessibleTenantIds);
-          if (clientErr) throw clientErr;
+          await setClientMoodStatus(supabase, {
+            tenantId,
+            clientId,
+            moodStatus: mood,
+          });
           const commStatus =
             update.communication_status ||
             (mood === "happy"
@@ -8575,21 +8596,19 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          if (batchUserId) {
-            const { error: clientUpdateErr } = await supabase
-              .from("client_updates")
-              .insert({
-                client_id: clientId,
-                tenant_id: tenantId,
-                user_id: batchUserId,
-                content: `[עדכון אוטומטי - כרמן] ${note}`,
-              });
-            if (clientUpdateErr) throw clientUpdateErr;
-          }
+          const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
+            tenantId,
+            clientId,
+            note,
+            moodStatus: mood,
+            requesterUserId: humanRequesterUserId,
+            tool: "batch_update_client_health",
+          });
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
+            ...cardEntry,
           });
         } catch (err: any) {
           results.push({
@@ -10570,17 +10589,20 @@ async function executeTool(
     }
     // UPDATES
     case "list_updates": {
-      const table =
-        args.entity_type === "client" ? "client_updates" : "lead_updates";
-      const idCol = args.entity_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await supabase
-        .from(table)
-        .select("id, content, created_at")
-        .eq(idCol, args.entity_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      return { count: data.length, updates: data };
+      if (args.entity_type === "client") {
+        await assertCallerCanAccessClient(
+          supabase,
+          args.entity_id,
+          callerScope,
+        );
+      }
+      return await listUpdates(supabase, {
+        entityType: args.entity_type,
+        entityId: args.entity_id,
+        tenantId,
+        accessibleTenantIds,
+        limit: args.limit,
+      });
     }
     // GOALS
     case "create_goal": {
@@ -11160,130 +11182,30 @@ async function executeTool(
           "בדיקה לכל הלקוחות זמינה למנהלים בלבד — העבירי client_id",
         );
       const days = Math.min(Math.max(Number(args.days) || 7, 1), 30);
-      const ymd = (d: Date) => d.toISOString().slice(0, 10);
-      const until = new Date(Date.now() - 86400000);
-      const since = new Date(until.getTime() - (days - 1) * 86400000);
-      const sinceStr = ymd(since);
-      const untilStr = ymd(until);
-
-      let tablesQuery = supabase
-        .from("crm_tables")
-        .select(
-          "id, tenant_id, client_id, integration_type, integration_settings, clients!inner(name, status, agencies(name))",
-        )
-        .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
-        .in("tenant_id", accessibleTenantIds)
-        .neq("campaign_active", false);
-      if (args.client_id)
-        tablesQuery = tablesQuery.eq("client_id", args.client_id);
-      else tablesQuery = tablesQuery.eq("clients.status", "active");
-      const { data: fbTables, error: tablesErr } = await tablesQuery.limit(200);
-      if (tablesErr) throw tablesErr;
-      const tables = (fbTables || [])
-        .filter((t: any) => {
-          if (!t.integration_settings?.ad_account_id) return false;
-          if (!args.agency_name) return true;
-          return String(t.clients?.agencies?.name || "")
-            .toLowerCase()
-            .includes(String(args.agency_name).toLowerCase());
-        })
-        .slice(0, 40);
-      if (!tables.length)
+      const tables = await listVerifyTables(supabase, {
+        tenantIds: accessibleTenantIds,
+        clientId: args.client_id || null,
+        agencyName: args.agency_name || null,
+      });
+      if (!tables.length) {
         return {
           checked: 0,
           note: "לא נמצא דוח פייסבוק פעיל עם חשבון מודעות בסקופ",
         };
-
-      const results: any[] = [];
-      for (const t of tables) {
-        const clientName = t.clients?.name || t.client_id;
-        const acct = String(t.integration_settings.ad_account_id).replace(
-          /^act_/,
-          "",
-        );
-        const token =
-          (await fbGetToken(supabase, t.tenant_id)) ||
-          (await fbGetToken(supabase, accessibleTenantIds[0]));
-        if (!token) {
-          results.push({ client: clientName, error: "אין טוקן פייסבוק פעיל" });
-          continue;
-        }
-        const url =
-          `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=campaign` +
-          `&time_range=${encodeURIComponent(JSON.stringify({ since: sinceStr, until: untilStr }))}` +
-          `&fields=campaign_id,campaign_name,objective,spend&limit=500&access_token=${token}`;
-        let metaRows: any[] = [];
-        try {
-          const r = await fetch(url);
-          const j = await r.json();
-          if (!r.ok || j?.error) {
-            results.push({
-              client: clientName,
-              error: `מטא: ${j?.error?.message || r.status}`,
-            });
-            continue;
-          }
-          metaRows = (j.data || []).map((d: any) => ({
-            campaign_id: d.campaign_id,
-            campaign_name: d.campaign_name,
-            objective: d.objective,
-            spend: Number(d.spend || 0),
-          }));
-        } catch (e: any) {
-          results.push({
-            client: clientName,
-            error: `מטא: ${e?.message || e}`,
-          });
-          continue;
-        }
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("data")
-          .eq("table_id", t.id)
-          .eq("data->>entity_level", "campaign")
-          .gte("data->>date", sinceStr)
-          .lte("data->>date", untilStr)
-          .limit(5000);
-        const byCampaign = new Map<
-          string,
-          { campaign_id: string; campaign_name: string; spend: number }
-        >();
-        for (const rec of recs || []) {
-          const d = rec.data || {};
-          const id = String(d.campaign_id || d.campaign_name || "");
-          const row = byCampaign.get(id) || {
-            campaign_id: id,
-            campaign_name: d.campaign_name,
-            spend: 0,
-          };
-          row.spend += Number(d.spend) || 0;
-          byCampaign.set(id, row);
-        }
-        const cmp = compareReportToMeta({
-          metaRows,
-          aiosRows: [...byCampaign.values()],
-          reportType: facebookReportType(
-            t.integration_type,
-            t.integration_settings,
-          ) as any,
-        });
-        results.push({
-          client: clientName,
-          agency: t.clients?.agencies?.name || null,
-          ...cmp,
-        });
       }
-      const problems = results.filter((r) => r.error || !r.ok);
-      return {
-        period: `${sinceStr} – ${untilStr}`,
-        checked: results.length,
-        ok_count: results.length - problems.length,
-        ok_clients: results
-          .filter((r) => !r.error && r.ok)
-          .map((r) => r.client),
-        problems,
-      };
+      return await verifyReportVsMeta({
+        db: supabase,
+        tables,
+        days,
+        now: new Date(),
+        fallbackTenantIds: accessibleTenantIds.slice(0, 1),
+      });
     }
+    case "get_reconciliation_status":
+      return await reconciliationStatusTool(
+        { supabase, callerScope, tenantId, actorUserId },
+        args,
+      );
     case "check_ad_accounts_health": {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see
       // analyze_campaign_performance — same cross-tenant flooding hazard).
@@ -12824,20 +12746,19 @@ async function executeTool(
           () => {},
         );
 
-      if (effectiveUserId) {
-        await supabase
-          .from("client_updates")
-          .insert({
-            client_id: clientId,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: note,
-          })
-          .then(
-            () => {},
-            () => {},
-          );
-      }
+      await recordClientCardEntry(supabase, {
+        tenantId,
+        clientId,
+        content: note,
+        source: "carmen",
+        attributedUserId: effectiveUserId,
+        metadata: { tool: "connect_client_meta_ad_account" },
+      }).catch((err) =>
+        console.warn(
+          "[connect_client_meta_ad_account] client card entry failed",
+          err,
+        ),
+      );
 
       return {
         success: true,
@@ -13762,12 +13683,8 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
+import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
-
-// Surface for which the agent is currently invoked.
-// 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
-// but no dialog progress UI). Default for unspecified callers.
-type Surface = "whatsapp" | "aios" | "task" | "internal_chat" | "grok_bot";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -13986,11 +13903,15 @@ async function handleRunAgent(
       );
     }
     const isManagerRoleCaller =
-      !!callerRole &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        callerRole,
-      );
+      !!callerRole && MANAGER_ROLES.includes(callerRole);
     const isTeamManagerCaller = callerRole === "team_manager";
+    // A person talking to Carmen right now (not a task, automation or bot run):
+    // only they can confirm a client call or meeting for the client card.
+    const humanRequesterUserId = resolveHumanRequesterUserId({
+      userId: callerUserId,
+      surface,
+      automationId: automation_id,
+    });
 
     // System/dev-fix escalations (Cursor/Claude/Manus MCP + GitHub agent) —
     // tiered allowlist: David=full, Ana=bugfix→Cursor only. Role alone is not enough.
@@ -16267,6 +16188,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 lastAssistant: lastAssistantText(conversation_history),
               },
               request.origin ?? null,
+              humanRequesterUserId,
             );
             if (result?.pending_approval && result?.approval_id) {
               await bindApprovalToConversation(
@@ -16601,14 +16523,10 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
   const disabledTools: string[] = agent.disabled_tools || [];
   // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
   const pool = keepCarmenPulseTools(
-    directToolPool(ALL_TOOLS, {
+    directToolPool(ALL_TOOLS as any[], {
       allowedTools: agent.allowed_tools || [],
       disabledTools,
-      isManager:
-        !!scope.role &&
-        ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-          scope.role,
-        ),
+      isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
     }),
     ALL_TOOLS,
     { isCarmen: true, disabledTools },

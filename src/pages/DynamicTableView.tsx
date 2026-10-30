@@ -129,6 +129,7 @@ import {
   getAdAccountUrl,
 } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
+import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { AllGoalsSpendRow } from "@/components/reports/AllGoalsSpendRow";
@@ -2132,6 +2133,11 @@ export default function DynamicTableView({
               dataUpdatedAt={recordsUpdatedAt}
               isFetching={recordsFetching}
               className="mt-1"
+            />
+            <ReportDataTrust
+              tableId={table.id}
+              integrationType={table.integration_type}
+              className="mt-0.5"
             />
           </div>
 
