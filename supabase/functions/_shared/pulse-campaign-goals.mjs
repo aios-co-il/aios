@@ -1,3 +1,7 @@
+import {
+  META_LEAD_OBJECTIVES,
+  META_SALES_OBJECTIVES,
+} from "./meta-ads/campaign-objectives.ts";
 import { campaignGoalOverride } from "./pulse/campaign-goal-override.ts";
 import { classifyGoogleCampaignGoal } from "./pulse/google-campaign-goal.ts";
 import {
@@ -130,8 +134,8 @@ function includesTerm(values, terms) {
 }
 
 const META_OBJECTIVE_GOAL = [
-  ["ecommerce", ["OUTCOME_SALES", "PRODUCT_CATALOG_SALES", "CATALOG_SALES"]],
-  ["leads", ["OUTCOME_LEADS", "LEAD_GENERATION"]],
+  ["ecommerce", [...META_SALES_OBJECTIVES]],
+  ["leads", [...META_LEAD_OBJECTIVES]],
   [
     "engagement",
     [
@@ -909,7 +913,8 @@ function datesBetween(start, end) {
 }
 
 /**
- * One row per campaign with its 3/7-day numbers, baseline, target and status.
+ * One row per campaign, one goal per campaign, with its 3/7-day numbers,
+ * baseline, target and status.
  * `alertRules` is the tenant's tenant_heartbeat_settings.pulse_alert_rules: the
  * snapshot and the dashboard pass the same value, so the cost thresholds for
  * campaigns without a target (manager.cost) are the same on both sides.

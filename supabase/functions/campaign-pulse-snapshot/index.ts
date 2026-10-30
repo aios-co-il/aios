@@ -16,6 +16,7 @@ import {
   tableMatchesServices,
   worstPulseStatus,
 } from "../_shared/campaign-pulse.ts";
+import { resolveNoRecentClientCall } from "../_shared/pulse/client-call.ts";
 import {
   cachedLastMetaActivity,
   fetchLastMetaCampaignActivity,
@@ -33,7 +34,8 @@ import {
   scopeSnapshotsForPlan,
   type PulseDeliveryPlan,
 } from "../_shared/pulse-delivery.ts";
-import { deliverInstantPulseAlerts } from "../_shared/pulse-instant-alerts.ts";
+import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
+import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -41,6 +43,8 @@ import {
 import { aiChatJSON } from "../_shared/ai.ts";
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
 import { buildPulseExceptionConfirmPrompt } from "./exception-confirm-prompt.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
+import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
@@ -267,12 +271,13 @@ Deno.serve(async (req) => {
     const retention = await runDailyClientRetention(supabase, body.tenant_id);
     return json(retention, retention.error ? 500 : 200);
   }
-  // Only explicit deliver:true may send WhatsApp — sync crons refresh snapshots only.
+  // Only explicit deliver:true may send the digest — sync crons refresh snapshots only.
+  // Instant alerts: see gatedInstantAlerts.
   const deliveryRequested = body.deliver === true;
   const manualDeliveryBypass =
-    body.force_delivery === true && body.source === "approved_manual_trigger";
+    body.force_delivery === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const previewOnlyDelivery =
-    body.preview_only === true && body.source === "approved_manual_trigger";
+    body.preview_only === true && body.source === PULSE_MANUAL_TRIGGER_SOURCE;
   const campaignerNameFilter =
     manualDeliveryBypass && typeof body.campaigner_name === "string"
       ? body.campaigner_name.trim()
@@ -498,18 +503,9 @@ Deno.serve(async (req) => {
     const MAX_META_ACTIVITY_CALLS = 25;
 
     const now = new Date();
-    const d7 = new Date(now);
-    d7.setDate(d7.getDate() - 7);
-    const d14 = new Date(now);
-    d14.setDate(d14.getDate() - 14);
-    const d35 = new Date(now);
-    d35.setDate(d35.getDate() - 35);
-    const d7Str = d7.toISOString().slice(0, 10);
-    const d14Str = d14.toISOString().slice(0, 10);
-    const d30 = new Date(now);
-    d30.setDate(d30.getDate() - 30);
-    const d30Str = d30.toISOString().slice(0, 10);
-    const d35Str = d35.toISOString().slice(0, 10);
+    // Israel full days ending yesterday, like campaign_breakdown: the 7-day window
+    // and its prior week never include today's partial day.
+    const windows = pulseClientWindows(now);
     const snapshots: any[] = [];
     for (const client of reportableClients) {
       try {
@@ -562,39 +558,14 @@ Deno.serve(async (req) => {
             );
           }
         }
-        let records: any[] = [];
-        if (tableIds.length) {
-          const filtered = await supabase
-            .from("crm_records")
-            .select("table_id, data")
-            .in("table_id", tableIds)
-            .filter("data->>date", "gte", d35Str)
-            .limit(5000);
-          if (!filtered.error && (filtered.data?.length || 0) > 0) {
-            records = filtered.data || [];
-          } else {
-            if (filtered.error) {
-              console.warn(
-                "[campaign-pulse] crm_records date filter failed",
-                client.id,
-                filtered.error.message,
-              );
-            }
-            const fallback = await supabase
-              .from("crm_records")
-              .select("table_id, data")
-              .in("table_id", tableIds)
-              .limit(5000);
-            records = fallback.data || [];
-            if (fallback.error) {
-              console.warn(
-                "[campaign-pulse] crm_records fallback failed",
-                client.id,
-                fallback.error.message,
-              );
-            }
-          }
-        }
+        // Every campaign-level row (no entity_level = campaign) since the oldest
+        // window day, paged past PostgREST's 1000-row cap. A read error throws into
+        // the no_data row below instead of scoring a truncated set. Scoped by
+        // table_id like the sync that writes these rows (it sweeps other tenant_ids).
+        const records = await fetchCampaignLevelRecords(supabase, {
+          tableIds,
+          sinceYmd: windows.queryStart,
+        });
         const tableById = new Map(
           activeTables.map((table: any) => [table.id, table]),
         );
@@ -619,20 +590,21 @@ Deno.serve(async (req) => {
           alertRules: setting.pulse_alert_rules,
         });
         const recent = records.filter(
-          (row: any) => row.data?.date && row.data.date >= d30Str,
+          (row: any) =>
+            row.data?.date && row.data.date >= windows.recent30Start,
         );
         const goalMode = detectCampaignGoalMode(activeTables);
         const leadMetrics = computeGoalMetricsFromRecords(
-          leadRecords,
+          recordsThrough(leadRecords, windows.end),
           "leads",
-          d7Str,
-          d14Str,
+          windows.current7Start,
+          windows.previous7Start,
         );
         const ecommerceMetrics = computeGoalMetricsFromRecords(
-          ecommerceRecords,
+          recordsThrough(ecommerceRecords, windows.end),
           "ecommerce",
-          d7Str,
-          d14Str,
+          windows.current7Start,
+          windows.previous7Start,
         );
         const spend7 = leadMetrics.spend + ecommerceMetrics.spend;
         const leads7 = leadMetrics.outcomes;
@@ -657,6 +629,11 @@ Deno.serve(async (req) => {
         const lastClientCallAt = clientCallDataAvailable
           ? latestCall?.last_client_call_at || null
           : undefined;
+        // Contact indicator only (AIO-227): never part of the campaign status.
+        const noRecentClientCall = resolveNoRecentClientCall(
+          lastClientCallAt,
+          now.getTime(),
+        );
         const stoppedCount = stoppedByClient.get(client.id) || 0;
         const leadTables = activeTables.filter(
           (table: any) =>
@@ -674,7 +651,8 @@ Deno.serve(async (req) => {
               integrationTypeToGoal(table.integration_type, table) === "leads",
           ),
           recentRecordCount: leadRecords.filter(
-            (row: any) => row.data?.date && row.data.date >= d30Str,
+            (row: any) =>
+              row.data?.date && row.data.date >= windows.recent30Start,
           ).length,
           isEcommerce: false,
           spend7: leadMetrics.spend,
@@ -682,8 +660,6 @@ Deno.serve(async (req) => {
           purchases7: 0,
           roas: null,
           cplChangePct: leadMetrics.changePct,
-          lastClientCallAt:
-            goalMode !== "ecommerce" ? lastClientCallAt : undefined,
           stoppedCampaignCount: goalMode !== "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
         });
@@ -695,7 +671,8 @@ Deno.serve(async (req) => {
               "ecommerce",
           ),
           recentRecordCount: ecommerceRecords.filter(
-            (row: any) => row.data?.date && row.data.date >= d30Str,
+            (row: any) =>
+              row.data?.date && row.data.date >= windows.recent30Start,
           ).length,
           isEcommerce: true,
           spend7: ecommerceMetrics.spend,
@@ -703,8 +680,6 @@ Deno.serve(async (req) => {
           purchases7: ecommerceMetrics.outcomes,
           roas: ecommerceMetrics.efficiency,
           cplChangePct: null,
-          lastClientCallAt:
-            goalMode === "ecommerce" ? lastClientCallAt : undefined,
           stoppedCampaignCount: goalMode === "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
         });
@@ -766,6 +741,7 @@ Deno.serve(async (req) => {
           is_ecommerce: isEcommerce,
           stale_platforms: stalePlatforms,
           flags,
+          no_recent_client_call: noRecentClientCall,
         });
         snapshots.push({
           tenant_id: tenantId,
@@ -798,6 +774,8 @@ Deno.serve(async (req) => {
           meta_change_availability: lastMetaChange.availability,
           last_client_call_at: latestCall?.last_client_call_at || null,
           last_client_call_by: latestCall?.last_client_call_by || null,
+          // In-memory only: derived from last_client_call_at, not a stored column.
+          no_recent_client_call: noRecentClientCall,
           client_name: client.name,
           agency_name: (client.agencies as any)?.name || null,
         });
@@ -840,6 +818,7 @@ Deno.serve(async (req) => {
           meta_change_availability: "meta_api_unavailable",
           last_client_call_at: null,
           last_client_call_by: null,
+          no_recent_client_call: null,
           client_name: client.name,
           agency_name: (client.agencies as any)?.name || null,
         });
@@ -864,7 +843,12 @@ Deno.serve(async (req) => {
     }
     if (snapshots.length) {
       const rows = snapshots.map(
-        ({ client_name: _c, agency_name: _a, ...row }) => row,
+        ({
+          client_name: _c,
+          agency_name: _a,
+          no_recent_client_call: _n,
+          ...row
+        }) => row,
       );
       let { error } = await supabase
         .from("campaign_pulse_snapshots")
@@ -898,10 +882,10 @@ Deno.serve(async (req) => {
       .eq("id", tenantId)
       .maybeSingle();
     const tenantSlug = tenantRow?.slug || tenantId;
-    let instantAlerts = { sent: 0, skipped: 0, candidates: 0, analyzed: 0 };
+    let instantAlerts = noInstantAlerts();
     if (snapshots.length) {
       try {
-        instantAlerts = await deliverInstantPulseAlerts({
+        instantAlerts = await gatedInstantAlerts(setting, body, {
           supabase,
           tenantId,
           tenantSlug,

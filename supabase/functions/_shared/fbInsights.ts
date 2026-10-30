@@ -1,3 +1,8 @@
+import {
+  metaObjectiveGoal,
+  type FacebookCampaignType,
+} from "./meta-ads/campaign-objectives.ts";
+
 // Shared Facebook Insights → CRM record logic.
 //
 // Both `sync-facebook-insights` (manual "sync now") and
@@ -9,6 +14,8 @@
 // `offsite_conversion.custom.*` prefix — so website-lead campaigns optimised on a
 // custom conversion were silently counted as 0 leads in the synced report.
 
+import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
+
 export interface CampaignStatus {
   id: string;
   name: string;
@@ -17,8 +24,6 @@ export interface CampaignStatus {
   objective?: string | null;
   updated_time?: string | null;
 }
-
-export type AdsEntityLevel = "campaign" | "adset" | "ad";
 
 export interface InsightRecord {
   date: string;
@@ -55,7 +60,7 @@ export interface InsightRecord {
   roas: number;
   campaign_objective: string | null;
   optimization_goal: string | null;
-  campaign_type: "lead" | "ecommerce" | "traffic" | "other";
+  campaign_type: FacebookCampaignType;
   effective_status?: string | null;
   configured_status?: string | null;
   updated_time?: string | null;
@@ -613,9 +618,8 @@ export function buildInsightRecord(
   const _objectiveForLeads = String(
     _campaignStatusForLeads?.objective || "",
   ).toUpperCase();
-  const _isLeadFormObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    _objectiveForLeads,
-  );
+  const _isLeadFormObjective =
+    metaObjectiveGoal(_objectiveForLeads) === "leads";
   const _isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     _objectiveForLeads,
   );
@@ -785,14 +789,8 @@ export function buildInsightRecord(
 
   const campaignStatus = campaignStatuses[insight.campaign_id];
   const objective = String(campaignStatus?.objective || "").toUpperCase();
-  const isEcommerceObjective = [
-    "OUTCOME_SALES",
-    "PRODUCT_CATALOG_SALES",
-    "SALES",
-  ].includes(objective);
-  const isLeadObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    objective,
-  );
+  const isEcommerceObjective = metaObjectiveGoal(objective) === "ecommerce";
+  const isLeadObjective = metaObjectiveGoal(objective) === "leads";
   const isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     objective,
   );
@@ -876,7 +874,7 @@ export function buildInsightRecord(
   if (configuredMetric) {
     results = Math.max(
       0,
-      ...configuredMetric.actionTypes.map((type) => sumByTypes([type])),
+      ...configuredMetric.actionTypes.map((type: string) => sumByTypes([type])),
     );
     resultKind = configuredMetric.kind;
   }
@@ -924,7 +922,7 @@ export function buildInsightRecord(
       "link_clicks",
       "landing_page_views",
     ].includes(configuredMetric.kind);
-  const campaignType: "lead" | "ecommerce" | "traffic" | "other" =
+  const campaignType: FacebookCampaignType =
     isEcommerceObjective || configuredEcommerce
       ? "ecommerce"
       : isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized
@@ -1037,16 +1035,18 @@ export async function buildAllLevelInsightRecords(
 ): Promise<{
   records: InsightRecord[];
   levelCounts: Record<AdsEntityLevel, number>;
+  /** Levels whose fetch failed, with the error. A failed level contributes no rows. */
+  levelErrors: Partial<Record<AdsEntityLevel, string>>;
 }> {
-  const levels: AdsEntityLevel[] = ["campaign", "adset", "ad"];
   const allRows: InsightRecord[] = [];
   const levelCounts: Record<AdsEntityLevel, number> = {
     campaign: 0,
     adset: 0,
     ad: 0,
   };
+  const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
-  for (const level of levels) {
+  for (const level of ADS_LEVELS) {
     try {
       const raw = await fetchFacebookInsightsAtLevel(
         adAccountId,
@@ -1069,14 +1069,13 @@ export async function buildAllLevelInsightRecords(
       levelCounts[level] = raw.length;
       console.log(`[fbInsights] level=${level} rows=${raw.length}`);
     } catch (err) {
-      console.error(
-        `[fbInsights] level=${level} fetch failed:`,
-        err instanceof Error ? err.message : err,
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      levelErrors[level] = message || "fetch failed";
+      console.error(`[fbInsights] level=${level} fetch failed:`, message);
     }
   }
 
-  return { records: allRows, levelCounts };
+  return { records: allRows, levelCounts, levelErrors };
 }
 
 export type LastMetaActivity = {

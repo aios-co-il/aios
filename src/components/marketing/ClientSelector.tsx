@@ -25,6 +25,8 @@ interface Props {
   allowAllClients?: boolean;
   generalLabel?: string;
   allClientsLabel?: string;
+  /** The name to show for a value outside the active clients list (an inactive client, say). */
+  valueLabel?: string | null;
   disabled?: boolean;
 }
 
@@ -50,6 +52,7 @@ export function ClientSelector({
   allowAllClients = false,
   generalLabel = "תוכן כללי",
   allClientsLabel = "כל הלקוחות",
+  valueLabel,
   disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -87,7 +90,12 @@ export function ClientSelector({
   const displayLabel =
     value === ALL_CLIENTS_FILTER
       ? allClientsLabel
-      : (current?.name ?? (allowGeneral ? generalLabel : "בחר לקוח"));
+      : (current?.name ??
+        (value && valueLabel
+          ? valueLabel
+          : allowGeneral
+            ? generalLabel
+            : "בחר לקוח"));
 
   const clientCountByAgency = useMemo(() => {
     const m = new Map<string, number>();

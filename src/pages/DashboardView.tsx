@@ -75,7 +75,6 @@ import {
   getSpendFromData,
   getUsersFromData,
   hasAddToCartMetric,
-  classifyFacebookRecord,
   aggregateFacebookCampaignsFromRecords,
   groupFacebookCampaigns,
   facebookTableUsesMixedRows,
@@ -86,6 +85,7 @@ import {
 import {
   reportQueryOptions,
   getReportLastSyncAt,
+  getReportSyncProblem,
   refetchOnMountIfEmpty,
 } from "@/lib/reportQueryOptions";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
@@ -110,7 +110,14 @@ import {
   shouldUseGoogleWooAttributionOverlay,
   summarizeGoogleAttributedWooOrders,
 } from "@/lib/wooAttribution";
-import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
+import {
+  filterCampaignLevelAdsRecords,
+  shouldIncludeInAdsDashboardAggregate,
+} from "@/lib/adsEntityLevel";
+import {
+  facebookRecordGoalOf,
+  groupFacebookRowsByGoal,
+} from "@/lib/facebookGoalGroups";
 import {
   LineChart,
   Line,
@@ -367,6 +374,10 @@ export default function DashboardView() {
     if (!stamps.length) return null;
     return stamps.sort().reverse()[0];
   }, [tables]);
+  const dashboardSyncProblem = useMemo(
+    () => getReportSyncProblem(tables),
+    [tables],
+  );
 
   // Fetch fields for all tables (for raw table display)
   const { data: tableFields = {} } = useQuery({
@@ -460,7 +471,7 @@ export default function DashboardView() {
           ),
           // Reuse fresh table data when navigating between report views.
         });
-        return records.map((r: any) => ({
+        return records.map((r) => ({
           ...r,
           _source: table.integration_type,
           _tableName: table.name,
@@ -501,7 +512,7 @@ export default function DashboardView() {
             const records = await queryClient.fetchQuery({
               ...reportRecordsQuery(supabase, table.id, "last_365_days"),
             });
-            return records.map((record: any) => ({
+            return records.map((record) => ({
               ...record,
               _source: table.integration_type,
               _tableId: table.id,
@@ -766,7 +777,7 @@ export default function DashboardView() {
       const byObjective = isFacebookPlatform(source)
         ? facebookObjectiveKind(d)
         : null;
-      if (byObjective === "lead") return;
+      if (byObjective === "lead" || byObjective === "traffic") return;
       if (
         byObjective === "ecommerce" ||
         Number(d.purchases) > 0 ||
@@ -804,6 +815,15 @@ export default function DashboardView() {
   const summaryByPlatform = useMemo(() => {
     const platforms: Record<string, any> = {};
     const tableById = new Map(tables.map((t: any) => [t.id, t]));
+    // Mixed Facebook KPIs classify whole campaigns, as the campaign tables do:
+    // one campaign's days can look like different goals on their own.
+    const facebookGoalOf = facebookRecordGoalOf(
+      filteredRecords.filter((record) =>
+        isFacebookPlatform(record._source || ""),
+      ),
+      "campaign",
+      { leadsOnly: false },
+    );
 
     filteredRecords.forEach((record: any) => {
       const rawSource = record._source || "unknown";
@@ -856,7 +876,7 @@ export default function DashboardView() {
           );
 
         if (useMixedFacebook) {
-          const kind = classifyFacebookRecord(data);
+          const kind = facebookGoalOf(data);
           if (kind === "traffic") return;
           platforms[source].leads += getLeadsFromData(data);
           if (kind === "ecommerce") {
@@ -1344,8 +1364,12 @@ export default function DashboardView() {
       return { ...grouped, all };
     }
 
-    const grouped = groupFacebookCampaigns(all, { forceLeadsOnly });
-    return { ...grouped, all };
+    const { ecommerce, leads, traffic } = groupFacebookRowsByGoal(
+      filterCampaignLevelAdsRecords(fbRecords, "facebook_insights"),
+      "campaign",
+      { leadsOnly: forceLeadsOnly },
+    );
+    return { ecommerce, leads, traffic, all };
   }, [
     platformFilter,
     displayAllRecords,
@@ -1855,6 +1879,7 @@ export default function DashboardView() {
           </div>
           <ReportDataFreshness
             lastSyncAt={dashboardLastSyncAt}
+            syncProblem={dashboardSyncProblem}
             dataUpdatedAt={recordsUpdatedAt}
             isFetching={recordsFetching}
             className="mt-2"

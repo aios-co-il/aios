@@ -22,6 +22,15 @@ describe("adsRowOutcomes", () => {
     expect(leads.leads).toBeGreaterThan(0);
   });
 
+  it("adds no sales or leads from a traffic campaign", () => {
+    expect(adsRowOutcomes(row, "traffic")).toEqual({
+      purchases: 0,
+      revenue: 0,
+      addToCart: 0,
+      leads: 0,
+    });
+  });
+
   it("adds everything for a row without a goal", () => {
     const all = adsRowOutcomes(row);
     expect(all).toEqual({
