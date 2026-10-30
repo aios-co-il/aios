@@ -10,6 +10,7 @@ import {
   renderTemplate,
   type TemplateVars,
 } from "../../../supabase/functions/_shared/broadcast/template/template-vars.ts";
+import { whatsappUnsubscribeFooter } from "../../../supabase/functions/_shared/broadcast/blacklist.ts";
 import type { TemplateDraft } from "./templateDraft";
 import { Label } from "@/components/ui/label";
 
@@ -77,6 +78,8 @@ export function TemplatePreview({
               <img src={mediaUrl} alt="" className="mb-2 max-h-48 rounded" />
             )}
             {renderTemplate(bodyText, previewVars) || "—"}
+            {/* Added by broadcast-dispatch to every mailing to a contact. */}
+            {whatsappUnsubscribeFooter("https://…/broadcast-unsubscribe")}
           </div>
         </div>
       )}

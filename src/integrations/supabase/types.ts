@@ -4744,8 +4744,12 @@ export type Database = {
         Row: {
           client_id: string;
           content: string;
+          counts_as_contact: boolean | null;
           created_at: string;
           id: string;
+          metadata: Json | null;
+          source: string;
+          source_ref: string | null;
           tenant_id: string;
           update_type: string | null;
           updated_at: string;
@@ -4754,8 +4758,12 @@ export type Database = {
         Insert: {
           client_id: string;
           content: string;
+          counts_as_contact?: boolean | null;
           created_at?: string;
           id?: string;
+          metadata?: Json | null;
+          source?: string;
+          source_ref?: string | null;
           tenant_id: string;
           update_type?: string | null;
           updated_at?: string;
@@ -4764,8 +4772,12 @@ export type Database = {
         Update: {
           client_id?: string;
           content?: string;
+          counts_as_contact?: boolean | null;
           created_at?: string;
           id?: string;
+          metadata?: Json | null;
+          source?: string;
+          source_ref?: string | null;
           tenant_id?: string;
           update_type?: string | null;
           updated_at?: string;
@@ -10323,6 +10335,147 @@ export type Database = {
           },
           {
             foreignKeyName: "rank_tracking_projects_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      reconcile_findings: {
+        Row: {
+          aios_value: number | null;
+          campaign_id: string | null;
+          client_id: string | null;
+          created_at: string;
+          date: string | null;
+          details: Json;
+          id: string;
+          kind: string;
+          metric: string | null;
+          platform_value: number | null;
+          run_id: string;
+          table_id: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          aios_value?: number | null;
+          campaign_id?: string | null;
+          client_id?: string | null;
+          created_at?: string;
+          date?: string | null;
+          details?: Json;
+          id?: string;
+          kind: string;
+          metric?: string | null;
+          platform_value?: number | null;
+          run_id: string;
+          table_id?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          aios_value?: number | null;
+          campaign_id?: string | null;
+          client_id?: string | null;
+          created_at?: string;
+          date?: string | null;
+          details?: Json;
+          id?: string;
+          kind?: string;
+          metric?: string | null;
+          platform_value?: number | null;
+          run_id?: string;
+          table_id?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reconcile_findings_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "reconcile_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_table_id_fkey";
+            columns: ["table_id"];
+            isOneToOne: false;
+            referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      reconcile_runs: {
+        Row: {
+          client_id: string | null;
+          finished_at: string | null;
+          id: string;
+          platform: string | null;
+          started_at: string;
+          status: string;
+          summary: Json;
+          table_id: string | null;
+          tenant_id: string;
+          window_end: string | null;
+          window_start: string | null;
+        };
+        Insert: {
+          client_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          platform?: string | null;
+          started_at?: string;
+          status: string;
+          summary?: Json;
+          table_id?: string | null;
+          tenant_id: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Update: {
+          client_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          platform?: string | null;
+          started_at?: string;
+          status?: string;
+          summary?: Json;
+          table_id?: string | null;
+          tenant_id?: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reconcile_runs_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_runs_table_id_fkey";
+            columns: ["table_id"];
+            isOneToOne: false;
+            referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_runs_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -16390,6 +16543,25 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      record_client_card_entry: {
+        Args: {
+          p_attributed_user?: string;
+          p_client: string;
+          p_content: string;
+          p_counts_as_contact?: boolean;
+          p_metadata?: Json;
+          p_source?: string;
+          p_source_ref?: string;
+          p_tenant: string;
+          p_update_type?: string;
+        };
+        Returns: {
+          attributed_user_id: string;
+          attribution: string;
+          entry_id: string;
+          inserted: boolean;
+        }[];
+      };
       record_integration_failure: {
         Args: { p_provider: string; p_tenant_id: string };
         Returns: undefined;
@@ -16519,6 +16691,10 @@ export type Database = {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
       };
+      tenant_can_write_client: {
+        Args: { p_client: string; p_tenant: string };
+        Returns: boolean;
+      };
       tenant_holds_agency: {
         Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };
         Returns: boolean;
@@ -16545,6 +16721,10 @@ export type Database = {
         Returns: boolean;
       };
       user_can_manage_campaigners_for_tenant: {
+        Args: { check_tenant_id: string };
+        Returns: boolean;
+      };
+      user_can_manage_client_card_entries: {
         Args: { check_tenant_id: string };
         Returns: boolean;
       };

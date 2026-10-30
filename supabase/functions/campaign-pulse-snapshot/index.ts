@@ -585,6 +585,8 @@ Deno.serve(async (req) => {
           records,
           tables: activeTables,
           nowYmd: jerusalemYmd(now),
+          // Same cost thresholds the dashboard reads (pulse_alert_rules.manager.cost).
+          alertRules: setting.pulse_alert_rules,
         });
         const recent = records.filter(
           (row: any) =>

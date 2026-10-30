@@ -6,6 +6,11 @@
 
 import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
 import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
+import {
+  alertTargetText,
+  baselineTrendLines,
+  spentWithoutResults3d,
+} from "./pulse/instant-alert-lines.ts";
 import type { Json } from "./database.types.ts";
 import {
   isLostConnectionFlag,
@@ -93,8 +98,12 @@ export type PulseSnapshotAlertInput = {
     alert_eligible?: boolean | null;
     target_kind?: string | null;
     target_value?: number | null;
+    /** "approved" (default) or "carmen_market" — named in the alert text. */
+    target_source?: string | null;
     efficiency_3d?: number | null;
     efficiency_7d?: number | null;
+    spend_3d?: number | null;
+    outcomes_3d?: number | null;
     trend_3d_pct?: number | null;
     trend_7d_pct?: number | null;
     data_fresh_through?: string | null;
@@ -165,10 +174,8 @@ export function evaluatePulseInstantAlerts(
 
     for (const campaign of campaignBreakdown) {
       if (campaign.alert_eligible !== true || !campaign.campaign_key) continue;
-      const target =
-        campaign.target_value === null || campaign.target_value === undefined
-          ? "אין יעד מאושר"
-          : `${String(campaign.target_kind || "יעד").toUpperCase()} ${campaign.target_value}`;
+      const target = alertTargetText(campaign);
+      const noResults3 = spentWithoutResults3d(campaign);
       const severity = Math.max(
         1,
         Math.abs(Number(campaign.trend_3d_pct) || 0),
@@ -186,8 +193,12 @@ export function evaluatePulseInstantAlerts(
         goal: campaign.goal || null,
         target_kind: campaign.target_kind || null,
         target_value: campaign.target_value ?? null,
+        target_source: campaign.target_source ?? null,
         efficiency_3d: campaign.efficiency_3d ?? null,
         efficiency_7d: campaign.efficiency_7d ?? null,
+        spend_3d: campaign.spend_3d ?? null,
+        outcomes_3d: campaign.outcomes_3d ?? null,
+        no_results_3d: noResults3,
         trend_3d_pct: campaign.trend_3d_pct ?? null,
         trend_7d_pct: campaign.trend_7d_pct ?? null,
         data_fresh_through: campaign.data_fresh_through ?? null,
@@ -210,7 +221,8 @@ export function evaluatePulseInstantAlerts(
           `קטגוריה: ${campaign.goal || "לא מסווג"}`,
           `סיבה: ${statusReason}`,
           `יעד: ${target}`,
-          `3 ימים: ${campaign.efficiency_3d ?? "חסר"} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
+          `3 ימים: ${campaign.efficiency_3d ?? (noResults3 ? "אין תוצאות" : "חסר")} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
+          ...baselineTrendLines(campaign),
           `שינוי אחרון: ${campaign.last_change_at || "לא זמין"}`,
           `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,
           "",

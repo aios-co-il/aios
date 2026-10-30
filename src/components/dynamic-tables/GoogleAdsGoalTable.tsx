@@ -2,7 +2,7 @@ import {
   CAMPAIGN_GOAL_TITLES,
   CAMPAIGN_GOAL_TOTAL_LABELS,
 } from "@/lib/campaignGoals";
-import { formatReportNumber } from "@/lib/reportNumber";
+import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
 import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 
 type Metrics = {
@@ -87,7 +87,7 @@ export function GoogleAdsGoalTable({
                 m={row}
                 isEcommerce={isEcommerce}
                 currency={currency}
-                emphasis=" font-medium"
+                isTotal={false}
               />
             </tr>
           ))}
@@ -99,7 +99,7 @@ export function GoogleAdsGoalTable({
               m={totals}
               isEcommerce={isEcommerce}
               currency={currency}
-              emphasis=""
+              isTotal
             />
           </tr>
         </tfoot>
@@ -113,18 +113,18 @@ function MetricCells({
   m,
   isEcommerce,
   currency,
-  emphasis,
+  isTotal,
 }: {
   m: Metrics;
   isEcommerce: boolean;
   currency: string;
-  emphasis: string;
+  isTotal: boolean;
 }) {
   return (
     <>
       <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
       <td className="p-2 text-center">{formatReportNumber(m.clicks)}</td>
-      <td className={`p-2 text-center text-green-600${emphasis}`}>
+      <td className={resultCellClass("text-green-600", isTotal)}>
         {formatReportNumber(Math.round(m.conversions))}
       </td>
       <td className="p-2 text-center">
@@ -133,16 +133,16 @@ function MetricCells({
       </td>
       {isEcommerce ? (
         <>
-          <td className={`p-2 text-center text-purple-600${emphasis}`}>
+          <td className={resultCellClass("text-purple-600", isTotal)}>
             {currency}
             {formatReportNumber(m.conversions_value)}
           </td>
-          <td className={`p-2 text-center text-blue-600${emphasis}`}>
+          <td className={resultCellClass("text-blue-600", isTotal)}>
             {formatReportNumber(ratio(m.conversions_value, m.cost), 2)}x
           </td>
         </>
       ) : (
-        <td className={`p-2 text-center text-blue-600${emphasis}`}>
+        <td className={resultCellClass("text-blue-600", isTotal)}>
           {currency}
           {formatReportNumber(ratio(m.cost, m.conversions), 1)}
         </td>
@@ -150,6 +150,3 @@ function MetricCells({
     </>
   );
 }
-
-/** a ÷ b, or 0 when there is nothing to divide by. */
-const ratio = (a: number, b: number) => (b > 0 ? a / b : 0);
