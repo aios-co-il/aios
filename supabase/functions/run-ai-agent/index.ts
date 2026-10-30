@@ -136,6 +136,12 @@ import {
 } from "../_shared/carmen-prompt-v2.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
 import {
+  PULSE_TARGET_TOOLS,
+  PULSE_TARGET_TOOL_NAMES,
+  isPulseTargetTool,
+} from "../_shared/carmen/pulse-targets/tool-defs.ts";
+import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
+import {
   spawnSubagent,
   getSubagentResult,
   spawnSubagentBatch,
@@ -803,6 +809,7 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  ...PULSE_TARGET_TOOL_NAMES,
   // Questions about Carmen herself: her personas and their portraits, on every surface.
   "get_carmen_skins",
   ...NATIVE_DEV_TASK_TOOLS,
@@ -2575,6 +2582,7 @@ const ALL_TOOLS = [
   // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
+  ...PULSE_TARGET_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -6036,6 +6044,27 @@ async function executeTool(
       args,
       (clientId) =>
         assertCallerCanAccessClient(supabase, clientId, callerScope),
+    );
+  }
+  if (isPulseTargetTool(name)) {
+    return executePulseTargetTool(
+      supabase,
+      {
+        tenantId,
+        accessibleTenantIds,
+        actorUserId,
+        agentId: agentId || null,
+        callerRole: callerRole || null,
+        callerPhone: callerPhone || null,
+        isManagerRole,
+        isTeamManager,
+        managedAgencyIds,
+        callerCampaignerId: callerCampaignerId || null,
+        assertClientAccess: (clientId) =>
+          assertCallerCanAccessClient(supabase, clientId, callerScope),
+      },
+      name,
+      args,
     );
   }
   switch (name) {

@@ -13,6 +13,10 @@ import {
   resolveCampaignDeliveryStatus as resolveDeliveryStatus,
   tableReportGoal as reportTableGoal,
 } from "../../supabase/functions/_shared/pulse-campaign-goals.mjs";
+import type {
+  PulseTargetScope,
+  PulseTargetSource,
+} from "../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 export const campaignDeliveryStatusLabel = deliveryStatusLabel as (
   status: string,
@@ -48,6 +52,16 @@ export type PulseCampaignGoalRow = {
   alert_eligible: boolean;
   target_value: number | null;
   target_kind: string | null;
+  target_source?: PulseTargetSource | null;
+  target_scope?: PulseTargetScope | null;
+  /** The table that holds the target (a duplicate report table may hold it). */
+  target_table_id?: string | null;
+  /** The campaign id that table stores a campaign-level target under. */
+  target_campaign_id?: string | null;
+  /** Carmen's reasoning for a market target. */
+  target_rationale?: string | null;
+  /** Every report table the campaign is read from; its target is resolved over these. */
+  read_table_ids?: string[];
   spend_3d: number;
   outcomes_3d: number | null;
   efficiency_3d: number | null;
@@ -57,6 +71,9 @@ export type PulseCampaignGoalRow = {
   efficiency_7d: number | null;
   baseline_efficiency_3d: number | null;
   baseline_efficiency_7d: number | null;
+  /** Real outcomes and spending days in the 28-day baseline (target-less guards). */
+  baseline_outcomes?: number | null;
+  baseline_days?: number;
   trend_3d_pct: number | null;
   trend_7d_pct: number | null;
   impressions_7d: number;
@@ -87,6 +104,8 @@ export const buildPulseCampaignRows = buildRows as (input: {
     integration_settings?: Record<string, unknown> | null;
   }>;
   nowYmd: string;
+  /** tenant_heartbeat_settings.pulse_alert_rules — same value the snapshot uses. */
+  alertRules?: unknown;
 }) => PulseCampaignGoalRow[];
 
 export const classifyPulseCampaignGoal = classifyGoal as (
