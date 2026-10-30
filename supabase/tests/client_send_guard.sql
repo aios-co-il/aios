@@ -1,4 +1,4 @@
--- Client send guard (20261027120000_client_send_guard): Staging only.
+-- Client send guard (20261030095000_client_send_guard): Staging only.
 -- Synthetic tenants, clients, contacts, leads, groups, pulse settings,
 -- broadcasts and Telegram rows in one transaction that is rolled back; five
 -- existing users get roles in the synthetic tenants for the RLS checks.
