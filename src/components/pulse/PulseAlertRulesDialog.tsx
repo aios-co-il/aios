@@ -18,6 +18,7 @@ import {
   type PulseAlertRules,
   type PulseManagerSettings,
 } from "@/lib/pulseAlertRules";
+import { PulseCostRulesSection } from "@/components/pulse/PulseCostRulesSection";
 import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
 
 type PulseAlertRulesDialogProps = {
@@ -59,7 +60,7 @@ export function PulseAlertRulesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>חוקי התראות דופק ב-WhatsApp</DialogTitle>
           <DialogDescription>
@@ -148,6 +149,8 @@ export function PulseAlertRulesDialog({
               />
             </div>
           </div>
+
+          <PulseCostRulesSection rules={rules} onChange={setRules} />
 
           <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
             <div>

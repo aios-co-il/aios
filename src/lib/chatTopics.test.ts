@@ -67,3 +67,21 @@ test("composer locks only an in-flight stream, not a debating history row", () =
     }),
   ).toBe(false);
 });
+
+test("a reopened chat stays locked while its turn runs on the server", () => {
+  expect(
+    composerLockedForChat({
+      conversationId: "a",
+      liveStreamIds: [],
+      status: "streaming",
+    }),
+  ).toBe(true);
+  expect(
+    composerLockedForChat({
+      conversationId: "a",
+      liveStreamIds: ["a"],
+      status: "streaming",
+      stale: true,
+    }),
+  ).toBe(false);
+});

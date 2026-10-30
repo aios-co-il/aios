@@ -8,7 +8,7 @@ import type {
   WeeklyGoalTotals,
 } from "@/lib/weeklyCampaignGoals";
 import {
-  WEEKLY_GOAL_COLUMNS,
+  weeklyGoalColumnsFor,
   type WeeklyGoalColumn,
 } from "./weeklyGoalColumns";
 
@@ -27,7 +27,7 @@ export function WeeklyGoalTable({
   showPlatform,
   showTitle,
 }: Props) {
-  const columns = WEEKLY_GOAL_COLUMNS[group.kind];
+  const columns = weeklyGoalColumnsFor(group);
   return (
     <section aria-label={CAMPAIGN_GOAL_TITLES[group.kind]}>
       {showTitle && (

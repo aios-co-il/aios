@@ -26,7 +26,10 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { PulseAlertRulesDialog } from "@/components/pulse/PulseAlertRulesDialog";
-import { mergePulseAlertRules } from "@/lib/pulseAlertRules";
+import {
+  mergePulseAlertRules,
+  type PulseAlertRules,
+} from "@/lib/pulseAlertRules";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const DEFAULT_ALLOWED_ACTIONS = ["reminders", "status_update", "daily_summary"];
@@ -55,7 +58,7 @@ type HeartbeatSettingsInput = {
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
   // The full stored JSON: alert rules plus keys this screen does not edit.
-  pulse_alert_rules?: Record<string, unknown>;
+  pulse_alert_rules?: PulseAlertRules | Record<string, unknown>;
 };
 
 /**

@@ -3,6 +3,7 @@ import {
   groupRowsByCampaignGoal,
   type ReportCampaignGoal,
 } from "@/lib/campaignGoals";
+import { costPerFollower, sumFacebookFollowers } from "@/lib/facebookFollowers";
 import { weeklyRoas } from "@/lib/weeklyAdsRevenue";
 import type {
   WeeklyCampaignRow,
@@ -55,7 +56,10 @@ export function weeklySourceModesForTable(
   };
 }
 
-/** Totals of one goal: its own results, cost per result and (sales only) ROAS. */
+/**
+ * Totals of one goal: its own results, cost per result, (sales only) ROAS and
+ * the followers its campaigns gained.
+ */
 function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
   const totals = rows.reduce(
     (sum, row) => {
@@ -80,5 +84,9 @@ function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
   );
   totals.costPerResult = totals.results > 0 ? totals.spend / totals.results : 0;
   totals.roas = weeklyRoas(rows, totals.revenue);
-  return totals;
+  return {
+    ...totals,
+    followers: sumFacebookFollowers(rows),
+    costPerFollower: costPerFollower(rows),
+  };
 }
