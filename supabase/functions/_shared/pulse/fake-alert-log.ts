@@ -57,8 +57,7 @@ export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
 /**
  * pulse_instant_alert_log, agency_tenant_access `grants` and the staff tables
  * (user_roles `roles`, profiles) in memory; inserts are stamped with `clock`.
- * Every read of a `failing` table, every read whose `tenant_id` IN filter
- * names a `failingTenants` tenant and every insert into a `failingInserts`
+ * Every read of a `failing` table and every insert into a `failingInserts`
  * table returns an error.
  */
 export function fakeSupabase(
@@ -68,7 +67,6 @@ export function fakeSupabase(
     roles?: Row[];
     profiles?: Row[];
     failing?: string[];
-    failingTenants?: string[];
     failingInserts?: string[];
   } = {},
 ) {
@@ -81,19 +79,15 @@ export function fakeSupabase(
   const fake = { from, log, clock: "" };
   function from(table: string): FakeQuery {
     const filters: Array<(row: Row) => boolean> = [];
-    const readTenants: unknown[] = [];
     let limit = Infinity;
     let descending = false;
     const builder: FakeQuery = {
       select: () => builder,
       eq: (col, val) => (filters.push((row) => row[col] === val), builder),
-      in: (col, vals) => {
-        if (col === "tenant_id") {
-          readTenants.push(...vals);
-        }
-        filters.push((row) => vals.includes(row[col]));
-        return builder;
-      },
+      in: (col, vals) => (
+        filters.push((row) => vals.includes(row[col])),
+        builder
+      ),
       // Only the `a.eq.x,b.eq.y` form the code under test sends.
       or: (filter) => {
         const terms = filter.split(",").map((term) => term.split(".eq."));
@@ -120,10 +114,7 @@ export function fakeSupabase(
         return { error: null };
       },
       then: (resolve) => {
-        const failingTenant = options.failingTenants?.some((tenantId) =>
-          readTenants.includes(tenantId),
-        );
-        if (options.failing?.includes(table) || failingTenant) {
+        if (options.failing?.includes(table)) {
           resolve({ data: null, error: { message: "connection reset" } });
           return;
         }

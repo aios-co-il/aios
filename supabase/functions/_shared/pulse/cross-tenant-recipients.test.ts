@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { normalizeNotifyPhone } from "../carmen-notify-target.ts";
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
+import { withoutPhonesAlertedElsewhere } from "./cross-tenant-recipients.ts";
 import { fakeSupabase, healthy, run, WEDNESDAY } from "./fake-alert-log.ts";
 import {
   connectionLostFingerprint,
@@ -175,17 +176,20 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
   );
 
   await t.step("a failed lookup alerts everyone", async () => {
-    const failures = {
-      "shared-agency lookup": { failing: ["agency_tenant_access"] },
-      "other org's log lookup": { failingTenants: ["t2"] },
-    };
-    for (const [lookup, failure] of Object.entries(failures)) {
+    for (const table of ["agency_tenant_access", "pulse_instant_alert_log"]) {
       const supabase = fakeSupabase([logRow("t2", LOST)], {
         grants: [GRANT],
-        ...failure,
+        failing: [table],
       });
-      const { sends } = await run(supabase, WEDNESDAY, [SHARED]);
-      assertEquals(phones(sends), [PULSE_PHONE], lookup);
+      const recipients = await withoutPhonesAlertedElsewhere(
+        { supabase, tenantId: "t1" },
+        { client_id: "c1", client_name: "Acme", message: "", ...LOST },
+        "a1",
+        [{ phone: PULSE_PHONE }],
+        24,
+        WEDNESDAY,
+      );
+      assertEquals(phones(recipients), [PULSE_PHONE], table);
     }
   });
 });

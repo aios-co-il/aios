@@ -1,4 +1,4 @@
--- Pulse refresh rate limit (20261026131000_carmen_pulse_refresh): synthetic
+-- Pulse refresh rate limit (20261030096000_carmen_pulse_refresh): synthetic
 -- claims inside one transaction that is rolled back.
 BEGIN;
 DO $test$

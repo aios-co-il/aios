@@ -7,7 +7,7 @@ import {
 const read = (path: string) =>
   Deno.readTextFileSync(new URL(path, import.meta.url));
 const migration = read(
-  "../../../migrations/20261026131000_carmen_pulse_refresh.sql",
+  "../../../migrations/20261030096000_carmen_pulse_refresh.sql",
 );
 const ROWS = [PULSE_CHECK_SKILL_ROW, ECOMMERCE_PULSE_SKILL_ROW];
 const TEXT_FIELDS = [

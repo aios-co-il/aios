@@ -1,5 +1,5 @@
 // The canonical text of the global pulse_check and ecommerce_pulse skins.
-// Migration 20261026131000 writes the same text to ai_skills, which stays the
+// Migration 20261030096000 writes the same text to ai_skills, which stays the
 // owner at runtime; registry.ts renders these rows as its fallback, and
 // pulse-skill-rows.test.ts keeps them equal to the migration.
 

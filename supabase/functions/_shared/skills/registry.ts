@@ -50,7 +50,7 @@ interface DbSkillRow {
 
 // ────────── Hardcoded fallbacks (used only if DB read fails) ──────────
 
-/** Builds a registry fallback from a canonical global ai_skills row (pulse-skill-rows.ts), so it renders exactly like the DB row written by migration 20261026131000. */
+/** Builds a registry fallback from a canonical global ai_skills row (pulse-skill-rows.ts), so it renders exactly like the DB row written by migration 20261030096000. */
 function fallbackFromSkillRow(row: PulseSkillRow): CarmenSkill {
   const skill = rowToSkill({
     ...row,
