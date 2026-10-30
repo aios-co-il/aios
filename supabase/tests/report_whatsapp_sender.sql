@@ -1,4 +1,4 @@
--- Report sender lines (20261027104000_report_whatsapp_sender): synthetic lines
+-- Report sender lines (20261030094000_report_whatsapp_sender): synthetic lines
 -- in two tenants inside one transaction that is rolled back.
 BEGIN;
 DO $test$
