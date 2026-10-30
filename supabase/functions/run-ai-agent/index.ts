@@ -56,6 +56,19 @@ import { readScopedChatRows } from "./chat-scope/rows.ts";
 import { scopedChatRead } from "./chat-scope/scoped-read.ts";
 import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  CARMEN_CLIENT_UPDATE_TYPES,
+  CLIENT_CARD_SOURCES,
+} from "../_shared/client-card/sources.ts";
+import {
+  addClientUpdateFromCarmen,
+  HEALTH_CARD_ENTRY_ERROR_HINT,
+  recordHealthCardEntryAfterUpdate,
+} from "./carmen-client-card-tools.ts";
+import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { setClientMoodStatus } from "./client-health-status.ts";
+import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
@@ -1382,12 +1395,19 @@ const ALL_TOOLS = [
   },
   {
     name: "add_client_update",
-    description: "הוספת עדכון ללקוח",
+    description:
+      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. שיחה (call) או פגישה (meeting) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק note, complaint או weekly_update.",
     parameters: {
       type: "object",
       properties: {
         client_id: { type: "string" },
         content: { type: "string" },
+        update_type: {
+          type: "string",
+          enum: [...CARMEN_CLIENT_UPDATE_TYPES],
+          description:
+            "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
+        },
       },
       required: ["client_id", "content"],
     },
@@ -1972,8 +1992,7 @@ const ALL_TOOLS = [
   },
   {
     name: "update_client_health",
-    description:
-      "עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים).",
+    description: `עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים). ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -2008,8 +2027,7 @@ const ALL_TOOLS = [
   },
   {
     name: "batch_update_client_health",
-    description:
-      "עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור.",
+    description: `עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור. ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -3112,7 +3130,7 @@ const ALL_TOOLS = [
   // UPDATES
   {
     name: "list_updates",
-    description: "רשימת עדכונים ללקוח או ליד",
+    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
     parameters: {
       type: "object",
       properties: {
@@ -5822,6 +5840,9 @@ async function executeTool(
   } = {},
   /** The chat's app origin (request Origin), for full links to files the app serves. */
   appLinkOrigin?: string | null,
+  // The person talking to Carmen in this run (resolveHumanRequesterUserId).
+  // Omitted = nobody can vouch for a client contact, so calls are not logged.
+  humanRequesterUserId?: string | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -6708,18 +6729,15 @@ async function executeTool(
     }
     case "add_client_update": {
       await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      const { data, error } = await supabase
-        .from("client_updates")
-        .insert({
-          client_id: args.client_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { update_id: data.id };
+      // Tenant check, attribution and dedupe happen in record_client_card_entry.
+      return await addClientUpdateFromCarmen(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        content: args.content,
+        updateType: args.update_type,
+        humanRequesterUserId,
+        surface,
+      });
     }
     case "send_message": {
       const { phone, contactName } = await sendTargetFor(
@@ -8313,13 +8331,11 @@ async function executeTool(
       }
 
       // 1. Update mood_status on client
-      const updateData: any = { mood_status: args.mood_status };
-      const { error: clientErr } = await supabase
-        .from("clients")
-        .update(updateData)
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds);
-      if (clientErr) throw clientErr;
+      await setClientMoodStatus(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        moodStatus: args.mood_status,
+      });
 
       // 2. Create communication_log entry
       const commStatus =
@@ -8341,19 +8357,15 @@ async function executeTool(
         });
       if (logErr) throw logErr;
 
-      // 3. Also create a client_update so it's visible in the client updates tab
-      if (effectiveUserId) {
-        const { error: clientUpdateErr } = await supabase
-          .from("client_updates")
-          .insert({
-            client_id: args.client_id,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: `[עדכון אוטומטי - כרמן] ${args.note}`,
-          });
-
-        if (clientUpdateErr) throw clientUpdateErr;
-      }
+      // 3. Card entry as source carmen, so it never counts as client contact.
+      const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        note: args.note,
+        moodStatus: args.mood_status,
+        requesterUserId: humanRequesterUserId,
+        tool: "update_client_health",
+      });
 
       return {
         success: true,
@@ -8361,6 +8373,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
+        ...cardEntry,
       };
     }
     case "get_client_retention_scan": {
@@ -8505,12 +8518,11 @@ async function executeTool(
         }
         try {
           await assertCallerCanAccessClient(supabase, clientId, callerScope);
-          const { error: clientErr } = await supabase
-            .from("clients")
-            .update({ mood_status: mood })
-            .eq("id", clientId)
-            .in("tenant_id", accessibleTenantIds);
-          if (clientErr) throw clientErr;
+          await setClientMoodStatus(supabase, {
+            tenantId,
+            clientId,
+            moodStatus: mood,
+          });
           const commStatus =
             update.communication_status ||
             (mood === "happy"
@@ -8529,21 +8541,19 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          if (batchUserId) {
-            const { error: clientUpdateErr } = await supabase
-              .from("client_updates")
-              .insert({
-                client_id: clientId,
-                tenant_id: tenantId,
-                user_id: batchUserId,
-                content: `[עדכון אוטומטי - כרמן] ${note}`,
-              });
-            if (clientUpdateErr) throw clientUpdateErr;
-          }
+          const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
+            tenantId,
+            clientId,
+            note,
+            moodStatus: mood,
+            requesterUserId: humanRequesterUserId,
+            tool: "batch_update_client_health",
+          });
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
+            ...cardEntry,
           });
         } catch (err: any) {
           results.push({
@@ -10524,17 +10534,20 @@ async function executeTool(
     }
     // UPDATES
     case "list_updates": {
-      const table =
-        args.entity_type === "client" ? "client_updates" : "lead_updates";
-      const idCol = args.entity_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await supabase
-        .from(table)
-        .select("id, content, created_at")
-        .eq(idCol, args.entity_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      return { count: data.length, updates: data };
+      if (args.entity_type === "client") {
+        await assertCallerCanAccessClient(
+          supabase,
+          args.entity_id,
+          callerScope,
+        );
+      }
+      return await listUpdates(supabase, {
+        entityType: args.entity_type,
+        entityId: args.entity_id,
+        tenantId,
+        accessibleTenantIds,
+        limit: args.limit,
+      });
     }
     // GOALS
     case "create_goal": {
@@ -12678,20 +12691,19 @@ async function executeTool(
           () => {},
         );
 
-      if (effectiveUserId) {
-        await supabase
-          .from("client_updates")
-          .insert({
-            client_id: clientId,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: note,
-          })
-          .then(
-            () => {},
-            () => {},
-          );
-      }
+      await recordClientCardEntry(supabase, {
+        tenantId,
+        clientId,
+        content: note,
+        source: "carmen",
+        attributedUserId: effectiveUserId,
+        metadata: { tool: "connect_client_meta_ad_account" },
+      }).catch((err) =>
+        console.warn(
+          "[connect_client_meta_ad_account] client card entry failed",
+          err,
+        ),
+      );
 
       return {
         success: true,
@@ -13616,12 +13628,8 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
+import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
-
-// Surface for which the agent is currently invoked.
-// 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
-// but no dialog progress UI). Default for unspecified callers.
-type Surface = "whatsapp" | "aios" | "task" | "internal_chat" | "grok_bot";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -13853,6 +13861,13 @@ async function handleRunAgent(
     const isManagerRoleCaller =
       !!callerRole && MANAGER_ROLES.includes(callerRole);
     const isTeamManagerCaller = callerRole === "team_manager";
+    // A person talking to Carmen right now (not a task, automation or bot run):
+    // only they can confirm a client call or meeting for the client card.
+    const humanRequesterUserId = resolveHumanRequesterUserId({
+      userId: callerUserId,
+      surface,
+      automationId: automation_id,
+    });
 
     // System/dev-fix escalations (Cursor/Claude/Manus MCP + GitHub agent) —
     // tiered allowlist: David=full, Ana=bugfix→Cursor only. Role alone is not enough.
@@ -16097,6 +16112,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 lastAssistant: lastAssistantText(conversation_history),
               },
               request.origin ?? null,
+              humanRequesterUserId,
             );
             if (result?.pending_approval && result?.approval_id) {
               await bindApprovalToConversation(
