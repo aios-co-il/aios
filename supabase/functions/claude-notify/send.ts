@@ -66,6 +66,8 @@ export async function sendNotify(
       senderUserId,
       phoneNumber: delivery.phoneNumber,
       message,
+      // A staff notification, never logged on a client card.
+      sendKind: "staff_alert",
       ...(transport.integrationId
         ? { integrationId: transport.integrationId }
         : {}),

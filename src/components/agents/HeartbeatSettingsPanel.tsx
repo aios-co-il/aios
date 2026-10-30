@@ -30,6 +30,7 @@ import {
   mergePulseAlertRules,
   type PulseAlertRules,
 } from "@/lib/pulseAlertRules";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const DEFAULT_ALLOWED_ACTIONS = ["reminders", "status_update", "daily_summary"];
 
@@ -56,6 +57,7 @@ type HeartbeatSettingsInput = {
   campaign_pulse_phone?: string | null;
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
+  // The full stored JSON: alert rules plus keys this screen does not edit.
   pulse_alert_rules?: PulseAlertRules | Record<string, unknown>;
 };
 
@@ -68,6 +70,8 @@ export function HeartbeatSettingsPanel() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [pulseRulesOpen, setPulseRulesOpen] = useState(false);
+  const { isOwner, isAgencyOwner, isSuperAdmin } = useUserRole();
+  const canManageCardLog = isOwner || isAgencyOwner || isSuperAdmin;
 
   const { data: heartbeatSettings } = useQuery({
     queryKey: ["heartbeat_settings", tenantId],
@@ -421,14 +425,16 @@ export function HeartbeatSettingsPanel() {
         onOpenChange={setPulseRulesOpen}
         value={heartbeatSettings?.pulse_alert_rules}
         saving={saveHeartbeatSettings.isPending}
-        onSave={async (rules) => {
+        canManageCardLog={canManageCardLog}
+        onSave={async (rules, manager) => {
           await saveHeartbeatSettings.mutateAsync({
             ...coreSettings(),
             ...campaignPulseSettings(),
-            // Merge into the stored JSON so keys this dialog does not edit survive.
+            // Merge, so keys this dialog does not edit are never dropped.
             pulse_alert_rules: mergePulseAlertRules(
               heartbeatSettings?.pulse_alert_rules,
               rules,
+              manager,
             ),
           });
           setPulseRulesOpen(false);

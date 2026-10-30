@@ -902,10 +902,15 @@ export async function findCarmenSessionAutomation(
   return null;
 }
 
-// Look up the first send action step of a Carmen automation and dispatch the reply through it
-// (Manus or Green API), regardless of which webhook received the inbound message.
-// Returns true when delivery succeeded via the action step; false if no action step is configured
-// or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
+/**
+ * Look up the first send action step of a Carmen automation and dispatch the reply through it
+ * (Manus or Green API), regardless of which webhook received the inbound message.
+ * Returns true when delivery succeeded via the action step; false if no action step is configured
+ * or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
+ * The send is stamped send_kind "carmen": the chat_messages trigger logs it on the client card
+ * only in a group that belongs to one client. Notifications to team members pass "staff_alert"
+ * and are never logged.
+ */
 export async function sendCarmenReplyViaActionStep(args: {
   supabase: any;
   automationId: string;
@@ -915,6 +920,7 @@ export async function sendCarmenReplyViaActionStep(args: {
   phoneNumber: string;
   isGroup: boolean;
   message: string;
+  sendKind?: "carmen" | "staff_alert";
 }): Promise<boolean> {
   const {
     supabase,
@@ -925,6 +931,7 @@ export async function sendCarmenReplyViaActionStep(args: {
     phoneNumber,
     isGroup,
     message,
+    sendKind = "carmen",
   } = args;
 
   if (!replyDestinationIsConsistent({ chatId, isGroup })) {
@@ -1001,6 +1008,7 @@ export async function sendCarmenReplyViaActionStep(args: {
     tenantId,
     senderUserId: connectionUserId,
     message,
+    sendKind,
   };
   if (integrationId) body.integrationId = integrationId;
   if (groupId) {
