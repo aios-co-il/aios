@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { markdownToEmailHtml, markdownToWhatsApp } from "./summaryFormat";
+import { logSystemSendClientUpdate } from "@/lib/logSystemSendClientUpdate";
 
 export interface ShareableRecording {
   id: string;
@@ -149,16 +150,26 @@ export function ShareSummaryDialog({
   const logClientUpdate = async () => {
     if (!recording.client_id) return;
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      await supabase.from("client_updates").insert({
-        tenant_id: tenantId,
-        client_id: recording.client_id,
-        update_type: "meeting_summary",
-        content: `סיכום הפגישה "${meetingName}"${meetingDate ? ` (${meetingDate})` : ""} נשלח ללקוח`,
-        created_by: user?.id ?? null,
-      } as never);
+      const channels = [
+        sendWhatsApp ? "בוואטסאפ" : null,
+        sendEmail ? "באימייל" : null,
+      ].filter(Boolean);
+      const error = await logSystemSendClientUpdate({
+        tenantId,
+        clientId: recording.client_id,
+        updateType: "meeting_summary",
+        content: `סיכום הפגישה "${meetingName}"${meetingDate ? ` (${meetingDate})` : ""} נשלח ללקוח${channels.length ? ` ${channels.join(" ו")}` : ""}`,
+        metadata: {
+          recording_id: recording.id,
+          channels: [
+            ...(sendWhatsApp ? ["whatsapp"] : []),
+            ...(sendEmail ? ["email"] : []),
+          ],
+        },
+      });
+      if (error) {
+        console.error("client_updates log failed:", error);
+      }
     } catch (err) {
       console.error("client_updates log failed:", err);
     }
