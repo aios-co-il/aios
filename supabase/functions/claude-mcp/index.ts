@@ -31,6 +31,13 @@
 // redeploy: revert to the original claude-mcp (no dispatch WhatsApp ping) so Carmen's own
 // session-URL relay is the single message — the extra ping had caused duplicate messages.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database } from "../_shared/database.types.ts";
+import {
+  asRecord,
+  errorMessageOr,
+  parseJsonRecord,
+  type UnknownRecord,
+} from "../_shared/unknown-record.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -173,17 +180,9 @@ async function fireRoutine(
     }
     throw new Error(`Claude routine fire ${resp.status}: ${detail}`);
   }
-  let data: any = {};
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  return (
-    data?.claude_code_session_url ||
-    data?.claude_code_session_id ||
-    "(session created)"
-  );
+  const data = parseJsonRecord(raw);
+  const session = data.claude_code_session_url || data.claude_code_session_id;
+  return session ? String(session) : "(session created)";
 }
 
 function resolveRoutine(kind: "dev" | "general"): {
@@ -246,7 +245,7 @@ async function resolveContext(
 
 function sbClient() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 }
@@ -265,7 +264,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(5);
-    const rows = (data || []) as Array<any>;
+    const rows = data || [];
     if (!rows.length) return "";
     const lines = rows.map((r) => {
       const when = String(r.created_at || "")
@@ -288,7 +287,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
   } catch (e) {
     console.error(
       "[claude-mcp] recentDispatchContext failed:",
-      (e as any)?.message ?? e,
+      errorMessageOr(e),
     );
     return "";
   }
@@ -318,7 +317,7 @@ async function logDispatch(args: {
       session_url: args.sessionUrl || null,
     });
   } catch (e) {
-    console.error("[claude-mcp] logDispatch failed:", (e as any)?.message ?? e);
+    console.error("[claude-mcp] logDispatch failed:", errorMessageOr(e));
   }
 }
 
@@ -360,7 +359,7 @@ function teachingBlock(
 
 async function handleToolCall(
   name: string,
-  args: Record<string, any>,
+  args: UnknownRecord,
   ctx: { tenantId: string | null; agentId: string | null },
 ): Promise<string> {
   if (name === "request_dev_task") {
@@ -446,14 +445,15 @@ Deno.serve(async (req) => {
     );
   }
 
-  let msg: any;
+  let msg: UnknownRecord;
   try {
-    msg = await req.json();
+    msg = asRecord(await req.json());
   } catch {
     return rpcError(null, -32700, "Parse error");
   }
 
-  const { id, method, params } = msg ?? {};
+  const { id, method } = msg;
+  const params = asRecord(msg.params);
 
   // Optional shared-secret gate. If CLAUDE_MCP_BEARER is set, every caller must
   // present it (Carmen's MCP client forwards the connection's bearer token).
@@ -488,16 +488,18 @@ Deno.serve(async (req) => {
         return rpcResult(id, { tools: TOOLS });
 
       case "tools/call": {
-        const name = params?.name as string;
-        const args = (params?.arguments ?? {}) as Record<string, any>;
+        const name = String(params.name);
+        const args = asRecord(params.arguments);
         try {
           const ctx = await resolveContext(bearerFrom(req));
           const text = await handleToolCall(name, args, ctx);
           return rpcResult(id, { content: [{ type: "text", text }] });
-        } catch (e: any) {
+        } catch (e) {
           // Surface tool failures as an MCP tool error so the agent sees them.
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [
+              { type: "text", text: `❌ ${String(errorMessageOr(e))}` },
+            ],
             isError: true,
           });
         }
@@ -506,8 +508,8 @@ Deno.serve(async (req) => {
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[claude-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[claude-mcp]", errorMessageOr(e));
+    return rpcError(id, -32603, `Internal error: ${String(errorMessageOr(e))}`);
   }
 });

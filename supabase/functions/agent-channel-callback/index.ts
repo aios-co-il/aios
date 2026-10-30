@@ -7,6 +7,8 @@ import type {
   CallbackPayload,
   ChannelProvider,
 } from "../_shared/agent-channel/types.ts";
+import { errorMessageOr } from "../_shared/unknown-record.ts";
+import { type CallbackBody, parseCallbackBody } from "./callback-body.ts";
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -27,16 +29,16 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "POST only" });
 
-  let body: any;
+  let body: CallbackBody;
   try {
-    body = await req.json();
+    body = parseCallbackBody(await req.json());
   } catch {
     return json(400, { error: "Invalid JSON" });
   }
 
-  const conversationId = String(body.conversation_id || "").trim();
-  const sessionId = String(body.session_id || "").trim();
-  const content = String(body.content || "").trim();
+  const conversationId = body.conversation_id;
+  const sessionId = body.session_id;
+  const content = body.content;
   if (!conversationId || !content)
     return json(400, { error: "conversation_id and content are required" });
 
@@ -64,21 +66,20 @@ Deno.serve(async (req) => {
     session_id: sessionId,
     origin: origin || (session?.provider as ChannelProvider) || "cursor",
     content,
-    event_type: body.event_type || "message",
+    event_type: body.event_type,
     speaker: body.speaker,
-    idempotency_key:
-      req.headers.get("Idempotency-Key") || body.idempotency_key || null,
-    external_message_id: body.external_message_id || null,
+    idempotency_key: req.headers.get("Idempotency-Key") || body.idempotency_key,
+    external_message_id: body.external_message_id,
     parliament_round:
-      body.parliament_round ?? session?.parliament_round ?? null,
-    metadata: body.metadata || {},
+      body.parliament_round ?? session?.parliament_round ?? undefined,
+    metadata: body.metadata,
   };
 
   try {
     const result = await ingestChannelReply(payload);
     return json(200, { ok: true, ...result });
-  } catch (e: any) {
-    console.error("[agent-channel-callback]", e?.message ?? e);
-    return json(400, { error: String(e?.message ?? e) });
+  } catch (e) {
+    console.error("[agent-channel-callback]", errorMessageOr(e));
+    return json(400, { error: String(errorMessageOr(e)) });
   }
 });

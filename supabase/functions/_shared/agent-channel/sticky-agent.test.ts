@@ -16,6 +16,32 @@ import {
   uniqueCloudAgentIds,
 } from "./sticky-agent.ts";
 
+type MockRows = { data: unknown };
+
+interface MockChain extends PromiseLike<MockRows> {
+  select(): MockChain;
+  match(): MockChain;
+  not(): MockChain;
+  order(): MockChain;
+  limit(): MockChain;
+  maybeSingle(): Promise<MockRows>;
+}
+
+function mockChain(single: unknown, rows: unknown): MockChain {
+  const result: MockRows = { data: rows };
+  const chain: MockChain = {
+    select: () => chain,
+    match: () => chain,
+    not: () => chain,
+    order: () => chain,
+    limit: () => chain,
+    maybeSingle: async () => ({ data: single }),
+    then: (onfulfilled, onrejected) =>
+      Promise.resolve(result).then(onfulfilled, onrejected),
+  };
+  return chain;
+}
+
 Deno.test("only bc- ids count as an open Cursor chat", () => {
   assertStrictEquals(
     asCloudAgentId("bc-7eb07a1e-7143-4b20-bf1e-fc529a24cc5c"),
@@ -90,28 +116,7 @@ Deno.test(
     const sb = {
       from(table: string) {
         calls.push(table);
-        const chain: any = {
-          select() {
-            return chain;
-          },
-          eq() {
-            return chain;
-          },
-          not() {
-            return chain;
-          },
-          order() {
-            return chain;
-          },
-          limit() {
-            return chain;
-          },
-          maybeSingle: async () => ({ data: { cursor_agent_id: "bc-sticky" } }),
-          then(resolve: (v: { data: unknown }) => unknown) {
-            return Promise.resolve({ data: [] }).then(resolve);
-          },
-        };
-        return chain;
+        return mockChain({ cursor_agent_id: "bc-sticky" }, []);
       },
     };
 
@@ -144,28 +149,7 @@ Deno.test(
           table === "agent_channel_sessions"
             ? [{ external_session_id: "bc-session-old" }]
             : null;
-        const chain: any = {
-          select() {
-            return chain;
-          },
-          eq() {
-            return chain;
-          },
-          not() {
-            return chain;
-          },
-          order() {
-            return chain;
-          },
-          limit() {
-            return chain;
-          },
-          maybeSingle: async () => ({ data: row }),
-          then(resolve: (v: { data: unknown }) => unknown) {
-            return Promise.resolve({ data: rows }).then(resolve);
-          },
-        };
-        return chain;
+        return mockChain(row, rows);
       },
     };
 
@@ -188,28 +172,7 @@ Deno.test(
   async () => {
     const sb = {
       from() {
-        const chain: any = {
-          select() {
-            return chain;
-          },
-          eq() {
-            return chain;
-          },
-          not() {
-            return chain;
-          },
-          order() {
-            return chain;
-          },
-          limit() {
-            return chain;
-          },
-          maybeSingle: async () => ({ data: null }),
-          then(resolve: (v: { data: unknown }) => unknown) {
-            return Promise.resolve({ data: [] }).then(resolve);
-          },
-        };
-        return chain;
+        return mockChain(null, []);
       },
     };
     const ids = await collectOpenChatIds(sb, {
@@ -220,3 +183,27 @@ Deno.test(
     assertEquals(ids, []);
   },
 );
+
+Deno.test("open-chat session rows tolerate malformed entries", async () => {
+  const sb = {
+    from(table: string) {
+      return mockChain(
+        null,
+        table === "agent_channel_sessions"
+          ? [
+              null,
+              { external_session_id: 7 },
+              "bc-raw",
+              { external_session_id: "bc-ok" },
+            ]
+          : null,
+      );
+    },
+  };
+  const ids = await collectOpenChatIds(sb, {
+    tenantId: "t1",
+    provider: "cursor",
+    env: { CURSOR_DIRECT_STICKY: "true" },
+  });
+  assertEquals(ids, ["bc-ok"]);
+});

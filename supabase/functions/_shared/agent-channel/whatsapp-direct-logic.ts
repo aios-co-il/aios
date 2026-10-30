@@ -1,4 +1,6 @@
 // Pure helpers for WhatsApp → direct channel routing (unit-tested under node).
+import { z } from "npm:zod@3.25.76";
+
 export type WhatsAppDirectProvider = "claude" | "cursor";
 
 export type WhatsAppReplyTarget = {
@@ -61,4 +63,29 @@ export function whatsAppReplyText(provider: string, content: string): string {
   const label = LABEL[provider as WhatsAppDirectProvider] || provider;
   const body = content.length > 3500 ? `${content.slice(0, 3500)}…` : content;
   return `🤖 ${label}:\n${body}`;
+}
+
+const replyTargetField = z.union([
+  z.string().min(1),
+  z.number().refine((n) => n !== 0 && !Number.isNaN(n)),
+]);
+
+const sessionReplyTargetSchema = z.object({
+  reply_whatsapp: z.object({
+    integration_id: replyTargetField,
+    phone_number: replyTargetField,
+    connection_user_id: replyTargetField,
+  }),
+});
+
+export type StoredReplyTarget = z.infer<
+  typeof sessionReplyTargetSchema
+>["reply_whatsapp"];
+
+/** The WhatsApp chat a direct-channel session should answer, from its metadata. */
+export function replyTargetFrom(
+  sessionMetadata: unknown,
+): StoredReplyTarget | null {
+  const parsed = sessionReplyTargetSchema.safeParse(sessionMetadata);
+  return parsed.success ? parsed.data.reply_whatsapp : null;
 }

@@ -7,6 +7,11 @@ import type {
   CallbackPayload,
   ChannelProvider,
 } from "../_shared/agent-channel/types.ts";
+import {
+  asRecord,
+  errorMessageOr,
+  type UnknownRecord,
+} from "../_shared/unknown-record.ts";
 
 const SERVER_INFO = { name: "agent-channel-mcp", version: "1.0.0" };
 const PROTOCOL_VERSION = "2024-11-05";
@@ -111,10 +116,7 @@ function bearerFrom(req: Request): string | undefined {
   return m ? m[1].trim() : undefined;
 }
 
-async function handleTool(
-  name: string,
-  args: Record<string, any>,
-): Promise<string> {
+async function handleTool(name: string, args: UnknownRecord): Promise<string> {
   const conversationId = String(
     args?.conversation_id ?? args?.conversationId ?? "",
   ).trim();
@@ -128,7 +130,10 @@ async function handleTool(
   const tenantId =
     String(args?.tenant_id ?? args?.tenantId ?? "").trim() ||
     session?.tenant_id;
-  const origin = resolveCallbackOrigin(args?.origin, session?.provider);
+  const origin = resolveCallbackOrigin(
+    typeof args.origin === "string" ? args.origin : null,
+    session?.provider,
+  );
 
   const eventType =
     name === "publish_aios_progress"
@@ -180,13 +185,14 @@ Deno.serve(async (req) => {
     );
   }
 
-  let msg: any;
+  let msg: UnknownRecord;
   try {
-    msg = await req.json();
+    msg = asRecord(await req.json());
   } catch {
     return rpcError(null, -32700, "Parse error");
   }
-  const { id, method, params } = msg ?? {};
+  const { id, method } = msg;
+  const params = asRecord(msg.params);
 
   const gate = mcpBearer();
   if (gate && bearerFrom(req) !== gate) {
@@ -214,14 +220,16 @@ Deno.serve(async (req) => {
       case "tools/list":
         return rpcResult(id, { tools: TOOLS });
       case "tools/call": {
-        const name = params?.name as string;
-        const args = (params?.arguments ?? {}) as Record<string, any>;
+        const name = String(params.name);
+        const args = asRecord(params.arguments);
         try {
           const text = await handleTool(name, args);
           return rpcResult(id, { content: [{ type: "text", text }] });
-        } catch (e: any) {
+        } catch (e) {
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [
+              { type: "text", text: `❌ ${String(errorMessageOr(e))}` },
+            ],
             isError: true,
           });
         }
@@ -229,8 +237,8 @@ Deno.serve(async (req) => {
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[agent-channel-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[agent-channel-mcp]", errorMessageOr(e));
+    return rpcError(id, -32603, `Internal error: ${String(errorMessageOr(e))}`);
   }
 });

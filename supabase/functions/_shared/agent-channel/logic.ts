@@ -1,3 +1,4 @@
+import { z } from "npm:zod@3.25.76";
 import type { Database, Json } from "../database.types.ts";
 import type {
   AdapterCapabilities,
@@ -360,6 +361,16 @@ export function resolveCallbackOrigin(
     return session;
   }
   return raw || session || "internal";
+}
+
+const callbackEventTypeSchema = z.preprocess(
+  (raw) => raw || "message",
+  z.coerce.string(),
+);
+
+/** Absent event_type defaults to "message"; any other value is kept as text. */
+export function parseCallbackEventType(raw: unknown): string {
+  return callbackEventTypeSchema.parse(raw);
 }
 
 /** Narrow generated database strings before exposing a route to channel code. */
