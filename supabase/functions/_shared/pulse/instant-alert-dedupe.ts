@@ -3,20 +3,22 @@ import type { Tables } from "../database.types.ts";
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
 import type { DbClient } from "../supabase-clients.ts";
 
-type InstantAlertLogRow = Partial<
+export type InstantAlertLogRow = Partial<
   Pick<Tables<"pulse_instant_alert_log">, "fingerprint" | "severity_score">
 >;
 
 /**
  * True when this candidate must not go out: a matching log row inside the
  * rule's throttle window, or a failed lookup. A failed dedupe lookup must not
- * turn into a resend.
+ * turn into a resend. `acceptedThisRun` holds the rows of alerts accepted
+ * earlier in the same run (newest first), which are not logged yet.
  */
 export async function isInstantAlertSuppressed(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   candidate: PulseInstantAlertCandidate,
   throttleHours: number,
   now: Date,
+  acceptedThisRun: InstantAlertLogRow[] = [],
 ): Promise<boolean> {
   const { data, error } = await recentAlertDeliveries(
     input.supabase,
@@ -29,7 +31,8 @@ export async function isInstantAlertSuppressed(
     console.warn("[pulse-instant-alerts] dedupe lookup failed", error.message);
     return true;
   }
-  return !decideInstantAlertDelivery(candidate, data).send;
+  return !decideInstantAlertDelivery(candidate, [...acceptedThisRun, ...data])
+    .send;
 }
 
 /**

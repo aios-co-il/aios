@@ -3153,6 +3153,35 @@ export type Database = {
           },
         ];
       };
+      campaign_pulse_refresh_claims: {
+        Row: {
+          claim_count: number;
+          last_claimed_at: string;
+          last_claimed_by: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          claim_count?: number;
+          last_claimed_at?: string;
+          last_claimed_by?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          claim_count?: number;
+          last_claimed_at?: string;
+          last_claimed_by?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "campaign_pulse_refresh_claims_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       campaign_pulse_snapshots: {
         Row: {
           agency_id: string | null;
@@ -4268,6 +4297,8 @@ export type Database = {
           provider: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data: Json | null;
           read_at: string | null;
+          send_kind: string | null;
+          send_ref: string | null;
           sender_name: string | null;
           sender_phone: string | null;
           sent_by_user_id: string | null;
@@ -4291,6 +4322,8 @@ export type Database = {
           provider?: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data?: Json | null;
           read_at?: string | null;
+          send_kind?: string | null;
+          send_ref?: string | null;
           sender_name?: string | null;
           sender_phone?: string | null;
           sent_by_user_id?: string | null;
@@ -4314,6 +4347,8 @@ export type Database = {
           provider?: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data?: Json | null;
           read_at?: string | null;
+          send_kind?: string | null;
+          send_ref?: string | null;
           sender_name?: string | null;
           sender_phone?: string | null;
           sent_by_user_id?: string | null;
@@ -15831,6 +15866,14 @@ export type Database = {
           };
       claim_campaign_pulse_delivery: {
         Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      claim_campaign_pulse_refresh: {
+        Args: {
+          p_min_interval_seconds: number;
+          p_requested_by?: string;
+          p_tenant_id: string;
+        };
         Returns: boolean;
       };
       claim_client_retention_delivery: {

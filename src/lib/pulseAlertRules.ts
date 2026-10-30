@@ -2,6 +2,11 @@ import type { PulseCostRules } from "../../supabase/functions/_shared/pulse/cost
 import { isJsonObject } from "../../supabase/functions/_shared/pulse/json.ts";
 
 export type PulseAlertRules = {
+  /**
+   * Per-run limits the dialog does not edit, kept as stored; the edge parser
+   * (supabase/functions/_shared/pulse/exception-flood-guard.ts) reads them.
+   */
+  instant?: unknown;
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
   no_contact_days?: number;
@@ -17,8 +22,20 @@ export type PulseAlertRules = {
  */
 export type PulseManagerSettings = {
   cost?: Partial<PulseCostRules>;
+  /**
+   * Log what AIOS sends to a client (reports, dashboard shares, meeting
+   * summaries, broadcasts, Carmen and automation messages, chat replies) on
+   * the client card automatically. Off unless an owner turns it on.
+   */
+  card_log_system_sends?: boolean;
   [key: string]: unknown;
 };
+
+/** Whether the tenant logs system sends on the client card (default false). */
+export function readCardLogSystemSends(raw: unknown): boolean {
+  const manager = isJsonObject(raw) ? raw.manager : undefined;
+  return isJsonObject(manager) && manager.card_log_system_sends === true;
+}
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   instant_wa_enabled: true,
@@ -33,6 +50,7 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
   const input = raw as Record<string, unknown>;
   return {
+    ...(input.instant === undefined ? {} : { instant: input.instant }),
     instant_wa_enabled: input.instant_wa_enabled !== false,
     no_contact_enabled: input.no_contact_enabled !== false,
     no_contact_days: Math.max(
@@ -54,14 +72,24 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
  * The stored pulse_alert_rules with the dialog's values on top. Keys the dialog
  * does not know (future settings, other manager keys) survive a save instead of
  * being wiped; manager.cost is merged key by key, and manager is written only
- * when it is stored or edited.
+ * when it is stored or edited. managerPatch holds the manager keys the dialog
+ * sets outside the rules (the owner's card_log_system_sends switch); an
+ * undefined value leaves the stored one.
  */
 export function mergePulseAlertRules(
   stored: unknown,
   edited: PulseAlertRules,
+  managerPatch: PulseManagerSettings = {},
 ): Record<string, unknown> {
   const base = isJsonObject(stored) ? stored : {};
-  const { manager: editedManager, ...rules } = parsePulseAlertRules(edited);
+  const { manager: parsedManager, ...rules } = parsePulseAlertRules(edited);
+  const patch = Object.fromEntries(
+    Object.entries(managerPatch).filter(([, value]) => value !== undefined),
+  );
+  const editedManager: PulseManagerSettings | undefined =
+    parsedManager || Object.keys(patch).length > 0
+      ? { ...parsedManager, ...patch }
+      : undefined;
   const merged: Record<string, unknown> = { ...base, ...rules };
   const storedManager = isJsonObject(base.manager) ? base.manager : null;
   if (!storedManager && !editedManager) {

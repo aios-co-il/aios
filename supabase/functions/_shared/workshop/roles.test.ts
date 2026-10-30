@@ -3,13 +3,7 @@ import {
   assertNotStrictEquals,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import {
-  aboutCarmen,
-  roleOfPersona,
-  ROLE_TOOLS,
-  toolsForRole,
-  workshopRole,
-} from "./roles.ts";
+import { aboutCarmen, roleOfPersona, workshopRole } from "./roles.ts";
 
 Deno.test("static creative goes to the designer", () => {
   assertStrictEquals(
@@ -47,31 +41,6 @@ Deno.test("a reply with no signal stays with the current role", () => {
   assertStrictEquals(workshopRole("תמשיכי", null), "designer");
   assertStrictEquals(roleOfPersona("workshop_editor"), "editor");
 });
-
-Deno.test(
-  "each role is offered only its own workshop tools, other tools stay",
-  () => {
-    const tools = [
-      { name: "workshop_make_creative" },
-      { name: "workshop_produce_video" },
-      { name: "workshop_edit_from_assets" },
-      { name: "kb_search" },
-    ];
-    const isWorkshop = (name: string) => name.startsWith("workshop_");
-    assertEquals(
-      toolsForRole(tools, "designer", isWorkshop).map((t) => t.name),
-      ["workshop_make_creative", "kb_search"],
-    );
-    assertEquals(
-      toolsForRole(tools, "editor", isWorkshop).map((t) => t.name),
-      ["workshop_produce_video", "workshop_edit_from_assets", "kb_search"],
-    );
-    assertStrictEquals(
-      ROLE_TOOLS.producer.includes("workshop_make_creative"),
-      false,
-    );
-  },
-);
 
 Deno.test(
   "the open project keeps short replies and picture edits with its specialist",

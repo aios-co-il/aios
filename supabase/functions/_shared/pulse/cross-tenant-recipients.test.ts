@@ -148,9 +148,7 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
         ],
         { grants: [GRANT] },
       );
-      const { sends } = await run(supabase, WEDNESDAY, [CAMPAIGN], {
-        analyzeException: async () => ({ confirmed: true }),
-      });
+      const { sends } = await run(supabase, WEDNESDAY, [CAMPAIGN]);
       assertEquals(phones(sends), [PULSE_PHONE]);
     },
   );
@@ -171,14 +169,14 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
       );
       let aiCalls = 0;
       const { result, sends } = await run(supabase, WEDNESDAY, [CAMPAIGN], {
-        analyzeException: async () => {
+        phraseException: async () => {
           aiCalls += 1;
-          return { confirmed: true };
+          return null;
         },
       });
       assertEquals(sends, []);
       assertEquals(aiCalls, 0);
-      assertEquals(result.analyzed, 0);
+      assertEquals(result.wording_calls, 0);
     },
   );
 

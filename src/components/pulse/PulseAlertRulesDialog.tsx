@@ -14,16 +14,28 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
+  readCardLogSystemSends,
   type PulseAlertRules,
+  type PulseManagerSettings,
 } from "@/lib/pulseAlertRules";
 import { PulseCostRulesSection } from "@/components/pulse/PulseCostRulesSection";
+import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: unknown;
-  onSave: (rules: PulseAlertRules) => Promise<void> | void;
+  /**
+   * Saves the alert rules and, for owners, the manager settings. The caller
+   * merges both into the stored pulse_alert_rules (mergePulseAlertRules).
+   */
+  onSave: (
+    rules: PulseAlertRules,
+    manager: PulseManagerSettings,
+  ) => Promise<void> | void;
   saving?: boolean;
+  /** Tenant and agency owners see the client card logging switch. */
+  canManageCardLog?: boolean;
 };
 
 export function PulseAlertRulesDialog({
@@ -32,13 +44,18 @@ export function PulseAlertRulesDialog({
   value,
   onSave,
   saving = false,
+  canManageCardLog = false,
 }: PulseAlertRulesDialogProps) {
   const [rules, setRules] = useState<PulseAlertRules>(
     DEFAULT_PULSE_ALERT_RULES,
   );
+  const [cardLogSystemSends, setCardLogSystemSends] = useState(false);
 
   useEffect(() => {
-    if (open) setRules(parsePulseAlertRules(value));
+    if (open) {
+      setRules(parsePulseAlertRules(value));
+      setCardLogSystemSends(readCardLogSystemSends(value));
+    }
   }, [open, value]);
 
   return (
@@ -149,6 +166,13 @@ export function PulseAlertRulesDialog({
               }
             />
           </div>
+
+          {canManageCardLog && (
+            <CardLogSystemSendsSwitch
+              checked={cardLogSystemSends}
+              onCheckedChange={setCardLogSystemSends}
+            />
+          )}
         </div>
 
         <DialogFooter>
@@ -157,7 +181,14 @@ export function PulseAlertRulesDialog({
           </Button>
           <Button
             disabled={saving}
-            onClick={() => onSave(parsePulseAlertRules(rules))}
+            onClick={() =>
+              onSave(
+                parsePulseAlertRules(rules),
+                canManageCardLog
+                  ? { card_log_system_sends: cardLogSystemSends }
+                  : {},
+              )
+            }
           >
             שמור חוקים
           </Button>

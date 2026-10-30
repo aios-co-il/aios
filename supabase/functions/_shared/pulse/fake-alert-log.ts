@@ -1,12 +1,13 @@
 /**
  * In-memory stand-in for the Supabase client, for the Deno tests of pulse
  * instant alerts: pulse_instant_alert_log, agency_tenant_access and, when a
- * test seeds them, user_roles and profiles.
+ * test seeds them, user_roles, user_managed_agencies and profiles.
  */
 import type { CarmenReportRecipient } from "../carmen-report-recipients/resolve.ts";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   deliverInstantPulseAlerts,
+  type InstantPulseAlertsInput,
   type PulseSnapshotAlertInput,
 } from "../pulse-instant-alerts.ts";
 
@@ -27,8 +28,6 @@ type FakeQuery = {
   insert: (row: Row) => Promise<{ error: { message: string } | null }>;
   then: (resolve: (value: Result) => void) => void;
 };
-
-type DeliverInput = Parameters<typeof deliverInstantPulseAlerts>[0];
 
 export const ACME: PulseSnapshotAlertInput = {
   client_id: "c1",
@@ -64,15 +63,16 @@ export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
 
 /**
  * pulse_instant_alert_log, agency_tenant_access `grants` and the staff tables
- * (user_roles `roles`, profiles) in memory; inserts are stamped with `clock`.
- * Every read of a `failing` table and every insert into a `failingInserts`
- * table returns an error.
+ * (user_roles `roles`, user_managed_agencies `managedAgencies`, profiles) in
+ * memory; inserts are stamped with `clock`. Every read of a `failing` table
+ * and every insert into a `failingInserts` table returns an error.
  */
 export function fakeSupabase(
   log: Row[] = [],
   options: {
     grants?: Row[];
     roles?: Row[];
+    managedAgencies?: Row[];
     profiles?: Row[];
     failing?: string[];
     failingInserts?: string[];
@@ -82,6 +82,7 @@ export function fakeSupabase(
     pulse_instant_alert_log: log,
     agency_tenant_access: options.grants ?? [],
     user_roles: options.roles ?? [],
+    user_managed_agencies: options.managedAgencies ?? [],
     profiles: options.profiles ?? [],
   };
   const fake = { from, log, clock: "" };
@@ -147,7 +148,7 @@ export async function run(
   supabase: ReturnType<typeof fakeSupabase>,
   now: Date,
   snapshots: PulseSnapshotAlertInput[] = [ACME],
-  extra: Partial<DeliverInput> = {},
+  extra: Partial<InstantPulseAlertsInput> = {},
 ) {
   supabase.clock = now.toISOString();
   const sends: Array<{ message: string; phone: string | null }> = [];

@@ -102,6 +102,38 @@ Deno.test("every workshop tool is declared once and recognised", () => {
 });
 
 Deno.test(
+  "a project open on the board is continued, not replaced by a new one",
+  async () => {
+    const db = fakeDb();
+    const refused = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "סרטון של הדמות המסומנת רוקדת" },
+      async () => {},
+      "user-1",
+      { openItemId: "item-open", userText: "תכיני לי סרטון של הדמות המסומנת" },
+    )) as Record<string, unknown>;
+    assertStrictEquals(refused.open_item_id, "item-open");
+    assertStrictEquals(
+      db.calls.some((c) => c.op === "insert"),
+      false,
+    );
+
+    const asked = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "מודעה לסניף" },
+      async () => {},
+      "user-1",
+      { openItemId: "item-open", userText: "תפתחי פרויקט חדש למודעה לסניף" },
+    )) as Record<string, unknown>;
+    assertStrictEquals(asked.success, true);
+  },
+);
+
+Deno.test(
   "starting a project from one sentence decides everything and records the brief page",
   async () => {
     const db = fakeDb();
