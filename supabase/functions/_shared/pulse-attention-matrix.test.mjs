@@ -1,44 +1,8 @@
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
-import {
-  buildPulseAttentionRows,
-  evaluateEfficiencyIssue,
-  readApprovedPlatformTarget,
-  resolvePlatformTarget,
-} from "./pulse-attention-matrix.mjs";
+import { buildPulseAttentionRows } from "./pulse-attention-matrix.mjs";
 
 /** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
 const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
-
-Deno.test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
-  assertStrictEquals(
-    readApprovedPlatformTarget(
-      { pulse_platform_targets: { leads: { cpl: 90 } } },
-      "leads",
-    )?.value,
-    90,
-  );
-});
-
-Deno.test("resolvePlatformTarget falls back to 30d baseline", () => {
-  assertStrictEquals(
-    resolvePlatformTarget({}, "leads", 75)?.source,
-    "baseline_30d",
-  );
-});
-
-Deno.test("evaluateEfficiencyIssue flags approved target breach", () => {
-  const issue = evaluateEfficiencyIssue({
-    currentEfficiency: 120,
-    trend7dPct: null,
-    target: {
-      value: 90,
-      kind: "cpl",
-      direction: "maximum",
-      source: "approved",
-    },
-  });
-  assertStrictEquals(issue?.level, "alert");
-});
 
 Deno.test(
   "leads-only google table reclassifies mis-tagged ecommerce rows to CPL",

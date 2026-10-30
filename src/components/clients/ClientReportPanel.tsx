@@ -49,6 +49,7 @@ import {
   buildDefaultReportRecipientEmails,
   buildReportEmailOptions,
 } from "@/lib/defaultReportEmailRecipients";
+import { logSystemSendClientUpdate } from "@/lib/logSystemSendClientUpdate";
 
 interface ClientReportPanelProps {
   table: any;
@@ -553,18 +554,17 @@ export function ClientReportPanel({
         // Auto-save the WhatsApp text as a weekly update in the client updates tab
         if (messageText.trim()) {
           try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            await supabase.from("client_updates").insert({
-              client_id: clientId,
-              tenant_id: tenantId,
-              user_id: user?.id,
+            const logError = await logSystemSendClientUpdate({
+              tenantId,
+              clientId,
               content: messageText.trim(),
-              update_type: "weekly_update",
-            } as any);
+              updateType: "weekly_update",
+            });
+            if (logError) {
+              console.warn("Failed to auto-save weekly update:", logError);
+            }
             queryClient.invalidateQueries({
-              queryKey: ["client-updates", tenantId],
+              queryKey: ["client-updates", clientId],
             });
           } catch (e) {
             console.warn("Failed to auto-save weekly update:", e);
@@ -658,18 +658,17 @@ export function ClientReportPanel({
         // Auto-save the email text as a monthly SEO update
         if (messageText.trim()) {
           try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            await supabase.from("client_updates").insert({
-              client_id: clientId,
-              tenant_id: tenantId,
-              user_id: user?.id,
+            const logError = await logSystemSendClientUpdate({
+              tenantId,
+              clientId,
               content: messageText.trim(),
-              update_type: "monthly_seo",
-            } as any);
+              updateType: "monthly_seo",
+            });
+            if (logError) {
+              console.warn("Failed to auto-save monthly SEO update:", logError);
+            }
             queryClient.invalidateQueries({
-              queryKey: ["client-updates", tenantId],
+              queryKey: ["client-updates", clientId],
             });
           } catch (e) {
             console.warn("Failed to auto-save monthly SEO update:", e);

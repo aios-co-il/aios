@@ -4744,8 +4744,12 @@ export type Database = {
         Row: {
           client_id: string;
           content: string;
+          counts_as_contact: boolean | null;
           created_at: string;
           id: string;
+          metadata: Json | null;
+          source: string;
+          source_ref: string | null;
           tenant_id: string;
           update_type: string | null;
           updated_at: string;
@@ -4754,8 +4758,12 @@ export type Database = {
         Insert: {
           client_id: string;
           content: string;
+          counts_as_contact?: boolean | null;
           created_at?: string;
           id?: string;
+          metadata?: Json | null;
+          source?: string;
+          source_ref?: string | null;
           tenant_id: string;
           update_type?: string | null;
           updated_at?: string;
@@ -4764,8 +4772,12 @@ export type Database = {
         Update: {
           client_id?: string;
           content?: string;
+          counts_as_contact?: boolean | null;
           created_at?: string;
           id?: string;
+          metadata?: Json | null;
+          source?: string;
+          source_ref?: string | null;
           tenant_id?: string;
           update_type?: string | null;
           updated_at?: string;
@@ -16531,6 +16543,25 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      record_client_card_entry: {
+        Args: {
+          p_attributed_user?: string;
+          p_client: string;
+          p_content: string;
+          p_counts_as_contact?: boolean;
+          p_metadata?: Json;
+          p_source?: string;
+          p_source_ref?: string;
+          p_tenant: string;
+          p_update_type?: string;
+        };
+        Returns: {
+          attributed_user_id: string;
+          attribution: string;
+          entry_id: string;
+          inserted: boolean;
+        }[];
+      };
       record_integration_failure: {
         Args: { p_provider: string; p_tenant_id: string };
         Returns: undefined;
@@ -16660,6 +16691,10 @@ export type Database = {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
       };
+      tenant_can_write_client: {
+        Args: { p_client: string; p_tenant: string };
+        Returns: boolean;
+      };
       tenant_holds_agency: {
         Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };
         Returns: boolean;
@@ -16686,6 +16721,10 @@ export type Database = {
         Returns: boolean;
       };
       user_can_manage_campaigners_for_tenant: {
+        Args: { check_tenant_id: string };
+        Returns: boolean;
+      };
+      user_can_manage_client_card_entries: {
         Args: { check_tenant_id: string };
         Returns: boolean;
       };
