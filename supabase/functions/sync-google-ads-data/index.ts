@@ -1,10 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import {
-  campaignStateMap,
-  evaluateGoogleOperationalIssues,
-  type OperationalCampaignState,
-} from "../_shared/campaign-operational-health.ts";
-import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
+import { type OperationalCampaignState } from "../_shared/campaign-operational-health.ts";
 import type { AdsEntityLevel } from "../_shared/ads-sync/levels.ts";
 import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
 import { redactSyncError } from "../_shared/ads-sync/redact.ts";
@@ -14,6 +9,7 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
+import { recordGoogleFindings } from "./record-google-findings.ts";
 import {
   resolveAdsSyncWindow,
   toDateString,
@@ -699,6 +695,17 @@ Deno.serve(async (req) => {
     let loginCustomerId = settings.manager_id || customerId;
 
     if (operational_only) {
+      // David's status rules cover an active report of a client only.
+      if (table.campaign_active === false || !table.client_id) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            operational_only: true,
+            skipped: "report_inactive",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       const statusQuery = `
         SELECT
           campaign.id,
@@ -723,74 +730,31 @@ Deno.serve(async (req) => {
             }))
             .filter((campaign: OperationalCampaignState) => campaign.id),
       );
-      const previous =
-        settings.operational_campaign_states &&
-        typeof settings.operational_campaign_states === "object"
-          ? settings.operational_campaign_states
-          : null;
-      const issues = evaluateGoogleOperationalIssues(previous, campaigns);
       const checkedAt = new Date().toISOString();
       await patchIntegrationSettings(
         supabaseAdmin,
         table_id,
-        {
-          operational_campaign_states: campaignStateMap(campaigns),
-          operational_status_checked_at: checkedAt,
-        },
+        { operational_status_checked_at: checkedAt },
         settings,
       );
-
-      for (const issue of issues) {
-        const { data: existing } = await supabaseAdmin
-          .from("campaign_alerts")
-          .select("id")
-          .eq("tenant_id", tableTenantId)
-          .eq("campaign_id", issue.campaign_id)
-          .eq("alert_type", issue.alert_type)
-          .is("resolved_at", null)
-          .gte(
-            "created_at",
-            new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          )
-          .limit(1)
-          .maybeSingle();
-        if (existing) continue;
-        await supabaseAdmin.from("campaign_alerts").insert({
-          tenant_id: tableTenantId,
-          client_id: table.client_id || null,
-          campaign_id: issue.campaign_id,
-          campaign_name: issue.campaign_name,
-          ad_account_id: String(customerId),
-          alert_type: issue.alert_type,
-          severity: issue.severity,
-          details: issue.details,
-        });
-        await fireIntegrationAlert({
-          tenant_id: tableTenantId,
-          provider: "google_ads",
-          alert_type: "blocked",
-          account_id: String(customerId),
-          account_name: issue.campaign_name,
-          client_id: table.client_id || null,
-          reason:
-            (
-              issue.details.primary_status_reasons as string[] | undefined
-            )?.join(", ") ||
-            String(
-              issue.details.primary_status ||
-                issue.details.status ||
-                "campaign_not_serving",
-            ),
-          throttleHours: 2,
-        });
-      }
+      // An answer that did not parse reads as no batches: judge nothing rather
+      // than report "nothing live" and close every open alert.
+      const alerts = batches.length
+        ? await recordGoogleFindings({
+            tenantId: tableTenantId,
+            clientId: table.client_id,
+            customerId: String(customerId),
+            campaigns,
+          })
+        : { created: 0, resolved: 0 };
 
       return new Response(
         JSON.stringify({
           success: true,
           operational_only: true,
           campaigns_scanned: campaigns.length,
-          alerts_created: issues.length,
+          alerts_created: alerts.created,
+          alerts_resolved: alerts.resolved,
           checked_at: checkedAt,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
