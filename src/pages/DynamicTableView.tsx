@@ -6,14 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
-import { splitGoogleGroupsByGoal } from "@/components/dynamic-tables/GoogleGoalColumns/splitGoogleGroupsByGoal";
-import {
-  GoogleGoalCell,
-  GoogleGoalHead,
-  GoogleGoalValueCells,
-  GoogleGoalValueHeads,
-} from "@/components/dynamic-tables/GoogleGoalColumns/GoogleGoalCells";
-import { GoogleGoalTotalCells } from "@/components/dynamic-tables/GoogleGoalColumns/GoogleGoalTotalCells";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -87,6 +79,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GoogleAdsGoalTable } from "@/components/dynamic-tables/GoogleAdsGoalTable";
+import { googleGoalSections } from "@/components/dynamic-tables/googleGoalSections";
+import { googleManualRoiFigures } from "@/components/dynamic-tables/googleLeadCampaignRecords";
 import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { SearchConsoleDashboard } from "@/components/dynamic-tables/SearchConsoleDashboard";
 import { SeoDashboardView } from "@/components/dynamic-tables/SeoDashboardView";
@@ -108,18 +103,11 @@ import {
 } from "@/lib/currency";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { LinkTableToClientDialog } from "@/components/dynamic-tables/LinkTableToClientDialog";
+import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
+import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
 import {
-  effectiveFacebookCampaignType,
-  getLeadsFromData,
-  isFacebookEcommerceCampaign,
-  preferFacebookCampaignType,
-} from "@/lib/adsMetrics";
-import {
-  addFacebookResult,
-  emptyFacebookResultTotals,
   facebookCostPerResult,
   facebookResultsColumnLabel,
-  type FacebookResultTotals,
 } from "@/lib/facebookResultMetric";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
@@ -141,8 +129,12 @@ import {
   getAdAccountUrl,
 } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
+import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
+import { AllGoalsSpendRow } from "@/components/reports/AllGoalsSpendRow";
+import { formatReportNumber } from "@/lib/reportNumber";
+import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
 import {
   ADS_ENTITY_LEVEL_LABELS,
   ADS_ENTITY_SEARCH_PLACEHOLDERS,
@@ -2142,6 +2134,11 @@ export default function DynamicTableView({
               isFetching={recordsFetching}
               className="mt-1"
             />
+            <ReportDataTrust
+              tableId={table.id}
+              integrationType={table.integration_type}
+              className="mt-0.5"
+            />
           </div>
 
           {/* Controls Row */}
@@ -3094,17 +3091,7 @@ export default function DynamicTableView({
           currency={getCurrencySymbol(table?.integration_settings?.currency)}
           isLoading={weeklyRecordsPending}
           tables={table ? [table] : undefined}
-          sourceModes={{
-            facebook_insights:
-              table?.integration_settings?.campaign_type === "leads"
-                ? "leads"
-                : undefined,
-            facebook_ecommerce: "ecommerce",
-            google_ads:
-              table?.integration_settings?.campaign_type === "ecommerce"
-                ? "ecommerce"
-                : "leads",
-          }}
+          sourceModes={weeklySourceModesForTable(table?.integration_settings)}
         />
       )}
 
@@ -3150,116 +3137,21 @@ export default function DynamicTableView({
                 adsEntityLevel === "campaign"
                   ? `קמפיין ${suffix}`
                   : entityColumnLabel;
-              const campaignGroups = filteredRecords.reduce(
-                (acc, record) => {
-                  const groupKey = getEntityGroupKey(
-                    record.data,
-                    adsEntityLevel,
-                  );
-                  const campaignName = getEntityDisplayName(
-                    record.data,
-                    adsEntityLevel,
-                  );
-                  if (!acc[groupKey]) {
-                    acc[groupKey] = {
-                      name: campaignName,
-                      impressions: 0,
-                      clicks: 0,
-                      leads: 0,
-                      spend: 0,
-                      purchases: 0,
-                      purchase_value: 0,
-                      add_to_cart: 0,
-                      conversations: 0,
-                      campaign_type: "other" as
-                        "lead" | "ecommerce" | "traffic" | "other",
-                      campaign_objective: null as string | null,
-                      result: emptyFacebookResultTotals(),
-                    };
-                  }
-
-                  const rowType = effectiveFacebookCampaignType(
-                    record.data || {},
-                  );
-                  if (
-                    rowType === "ecommerce" ||
-                    rowType === "lead" ||
-                    rowType === "traffic"
-                  ) {
-                    acc[groupKey].campaign_type = preferFacebookCampaignType(
-                      acc[groupKey].campaign_type,
-                      rowType,
-                    );
-                  }
-
-                  acc[groupKey].impressions +=
-                    Number(record.data?.impressions) || 0;
-                  acc[groupKey].clicks += Number(record.data?.clicks) || 0;
-                  const effectiveLeads = getLeadsFromData(record.data || {});
-                  acc[groupKey].leads += effectiveLeads;
-                  acc[groupKey].spend += Number(record.data?.spend) || 0;
-                  acc[groupKey].purchases +=
-                    Number(record.data?.purchases) || 0;
-                  acc[groupKey].purchase_value +=
-                    Number(record.data?.purchase_value) || 0;
-                  acc[groupKey].add_to_cart +=
-                    Number(record.data?.add_to_cart) || 0;
-                  acc[groupKey].conversations +=
-                    Number(record.data?.conversations) || 0;
-                  acc[groupKey].result = addFacebookResult(
-                    acc[groupKey].result,
-                    record.data,
-                  );
-                  const objective = String(
-                    record.data?.campaign_objective || "",
-                  ).toUpperCase();
-                  if (objective && !acc[groupKey].campaign_objective)
-                    acc[groupKey].campaign_objective = objective;
-
-                  return acc;
-                },
-                {} as Record<
-                  string,
-                  {
-                    name: string;
-                    impressions: number;
-                    clicks: number;
-                    leads: number;
-                    spend: number;
-                    purchases: number;
-                    purchase_value: number;
-                    add_to_cart: number;
-                    conversations: number;
-                    campaign_type: "lead" | "ecommerce" | "traffic" | "other";
-                    campaign_objective: string | null;
-                    result: FacebookResultTotals;
-                  }
-                >,
-              );
-
-              const entries = Object.entries(campaignGroups);
               // Respect table-level campaign_type setting: if 'leads', NEVER show ecommerce table
               // (even if Facebook reports stray purchase events from a tracking pixel)
-              const tableCampaignType = String(
-                table?.integration_settings?.campaign_type || "",
-              ).toLowerCase();
-              const forceLeadsOnly =
-                tableCampaignType === "leads" || tableCampaignType === "lead";
-              const trafficCampaigns = entries.filter(
-                ([, data]) => data.campaign_type === "traffic",
+              const {
+                ecommerce: ecommerceCampaigns,
+                leads: leadCampaigns,
+                traffic: trafficCampaigns,
+              } = groupFacebookReportCampaigns(
+                filteredRecords,
+                adsEntityLevel,
+                {
+                  leadsOnly: isFacebookLeadsOnlyTable(
+                    table?.integration_settings,
+                  ),
+                },
               );
-              const ecommerceCampaigns = forceLeadsOnly
-                ? []
-                : entries.filter(([, data]) =>
-                    isFacebookEcommerceCampaign(data),
-                  );
-              const leadCampaigns = (
-                forceLeadsOnly
-                  ? entries
-                  : entries.filter(
-                      ([, data]) => !isFacebookEcommerceCampaign(data),
-                    )
-              ).filter(([, data]) => data.campaign_type !== "traffic");
 
               const currency = getCurrencySymbol(
                 table.integration_settings?.currency,
@@ -4232,11 +4124,16 @@ export default function DynamicTableView({
                     },
                   );
 
-                  const goalSplit = splitGoogleGroupsByGoal(
-                    Object.values(campaignGroups),
-                    fallbackGoal,
+                  const groupList = Object.entries(campaignGroups).map(
+                    ([key, group]) => ({ key, ...group }),
                   );
-                  const { mixedGoals, isEcommerce } = goalSplit;
+                  // Mixed: one table per goal, each with its own columns and totals.
+                  const {
+                    sections: goalSections,
+                    mixedGoals,
+                    isEcommerce,
+                    ecommerceTotals,
+                  } = googleGoalSections(groupList, fallbackGoal);
 
                   const displayConversions = useGoogleWooOverlay
                     ? googleWooPaid.paidOrders
@@ -4244,17 +4141,27 @@ export default function DynamicTableView({
                   const displayRevenue = useGoogleWooOverlay
                     ? googleWooPaid.paidRevenue
                     : totals.conversions_value;
-                  const totalRoas =
-                    totals.cost > 0 ? displayRevenue / totals.cost : 0;
                   const avgValuePerConv =
                     displayConversions > 0
                       ? displayRevenue / displayConversions
                       : 0;
+                  // WooCommerce replaces the sales totals only.
+                  const wooOnSalesTotals =
+                    useGoogleWooOverlay &&
+                    goalSections.some(
+                      (section) => section.goal === "ecommerce",
+                    );
+                  const salesTotalLabel = mixedGoals
+                    ? "שורת סה״כ המכירות"
+                    : "שורת הסה״כ";
                   const gaDiffersFromWoo =
                     useGoogleWooOverlay &&
-                    (Math.round(displayConversions) !==
-                      Math.round(totals.conversions) ||
-                      Math.abs(displayRevenue - totals.conversions_value) > 1);
+                    (Math.round(googleWooPaid.paidOrders) !==
+                      Math.round(ecommerceTotals.conversions) ||
+                      Math.abs(
+                        googleWooPaid.paidRevenue -
+                          ecommerceTotals.conversions_value,
+                      ) > 1);
                   // Absurdly low AOV from Google Ads primary conv. value (e.g. Avieli ₪7 / 13) —
                   // almost always a tracking/config issue, not a sync math bug.
                   const suspiciousLowValue =
@@ -4275,23 +4182,23 @@ export default function DynamicTableView({
 
                   return (
                     <div className="overflow-x-auto">
-                      {useGoogleWooOverlay && (
+                      {wooOnSalesTotals && (
                         <div className="m-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100">
                           <p>
-                            שורת הסה&quot;כ מבוססת על WooCommerce (Google Ads):{" "}
-                            {Math.round(displayConversions)} רכישות,{" "}
+                            {salesTotalLabel} מבוססת על WooCommerce (Google
+                            Ads): {Math.round(googleWooPaid.paidOrders)} רכישות,{" "}
                             {gaCurrency}
-                            {Math.round(displayRevenue).toLocaleString("he-IL")}
-                            .
+                            {formatReportNumber(googleWooPaid.paidRevenue)}.
                             {gaDiffersFromWoo && (
                               <>
                                 {" "}
                                 דיווח Google Ads API:{" "}
-                                {Math.round(totals.conversions)} המרות,{" "}
-                                {gaCurrency}
                                 {Math.round(
-                                  totals.conversions_value,
-                                ).toLocaleString("he-IL")}
+                                  ecommerceTotals.conversions,
+                                )} המרות, {gaCurrency}
+                                {formatReportNumber(
+                                  ecommerceTotals.conversions_value,
+                                )}
                                 .
                               </>
                             )}
@@ -4300,9 +4207,9 @@ export default function DynamicTableView({
                                 {" "}
                                 בנוסף {googleWooPaid.organicOrders} רכישות
                                 Google אורגני ({gaCurrency}
-                                {Math.round(
+                                {formatReportNumber(
                                   googleWooPaid.organicRevenue,
-                                ).toLocaleString("he-IL")}
+                                )}
                                 ).
                               </>
                             )}
@@ -4345,170 +4252,66 @@ export default function DynamicTableView({
                           )}
                         </div>
                       )}
-                      <table className="w-full text-sm" dir="rtl">
-                        <thead className="bg-muted/50 border-b">
-                          <tr>
-                            <th className="p-2 text-right font-medium">
-                              {entityColumnLabel}
-                            </th>
-                            <GoogleGoalHead mixed={mixedGoals} />
-                            <th className="p-2 text-center font-medium">
-                              חשיפות
-                            </th>
-                            <th className="p-2 text-center font-medium">
-                              קליקים
-                            </th>
-                            <th className="p-2 text-center font-medium">
-                              {useGoogleWooOverlay
-                                ? "המרות (GA)"
-                                : isEcommerce || mixedGoals
-                                  ? "המרות"
-                                  : "לידים"}
-                            </th>
-                            <th className="p-2 text-center font-medium">
-                              עלות
-                            </th>
-                            <GoogleGoalValueHeads
-                              split={goalSplit}
-                              useWooOverlay={useGoogleWooOverlay}
-                            />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.values(campaignGroups).map((data) => {
-                            const costPerConversion =
-                              data.conversions > 0
-                                ? data.cost / data.conversions
-                                : 0;
-                            const roas =
-                              data.cost > 0
-                                ? data.conversions_value / data.cost
-                                : 0;
-                            const gaCurrency = getCurrencySymbol(
-                              table.integration_settings?.currency,
-                            );
-                            const convInt = Math.round(data.conversions);
-                            return (
-                              <tr
-                                key={data.name}
-                                className="border-b hover:bg-muted/30"
-                              >
-                                <td className="p-2 text-right font-medium">
-                                  {data.name}
-                                </td>
-                                <GoogleGoalCell
-                                  mixed={mixedGoals}
-                                  goal={data.goal}
-                                />
-                                <td className="p-2 text-center">
-                                  {data.impressions.toLocaleString("he-IL")}
-                                </td>
-                                <td className="p-2 text-center">
-                                  {data.clicks.toLocaleString("he-IL")}
-                                </td>
-                                <td className="p-2 text-center text-green-600 font-medium">
-                                  {convInt.toLocaleString("he-IL")}
-                                </td>
-                                <td className="p-2 text-center">
-                                  {gaCurrency}
-                                  {data.cost.toLocaleString("he-IL", {
-                                    maximumFractionDigits: 0,
-                                  })}
-                                </td>
-                                <GoogleGoalValueCells
-                                  split={goalSplit}
-                                  goal={data.goal}
-                                  currency={gaCurrency}
-                                  conversionsValue={data.conversions_value}
-                                  roas={roas}
-                                  costPerConversion={costPerConversion}
-                                />
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className="bg-primary/10 font-bold">
-                          {(() => {
-                            const gaCurrency = getCurrencySymbol(
-                              table.integration_settings?.currency,
-                            );
-                            const totalConvInt = Math.round(
-                              useGoogleWooOverlay
-                                ? displayConversions
-                                : totals.conversions,
-                            );
-                            return (
-                              <tr>
-                                <td className="p-2 text-right">סה״כ</td>
-                                {mixedGoals && <td className="p-2" />}
-                                <td className="p-2 text-center">
-                                  {totals.impressions.toLocaleString("he-IL")}
-                                </td>
-                                <td className="p-2 text-center">
-                                  {totals.clicks.toLocaleString("he-IL")}
-                                </td>
-                                <td className="p-2 text-center text-green-600">
-                                  {totalConvInt.toLocaleString("he-IL")}
-                                </td>
-                                <td className="p-2 text-center">
-                                  {gaCurrency}
-                                  {totals.cost.toLocaleString("he-IL", {
-                                    maximumFractionDigits: 0,
-                                  })}
-                                </td>
-                                <GoogleGoalTotalCells
-                                  split={goalSplit}
-                                  useWooOverlay={useGoogleWooOverlay}
-                                  currency={gaCurrency}
-                                  displayRevenue={displayRevenue}
-                                  totalRoas={totalRoas}
-                                />
-                              </tr>
-                            );
-                          })()}
-                        </tfoot>
-                      </table>
+                      {goalSections.map(({ goal, rows }) => (
+                        <GoogleAdsGoalTable
+                          key={goal}
+                          goal={goal}
+                          rows={rows}
+                          entityColumnLabel={entityColumnLabel}
+                          currency={gaCurrency}
+                          showTitle={mixedGoals}
+                          wooTotals={
+                            useGoogleWooOverlay
+                              ? {
+                                  conversions: googleWooPaid.paidOrders,
+                                  revenue: googleWooPaid.paidRevenue,
+                                }
+                              : null
+                          }
+                        />
+                      ))}
+                      {mixedGoals && (
+                        <AllGoalsSpendRow
+                          label="הוצאה כוללת (כל היעדים)"
+                          currency={gaCurrency}
+                          spend={totals.cost}
+                          className="px-3"
+                        />
+                      )}
+                      {useGoogleWooOverlay && (
+                        <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+                          * טבלת &quot;רכישות לפי מקור הגעה&quot; למעלה
+                          {wooOnSalesTotals
+                            ? ` ו${salesTotalLabel} מבוססות`
+                            : " מבוססת"}{" "}
+                          על WooCommerce Order Attribution. עמודות לפי קמפיין =
+                          דיווח Google Ads.
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
               </Card>
-              {useGoogleWooOverlay && (
-                <p className="mb-4 text-xs text-muted-foreground px-1">
-                  * טבלת &quot;רכישות לפי מקור הגעה&quot; למעלה ושורת הסה&quot;כ
-                  מבוססים על WooCommerce Order Attribution. עמודות לפי קמפיין =
-                  דיווח Google Ads.
-                </p>
-              )}
             </>
           )}
 
-          {/* Manual ROI for Google Ads (leads mode only) */}
+          {/* Manual ROI for Google Ads (leads mode only, lead campaigns only; kept for entered figures) */}
           {hasGoogleAds &&
             filteredRecords &&
-            filteredRecords.length > 0 &&
             table?.id &&
-            table?.integration_settings?.campaign_type !== "ecommerce" &&
             (() => {
-              const totals = filteredRecords.reduce(
-                (acc, record) => {
-                  acc.cost += Number(record.data?.cost) || 0;
-                  acc.conversions +=
-                    Number(record.data?.conversions) ||
-                    Number(record.data?.purchases) ||
-                    0;
-                  return acc;
-                },
-                { cost: 0, conversions: 0 },
-              );
-              const gaCurrency = getCurrencySymbol(
-                table.integration_settings?.currency,
-              );
+              const figures = googleManualRoiFigures(filteredRecords, table);
+              if (!figures) {
+                return null;
+              }
               return (
                 <ManualROICard
                   tableId={table.id}
-                  spend={totals.cost}
-                  leads={Math.round(totals.conversions)}
-                  currency={gaCurrency}
+                  spend={figures.spend}
+                  leads={figures.leads}
+                  currency={getCurrencySymbol(
+                    table.integration_settings?.currency,
+                  )}
                   initialClosures={
                     table?.integration_settings?.manual_roi?.closures ?? null
                   }

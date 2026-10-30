@@ -20,6 +20,11 @@ import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
 } from "../_shared/broadcast/template/email-attachments.ts";
+import { isOptedOut } from "../_shared/broadcast/audience/reachability.ts";
+import {
+  unsubscribeUrl,
+  whatsappUnsubscribeFooter,
+} from "../_shared/broadcast/blacklist.ts";
 import { resolveBroadcastRecipientClientId } from "./recipient-client.ts";
 
 const corsHeaders = {
@@ -142,7 +147,13 @@ async function sendOne(
   r: any,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const vars = recipientVars(r);
-  const body = renderTemplate(b.body_text || "", vars);
+  const unsubUrl = unsubscribeUrl(SB_URL, r.id);
+  // Mailings to a contact end with the unsubscribe link (not to groups).
+  const body =
+    renderTemplate(b.body_text || "", vars) +
+    (b.channel !== "email" && r.entity_type !== "wa_group"
+      ? whatsappUnsubscribeFooter(unsubUrl)
+      : "");
   // Every WhatsApp send of a broadcast is stamped with it, so the client card
   // gets one entry per broadcast per client (AIO-242).
   const sendStamp = { sendKind: "broadcast", sendRef: b.id };
@@ -150,7 +161,6 @@ async function sendOne(
   // ── Email (Resend) ──
   if (b.channel === "email") {
     if (!r.email) return { ok: false, error: "missing_email" };
-    const unsubUrl = `${SB_URL}/functions/v1/broadcast-unsubscribe?r=${r.id}`;
     const { html, text } = buildEmailContent({
       bodyHtml: b.body_html,
       bodyText: b.body_text,
@@ -456,6 +466,24 @@ Deno.serve(async (req) => {
           .limit(1);
         const r = (batch || [])[0];
         if (!r) break;
+
+        // Re-check the blacklist at send time: an address blocked after the
+        // broadcast was queued must not get it.
+        if (
+          r.entity_type !== "wa_group" &&
+          (await isOptedOut(
+            db,
+            b.tenant_id,
+            b.channel === "email" ? "email" : "whatsapp",
+            { phone: r.phone, email: r.email },
+          ))
+        ) {
+          await db
+            .from("broadcast_recipients")
+            .update({ status: "opted_out" })
+            .eq("id", r.id);
+          continue;
+        }
 
         const result = await sendOne(db, b, r);
         if (result.ok) {
