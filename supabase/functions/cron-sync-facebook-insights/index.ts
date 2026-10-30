@@ -21,10 +21,20 @@ import { kickNextBatch } from "../_shared/kick-next-batch.ts";
 import {
   jerusalemToday,
   planScheduledSyncWindows,
-  replacedRecordsFilter,
-  resolvePruneStart,
   type SyncWindow,
 } from "../_shared/report-sync-window.ts";
+import {
+  isWriteSuccess,
+  scheduledMarkerPatch,
+} from "../_shared/ads-sync/outcome.ts";
+import {
+  failedRunRecorder,
+  saveSyncRun,
+} from "../_shared/ads-sync/save-run.ts";
+import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
+import { runCatchup } from "./catchup.ts";
+
+const SOURCE = "cron-sync-facebook-insights";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +101,9 @@ Deno.serve(async (req) => {
     };
 
     for (const table of tables || []) {
+      const run = { tableId: table.id, tenantId: table.tenant_id };
+      // True once this table's run was recorded, so the catch below does not overwrite it.
+      let runRecorded = false;
       try {
         const settings = table.integration_settings || {};
         // Graph API requires the act_ prefix; tolerate rows saved with the bare number.
@@ -268,69 +281,58 @@ Deno.serve(async (req) => {
           await supabase.from("crm_fields").insert(fieldsToInsert);
         }
 
+        // Replace the window only when the fetch allows it (syncAdsWindow): an empty
+        // run or a failed campaign-level fetch keeps the stored rows.
         const writeWindow = async (syncWindow: SyncWindow) => {
-          const { records: insights, levelCounts } =
-            await buildAllLevelInsightRecords(
-              adAccountId,
-              syncWindow.startDate,
-              syncWindow.endDate,
-              accessToken,
-              campaignStatuses,
-              resultLeadTypes,
-              optimizationGoals,
-              resultMetrics,
-              destinationTypes,
-            );
+          const {
+            records: insights,
+            levelCounts,
+            levelErrors,
+          } = await buildAllLevelInsightRecords(
+            adAccountId,
+            syncWindow.startDate,
+            syncWindow.endDate,
+            accessToken,
+            campaignStatuses,
+            resultLeadTypes,
+            optimizationGoals,
+            resultMetrics,
+            destinationTypes,
+          );
           console.log(
-            `[cron-sync-facebook-insights] ${table.name}: synced ${insights.length} rows ${syncWindow.startDate}..${syncWindow.endDate}`,
+            `[cron-sync-facebook-insights] ${table.name}: fetched ${insights.length} rows ${syncWindow.startDate}..${syncWindow.endDate}`,
             levelCounts,
           );
-          if (insights.length === 0) return insights;
-          const { error: deleteError } = await supabase
-            .from("crm_records")
-            .delete()
-            .eq("table_id", table.id)
-            .or(
-              replacedRecordsFilter(
-                resolvePruneStart(
-                  syncWindow,
-                  insights.map((row) => row.date),
-                ),
-              ),
-            );
-          if (deleteError) throw deleteError;
-
-          const recordRows = insights.map((insight) => ({
-            table_id: table.id,
-            tenant_id: table.tenant_id,
-            data: insight,
-          }));
-          const INSERT_CHUNK = 500;
-          for (let i = 0; i < recordRows.length; i += INSERT_CHUNK) {
-            const { error: insertError } = await supabase
-              .from("crm_records")
-              .insert(recordRows.slice(i, i + INSERT_CHUNK));
-            if (insertError) throw insertError;
-          }
-          return insights;
+          const outcome = await syncAdsWindow(
+            { deleteClient: supabase },
+            {
+              tableId: table.id,
+              tenantId: table.tenant_id,
+              window: syncWindow,
+              records: insights,
+              levelCounts,
+              levelErrors,
+              source: SOURCE,
+            },
+          );
+          return { insights, outcome };
         };
 
         let historyFrom = plan.historyFrom;
-        if (plan.catchup) {
-          try {
-            await writeWindow(plan.catchup);
-          } catch (catchupError: any) {
-            historyFrom =
-              typeof settings.scheduled_history_from === "string"
-                ? settings.scheduled_history_from
-                : plan.refresh.startDate;
-            console.error(
-              `[cron-sync-facebook-insights] ${table.name}: catch-up failed:`,
-              catchupError.message,
-            );
-          }
+        const catchupError = plan.catchup
+          ? await runCatchup(writeWindow, plan.catchup)
+          : null;
+        if (catchupError) {
+          historyFrom =
+            typeof settings.scheduled_history_from === "string"
+              ? settings.scheduled_history_from
+              : plan.refresh.startDate;
+          console.error(
+            `[cron-sync-facebook-insights] ${table.name}: catch-up failed:`,
+            catchupError,
+          );
         }
-        const insights = await writeWindow(plan.refresh);
+        const { insights, outcome } = await writeWindow(plan.refresh);
         const campaignInsights = insights.filter(
           (row) => (row.entity_level || "campaign") === "campaign",
         );
@@ -343,28 +345,34 @@ Deno.serve(async (req) => {
           adAccountId,
         );
 
-        const syncedAt = new Date().toISOString();
-        // Update last_sync_at on the column and in settings. Health reads the freshest of the two.
-        await supabase
-          .from("crm_tables")
-          .update({
-            last_sync_at: syncedAt,
-            integration_settings: {
-              ...settings,
-              last_sync_at: syncedAt,
+        // last_sync_at (column + settings) and the scheduled markers move only after
+        // a successful write; the attempt and its outcome are always recorded.
+        await saveSyncRun(supabase, run, {
+          outcome,
+          fallbackSettings: settings,
+          settingsPatch: {
+            ...scheduledMarkerPatch(outcome.status, {
               scheduled_history_from: historyFrom,
               scheduled_synced_through: plan.syncedThrough,
               scheduled_lookback_on: plan.lookbackOn,
-              last_insights_until: untilStr,
-              last_campaign_updated_at: lastCampaignUpdatedAt,
-              last_meta_activity: lastMetaActivity,
-              account_status: accountStatus,
-              account_disable_reason: accountDisableReason,
-            },
-          })
-          .eq("id", table.id);
+            }),
+            ...(isWriteSuccess(outcome.status)
+              ? { last_insights_until: untilStr }
+              : {}),
+            last_campaign_updated_at: lastCampaignUpdatedAt,
+            last_meta_activity: lastMetaActivity,
+            account_status: accountStatus,
+            account_disable_reason: accountDisableReason,
+          },
+        });
+        runRecorded = true;
 
-        results.synced++;
+        if (outcome.status === "failed") {
+          results.failed++;
+          results.errors.push(`${table.name}: ${outcome.error}`);
+        } else {
+          results.synced++;
+        }
 
         // Helper: notify David (the operator) via WhatsApp (Green API).
         // ⛔ KILL SWITCH — disabled per operator request (2026-05-11).
@@ -812,6 +820,17 @@ Deno.serve(async (req) => {
           `❌ Error syncing table ${table.name}:`,
           tableError.message,
         );
+        if (!runRecorded) {
+          await failedRunRecorder(supabase, {
+            ...run,
+            source: SOURCE,
+            fallbackSettings: table.integration_settings || {},
+          })(
+            tableError instanceof Error
+              ? tableError.message
+              : String(tableError),
+          );
+        }
         results.failed++;
         results.errors.push(`${table.name}: ${tableError.message}`);
       }

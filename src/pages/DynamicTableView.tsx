@@ -117,11 +117,12 @@ import {
   fetchWooReportAttribution,
   getDynamicTableDateRangeIso,
 } from "@/lib/wooDashboardQueries";
-import { reportRecordsQuery } from "@/lib/reportRecords";
+import { reportRecordsQueryOptions } from "@/lib/reportRecords";
 import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import {
   reportQueryOptions,
   getReportLastSyncAt,
+  getReportSyncProblem,
 } from "@/lib/reportQueryOptions";
 import {
   adAccountShortcutLabel,
@@ -171,11 +172,6 @@ interface CrmField {
   type: string;
   position: number;
   source?: string; // 'facebook' | 'google_ads' | null
-}
-
-interface CrmRecord {
-  id: string;
-  data: Record<string, any>;
 }
 
 interface DynamicTableViewProps {
@@ -533,8 +529,8 @@ export default function DynamicTableView({
     isPending: recordsPending,
     isFetching: recordsFetching,
     dataUpdatedAt: recordsUpdatedAt,
-  } = useQuery<CrmRecord[]>({
-    ...reportRecordsQuery(
+  } = useQuery({
+    ...reportRecordsQueryOptions(
       supabase,
       table?.id || "",
       dateFilter,
@@ -542,7 +538,6 @@ export default function DynamicTableView({
       customToStr,
     ),
     enabled: !!table?.id && isCustomReady,
-    ...reportQueryOptions<CrmRecord[]>(),
   });
 
   const displayRecords = records ?? [];
@@ -553,10 +548,9 @@ export default function DynamicTableView({
     table?.integration_type === "google_ads";
 
   const { data: weeklyRecords = [], isPending: weeklyRecordsPending } =
-    useQuery<CrmRecord[]>({
-      ...reportRecordsQuery(supabase, table?.id || "", "last_365_days"),
+    useQuery({
+      ...reportRecordsQueryOptions(supabase, table?.id || "", "last_365_days"),
       enabled: !!table?.id && isAdsReportTable && adsReportView === "weekly",
-      ...reportQueryOptions<CrmRecord[]>(),
     });
 
   const entityLevelRecords = useMemo(() => {
@@ -2135,6 +2129,7 @@ export default function DynamicTableView({
             )}
             <ReportDataFreshness
               lastSyncAt={getReportLastSyncAt(table)}
+              syncProblem={getReportSyncProblem([table])}
               dataUpdatedAt={recordsUpdatedAt}
               isFetching={recordsFetching}
               className="mt-1"

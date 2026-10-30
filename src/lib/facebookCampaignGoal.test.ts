@@ -224,3 +224,121 @@ describe("facebookCampaignGoal", () => {
     });
   });
 });
+
+describe("a campaign's Meta setup decides its table, not each day's stored type", () => {
+  // Shapes from production: the sync stores each day's campaign_type from
+  // that day's results, so one campaign can hold several types.
+  const days = (
+    setup: Record<string, unknown>,
+    stored: Array<Record<string, unknown>>,
+  ) =>
+    stored.map((day, index) => ({
+      data: {
+        campaign_id: "C",
+        campaign_name: "C",
+        spend: 100,
+        date: `2026-09-1${index}`,
+        ...setup,
+        ...day,
+      },
+    }));
+  const goalOf = (records: Array<{ data: Record<string, unknown> }>) =>
+    facebookCampaignGoals(records, () => "C", { leadsOnly: false }).get("C");
+
+  it.each<
+    [
+      string,
+      Record<string, unknown>,
+      Array<Record<string, unknown>>,
+      ReportCampaignGoal,
+    ]
+  >([
+    [
+      "a reach campaign with a stray purchase day",
+      { campaign_objective: "OUTCOME_AWARENESS", optimization_goal: "REACH" },
+      [
+        { campaign_type: "ecommerce", purchases: 1 },
+        { campaign_type: "other" },
+      ],
+      "traffic",
+    ],
+    [
+      "a video-views campaign stored as sales, leads and other",
+      {
+        campaign_objective: "OUTCOME_AWARENESS",
+        optimization_goal: "THRUPLAY",
+      },
+      [
+        { campaign_type: "ecommerce", purchases: 2 },
+        { campaign_type: "lead", conversations: 1 },
+        { campaign_type: "other" },
+      ],
+      "traffic",
+    ],
+    [
+      "a profile-visit traffic campaign with lead days",
+      {
+        campaign_objective: "OUTCOME_TRAFFIC",
+        optimization_goal: "PROFILE_VISIT",
+      },
+      [
+        { campaign_type: "lead", leads: 6 },
+        { campaign_type: "traffic", leads: 4 },
+      ],
+      "traffic",
+    ],
+    [
+      "a traffic campaign named for WhatsApp",
+      { campaign_objective: "OUTCOME_TRAFFIC", campaign_name: "קמפיין ווטסאפ" },
+      [{ campaign_type: "traffic", leads: 3 }],
+      "leads",
+    ],
+    [
+      "an engagement campaign optimized for conversations",
+      {
+        campaign_objective: "OUTCOME_ENGAGEMENT",
+        optimization_goal: "CONVERSATIONS",
+      },
+      [
+        { campaign_type: "lead", leads: 30 },
+        { campaign_type: "lead", optimization_goal: null },
+      ],
+      "leads",
+    ],
+    [
+      "an engagement campaign optimized for video views",
+      {
+        campaign_objective: "OUTCOME_ENGAGEMENT",
+        optimization_goal: "THRUPLAY",
+      },
+      [{ campaign_type: "lead" }],
+      "traffic",
+    ],
+    [
+      "an engagement campaign for profile and page (followers)",
+      {
+        campaign_objective: "OUTCOME_ENGAGEMENT",
+        optimization_goal: "PROFILE_AND_PAGE_ENGAGEMENT",
+      },
+      [{ campaign_type: "lead", leads: 3 }],
+      "traffic",
+    ],
+    [
+      "an engagement campaign whose rows lack the optimization goal",
+      { campaign_objective: "OUTCOME_ENGAGEMENT" },
+      [{ campaign_type: "lead", leads: 4 }],
+      "leads",
+    ],
+    [
+      "a sales campaign with lead days",
+      { campaign_objective: "OUTCOME_SALES" },
+      [
+        { campaign_type: "lead", leads: 1 },
+        { campaign_type: "ecommerce", purchases: 3 },
+      ],
+      "ecommerce",
+    ],
+  ])("%s", (_name, setup, stored, goal) => {
+    expect(goalOf(days(setup, stored))).toBe(goal);
+  });
+});

@@ -17,9 +17,6 @@ export function googleManualRoiFigures(
   }>,
   table: GoogleReportTable,
 ): { spend: number; leads: number } | null {
-  if (records.length === 0) {
-    return null;
-  }
   if (table.integration_settings?.campaign_type === "ecommerce") {
     return null;
   }
