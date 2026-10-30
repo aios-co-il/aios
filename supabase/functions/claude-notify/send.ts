@@ -61,13 +61,13 @@ export async function sendNotify(
     supabaseUrl: deps.supabaseUrl,
     serviceRoleKey: deps.serviceRoleKey,
     functionName: transport.functionName,
+    // A staff notification, never logged on a client card.
+    sendKind: "staff_alert",
     body: {
       tenantId: plan.tenantId,
       senderUserId,
       phoneNumber: delivery.phoneNumber,
       message,
-      // A staff notification, never logged on a client card.
-      sendKind: "staff_alert",
       ...(transport.integrationId
         ? { integrationId: transport.integrationId }
         : {}),

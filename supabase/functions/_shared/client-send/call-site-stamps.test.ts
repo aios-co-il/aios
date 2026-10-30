@@ -93,6 +93,17 @@ Deno.test("senderCalls finds each call of a guarded sender", async (t) => {
     );
   });
 
+  await t.step("a name kept in a constant, by the built URL requests", () => {
+    const post = (body: string) =>
+      scan(
+        'export const SEND_FN = "send-x";',
+        "export const post = (name: string, kind: string) =>",
+        `  fetch(\`\${u}/functions/v1/\${name}\`, { body: JSON.stringify(${body}) });`,
+      );
+    assertEquals(post("{ to, sendKind: kind }"), [[3, true]]);
+    assertEquals(post("{ to }"), [[3, false]]);
+  });
+
   await t.step("a name returned for a built URL", () => {
     assertEquals(
       scan(

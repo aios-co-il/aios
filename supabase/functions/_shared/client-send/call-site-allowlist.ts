@@ -79,8 +79,6 @@ export const KNOWN_BYPASSES: CallSiteLists["bypasses"] = {
  */
 export const KNOWN_UNSTAMPED_CALLERS: CallSiteLists["unstampedCallers"] = {
   "_shared/agent-channel/whatsapp-direct.ts": "AIO-261(b) staff_alert",
-  "agent-heartbeat/index.ts": "AIO-261(b) staff_alert; no senderUserId yet",
-  "fb-campaign-monitor/index.ts": "AIO-261(b) campaign_alert with its client",
   "marketing-run-stage/index.ts": "AIO-261(b) staff_alert",
   "process-new-recording/index.ts": "AIO-261(b) staff_alert",
   "test-campaign-monitor/index.ts": "AIO-261(b) staff_alert",

@@ -62,9 +62,14 @@ function senderSites(src: MaskedSource, senders: string[]) {
  */
 function callsAt(src: MaskedSource, at: number, literal: boolean): Span[] {
   const call = enclosingCall(src.code, at);
-  const found = call
-    ? [call]
-    : (variableRequests(src, at) ?? (literal ? [] : builtRequests(src)));
+  if (call) {
+    return [call];
+  }
+  const viaVariable = variableRequests(src, at) ?? [];
+  // A quoted name kept in a constant no request here names, such as
+  // `export const SEND_FN = "send-x"`, reaches the built URL requests.
+  const found =
+    viaVariable.length > 0 || literal ? viaVariable : builtRequests(src);
   return found.length > 0 ? found : [{ open: at, close: at }];
 }
 
