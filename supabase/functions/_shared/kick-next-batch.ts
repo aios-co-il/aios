@@ -3,11 +3,16 @@
  * the edge isolate returns, which dropped every batch after the first and left
  * later clients unsynced until somebody pressed sync by hand.
  */
+/**
+ * A method signature on purpose: a typed DbClient's `rpc` is generic over the
+ * schema's function names, and only a method (checked bivariantly) accepts it
+ * as well as the untyped clients of the cron syncs.
+ */
 type RpcClient = {
-  rpc: (
+  rpc(
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ error: { message: string } | null }>;
+  ): PromiseLike<{ error: { message: string } | null }>;
 };
 
 export async function kickNextBatch(

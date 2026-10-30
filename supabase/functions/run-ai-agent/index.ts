@@ -38,10 +38,10 @@ import {
   classifyDirectTool,
   directToolPool,
 } from "../_shared/carmen-direct-tools.mjs";
-import {
-  compareReportToMeta,
-  facebookReportType,
-} from "../_shared/report-meta-verify.mjs";
+import { listVerifyTables } from "./verify-tables.ts";
+import { verifyReportVsMeta } from "./verify-report-vs-meta.ts";
+import { reconciliationStatusTool } from "./status-tool.ts";
+import { MANAGER_ROLES } from "./manager-roles.ts";
 import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
@@ -3464,7 +3464,7 @@ const ALL_TOOLS = [
   {
     name: "verify_report_vs_meta",
     description:
-      'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים וימים — הוצאה לכל קמפיין, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד). ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.',
+      'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים, יום אחר יום לפי אזור הזמן של חשבון המודעות — הוצאה, תוצאה עיקרית (לידים/רכישות) והכנסות לכל קמפיין, ימים חסרים, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד); לתוצאות הבדיקה הלילית לכל הלקוחות (כולל גוגל) השתמשי ב-get_reconciliation_status. ימים שעוד לא סונכרנו מופיעים ב-not_yet_synced — אל תציגי אותם כתואמים. ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.',
     parameters: {
       type: "object",
       properties: {
@@ -3477,6 +3477,17 @@ const ALL_TOOLS = [
           type: "integer",
           description: "כמה ימים מלאים אחורה (ברירת מחדל 7, עד 30)",
         },
+      },
+    },
+  },
+  {
+    name: "get_reconciliation_status",
+    description:
+      'תוצאות הבדיקה הלילית שמשווה את הדוחות ב-AIOS מול מטא וגוגל (7 ימים מלאים, לכל קמפיין ולכל יום: הוצאה, תוצאה עיקרית והכנסות; ימים חסרים; קמפיינים שחסרים בצד אחד; ולבעלים — חשבונות מודעות עם הוצאה שלא משויכים ללקוח). קריאה בלבד מהתוצאה השמורה האחרונה — לא פונה לפלטפורמות. השתמשי כששואלים "הדוחות תואמים?", "יש פערים מול הפלטפורמה?" או לפני דוח ללקוח. בלי client_id מחזיר את כל הלקוחות (מנהלים בלבד).',
+    parameters: {
+      type: "object",
+      properties: {
+        client_id: { type: "string" },
       },
     },
   },
@@ -5835,12 +5846,10 @@ async function executeTool(
     };
   }
   const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
-  // Role-based scope: managers (owner/agency_owner/agency_manager/super_admin) bypass the campaigner narrow-scope.
-  const isManagerRole =
-    !!callerRole &&
-    ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-      callerRole,
-    );
+  // callerRole is the highest role in any of the caller's tenants, not only this
+  // one, until AIO-275 scopes it to this tenant; get_reconciliation_status
+  // already re-reads the roles held in this tenant.
+  const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
   const isTeamManager = callerRole === "team_manager";
   const managedAgencyIds = Array.isArray(callerManagedAgencyIds)
     ? callerManagedAgencyIds
@@ -11105,130 +11114,30 @@ async function executeTool(
           "בדיקה לכל הלקוחות זמינה למנהלים בלבד — העבירי client_id",
         );
       const days = Math.min(Math.max(Number(args.days) || 7, 1), 30);
-      const ymd = (d: Date) => d.toISOString().slice(0, 10);
-      const until = new Date(Date.now() - 86400000);
-      const since = new Date(until.getTime() - (days - 1) * 86400000);
-      const sinceStr = ymd(since);
-      const untilStr = ymd(until);
-
-      let tablesQuery = supabase
-        .from("crm_tables")
-        .select(
-          "id, tenant_id, client_id, integration_type, integration_settings, clients!inner(name, status, agencies(name))",
-        )
-        .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
-        .in("tenant_id", accessibleTenantIds)
-        .neq("campaign_active", false);
-      if (args.client_id)
-        tablesQuery = tablesQuery.eq("client_id", args.client_id);
-      else tablesQuery = tablesQuery.eq("clients.status", "active");
-      const { data: fbTables, error: tablesErr } = await tablesQuery.limit(200);
-      if (tablesErr) throw tablesErr;
-      const tables = (fbTables || [])
-        .filter((t: any) => {
-          if (!t.integration_settings?.ad_account_id) return false;
-          if (!args.agency_name) return true;
-          return String(t.clients?.agencies?.name || "")
-            .toLowerCase()
-            .includes(String(args.agency_name).toLowerCase());
-        })
-        .slice(0, 40);
-      if (!tables.length)
+      const tables = await listVerifyTables(supabase, {
+        tenantIds: accessibleTenantIds,
+        clientId: args.client_id || null,
+        agencyName: args.agency_name || null,
+      });
+      if (!tables.length) {
         return {
           checked: 0,
           note: "לא נמצא דוח פייסבוק פעיל עם חשבון מודעות בסקופ",
         };
-
-      const results: any[] = [];
-      for (const t of tables) {
-        const clientName = t.clients?.name || t.client_id;
-        const acct = String(t.integration_settings.ad_account_id).replace(
-          /^act_/,
-          "",
-        );
-        const token =
-          (await fbGetToken(supabase, t.tenant_id)) ||
-          (await fbGetToken(supabase, accessibleTenantIds[0]));
-        if (!token) {
-          results.push({ client: clientName, error: "אין טוקן פייסבוק פעיל" });
-          continue;
-        }
-        const url =
-          `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=campaign` +
-          `&time_range=${encodeURIComponent(JSON.stringify({ since: sinceStr, until: untilStr }))}` +
-          `&fields=campaign_id,campaign_name,objective,spend&limit=500&access_token=${token}`;
-        let metaRows: any[] = [];
-        try {
-          const r = await fetch(url);
-          const j = await r.json();
-          if (!r.ok || j?.error) {
-            results.push({
-              client: clientName,
-              error: `מטא: ${j?.error?.message || r.status}`,
-            });
-            continue;
-          }
-          metaRows = (j.data || []).map((d: any) => ({
-            campaign_id: d.campaign_id,
-            campaign_name: d.campaign_name,
-            objective: d.objective,
-            spend: Number(d.spend || 0),
-          }));
-        } catch (e: any) {
-          results.push({
-            client: clientName,
-            error: `מטא: ${e?.message || e}`,
-          });
-          continue;
-        }
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("data")
-          .eq("table_id", t.id)
-          .eq("data->>entity_level", "campaign")
-          .gte("data->>date", sinceStr)
-          .lte("data->>date", untilStr)
-          .limit(5000);
-        const byCampaign = new Map<
-          string,
-          { campaign_id: string; campaign_name: string; spend: number }
-        >();
-        for (const rec of recs || []) {
-          const d = rec.data || {};
-          const id = String(d.campaign_id || d.campaign_name || "");
-          const row = byCampaign.get(id) || {
-            campaign_id: id,
-            campaign_name: d.campaign_name,
-            spend: 0,
-          };
-          row.spend += Number(d.spend) || 0;
-          byCampaign.set(id, row);
-        }
-        const cmp = compareReportToMeta({
-          metaRows,
-          aiosRows: [...byCampaign.values()],
-          reportType: facebookReportType(
-            t.integration_type,
-            t.integration_settings,
-          ) as any,
-        });
-        results.push({
-          client: clientName,
-          agency: t.clients?.agencies?.name || null,
-          ...cmp,
-        });
       }
-      const problems = results.filter((r) => r.error || !r.ok);
-      return {
-        period: `${sinceStr} – ${untilStr}`,
-        checked: results.length,
-        ok_count: results.length - problems.length,
-        ok_clients: results
-          .filter((r) => !r.error && r.ok)
-          .map((r) => r.client),
-        problems,
-      };
+      return await verifyReportVsMeta({
+        db: supabase,
+        tables,
+        days,
+        now: new Date(),
+        fallbackTenantIds: accessibleTenantIds.slice(0, 1),
+      });
     }
+    case "get_reconciliation_status":
+      return await reconciliationStatusTool(
+        { supabase, callerScope, tenantId, actorUserId },
+        args,
+      );
     case "check_ad_accounts_health": {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see
       // analyze_campaign_performance — same cross-tenant flooding hazard).
@@ -13942,10 +13851,7 @@ async function handleRunAgent(
       );
     }
     const isManagerRoleCaller =
-      !!callerRole &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        callerRole,
-      );
+      !!callerRole && MANAGER_ROLES.includes(callerRole);
     const isTeamManagerCaller = callerRole === "team_manager";
 
     // System/dev-fix escalations (Cursor/Claude/Manus MCP + GitHub agent) —
@@ -16518,11 +16424,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
   const pool = directToolPool(ALL_TOOLS as any[], {
     allowedTools: agent.allowed_tools || [],
     disabledTools: agent.disabled_tools || [],
-    isManager:
-      !!scope.role &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        scope.role,
-      ),
+    isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
   });
 
   if (req.action === "list") {
