@@ -1,3 +1,6 @@
+import { adsRowOutcomes } from "@/components/SharedTable/adsRowOutcomes";
+import { googleCampaignRowsByGoal } from "@/components/SharedTable/googleCampaignRowsByGoal";
+import { useSharedTableGoals } from "@/components/SharedTable/useSharedTableGoals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -63,8 +66,6 @@ import {
 import { aggregateGscQueryRows } from "@/lib/gscPosition";
 import {
   getAddToCartFromData,
-  getAdsPurchasesFromData,
-  getLeadsFromData,
   getPurchasesFromData,
   getRevenueFromData,
   getSessionsFromData,
@@ -79,7 +80,6 @@ import { getCurrencySymbol } from "@/lib/currency";
 import {
   ADS_ENTITY_LEVEL_LABELS,
   aggregateFacebookRecordsAtLevel,
-  aggregateGoogleRecordsAtLevel,
   filterRecordsByEntityLevel,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
@@ -284,8 +284,13 @@ export default function SharedTable() {
           : tableCampaignType === "ecommerce"
             ? "ecommerce"
             : "leads";
-  const forceLeadsOnly = tableMode === "leads";
-  const forceEcommerceOnly = tableMode === "ecommerce";
+  const goals = useSharedTableGoals(
+    data?.records,
+    isGoogleAds ? data?.table : null,
+    tableMode,
+  );
+  const forceLeadsOnly = !goals.hasEcommerce;
+  const forceEcommerceOnly = !goals.hasLeads;
 
   const { data: weeklyData, isPending: weeklyPending } = useQuery({
     queryKey: ["shared-table", shareToken, "last_365_days", "weekly"],
@@ -344,13 +349,11 @@ export default function SharedTable() {
         spend += getSpendFromData(d);
         impressions += Number(d.impressions) || 0;
         clicks += Number(d.clicks) || 0;
-        // For Google Ads leads-only tables, never count conversions_value as revenue
-        if (!(forceLeadsOnly && isGoogleAds)) {
-          purchases += getAdsPurchasesFromData(d);
-          revenue += getRevenueFromData(d);
-          addToCart += getAddToCartFromData(d);
-        }
-        leads += getLeadsFromData(d);
+        const outcomes = adsRowOutcomes(d, goals.goalOf?.(d));
+        purchases += outcomes.purchases;
+        revenue += outcomes.revenue;
+        addToCart += outcomes.addToCart;
+        leads += outcomes.leads;
       }
     });
 
@@ -369,8 +372,8 @@ export default function SharedTable() {
 
     const roas = spend > 0 ? revenue / spend : 0;
     const cpl = leads > 0 ? spend / leads : 0;
-    const hasEcommerce = forceEcommerceOnly;
-    const hasLeads = forceLeadsOnly;
+    const hasEcommerce = goals.hasEcommerce;
+    const hasLeads = goals.hasLeads;
 
     return {
       spend,
@@ -392,7 +395,7 @@ export default function SharedTable() {
     isIntegrationTable,
     forceLeadsOnly,
     forceEcommerceOnly,
-    isGoogleAds,
+    goals,
   ]);
 
   // Campaign/adset/ad aggregation for Facebook / Google Ads
@@ -428,30 +431,18 @@ export default function SharedTable() {
       return { ecommerce: [], leads: rows, all: rows, entityColumnLabel };
     }
 
-    const rows = aggregateGoogleRecordsAtLevel(
+    const { ecommerce, leads, all } = googleCampaignRowsByGoal(
       filteredRecords,
       adsEntityLevel,
-    ).map((c) => ({
-      name: c.name,
-      spend: c.cost || c.spend,
-      impressions: c.impressions,
-      clicks: c.clicks,
-      leads: c.leads,
-      purchases: c.purchases,
-      revenue: c.conversions_value || c.purchase_value,
-      addToCart: c.add_to_cart,
-    }));
-
-    if (forceEcommerceOnly) {
-      return { ecommerce: rows, leads: [], all: rows, entityColumnLabel };
-    }
-    return { ecommerce: [], leads: rows, all: rows, entityColumnLabel };
+      goals.goalOf ?? (() => tableMode),
+    );
+    return { ecommerce, leads, all, entityColumnLabel };
   }, [
     filteredRecords,
     integrationType,
-    forceLeadsOnly,
     forceEcommerceOnly,
-    isGoogleAds,
+    goals,
+    tableMode,
     adsEntityLevel,
   ]);
 
@@ -796,6 +787,7 @@ export default function SharedTable() {
               (data?.table?.integration_settings as any)?.currency,
             )}
             isLoading={weeklyPending}
+            tables={data?.table ? [data.table] : undefined}
             sourceModes={{
               facebook_insights: forceLeadsOnly ? "leads" : undefined,
               facebook_ecommerce: "ecommerce",

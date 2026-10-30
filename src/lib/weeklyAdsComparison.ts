@@ -1,3 +1,6 @@
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import { earnsRevenue, weeklyRoas } from "@/lib/weeklyAdsRevenue";
+
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
 export type WeeklyCampaignKind = "leads" | "ecommerce" | "traffic";
@@ -117,9 +120,13 @@ function campaignKind(
     campaignType?: string;
   },
   sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
+  googleGoal?: GoogleCampaignGoal,
 ): WeeklyCampaignKind {
   if (source === "google_ads")
-    return sourceModes[source] === "ecommerce" ? "ecommerce" : "leads";
+    return (
+      googleGoal ??
+      (sourceModes[source] === "ecommerce" ? "ecommerce" : "leads")
+    );
   if (source === "facebook_ecommerce") return "ecommerce";
   if (sourceModes[source] === "leads") return "leads";
   return facebookKind(totals);
@@ -136,6 +143,8 @@ export function buildWeeklyCampaignSections(
     maxWeeks?: number;
     defaultSource?: WeeklyAdsSource;
     sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
+    /** Goal per Google campaign id (name when missing), from the report's rules. */
+    googleCampaignGoals?: Map<string, GoogleCampaignGoal>;
   } = {},
 ): WeeklyCampaignSection[] {
   const now = options.now ?? new Date();
@@ -252,7 +261,15 @@ export function buildWeeklyCampaignSections(
 
       const rows = [...campaigns.entries()]
         .map(([key, campaign]) => {
-          const kind = campaignKind(campaign.source, campaign, sourceModes);
+          const kind = campaignKind(
+            campaign.source,
+            campaign,
+            sourceModes,
+            options.googleCampaignGoals?.get(campaign.campaignId),
+          );
+          const revenue = earnsRevenue(campaign.source, kind)
+            ? campaign.revenue
+            : 0;
           const results =
             kind === "ecommerce"
               ? campaign.purchases
@@ -270,9 +287,9 @@ export function buildWeeklyCampaignSections(
             results,
             spend: campaign.spend,
             costPerResult: results > 0 ? campaign.spend / results : 0,
-            revenue: campaign.revenue,
+            revenue,
             addToCart: campaign.addToCart,
-            roas: campaign.spend > 0 ? campaign.revenue / campaign.spend : 0,
+            roas: campaign.spend > 0 ? revenue / campaign.spend : 0,
           };
         })
         .sort((a, b) => b.spend - a.spend);
@@ -301,7 +318,7 @@ export function buildWeeklyCampaignSections(
       );
       totals.costPerResult =
         totals.results > 0 ? totals.spend / totals.results : 0;
-      totals.roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
+      totals.roas = weeklyRoas(rows, totals.revenue);
 
       return {
         key: utcDateString(start),

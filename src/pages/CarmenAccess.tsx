@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
@@ -33,20 +38,23 @@ export default function CarmenAccess() {
 
   const { data: agent, isLoading: loadingAgent } = useQuery({
     queryKey: ["carmen-access-agent", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_agents" as any)
-        .select(
-          "id,name,active,disabled_tools,disabled_skins,disabled_integrations",
-        )
-        .eq("tenant_id", tenantId)
-        .eq("active", true);
-      const list = (data as any[]) || [];
-      return (
-        list.find((a) => /כרמן|carmen/i.test(a.name || "")) || list[0] || null
-      );
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("ai_agents")
+            .select(
+              "id,name,active,disabled_tools,disabled_skins,disabled_integrations",
+            )
+            .eq("tenant_id", tenantId)
+            .eq("active", true);
+          const list = data || [];
+          return (
+            list.find((a) => /כרמן|carmen/i.test(a.name || "")) ||
+            list[0] ||
+            null
+          );
+        }
+      : skipToken,
   });
 
   useEffect(() => {
@@ -60,7 +68,7 @@ export default function CarmenAccess() {
     queryKey: ["carmen-access-skins", tenantId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("ai_skills" as any)
+        .from("ai_skills")
         .select("slug,name,scope,is_active")
         .eq("is_active", true)
         .or(
@@ -68,11 +76,15 @@ export default function CarmenAccess() {
             ? `scope.eq.global,and(scope.eq.tenant,tenant_id.eq.${tenantId})`
             : "scope.eq.global",
         );
-      const bySlug = new Map<string, any>();
-      for (const r of (data as any[]) || []) {
+      const bySlug = new Map<
+        string,
+        NonNullable<typeof data>[number] & { slug: string }
+      >();
+      for (const r of data || []) {
         if (!r.slug) continue;
         const ex = bySlug.get(r.slug);
-        if (!ex || r.scope === "tenant") bySlug.set(r.slug, r);
+        if (!ex || r.scope === "tenant")
+          bySlug.set(r.slug, { ...r, slug: r.slug });
       }
       return Array.from(bySlug.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
@@ -83,14 +95,15 @@ export default function CarmenAccess() {
 
   const { data: integrations } = useQuery({
     queryKey: ["carmen-access-integrations", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("agent_mcp_connections" as any)
-        .select("id,name,state")
-        .eq("tenant_id", tenantId);
-      return (data as any[]) || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("agent_mcp_connections")
+            .select("id,name,state")
+            .eq("tenant_id", tenantId);
+          return data || [];
+        }
+      : skipToken,
   });
 
   const toolGroups = useMemo(() => {
@@ -103,7 +116,7 @@ export default function CarmenAccess() {
     mutationFn: async () => {
       if (!agent?.id) throw new Error("לא נמצא סוכן (כרמן).");
       const { error } = await supabase
-        .from("ai_agents" as any)
+        .from("ai_agents")
         .update({
           disabled_tools: Array.from(offTools),
           disabled_skins: Array.from(offSkins),
@@ -118,7 +131,7 @@ export default function CarmenAccess() {
         queryKey: ["carmen-access-agent", tenantId],
       });
     },
-    onError: (e: any) => toast.error("שמירה נכשלה: " + (e?.message || e)),
+    onError: (e) => toast.error("שמירה נכשלה: " + (e?.message || e)),
   });
 
   const toggle = (
@@ -240,7 +253,7 @@ export default function CarmenAccess() {
               <Sparkles className="h-4 w-4 text-orange-500" />
               סקינז
             </h2>
-            {(skins || []).map((s: any) => (
+            {(skins || []).map((s) => (
               <Row
                 key={s.slug}
                 on={!offSkins.has(s.slug)}
@@ -262,7 +275,7 @@ export default function CarmenAccess() {
               <Plug className="h-4 w-4 text-blue-500" />
               אינטגרציות (MCP)
             </h2>
-            {(integrations || []).map((c: any) => (
+            {(integrations || []).map((c) => (
               <Row
                 key={c.id}
                 on={!offIntegrations.has(c.name)}

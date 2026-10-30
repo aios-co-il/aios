@@ -3,6 +3,17 @@ import { toPng } from "html-to-image";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
+import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import { splitGoogleGroupsByGoal } from "@/components/dynamic-tables/GoogleGoalColumns/splitGoogleGroupsByGoal";
+import {
+  GoogleGoalCell,
+  GoogleGoalHead,
+  GoogleGoalValueCells,
+  GoogleGoalValueHeads,
+} from "@/components/dynamic-tables/GoogleGoalColumns/GoogleGoalCells";
+import { GoogleGoalTotalCells } from "@/components/dynamic-tables/GoogleGoalColumns/GoogleGoalTotalCells";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -117,7 +128,7 @@ import {
   fetchWooReportAttribution,
   getDynamicTableDateRangeIso,
 } from "@/lib/wooDashboardQueries";
-import { reportRecordsQuery } from "@/lib/reportRecords";
+import { reportRecordsQueryOptions } from "@/lib/reportRecords";
 import { shouldUseGoogleWooAttributionOverlay } from "@/lib/wooAttribution";
 import {
   reportQueryOptions,
@@ -170,11 +181,6 @@ interface CrmField {
   type: string;
   position: number;
   source?: string; // 'facebook' | 'google_ads' | null
-}
-
-interface CrmRecord {
-  id: string;
-  data: Record<string, any>;
 }
 
 interface DynamicTableViewProps {
@@ -532,8 +538,8 @@ export default function DynamicTableView({
     isPending: recordsPending,
     isFetching: recordsFetching,
     dataUpdatedAt: recordsUpdatedAt,
-  } = useQuery<CrmRecord[]>({
-    ...reportRecordsQuery(
+  } = useQuery({
+    ...reportRecordsQueryOptions(
       supabase,
       table?.id || "",
       dateFilter,
@@ -541,7 +547,6 @@ export default function DynamicTableView({
       customToStr,
     ),
     enabled: !!table?.id && isCustomReady,
-    ...reportQueryOptions<CrmRecord[]>(),
   });
 
   const displayRecords = records ?? [];
@@ -552,10 +557,9 @@ export default function DynamicTableView({
     table?.integration_type === "google_ads";
 
   const { data: weeklyRecords = [], isPending: weeklyRecordsPending } =
-    useQuery<CrmRecord[]>({
-      ...reportRecordsQuery(supabase, table?.id || "", "last_365_days"),
+    useQuery({
+      ...reportRecordsQueryOptions(supabase, table?.id || "", "last_365_days"),
       enabled: !!table?.id && isAdsReportTable && adsReportView === "weekly",
-      ...reportQueryOptions<CrmRecord[]>(),
     });
 
   const entityLevelRecords = useMemo(() => {
@@ -3095,6 +3099,7 @@ export default function DynamicTableView({
           }
           currency={getCurrencySymbol(table?.integration_settings?.currency)}
           isLoading={weeklyRecordsPending}
+          tables={table ? [table] : undefined}
           sourceModes={{
             facebook_insights:
               table?.integration_settings?.campaign_type === "leads"
@@ -4123,8 +4128,15 @@ export default function DynamicTableView({
               )}
               <Card className="mb-4 overflow-hidden">
                 {(() => {
-                  const isEcommerce =
-                    table?.integration_settings?.campaign_type === "ecommerce";
+                  const fallbackGoal = googleReportFallbackGoal([table]);
+                  const { goalOf } = googleCampaignGoalOf(
+                    filteredRecords.map((record) => ({
+                      table_id: table.id,
+                      data: record.data,
+                    })),
+                    [table],
+                    fallbackGoal,
+                  );
                   const entityColumnLabel =
                     adsEntityLevel === "ad"
                       ? "מודעה"
@@ -4145,6 +4157,7 @@ export default function DynamicTableView({
                       if (!acc[groupKey]) {
                         acc[groupKey] = {
                           name: campaignName,
+                          goal: goalOf(record.data),
                           impressions: 0,
                           clicks: 0,
                           conversions: 0,
@@ -4182,6 +4195,7 @@ export default function DynamicTableView({
                       string,
                       {
                         name: string;
+                        goal: GoogleCampaignGoal;
                         impressions: number;
                         clicks: number;
                         conversions: number;
@@ -4223,6 +4237,12 @@ export default function DynamicTableView({
                       roas_count: 0,
                     },
                   );
+
+                  const goalSplit = splitGoogleGroupsByGoal(
+                    Object.values(campaignGroups),
+                    fallbackGoal,
+                  );
+                  const { mixedGoals, isEcommerce } = goalSplit;
 
                   const displayConversions = useGoogleWooOverlay
                     ? googleWooPaid.paidOrders
@@ -4337,6 +4357,7 @@ export default function DynamicTableView({
                             <th className="p-2 text-right font-medium">
                               {entityColumnLabel}
                             </th>
+                            <GoogleGoalHead mixed={mixedGoals} />
                             <th className="p-2 text-center font-medium">
                               חשיפות
                             </th>
@@ -4346,29 +4367,17 @@ export default function DynamicTableView({
                             <th className="p-2 text-center font-medium">
                               {useGoogleWooOverlay
                                 ? "המרות (GA)"
-                                : isEcommerce
+                                : isEcommerce || mixedGoals
                                   ? "המרות"
                                   : "לידים"}
                             </th>
                             <th className="p-2 text-center font-medium">
                               עלות
                             </th>
-                            {isEcommerce ? (
-                              <>
-                                <th className="p-2 text-center font-medium">
-                                  {useGoogleWooOverlay
-                                    ? "ערך (GA)"
-                                    : "ערך המרות"}
-                                </th>
-                                <th className="p-2 text-center font-medium">
-                                  ROAS
-                                </th>
-                              </>
-                            ) : (
-                              <th className="p-2 text-center font-medium">
-                                עלות לליד
-                              </th>
-                            )}
+                            <GoogleGoalValueHeads
+                              split={goalSplit}
+                              useWooOverlay={useGoogleWooOverlay}
+                            />
                           </tr>
                         </thead>
                         <tbody>
@@ -4393,6 +4402,10 @@ export default function DynamicTableView({
                                 <td className="p-2 text-right font-medium">
                                   {data.name}
                                 </td>
+                                <GoogleGoalCell
+                                  mixed={mixedGoals}
+                                  goal={data.goal}
+                                />
                                 <td className="p-2 text-center">
                                   {data.impressions.toLocaleString("he-IL")}
                                 </td>
@@ -4408,30 +4421,14 @@ export default function DynamicTableView({
                                     maximumFractionDigits: 0,
                                   })}
                                 </td>
-                                {isEcommerce ? (
-                                  <>
-                                    <td className="p-2 text-center text-purple-600 font-medium">
-                                      {gaCurrency}
-                                      {data.conversions_value.toLocaleString(
-                                        "he-IL",
-                                        { maximumFractionDigits: 0 },
-                                      )}
-                                    </td>
-                                    <td className="p-2 text-center text-blue-600 font-medium">
-                                      {roas.toLocaleString("he-IL", {
-                                        maximumFractionDigits: 2,
-                                      })}
-                                      x
-                                    </td>
-                                  </>
-                                ) : (
-                                  <td className="p-2 text-center text-blue-600 font-medium">
-                                    {gaCurrency}
-                                    {costPerConversion.toLocaleString("he-IL", {
-                                      maximumFractionDigits: 1,
-                                    })}
-                                  </td>
-                                )}
+                                <GoogleGoalValueCells
+                                  split={goalSplit}
+                                  goal={data.goal}
+                                  currency={gaCurrency}
+                                  conversionsValue={data.conversions_value}
+                                  roas={roas}
+                                  costPerConversion={costPerConversion}
+                                />
                               </tr>
                             );
                           })}
@@ -4449,6 +4446,7 @@ export default function DynamicTableView({
                             return (
                               <tr>
                                 <td className="p-2 text-right">סה״כ</td>
+                                {mixedGoals && <td className="p-2" />}
                                 <td className="p-2 text-center">
                                   {totals.impressions.toLocaleString("he-IL")}
                                 </td>
@@ -4464,32 +4462,13 @@ export default function DynamicTableView({
                                     maximumFractionDigits: 0,
                                   })}
                                 </td>
-                                {isEcommerce ? (
-                                  <>
-                                    <td className="p-2 text-center text-purple-600">
-                                      {gaCurrency}
-                                      {Math.round(
-                                        displayRevenue,
-                                      ).toLocaleString("he-IL")}
-                                    </td>
-                                    <td className="p-2 text-center text-blue-600">
-                                      {totalRoas.toLocaleString("he-IL", {
-                                        maximumFractionDigits: 2,
-                                      })}
-                                      x
-                                    </td>
-                                  </>
-                                ) : (
-                                  <td className="p-2 text-center text-blue-600">
-                                    {gaCurrency}
-                                    {(totals.conversions > 0
-                                      ? totals.cost / totals.conversions
-                                      : 0
-                                    ).toLocaleString("he-IL", {
-                                      maximumFractionDigits: 1,
-                                    })}
-                                  </td>
-                                )}
+                                <GoogleGoalTotalCells
+                                  split={goalSplit}
+                                  useWooOverlay={useGoogleWooOverlay}
+                                  currency={gaCurrency}
+                                  displayRevenue={displayRevenue}
+                                  totalRoas={totalRoas}
+                                />
                               </tr>
                             );
                           })()}
