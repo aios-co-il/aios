@@ -48,3 +48,22 @@ export function bindRunAgentCaller(
 
   return body;
 }
+
+/**
+ * The phone run-ai-agent resolves the caller from (phone → campaigner → profile),
+ * which wins over user_id. Only lead_data.phone counts; contact_phone is lead
+ * context that trigger-automation keeps for runs that act for no phone (AIO-241).
+ */
+export function runCallerPhone(
+  body: Record<string, unknown> | null | undefined,
+): string | null {
+  const lead = body?.lead_data;
+  const phone =
+    lead && typeof lead === "object" && "phone" in lead ? lead.phone : null;
+  if (phone === null || phone === undefined) {
+    return null;
+  }
+
+  const text = String(phone).trim();
+  return text ? text : null;
+}
