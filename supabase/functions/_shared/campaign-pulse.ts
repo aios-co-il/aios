@@ -813,7 +813,7 @@ export type PulseCampaignBreakdownRow = {
   status_reason?: string | null;
 };
 
-const PULSE_CATEGORY_LABELS: Array<[string, string]> = [
+export const PULSE_CATEGORY_LABELS: Array<[string, string]> = [
   ["leads", "לידים"],
   ["engagement", "אינגייג׳מנט"],
   ["ecommerce", "איקומרס"],

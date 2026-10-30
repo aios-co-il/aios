@@ -58,6 +58,10 @@ import {
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
 import { Input } from "@/components/ui/input";
+import {
+  pulseTargetKindLabel,
+  pulseTargetSourceLabel,
+} from "../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 const PLATFORM_CONFIG: Record<string, { name: string; color: string }> = {
   facebook_insights: { name: "Facebook", color: "text-blue-600" },
@@ -441,8 +445,8 @@ export function PulseCampaignGoalCard({
           <div className="font-medium">{row.status_reason}</div>
           <div className="mt-1 text-xs text-muted-foreground">
             {row.target_value === null
-              ? "אין יעד מאושר — המגמה מוצגת עם מגבלת מסקנה"
-              : `יעד מאושר: ${String(row.target_kind || "יעד").toUpperCase()} ${row.target_value}`}
+              ? "אין יעד — המגמה מוצגת מול 4 השבועות הקודמים"
+              : `${pulseTargetSourceLabel(row.target_source)}: ${pulseTargetKindLabel(row.target_kind)} ${row.target_value}`}
           </div>
         </div>
 

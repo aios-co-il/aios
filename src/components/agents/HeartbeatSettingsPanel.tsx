@@ -28,7 +28,7 @@ import { format } from "date-fns";
 import { PulseAlertRulesDialog } from "@/components/pulse/PulseAlertRulesDialog";
 import { CarmenReportRecipientsSection } from "./CarmenReportRecipients/CarmenReportRecipientsSection";
 import {
-  parsePulseAlertRules,
+  mergePulseAlertRules,
   type PulseAlertRules,
 } from "@/lib/pulseAlertRules";
 
@@ -56,7 +56,7 @@ type HeartbeatSettingsInput = {
   campaign_pulse_enabled?: boolean;
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
-  pulse_alert_rules?: PulseAlertRules;
+  pulse_alert_rules?: PulseAlertRules | Record<string, unknown>;
 };
 
 /**
@@ -401,7 +401,11 @@ export function HeartbeatSettingsPanel() {
           await saveHeartbeatSettings.mutateAsync({
             ...coreSettings(),
             ...campaignPulseSettings(),
-            pulse_alert_rules: parsePulseAlertRules(rules),
+            // Merge into the stored JSON so keys this dialog does not edit survive.
+            pulse_alert_rules: mergePulseAlertRules(
+              heartbeatSettings?.pulse_alert_rules,
+              rules,
+            ),
           });
           setPulseRulesOpen(false);
         }}

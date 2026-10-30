@@ -105,6 +105,7 @@ import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { LinkTableToClientDialog } from "@/components/dynamic-tables/LinkTableToClientDialog";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
+import { FacebookTrafficTable } from "@/components/dynamic-tables/FacebookTrafficTable";
 import {
   facebookCostPerResult,
   facebookResultsColumnLabel,
@@ -3626,138 +3627,13 @@ export default function DynamicTableView({
                     </Card>
                   )}
 
-                  {trafficCampaigns.length > 0 &&
-                    (() => {
-                      const trafficTotals = trafficCampaigns.reduce(
-                        (acc, [, c]) => ({
-                          impressions: acc.impressions + c.impressions,
-                          clicks: acc.clicks + c.clicks,
-                          spend: acc.spend + c.spend,
-                        }),
-                        { impressions: 0, clicks: 0, spend: 0 },
-                      );
-                      return (
-                        <Card className="mb-4 overflow-hidden">
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm" dir="rtl">
-                              <thead className="bg-muted/50 border-b">
-                                <tr>
-                                  <th className="p-2 text-right font-medium">
-                                    {entityHeader("טראפיק")}
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    חשיפות
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    קליקים
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    הוצאה
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    CTR
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    עלות לקליק
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {trafficCampaigns.map(([groupKey, data]) => {
-                                  const ctr =
-                                    data.impressions > 0
-                                      ? (data.clicks / data.impressions) * 100
-                                      : 0;
-                                  const cpc =
-                                    data.clicks > 0
-                                      ? data.spend / data.clicks
-                                      : 0;
-                                  return (
-                                    <tr
-                                      key={`traffic-${groupKey}`}
-                                      className="border-b hover:bg-muted/30"
-                                    >
-                                      <td className="p-2 text-right font-medium">
-                                        {data.name}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        {data.impressions.toLocaleString(
-                                          "he-IL",
-                                        )}
-                                      </td>
-                                      <td className="p-2 text-center text-green-600 font-medium">
-                                        {data.clicks.toLocaleString("he-IL")}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        {currency}
-                                        {data.spend.toLocaleString("he-IL", {
-                                          maximumFractionDigits: 0,
-                                        })}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        {ctr.toLocaleString("he-IL", {
-                                          maximumFractionDigits: 2,
-                                        })}
-                                        %
-                                      </td>
-                                      <td className="p-2 text-center text-blue-600 font-medium">
-                                        {currency}
-                                        {cpc.toLocaleString("he-IL", {
-                                          maximumFractionDigits: 2,
-                                        })}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                              <tfoot className="bg-primary/10 font-bold">
-                                <tr>
-                                  <td className="p-2 text-right">סה״כ</td>
-                                  <td className="p-2 text-center">
-                                    {trafficTotals.impressions.toLocaleString(
-                                      "he-IL",
-                                    )}
-                                  </td>
-                                  <td className="p-2 text-center text-green-600">
-                                    {trafficTotals.clicks.toLocaleString(
-                                      "he-IL",
-                                    )}
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {currency}
-                                    {trafficTotals.spend.toLocaleString(
-                                      "he-IL",
-                                      { maximumFractionDigits: 0 },
-                                    )}
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {(trafficTotals.impressions > 0
-                                      ? (trafficTotals.clicks /
-                                          trafficTotals.impressions) *
-                                        100
-                                      : 0
-                                    ).toLocaleString("he-IL", {
-                                      maximumFractionDigits: 2,
-                                    })}
-                                    %
-                                  </td>
-                                  <td className="p-2 text-center text-blue-600">
-                                    {currency}
-                                    {(trafficTotals.clicks > 0
-                                      ? trafficTotals.spend /
-                                        trafficTotals.clicks
-                                      : 0
-                                    ).toLocaleString("he-IL", {
-                                      maximumFractionDigits: 2,
-                                    })}
-                                  </td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        </Card>
-                      );
-                    })()}
+                  {trafficCampaigns.length > 0 && (
+                    <FacebookTrafficTable
+                      rows={trafficCampaigns}
+                      entityHeader={entityHeader("טראפיק")}
+                      currency={currency}
+                    />
+                  )}
 
                   {leadCampaigns.length > 0 && table?.id && (
                     <ManualROICard
