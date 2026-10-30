@@ -6,7 +6,7 @@ export function earnsRevenue(source: string, kind: string): boolean {
   return source !== "google_ads" || kind === "ecommerce";
 }
 
-/** A week's ROAS over the spend that can earn revenue: Google lead spend earns none. */
+/** ROAS of one goal's rows in a week, over the spend that can earn revenue: Google lead spend earns none. */
 export function weeklyRoas(
   rows: Array<{ source: string; kind: string; spend: number }>,
   revenue: number,
