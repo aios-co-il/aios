@@ -2,6 +2,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { requireAuth } from "../_shared/security.ts";
 import { fetchOpenAiBillingStatus } from "../_shared/openai-billing-fetch.ts";
+import type { Database } from "../_shared/database.types.ts";
+import { thrownMessage } from "../_shared/json-fields.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
   isSuperAdminRole,
   OPENAI_BILLING_REFUSAL_HE,
@@ -17,7 +20,7 @@ const cors = {
 const COMMAND_CENTER_BILLING_EMAILS = new Set(["david.castelnuovo@gmail.com"]);
 
 async function callerMayViewBilling(
-  supabase: ReturnType<typeof createClient>,
+  supabase: DbClient,
   userId: string,
   tenantId: string,
 ): Promise<boolean> {
@@ -53,7 +56,7 @@ serve(async (req) => {
     const tenantId = String(body.tenant_id || "").trim();
     if (!tenantId) return json({ error: "tenant_id required" }, 400);
 
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
@@ -70,8 +73,8 @@ serve(async (req) => {
     });
 
     return json(status);
-  } catch (e: any) {
-    console.error("[openai-billing-status]", e?.message ?? e);
+  } catch (e) {
+    console.error("[openai-billing-status]", thrownMessage(e));
     return json(
       { ok: false, error: "billing fetch failed", admin_available: false },
       500,

@@ -14,6 +14,9 @@ import {
 // `offsite_conversion.custom.*` prefix — so website-lead campaigns optimised on a
 // custom conversion were silently counted as 0 leads in the synced report.
 
+import { readFbInsightsPage } from "./fbInsightsPage.ts";
+import { unknownField } from "./json-fields.ts";
+
 import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
 
 export interface CampaignStatus {
@@ -23,6 +26,56 @@ export interface CampaignStatus {
   configured_status: string;
   objective?: string | null;
   updated_time?: string | null;
+}
+
+/** Graph API shapes below are provider JSON, described rather than validated. */
+export interface FbActionStat {
+  action_type?: string;
+  value?: string | number;
+}
+
+interface FbPromotedObject {
+  custom_conversion_id: unknown;
+  custom_event_type: unknown;
+  custom_event_str: unknown;
+  pixel_rule: unknown;
+}
+
+function promotedObjectFields(value: unknown): FbPromotedObject {
+  return {
+    custom_conversion_id: unknownField(value, "custom_conversion_id"),
+    custom_event_type: unknownField(value, "custom_event_type"),
+    custom_event_str: unknownField(value, "custom_event_str"),
+    pixel_rule: unknownField(value, "pixel_rule"),
+  };
+}
+
+export interface FbAdset {
+  campaign_id?: string;
+  optimization_goal?: string | null;
+  promoted_object?: unknown;
+}
+
+/** One insights row; Graph returns metric values as numeric strings. */
+export interface FbInsightRow {
+  campaign_id: string;
+  campaign_name: string;
+  adset_id?: string;
+  adset_name?: string;
+  ad_id?: string;
+  ad_name?: string;
+  date_start: string;
+  spend: string;
+  impressions: string;
+  reach: string;
+  frequency: string;
+  clicks: string;
+  inline_link_clicks: string;
+  cpm: string;
+  ctr: string;
+  actions?: FbActionStat[];
+  conversions?: FbActionStat[];
+  action_values?: FbActionStat[];
 }
 
 export interface InsightRecord {
@@ -257,9 +310,9 @@ const ECOMMERCE_RESULT_EVENTS: Record<
  * Lead, messaging and custom-event results stay on the existing lead path.
  */
 export function resolveCampaignResultMetric(
-  promotedObject: any,
+  promotedObject: unknown,
 ): CampaignResultMetric | null {
-  const po = promotedObject || {};
+  const po = promotedObjectFields(promotedObject);
   if (po.custom_conversion_id) return null;
   const cet = String(po.custom_event_type || "").toUpperCase();
   if (
@@ -454,7 +507,7 @@ const ADD_TO_CART_ACTION_TYPE_PRIORITY = [
  */
 /** Extract a custom pixel event name from a promoted_object `pixel_rule` JSON
  *  string, e.g. {"event":{"eq":"NewLead"}} → "NewLead". Returns null if none. */
-function extractPixelRuleEvent(pixelRule: any): string | null {
+function extractPixelRuleEvent(pixelRule: unknown): string | null {
   if (!pixelRule) return null;
   try {
     const s =
@@ -469,11 +522,11 @@ function extractPixelRuleEvent(pixelRule: any): string | null {
 }
 
 export function resolveResultLeadTypes(
-  promotedObject: any,
+  promotedObject: unknown,
   optimizationGoal?: string | null,
   objective?: string | null,
 ): string[] | null {
-  const po = promotedObject || {};
+  const po = promotedObjectFields(promotedObject);
   const goal = String(optimizationGoal || "").toUpperCase();
   const obj = String(objective || "").toUpperCase();
   const cet = String(po.custom_event_type || "").toUpperCase();
@@ -486,14 +539,14 @@ export function resolveResultLeadTypes(
 
   // 1) Pixel Custom Conversion rule (optimized for a specific custom conversion).
   if (po.custom_conversion_id) {
-    return ["offsite_conversion.fb_pixel_custom." + po.custom_conversion_id];
+    return [`offsite_conversion.fb_pixel_custom.${po.custom_conversion_id}`];
   }
   // 2) Custom pixel event (e.g. trackCustom('NewLead')) — the common case here.
   //    Meta exposes the event name either as `custom_event_str` or embedded in
   //    the `pixel_rule` JSON ({"event":{"eq":"NewLead"}}). Handle both.
   if (cet === "OTHER" || cet === "" || cet === "CONTENT_VIEW") {
     const name = po.custom_event_str || extractPixelRuleEvent(po.pixel_rule);
-    if (name) return ["offsite_conversion.fb_pixel_custom." + name];
+    if (name) return [`offsite_conversion.fb_pixel_custom.${name}`];
   }
   // 3) Standard pixel events, mapped to their insights action_type.
   const STD: Record<string, string[]> = {
@@ -543,7 +596,7 @@ export function resolveResultLeadTypes(
  * objective as a fallback signal for the resolver.
  */
 export function buildResultLeadTypeMap(
-  adsets: any[],
+  adsets: FbAdset[],
   campaignObjectives: Record<string, string | null | undefined> = {},
 ): Record<string, string[]> {
   const map: Record<string, string[]> = {};
@@ -568,7 +621,7 @@ export function buildResultLeadTypeMap(
  * is authoritative and makes leads match Ads Manager's "Results" exactly.
  */
 export function buildInsightRecord(
-  insight: any,
+  insight: FbInsightRow,
   campaignStatuses: Record<string, CampaignStatus>,
   resultLeadTypesByCampaign: Record<string, string[]> = {},
   optimizationGoalsByCampaign: Record<string, string> = {},
@@ -585,7 +638,7 @@ export function buildInsightRecord(
     ...(insight.conversions ?? []),
   ]) {
     const t = String(a.action_type || "");
-    const v = parseInt(a.value) || 0;
+    const v = parseInt(String(a.value)) || 0;
     _actionCountMap.set(t, Math.max(_actionCountMap.get(t) ?? 0, v));
   }
   const allActions = Array.from(_actionCountMap.entries()).map(
@@ -593,26 +646,26 @@ export function buildInsightRecord(
   );
   const actionValues = insight.action_values ?? [];
   const actionTypeSet = new Set(
-    allActions.map((a: any) => String(a.action_type || "")),
+    allActions.map((a) => String(a.action_type || "")),
   );
 
   const getActionCount = (actionTypes: string[]) =>
     allActions
-      .filter((a: any) => actionTypes.includes(String(a.action_type || "")))
-      .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+      .filter((a) => actionTypes.includes(String(a.action_type || "")))
+      .reduce((sum, a) => sum + (parseInt(a.value) || 0), 0);
 
   const getActionValue = (actionTypes: string[]) =>
     actionValues
-      .filter((a: any) => actionTypes.includes(String(a.action_type || "")))
-      .reduce((sum: number, a: any) => sum + (parseFloat(a.value) || 0), 0);
+      .filter((a) => actionTypes.includes(String(a.action_type || "")))
+      .reduce((sum, a) => sum + (parseFloat(String(a.value)) || 0), 0);
 
   // Lead counting — objective-aware, matches Facebook Ads Manager "Results".
   // CRITICAL: never sum aggregate `lead` with specific lead types — FB's `lead`
   // is itself an aggregate of leadgen + pixel + messaging, so that double counts.
   const sumByTypes = (types: string[]) =>
     allActions
-      .filter((a: any) => types.includes(String(a.action_type || "")))
-      .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+      .filter((a) => types.includes(String(a.action_type || "")))
+      .reduce((sum, a) => sum + (parseInt(a.value) || 0), 0);
 
   const _campaignStatusForLeads = campaignStatuses[insight.campaign_id];
   const _objectiveForLeads = String(
@@ -651,14 +704,14 @@ export function buildInsightRecord(
   // `offsite_conversion.fb_pixel_custom.*` (current) prefixes. Fall back to the
   // PARENT aggregate when FB returns no children.
   const _customChildrenValue = allActions
-    .filter((a: any) => {
+    .filter((a) => {
       const t = String(a.action_type || "");
       return (
         t.startsWith("offsite_conversion.custom.") ||
         t.startsWith("offsite_conversion.fb_pixel_custom.")
       );
     })
-    .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+    .reduce((sum, a) => sum + (parseInt(a.value) || 0), 0);
   const _customParentValue = sumByTypes([
     "offsite_conversion.fb_pixel_custom",
     "offsite_conversion.custom",
@@ -749,17 +802,17 @@ export function buildInsightRecord(
 
   // Landing page views (website campaigns) vs form opens (Lead Form campaigns).
   const landingPageViews = allActions
-    .filter((a: any) => String(a.action_type || "") === "landing_page_view")
-    .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+    .filter((a) => String(a.action_type || "") === "landing_page_view")
+    .reduce((sum, a) => sum + (parseInt(a.value) || 0), 0);
   const formOpens = allActions
-    .filter((a: any) => {
+    .filter((a) => {
       const type = String(a.action_type || "");
       return type === "leadgen_form_opened" || type === "lead_form_open";
     })
-    .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+    .reduce((sum, a) => sum + (parseInt(a.value) || 0), 0);
   const leadFormLeads = allActions
-    .filter((a: any) => String(a.action_type || "") === "leadgen_grouped")
-    .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+    .filter((a) => String(a.action_type || "") === "leadgen_grouped")
+    .reduce((sum, a) => sum + (parseInt(a.value) || 0), 0);
   const isLeadFormCampaign = leadFormLeads > 0 || formOpens > 0;
   const lpOrFormViews = isLeadFormCampaign ? formOpens : landingPageViews;
 
@@ -997,7 +1050,7 @@ export async function fetchFacebookInsightsAtLevel(
   sinceStr: string,
   untilStr: string,
   accessToken: string,
-): Promise<any[]> {
+): Promise<FbInsightRow[]> {
   const levelFields: Record<AdsEntityLevel, string> = {
     campaign: `campaign_id,campaign_name,${FB_INSIGHTS_BASE_FIELDS}`,
     adset: `campaign_id,campaign_name,adset_id,adset_name,${FB_INSIGHTS_BASE_FIELDS}`,
@@ -1010,14 +1063,13 @@ export async function fetchFacebookInsightsAtLevel(
     "&time_increment=1&use_unified_attribution_setting=true&limit=500" +
     `&access_token=${accessToken}`;
 
-  const rows: any[] = [];
+  const rows: FbInsightRow[] = [];
   let next: string | null = firstUrl;
   while (next) {
-    const r = await fetch(next);
-    const d: any = await r.json();
-    if (d.error) throw new Error(d.error.message || JSON.stringify(d.error));
-    if (Array.isArray(d.data)) rows.push(...d.data);
-    next = d.paging?.next || null;
+    const r: Response = await fetch(next);
+    const page = readFbInsightsPage(await r.json());
+    rows.push(...page.rows);
+    next = page.next;
   }
   return rows;
 }

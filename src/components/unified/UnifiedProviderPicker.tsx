@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, ArrowRight, ChevronRight } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface UnifiedProvider {
   name: string;
@@ -87,10 +88,10 @@ export default function UnifiedProviderPicker({
       );
       if (error) throw error;
       setProviders(data?.integrations || []);
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה בטעינת ספקים",
-        description: err.message,
+        description: errorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -156,10 +157,10 @@ export default function UnifiedProviderPicker({
       if (data?.embed_url) {
         window.open(data.embed_url, "_blank", "width=600,height=700");
       }
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה בפתיחת חלון חיבור",
-        description: err.message,
+        description: errorMessage(err),
         variant: "destructive",
       });
     } finally {

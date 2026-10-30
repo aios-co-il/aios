@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { errorMessage } from "@/lib/typeGuards";
 
 type PendingConnection = {
   category?: string;
@@ -164,7 +165,7 @@ export default function UnifiedCallback() {
         }
 
         setTimeout(() => window.close(), 2000);
-      } catch (err: any) {
+      } catch (err) {
         setDebugInfo(
           [
             `URL: ${window.location.href}`,
@@ -174,7 +175,7 @@ export default function UnifiedCallback() {
           ].join("\n"),
         );
         setStatus("error");
-        setErrorMsg(err?.message || "Unknown error");
+        setErrorMsg(errorMessage(err) || "Unknown error");
       }
     };
 

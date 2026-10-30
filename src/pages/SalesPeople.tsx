@@ -10,6 +10,7 @@ import { EditSalesPersonDialog } from "@/components/forms/EditSalesPersonDialog"
 import { useToast } from "@/hooks/use-toast";
 import { useAgency } from "@/contexts/AgencyContext";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { errorMessage } from "@/lib/typeGuards";
 
 export default function SalesPeople() {
   const { toast } = useToast();
@@ -54,10 +55,10 @@ export default function SalesPeople() {
         title: "איש מכירות נמחק בהצלחה",
       });
       refetch();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה במחיקת איש מכירות",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     }
@@ -77,7 +78,7 @@ export default function SalesPeople() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {salesPeople?.map((person: any) => (
+        {salesPeople?.map((person) => (
           <Card key={person.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex justify-between items-start">

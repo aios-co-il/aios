@@ -149,7 +149,7 @@ export function useUpdateTeamRoles() {
       {
         tenant_id: tenantId,
         setting_key: "team_roles",
-        setting_value: roles as any,
+        setting_value: roles.map((role) => ({ ...role })),
       },
       {
         onConflict: "tenant_id,setting_key",

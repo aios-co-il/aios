@@ -52,13 +52,30 @@ import {
   transcribeAudioBlob,
   type MicCaptureMode,
 } from "@/lib/carmenTranscribeOnly";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import { errorMessage, isJsonObject } from "@/lib/typeGuards";
+
+function lastAssistantContent(history: Json[]): string {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    if (
+      isJsonObject(m) &&
+      m.role === "assistant" &&
+      typeof m.content === "string" &&
+      m.content.trim()
+    ) {
+      return m.content;
+    }
+  }
+  return "";
+}
 
 interface BackgroundTask {
   id: string;
   title: string;
   status: string;
   run_count: number | null;
-  result: any;
+  result: Json | null;
   created_at: string;
   completed_at: string | null;
 }
@@ -67,8 +84,8 @@ interface Message {
   role: "user" | "assistant" | "tool_call";
   content?: string;
   tool?: string;
-  args?: any;
-  result?: any;
+  args?: unknown;
+  result?: unknown;
   timestamp: string;
 }
 
@@ -161,14 +178,14 @@ export function AIOSDialog({
         .in("status", ["pending", "running", "completed", "failed"])
         .order("created_at", { ascending: false })
         .limit(5);
-      if (data) setBackgroundTasks(data as BackgroundTask[]);
+      if (data) setBackgroundTasks(data);
     };
     loadTasks();
 
     // Realtime subscription
     const channel = supabase
       .channel("bg-tasks")
-      .on(
+      .on<Tables<"agent_tasks">>(
         "postgres_changes",
         {
           event: "*",
@@ -177,8 +194,8 @@ export function AIOSDialog({
           filter: `tenant_id=eq.${tenantId}`,
         },
         (payload) => {
-          const task = payload.new as any;
-          if (task?.task_mode !== "background") return;
+          const task = payload.new;
+          if (!("task_mode" in task) || task.task_mode !== "background") return;
 
           setBackgroundTasks((prev) => {
             const idx = prev.findIndex((t) => t.id === task.id);
@@ -201,21 +218,13 @@ export function AIOSDialog({
             const isDoneNow =
               task.status === "completed" || task.status === "failed";
             if (wasNotDone && isDoneNow) {
-              const result = (task.result || {}) as any;
+              const result = isJsonObject(task.result) ? task.result : {};
               let output: string =
                 typeof result.final_output === "string"
                   ? result.final_output
                   : "";
               if (!output && Array.isArray(result.conversation_history)) {
-                const lastA = [...result.conversation_history]
-                  .reverse()
-                  .find(
-                    (m: any) =>
-                      m?.role === "assistant" &&
-                      typeof m.content === "string" &&
-                      m.content.trim(),
-                  );
-                if (lastA) output = lastA.content;
+                output = lastAssistantContent(result.conversation_history);
               }
               const errorText =
                 typeof result.error === "string" ? result.error : "";
@@ -430,11 +439,11 @@ export function AIOSDialog({
           queryKey: ["ai-conversations", tenantId],
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending message:", error);
       toast({
         title: "שגיאה",
-        description: error.message || "שגיאה בשליחת ההודעה",
+        description: errorMessage(error) || "שגיאה בשליחת ההודעה",
         variant: "destructive",
       });
       setIsStreaming(false);
@@ -504,9 +513,9 @@ export function AIOSDialog({
             logTranscribeOnlyEvent("send_text", { chars: text.length });
             sendMessageWithText(text);
           }
-        } catch (err: any) {
+        } catch (err) {
           logTranscribeOnlyEvent("transcribe_fail", {
-            error: err?.message || String(err),
+            error: errorMessage(err) || String(err),
           });
           console.error("Transcription error:", err);
           toast({
@@ -593,7 +602,7 @@ export function AIOSDialog({
           setSpeakingIdx((prev) => (prev === idx ? null : prev));
         };
         await audio.play();
-      } catch (err: any) {
+      } catch (err) {
         console.error("Speak error:", err);
         setSpeakingIdx(null);
         toast({
@@ -760,11 +769,11 @@ export function AIOSDialog({
           queryKey: ["ai-conversations", tenantId],
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending message:", error);
       toast({
         title: "שגיאה",
-        description: error.message || "שגיאה בשליחת ההודעה",
+        description: errorMessage(error) || "שגיאה בשליחת ההודעה",
         variant: "destructive",
       });
       setIsStreaming(false);

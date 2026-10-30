@@ -7,6 +7,10 @@
 // isn't theirs. Managers bypass; team managers are scoped to managed agencies;
 // campaigners are scoped to their client_team assignments.
 
+import type { DbClient } from "./supabase-clients.ts";
+
+type ClientOwnedTable = "social_pages" | "social_comments" | "tasks";
+
 export interface CallerScope {
   callerCampaignerId?: string | null;
   isManagerRole: boolean;
@@ -31,7 +35,7 @@ export class AccessDeniedError extends Error {
  * - No campaigner identity and not a manager: denied.
  */
 export async function assertCallerCanAccessClient(
-  supabase: any,
+  supabase: DbClient,
   clientId: string,
   scope: CallerScope,
 ): Promise<void> {
@@ -74,8 +78,8 @@ export async function assertCallerCanAccessClient(
 // Resolve the owning client_id for an entity that a scoped tool receives by id,
 // so we can run assertCallerCanAccessClient on it. Returns null if not found.
 async function clientIdFrom(
-  supabase: any,
-  table: string,
+  supabase: DbClient,
+  table: ClientOwnedTable,
   id: string,
   accessibleTenantIds: string[],
 ): Promise<string | null> {
@@ -89,14 +93,17 @@ async function clientIdFrom(
   return data?.client_id ?? null;
 }
 
-export const clientIdForSocialPage = (sb: any, pageId: string, t: string[]) =>
-  clientIdFrom(sb, "social_pages", pageId, t);
+export const clientIdForSocialPage = (
+  sb: DbClient,
+  pageId: string,
+  t: string[],
+) => clientIdFrom(sb, "social_pages", pageId, t);
 export const clientIdForSocialComment = (
-  sb: any,
+  sb: DbClient,
   commentId: string,
   t: string[],
 ) => clientIdFrom(sb, "social_comments", commentId, t);
-export const clientIdForTask = (sb: any, taskId: string, t: string[]) =>
+export const clientIdForTask = (sb: DbClient, taskId: string, t: string[]) =>
   clientIdFrom(sb, "tasks", taskId, t);
 
 /**
@@ -106,8 +113,8 @@ export const clientIdForTask = (sb: any, taskId: string, t: string[]) =>
  * rows. Throws AccessDeniedError if the entity isn't found in the caller's tenant.
  */
 export async function assertCallerCanAccessEntityClient(
-  supabase: any,
-  table: string,
+  supabase: DbClient,
+  table: ClientOwnedTable,
   entityId: string,
   scope: CallerScope,
 ): Promise<void> {

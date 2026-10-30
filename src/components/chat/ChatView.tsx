@@ -1,6 +1,11 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
+import {
+  parseChatProviderData,
+  type ChatProviderData,
+} from "./chatProviderData";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertCircle, Ban, Building2, Copy } from "lucide-react";
 import ChatMessageList from "./ChatMessageList";
@@ -31,10 +36,48 @@ interface Message {
   message_text: string;
   created_at: string;
   sender_name?: string | null;
-  raw_provider_data?: any;
+  raw_provider_data?: ChatProviderData;
   profiles?: {
     full_name: string;
   } | null;
+}
+
+interface ChatSendBody {
+  message: string;
+  phoneNumber?: string | null;
+  provider?: string;
+  quotedMessageId?: string;
+  integrationId?: string;
+  clientId?: string;
+  leadId?: string;
+  groupId?: string;
+  tenantId?: string | null;
+}
+
+type ChatProvider = "manychat" | "green_api" | "manus_wa" | "meta_whatsapp";
+
+const INDICATOR_PROVIDERS = [
+  "manychat",
+  "green_api",
+  "internal",
+  "manus_wa",
+  "meta_whatsapp",
+  "telegram",
+] as const;
+
+// ChatProviderIndicator renders any unrecognised provider as Green API.
+function toIndicatorProvider(
+  value: string | null | undefined,
+): (typeof INDICATOR_PROVIDERS)[number] | null {
+  if (!value) return null;
+  return INDICATOR_PROVIDERS.find((p) => p === value) ?? "green_api";
+}
+
+interface CachedChatContact {
+  id: string;
+  contact_type?: string;
+  sender_phone?: string | null;
+  unread_count?: number;
 }
 
 interface ReplyToMessage {
@@ -149,7 +192,7 @@ export default function ChatView({
           phone: null,
           email: null,
           manychat_subscriber_id: null,
-          active_chat_provider: (activeChatProvider || "green_api") as any,
+          active_chat_provider: activeChatProvider || "green_api",
         };
       }
     },
@@ -212,21 +255,19 @@ export default function ChatView({
         .select("integration_id")
         .eq("user_id", userId);
       const permittedIds = new Set(
-        (permData || []).map((p: any) => p.integration_id),
+        (permData || []).map((p) => p.integration_id),
       );
 
       // Filter: manychat = tenant level; WA = own OR org-visible OR explicitly permitted
       const grantedIdSet = new Set(grantedIds);
-      return [...(data || []), ...(grantedIntegrations || [])].filter(
-        (i: any) => {
-          if (grantedIdSet.has(i.id)) return true; // explicitly shared with tenant
-          if (i.integration_type === "manychat") return true;
-          if (i.user_id === userId) return true; // own connection
-          if (i.connection_visibility === "org") return true; // org-wide shared
-          if (permittedIds.has(i.id)) return true; // explicitly shared
-          return false;
-        },
-      );
+      return [...(data || []), ...(grantedIntegrations || [])].filter((i) => {
+        if (grantedIdSet.has(i.id)) return true; // explicitly shared with tenant
+        if (i.integration_type === "manychat") return true;
+        if (i.user_id === userId) return true; // own connection
+        if (i.connection_visibility === "org") return true; // org-wide shared
+        if (permittedIds.has(i.id)) return true; // explicitly shared
+        return false;
+      });
     },
     enabled: !!tenantIdForProvider && !!userId,
   });
@@ -244,13 +285,16 @@ export default function ChatView({
     new Set((chatIntegrations || []).map((i) => i.integration_type)),
   ) as Array<"manychat" | "green_api" | "manus_wa" | "meta_whatsapp">;
   // Prefer stored, fall back to first available; if contact has a known provider, prefer that.
-  const preferredProvider =
-    contact?.active_chat_provider &&
-    availableProviders.includes(contact.active_chat_provider as any)
-      ? (contact.active_chat_provider as any)
-      : storedProvider && availableProviders.includes(storedProvider)
-        ? storedProvider
-        : availableProviders[0] || null;
+  const contactProvider = contact?.active_chat_provider;
+  const isAvailableProvider = (
+    provider: string | null | undefined,
+  ): provider is ChatProvider =>
+    !!provider && availableProviders.some((p) => p === provider);
+  const preferredProvider = isAvailableProvider(contactProvider)
+    ? contactProvider
+    : storedProvider && availableProviders.includes(storedProvider)
+      ? storedProvider
+      : availableProviders[0] || null;
 
   const [selectedProvider, setSelectedProvider] = useState<
     "manychat" | "green_api" | "manus_wa" | "meta_whatsapp" | null
@@ -353,28 +397,34 @@ export default function ChatView({
       ]);
 
       // Optimistically update active-chats
-      queryClient.setQueryData(["active-chats"], (old: any) => {
-        if (!old) return old;
-        return old.map((contact: any) =>
-          contact.id === contactId && contact.contact_type === contactType
-            ? { ...contact, unread_count: 0 }
-            : contact,
-        );
-      });
+      queryClient.setQueryData(
+        ["active-chats"],
+        (old: CachedChatContact[] | undefined) => {
+          if (!old) return old;
+          return old.map((contact) =>
+            contact.id === contactId && contact.contact_type === contactType
+              ? { ...contact, unread_count: 0 }
+              : contact,
+          );
+        },
+      );
 
       // Optimistically update unknown-contacts
-      queryClient.setQueryData(["unknown-contacts"], (old: any) => {
-        if (!old) return old;
-        return old.map((contact: any) =>
-          contact.id === contactId || contact.sender_phone === senderPhone
-            ? { ...contact, unread_count: 0 }
-            : contact,
-        );
-      });
+      queryClient.setQueryData(
+        ["unknown-contacts"],
+        (old: CachedChatContact[] | undefined) => {
+          if (!old) return old;
+          return old.map((contact) =>
+            contact.id === contactId || contact.sender_phone === senderPhone
+              ? { ...contact, unread_count: 0 }
+              : contact,
+          );
+        },
+      );
 
       return { previousActiveChats, previousUnknownContacts };
     },
-    onError: (err, variables, context: any) => {
+    onError: (err, variables, context) => {
       if (context?.previousActiveChats) {
         queryClient.setQueryData(["active-chats"], context.previousActiveChats);
       }
@@ -407,7 +457,7 @@ export default function ChatView({
       if (!effectiveTenantId) throw new Error("Missing tenant");
 
       // 1. Save to blocked_contacts table for permanent blocking
-      const blockedContactData: any = {
+      const blockedContactData: TablesInsert<"blocked_contacts"> = {
         tenant_id: effectiveTenantId,
         connection_user_id: userData.user.id,
         blocked_by_user_id: userData.user.id,
@@ -535,7 +585,7 @@ export default function ChatView({
         if (error) throw error;
 
         // Transform telegram messages to match chat_messages format
-        return (data || []).reverse().map((msg: any) => ({
+        return (data || []).reverse().map((msg) => ({
           id: msg.id || `tg-${msg.update_id}`,
           direction: msg.direction || "inbound",
           message_text: msg.text || "",
@@ -585,19 +635,20 @@ export default function ChatView({
 
   // Transform messages
   const messages: Message[] =
-    messagesData?.map((msg: any) => ({
+    messagesData?.map((msg) => ({
       id: msg.id,
       direction: msg.direction as "inbound" | "outbound",
       message_text: msg.message_text,
       created_at: msg.created_at || "",
       sender_name: msg.sender_name,
-      raw_provider_data: msg.raw_provider_data,
+      raw_provider_data: parseChatProviderData(msg.raw_provider_data),
     })) || [];
 
   // Calculate anchor message for scroll
   const firstUnreadIndex =
     messagesData?.findIndex(
-      (msg: any) => msg.direction === "inbound" && !msg.read_at,
+      (msg) =>
+        msg.direction === "inbound" && !("read_at" in msg && msg.read_at),
     ) ?? -1;
 
   const anchorMessageId =
@@ -671,7 +722,7 @@ export default function ChatView({
           toast.error("חסר מספר טלפון ל-Green API. אנא הוסף באיש הקשר.");
           return;
         }
-        const body: any = {
+        const body: ChatSendBody = {
           message,
           phoneNumber: senderPhone || contact.phone,
           provider: "green_api",
@@ -696,7 +747,7 @@ export default function ChatView({
           toast.error("חסר מספר טלפון. אנא הוסף באיש הקשר.");
           return;
         }
-        const body: any = {
+        const body: ChatSendBody = {
           message,
           phoneNumber: senderPhone || contact.phone,
           integrationId: chatIntegration?.id,
@@ -720,7 +771,7 @@ export default function ChatView({
           toast.error("חסר מספר טלפון. אנא הוסף באיש הקשר.");
           return;
         }
-        const body: any = {
+        const body: ChatSendBody = {
           message,
           phoneNumber: senderPhone || contact.phone,
           integrationId: chatIntegration?.id,
@@ -833,7 +884,7 @@ export default function ChatView({
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="font-medium text-base">{contact.name}</h2>
               <ChatProviderIndicator
-                provider={contact.active_chat_provider}
+                provider={toIndicatorProvider(contact.active_chat_provider)}
                 size="sm"
               />
               {contactType === "telegram" && telegramChatId && (
@@ -874,9 +925,9 @@ export default function ChatView({
             <div className={`space-y-1 ${isMobile ? "mt-1" : "mt-2"}`}>
               {/* פרטי קשר */}
               <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                {(contact as any).agencies?.name && (
+                {"agencies" in contact && contact.agencies?.name && (
                   <Badge variant="outline" className="text-xs h-5">
-                    {(contact as any).agencies.name}
+                    {contact.agencies.name}
                   </Badge>
                 )}
                 {contact.phone && <span>טלפון: {contact.phone}</span>}
@@ -1006,18 +1057,19 @@ export default function ChatView({
                         Green API
                       </Badge>
                       {contactType === "group" &&
-                        (contact as any).group_chat_id && (
+                        "group_chat_id" in contact &&
+                        contact.group_chat_id && (
                           <code
                             className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded cursor-pointer hover:bg-muted/80"
                             onClick={() => {
                               navigator.clipboard.writeText(
-                                (contact as any).group_chat_id,
+                                contact.group_chat_id,
                               );
                               toast.success("מזהה הקבוצה הועתק");
                             }}
                             title="לחץ להעתקה"
                           >
-                            {(contact as any).group_chat_id}
+                            {contact.group_chat_id}
                           </code>
                         )}
                       {contactType !== "group" && contact.phone && (

@@ -11,20 +11,6 @@
       "count": 6
     },
     {
-      "file": "src/components/accounting/CashFlowTab.tsx",
-      "code": 7006,
-      "message": "Parameter 'id' implicitly has an 'any' type.",
-      "source": "id",
-      "count": 2
-    },
-    {
-      "file": "src/components/accounting/CashFlowTab.tsx",
-      "code": 7006,
-      "message": "Parameter 'p' implicitly has an 'any' type.",
-      "source": "p",
-      "count": 2
-    },
-    {
       "file": "src/components/accounting/InvoiceIntakeTab.tsx",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
@@ -999,13 +985,6 @@
     },
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
-      "code": 2352,
-      "message": "Conversion of type '{ fanOutCount: number; newTask: { id: string; }; }' to type '{ newTask: { fanOutCount: number; newTask: { id: string; }; }; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Types of property 'newTask' are incompatible.\n    Type '{ id: string; }' is missing the following properties from type '{ fanOutCount: number; newTask: { id: string; }; }': fanOutCount, newTask",
-      "source": "result as { newTask: typeof result }",
-      "count": 1
-    },
-    {
-      "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2719,
       "message": "Type 'Task | null' is not assignable to type 'Task | null'. Two different types with this name exist, but they are unrelated.\n  Type 'Task' is not assignable to type 'Task'. Two different types with this name exist, but they are unrelated.\n    Types of property 'created_at' are incompatible.\n      Type 'string | null | undefined' is not assignable to type 'string | undefined'.\n        Type 'null' is not assignable to type 'string | undefined'.",
       "source": "task",
@@ -1017,20 +996,6 @@
       "message": "'log.duration' is possibly 'null'.",
       "source": "log.duration",
       "count": 1
-    },
-    {
-      "file": "src/components/ui/slider.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
-      "source": "style?.[\"--slider-color\" as any]",
-      "count": 2
-    },
-    {
-      "file": "src/components/ui/slider.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
-      "source": "style[\"--slider-color\" as any]",
-      "count": 2
     },
     {
       "file": "src/hooks/useAutoCreateTeamMember.ts",
@@ -1107,20 +1072,6 @@
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; granted_at?: string | undefined; granted_by: string; id?: string | undefined; integration_id: string; updated_at?: string | undefined; user_id: string; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | undefined' is not assignable to type 'string'.\n      Type 'undefined' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; granted_at?: string | undefined; granted_by: string; id?: string | undefined; integration_id: string; updated_at?: string | undefined; user_id: string; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'integration_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; granted_at?: string | undefined; granted_by: string; id?: string | undefined; integration_id: string; updated_at?: string | undefined; user_id: string; }, { ...; }>[]'.",
       "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useSyncProfileTeamMember.ts",
-      "code": 2345,
-      "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; agency_id?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; ... 4 more ...; updated_at?: string | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useSyncProfileTeamMember.ts",
-      "code": 2345,
-      "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; id?: string | undefined; ... 5 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
       "count": 1
     },
     {
@@ -1268,13 +1219,6 @@
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ business_stamp_company_id?: string | null | undefined; business_stamp_name?: string | null | undefined; client_id?: string | null | undefined; completed_at?: string | null | undefined; ... 15 more ...; updated_at?: string | ... 1 more ... | undefined; }'.\n  No index signature with a parameter of type 'string' was found on type '{ business_stamp_company_id?: string | null | undefined; business_stamp_name?: string | null | undefined; client_id?: string | null | undefined; completed_at?: string | null | undefined; ... 15 more ...; updated_at?: string | ... 1 more ... | undefined; }'.",
       "source": "next[key]",
-      "count": 1
-    },
-    {
-      "file": "src/lib/lazyWithRetry.ts",
-      "code": 2345,
-      "message": "Argument of type '() => Promise<{ default: T; } | { default: () => null; }>' is not assignable to parameter of type '() => Promise<{ default: T; }>'.\n  Type 'Promise<{ default: T; } | { default: () => null; }>' is not assignable to type 'Promise<{ default: T; }>'.\n    Type '{ default: T; } | { default: () => null; }' is not assignable to type '{ default: T; }'.\n      Type '{ default: () => null; }' is not assignable to type '{ default: T; }'.\n        Types of property 'default' are incompatible.\n          Type '() => null' is not assignable to type 'T'.\n            '() => null' is assignable to the constraint of type 'T', but 'T' could be instantiated with a different subtype of constraint 'ComponentType<any>'.",
-      "source": "async () => {",
       "count": 1
     },
     {
@@ -1864,27 +1808,6 @@
       "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
       "source": "userId",
       "count": 2
-    },
-    {
-      "file": "src/pages/Users.tsx",
-      "code": 7006,
-      "message": "Parameter 'a' implicitly has an 'any' type.",
-      "source": "a",
-      "count": 2
-    },
-    {
-      "file": "src/pages/Users.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, string>'.",
-      "source": "roleBadgeColors[user.role]",
-      "count": 1
-    },
-    {
-      "file": "src/pages/Users.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, string>'.",
-      "source": "roleLabels[user.role]",
-      "count": 1
     },
     {
       "file": "src/pages/WordPressSettings.tsx",

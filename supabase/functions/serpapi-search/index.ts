@@ -1,4 +1,37 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { TablesUpdate } from "../_shared/database.types.ts";
+import { asJsonObject } from "../_shared/json-fields.ts";
+
+/** An item of a DataForSEO SERP result (only the fields read here). */
+interface DataForSeoSerpItem {
+  type?: string;
+  rank_group?: number;
+  domain?: string;
+  url?: string;
+  title?: string;
+}
+
+/** A SerpAPI organic_results entry (only the fields read here). */
+interface SerpApiOrganicResult {
+  link?: string;
+  title?: string;
+}
+
+interface CompetitorEntry {
+  position?: number;
+  domain?: string;
+  url?: string;
+}
+
+interface KeywordCheckResult {
+  keyword_id: string;
+  error?: string;
+  keyword?: string;
+  position?: number | null;
+  previous_position?: number | null;
+  position_change?: number | null;
+  found_url?: string | null;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -127,10 +160,7 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .single();
 
-    const settings = dataforSeoIntegration?.settings as Record<
-      string,
-      any
-    > | null;
+    const settings = asJsonObject(dataforSeoIntegration?.settings);
 
     if (settings?.email && settings?.password) {
       base64Token = btoa(`${settings.email}:${settings.password}`);
@@ -297,7 +327,7 @@ Deno.serve(async (req) => {
 
       const items = searchData.tasks?.[0]?.result?.[0]?.items || [];
       const organicResults = items.filter(
-        (item: any) => item.type === "organic",
+        (item: DataForSeoSerpItem) => item.type === "organic",
       );
 
       // Find domain position
@@ -332,12 +362,14 @@ Deno.serve(async (req) => {
       }
 
       // Get top competitors
-      const competitors = organicResults.slice(0, 10).map((result: any) => ({
-        position: result.rank_group,
-        domain: result.domain,
-        url: result.url,
-        title: result.title,
-      }));
+      const competitors = organicResults
+        .slice(0, 10)
+        .map((result: DataForSeoSerpItem) => ({
+          position: result.rank_group,
+          domain: result.domain,
+          url: result.url,
+          title: result.title,
+        }));
 
       return new Response(
         JSON.stringify({
@@ -394,7 +426,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const results: any[] = [];
+      const results: KeywordCheckResult[] = [];
       const normalizedDomain = project.domain
         .replace(/^(https?:\/\/)?(www\.)?/, "")
         .toLowerCase();
@@ -407,7 +439,7 @@ Deno.serve(async (req) => {
           let position: number | null = null;
           let foundUrl: string | null = null;
           let serpFeatures: string[] = [];
-          let competitorsData: any[] = [];
+          let competitorsData: CompetitorEntry[] = [];
 
           if (usingSerpApi && serpApiKey) {
             // Use SerpAPI (legacy)
@@ -455,7 +487,7 @@ Deno.serve(async (req) => {
 
             competitorsData = organicResults
               .slice(0, 10)
-              .map((result: any, idx: number) => ({
+              .map((result: SerpApiOrganicResult, idx: number) => ({
                 position: idx + 1,
                 domain: result.link
                   ?.replace(/^(https?:\/\/)?(www\.)?/, "")
@@ -514,7 +546,7 @@ Deno.serve(async (req) => {
 
             const items = searchData.tasks?.[0]?.result?.[0]?.items || [];
             const organicResults = items.filter(
-              (item: any) => item.type === "organic",
+              (item: DataForSeoSerpItem) => item.type === "organic",
             );
 
             // Find position
@@ -540,7 +572,7 @@ Deno.serve(async (req) => {
 
             competitorsData = organicResults
               .slice(0, 10)
-              .map((result: any) => ({
+              .map((result: DataForSeoSerpItem) => ({
                 position: result.rank_group,
                 domain: result.domain,
                 url: result.url,
@@ -553,7 +585,7 @@ Deno.serve(async (req) => {
             previousPosition && position ? previousPosition - position : null;
 
           // Update keyword
-          const updateData: any = {
+          const updateData: TablesUpdate<"rank_tracking_keywords"> = {
             previous_position: kw.current_position,
             current_position: position,
             position_change: positionChange,
@@ -702,7 +734,7 @@ async function handleSerpApiSearch(
   // Get top competitors
   const competitors = organicResults
     .slice(0, 10)
-    .map((result: any, index: number) => ({
+    .map((result: SerpApiOrganicResult, index: number) => ({
       position: index + 1,
       domain: result.link?.replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0],
       url: result.link,

@@ -4,7 +4,7 @@
 // still processing, and copying a long meeting's video can outlive the webhook
 // invocation. Both cases leave a session stuck in `processing`. This runs on a
 // schedule, re-checks those sessions against Recall, and finishes them.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { finalizeMeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
 
 const corsHeaders = {

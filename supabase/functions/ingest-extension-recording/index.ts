@@ -6,7 +6,7 @@
 //   transcribe (from audio_file_path) → if client assigned: Hebrew summary →
 //   DOCX → client attachments → auto marketing brief (draft).
 import type {} from "../_shared/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { runRecordingPipeline } from "../_shared/recording-pipeline.ts";
 
 const corsHeaders = {

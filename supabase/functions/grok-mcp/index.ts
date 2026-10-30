@@ -37,6 +37,21 @@ import {
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
+import {
+  CHANNEL_PROVIDERS,
+  type ChannelProvider,
+} from "../_shared/agent-channel/types.ts";
+import type { Json, Tables } from "../_shared/database.types.ts";
+import { jsonField, thrownMessage } from "../_shared/json-fields.ts";
+
+function replyOrigin(raw: unknown): ChannelProvider | undefined {
+  const stated = raw || "grok";
+  return CHANNEL_PROVIDERS.find((p) => p === stated);
+}
+
+function isArgsObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -403,17 +418,17 @@ async function cursorFetch(
 }
 
 function parseAgentResponse(raw: string): { url: string; id: string } {
-  let data: any = {};
+  let data: Json = {};
   try {
     data = JSON.parse(raw);
   } catch {
     /* ignore */
   }
-  const agent = data?.agent || data;
-  const id = String(agent?.id || data?.id || "");
+  const agent = jsonField(data, "agent") || data;
+  const id = String(jsonField(agent, "id") || jsonField(data, "id") || "");
   const url = String(
-    agent?.url ||
-      data?.url ||
+    jsonField(agent, "url") ||
+      jsonField(data, "url") ||
       (id ? `https://cursor.com/agents/${id}` : "") ||
       "(agent created)",
   );
@@ -434,7 +449,9 @@ async function getStickyAgentId(
       .select("cursor_agent_id")
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    const id = String((data as any)?.cursor_agent_id || "");
+    const sticky: Pick<Tables<"grok_sticky_agents">, "cursor_agent_id"> | null =
+      data;
+    const id = String(sticky?.cursor_agent_id || "");
     if (id.startsWith("bc-")) return id;
     const { data: last } = await sb
       .from("grok_dispatches")
@@ -444,13 +461,14 @@ async function getStickyAgentId(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const lastId = String((last as any)?.cursor_agent_id || "");
+    const lastDispatch: Pick<
+      Tables<"grok_dispatches">,
+      "cursor_agent_id"
+    > | null = last;
+    const lastId = String(lastDispatch?.cursor_agent_id || "");
     return lastId.startsWith("bc-") ? lastId : null;
   } catch (e) {
-    console.error(
-      "[grok-mcp] getStickyAgentId failed:",
-      (e as any)?.message ?? e,
-    );
+    console.error("[grok-mcp] getStickyAgentId failed:", thrownMessage(e));
     return null;
   }
 }
@@ -474,10 +492,7 @@ async function saveStickyAgent(
       { onConflict: "tenant_id" },
     );
   } catch (e) {
-    console.error(
-      "[grok-mcp] saveStickyAgent failed:",
-      (e as any)?.message ?? e,
-    );
+    console.error("[grok-mcp] saveStickyAgent failed:", thrownMessage(e));
   }
 }
 
@@ -675,7 +690,10 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(5);
-    const rows = (data || []) as Array<any>;
+    const rows: Pick<
+      Tables<"grok_dispatches">,
+      "created_at" | "tool" | "request_text" | "session_url" | "status"
+    >[] = data || [];
     if (!rows.length) return "";
     const lines = rows.map((r) => {
       const when = String(r.created_at || "")
@@ -696,10 +714,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       lines.join("\n")
     );
   } catch (e) {
-    console.error(
-      "[grok-mcp] recentDispatchContext failed:",
-      (e as any)?.message ?? e,
-    );
+    console.error("[grok-mcp] recentDispatchContext failed:", thrownMessage(e));
     return "";
   }
 }
@@ -728,7 +743,7 @@ async function logDispatch(args: {
       cursor_agent_id: args.cursorAgentId || null,
     });
   } catch (e) {
-    console.error("[grok-mcp] logDispatch failed:", (e as any)?.message ?? e);
+    console.error("[grok-mcp] logDispatch failed:", thrownMessage(e));
   }
 }
 
@@ -763,7 +778,7 @@ function teachingBlock(tenantId: string | null): string {
 
 async function handleToolCall(
   name: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   ctx: { tenantId: string | null; agentId: string | null },
 ): Promise<string> {
   if (name === "request_dev_task") {
@@ -874,7 +889,7 @@ async function handleToolCall(
     const result = await ingestChannelReply({
       conversation_id: conversationId,
       session_id: args?.session_id ? String(args.session_id) : undefined,
-      origin: (args?.origin || "grok") as any,
+      origin: replyOrigin(args?.origin),
       content,
       idempotency_key: args?.idempotency_key
         ? String(args.idempotency_key)
@@ -901,10 +916,9 @@ async function handleRpcMessage(
   bearer?: string,
 ): Promise<Response> {
   const { id, method, params } = msg ?? {};
+  const statedProtocol = params?.protocolVersion;
   const clientProtocol =
-    typeof (params as any)?.protocolVersion === "string"
-      ? (params as any).protocolVersion
-      : undefined;
+    typeof statedProtocol === "string" ? statedProtocol : undefined;
 
   try {
     switch (method) {
@@ -930,15 +944,16 @@ async function handleRpcMessage(
         });
       case "tools/call": {
         const name = params?.name as string;
-        const args = (params?.arguments ?? {}) as Record<string, any>;
+        const rawArgs = params?.arguments ?? {};
+        const args = isArgsObject(rawArgs) ? rawArgs : {};
         if (ctx.grokMode && !args.reply_via) args.reply_via = "cursor";
         try {
           const callCtx = await resolveContext(bearer);
           const text = await handleToolCall(name, args, callCtx);
           return rpcResult(id, { content: [{ type: "text", text }] });
-        } catch (e: any) {
+        } catch (e) {
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [{ type: "text", text: `❌ ${String(thrownMessage(e))}` }],
             isError: true,
           });
         }
@@ -946,9 +961,9 @@ async function handleRpcMessage(
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[grok-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[grok-mcp]", thrownMessage(e));
+    return rpcError(id, -32603, `Internal error: ${String(thrownMessage(e))}`);
   }
 }
 

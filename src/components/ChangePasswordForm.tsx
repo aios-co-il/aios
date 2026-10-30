@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
+import { errorMessage } from "@/lib/typeGuards";
 
 const passwordSchema = z
   .object({
@@ -83,9 +84,9 @@ export function ChangePasswordForm() {
       setShowMFAChallenge(false);
       setMfaCode("");
       setPendingPassword("");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error in MFA verification or password update:", error);
-      toast.error(error.message || "שגיאה באימות או בעדכון הסיסמה");
+      toast.error(errorMessage(error) || "שגיאה באימות או בעדכון הסיסמה");
     } finally {
       setIsLoading(false);
     }
@@ -113,9 +114,9 @@ export function ChangePasswordForm() {
 
       toast.success("הסיסמה עודכנה בהצלחה");
       reset();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error updating password:", error);
-      toast.error(error.message || "שגיאה בעדכון הסיסמה");
+      toast.error(errorMessage(error) || "שגיאה בעדכון הסיסמה");
     } finally {
       setIsLoading(false);
     }

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 import {
   compactToolsForGrok,
   grokCompatibleInitializeResult,
@@ -258,8 +259,14 @@ async function callTool(
   tenantId: string | null,
 ): Promise<string> {
   const client = sb();
-  const scopeAgent = (query: any, agent: string) => {
-    const scoped = query.eq("agent_key", agent);
+  const updateScopedAgent = (
+    values: TablesUpdate<"agent_collaboration_agents">,
+    agent: string,
+  ) => {
+    const scoped = client
+      .from("agent_collaboration_agents")
+      .update(values)
+      .eq("agent_key", agent);
     return tenantId
       ? scoped.eq("tenant_id", tenantId)
       : scoped.is("tenant_id", null);
@@ -358,12 +365,12 @@ async function callTool(
     const { data, error } = await query.select().maybeSingle();
     if (error) throw error;
     if (!data) throw new Error("Task is unavailable or already claimed.");
-    await scopeAgent(
-      client.from("agent_collaboration_agents").update({
+    await updateScopedAgent(
+      {
         current_task_id: data.id,
         status: "busy",
         last_seen_at: new Date().toISOString(),
-      }),
+      },
       agent,
     );
     return json(data);
@@ -399,10 +406,8 @@ async function callTool(
         body: args.message,
       });
     if (["completed", "cancelled"].includes(status))
-      await scopeAgent(
-        client
-          .from("agent_collaboration_agents")
-          .update({ current_task_id: null, status: "online" }),
+      await updateScopedAgent(
+        { current_task_id: null, status: "online" },
         agent,
       );
     return json(data);
@@ -434,18 +439,8 @@ async function callTool(
       message_type: "handoff",
       body: args.message,
     });
-    await scopeAgent(
-      client
-        .from("agent_collaboration_agents")
-        .update({ current_task_id: null, status: "online" }),
-      from,
-    );
-    await scopeAgent(
-      client
-        .from("agent_collaboration_agents")
-        .update({ current_task_id: data.id, status: "busy" }),
-      to,
-    );
+    await updateScopedAgent({ current_task_id: null, status: "online" }, from);
+    await updateScopedAgent({ current_task_id: data.id, status: "busy" }, to);
     return json(data);
   }
   if (name === "send_message") return json(await insertMessage(tenantId, args));

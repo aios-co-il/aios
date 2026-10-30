@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { unknownField } from "../_shared/json-fields.ts";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 import {
   pickExistingTeamMember,
   type TeamMemberCandidate,
@@ -182,7 +184,7 @@ serve(async (req: Request) => {
               salesPersonId = existingSalesPerson.id;
               reusedExisting = true;
 
-              const spPatch: Record<string, any> = {};
+              const spPatch: TablesUpdate<"sales_people"> = {};
               if (!existingSalesPerson.email && profile.email)
                 spPatch.email = profile.email;
               if (
@@ -303,7 +305,7 @@ serve(async (req: Request) => {
               campaignerId = existingCampaigner.id;
               reusedExisting = true;
 
-              const cPatch: Record<string, any> = {};
+              const cPatch: TablesUpdate<"campaigners"> = {};
               if (!existingCampaigner.email && profile.email)
                 cPatch.email = profile.email;
               if (
@@ -455,17 +457,17 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in manage-user-roles function:", error);
+    const message = unknownField(error, "message");
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: message,
       }),
       {
         status:
-          error.message === "Unauthorized" ||
-          error.message.includes("Only owners")
+          message === "Unauthorized" || String(message).includes("Only owners")
             ? 403
             : 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

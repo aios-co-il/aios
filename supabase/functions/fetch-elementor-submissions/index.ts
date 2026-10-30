@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Json } from "../_shared/database.types.ts";
+import {
+  jsonArray,
+  jsonField,
+  type JsonObject,
+  unknownField,
+} from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,11 +15,11 @@ const corsHeaders = {
 };
 
 interface ParsedSubmission {
-  id: string | number;
+  id: Json | undefined;
   form_id: string;
   form_name: string;
   email: string | null;
-  created_at: string;
+  created_at: string | number;
   referer: string | null;
   slug: string;
   source:
@@ -28,8 +35,34 @@ interface ParsedSubmission {
   fbclid: string | null;
   utm_source: string | null;
   utm_campaign: string | null;
-  ip: string | null;
-  raw_fields: Record<string, any>;
+  ip: Json;
+  raw_fields: Json;
+}
+
+interface FormAggregate {
+  form_id: string;
+  form_name: string;
+  total: number;
+  last_7_days: number;
+  last_30_days: number;
+  sources: Record<ParsedSubmission["source"], number>;
+  last_submission_at: string | number | null;
+  slugs: Set<string>;
+  sample_referer: string | null;
+}
+
+interface CampaignAggregate {
+  gad_campaignid: string;
+  submissions: number;
+  forms: Set<string>;
+}
+
+interface SlugAggregate {
+  slug: string;
+  submissions: number;
+  google_ads_submissions: number;
+  last_submission_at: string | number | null;
+  sample_gad_campaignids: Set<string>;
 }
 
 function extractSlug(referer: string | null): string {
@@ -43,18 +76,18 @@ function extractSlug(referer: string | null): string {
   }
 }
 
-function stringifyFormName(name: any, fallback: string): string {
+function stringifyFormName(name: Json | undefined, fallback: string): string {
   if (!name) return fallback;
   if (typeof name === "string") return name;
   if (typeof name === "object") {
     // Elementor sometimes returns { rendered: "..." } or similar
-    return (
-      name.rendered ||
-      name.name ||
-      name.label ||
-      name.title ||
-      name.value ||
-      fallback
+    return String(
+      jsonField(name, "rendered") ||
+        jsonField(name, "name") ||
+        jsonField(name, "label") ||
+        jsonField(name, "title") ||
+        jsonField(name, "value") ||
+        fallback,
     );
   }
   return String(name);
@@ -109,14 +142,16 @@ function classifySource(referer: string | null): ParsedSubmission["source"] {
   return "direct";
 }
 
-function extractEmail(fields: any): string | null {
+function extractEmail(fields: Json): string | null {
   if (!fields) return null;
   // Elementor submissions API returns "values" as an array of {key, value, type, ...}
   if (Array.isArray(fields)) {
     for (const f of fields) {
-      const key = (f.key || f.id || "").toString().toLowerCase();
-      const type = (f.type || "").toString().toLowerCase();
-      const val = f.value;
+      const key = String(
+        jsonField(f, "key") || jsonField(f, "id") || "",
+      ).toLowerCase();
+      const type = String(jsonField(f, "type") || "").toLowerCase();
+      const val = jsonField(f, "value");
       if (
         (type === "email" ||
           key.includes("email") ||
@@ -142,17 +177,22 @@ function extractEmail(fields: any): string | null {
   return null;
 }
 
-function fieldsToRecord(fields: any): Record<string, any> {
+function fieldsToRecord(fields: Json): Json {
   if (!fields) return {};
   if (Array.isArray(fields)) {
-    const out: Record<string, any> = {};
+    const out: JsonObject = {};
     for (const f of fields) {
-      const k = f.key || f.id || f.label;
-      if (k) out[k] = f.value;
+      const k =
+        jsonField(f, "key") || jsonField(f, "id") || jsonField(f, "label");
+      if (k) out[String(k)] = jsonField(f, "value");
     }
     return out;
   }
   return fields;
+}
+
+function toTime(value: string | number): number {
+  return new Date(value).getTime();
 }
 
 serve(async (req) => {
@@ -201,14 +241,22 @@ serve(async (req) => {
         },
       );
       if (formsResp.ok) {
-        const formsData = await formsResp.json();
+        const formsData: Json = await formsResp.json();
         const list = Array.isArray(formsData)
           ? formsData
-          : formsData?.data || [];
+          : jsonArray(jsonField(formsData, "data"));
         for (const f of list) {
-          const id = String(f.id || f.form_id || f.ID || "");
+          const id = String(
+            jsonField(f, "id") ||
+              jsonField(f, "form_id") ||
+              jsonField(f, "ID") ||
+              "",
+          );
           const name = stringifyFormName(
-            f.name || f.label || f.title || f.form_name,
+            jsonField(f, "name") ||
+              jsonField(f, "label") ||
+              jsonField(f, "title") ||
+              jsonField(f, "form_name"),
             id,
           );
           if (id) formsMap.set(id, name);
@@ -219,7 +267,7 @@ serve(async (req) => {
     }
 
     // 2) Fetch submissions with pagination
-    const allSubmissions: any[] = [];
+    const allSubmissions: Json[] = [];
     let page = 1;
     const perPage = 100;
     const maxPages = 10;
@@ -254,8 +302,10 @@ serve(async (req) => {
       const totalHeader = resp.headers.get("x-wp-total");
       if (totalHeader) totalAvailable = parseInt(totalHeader, 10);
 
-      const data = await resp.json();
-      const items = Array.isArray(data) ? data : data?.data || [];
+      const data: Json = await resp.json();
+      const items = Array.isArray(data)
+        ? data
+        : jsonArray(jsonField(data, "data"));
       if (items.length === 0) break;
       allSubmissions.push(...items);
       if (items.length < perPage) break;
@@ -268,7 +318,10 @@ serve(async (req) => {
 
     // Debug: log the structure of the first submission so we can see what fields exist
     if (allSubmissions.length > 0) {
-      console.log("Sample submission keys:", Object.keys(allSubmissions[0]));
+      console.log(
+        "Sample submission keys:",
+        Object.keys(allSubmissions[0] ?? {}),
+      );
       console.log(
         "Sample submission (first 1000 chars):",
         JSON.stringify(allSubmissions[0]).slice(0, 1000),
@@ -277,42 +330,63 @@ serve(async (req) => {
 
     const parsed: ParsedSubmission[] = [];
     for (const s of allSubmissions) {
+      const field = (key: string) => jsonField(s, key);
+      const createdAtRaw =
+        field("created_at") ||
+        field("date") ||
+        field("created") ||
+        new Date().toISOString();
       const createdAt =
-        s.created_at || s.date || s.created || new Date().toISOString();
-      if (cutoff > 0 && new Date(createdAt).getTime() < cutoff) continue;
+        typeof createdAtRaw === "string" || typeof createdAtRaw === "number"
+          ? createdAtRaw
+          : new Date().toISOString();
+      if (cutoff > 0 && toTime(createdAt) < cutoff) continue;
 
-      const fields = s.values || s.fields || s.form_data || [];
-      const referer = s.referer || s.referrer || s.url || s.user_url || null;
+      const fields =
+        field("values") || field("fields") || field("form_data") || [];
+      const refererRaw =
+        field("referer") ||
+        field("referrer") ||
+        field("url") ||
+        field("user_url");
+      const referer = typeof refererRaw === "string" ? refererRaw : null;
 
       // Robust form_id extraction — Elementor returns various shapes:
       //  - s.form_id (string)
       //  - s.form = { id, name } (object)
       //  - s.form (string id)
       //  - s.element_id / s.post_id (fallbacks)
-      let formIdRaw: any =
-        s.form_id ??
-        (s.form && typeof s.form === "object"
-          ? (s.form.id ?? s.form.form_id ?? s.form.ID)
-          : s.form) ??
-        s.formId ??
-        s.element_id ??
-        s.post_id ??
+      const form = field("form");
+      let formIdRaw: Json =
+        field("form_id") ??
+        (form && typeof form === "object"
+          ? (jsonField(form, "id") ??
+            jsonField(form, "form_id") ??
+            jsonField(form, "ID"))
+          : form) ??
+        field("formId") ??
+        field("element_id") ??
+        field("post_id") ??
         "";
       // If still object somehow, stringify cleanly
       if (formIdRaw && typeof formIdRaw === "object") {
         formIdRaw =
-          formIdRaw.id || formIdRaw.value || JSON.stringify(formIdRaw);
+          jsonField(formIdRaw, "id") ||
+          jsonField(formIdRaw, "value") ||
+          JSON.stringify(formIdRaw);
       }
       const formId = String(formIdRaw || "").trim();
 
       // Robust form_name extraction
-      const rawFormName: any =
-        s.form_name ??
-        (s.form && typeof s.form === "object"
-          ? (s.form.name ?? s.form.title ?? s.form.label)
+      const rawFormName: Json =
+        field("form_name") ??
+        (form && typeof form === "object"
+          ? (jsonField(form, "name") ??
+            jsonField(form, "title") ??
+            jsonField(form, "label"))
           : null) ??
-        s.form_label ??
-        s.post_title ??
+        field("form_label") ??
+        field("post_title") ??
         formsMap.get(formId) ??
         formId ??
         "טופס לא ידוע";
@@ -320,7 +394,7 @@ serve(async (req) => {
       const slug = extractSlug(referer);
 
       parsed.push({
-        id: s.id,
+        id: field("id"),
         form_id: formId,
         form_name: formName,
         email: extractEmail(fields),
@@ -333,20 +407,21 @@ serve(async (req) => {
         fbclid: getQueryParam(referer, "fbclid"),
         utm_source: getQueryParam(referer, "utm_source"),
         utm_campaign: getQueryParam(referer, "utm_campaign"),
-        ip: s.user_ip || s.ip || null,
+        ip: field("user_ip") || field("ip") || null,
         raw_fields: fieldsToRecord(fields),
       });
     }
 
     // 4) Aggregate per_form — group by form_id when available, else by slug-based key
-    const perFormMap = new Map<string, any>();
+    const perFormMap = new Map<string, FormAggregate>();
     for (const sub of parsed) {
       // If we don't have a form_id, fall back to slug+form_name so different forms on different pages don't merge
       const key = sub.form_id
         ? `id:${sub.form_id}`
         : `name:${sub.form_name}|slug:${sub.slug || "_"}`;
-      if (!perFormMap.has(key)) {
-        perFormMap.set(key, {
+      let entry = perFormMap.get(key);
+      if (!entry) {
+        entry = {
           form_id: sub.form_id,
           form_name: sub.form_name,
           total: 0,
@@ -361,68 +436,64 @@ serve(async (req) => {
             test: 0,
             other: 0,
           },
-          last_submission_at: null as string | null,
+          last_submission_at: null,
           slugs: new Set<string>(),
-          sample_referer: null as string | null,
-        });
+          sample_referer: null,
+        };
+        perFormMap.set(key, entry);
       }
-      const entry = perFormMap.get(key);
       entry.total++;
       entry.sources[sub.source]++;
       if (sub.slug) entry.slugs.add(sub.slug);
       if (!entry.sample_referer && sub.referer)
         entry.sample_referer = sub.referer;
-      const ts = new Date(sub.created_at).getTime();
+      const ts = toTime(sub.created_at);
       const now = Date.now();
       if (ts >= now - 7 * 86400000) entry.last_7_days++;
       if (ts >= now - 30 * 86400000) entry.last_30_days++;
-      if (
-        !entry.last_submission_at ||
-        new Date(entry.last_submission_at).getTime() < ts
-      ) {
+      if (!entry.last_submission_at || toTime(entry.last_submission_at) < ts) {
         entry.last_submission_at = sub.created_at;
       }
     }
 
     // 5) Aggregate per Google Ads campaign
-    const perCampaignMap = new Map<string, any>();
+    const perCampaignMap = new Map<string, CampaignAggregate>();
     for (const sub of parsed) {
       if (!sub.gad_campaignid) continue;
-      if (!perCampaignMap.has(sub.gad_campaignid)) {
-        perCampaignMap.set(sub.gad_campaignid, {
+      let c = perCampaignMap.get(sub.gad_campaignid);
+      if (!c) {
+        c = {
           gad_campaignid: sub.gad_campaignid,
           submissions: 0,
           forms: new Set<string>(),
-        });
+        };
+        perCampaignMap.set(sub.gad_campaignid, c);
       }
-      const c = perCampaignMap.get(sub.gad_campaignid);
       c.submissions++;
       c.forms.add(sub.form_name);
     }
 
     // 6) Aggregate per slug (URL path) - useful for slug-based campaign mapping
-    const perSlugMap = new Map<string, any>();
+    const perSlugMap = new Map<string, SlugAggregate>();
     for (const sub of parsed) {
       if (!sub.slug) continue;
-      if (!perSlugMap.has(sub.slug)) {
-        perSlugMap.set(sub.slug, {
+      let e = perSlugMap.get(sub.slug);
+      if (!e) {
+        e = {
           slug: sub.slug,
           submissions: 0,
           google_ads_submissions: 0,
-          last_submission_at: null as string | null,
+          last_submission_at: null,
           sample_gad_campaignids: new Set<string>(),
-        });
+        };
+        perSlugMap.set(sub.slug, e);
       }
-      const e = perSlugMap.get(sub.slug);
       e.submissions++;
       if (sub.source === "google_ads" || sub.source === "google")
         e.google_ads_submissions++;
       if (sub.gad_campaignid) e.sample_gad_campaignids.add(sub.gad_campaignid);
-      const ts = new Date(sub.created_at).getTime();
-      if (
-        !e.last_submission_at ||
-        new Date(e.last_submission_at).getTime() < ts
-      ) {
+      const ts = toTime(sub.created_at);
+      if (!e.last_submission_at || toTime(e.last_submission_at) < ts) {
         e.last_submission_at = sub.created_at;
       }
     }
@@ -445,9 +516,9 @@ serve(async (req) => {
         total_available: totalAvailable,
         totals,
         per_form: Array.from(perFormMap.values())
-          .map((f: any) => ({
+          .map((f) => ({
             ...f,
-            slugs: Array.from(f.slugs || []),
+            slugs: Array.from(f.slugs),
           }))
           .sort((a, b) => b.total - a.total),
         per_campaign: Array.from(perCampaignMap.values())
@@ -466,11 +537,14 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("fetch-elementor-submissions error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: unknownField(error, "message") }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

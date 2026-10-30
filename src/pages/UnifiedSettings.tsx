@@ -24,12 +24,25 @@ import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import UnifiedProviderPicker from "@/components/unified/UnifiedProviderPicker";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface WorkspaceIntegration {
   name: string;
   type: string;
   icon_url: string | null;
   categories: string[];
+}
+
+interface UnifiedConnectionSettings {
+  integration_name?: string;
+  unified_category?: string;
+  connected_at?: string;
+}
+
+interface UnifiedConnection {
+  id: string;
+  integration_type?: string;
+  settings?: UnifiedConnectionSettings | null;
 }
 
 export default function UnifiedSettings() {
@@ -57,7 +70,8 @@ export default function UnifiedSettings() {
         },
       );
       if (error) throw error;
-      return data?.connections || [];
+      const list: UnifiedConnection[] = data?.connections || [];
+      return list;
     },
     enabled: !!currentTenantId,
   });
@@ -103,10 +117,10 @@ export default function UnifiedSettings() {
       queryClient.invalidateQueries({
         queryKey: ["unified-connections", currentTenantId],
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה בניתוק",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     }
@@ -169,8 +183,9 @@ export default function UnifiedSettings() {
                 </div>
               ) : activeConnections.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {activeConnections.map((conn: any) => {
-                    const settings = conn.settings || {};
+                  {activeConnections.map((conn) => {
+                    const settings: UnifiedConnectionSettings =
+                      conn.settings || {};
                     // Find matching workspace integration for icon
                     const matchingIntegration = availableIntegrations.find(
                       (wi) =>
@@ -265,7 +280,7 @@ export default function UnifiedSettings() {
                   {availableIntegrations.map((integration) => {
                     // Check if already connected
                     const isConnected = activeConnections.some(
-                      (conn: any) =>
+                      (conn) =>
                         conn.settings?.integration_name === integration.type ||
                         conn.settings?.integration_name === integration.name,
                     );

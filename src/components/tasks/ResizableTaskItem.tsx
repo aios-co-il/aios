@@ -55,7 +55,7 @@ export function ResizableTaskItem({
 
   const [isResizing, setIsResizing] = useState(false);
   const [resizeHeight, setResizeHeight] = useState<number | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const startYRef = useRef<number>(0);
   const startHeightRef = useRef<number>(0);
   const currentHeightRef = useRef<number>(0);
@@ -156,7 +156,7 @@ export function ResizableTaskItem({
       <div
         ref={(node) => {
           setNodeRef(node);
-          (containerRef as any).current = node;
+          containerRef.current = node;
         }}
         style={style}
         className={cn(

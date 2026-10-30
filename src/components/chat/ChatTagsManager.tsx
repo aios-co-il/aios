@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { jsonField } from "@/lib/typeGuards";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Dialog,
@@ -286,9 +287,12 @@ export function ChatTagsManager({
       setNewTagName("");
       toast.success("התגית נוצרה בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error) => {
       const message = error?.message || "";
-      if (message.includes("duplicate") || error?.code === "23505") {
+      if (
+        message.includes("duplicate") ||
+        jsonField(error, "code") === "23505"
+      ) {
         toast.error("תגית עם שם זה כבר קיימת");
       } else {
         toast.error(

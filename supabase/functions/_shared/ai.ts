@@ -7,6 +7,17 @@
 //   2. Fallback: the active `llm` tenant integration's settings.openai_api_key
 //      (the same place run-ai-agent's resolveLLMTarget reads). This keeps voice,
 //      embeddings, etc. working even when the env secret was never configured.
+import {
+  readEmbeddingItems,
+  readScribeWords,
+  readWhisperSegments,
+} from "./ai-response-items.ts";
+import type { Json } from "./database.types.ts";
+
+type VisionContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_BASE = "https://api.openai.com/v1";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -131,9 +142,10 @@ export async function aiEmbedBatch(
         0,
       ),
     });
-    const out: number[][] = (j?.data ?? [])
-      .sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
-      .map((d: any) => d.embedding);
+    const items = readEmbeddingItems(j?.data);
+    const out: number[][] = items
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      .map((d) => d.embedding);
     return out.length === texts.length ? out : null;
   } catch {
     return null;
@@ -198,7 +210,11 @@ export async function aiChat(
   const key = await resolveOpenAIKey();
   if (!key) return null;
   try {
-    const body: any = {
+    const body: {
+      model: string;
+      messages: { role: string; content: string }[];
+      response_format?: { type: string };
+    } = {
       model: opts?.model || AI_CHAT_MODEL,
       messages: [{ role: "user", content: prompt }],
     };
@@ -232,7 +248,7 @@ export async function aiChat(
 }
 
 /** Chat completion that returns parsed JSON (json_object mode), or null. */
-export async function aiChatJSON<T = any>(
+export async function aiChatJSON<T = unknown>(
   prompt: string,
   model?: string,
 ): Promise<T | null> {
@@ -347,16 +363,10 @@ export async function aiTranscribeVerbose(
     });
     if (!r.ok) return null;
     const j = await r.json();
-    // deno-lint-ignore no-explicit-any
-    const segments: TranscriptSegment[] = (
-      Array.isArray(j?.segments) ? j.segments : []
-    )
-      // deno-lint-ignore no-explicit-any
-      .filter(
-        (s: any) => (s?.no_speech_prob ?? 0) < 0.6 && (s?.text ?? "").trim(),
-      )
-      // deno-lint-ignore no-explicit-any
-      .map((s: any) => ({
+    const rawSegments = readWhisperSegments(j?.segments);
+    const segments: TranscriptSegment[] = rawSegments
+      .filter((s) => (s?.no_speech_prob ?? 0) < 0.6 && (s?.text ?? "").trim())
+      .map((s) => ({
         start: Number(s.start) || 0,
         end: Number(s.end) || 0,
         text: String(s.text).trim(),
@@ -380,13 +390,11 @@ export async function aiVisionJSON(
   prompt: string,
   images: Blob[],
   opts?: { model?: string },
-  // deno-lint-ignore no-explicit-any
-): Promise<any | null> {
+): Promise<Json | null> {
   const key = await resolveOpenAIKey();
   if (!key || images.length === 0) return null;
   try {
-    // deno-lint-ignore no-explicit-any
-    const content: any[] = [{ type: "text", text: prompt }];
+    const content: VisionContentPart[] = [{ type: "text", text: prompt }];
     for (const img of images) {
       const bytes = new Uint8Array(await img.arrayBuffer());
       let binary = "";
@@ -468,8 +476,7 @@ export async function aiDiarizeTranscribe(
       return null;
     }
     const j = await r.json();
-    // deno-lint-ignore no-explicit-any
-    const words: any[] = Array.isArray(j?.words) ? j.words : [];
+    const words = readScribeWords(j?.words);
     const segments: DiarizedSegment[] = [];
     let current: DiarizedSegment | null = null;
     for (const w of words) {

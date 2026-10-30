@@ -1,4 +1,5 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
+import type { DbClient } from "./supabase-clients.ts";
 import {
   approveOnSend,
   DevTaskNotApprovedError,
@@ -123,6 +124,10 @@ Deno.test(
   },
 );
 
+/** Stands a fake query builder in for the client the helpers take. */
+const fakeClient = (builder: Record<string, unknown>) =>
+  ({ from: () => builder }) as unknown as DbClient;
+
 /** A client whose dev_tasks read returns this row; any write fails the test. */
 function taskDb(row: Record<string, unknown>) {
   const builder: Record<string, unknown> = {
@@ -133,7 +138,7 @@ function taskDb(row: Record<string, unknown>) {
       throw new Error("a refused task must not be written");
     },
   };
-  return { from: () => builder };
+  return fakeClient(builder);
 }
 
 const DRAFT = {
@@ -215,7 +220,7 @@ function recordingDb(row: Record<string, unknown>) {
     single: () =>
       Promise.resolve({ data: { ...row, ...updates.at(-1) }, error: null }),
   };
-  return { updates, db: { from: () => builder } };
+  return { updates, db: fakeClient(builder) };
 }
 
 Deno.test(

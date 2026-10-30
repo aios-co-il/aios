@@ -2,6 +2,9 @@
 // Preview/Staging: resync also repoints cloned prod MCP URLs to this project's host.
 // Keeps agent_mcp_connections.oauth_tokens.bearer aligned with Edge secrets when they drift.
 
+import type { Json, TablesUpdate } from "./database.types.ts";
+import { jsonArray, jsonField, unknownField } from "./json-fields.ts";
+
 export const PRESET_SECRETS: Record<string, string> = {
   cursor: "CURSOR_MCP_BEARER",
   grok: "GROK_MCP_BEARER",
@@ -10,9 +13,24 @@ export const PRESET_SECRETS: Record<string, string> = {
 };
 
 export interface McpProbeResult {
-  tools: any[];
+  tools: Json[];
   state: "ready" | "failed";
   lastError: string | null;
+}
+
+/**
+ * The slice of a Supabase client the bearer resync writes through; typed and
+ * untyped clients of any supabase-js version satisfy it.
+ */
+export interface McpConnectionsWriter {
+  from(table: "agent_mcp_connections"): {
+    update(values: TablesUpdate<"agent_mcp_connections">): {
+      match(query: {
+        id: string;
+        tenant_id?: string;
+      }): PromiseLike<{ error: unknown }>;
+    };
+  };
 }
 
 export function secretForConnectionName(name: string): string | undefined {
@@ -85,8 +103,8 @@ export function mcpRpcTimeoutMs(method: string, overrideMs?: number): number {
 }
 
 export function isMcpTimeoutError(err: unknown): boolean {
-  const name = String((err as any)?.name ?? "");
-  const msg = String((err as any)?.message ?? err ?? "").toLowerCase();
+  const name = String(unknownField(err, "name") ?? "");
+  const msg = String(unknownField(err, "message") ?? err ?? "").toLowerCase();
   return (
     name === "TimeoutError" ||
     name === "AbortError" ||
@@ -100,10 +118,10 @@ export async function mcpJsonRpc(
   url: string,
   bearer: string | undefined,
   method: string,
-  params: any = {},
+  params: Json = {},
   id = 1,
   timeoutMs?: number,
-): Promise<any> {
+): Promise<Json> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
@@ -136,7 +154,7 @@ export async function probeMcp(
   url: string,
   bearer: string | undefined,
 ): Promise<McpProbeResult> {
-  let tools: any[] = [];
+  let tools: Json[] = [];
   let state: McpProbeResult["state"] = "ready";
   let lastError: string | null = null;
   try {
@@ -146,17 +164,17 @@ export async function probeMcp(
       clientInfo: { name: "marketing-captain", version: "1.0.0" },
     });
     const listResp = await mcpJsonRpc(url, bearer, "tools/list");
-    tools = listResp?.result?.tools ?? [];
-  } catch (e: any) {
+    tools = jsonArray(jsonField(jsonField(listResp, "result"), "tools"));
+  } catch (e) {
     state = "failed";
-    lastError = String(e?.message ?? e);
+    lastError = String(unknownField(e, "message") ?? e);
   }
   return { tools, state, lastError };
 }
 
 export function isMcpAuthError(err: unknown): boolean {
-  const msg = String((err as any)?.message ?? err ?? "");
-  const status = (err as any)?.status;
+  const msg = String(unknownField(err, "message") ?? err ?? "");
+  const status = unknownField(err, "status");
   return (
     status === 401 ||
     status === 403 ||
@@ -165,11 +183,11 @@ export function isMcpAuthError(err: unknown): boolean {
 }
 
 export async function resyncInternalMcpBearer(
-  supabase: any,
+  supabase: McpConnectionsWriter,
   conn: { id: string; name: string; url: string; tenant_id?: string | null },
 ): Promise<{
   bearer: string;
-  tools: any[];
+  tools: Json[];
   state: McpProbeResult["state"];
   lastError: string | null;
   url?: string;
@@ -181,7 +199,7 @@ export async function resyncInternalMcpBearer(
 
   const url = repointInternalMcpUrlIfNeeded(conn.name, conn.url);
   const { tools, state, lastError } = await probeMcp(url, bearer);
-  const update: Record<string, unknown> = {
+  const update: TablesUpdate<"agent_mcp_connections"> = {
     url,
     oauth_tokens: { bearer },
     available_tools: tools,
@@ -189,12 +207,14 @@ export async function resyncInternalMcpBearer(
     last_error: lastError,
     updated_at: new Date().toISOString(),
   };
-  let q = supabase
+  const { error } = await supabase
     .from("agent_mcp_connections")
     .update(update)
-    .eq("id", conn.id);
-  if (conn.tenant_id) q = q.eq("tenant_id", conn.tenant_id);
-  const { error } = await q;
+    .match(
+      conn.tenant_id
+        ? { id: conn.id, tenant_id: conn.tenant_id }
+        : { id: conn.id },
+    );
   if (error) throw error;
   conn.url = url;
   return { bearer, tools, state, lastError, url };

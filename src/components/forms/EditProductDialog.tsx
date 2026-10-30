@@ -196,7 +196,7 @@ export default function EditProductDialog({
                       <SelectItem value="__none__">
                         כללי (ללא סוכנות)
                       </SelectItem>
-                      {agencies?.map((agency: any) => (
+                      {agencies?.map((agency) => (
                         <SelectItem key={agency.id} value={agency.id}>
                           {agency.name}
                         </SelectItem>

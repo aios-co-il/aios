@@ -2,6 +2,10 @@
  * Parallel sub-project orchestration — multiple Cursor agents per goal (one per department/track).
  */
 
+import type { Json } from "./database.types.ts";
+import type { DbClient } from "./supabase-clients.ts";
+import type { UntypedSchemaClient } from "./untyped-schema-client.ts";
+
 export type ParallelPlanStep = {
   id: string;
   title: string;
@@ -14,7 +18,7 @@ export type ParallelPlanStep = {
   sub_project_label?: string | null;
   cursor_agent_id?: string | null;
   cursor_session_url?: string | null;
-  metadata: Record<string, unknown>;
+  metadata: Json;
 };
 
 export const MAX_PARALLEL_CURSOR_DISPATCH = 6;
@@ -61,12 +65,7 @@ export function selectNextSequentialStep(
 }
 
 export async function notifyDavidStagingReady(
-  supabase: {
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ error?: unknown }>;
-  },
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
@@ -97,8 +96,10 @@ export async function notifyDavidStagingReady(
     .filter(Boolean)
     .join("\n");
 
+  // Pre-existing bug: the RPC arg is p_tenant, not p_tenant_id; fixing it would start sending notifications.
+  const untypedRpc: UntypedSchemaClient = supabase;
   try {
-    await supabase.rpc("claude_notify_david", {
+    await untypedRpc.rpc("claude_notify_david", {
       p_message: message.slice(0, 3500),
       p_tenant_id: args.tenantId,
     });

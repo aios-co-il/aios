@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asJsonObject } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,39 +122,39 @@ Deno.serve(async (req) => {
     }
 
     // Get settings for custom field IDs and trigger name
-    const settings = (integration.settings as Record<string, any>) || {};
+    const settings = asJsonObject(integration.settings) ?? {};
     const triggerName = settings.meeting_trigger_name || "meeting_scheduled";
 
     // Custom field IDs - these need to be configured in ManyChat settings
-    const customFieldIds = settings.meeting_custom_fields || {};
+    const customFieldIds = asJsonObject(settings.meeting_custom_fields) ?? {};
 
     // Step 1: Set custom fields if field IDs are configured
     const fieldUpdates = [];
 
     if (customFieldIds.meeting_date && meetingDate) {
       fieldUpdates.push({
-        field_id: parseInt(customFieldIds.meeting_date),
+        field_id: parseInt(String(customFieldIds.meeting_date)),
         field_value: meetingDate,
       });
     }
 
     if (customFieldIds.meeting_time && meetingTime) {
       fieldUpdates.push({
-        field_id: parseInt(customFieldIds.meeting_time),
+        field_id: parseInt(String(customFieldIds.meeting_time)),
         field_value: meetingTime,
       });
     }
 
     if (customFieldIds.meeting_location && meetingLocation) {
       fieldUpdates.push({
-        field_id: parseInt(customFieldIds.meeting_location),
+        field_id: parseInt(String(customFieldIds.meeting_location)),
         field_value: meetingLocation,
       });
     }
 
     if (customFieldIds.contact_name && contactName) {
       fieldUpdates.push({
-        field_id: parseInt(customFieldIds.contact_name),
+        field_id: parseInt(String(customFieldIds.contact_name)),
         field_value: contactName,
       });
     }

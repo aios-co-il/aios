@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { JsonObject } from "@/lib/typeGuards";
 
 export interface AIOSMessage {
   role: "user" | "assistant";
@@ -14,7 +15,7 @@ export interface DisplayData {
   view_type: "table" | "cards" | "stats" | "list";
   title: string;
   columns?: string[];
-  data: any[];
+  data: JsonObject[];
 }
 
 interface AIOSChatBarProps {

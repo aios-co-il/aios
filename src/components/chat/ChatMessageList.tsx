@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConvertMessageToTaskDialog } from "./ConvertMessageToTaskDialog";
 import { toast } from "sonner";
+import type { ChatProviderData } from "./chatProviderData";
 
 interface Message {
   id: string;
@@ -33,7 +34,7 @@ interface Message {
   message_text: string;
   created_at: string;
   sender_name?: string | null;
-  raw_provider_data?: any;
+  raw_provider_data?: ChatProviderData;
   profiles?: {
     full_name: string;
   };

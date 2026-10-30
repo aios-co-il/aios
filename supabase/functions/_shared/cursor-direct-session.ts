@@ -1,5 +1,24 @@
 /** Resolve the fixed Carmen / Grok → Cursor Direct chat (bc-…) without hardcoded ids. */
 
+import { unknownField } from "./json-fields.ts";
+
+type QueryResult = PromiseLike<{ data: unknown }>;
+
+export interface CursorSessionQuery extends QueryResult {
+  match(filter: { tenant_id: string; provider?: string }): CursorSessionQuery;
+  not(column: string, operator: "is", value: null): CursorSessionQuery;
+  order(column: string, options: { ascending: boolean }): CursorSessionQuery;
+  limit(count: number): CursorSessionQuery;
+  maybeSingle(): QueryResult;
+}
+
+/** Read access to the session tables; any supabase-js client (typed or not) satisfies it. */
+export interface CursorSessionReader {
+  from(table: "cursor_sticky_agents" | "agent_channel_sessions"): {
+    select(columns: string): CursorSessionQuery;
+  };
+}
+
 export type CursorDirectSessionSource =
   | "arg:session_id"
   | "env:CURSOR_DIRECT_AGENT_ID"
@@ -39,7 +58,7 @@ function fromEnv(
 }
 
 export async function resolveCursorDirectSession(
-  sb: { from: (table: string) => any } | null | undefined,
+  sb: CursorSessionReader | null | undefined,
   args: {
     tenantId?: string | null;
     env?: Record<string, string | undefined>;
@@ -55,13 +74,17 @@ export async function resolveCursorDirectSession(
       const { data } = await sb
         .from("cursor_sticky_agents")
         .select("cursor_agent_id, session_url")
-        .eq("tenant_id", tenantId)
+        .match({ tenant_id: tenantId })
         .maybeSingle();
-      const id = asCursorSessionId(String(data?.cursor_agent_id || ""));
+      const id = asCursorSessionId(
+        String(unknownField(data, "cursor_agent_id") || ""),
+      );
       if (id) {
         return {
           sessionId: id,
-          sessionUrl: String(data?.session_url || cursorSessionUrl(id)),
+          sessionUrl: String(
+            unknownField(data, "session_url") || cursorSessionUrl(id),
+          ),
           source: "db:cursor_sticky_agents",
         };
       }
@@ -75,23 +98,23 @@ export async function resolveCursorDirectSession(
 
   if (tenantId && sb) {
     try {
-      const chain = sb
+      const { data: rows } = await sb
         .from("agent_channel_sessions")
         .select("external_session_id, external_url")
-        .eq("tenant_id", tenantId)
-        .eq("provider", "cursor")
+        .match({ tenant_id: tenantId, provider: "cursor" })
         .not("external_session_id", "is", null)
         .order("last_activity_at", { ascending: false })
         .limit(1);
-      const { data: rows } = (await chain) as {
-        data: Array<Record<string, unknown>> | null;
-      };
-      const row = Array.isArray(rows) ? rows[0] : null;
-      const id = asCursorSessionId(String(row?.external_session_id || ""));
+      const row: unknown = Array.isArray(rows) ? rows[0] : null;
+      const id = asCursorSessionId(
+        String(unknownField(row, "external_session_id") || ""),
+      );
       if (id) {
         return {
           sessionId: id,
-          sessionUrl: String(row?.external_url || cursorSessionUrl(id)),
+          sessionUrl: String(
+            unknownField(row, "external_url") || cursorSessionUrl(id),
+          ),
           source: "db:agent_channel_sessions",
         };
       }

@@ -5,6 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
+import { sliderColorStyle } from "@/lib/sliderColor";
 import { Button } from "@/components/ui/button";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
@@ -528,7 +530,7 @@ export default function AddTaskForm({
         dueTimeValue = values.due_time || null;
       }
 
-      const taskPayload: Record<string, unknown> = {
+      const taskPayload: TablesInsert<"tasks"> = {
         title: values.title,
         notes: values.notes || null,
         campaigner_id: finalCampaignerId || null,
@@ -589,12 +591,12 @@ export default function AddTaskForm({
           campaigner_id: campaignerId,
           sales_person_id: null,
         }));
-        const { error } = await supabase.from("tasks").insert(payloads as any);
+        const { error } = await supabase.from("tasks").insert(payloads);
         if (error) throw error;
       } else {
         const { data: created, error } = await supabase
           .from("tasks")
-          .insert([taskPayload as any])
+          .insert([taskPayload])
           .select("id")
           .single();
         if (error) throw error;
@@ -780,11 +782,9 @@ export default function AddTaskForm({
                               </span>
                             </div>
                             <div
-                              style={{
-                                ["--slider-color" as any]: getPriorityColor(
-                                  field.value,
-                                ),
-                              }}
+                              style={sliderColorStyle(
+                                getPriorityColor(field.value),
+                              )}
                             >
                               <Slider
                                 value={[field.value]}
@@ -795,11 +795,9 @@ export default function AddTaskForm({
                                 max={10}
                                 step={1}
                                 className="cursor-pointer [&_[role=slider]]:border-[var(--slider-color)] [&_.bg-primary]:bg-[var(--slider-color)]"
-                                style={{
-                                  ["--slider-color" as any]: getPriorityColor(
-                                    field.value,
-                                  ),
-                                }}
+                                style={sliderColorStyle(
+                                  getPriorityColor(field.value),
+                                )}
                               />
                             </div>
                           </div>
@@ -914,11 +912,9 @@ export default function AddTaskForm({
                               </span>
                             </div>
                             <div
-                              style={{
-                                ["--slider-color" as any]: getPriorityColor(
-                                  field.value,
-                                ),
-                              }}
+                              style={sliderColorStyle(
+                                getPriorityColor(field.value),
+                              )}
                             >
                               <Slider
                                 value={[field.value]}
@@ -929,11 +925,9 @@ export default function AddTaskForm({
                                 max={10}
                                 step={1}
                                 className="cursor-pointer [&_[role=slider]]:border-[var(--slider-color)] [&_.bg-primary]:bg-[var(--slider-color)]"
-                                style={{
-                                  ["--slider-color" as any]: getPriorityColor(
-                                    field.value,
-                                  ),
-                                }}
+                                style={sliderColorStyle(
+                                  getPriorityColor(field.value),
+                                )}
                               />
                             </div>
                           </div>

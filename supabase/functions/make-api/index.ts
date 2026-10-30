@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Json } from "../_shared/database.types.ts";
+import { jsonField, unknownField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,12 +56,12 @@ const MAKE_API_REGIONS: Record<string, string> = {
 class MakeApiError extends Error {
   status: number;
   rawBody: string;
-  parsedBody: any;
+  parsedBody: Json;
 
-  constructor(status: number, rawBody: string, parsedBody: any) {
+  constructor(status: number, rawBody: string, parsedBody: Json) {
     const messageFromBody =
-      parsedBody?.message ||
-      parsedBody?.detail ||
+      jsonField(parsedBody, "message") ||
+      jsonField(parsedBody, "detail") ||
       (typeof parsedBody === "string" ? parsedBody : "");
     super(`Make API error: ${status} - ${messageFromBody || rawBody}`);
     this.name = "MakeApiError";
@@ -98,7 +100,7 @@ async function makeAPICall(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`Make API error: ${response.status} - ${errorText}`);
-    let parsed: any = null;
+    let parsed: Json = null;
     try {
       parsed = JSON.parse(errorText);
     } catch {
@@ -119,14 +121,23 @@ const GOOGLE_ADS_APP_NAMES = [
   "google-ads-reports",
 ];
 
-function isGoogleAdsConnection(connection: any): boolean {
-  const appName = (
-    connection.accountName ||
-    connection.typeName ||
-    connection.name ||
-    ""
+function isGoogleAdsConnection(connection: unknown): boolean {
+  const appName = String(
+    unknownField(connection, "accountName") ||
+      unknownField(connection, "typeName") ||
+      unknownField(connection, "name") ||
+      "",
   ).toLowerCase();
   return GOOGLE_ADS_APP_NAMES.some((name) => appName.includes(name));
+}
+
+function isGoogleAdsFlowModule(flowModule: unknown): boolean {
+  const moduleName = unknownField(flowModule, "module");
+  return (
+    typeof moduleName === "string" &&
+    moduleName !== "" &&
+    isGoogleAdsModule(moduleName)
+  );
 }
 
 // Helper to identify Google Ads modules in blueprints
@@ -364,7 +375,7 @@ serve(async (req) => {
           if (activateError instanceof MakeApiError) {
             // IM306 means "Scenario is already running" - treat as success
             if (
-              activateError.parsedBody?.code === "IM306" ||
+              jsonField(activateError.parsedBody, "code") === "IM306" ||
               (typeof activateError.rawBody === "string" &&
                 activateError.rawBody.includes("IM306"))
             ) {
@@ -413,7 +424,7 @@ serve(async (req) => {
           allConnections.connections ||
           allConnections ||
           []
-        ).filter((conn: any) => isGoogleAdsConnection(conn));
+        ).filter((conn: unknown) => isGoogleAdsConnection(conn));
 
         result = {
           connections: googleAdsConnections,
@@ -462,19 +473,29 @@ serve(async (req) => {
             break;
           }
 
-          const rpcData = await rpcResponse.json();
+          const rpcData: Json = await rpcResponse.json();
 
           // Make.com RPC returns an array of { label, value } or similar structure
           // Filter out manager/MCC accounts
           const accounts = (Array.isArray(rpcData) ? rpcData : [])
-            .map((item: any) => ({
-              id: String(item.value || item.id || item.customerId || ""),
-              name: String(
-                item.label || item.name || item.descriptiveName || "",
+            .map((item) => ({
+              id: String(
+                jsonField(item, "value") ||
+                  jsonField(item, "id") ||
+                  jsonField(item, "customerId") ||
+                  "",
               ),
-              manager: item.manager === true || item.isManager === true,
+              name: String(
+                jsonField(item, "label") ||
+                  jsonField(item, "name") ||
+                  jsonField(item, "descriptiveName") ||
+                  "",
+              ),
+              manager:
+                jsonField(item, "manager") === true ||
+                jsonField(item, "isManager") === true,
             }))
-            .filter((acc: any) => acc.id && !acc.manager);
+            .filter((acc) => acc.id && !acc.manager);
 
           result = { accounts, total: accounts.length };
         } catch (rpcError) {
@@ -912,9 +933,7 @@ serve(async (req) => {
                   // NOTE: Make.com does NOT support toJSON/map/$merge - use direct field references
                   {
                     const googleAdsModuleId =
-                      blueprintData.flow.find(
-                        (m: any) => m.module && isGoogleAdsModule(m.module),
-                      )?.id || 3;
+                      blueprintData.flow.find(isGoogleAdsFlowModule)?.id || 3;
                     const gid = googleAdsModuleId;
                     // Build body with direct Make.com variable references for each field
                     const bodyTemplate = `{"table_id":"${table_id}","campaign_type":"${campaign_type || "leads"}"${tenant_id ? `,"tenant_id":"${tenant_id}"` : ""},"records":[{"date":"{{${gid}.dimensions.date}}","campaign_id":"{{${gid}.dimensions.campaignId}}","campaign_name":"{{${gid}.dimensions.campaignName}}","impressions":"{{${gid}.metrics.impressions}}","clicks":"{{${gid}.metrics.clicks}}","cost":"{{${gid}.metrics.cost}}","conversions":"{{${gid}.metrics.conversions}}","ctr":"{{${gid}.metrics.ctr}}","average_cpc":"{{${gid}.metrics.averageCpc}}","cost_micros":"{{${gid}.metrics.costMicros}}","conversions_value":"{{${gid}.metrics.conversionsValue}}","all_conversions":"{{${gid}.metrics.allConversions}}"}]}`;
@@ -950,7 +969,8 @@ serve(async (req) => {
                   if (webhook_secret && module.mapper.headers) {
                     const existingSecretHeader =
                       module.mapper.headers.findIndex(
-                        (h: any) => h.name === "x-webhook-secret",
+                        (h: unknown) =>
+                          unknownField(h, "name") === "x-webhook-secret",
                       );
                     if (existingSecretHeader >= 0) {
                       module.mapper.headers[existingSecretHeader].value =
@@ -1232,9 +1252,7 @@ serve(async (req) => {
                   // ALWAYS replace body with correct direct field references
                   // NOTE: Make.com does NOT support toJSON/map/$merge - use direct variable references
                   const googleAdsModuleId =
-                    blueprintData.flow.find(
-                      (m: any) => m.module && isGoogleAdsModule(m.module),
-                    )?.id || 3;
+                    blueprintData.flow.find(isGoogleAdsFlowModule)?.id || 3;
                   const gid = googleAdsModuleId;
                   const startDatePart =
                     start_date && end_date
@@ -1310,7 +1328,7 @@ serve(async (req) => {
     if (err instanceof MakeApiError) {
       const isPermissionDenied =
         err.status === 403 ||
-        err.parsedBody?.code === "SC403" ||
+        jsonField(err.parsedBody, "code") === "SC403" ||
         (typeof err.rawBody === "string" && err.rawBody.includes("SC403"));
 
       const hint = isPermissionDenied

@@ -51,6 +51,18 @@ import {
   Brain,
   Sparkles,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
+declare global {
+  interface WindowEventMap {
+    beforeinstallprompt: BeforeInstallPromptEvent;
+  }
+}
 import {
   Sidebar,
   SidebarContent,
@@ -102,7 +114,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // ─── Icon map ────────────────────────────────────────────────────────────────
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
   Users,
   Building2,
@@ -605,11 +617,12 @@ export function AppSidebar() {
 
 // ─── PWA Install Button ───────────────────────────────────────────────────────
 function InstallAppButton({ isCollapsed }: { isCollapsed: boolean }) {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useState(() => {
-    const handler = (e: Event) => {
+    const handler = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
       setDeferredPrompt(e);
     };
