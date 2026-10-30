@@ -127,3 +127,26 @@ test("ElevenLabs and Higgsfield poll until the provider finishes", async () => {
   ).toBe("req-1");
   expect((await higgs.poll("req-1")).url).toBe("https://files.example/hf.mp4");
 });
+
+test("a secret that already contains id:secret is not prefixed again", async () => {
+  const copied = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:secret-part";
+  let authorization = "";
+  const higgs = higgsfieldProvider({
+    keyId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    keySecret: copied,
+    fetchImpl: async (_url, init) => {
+      authorization = init.headers.Authorization;
+      if (init.method === "POST")
+        return { ok: true, json: async () => ({ request_id: "req-2" }) };
+      return { ok: true, json: async () => ({ status: "queued" }) };
+    },
+  });
+  await higgs.submit({
+    prompt: "go",
+    imageUrl: "https://files.example/still.png",
+    durationS: 5,
+  });
+  expect(authorization).toBe(`Key ${copied}`);
+  await higgs.poll("req-2");
+  expect(authorization).toBe(`Key ${copied}`);
+});

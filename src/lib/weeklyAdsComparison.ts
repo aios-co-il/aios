@@ -1,6 +1,19 @@
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import {
+  addFacebookGoalRecord,
+  emptyFacebookGoalInputs,
+  facebookCampaignGoal,
+  type FacebookGoalInputs,
+} from "@/lib/facebookCampaignGoal";
+import type { ReportCampaignGoal } from "@/lib/campaignGoals";
+import { earnsRevenue } from "@/lib/weeklyAdsRevenue";
+import {
+  groupWeeklyRowsByGoal,
+  type WeeklyGoalGroup,
+} from "@/lib/weeklyCampaignGoals";
+
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
-export type WeeklyCampaignKind = "leads" | "ecommerce" | "traffic";
 
 export type WeeklyAdsRecord = {
   data?: Record<string, unknown>;
@@ -12,7 +25,7 @@ export type WeeklyCampaignRow = {
   source: WeeklyAdsSource;
   campaignId: string;
   campaign: string;
-  kind: WeeklyCampaignKind;
+  kind: ReportCampaignGoal;
   impressions: number;
   clicks: number;
   results: number;
@@ -29,12 +42,18 @@ export type WeeklyCampaignSection = {
   startDate: string;
   endDate: string;
   isCurrentWeek: boolean;
+  /** Every campaign of the week, highest spend first. */
   rows: WeeklyCampaignRow[];
-  totals: Omit<
-    WeeklyCampaignRow,
-    "key" | "source" | "campaignId" | "campaign" | "kind"
-  >;
+  /** Campaigns by goal (sales, leads, traffic); empty goals are left out. */
+  groups: WeeklyGoalGroup[];
+  /** Delivery and spend across goals. Results are only totalled per goal. */
+  totals: { impressions: number; clicks: number; spend: number };
 };
+
+/** Per-source goal of the report's tables; Google uses it for unknown goals. */
+export type WeeklySourceModes = Partial<
+  Record<WeeklyAdsSource, "leads" | "ecommerce">
+>;
 
 const ADS_SOURCES = new Set<WeeklyAdsSource>([
   "facebook_insights",
@@ -61,20 +80,22 @@ const shouldIncludeCampaignRow = (data: Record<string, unknown>): boolean => {
   return !level || level === "campaign";
 };
 
-const facebookKind = (totals: {
+type WeekCampaign = {
+  source: WeeklyAdsSource;
+  campaignId: string;
+  campaign: string;
+  impressions: number;
+  clicks: number;
   leads: number;
   purchases: number;
+  spend: number;
   revenue: number;
-  campaignType?: string;
-}): WeeklyCampaignKind => {
-  const explicit = String(totals.campaignType || "").toLowerCase();
-  if (explicit === "traffic") return "traffic";
-  if (explicit === "ecommerce") return "ecommerce";
-  if (explicit === "lead" || explicit === "leads") return "leads";
-  return (totals.purchases > 0 || totals.revenue > 0) &&
-    !(totals.leads > 0 && totals.purchases === 0 && totals.revenue === 0)
-    ? "ecommerce"
-    : "leads";
+  addToCart: number;
+  /**
+   * Facebook Insights only: what facebookCampaignGoal reads, over all of the
+   * campaign's rows, so every week shows the campaign under one goal.
+   */
+  facebookGoalInputs: FacebookGoalInputs | null;
 };
 
 function utcDateString(date: Date): string {
@@ -108,21 +129,28 @@ export function getSundayStart(date: Date): Date {
   return day;
 }
 
+/**
+ * A week's campaign goal, the same as in the report's tables: Google by its
+ * campaign's goal (the table's type when unknown), Facebook Ecommerce always
+ * sales, Facebook Insights by facebookCampaignGoal.
+ */
 function campaignKind(
-  source: WeeklyAdsSource,
-  totals: {
-    leads: number;
-    purchases: number;
-    revenue: number;
-    campaignType?: string;
-  },
-  sourceModes: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>,
-): WeeklyCampaignKind {
-  if (source === "google_ads")
-    return sourceModes[source] === "ecommerce" ? "ecommerce" : "leads";
-  if (source === "facebook_ecommerce") return "ecommerce";
-  if (sourceModes[source] === "leads") return "leads";
-  return facebookKind(totals);
+  campaign: WeekCampaign,
+  sourceModes: WeeklySourceModes,
+  googleGoal?: GoogleCampaignGoal,
+): ReportCampaignGoal {
+  if (campaign.source === "google_ads") {
+    return (
+      googleGoal ??
+      (sourceModes.google_ads === "ecommerce" ? "ecommerce" : "leads")
+    );
+  }
+  if (!campaign.facebookGoalInputs) {
+    return "ecommerce";
+  }
+  return facebookCampaignGoal(campaign.facebookGoalInputs, {
+    leadsOnly: sourceModes.facebook_insights === "leads",
+  });
 }
 
 /**
@@ -135,7 +163,9 @@ export function buildWeeklyCampaignSections(
     now?: Date;
     maxWeeks?: number;
     defaultSource?: WeeklyAdsSource;
-    sourceModes?: Partial<Record<WeeklyAdsSource, "leads" | "ecommerce">>;
+    sourceModes?: WeeklySourceModes;
+    /** Goal per Google campaign id (name when missing), from the report's rules. */
+    googleCampaignGoals?: Map<string, GoogleCampaignGoal>;
   } = {},
 ): WeeklyCampaignSection[] {
   const now = options.now ?? new Date();
@@ -144,25 +174,8 @@ export function buildWeeklyCampaignSections(
   // attached to the previous week merely because it is still Saturday in UTC.
   const currentSunday = getSundayStart(dateInTimeZone(now, "Asia/Jerusalem"));
   const sourceModes = options.sourceModes ?? {};
-  const weeks = new Map<
-    number,
-    Map<
-      string,
-      {
-        source: WeeklyAdsSource;
-        campaignId: string;
-        campaign: string;
-        impressions: number;
-        clicks: number;
-        leads: number;
-        purchases: number;
-        spend: number;
-        revenue: number;
-        addToCart: number;
-        campaignType?: string;
-      }
-    >
-  >();
+  const weeks = new Map<number, Map<string, WeekCampaign>>();
+  const facebookGoalInputs = new Map<string, FacebookGoalInputs>();
 
   for (const record of records) {
     const source = (record._source ?? options.defaultSource) as
@@ -170,6 +183,21 @@ export function buildWeeklyCampaignSections(
     if (!source || !ADS_SOURCES.has(source)) continue;
     const data = record.data ?? {};
     if (!shouldIncludeCampaignRow(data)) continue;
+
+    const campaign = String(
+      data.campaign_name || data.campaign || "ללא שם קמפיין",
+    );
+    const campaignId = String(data.campaign_id || campaign);
+    const rowKey = `${source}:${campaignId}`;
+    if (source === "facebook_insights") {
+      facebookGoalInputs.set(
+        rowKey,
+        addFacebookGoalRecord(
+          facebookGoalInputs.get(rowKey) ?? emptyFacebookGoalInputs(),
+          data,
+        ),
+      );
+    }
 
     const date = parseDate(data.date);
     if (!date) continue;
@@ -179,13 +207,8 @@ export function buildWeeklyCampaignSections(
     );
     if (weekIndex < 0 || weekIndex >= maxWeeks) continue;
 
-    const campaign = String(
-      data.campaign_name || data.campaign || "ללא שם קמפיין",
-    );
-    const campaignId = String(data.campaign_id || campaign);
-    const rowKey = `${source}:${campaignId}`;
-    const week = weeks.get(weekIndex) ?? new Map();
-    const row = week.get(rowKey) ?? {
+    const week = weeks.get(weekIndex) ?? new Map<string, WeekCampaign>();
+    const row: WeekCampaign = week.get(rowKey) ?? {
       source,
       campaignId,
       campaign,
@@ -196,7 +219,7 @@ export function buildWeeklyCampaignSections(
       spend: 0,
       revenue: 0,
       addToCart: 0,
-      campaignType: undefined,
+      facebookGoalInputs: null,
     };
 
     row.impressions += Number(data.impressions) || 0;
@@ -230,16 +253,14 @@ export function buildWeeklyCampaignSections(
       "conversion_value",
     );
     row.addToCart += numberFrom(data, "add_to_cart", "addToCarts");
-    const explicitType = String(data.campaign_type || "").toLowerCase();
-    if (
-      explicitType === "ecommerce" ||
-      explicitType === "lead" ||
-      explicitType === "traffic"
-    ) {
-      row.campaignType = explicitType;
-    }
     week.set(rowKey, row);
     weeks.set(weekIndex, week);
+  }
+
+  for (const week of weeks.values()) {
+    for (const [rowKey, row] of week) {
+      row.facebookGoalInputs = facebookGoalInputs.get(rowKey) ?? null;
+    }
   }
 
   return [...weeks.entries()]
@@ -252,7 +273,14 @@ export function buildWeeklyCampaignSections(
 
       const rows = [...campaigns.entries()]
         .map(([key, campaign]) => {
-          const kind = campaignKind(campaign.source, campaign, sourceModes);
+          const kind = campaignKind(
+            campaign,
+            sourceModes,
+            options.googleCampaignGoals?.get(campaign.campaignId),
+          );
+          const revenue = earnsRevenue(campaign.source, kind)
+            ? campaign.revenue
+            : 0;
           const results =
             kind === "ecommerce"
               ? campaign.purchases
@@ -270,38 +298,22 @@ export function buildWeeklyCampaignSections(
             results,
             spend: campaign.spend,
             costPerResult: results > 0 ? campaign.spend / results : 0,
-            revenue: campaign.revenue,
+            revenue,
             addToCart: campaign.addToCart,
-            roas: campaign.spend > 0 ? campaign.revenue / campaign.spend : 0,
+            roas: campaign.spend > 0 ? revenue / campaign.spend : 0,
           };
         })
         .sort((a, b) => b.spend - a.spend);
 
+      const groups = groupWeeklyRowsByGoal(rows);
       const totals = rows.reduce(
         (sum, row) => ({
           impressions: sum.impressions + row.impressions,
           clicks: sum.clicks + row.clicks,
-          results: sum.results + row.results,
           spend: sum.spend + row.spend,
-          costPerResult: 0,
-          revenue: sum.revenue + row.revenue,
-          addToCart: sum.addToCart + row.addToCart,
-          roas: 0,
         }),
-        {
-          impressions: 0,
-          clicks: 0,
-          results: 0,
-          spend: 0,
-          costPerResult: 0,
-          revenue: 0,
-          addToCart: 0,
-          roas: 0,
-        },
+        { impressions: 0, clicks: 0, spend: 0 },
       );
-      totals.costPerResult =
-        totals.results > 0 ? totals.spend / totals.results : 0;
-      totals.roas = totals.spend > 0 ? totals.revenue / totals.spend : 0;
 
       return {
         key: utcDateString(start),
@@ -310,6 +322,7 @@ export function buildWeeklyCampaignSections(
         endDate: utcDateString(end),
         isCurrentWeek: index === 0,
         rows,
+        groups,
         totals,
       };
     });

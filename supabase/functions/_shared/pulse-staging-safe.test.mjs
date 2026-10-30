@@ -1,9 +1,11 @@
 import {
+  assertEquals,
   assertMatch,
   assertNotMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { readFile } from "node:fs/promises";
+import { STATUS_ALERT_TYPES } from "./campaign-status-alerts/types.ts";
 import { checkOutbound } from "./integration-guard.ts";
 
 Deno.test(
@@ -51,12 +53,27 @@ Deno.test(
 Deno.test(
   "legacy Facebook monitor cannot emit duplicate KPI alerts",
   async () => {
-    const monitor = await readFile(
-      new URL("../fb-campaign-monitor/index.ts", import.meta.url),
-      "utf8",
-    );
-    assertNotMatch(monitor, /cpl_spike/);
-    assertNotMatch(monitor, /כרמן נתחי/);
-    assertMatch(monitor, /platform-operational failures/);
+    // KPI exceptions belong to campaign-pulse-snapshot; the monitor records and
+    // sends platform-operational failures only.
+    assertEquals([...STATUS_ALERT_TYPES].sort(), [
+      "account_disabled",
+      "ad_account_billing_issue",
+      "ad_disapproved",
+      "campaign_stopped",
+      "campaign_with_issues",
+      "no_live_ads",
+    ]);
+    for (const path of [
+      "../fb-campaign-monitor/",
+      "./campaign-status-alerts/",
+    ]) {
+      const dir = new URL(path, import.meta.url);
+      for await (const entry of Deno.readDir(dir)) {
+        if (!entry.isFile || entry.name.includes(".test.")) continue;
+        const source = await readFile(new URL(entry.name, dir), "utf8");
+        assertNotMatch(source, /cpl_spike/);
+        assertNotMatch(source, /כרמן נתחי/);
+      }
+    }
   },
 );
