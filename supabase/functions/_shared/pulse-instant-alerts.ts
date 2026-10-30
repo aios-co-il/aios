@@ -17,15 +17,25 @@ import {
   isNoDataWithoutTable,
   isRealConnectionLoss,
 } from "./pulse/connection-loss.ts";
-import { withoutPhonesAlertedElsewhere } from "./pulse/cross-tenant-recipients.ts";
-import { isInstantAlertSuppressed } from "./pulse/instant-alert-dedupe.ts";
+import { PULSE_ALERT_FOOTER } from "./pulse/alert-footer.ts";
 import {
   connectionLostFingerprint,
   cplSpikeFingerprint,
   noContactFingerprint,
 } from "./pulse/instant-alert-fingerprint.ts";
-import { queueAndLogInstantAlert } from "./pulse/instant-alert-send.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
+import {
+  capExceptionMessages,
+  parsePulseInstantRunRules,
+  type PulseInstantRunRules,
+} from "./pulse/exception-flood-guard.ts";
+import { sendExceptionSummaries } from "./pulse/exception-summary.ts";
+import {
+  DEFAULT_EXCEPTION_CHECK_LINE,
+  type PhrasePulseException,
+} from "./pulse/exception-wording.ts";
+import { sendIndividualAlerts } from "./pulse/individual-alerts.ts";
+import { planInstantAlerts } from "./pulse/plan-instant-alerts.ts";
 
 export type PulseAlertRuleType =
   "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
@@ -37,6 +47,7 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  instant: PulseInstantRunRules;
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -46,6 +57,7 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   cpl_spike_enabled: true,
   cpl_spike_pct: 50,
   disconnected_enabled: true,
+  instant: parsePulseInstantRunRules(undefined),
 };
 
 export type PulseInstantAlertCandidate = {
@@ -56,7 +68,13 @@ export type PulseInstantAlertCandidate = {
   campaign_key?: string | null;
   fingerprint?: string | null;
   severity_score?: number | null;
-  evidence?: Record<string, Json>;
+  evidence?: { [key: string]: Json | undefined };
+  /**
+   * campaign_exception only: the labels a per-run summary line shows. They
+   * stay out of evidence, so digits in a name never license a model number.
+   */
+  campaign_name?: string | null;
+  status_reason?: string | null;
   /** connection_lost only: may go out on Shabbat (see isRealConnectionLoss). */
   shabbat_critical?: boolean;
 };
@@ -105,46 +123,6 @@ export type QueueWhatsApp = (
   chatId: string | null,
 ) => Promise<boolean>;
 
-type AnalyzeException = (candidate: PulseInstantAlertCandidate) => Promise<{
-  confirmed: boolean;
-  summary?: string | null;
-  recommended_check?: string | null;
-} | null>;
-
-export function confirmPulseExceptionCandidate(
-  candidate: PulseInstantAlertCandidate,
-  analysis: {
-    confirmed: boolean;
-    summary?: string | null;
-    recommended_check?: string | null;
-  } | null,
-): PulseInstantAlertCandidate | null {
-  if (!analysis?.confirmed) return null;
-  return {
-    ...candidate,
-    message: [
-      candidate.message,
-      analysis.summary ? `\nאימות AI: ${analysis.summary}` : "",
-      analysis.recommended_check
-        ? `בדיקה מומלצת: ${analysis.recommended_check}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    evidence: {
-      ...(candidate.evidence || {}),
-      ai_confirmation: analysis,
-    },
-  };
-}
-
-const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
-  no_contact: 7 * 24,
-  cpl_spike: 7 * 24,
-  connection_lost: 24,
-  campaign_exception: 7 * 24,
-};
-
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
   const input = raw as Record<string, unknown>;
@@ -162,6 +140,7 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    instant: parsePulseInstantRunRules(input.instant),
   };
 }
 
@@ -208,6 +187,8 @@ export function evaluatePulseInstantAlerts(
         campaign.target_kind || "no_target",
         campaign.target_value ?? "none",
       ].join(":");
+      const campaignName = campaign.campaign_name || campaign.campaign_key;
+      const statusReason = campaign.status_reason || "חריגה מתמשכת";
       const evidence = {
         goal: campaign.goal || null,
         target_kind: campaign.target_kind || null,
@@ -228,23 +209,25 @@ export function evaluatePulseInstantAlerts(
         client_name: clientName,
         rule_type: "campaign_exception",
         campaign_key: campaign.campaign_key,
+        campaign_name: campaignName,
+        status_reason: statusReason,
         fingerprint,
         severity_score: severity,
         evidence,
         message: [
           "🔴 *התראת דופק — חריגת קמפיין מאומתת*",
           `לקוח: ${clientName}`,
-          `קמפיין: ${campaign.campaign_name || campaign.campaign_key}`,
+          `קמפיין: ${campaignName}`,
           `קטגוריה: ${campaign.goal || "לא מסווג"}`,
-          `סיבה: ${campaign.status_reason || "חריגה מתמשכת"}`,
+          `סיבה: ${statusReason}`,
           `יעד: ${target}`,
           `3 ימים: ${campaign.efficiency_3d ?? (noResults3 ? "אין תוצאות" : "חסר")} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
           ...baselineTrendLines(campaign),
           `שינוי אחרון: ${campaign.last_change_at || "לא זמין"}`,
           `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,
           "",
-          "בדיקה מומלצת: לאמת יעד, אירוע אופטימיזציה ושינויים אחרונים לפני פעולה.",
-          "AIOS → דשבורד דופק",
+          DEFAULT_EXCEPTION_CHECK_LINE,
+          PULSE_ALERT_FOOTER,
         ].join("\n"),
       });
     }
@@ -270,7 +253,7 @@ export function evaluatePulseInstantAlerts(
               ? `לא תועדה שיחה/פגישה ב-${days} הימים האחרונים`
               : `עדכון קשר אחרון: ${new Date(lastContact).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
             "",
-            "AIOS → דשבורד דופק",
+            PULSE_ALERT_FOOTER,
           ].join("\n"),
         });
       }
@@ -296,7 +279,7 @@ export function evaluatePulseInstantAlerts(
             `לקוח: ${clientName}`,
             `CPL עלה ב-${Math.round(Number(change) * 10) / 10}% לעומת השבוע הקודם`,
             "",
-            "AIOS → דשבורד דופק",
+            PULSE_ALERT_FOOTER,
           ].join("\n"),
         });
       }
@@ -341,7 +324,7 @@ export function evaluatePulseInstantAlerts(
             `לקוח: ${clientName}`,
             detail.length ? detail.join(" · ") : "דוח מנותק / חשבון לא פעיל",
             "",
-            "AIOS → דשבורד דופק",
+            PULSE_ALERT_FOOTER,
           ].join("\n"),
         });
       }
@@ -407,7 +390,8 @@ async function resolveInstantAlertRecipients(
   }));
 }
 
-export async function deliverInstantPulseAlerts(input: {
+/** One org's run of instant alerts. */
+export type InstantPulseAlertsInput = {
   supabase: any;
   tenantId: string;
   tenantSlug?: string | null;
@@ -416,14 +400,36 @@ export async function deliverInstantPulseAlerts(input: {
   criticalIssues: CriticalIssueLike[];
   rules: unknown;
   queueWhatsApp: QueueWhatsApp;
-  analyzeException?: AnalyzeException;
+  /** Optional wording for campaign_exception alerts; see wordPulseException. */
+  phraseException?: PhrasePulseException;
+  /** Wording timeout override for tests. */
+  wordingTimeoutMs?: number;
   /** Clock override for tests. */
   now?: Date;
-}): Promise<{
+};
+
+/**
+ * Sends a run's instant alerts: plan what goes out, cap campaign_exception
+ * messages per phone, send the individual messages, then the summaries.
+ */
+export async function deliverInstantPulseAlerts(
+  input: InstantPulseAlertsInput,
+): Promise<{
+  /** Alerts sent as their own message. */
   sent: number;
   skipped: number;
+  /**
+   * campaign_exception alerts over a recipient's per-run cap that went out
+   * only inside a summary message; logged like sent ones.
+   */
+  summarized: number;
+  /** Summary messages queued: at most one per recipient phone per run. */
+  summary_messages: number;
   candidates: number;
-  analyzed: number;
+  /** Model wording calls made for campaign_exception alerts. */
+  wording_calls: number;
+  /** Alerts sent with model wording added to the deterministic text. */
+  worded: number;
   /** Non-critical candidates held for Shabbat (re-evaluated after it). */
   held: number;
 }> {
@@ -437,69 +443,37 @@ export async function deliverInstantPulseAlerts(input: {
   const candidates = evaluated.filter(
     (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
   );
-  const held = evaluated.length - candidates.length;
-
-  let sent = 0;
-  let skipped = 0;
-  let analyzed = 0;
-
-  for (const candidate of candidates) {
-    const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
-    if (await isInstantAlertSuppressed(input, candidate, throttleHours, now)) {
-      skipped += 1;
-      continue;
-    }
-
-    const agencyId = input.snapshots.find(
-      (snapshot) => snapshot.client_id === candidate.client_id,
-    )?.agency_id;
-    const tenantRecipients = await resolveInstantAlertRecipients(
-      input.supabase,
-      input.tenantId,
-      candidate.client_id,
-      agencyId,
-      input.pulsePhone,
-      input.tenantSlug,
-    );
-    // Before the AI check, so a campaign_exception everyone already got from
-    // another org costs no AI call.
-    const recipients = await withoutPhonesAlertedElsewhere(
-      input,
-      candidate,
-      agencyId,
-      tenantRecipients,
-      throttleHours,
-      now,
-    );
-    if (!recipients.length) {
-      skipped += 1;
-      continue;
-    }
-
-    if (candidate.rule_type === "campaign_exception") {
-      // AI is never used during collection or trend calculation. It receives
-      // only a deterministic exception candidate and may veto the notification.
-      if (!input.analyzeException) {
-        skipped += 1;
-        continue;
-      }
-      const analysis = await input.analyzeException(candidate);
-      analyzed += 1;
-      const confirmed = confirmPulseExceptionCandidate(candidate, analysis);
-      if (!confirmed) {
-        skipped += 1;
-        continue;
-      }
-      candidate.message = confirmed.message;
-      candidate.evidence = confirmed.evidence;
-    }
-
-    if (await queueAndLogInstantAlert(input, candidate, recipients)) {
-      sent += 1;
-    } else {
-      skipped += 1;
-    }
-  }
-
-  return { sent, skipped, candidates: evaluated.length, analyzed, held };
+  const plan = await planInstantAlerts(
+    input,
+    candidates,
+    now,
+    (candidate, agencyId) =>
+      resolveInstantAlertRecipients(
+        input.supabase,
+        input.tenantId,
+        candidate.client_id,
+        agencyId,
+        input.pulsePhone,
+        input.tenantSlug,
+      ),
+  );
+  const summaryByPhone = capExceptionMessages(
+    plan.planned,
+    parsePulseAlertRules(input.rules).instant.max_exception_messages_per_run,
+  );
+  const individual = await sendIndividualAlerts(input, plan.planned);
+  const summary = await sendExceptionSummaries(input, summaryByPhone);
+  const undelivered = plan.planned.filter(
+    (item) => !item.sentTo.length && !item.summarizedTo.length,
+  ).length;
+  return {
+    sent: individual.sent,
+    skipped: plan.skipped + undelivered,
+    summarized: summary.summarized,
+    summary_messages: summary.summary_messages,
+    candidates: evaluated.length,
+    wording_calls: individual.wording_calls,
+    worded: individual.worded,
+    held: evaluated.length - candidates.length,
+  };
 }

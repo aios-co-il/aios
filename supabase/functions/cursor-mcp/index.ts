@@ -54,6 +54,7 @@ import {
   touchCursorTaskSession,
 } from "../_shared/cursor-session-tracker.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
+import { GLOBAL_SKIN_RULE } from "../_shared/carmen/learned-skin-scope.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -867,7 +868,7 @@ function teachingBlock(tenantId: string | null): string {
     `   1. Make Carmen independent: insert a concise skin row into public.ai_skills via Supabase with ` +
     `scope='tenant', tenant_id=<above>, is_active=true, created_by_agent=true, a short name + description, ` +
     `clear operational steps, a snake_case slug, a system_prompt with the exact procedure, ` +
-    `and triggers (Hebrew + English phrases).\n` +
+    `and triggers (Hebrew + English phrases). ${GLOBAL_SKIN_RULE}\n` +
     `   2. Remember it for future sessions: append a short dated entry to docs/carmen-learned-skills.md and include it in your PR.\n` +
     `B) UPDATE DAVID: when you finish, make sure David is updated with the result. ${callbackLine}\n` +
     `C) FIX-ON-FAIL: if this request says a capability previously taught to Carmen FAILED in practice, that is the priority — ` +

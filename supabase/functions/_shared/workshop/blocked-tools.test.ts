@@ -7,10 +7,9 @@ import {
   isBlockedInWorkshop,
   stripServerOnlyPayloadKeys,
   workshopBlockedResult,
+  workshopToolOffered,
   workshopToolRefusal,
 } from "./blocked-tools.ts";
-import { ROLE_TOOLS, toolsForRole, type WorkshopRole } from "./roles.ts";
-import { isWorkshopTool } from "./tool-definitions.ts";
 import { NATIVE_DEV_TASK_TOOLS } from "../dev-escalation-auth.ts";
 
 Deno.test("approval tools are blocked inside the workshop only", () => {
@@ -171,14 +170,8 @@ Deno.test(
     ];
     for (const name of kept)
       assertStrictEquals(isBlockedInWorkshop(name, true), false, name);
-    const tools = [...kept, "workshop_start_project"].map((name) => ({ name }));
-    for (const role of Object.keys(ROLE_TOOLS) as WorkshopRole[]) {
-      const offered = toolsForRole(tools, role, isWorkshopTool).map(
-        (t) => t.name,
-      );
-      for (const name of kept)
-        assertStrictEquals(offered.includes(name), true, `${role}: ${name}`);
-    }
+    for (const name of kept)
+      assertStrictEquals(workshopToolOffered(name, true), true, name);
   },
 );
 
@@ -219,5 +212,23 @@ Deno.test(
       workshopBlockedResult("publish_social_post"),
     );
     assertStrictEquals(workshopToolRefusal("publish_social_post", false), null);
+  },
+);
+
+Deno.test(
+  "every workshop tool is offered on every workshop turn, and none outside it",
+  () => {
+    // On Staging the designer had no storyboard tool, so a picture could not become a film.
+    for (const name of [
+      "workshop_storyboard",
+      "workshop_make_creative",
+      "workshop_produce_video",
+      "workshop_edit_from_assets",
+    ]) {
+      assertStrictEquals(workshopToolOffered(name, true), true, name);
+      assertStrictEquals(workshopToolOffered(name, false), false, name);
+    }
+    assertStrictEquals(workshopToolOffered("mcp_Gmail__send", true), false);
+    assertStrictEquals(workshopToolOffered("kb_search", false), true);
   },
 );

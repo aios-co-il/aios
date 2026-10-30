@@ -72,7 +72,13 @@ export function classifyDirectTool(name) {
   return "direct";
 }
 
-/** Tools from Carmen's catalogue that a direct caller may see. */
+/**
+ * Tools from Carmen's catalogue that a direct caller may see.
+ * @template {{ name: string }} T
+ * @param {readonly T[]} allTools
+ * @param {{ allowedTools?: readonly string[], disabledTools?: readonly string[], isManager?: boolean }} [options]
+ * @returns {T[]}
+ */
 export function directToolPool(
   allTools,
   { allowedTools = [], disabledTools = [], isManager = false } = {},

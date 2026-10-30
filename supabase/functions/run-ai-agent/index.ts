@@ -39,6 +39,26 @@ import {
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
+import { REFRESH_PULSE_TOOL_NAME } from "../_shared/carmen/pulse-tools.ts";
+import { CALLER_ROLE_PRIORITY } from "./caller-roles.ts";
+import { buildPulseRefreshDigestReply } from "./pulse-refresh/note.ts";
+import {
+  decidePulseRefreshRouting,
+  pulseRefreshToolChoice,
+} from "./pulse-refresh/routing.ts";
+import {
+  appendCarmenPulseRules,
+  carmenPulseRulesVersion,
+} from "./pulse-refresh/rules-block.ts";
+import {
+  executeRefreshCampaignPulse,
+  REFRESH_CAMPAIGN_PULSE_TOOL,
+} from "./pulse-refresh/tool.ts";
+import {
+  keepCarmenPulseTools,
+  skinToolDenylist,
+} from "./pulse-refresh/tool-pool.ts";
+import { missingEnabledTools } from "./missing-enabled-tools.ts";
 import {
   classifyDirectTool,
   directToolPool,
@@ -93,17 +113,17 @@ import {
 import {
   isBlockedInWorkshop,
   stripServerOnlyPayloadKeys,
+  workshopToolOffered,
   workshopToolRefusal,
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import {
   ROLE_PERSONA,
   ROLE_SKILL,
-  ROLE_TOOLS,
-  toolsForRole,
   workshopRole,
 } from "../_shared/workshop/roles.ts";
 import {
+  workshopArtifactIdFrom,
   workshopItemIdFrom,
   workshopProjectKind,
   workshopSceneIdFrom,
@@ -111,6 +131,7 @@ import {
 import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+import { addressByNameLine, callerProfileName } from "./address-by-name.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
@@ -814,6 +835,7 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  REFRESH_PULSE_TOOL_NAME,
   ...PULSE_TARGET_TOOL_NAMES,
   // Questions about Carmen herself: her personas and their portraits, on every surface.
   "get_carmen_skins",
@@ -1265,7 +1287,7 @@ const ALL_TOOLS = [
   {
     name: "recall_recent_action",
     description:
-      "בדיקה אם כרמן כבר ביצעה פעולה כבדה לאחרונה (pulse_check, campaign_analysis, lead_review וכד׳). חובה לקרוא לכלי הזה לפני הרצה של pulse_check / סקירת קמפיינים / סקירת לידים — כדי לא לעבוד פעמיים. מחזיר את הסיכום של הריצה האחרונה אם נמצאה בחלון הזמן. אם נמצא תוצאה: ענה על הסיכום הקיים וציין את הזמן (בשעון ישראל), ושאל את המשתמש אם לרענן.",
+      "בדיקה אם כרמן כבר ביצעה פעולה כבדה לאחרונה (pulse_check, campaign_analysis, lead_review וכד׳). חובה לקרוא לכלי הזה לפני סקירת קמפיינים / סקירת לידים — כדי לא לעבוד פעמיים. בדיקת דופק לא צריכה את זה: get_latest_campaign_pulse מחזיר את הבדיקה השמורה, ו-refresh_campaign_pulse מרענן אותה. מחזיר את הסיכום של הריצה האחרונה אם נמצאה בחלון הזמן. אם נמצא תוצאה: ענה על הסיכום הקיים וציין את הזמן (בשעון ישראל), ושאל את המשתמש אם לרענן.",
     parameters: {
       type: "object",
       properties: {
@@ -1285,7 +1307,7 @@ const ALL_TOOLS = [
   {
     name: "record_action_episode",
     description:
-      "שמירת תוצאה של פעולה כבדה ב-long-term memory של כרמן (carmen_memory_episodes). חובה לקרוא בסיום של pulse_check / סקירת קמפיינים / סקירת לידים — כדי שבפעם הבאה recall_recent_action ימצא את התוצאה. כתוב summary תמציתי של מה שמצאת.",
+      "שמירת תוצאה של פעולה כבדה ב-long-term memory של כרמן (carmen_memory_episodes). חובה לקרוא בסיום של סקירת קמפיינים / סקירת לידים — כדי שבפעם הבאה recall_recent_action ימצא את התוצאה. כתוב summary תמציתי של מה שמצאת.",
     parameters: {
       type: "object",
       properties: {
@@ -1935,7 +1957,7 @@ const ALL_TOOLS = [
   {
     name: "get_latest_campaign_pulse",
     description:
-      "שליפת תמונת הדופק האחרונה שכבר חושבה ונשמרה. בוואטסאפ מחזיר whatsapp_digest קצר (סיכום סטטוסים + קישור לדשבורד) בלבד — בלי טבלת לקוחות. בדשבורד הפנימי אפשר גם formatted_markdown. רק אם המשתמש מבקש נתונים חיים/ניתוח עמוק עבור לקוח — analyze_campaign_performance.",
+      "שליפת תמונת הדופק האחרונה שכבר חושבה ונשמרה. בוואטסאפ מחזיר whatsapp_digest קצר (סיכום סטטוסים + קישור לדשבורד) בלבד — בלי טבלת לקוחות. בדשבורד הפנימי אפשר גם formatted_markdown. לבדיקת דופק עדכנית — refresh_campaign_pulse. רק אם המשתמש מבקש נתונים חיים/ניתוח עמוק עבור לקוח — analyze_campaign_performance.",
     parameters: {
       type: "object",
       properties: {
@@ -1950,6 +1972,7 @@ const ALL_TOOLS = [
       },
     },
   },
+  REFRESH_CAMPAIGN_PULSE_TOOL,
   // MASKYOO CALLS REPORTING
   {
     name: "get_maskyoo_calls_report",
@@ -5841,6 +5864,8 @@ async function executeTool(
     outOfBand?: boolean;
     /** The client open in the workshop view (workshop_client_id). */
     viewClientId?: string | null;
+    /** The project open on the workshop board (workshop_item_id). */
+    openItemId?: string | null;
     /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
     devTaskTurn?: {
       /** When the user's message of this turn arrived; the offered task must be older. */
@@ -5915,6 +5940,7 @@ async function executeTool(
         lastAssistant: approval.lastAssistant ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         viewClientId: approval.viewClientId ?? null,
+        openItemId: approval.openItemId ?? null,
         imageEngines: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -7958,6 +7984,39 @@ async function executeTool(
         instructions_to_agent:
           "status משקף ביצועי קמפיין ונתונים בלבד. היעדר שיחה מתועדת עם הלקוח מופיע בנפרד ב-no_recent_client_call וב-no_recent_client_call_count, ואינו הופך לקוח ל'תשומת לב'. בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
+    }
+    case REFRESH_PULSE_TOOL_NAME: {
+      return await executeRefreshCampaignPulse(
+        {
+          args,
+          supabase,
+          tenantId,
+          surface,
+          callerCampaignerId,
+          actorUserId,
+          accessibleTenantIds,
+          assertCallerCanAccessClient: (clientId: string) =>
+            assertCallerCanAccessClient(supabase, clientId, callerScope),
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_ROLE_KEY,
+        },
+        (pulseArgs) =>
+          executeTool(
+            "get_latest_campaign_pulse",
+            pulseArgs,
+            supabase,
+            tenantId,
+            userId,
+            callerCampaignerId,
+            agentId,
+            callerRole,
+            callerManagedAgencyIds,
+            callerPhone,
+            waNotify,
+            surface,
+            conversationId,
+          ),
+      );
     }
     case "analyze_campaign_performance": {
       // 1. Resolve scope -> list of target clients (active+onboarding)
@@ -13735,6 +13794,7 @@ async function handleRunAgent(
           workshopItemIdFrom(bodyJson),
           String(command_text ?? ""),
           lastAssistantText(conversation_history),
+          workshopArtifactIdFrom(bodyJson),
         )
       : null;
     const workshopRoleForRun = inWorkshopRequest
@@ -13864,18 +13924,7 @@ async function handleRunAgent(
       }
       const roleList = (roles || []).map((r: any) => r.role);
       // Priority order
-      const order = [
-        "super_admin",
-        "owner",
-        "agency_owner",
-        "agency_manager",
-        "team_manager",
-        "campaigner",
-        "sales_person",
-        "seo",
-        "viewer",
-      ];
-      for (const r of order) {
+      for (const r of CALLER_ROLE_PRIORITY) {
         if (roleList.includes(r)) {
           callerRole = r;
           break;
@@ -14270,7 +14319,7 @@ async function handleRunAgent(
     // Keeps V1 behavior as default; zero risk to existing agents
     let systemPrompt: string;
     console.log(
-      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"}`,
+      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })}`,
     );
     if (shouldUseV2Prompt(agent)) {
       // Build V2 prompt using the new modular builder
@@ -14710,7 +14759,7 @@ async function handleRunAgent(
         .toISOString()
         .split("T")[0];
       const todayISO = now.toISOString().split("T")[0];
-      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני הרצה של pulse_check / סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8).\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
+      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
       systemPrompt += `\n\n=== הקשר ארגוני ===\n${tenantContext}`;
 
       // Inject memory context — instructions get top priority and a strict directive
@@ -14864,6 +14913,11 @@ async function handleRunAgent(
       }
       if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
+    // Hebrew verbs carry gender: Carmen addresses the caller by the gender their name shows.
+    systemPrompt +=
+      addressByNameLine(
+        callerName ?? (await callerProfileName(supabase, callerUserId)),
+      ) ?? "";
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
@@ -14991,15 +15045,6 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 • תשובות קצרות לשאלות פשוטות נשארות קצרות — טבלה רק כשיש באמת נתונים טבלאיים.`;
     }
 
-    // WhatsApp / scheduled tasks: pulse must stay short (counts + dashboard link).
-    if (isCarmen && (surface === "whatsapp" || surface === "task")) {
-      systemPrompt += `\n\n📱 === בדיקת דופק בוואטסאפ (חובה) ===
-• בקשה ל"בדיקת דופק" / "דופק" / "מצב קמפיינים" — חובה get_latest_campaign_pulse בלבד.
-• אחרי הכלי — החזירי את whatsapp_digest כלשונו, כולל בלוק "🔴 דורש טיפול" כשיש ושורת הקישור לדשבורד. בלי הקדמה, בלי סיכום נוסף.
-• "בדיקת תקינות מערכות וקמפיינים" זה דוח אחר (health probe) — לא בדיקת דופק. אל תערבבי ביניהם.
-• אסור טבלת Markdown, אסור "בדיקת דופק אחרונה — חושבה ב־…" + פירוט לקוחות, אסור להמציא שורות מה-rows.`;
-    }
-
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
     // Carmen can always answer about herself (her personas and their portraits), whatever
@@ -15022,6 +15067,16 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !disabledTools.includes(t.name),
       );
     }
+    filteredTools = keepCarmenPulseTools(filteredTools, ALL_TOOLS, {
+      isCarmen,
+      disabledTools,
+      caller: { surface, callerCampaignerId, callerUserId },
+    });
+    const skinDisabledTools = skinToolDenylist(disabledTools, {
+      surface,
+      callerCampaignerId,
+      callerUserId,
+    });
     // Workshop tools write to the board of the open project; outside the workshop skin
     // (WhatsApp, other chats) Carmen has no board to show them on.
     const inWorkshop =
@@ -15038,20 +15093,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !isBlockedInWorkshop(t.name, true),
       );
     }
-    if (inWorkshop && workshopRoleForRun) {
-      filteredTools = toolsForRole(
-        filteredTools,
-        workshopRoleForRun,
-        isWorkshopTool,
-      );
-    }
-    // A skin's tools may be added below; workshop tools only for this run's role.
+    // A skin's tools may be added below, under the same rule.
     const workshopToolAllowed = (name: string) =>
-      !isBlockedInWorkshop(name, inWorkshop) &&
-      (!isWorkshopTool(name) ||
-        (inWorkshop &&
-          (!workshopRoleForRun ||
-            ROLE_TOOLS[workshopRoleForRun].includes(name))));
+      workshopToolOffered(name, inWorkshop);
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -15070,6 +15114,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // Only unqualified summaries use empty tool args; scoped requests must
     // retain their client/agency filters through normal tool routing.
     const isStoredPulseRequest = !pinSkillsOnly && isCachedPulseRequest(cmd);
+    const pulseRefreshRoute = decidePulseRefreshRouting({
+      text: cmd,
+      isCarmen,
+      pinSkillsOnly,
+      digestSurface: pulseSurfacePrefersWhatsAppDigest(surface),
+      caller: {
+        campaignerId: callerCampaignerId,
+        userId: callerUserId,
+        role: callerRole,
+      },
+    });
     const userAskedBackground =
       /\b(ברקע|תמשיכ[יה]\s+לבד|background|אל\s+תחכ[יה]|תעדכנ[יה]\s+אחר[\s-]?כך|תרוצ[יה]\s+ברקע)\b/i.test(
         cmd,
@@ -15383,18 +15438,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       );
       // Skin → capability enforcement: a matched skin's allowed_tools are
       // guaranteed to be available, even when agent.allowed_tools narrows the
-      // set. Explicitly disabled tools stay disabled (denylist wins).
+      // set. Explicitly disabled tools stay disabled (denylist wins), and so do
+      // the pulse tools for an unidentified caller (skinToolDenylist).
       const skillToolNames = new Set(
         _matchedSkills.flatMap((s) => s.tools || []),
       );
       if (skillToolNames.size > 0 && !pinSkillsOnly) {
-        const present = new Set(filteredTools.map((t) => t.name));
-        const missing = ALL_TOOLS.filter(
+        const missing = missingEnabledTools(
+          filteredTools,
+          ALL_TOOLS,
+          skillToolNames,
+          skinDisabledTools,
+        ).filter(
           (t) =>
-            skillToolNames.has(t.name) &&
             workshopToolAllowed(t.name) &&
-            !present.has(t.name) &&
-            !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
         );
         if (missing.length > 0) {
@@ -15429,14 +15486,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const pinned = (
           await resolveSkillsBySlug(task_skills as string[], skillTenantId)
         ).filter((s) => !disabledSkins.includes(s.id));
-        const pinnedTools = new Set(pinned.flatMap((s) => s.tools || []));
-        const present = new Set(filteredTools.map((t) => t.name));
-        const missing = ALL_TOOLS.filter(
+        const missing = missingEnabledTools(
+          filteredTools,
+          ALL_TOOLS,
+          pinned.flatMap((s) => s.tools || []),
+          skinDisabledTools,
+        ).filter(
           (t) =>
-            pinnedTools.has(t.name) &&
             workshopToolAllowed(t.name) &&
-            !present.has(t.name) &&
-            !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
         );
         if (missing.length > 0) {
@@ -15451,6 +15508,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         console.error("[AGENT] pinned skin tools failed (non-fatal):", e);
       }
     }
+    // Versioned pulse rules (AIO-237) come after the V1/V2 prompt and every
+    // skin's text, so a tenant pulse skin that says not to refresh cannot
+    // override them. On WhatsApp and scheduled tasks the block also keeps the
+    // pulse to the short digest.
+    systemPrompt = appendCarmenPulseRules(systemPrompt, {
+      isCarmen,
+      surface,
+      pinSkillsOnly,
+    });
     // Surface instruction-capture confirmation in the system prompt so the model knows
     // a rule was just persisted and can acknowledge it briefly without re-saving.
     if (instructionCaptured) {
@@ -15693,6 +15759,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Deterministic path: WhatsApp pulse request → return colorful cached digest verbatim.
+    // It does not check the caller yet, so an unidentified sender gets the
+    // tenant digest too (AIO-248).
     if (
       isCarmen &&
       isStoredPulseRequest &&
@@ -15917,6 +15985,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             function: { name: "get_latest_campaign_pulse" },
           };
         }
+        const refreshChoice = pulseRefreshToolChoice(
+          pulseRefreshRoute,
+          cappedTools,
+        );
+        if (round === 0 && refreshChoice) {
+          payload.tool_choice = refreshChoice;
+        }
         if (
           round === 0 &&
           extractMeetingUrl(String(command_text || "")) &&
@@ -16137,6 +16212,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 viewClientId: inWorkshop
                   ? workshopClientIdFrom(bodyJson)
                   : null,
+                openItemId: inWorkshop ? workshopItemIdFrom(bodyJson) : null,
                 // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
                 devTaskTurn: {
                   turnStartedAt,
@@ -16216,6 +16292,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           result.whatsapp_digest.trim()
         ) {
           pulseDigestShortcut = result.whatsapp_digest.trim();
+        }
+        if (
+          round === 0 &&
+          toolName === REFRESH_PULSE_TOOL_NAME &&
+          pulseRefreshRoute.digestShortcut
+        ) {
+          pulseDigestShortcut = buildPulseRefreshDigestReply(result);
         }
         // A workshop question or budget request is sent to the user exactly as the server
         // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
@@ -16471,11 +16554,17 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
     .maybeSingle();
   if (!agent) return json({ error: "No active Carmen agent for tenant" }, 404);
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
-  const pool = directToolPool(ALL_TOOLS as any[], {
-    allowedTools: agent.allowed_tools || [],
-    disabledTools: agent.disabled_tools || [],
-    isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
-  });
+  const disabledTools: string[] = agent.disabled_tools || [];
+  // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
+  const pool = keepCarmenPulseTools(
+    directToolPool(ALL_TOOLS as any[], {
+      allowedTools: agent.allowed_tools || [],
+      disabledTools,
+      isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
+    }),
+    ALL_TOOLS,
+    { isCarmen: true, disabledTools },
+  );
 
   if (req.action === "list") {
     return json({
