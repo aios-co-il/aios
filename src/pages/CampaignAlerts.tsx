@@ -66,6 +66,9 @@ const alertTypeLabels: Record<string, string> = {
   ad_disapproved: "מודעה לא מאושרת",
   campaign_stopped: "קמפיין הושהה",
   account_disabled: "חשבון פרסום הושבת / הוגבל",
+  ad_account_billing_issue: "בעיית חיוב בחשבון הפרסום",
+  no_live_ads: "אין מודעה באוויר והדוח פעיל",
+  campaign_with_issues: "תקלה בקמפיין",
   budget_exhausted: "תקציב מוצה",
   low_delivery: "אספקה נמוכה",
 };

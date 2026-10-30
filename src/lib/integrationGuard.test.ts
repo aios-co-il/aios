@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   checkOutbound,
   isSafeModeEnabled,
@@ -13,8 +12,8 @@ test("production always allows even if safe mode is set", () => {
     integration: "whatsapp",
     destination: "0500000000",
   });
-  assert.equal(result.decision, "ALLOW");
-  assert.equal(isSafeModeEnabled("production", "true"), false);
+  expect(result.decision).toBe("ALLOW");
+  expect(isSafeModeEnabled("production", "true")).toBe(false);
 });
 
 test("unset env is treated as production and allows", () => {
@@ -22,8 +21,8 @@ test("unset env is treated as production and allows", () => {
     integration: "whatsapp",
     destination: "0500000000",
   });
-  assert.equal(result.decision, "ALLOW");
-  assert.equal(result.environment, "production");
+  expect(result.decision).toBe("ALLOW");
+  expect(result.environment).toBe("production");
 });
 
 test("staging safe mode blocks destinations not on the allowlist", () => {
@@ -34,7 +33,7 @@ test("staging safe mode blocks destinations not on the allowlist", () => {
     destination: "972501111111",
     allowlistRaw: "972502222222",
   });
-  assert.equal(blocked.decision, "BLOCK");
+  expect(blocked.decision).toBe("BLOCK");
 
   const allowed = checkOutbound({
     appEnv: "staging",
@@ -43,7 +42,7 @@ test("staging safe mode blocks destinations not on the allowlist", () => {
     destination: "0502222222",
     allowlistRaw: "972502222222",
   });
-  assert.equal(allowed.decision, "ALLOW");
+  expect(allowed.decision).toBe("ALLOW");
 });
 
 test("empty allowlist blocks all WhatsApp in staging", () => {
@@ -52,8 +51,8 @@ test("empty allowlist blocks all WhatsApp in staging", () => {
     integration: "whatsapp",
     destination: "972501111111",
   });
-  assert.equal(result.decision, "BLOCK");
-  assert.equal(result.reason, "empty_allowlist");
+  expect(result.decision).toBe("BLOCK");
+  expect(result.reason).toBe("empty_allowlist");
 });
 
 test("staging blocks WhatsApp groups", () => {
@@ -62,11 +61,11 @@ test("staging blocks WhatsApp groups", () => {
     integration: "whatsapp",
     destination: "group:123@g.us",
   });
-  assert.equal(result.decision, "BLOCK");
+  expect(result.decision).toBe("BLOCK");
 });
 
 test("parseAllowlist splits commas and spaces", () => {
-  assert.deepEqual(parseAllowlist("972501111111, 0502222222"), [
+  expect(parseAllowlist("972501111111, 0502222222")).toStrictEqual([
     "972501111111",
     "0502222222",
   ]);

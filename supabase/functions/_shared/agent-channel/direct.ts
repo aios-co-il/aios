@@ -42,14 +42,7 @@ import {
 } from "./store.ts";
 import { codexOpenAiApiEnabled, runtimeEnv } from "../carmen-brain-flags.ts";
 import { launchCodexViaOpenAiApi } from "./codex-api.ts";
-
-function runtimeEnv(): Record<string, string | undefined> {
-  try {
-    return Deno.env.toObject();
-  } catch {
-    return {};
-  }
-}
+import { sendEnv } from "./brain-env.ts";
 
 const MAX_TEXT = 100_000;
 
@@ -94,11 +87,12 @@ export async function launchCloudDirect(
     return launchCodexViaOpenAiApi(ctx);
   }
 
-  const grokWebhook = grokUsesExistingWebhook(
-    Deno.env.get("GROK_BOT_WEBHOOK_URL"),
-    Deno.env.get("GROK_BOT_WEBHOOK_KEY"),
-  );
-  const apiKey = cursorApiKey();
+  // Tenant keys from Carmen settings win over project env secrets.
+  const env = await sendEnv(ctx);
+  const grokWebhookUrl = env.GROK_BOT_WEBHOOK_URL;
+  const grokWebhookKey = env.GROK_BOT_WEBHOOK_KEY;
+  const grokWebhook = grokUsesExistingWebhook(grokWebhookUrl, grokWebhookKey);
+  const apiKey = cursorApiKey(env);
   if (!apiKey && !(provider === "grok" && grokWebhook)) {
     throw new Error(`${provider} is not configured (set CURSOR_API_KEY).`);
   }
@@ -149,6 +143,8 @@ export async function launchCloudDirect(
   let fired: { url: string; id: string; reused: boolean };
   if (provider === "grok" && grokWebhook) {
     const delivered = await fireGrokBotWebhook({
+      url: grokWebhookUrl,
+      key: grokWebhookKey,
       task: ctx.content,
       context:
         prompt +
@@ -286,8 +282,9 @@ export async function launchClaude(
   extraPrompt?: string,
   options?: { sessionMetadata?: Record<string, unknown> },
 ): Promise<SendResult> {
-  const routineId = Deno.env.get("CLAUDE_ROUTINE_ID") || "";
-  const routineToken = Deno.env.get("CLAUDE_ROUTINE_TOKEN") || "";
+  const env = await sendEnv(ctx);
+  const routineId = env.CLAUDE_ROUTINE_ID || "";
+  const routineToken = env.CLAUDE_ROUTINE_TOKEN || "";
   if (!routineId || !routineToken)
     throw new Error(
       "Claude Direct is not configured (CLAUDE_ROUTINE_ID / CLAUDE_ROUTINE_TOKEN).",
@@ -398,7 +395,7 @@ export async function launchWorkspaceAgent(
 ): Promise<SendResult> {
   const { triggerId, accessToken } = workspaceAgentCreds(
     provider,
-    runtimeEnv(),
+    await sendEnv(ctx),
   );
   const sb = serviceClient();
   const conversationKey = workspaceConversationKey(

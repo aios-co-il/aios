@@ -1,4 +1,6 @@
-export type BrainRouteType = "internal" | "direct_channel" | "parliament";
+import type { BrainRouteType } from "../../supabase/functions/_shared/carmen/brain-connections/types.ts";
+
+export type { BrainRouteType };
 export type BrainProvider =
   | "internal"
   | "cursor"
@@ -6,7 +8,8 @@ export type BrainProvider =
   | "claude"
   | "chatgpt"
   | "codex"
-  | "parliament";
+  | "parliament"
+  | "model";
 export type ConversationChannelStatus =
   "idle" | "streaming" | "waiting_external" | "debating" | "error";
 
@@ -18,6 +21,8 @@ export type BrainRoute = {
   provider: BrainProvider | null;
   config?: Record<string, unknown>;
   active?: boolean;
+  /** carmen_brain_connections.id for model brains. */
+  connection_id?: string | null;
   external_url?: string | null;
   session_status?: string | null;
 };
@@ -146,7 +151,16 @@ export function isInputLocked(
 export function groupLabel(type: BrainRouteType): string {
   if (type === "internal") return "מוח פנימי";
   if (type === "direct_channel") return "ערוץ ישיר";
+  if (type === "model") return "מודלים מחוברים";
   return "פרלמנט";
+}
+
+/** Labels of the tenant's brains, so a model brain's replies show its name. */
+const routeLabels = new Map<string, string>();
+
+export function rememberRouteLabels(routes: BrainRoute[]): void {
+  for (const r of routes)
+    if (r.slug && r.label) routeLabels.set(r.slug, r.label);
 }
 
 export function speakerLabel(
@@ -173,7 +187,7 @@ export function speakerLabel(
     case "parliament":
       return "שולחן אבירים";
     default:
-      return speaker || channel || "כרמן";
+      return routeLabels.get(key) || speaker || channel || "כרמן";
   }
 }
 
@@ -224,6 +238,8 @@ export function billingNoteForRoute(provider?: string | null): string | null {
       return "כרמן פנימית";
     case "grok":
       return "Grok Bot הקיים";
+    case "model":
+      return "מודל מחובר · תשובה ישירה במפתח שלכם";
     default:
       return null;
   }

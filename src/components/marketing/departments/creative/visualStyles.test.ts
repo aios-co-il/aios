@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { pickNextVariationStyle } from "./designedLayers.ts";
 import {
   CREATIVE_VISUAL_STYLES,
@@ -10,13 +9,12 @@ import {
 } from "./visualStyles.ts";
 
 test("default style is adaptive; the ten boards stay optional", () => {
-  assert.equal(DEFAULT_VISUAL_STYLE_ID, "adaptive");
-  assert.deepEqual(
-    stylesInGroup("auto").map((item) => item.id),
-    ["adaptive"],
-  );
+  expect(DEFAULT_VISUAL_STYLE_ID).toBe("adaptive");
+  expect(stylesInGroup("auto").map((item) => item.id)).toStrictEqual([
+    "adaptive",
+  ]);
   const reference = stylesInGroup("reference").map((item) => item.id);
-  assert.deepEqual(reference, [
+  expect(reference).toStrictEqual([
     "swiss",
     "industrial",
     "mediterranean",
@@ -43,14 +41,14 @@ test("legacy style ids still resolve so old projects keep working", () => {
     "watercolor",
     "comic",
   ]) {
-    assert.equal(isVisualStyleId(id), true);
+    expect(isVisualStyleId(id)).toBe(true);
   }
 });
 
 test("collage lock is not overridden by a global anti-collage rule", () => {
   const lock = buildVisualStyleLock({}, { styleId: "collage" });
-  assert.match(lock, /analog mixed-media collage/i);
-  assert.doesNotMatch(lock, /Forbidden:.*collage/i);
+  expect(lock).toMatch(/analog mixed-media collage/i);
+  expect(lock).not.toMatch(/Forbidden:.*collage/i);
 });
 
 test("style locks are treatment only and never require a travel cliché", () => {
@@ -63,47 +61,44 @@ test("style locks are treatment only and never require a travel cliché", () => 
     "holographic",
   ] as const) {
     const lock = buildVisualStyleLock({}, { styleId });
-    assert.match(lock, /THIS copy/i);
-    assert.match(lock, /IRON RULE/i);
-    assert.match(lock, /style is costume and lighting only/i);
-    assert.match(lock, /SELECTED STYLE/i);
-    assert.match(lock, /APPLY that TECHNIQUE/i);
-    assert.match(lock, /BRAND COLOR LOCK/i);
-    assert.doesNotMatch(lock, /destination coast/i);
+    expect(lock).toMatch(/THIS copy/i);
+    expect(lock).toMatch(/IRON RULE/i);
+    expect(lock).toMatch(/style is costume and lighting only/i);
+    expect(lock).toMatch(/SELECTED STYLE/i);
+    expect(lock).toMatch(/APPLY that TECHNIQUE/i);
+    expect(lock).toMatch(/BRAND COLOR LOCK/i);
+    expect(lock).not.toMatch(/destination coast/i);
   }
-  assert.match(
-    buildVisualStyleLock({}, { styleId: "organic" }),
+  expect(buildVisualStyleLock({}, { styleId: "organic" })).toMatch(
     /ONLY if the copy is about a place/i,
   );
-  assert.match(
-    buildVisualStyleLock({}, { styleId: "bauhaus" }),
+  expect(buildVisualStyleLock({}, { styleId: "bauhaus" })).toMatch(
     /never a default airplane wing/i,
   );
-  assert.match(
-    buildVisualStyleLock({}, { styleId: "kinetic" }),
+  expect(buildVisualStyleLock({}, { styleId: "kinetic" })).toMatch(
     /not a random streaking car/i,
   );
 });
 
 test("new variations stay adaptive instead of cycling the style boards", () => {
   const next = pickNextVariationStyle(["swiss", "industrial"]);
-  assert.equal(next.id, "adaptive");
-  assert.equal(next.group, "auto");
+  expect(next.id).toBe("adaptive");
+  expect(next.group).toBe("auto");
 });
 
 test("a user-selected named style is applied, not treated as optional", () => {
   const lock = buildVisualStyleLock({}, { styleId: "collage" });
-  assert.match(lock, /SELECTED STYLE/i);
-  assert.match(lock, /APPLY that TECHNIQUE/i);
-  assert.match(lock, /Do not reprint/i);
-  assert.match(lock, /analog mixed-media collage/i);
-  assert.match(lock, /NEW board/i);
-  assert.doesNotMatch(lock, /OPTIONAL COSTUME/i);
+  expect(lock).toMatch(/SELECTED STYLE/i);
+  expect(lock).toMatch(/APPLY that TECHNIQUE/i);
+  expect(lock).toMatch(/Do not reprint/i);
+  expect(lock).toMatch(/analog mixed-media collage/i);
+  expect(lock).toMatch(/NEW board/i);
+  expect(lock).not.toMatch(/OPTIONAL COSTUME/i);
 });
 
 test("adaptive lock does not apply a named style-board recipe", () => {
   const lock = buildVisualStyleLock({}, { styleId: "adaptive" });
-  assert.match(lock, /invent a treatment from this copy/i);
-  assert.doesNotMatch(lock, /Swiss \/ international commercial/i);
-  assert.doesNotMatch(lock, /pink-purple-cyan/i);
+  expect(lock).toMatch(/invent a treatment from this copy/i);
+  expect(lock).not.toMatch(/Swiss \/ international commercial/i);
+  expect(lock).not.toMatch(/pink-purple-cyan/i);
 });

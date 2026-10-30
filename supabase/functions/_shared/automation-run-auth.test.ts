@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   authorizeDirectAutomationRun,
   authorizeTenantCaller,
@@ -43,39 +42,45 @@ const client = {
 const run = (token: string) =>
   authorizeDirectAutomationRun(client, token, SERVICE, TENANT);
 
-test("service role may run any automation", async () => {
-  assert.deepEqual(await run(SERVICE), { allowed: true });
+const asService = { allowed: true, caller: { kind: "service" } };
+const asUser = (userId: string) => ({
+  allowed: true,
+  caller: { kind: "user", userId },
 });
 
-test("tenant owner may run their automation", async () => {
-  assert.deepEqual(await run("owner-a"), { allowed: true });
+Deno.test("service role may run any automation", async () => {
+  assertEquals(await run(SERVICE), asService);
 });
 
-test("super admin may run it", async () => {
-  assert.deepEqual(await run("super"), { allowed: true });
+Deno.test("tenant owner may run their automation, as themselves", async () => {
+  assertEquals(await run("owner-a"), asUser("u1"));
 });
 
-test("owner of another tenant is refused", async () => {
+Deno.test("super admin may run it, as themselves", async () => {
+  assertEquals(await run("super"), asUser("u4"));
+});
+
+Deno.test("owner of another tenant is refused", async () => {
   const d = await run("owner-b");
-  assert.equal(d.allowed, false);
-  assert.equal(!d.allowed && d.status, 403);
+  assertStrictEquals(d.allowed, false);
+  assertStrictEquals(!d.allowed && d.status, 403);
 });
 
-test("non-owner member is refused", async () => {
+Deno.test("non-owner member is refused", async () => {
   const d = await run("member-a");
-  assert.equal(!d.allowed && d.status, 403);
+  assertStrictEquals(!d.allowed && d.status, 403);
 });
 
-test("anon or invalid token is refused", async () => {
-  assert.equal((await run("anon-key")).allowed, false);
-  assert.equal((await run("")).allowed, false);
+Deno.test("anon or invalid token is refused", async () => {
+  assertStrictEquals((await run("anon-key")).allowed, false);
+  assertStrictEquals((await run("")).allowed, false);
   const d = await run("anon-key");
-  assert.equal(!d.allowed && d.status, 401);
+  assertStrictEquals(!d.allowed && d.status, 401);
 });
 
-test("bearerToken strips the scheme", () => {
-  assert.equal(bearerToken("Bearer abc"), "abc");
-  assert.equal(bearerToken(null), "");
+Deno.test("bearerToken strips the scheme", () => {
+  assertStrictEquals(bearerToken("Bearer abc"), "abc");
+  assertStrictEquals(bearerToken(null), "");
 });
 
 // authorizeTenantCaller: the caller client answers user_is_tenant_member for
@@ -101,36 +106,48 @@ const tenantRun = (token: string, tenantId: unknown = TENANT) =>
     tenantId,
   );
 
-test("tenant caller: service role is allowed without a caller client", async () => {
-  callerHeaders.length = 0;
-  assert.deepEqual(await tenantRun(SERVICE, null), { allowed: true });
-  assert.deepEqual(callerHeaders, []);
-});
+Deno.test(
+  "tenant caller: service role is allowed without a caller client",
+  async () => {
+    callerHeaders.length = 0;
+    assertEquals(await tenantRun(SERVICE, null), asService);
+    assertEquals(callerHeaders, []);
+  },
+);
 
-test("tenant caller: a member of the body tenant is allowed", async () => {
-  assert.deepEqual(await tenantRun("member-a"), { allowed: true });
-  assert.deepEqual(await tenantRun("owner-a"), { allowed: true });
-});
+Deno.test(
+  "tenant caller: a member of the body tenant is allowed, as themselves",
+  async () => {
+    assertEquals(await tenantRun("member-a"), asUser("u3"));
+    assertEquals(await tenantRun("owner-a"), asUser("u1"));
+  },
+);
 
-test("tenant caller: a super admin of another tenant is allowed", async () => {
-  assert.deepEqual(await tenantRun("super"), { allowed: true });
-});
+Deno.test(
+  "tenant caller: a super admin of another tenant is allowed, as themselves",
+  async () => {
+    assertEquals(await tenantRun("super"), asUser("u4"));
+  },
+);
 
-test("tenant caller: a member of another tenant is refused", async () => {
+Deno.test("tenant caller: a member of another tenant is refused", async () => {
   const d = await tenantRun("owner-b");
-  assert.equal(!d.allowed && d.status, 403);
+  assertStrictEquals(!d.allowed && d.status, 403);
 });
 
-test("tenant caller: anon or missing token is refused", async () => {
+Deno.test("tenant caller: anon or missing token is refused", async () => {
   const anon = await tenantRun("anon-key");
-  assert.equal(!anon.allowed && anon.status, 401);
+  assertStrictEquals(!anon.allowed && anon.status, 401);
   const none = await tenantRun("");
-  assert.equal(!none.allowed && none.status, 401);
+  assertStrictEquals(!none.allowed && none.status, 401);
 });
 
-test("tenant caller: a user without a body tenant_id gets 400", async () => {
-  const d = await tenantRun("member-a", null);
-  assert.equal(!d.allowed && d.status, 400);
-  const blank = await tenantRun("member-a", "");
-  assert.equal(!blank.allowed && blank.status, 400);
-});
+Deno.test(
+  "tenant caller: a user without a body tenant_id gets 400",
+  async () => {
+    const d = await tenantRun("member-a", null);
+    assertStrictEquals(!d.allowed && d.status, 400);
+    const blank = await tenantRun("member-a", "");
+    assertStrictEquals(!blank.allowed && blank.status, 400);
+  },
+);

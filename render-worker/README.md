@@ -20,40 +20,62 @@ Handled kinds:
 
   A retried run with a provider job id resumes polling and does not pay again. After the last attempt the scene is set to `failed`.
 
-- `voice` and `music` (phase 5). ElevenLabs writes one voiceover per scene and one music bed. Higgsfield sound is `generate_audio` on the clip, not a separate job.
+- `voice` and `music` (phase 5). A storyboard without a talking scene is narrated in one continuous take of the whole script (`attach_video_narration`, with its word timings); a storyboard with a talking scene is narrated scene by scene, and a talking scene's own line is voiced for its lip sync. The voice is ElevenLabs (`eleven_v4`, the tenant's key, else `ELEVENLABS_API_KEY`). Without an ElevenLabs key, or when ElevenLabs refuses before charging (no paid plan, rejected key), the line goes to ElevenLabs through the tenant's OpenRouter brain (`OPENROUTER_TTS_MODEL`), and then to Gemini TTS (the tenant's `google_api_key`, else `GEMINI_API_KEY` or `GOOGLE_API_KEY`; `GEMINI_TTS_VOICE`, a different narrator voice). ElevenLabs makes the one music bed. Higgsfield sound is `generate_audio` on the clip, not a separate job. The music job sizes the bed to the film that will be rendered (`src/jobs/music-length.mjs`): the scenes fitted to the narration's word timings as the edit cuts them, plus the end card and a 4 s tail. While the narration is still being made it waits up to two minutes; without it the planned length gets 15% headroom. The request never passes what the run's quote (`input.estimate.usd`) pays for, and the run records the cost of the length it asked for. Without an ElevenLabs key it fails at once, before any wait. A bed already paid for keeps its length.
 
-- `render` (phase 6). Queued by `queue_video_render`. The worker reads the approved scenes, their current clip and voice, and the newest music bed from the database for the run's tenant; `run.input` only supplies the aspect. It builds one timeline (`src/compose/timeline.mjs`) and assembles an MP4 with ffmpeg (`src/compose/assemble.mjs`): every segment is normalised to stereo 48 kHz, music sits at 0.18 under the voice, and `overlay_text` is burned in as centred Hebrew titles (DejaVu Sans Bold, `OVERLAY_FONT` overrides). Each render is stored as `render/film-<run id>.mp4`.
+- `lipsync` (talking scenes). A scene with `meta.lipsync = true` is a character speaking its line (`meta.dialogue`, else `voiceover_text`; `meta.speaker` says who). On an engine that speaks (ElevenLabs Veo 3.1, Higgsfield Seedance 2.5) the `clip` job puts the line in the prompt with audio on and marks the clip `meta.lipsync`; `LIPSYNC_NATIVE=0` turns that off. Otherwise `advance_video_production` queues the scene's own voice line and then one `lipsync` run (`queue_video_lipsync`). The worker sends the still (ElevenLabs `creatify-aurora`, HeyGen Avatar IV on OpenRouter, Higgsfield Seedance 2.5 reference-to-video) or the clip (Kling `/v1/videos/lip-sync`, signed with the tenant's Kling pair like the scene engine) with that voice, stores the provider job id before polling, saves `<scene>/lipsync-v<n>.mp4` and attaches it as the scene clip with `meta.lipsync`. The first provider the tenant has a key for is used (`LIPSYNC_PROVIDER` overrides); with none the run fails with a clear message. The film plays a talking clip's own audio, and a storyboard with a talking scene is narrated scene by scene.
+- `render` (phase 6). Queued by `queue_video_render`. The worker reads the approved scenes, their current clip and voice, and the newest music bed from the database for the run's tenant; `run.input` only supplies the aspect. It builds one timeline (`src/compose/timeline.mjs`) and renders it with Remotion (`workers/creative-video/remotion`, composition `WorkshopFilm`): camera moves, overlapping transitions (crossfade, slide, wipe, zoom), Hebrew captions from the ElevenLabs word timings (Heebo), and a brand end card with logo and CTA. The captions are motion graphics by default (`src/compose/motion-captions.mjs`): phrases of two to four words on at most two lines, each word springing in as it is said, the spoken word on an accent highlight and one key word per phrase (a number, the brand, a word of the scene's title, a Latin term or an emphatic word) larger in the accent colour; Latin words and numbers keep their order inside the right-to-left line, and on a 9:16 frame they sit in the lower middle, clear of the Reels UI (top 14%, bottom 22%). `video.caption_style: "karaoke"` keeps the older karaoke lines. A cut between two pictures of the same character in other skins (a trailer's new picture, two different `meta.reference_url` skins, or `meta.skin_switch: true`; `false` turns it off) is a skin switch: a 10-frame flash, scale pop and light sweep on the cut's whoosh (`src/compose/skin-switch.mjs`). A mock clip is replaced by its still so the camera move is done in Remotion. A real provider clip (Kling, ElevenLabs, Higgsfield) is placed on the timeline and keeps its own audio when nobody speaks over it. Scenes stretch so speech is never cut. Before mixing, each transition sound's hit is levelled to -14 LUFS and the impact's to -17 LUFS (`src/compose/sound-prep.mjs`). In both edits a track shorter than the film, or one whose music dies away before the film's closing fade, is looped from its top with a crossfade at its musical end (`src/compose/music-bed.mjs`). An ordinary film's bed keeps its own level: it sits at 0.2 and ducks to 0.06 under speech, and a film whose speech starts in its first frames opens with the bed already down. A film with sound design (`video.sound_design`) gets the trailer mix instead: its bed is levelled to -17 LUFS, comes up to about -21.5 LUFS when nobody speaks and sits 13.5 dB under the measured narration while she speaks; pauses under a second keep it down. Its effects (`src/jobs/sound-effects.mjs`) are a set of six gentle transition sounds and one soft impact on the title and the end card: every cut plays a different one (`src/compose/transition-sounds.mjs`: all six before any repeats, never the same twice in a row, in an order drawn from the film's id so every render sounds the same; the timeline plans it once for both edits). A later round plays the set shifted a few semitones, its length kept (`src/compose/sound-pitch.mjs`, made by `sound-prep.mjs` at render time, nothing paid), so no two of a film's first 30 cuts sound the same. Their hit moves with the bed, on its envelope in both edits: about 4 LU over it where it comes up (title, end card, pauses longer than its ramps, about a second), and wherever it stays down, shorter pauses included, 11 LU under the narration and about 2.5 LU over the ducked bed. Over the captions each scene's short title (`overlay_text`, at most five words and 32 characters, not a repeat of its line) shows: as an animated title card right above motion captions, at the top over karaoke lines. The ffmpeg edit (`REMOTION_DISABLE=1`) keeps its plain bottom titles: no motion captions or skin switches there. Output is h264 CRF 18, yuv420p, AAC 192k. A Remotion render still running after `REMOTION_TIMEOUT_MS` (20 minutes) is stopped with its browser, and the run is retried. Set `REMOTION_DISABLE=1` to fall back to the ffmpeg concat. Each render is stored as `render/film-<run id>.mp4`.
 
 ### Video providers
 
 Every provider implements `estimate / submit / poll` (`src/providers/`), so changing provider touches only that folder.
 
 - `mock` (default): a free ffmpeg Ken Burns push-in on the still. Use it on Staging to exercise the full flow without spending.
-- `kling`: the official Kling image-to-video API. It takes a JWT from `KLING_ACCESS_KEY` and `KLING_SECRET_KEY`, and `KLING_BASE_URL`, `KLING_MODEL` and `KLING_MODE` override the defaults. The request shape follows the published v1 `image2video` API; confirm it with one paid test clip before turning it on. Cost is estimated at about $0.85 (5,100 credits) per 5 s pro clip, and 10 s for scenes longer than 5 s.
+- `kling`: the official Kling image-to-video API. It signs a JWT with the tenant's Kling Access Key and Secret Key (AI keys settings, `kling_access_key` / `kling_secret_key` in the `llm` integration), falling back to `KLING_ACCESS_KEY` and `KLING_SECRET_KEY`, and `KLING_BASE_URL`, `KLING_MODEL` and `KLING_MODE` override the defaults. The request shape follows the published v1 `image2video` API; confirm it with one paid test clip before turning it on. Cost is estimated at about $0.85 (5,100 credits) per 5 s pro clip, and 10 s for scenes longer than 5 s.
+- `openrouter`: OpenRouter's video API (`POST /api/v1/videos`, poll, then download `/videos/{id}/content` with the key). The key is the tenant's first OpenRouter brain in Carmen settings, read from Vault with `carmen_brain_secret_get`; there is no env fallback. The model defaults to `kwaivgi/kling-v3.0-std` (`OPENROUTER_VIDEO_MODEL` overrides it), at about $0.084 per second, 3 to 15 s, with the approved still sent as the first frame. Lengths are clamped per model family (Veo 3.1 4/6/8 s, Seedance 2.5 4–30 s). A talking scene goes to `OPENROUTER_TALKING_MODEL` (`google/veo-3.1`) with `generate_audio` and the Hebrew line in the prompt, estimated at `OPENROUTER_TALKING_USD_PER_SECOND` (0.4).
 
-No dependencies beyond Node 22 and ffmpeg.
+**Fallback before submit.** When the chosen paid engine refuses a clip before any job id is saved (no credits, rejected key), the clip moves to `openrouter` when the tenant has an OpenRouter brain (the key is read from Vault only then) and the chosen engine is not OpenRouter, then to `mock`. An ElevenLabs plan that cannot make video tries Higgsfield first. The clip records `fallback_from`. Once a job id is saved the run only resumes that job.
+
+Needs Node 22 and ffmpeg, plus, for the Remotion edit, the `workers/creative-video/remotion` package installed from its lockfile (`npm ci`), a Chrome headless shell (`npx remotion browser ensure`) and Chrome's system libraries; the Dockerfile sets all of this up. `REMOTION_DISABLE=1` needs only Node and ffmpeg.
+
+### Settings
+
+`render-worker/.env.example` lists the keys and models. The rest, all optional:
+
+- Runner: `DRAIN=1` exits once the queue is empty, after `DRAIN_IDLE_MS` without work (preview runners); `STOP_CLAIMING_AFTER_MS` stops claiming clips, lip syncs and reference analyses that long after start; `MAX_ATTEMPTS` (3); `WORKER_TARGET` is an older name for `WORKER_ENV`.
+- Remotion: `REMOTION_DIR` (default `workers/creative-video/remotion`), `REMOTION_TIMEOUT_MS`, `REMOTION_DISABLE`.
+- Clips and lip sync: `CLIP_POLL_MS`, `CLIP_TIMEOUT_MS`, `LIPSYNC_PROVIDER`, `LIPSYNC_NATIVE=0`, `HIGGSFIELD_TALKING_MODEL`, `HIGGSFIELD_LIPSYNC_MODEL`, `ELEVENLABS_LIPSYNC_MODEL`, and planning prices per second `ELEVENLABS_LIPSYNC_USD_PER_SECOND`, `KLING_LIPSYNC_USD_PER_SECOND`, `HEYGEN_LIPSYNC_USD_PER_SECOND`, `HIGGSFIELD_LIPSYNC_USD_PER_SECOND`.
+- Sound: `ELEVENLABS_SFX_MODEL`, `OPENROUTER_TTS_MODEL`, `OPENROUTER_TTS_VOICE`, `OPENROUTER_TTS_USD_PER_CHAR`, `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`, `GEMINI_TTS_USD_PER_M_INPUT`, `GEMINI_TTS_USD_PER_M_OUTPUT`.
+
+## One container per environment
+
+Each container serves one Supabase project: `WORKER_ENV`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Build it from that environment's branch (`develop` for Staging, `main` for Production) and give it only that environment's fallback keys. The worker refuses to start if suffixed pairs such as `SUPABASE_URL_PRODUCTION` are set, so code that has only run on Staging never claims Production jobs.
+
+`.github/workflows/render-worker.yml` drains **Staging only** every 10 minutes. `.github/workflows/render-worker-preview.yml` drains a PR's own Supabase preview branch on every push, and on demand with "Run workflow" on that branch for jobs queued while testing. Neither calls Production. `VIDEO_PROVIDER` defaults to `mock` on Staging. A run that already names `kling`, `elevenlabs` or `higgsfield` still uses that provider.
 
 ## Run on the Droplet
 
+Run from the repo root so the Remotion package is in the image. Repeat with another env file and container name for each environment.
+
 ```bash
-git clone … && cd aios/render-worker
-cp .env.example .env   # fill in the Staging project URL and service-role key
-docker build -t aios-render-worker .
-docker run -d --name aios-render-worker --restart unless-stopped --env-file .env aios-render-worker
-docker logs -f aios-render-worker
+git clone … && cd aios && git checkout develop
+cp render-worker/.env.example render-worker/.env.staging   # Staging URL, key and fallback keys only
+docker build -f render-worker/Dockerfile -t aios-render-worker:staging .
+docker run -d --name aios-render-worker-staging --restart unless-stopped --env-file render-worker/.env.staging aios-render-worker:staging
+docker logs -f aios-render-worker-staging
 ```
 
-Give the Droplet at least 4 vCPUs. Films are assembled with ffmpeg; no Remotion licence is needed.
+Give the Droplet at least 4 vCPUs.
 
 ## Test
 
 ```bash
-node --test test/*.test.mjs   # the ffmpeg test needs ffmpeg on PATH and skips otherwise
+pnpm --dir .. test:components   # from the repo root; the ffmpeg test needs ffmpeg on PATH and skips otherwise
 ```
 
 ## Safety rules the worker enforces
 
 - Tenant members can insert `marketing_runs`, so `run.input` is never trusted for files. Storage paths must start with the run's tenant id and cannot contain `.` or `..` segments (`src/guard.mjs`). The item and scene are re-read for the run's tenant, and the client folder comes from the item.
 - Remote stills are fetched only over https from the Supabase project, `*.supabase.co` or `MEDIA_URL_HOSTS`.
+- A link to the project's private `entity-attachments` bucket (an uploaded logo, or the user's own picture or video in a scene) is downloaded with the worker's key, and only from the run's tenant folder (`readMedia` in `src/guard.mjs`).
 - Paid jobs are charged at most once per run. Clips resume the stored provider job. Voice and music store the audio and record its path before attaching it, and a failure after the provider has charged is final, not retried. The database also allows only one queued or running job per scene (clip, voice) and per project (music, render).
-- The tenant's own ElevenLabs and Higgsfield keys win; the worker's env keys are only a fallback.
+- The tenant's own ElevenLabs, Higgsfield, Kling and Google keys win; the worker's env keys are only a fallback.

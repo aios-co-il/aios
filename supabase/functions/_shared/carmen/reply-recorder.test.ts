@@ -1,30 +1,29 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import { createReplyRecorder, parseReplyKey } from "./reply-recorder.ts";
 
-test("records the conversation and the streamed answer", () => {
+Deno.test("records the conversation and the streamed answer", () => {
   const r = createReplyRecorder();
   r.observe({ type: "conversation_id", id: "c1" });
   r.observe({ type: "tool_call" });
   r.observe({ type: "token", content: "שלום " });
   r.observe({ type: "token", content: "דוד" });
-  assert.equal(r.conversationId, "c1");
-  assert.equal(r.reply("ignored"), "שלום דוד");
+  assertStrictEquals(r.conversationId, "c1");
+  assertStrictEquals(r.reply("ignored"), "שלום דוד");
 });
 
-test("falls back to the final output when nothing streamed", () => {
+Deno.test("falls back to the final output when nothing streamed", () => {
   const r = createReplyRecorder();
-  assert.equal(r.conversationId, null);
-  assert.equal(r.reply("done"), "done");
-  assert.equal(r.reply(undefined), "");
+  assertStrictEquals(r.conversationId, null);
+  assertStrictEquals(r.reply("done"), "done");
+  assertStrictEquals(r.reply(undefined), "");
 });
 
-test("accepts only safe reply keys", () => {
-  assert.equal(
+Deno.test("accepts only safe reply keys", () => {
+  assertStrictEquals(
     parseReplyKey("3f1c2b9e-1111-4222-8333-444455556666"),
     "3f1c2b9e-1111-4222-8333-444455556666",
   );
-  assert.equal(parseReplyKey("short"), null);
-  assert.equal(parseReplyKey("bad key!"), null);
-  assert.equal(parseReplyKey(42), null);
+  assertStrictEquals(parseReplyKey("short"), null);
+  assertStrictEquals(parseReplyKey("bad key!"), null);
+  assertStrictEquals(parseReplyKey(42), null);
 });

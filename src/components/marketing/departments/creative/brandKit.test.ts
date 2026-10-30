@@ -1,7 +1,7 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   brandKitPrompt,
+  creativeAssetStoragePath,
   deriveBrandBook,
   filesFromAttachments,
   getBrandKit,
@@ -12,6 +12,26 @@ import {
   throwIfGenerationAborted,
   websiteHref,
 } from "./brandKit.ts";
+
+const SUPABASE_STORAGE_KEY =
+  /^(\w|\/|!|-|\.|\*|'|\(|\)| |&|\$|@|=|;|:|\+|,|\?)*$/;
+
+test("hebrew reference filenames become a supabase-safe storage key", () => {
+  const path = creativeAssetStoragePath(
+    "2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019",
+    "25deb6c0-6bc6-43c0-aaf5-23863413c9e5",
+    "reference",
+    "כרמן.jpeg",
+    1792753113831,
+  );
+  expect(path).toBe(
+    "2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019/creative/25deb6c0-6bc6-43c0-aaf5-23863413c9e5/reference/1792753113831_file.jpeg",
+  );
+  expect(path).toMatch(SUPABASE_STORAGE_KEY);
+  expect(creativeAssetStoragePath("t", "i", "logo", "carmen.jpg", 1)).toMatch(
+    /\/1_carmen\.jpg$/,
+  );
+});
 
 test("getBrandKit reads logo, book, and style references from payload", () => {
   const kit = getBrandKit({
@@ -24,9 +44,9 @@ test("getBrandKit reads logo, book, and style references from payload", () => {
     },
     style_references: [{ url: "https://example.com/ref.jpg", name: "board" }],
   });
-  assert.equal(kit.logoUrl, "https://example.com/logo.png");
-  assert.equal(kit.brandBook?.name, "Smartair");
-  assert.equal(kit.styleReferences.length, 1);
+  expect(kit.logoUrl).toBe("https://example.com/logo.png");
+  expect(kit.brandBook?.name).toBe("Smartair");
+  expect(kit.styleReferences.length).toBe(1);
 });
 
 test("deriveBrandBook uses client + brief and never invents a logo rule-break", () => {
@@ -36,10 +56,10 @@ test("deriveBrandBook uses client + brief and never invents a logo rule-break", 
     brief: "טיסות לרודוס במחיר הוגן",
     colors: ["#1d4ed8"],
   });
-  assert.match(book.notes, /Smartair/);
-  assert.match(book.notes, /לא ממציאים לוגו/);
-  assert.equal(book.colors[0], "#1d4ed8");
-  assert.equal(book.source, "auto");
+  expect(book.notes).toMatch(/Smartair/);
+  expect(book.notes).toMatch(/לא ממציאים לוגו/);
+  expect(book.colors[0]).toBe("#1d4ed8");
+  expect(book.source).toBe("auto");
 });
 
 test("brandKitPrompt locks logo colors and attaches project style refs", () => {
@@ -49,16 +69,16 @@ test("brandKitPrompt locks logo colors and attaches project style refs", () => {
     brandBook: { colors: ["#111"], notes: "", source: "auto" },
     styleReferences: [{ url: "https://example.com/a.jpg" }],
   });
-  assert.doesNotMatch(prompt, /top-right pad/i);
-  assert.match(prompt, /STYLE REFERENCE/i);
-  assert.match(prompt, /palette dominance/i);
-  assert.doesNotMatch(prompt, /Do not attach, recall, or copy/i);
-  assert.doesNotMatch(prompt, /RANGE only/i);
-  assert.match(prompt, /ONLY these logo\/brand colors/i);
-  assert.match(prompt, /#111/);
-  assert.match(prompt, /smartair\.co\.il/);
-  assert.match(prompt, /will not overlay a watermark/i);
-  assert.match(prompt, /bottom-corner/i);
+  expect(prompt).not.toMatch(/top-right pad/i);
+  expect(prompt).toMatch(/STYLE REFERENCE/i);
+  expect(prompt).toMatch(/palette dominance/i);
+  expect(prompt).not.toMatch(/Do not attach, recall, or copy/i);
+  expect(prompt).not.toMatch(/RANGE only/i);
+  expect(prompt).toMatch(/ONLY these logo\/brand colors/i);
+  expect(prompt).toMatch(/#111/);
+  expect(prompt).toMatch(/smartair\.co\.il/);
+  expect(prompt).toMatch(/will not overlay a watermark/i);
+  expect(prompt).toMatch(/bottom-corner/i);
 });
 
 test("brandKitPrompt talent lock keeps the spokesman instead of forbidding faces", () => {
@@ -70,9 +90,9 @@ test("brandKitPrompt talent lock keeps the spokesman instead of forbidding faces
     },
     { talentLock: true },
   );
-  assert.match(prompt, /Keep that spokesman/i);
-  assert.doesNotMatch(prompt, /RANGE only/i);
-  assert.doesNotMatch(prompt, /Do not attach, recall, or copy/i);
+  expect(prompt).toMatch(/Keep that spokesman/i);
+  expect(prompt).not.toMatch(/RANGE only/i);
+  expect(prompt).not.toMatch(/Do not attach, recall, or copy/i);
 });
 
 test("client attachments become image style refs and ignore non-images", () => {
@@ -80,10 +100,10 @@ test("client attachments become image style refs and ignore non-images", () => {
     { name: "look.jpg", path: "tenant/a.jpg", type: "image/jpeg" },
     { name: "brief.pdf", path: "tenant/b.pdf", type: "application/pdf" },
   ]);
-  assert.equal(files.length, 2);
-  assert.equal(isImageAttachment(files[0]), true);
-  assert.equal(isImageAttachment(files[1]), false);
-  assert.equal(websiteHref("smartair.co.il"), "https://smartair.co.il");
+  expect(files.length).toBe(2);
+  expect(isImageAttachment(files[0])).toBe(true);
+  expect(isImageAttachment(files[1])).toBe(false);
+  expect(websiteHref("smartair.co.il")).toBe("https://smartair.co.il");
   const merged = mergeStyleReferences(
     [{ url: "https://example.com/a.jpg" }],
     [
@@ -91,7 +111,7 @@ test("client attachments become image style refs and ignore non-images", () => {
       { url: "https://example.com/b.jpg" },
     ],
   );
-  assert.equal(merged.length, 2);
+  expect(merged.length).toBe(2);
 });
 
 test("getBrandKit keeps an uploaded brand-book file", () => {
@@ -104,30 +124,28 @@ test("getBrandKit keeps an uploaded brand-book file", () => {
       fileName: "book.pdf",
     },
   });
-  assert.equal(kit.brandBook?.fileName, "book.pdf");
-  assert.equal(kit.brandBook?.source, "upload");
+  expect(kit.brandBook?.fileName).toBe("book.pdf");
+  expect(kit.brandBook?.source).toBe("upload");
 });
 
 test("isGenerationAborted recognizes abort signals and abort errors", () => {
-  assert.equal(isGenerationAborted(new Error("ABORTED")), true);
-  assert.equal(
-    isGenerationAborted(new DOMException("Aborted", "AbortError")),
+  expect(isGenerationAborted(new Error("ABORTED"))).toBe(true);
+  expect(isGenerationAborted(new DOMException("Aborted", "AbortError"))).toBe(
     true,
   );
-  assert.equal(
-    isGenerationAborted(new Error("The user aborted a request.")),
+  expect(isGenerationAborted(new Error("The user aborted a request."))).toBe(
     true,
   );
-  assert.equal(isGenerationAborted(new Error("network down")), false);
+  expect(isGenerationAborted(new Error("network down"))).toBe(false);
 });
 
 test("throwIfGenerationAborted raises a recognizable abort error", () => {
   throwIfGenerationAborted(false);
   try {
     throwIfGenerationAborted(true);
-    assert.fail("expected abort");
+    expect.fail("expected abort");
   } catch (error) {
-    assert.equal(isGenerationAborted(error), true);
+    expect(isGenerationAborted(error)).toBe(true);
   }
 });
 
@@ -136,6 +154,6 @@ test("sampleColorsFromImageData ignores near-white and transparent pixels", () =
     255, 255, 255, 255, 30, 80, 200, 255, 30, 80, 200, 10, 10, 10, 10, 255,
   ]);
   const colors = sampleColorsFromImageData(data);
-  assert.ok(colors.some((color) => color.startsWith("#")));
-  assert.ok(!colors.includes("#ffffff"));
+  expect(colors.some((color) => color.startsWith("#"))).toBeTruthy();
+  expect(!colors.includes("#ffffff")).toBeTruthy();
 });

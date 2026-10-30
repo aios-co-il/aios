@@ -1,6 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import {
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import { buildPulseWhatsAppDigest } from "./campaign-pulse.ts";
 import {
   buildPulsePreviewMessage,
@@ -24,32 +26,35 @@ const SNAPSHOTS = [
   },
 ];
 
-test("planCampaignerPulseDeliveries scopes to client_team with pulse rows only", () => {
-  const plans = planCampaignerPulseDeliveries(
-    SNAPSHOTS,
-    [
-      { campaigner_id: "cam1", client_id: "c1" },
-      { campaigner_id: "cam1", client_id: "c2" },
-      { campaigner_id: "cam2", client_id: "c3" },
-      { campaigner_id: "cam2", client_id: "missing" },
-    ],
-    [
-      { id: "cam1", full_name: "אביעד", phone: "972549757611" },
-      { id: "cam2", full_name: "דנה", phone: "0501234567" },
-      { id: "cam3", full_name: "ללא לקוחות", phone: "972521111111" },
-    ],
-  );
-  assert.equal(plans.length, 2);
-  assert.deepEqual(
-    plans.find((p) => p.key === "campaigner:cam1")?.clientIds.sort(),
-    ["c1", "c2"],
-  );
-  assert.deepEqual(plans.find((p) => p.key === "campaigner:cam2")?.clientIds, [
-    "c3",
-  ]);
-});
+Deno.test(
+  "planCampaignerPulseDeliveries scopes to client_team with pulse rows only",
+  () => {
+    const plans = planCampaignerPulseDeliveries(
+      SNAPSHOTS,
+      [
+        { campaigner_id: "cam1", client_id: "c1" },
+        { campaigner_id: "cam1", client_id: "c2" },
+        { campaigner_id: "cam2", client_id: "c3" },
+        { campaigner_id: "cam2", client_id: "missing" },
+      ],
+      [
+        { id: "cam1", full_name: "אביעד", phone: "972549757611" },
+        { id: "cam2", full_name: "דנה", phone: "0501234567" },
+        { id: "cam3", full_name: "ללא לקוחות", phone: "972521111111" },
+      ],
+    );
+    assertStrictEquals(plans.length, 2);
+    assertEquals(
+      plans.find((p) => p.key === "campaigner:cam1")?.clientIds.sort(),
+      ["c1", "c2"],
+    );
+    assertEquals(plans.find((p) => p.key === "campaigner:cam2")?.clientIds, [
+      "c3",
+    ]);
+  },
+);
 
-test("planTeamManagerPulseDeliveries scopes by managed agencies", () => {
+Deno.test("planTeamManagerPulseDeliveries scopes by managed agencies", () => {
   const plans = planTeamManagerPulseDeliveries(SNAPSHOTS, [
     {
       user_id: "u1",
@@ -64,12 +69,12 @@ test("planTeamManagerPulseDeliveries scopes by managed agencies", () => {
       agency_ids: ["a9"],
     },
   ]);
-  assert.equal(plans.length, 1);
-  assert.equal(plans[0].name, "פליקס");
-  assert.deepEqual(plans[0].clientIds.sort(), ["c1", "c2"]);
+  assertStrictEquals(plans.length, 1);
+  assertStrictEquals(plans[0].name, "פליקס");
+  assertEquals(plans[0].clientIds.sort(), ["c1", "c2"]);
 });
 
-test("mergePulseDeliveryPlans unions client ids for same phone", () => {
+Deno.test("mergePulseDeliveryPlans unions client ids for same phone", () => {
   const merged = mergePulseDeliveryPlans([
     {
       key: "campaigner:x",
@@ -86,12 +91,12 @@ test("mergePulseDeliveryPlans unions client ids for same phone", () => {
       clientIds: ["c2"],
     },
   ]);
-  assert.equal(merged.length, 1);
-  assert.equal(merged[0].role, "team_manager");
-  assert.deepEqual(merged[0].clientIds.sort(), ["c1", "c2"]);
+  assertStrictEquals(merged.length, 1);
+  assertStrictEquals(merged[0].role, "team_manager");
+  assertEquals(merged[0].clientIds.sort(), ["c1", "c2"]);
 });
 
-test("planTeamManagerPulseDeliveries skips excluded recipients", () => {
+Deno.test("planTeamManagerPulseDeliveries skips excluded recipients", () => {
   const plans = planTeamManagerPulseDeliveries(SNAPSHOTS, [
     {
       user_id: "u1",
@@ -106,29 +111,32 @@ test("planTeamManagerPulseDeliveries skips excluded recipients", () => {
       agency_ids: ["a1"],
     },
   ]);
-  assert.equal(plans.length, 1);
-  assert.equal(plans[0].name, "פליקס");
+  assertStrictEquals(plans.length, 1);
+  assertStrictEquals(plans[0].name, "פליקס");
 });
 
-test("planCampaignerPulseDeliveries includes David on DMM when configured", () => {
-  const dmmPlans = planCampaignerPulseDeliveries(
-    SNAPSHOTS,
-    [{ campaigner_id: "cam-owner", client_id: "c1" }],
-    [{ id: "cam-owner", full_name: "דוד", phone: "972507677613" }],
-    "dmm",
-  );
-  assert.equal(dmmPlans.length, 1);
+Deno.test(
+  "planCampaignerPulseDeliveries includes David on DMM when configured",
+  () => {
+    const dmmPlans = planCampaignerPulseDeliveries(
+      SNAPSHOTS,
+      [{ campaigner_id: "cam-owner", client_id: "c1" }],
+      [{ id: "cam-owner", full_name: "דוד", phone: "972507677613" }],
+      "dmm",
+    );
+    assertStrictEquals(dmmPlans.length, 1);
 
-  const mcPlans = planCampaignerPulseDeliveries(
-    SNAPSHOTS,
-    [{ campaigner_id: "cam-owner", client_id: "c1" }],
-    [{ id: "cam-owner", full_name: "דוד", phone: "972507677613" }],
-    "marketingcaptain",
-  );
-  assert.equal(mcPlans.length, 1);
-});
+    const mcPlans = planCampaignerPulseDeliveries(
+      SNAPSHOTS,
+      [{ campaigner_id: "cam-owner", client_id: "c1" }],
+      [{ id: "cam-owner", full_name: "דוד", phone: "972507677613" }],
+      "marketingcaptain",
+    );
+    assertStrictEquals(mcPlans.length, 1);
+  },
+);
 
-test("preview message wraps scoped digest for campaigner", () => {
+Deno.test("preview message wraps scoped digest for campaigner", () => {
   const scoped = scopeSnapshotsForPlan(SNAPSHOTS, {
     key: "campaigner:cam1",
     role: "campaigner",
@@ -141,61 +149,70 @@ test("preview message wraps scoped digest for campaigner", () => {
     "https://aios.co.il/t/dmm/dmm-dashboard",
   );
   const preview = buildPulsePreviewMessage("אביעד", digest);
-  assert.match(preview, /תצוגה מקדימה — בדיקת דופק לאביעד/);
-  assert.match(preview, /נבדקו 2 לקוחות/);
-  assert.match(preview, /https:\/\/aios\.co\.il\/t\/dmm\/dmm-dashboard/);
+  assertMatch(preview, /תצוגה מקדימה — בדיקת דופק לאביעד/);
+  assertMatch(preview, /נבדקו 2 לקוחות/);
+  assertMatch(preview, /https:\/\/aios\.co\.il\/t\/dmm\/dmm-dashboard/);
 });
 
-test("findCampaignersMissingPulsePhone lists assigned campaigners without phone", () => {
-  const missing = findCampaignersMissingPulsePhone(
-    SNAPSHOTS,
-    [
-      { campaigner_id: "cam1", client_id: "c1" },
-      { campaigner_id: "cam-no-phone", client_id: "c2" },
-    ],
-    [
-      { id: "cam1", full_name: "אביעד", phone: "972549757611" },
-      { id: "cam-no-phone", full_name: "רונית", phone: null },
-      { id: "cam-idle", full_name: "ללא לקוחות", phone: null },
-    ],
-    "dmm",
-  );
-  assert.equal(missing.length, 1);
-  assert.equal(missing[0].name, "רונית");
-  assert.equal(missing[0].clientCount, 1);
-});
+Deno.test(
+  "findCampaignersMissingPulsePhone lists assigned campaigners without phone",
+  () => {
+    const missing = findCampaignersMissingPulsePhone(
+      SNAPSHOTS,
+      [
+        { campaigner_id: "cam1", client_id: "c1" },
+        { campaigner_id: "cam-no-phone", client_id: "c2" },
+      ],
+      [
+        { id: "cam1", full_name: "אביעד", phone: "972549757611" },
+        { id: "cam-no-phone", full_name: "רונית", phone: null },
+        { id: "cam-idle", full_name: "ללא לקוחות", phone: null },
+      ],
+      "dmm",
+    );
+    assertStrictEquals(missing.length, 1);
+    assertStrictEquals(missing[0].name, "רונית");
+    assertStrictEquals(missing[0].clientCount, 1);
+  },
+);
 
-test("buildPulseMissingPhoneAlert asks manager to add campaigner phone", () => {
-  const alert = buildPulseMissingPhoneAlert(
-    [{ campaignerId: "cam-no-phone", name: "רונית", clientCount: 2 }],
-    { tenantLabel: "dmm" },
-  );
-  assert.match(alert, /חסר טלפון WhatsApp לקמפיינר/);
-  assert.match(alert, /• רונית \(2 לקוחות בדופק\)/);
-  assert.match(alert, /AIOS → צוות → קמפיינרים/);
-  assert.match(alert, /_dmm_/);
-});
+Deno.test(
+  "buildPulseMissingPhoneAlert asks manager to add campaigner phone",
+  () => {
+    const alert = buildPulseMissingPhoneAlert(
+      [{ campaignerId: "cam-no-phone", name: "רונית", clientCount: 2 }],
+      { tenantLabel: "dmm" },
+    );
+    assertMatch(alert, /חסר טלפון WhatsApp לקמפיינר/);
+    assertMatch(alert, /• רונית \(2 לקוחות בדופק\)/);
+    assertMatch(alert, /AIOS → צוות → קמפיינרים/);
+    assertMatch(alert, /_dmm_/);
+  },
+);
 
-test("filterPulsePlansByCampaignerName keeps only matching campaigner plans", () => {
-  const filtered = filterPulsePlansByCampaignerName(
-    [
-      {
-        key: "campaigner:a",
-        role: "campaigner",
-        name: "שנאיה",
-        phone: "972500000001",
-        clientIds: ["c1"],
-      },
-      {
-        key: "campaigner:b",
-        role: "campaigner",
-        name: "אביעד",
-        phone: "972549757611",
-        clientIds: ["c2"],
-      },
-    ],
-    "שנאיה",
-  );
-  assert.equal(filtered.length, 1);
-  assert.equal(filtered[0].name, "שנאיה");
-});
+Deno.test(
+  "filterPulsePlansByCampaignerName keeps only matching campaigner plans",
+  () => {
+    const filtered = filterPulsePlansByCampaignerName(
+      [
+        {
+          key: "campaigner:a",
+          role: "campaigner",
+          name: "שנאיה",
+          phone: "972500000001",
+          clientIds: ["c1"],
+        },
+        {
+          key: "campaigner:b",
+          role: "campaigner",
+          name: "אביעד",
+          phone: "972549757611",
+          clientIds: ["c2"],
+        },
+      ],
+      "שנאיה",
+    );
+    assertStrictEquals(filtered.length, 1);
+    assertStrictEquals(filtered[0].name, "שנאיה");
+  },
+);

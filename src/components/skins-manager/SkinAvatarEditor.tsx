@@ -1,3 +1,4 @@
+import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Loader2, ImagePlus, Trash2 } from "lucide-react";
@@ -47,7 +48,7 @@ export function SkinAvatarEditor({
                 onClick={() => changeAvatar(editing.slug!, null)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                הסרה
+                ברירת מחדל
               </Button>
             )}
           </div>
@@ -57,12 +58,13 @@ export function SkinAvatarEditor({
           </p>
         )}
       </div>
-      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted">
         {avatarFor(editing.slug) ? (
-          <img
-            src={avatarFor(editing.slug)}
-            alt=""
-            className="h-full w-full object-cover"
+          <CarmenPortrait
+            image={avatarFor(editing.slug)}
+            name={editing.name}
+            custom
+            className="!h-16 !w-16"
           />
         ) : (
           <Sparkles className="h-6 w-6 text-muted-foreground" />

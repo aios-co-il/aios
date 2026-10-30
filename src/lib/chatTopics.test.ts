@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   composerLockedForChat,
   streamAppliesToActive,
@@ -9,87 +8,80 @@ import {
 } from "./chatTopics.ts";
 
 test("topic title falls back and collapses whitespace", () => {
-  assert.equal(topicTitle(null), "שיחה חדשה");
-  assert.equal(topicTitle("  היי   כרמן  "), "היי כרמן");
+  expect(topicTitle(null)).toBe("שיחה חדשה");
+  expect(topicTitle("  היי   כרמן  ")).toBe("היי כרמן");
 });
 
 test("topic title keeps the first sentence and cuts long ones at a word", () => {
-  assert.equal(
-    topicTitle("תבני לי דוח לידים לשבוע שעבר. ואז תשלחי לדוד"),
+  expect(topicTitle("תבני לי דוח לידים לשבוע שעבר. ואז תשלחי לדוד")).toBe(
     "תבני לי דוח לידים לשבוע שעבר",
   );
-  assert.equal(
+  expect(
     topicTitle(
       "אני רוצה שתבדקי את כל הקמפיינים של הלקוח בפייסבוק ותגידי לי מה לשפר מחר",
     ),
-    "אני רוצה שתבדקי את כל הקמפיינים של הלקוח…",
-  );
-  assert.equal(topicTitle("תבדקי את example.com"), "תבדקי את example.com");
-  assert.equal(topicTitle("מה קורה? ספרי לי"), "מה קורה");
+  ).toBe("אני רוצה שתבדקי את כל הקמפיינים של הלקוח…");
+  expect(topicTitle("תבדקי את example.com")).toBe("תבדקי את example.com");
+  expect(topicTitle("מה קורה? ספרי לי")).toBe("מה קורה");
 });
 
 test("live statuses are the ones that keep running in the background", () => {
-  assert.equal(topicIsLive("idle"), false);
-  assert.equal(topicIsLive("debating"), true);
-  assert.equal(topicIsLive("waiting_external"), true);
-  assert.equal(topicIsLive("streaming"), true);
+  expect(topicIsLive("idle")).toBe(false);
+  expect(topicIsLive("debating")).toBe(true);
+  expect(topicIsLive("waiting_external")).toBe(true);
+  expect(topicIsLive("streaming")).toBe(true);
 });
 
 test("mode labels stay short for the rail", () => {
-  assert.equal(topicModeLabel("parliament"), "שולחן");
-  assert.equal(topicModeLabel("direct_channel"), "ישיר");
-  assert.equal(topicModeLabel("internal"), "כרמן");
+  expect(topicModeLabel("parliament")).toBe("שולחן");
+  expect(topicModeLabel("direct_channel")).toBe("ישיר");
+  expect(topicModeLabel("internal")).toBe("כרמן");
 });
 
 test("stream tokens only paint the chat they were sent from", () => {
-  assert.equal(streamAppliesToActive("a", "a"), true);
-  assert.equal(streamAppliesToActive("a", "b"), false);
-  assert.equal(streamAppliesToActive(null, "a"), false);
+  expect(streamAppliesToActive("a", "a")).toBe(true);
+  expect(streamAppliesToActive("a", "b")).toBe(false);
+  expect(streamAppliesToActive(null, "a")).toBe(false);
 });
 
 test("composer locks only an in-flight stream, not a debating history row", () => {
-  assert.equal(
+  expect(
     composerLockedForChat({
       conversationId: "a",
       liveStreamIds: ["a"],
       status: "idle",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     composerLockedForChat({
       conversationId: "b",
       liveStreamIds: ["a"],
       status: "idle",
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     composerLockedForChat({
       conversationId: "b",
       liveStreamIds: [],
       status: "debating",
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("a reopened chat stays locked while its turn runs on the server", () => {
-  assert.equal(
+  expect(
     composerLockedForChat({
       conversationId: "a",
       liveStreamIds: [],
       status: "streaming",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     composerLockedForChat({
       conversationId: "a",
       liveStreamIds: ["a"],
       status: "streaming",
       stale: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
