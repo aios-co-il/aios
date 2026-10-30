@@ -7,6 +7,11 @@ import {
   getSpendFromData,
   type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
+import {
+  addFacebookFollowers,
+  emptyFacebookFollowers,
+  type FacebookFollowerTotals,
+} from "@/lib/facebookFollowers";
 
 export type AdsEntityLevel = "campaign" | "adset" | "ad";
 
@@ -178,7 +183,10 @@ export function aggregateFacebookRecordsAtLevel(
     return aggregateFacebookCampaignsFromRecords(records);
   }
 
-  const map: Record<string, FacebookCampaignRow & { key: string }> = {};
+  const map: Record<
+    string,
+    FacebookCampaignRow & { key: string; followers: FacebookFollowerTotals }
+  > = {};
   const types: Record<
     string,
     ReturnType<typeof addFacebookCampaignTypeRow>
@@ -199,6 +207,7 @@ export function aggregateFacebookRecordsAtLevel(
         purchase_value: 0,
         add_to_cart: 0,
         campaign_type: d.campaign_type,
+        followers: emptyFacebookFollowers(),
       };
     }
     // An ad set or ad takes its campaign's type, decided as for the campaign.
@@ -213,6 +222,7 @@ export function aggregateFacebookRecordsAtLevel(
     map[key].purchases += getAdsPurchasesFromData(d);
     map[key].purchase_value += getRevenueFromData(d);
     map[key].add_to_cart += Number(d.add_to_cart) || 0;
+    map[key].followers = addFacebookFollowers(map[key].followers, d);
   });
 
   for (const [key, type] of Object.entries(types)) {

@@ -231,6 +231,28 @@ describe("buildWeeklyCampaignSections – Google campaign goals", () => {
   });
 });
 
+describe("buildWeeklyCampaignSections – followers", () => {
+  test("google rows carry no followers", () => {
+    const sections = buildWeeklyCampaignSections(
+      [
+        {
+          _source: "google_ads",
+          data: {
+            date: "2026-09-14",
+            campaign_id: "a",
+            campaign_name: "a",
+            cost: 100,
+            new_followers: 5,
+          },
+        },
+      ],
+      { now: new Date("2026-09-18T12:00:00Z") },
+    );
+    expect(sections[0].rows[0].followers.newFollowers).toBeNull();
+    expect(sections[0].rows[0].costPerFollower).toBeNull();
+  });
+});
+
 test("a Facebook campaign keeps one goal in every week", () => {
   // Sales in one week, only leads in the other: the campaign is a sales
   // campaign over all its rows, as in the report's main tables.
