@@ -21,6 +21,8 @@ import { BroadcastLists } from "@/components/broadcast/BroadcastLists";
 import { BroadcastDomainSettings } from "@/components/broadcast/BroadcastDomainSettings";
 import { BroadcastTemplates } from "@/components/broadcast/BroadcastTemplates";
 import { BroadcastBlacklist } from "@/components/broadcast/BroadcastBlacklist";
+import { BroadcastStatsDialog } from "@/components/broadcast/stats/BroadcastStatsDialog";
+import { OpenRateCell } from "@/components/broadcast/stats/OpenRateCell";
 import {
   Send,
   Plus,
@@ -32,6 +34,7 @@ import {
   FileText,
   Zap,
   Ban,
+  BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -54,6 +57,7 @@ const STATUS_LABEL: Record<
 export default function Broadcast() {
   const { list, remove } = useBroadcasts();
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [statsFor, setStatsFor] = useState<Broadcast | null>(null);
 
   const broadcasts = (list.data || []) as Broadcast[];
 
@@ -137,7 +141,11 @@ export default function Broadcast() {
                     {broadcasts.map((b) => {
                       const st = STATUS_LABEL[b.status] || STATUS_LABEL.draft;
                       return (
-                        <TableRow key={b.id}>
+                        <TableRow
+                          key={b.id}
+                          className="cursor-pointer"
+                          onClick={() => setStatsFor(b)}
+                        >
                           <TableCell className="font-medium">
                             {b.origin === "automation" && (
                               <Zap
@@ -163,9 +171,7 @@ export default function Broadcast() {
                               : "—"}
                           </TableCell>
                           <TableCell>
-                            {b.channel === "email"
-                              ? (b.stats?.opened ?? 0)
-                              : "—"}
+                            <OpenRateCell broadcast={b} />
                           </TableCell>
                           <TableCell>
                             {b.channel === "email"
@@ -184,7 +190,18 @@ export default function Broadcast() {
                           <TableCell className="text-xs text-muted-foreground">
                             {new Date(b.created_at).toLocaleDateString("he-IL")}
                           </TableCell>
-                          <TableCell>
+                          <TableCell
+                            className="whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="סטטיסטיקות"
+                              onClick={() => setStatsFor(b)}
+                            >
+                              <BarChart3 className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -219,6 +236,13 @@ export default function Broadcast() {
           <BroadcastDomainSettings />
         </TabsContent>
       </Tabs>
+
+      {statsFor && (
+        <BroadcastStatsDialog
+          broadcast={statsFor}
+          onClose={() => setStatsFor(null)}
+        />
+      )}
 
       <BroadcastWizard
         open={wizardOpen}
