@@ -2,7 +2,7 @@
  * Deterministic client-retention ranking.
  * Uses the stored campaign pulse + CRM mood. No model, no outbound messages.
  */
-import { CLIENT_CALL_STALE_MS } from "./campaign-pulse.ts";
+import { CLIENT_CALL_STALE_MS } from "./pulse/client-call.ts";
 
 export const RETENTION_LIST_LIMIT = 25;
 export const RETENTION_DIGEST_NAME_LIMIT = 5;

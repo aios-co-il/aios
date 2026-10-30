@@ -18,12 +18,16 @@ import {
 } from "../_shared/carmen/brain-guard.ts";
 import {
   type BrainEngine,
+  type BrainEngineTarget,
   resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
 import {
-  generateOpenRouterImage,
-  tenantOpenRouterKey,
-} from "../_shared/creative/openrouterImage.ts";
+  movesToNextLink,
+  openRouterTail,
+  lazyBrainTail,
+} from "../_shared/carmen/brain-engine/openrouter-tail.ts";
+import { makeAdImage } from "../_shared/creative/ad-image.ts";
+import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
   activeSkinBlock,
@@ -42,6 +46,15 @@ import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
 } from "../_shared/auth-helpers.ts";
+import { withChatScopeColumns } from "./chat-scope/filters.ts";
+import {
+  getChatHistory,
+  getRecentInboundMessages,
+} from "./chat-scope/readers.ts";
+import { chatScopeMeta } from "./chat-scope/responses.ts";
+import { readScopedChatRows } from "./chat-scope/rows.ts";
+import { scopedChatRead } from "./chat-scope/scoped-read.ts";
+import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
@@ -53,6 +66,51 @@ import {
   executeCreativeStudioTool,
   isCreativeStudioTool,
 } from "../_shared/creative-studio-tools.ts";
+import {
+  WORKSHOP_SKIN,
+  WORKSHOP_TOOLS,
+  executeWorkshopTool,
+  isWorkshopTool,
+} from "../_shared/workshop-tools.ts";
+import {
+  isBlockedInWorkshop,
+  stripServerOnlyPayloadKeys,
+  workshopToolRefusal,
+} from "../_shared/workshop/blocked-tools.ts";
+import { skinForTool } from "../_shared/workshop/artifacts.ts";
+import {
+  ROLE_PERSONA,
+  ROLE_SKILL,
+  ROLE_TOOLS,
+  toolsForRole,
+  workshopRole,
+} from "../_shared/workshop/roles.ts";
+import {
+  workshopItemIdFrom,
+  workshopProjectKind,
+  workshopSceneIdFrom,
+} from "../_shared/workshop/role-project.ts";
+import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
+import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
+import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+
+import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
+import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
+import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
+import {
+  connectedProviders,
+  imageProvidersFor,
+} from "../_shared/workshop/capabilities.ts";
+import { fetchPublic } from "../_shared/public-fetch.ts";
+import { findOrCreateClientPipeline } from "../_shared/marketing-client-pipeline.ts";
+import { importWebImage } from "../_shared/workshop/tools/add-assets.ts";
+import {
+  SILENT_TURN_NUDGE,
+  fallbackReply,
+  shouldNudgeSilentTurn,
+} from "../_shared/workshop/reply.ts";
+import { connectionsStanding } from "../_shared/workshop/connections-standing.ts";
 import {
   summarizeAndStoreAgentMemory,
   recallAgentMemory,
@@ -76,6 +134,7 @@ import {
   resolveSkillsBySlug,
 } from "../_shared/skills/registry.ts";
 import { DEV_ENVIRONMENT_STANDING } from "../_shared/environments-standing.ts";
+import { selfQuestionsStanding } from "../_shared/carmen/self-questions.ts";
 import {
   applyToolForceIncludes,
   buildQuickAck,
@@ -132,6 +191,13 @@ import {
 } from "./approvals/chat-text.ts";
 import { approvalDisplayCode } from "./approvals/codes.ts";
 import {
+  approvalDecisionRefusal,
+  approvalScopedTools,
+  isApprovalDecisionTool,
+  isAutomationRun,
+  runMayDecideApprovals,
+} from "./approvals/decision-scope.ts";
+import {
   postApprovalDecision,
   runApprovalExecutor,
 } from "./approvals/executor.ts";
@@ -162,10 +228,29 @@ import {
   approveDevTask,
   attachDevTaskSession,
   createDevTask,
+  DevTaskNotApprovedError,
   dispatchDevTask,
   findDuplicateDevTasks,
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
+import {
+  declineOfferedDevTask,
+  devTaskSendRule,
+  directDevSendRefusal,
+  findOfferedDevTask,
+  isExplicitDevTaskApproval,
+  isExplicitDevTaskDecline,
+  offersDevTask,
+  devTaskApprovalDecision,
+  workshopDevTaskRule,
+} from "../_shared/dev-task-approval.ts";
+import {
+  appOrigin,
+  carmenSkinEntries,
+  carmenSkinsResult,
+  customSkinPaths,
+  pathsToSign,
+} from "../_shared/carmen/skin-gallery.ts";
 import {
   addGoalBlocker,
   addGoalMilestone,
@@ -196,9 +281,34 @@ import {
   selectPulseCriticalAlerts,
 } from "../_shared/campaign-pulse.ts";
 import {
+  NO_RECENT_CLIENT_CALL_TEXT,
+  normalizePulseRowClientCall,
+  pulseRowHasNoRecentClientCall,
+} from "../_shared/pulse/client-call.ts";
+import {
   buildRetentionScan,
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
+
+import { jsonObject, isObject } from "./json-config.ts";
+import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+
+/** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
+function errorMessage(e: unknown): string {
+  if (isObject(e) && typeof e.message === "string") return e.message;
+  return String(e);
+}
+import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
+import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
+import type { MetaAction, MetaNode } from "./meta-response.ts";
+import type {
+  SearchClient,
+  MetaAdMetrics,
+  AccountInsights,
+  ConnectedClient,
+  DisconnectedClient,
+} from "./helper-results.ts";
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -215,7 +325,7 @@ function mapHumanTaskStatus(status: string): "open" | "in_progress" | "done" {
 
 /** Load campaigners / sales_people / tenant profiles as a unified staff roster. */
 async function loadStaffWhatsappRoster(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   accessibleTenantIds: string[],
   tenantId: string,
   entityType: string = "auto",
@@ -225,7 +335,7 @@ async function loadStaffWhatsappRoster(
     full_name: string;
     phone: string | null;
     entity_type: string;
-    role?: any;
+    role?: AgentRow<"campaigners">["role"];
     email?: string | null;
   }>
 > {
@@ -235,7 +345,7 @@ async function loadStaffWhatsappRoster(
     full_name: string;
     phone: string | null;
     entity_type: string;
-    role?: any;
+    role?: AgentRow<"campaigners">["role"];
     email?: string | null;
   }> = [];
 
@@ -283,7 +393,7 @@ async function loadStaffWhatsappRoster(
       .select("user_id")
       .eq("tenant_id", tenantId)
       .limit(200);
-    const userIds = (tus || []).map((t: any) => t.user_id).filter(Boolean);
+    const userIds = (tus || []).map((t) => t.user_id).filter(Boolean);
     if (userIds.length) {
       const { data: profiles } = await supabase
         .from("profiles")
@@ -321,7 +431,7 @@ async function loadStaffWhatsappRoster(
 
 /** Resolve OpenAI Admin API key (org costs/usage). Never log the value. */
 async function resolveOpenAiAdminKey(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
 ): Promise<{ key: string | null; source: string | null }> {
   const fromEnv =
@@ -359,7 +469,7 @@ async function resolveOpenAiAdminKey(
 async function openaiAdminGet(
   pathWithQuery: string,
   adminKey: string,
-): Promise<{ ok: boolean; status: number; json: any; error?: string }> {
+): Promise<{ ok: boolean; status: number; json: unknown; error?: string }> {
   try {
     const res = await fetch(`https://api.openai.com/v1${pathWithQuery}`, {
       method: "GET",
@@ -369,7 +479,7 @@ async function openaiAdminGet(
       },
     });
     const text = await res.text();
-    let json: any = null;
+    let json: unknown = null;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
@@ -377,26 +487,34 @@ async function openaiAdminGet(
     }
     if (!res.ok) {
       const msg = redactSecretsFromText(
-        json?.error?.message || json?.message || text || `HTTP ${res.status}`,
+        (isObject(json) &&
+        "error" in json &&
+        isObject(json.error) &&
+        "message" in json.error
+          ? json.error.message
+          : undefined) ||
+          (isObject(json) && "message" in json ? json.message : undefined) ||
+          text ||
+          `HTTP ${res.status}`,
       );
       return { ok: false, status: res.status, json, error: msg };
     }
     return { ok: true, status: res.status, json };
-  } catch (e: any) {
+  } catch (e) {
     return {
       ok: false,
       status: 0,
       json: null,
-      error: redactSecretsFromText(e?.message || String(e)),
+      error: redactSecretsFromText(errorMessage(e)),
     };
   }
 }
 
 async function fetchOpenAiBillingStatus(args: {
-  supabase: any;
+  supabase: AgentDatabaseClient;
   tenantId: string;
   includeTokens?: boolean;
-}): Promise<any> {
+}) {
   const { supabase, tenantId } = args;
   const includeTokens = args.includeTokens !== false;
   const { key, source } = await resolveOpenAiAdminKey(supabase, tenantId);
@@ -427,7 +545,7 @@ async function fetchOpenAiBillingStatus(args: {
   let usageRes: {
     ok: boolean;
     status: number;
-    json: any;
+    json: unknown;
     error?: string;
   } | null = null;
   if (includeTokens) {
@@ -485,7 +603,7 @@ function resolveModel(engine: string): string {
 // Reads the org's own API keys from the "llm" integration and routes each
 // model to its provider's OpenAI-compatible endpoint.
 async function resolveLLMTarget(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   model: string,
 ): Promise<{ url: string; key: string; model: string }> {
@@ -565,7 +683,7 @@ function providerOf(fullId: string): LLMProvider {
 }
 
 async function buildLLMChain(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   primaryFullId: string,
 ): Promise<LLMTarget[]> {
@@ -672,10 +790,17 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  // Questions about Carmen herself: her personas and their portraits, on every surface.
+  "get_carmen_skins",
   ...NATIVE_DEV_TASK_TOOLS,
+  // Offered only inside the workshop skin, where they are the main tools.
+  ...WORKSHOP_TOOLS.map((tool) => tool.name),
 ]);
 
-function capToolsForTarget(target: LLMTarget, tools: any[]): any[] {
+function capToolsForTarget<T extends { function?: { name?: string } }>(
+  target: LLMTarget,
+  tools: T[],
+): T[] {
   if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS)
     return tools;
   // Escalation MCP + PRIORITY Meta/approval tools must never be truncated.
@@ -707,7 +832,7 @@ function capToolsForTarget(target: LLMTarget, tools: any[]): any[] {
 // Surface an automatic provider switch so David sees it (intel feed + WhatsApp).
 // Deduped to once per 30 min so a sustained outage doesn't spam the channel.
 async function recordProviderFailover(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   fromLabel: string,
   toLabel: string,
@@ -826,7 +951,7 @@ function estimateLLMCostUSD(
 // explicit user → any campaigner with tokens → tenant owner/admin. Refreshes if
 // expired. Returns { accessToken } or { error } (Hebrew, user-facing).
 async function resolveCalendarAccessToken(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   callerCampaignerId: string | null,
   userId: string | null,
@@ -932,7 +1057,7 @@ async function resolveCalendarAccessToken(
 }
 
 async function resolveCalendarConferenceExtras(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   args: Record<string, unknown>,
 ) {
@@ -967,11 +1092,11 @@ async function resolveCalendarConferenceExtras(
 }
 
 async function makeZoomMeetingCreator(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   titleHint?: string,
 ) {
-  return async (existing: any) => {
+  return async (existing: CalendarEventLike) => {
     const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
     if (!zoomAuth.accessToken) {
       return {
@@ -2537,6 +2662,18 @@ const ALL_TOOLS = [
           enum: ["1:1", "16:9", "9:16", "4:5"],
           description: "יחס גובה-רוחב",
         },
+        reference_urls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "קישורי https של תמונות רפרנס (סגנון, דמות, מוצר) שהתמונה צריכה להתאים להן",
+        },
+        engine: {
+          type: "string",
+          enum: ["google", "elevenlabs", "higgsfield", "openai"],
+          description:
+            "מנוע תמונות מסוים. כשמחוברים כמה, שאלי את המשתמש באיזה ליצור. בלי זה נבחר אוטומטית.",
+        },
       },
       required: ["prompt"],
     },
@@ -3512,6 +3649,12 @@ const ALL_TOOLS = [
   // HERMES SKILLS SYSTEM (self-improving procedural memory)
   // ===========================
   {
+    name: "get_carmen_skins",
+    description:
+      "הסקינים (הפרסונות) של כרמן ותמונות הדיוקן שלהן: slug, שם בעברית, הסקינים שבכל פרסונה, has_portrait ו-portrait_url. כשהעסק העלה תמונה משלו לסקין מוחזר קישור חתום לשעה (source=custom). portrait_url הוא קישור מלא: בצ׳אט שמציג Markdown כתמונה ![שם](portrait_url), בוואטסאפ כקישור. לשאלות על כרמן עצמה, על הסקינים שלה ועל התמונות שלהן. קריאה בלבד.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
     name: "recall_skills",
     description:
       "חיפוש סקילים (פרוצדורות שמורות) רלוונטיים למשימה הנוכחית. השתמש כשהמשימה מורכבת/חוזרת ויתכן שכבר יש לך פרוצדורה שמורה לבצע אותה. הסקילים הרלוונטיים ביותר כבר מוזרקים אוטומטית, אבל ניתן לחפש עוד.",
@@ -4423,6 +4566,8 @@ const ALL_TOOLS = [
   // CAMPAIGNER MESSAGING
   // ===========================
   // send_message_to_campaigner / send_whatsapp_to_staff / lookup_staff_whatsapp — defined near send_message (CORE/PRIORITY) so the OpenAI 128-tool cap cannot drop them.
+  // Last, so adding them never shifts which earlier tools survive the tool cap.
+  ...WORKSHOP_TOOLS,
 ];
 
 // ===========================
@@ -4437,7 +4582,7 @@ const ALL_TOOLS = [
 const FB_GRAPH_VERSION = "v21.0";
 
 async function fbResolveClientAdAccount(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   clientId: string,
 ): Promise<string | null> {
@@ -4450,7 +4595,7 @@ async function fbResolveClientAdAccount(
     .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
     .order("last_sync_at", { ascending: false, nullsFirst: false });
   for (const t of data || []) {
-    const s = t?.integration_settings || {};
+    const s = jsonObject(t?.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
     if (acc) return String(acc).replace(/^act_/, "");
   }
@@ -4467,7 +4612,7 @@ async function fbResolveClientAdAccount(
 
 /** Resolve which tenant owns a client (for FB token / shared integrations). */
 async function resolveClientTenantId(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   clientId: string,
   fallbackTenantId: string,
 ): Promise<string> {
@@ -4523,7 +4668,7 @@ function expandClientSearchTerms(raw: string): string[] {
  * all statuses (including ended). Used by search_entities / list_clients name search.
  */
 async function searchClientsBroadly(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   accessibleTenantIds: string[],
   searchTerm: string,
   opts: {
@@ -4531,7 +4676,7 @@ async function searchClientsBroadly(
     agencyId?: string | null;
     clientIdsFilter?: string[] | null;
   } = {},
-): Promise<any[]> {
+) {
   const limit = Math.min(Math.max(opts.limit || 20, 1), 50);
   const terms = expandClientSearchTerms(searchTerm);
   if (!terms.length || !accessibleTenantIds.length) return [];
@@ -4582,7 +4727,7 @@ async function searchClientsBroadly(
     tablesQ = tablesQ.in("client_id", opts.clientIdsFilter);
   const { data: byTable } = await tablesQ;
 
-  const byId = new Map<string, any>();
+  const byId = new Map<string, SearchClient>();
   for (const c of byName || []) {
     byId.set(c.id, {
       id: c.id,
@@ -4595,14 +4740,14 @@ async function searchClientsBroadly(
       tenant_id: c.tenant_id,
       meta_ads_account_id: c.meta_ads_account_id,
       matched_via: ["client_name"],
-      ad_accounts: [] as any[],
+      ad_accounts: [],
     });
   }
   for (const t of byTable || []) {
-    const c: any = t.clients;
+    const c = t.clients;
     if (!c?.id) continue;
     if (opts.agencyId && c.agency_id !== opts.agencyId) continue;
-    const settings = t.integration_settings || {};
+    const settings = jsonObject(t.integration_settings);
     const adAccount = {
       table_id: t.id,
       table_name: t.name,
@@ -4655,11 +4800,11 @@ async function searchClientsBroadly(
 
 /** Deep single-campaign analysis + ad-level CPL (inline Graph; no edge-fn dependency). */
 async function fbAnalyzeCampaignInline(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   clientId: string,
   campaignId: string,
-): Promise<any> {
+) {
   const tokenTenant = await resolveClientTenantId(supabase, clientId, tenantId);
   let token = await fbGetToken(supabase, tokenTenant);
   if (!token && tokenTenant !== tenantId)
@@ -4668,16 +4813,16 @@ async function fbAnalyzeCampaignInline(
 
   const fields =
     "spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type";
-  const cplFrom = (ins: any) => {
+  const cplFrom = (ins: MetaNode | null | undefined) => {
     if (!ins) return null;
     const leadAction = (ins.cost_per_action_type || []).find(
-      (a: any) =>
+      (a) =>
         [
           "lead",
           "onsite_conversion.lead_grouped",
           "offsite_conversion.fb_pixel_lead",
           "leadgen.other",
-        ].includes(a.action_type) ||
+        ].includes(a.action_type || "") ||
         String(a.action_type || "").endsWith(".lead"),
     );
     if (leadAction) return Number(leadAction.value);
@@ -4689,21 +4834,23 @@ async function fbAnalyzeCampaignInline(
     const r = await fetch(
       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?fields=${fields}&date_preset=${date_preset}&access_token=${token}`,
     );
-    const j = await r.json();
-    return j?.data?.[0] || null;
+    const res = await readMetaResponse(r);
+    return (res.ok && res.value.data?.[0]) || null;
   };
   const fetchAds = async () => {
     const r = await fetch(
       `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/ads?fields=id,name,effective_status,status&limit=200&access_token=${token}`,
     );
-    const j = await r.json();
+    const res = await readMetaResponse(r);
+    const j = res.ok ? res.value : null;
     if (!r.ok || j?.error || !Array.isArray(j?.data)) return [];
     const ads = j.data;
     // Ad-level insights for last_7d
     const insightsUrl = `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}/insights?level=ad&date_preset=last_7d&fields=ad_id,ad_name,spend,actions,impressions,clicks&limit=200&access_token=${token}`;
     const ir = await fetch(insightsUrl);
-    const ij = await ir.json();
-    const byAd = new Map<string, any>();
+    const ires = await readMetaResponse(ir);
+    const ij = ires.ok ? ires.value : null;
+    const byAd = new Map<string, MetaAdMetrics>();
     for (const row of ij?.data || []) {
       const leads = fbLeadsFromActions(row.actions || []);
       const spend = Number(row.spend || 0);
@@ -4716,7 +4863,7 @@ async function fbAnalyzeCampaignInline(
       });
     }
     return ads
-      .map((ad: any) => {
+      .map((ad) => {
         const m = byAd.get(String(ad.id)) || {
           spend: 0,
           leads: 0,
@@ -4736,13 +4883,16 @@ async function fbAnalyzeCampaignInline(
           clicks_7d: m.clicks,
         };
       })
-      .sort((a: any, b: any) => (a.cpl_7d ?? 999999) - (b.cpl_7d ?? 999999));
+      .sort((a, b) => (a.cpl_7d ?? 999999) - (b.cpl_7d ?? 999999));
   };
 
   const metaRes = await fetch(
     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective,issues_info&access_token=${token}`,
   );
-  const meta = await metaRes.json();
+  const metaResult = await readMetaResponse(metaRes);
+  if (!metaResult.ok)
+    return { error: "fb_api_error", fb_error: metaResult.error };
+  const meta = metaResult.value;
   if (meta?.error) return { error: "fb_api_error", fb_error: meta.error };
 
   const [today, last7, last30, ads] = await Promise.all([
@@ -4766,11 +4916,21 @@ async function fbAnalyzeCampaignInline(
       `CPL היום (${cplToday.toFixed(1)}) חורג ב-${((cplToday / cpl7 - 1) * 100).toFixed(0)}% מהממוצע השבועי`,
     );
   }
-  const lowCplAds = ads.filter((a: any) => a.cpl_7d != null && a.leads_7d > 0);
-  const recommendations: any[] = [];
+  const lowCplAds = ads.filter((a) => a.cpl_7d != null && a.leads_7d > 0);
+  const recommendations: Array<{
+    action: string;
+    reason: string;
+    severity: string;
+    candidate_ad_ids: Array<{
+      ad_id: string | null | undefined;
+      ad_name: string | null | undefined;
+      cpl_7d: number | null;
+      leads_7d: number;
+    }>;
+  }> = [];
   if (
     lowCplAds.length &&
-    ads.some((a: any) => a.effective_status === "PAUSED" && a.cpl_7d != null)
+    ads.some((a) => a.effective_status === "PAUSED" && a.cpl_7d != null)
   ) {
     recommendations.push({
       action: "enable_low_cpl_ads",
@@ -4778,14 +4938,14 @@ async function fbAnalyzeCampaignInline(
       severity: "medium",
       candidate_ad_ids: ads
         .filter(
-          (a: any) =>
+          (a) =>
             a.effective_status === "PAUSED" &&
             a.cpl_7d != null &&
             a.leads_7d > 0,
         )
-        .sort((a: any, b: any) => a.cpl_7d - b.cpl_7d)
+        .sort((a, b) => (a.cpl_7d ?? 0) - (b.cpl_7d ?? 0))
         .slice(0, 10)
-        .map((a: any) => ({
+        .map((a) => ({
           ad_id: a.ad_id,
           ad_name: a.ad_name,
           cpl_7d: a.cpl_7d,
@@ -4819,7 +4979,7 @@ async function fbAnalyzeCampaignInline(
 }
 
 async function fbGetToken(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
 ): Promise<string | null> {
   let { data } = await supabase
@@ -4882,9 +5042,9 @@ function assertHttpsUrl(value: unknown, field: string): string {
 }
 
 async function metaLeadIntegrations(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
-): Promise<any[]> {
+) {
   const { data, error } = await supabase
     .from("tenant_integrations")
     .select("id, api_key, settings, shared_from_integration_id")
@@ -4892,11 +5052,18 @@ async function metaLeadIntegrations(
     .eq("integration_type", "facebook_lead_ads")
     .eq("is_active", true);
   if (error) throw error;
-  const result: any[] = [];
+  const result: Array<
+    Pick<AgentRow<"tenant_integrations">, "id" | "settings"> & {
+      api_key: string;
+    }
+  > = [];
   for (const row of data || []) {
-    let source = row;
+    let source: Pick<
+      AgentRow<"tenant_integrations">,
+      "id" | "api_key" | "settings"
+    > = row;
     if (
-      (!row.api_key || !Array.isArray(row.settings?.pages)) &&
+      (!row.api_key || !Array.isArray(jsonObject(row.settings).pages)) &&
       row.shared_from_integration_id
     ) {
       const { data: shared } = await supabase
@@ -4906,27 +5073,36 @@ async function metaLeadIntegrations(
         .maybeSingle();
       if (shared) source = { ...shared, id: row.id };
     }
-    if (source.api_key) result.push({ ...source, id: row.id });
+    if (source.api_key)
+      result.push({ ...source, api_key: source.api_key, id: row.id });
   }
   return result;
 }
 
 async function metaLeadPages(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
 ): Promise<MetaLeadPage[]> {
   const integrations = await metaLeadIntegrations(supabase, tenantId);
   const pages: MetaLeadPage[] = [];
   for (const integration of integrations) {
-    let sourcePages = Array.isArray(integration.settings?.pages)
-      ? integration.settings.pages
+    const configuredPages = jsonObject(integration.settings).pages;
+    let sourcePages: MetaNode[] = Array.isArray(configuredPages)
+      ? configuredPages.filter((page): page is typeof page & MetaNode =>
+          isMetaNode(page),
+        )
       : [];
     if (sourcePages.length === 0) {
       let next: string | null =
         `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;
       while (next) {
         const response = await fetch(next);
-        const json = await response.json();
+        const result = await readMetaResponse(response);
+        if (!result.ok)
+          throw new Error(
+            String(result.error.message ?? "Meta pages request failed"),
+          );
+        const json = result.value;
         if (!response.ok || json?.error)
           throw new Error(json?.error?.message || "Meta pages request failed");
         sourcePages = sourcePages.concat(json.data || []);
@@ -4955,17 +5131,24 @@ async function metaLeadFormsForPage(
     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms?fields=id,name,status,questions&limit=100&access_token=${encodeURIComponent(page.access_token)}`;
   while (next) {
     const response = await fetch(next);
-    const json = await response.json();
-    if (!response.ok || json?.error)
+    const result = await readMetaResponse(response);
+    if (!result.ok)
       throw new Error(
-        json?.error?.message || `Meta forms request failed for ${page.name}`,
+        String(
+          result.error.message ?? `Meta forms request failed for ${page.name}`,
+        ),
+      );
+    const json = result.value;
+    if (!response.ok || json.error)
+      throw new Error(
+        json.error?.message || `Meta forms request failed for ${page.name}`,
       );
     for (const form of json.data || []) {
       forms.push({
         id: String(form.id),
         name: String(form.name || form.id),
         status: form.status ? String(form.status) : null,
-        fields: (form.questions || []).map((q: any) => ({
+        fields: (form.questions || []).map((q) => ({
           key: String(q.key || q.type || ""),
           label: String(q.label || q.key || q.type || ""),
           type: String(q.type || ""),
@@ -4981,38 +5164,46 @@ async function metaLeadFormsForPage(
 }
 
 async function findAutomationForMetaForm(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantIds: string[],
   automationId?: unknown,
   automationName?: unknown,
-): Promise<any> {
+) {
   let query = supabase
     .from("automations")
     .select("id, name, active, tenant_id")
     .in("tenant_id", tenantIds)
     .eq("is_flow", true);
   if (automationId) query = query.eq("id", String(automationId));
-  const { data, error } = await query.order("name").limit(100);
+  const { data, error } = await query.order("name").limit(100).returns<
+    Array<
+      Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
+        tenant_id: string | null;
+      }
+    >
+  >();
   if (error) throw error;
   let matches = data || [];
   if (automationName)
-    matches = matches.filter((a: any) =>
-      metaNameMatches(a.name, automationName),
-    );
+    matches = matches.filter((a) => metaNameMatches(a.name, automationName));
   if (matches.length === 0) throw new Error("לא נמצאה אוטומציה תואמת בארגון");
   if (matches.length > 1) {
     throw new Error(
-      `נמצאו כמה אוטומציות תואמות: ${matches.map((a: any) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
+      `נמצאו כמה אוטומציות תואמות: ${matches.map((a) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
     );
   }
-  return matches[0];
+  const match = matches[0];
+  if (!match.tenant_id) throw new Error("Automation has no tenant");
+  return { ...match, tenant_id: match.tenant_id };
 }
 
 async function connectMetaFormToAutomation(
-  supabase: any,
-  automation: any,
+  supabase: AgentDatabaseClient,
+  automation: Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
+    tenant_id: string;
+  },
   form: MetaLeadForm,
-): Promise<any> {
+) {
   const { data: steps, error: stepsError } = await supabase
     .from("automation_flow_steps")
     .select("id, action_type, configuration")
@@ -5021,10 +5212,12 @@ async function connectMetaFormToAutomation(
     .eq("step_type", "trigger");
   if (stepsError) throw stepsError;
   const candidates = (steps || []).filter(
-    (step: any) =>
+    (step) =>
       step.action_type === "lead_created" &&
-      (!step.configuration?.lead_source ||
-        ["any", "facebook_form"].includes(step.configuration.lead_source)),
+      (!jsonObject(step.configuration).lead_source ||
+        ["any", "facebook_form"].includes(
+          String(jsonObject(step.configuration).lead_source),
+        )),
   );
   if (candidates.length !== 1) {
     throw new Error(
@@ -5035,7 +5228,7 @@ async function connectMetaFormToAutomation(
   }
   const step = candidates[0];
   const configuration = {
-    ...(step.configuration || {}),
+    ...jsonObject(step.configuration),
     lead_source: "facebook_form",
     facebook_integration_id: form.integration_id,
     facebook_page_id: form.page_id,
@@ -5060,16 +5253,16 @@ async function connectMetaFormToAutomation(
   if (integrationError) throw integrationError;
   if (!integration)
     throw new Error("אינטגרציית Meta של הטופס אינה שייכת לארגון האוטומציה");
-  const settings = integration.settings || {};
-  const formMappings = { ...(settings.form_mappings || {}) };
+  const settings = jsonObject(integration.settings);
+  const formMappings = { ...jsonObject(settings.form_mappings) };
   formMappings[form.id] = {
-    ...(formMappings[form.id] || {}),
+    ...jsonObject(formMappings[form.id]),
     form_name: form.name,
     page_id: form.page_id,
     page_name: form.page_name,
-    agency_id: formMappings[form.id]?.agency_id || null,
-    sales_person_ids: formMappings[form.id]?.sales_person_ids || [],
-    fields: formMappings[form.id]?.fields || {},
+    agency_id: jsonObject(formMappings[form.id]).agency_id || null,
+    sales_person_ids: jsonObject(formMappings[form.id]).sales_person_ids || [],
+    fields: jsonObject(formMappings[form.id]).fields || {},
   };
   const { error: mappingError } = await supabase
     .from("tenant_integrations")
@@ -5086,7 +5279,7 @@ async function connectMetaFormToAutomation(
 
 // Pull the lead count out of an insights row's `actions` array (Meta reports leads
 // under a few action types depending on the form/CAPI setup).
-function fbLeadsFromActions(actions: any[]): number {
+function fbLeadsFromActions(actions: MetaAction[] | null | undefined): number {
   if (!Array.isArray(actions)) return 0;
   let leads = 0;
   for (const a of actions) {
@@ -5105,19 +5298,20 @@ function fbLeadsFromActions(actions: any[]): number {
 
 /** Live campaign list (id/name/status/objective). Returns null on any failure. */
 async function fbLiveCampaignList(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   clientId: string,
-): Promise<any[] | null> {
+) {
   try {
     const acct = await fbResolveClientAdAccount(supabase, tenantId, clientId);
     const token = await fbGetToken(supabase, tenantId);
     if (!acct || !token) return null;
     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/campaigns?fields=id,name,effective_status,objective&limit=300&access_token=${token}`;
     const r = await fetch(url);
-    const j = await r.json();
+    const res = await readMetaResponse(r);
+    const j = res.ok ? res.value : null;
     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
-    return j.data.map((c: any) => ({
+    return j.data.map((c) => ({
       campaign_id: c.id,
       campaign_name: c.name,
       status: c.effective_status,
@@ -5131,11 +5325,11 @@ async function fbLiveCampaignList(
 
 /** Live campaign-level insights (spend/leads/etc.) over a day window. Null on failure. */
 async function fbLiveCampaignInsights(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   clientId: string,
   days: number,
-): Promise<any[] | null> {
+) {
   try {
     const acct = await fbResolveClientAdAccount(supabase, tenantId, clientId);
     const token = await fbGetToken(supabase, tenantId);
@@ -5156,9 +5350,10 @@ async function fbLiveCampaignInsights(
       "campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach";
     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=campaign&date_preset=${preset}&fields=${fields}&limit=500&access_token=${token}`;
     const r = await fetch(url);
-    const j = await r.json();
+    const res = await readMetaResponse(r);
+    const j = res.ok ? res.value : null;
     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
-    return j.data.map((d: any) => {
+    return j.data.map((d) => {
       const leads = fbLeadsFromActions(d.actions);
       const spend = Number(d.spend || 0);
       return {
@@ -5201,15 +5396,16 @@ async function fbListAccessibleAdAccounts(
   try {
     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/adaccounts?fields=account_id,name,account_status&limit=500&access_token=${token}`;
     const r = await fetch(url);
-    const j = await r.json();
+    const res = await readMetaResponse(r);
+    const j = res.ok ? res.value : null;
     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
     return j.data
-      .map((a: any) => ({
+      .map((a) => ({
         id: String(a.account_id || a.id || "").replace(/^act_/, ""),
         name: String(a.name || ""),
         status: a.account_status != null ? Number(a.account_status) : null,
       }))
-      .filter((a: any) => a.id);
+      .filter((a) => a.id);
   } catch {
     return null;
   }
@@ -5249,12 +5445,13 @@ async function fbAccountInsights(
   token: string,
   acct: string,
   days: number,
-): Promise<any | null> {
+): Promise<AccountInsights | null> {
   try {
     const preset = fbDatePreset(days);
     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=account&date_preset=${preset}&fields=spend,impressions,clicks,actions,reach&limit=1&access_token=${token}`;
     const r = await fetch(url);
-    const j = await r.json();
+    const res = await readMetaResponse(r);
+    const j = res.ok ? res.value : null;
     if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
     const d = j.data[0];
     if (!d)
@@ -5287,7 +5484,7 @@ async function fbAccountInsights(
 // (strong match only, flagged matched_by:'name' for human verification). Returns
 // the clients we connected live vs the ones that still need manual linking.
 async function fbTryConnectClients(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   notConnected: Array<{
     client_id: string;
@@ -5295,9 +5492,11 @@ async function fbTryConnectClients(
     reason: string;
   }>,
   days: number,
-): Promise<{ connected: any[]; stillNotConnected: any[] }> {
-  const connected: any[] = [];
-  const stillNotConnected: any[] = [];
+) {
+  const connected: ConnectedClient[] = [];
+  const stillNotConnected: Array<
+    DisconnectedClient & { connect_attempt: string }
+  > = [];
   const token = await fbGetToken(supabase, tenantId);
   let accounts: Array<{
     id: string;
@@ -5352,7 +5551,7 @@ async function fbTryConnectClients(
  * clients in a pulse snapshot, limited to clients with an active campaign table.
  */
 async function loadPulseCriticalIssues(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   accessibleTenantIds: string[],
   rows: Array<{ client_id: string; client_name?: string | null }>,
 ) {
@@ -5379,7 +5578,10 @@ async function loadPulseCriticalIssues(
     ]);
     if (tables.error || alerts.error) return [];
 
-    const activeTablesByClient = new Map<string, any[]>();
+    const activeTablesByClient = new Map<
+      string | null,
+      NonNullable<typeof tables.data>
+    >();
     for (const table of tables.data || []) {
       if (table.campaign_active === false) continue;
       activeTablesByClient.set(table.client_id, [
@@ -5394,7 +5596,12 @@ async function loadPulseCriticalIssues(
         return {
           clientId: row.client_id,
           clientName: row.client_name || null,
-          adAccountIds: clientAdAccountIds(activeTables),
+          adAccountIds: clientAdAccountIds(
+            activeTables.map((table) => ({
+              ...table,
+              integration_settings: jsonObject(table.integration_settings),
+            })),
+          ),
           hasActiveCampaignTable: activeTables.length > 0,
         };
       }),
@@ -5409,7 +5616,7 @@ async function loadPulseCriticalIssues(
 }
 
 async function getAccessibleTenantIds(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
 ): Promise<string[]> {
   try {
@@ -5417,9 +5624,7 @@ async function getAccessibleTenantIds(
       .from("agency_tenant_access")
       .select("source_tenant_id")
       .eq("accessing_tenant_id", tenantId);
-    const extra = (data || [])
-      .map((r: any) => r.source_tenant_id)
-      .filter(Boolean);
+    const extra = (data || []).map((r) => r.source_tenant_id).filter(Boolean);
     return Array.from(new Set([tenantId, ...extra]));
   } catch (_) {
     return [tenantId];
@@ -5429,7 +5634,7 @@ async function getAccessibleTenantIds(
 // Auto-create a Google Calendar event for a newly created task.
 // Silently no-ops when the campaigner's user has no connected calendar.
 async function tryCreateCalendarEventForTask(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   taskId: string,
   title: string,
   dueDate: string,
@@ -5512,9 +5717,64 @@ async function tryCreateCalendarEventForTask(
         e?.error?.message,
       );
     }
-  } catch (e: any) {
-    console.warn("[create_task] calendar sync error:", e?.message);
+  } catch (e) {
+    console.warn("[create_task] calendar sync error:", errorMessage(e));
   }
+}
+
+/**
+ * Why approve_dev_task / dispatch_dev_task may not act on this task now, in any chat (the user's
+ * yes in an AIOS chat must answer Carmen's previous message, which offered this task), or null
+ * when it may. A call with no user turn (a service or out-of-band call) is never a yes.
+ */
+async function devTaskApprovalRefusal(
+  supabase: any,
+  tenantId: string,
+  taskId: string,
+  conversationId: string | null,
+  turn:
+    | { turnStartedAt: string; appChatUser: boolean; lastAssistantText: string }
+    | null
+    | undefined,
+  userText: string | null,
+  approver: { id: string | null; tier: "full" | "bugfix" | null },
+): Promise<{ error: string; message: string } | null> {
+  const gate = turn ?? {
+    turnStartedAt: "",
+    appChatUser: false,
+    lastAssistantText: "",
+  };
+  const { data: task } = await supabase
+    .from("dev_tasks")
+    .select(
+      "id, status, created_at, assigned_agent, requested_by_user_id, source_conversation_id",
+    )
+    .eq("id", taskId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const offered = conversationId
+    ? await findOfferedDevTask(supabase, {
+        tenantId,
+        conversationId,
+        turnStartedAt: gate.turnStartedAt,
+      })
+    : null;
+  const decision = devTaskApprovalDecision({
+    task: task ?? null,
+    appChatUser: gate.appChatUser,
+    userText,
+    turnStartedAt: gate.turnStartedAt,
+    conversationId,
+    lastAssistantText: gate.lastAssistantText,
+    offeredTaskId: offered?.id ?? null,
+    approver,
+  });
+  return decision.ok
+    ? null
+    : {
+        error: `dev_task_approval_${decision.reason}`,
+        message: decision.message,
+      };
 }
 
 async function executeTool(
@@ -5531,6 +5791,26 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
+  approval: {
+    turnId?: string | null;
+    userText?: string | null;
+    /** Carmen's previous message; the workshop reads the taps that answer it. */
+    lastAssistant?: string | null;
+    outOfBand?: boolean;
+    /** The client open in the workshop view (workshop_client_id). */
+    viewClientId?: string | null;
+    /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
+    devTaskTurn?: {
+      /** When the user's message of this turn arrived; the offered task must be older. */
+      turnStartedAt: string;
+      /** A signed-in user typed this turn in an AIOS chat (not a service call). */
+      appChatUser: boolean;
+      /** Carmen's previous message; the user's yes answers its dev-task question only. */
+      lastAssistantText: string;
+    } | null;
+  } = {},
+  /** The chat's app origin (request Origin), for full links to files the app serves. */
+  appLinkOrigin?: string | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5576,6 +5856,137 @@ async function executeTool(
     isTeamManager,
     managedAgencyIds,
     accessibleTenantIds,
+  };
+  if (isWorkshopTool(name)) {
+    return executeWorkshopTool(
+      supabase,
+      tenantId,
+      name,
+      args,
+      (clientId) =>
+        assertCallerCanAccessClient(supabase, clientId, callerScope),
+      actorUserId,
+      {
+        turnId: approval.turnId ?? null,
+        userText: approval.userText ?? null,
+        lastAssistant: approval.lastAssistant ?? null,
+        approvedOutOfBand: approval.outOfBand === true,
+        viewClientId: approval.viewClientId ?? null,
+        imageEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return imageProvidersFor(
+            connectedProviders(
+              (data?.settings || {}) as Record<string, unknown>,
+              { openai: Deno.env.get("OPENAI_API_KEY") ?? undefined },
+            ),
+          );
+        },
+        generateImage: async (prompt, format, references, engine) => {
+          // Each picture in its own request: several made here ran past the CPU limit.
+          const remote = await remoteAdImage(
+            SUPABASE_URL,
+            SUPABASE_SERVICE_ROLE_KEY,
+            tenantId,
+            {
+              prompt,
+              aspect_ratio: format,
+              reference_urls: references,
+              engine,
+            },
+          );
+          if (!("missing" in remote && remote.missing)) return remote;
+          const made = await executeTool(
+            "generate_ad_image",
+            {
+              prompt,
+              aspect_ratio: format,
+              reference_urls: references,
+              engine,
+            },
+            supabase,
+            tenantId,
+            userId,
+            callerCampaignerId,
+            agentId,
+            callerRole,
+            callerManagedAgencyIds,
+            callerPhone,
+            waNotify,
+            surface,
+            conversationId,
+          );
+          return made?.image_url
+            ? { image_url: made.image_url as string }
+            : { error: String(made?.error ?? "לא התקבלה תמונה") };
+        },
+        envOpenAiKey: Deno.env.get("OPENAI_API_KEY") ?? undefined,
+        background: (work) => {
+          try {
+            EdgeRuntime.waitUntil(work);
+          } catch {
+            void work;
+          }
+        },
+        fetchPublic: (url, options) => fetchPublic(url, options),
+        voiceSample: (voiceId) =>
+          workshopVoiceSample(supabase, tenantId, voiceId),
+        importImage: (url, scope) =>
+          importWebImage(supabase, fetchPublic, url, scope),
+        defaultEngine: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return sceneEngineFor(
+            (data?.settings || {}) as Record<string, unknown>,
+            fetch,
+            await videoConnectionsFor(supabase, tenantId),
+          );
+        },
+        sceneEngines: async () => {
+          const { data } = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tenantId)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return connectedSceneEngines(
+            (data?.settings || {}) as Record<string, unknown>,
+            await videoConnectionsFor(supabase, tenantId),
+          );
+        },
+        videoConnections: () => videoConnectionsFor(supabase, tenantId),
+      },
+    );
+  }
+  // Chat readers (AIO-231) scope from the verified caller and the WhatsApp chat
+  // of this turn, never from tool args, and read the caller's role in this
+  // tenant: callerRole here is the highest role across all their tenants.
+  const chatRead = {
+    supabase,
+    scopeInput: {
+      tenantId,
+      accessibleTenantIds,
+      userId: actorUserId,
+      callerCampaignerId: callerCampaignerId ?? null,
+      waNotify,
+    },
   };
   if (isVideoDirectorTool(name)) {
     return executeVideoDirectorTool(
@@ -6302,25 +6713,12 @@ async function executeTool(
       return { update_id: data.id };
     }
     case "send_message": {
-      let phone: string | null = null;
-      let contactName: string | null = null;
-      if (args.contact_type === "lead") {
-        const { data } = await supabase
-          .from("leads")
-          .select("phone, company_name, contact_name")
-          .eq("id", args.contact_id)
-          .single();
-        phone = data?.phone;
-        contactName = data?.contact_name || data?.company_name;
-      } else {
-        const { data } = await supabase
-          .from("clients")
-          .select("phone, name, contact_name")
-          .eq("id", args.contact_id)
-          .single();
-        phone = data?.phone;
-        contactName = data?.contact_name || data?.name;
-      }
+      const { phone, contactName } = await sendTargetFor(
+        supabase,
+        args.contact_type,
+        args.contact_id,
+        accessibleTenantIds,
+      );
       if (!phone) return { success: false, error: "לא נמצא מספר טלפון" };
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/send-green-api-message`,
@@ -7261,7 +7659,6 @@ async function executeTool(
           .order("calculated_at", { ascending: false });
         if (args.client_id) query = query.eq("client_id", args.client_id);
         if (args.agency_id) query = query.eq("agency_id", args.agency_id);
-        if (args.status) query = query.eq("status", args.status);
         if (callerManagedAgencyIds && callerManagedAgencyIds.length > 0) {
           query = query.in("agency_id", callerManagedAgencyIds);
         }
@@ -7309,15 +7706,19 @@ async function executeTool(
           freshestByClient.set(row.client_id, row);
         }
       }
-      let normalizedRows = Array.from(freshestByClient.values()).map(
-        (row: any) => ({
-          ...row,
-          client_name: row.clients?.name || null,
-          agency_name: row.agencies?.name || null,
-          clients: undefined,
-          agencies: undefined,
-        }),
-      );
+      // Status is performance-only; no_recent_client_call is the separate contact flag (AIO-227).
+      // Filter status here, not in SQL: a legacy call-only warning reads as healthy only after normalising.
+      let normalizedRows = Array.from(freshestByClient.values())
+        .map((row: any) =>
+          normalizePulseRowClientCall({
+            ...row,
+            client_name: row.clients?.name || null,
+            agency_name: row.agencies?.name || null,
+            clients: undefined,
+            agencies: undefined,
+          }),
+        )
+        .filter((row) => !args.status || row.status === args.status);
       // Campaigners (WhatsApp / in-app) see only clients assigned via client_team.
       if (callerCampaignerId && !bypassCampaignerScope) {
         const { data: links, error: linksError } = await supabase
@@ -7416,7 +7817,11 @@ async function executeTool(
             (client: any) => client.client_id === row.client_id,
           );
           const agencyName = snapshotRow?.agency_name;
-          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(fmtDate(snapshotRow?.last_client_call_at))} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
+          const lastCall = fmtDate(snapshotRow?.last_client_call_at);
+          const callCell = snapshotRow?.no_recent_client_call
+            ? `${lastCall} · ${NO_RECENT_CLIENT_CALL_TEXT}`
+            : lastCall;
+          return `| ${escapeCell(agencyName)} | ${escapeCell(row.client_name)} | ${escapeCell(goalLabel(row.goal))} | ${escapeCell(statusLabel[row.status] || row.status)} | ₪${escapeCell(fmtNumber(row.spend_7d))} | ${escapeCell(outcomes)} | ${escapeCell(efficiencyLabel)} | ${escapeCell(change)} | ${escapeCell(callCell)} | ${escapeCell(snapshotRow?.last_client_call_by)} | ${escapeCell(metaChange)} | ${escapeCell((row.flags || []).join(", ") || "—")} |`;
         }),
       ];
       const { data: tenantRow } = await supabase
@@ -7427,6 +7832,9 @@ async function executeTool(
       const tenantSlug = tenantRow?.slug || tenantId;
       const dashboardUrl = buildPulseDashboardAbsoluteUrl(tenantSlug);
       const statusCounts = countPulseStatuses(goalRows);
+      const noRecentClientCallCount = normalizedRows.filter(
+        pulseRowHasNoRecentClientCall,
+      ).length;
       const criticalIssues = await loadPulseCriticalIssues(
         supabase,
         accessibleTenantIds,
@@ -7445,6 +7853,7 @@ async function executeTool(
           count: 0,
           freshness: null,
           status_counts: statusCounts,
+          no_recent_client_call_count: 0,
           dashboard_url: dashboardUrl,
           whatsapp_digest: null,
           rows: preferDigest ? undefined : [],
@@ -7463,6 +7872,7 @@ async function executeTool(
           count: goalRows.length,
           freshness: normalizedRows[0]?.calculated_at || null,
           status_counts: statusCounts,
+          no_recent_client_call_count: noRecentClientCallCount,
           dashboard_url: dashboardUrl,
           whatsapp_digest: whatsappDigest,
           formatted_markdown: null,
@@ -7478,13 +7888,14 @@ async function executeTool(
         count: normalizedRows.length,
         freshness: normalizedRows[0]?.calculated_at || null,
         status_counts: statusCounts,
+        no_recent_client_call_count: noRecentClientCallCount,
         dashboard_url: dashboardUrl,
         whatsapp_digest: whatsappDigest,
         manual_overrides: manualOverrides,
         rows: normalizedRows,
         formatted_markdown: tableLines.join("\n"),
         instructions_to_agent:
-          "בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
+          "status משקף ביצועי קמפיין ונתונים בלבד. היעדר שיחה מתועדת עם הלקוח מופיע בנפרד ב-no_recent_client_call וב-no_recent_client_call_count, ואינו הופך לקוח ל'תשומת לב'. בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
     }
     case "analyze_campaign_performance": {
@@ -8278,22 +8689,16 @@ async function executeTool(
             ? "creative"
             : "target_seo";
 
-      // Ensure pipeline + default stages (mirrors ensurePipelineForClient)
-      let { data: pipeline } = await supabase
-        .from("marketing_pipelines")
-        .select("id")
-        .eq("client_id", client_id)
-        .eq("track", track)
-        .maybeSingle();
-      if (!pipeline) {
-        const { data: created, error: pErr } = await supabase
-          .from("marketing_pipelines")
-          .insert({ client_id, tenant_id: tenantId, track })
-          .select("id")
-          .single();
-        if (pErr) throw pErr;
-        pipeline = created;
-      }
+      // Ensure pipeline + default stages (mirrors ensurePipelineForClient). A client can have
+      // duplicate pipelines: take the oldest, as the department screens do. A failed lookup
+      // creates nothing.
+      const found = await findOrCreateClientPipeline(supabase, {
+        clientId: client_id,
+        tenantId,
+        track,
+      });
+      if ("error" in found) return { error: found.error };
+      const pipeline = found;
       const { count: stageCount } = await supabase
         .from("marketing_pipeline_stages")
         .select("id", { count: "exact", head: true })
@@ -8439,185 +8844,40 @@ async function executeTool(
       };
     }
     case "update_marketing_work_item": {
-      const { data: item } = await supabase
-        .from("marketing_work_items")
-        .select("id, payload, title, status")
-        .eq("id", args.item_id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (!item) return { error: "עבודה לא נמצאה" };
-      const patch: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      if (args.title != null) patch.title = String(args.title);
-      if (args.status != null) patch.status = args.status;
+      // The workshop's budget and project state are written only by its own server code.
+      let droppedKeys: string[] = [];
+      let payloadPatch: Record<string, unknown> | null = null;
       if (args.payload_patch && typeof args.payload_patch === "object") {
-        patch.payload = { ...(item.payload || {}), ...args.payload_patch };
+        const safe = stripServerOnlyPayloadKeys(args.payload_patch);
+        droppedKeys = safe.dropped;
+        payloadPatch = safe.patch;
       }
-      const { data: updated, error } = await supabase
-        .from("marketing_work_items")
-        .update(patch)
-        .eq("id", args.item_id)
-        .select("id, title, status")
-        .single();
+      // Merges the patch in SQL (payload || patch), so a concurrent workshop write survives.
+      const { data: rows, error } = await supabase.rpc(
+        "patch_marketing_work_item",
+        {
+          p_item_id: args.item_id,
+          p_tenant_id: tenantId,
+          p_title: args.title != null ? String(args.title) : null,
+          p_status: args.status != null ? String(args.status) : null,
+          p_payload_patch: payloadPatch,
+        },
+      );
       if (error) throw error;
-      return { success: true, item: updated };
+      const updated = Array.isArray(rows) ? rows[0] : rows;
+      if (!updated) return { error: "עבודה לא נמצאה" };
+      if (droppedKeys.length === 0) return { success: true, item: updated };
+      return {
+        success: true,
+        item: updated,
+        ignored_payload_keys: droppedKeys,
+        message: `לא עודכנו: ${droppedKeys.join(", ")}. את התקציב ואת מצב הפרויקט של הסדנה כותבת רק הסדנה עצמה.`,
+      };
     }
 
     case "generate_ad_image": {
-      const imagePrompt = `${args.prompt}. Professional, high quality, suitable for a social media advertisement.`;
-
-      // OpenRouter first when the tenant connected an OpenRouter brain; OpenAI
-      // stays the fallback (_shared/creative/openrouterImage.ts).
-      let b64 = "";
-      let mime = "image/png";
-      let imageData: any = {};
-      let content = "";
-      let imageProvider = "openai/gpt-image-1";
-      const openRouterKey = await tenantOpenRouterKey(supabase, tenantId).catch(
-        () => "",
-      );
-      if (openRouterKey) {
-        try {
-          const generated = await generateOpenRouterImage({
-            apiKey: openRouterKey,
-            prompt: imagePrompt,
-            aspectRatio:
-              typeof args.aspect_ratio === "string" ? args.aspect_ratio : "1:1",
-          });
-          b64 = generated.b64;
-          mime = generated.mediaType;
-          imageProvider = `openrouter/${generated.model}`;
-        } catch (e: any) {
-          console.warn(
-            `[generate_ad_image] OpenRouter failed, using OpenAI: ${e?.message ?? e}`,
-          );
-        }
-      }
-
-      if (!b64) {
-        const openaiKey = await resolveOpenAIKey();
-        if (!openaiKey) {
-          return {
-            error:
-              "אין מפתח ליצירת תמונות. חברו מוח OpenRouter בהגדרות המוחות, או הגדירו מפתח OpenAI בהגדרות האינטגרציות (LLM).",
-            suggestion: "פנה למנהל המערכת להגדרת המפתח.",
-          };
-        }
-        const imageRes = await fetch(
-          "https://api.openai.com/v1/images/generations",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${openaiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "gpt-image-1",
-              prompt: imagePrompt,
-              n: 1,
-              size: "1024x1024",
-              output_format: "png",
-            }),
-          },
-        );
-        if (!imageRes.ok) {
-          const errText = await imageRes.text();
-          throw new Error(`Image generation error: ${errText}`);
-        }
-        imageData = await imageRes.json();
-        content = imageData.choices?.[0]?.message?.content || "";
-        // OpenAI Images API returns base64 PNG; adapt to the downstream extractor.
-        b64 = imageData?.data?.[0]?.b64_json || "";
-      }
-      const images = b64
-        ? [{ image_url: { url: `data:${mime};base64,${b64}` } }]
-        : [];
-      let imageUrl = "";
-
-      if (images.length > 0 && images[0]?.image_url?.url) {
-        const dataUrl = images[0].image_url.url;
-        // Extract base64 data from data URL
-        const base64Match = dataUrl.match(
-          /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/,
-        );
-        if (base64Match) {
-          const mimeType = `image/${base64Match[1]}`;
-          const base64 = base64Match[2];
-          const ext = base64Match[1] === "jpeg" ? "jpg" : base64Match[1];
-          const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-
-          const binaryData = Uint8Array.from(atob(base64), (c) =>
-            c.charCodeAt(0),
-          );
-
-          // Ensure bucket exists
-          await supabase.storage
-            .createBucket("social-media", { public: true })
-            .catch(() => {});
-
-          const { error: uploadError } = await supabase.storage
-            .from("social-media")
-            .upload(fileName, binaryData, {
-              contentType: mimeType,
-              upsert: true,
-            });
-
-          if (uploadError)
-            throw new Error(`Upload failed: ${uploadError.message}`);
-
-          const { data: urlData } = supabase.storage
-            .from("social-media")
-            .getPublicUrl(fileName);
-          imageUrl = urlData.publicUrl;
-        }
-      }
-
-      // Fallback: check inline_data in parts
-      if (!imageUrl) {
-        const parts = imageData.choices?.[0]?.message?.parts || [];
-        for (const part of parts) {
-          if (part.inline_data) {
-            const base64 = part.inline_data.data;
-            const mimeType = part.inline_data.mime_type || "image/png";
-            const ext = mimeType.includes("jpeg") ? "jpg" : "png";
-            const fileName = `agent-generated/${tenantId}/${crypto.randomUUID()}.${ext}`;
-            const binaryData = Uint8Array.from(atob(base64), (c) =>
-              c.charCodeAt(0),
-            );
-            await supabase.storage
-              .createBucket("social-media", { public: true })
-              .catch(() => {});
-            const { error: uploadError } = await supabase.storage
-              .from("social-media")
-              .upload(fileName, binaryData, {
-                contentType: mimeType,
-                upsert: true,
-              });
-            if (uploadError) throw uploadError;
-            const { data: urlData } = supabase.storage
-              .from("social-media")
-              .getPublicUrl(fileName);
-            imageUrl = urlData.publicUrl;
-            break;
-          }
-        }
-      }
-
-      if (!imageUrl) {
-        return {
-          success: false,
-          error: "לא הצלחתי ליצור תמונה. נסה שוב עם תיאור אחר.",
-          raw_content: content,
-        };
-      }
-
-      return {
-        success: true,
-        image_url: imageUrl,
-        provider: imageProvider,
-        message: "התמונה נוצרה בהצלחה. השתמש בה ביצירת הפוסט.",
-      };
+      // _shared/creative/ad-image.ts; the workshop runs it in workshop-image (CPU limit).
+      return await makeAdImage(supabase, tenantId, args);
     }
     // CLIENTS - full CRUD
     case "create_client": {
@@ -9425,7 +9685,9 @@ async function executeTool(
         page_name: page.name,
         integration_id: page.integration_id,
       };
-      let connected = null;
+      let connected: Awaited<
+        ReturnType<typeof connectMetaFormToAutomation>
+      > | null = null;
       if (args.automation_id || args.automation_name) {
         const automation = await findAutomationForMetaForm(
           supabase,
@@ -9730,20 +9992,17 @@ async function executeTool(
       return { learned: true, episode_id: data.id, topic: data.topic };
     }
     // CHAT HISTORY
-    case "get_chat_history": {
-      const filterCol =
-        args.contact_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select("id, message_text, direction, sender_name, created_at")
-        .in("tenant_id", accessibleTenantIds)
-        .eq(filterCol, args.contact_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (error) throw error;
-      return { count: data.length, messages: data.reverse() };
-    }
+    case "get_chat_history":
+      return getChatHistory(chatRead, args);
     case "search_conversation_history": {
+      const { scope: chatScope, refusal } = await scopedChatRead(
+        chatRead,
+        null,
+      );
+      if (refusal) {
+        return refusal;
+      }
+
       const rawQuery = String(args.query || "").trim();
       // AND semantics: every token must appear in the message. Up to 4 tokens.
       // No query = browse mode: chronological slice of the window, which then
@@ -9795,7 +10054,9 @@ async function executeTool(
       let q = supabase
         .from("chat_messages")
         .select(
-          "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
+          withChatScopeColumns(
+            "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
+          ),
         )
         .in("tenant_id", accessibleTenantIds)
         .gte("created_at", since)
@@ -9815,8 +10076,12 @@ async function executeTool(
           .is("group_id", null)
           .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
       else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const { data, error } = await q;
-      if (error) throw error;
+      const data = await readScopedChatRows(
+        supabase,
+        q,
+        chatScope,
+        accessibleTenantIds,
+      );
       const fmt = (iso: string) =>
         new Date(iso).toLocaleString("he-IL", {
           timeZone: "Asia/Jerusalem",
@@ -9842,36 +10107,11 @@ async function executeTool(
           in_group: !!m.group_id,
           text: String(m.message_text).slice(0, 400),
         })),
+        ...chatScopeMeta(chatScope),
       };
     }
-    case "get_recent_inbound_messages": {
-      const hoursAgo = args.hours || 24;
-      const since = new Date(
-        Date.now() - hoursAgo * 60 * 60 * 1000,
-      ).toISOString();
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select(
-          "id, message_text, sender_name, sender_phone, created_at, client_id, lead_id, clients(name), leads(company_name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .eq("direction", "inbound")
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 30);
-      if (error) throw error;
-      return {
-        count: data.length,
-        messages: data.map((m: any) => ({
-          ...m,
-          contact_name:
-            m.clients?.name ||
-            m.leads?.company_name ||
-            m.sender_name ||
-            m.sender_phone,
-        })),
-      };
-    }
+    case "get_recent_inbound_messages":
+      return getRecentInboundMessages(chatRead, args);
     // FINANCE
     case "list_finance": {
       let query = supabase
@@ -10550,8 +10790,10 @@ async function executeTool(
         priority: args.priority,
         assignedAgent: args.assigned_agent || "cursor",
         requestedByUserId: devActorId,
-        sourceConversationId:
-          args.source_conversation_id || conversationId || null,
+        // In an AIOS chat a task belongs to this chat: only a yes here may approve it.
+        sourceConversationId: approval.devTaskTurn?.appChatUser
+          ? conversationId || null
+          : args.source_conversation_id || conversationId || null,
         sourceMessage: args.source_message,
         dedupOf: args.dedup_of || null,
         actorUserId: devActorId,
@@ -10569,6 +10811,16 @@ async function executeTool(
           phone: callerPhone || null,
           devEscalationTier,
         }));
+      const refusal = await devTaskApprovalRefusal(
+        supabase,
+        tenantId,
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.devTaskTurn,
+        approval.userText ?? null,
+        { id: approverId, tier: devEscalationTier },
+      );
+      if (refusal) return refusal;
       if (!approverId) throw new Error("user auth required");
       const task = await approveDevTask(
         supabase,
@@ -10579,12 +10831,27 @@ async function executeTool(
       return { task };
     }
     case "dispatch_dev_task": {
-      const result = await dispatchDevTask(supabase, {
+      const refusal = await devTaskApprovalRefusal(
+        supabase,
         tenantId,
-        taskId: String(args.dev_task_id),
-        actorUserId,
-      });
-      return result;
+        String(args.dev_task_id),
+        conversationId ?? null,
+        approval.devTaskTurn,
+        approval.userText ?? null,
+        { id: actorUserId, tier: devEscalationTier },
+      );
+      if (refusal) return refusal;
+      try {
+        return await dispatchDevTask(supabase, {
+          tenantId,
+          taskId: String(args.dev_task_id),
+          actorUserId,
+        });
+      } catch (e) {
+        if (e instanceof DevTaskNotApprovedError)
+          return { error: e.code, message: e.message };
+        throw e;
+      }
     }
     case "list_dev_tasks": {
       let q = supabase
@@ -11116,12 +11383,14 @@ async function executeTool(
         { spend7: number; activeCount: number; pausedCount: number }
       >();
       if (tableIds.length > 0) {
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("table_id, data")
-          .in("table_id", tableIds)
-          .in("tenant_id", accessibleTenantIds);
-        for (const r of recs || []) {
+        // Campaign-level rows of the last 7 days, paged: one unfiltered request
+        // stopped at 1000 rows of any level/date and missed real spend.
+        const recs = await fetchCampaignLevelRecords(supabase, {
+          tableIds,
+          sinceYmd: d7Str,
+          tenantIds: accessibleTenantIds,
+        });
+        for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
           if (!cid) continue;
           const cur = spendByClient.get(cid) || {
@@ -11129,8 +11398,10 @@ async function executeTool(
             activeCount: 0,
             pausedCount: 0,
           };
-          if (r.data?.date && r.data.date >= d7Str)
-            cur.spend7 += parseFloat(r.data?.spend) || 0;
+          const date = r.data?.date;
+          if (typeof date === "string" && date >= d7Str) {
+            cur.spend7 += parseFloat(String(r.data?.spend)) || 0;
+          }
           const eff = String(r.data?.effective_status || "").toUpperCase();
           if (eff === "ACTIVE") cur.activeCount += 1;
           else if (eff === "PAUSED" || eff === "OFF") cur.pausedCount += 1;
@@ -11436,16 +11707,43 @@ async function executeTool(
     // ===========================
     // HERMES SKILLS SYSTEM
     // ===========================
+    case "get_carmen_skins": {
+      // The tenant's Carmen agent holds the custom skin images (visual_identity.skins).
+      const { data: carmenAgent } = await supabase
+        .from("ai_agents")
+        .select("metadata")
+        .eq("tenant_id", tenantId)
+        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const paths = customSkinPaths(carmenAgent?.metadata, tenantId);
+      const signed: Record<string, string> = {};
+      await Promise.all(
+        pathsToSign(paths).map(async (path) => {
+          const { data, error } = await supabase.storage
+            .from("entity-attachments")
+            .createSignedUrl(path, 3600);
+          if (!error && data?.signedUrl) signed[path] = data.signedUrl;
+        }),
+      );
+      return carmenSkinsResult(
+        carmenSkinEntries(paths, signed),
+        appOrigin(appLinkOrigin, Deno.env.get("APP_URL")),
+      );
+    }
     case "recall_skills": {
       const limit = Math.min(args.limit || 5, 20);
       const q = String(args.query || "").trim();
+      // The tenant's own skills and the global skins every tenant has (scope = 'global').
+      const skillScope = `tenant_id.eq.${tenantId},scope.eq.global`;
       // Try FTS first; fall back to ILIKE
       const { data: matchedSkills, error } = await supabase
         .from("ai_skills")
         .select(
           "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
         )
-        .eq("tenant_id", tenantId)
+        .or(skillScope)
         .eq("is_active", true)
         .textSearch(
           "search_vector",
@@ -11460,7 +11758,7 @@ async function executeTool(
           .select(
             "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
           )
-          .eq("tenant_id", tenantId)
+          .or(skillScope)
           .eq("is_active", true)
           .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
           .limit(limit);
@@ -13409,7 +13707,7 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
-import { bindRunAgentCaller } from "./caller-trust.ts";
+import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 
 // Surface for which the agent is currently invoked.
 // 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
@@ -13425,6 +13723,14 @@ async function handleRunAgent(
   surface: Surface,
   emit: Emit,
   brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
+  request: {
+    /** How the request was authenticated (requireAuth): a signed-in user, or a service call. */
+    authKind?: string;
+    /** The browser's Origin header, for full links back to the app the chat runs on. */
+    origin?: string | null;
+  } = {},
+  /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
+  internalTail?: () => Promise<BrainEngineTarget[]>,
 ): Promise<Response> {
   try {
     const {
@@ -13436,12 +13742,17 @@ async function handleRunAgent(
       lead_data,
       tenant_id,
       user_id,
-      task_skills,
+      task_skills: requestedTaskSkills,
       task_mode,
       conversation_history,
       conversation_id,
       wa_notify,
     } = bodyJson;
+    const inWorkshopRequest =
+      surface !== "whatsapp" &&
+      Array.isArray(requestedTaskSkills) &&
+      requestedTaskSkills.includes(WORKSHOP_SKIN);
+    let task_skills = requestedTaskSkills;
     // Per-task engine override (agent_tasks.engine_model). Only internal
     // service calls may set it — stripped from user requests in Deno.serve.
     const modelOverride =
@@ -13453,6 +13764,8 @@ async function handleRunAgent(
       bodyJson.pin_skills_only === true &&
       Array.isArray(task_skills) &&
       task_skills.length > 0;
+    const automationRun = isAutomationRun(bodyJson);
+    const mayDecideApprovals = runMayDecideApprovals(bodyJson, surface);
     console.log(
       `[AGENT] Starting run: agent=${bodyAgentId}, command="${command_text?.substring(0, 80)}", surface=${surface}, stream=${!!emit}, pin_skills_only=${pinSkillsOnly}`,
     );
@@ -13460,6 +13773,35 @@ async function handleRunAgent(
     if (!command_text) throw new Error("Missing command_text");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // In the workshop the server picks the specialist for this message (designer, producer or
+    // video editor) from the message and the open project, and pins her skin; see roles.ts.
+    // Approves a waiting budget from the user's code and states the project's next step.
+    const workshopNote = inWorkshopRequest
+      ? await workshopTurnNote(
+          supabase,
+          tenant_id,
+          workshopItemIdFrom(bodyJson),
+          String(command_text ?? ""),
+          lastAssistantText(conversation_history),
+        )
+      : null;
+    const workshopRoleForRun = inWorkshopRequest
+      ? workshopRole(
+          String(command_text ?? ""),
+          parseActiveSkin(bodyJson.active_skin),
+          await workshopProjectKind(
+            supabase,
+            tenant_id,
+            workshopItemIdFrom(bodyJson),
+            workshopSceneIdFrom(bodyJson),
+          ),
+        )
+      : null;
+    if (workshopRoleForRun) {
+      task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
+      if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+    }
 
     // 1. Fetch agent — by id, or default to the tenant's Carmen agent
     let agent: any;
@@ -13517,7 +13859,7 @@ async function handleRunAgent(
     // lead_data is service-only: stripped from user-JWT requests in Deno.serve.
     let callerCampaignerId: string | null = null;
     let callerName: string | null = user_name || null;
-    const callerPhone = lead_data?.phone || null;
+    const callerPhone = runCallerPhone(bodyJson);
     if (callerPhone && resolvedTenantId) {
       // Normalize: take last 9 digits for comparison
       const normalizedPhone = callerPhone.replace(/[^0-9]/g, "").slice(-9);
@@ -13561,10 +13903,14 @@ async function handleRunAgent(
       callerUserId = resolvedUserId;
     }
     if (callerUserId) {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", callerUserId);
+        .eq("user_id", callerUserId)
+        .or(`tenant_id.eq.${resolvedTenantId},tenant_id.is.null`);
+      if (rolesError) {
+        throw rolesError;
+      }
       const roleList = (roles || []).map((r: any) => r.role);
       // Priority order
       const order = [
@@ -13622,6 +13968,15 @@ async function handleRunAgent(
     // completed turn here. This also makes Realtime ask_carmen calls continue
     // the exact same conversation as typed chat.
     let serverConversationId: string | null = null;
+    // A paid workshop confirm must arrive in a later user message than the quote it confirms.
+    const turnId = crypto.randomUUID();
+    // A dev task is approved only in a later user message than the one that offered it.
+    const turnStartedAt = new Date().toISOString();
+    // The signed-in user's own message in an AIOS chat (the workshop, the video studio, the
+    // Command Center), not a service call: only there is a dev-task yes read (dev-task-approval).
+    const appChatTurn =
+      request.authKind === "user" &&
+      (surface === "internal_chat" || surface === "aios");
     let serverConversationHistory: Array<{
       role: "user" | "assistant";
       content: string;
@@ -13630,7 +13985,8 @@ async function handleRunAgent(
       (surface === "internal_chat" ||
         surface === "aios" ||
         surface === "grok_bot") &&
-      callerUserId
+      callerUserId &&
+      !automationRun
     ) {
       if (conversation_id) {
         const { data: existingConversation } = await supabase
@@ -13700,7 +14056,14 @@ async function handleRunAgent(
       const m = cmdRaw.match(TRIGGER_RE);
       const looksLikeInstruction =
         !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
-      if (looksLikeInstruction && resolvedTenantId) {
+      // A workshop message is a creative brief ("פיצריה שתמיד פתוחה"), not a standing instruction,
+      // and an automation's text is not someone teaching Carmen (AIO-241).
+      if (
+        looksLikeInstruction &&
+        resolvedTenantId &&
+        !inWorkshopRequest &&
+        !automationRun
+      ) {
         // Extract the surrounding sentence/paragraph (split on . ! ? newlines, max ~400 chars)
         const triggerIdx = m!.index ?? 0;
         const before =
@@ -14533,14 +14896,18 @@ async function handleRunAgent(
         console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
       }
     }
-    // The skin picked in this chat session shapes Carmen for this run only.
+    // The skin picked in this chat session shapes Carmen for this run only. In the workshop the
+    // role's skill is already pinned; the persona's older skills would contradict it.
     if (isCarmen && !pinSkillsOnly) {
-      systemPrompt += await activeSkinBlock({
-        slug: parseActiveSkin(bodyJson.active_skin),
-        tenantId: agent.tenant_id || tenant_id || null,
-        disabledSkins: agent.disabled_skins,
-        pinned: task_skills,
-      });
+      if (!workshopRoleForRun) {
+        systemPrompt += await activeSkinBlock({
+          slug: parseActiveSkin(bodyJson.active_skin),
+          tenantId: agent.tenant_id || tenant_id || null,
+          disabledSkins: agent.disabled_skins,
+          pinned: task_skills,
+        });
+      }
+      if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
@@ -14576,25 +14943,30 @@ async function handleRunAgent(
         "David is chatting from the persistent sidecar while viewing a live AIOS screen.\n" +
         "Use the screen context in system_prompt_addon / context_metadata to understand what he sees.\n" +
         "Respond normally. For dev/system/code work use the Dev Task Command Center workflow:\n" +
-        '1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) ask David for approval unless he said "תעבירי לפיתוח"/"שלחי לפיתוח" explicitly → 4) approve_dev_task + dispatch_dev_task.\n' +
+        "1) find_dev_task_duplicates → 2) create_dev_task (structured brief) → 3) tell David what the task is and ask: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]] → 4) only after his yes in a later message: approve_dev_task + dispatch_dev_task (the server refuses them in the turn that opened the task, even when he already said 'שלחי לפיתוח').\n" +
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
-        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable.\n" +
+        "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his yes in a later message.\n" +
         "Always include path + entity context in any dev task you create.\n" +
         `context_metadata: ${JSON.stringify(ctxMeta).slice(0, 4000)}`;
     }
 
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
     // system/dev/config/code fixes to Cursor/Claude/Manus/GitHub agent.
-    systemPrompt += buildDevEscalationPromptRule(devEscalationTier);
+    // The workshop has no connector or delegate tools: there a dev task goes only through
+    // create_dev_task. Everywhere a send to a coding agent waits for the user's yes in a later
+    // message, read only in an AIOS chat (dev-task-approval.ts).
+    systemPrompt +=
+      inWorkshopRequest && devEscalationTier
+        ? workshopDevTaskRule(devEscalationTier)
+        : buildDevEscalationPromptRule(devEscalationTier) +
+          (devEscalationTier ? devTaskSendRule(appChatTurn) : "");
 
     if (isCarmen && surface === "whatsapp" && canEscalateDevFixes) {
       systemPrompt +=
         "\n\n📱 === משימות פיתוח מ-WhatsApp (מורשה) ===\n" +
         'כשמבקשים "תעבירי לפיתוח" / "שלחי לקרסר" / תיקון מערכת:\n' +
-        '1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אם הבקשה מפורשת ("שלחי"/"תעבירי") — approve_dev_task + dispatch_dev_task מיד.\n' +
-        "4) דווחי לפי delivered/userStatus + bc- URL. אם delivered=true — נשלח (גם עם dispatchToolError).\n" +
-        '5) אם timeout / delivery_unconfirmed / verificationFailed — אמרי שלא אומתה הגעה; אסור להגיד "קרסר לא קיבל". בדקי list_dev_tasks או attach_dev_task_session.\n' +
-        "אל תבקשי אישור נוסף כשהמשתמש כבר אמר לשלוח.";
+        "1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אמרי במשפט מה המשימה ולמי, ושהיא מחכה לאישור במרכז משימות הפיתוח באפליקציה (כפתור 'שלח'). מוואטסאפ לא מאשרים ולא שולחים: השרת מסרב ל-approve_dev_task, ל-dispatch_dev_task ולשליחה ישירה.\n" +
+        "4) שאלה על משימה שכבר נשלחה: list_dev_tasks או attach_dev_task_session.";
     }
 
     // Voice capability (both prompt versions): answer from 🎤 / explicit failure markers.
@@ -14675,9 +15047,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
+    // Carmen can always answer about herself (her personas and their portraits), whatever
+    // the agent's allowlist; the settings denylist below still applies.
     let filteredTools =
       allowedTools.length > 0
-        ? ALL_TOOLS.filter((t) => allowedTools.includes(t.name))
+        ? ALL_TOOLS.filter(
+            (t) =>
+              allowedTools.includes(t.name) ||
+              (isCarmen && t.name === "get_carmen_skins"),
+          )
         : ALL_TOOLS;
     const toolPoolBeforeRouting = filteredTools;
 
@@ -14689,6 +15067,36 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !disabledTools.includes(t.name),
       );
     }
+    // Workshop tools write to the board of the open project; outside the workshop skin
+    // (WhatsApp, other chats) Carmen has no board to show them on.
+    const inWorkshop =
+      surface !== "whatsapp" &&
+      Array.isArray(task_skills) &&
+      task_skills.includes(WORKSHOP_SKIN);
+    if (!inWorkshop) {
+      filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
+    } else {
+      // A workshop "מאשר" answers the workshop: the approval queue (WhatsApp, Meta) is not
+      // reachable from here, so a tap can never run an unrelated pending approval. Tools that
+      // publish, message people, change ads or act later are not offered here either.
+      filteredTools = filteredTools.filter(
+        (t) => !isBlockedInWorkshop(t.name, true),
+      );
+    }
+    if (inWorkshop && workshopRoleForRun) {
+      filteredTools = toolsForRole(
+        filteredTools,
+        workshopRoleForRun,
+        isWorkshopTool,
+      );
+    }
+    // A skin's tools may be added below; workshop tools only for this run's role.
+    const workshopToolAllowed = (name: string) =>
+      !isBlockedInWorkshop(name, inWorkshop) &&
+      (!isWorkshopTool(name) ||
+        (inWorkshop &&
+          (!workshopRoleForRun ||
+            ROLE_TOOLS[workshopRoleForRun].includes(name))));
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -14779,8 +15187,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               userText,
               picked,
               {
-                isExplicitApprovalPhrase,
-                isExplicitRejectionPhrase,
+                // In the workshop a yes/no answers the workshop, not the approval queue.
+                isExplicitApprovalPhrase: inWorkshop
+                  ? () => false
+                  : isExplicitApprovalPhrase,
+                isExplicitRejectionPhrase: inWorkshop
+                  ? () => false
+                  : isExplicitRejectionPhrase,
                 extractMeetingUrl,
               },
               fullSchemaNames,
@@ -14800,7 +15213,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const rebuildToolsForApi = () => {
       toolsForAPI.length = 0;
       toolsForAPI.push(
-        ...buildToolApiEntries(filteredTools, promotedToolNames, tokenOptimize),
+        ...buildToolApiEntries(
+          approvalScopedTools(filteredTools, mayDecideApprovals),
+          promotedToolNames,
+          tokenOptimize,
+        ),
       );
       toolsForAPI.push(
         ...buildToolApiEntries(
@@ -14847,7 +15264,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // 4b. Load MCP tools for this tenant + agent (Phase 3)
     const mcpExecutors = new Map<string, (args: any) => Promise<any>>();
     try {
-      if (!pinSkillsOnly) {
+      // The workshop loads no connector tools: they send, publish or change things outside
+      // the board. isBlockedInWorkshop also refuses any mcp_ call made there.
+      if (!pinSkillsOnly && !inWorkshop) {
         const disabledIntegrations = ((agent as any).disabled_integrations ||
           []) as string[];
         const mcp = await loadMcpTools(
@@ -14945,7 +15364,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const model = resolveModel(
       modelOverride || agent.engine || "gemini-3-flash",
     );
-    const maxRounds = agent.max_tool_rounds || 25;
+    // A workshop step needs a look at the project, the tool, and a reply: give it room for that
+    // even when the agent is tuned to very few rounds.
+    const maxRounds = workshopRoleForRun
+      ? Math.max(agent.max_tool_rounds || 25, 6)
+      : agent.max_tool_rounds || 25;
     const safeTemp =
       typeof temperature === "number"
         ? Math.min(2, Math.max(0, temperature))
@@ -14953,6 +15376,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     if (isCarmen) {
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
+      // Only the workshop has workshop_check_connections; other chats get no such rule.
+      const connections = connectionsStanding(inWorkshop);
+      if (connections)
+        systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${connections}`;
+      systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
+        {
+          tier: devEscalationTier,
+          // WhatsApp shows assistant text as plain text; the AIOS chats (the video studio's
+          // included) show a Markdown picture as an image.
+          markdownImages: surface !== "whatsapp",
+          appChat: appChatTurn,
+        },
+      )}`;
     }
     if (tokenOptimize) {
       systemPrompt += `\n\n=== אופטימיזציית טוקנים (שלב 2 — פעילה) ===
@@ -15001,6 +15437,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             skillToolNames.has(t.name) &&
+            workshopToolAllowed(t.name) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
@@ -15042,6 +15479,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const missing = ALL_TOOLS.filter(
           (t) =>
             pinnedTools.has(t.name) &&
+            workshopToolAllowed(t.name) &&
             !present.has(t.name) &&
             !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
@@ -15064,6 +15502,41 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n🧾 הנחיה חדשה נשמרה לזיכרון אוטומטית: "${instructionCaptured}". אשרי בקצרה ("נרשם") והמשיכי בבקשה.`;
     }
 
+    // In an AIOS chat the user's yes or no answers the dev task Carmen offered in her previous
+    // message, and only when that message asked about it: a yes names the task, so she approves
+    // and sends that one (devTaskApprovalRefusal checks it again); a no cancels it.
+    const devTaskUserText = String(command_text ?? "");
+    const devTaskYes = isExplicitDevTaskApproval(devTaskUserText);
+    const devTaskNo = !devTaskYes && isExplicitDevTaskDecline(devTaskUserText);
+    // That answer is not also a yes or no to a pending WhatsApp/Meta approval below.
+    let devTaskOfferAnswered = false;
+    if (
+      isCarmen &&
+      canEscalateDevFixes &&
+      serverConversationId &&
+      appChatTurn &&
+      (devTaskYes || devTaskNo) &&
+      offersDevTask(lastAssistantText(conversation_history))
+    ) {
+      const offeredTask = await findOfferedDevTask(supabase, {
+        tenantId: resolvedTenantId,
+        conversationId: serverConversationId,
+        turnStartedAt,
+      });
+      devTaskOfferAnswered = Boolean(offeredTask);
+      if (offeredTask && devTaskYes)
+        systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
+      else if (
+        offeredTask &&
+        (await declineOfferedDevTask(supabase, {
+          tenantId: resolvedTenantId,
+          taskId: offeredTask.id,
+          actorUserId: callerUserId || asUuidOrNull(resolvedUserId),
+        }))
+      )
+        systemPrompt += `\n\n🚫 המשתמש ענה 'לא' למשימת הפיתוח שהצעת: "${String(offeredTask.title || "").slice(0, 120)}". המשימה בוטלה ולא נשלחה. אשרי בקצרה, ואל תקראי ל-approve_dev_task או ל-dispatch_dev_task; אם ירצה בהמשך, פתחי משימה חדשה ושאלי שוב.`;
+    }
+
     // ─── Chat approval flow (AIO-230): ./approvals/resolve.ts ───
     const approvalConversation = {
       surface,
@@ -15072,10 +15545,19 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       phone: callerPhone,
     };
     const approvalReply = parseApprovalReply(String(command_text || ""));
-    const userSaidApprove = approvalReply.approve;
-    const userSaidReject = approvalReply.reject;
+    // A yes or no that answered Carmen's dev-task offer is not also an answer to an approval.
+    const userSaidApprove = !devTaskOfferAnswered && approvalReply.approve;
+    const userSaidReject = !devTaskOfferAnswered && approvalReply.reject;
     let approvalPick: ApprovalPick | null = null;
-    if (isCarmen && !pinSkillsOnly && (userSaidApprove || userSaidReject)) {
+    // A workshop "כן" answers the workshop, never a pending approval; its budget code is
+    // approved by workshopTurnNote.
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      !inWorkshopRequest &&
+      mayDecideApprovals &&
+      (userSaidApprove || userSaidReject)
+    ) {
       approvalPick = await loadApprovalPick(supabase, resolvedTenantId, {
         ...approvalConversation,
         userId: callerUserId,
@@ -15096,6 +15578,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (
       isCarmen &&
       !pinSkillsOnly &&
+      mayDecideApprovals &&
       userSaidApprove &&
       approvalPick &&
       isDeterministicApprovalPick(approvalPick, String(command_text || ""))
@@ -15181,8 +15664,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Deterministic path: meeting join URL in message → dispatch Recall bot immediately.
+    // Not from the workshop: a meeting link there is project material, not a request to join.
     const meetingUrl = extractMeetingUrl(String(command_text || ""));
-    if (isCarmen && !pinSkillsOnly && meetingUrl) {
+    if (
+      isCarmen &&
+      !pinSkillsOnly &&
+      meetingUrl &&
+      !isBlockedInWorkshop("join_meeting_for_client", inWorkshop)
+    ) {
       console.log(
         `[AGENT] Auto-dispatching meeting bot for URL: ${meetingUrl.slice(0, 80)}`,
       );
@@ -15396,6 +15885,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // A picked model brain runs this same loop on its own endpoint and key;
     // "נתב חכם" may continue on Carmen's own engine when its brains fail.
+    const runsInternal = !brainEngine || brainEngine.fallbackInternal;
     const llmChain: LLMTarget[] = brainEngine
       ? [
           ...brainEngine.targets,
@@ -15404,6 +15894,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             : []),
         ]
       : await buildLLMChain(supabase, agent.tenant_id, isolatedChatModel);
+    // Carmen's own engine ends on the tenant's OpenRouter brain, read only once the chain
+    // runs out, so a missing or refused provider key continues there instead of failing.
+    const extendChain = lazyBrainTail<LLMTarget>(
+      llmChain,
+      runsInternal ? internalTail : undefined,
+    );
+    if (llmChain.length === 0) await extendChain();
     if (llmChain.length === 0)
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     let activeIdx = 0;
@@ -15435,6 +15932,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     let usageTokensIn = 0;
     let usageTokensOut = 0;
 
+    // A tool that starts a coding agent runs only on the user's yes to Carmen's offer.
+    const devSendTurn = {
+      appChatUser: appChatTurn,
+      userText: String(command_text ?? ""),
+      lastAssistantText: lastAssistantText(conversation_history),
+    };
+    let silentNudges = 0;
     for (let round = 0; round < maxRounds; round++) {
       // Provider failover: try the active provider; on a quota/credit error, advance
       // to the next provider in the chain and retry THIS round (no round consumed).
@@ -15503,22 +16007,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, or any body signalling exhausted balance/quota, triggers failover.
-        const outOfCredit =
-          res.status === 429 ||
-          /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
-            err,
-          );
-        // A connected brain may also fail on size, model or auth; any failure
-        // moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
+        // triggers failover. A connected brain may also fail on size, model or auth; any
+        // failure moves on, and the chain holds only what this brain plan allowed.
         if (
-          (outOfCredit || !!llm.connectionId) &&
-          activeIdx < llmChain.length - 1
+          movesToNextLink(res.status, err, !!llm.connectionId) &&
+          (activeIdx < llmChain.length - 1 || (await extendChain()))
         ) {
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason = res.status === 429 ? "מגבלת קצב/קרדיט" : "קרדיט נגמר";
+          const reason =
+            res.status === 429
+              ? "מגבלת קצב/קרדיט"
+              : res.status === 401 || res.status === 403
+                ? "המפתח נדחה"
+                : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
@@ -15552,6 +16056,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
       // No tool calls → done
       if (!msg.tool_calls || msg.tool_calls.length === 0) {
+        if (
+          !String(msg.content || "").trim() &&
+          silentNudges < 1 &&
+          shouldNudgeSilentTurn(toolLog)
+        ) {
+          silentNudges += 1;
+          messages.push({
+            role: "user",
+            content: SILENT_TURN_NUDGE,
+          });
+          continue;
+        }
         finalOutput = msg.content || "";
         console.log(
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,
@@ -15569,6 +16085,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       // Execute tool calls — promote any called tool to full schema for the next round.
       const toolResults: any[] = [];
       let pulseDigestShortcut: string | null = null;
+      // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
+      const sayToUser: string[] = [];
+      // Only the last budget request of a round: an earlier one's code is no longer valid.
+      let budgetSay: string | null = null;
       if (tokenOptimize && msg.tool_calls?.length) {
         for (const tc of msg.tool_calls)
           promotedToolNames.add(tc.function.name);
@@ -15587,6 +16107,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         if (emit) emit({ type: "tool_call", tool: toolName, args: toolArgs });
 
         let result: any;
+        // A workshop tap is never an approval, and nothing leaves the board from the workshop;
+        // outside it a workshop tool has no board. Either way, even a tool never offered.
+        const workshopRefusal = workshopToolRefusal(toolName, inWorkshop);
         try {
           // Defense in depth: even if a tool slipped into the schema, refuse
           // coding-agent escalations outside the caller's tier (full vs bugfix).
@@ -15595,13 +16118,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               error: "isolated_session",
               message: "סשן מבודד — כלים כבויים.",
             };
+          } else if (workshopRefusal) {
+            result = workshopRefusal;
           } else if (toolName === "search_agent_tools") {
-            const discovered = await searchToolsFromIndex(
-              supabase,
-              String(toolArgs.query || command_text || ""),
-              toolPoolBeforeRouting,
-              typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
-            );
+            const discovered = (
+              await searchToolsFromIndex(
+                supabase,
+                String(toolArgs.query || command_text || ""),
+                toolPoolBeforeRouting,
+                typeof toolArgs.limit === "number" ? toolArgs.limit : 12,
+              )
+            ).filter((tool) => workshopToolAllowed(tool.name));
             expandAgentTools(discovered);
             result = {
               success: true,
@@ -15626,6 +16153,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
                   : DEV_ESCALATION_REFUSAL_HE,
             };
+          } else if (!mayDecideApprovals && isApprovalDecisionTool(toolName)) {
+            result = approvalDecisionRefusal(toolName, bodyJson, surface);
+          } else if (directDevSendRefusal(toolName, devSendTurn, toolArgs)) {
+            // A coding agent starts only after the user's yes to Carmen's offer.
+            result = directDevSendRefusal(toolName, devSendTurn, toolArgs);
           } else if (mcpExecutors.has(toolName)) {
             result = await mcpExecutors.get(toolName)!(toolArgs);
           } else {
@@ -15644,6 +16176,21 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               wa_notify,
               surface,
               serverConversationId,
+              {
+                turnId,
+                userText: String(command_text ?? ""),
+                viewClientId: inWorkshop
+                  ? workshopClientIdFrom(bodyJson)
+                  : null,
+                // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
+                devTaskTurn: {
+                  turnStartedAt,
+                  appChatUser: appChatTurn,
+                  lastAssistantText: lastAssistantText(conversation_history),
+                },
+                lastAssistant: lastAssistantText(conversation_history),
+              },
+              request.origin ?? null,
             );
             if (result?.pending_approval && result?.approval_id) {
               await bindApprovalToConversation(
@@ -15690,6 +16237,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               : undefined;
           if (uiAction && typeof uiAction === "object")
             emit({ type: "ui_action", tool: toolName, action: uiAction });
+          // Workshop tools tell the board what appeared and which skin is doing the work.
+          const workshopEvent =
+            result && typeof result === "object"
+              ? (result as any).workshop
+              : undefined;
+          if (workshopEvent && typeof workshopEvent === "object")
+            emit({ type: "workshop", tool: toolName, ...workshopEvent });
+          const skinSlug =
+            workshopRoleForRun && isWorkshopTool(toolName)
+              ? ROLE_PERSONA[workshopRoleForRun]
+              : skinForTool(toolName);
+          if (skinSlug) emit({ type: "skin", slug: skinSlug, tool: toolName });
         }
 
         if (
@@ -15702,13 +16261,35 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         ) {
           pulseDigestShortcut = result.whatsapp_digest.trim();
         }
+        // A workshop question or budget request is sent to the user exactly as the server
+        // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
+        if (
+          isWorkshopTool(toolName) &&
+          typeof result?.say_to_user === "string" &&
+          result.say_to_user.trim()
+        ) {
+          const say = result.say_to_user.trim();
+          if (result.needs_budget === true) budgetSay = say;
+          else if (!sayToUser.includes(say)) sayToUser.push(say);
+        }
       }
 
       messages.push(...toolResults);
+      if (budgetSay) sayToUser.push(budgetSay);
+      if (sayToUser.length) pulseDigestShortcut = sayToUser.join("\n\n");
       if (pulseDigestShortcut) {
         finalOutput = pulseDigestShortcut;
-        if (emit) emit({ type: "token", content: finalOutput });
+        // emitText puts it apart from any text the model already sent this turn.
+        emitText(finalOutput);
         break;
+      }
+    }
+
+    if (!String(finalOutput || "").trim()) {
+      const fallback = fallbackReply(toolLog);
+      if (fallback) {
+        finalOutput = fallback;
+        if (emit) emit({ type: "token", content: fallback });
       }
     }
 
@@ -15899,6 +16480,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
         null,
         "agent_direct",
         null,
+        { outOfBand: true },
       );
       failed = !!result?.error || !!result?.pending_approval;
     } catch (e: any) {
@@ -16151,9 +16733,19 @@ Deno.serve(async (req) => {
     if (denied) return denied;
   }
   const brainEngine = engine.kind === "connections" ? engine : undefined;
+  // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
+  // that brain's own access rules.
+  const internalTail = () => openRouterTail(guardClient, auth, bodyJson);
 
   if (!wantStream) {
-    return await handleRunAgent(bodyJson, surface, undefined, brainEngine);
+    return await handleRunAgent(
+      bodyJson,
+      surface,
+      undefined,
+      brainEngine,
+      { authKind: auth.kind, origin: req.headers.get("origin") },
+      internalTail,
+    );
   }
 
   // Streaming mode: AIOS-compatible SSE.
@@ -16169,7 +16761,17 @@ Deno.serve(async (req) => {
         }
       };
       try {
-        const resp = await handleRunAgent(bodyJson, surface, emit, brainEngine);
+        const resp = await handleRunAgent(
+          bodyJson,
+          surface,
+          emit,
+          brainEngine,
+          {
+            authKind: auth.kind,
+            origin: req.headers.get("origin"),
+          },
+          internalTail,
+        );
         let final: any = {};
         try {
           final = await resp.json();

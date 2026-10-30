@@ -1,3 +1,14 @@
+import {
+  META_LEAD_OBJECTIVES,
+  META_SALES_OBJECTIVES,
+} from "./meta-ads/campaign-objectives.ts";
+import { campaignGoalOverride } from "./pulse/campaign-goal-override.ts";
+import { classifyGoogleCampaignGoal } from "./pulse/google-campaign-goal.ts";
+import {
+  resolveCampaignGoals,
+  voteSpend,
+} from "./pulse/resolve-campaign-goals.ts";
+
 const DAY_MS = 86_400_000;
 
 export const PULSE_CAMPAIGN_GOALS = ["leads", "engagement", "ecommerce"];
@@ -108,8 +119,8 @@ function includesTerm(values, terms) {
 }
 
 const META_OBJECTIVE_GOAL = [
-  ["ecommerce", ["OUTCOME_SALES", "PRODUCT_CATALOG_SALES", "CATALOG_SALES"]],
-  ["leads", ["OUTCOME_LEADS", "LEAD_GENERATION"]],
+  ["ecommerce", [...META_SALES_OBJECTIVES]],
+  ["leads", [...META_LEAD_OBJECTIVES]],
   [
     "engagement",
     [
@@ -395,6 +406,19 @@ function hasExplicitLeadSignals(data = {}, context = {}) {
 export function classifyPulseCampaignGoal(data = {}, context = {}) {
   const ctx = classificationContext(context);
 
+  const override = campaignGoalOverride(data, ctx.integration_settings);
+  if (PULSE_CAMPAIGN_GOALS.includes(override)) {
+    return { goal: override, source: "explicit_mapping" };
+  }
+
+  if (ctx.integration_type === "google_ads") {
+    return classifyGoogleCampaignGoal(data, {
+      legacyGoal: goalFromDerivedCampaignType(data.campaign_type),
+      nameGoal: goalFromCampaignName(data.campaign_name),
+      reportIsEcommerce: isEcommerceReportTable(ctx),
+    });
+  }
+
   const messagingLeadGoal = goalFromMessagingLeadSignals(data);
   if (messagingLeadGoal)
     return { goal: messagingLeadGoal, source: "platform_goal" };
@@ -499,10 +523,12 @@ function firstPositivePresent(data, fields) {
 
 export function pulseCampaignOutcome(data = {}, goal = "unknown") {
   if (goal === "ecommerce") {
+    // Google Ads rows report purchases as `conversions` (the Google Ads UI column).
     const result = firstPresent(data, [
       "purchases",
       "purchase",
       "transactions",
+      "conversions",
     ]);
     return { ...result, kind: result.field ? "purchases" : null };
   }
@@ -914,6 +940,10 @@ function datesBetween(start, end) {
   return dates;
 }
 
+/**
+ * Pulse rows per campaign from report records, one goal per campaign.
+ * @param {{ records?: Array<{ table_id: string, data?: object | null }>, tables?: object[], nowYmd: string }} input
+ */
 export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
   const windows = pulseTrendWindows(nowYmd);
   const tableMap = new Map(tables.map((table) => [table.id, table]));
@@ -946,13 +976,12 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       platform,
       identity,
       goal: classification.goal,
+      source: classification.source,
     });
   }
 
   // One goal per campaign: daily rows can classify differently (e.g. a Google PMax day
   // with conversions vs. a clicks-only day), which split one campaign across categories.
-  // The goal backed by the most spend wins; 'unknown' only when nothing else is known.
-  const goalSpend = new Map();
   const campaignOf = (item) =>
     canonicalCampaignMergeKey(
       item.table.client_id,
@@ -960,19 +989,14 @@ export function buildPulseCampaignRows({ records = [], tables = [], nowYmd }) {
       "*",
       item.identity,
     );
-  for (const item of usable) {
-    const votes = goalSpend.get(campaignOf(item)) || {};
-    votes[item.goal] =
-      (votes[item.goal] || 0) + (Number(item.record.data.spend) || 0) + 1e-6;
-    goalSpend.set(campaignOf(item), votes);
-  }
-  const campaignGoal = new Map();
-  for (const [key, votes] of goalSpend) {
-    const ranked = Object.entries(votes).sort(
-      (a, b) => (a[0] === "unknown") - (b[0] === "unknown") || b[1] - a[1],
-    );
-    campaignGoal.set(key, ranked[0][0]);
-  }
+  const campaignGoal = resolveCampaignGoals(
+    usable.map((item) => ({
+      key: campaignOf(item),
+      goal: item.goal,
+      source: item.source,
+      spend: voteSpend(item.record.data),
+    })),
+  );
 
   for (const item of usable) {
     const { record, table, platform, identity } = item;

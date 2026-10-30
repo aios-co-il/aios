@@ -21,6 +21,7 @@ import {
   notifyRecallCreditRecovered,
 } from "../_shared/recall-credit-alert.ts";
 import { probeMcp, resyncInternalMcpBearer } from "../_shared/mcp-bearer.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { deliverHealthDigest } from "./report-delivery.ts";
 
 // Periodic infrastructure health probe for the Carmen Command Center.
@@ -844,8 +845,9 @@ Deno.serve(async (req) => {
         setting.tenant_id,
         rows,
       );
+      // The typed service client: the delivery reads the report recipients.
       const { sent, error } = await deliverHealthDigest(
-        supabase,
+        serviceClient(),
         setting.tenant_id,
         digest,
       );

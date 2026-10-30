@@ -307,7 +307,7 @@ export function evaluatePulseInstantAlerts(
       const criticalLabels = critical.map((issue) => {
         if (issue.alertType === "campaign_stopped") return "קמפיין הושהה/נעצר";
         if (issue.alertType === "ad_disapproved") return "מודעה לא מאושרת";
-        return issue.alertType || "בעיית קמפיין";
+        return issue.label || "בעיית קמפיין";
       });
 
       const hasConnectionIssue =
