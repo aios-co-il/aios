@@ -7,6 +7,7 @@ import {
   REPORT_CAMPAIGN_GOALS,
   type ReportCampaignGoal,
 } from "@/lib/campaignGoals";
+import type { FacebookFollowerTotals } from "@/lib/facebookFollowers";
 import type { GoogleAdsRowData } from "@/lib/googleCampaignGoals";
 import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
 import { googleCampaignRowsByGoal } from "./googleCampaignRowsByGoal";
@@ -27,6 +28,8 @@ export type SharedCampaignRow = {
   purchases: number;
   revenue: number;
   addToCart: number;
+  /** Facebook only; traffic tables show it. */
+  followers?: FacebookFollowerTotals;
 };
 
 /** The shared report's campaign tables, one per goal, at one entity level. */
@@ -102,6 +105,7 @@ function sharedFacebookRow(row: FacebookCampaignRow): SharedCampaignRow {
     purchases: row.purchases,
     revenue: row.purchase_value,
     addToCart: row.add_to_cart,
+    followers: row.followers,
   };
 }
 

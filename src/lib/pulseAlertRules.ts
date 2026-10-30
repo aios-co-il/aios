@@ -1,3 +1,6 @@
+import type { PulseCostRules } from "../../supabase/functions/_shared/pulse/cost-rules.ts";
+import { isJsonObject } from "../../supabase/functions/_shared/pulse/json.ts";
+
 export type PulseAlertRules = {
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
@@ -5,7 +8,29 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  manager?: PulseManagerSettings;
 };
+
+/**
+ * pulse_alert_rules.manager: only cost is edited from the dashboard (read by
+ * resolvePulseCostRules); any other key is kept as stored.
+ */
+export type PulseManagerSettings = {
+  cost?: Partial<PulseCostRules>;
+  /**
+   * Log what AIOS sends to a client (reports, dashboard shares, meeting
+   * summaries, broadcasts, Carmen and automation messages, chat replies) on
+   * the client card automatically. Off unless an owner turns it on.
+   */
+  card_log_system_sends?: boolean;
+  [key: string]: unknown;
+};
+
+/** Whether the tenant logs system sends on the client card (default false). */
+export function readCardLogSystemSends(raw: unknown): boolean {
+  const manager = isJsonObject(raw) ? raw.manager : undefined;
+  return isJsonObject(manager) && manager.card_log_system_sends === true;
+}
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   instant_wa_enabled: true,
@@ -33,54 +58,55 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    ...(isManagerSettings(input.manager) ? { manager: input.manager } : {}),
   };
 }
 
 /**
- * Manager-round settings stored under pulse_alert_rules.manager. Other code
- * may keep more keys there; they are always preserved.
- */
-export type PulseManagerSettings = {
-  /**
-   * Log what AIOS sends to a client (reports, dashboard shares, meeting
-   * summaries, broadcasts, Carmen and automation messages, chat replies) on
-   * the client card automatically. Off unless an owner turns it on.
-   */
-  card_log_system_sends?: boolean;
-};
-
-/** Whether the tenant logs system sends on the client card (default false). */
-export function readCardLogSystemSends(raw: unknown): boolean {
-  const manager = isRecord(raw) ? raw.manager : undefined;
-  return isRecord(manager) && manager.card_log_system_sends === true;
-}
-
-/**
- * The pulse_alert_rules value to save: the stored JSON with the edited alert
- * rules and manager settings laid over it. Keys this screen does not know
- * (other manager settings, future rules) are kept as they are.
+ * The stored pulse_alert_rules with the dialog's values on top. Keys the dialog
+ * does not know (future settings, other manager keys) survive a save instead of
+ * being wiped; manager.cost is merged key by key, and manager is written only
+ * when it is stored or edited. managerPatch holds the manager keys the dialog
+ * sets outside the rules (the owner's card_log_system_sends switch); an
+ * undefined value leaves the stored one.
  */
 export function mergePulseAlertRules(
   stored: unknown,
-  rules: PulseAlertRules,
-  manager: PulseManagerSettings = {},
+  edited: PulseAlertRules,
+  managerPatch: PulseManagerSettings = {},
 ): Record<string, unknown> {
-  const current = isRecord(stored) ? stored : {};
-  const merged: Record<string, unknown> = {
-    ...current,
-    ...parsePulseAlertRules({ ...current, ...rules }),
-  };
-  const managerPatch = Object.fromEntries(
-    Object.entries(manager).filter(([, value]) => value !== undefined),
+  const base = isJsonObject(stored) ? stored : {};
+  const { manager: parsedManager, ...rules } = parsePulseAlertRules(edited);
+  const patch = Object.fromEntries(
+    Object.entries(managerPatch).filter(([, value]) => value !== undefined),
   );
-  if (Object.keys(managerPatch).length > 0 || "manager" in current) {
-    const storedManager = isRecord(current.manager) ? current.manager : {};
-    merged.manager = { ...storedManager, ...managerPatch };
+  const editedManager: PulseManagerSettings | undefined =
+    parsedManager || Object.keys(patch).length > 0
+      ? { ...parsedManager, ...patch }
+      : undefined;
+  const merged: Record<string, unknown> = { ...base, ...rules };
+  const storedManager = isJsonObject(base.manager) ? base.manager : null;
+  if (!storedManager && !editedManager) {
+    return merged;
   }
+  const manager: Record<string, unknown> = {
+    ...storedManager,
+    ...editedManager,
+  };
+  const storedCost = isJsonObject(storedManager?.cost)
+    ? storedManager.cost
+    : null;
+  if (storedCost || editedManager?.cost) {
+    manager.cost = { ...storedCost, ...editedManager?.cost };
+  }
+  merged.manager = manager;
   return merged;
 }
 
-/** A JSON object (not an array): the stored rules and their manager settings. */
-function isRecord(raw: unknown): raw is Record<string, unknown> {
-  return typeof raw === "object" && raw !== null && !Array.isArray(raw);
+/** A stored manager block: an object whose cost, when present, is an object too. */
+function isManagerSettings(value: unknown): value is PulseManagerSettings {
+  return (
+    isJsonObject(value) &&
+    (value.cost === undefined || isJsonObject(value.cost))
+  );
 }
