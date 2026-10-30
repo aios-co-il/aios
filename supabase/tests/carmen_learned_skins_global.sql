@@ -1,4 +1,4 @@
--- Carmen's learned skins for every org (20261027090000_carmen_learned_skins_for_every_org):
+-- Carmen's learned skins for every org (20261030090000_carmen_learned_skins_for_every_org):
 -- the skill registry gives each skin to a tenant with no row of its own, a
 -- tenant row still wins, the global text names no person, phone or tool,
 -- everyday commands match no trigger, and MarketingCaptain's
