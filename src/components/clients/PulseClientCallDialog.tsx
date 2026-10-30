@@ -149,7 +149,7 @@ export function PulseClientCallDialog({
         lastClientCallAt: inserted.created_at,
         lastClientCallBy: recordedBy,
       });
-      toast.success("השיחה תועדה — צבע הדופק עודכן");
+      toast.success("השיחה תועדה");
       onOpenChange(false);
     } catch (err: any) {
       toast.error(err?.message || "שגיאה בשמירה");

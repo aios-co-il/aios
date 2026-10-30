@@ -1,10 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { senderAccess, senderLine } from "./sender-access.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { lineSetting } from "../_shared/report-sender/line-access.ts";
-import { serviceClient } from "../_shared/supabase-clients.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { toGatewayPhone } from "../_shared/telephony/phone.ts";
-import { sendLine } from "../_shared/report-sender/text-line.ts";
 import { liveLineDeps } from "./line.ts";
 
 const corsHeaders = {
@@ -66,9 +66,7 @@ Deno.serve(async (req) => {
             auth: { persistSession: false },
           },
     );
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const admin = serviceClient();
 
     const body = await req.json();
     const {
@@ -140,16 +138,11 @@ Deno.serve(async (req) => {
       tenantId = data?.tenant_id;
     }
 
-    const [{ data: membership }, { data: superAdmin }] = await Promise.all([
-      admin
-        .from("tenant_users")
-        .select("user_id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .maybeSingle(),
-      admin.rpc("is_super_admin", { _user_id: userId }),
-    ]);
-    if (!membership && superAdmin !== true) {
+    const access = await senderAccess(admin, tenantId ?? "", userId);
+    if (access instanceof Response) {
+      return access;
+    }
+    if (!access.member && !access.superAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -171,14 +164,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const lineStep = await sendLine(liveLineDeps(serviceClient()), {
+    const lineStep = await senderLine(liveLineDeps(serviceClient()), {
       type: "manus_wa",
       isServiceRole,
       tenantId,
       userId,
       integrationId,
-      superAdmin: superAdmin === true,
+      superAdmin: access.superAdmin,
     });
+    if (lineStep instanceof Response) {
+      return lineStep;
+    }
     if ("refusal" in lineStep) {
       return new Response(JSON.stringify(lineStep.refusal.body), {
         status: lineStep.refusal.status,

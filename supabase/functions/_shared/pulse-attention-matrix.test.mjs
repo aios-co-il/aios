@@ -6,6 +6,9 @@ import {
   resolvePlatformTarget,
 } from "./pulse-attention-matrix.mjs";
 
+/** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
+const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
+
 Deno.test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
   assertStrictEquals(
     readApprovedPlatformTarget(
@@ -37,8 +40,7 @@ Deno.test("evaluateEfficiencyIssue flags approved target breach", () => {
   assertStrictEquals(issue?.level, "alert");
 });
 
-// FIXME: failing before the Deno migration (was never run in CI); fix or delete.
-Deno.test.ignore(
+Deno.test(
   "leads-only google table reclassifies mis-tagged ecommerce rows to CPL",
   () => {
     const rows = buildPulseAttentionRows({
@@ -55,7 +57,7 @@ Deno.test.ignore(
           efficiency_7d: 0.04,
           baseline_efficiency_7d: 0.05,
           trend_7d_pct: 12,
-          last_change_at: "2026-09-18T10:00:00Z",
+          last_change_at: RECENT_CHANGE,
         },
       ],
       tables: [

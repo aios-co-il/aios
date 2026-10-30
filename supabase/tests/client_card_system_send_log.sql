@@ -1,4 +1,4 @@
--- Client card system-send log (20261026136000_client_card_system_send_log):
+-- Client card system-send log (20261030093000_client_card_system_send_log):
 -- Staging only. Synthetic chat_messages and report_deliveries rows on
 -- existing clients inside one transaction that is rolled back. Nothing is
 -- sent to anyone: the rows only exercise the triggers that write client card
