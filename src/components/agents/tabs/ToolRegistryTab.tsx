@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert } from "@/integrations/supabase/types";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import { isOneOf } from "../agentUiHelpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,15 +28,18 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Library, Shield, Zap } from "lucide-react";
 
+const HANDLER_KINDS = ["edge", "internal", "mcp"] as const;
+type HandlerKind = (typeof HANDLER_KINDS)[number];
+
 interface AgentTool {
   id?: string;
   tenant_id: string | null;
   name: string;
   display_name: string | null;
-  category: string | null;
+  category: string;
   description: string | null;
-  input_schema: any;
-  handler_kind: "edge" | "internal" | "mcp";
+  input_schema: Json;
+  handler_kind: HandlerKind;
   handler_ref: string | null;
   requires_approval: boolean;
   enabled: boolean;
@@ -78,7 +82,7 @@ export function ToolRegistryTab() {
 
   const save = useMutation({
     mutationFn: async (tool: AgentTool) => {
-      let parsedSchema = tool.input_schema;
+      let parsedSchema: Json = tool.input_schema;
       try {
         parsedSchema = schemaText
           ? JSON.parse(schemaText)
@@ -109,7 +113,7 @@ export function ToolRegistryTab() {
       toast.success("נשמר");
       setEditing(null);
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const remove = useMutation({
@@ -124,7 +128,7 @@ export function ToolRegistryTab() {
       qc.invalidateQueries({ queryKey: ["agent-tools-registry", tenantId] });
       toast.success("נמחק");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const toggleEnabled = useMutation({
@@ -315,9 +319,10 @@ export function ToolRegistryTab() {
                   <Label>סוג מבצע</Label>
                   <Select
                     value={editing.handler_kind}
-                    onValueChange={(v: any) =>
-                      setEditing({ ...editing, handler_kind: v })
-                    }
+                    onValueChange={(v) => {
+                      if (isOneOf(HANDLER_KINDS, v))
+                        setEditing({ ...editing, handler_kind: v });
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />

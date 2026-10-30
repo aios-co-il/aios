@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { asJsonObject } from "../agentUiHelpers";
 import { useApprovalDecision } from "./approvals/useApprovalDecision";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +45,15 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className={m.cls}>{m.label}</Badge>;
 }
 
-function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
+function ApprovalCard({
+  item,
+  canDecide,
+}: {
+  item: Tables<"agent_approval_queue">;
+  canDecide: boolean;
+}) {
   const decide = useApprovalDecision(item);
+  const executionError = asJsonObject(item.execution_result)?.error;
   const expired = item.expires_at && new Date(item.expires_at) < new Date();
 
   return (
@@ -87,9 +96,9 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
         </pre>
       )}
 
-      {item.status === "failed" && item.execution_result?.error && (
+      {item.status === "failed" && executionError && (
         <p className="text-xs text-red-600 dark:text-red-400">
-          {String(item.execution_result.error)}
+          {String(executionError)}
         </p>
       )}
 
@@ -123,7 +132,11 @@ function ApprovalCard({ item, canDecide }: { item: any; canDecide: boolean }) {
   );
 }
 
-export function ApprovalsTab({ agent }: { agent: any }) {
+export function ApprovalsTab({
+  agent,
+}: {
+  agent: Pick<Tables<"ai_agents">, "id">;
+}) {
   const [tab, setTab] = useState("pending");
 
   const { data: items = [], isLoading } = useQuery({
