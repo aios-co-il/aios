@@ -32,7 +32,10 @@ import { toPng } from "html-to-image";
 import { buildBrandedEmailHtml } from "@/lib/emailTemplate";
 import { EmailRecipientsSelector } from "./EmailRecipientsSelector";
 import { WhatsAppGroupSelect } from "./WhatsAppGroupSelect";
-import { ReportWhatsAppSenderSelect } from "./ReportWhatsAppSenderSelect";
+import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
+import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
+import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
+import { toastReportSent } from "@/components/report-sender/toastReportSent";
 import {
   ReportEmailSenderSelect,
   type ReportEmailSender,
@@ -166,7 +169,7 @@ export function ClientReportPanel({
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [sendEmail, setSendEmail] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [waSenderId, setWaSenderId] = useState("");
+  const waSender = useReportSenderChoice(tenantId);
   const [directPhone, setDirectPhone] = useState("");
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
   const [emailSubject, setEmailSubject] = useState("");
@@ -520,46 +523,28 @@ export function ClientReportPanel({
           return;
         }
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session) throw new Error("Not authenticated");
-
         const captionParts: string[] = [];
         if (messageText) captionParts.push(messageText);
         if (effectiveShareLink)
           captionParts.push(`\n📊 צפה בדוח המלא: ${effectiveShareLink}`);
         const fullCaption = captionParts.join("");
 
-        const formData = new FormData();
-        formData.append("file", screenshotBlob, `report-${table.name}.png`);
-        formData.append("tenantId", tenantId);
-        formData.append("fileType", "image");
-        if (fullCaption) formData.append("caption", fullCaption);
-
-        if (hasGroup) {
-          formData.append("groupId", selectedGroupId);
-        } else if (directPhone) {
-          formData.append("phoneNumber", directPhone);
-        }
-        if (waSenderId) formData.append("integrationId", waSenderId);
-        if (clientId) formData.append("clientId", clientId);
-        // A report send: the client card logs it once, from report_deliveries.
-        formData.append("sendKind", "report");
-        formData.append("sendRef", table.id);
-
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${session.access_token}` },
-            body: formData,
-          },
-        );
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "שגיאה בשליחה");
+        const sent = await sendReportWhatsApp({
+          tenantId,
+          pick: waSender.pick,
+          file: screenshotBlob,
+          fileName: `report-${table.name}.png`,
+          fileType: "image",
+          caption: fullCaption,
+          groupId: hasGroup ? selectedGroupId : null,
+          phoneNumber: hasGroup ? null : directPhone,
+          clientId,
+          // A report send: the client card logs it once, from report_deliveries.
+          sendKind: "report",
+          sendRef: table.id,
+        });
         sentChannels.push("whatsapp");
-        toast.success("הדוח נשלח בוואטסאפ בהצלחה");
+        toastReportSent(sent, "הדוח נשלח בוואטסאפ בהצלחה");
       }
 
       if (sendEmail) {
@@ -831,10 +816,10 @@ export function ClientReportPanel({
 
         {sendWhatsApp && (
           <div className="space-y-2">
-            <ReportWhatsAppSenderSelect
-              tenantId={tenantId}
-              value={waSenderId}
-              onChange={setWaSenderId}
+            <ReportSenderPicker
+              choice={waSender}
+              groups={groups}
+              groupId={selectedGroupId}
             />
             <WhatsAppGroupSelect
               groups={groups}
