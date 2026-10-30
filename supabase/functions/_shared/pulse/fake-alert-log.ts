@@ -3,6 +3,7 @@
  * instant alerts: pulse_instant_alert_log, agency_tenant_access and, when a
  * test seeds them, user_roles, user_managed_agencies and profiles.
  */
+import type { CarmenReportRecipient } from "../carmen-report-recipients/resolve.ts";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   deliverInstantPulseAlerts,
@@ -37,6 +38,13 @@ export const ACME: PulseSnapshotAlertInput = {
 };
 
 export const WEDNESDAY = new Date("2026-10-28T07:00:00Z"); // 09:00 Israel
+
+/** The owner run() alerts when the organization has no report list. */
+export const OWNER_RECIPIENT: CarmenReportRecipient = {
+  name: "Owner",
+  phone: "972501234567",
+  source: "owner_fallback",
+};
 
 /** Pulse rules without no_contact, so a run checks the other rules alone. */
 export const NO_CONTACT_OFF = {
@@ -148,7 +156,7 @@ export async function run(
     supabase,
     tenantId: "t1",
     tenantSlug: "test-tenant",
-    pulsePhone: "0501234567",
+    reportRecipients: [OWNER_RECIPIENT],
     snapshots,
     criticalIssues: [],
     rules: DEFAULT_PULSE_ALERT_RULES,
