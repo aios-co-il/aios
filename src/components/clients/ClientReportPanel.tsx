@@ -39,7 +39,10 @@ import {
 } from "./ReportEmailSenderSelect";
 import { syncReportTable, waitForSnapshotReady } from "@/lib/reportSync";
 import { downloadReportPdf } from "@/lib/reportPdf";
-import { getReportLastSyncAt } from "@/lib/reportQueryOptions";
+import {
+  getReportLastSyncAt,
+  getReportSyncProblem,
+} from "@/lib/reportQueryOptions";
 import { getAdAccountUrl } from "@/lib/adAccountUrl";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import {
@@ -737,6 +740,7 @@ export function ClientReportPanel({
     <div className="space-y-3 min-w-0" dir="rtl">
       <ReportDataFreshness
         lastSyncAt={getReportLastSyncAt(table)}
+        syncProblem={getReportSyncProblem([table])}
         className="px-1"
       />
       {/* Screenshot Preview */}

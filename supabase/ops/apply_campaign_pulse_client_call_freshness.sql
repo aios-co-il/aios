@@ -36,7 +36,7 @@ GRANT EXECUTE ON FUNCTION public.client_update_documents_phone_call(text)
   TO service_role;
 
 -- get_latest_client_call_updates is owned by the migrations: see
--- supabase/migrations/20261026126000_client_card_provenance.sql (AIO-232).
+-- supabase/migrations/20261030092000_client_card_provenance.sql (AIO-232).
 -- It is not redefined here, so re-running this script cannot drop the
 -- client-card source filter or start counting plain meeting rows.
 

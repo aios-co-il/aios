@@ -8,6 +8,7 @@ const BASE = () =>
     /\/$/,
     "",
   );
+export const klingBaseUrl = BASE;
 const MODEL = () => process.env.KLING_MODEL || "kling-v3";
 const MODE = () => process.env.KLING_MODE || "pro";
 // From the manual Carmen ad: ~5,100 credits ≈ $0.85 for a 5 s pro clip.
@@ -35,20 +36,27 @@ export function klingToken(
 export const klingDuration = (seconds) => (Number(seconds) > 5 ? "10" : "5");
 
 /**
- * The tenant's own key pair wins; the env pair is the agency's fallback, used
- * only when the tenant saved no Kling keys at all.
+ * The Kling key pair to sign with: the tenant's own pair wins; the env pair is the agency's
+ * fallback, used only when the tenant saved no Kling keys at all (never half of each).
  */
-export function klingProvider({
-  accessKey: tenantAccess,
-  secretKey: tenantSecret,
-} = {}) {
-  const tenantHasAny = !!(tenantAccess || tenantSecret);
-  const accessKey = tenantHasAny ? tenantAccess : process.env.KLING_ACCESS_KEY;
-  const secretKey = tenantHasAny ? tenantSecret : process.env.KLING_SECRET_KEY;
-  const auth = () => {
+export function klingKeys({ accessKey, secretKey } = {}, env = process.env) {
+  const tenant = !!(accessKey || secretKey);
+  return tenant
+    ? { accessKey, secretKey, tenant }
+    : {
+        accessKey: env.KLING_ACCESS_KEY,
+        secretKey: env.KLING_SECRET_KEY,
+        tenant,
+      };
+}
+
+/** Request headers signed with klingKeys; a missing half fails with what to set. */
+export function klingAuth(keys) {
+  const { accessKey, secretKey, tenant } = klingKeys(keys);
+  return () => {
     if (!accessKey || !secretKey)
       throw new Error(
-        tenantHasAny
+        tenant
           ? "Kling needs both the Access Key and the Secret Key in AI keys settings"
           : "Kling needs an Access Key and a Secret Key (AI keys settings, or KLING_ACCESS_KEY / KLING_SECRET_KEY)",
       );
@@ -57,6 +65,10 @@ export function klingProvider({
       "Content-Type": "application/json",
     };
   };
+}
+
+export function klingProvider(keys = {}) {
+  const auth = klingAuth(keys);
   return {
     name: "kling",
     model: MODEL(),
