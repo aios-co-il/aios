@@ -10,6 +10,8 @@ on:
     branches: [main, develop]
   push:
     branches: [main, develop]
+  # develop's merge queue: each queued PR is checked on top of the PRs ahead of it.
+  merge_group:
 
 concurrency:
   group: ci-frontend-${{ github.ref }}
@@ -25,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha || inputs.source_sha || github.sha }}
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.source_sha || github.sha }}
           path: trusted-base
           persist-credentials: false
 
@@ -203,10 +205,10 @@ jobs:
       - id: filter
         name: Detect mirror script changes
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           set -euo pipefail
-          # Pushes and reusable calls always run; only PRs are narrowed.
+          # Pushes and reusable calls always run; only PRs and merge-queue runs are narrowed.
           if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^scripts/(staging_mirror/|sync-staging-data\.py|sync-agent-credentials\.py|verify-staging-containment\.py|staging-data-manifest\.json|test_staging_mirror)|^supabase/ops/install_staging_data_mirror\.sql$'; then
             echo "mirror=true" >> "$GITHUB_OUTPUT"
           else
