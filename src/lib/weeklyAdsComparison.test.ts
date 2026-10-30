@@ -230,3 +230,38 @@ describe("buildWeeklyCampaignSections – Google campaign goals", () => {
     expect(leads.totals.roas).toBe(2.5);
   });
 });
+
+test("a Facebook campaign keeps one goal in every week", () => {
+  // Sales in one week, only leads in the other: the campaign is a sales
+  // campaign over all its rows, as in the report's main tables.
+  const sections = buildWeeklyCampaignSections(
+    [
+      {
+        _source: "facebook_insights",
+        data: {
+          date: "2026-09-14",
+          campaign_id: "legacy",
+          campaign_name: "Legacy",
+          spend: 100,
+          purchases: 3,
+          purchase_value: 300,
+        },
+      },
+      {
+        _source: "facebook_insights",
+        data: {
+          date: "2026-09-07",
+          campaign_id: "legacy",
+          campaign_name: "Legacy",
+          spend: 80,
+          leads: 5,
+        },
+      },
+    ],
+    { now: new Date("2026-09-18T12:00:00Z") },
+  );
+  expect(sections.map((week) => week.rows[0].kind)).toStrictEqual([
+    "ecommerce",
+    "ecommerce",
+  ]);
+});

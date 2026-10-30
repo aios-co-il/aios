@@ -91,7 +91,10 @@ type WeekCampaign = {
   spend: number;
   revenue: number;
   addToCart: number;
-  /** Facebook Insights only: what facebookCampaignGoal reads, over the week's rows. */
+  /**
+   * Facebook Insights only: what facebookCampaignGoal reads, over all of the
+   * campaign's rows, so every week shows the campaign under one goal.
+   */
   facebookGoalInputs: FacebookGoalInputs | null;
 };
 
@@ -172,6 +175,7 @@ export function buildWeeklyCampaignSections(
   const currentSunday = getSundayStart(dateInTimeZone(now, "Asia/Jerusalem"));
   const sourceModes = options.sourceModes ?? {};
   const weeks = new Map<number, Map<string, WeekCampaign>>();
+  const facebookGoalInputs = new Map<string, FacebookGoalInputs>();
 
   for (const record of records) {
     const source = (record._source ?? options.defaultSource) as
@@ -179,6 +183,21 @@ export function buildWeeklyCampaignSections(
     if (!source || !ADS_SOURCES.has(source)) continue;
     const data = record.data ?? {};
     if (!shouldIncludeCampaignRow(data)) continue;
+
+    const campaign = String(
+      data.campaign_name || data.campaign || "ללא שם קמפיין",
+    );
+    const campaignId = String(data.campaign_id || campaign);
+    const rowKey = `${source}:${campaignId}`;
+    if (source === "facebook_insights") {
+      facebookGoalInputs.set(
+        rowKey,
+        addFacebookGoalRecord(
+          facebookGoalInputs.get(rowKey) ?? emptyFacebookGoalInputs(),
+          data,
+        ),
+      );
+    }
 
     const date = parseDate(data.date);
     if (!date) continue;
@@ -188,11 +207,6 @@ export function buildWeeklyCampaignSections(
     );
     if (weekIndex < 0 || weekIndex >= maxWeeks) continue;
 
-    const campaign = String(
-      data.campaign_name || data.campaign || "ללא שם קמפיין",
-    );
-    const campaignId = String(data.campaign_id || campaign);
-    const rowKey = `${source}:${campaignId}`;
     const week = weeks.get(weekIndex) ?? new Map<string, WeekCampaign>();
     const row: WeekCampaign = week.get(rowKey) ?? {
       source,
@@ -205,8 +219,7 @@ export function buildWeeklyCampaignSections(
       spend: 0,
       revenue: 0,
       addToCart: 0,
-      facebookGoalInputs:
-        source === "facebook_insights" ? emptyFacebookGoalInputs() : null,
+      facebookGoalInputs: null,
     };
 
     row.impressions += Number(data.impressions) || 0;
@@ -240,14 +253,14 @@ export function buildWeeklyCampaignSections(
       "conversion_value",
     );
     row.addToCart += numberFrom(data, "add_to_cart", "addToCarts");
-    if (row.facebookGoalInputs) {
-      row.facebookGoalInputs = addFacebookGoalRecord(
-        row.facebookGoalInputs,
-        data,
-      );
-    }
     week.set(rowKey, row);
     weeks.set(weekIndex, week);
+  }
+
+  for (const week of weeks.values()) {
+    for (const [rowKey, row] of week) {
+      row.facebookGoalInputs = facebookGoalInputs.get(rowKey) ?? null;
+    }
   }
 
   return [...weeks.entries()]

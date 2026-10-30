@@ -60,7 +60,7 @@ describe("googleManualRoiFigures", () => {
     );
   });
 
-  it("hides the card on a sales table or an empty range", () => {
+  it("hides the card on a sales table or an empty range without saved figures", () => {
     const salesTable = {
       ...table,
       integration_settings: { campaign_type: "ecommerce" },
@@ -69,5 +69,19 @@ describe("googleManualRoiFigures", () => {
       googleManualRoiFigures([record("search", "leads")], salesTable),
     ).toBe(null);
     expect(googleManualRoiFigures([], table)).toBe(null);
+  });
+
+  it("keeps saved figures on an empty range, against no spend", () => {
+    const withFigures = {
+      ...table,
+      integration_settings: {
+        campaign_type: "leads",
+        manual_roi: { closures: 3 },
+      },
+    };
+    expect(googleManualRoiFigures([], withFigures)).toStrictEqual({
+      spend: 0,
+      leads: 0,
+    });
   });
 });
