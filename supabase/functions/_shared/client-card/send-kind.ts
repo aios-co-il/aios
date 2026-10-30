@@ -4,7 +4,7 @@
 // APIs.
 //
 // Which kinds reach a client card is decided by the chat_messages trigger in
-// supabase/migrations/20261026136000_client_card_system_send_log.sql. A
+// supabase/migrations/20261030093000_client_card_system_send_log.sql. A
 // service-role send that names no kind is stored with send_kind NULL and is
 // never logged, so a new internal sender cannot start writing client cards by
 // accident.

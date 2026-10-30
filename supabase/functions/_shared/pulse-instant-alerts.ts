@@ -6,6 +6,21 @@
 
 import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
 import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
+import type { Json } from "./database.types.ts";
+import {
+  isLostConnectionFlag,
+  isNoDataWithoutTable,
+  isRealConnectionLoss,
+} from "./pulse/connection-loss.ts";
+import { withoutPhonesAlertedElsewhere } from "./pulse/cross-tenant-recipients.ts";
+import { isInstantAlertSuppressed } from "./pulse/instant-alert-dedupe.ts";
+import {
+  connectionLostFingerprint,
+  cplSpikeFingerprint,
+  noContactFingerprint,
+} from "./pulse/instant-alert-fingerprint.ts";
+import { queueAndLogInstantAlert } from "./pulse/instant-alert-send.ts";
+import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
 
 export type PulseAlertRuleType =
   "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
@@ -36,7 +51,9 @@ export type PulseInstantAlertCandidate = {
   campaign_key?: string | null;
   fingerprint?: string | null;
   severity_score?: number | null;
-  evidence?: Record<string, unknown>;
+  evidence?: Record<string, Json>;
+  /** connection_lost only: may go out on Shabbat (see isRealConnectionLoss). */
+  shabbat_critical?: boolean;
 };
 
 export type PulseSnapshotAlertInput = {
@@ -74,7 +91,7 @@ type CriticalIssueLike = {
   campaignName?: string | null;
 };
 
-type QueueWhatsApp = (
+export type QueueWhatsApp = (
   message: string,
   chatId: string | null,
 ) => Promise<boolean>;
@@ -233,6 +250,7 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "no_contact",
+          fingerprint: noContactFingerprint(snapshot.client_id, lastContact),
           message: [
             "🟡 *התראת דופק — אין עדכון קשר*",
             `לקוח: ${clientName}`,
@@ -260,6 +278,7 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "cpl_spike",
+          fingerprint: cplSpikeFingerprint(snapshot.client_id),
           message: [
             "🔴 *התראת דופק — עליית CPL*",
             `לקוח: ${clientName}`,
@@ -274,8 +293,7 @@ export function evaluatePulseInstantAlerts(
     if (rules.disconnected_enabled) {
       const connectionFlags = flags.filter(
         (flag) =>
-          flag.includes("אין טבלת קמפיין") ||
-          flag.includes("סנכרון ישן") ||
+          isLostConnectionFlag(flag) ||
           flag.includes("קמפיין נעצר") ||
           flag.includes("קמפיינים נעצרו"),
       );
@@ -287,13 +305,13 @@ export function evaluatePulseInstantAlerts(
       const criticalLabels = critical.map((issue) => {
         if (issue.alertType === "campaign_stopped") return "קמפיין הושהה/נעצר";
         if (issue.alertType === "ad_disapproved") return "מודעה לא מאושרת";
-        return issue.alertType || "בעיית קמפיין";
+        return issue.label || "בעיית קמפיין";
       });
 
       const hasConnectionIssue =
         connectionFlags.length > 0 ||
         criticalLabels.length > 0 ||
-        (statusNoData && flags.some((flag) => flag.includes("אין טבלת")));
+        isNoDataWithoutTable(statusNoData, flags);
 
       if (hasConnectionIssue) {
         const detail = [
@@ -304,6 +322,8 @@ export function evaluatePulseInstantAlerts(
           client_id: snapshot.client_id,
           client_name: clientName,
           rule_type: "connection_lost",
+          fingerprint: connectionLostFingerprint(snapshot.client_id),
+          shabbat_critical: isRealConnectionLoss(flags, statusNoData, critical),
           message: [
             "🔴 *התראת דופק — חיבור/קמפיין*",
             `לקוח: ${clientName}`,
@@ -317,38 +337,6 @@ export function evaluatePulseInstantAlerts(
   }
 
   return candidates;
-}
-
-async function latestAlertDelivery(
-  supabase: any,
-  tenantId: string,
-  clientId: string,
-  ruleType: PulseAlertRuleType,
-  throttleHours: number,
-  campaignKey?: string | null,
-): Promise<{
-  fingerprint?: string | null;
-  severity_score?: number | null;
-} | null> {
-  const since = new Date(
-    Date.now() - throttleHours * 60 * 60 * 1000,
-  ).toISOString();
-  let query = supabase
-    .from("pulse_instant_alert_log")
-    .select("fingerprint, severity_score")
-    .eq("tenant_id", tenantId)
-    .eq("client_id", clientId)
-    .eq("rule_type", ruleType)
-    .gte("sent_at", since)
-    .order("sent_at", { ascending: false })
-    .limit(1);
-  if (campaignKey) query = query.eq("campaign_key", campaignKey);
-  const { data, error } = await query;
-  if (error) {
-    console.warn("[pulse-instant-alerts] dedupe lookup failed", error.message);
-    return null;
-  }
-  return data?.[0] || null;
 }
 
 async function resolveInstantAlertRecipients(
@@ -417,19 +405,27 @@ export async function deliverInstantPulseAlerts(input: {
   rules: unknown;
   queueWhatsApp: QueueWhatsApp;
   analyzeException?: AnalyzeException;
+  /** Clock override for tests. */
+  now?: Date;
 }): Promise<{
   sent: number;
   skipped: number;
   candidates: number;
   analyzed: number;
+  /** Non-critical candidates held for Shabbat (re-evaluated after it). */
+  held: number;
 }> {
-  const candidates = evaluatePulseInstantAlerts(
+  const now = input.now ?? new Date();
+  const evaluated = evaluatePulseInstantAlerts(
     input.snapshots,
     input.criticalIssues,
     input.rules,
+    now.getTime(),
   );
-  if (!candidates.length)
-    return { sent: 0, skipped: 0, candidates: 0, analyzed: 0 };
+  const candidates = evaluated.filter(
+    (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
+  );
+  const held = evaluated.length - candidates.length;
 
   let sent = 0;
   let skipped = 0;
@@ -437,22 +433,33 @@ export async function deliverInstantPulseAlerts(input: {
 
   for (const candidate of candidates) {
     const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
-    const previousDelivery = await latestAlertDelivery(
+    if (await isInstantAlertSuppressed(input, candidate, throttleHours, now)) {
+      skipped += 1;
+      continue;
+    }
+
+    const agencyId = input.snapshots.find(
+      (snapshot) => snapshot.client_id === candidate.client_id,
+    )?.agency_id;
+    const tenantRecipients = await resolveInstantAlertRecipients(
       input.supabase,
       input.tenantId,
       candidate.client_id,
-      candidate.rule_type,
-      throttleHours,
-      candidate.campaign_key,
+      agencyId,
+      input.pulsePhone,
+      input.tenantSlug,
     );
-    const sameFinding =
-      previousDelivery &&
-      previousDelivery.fingerprint === candidate.fingerprint;
-    const materiallyWorse =
-      previousDelivery &&
-      Number(candidate.severity_score || 0) >
-        Number(previousDelivery.severity_score || 0) * 1.1;
-    if (previousDelivery && sameFinding && !materiallyWorse) {
+    // Before the AI check, so a campaign_exception everyone already got from
+    // another org costs no AI call.
+    const recipients = await withoutPhonesAlertedElsewhere(
+      input,
+      candidate,
+      agencyId,
+      tenantRecipients,
+      throttleHours,
+      now,
+    );
+    if (!recipients.length) {
       skipped += 1;
       continue;
     }
@@ -475,46 +482,12 @@ export async function deliverInstantPulseAlerts(input: {
       candidate.evidence = confirmed.evidence;
     }
 
-    const recipients = await resolveInstantAlertRecipients(
-      input.supabase,
-      input.tenantId,
-      candidate.client_id,
-      input.snapshots.find(
-        (snapshot) => snapshot.client_id === candidate.client_id,
-      )?.agency_id,
-      input.pulsePhone,
-      input.tenantSlug,
-    );
-    if (!recipients.length) {
-      skipped += 1;
-      continue;
-    }
-
-    let delivered = false;
-    for (const recipient of recipients) {
-      const queued = await input.queueWhatsApp(
-        candidate.message,
-        recipient.phone,
-      );
-      if (queued) delivered = true;
-    }
-    if (delivered) {
+    if (await queueAndLogInstantAlert(input, candidate, recipients)) {
       sent += 1;
-      await input.supabase.from("pulse_instant_alert_log").insert({
-        tenant_id: input.tenantId,
-        client_id: candidate.client_id,
-        rule_type: candidate.rule_type,
-        message: candidate.message,
-        recipient_phone: recipients.map((row) => row.phone).join(","),
-        campaign_key: candidate.campaign_key || null,
-        fingerprint: candidate.fingerprint || null,
-        severity_score: candidate.severity_score || null,
-        evidence: candidate.evidence || {},
-      });
     } else {
       skipped += 1;
     }
   }
 
-  return { sent, skipped, candidates: candidates.length, analyzed };
+  return { sent, skipped, candidates: evaluated.length, analyzed, held };
 }

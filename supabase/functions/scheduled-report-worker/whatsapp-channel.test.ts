@@ -145,7 +145,7 @@ Deno.test("sendScheduledWhatsApp picks the line", async (t) => {
   await t.step(
     "a legacy schedule keeps the creator's line after a default is set",
     async () => {
-      // 20261027104000 pinned it to the creator's own Green API line.
+      // 20261030094000 pinned it to the creator's own Green API line.
       const { calls, channel } = deps(all, "carmen");
       const result = await sendScheduledWhatsApp(
         channel,

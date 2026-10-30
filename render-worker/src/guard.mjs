@@ -2,7 +2,7 @@
 // worker never trusts a path or URL from it: storage paths must stay inside the run's
 // tenant folder, and remote files may only come from known media hosts.
 
-/** A creative-video object path inside the run's tenant folder; rejects . / .. segments. */
+/** A storage object path inside the run's tenant folder; rejects . / .. segments. */
 export function assertTenantPath(tenantId, path) {
   const value = String(path ?? "");
   const segments = value.split("/");
@@ -35,6 +35,36 @@ const defaultHosts = () =>
       .filter(Boolean),
   ].filter(Boolean);
 
+/**
+ * The bucket and path behind a link to this project's private entity-attachments bucket, or null.
+ * The app keeps uploads as entity-attachments links that nobody can fetch as they are, and
+ * signs them when it reads them (src/components/marketing/lib/resolveCreativeImageUrl.ts).
+ * The worker downloads them with its own key instead.
+ */
+export function privateStorageObject(
+  url,
+  projectUrl = process.env.SUPABASE_URL,
+) {
+  let link;
+  let project;
+  try {
+    link = new URL(String(url));
+    project = new URL(String(projectUrl));
+  } catch {
+    return null;
+  }
+  if (link.host !== project.host) return null;
+  const match = link.pathname.match(
+    /^\/storage\/v1\/object\/(?:public|sign)\/entity-attachments\/(.+)$/,
+  );
+  if (!match) return null;
+  try {
+    return { bucket: "entity-attachments", path: decodeURIComponent(match[1]) };
+  } catch {
+    return null;
+  }
+}
+
 /** https only, on the Supabase project, *.supabase.co, or MEDIA_URL_HOSTS. */
 export function assertMediaUrl(url, hosts = defaultHosts()) {
   let parsed;
@@ -48,6 +78,35 @@ export function assertMediaUrl(url, hosts = defaultHosts()) {
     (hosts.includes(parsed.host) || parsed.hostname.endsWith(".supabase.co"));
   if (!allowed) throw new Error(`media host not allowed: ${parsed.host}`);
   return parsed.toString();
+}
+
+/**
+ * The storage object behind a file a job reads: a `bucket` path, or a link to the project's
+ * private entity-attachments bucket (a user's upload). null: another https link.
+ */
+export function storedObject(pathOrUrl, bucket) {
+  const value = String(pathOrUrl ?? "");
+  return /^https?:\/\//.test(value)
+    ? privateStorageObject(value)
+    : { bucket, path: value };
+}
+
+/**
+ * The bytes of a file a job reads: a `bucket` path in the run's tenant folder, a link to the
+ * project's private entity-attachments bucket (a user's upload, read with the worker's key and
+ * only from the tenant folder), or an https link on an allowed media host.
+ */
+export async function readMedia(db, tenantId, pathOrUrl, bucket) {
+  const value = String(pathOrUrl ?? "");
+  const stored = storedObject(value, bucket);
+  if (stored)
+    return db.download(stored.bucket, assertTenantPath(tenantId, stored.path));
+  const response = await fetch(assertMediaUrl(value));
+  if (!response.ok)
+    throw new Error(
+      `media download ${response.status}: ${value.slice(0, 200)}`,
+    );
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 /**
