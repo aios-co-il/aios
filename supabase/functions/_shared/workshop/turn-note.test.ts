@@ -6,7 +6,7 @@ import {
 } from "jsr:@std/assert@1";
 import { approveFromMessage } from "./budget-approve.ts";
 import { budgetOf, requestBudget } from "./budget.ts";
-import { nextFilmStep } from "./turn-note.ts";
+import { DO_THE_STEP, nextFilmStep, workshopTurnNote } from "./turn-note.ts";
 
 Deno.test(
   "the next film step follows the project, so the storyboard is not rewritten",
@@ -206,5 +206,30 @@ Deno.test(
       "חם ונינוח",
     );
     assertMatch(String(note), /אווירה: חם ונינוח/);
+  },
+);
+
+Deno.test(
+  "every turn on an open project tells Carmen to do a missing step herself",
+  async () => {
+    const answer = { data: { payload: {} }, error: null };
+    const rows = { data: [], error: null };
+    const chain: Record<string, unknown> = {
+      select: () => chain,
+      eq: () => chain,
+      in: () => chain,
+      lt: () => chain,
+      update: () => chain,
+      maybeSingle: () => Promise.resolve(answer),
+      then: (resolve: (value: unknown) => unknown) => resolve(rows),
+    };
+    const db = { from: () => chain };
+    const note = await workshopTurnNote(
+      db,
+      "tenant-1",
+      "item-1",
+      "תעשי מה שצריך",
+    );
+    assert(note?.includes(DO_THE_STEP));
   },
 );

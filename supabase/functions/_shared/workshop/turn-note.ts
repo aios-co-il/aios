@@ -31,6 +31,13 @@ const TOOL_STEP: Record<string, string> = {
   workshop_produce_video: "הפקת הסרט (workshop_produce_video)",
 };
 
+/**
+ * On Staging Carmen answered "תעשי מה שצריך" with the step she was missing (a storyboard, a scene)
+ * as a task for the user. Every workshop turn on a project tells her to do that step herself.
+ */
+export const DO_THE_STEP =
+  "חסר שלב בדרך (סטוריבורד, סצנה, תמונת מקור שכבר בפרויקט)? עשי אותו בעצמך עם הכלים שלך והמשיכי, ואל תבקשי מהמשתמש לעשות אותו. שאלי את המשתמש רק על מה שאי אפשר להסיק, ורק שאלה אחת.";
+
 export interface FilmState {
   scenes: number;
   withStill: number;
@@ -85,7 +92,7 @@ export async function workshopTurnNote(
     if (!data) return null;
     await failStalePictures(supabase, tenantId, itemId).catch(() => {});
     let payload = asRecord(data.payload);
-    const lines: string[] = ["=== מצב הפרויקט (מהשרת) ==="];
+    const lines: string[] = ["=== מצב הפרויקט (מהשרת) ===", DO_THE_STEP];
     const approved = approveFromMessage(payload, userText);
     // Every tapped answer goes into the brief, so Carmen can come back to it later.
     const tapped = tappedAnswers(lastAssistant, userText);

@@ -111,6 +111,17 @@ export const isBlockedInWorkshop = (toolName: string, inWorkshop: boolean) =>
     toolName.startsWith(MCP_TOOL_PREFIX) ||
     toolName.startsWith(DELEGATE_TOOL_PREFIX));
 
+/**
+ * Whether a tool is offered in this chat: workshop tools only in the workshop, all of them to every
+ * role, since one project moves between copy, pictures and film; blocked tools never there.
+ */
+export function workshopToolOffered(toolName: string, inWorkshop: boolean) {
+  if (isBlockedInWorkshop(toolName, inWorkshop)) {
+    return false;
+  }
+  return !isWorkshopTool(toolName) || inWorkshop;
+}
+
 /** The tool result Carmen gets when she calls a blocked tool from the workshop. */
 export function workshopBlockedResult(toolName: string) {
   return {

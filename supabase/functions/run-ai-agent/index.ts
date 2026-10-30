@@ -93,14 +93,13 @@ import {
 import {
   isBlockedInWorkshop,
   stripServerOnlyPayloadKeys,
+  workshopToolOffered,
   workshopToolRefusal,
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import {
   ROLE_PERSONA,
   ROLE_SKILL,
-  ROLE_TOOLS,
-  toolsForRole,
   workshopRole,
 } from "../_shared/workshop/roles.ts";
 import {
@@ -15038,20 +15037,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !isBlockedInWorkshop(t.name, true),
       );
     }
-    if (inWorkshop && workshopRoleForRun) {
-      filteredTools = toolsForRole(
-        filteredTools,
-        workshopRoleForRun,
-        isWorkshopTool,
-      );
-    }
-    // A skin's tools may be added below; workshop tools only for this run's role.
+    // A skin's tools may be added below, under the same rule.
     const workshopToolAllowed = (name: string) =>
-      !isBlockedInWorkshop(name, inWorkshop) &&
-      (!isWorkshopTool(name) ||
-        (inWorkshop &&
-          (!workshopRoleForRun ||
-            ROLE_TOOLS[workshopRoleForRun].includes(name))));
+      workshopToolOffered(name, inWorkshop);
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
