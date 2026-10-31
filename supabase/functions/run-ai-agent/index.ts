@@ -19,8 +19,8 @@ import {
 import {
   type BrainEngine,
   type BrainEngineTarget,
-  resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
+import { resolveWorkshopAwareEngine } from "../_shared/carmen/brain-engine/workshop-brain.ts";
 import {
   movesToNextLink,
   openRouterTail,
@@ -16760,7 +16760,16 @@ Deno.serve(async (req) => {
   // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
   // the route, grant and keys are all read here, never taken from the body.
   const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const engine = await resolveBrainEngine(guardClient, auth, bodyJson);
+  const engine = await resolveWorkshopAwareEngine(
+    guardClient,
+    auth,
+    bodyJson,
+    async () =>
+      !(await internalBrainDenied(guardClient, auth, {
+        tenantId: bodyJson.tenant_id,
+        agentId: bodyJson.agent_id,
+      })),
+  );
   if (engine.kind === "denied") return brainDenied("brain");
   if (engine.kind === "refused")
     return refusedBrainResponse(engine.message, wantStream);
