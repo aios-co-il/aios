@@ -17,12 +17,12 @@ import { useWorkshopArtifacts } from "@/components/workshop/useWorkshopArtifacts
 import { useStoryboardBoard } from "@/components/workshop/useStoryboardBoard";
 import { filmAspect } from "@/components/workshop/storyboardScenes";
 import {
+  prefillComposer,
   setWorkshopContext,
   subscribeWorkshopEvents,
 } from "@/lib/workshopBridge";
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
 import { WorkshopClientCard } from "@/components/workshop/WorkshopClientCard";
-import { WorkshopDepartmentCard } from "@/components/workshop/WorkshopDepartmentCard";
 import { WorkshopAssignControl } from "@/components/workshop/WorkshopAssignControl";
 import {
   defaultProject,
@@ -157,7 +157,8 @@ export default function CarmenWorkshop() {
       : viewClientId
         ? null
         : defaultProject(rows);
-  const board = selected?.has_board ? selected : null;
+  // Every project opens here, on the board with Carmen's chat, whatever its department.
+  const board = selected;
 
   // The open project is not in this filter's list: Carmen started it for another client, or with
   // no client, or moved it. Follow it to its own client, the way the header assign control does,
@@ -207,11 +208,9 @@ export default function CarmenWorkshop() {
     mutationFn: async ({
       itemId,
       clientId,
-      hasBoard,
     }: {
       itemId: string;
       clientId: string | null;
-      hasBoard: boolean;
     }) => {
       // One assign path for every department; the RPC refuses moving an SEO or social project.
       // No client: the function's null default takes the project off its client.
@@ -220,16 +219,13 @@ export default function CarmenWorkshop() {
         p_client_id: clientId ?? undefined,
       });
       if (error) throw error;
-      // Only a workshop board has an assets tab to fill with the client's material.
-      const synced = hasBoard
-        ? await syncClientAssets(
-            supabase,
-            { tenantId: tenantId ?? "", itemId, clientId },
-            (path) =>
-              supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data
-                .publicUrl,
-          )
-        : { added: 0 };
+      // Every project opens on the board, so its assets tab gets the client's material.
+      const synced = await syncClientAssets(
+        supabase,
+        { tenantId: tenantId ?? "", itemId, clientId },
+        (path) =>
+          supabase.storage.from(ASSET_BUCKET).getPublicUrl(path).data.publicUrl,
+      );
       return { itemId, clientId, synced };
     },
     onError: (error: { message?: string }) =>
@@ -266,7 +262,6 @@ export default function CarmenWorkshop() {
       assign.mutate({
         itemId: selected.id,
         clientId,
-        hasBoard: selected.has_board,
       });
   };
 
@@ -332,11 +327,15 @@ export default function CarmenWorkshop() {
 
   useEffect(() => () => setWorkshopContext(null), []);
 
-  const startNew = () => {
+  /** A blank board and Carmen's chat; a department's new project starts its line in the chat. */
+  const startNew = (department?: string) => {
     setBlank(true);
     updateParams((params) => params.delete("project"));
     setProjectsOpen(false);
     setOpen(true);
+    if (department) {
+      prefillComposer(`פרויקט ${department} חדש: `);
+    }
     toast.info(
       viewClientName
         ? `פרויקט חדש ל${viewClientName}: כתבי לכרמן מה ליצור`
@@ -433,7 +432,7 @@ export default function CarmenWorkshop() {
             selectedId={selected?.id ?? null}
             loading={projects.isLoading}
             error={projects.isError}
-            onCreate={startNew}
+            onCreate={() => startNew()}
             onSelect={openProject}
           />
         ) : null}
@@ -442,19 +441,7 @@ export default function CarmenWorkshop() {
             <WorkshopClientCard
               tenantId={tenantId}
               clientId={viewClientId}
-              onNewCreative={startNew}
-            />
-          ) : selected && !selected.has_board ? (
-            <WorkshopDepartmentCard
-              item={selected}
-              assignControl={
-                <WorkshopAssignControl
-                  tenantId={tenantId}
-                  item={selected}
-                  busy={assign.isPending}
-                  onAssign={assignClient}
-                />
-              }
+              onNewProject={startNew}
             />
           ) : (
             <WorkshopFeed
