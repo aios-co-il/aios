@@ -4,8 +4,8 @@
  * Carmen's live session.
  *
  * - Auth fails closed (auth.ts).
- * - Recipient: explicit chat_id / campaign_pulse_phone / tenant campaigner
- *   (plan.ts).
+ * - Recipient: explicit chat_id / first configured Carmen report recipient /
+ *   tenant campaigner (plan.ts).
  * - Transport: only a PRIMARY Carmen line; a Green API step only as a
  *   labelled green_fallback (transport.ts, send.ts).
  *

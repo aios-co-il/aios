@@ -1,11 +1,12 @@
 /**
  * Instant WhatsApp alerts from campaign pulse snapshots.
- * Scoped owner + responsible team managers receive per-campaign alerts (deduped).
+ * Everyone the organization's Carmen reports to, its owners and agency owners,
+ * and the team managers of the client's agency receive per-campaign alerts
+ * (deduped).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { isPulseDeliveryExcludedPhone } from "./campaign-pulse.ts";
-import { normalizeNotifyPhone } from "./carmen-notify-target.ts";
+import type { CarmenReportRecipient } from "./carmen-report-recipients/resolve.ts";
 import {
   alertTargetText,
   baselineTrendLines,
@@ -35,6 +36,7 @@ import {
   type PhrasePulseException,
 } from "./pulse/exception-wording.ts";
 import { sendIndividualAlerts } from "./pulse/individual-alerts.ts";
+import { resolveInstantAlertRecipients } from "./pulse/instant-alert-recipients.ts";
 import { planInstantAlerts } from "./pulse/plan-instant-alerts.ts";
 
 export type PulseAlertRuleType =
@@ -334,68 +336,13 @@ export function evaluatePulseInstantAlerts(
   return candidates;
 }
 
-async function resolveInstantAlertRecipients(
-  supabase: any,
-  tenantId: string,
-  clientId: string,
-  agencyId: string | null | undefined,
-  pulsePhone: string | null | undefined,
-  tenantSlug?: string | null,
-): Promise<Array<{ phone: string; label: string }>> {
-  const recipients = new Map<string, string>();
-
-  const pulse = normalizeNotifyPhone(pulsePhone);
-  if (pulse && !isPulseDeliveryExcludedPhone(pulse, tenantSlug)) {
-    recipients.set(pulse, "owner");
-  }
-
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("user_id, role")
-    .eq("tenant_id", tenantId)
-    .in("role", ["owner", "agency_owner", "team_manager"]);
-  const ownerIds = (roles || [])
-    .filter((row: any) => row.role === "owner" || row.role === "agency_owner")
-    .map((row: any) => row.user_id)
-    .filter(Boolean);
-  let managerIds = (roles || [])
-    .filter((row: any) => row.role === "team_manager")
-    .map((row: any) => row.user_id)
-    .filter(Boolean);
-  if (agencyId && managerIds.length) {
-    const { data: managed } = await supabase
-      .from("user_managed_agencies")
-      .select("user_id")
-      .eq("agency_id", agencyId)
-      .in("user_id", managerIds);
-    const allowed = new Set((managed || []).map((row: any) => row.user_id));
-    managerIds = managerIds.filter((id: string) => allowed.has(id));
-  }
-  const recipientUserIds = Array.from(new Set([...ownerIds, ...managerIds]));
-  if (recipientUserIds.length) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, campaigners ( phone )")
-      .in("id", recipientUserIds);
-    for (const profile of profiles || []) {
-      const phone = normalizeNotifyPhone(profile.campaigners?.phone);
-      if (!phone || isPulseDeliveryExcludedPhone(phone, tenantSlug)) continue;
-      recipients.set(phone, profile.full_name || "manager");
-    }
-  }
-
-  return Array.from(recipients.entries()).map(([phone, label]) => ({
-    phone,
-    label,
-  }));
-}
-
 /** One org's run of instant alerts. */
 export type InstantPulseAlertsInput = {
   supabase: any;
   tenantId: string;
   tenantSlug?: string | null;
-  pulsePhone?: string | null;
+  /** Whom the organization's Carmen reports to; alerted ahead of the owners and managers. */
+  reportRecipients: CarmenReportRecipient[];
   snapshots: PulseSnapshotAlertInput[];
   criticalIssues: CriticalIssueLike[];
   rules: unknown;
@@ -447,13 +394,12 @@ export async function deliverInstantPulseAlerts(
     input,
     candidates,
     now,
-    (candidate, agencyId) =>
+    (_candidate, agencyId) =>
       resolveInstantAlertRecipients(
         input.supabase,
         input.tenantId,
-        candidate.client_id,
         agencyId,
-        input.pulsePhone,
+        input.reportRecipients,
         input.tenantSlug,
       ),
   );
