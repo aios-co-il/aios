@@ -89,11 +89,27 @@ const OUTSIDE_TOOLS = [
  */
 const UNBUDGETED_TOOLS = ["generate_ad_image", "studio_ui_action"];
 
+/**
+ * The old video studio's chat tools work only on a project already set as a film, so in the
+ * workshop they refused a picture project ("זה לא פרויקט וידאו"). The workshop's own tools take
+ * any project there: workshop_storyboard, workshop_update_scene and workshop_get_state.
+ */
+const STUDIO_TOOLS = [
+  "get_studio_state",
+  "update_studio_settings",
+  "attach_to_project",
+  "edit_scene",
+  "add_scene",
+  "delete_scene",
+];
+
 const WORKSHOP_BLOCKED_TOOLS = new Set([
   ...APPROVAL_TOOLS,
   ...OUTSIDE_TOOLS,
   ...UNBUDGETED_TOOLS,
+  ...STUDIO_TOOLS,
 ]);
+const STUDIO_TOOL_SET = new Set(STUDIO_TOOLS);
 const APPROVAL_TOOL_SET = new Set(APPROVAL_TOOLS);
 const UNBUDGETED_TOOL_SET = new Set(UNBUDGETED_TOOLS);
 
@@ -128,9 +144,11 @@ export function workshopBlockedResult(toolName: string) {
     error: "not_in_workshop",
     message: APPROVAL_TOOL_SET.has(toolName)
       ? "אישורים של וואטסאפ ומטא לא מטופלים מהסדנה. המשיכי בעבודה על הפרויקט."
-      : UNBUDGETED_TOOL_SET.has(toolName)
-        ? "בסדנה כל שלב בתשלום עובר דרך תקציב הפרויקט: תמונה נוצרת עם workshop_make_creative (או workshop_make_stills לסצנות), וסרט עם workshop_produce_video."
-        : "מהסדנה לא מפרסמים, לא שולחים הודעות ולא משנים דברים מחוץ ללוח. אמרי למשתמש שאת זה עושים מחוץ לסדנה, והמשיכי בעבודה על הפרויקט.",
+      : STUDIO_TOOL_SET.has(toolName)
+        ? "בסדנה עובדים עם הכלים שלה: סטוריבורד (גם מתמונה בפרויקט, from_artifact_id) עם workshop_storyboard, שינוי סצנה עם workshop_update_scene, ומצב הפרויקט עם workshop_get_state."
+        : UNBUDGETED_TOOL_SET.has(toolName)
+          ? "בסדנה כל שלב בתשלום עובר דרך תקציב הפרויקט: תמונה נוצרת עם workshop_make_creative (או workshop_make_stills לסצנות), וסרט עם workshop_produce_video."
+          : "מהסדנה לא מפרסמים, לא שולחים הודעות ולא משנים דברים מחוץ ללוח. אמרי למשתמש שאת זה עושים מחוץ לסדנה, והמשיכי בעבודה על הפרויקט.",
   };
 }
 

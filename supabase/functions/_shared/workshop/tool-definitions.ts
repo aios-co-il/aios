@@ -248,6 +248,11 @@ export const WORKSHOP_TOOLS = [
       type: "object",
       properties: {
         item_id: { type: "string" },
+        from_artifact_id: {
+          type: "string",
+          description:
+            "תמונה מהפרויקט (artifact_id, למשל מה שהמשתמש סימן) שהסרטון נבנה ממנה: כל סצנה בלי reference_url משלה נוצרת ממנה. כך תמונה בפרויקט הופכת לסרטון בלי לבקש מהמשתמש רפרנס",
+        },
         replace: { type: "boolean" },
         engine: {
           type: "string",

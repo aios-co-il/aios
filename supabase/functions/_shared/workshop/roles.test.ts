@@ -3,7 +3,12 @@ import {
   assertNotStrictEquals,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { aboutCarmen, roleOfPersona, workshopRole } from "./roles.ts";
+import {
+  aboutCarmen,
+  roleOfPersona,
+  workshopRole,
+  asksForVideo,
+} from "./roles.ts";
 
 Deno.test("static creative goes to the designer", () => {
   assertStrictEquals(
@@ -317,3 +322,12 @@ Deno.test(
     );
   },
 );
+
+Deno.test("a video ask is read from the user's own words", () => {
+  assertStrictEquals(
+    asksForVideo("צרי לי סרטון של הדמות בתמונה רוקדת אגדודו"),
+    true,
+  );
+  assertStrictEquals(asksForVideo("תעשי מזה סרט קצר"), true);
+  assertStrictEquals(asksForVideo("תמונה חדשה לפיד"), false);
+});
