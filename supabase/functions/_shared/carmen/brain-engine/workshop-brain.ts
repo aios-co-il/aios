@@ -5,11 +5,10 @@
  * as the fallback when the user holds that grant.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { WORKSHOP_SKIN } from "../../workshop/tool-definitions.ts";
 import { type BrainEngine, resolveBrainEngine } from "./load.ts";
 
 export const WORKSHOP_BRAIN = "openrouter";
-
-const WORKSHOP_SKIN = "carmen_workshop";
 
 type EngineBody = Parameters<typeof resolveBrainEngine>[2] & {
   task_skills?: unknown;
