@@ -6,6 +6,7 @@ import {
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
   type SelectedArtifact,
+  markedPictureFilmLine,
   selectedArtifactLine,
   selectedArtifactScope,
 } from "./selected-artifact.ts";
@@ -56,5 +57,22 @@ describe("selectedArtifactScope", () => {
       tenant_id: "tenant-1",
       item_id: "item-1",
     });
+  });
+});
+
+describe("markedPictureFilmLine", () => {
+  it("sends a video asked of a marked picture to the storyboard with that picture", () => {
+    const line = markedPictureFilmLine(image, true) ?? "";
+    assertMatch(line, /workshop_storyboard עם from_artifact_id=a-1/);
+    assertMatch(line, /לא workshop_edit_from_assets/);
+  });
+
+  it("says nothing without a video ask, a marked page, or a picture", () => {
+    assertStrictEquals(markedPictureFilmLine(image, false), null);
+    assertStrictEquals(markedPictureFilmLine(null, true), null);
+    assertStrictEquals(
+      markedPictureFilmLine({ ...image, kind: "copy" }, true),
+      null,
+    );
   });
 });

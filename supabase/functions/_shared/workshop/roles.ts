@@ -83,6 +83,11 @@ const ABOUT_HER_ABILITIES =
 const MAKE =
   /(?<![א-ת])(?:ו?ת(?:עשי|כיני|ייצרי|צרי|עצבי)|צרי|ליצור|לייצר|לעצב|להכין)(?![א-ת])|\b(?:make|create|design)\b/i;
 
+/** The message asks for a film or a video ("סרטון", "רילס", "תנפישי"). */
+export function asksForVideo(message: string | null | undefined) {
+  return VIDEO.test(message ?? "") || FILM_NOUN.test(message ?? "");
+}
+
 /** The message asks about Carmen herself, not for work to be made. */
 export function aboutCarmen(message: string | null | undefined): boolean {
   const text = String(message ?? "");
