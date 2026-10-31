@@ -14,6 +14,8 @@
  * - anything else            → failed: nothing left
  */
 
+import type { SendKind } from "../client-card/send-kind.ts";
+
 /** The only integration type send-manus-wa-message accepts with an integrationId. */
 export const MANUS_WA_TYPES = ["manus_wa"];
 
@@ -47,6 +49,8 @@ export async function postWaSend(input: {
   supabaseUrl: string;
   serviceRoleKey: string;
   functionName: string;
+  /** What the send is: the client send guard judges each send by it (AIO-261). */
+  sendKind: SendKind;
   body: Record<string, unknown>;
 }): Promise<WaSendOutcome> {
   try {
@@ -58,7 +62,7 @@ export async function postWaSend(input: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${input.serviceRoleKey}`,
         },
-        body: JSON.stringify(input.body),
+        body: JSON.stringify({ ...input.body, sendKind: input.sendKind }),
       },
     );
     return await readWaSendResponse(res);

@@ -4458,6 +4458,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      client_auto_send_opt_ins: {
+        Row: {
+          client_id: string;
+          created_at: string;
+          enabled: boolean;
+          id: string;
+          send_kind: Database["public"]["Enums"]["client_auto_send_kind"];
+          target: Database["public"]["Enums"]["client_auto_send_target"];
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          client_id: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          send_kind: Database["public"]["Enums"]["client_auto_send_kind"];
+          target: Database["public"]["Enums"]["client_auto_send_target"];
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          client_id?: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          send_kind?: Database["public"]["Enums"]["client_auto_send_kind"];
+          target?: Database["public"]["Enums"]["client_auto_send_target"];
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "client_auto_send_opt_ins_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_auto_send_opt_ins_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       client_contacts: {
         Row: {
           client_id: string;
@@ -4627,6 +4678,72 @@ export type Database = {
           },
           {
             foreignKeyName: "client_onboarding_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      client_send_refusals: {
+        Row: {
+          channel: string;
+          client_id: string | null;
+          created_at: string;
+          enforced: boolean;
+          function_name: string;
+          group_id: string | null;
+          id: string;
+          lead_id: string | null;
+          reason: string;
+          recipient_kind: string;
+          send_kind: string | null;
+          send_ref: string | null;
+          subject_client_id: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          channel: string;
+          client_id?: string | null;
+          created_at?: string;
+          enforced: boolean;
+          function_name: string;
+          group_id?: string | null;
+          id?: string;
+          lead_id?: string | null;
+          reason: string;
+          recipient_kind: string;
+          send_kind?: string | null;
+          send_ref?: string | null;
+          subject_client_id?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          channel?: string;
+          client_id?: string | null;
+          created_at?: string;
+          enforced?: boolean;
+          function_name?: string;
+          group_id?: string | null;
+          id?: string;
+          lead_id?: string | null;
+          reason?: string;
+          recipient_kind?: string;
+          send_kind?: string | null;
+          send_ref?: string | null;
+          subject_client_id?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "client_send_refusals_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_send_refusals_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -10709,6 +10826,7 @@ export type Database = {
           timezone: string;
           updated_at: string;
           whatsapp_group_id: string | null;
+          whatsapp_integration_id: string | null;
         };
         Insert: {
           channels?: string[];
@@ -10735,6 +10853,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Update: {
           channels?: string[];
@@ -10761,6 +10880,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Relationships: [
           {
@@ -10796,6 +10916,13 @@ export type Database = {
             columns: ["whatsapp_group_id"];
             isOneToOne: false;
             referencedRelation: "whatsapp_groups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "report_schedules_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
             referencedColumns: ["id"];
           },
         ];
@@ -13952,6 +14079,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      tenant_report_settings: {
+        Row: {
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp_integration_id: string | null;
+        };
+        Insert: {
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Update: {
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_report_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tenant_report_settings_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenant_settings: {
         Row: {
           created_at: string;
@@ -15669,6 +15832,16 @@ export type Database = {
         };
         Returns: undefined;
       };
+      broadcast_lists_recipient: {
+        Args: {
+          p_address: string;
+          p_broadcast_id: string;
+          p_group_id?: string;
+          p_shape: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
       broadcast_matching_entity_ids: {
         Args: { p_entity_type: string; p_filter: Json; p_tenant_id: string };
         Returns: string[];
@@ -15698,8 +15871,16 @@ export type Database = {
         Args: { _agency_id: string; _user_id: string };
         Returns: boolean;
       };
+      can_manage_client_auto_sends: {
+        Args: { p_client_id: string };
+        Returns: boolean;
+      };
       can_manage_lead_archive: {
         Args: { _tenant_id: string };
+        Returns: boolean;
+      };
+      can_manage_report_settings: {
+        Args: { p_tenant_id: string; p_user_id: string };
         Returns: boolean;
       };
       can_manage_user_permissions: {
@@ -15864,6 +16045,23 @@ export type Database = {
       };
       cleanup_old_events: { Args: never; Returns: number };
       cleanup_old_jobs: { Args: never; Returns: number };
+      client_auto_send_allowed: {
+        Args: {
+          p_client_id: string;
+          p_kind: Database["public"]["Enums"]["client_auto_send_kind"];
+          p_target: Database["public"]["Enums"]["client_auto_send_target"];
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
+      client_auto_send_targets: {
+        Args: { p_client_id: string };
+        Returns: {
+          email: boolean;
+          whatsapp_direct: boolean;
+          whatsapp_group: boolean;
+        }[];
+      };
       client_update_documents_phone_call: {
         Args: { p_content: string };
         Returns: boolean;
@@ -16310,6 +16508,25 @@ export type Database = {
         };
         Returns: string;
       };
+      list_report_whatsapp_senders: {
+        Args: { p_tenant_id: string; p_user_id?: string };
+        Returns: {
+          caller_can_manage: boolean;
+          carmen_role: string;
+          display_name: string;
+          group_chat_ids: string[];
+          id: string;
+          integration_type: string;
+          is_shared: boolean;
+          last4: string;
+          org_wide: boolean;
+          owner_name: string;
+          owner_tenant_id: string;
+          owner_tenant_name: string;
+          owner_user_id: string;
+          ready: boolean;
+        }[];
+      };
       list_system_cron_jobs: {
         Args: never;
         Returns: {
@@ -16627,6 +16844,30 @@ export type Database = {
         Args: { p_destination_key: string };
         Returns: undefined;
       };
+      report_whatsapp_sender_usable: {
+        Args: {
+          p_integration_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
+      resolve_send_recipient: {
+        Args: {
+          p_address: string;
+          p_group_id?: string;
+          p_shape: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          ambiguous: boolean;
+          client_ids: string[];
+          group_id: string;
+          lead_id: string;
+          recipient_kind: string;
+          sender_staff: boolean;
+        }[];
+      };
       restore_archived_leads: {
         Args: { p_lead_ids: string[] };
         Returns: number;
@@ -16707,6 +16948,11 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      send_scope_tenant_ids: { Args: { p_tenant: string }; Returns: string[] };
+      set_report_whatsapp_sender: {
+        Args: { p_integration_id?: string; p_tenant_id: string };
+        Returns: undefined;
+      };
       set_video_production: {
         Args: { p_item_id: string; p_patch: Json };
         Returns: Json;
@@ -16782,6 +17028,10 @@ export type Database = {
       };
       user_can_view_campaigner: {
         Args: { _campaigner_id: string; _user_id: string };
+        Returns: boolean;
+      };
+      user_can_view_client_send_refusal: {
+        Args: { p_client_id: string; p_tenant_id: string };
         Returns: boolean;
       };
       user_has_agency_access: {
@@ -16999,6 +17249,8 @@ export type Database = {
         | "integration_disconnected";
       chat_provider:
         "manychat" | "green_api" | "internal" | "manus_wa" | "meta_whatsapp";
+      client_auto_send_kind: "lead_alert" | "campaign_alert" | "automation";
+      client_auto_send_target: "whatsapp_group" | "whatsapp_direct" | "email";
       client_mood_status:
         "happy" | "wavering" | "churn_risk" | "not_progressing";
       client_status: "active" | "paused" | "ended" | "onboarding" | "inactive";
@@ -17272,6 +17524,8 @@ export const Constants = {
         "manus_wa",
         "meta_whatsapp",
       ],
+      client_auto_send_kind: ["lead_alert", "campaign_alert", "automation"],
+      client_auto_send_target: ["whatsapp_group", "whatsapp_direct", "email"],
       client_mood_status: [
         "happy",
         "wavering",

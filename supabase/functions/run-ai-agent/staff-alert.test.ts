@@ -96,6 +96,7 @@ Deno.test("sendStaffAlert", async (t) => {
         senderUserId: REQUESTER,
         phoneNumber: "972501234567",
         message: "תזכורת",
+        sendKind: "staff_alert",
       });
       // Never a client thread or group, so the alert never lands on a client card.
       assertStrictEquals("clientId" in fetch.calls[0].body, false);

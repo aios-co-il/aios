@@ -99,6 +99,7 @@ Deno.test("postWaSend", async (t) => {
         supabaseUrl: "https://this-project.supabase.co",
         serviceRoleKey: "service-key",
         functionName: "send-manus-wa-message",
+        sendKind: "staff_alert",
         body: { tenantId: "t1", message: "שלום" },
       });
       assertStrictEquals(out.status, "sent");
@@ -106,7 +107,11 @@ Deno.test("postWaSend", async (t) => {
         fetch.calls[0].url,
         "https://this-project.supabase.co/functions/v1/send-manus-wa-message",
       );
-      assertEquals(fetch.calls[0].body, { tenantId: "t1", message: "שלום" });
+      assertEquals(fetch.calls[0].body, {
+        tenantId: "t1",
+        message: "שלום",
+        sendKind: "staff_alert",
+      });
       assertEquals(fetch.calls[0].init.headers, {
         "Content-Type": "application/json",
         Authorization: "Bearer service-key",
@@ -122,6 +127,7 @@ Deno.test("postWaSend", async (t) => {
         supabaseUrl: "https://this-project.supabase.co",
         serviceRoleKey: "service-key",
         functionName: "send-manus-wa-message",
+        sendKind: "staff_alert",
         body: {},
       });
       assertEquals(out, {

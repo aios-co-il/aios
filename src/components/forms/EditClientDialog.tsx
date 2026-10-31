@@ -46,6 +46,7 @@ import {
   Plug,
 } from "lucide-react";
 import { ClientConnectionsTab } from "@/components/clients/ClientConnectionsTab";
+import { ClientAutoSendTab } from "@/components/clients/ClientAutoSendTab/ClientAutoSendTab";
 import { FolderLinksField } from "@/components/forms/FolderLinksField";
 import { AttachmentsField } from "@/components/forms/AttachmentsField";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -640,7 +641,7 @@ export function EditClientDialog({
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-6">
             <TabsTrigger value="details">פרטי לקוח</TabsTrigger>
             <TabsTrigger
               value="connections"
@@ -663,6 +664,9 @@ export function EditClientDialog({
               פגישה
             </TabsTrigger>
             <TabsTrigger value="updates">עדכונים</TabsTrigger>
+            <TabsTrigger value="auto-send" className="min-w-0">
+              <span className="truncate">שליחה אוטומטית ללקוח</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="details">
@@ -1637,6 +1641,10 @@ export function EditClientDialog({
               clientName={client.name}
               currentMoodStatus={(client as any).mood_status}
             />
+          </TabsContent>
+
+          <TabsContent value="auto-send" className="mt-4">
+            <ClientAutoSendTab clientId={client.id} />
           </TabsContent>
         </Tabs>
       </DialogContent>
