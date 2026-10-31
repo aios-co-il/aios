@@ -979,21 +979,21 @@
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2352,
-      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 36 more ...; task_collaborators: { ...; }[]; }' to type 'FullTask' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 36 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n    Types of property 'task_updates' are incompatible.\n      Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n        Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
+      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 38 more ...; task_collaborators: { ...; }[]; }' to type 'FullTask' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 38 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n    Types of property 'task_updates' are incompatible.\n      Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n        Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
       "source": "data as FullTask",
       "count": 1
     },
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2352,
-      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
+      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 39 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 39 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 39 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
       "source": "(data || []) as FullTask[]",
       "count": 1
     },
     {
       "file": "src/components/tasks/WeeklyTaskBoard.tsx",
       "code": 2352,
-      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 37 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
+      "message": "Conversion of type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 39 more ...; task_collaborators: { ...; }[]; }[]' to type 'FullTask[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 39 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'FullTask'.\n    Type '{ agency_id: string; assigned_agent: string | null; assignment_notification_sent_at: string | null; attachments: Json; campaigner_id: string | null; client_id: string | null; ... 39 more ...; task_collaborators: { ...; }[]; }' is not comparable to type 'Task'.\n      Types of property 'task_updates' are incompatible.\n        Type '{ count: number; }[]' is not comparable to type '{ id: string; }[]'.\n          Property 'id' is missing in type '{ count: number; }' but required in type '{ id: string; }'.",
       "source": "(recurringExtra || []) as FullTask[]",
       "count": 1
     },
@@ -1198,27 +1198,6 @@
       "code": 2352,
       "message": "Conversion of type '{ tagName: string; isContentEditable: boolean; }' to type 'EventTarget' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Type '{ tagName: string; isContentEditable: boolean; }' is missing the following properties from type 'EventTarget': addEventListener, dispatchEvent, removeEventListener",
       "source": "{ tagName: \"DIV\", isContentEditable: false, } as EventTarget",
-      "count": 1
-    },
-    {
-      "file": "src/lib/cursorTaskSessions.ts",
-      "code": 2345,
-      "message": "Argument of type '\"tenant_id\"' is not assignable to parameter of type 'never'.",
-      "source": "\"tenant_id\"",
-      "count": 1
-    },
-    {
-      "file": "src/lib/cursorTaskSessions.ts",
-      "code": 2589,
-      "message": "Type instantiation is excessively deep and possibly infinite.",
-      "source": "supabase .from(\"cursor_task_sessions\") .select(\"*\")",
-      "count": 1
-    },
-    {
-      "file": "src/lib/cursorTaskSessions.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(relation: \"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 266 more ... | \"workshop_assets\"): PostgrestQueryBuilder<...>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type '\"tenants\" | \"agencies\" | \"ai_agents\" | \"ai_conversations\" | \"agent_collaboration_tasks\" | \"goals\" | \"agent_brain_routes\" | \"ai_detection_brands\" | \"ai_detection_prompts\" | ... 266 more ... | \"workshop_assets\"'.\n  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: \"14.17\"; }, { Tables: { agencies: { Row: { contact_name: string | null; created_at: string; email: string | null; folder_link: string | null; id: string; ... 7 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 274 more ...; zoom_recordings: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.\n    Argument of type '\"cursor_task_sessions\"' is not assignable to parameter of type 'never'.",
-      "source": "\"cursor_task_sessions\"",
       "count": 1
     },
     {
