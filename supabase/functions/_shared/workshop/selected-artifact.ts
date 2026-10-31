@@ -43,6 +43,11 @@ export function selectedArtifactScope(
   return { id: artifactId, tenant_id: tenantId, item_id: itemId };
 }
 
+/** The page's web link (its file, else its thumbnail); a storage path is not one. */
+export function artifactWebLink(artifact: SelectedArtifact) {
+  return webLink(artifact.url) ?? webLink(artifact.thumb_url);
+}
+
 /** The turn-note line that tells Carmen what the user marked and the link to use for it. */
 export function selectedArtifactLine(artifact: SelectedArtifact | null) {
   if (!artifact) {
@@ -50,7 +55,7 @@ export function selectedArtifactLine(artifact: SelectedArtifact | null) {
   }
   const label = KIND_LABEL[artifact.kind] ?? artifact.kind;
   const title = artifact.title ? ` "${artifact.title}"` : "";
-  const link = webLink(artifact.url) ?? webLink(artifact.thumb_url);
+  const link = artifactWebLink(artifact);
   const where = link
     ? ` הכתובת שלו: ${link}. כשצריך רפרנס או תמונת מקור ממנו, העבירי את הכתובת הזו כמו שהיא.`
     : "";
@@ -71,3 +76,25 @@ const KIND_LABEL: Record<string, string> = {
 
 const webLink = (value: string | null) =>
   value && /^https?:\/\//i.test(value) ? value : null;
+
+const PICTURE_KINDS = new Set([
+  "image",
+  "variation",
+  "scene_still",
+  "reference",
+]);
+
+/**
+ * A video asked for while a picture is marked: the exact call Carmen makes, decided here. On
+ * Staging she picked workshop_edit_from_assets, which needs uploaded footage, and answered that
+ * the project had no video asset.
+ */
+export function markedPictureFilmLine(
+  artifact: SelectedArtifact | null,
+  wantsVideo: boolean,
+) {
+  if (!artifact || !wantsVideo || !PICTURE_KINDS.has(artifact.kind)) {
+    return null;
+  }
+  return `המשתמש מבקש סרטון מהתמונה שסומנה בלוח: קראי ל-workshop_storyboard עם from_artifact_id=${artifact.id} וסצנות שמתארות את התנועה שביקש. לא workshop_edit_from_assets ולא workshop_add_assets: התמונה כבר בפרויקט.`;
+}

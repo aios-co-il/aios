@@ -6,7 +6,12 @@ import {
 } from "jsr:@std/assert@1";
 import { approveFromMessage } from "./budget-approve.ts";
 import { budgetOf, requestBudget } from "./budget.ts";
-import { DO_THE_STEP, nextFilmStep, workshopTurnNote } from "./turn-note.ts";
+import {
+  ANY_KIND,
+  DO_THE_STEP,
+  nextFilmStep,
+  workshopTurnNote,
+} from "./turn-note.ts";
 
 Deno.test(
   "the next film step follows the project, so the storyboard is not rewritten",
@@ -231,5 +236,7 @@ Deno.test(
       "תעשי מה שצריך",
     );
     assert(note?.includes(DO_THE_STEP));
+    // A picture project hears it can become a film from one of its pictures.
+    assert(note?.includes(ANY_KIND));
   },
 );
