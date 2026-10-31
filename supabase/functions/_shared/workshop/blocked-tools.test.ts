@@ -82,7 +82,6 @@ Deno.test(
       "create_social_post",
       "save_memory",
       "kb_search",
-      "edit_scene",
       "render_video_film",
     ]) {
       assertStrictEquals(isBlockedInWorkshop(name, true), false, name);
@@ -230,5 +229,16 @@ Deno.test(
     }
     assertStrictEquals(workshopToolOffered("mcp_Gmail__send", true), false);
     assertStrictEquals(workshopToolOffered("kb_search", false), true);
+  },
+);
+
+Deno.test(
+  "the old studio's scene tools are blocked in the workshop and point to its own tools",
+  () => {
+    for (const name of ["add_scene", "edit_scene", "delete_scene"]) {
+      assertStrictEquals(isBlockedInWorkshop(name, true), true, name);
+      assertStrictEquals(isBlockedInWorkshop(name, false), false, name);
+      assertMatch(workshopBlockedResult(name).message, /workshop_storyboard/);
+    }
   },
 );

@@ -12,8 +12,10 @@ import {
   withBriefAnswers,
 } from "./brief-answers.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
+import { asksForVideo } from "./roles.ts";
 import {
   loadSelectedArtifact,
+  markedPictureFilmLine,
   selectedArtifactLine,
 } from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
@@ -41,6 +43,10 @@ const TOOL_STEP: Record<string, string> = {
  */
 export const DO_THE_STEP =
   "חסר שלב בדרך (סטוריבורד, סצנה, תמונת מקור שכבר בפרויקט)? עשי אותו בעצמך עם הכלים שלך והמשיכי, ואל תבקשי מהמשתמש לעשות אותו. שאלי את המשתמש רק על מה שאי אפשר להסיק, ורק שאלה אחת.";
+
+/** One project moves between copy, pictures and film; a picture already in it can become a film. */
+export const ANY_KIND =
+  "הפרויקט לא נעול לסוג אחד: הוא יכול לעבור בין קופי, תמונות וסרטון. סרטון מתמונה שכבר בפרויקט: workshop_storyboard עם from_artifact_id של התמונה.";
 
 export interface FilmState {
   scenes: number;
@@ -116,16 +122,19 @@ export async function workshopTurnNote(
           );
       }
     }
-    const marked = selectedArtifactLine(
-      await loadSelectedArtifact(
-        supabase,
-        tenantId,
-        itemId,
-        selectedArtifactId,
-      ),
+    const selected = await loadSelectedArtifact(
+      supabase,
+      tenantId,
+      itemId,
+      selectedArtifactId,
     );
+    const marked = selectedArtifactLine(selected);
     if (marked) {
       lines.push(marked);
+    }
+    const film = markedPictureFilmLine(selected, asksForVideo(userText));
+    if (film) {
+      lines.push(film);
     }
     const answers = Object.entries(briefAnswersOf(payload));
     if (answers.length > 0)
@@ -137,6 +146,9 @@ export async function workshopTurnNote(
       lines.push(
         `בלוח כבר יש ${onBoard.concept} קונספטים ו-${onBoard.copy} טקסטים: אל תשמרי קונספטים או קופי שוב אלא אם המשתמש ביקש חדשים.`,
       );
+    if (payload.project_type !== "video") {
+      lines.push(ANY_KIND);
+    }
     if (payload.project_type === "video") {
       const scenes = await supabase
         .from("marketing_video_scenes")
