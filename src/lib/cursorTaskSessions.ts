@@ -1,5 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+
+/**
+ * cursor_task_sessions is not in the generated types, so it is read through
+ * an untyped client. Typed, its error text lists every table and changed with
+ * each new one, which broke the typecheck baseline whenever two PRs that add
+ * tables met in the merge queue.
+ */
+const untypedSupabase = supabase as unknown as SupabaseClient;
 
 export type CursorTaskSession = {
   id: string;
@@ -20,7 +29,7 @@ export type CursorTaskSession = {
 export async function fetchActiveCursorSessions(
   tenantId: string,
 ): Promise<CursorTaskSession[]> {
-  const { data, error } = await supabase
+  const { data, error } = await untypedSupabase
     .from("cursor_task_sessions")
     .select("*")
     .eq("tenant_id", tenantId)
