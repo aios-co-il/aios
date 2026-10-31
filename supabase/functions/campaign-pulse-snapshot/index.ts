@@ -36,13 +36,12 @@ import {
 } from "../_shared/pulse-delivery.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
 import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
+import { phraseException } from "./phrase-exception.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
 } from "../_shared/pulse-campaign-goals.mjs";
-import { aiChatJSON } from "../_shared/ai.ts";
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
-import { buildPulseExceptionConfirmPrompt } from "./exception-confirm-prompt.ts";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -895,12 +894,7 @@ Deno.serve(async (req) => {
           rules: setting.pulse_alert_rules,
           queueWhatsApp: (message, chatId) =>
             queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, chatId),
-          analyzeException: async (candidate) =>
-            await aiChatJSON<{
-              confirmed: boolean;
-              summary?: string | null;
-              recommended_check?: string | null;
-            }>(buildPulseExceptionConfirmPrompt(candidate)),
+          phraseException,
         });
       } catch (instantAlertError) {
         console.warn(
@@ -1080,7 +1074,7 @@ Deno.serve(async (req) => {
         {
           type: "deterministic_campaign_pulse",
           sent,
-          ai_used: instantAlerts.analyzed > 0,
+          ai_used: instantAlerts.wording_calls > 0,
           external_api_calls: metaActivityCalls,
           dashboard_url: dashboardUrl,
           clients_checked: snapshots.length,
@@ -1109,7 +1103,7 @@ Deno.serve(async (req) => {
         setting.campaign_pulse_enabled &&
         !manualDeliveryBypass &&
         !deliveryClaimed,
-      ai_used: instantAlerts.analyzed > 0,
+      ai_used: instantAlerts.wording_calls > 0,
       external_api_calls: metaActivityCalls,
     });
   }
