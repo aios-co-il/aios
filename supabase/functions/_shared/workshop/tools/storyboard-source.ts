@@ -1,3 +1,4 @@
+import { sceneReferenceUrl } from "../look.ts";
 import { artifactWebLink, loadSelectedArtifact } from "../selected-artifact.ts";
 import type { ToolContext } from "../tool-context.ts";
 
@@ -20,7 +21,8 @@ export async function storyboardSource(
     itemId,
     artifactId,
   );
-  const url = artifact ? artifactWebLink(artifact) : null;
+  // The same check a scene's own picture passes: a public https link the stills can fetch.
+  const url = artifact ? sceneReferenceUrl(artifactWebLink(artifact)) : null;
   if (!url) {
     return {
       error:

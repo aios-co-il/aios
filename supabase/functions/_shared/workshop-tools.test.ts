@@ -1357,6 +1357,34 @@ Deno.test(
 );
 
 Deno.test(
+  "a source picture the stills cannot fetch (not public https) is refused",
+  async () => {
+    const db = fakeDb({
+      ...videoProject(),
+      "workshop_artifacts:select": {
+        id: "art-1",
+        kind: "image",
+        title: "",
+        status: "ready",
+        url: "http://localhost/dance.png",
+        thumb_url: null,
+      },
+    });
+    const refused = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        from_artifact_id: "art-1",
+        scenes: [{ visual_prompt: "a" }],
+      },
+    )) as Record<string, unknown>;
+    assertMatch(String(refused.error), /from_artifact_id/);
+  },
+);
+
+Deno.test(
   "the storyboard keeps each scene's own picture and refuses one it cannot fetch",
   async () => {
     const db = fakeDb(videoProject());
