@@ -127,3 +127,23 @@ describe("PulseAlertRulesDialog client card logging switch", () => {
     expect(onSave.mock.calls[0][1]).toEqual({});
   });
 });
+
+describe("PulseAlertRulesDialog reply time in client groups", () => {
+  const REPLY_LABEL = "התראה כשלקוח לא קיבל מענה בקבוצה אחרי (שעות עבודה)";
+
+  it("lets any member change it, starting from 3, and saves it with the rules", async () => {
+    const onSave = renderDialog({ manager: { mode: "team" } });
+    await ownerCheckAnswered();
+    const hours = screen.getByLabelText(REPLY_LABEL);
+    expect(hours).toHaveDisplayValue("3");
+    fireEvent.change(hours, { target: { value: "5" } });
+    await userEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
+    expect(onSave.mock.calls[0][0].unanswered_reply_hours).toBe(5);
+    expect(onSave.mock.calls[0][1]).toEqual({});
+  });
+
+  it("starts from the stored value", () => {
+    renderDialog({ unanswered_reply_hours: 6 });
+    expect(screen.getByLabelText(REPLY_LABEL)).toHaveDisplayValue("6");
+  });
+});

@@ -76,25 +76,20 @@ Deno.test("buildThreads", async (t) => {
     );
   });
 
-  await t.step("one thread per key, with its kind and client", () => {
+  await t.step("one thread per group, with its client", () => {
     const threads = buildThreads(
       [
         row({ message_id: "g" }),
-        row({
-          message_id: "d",
-          thread_key: "dm:o:501234567",
-          thread_kind: "dm",
-          group_id: null,
-        }),
+        row({ message_id: "h", thread_key: "group:222@g.us", group_id: "g2" }),
       ],
       roster,
       [],
     );
     assertEquals(
-      threads.map((thread) => [thread.key, thread.kind, thread.clientName]),
+      threads.map((thread) => [thread.key, thread.clientName]),
       [
-        ["group:111@g.us", "group", "לקוח א"],
-        ["dm:o:501234567", "dm", "לקוח א"],
+        ["group:111@g.us", "לקוח א"],
+        ["group:222@g.us", "לקוח א"],
       ],
     );
     assertEquals(firstStaffTurnAfter(threads[0], new Date(0)), null);
@@ -110,11 +105,6 @@ Deno.test("buildThreads", async (t) => {
       // The line's own reply (outbound) is the operator, not the team.
       assertEquals(open([ask, row({ direction: "outbound" })]), false);
       assertEquals(open([ask, row({ sender_match_key: STAFF_KEY })]), true);
-      const dm = { thread_key: "dm:o:501234567", thread_kind: "dm" };
-      assertEquals(
-        open([row(dm), row({ ...dm, sender_match_key: STAFF_KEY })]),
-        false,
-      );
     },
   );
 

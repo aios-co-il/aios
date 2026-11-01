@@ -1,5 +1,5 @@
 /**
- * Client threads as a timeline of client and staff turns. A message is the
+ * Client groups as a timeline of client and staff turns. A message is the
  * staff's when it left the monitored line (outbound), was sent from AIOS, or
  * came from a roster phone (an @lid sender after wa_lid_map); a completed
  * call to the client is a staff turn too. Every other message is the
@@ -22,7 +22,6 @@ export type Turn = {
 
 export type Thread = {
   key: string;
-  kind: "group" | "dm";
   clientId: string;
   clientName: string;
   /** Messages the activity read returned (calls not counted). */
@@ -73,7 +72,6 @@ function toThread(
 ): Thread {
   const [first] = rows;
   const messages = rows.map((row) => messageTurn(row, staffKeys));
-  const group = first.thread_kind === "group";
   const start = Math.min(...messages.map((turn) => turn.at.getTime()));
   const callTurns = calls
     .filter(
@@ -88,17 +86,14 @@ function toThread(
   const lastStaff = turns.findLastIndex((turn) => turn.by === "staff");
   return {
     key: first.thread_key,
-    kind: group ? "group" : "dm",
     clientId: first.client_id,
     clientName: first.client_name,
     messageCount: rows.length,
     turns,
     pending: turns.slice(lastStaff + 1),
-    openToTeam:
-      group &&
-      rows.some(
-        (row) => row.direction === "inbound" && isRosterPhone(row, staffKeys),
-      ),
+    openToTeam: rows.some(
+      (row) => row.direction === "inbound" && isRosterPhone(row, staffKeys),
+    ),
   };
 }
 

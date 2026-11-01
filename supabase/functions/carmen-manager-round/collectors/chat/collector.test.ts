@@ -1,10 +1,11 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../../_shared/manager-round/settings.ts";
-import { dmRow, il, row, staffRow } from "../../tests/chat-fixtures.ts";
+import { latestSlot } from "../../calendar/slots.ts";
+import { il, privateRow, row, staffRow } from "../../tests/chat-fixtures.ts";
 import { chatContext, fakeChatSources } from "../../tests/fake-chat-sources.ts";
 import { modelAnswer } from "../../tests/fake-classify.ts";
 import type { CollectorContext } from "../types.ts";
-import { createChatCollector } from "./collector.ts";
+import { chatCollector, createChatCollector } from "./collector.ts";
 import type { ChatSources } from "./sources.ts";
 
 const collect = (fake: ChatSources, fields: Partial<CollectorContext> = {}) =>
@@ -24,7 +25,7 @@ const late = [
     created_at: il("09:00"),
     message_text: "אפשר להעלות את המבצע?",
   }),
-  dmRow({
+  privateRow({
     message_id: "d1",
     created_at: il("13:30"),
     message_text: "אני לא מרוצה",
@@ -32,6 +33,23 @@ const late = [
 ];
 
 Deno.test("chat collector", async (t) => {
+  await t.step(
+    "runs every 3 hours from 08 to 20 Israel time, Sunday to Friday",
+    () => {
+      const { schedule } = chatCollector;
+      assert("cron" in schedule);
+      const slotAt = (time: string, day = "2026-10-27") =>
+        latestSlot(schedule.cron, new Date(il(time, day)), 1)?.toISOString();
+      for (const time of ["08:00", "11:00", "14:00", "17:00", "20:00"]) {
+        assertEquals(slotAt(time), il(time), time);
+      }
+      for (const time of ["09:00", "10:00", "12:00", "21:00", "23:00"]) {
+        assertEquals(slotAt(time), undefined, time);
+      }
+      assertEquals(slotAt("08:00", "2026-10-31"), undefined, "Saturday");
+    },
+  );
+
   await t.step(
     "raises the late request, the complaint and the unlinked group",
     async () => {
@@ -41,14 +59,14 @@ Deno.test("chat collector", async (t) => {
         result.candidates.map((c) => [c.kind, c.fingerprint]),
         [
           ["unanswered_request", "chat:group:111@g.us:g1"],
-          ["client_complaint", "chat:dm:owner:501234567:complaint:d1"],
+          ["client_complaint", "chat:group:222@g.us:complaint:d1"],
           ["unlinked_group", "group:999@g.us"],
         ],
       );
       assertEquals(
         asked.length,
         1,
-        "only the group thread may go to the model",
+        "only the group open to the team may go to the model",
       );
       assertEquals(result.watermark, { read_lines: ["owner"] });
       assertEquals(result.coverage, {
@@ -57,6 +75,20 @@ Deno.test("chat collector", async (t) => {
         kinds: ["unanswered_request", "client_complaint", "unlinked_group"],
       });
       assert(!JSON.stringify(result.candidates).includes("לא מרוצה"));
+    },
+  );
+
+  await t.step(
+    "a tenant's unanswered_reply_hours of 6 holds back a 5-hour wait",
+    async () => {
+      const { fake } = fakeChatSources(late);
+      const result = await collect(fake, {
+        settings: resolveManagerSettings({ unanswered_reply_hours: 6 }),
+      });
+      assertEquals(
+        result.candidates.map((c) => c.kind),
+        ["client_complaint", "unlinked_group"],
+      );
     },
   );
 

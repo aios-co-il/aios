@@ -1,8 +1,7 @@
 /**
  * The model's read of a client group thread (prompt.ts): does the client wait
  * for an answer or ask for something, and which of its new lines complain.
- * Only group threads are sent (staff are members there); direct-chat text
- * never leaves AIOS.
+ * Only groups open to the team are sent (staff are members there).
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import { clip } from "./clip.ts";

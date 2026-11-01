@@ -1,6 +1,10 @@
 import type { ManagerMode } from "../../supabase/functions/_shared/manager-round/modes.ts";
 import type { PulseCostRules } from "../../supabase/functions/_shared/pulse/cost-rules.ts";
 import { isJsonObject } from "../../supabase/functions/_shared/pulse/json.ts";
+import {
+  DEFAULT_UNANSWERED_REPLY_HOURS,
+  resolveUnansweredReplyHours,
+} from "../../supabase/functions/_shared/pulse/unanswered-reply.ts";
 
 export type PulseAlertRules = {
   /**
@@ -14,6 +18,11 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  /**
+   * Business hours a client's message in a linked group may wait for a staff
+   * reply before Carmen alerts the campaigner (the manager round reads it).
+   */
+  unanswered_reply_hours?: number;
   manager?: PulseManagerSettings;
 };
 
@@ -49,6 +58,7 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   cpl_spike_enabled: true,
   cpl_spike_pct: 50,
   disconnected_enabled: true,
+  unanswered_reply_hours: DEFAULT_UNANSWERED_REPLY_HOURS,
 };
 
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
@@ -69,6 +79,9 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    unanswered_reply_hours: resolveUnansweredReplyHours(
+      input.unanswered_reply_hours,
+    ),
     ...(isManagerSettings(input.manager) ? { manager: input.manager } : {}),
   };
 }

@@ -21,7 +21,7 @@ import {
 } from "./connections.ts";
 import type { LiveChatFinding } from "./gate.ts";
 import { loadClosedChatKeys, loadLiveChatFindings } from "./live.ts";
-import { CHAT_LLM_SOURCE, loadLlmMeter } from "./llm-meter.ts";
+import { CHAT_LLM_SOURCE } from "./llm-meter.ts";
 import { createReviewCache } from "./review-cache.ts";
 import { loadStaffKeys } from "./roster.ts";
 
@@ -68,7 +68,6 @@ export function dbChatSources(
     classify: {
       cache: createReviewCache(db, tenantId),
       ask: modelAsk(tenantId),
-      meter: () => loadLlmMeter(db, tenantId, ctx.settings, ctx.now),
     },
   };
 }

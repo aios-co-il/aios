@@ -16492,18 +16492,6 @@ export type Database = {
         Args: { p_seconds?: number; p_tenant_id: string };
         Returns: boolean;
       };
-      carmen_round_llm_spend: {
-        Args: {
-          p_day_start: string;
-          p_month_start: string;
-          p_source_prefix: string;
-          p_tenant_id: string;
-        };
-        Returns: {
-          day_usd: number;
-          project_month_usd: number;
-        }[];
-      };
       carmen_round_end_lease: {
         Args: { p_error?: string; p_tenant_id: string };
         Returns: undefined;
@@ -16793,7 +16781,6 @@ export type Database = {
           sender_match_key: string;
           sent_by_user_id: string;
           thread_key: string;
-          thread_kind: string;
         }[];
       };
       get_cron_job_history: {

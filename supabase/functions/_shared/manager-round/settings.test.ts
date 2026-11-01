@@ -10,7 +10,7 @@ Deno.test("resolveManagerSettings", async (t) => {
       assertEquals(settings.business_hours, MANAGER_DEFAULTS.business_hours);
       assertEquals(settings.escalation_hours, [4, 24]);
       assertEquals(settings.max_alerts_per_recipient_per_day, 8);
-      assertEquals(settings.round_llm_share_pct, 10);
+      assertEquals(settings.unanswered_reply_hours, 3);
     }
   });
 
@@ -33,9 +33,7 @@ Deno.test("resolveManagerSettings", async (t) => {
         business_hours: { 0: [8, 17], 5: [9, 12], 6: [9, 12], 3: [12, 10] },
         holidays: ["2026-10-14", "tomorrow"],
         escalation_hours: [6, 2],
-        sla_business_hours: -1,
         max_alerts_per_recipient_per_day: 5,
-        round_llm_share_pct: 250,
         cost: { trend_pct: 50 },
       },
     });
@@ -44,19 +42,17 @@ Deno.test("resolveManagerSettings", async (t) => {
     assertEquals(settings.business_hours, { 0: [8, 17], 5: [9, 12] });
     assertEquals(settings.holidays, ["2026-10-14"]);
     assertEquals(settings.escalation_hours, [4, 24]);
-    assertEquals(settings.sla_business_hours, 4);
     assertEquals(settings.max_alerts_per_recipient_per_day, 5);
-    assertEquals(settings.round_llm_share_pct, 100);
   });
 
-  await t.step("a round LLM share of 0 turns the model off", () => {
-    const share = (raw: unknown) =>
-      resolveManagerSettings({ manager: { round_llm_share_pct: raw } })
-        .round_llm_share_pct;
-    assertEquals([share(0), share("0"), share(5)], [0, 0, 5]);
-    assertEquals(
-      [share(null), share(""), share(false), share(-1)],
-      [10, 10, 10, 10],
-    );
-  });
+  await t.step(
+    "the reply hours come from the top level, not the owner-only manager block",
+    () => {
+      const hours = (raw: unknown) =>
+        resolveManagerSettings(raw).unanswered_reply_hours;
+      assertEquals(hours({ unanswered_reply_hours: 5 }), 5);
+      assertEquals(hours({ unanswered_reply_hours: "x" }), 3);
+      assertEquals(hours({ manager: { unanswered_reply_hours: 5 } }), 3);
+    },
+  );
 });

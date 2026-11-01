@@ -1,8 +1,8 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
-  dmRow,
   il,
   liveFinding,
+  privateRow,
   row,
   staffRow,
   thread,
@@ -129,12 +129,12 @@ Deno.test("complaintCandidates", async (t) => {
   );
 
   await t.step(
-    "a direct-chat complaint carries the time and a link only",
+    "a private-group complaint carries the time and a link only",
     () => {
       const [found] = complaintCandidates(
         [
           thread([
-            dmRow({ message_id: "d1", message_text: "אני לא מרוצה בכלל" }),
+            privateRow({ message_id: "d1", message_text: "אני לא מרוצה בכלל" }),
           ]),
         ],
         none,

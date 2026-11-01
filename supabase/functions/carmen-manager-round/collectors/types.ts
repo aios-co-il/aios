@@ -18,10 +18,10 @@
  *   service-role SQL functions; nothing is ever sent through Green API.
  * - Only the tenant's own clients and clients of agencies shared with it; a
  *   group shared by several tenants is read once per group_chat_id.
- * - LLM use (chat intent only) is metered against the tenant's monthly
- *   budget (monthly_budget_usd and settings.round_llm_share_pct over
- *   ai_usage_log month to date, chat/llm-meter.ts), cached, with a
- *   deterministic fallback.
+ * - LLM use (chat intent only) is logged to ai_usage_log under the tenant and
+ *   counted in the run's stats (chat/llm-meter.ts), capped per run by the
+ *   round's time budget rather than by money, cached, with a deterministic
+ *   fallback.
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { Json } from "../../_shared/database.types.ts";

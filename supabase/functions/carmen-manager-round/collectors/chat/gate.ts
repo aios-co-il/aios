@@ -54,7 +54,7 @@ export function gateThreads(
     const fingerprint = waitFingerprint(thread, requests);
     const open = requests.some((f) => f.fingerprint === fingerprint);
     const waitingHours = businessHoursBetween(first.at, now, settings);
-    const slaBreached = waitingHours >= settings.sla_business_hours;
+    const slaBreached = waitingHours >= settings.unanswered_reply_hours;
     if (!slaBreached && !open) {
       return [];
     }

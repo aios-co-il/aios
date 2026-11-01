@@ -1,6 +1,5 @@
 /** Classify ports over one model answer, recording the prompts asked and the reviews cached. */
 import type { ClassifyPorts } from "../collectors/chat/classify.ts";
-import { createLlmMeter } from "../collectors/chat/llm-meter.ts";
 import type { CachedReview } from "../collectors/chat/review-cache.ts";
 import type { ChatVerdict } from "../collectors/chat/verdict.ts";
 
@@ -21,25 +20,18 @@ export function modelAnswer(lines: number[] = []): string {
 }
 
 /**
- * Ports with these cached reviews, daily cap and answer (null: the model is
- * down). Each call costs `costUsd`: $0.002 by default, $0 when the model is down.
+ * Ports with these cached reviews and answer (null: the model is down). Each
+ * call costs `costUsd`: $0.002 by default, $0 when the model is down.
  */
 export function fakeClassifyPorts(
   fields: {
     cached?: Map<string, CachedReview>;
-    dailyCapUsd?: number;
     answer?: string | null;
     costUsd?: number;
   } = {},
 ) {
   const prompts: string[] = [];
   const saved: CachedReview[] = [];
-  const meter = createLlmMeter({
-    monthBudgetUsd: null,
-    monthSpentUsd: 0,
-    dailyCapUsd: fields.dailyCapUsd ?? 1,
-    daySpentUsd: 0,
-  });
   const fake: ClassifyPorts = {
     cache: {
       load: () => Promise.resolve(new Map(fields.cached ?? [])),
@@ -54,7 +46,6 @@ export function fakeClassifyPorts(
       const costUsd = fields.costUsd ?? (text === null ? 0 : 0.002);
       return Promise.resolve({ text, costUsd });
     },
-    meter: () => Promise.resolve(meter),
   };
   return { fake, prompts, saved };
 }

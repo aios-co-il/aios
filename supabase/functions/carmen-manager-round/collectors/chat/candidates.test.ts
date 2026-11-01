@@ -1,6 +1,5 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
-  dmRow,
   il,
   receiptRows,
   review,
@@ -64,22 +63,18 @@ Deno.test("requestCandidates", async (t) => {
   });
 
   await t.step(
-    "a direct chat or a private group carries the time and a link, never the text",
+    "a private group carries the time and a link, never the text",
     () => {
       const secret = "סוד פרטי מאוד?";
-      for (const built of [
-        thread([dmRow({ message_text: secret })]),
-        thread([row({ message_text: secret })]),
-      ]) {
-        const reviewed = review(built, { ...asks, verdict: confident });
-        const [found] = requestCandidates([reviewed], link);
-        const visible = found.summary_he + JSON.stringify(found.evidence);
-        assert(!visible.includes("סוד"), visible);
-        assert(!visible.includes("מבקש לעדכן"), visible);
-        assert(
-          found.summary_he.includes("לצ׳אט: https://app.test/t/acme/chat/c1"),
-        );
-      }
+      const built = thread([row({ message_text: secret })]);
+      const reviewed = review(built, { ...asks, verdict: confident });
+      const [found] = requestCandidates([reviewed], link);
+      const visible = found.summary_he + JSON.stringify(found.evidence);
+      assert(!visible.includes("סוד"), visible);
+      assert(!visible.includes("מבקש לעדכן"), visible);
+      assert(
+        found.summary_he.includes("לצ׳אט: https://app.test/t/acme/chat/c1"),
+      );
     },
   );
 

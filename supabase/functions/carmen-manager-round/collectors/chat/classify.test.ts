@@ -1,7 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { RoundBudget } from "../../budget.ts";
 import {
-  dmRow,
   il,
   receiptRows,
   REPORT_VERDICT,
@@ -77,22 +76,18 @@ Deno.test("classifyThreads", async (t) => {
     },
   );
 
-  await t.step(
-    "direct chats, private groups and thanks never go to the model",
-    async () => {
-      const { fake, prompts } = fakeClassifyPorts();
-      const dm = thread([dmRow({ message_text: "פרטי" })]);
-      const privateGroup = thread([row({ message_text: "פרטי" })]);
-      const { verdicts } = await classify(
-        [dm, privateGroup, group("תודה רבה 🙏")],
-        fake,
-      );
-      assertEquals([prompts.length, verdicts.size], [0, 0]);
-    },
-  );
+  await t.step("private groups and thanks never go to the model", async () => {
+    const { fake, prompts } = fakeClassifyPorts();
+    const privateGroup = thread([row({ message_text: "פרטי" })]);
+    const { verdicts } = await classify(
+      [privateGroup, group("תודה רבה 🙏")],
+      fake,
+    );
+    assertEquals([prompts.length, verdicts.size], [0, 0]);
+  });
 
   await t.step(
-    "a cached verdict for the same message is reused; an older one is kept unasked",
+    "a cached verdict for the same message is reused; a preview keeps an older one unasked",
     async () => {
       const cached = new Map([
         ["group:111@g.us", { messageId: "last", verdict: ASKED_VERDICT }],
@@ -106,8 +101,8 @@ Deno.test("classifyThreads", async (t) => {
       const stale = new Map([
         ["group:111@g.us", { messageId: "older", verdict: ASKED_VERDICT }],
       ]);
-      const miss = fakeClassifyPorts({ cached: stale, dailyCapUsd: 0 });
-      const kept = await classify([group()], miss.fake);
+      const miss = fakeClassifyPorts({ cached: stale });
+      const kept = await classify([group()], miss.fake, true);
       assertEquals(miss.prompts.length, 0);
       assertEquals(kept.verdicts.get("group:111@g.us")?.messageId, "older");
     },
@@ -207,6 +202,21 @@ Deno.test("classifyThreads", async (t) => {
         );
         assertEquals(run.modelDown, false, "a billed reply is no model down");
       }
+    },
+  );
+
+  await t.step(
+    "stops at 20 calls a run, however much they cost (no money limit)",
+    async () => {
+      const { fake, prompts } = fakeClassifyPorts({ costUsd: 5 });
+      const waiting = Array.from({ length: 25 }, (_, i) =>
+        group("יש עדכון", `group:${i}@g.us`),
+      );
+      const { llm } = await classifyThreads(waiting, all, fake, {
+        ...run(),
+        budget: RoundBudget.create(600_000, 100),
+      });
+      assertEquals([prompts.length, llm.calls, llm.costUsd], [20, 20, 100]);
     },
   );
 
