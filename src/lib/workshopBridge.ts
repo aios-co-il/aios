@@ -119,6 +119,7 @@ export function workshopRequestParts(ctx: WorkshopContext | null) {
     taskSkills: [WORKSHOP_SKIN],
     promptAddon: lines.join("\n"),
     workshopItemId: ctx.projectId,
+    workshopArtifactId: ctx.selectedArtifactId,
     workshopClientId: ctx.clientId,
   };
 }

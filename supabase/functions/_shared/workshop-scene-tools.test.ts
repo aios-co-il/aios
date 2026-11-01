@@ -10,7 +10,6 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { executeWorkshopTool, WORKSHOP_TOOLS } from "./workshop-tools.ts";
-import { ROLE_TOOLS } from "./workshop/roles.ts";
 import { REDO_KEY } from "./workshop/scene-helpers.ts";
 
 type Row = Record<string, any>;
@@ -302,17 +301,9 @@ const update = (
     ...args,
   }) as Promise<Row>;
 
-Deno.test(
-  "workshop_update_scene is offered to the producer and the video editor",
-  () => {
-    assert(
-      WORKSHOP_TOOLS.some((tool) => tool.name === "workshop_update_scene"),
-    );
-    assert(ROLE_TOOLS.producer.includes("workshop_update_scene"));
-    assert(ROLE_TOOLS.editor.includes("workshop_update_scene"));
-    assert(!ROLE_TOOLS.designer.includes("workshop_update_scene"));
-  },
-);
+Deno.test("workshop_update_scene is a declared workshop tool", () => {
+  assert(WORKSHOP_TOOLS.some((tool) => tool.name === "workshop_update_scene"));
+});
 
 Deno.test("the scene the user selected changes alone, for free", async () => {
   const db = film();

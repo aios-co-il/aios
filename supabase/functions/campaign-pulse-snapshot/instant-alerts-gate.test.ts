@@ -4,6 +4,7 @@ import { DEFAULT_PULSE_ALERT_RULES } from "../_shared/pulse-instant-alerts.ts";
 import {
   ACME,
   fakeSupabase,
+  OWNER_RECIPIENT,
   WEDNESDAY,
 } from "../_shared/pulse/fake-alert-log.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
@@ -28,7 +29,7 @@ async function gatedRun(setting: Setting, body: Body) {
   const result = await gatedInstantAlerts(setting, body, {
     supabase: fakeSupabase(),
     tenantId: "t1",
-    pulsePhone: "0501234567",
+    reportRecipients: [OWNER_RECIPIENT],
     snapshots: [ACME],
     criticalIssues: [],
     rules: setting.pulse_alert_rules,

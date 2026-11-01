@@ -1,5 +1,6 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  workshopArtifactIdFrom,
   workshopItemIdFrom,
   workshopProjectKind,
   workshopSceneIdFrom,
@@ -20,6 +21,29 @@ Deno.test(
     );
     assertStrictEquals(
       workshopItemIdFrom({ system_prompt_addon: "אין פרויקט פתוח." }),
+      null,
+    );
+  },
+);
+
+Deno.test(
+  "the marked page comes from the body or the workshop context line",
+  () => {
+    const ART = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
+    assertStrictEquals(
+      workshopArtifactIdFrom({ workshop_artifact_id: ART }),
+      ART,
+    );
+    assertStrictEquals(
+      workshopArtifactIdFrom({
+        system_prompt_addon: `פרויקט פתוח: item_id=${ID}\nהעמוד שהמשתמש בחר בלוח: artifact_id=${ART}.`,
+      }),
+      ART,
+    );
+    assertStrictEquals(
+      workshopArtifactIdFrom({
+        system_prompt_addon: `פרויקט פתוח: item_id=${ID}`,
+      }),
       null,
     );
   },

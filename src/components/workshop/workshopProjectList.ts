@@ -1,8 +1,6 @@
-import { clientFilterToParam } from "@/components/marketing/clientFilter";
 import {
   DEPARTMENTS,
   type DepartmentId,
-  type DepartmentScreen,
   projectDepartment,
 } from "../../../supabase/functions/_shared/workshop/departments.ts";
 
@@ -113,12 +111,6 @@ export function groupProjects(
     };
   });
 }
-
-/** The marketing screen of a department, filtered to a client (or to general content). */
-export const departmentPath = (
-  screen: DepartmentScreen,
-  clientId: string | null,
-) => `marketing/department/${screen}?client=${clientFilterToParam(clientId)}`;
 
 /** The project opened when the URL names none: the latest one with a workshop board. */
 export const defaultProject = (rows: WorkshopListRow[]) =>

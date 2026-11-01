@@ -6,9 +6,8 @@ import {
 import {
   aboutCarmen,
   roleOfPersona,
-  ROLE_TOOLS,
-  toolsForRole,
   workshopRole,
+  asksForVideo,
 } from "./roles.ts";
 
 Deno.test("static creative goes to the designer", () => {
@@ -47,31 +46,6 @@ Deno.test("a reply with no signal stays with the current role", () => {
   assertStrictEquals(workshopRole("תמשיכי", null), "designer");
   assertStrictEquals(roleOfPersona("workshop_editor"), "editor");
 });
-
-Deno.test(
-  "each role is offered only its own workshop tools, other tools stay",
-  () => {
-    const tools = [
-      { name: "workshop_make_creative" },
-      { name: "workshop_produce_video" },
-      { name: "workshop_edit_from_assets" },
-      { name: "kb_search" },
-    ];
-    const isWorkshop = (name: string) => name.startsWith("workshop_");
-    assertEquals(
-      toolsForRole(tools, "designer", isWorkshop).map((t) => t.name),
-      ["workshop_make_creative", "kb_search"],
-    );
-    assertEquals(
-      toolsForRole(tools, "editor", isWorkshop).map((t) => t.name),
-      ["workshop_produce_video", "workshop_edit_from_assets", "kb_search"],
-    );
-    assertStrictEquals(
-      ROLE_TOOLS.producer.includes("workshop_make_creative"),
-      false,
-    );
-  },
-);
 
 Deno.test(
   "the open project keeps short replies and picture edits with its specialist",
@@ -348,3 +322,12 @@ Deno.test(
     );
   },
 );
+
+Deno.test("a video ask is read from the user's own words", () => {
+  assertStrictEquals(
+    asksForVideo("צרי לי סרטון של הדמות בתמונה רוקדת אגדודו"),
+    true,
+  );
+  assertStrictEquals(asksForVideo("תעשי מזה סרט קצר"), true);
+  assertStrictEquals(asksForVideo("תמונה חדשה לפיד"), false);
+});

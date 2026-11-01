@@ -8,6 +8,12 @@ import {
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import { earnsRevenue } from "@/lib/weeklyAdsRevenue";
 import {
+  addFacebookFollowers,
+  costPerFollower,
+  emptyFacebookFollowers,
+  type FacebookFollowerTotals,
+} from "@/lib/facebookFollowers";
+import {
   groupWeeklyRowsByGoal,
   type WeeklyGoalGroup,
 } from "@/lib/weeklyCampaignGoals";
@@ -34,6 +40,9 @@ export type WeeklyCampaignRow = {
   revenue: number;
   addToCart: number;
   roas: number;
+  /** Facebook only; traffic tables show it. */
+  followers: FacebookFollowerTotals;
+  costPerFollower: number | null;
 };
 
 export type WeeklyCampaignSection = {
@@ -96,6 +105,7 @@ type WeekCampaign = {
    * campaign's rows, so every week shows the campaign under one goal.
    */
   facebookGoalInputs: FacebookGoalInputs | null;
+  followers: FacebookFollowerTotals;
 };
 
 function utcDateString(date: Date): string {
@@ -220,6 +230,7 @@ export function buildWeeklyCampaignSections(
       revenue: 0,
       addToCart: 0,
       facebookGoalInputs: null,
+      followers: emptyFacebookFollowers(),
     };
 
     row.impressions += Number(data.impressions) || 0;
@@ -253,6 +264,9 @@ export function buildWeeklyCampaignSections(
       "conversion_value",
     );
     row.addToCart += numberFrom(data, "add_to_cart", "addToCarts");
+    if (source !== "google_ads") {
+      row.followers = addFacebookFollowers(row.followers, data);
+    }
     week.set(rowKey, row);
     weeks.set(weekIndex, week);
   }
@@ -301,6 +315,8 @@ export function buildWeeklyCampaignSections(
             revenue,
             addToCart: campaign.addToCart,
             roas: campaign.spend > 0 ? revenue / campaign.spend : 0,
+            followers: campaign.followers,
+            costPerFollower: costPerFollower([campaign]),
           };
         })
         .sort((a, b) => b.spend - a.spend);

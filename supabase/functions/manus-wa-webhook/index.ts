@@ -37,6 +37,7 @@ import {
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
+import { recordManusFallbackReply } from "./fallback-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1979,6 +1980,14 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
                 ok: res.ok,
                 elapsedMs: Date.now() - started,
               });
+              await recordManusFallbackReply(res, {
+                db: supabase,
+                tenantId: groupTenantId,
+                chatId: groupChatId,
+                message,
+                connectionUserId,
+                integrationId: integ.id,
+              });
               return res.ok;
             } catch (err) {
               clearTimeout(timer);
@@ -2196,6 +2205,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
                   phoneNumber: carmenTargetPhone,
                   senderUserId: connectionUserId,
                   message,
+                  sendKind: "carmen",
                 }),
               },
             );

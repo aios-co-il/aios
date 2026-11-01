@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,6 +82,8 @@ Deno.serve(async (req) => {
       filename,
       caption,
       senderUserId,
+      sendKind,
+      sendRef,
     } = body;
 
     if (isServiceRole && senderUserId) userId = senderUserId;
@@ -223,6 +226,7 @@ Deno.serve(async (req) => {
         isImage,
       },
       sender_phone: phone,
+      ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
 
     return new Response(

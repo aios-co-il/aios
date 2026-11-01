@@ -5,6 +5,7 @@
 // AIO-230: approver gate and claim: _shared/carmen/approvals/approver.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { handlePulseTargetApproval } from "./pulse-target-approval.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { authorizeApprovalActor } from "../_shared/carmen/approvals/approver.ts";
 import {
@@ -190,6 +191,18 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ success: !schedErr, result, approval_id }),
         { status: schedErr ? 400 : 200, headers: corsHeaders },
+      );
+    }
+
+    // Reached from Carmen's "כן" and from the approvals page, after the approver
+    // gate and claimForRun (set_pulse_target is in CARMEN_EXECUTOR_TOOLS).
+    if (row.tool_name === "set_pulse_target") {
+      return await handlePulseTargetApproval(
+        supabase,
+        row,
+        approval_id,
+        approved_by || null,
+        corsHeaders,
       );
     }
 

@@ -12,6 +12,12 @@ import {
   withBriefAnswers,
 } from "./brief-answers.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
+import { asksForVideo } from "./roles.ts";
+import {
+  loadSelectedArtifact,
+  markedPictureFilmLine,
+  selectedArtifactLine,
+} from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
 import { talkingLine } from "./talking.ts";
 
@@ -30,6 +36,17 @@ const TOOL_STEP: Record<string, string> = {
   workshop_make_stills: "יצירת התמונות לסצנות (workshop_make_stills)",
   workshop_produce_video: "הפקת הסרט (workshop_produce_video)",
 };
+
+/**
+ * On Staging Carmen answered "תעשי מה שצריך" with the step she was missing (a storyboard, a scene)
+ * as a task for the user. Every workshop turn on a project tells her to do that step herself.
+ */
+export const DO_THE_STEP =
+  "חסר שלב בדרך (סטוריבורד, סצנה, תמונת מקור שכבר בפרויקט)? עשי אותו בעצמך עם הכלים שלך והמשיכי, ואל תבקשי מהמשתמש לעשות אותו. שאלי את המשתמש רק על מה שאי אפשר להסיק, ורק שאלה אחת.";
+
+/** One project moves between copy, pictures and film; a picture already in it can become a film. */
+export const ANY_KIND =
+  "הפרויקט לא נעול לסוג אחד: הוא יכול לעבור בין קופי, תמונות וסרטון. סרטון מתמונה שכבר בפרויקט: workshop_storyboard עם from_artifact_id של התמונה.";
 
 export interface FilmState {
   scenes: number;
@@ -73,6 +90,7 @@ export async function workshopTurnNote(
   itemId: string | null,
   userText: string,
   lastAssistant = "",
+  selectedArtifactId: string | null = null,
 ): Promise<string | null> {
   if (!itemId || typeof tenantId !== "string" || !tenantId) return null;
   try {
@@ -85,7 +103,7 @@ export async function workshopTurnNote(
     if (!data) return null;
     await failStalePictures(supabase, tenantId, itemId).catch(() => {});
     let payload = asRecord(data.payload);
-    const lines: string[] = ["=== מצב הפרויקט (מהשרת) ==="];
+    const lines: string[] = ["=== מצב הפרויקט (מהשרת) ===", DO_THE_STEP];
     const approved = approveFromMessage(payload, userText);
     // Every tapped answer goes into the brief, so Carmen can come back to it later.
     const tapped = tappedAnswers(lastAssistant, userText);
@@ -104,6 +122,20 @@ export async function workshopTurnNote(
           );
       }
     }
+    const selected = await loadSelectedArtifact(
+      supabase,
+      tenantId,
+      itemId,
+      selectedArtifactId,
+    );
+    const marked = selectedArtifactLine(selected);
+    if (marked) {
+      lines.push(marked);
+    }
+    const film = markedPictureFilmLine(selected, asksForVideo(userText));
+    if (film) {
+      lines.push(film);
+    }
     const answers = Object.entries(briefAnswersOf(payload));
     if (answers.length > 0)
       lines.push(
@@ -114,6 +146,9 @@ export async function workshopTurnNote(
       lines.push(
         `בלוח כבר יש ${onBoard.concept} קונספטים ו-${onBoard.copy} טקסטים: אל תשמרי קונספטים או קופי שוב אלא אם המשתמש ביקש חדשים.`,
       );
+    if (payload.project_type !== "video") {
+      lines.push(ANY_KIND);
+    }
     if (payload.project_type === "video") {
       const scenes = await supabase
         .from("marketing_video_scenes")

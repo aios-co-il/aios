@@ -13,6 +13,7 @@ import {
 import { asRecord, recordArtifact } from "../record.ts";
 import { loadScenes, paidReplaceRefusal } from "../scene-helpers.ts";
 import { storyboardText } from "../storyboard-text.ts";
+import { storyboardSource, withSourcePicture } from "./storyboard-source.ts";
 import { type ToolContext } from "../tool-context.ts";
 
 export async function workshopStoryboard(ctx: ToolContext) {
@@ -56,35 +57,44 @@ export async function workshopStoryboard(ctx: ToolContext) {
     return {
       error: `סצנה ${badReference + 1}: reference_url חייב להיות קישור https ציבורי לתמונה (נכס מהפרויקט או קישור שהמשתמש נתן).`,
     };
+  const source = await storyboardSource(ctx, itemId);
+  if ("error" in source) {
+    return source;
+  }
   const old = await loadScenes(supabase, tenantId, itemId);
   if (old.length > 0 && args.replace !== true)
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
   const keepsPaid = await paidReplaceRefusal(supabase, tenantId, old, deps);
   if (keepsPaid) return keepsPaid;
-  const rows = input.map((scene, index) => ({
-    id: crypto.randomUUID(),
-    position: index + 1,
-    title: String(scene.title ?? "").trim() || `סצנה ${index + 1}`,
-    shot: String(scene.shot ?? "").trim() || "Medium shot",
-    visual_prompt: String(scene.visual_prompt).trim(),
-    motion_prompt: String(scene.motion_prompt ?? "").trim(),
-    overlay_text: String(scene.overlay_text ?? "").trim(),
-    voiceover_text: String(scene.voiceover_text ?? "").trim(),
-    duration_s: Math.min(Math.max(Number(scene.duration_s) || 3, 0.5), 120),
-    // The scene's own character picture: saved to meta by save_video_storyboard, and its
-    // still is made from it instead of the project's anchor frame.
-    ...(sceneReferenceUrl(scene.reference_url)
-      ? { reference_url: sceneReferenceUrl(scene.reference_url) }
-      : {}),
-    // Talking scene: saved to meta by save_video_storyboard.
-    ...(scene.lipsync === true
-      ? {
-          lipsync: true,
-          speaker: String(scene.speaker ?? "").trim(),
-          dialogue: String(scene.dialogue ?? "").trim(),
-        }
-      : {}),
-  }));
+  const rows = input.map((scene, index) =>
+    withSourcePicture(
+      {
+        id: crypto.randomUUID(),
+        position: index + 1,
+        title: String(scene.title ?? "").trim() || `סצנה ${index + 1}`,
+        shot: String(scene.shot ?? "").trim() || "Medium shot",
+        visual_prompt: String(scene.visual_prompt).trim(),
+        motion_prompt: String(scene.motion_prompt ?? "").trim(),
+        overlay_text: String(scene.overlay_text ?? "").trim(),
+        voiceover_text: String(scene.voiceover_text ?? "").trim(),
+        duration_s: Math.min(Math.max(Number(scene.duration_s) || 3, 0.5), 120),
+        // The scene's own character picture: saved to meta by save_video_storyboard, and its
+        // still is made from it instead of the project's anchor frame.
+        ...(sceneReferenceUrl(scene.reference_url)
+          ? { reference_url: sceneReferenceUrl(scene.reference_url) }
+          : {}),
+        // Talking scene: saved to meta by save_video_storyboard.
+        ...(scene.lipsync === true
+          ? {
+              lipsync: true,
+              speaker: String(scene.speaker ?? "").trim(),
+              dialogue: String(scene.dialogue ?? "").trim(),
+            }
+          : {}),
+      },
+      source.url,
+    ),
+  );
   const saved = await supabase.rpc("save_video_storyboard", {
     p_item_id: itemId,
     p_scenes: rows,

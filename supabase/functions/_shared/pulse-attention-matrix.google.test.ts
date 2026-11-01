@@ -36,8 +36,13 @@ const salesCampaignRow = (classificationSource: string, name: string) => ({
   revenue_7d: 500,
   efficiency_7d: 0.5,
   baseline_efficiency_7d: 3,
-  trend_7d_pct: -80,
+  trend_7d_pct: 83.3,
   last_change_at: RECENT_CHANGE,
+  // As buildPulseCampaignRows classifies it against target_roas 3.
+  status: "critical",
+  status_tier: "exception",
+  status_reason: "חריגה מתמשכת מהיעד המאושר (ROAS 3)",
+  alert_eligible: true,
 });
 
 Deno.test(

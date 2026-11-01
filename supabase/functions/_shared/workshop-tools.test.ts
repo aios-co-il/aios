@@ -80,6 +80,7 @@ function fakeDb(script: Record<string, unknown> = {}) {
         },
         select: () => builder,
         eq: () => builder,
+        match: () => builder,
         in: () => builder,
         gte: () => builder,
         order: () => builder,
@@ -100,6 +101,38 @@ Deno.test("every workshop tool is declared once and recognised", () => {
   assert(names.every(isWorkshopTool));
   assertStrictEquals(isWorkshopTool("create_lead"), false);
 });
+
+Deno.test(
+  "a project open on the board is continued, not replaced by a new one",
+  async () => {
+    const db = fakeDb();
+    const refused = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "סרטון של הדמות המסומנת רוקדת" },
+      async () => {},
+      "user-1",
+      { openItemId: "item-open", userText: "תכיני לי סרטון של הדמות המסומנת" },
+    )) as Record<string, unknown>;
+    assertStrictEquals(refused.open_item_id, "item-open");
+    assertStrictEquals(
+      db.calls.some((c) => c.op === "insert"),
+      false,
+    );
+
+    const asked = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_start_project",
+      { brief: "מודעה לסניף" },
+      async () => {},
+      "user-1",
+      { openItemId: "item-open", userText: "תפתחי פרויקט חדש למודעה לסניף" },
+    )) as Record<string, unknown>;
+    assertStrictEquals(asked.success, true);
+  },
+);
 
 Deno.test(
   "starting a project from one sentence decides everything and records the brief page",
@@ -1219,6 +1252,135 @@ Deno.test(
       looks.some((look) => look?.anchor_url),
       false,
     );
+  },
+);
+
+Deno.test(
+  "a picture project asked for a film still gets the film's brief first",
+  async () => {
+    const db = fakeDb(
+      videoProject({
+        payload: { format: "1:1", project_type: "static" },
+      }),
+    );
+    const asked = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        from_artifact_id: "art-1",
+        scenes: [{ visual_prompt: "the character starts to dance" }],
+      },
+    )) as Record<string, unknown>;
+    assertStrictEquals(asked.needs_input, true);
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "rpc:save_video_storyboard"),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "a picture in the project becomes a film: its scenes are drawn from that picture",
+  async () => {
+    const picture = "https://cdn.example.com/dance.png";
+    const db = fakeDb({
+      ...videoProject({
+        payload: {
+          format: "1:1",
+          project_type: "static",
+          workshop_brief: { asked: true },
+          workshop_look: { film: "cinematic", bible: "warm look" },
+        },
+      }),
+      "workshop_artifacts:select": {
+        id: "art-1",
+        kind: "image",
+        title: "ריקוד",
+        status: "ready",
+        url: picture,
+        thumb_url: null,
+      },
+    });
+    const saved = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        from_artifact_id: "art-1",
+        scenes: [
+          { visual_prompt: "the character starts to dance" },
+          {
+            visual_prompt: "close-up",
+            reference_url: "https://cdn.example.com/face.png",
+          },
+        ],
+      },
+    )) as Record<string, unknown>;
+    assertStrictEquals(saved.success, true);
+    const rpc = db.calls.find((c) => c.table === "rpc:save_video_storyboard")
+      ?.value as { p_scenes: { reference_url?: string }[] };
+    assertStrictEquals(rpc.p_scenes[0].reference_url, picture);
+    assertStrictEquals(
+      rpc.p_scenes[1].reference_url,
+      "https://cdn.example.com/face.png",
+    );
+    const types = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map((c) => (c.value as { payload?: { project_type?: string } }).payload);
+    assertStrictEquals(types.at(-1)?.project_type, "video");
+  },
+);
+
+Deno.test(
+  "a source picture that is not in the project is refused before any scene is saved",
+  async () => {
+    const db = fakeDb(videoProject());
+    const refused = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        from_artifact_id: "art-elsewhere",
+        scenes: [{ visual_prompt: "a" }],
+      },
+    )) as Record<string, unknown>;
+    assertMatch(String(refused.error), /from_artifact_id/);
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "rpc:save_video_storyboard"),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "a source picture the stills cannot fetch (not public https) is refused",
+  async () => {
+    const db = fakeDb({
+      ...videoProject(),
+      "workshop_artifacts:select": {
+        id: "art-1",
+        kind: "image",
+        title: "",
+        status: "ready",
+        url: "http://localhost/dance.png",
+        thumb_url: null,
+      },
+    });
+    const refused = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        from_artifact_id: "art-1",
+        scenes: [{ visual_prompt: "a" }],
+      },
+    )) as Record<string, unknown>;
+    assertMatch(String(refused.error), /from_artifact_id/);
   },
 );
 

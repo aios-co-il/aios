@@ -33,6 +33,8 @@ import {
 } from "./ReportEmailSenderSelect";
 import { syncReportTables, waitForSnapshotReady } from "@/lib/reportSync";
 import { downloadReportPdf } from "@/lib/reportPdf";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { buildSharedDashboardUrl } from "@/lib/appEnv";
 
 interface ClientDashboardPanelProps {
@@ -94,6 +96,7 @@ export function ClientDashboardPanel({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const recordDelivery = useRecordReportDelivery();
   const snapshotRef = useRef<HTMLDivElement>(null);
 
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -514,8 +517,9 @@ export function ClientDashboardPanel({
       return;
     }
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
+    let effectiveShareUrl: string | null = shareUrl || null;
     try {
-      let effectiveShareUrl = shareUrl;
       if (!effectiveShareUrl) {
         const token = await ensureShareToken();
         if (token) effectiveShareUrl = buildSharedDashboardUrl(token);
@@ -533,6 +537,9 @@ export function ClientDashboardPanel({
         else if (directPhone) formData.append("phoneNumber", directPhone);
         if (waSenderId) formData.append("integrationId", waSenderId);
         if (clientId) formData.append("clientId", clientId);
+        // A dashboard share: the client card logs it once, from report_deliveries.
+        formData.append("sendKind", "dashboard_share");
+        formData.append("sendRef", dashboard.id);
 
         const {
           data: { session },
@@ -546,6 +553,7 @@ export function ClientDashboardPanel({
           },
         );
         if (!response.ok) throw new Error("שגיאה בשליחת וואטסאפ");
+        sentChannels.push("whatsapp");
         toast.success("הדשבורד נשלח בוואטסאפ");
       }
 
@@ -601,6 +609,7 @@ export function ClientDashboardPanel({
                 ? JSON.stringify(resendData.details)
                 : resendData.error,
             );
+          sentChannels.push("email");
           toast.success("הדשבורד נשלח באימייל");
         } else {
           // Default: send from the connected Gmail account (unchanged behavior).
@@ -635,35 +644,26 @@ export function ClientDashboardPanel({
               throw gmailError;
             }
           } else {
+            sentChannels.push("email");
             toast.success("הדשבורד נשלח באימייל");
           }
         }
       }
-
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "dashboard",
-          target_id: dashboard.id,
-          channels: [
-            ...(sendWhatsApp ? ["whatsapp"] : []),
-            ...(sendEmail ? ["email"] : []),
-          ],
-          status: "sent",
-          details: {
-            source: "manual",
-            share_url: effectiveShareUrl,
-            email_recipients: sendEmail ? emailRecipients : [],
-          },
-        });
-      if (deliveryLogError)
-        console.warn("Failed to log dashboard delivery:", deliveryLogError);
     } catch (e: any) {
       console.error("Send error:", e);
       toast.error(`שגיאה בשליחה: ${e?.message || "לא ידוע"}`);
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "dashboard",
+        targetId: dashboard.id,
+        title: dashboard.name,
+        shareUrl: effectiveShareUrl,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients,
+      });
       setIsSending(false);
     }
   };

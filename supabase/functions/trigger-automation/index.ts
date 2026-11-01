@@ -2,6 +2,8 @@
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
+import { findMetaStepClientRecipient } from "./client-recipient.ts";
+import { recordAutomationStepSend } from "./step-client-send.ts";
 import {
   buildWaNotifyFromOrigin,
   requireOriginChatId,
@@ -1299,6 +1301,7 @@ async function sendTaskNotificationFromTenantCarmen(
     phoneNumber: recipient.phone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
   if (!sent) {
     await releaseTaskNotificationDelivery(supabase, {
@@ -1449,6 +1452,7 @@ async function sendClientFollowUpFromTenantCarmen(
     phoneNumber: recipientPhone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
 
   console.log("[client-follow-up-carmen]", {
@@ -5736,6 +5740,8 @@ async function resolveWaIntegration(
       idInstance: config.external_instance_id,
       apiTokenInstance: config.external_api_token,
       providerType: "green_api" as const,
+      connectionUserId: null,
+      integrationId: null,
     };
   }
 
@@ -5778,7 +5784,14 @@ async function resolveWaIntegration(
     if (!idInstance || !apiTokenInstance)
       throw new Error("הגדרות Green API חסרות");
   }
-  return { idInstance, apiTokenInstance, providerType };
+  return {
+    idInstance,
+    apiTokenInstance,
+    providerType,
+    connectionUserId:
+      typeof integration.user_id === "string" ? integration.user_id : null,
+    integrationId: typeof integration.id === "string" ? integration.id : null,
+  };
 }
 
 async function sendWaMessage(opts: {
@@ -5999,15 +6012,23 @@ async function executeMetaWhatsappMessage(
   const phoneField = String(config.phone_field || "phone");
   const sendingToClient =
     phoneField === "client_phone" || phoneField === "recipient_phone";
+  const leadId = sendingToClient
+    ? data?.lead_id || null
+    : data?.lead_id || data?.id || null;
+  const clientRecipientId = await findMetaStepClientRecipient(supabase, {
+    tenantId,
+    phoneNumber,
+    data,
+    leadId,
+  });
   const payload: Record<string, unknown> = {
     tenantId,
     integrationId: integration.id,
     senderUserId,
     phoneNumber,
-    clientId: data?.client_id || null,
-    leadId: sendingToClient
-      ? data?.lead_id || null
-      : data?.lead_id || data?.id || null,
+    clientId: clientRecipientId || data?.client_id || null,
+    leadId,
+    ...(clientRecipientId ? { sendKind: "automation" } : {}),
   };
 
   if (sendMode === "template") {
@@ -6132,8 +6153,13 @@ async function executeGreenApiMessage(
     }
 
     // Resolve integration once
-    const { idInstance, apiTokenInstance, providerType } =
-      await resolveWaIntegration(supabase, config, tenantId);
+    const {
+      idInstance,
+      apiTokenInstance,
+      providerType,
+      connectionUserId,
+      integrationId,
+    } = await resolveWaIntegration(supabase, config, tenantId);
 
     // Build message once (using available data; no per-recipient contactRecord override)
     let message = replaceTemplateVariables(
@@ -6187,6 +6213,17 @@ async function executeGreenApiMessage(
             results.push({ chatId, status: "skipped", result: r });
           } else {
             results.push({ chatId, status: "sent", result: r });
+            await recordAutomationStepSend(supabase, {
+              tenantId,
+              chatId,
+              message,
+              provider: providerType,
+              connectionUserId,
+              integrationId,
+              providerResponse: r,
+              data,
+              recipients: config.recipients,
+            });
           }
         } catch (sendErr) {
           if (sendClaimInserted) {
@@ -6574,6 +6611,18 @@ async function executeGreenApiMessage(
     throw sendErr;
   }
 
+  await recordAutomationStepSend(supabase, {
+    tenantId,
+    chatId,
+    message,
+    provider: providerType,
+    connectionUserId: integration?.user_id ?? null,
+    integrationId: integration?.id ?? null,
+    providerResponse: sendResult,
+    data,
+    contact: contactRecord,
+  });
+
   return {
     success: true,
     message_sent: message,
@@ -6789,6 +6838,8 @@ async function executeGreenApiToCampaigner(
       channel: "whatsapp",
       provider: "green_api",
       raw_provider_data: { automation: true, send_target, sendResult },
+      // A message to the campaigner, never logged on a client card.
+      send_kind: "staff_alert",
     });
 
     if (chatError) {

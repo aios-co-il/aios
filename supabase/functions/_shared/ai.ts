@@ -193,7 +193,7 @@ export function logAiUsage(row: {
 
 export async function aiChat(
   prompt: string,
-  opts?: { model?: string; jsonMode?: boolean },
+  opts?: { model?: string; jsonMode?: boolean; signal?: AbortSignal },
 ): Promise<string | null> {
   const key = await resolveOpenAIKey();
   if (!key) return null;
@@ -210,6 +210,7 @@ export async function aiChat(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: opts?.signal,
     });
     if (!r.ok) return null;
     const j = await r.json();
@@ -231,12 +232,20 @@ export async function aiChat(
   }
 }
 
-/** Chat completion that returns parsed JSON (json_object mode), or null. */
+/**
+ * Chat completion that returns parsed JSON (json_object mode), or null.
+ * An aborted `signal` ends the request and resolves to null.
+ */
 export async function aiChatJSON<T = any>(
   prompt: string,
   model?: string,
+  opts?: { signal?: AbortSignal },
 ): Promise<T | null> {
-  const raw = await aiChat(prompt, { model, jsonMode: true });
+  const raw = await aiChat(prompt, {
+    model,
+    jsonMode: true,
+    signal: opts?.signal,
+  });
   if (!raw) return null;
   try {
     return JSON.parse(raw) as T;
