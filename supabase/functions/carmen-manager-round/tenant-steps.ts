@@ -1,7 +1,7 @@
 /**
- * The steps of one tenant's round, in order: collect, route, the morning
- * brief, then the due messages. A dry run reads and composes, and writes or
- * sends nothing.
+ * The steps of one tenant's round, in order: collect, Carmen's own card
+ * writes (team mode with card_write), route, the morning brief, then the due
+ * messages. A dry run reads and composes, and writes or sends nothing.
  */
 import { jerusalemYmd } from "../_shared/calendarTimeZone.ts";
 import { sendsAnything } from "../_shared/manager-round/modes.ts";
@@ -10,6 +10,7 @@ import {
   resolveManagerSettings,
 } from "../_shared/manager-round/settings.ts";
 import { type BriefRun, briefed, sendBriefIfDue } from "./brief/send.ts";
+import { writeTeamDrafts } from "./card-drafts/autowrite.ts";
 import { dueCollectors } from "./collectors/registry.ts";
 import { runCollectors } from "./collectors/run.ts";
 import type { RoundDeps } from "./deps.ts";
@@ -45,8 +46,21 @@ export async function runSteps(
   });
   const floors = notifyFloors(deps.collectors, state, now);
   // The owner may change the rollout while the collectors run; the database
-  // then cancels what was planned, so route under the settings stored now.
-  const routing = await currentSettings(deps, tenantId);
+  // then cancels what was planned, so write the card and route under the
+  // settings stored now, read again when a change stopped the writes.
+  const writing = await currentSettings(deps, tenantId);
+  const virtual = dryRun ? virtualFindings(collected.candidates) : undefined;
+  const cardWrites = await writeTeamDrafts(deps, {
+    tenantId,
+    settings: writing,
+    floors,
+    dryRun,
+    settingsChanged: changedSince(deps, tenantId, writing),
+    virtual,
+  });
+  const routing = cardWrites?.stopped
+    ? await currentSettings(deps, tenantId)
+    : writing;
   const routed = await routeTenant(deps, {
     tenantId,
     roundId: run.roundId,
@@ -56,7 +70,8 @@ export async function runSteps(
     floors,
     staff,
     dryRun,
-    virtual: dryRun ? virtualFindings(collected.candidates) : undefined,
+    virtual,
+    onCard: cardWrites?.finding_ids ?? [],
   });
   // Read again for sending: a switch while routing must stop this run's sends
   // too, or a message routing just planned under the old mode would go out;
@@ -65,9 +80,7 @@ export async function runSteps(
   const { brief, dispatch } = await deliver(deps, {
     tenantId,
     settings: sending,
-    settingsChanged: async () =>
-      JSON.stringify(await currentSettings(deps, tenantId)) !==
-      JSON.stringify(sending),
+    settingsChanged: changedSince(deps, tenantId, sending),
     now,
     recipients: once(async () =>
       resolveBriefRecipients(await staff(), sending),
@@ -86,6 +99,7 @@ export async function runSteps(
     : undefined;
   return {
     collectors: collected.reports,
+    card_writes: cardWrites,
     routed: routed.decisions.length,
     gaps: routed.gaps.length,
     gaps_dropped: routed.gapsDropped,
@@ -124,6 +138,17 @@ async function currentSettings(
   tenantId: string,
 ): Promise<ManagerSettings> {
   return resolveManagerSettings(await deps.state.loadRules(tenantId));
+}
+
+/** True once the tenant's stored settings differ from `settings`. */
+function changedSince(
+  deps: RoundDeps,
+  tenantId: string,
+  settings: ManagerSettings,
+): () => Promise<boolean> {
+  return async () =>
+    JSON.stringify(await currentSettings(deps, tenantId)) !==
+    JSON.stringify(settings);
 }
 
 /** Calls `load` at most once and shares its promise. */

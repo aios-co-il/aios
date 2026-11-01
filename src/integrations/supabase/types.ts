@@ -16301,6 +16301,24 @@ export type Database = {
         };
         Returns: boolean;
       };
+      carmen_finding_resolve_card_written: {
+        Args: {
+          p_actor_user_id?: string;
+          p_entry_id: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
+      carmen_finding_role_of: {
+        Args: {
+          p_agency_id?: string;
+          p_client_id?: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
       carmen_finding_viewer_role: {
         Args: { p_agency_id: string; p_client_id: string; p_tenant_id: string };
         Returns: string;
@@ -16438,6 +16456,10 @@ export type Database = {
       };
       carmen_is_tenant_owner: {
         Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_is_owner_of: {
+        Args: { p_tenant_id: string; p_user_id: string };
         Returns: boolean;
       };
       carmen_manager_without_stamps: {
@@ -16805,6 +16827,26 @@ export type Database = {
           unlogged_meeting_key: string;
           unlogged_meeting_source: string;
           unlogged_meeting_summary: string;
+        }[];
+      };
+      get_client_group_digest_messages: {
+        Args: {
+          p_client_ids?: string[];
+          p_collector: string;
+          p_connection_user_ids: string[];
+          p_per_group?: number;
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          client_tenant_id: string;
+          group_chat_id: string;
+          group_id: string;
+          group_name: string;
+          messages: Json;
         }[];
       };
       get_client_tenant_id: { Args: { _client_id: string }; Returns: string };

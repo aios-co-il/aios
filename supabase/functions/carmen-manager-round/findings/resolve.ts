@@ -1,7 +1,7 @@
 /** Closing the live findings a collector saw end, through carmen_finding_resolve. */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { FindingResolution } from "../collectors/types.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 
 /** Closes the collector's live findings named in `items`; returns how many. */
 export type ResolveFindings = (

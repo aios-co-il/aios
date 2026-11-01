@@ -1,6 +1,6 @@
 /** Delivery persistence: claims, outcomes, the daily cap and brief activity. */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 import {
   DELIVERED_STATUSES,
   type DeliveryRow,

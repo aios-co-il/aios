@@ -8,7 +8,7 @@ import type {
   TablesInsert,
 } from "../../_shared/database.types.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 
 export type TenantRow = {
   tenant_id: string;

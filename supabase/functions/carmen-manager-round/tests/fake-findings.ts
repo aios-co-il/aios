@@ -1,4 +1,7 @@
 /** In-memory findings RPCs for the round's tests. */
+import { draftNeedsPerson } from "../../_shared/manager-round/card-contact.ts";
+import { cardDraftOf } from "../../_shared/manager-round/card-draft.ts";
+import type { Json } from "../../_shared/database.types.ts";
 import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
 import type { FindingsStore } from "../findings/store.ts";
 import type { UpsertOutcome } from "../findings/types.ts";
@@ -90,11 +93,18 @@ export function fakeFindingsStore(w: World): FindingsStore {
                     Date.parse(f.next_action_at) <= now.getTime())),
             ),
           ),
-    listLive: (_tenant, _limit, kinds) =>
+    listLive: (_tenant, limit, kinds, eventSince, carmenWritable) =>
       Promise.resolve(
-        w.findings.filter(
-          (f) => LIVE.includes(f.status) && (!kinds || kinds.includes(f.kind)),
-        ),
+        w.findings
+          .filter(
+            (f) =>
+              LIVE.includes(f.status) &&
+              (!kinds || kinds.includes(f.kind)) &&
+              (!eventSince ||
+                Date.parse(f.source_event_at) >= Date.parse(eventSince)) &&
+              (!carmenWritable || carmenMayWrite(f.evidence)),
+          )
+          .slice(0, limit),
       ),
     byIds: (_tenant, ids) =>
       Promise.resolve(w.findings.filter((f) => ids.includes(f.id))),
@@ -133,4 +143,10 @@ export function fakeFindingsStore(w: World): FindingsStore {
       return Promise.resolve(decisions.length);
     },
   };
+}
+
+/** What listLive's carmenWritable query keeps: a card draft without a reported contact. */
+function carmenMayWrite(evidence: Json): boolean {
+  const draft = cardDraftOf(evidence);
+  return !!draft && !draftNeedsPerson(draft);
 }

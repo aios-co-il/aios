@@ -4,12 +4,19 @@ import { MANAGER_ROUND_RUN_KIND } from "../_shared/manager-round/run-kind.ts";
 import { unexpectedDrops } from "./findings/dropped.ts";
 import type { TenantReport } from "./tenant-run.ts";
 
-/** True when the run collected, routed, lost a routing gap, briefed, sent or failed. */
+/**
+ * True when the run collected, wrote or failed to write the card, routed,
+ * lost a routing gap, briefed, sent or failed. A failed card write is
+ * swallowed by design (the rest go on), so its row is the only durable record
+ * of it.
+ */
 export function hasActivity(report: TenantReport): boolean {
   return (
     !!report.error ||
     (report.collectors?.some((collector) => collector.status !== "skipped") ??
       false) ||
+    (report.card_writes?.written ?? 0) > 0 ||
+    (report.card_writes?.failed ?? 0) > 0 ||
     (report.routed ?? 0) > 0 ||
     unexpectedDrops(report.gaps_dropped ?? {}) > 0 ||
     !!report.brief ||
@@ -42,6 +49,10 @@ export function roundLog(
     report.gaps_dropped ?? {},
   ].reduce((sum, counts) => sum + unexpectedDrops(counts), 0);
   const notStoredText = notStored ? `, ${notStored} לא נשמרו` : "";
+  const cardFailed = report.card_writes?.failed ?? 0;
+  const cardFailedText = cardFailed
+    ? `, ${cardFailed} רישומים בכרטיס נכשלו`
+    : "";
   return {
     tenant_id: report.tenant_id,
     run_kind: MANAGER_ROUND_RUN_KIND,
@@ -49,7 +60,7 @@ export function roundLog(
     tasks_reviewed: report.routed ?? 0,
     summary: report.error
       ? `סבב כרמן נכשל: ${report.error.slice(0, 200)}`
-      : `סבב כרמן (${report.mode}): ${found} ממצאים חדשים, ${cleared} נסגרו, ${messages} הודעות${notStoredText}`,
+      : `סבב כרמן (${report.mode}): ${found} ממצאים חדשים, ${cleared} נסגרו, ${messages} הודעות${notStoredText}${cardFailedText}`,
     stats: {
       mode: report.mode,
       collectors: collectors.map(
@@ -71,6 +82,14 @@ export function roundLog(
           reason: reason ?? null,
         }),
       ),
+      card_writes: report.card_writes
+        ? {
+            written: report.card_writes.written,
+            failed: report.card_writes.failed,
+            already_closed: report.card_writes.already_closed,
+            error: report.card_writes.error,
+          }
+        : null,
       routed: report.routed ?? 0,
       gaps: report.gaps ?? 0,
       gaps_dropped: report.gaps_dropped ?? {},

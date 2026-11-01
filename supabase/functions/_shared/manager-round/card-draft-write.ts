@@ -1,0 +1,121 @@
+/**
+ * Writes a finding's drafted entry on the client card, then the call or
+ * meeting the draft reports (on a person's approval only), and closes the
+ * finding, in that order: each entry is idempotent on its source_ref, so a
+ * retry after a failed write or close returns the same entries and closes it
+ * then. Used by the manager round (Carmen writes, no actor) and by
+ * approve_card_draft (the approving person is the actor).
+ *
+ * Limitation: the writes and the close are separate database calls, so a
+ * close that fails leaves the entries on the card and the finding open until
+ * the next approval or round closes it.
+ */
+import { recordClientCardEntry } from "../client-card/entry.ts";
+import type {
+  ClientCardEntryInput,
+  ClientCardEntryResult,
+} from "../client-card/entry-types.ts";
+import type { DbClient } from "../supabase-clients.ts";
+import { cardContactEntry } from "./card-contact.ts";
+import {
+  type CardDraft,
+  cardDraftEntry,
+  type DraftedFinding,
+} from "./card-draft.ts";
+
+export type CardDraftWritePorts = {
+  writeEntry(input: ClientCardEntryInput): Promise<ClientCardEntryResult>;
+  /** False when the finding is no longer live (already approved or closed). */
+  resolveWritten(
+    tenantId: string,
+    findingId: string,
+    entryId: string,
+    actorUserId: string | null,
+  ): Promise<boolean>;
+};
+
+export type CardDraftWrite = {
+  tenantId: string;
+  finding: DraftedFinding;
+  draft: CardDraft;
+  /** The person who approved it; null when Carmen writes it herself. */
+  approvedBy: string | null;
+};
+
+export type CardDraftWritten = {
+  entryId: string;
+  /** false when the entry was already on the card. */
+  inserted: boolean;
+  attributedUserId: string;
+  /** The reported call or meeting's entry; null when the draft has none. */
+  contactEntryId: string | null;
+  /** false when the finding had already been closed. */
+  resolved: boolean;
+};
+
+/** Writes the entry and the reported contact, then resolves the finding as fixed. */
+export async function writeCardDraft(
+  ports: CardDraftWritePorts,
+  write: CardDraftWrite,
+): Promise<CardDraftWritten> {
+  const { contact } = write.draft;
+  if (contact && !write.approvedBy) {
+    throw new Error(
+      "card draft: a reported call or meeting is written only on a person's approval",
+    );
+  }
+  const entry = await ports.writeEntry(
+    cardDraftEntry(
+      write.tenantId,
+      write.finding,
+      write.draft,
+      write.approvedBy,
+    ),
+  );
+  const contactEntry =
+    contact && write.approvedBy
+      ? await ports.writeEntry(
+          cardContactEntry(write.tenantId, write.finding, contact, {
+            approvedBy: write.approvedBy,
+            fallbackUserId: entry.userId,
+          }),
+        )
+      : null;
+  const resolved = await ports.resolveWritten(
+    write.tenantId,
+    write.finding.id,
+    entry.entryId,
+    write.approvedBy,
+  );
+  return {
+    entryId: entry.entryId,
+    inserted: entry.inserted,
+    attributedUserId: entry.userId,
+    contactEntryId: contactEntry?.entryId ?? null,
+    resolved,
+  };
+}
+
+/** The ports over a service-role client. */
+export function cardDraftWritePorts(db: DbClient): CardDraftWritePorts {
+  return {
+    writeEntry: (input) => recordClientCardEntry(db, input),
+    async resolveWritten(tenantId, findingId, entryId, actorUserId) {
+      const { data, error } = await db.rpc(
+        "carmen_finding_resolve_card_written",
+        {
+          p_tenant_id: tenantId,
+          p_finding_id: findingId,
+          p_entry_id: entryId,
+          p_actor_user_id: actorUserId ?? undefined,
+        },
+      );
+      if (error) {
+        throw new Error(
+          `carmen_finding_resolve_card_written: ${error.message}`,
+        );
+      }
+      return data === true;
+    },
+  };
+}

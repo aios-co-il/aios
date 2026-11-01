@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../_shared/manager-round/settings.ts";
 import { RoundBudget } from "./budget.ts";
+import { draft } from "./card-drafts/draft-fixtures.ts";
 import type { Collector } from "./collectors/types.ts";
 import type { RoundDeps } from "./deps.ts";
 import { runSteps } from "./tenant-steps.ts";
@@ -189,6 +190,76 @@ Deno.test("runSteps after a switch to observe sends nothing", async (t) => {
         w.deliveries.map((d) => d.status),
         ["planned"],
       );
+    },
+  );
+});
+
+/**
+ * complaintWorld without its complaint: team mode with card_write on and one
+ * open group draft for Dana's client per event time in `events`.
+ */
+function draftsWorld(events: string[]): World {
+  const w = complaintWorld(false);
+  const kinds = {
+    card_stale_group: { card_write: true, notify_since: team.notify_since },
+  };
+  w.tenants = [
+    {
+      tenant_id: TENANT,
+      pulse_alert_rules: rules({ ...team, kinds }),
+      last_run_at: null,
+    },
+  ];
+  w.findings = events.map((at, i) =>
+    finding({
+      kind: "card_stale_group",
+      client_id: "c1",
+      source_event_at: at,
+      evidence: { card_draft: { ...draft, source_ref: `g1:m${i}` } },
+    }),
+  );
+  return w;
+}
+
+Deno.test("runSteps with Carmen's own card writes", async (t) => {
+  await t.step(
+    "a switch to observe during the writes: the rest is neither written nor routed",
+    async () => {
+      const due = "2026-11-03T08:30:00Z";
+      const w = draftsWorld([due, due]);
+      const roundDeps = deps(w, [complaintsCollector()]);
+      const writeEntry = roundDeps.cardDrafts.writeEntry;
+      roundDeps.cardDrafts = {
+        ...roundDeps.cardDrafts,
+        writeEntry: async (input) => {
+          const entry = await writeEntry(input);
+          ownerSwitchesToObserve(w);
+          return entry;
+        },
+      };
+      const report = await steps(roundDeps);
+      assertEquals(
+        [report.card_writes?.written, report.card_writes?.stopped],
+        [1, true],
+      );
+      assertEquals(
+        w.findings.map((f) => f.status),
+        ["resolved", "open"],
+      );
+      assertEquals(w.deliveries, []);
+    },
+  );
+
+  await t.step(
+    "drafts about events before notify_since never keep a due one out of the scan",
+    async () => {
+      const w = draftsWorld([
+        ...Array(50).fill("2026-09-30T10:00:00Z"),
+        "2026-11-03T08:30:00Z",
+      ]);
+      const report = await steps(deps(w, [complaintsCollector()]));
+      assertEquals(report.card_writes?.written, 1);
+      assertEquals(w.findings[50].status, "resolved");
     },
   );
 });

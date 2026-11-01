@@ -1,14 +1,24 @@
 /**
- * The message a confirm_finding_draft call answers: the "תעדי <code>" in the
- * person's own words, and whether they wrote it in a WhatsApp group, where
- * Carmen's answer (with the drafted entry) would reach the client.
+ * The message a finding-draft tool answers, in the person's own words: the
+ * "תעדי <code>" of confirm_finding_draft, the "אשר <code>" (and any
+ * "בלי שיחה") of approve_card_draft, and whether they wrote it in a WhatsApp
+ * group, where Carmen's answer (with the drafted entry) would reach the
+ * client. isGroupChat is the one group rule run-ai-agent reads.
  */
 import { isGroupChatId } from "../../_shared/carmen-session-identity.ts";
+import {
+  parseApproveDraftReply,
+  parseSkipContactReply,
+} from "../../_shared/manager-round/card-draft.ts";
 import { parseConfirmDraftReply } from "../../_shared/manager-round/contact-draft.ts";
 
 export type FindingDraftReply = {
-  /** The code in the person's message; null when it is not such a reply. */
+  /** The "תעדי <code>" code; null when the message has none. */
   shortCode: number | null;
+  /** The "אשר <code>" code; null when the message has none. */
+  approveCode: number | null;
+  /** The person wrote "בלי שיחה" or "בלי פגישה". */
+  skipContact: boolean;
   inGroup: boolean;
 };
 
@@ -17,17 +27,17 @@ export function findingDraftReplyOf(
   commandText: unknown,
   waNotify: unknown,
 ): FindingDraftReply {
+  const text = typeof commandText === "string" ? commandText : "";
   return {
-    shortCode:
-      typeof commandText === "string"
-        ? parseConfirmDraftReply(commandText)
-        : null,
+    shortCode: text ? parseConfirmDraftReply(text) : null,
+    approveCode: text ? parseApproveDraftReply(text) : null,
+    skipContact: !!text && parseSkipContactReply(text),
     inGroup: isGroupChat(waNotify),
   };
 }
 
-/** wa_notify of a group chat: is_group, or a group chat id. */
-function isGroupChat(waNotify: unknown): boolean {
+/** wa_notify of a group chat (client-visible): is_group, or a group chat id. */
+export function isGroupChat(waNotify: unknown): boolean {
   if (!waNotify || typeof waNotify !== "object") {
     return false;
   }

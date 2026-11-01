@@ -10,7 +10,7 @@
  * likely to answer a wait.
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { MAX_PAGES, PAGE_ROWS } from "./paging.ts";
 
 export type CompletedCall = { client_id: string; created_at: string };
