@@ -10,7 +10,7 @@ DECLARE
   v_agency uuid := gen_random_uuid();
   v_client uuid := gen_random_uuid();
   v_short uuid := gen_random_uuid();
-  v_line uuid := gen_random_uuid();
+  v_line uuid;
   v_named uuid;
   v_lookalike uuid;
   v_linked uuid;
@@ -20,6 +20,13 @@ DECLARE
   v_day numeric;
   v_n integer;
 BEGIN
+  -- chat_messages.connection_user_id references auth.users, so the line is an
+  -- existing user; every read is keyed by the new tenant below.
+  SELECT u.id INTO v_line FROM auth.users AS u ORDER BY u.id LIMIT 1;
+  IF v_line IS NULL THEN
+    RAISE EXCEPTION 'Requires an auth user';
+  END IF;
+
   INSERT INTO public.tenants (id, name, slug) VALUES (v_tenant, 'QA', 'qa-' || v_tag);
   INSERT INTO public.agencies (id, tenant_id, name) VALUES (v_agency, v_tenant, 'QA');
   INSERT INTO public.clients (id, tenant_id, agency_id, name, status) VALUES
@@ -56,8 +63,9 @@ BEGIN
   INSERT INTO public.ai_usage_log (tenant_id, source, cost_usd) VALUES
     (v_tenant, 'manager_round:chat', 0.25), (v_tenant, 'aiChat', 0.5), (NULL, 'aiChat', 1),
     (gen_random_uuid(), 'manager_round:chat', 2);
-  INSERT INTO public.agent_action_log (tenant_id, cost_usd) VALUES (v_tenant, 4);
-  INSERT INTO public.marketing_runs (tenant_id, cost_usd) VALUES (v_tenant, 8);
+  INSERT INTO public.agent_action_log (tenant_id, action_type, cost_usd) VALUES (v_tenant, 'qa', 4);
+  INSERT INTO public.marketing_runs (tenant_id, item_id, stage_id, cost_usd)
+  VALUES (v_tenant, gen_random_uuid(), gen_random_uuid(), 8);
   SELECT s.project_month_usd - v_month, s.day_usd - v_day INTO v_month, v_day
   FROM public.carmen_round_llm_spend(v_tenant, now() - interval '1 day', now() - interval '1 hour', 'manager_round:') AS s;
   IF v_month <> 15.75 OR v_day <> 0.25 THEN

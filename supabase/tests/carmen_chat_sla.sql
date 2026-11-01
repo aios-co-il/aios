@@ -15,9 +15,9 @@ DECLARE
   v_client uuid := gen_random_uuid();
   v_shared_client uuid := gen_random_uuid();
   v_other_client uuid := gen_random_uuid();
-  v_line uuid := gen_random_uuid();
-  v_org_line uuid := gen_random_uuid();
-  v_owner_line uuid := gen_random_uuid();
+  v_line uuid;
+  v_org_line uuid;
+  v_owner_line uuid;
   v_group uuid;
   v_shared uuid;
   v_owner_shared uuid;
@@ -32,6 +32,15 @@ DECLARE
   v_texts text;
   v_rows integer;
 BEGIN
+  -- chat_messages.connection_user_id references auth.users, so the lines are
+  -- existing users; every read is keyed by the new tenants below.
+  SELECT u.id INTO v_line FROM auth.users AS u ORDER BY u.id LIMIT 1;
+  SELECT u.id INTO v_org_line FROM auth.users AS u ORDER BY u.id OFFSET 1 LIMIT 1;
+  SELECT u.id INTO v_owner_line FROM auth.users AS u ORDER BY u.id OFFSET 2 LIMIT 1;
+  IF v_owner_line IS NULL THEN
+    RAISE EXCEPTION 'Requires three auth users';
+  END IF;
+
   INSERT INTO public.tenants (id, name, slug) VALUES
     (v_reader, 'QA reader', 'qa-reader-' || v_tag),
     (v_owner, 'QA owner', 'qa-owner-' || v_tag),
