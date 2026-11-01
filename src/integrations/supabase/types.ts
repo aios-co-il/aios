@@ -16311,6 +16311,18 @@ export type Database = {
           status: string;
         }[];
       };
+      carmen_finding_resolve: {
+        Args: {
+          p_collector: string;
+          p_items: Json;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
+        }[];
+      };
       carmen_finding_record_send: {
         Args: {
           p_delivery_ids: string[];
@@ -16322,15 +16334,6 @@ export type Database = {
           p_tenant_id: string;
         };
         Returns: number;
-      };
-      carmen_finding_resolve: {
-        Args: {
-          p_collector: string;
-          p_items: Json;
-          p_round_id: string;
-          p_tenant_id: string;
-        };
-        Returns: { finding_id: string; short_code: number }[];
       };
       carmen_finding_record_brief: {
         Args: {
@@ -16489,10 +16492,6 @@ export type Database = {
         Args: { p_seconds?: number; p_tenant_id: string };
         Returns: boolean;
       };
-      carmen_round_end_lease: {
-        Args: { p_error?: string; p_tenant_id: string };
-        Returns: undefined;
-      };
       carmen_round_llm_spend: {
         Args: {
           p_day_start: string;
@@ -16500,7 +16499,14 @@ export type Database = {
           p_source_prefix: string;
           p_tenant_id: string;
         };
-        Returns: { day_usd: number; project_month_usd: number }[];
+        Returns: {
+          day_usd: number;
+          project_month_usd: number;
+        }[];
+      };
+      carmen_round_end_lease: {
+        Args: { p_error?: string; p_tenant_id: string };
+        Returns: undefined;
       };
       carmen_round_claim_slot: {
         Args: { p_key: string; p_slot: string; p_tenant_id: string };
