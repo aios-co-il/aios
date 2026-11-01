@@ -5400,6 +5400,79 @@ export type Database = {
         };
         Relationships: [];
       };
+      cursor_task_sessions: {
+        Row: {
+          app_env: string | null;
+          created_at: string;
+          cursor_agent_id: string;
+          dev_task_id: string | null;
+          display_name: string;
+          human_task_id: string | null;
+          id: string;
+          last_seen_at: string;
+          session_url: string | null;
+          source_tool: string;
+          status: string;
+          task_title: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          app_env?: string | null;
+          created_at?: string;
+          cursor_agent_id: string;
+          dev_task_id?: string | null;
+          display_name: string;
+          human_task_id?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          session_url?: string | null;
+          source_tool: string;
+          status?: string;
+          task_title?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          app_env?: string | null;
+          created_at?: string;
+          cursor_agent_id?: string;
+          dev_task_id?: string | null;
+          display_name?: string;
+          human_task_id?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          session_url?: string | null;
+          source_tool?: string;
+          status?: string;
+          task_title?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cursor_task_sessions_dev_task_id_fkey";
+            columns: ["dev_task_id"];
+            isOneToOne: false;
+            referencedRelation: "dev_tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cursor_task_sessions_human_task_id_fkey";
+            columns: ["human_task_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cursor_task_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       custom_fields: {
         Row: {
           created_at: string;
@@ -12966,6 +13039,8 @@ export type Database = {
           completion_creator_notified_at: string | null;
           created_at: string;
           created_by: string | null;
+          cursor_session_id: string | null;
+          cursor_session_url: string | null;
           due_date: string | null;
           due_time: string | null;
           duration_minutes: number | null;
@@ -13007,6 +13082,8 @@ export type Database = {
           completion_creator_notified_at?: string | null;
           created_at?: string;
           created_by?: string | null;
+          cursor_session_id?: string | null;
+          cursor_session_url?: string | null;
           due_date?: string | null;
           due_time?: string | null;
           duration_minutes?: number | null;
@@ -13048,6 +13125,8 @@ export type Database = {
           completion_creator_notified_at?: string | null;
           created_at?: string;
           created_by?: string | null;
+          cursor_session_id?: string | null;
+          cursor_session_url?: string | null;
           due_date?: string | null;
           due_time?: string | null;
           duration_minutes?: number | null;
