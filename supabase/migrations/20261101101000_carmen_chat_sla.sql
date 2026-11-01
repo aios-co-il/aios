@@ -2,9 +2,10 @@
 -- components C17 and C18).
 --
 -- Read-only over chat_messages. Nothing here sends a message, and nothing
--- reads a thread that is not linked to a client: personal and unlinked
--- threads never leave these functions (an unlinked group's name and message
--- count leave only when the name matches one client, as a link suggestion).
+-- reads a thread that is not a client's: a direct chat with a number on no
+-- client card and an unlinked group never leave these functions (an unlinked
+-- group's name and message count leave only when the name matches one
+-- client, as a link suggestion).
 --
 -- Requires AIO-242 (20261030093000_client_card_system_send_log.sql):
 -- resolve_whatsapp_group_client, whatsapp_group_client_ids,
@@ -14,18 +15,16 @@
 -- 1. carmen_chat_thread_reviews: the last LLM verdict per client group
 --    thread and the last client message the model read, so each client line
 --    is read once (later lines are sent as new). Service role only.
--- 2. get_client_thread_activity: the recent messages of every client-linked
---    thread of the given lines (the round passes the tenant's monitored Green
---    API lines). Groups resolve to one client through
---    resolve_whatsapp_group_client; direct chats through
---    chat_messages.client_id or the phone match key of the client or one of
---    its contacts. TypeScript decides who is staff.
+-- 2. get_client_thread_activity: the recent messages of every client thread
+--    of the given lines (the round passes the Green API lines of the
+--    tenant's members). A group resolves to one client through
+--    resolve_whatsapp_group_client; a direct chat only through its other
+--    party's phone, when it is the phone of a client or a client contact.
+--    TypeScript decides who is staff.
 -- 3. get_unlinked_client_groups: groups with traffic and no client link whose
 --    name contains exactly one client's name as whole words (an owner-level
 --    suggestion).
--- 4. carmen_round_llm_spend: the project's month-to-date LLM spend and the
---    tenant round's own spend today, for the round's LLM allowance.
--- 5. carmen_finding_resolve: closes live findings a collector saw end
+-- 4. carmen_finding_resolve: closes live findings a collector saw end
 --    ('answered'), with the details (response time) on the 'resolved' event.
 --
 -- Indexes: none added; chat_messages is a hot webhook table. The read-only
@@ -61,7 +60,10 @@ GRANT ALL ON public.carmen_chat_thread_reviews TO service_role;
 -- window: collectors/chat/scope.ts), in thread_key order after
 -- p_after_thread_key (keyset paging: each page holds whole threads). A
 -- thread is a group linked to exactly one client the tenant may act on, or a
--- direct chat whose counterpart is such a client or one of its contacts.
+-- direct chat whose other party's phone is that of exactly one such client or
+-- client contact (clients.phone and client_contacts.phone by
+-- phone_match_key, the sources carmen_is_client_phone reads). A chat with
+-- any other number is never read, whatever chat_messages.client_id says.
 -- Clients: the tenant's own and those of agencies shared with it, not ended
 -- or inactive.
 -- A group linked to another tenant's client is read here unless that tenant
@@ -121,8 +123,8 @@ AS $$
         WHERE ata.agency_id = c.agency_id
           AND ata.accessing_tenant_id = p_tenant_id))
   ),
-  -- Phone match key -> its one client (client or contact phone), computed
-  -- once per call instead of once per direct-chat counterpart.
+  -- Phone match key -> its one client (the client's or a client contact's
+  -- phone), computed once per call. A key on two clients matches neither.
   key_clients AS MATERIALIZED (
     SELECT k.match_key, (array_agg(k.client_id))[1] AS client_id
     FROM (
@@ -138,7 +140,7 @@ AS $$
     HAVING count(DISTINCT k.client_id) = 1
   ),
   messages AS (
-    SELECT cm.id, cm.created_at, cm.direction, cm.group_id, cm.client_id,
+    SELECT cm.id, cm.created_at, cm.direction, cm.group_id,
            cm.connection_user_id, cm.sender_phone, cm.sent_by_user_id,
            cm.send_kind, cm.send_ref, left(cm.message_text, 500) AS message_text,
            coalesce(cm.raw_provider_data ->> 'idMessage', cm.id::text) AS provider_id,
@@ -191,35 +193,16 @@ AS $$
         AND ocm.provider = p_provider
         AND ocm.created_at >= p_since)
   ),
-  -- A direct chat's client: the one client the stored rows are linked to
-  -- (none when a linked client is out of scope or there are several), else
-  -- the one client whose phone or contact phone matches the counterpart.
-  dm_links AS (
-    SELECT s.connection_user_id, s.match_key,
-           count(DISTINCT s.client_id) AS linked_count,
-           (array_agg(s.client_id) FILTER (WHERE s.client_id IS NOT NULL))[1] AS linked_client
-    FROM senders AS s
-    WHERE s.group_id IS NULL AND s.match_key IS NOT NULL
-    GROUP BY s.connection_user_id, s.match_key
-  ),
-  dm_threads AS (
-    SELECT d.connection_user_id, d.match_key,
-           CASE WHEN d.linked_count = 1 THEN linked.id
-                WHEN d.linked_count = 0 THEN kc.client_id END AS client_id
-    FROM dm_links AS d
-    LEFT JOIN clients_in_scope AS linked ON linked.id = d.linked_client
-    LEFT JOIN key_clients AS kc ON kc.match_key = d.match_key
-  ),
   threaded AS (
     SELECT s.*, gt.thread_key, 'group'::text AS thread_kind, gt.client_id AS thread_client_id
     FROM senders AS s
     JOIN group_threads AS gt ON gt.group_id = s.group_id
     UNION ALL
-    SELECT s.*, 'dm:' || s.connection_user_id || ':' || s.match_key, 'dm', dt.client_id
+    -- A direct chat: only with a phone on a client card (key_clients).
+    SELECT s.*, 'dm:' || s.connection_user_id || ':' || s.match_key, 'dm', kc.client_id
     FROM senders AS s
-    JOIN dm_threads AS dt
-      ON dt.connection_user_id = s.connection_user_id AND dt.match_key = s.match_key
-    WHERE s.group_id IS NULL AND dt.client_id IS NOT NULL
+    JOIN key_clients AS kc ON kc.match_key = s.match_key
+    WHERE s.group_id IS NULL
   ),
   unblocked AS (
     SELECT t.*
@@ -354,46 +337,7 @@ REVOKE ALL ON FUNCTION public.get_unlinked_client_groups(uuid, uuid[], timestamp
 GRANT EXECUTE ON FUNCTION public.get_unlinked_client_groups(uuid, uuid[], timestamptz, public.chat_provider, integer)
   TO service_role;
 
--- ─── 4. carmen_round_llm_spend ──────────────────────────────────────────────
-
--- project_month_usd: the project's LLM spend since p_month_start, the sum the
--- health probe guards (ai_usage_log, agent_action_log and marketing_runs of
--- every tenant), because the OpenAI key and its budget are project-wide
--- today (_shared/ai.ts resolveOpenAIKey); a tenant's own month sum, and the
--- health probe reading this one, are AIO-252 phase 2. day_usd: the tenant
--- round's own spend (ai_usage_log sources starting with p_source_prefix)
--- since p_day_start. Only the two sums leave.
-CREATE OR REPLACE FUNCTION public.carmen_round_llm_spend(
-  p_tenant_id uuid,
-  p_month_start timestamptz,
-  p_day_start timestamptz,
-  p_source_prefix text
-)
-RETURNS TABLE (project_month_usd numeric, day_usd numeric)
-  LANGUAGE sql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-AS $$
-  SELECT
-    (SELECT coalesce(sum(l.cost_usd), 0) FROM public.ai_usage_log AS l
-      WHERE l.created_at >= p_month_start)
-    + (SELECT coalesce(sum(a.cost_usd), 0) FROM public.agent_action_log AS a
-      WHERE a.created_at >= p_month_start)
-    + (SELECT coalesce(sum(r.cost_usd), 0) FROM public.marketing_runs AS r
-      WHERE r.created_at >= p_month_start),
-    (SELECT coalesce(sum(l.cost_usd), 0) FROM public.ai_usage_log AS l
-      WHERE l.tenant_id = p_tenant_id
-        AND l.created_at >= p_day_start
-        AND left(l.source, length(p_source_prefix)) = p_source_prefix)
-$$;
-
-REVOKE ALL ON FUNCTION public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)
-  FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)
-  TO service_role;
-
--- ─── 5. carmen_finding_resolve ──────────────────────────────────────────────
+-- ─── 4. carmen_finding_resolve ──────────────────────────────────────────────
 
 -- Close live findings the collector p_collector raised and saw end. Item
 -- keys: kind, fingerprint, resolution ('answered' only; any other item is

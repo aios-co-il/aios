@@ -3,10 +3,12 @@
  *
  * Keys owned here (the mode rules live in ./modes.ts): mode, kinds,
  * notify_since (database-stamped, read only), brief_recipients,
- * business_hours, holidays, sla_business_hours, escalation_hours,
- * max_alerts_per_recipient_per_day and round_llm_share_pct. Other keys under
+ * business_hours, holidays, escalation_hours and
+ * max_alerts_per_recipient_per_day. Other keys under
  * manager (cost from AIO-236, card_log_system_sends from AIO-242, future
  * collectors' keys) are read by their own modules and never rewritten here.
+ * unanswered_reply_hours comes from the top level of pulse_alert_rules
+ * (_shared/pulse/unanswered-reply.ts), where every member edits it.
  */
 import { type FindingKind, isFindingKind } from "./kinds.ts";
 import {
@@ -14,7 +16,10 @@ import {
   MANAGER_MODES,
   type ManagerMode,
 } from "./modes.ts";
-import { nonNegative, positive } from "./setting-numbers.ts";
+import {
+  DEFAULT_UNANSWERED_REPLY_HOURS,
+  resolveUnansweredReplyHours,
+} from "../pulse/unanswered-reply.ts";
 
 export type KindSettings = {
   enabled: boolean;
@@ -38,16 +43,11 @@ export type ManagerSettings = {
   business_hours: BusinessHours;
   /** Israel calendar days (YYYY-MM-DD) with no business hours. */
   holidays: string[];
-  /** Business hours a client request may wait unanswered (read by the chat collector, AIO-252). */
-  sla_business_hours: number;
+  /** Business hours a client's group message may wait for a staff reply (read by the chat collector, AIO-252). */
+  unanswered_reply_hours: number;
   /** Business hours after the first send: [to the manager, to the owner]. */
   escalation_hours: [number, number];
   max_alerts_per_recipient_per_day: number;
-  /**
-   * Percent of the tenant's monthly LLM budget the round may spend, spread
-   * evenly over 30 days (plan C7).
-   */
-  round_llm_share_pct: number;
 };
 
 export const MANAGER_DEFAULTS: Omit<ManagerSettings, "mode" | "kinds"> = {
@@ -62,17 +62,17 @@ export const MANAGER_DEFAULTS: Omit<ManagerSettings, "mode" | "kinds"> = {
     5: [9, 13],
   },
   holidays: [],
-  sla_business_hours: 4,
+  unanswered_reply_hours: DEFAULT_UNANSWERED_REPLY_HOURS,
   escalation_hours: [4, 24],
   max_alerts_per_recipient_per_day: 8,
-  round_llm_share_pct: 10,
 };
 
 /** Resolves stored pulse_alert_rules (any shape) to complete manager settings. */
 export function resolveManagerSettings(
   pulseAlertRules: unknown,
 ): ManagerSettings {
-  const manager = record(record(pulseAlertRules).manager);
+  const rules = record(pulseAlertRules);
+  const manager = record(rules.manager);
   return {
     mode: parseMode(manager.mode) ?? DEFAULT_MANAGER_MODE,
     notify_since: isoOrNull(manager.notify_since),
@@ -84,9 +84,8 @@ export function resolveManagerSettings(
     holidays: stringList(manager.holidays).filter((day) =>
       /^\d{4}-\d{2}-\d{2}$/.test(day),
     ),
-    sla_business_hours: positive(
-      manager.sla_business_hours,
-      MANAGER_DEFAULTS.sla_business_hours,
+    unanswered_reply_hours: resolveUnansweredReplyHours(
+      rules.unanswered_reply_hours,
     ),
     escalation_hours:
       parseEscalation(manager.escalation_hours) ??
@@ -94,14 +93,6 @@ export function resolveManagerSettings(
     max_alerts_per_recipient_per_day: positive(
       manager.max_alerts_per_recipient_per_day,
       MANAGER_DEFAULTS.max_alerts_per_recipient_per_day,
-    ),
-    // 0 is valid: the round classifies with the markers only.
-    round_llm_share_pct: Math.min(
-      100,
-      nonNegative(
-        manager.round_llm_share_pct,
-        MANAGER_DEFAULTS.round_llm_share_pct,
-      ),
     ),
   };
 }
@@ -187,4 +178,10 @@ function stringList(raw: unknown): string[] {
 /** A parseable date string, or null. */
 function isoOrNull(raw: unknown): string | null {
   return typeof raw === "string" && !Number.isNaN(Date.parse(raw)) ? raw : null;
+}
+
+/** A positive number, or the fallback (also for collectors' own keys under manager). */
+export function positive(raw: unknown, fallback: number): number {
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
 }

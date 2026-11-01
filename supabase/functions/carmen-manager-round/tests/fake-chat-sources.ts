@@ -6,7 +6,6 @@ import { RoundBudget } from "../budget.ts";
 import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
 import type { ActivityRow } from "../collectors/chat/activity.ts";
 import type { LiveChatFinding } from "../collectors/chat/gate.ts";
-import { createLlmMeter } from "../collectors/chat/llm-meter.ts";
 import type { CachedReview } from "../collectors/chat/review-cache.ts";
 import { THREAD_KINDS } from "../collectors/chat/scope.ts";
 import type { ChatSources } from "../collectors/chat/sources.ts";
@@ -90,15 +89,6 @@ export function fakeChatSources(
         asked.push(prompt);
         return Promise.resolve({ text: fields.answer ?? null, costUsd: 0 });
       },
-      meter: () =>
-        Promise.resolve(
-          createLlmMeter({
-            monthBudgetUsd: null,
-            monthSpentUsd: 0,
-            dailyCapUsd: 1,
-            daySpentUsd: 0,
-          }),
-        ),
     },
   };
   return { fake, asked, reads };

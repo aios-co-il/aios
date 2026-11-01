@@ -1,4 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { resolveManagerSettings } from "../../../_shared/manager-round/settings.ts";
 import {
   il,
   liveFinding,
@@ -14,7 +15,7 @@ const ask = (at: string, text = "אפשר לעדכן?") =>
 
 Deno.test("gateThreads", async (t) => {
   await t.step("a wait past the SLA in business hours is reviewed", () => {
-    // 09:00 -> 14:00 is 5 business hours; the SLA is 4.
+    // 09:00 -> 14:00 is 5 business hours; the default is 3.
     const [review] = gateThreads([thread([ask("09:00")])], [], SETTINGS, NOW);
     assertEquals(
       [review.slaBreached, review.waitingHours, review.markers.request],
@@ -22,6 +23,20 @@ Deno.test("gateThreads", async (t) => {
     );
     assertEquals(review.fingerprint, "chat:group:111@g.us:ask-09:00");
   });
+
+  await t.step(
+    "the tenant's unanswered_reply_hours decides, 3 by default",
+    () => {
+      // 10:30 -> 14:00 is 3.5 business hours.
+      const wait = thread([ask("10:30")]);
+      assertEquals(gateThreads([wait], [], SETTINGS, NOW).length, 1);
+      const four = resolveManagerSettings({ unanswered_reply_hours: 4 });
+      assertEquals(gateThreads([wait], [], four, NOW), []);
+      const one = resolveManagerSettings({ unanswered_reply_hours: 1 });
+      const recent = thread([ask("12:30")]);
+      assertEquals(gateThreads([recent], [], one, NOW).length, 1);
+    },
+  );
 
   await t.step("a recent wait waits, complaint or not", () => {
     assertEquals(gateThreads([thread([ask("12:30")])], [], SETTINGS, NOW), []);

@@ -1,15 +1,17 @@
 /**
  * Chat collector (AIO-252, plan components C17 and C18): client requests left
- * unanswered past the tenant's SLA in business hours (unanswered_request),
- * client complaints at any age (client_complaint) and unlinked groups that
- * look like a client's (unlinked_group), from the client threads stored from
- * the tenant's own monitored lines. It only reads, only for the kinds the
- * tenant has not turned off, and only messages inside the read window
+ * without a staff reply past the tenant's unanswered_reply_hours in business
+ * hours (unanswered_request), client complaints at any age
+ * (client_complaint) and unlinked groups that look like a client's
+ * (unlinked_group), from the client threads on the lines of the tenant's
+ * members (connections.ts): groups linked to a client, and direct chats with
+ * a phone on a client card, never a chat with any other number. It only
+ * reads, only for the kinds the tenant has not turned off, and only messages inside the read window
  * (scope.ts) and after the kinds' notify_since, so nothing older is ever
- * raised. A wait that staff
- * answered (reply or completed call) is closed as answered with its response
- * time. The lines it read are kept in its watermark, so a tenant sharing a
- * group with this one leaves the group to it (get_client_thread_activity).
+ * raised. A wait that staff answered (reply or completed call) is closed as
+ * answered with its response time. The lines it read are kept in its
+ * watermark, so a tenant sharing a group with this one leaves the group to it
+ * (get_client_thread_activity).
  */
 import type { FindingKind } from "../../../_shared/manager-round/kinds.ts";
 import type { Collector, CollectorContext, CollectorResult } from "../types.ts";
@@ -28,8 +30,9 @@ export function createChatCollector(
     id: CHAT_COLLECTOR_ID,
     kinds: CHAT_KINDS,
     detectorVersion: "2",
-    // Hourly 08–20 Israel time, Sunday to Friday: Saturday is read on Sunday.
-    schedule: { cron: "0 8-20 * * 0-5" },
+    // Every 3 hours 08–20 Israel time (08, 11, 14, 17, 20), Sunday to
+    // Friday: Saturday is read on Sunday.
+    schedule: { cron: "0 8-20/3 * * 0-5" },
     collect: (ctx) => collectChat(ctx, sources(ctx)),
   };
 }

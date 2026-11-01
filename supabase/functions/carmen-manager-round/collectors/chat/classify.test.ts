@@ -20,7 +20,7 @@ import type { Thread } from "./threads.ts";
 
 const run = (dryRun = false) => ({
   tenantId: TENANT,
-  budget: RoundBudget.create(60_000, 10),
+  budget: RoundBudget.create(600_000, 100),
   dryRun,
 });
 
@@ -92,7 +92,7 @@ Deno.test("classifyThreads", async (t) => {
   );
 
   await t.step(
-    "a cached verdict for the same message is reused; an older one is kept unasked",
+    "a cached verdict for the same message is reused; a preview keeps an older one unasked",
     async () => {
       const cached = new Map([
         ["group:111@g.us", { messageId: "last", verdict: ASKED_VERDICT }],
@@ -106,8 +106,8 @@ Deno.test("classifyThreads", async (t) => {
       const stale = new Map([
         ["group:111@g.us", { messageId: "older", verdict: ASKED_VERDICT }],
       ]);
-      const miss = fakeClassifyPorts({ cached: stale, dailyCapUsd: 0 });
-      const kept = await classify([group()], miss.fake);
+      const miss = fakeClassifyPorts({ cached: stale });
+      const kept = await classify([group()], miss.fake, true);
       assertEquals(miss.prompts.length, 0);
       assertEquals(kept.verdicts.get("group:111@g.us")?.messageId, "older");
     },
@@ -209,6 +209,15 @@ Deno.test("classifyThreads", async (t) => {
       }
     },
   );
+
+  await t.step("stops at 20 calls a run, however much they cost", async () => {
+    const { fake, prompts } = fakeClassifyPorts({ costUsd: 5 });
+    const waiting = Array.from({ length: 25 }, (_, i) =>
+      group("יש עדכון", `group:${i}@g.us`),
+    );
+    const { llm } = await classify(waiting, fake);
+    assertEquals([prompts.length, llm.calls, llm.costUsd], [20, 20, 100]);
+  });
 
   await t.step(
     "due waits are asked first; no answer stops asking",

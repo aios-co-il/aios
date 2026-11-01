@@ -28,6 +28,7 @@ describe("mergePulseAlertRules", () => {
       cpl_spike_enabled: true,
       cpl_spike_pct: 50,
       disconnected_enabled: true,
+      unanswered_reply_hours: 3,
       future_flag: "kept",
       manager: {
         mode: "observe",
@@ -49,11 +50,22 @@ describe("mergePulseAlertRules", () => {
       cpl_spike_enabled: true,
       cpl_spike_pct: 50,
       disconnected_enabled: true,
+      unanswered_reply_hours: 3,
     });
     expect(
       mergePulseAlertRules(null, { manager: { cost: { trend_pct: 45 } } })
         .manager,
     ).toEqual({ cost: { trend_pct: 45 } });
+  });
+
+  it("saves the reply hours at the top level, so a non-owner's save sends no manager block", () => {
+    const stored = { manager: { mode: "observe" } };
+    const merged = mergePulseAlertRules(
+      stored,
+      parsePulseAlertRules({ ...stored, unanswered_reply_hours: 6 }),
+    );
+    expect(merged.unanswered_reply_hours).toBe(6);
+    expect("manager" in merged).toBe(false);
   });
 
   it("sends no manager block when nothing in it changes", () => {
@@ -66,6 +78,18 @@ describe("mergePulseAlertRules", () => {
 });
 
 describe("parsePulseAlertRules", () => {
+  it("reads the reply hours as a number of at least 1, 3 by default", () => {
+    const hours = (raw: unknown) =>
+      parsePulseAlertRules({ unanswered_reply_hours: raw })
+        .unanswered_reply_hours;
+    expect([hours(5), hours("2"), hours(0.5)]).toEqual([5, 2, 1]);
+    expect([hours(undefined), hours("x"), hours(0), hours(-4)]).toEqual([
+      3, 3, 3, 3,
+    ]);
+    expect(parsePulseAlertRules(null).unanswered_reply_hours).toBe(3);
+    expect(DEFAULT_PULSE_ALERT_RULES.unanswered_reply_hours).toBe(3);
+  });
+
   it("keeps a manager block and drops one whose cost is not an object", () => {
     expect(
       parsePulseAlertRules({ manager: { cost: { trend_pct: 60 } } }).manager,

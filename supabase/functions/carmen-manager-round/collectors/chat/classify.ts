@@ -4,13 +4,15 @@
  * client streak and at any age, so a complaint without a listed word is seen
  * even when staff answered it and the client thanked them before the run.
  * Only groups open to the team (direct-chat text and private groups never go
- * to the model), within the tenant's LLM allowance and the round's time and
- * API budget, and never in a preview. Threads whose wait is due are asked
- * first. Without a verdict the markers decide.
+ * to the model), at most MAX_CALLS a run within the round's time and API
+ * budget, and never in a preview. There is no money limit: each call's cost
+ * is logged under the
+ * tenant and counted in the run's stats (llm-meter.ts). Threads whose wait
+ * is due are asked first. Without a verdict the markers decide.
  */
 import type { RoundBudget } from "../../budget.ts";
 import { clip } from "./clip.ts";
-import type { LlmMeter } from "./llm-meter.ts";
+import { createLlmMeter, type LlmMeter } from "./llm-meter.ts";
 import { verdictPrompt } from "./prompt.ts";
 import type { CachedReview, ReviewCache } from "./review-cache.ts";
 import type { Thread, Turn } from "./threads.ts";
@@ -28,8 +30,6 @@ export type AskModel = (
 export type ClassifyPorts = {
   cache: ReviewCache;
   ask: AskModel;
-  /** Loaded on the first call that needs it. */
-  meter: () => Promise<LlmMeter>;
 };
 
 /**
@@ -39,7 +39,7 @@ export type ClassifyPorts = {
  */
 export type Verdicts = Map<string, CachedReview>;
 
-/** At most this many model calls per tenant run. */
+/** At most this many model calls per tenant run: they must fit the round's time budget. */
 const MAX_CALLS = 20;
 /** A model call needs about this much of the round's time. */
 export const CALL_MS = 8_000;
@@ -85,7 +85,7 @@ export async function classifyThreads(
     )
     .sort((a, b) => Number(dueKeys.has(b.key)) - Number(dueKeys.has(a.key)));
   const verdicts: Verdicts = await ports.cache.load(askable.map((t) => t.key));
-  let meter: LlmMeter | null = null;
+  const meter = createLlmMeter();
   // No key or a provider error: the rest of the run uses the markers.
   let modelDown = false;
   let rejected = 0;
@@ -96,7 +96,6 @@ export async function classifyThreads(
     if (!last || !worth || run.dryRun || modelDown) {
       continue;
     }
-    meter ??= await ports.meter();
     if (!mayAsk(meter, run.budget)) {
       continue;
     }
@@ -110,15 +109,13 @@ export async function classifyThreads(
       verdicts.set(thread.key, outcome);
     }
   }
-  const llm = meter?.usage() ?? { calls: 0, costUsd: 0 };
-  return { verdicts, llm, modelDown, rejected };
+  return { verdicts, llm: meter.usage(), modelDown, rejected };
 }
 
-/** Room for one more call in the allowance, the run cap and the round budget. */
+/** Room for one more call in the run cap and the round budget. */
 function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
   return (
     meter.usage().calls < MAX_CALLS &&
-    meter.allows() &&
     budget.hasTime(CALL_MS) &&
     budget.takeApiCall()
   );

@@ -47,10 +47,3 @@ GROUP BY cm.group_id;
 EXPLAIN SELECT client_id, created_at FROM public.call_logs
 WHERE tenant_id IN ('<tenant>') AND status = 'completed' AND client_id IS NOT NULL
   AND created_at >= now() - interval '7 days';
-
--- (f) carmen_round_llm_spend's month sums: Index Scans on
---     idx_ai_usage_log_created; agent_action_log and marketing_runs have no
---     created_at-first index, so a Seq Scan there is expected (the health
---     probe reads the same rows hourly).
-EXPLAIN SELECT sum(cost_usd) FROM public.agent_action_log
-WHERE created_at >= date_trunc('month', now());

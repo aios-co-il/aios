@@ -5,27 +5,27 @@ import { monitoredLines, tenantSlug } from "./connections.ts";
 
 Deno.test("monitoredLines", async (t) => {
   await t.step(
-    "the owner-level users' own Green lines and org-wide lines only",
+    "every member's own Green lines, a campaigner's included, and org-wide lines",
     async () => {
       const { db, calls } = recordingClient(({ path }) => {
         if (path === "user_roles") {
           return [{ user_id: "owner" }, { user_id: "agency-owner" }];
         }
         if (path === "tenant_users") {
-          return [{ user_id: "member-owner" }];
+          return [{ user_id: "owner" }, { user_id: "campaigner" }];
         }
         return [
           { user_id: "owner", connection_visibility: "private" },
           { user_id: "agency-owner", connection_visibility: "private" },
-          { user_id: "member-owner", connection_visibility: "private" },
           { user_id: "campaigner", connection_visibility: "private" },
+          { user_id: "stranger", connection_visibility: "private" },
           { user_id: "office", connection_visibility: "org" },
           { user_id: null, connection_visibility: "org" },
           { user_id: "owner", connection_visibility: "shared" },
         ];
       });
       assertEquals(await monitoredLines(db, TENANT), {
-        ids: ["owner", "agency-owner", "member-owner", "office"],
+        ids: ["owner", "agency-owner", "campaigner", "office"],
         skipped: 2,
       });
       const lines = calls.find((c) => c.path === "tenant_integrations");
@@ -38,10 +38,10 @@ Deno.test("monitoredLines", async (t) => {
         [`eq.${TENANT}`, "eq.green_api", "eq.true"],
       );
       for (const path of ["user_roles", "tenant_users"]) {
-        const roles = calls.find((c) => c.path === path);
+        const members = calls.find((c) => c.path === path);
         assertEquals(
-          [roles?.query.get("tenant_id"), roles?.query.get("role")],
-          [`eq.${TENANT}`, "in.(owner,agency_owner)"],
+          [members?.query.get("tenant_id"), members?.query.get("role")],
+          [`eq.${TENANT}`, null],
           path,
         );
       }

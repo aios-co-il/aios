@@ -1,7 +1,8 @@
 /**
  * Reads of the client threads the chat collector reviews, through the
  * service-role SQL functions of 20261101101000_carmen_chat_sla.sql: only
- * client-linked threads of the monitored lines leave the database.
+ * client threads of the monitored lines leave the database (groups linked to
+ * a client, direct chats with a phone on a client card).
  */
 import { USER_SEND_KINDS } from "../../../_shared/client-card/send-kind.ts";
 import type { Database } from "../../../_shared/database.types.ts";

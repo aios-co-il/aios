@@ -1,7 +1,6 @@
 -- Carmen chat SLA (20261101101000_carmen_chat_sla): get_unlinked_client_groups,
--- carmen_round_llm_spend, carmen_finding_resolve (with the cancel of planned
--- deliveries) and the grants, over a synthetic tenant inside one transaction
--- that is rolled back.
+-- carmen_finding_resolve (with the cancel of planned deliveries) and the
+-- grants, over a synthetic tenant inside one transaction that is rolled back.
 BEGIN;
 DO $test$
 DECLARE
@@ -16,8 +15,6 @@ DECLARE
   v_linked uuid;
   v_round uuid := gen_random_uuid();
   v_finding uuid;
-  v_month numeric;
-  v_day numeric;
   v_n integer;
 BEGIN
   -- chat_messages.connection_user_id references auth.users, so the line is an
@@ -54,22 +51,6 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.get_unlinked_client_groups(v_tenant, ARRAY[v_line], now() - interval '1 day') AS u
              WHERE u.group_id IN (v_lookalike, v_linked)) THEN
     RAISE EXCEPTION 'unlinked: a part-word match and a linked group are never suggested';
-  END IF;
-
-  -- LLM spend: the month counts every tenant's LLM tables, the day only this
-  -- tenant's round sources.
-  SELECT s.project_month_usd, s.day_usd INTO v_month, v_day
-  FROM public.carmen_round_llm_spend(v_tenant, now() - interval '1 day', now() - interval '1 hour', 'manager_round:') AS s;
-  INSERT INTO public.ai_usage_log (tenant_id, source, cost_usd) VALUES
-    (v_tenant, 'manager_round:chat', 0.25), (v_tenant, 'aiChat', 0.5), (NULL, 'aiChat', 1),
-    (gen_random_uuid(), 'manager_round:chat', 2);
-  INSERT INTO public.agent_action_log (tenant_id, action_type, cost_usd) VALUES (v_tenant, 'qa', 4);
-  INSERT INTO public.marketing_runs (tenant_id, item_id, stage_id, cost_usd)
-  VALUES (v_tenant, gen_random_uuid(), gen_random_uuid(), 8);
-  SELECT s.project_month_usd - v_month, s.day_usd - v_day INTO v_month, v_day
-  FROM public.carmen_round_llm_spend(v_tenant, now() - interval '1 day', now() - interval '1 hour', 'manager_round:') AS s;
-  IF v_month <> 15.75 OR v_day <> 0.25 THEN
-    RAISE EXCEPTION 'spend: project month % and tenant round day %', v_month, v_day;
   END IF;
 
   -- Resolve: only the collector's own live findings, logged with the details.
@@ -110,7 +91,6 @@ BEGIN
 
   -- Grants: service role only, the review cache included (plan C6).
   IF has_function_privilege('authenticated', 'public.get_unlinked_client_groups(uuid, uuid[], timestamptz, public.chat_provider, integer)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'public.carmen_finding_resolve(uuid, uuid, text, jsonb)', 'EXECUTE')
      OR has_table_privilege('anon', 'public.carmen_chat_thread_reviews', 'SELECT')
      OR has_table_privilege('authenticated', 'public.carmen_chat_thread_reviews', 'SELECT')
