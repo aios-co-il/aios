@@ -67,6 +67,24 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a film sent to Kling with no Kling keys anywhere goes to a connected engine",
+  async () => {
+    // Staging, 1 Nov: no tenant or worker Kling keys, an OpenRouter brain connected.
+    const deps = {
+      sceneEngines: () =>
+        Promise.resolve(connectedSceneEngines({}, { openrouter: true })),
+    };
+    const settled = await settleEngine(
+      "workshop_produce_video",
+      { item_id: "i", engine: "kling" },
+      deps,
+    );
+    assertEquals(settled.args, { item_id: "i" });
+    assertStrictEquals(typeof settled.note, "string");
+  },
+);
+
 Deno.test("connected scene engines follow the tenant's keys", () => {
   // No Kling keys anywhere: a film sent to Kling would fail in the worker, so it is not offered.
   assertEquals(connectedSceneEngines({}), ["mock"]);
