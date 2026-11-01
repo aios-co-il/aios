@@ -13,7 +13,7 @@ import {
   type UnlinkedGroupRow,
 } from "./activity.ts";
 import { type CallsRead, loadCompletedCalls } from "./calls.ts";
-import type { AskModel, ClassifyPorts } from "./classify.ts";
+import { type AskModel, CALL_MS, type ClassifyPorts } from "./classify.ts";
 import {
   type MonitoredLines,
   monitoredLines,
@@ -79,6 +79,9 @@ function modelAsk(tenantId: string): AskModel {
     let costUsd = 0;
     const text = await aiChat(prompt, {
       jsonMode: true,
+      // The round budget only leaves CALL_MS for the call: a slow reply is
+      // cut there and counts as the model being down.
+      signal: AbortSignal.timeout(CALL_MS),
       tenantId,
       source: CHAT_LLM_SOURCE,
       onUsage: (usage) => {
