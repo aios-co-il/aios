@@ -55,6 +55,16 @@ async function run(
     rpc: {
       is_super_admin: ({ _user_id }) => _user_id === SUPER,
       tenant_can_use_integration: () => false,
+      // The client send guard (AIO-261): PHONE is nobody's client.
+      // The guard reads it with .single(), so one object, not a list.
+      resolve_send_recipient: () => ({
+        recipient_kind: "unknown",
+        client_ids: [],
+        lead_id: null,
+        group_id: null,
+        ambiguous: false,
+        sender_staff: false,
+      }),
     },
     failing,
     other: () => Response.json({ success: true, messageId: "m1" }),

@@ -111,6 +111,8 @@ async function sendFromLines(
       supabaseUrl: input.supabaseUrl,
       serviceRoleKey: input.serviceRoleKey,
       functionName: SEND_MANUS_FN,
+      // Managers and campaigners only: the client send guard refuses a client.
+      sendKind: "staff_alert",
       body: {
         tenantId: input.tenantId,
         integrationId: line.id,

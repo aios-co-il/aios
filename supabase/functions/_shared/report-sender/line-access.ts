@@ -1,6 +1,6 @@
-// Server-side checks of the line a send names (AIO-255). The report file and
-// text senders run with the service role once the caller is known, so they
-// check tenant access themselves.
+// Server-side checks of the line a send names (AIO-255), and whether a caller
+// may send for a tenant. The WhatsApp senders run with the service role once
+// the caller is known, so they check tenant access themselves.
 import type { Json } from "../database.types.ts";
 import type { LineStore, SenderLine } from "./line-store.ts";
 import type { ReportSenderType } from "./types.ts";

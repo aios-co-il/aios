@@ -1,6 +1,10 @@
 // Everything checked before a Green API file leaves (AIO-255): the caller
 // belongs to the tenant, the line is one the tenant may use, there is a
-// recipient, and this environment may send there.
+// recipient, the client send guard lets the file reach it (AIO-261), and
+// this environment may send there.
+import { clientSendRefusal } from "../_shared/client-send/response.ts";
+import { clientSendRefusalOf } from "../_shared/client-send/sender-step.ts";
+import type { ClientSendGuard } from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import {
   callerMaySendForTenant,
@@ -24,6 +28,8 @@ export type GreenFileSendDeps = {
   legacyLine(tenantId: string, userId: string): Promise<SenderLine | null>;
   /** checkWhatsAppSend: Staging sends only to allowlisted phones. */
   guard(destination: string): GuardResult;
+  /** The client send guard over the service-role client. */
+  clientSendGuard: ClientSendGuard;
 };
 
 export type GreenFileSendInput = {
@@ -33,6 +39,12 @@ export type GreenFileSendInput = {
   groupId: string | null;
   groupChatId: string | undefined;
   phoneNumber: string | null;
+  /** The body's clientId, sendKind and sendRef, as sent. */
+  clientId: string | null;
+  /** From index.ts's auth step: a service-role call is a system send. */
+  isServiceRole: boolean;
+  sendKind: unknown;
+  sendRef: unknown;
 };
 
 export type GreenFileSend =
@@ -69,6 +81,19 @@ export async function prepareGreenFileSend(
     return refuse(400, { error: target.message, code: target.error });
   }
   const usedGroupChat = target.via === "group";
+  // The group row counts only when its chat id is where the file goes.
+  const refused = await clientSendRefusalOf(deps.clientSendGuard, {
+    functionName: "send-green-api-file",
+    tenantId: input.tenantId,
+    channel: "whatsapp",
+    address: target.chatId,
+    groupId: usedGroupChat ? input.groupId : null,
+    isServiceRole: input.isServiceRole,
+    body: input,
+  });
+  if (refused) {
+    return { refusal: clientSendRefusal(refused) };
+  }
   const guard = deps.guard(
     usedGroupChat ? `group:${target.chatId}` : target.chatId,
   );

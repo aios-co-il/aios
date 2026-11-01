@@ -4,6 +4,7 @@ import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
 import { toGatewayPhone } from "../_shared/telephony/phone.ts";
 import { liveLineDeps } from "./line.ts";
 
@@ -206,6 +207,19 @@ Deno.serve(async (req) => {
           String(phoneNumber || ""),
           /^\d{1,3}$/.test(cc) ? cc : "972",
         );
+
+    const refused = await refuseClientSend(serviceClient(), {
+      functionName: "send-manus-wa-message",
+      tenantId,
+      channel: "whatsapp",
+      address: to,
+      groupId: groupChatId ? groupId : null,
+      isServiceRole,
+      body,
+    });
+    if (refused) {
+      return refused;
+    }
 
     const guard = checkWhatsAppSend(groupChatId ? `group:${groupChatId}` : to);
     if (guard.decision === "BLOCK") {

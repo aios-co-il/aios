@@ -8,6 +8,7 @@ import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { lineStore } from "../_shared/report-sender/line-store.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import { internalError } from "../_shared/telephony/response.ts";
 import { prepareGreenFileSend } from "./prepare.ts";
@@ -110,11 +111,13 @@ Deno.serve(async (req) => {
     const fileType = (formData.get("fileType") as string) || "document";
     // Optional explicit sender instance chosen by the caller (report/dashboard sender picker).
     const chosenIntegrationId = formData.get("integrationId") as string | null;
-    // This function only serves signed-in users, so an unnamed kind is "chat".
+    // getUser above admits signed-in users only: every send here is a
+    // person's, so an unnamed kind is "chat" and the client guard passes it.
+    const isServiceRole = false;
     const sendColumns = sendKindColumns({
       sendKind: formData.get("sendKind"),
       sendRef: formData.get("sendRef"),
-      isServiceRole: false,
+      isServiceRole,
     });
 
     if (!rawFile) {
@@ -199,12 +202,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    const admin = serviceClient();
     const send = await prepareGreenFileSend(
       {
-        store: lineStore(serviceClient()),
+        store: lineStore(admin),
         legacyLine: (tenantId, userId) =>
           legacyGreenLine(supabaseClient, tenantId, userId),
         guard: checkWhatsAppSend,
+        clientSendGuard: (request) => authorizeClientSend(admin, request),
       },
       {
         tenantId: resolvedTenantId,
@@ -213,6 +218,10 @@ Deno.serve(async (req) => {
         groupId,
         groupChatId,
         phoneNumber,
+        clientId,
+        isServiceRole,
+        sendKind: formData.get("sendKind"),
+        sendRef: formData.get("sendRef"),
       },
     );
     if ("refusal" in send) {
