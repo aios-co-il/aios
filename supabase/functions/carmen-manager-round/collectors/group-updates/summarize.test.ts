@@ -174,7 +174,7 @@ Deno.test("digestWindows", async (t) => {
   );
 
   await t.step(
-    "the markers find a contact only when the model gave no answer",
+    "without a model answer there is no contact, whatever the words",
     async () => {
       const called = window([
         { text: "מה שלומכם?" },
@@ -194,10 +194,7 @@ Deno.test("digestWindows", async (t) => {
       const [silent] = (
         await digestWindows([called], [], ports("not json").ports, run())
       ).digests;
-      assertEquals(
-        [silent.by, silent.contact?.kind, silent.contact?.message.id],
-        ["markers", "call", "m2"],
-      );
+      assertEquals([silent.by, silent.contact], ["markers", null]);
     },
   );
 

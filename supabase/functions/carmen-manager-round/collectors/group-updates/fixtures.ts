@@ -38,6 +38,7 @@ export function fixtureSources(
             typeof k === "string" ? [[k, null]] : [],
           ),
         ),
+        keyTenants: new Map(),
         tenantsOf: new Map(),
       }),
     cardEntries: () =>

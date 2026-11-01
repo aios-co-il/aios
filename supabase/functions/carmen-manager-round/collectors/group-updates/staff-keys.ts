@@ -21,9 +21,14 @@ export type StaffKeys = {
    * a Manus line, or a phone two logins share.
    */
   keys: ReadonlyMap<string, string | null>;
+  /** Each staff phone match key with the tenants whose staff has that phone. */
+  keyTenants: ReadonlyMap<string, ReadonlySet<string>>;
   /** Each login's tenants among the tenant and its agency partners. */
   tenantsOf: ReadonlyMap<string, ReadonlySet<string>>;
 };
+
+/** One staff phone: its match key, its tenant and its login, if any. */
+type StaffPhone = { key: string; tenantId: string; userId: string | null };
 
 /** Phone match keys of the staff of the tenant and its agency partners. */
 export async function loadStaffKeys(
@@ -42,17 +47,17 @@ export async function loadStaffKeys(
       .in("tenant_id", tenantIds),
     db
       .from("campaigners")
-      .select("phone")
+      .select("phone, tenant_id")
       .in("tenant_id", tenantIds)
       .eq("active", true),
     db
       .from("sales_people")
-      .select("phone")
+      .select("phone, tenant_id")
       .in("tenant_id", tenantIds)
       .eq("active", true),
     db
       .from("tenant_integrations")
-      .select("settings")
+      .select("settings, tenant_id")
       .in("tenant_id", tenantIds)
       .eq("integration_type", "manus_wa"),
   ]);
@@ -65,18 +70,44 @@ export async function loadStaffKeys(
     ...(roles.data ?? []),
     ...(members.data ?? []),
   ]);
-  const logins = (await profilesBy(db, "id", [...tenantsOf.keys()])).map(
-    (profile) => ({
-      key: phoneMatchKey(profilePhone(profile)),
-      userId: profile.id,
-    }),
-  );
-  const keys = staffKeyMap(logins, [
-    ...(campaigners.data ?? []).map((row) => row.phone),
-    ...(sales.data ?? []).map((row) => row.phone),
-    ...(lines.data ?? []).map((row) => linePhone(row.settings)),
-  ]);
-  return { keys, tenantsOf };
+  const profiles = await profilesBy(db, "id", [...tenantsOf.keys()]);
+  const phones = [
+    ...profiles.flatMap((profile) =>
+      [...(tenantsOf.get(profile.id) ?? [])].flatMap((tenant) =>
+        staffPhone(profilePhone(profile), tenant, profile.id),
+      ),
+    ),
+    ...[...(campaigners.data ?? []), ...(sales.data ?? [])].flatMap((row) =>
+      staffPhone(row.phone, row.tenant_id, null),
+    ),
+    ...(lines.data ?? []).flatMap((row) =>
+      staffPhone(linePhone(row.settings), row.tenant_id, null),
+    ),
+  ];
+  return {
+    keys: staffKeyMap(phones),
+    keyTenants: keyTenants(phones),
+    tenantsOf,
+  };
+}
+
+/** The phone as a staff phone of the tenant, or nothing without a usable phone. */
+function staffPhone(
+  phone: string | null,
+  tenantId: string | null,
+  userId: string | null,
+): StaffPhone[] {
+  const key = phoneMatchKey(phone);
+  return key && tenantId ? [{ key, tenantId, userId }] : [];
+}
+
+/** Each key with the tenants whose staff has it. */
+function keyTenants(phones: StaffPhone[]): StaffKeys["keyTenants"] {
+  const tenants = new Map<string, Set<string>>();
+  for (const { key, tenantId } of phones) {
+    tenants.set(key, (tenants.get(key) ?? new Set<string>()).add(tenantId));
+  }
+  return tenants;
 }
 
 /** Each login with the tenants it has a role in. */
@@ -95,19 +126,16 @@ function loginTenants(
 }
 
 /** The logins' keys with their person (null when two share one), then the other phones' keys. */
-function staffKeyMap(
-  logins: { key: string | null; userId: string }[],
-  otherPhones: (string | null)[],
-): StaffKeys["keys"] {
+function staffKeyMap(phones: StaffPhone[]): StaffKeys["keys"] {
   const keys = new Map<string, string | null>();
-  for (const { key, userId } of logins) {
-    if (key) {
+  for (const { key, userId } of phones) {
+    if (userId) {
       const shared = keys.has(key) && keys.get(key) !== userId;
       keys.set(key, shared ? null : userId);
     }
   }
-  for (const key of otherPhones.map(phoneMatchKey)) {
-    if (key && !keys.has(key)) {
+  for (const { key } of phones) {
+    if (!keys.has(key)) {
       keys.set(key, null);
     }
   }

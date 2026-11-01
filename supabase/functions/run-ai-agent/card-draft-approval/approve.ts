@@ -2,8 +2,9 @@
  * "אשר <code>": writes the card entry a finding drafted (a group digest:
  * source group_digest, attributed to the client's campaigner, never counted
  * as contact) and, when the group reported a call or meeting as held, that
- * contact (card-contact.ts: the approving person vouches for it), then
- * closes the finding as fixed by the approving person.
+ * contact (card-contact.ts: the approving person vouches for it, unless
+ * they said to leave it out), then closes the finding as fixed by the
+ * approving person.
  * Only in a private chat with Carmen: a group session is client-visible, so
  * there the tool refuses without naming the client or the draft. Only a
  * person the findings feed shows the finding to may approve it: the database
@@ -66,7 +67,12 @@ export async function approveCardDraft(
   const draft = wording
     ? { ...found.draft, content: cardDraftContent(found.draft.source, wording) }
     : found.draft;
-  return write(ports, input.tenantId, { ...found, draft }, userId);
+  return write(
+    ports,
+    input.tenantId,
+    { ...found, draft: keptContact(draft, input.args.skip_contact) },
+    userId,
+  );
 }
 
 /** Writes the entry and closes the finding as this person's approval. */
@@ -100,6 +106,15 @@ async function write(
     }
     throw error;
   }
+}
+
+/** The draft, without its reported contact when the person said to leave it out. */
+function keptContact(draft: CardDraft, skip: unknown): CardDraft {
+  if (skip !== true || !draft.contact) {
+    return draft;
+  }
+  const { contact: _left, ...summary } = draft;
+  return summary;
 }
 
 /** What Carmen tells the approving person was written. */

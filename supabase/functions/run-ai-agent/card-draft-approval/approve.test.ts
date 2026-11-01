@@ -20,6 +20,23 @@ const live: DraftFinding = {
   evidence: { card_draft: draft },
 };
 
+/** The same finding when the group also reported a held call. */
+const withCall: DraftFinding = {
+  ...live,
+  evidence: {
+    card_draft: {
+      ...draft,
+      contact: {
+        update_type: "call",
+        source_ref: "group_contact:g1:m2",
+        content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
+        participant_user_id: null,
+        reported_at: "2026-11-01T10:00:00Z",
+      },
+    },
+  },
+};
+
 /** Each person's role for the finding in t1, as carmen_finding_role_of answers. */
 const ROLES: Record<string, string> = { dana: "campaigner", boss: "owner" };
 
@@ -106,17 +123,7 @@ Deno.test("approveCardDraft", async (t) => {
   await t.step(
     "a reported call is written as contact, vouched for by the approver",
     async () => {
-      const contact = {
-        update_type: "call",
-        source_ref: "group_contact:g1:m2",
-        content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
-        participant_user_id: null,
-        reported_at: "2026-11-01T10:00:00Z",
-      };
-      const { fake, written } = ports({
-        ...live,
-        evidence: { card_draft: { ...draft, contact } },
-      });
+      const { fake, written } = ports(withCall);
       // The owner approves; the message names nobody, so the campaigner owns it.
       const result = await approveCardDraft(
         fake,
@@ -147,6 +154,23 @@ Deno.test("approveCardDraft", async (t) => {
         result.message,
         "נרשם בכרטיס הלקוח (פריט 31), והשיחה שדווחה בקבוצה נרשמה כקשר עם הלקוח.",
       );
+    },
+  );
+
+  await t.step(
+    '"בלי שיחה" writes the summary and closes the finding without the call',
+    async () => {
+      const { fake, written, closed } = ports(withCall);
+      const result = await approveCardDraft(
+        fake,
+        input({ args: { short_code: 31, skip_contact: true } }),
+      );
+      assertEquals(
+        written.map((e) => e.source),
+        ["group_digest"],
+      );
+      assertEquals([result.contact_update_id, closed], [null, ["dana"]]);
+      assertEquals(result.message, "נרשם בכרטיס הלקוח (פריט 31).");
     },
   );
 

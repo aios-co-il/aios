@@ -27,18 +27,26 @@ Deno.test("loadStaffKeys", async (t) => {
               },
             ];
           case "campaigners":
-            return [{ phone: "+972 53 333 3333" }];
+            return [{ phone: "+972 53 333 3333", tenant_id: "t2" }];
           case "tenant_integrations":
             return [
-              { settings: { phone_number: "972544444444" } },
-              { settings: null },
+              { settings: { phone_number: "972544444444" }, tenant_id: "t1" },
+              { settings: null, tenant_id: "t1" },
             ];
           default:
             return [];
         }
       });
-      const { keys, tenantsOf } = await loadStaffKeys(db, "t1");
+      const { keys, keyTenants, tenantsOf } = await loadStaffKeys(db, "t1");
       assertEquals([...tenantsOf], [["u1", new Set(["t1"])]]);
+      assertEquals(
+        [...keyTenants].sort(([a], [b]) => a.localeCompare(b)),
+        [
+          ["502222222", new Set(["t1"])],
+          ["533333333", new Set(["t2"])],
+          ["544444444", new Set(["t1"])],
+        ],
+      );
       assertEquals(
         [...keys].sort(([a], [b]) => a.localeCompare(b)),
         [

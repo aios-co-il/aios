@@ -60,6 +60,7 @@ function sources(
     staffKeys: () =>
       Promise.resolve({
         keys: new Map([[STAFF_KEY, null]]),
+        keyTenants: new Map(),
         tenantsOf: new Map(),
       }),
     cardEntries: () => Promise.resolve(entries),
@@ -233,9 +234,10 @@ Deno.test("group-updates boundaries", async (t) => {
   );
 
   await t.step("never sends and never reads chat rows directly", async () => {
+    // send-kind.ts is only the send_kind vocabulary (authorship.ts reads it).
     for (const [name, text] of await sourceFiles()) {
       assert(
-        !/send-|sendStaff|green-api|manage-manus|from\("chat_messages"\)/.test(
+        !/send-(?!kind\.ts)|sendStaff|green-api|manage-manus|from\("chat_messages"\)/.test(
           text,
         ),
         name,

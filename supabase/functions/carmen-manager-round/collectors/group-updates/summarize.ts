@@ -5,8 +5,8 @@
  * markers decide. The model words the card line and may find news the
  * markers missed, but never drops what the markers found. Known items are
  * then dropped against today's card. A call or meeting the group reports as
- * held (contact.ts: the model's claim, the markers only without an answer)
- * makes the digest material.
+ * held (contact.ts: the model's claim only, never the markers) makes the
+ * digest material.
  */
 import type { RoundBudget } from "../../budget.ts";
 import { type AskModel, MODEL_CALL_MS } from "./ask-model.ts";
@@ -100,7 +100,7 @@ async function digestOne(
       : null;
   const markers = markerDigest(window);
   const useModel = !!answer && (answer.digest.material || !markers.material);
-  const contact = pastContact(window, answer);
+  const contact = pastContact(window, answer?.claim ?? null);
   const { digest, dropped } = dropKnownItems(
     answer && useModel ? answer.digest : markers,
     today,

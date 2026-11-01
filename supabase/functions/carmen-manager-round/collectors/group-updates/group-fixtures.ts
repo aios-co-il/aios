@@ -23,6 +23,7 @@ export function message(
     at,
     out: false,
     sentBy: null,
+    sendKind: null,
     key: CLIENT_KEY,
     lidUnmapped: false,
     text,
@@ -58,12 +59,14 @@ export function window(
     at: `2026-11-01T1${i}:00:00Z`,
     out: false,
     sentBy: null,
+    sendKind: null,
     key: CLIENT_KEY,
     lidUnmapped: false,
     text: "",
     speaker: "client",
     substantive: true,
     staffUserId: null,
+    typedByPerson: m.speaker !== "unknown",
     ...m,
   }));
   const last = full.at(-1);

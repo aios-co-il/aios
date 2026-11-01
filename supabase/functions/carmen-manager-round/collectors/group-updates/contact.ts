@@ -1,13 +1,12 @@
 /**
  * A call or meeting with the client that a group message reports as already
- * held ("בהמשך לפגישתנו", "דיברנו בטלפון"). When the model answered, only
- * its claim counts: it names the message (its transcript line), the kind and
- * whether it was held, is planned, or is asked about, and a planned or
- * asked-about contact, or none, is no contact. Only when the model could
- * not answer at all (off, over budget, slow, failed, every preview) do
- * narrow markers look for one. Either way the message's own words must pass
- * contactRefusal, and an unknown sender never counts. The contact is drafted
- * beside the summary and written only on a staff member's approval
+ * held ("בהמשך לפגישתנו", "דיברנו בטלפון"). Only the model proposes one: it
+ * names the message (its transcript line), the kind and whether it was held,
+ * is planned, or is asked about, and only a held one is taken. Without a
+ * usable model answer there is no contact (the digest's own markers never
+ * propose one). The message must be one a person typed (authorship.ts),
+ * and its own words must pass contactRefusal. The contact is drafted beside
+ * the summary and written only on a staff member's approval
  * (_shared/manager-round/card-contact.ts).
  */
 import type { CarmenClientUpdateType } from "../../../_shared/client-card/sources.ts";
@@ -45,18 +44,10 @@ export type PastContact = {
 export type ContactRefusal =
   "question" | "negated" | "planned" | "not_client" | "in_group";
 
-const HELD: readonly { kind: "call" | "meeting"; pattern: RegExp }[] = [
-  {
-    kind: "call",
-    pattern:
-      /(?:דיברנו|שוחחנו)\s+(?:עם\s+\S+\s+)?(?:(?:עכשיו|היום|אתמול|הבוקר)\s+)?(?:ב?טלפון|טלפונית)|בהמשך\s+לשיח(?:תנו|ה\s+(?:שלנו|הטלפונית|בטלפון|היום|מאתמול))|סיכמנו\s+בטלפון/,
-  },
-  {
-    kind: "meeting",
-    pattern:
-      /בהמשך\s+ל(?:פגישתנו|פגישה\s+(?:שלנו|היום|מאתמול))|נפגשנו|סיכמנו\s+בפגישה|סיכום\s+ה?פגישה/,
-  },
-];
+// Phrases naming a call or meeting. They never propose a contact; they only
+// find the clause contactRefusal reads.
+const NAMES_CONTACT =
+  /(?:דיברנו|שוחחנו)\s+(?:עם\s+\S+\s+)?(?:(?:עכשיו|היום|אתמול|הבוקר)\s+)?(?:ב?טלפון|טלפונית)|בהמשך\s+ל(?:שיח|פגיש)(?:תנו|ה\s+(?:שלנו|הטלפונית|בטלפון|היום|מאתמול))|נפגשנו|סיכמנו\s+ב(?:טלפון|פגישה)|סיכום\s+ה?פגישה/;
 
 const NEGATED = /(?:^|[\s,.])[וש]?(?:לא|טרם)(?=\s)|אף\s+פעם/;
 const PLANNED =
@@ -95,14 +86,22 @@ export function parseContactClaim(raw: Json | undefined): ContactClaim | null {
 }
 
 /**
- * The held contact: the model's claim when the model answered (`model` is
- * its answer, whatever the claim), the markers' only when it could not.
+ * The held contact the model's claim names, unless the message was not typed
+ * by a person or its words refuse it; null without a claim.
  */
 export function pastContact(
   window: GroupWindow,
-  model: { claim: ContactClaim | null } | null,
+  claim: ContactClaim | null,
 ): PastContact | null {
-  return model ? modelContact(window, model.claim) : markerContact(window);
+  const message = claim ? window.messages[claim.line - 1] : undefined;
+  if (!claim || claim.tense !== "past" || !message) {
+    return null;
+  }
+  if (!message.typedByPerson || contactRefusal(message.text)) {
+    return null;
+  }
+  const text = clamp(maskPhones(claim.text), MAX_ITEM_CHARS);
+  return { kind: claim.kind, message, text: text || quoted(message) };
 }
 
 /** A held contact is card news: it makes the digest material and, alone, its line. */
@@ -147,41 +146,10 @@ export function quoted(message: WindowMessage, max = QUOTE_CHARS): string {
   return `${QUOTED_SPEAKER_HE[message.speaker]}: "${clamp(maskPhones(message.text), max)}"`;
 }
 
-/** The model's held contact, unless its message's words refuse it. */
-function modelContact(
-  window: GroupWindow,
-  claim: ContactClaim | null,
-): PastContact | null {
-  const message = claim ? window.messages[claim.line - 1] : undefined;
-  if (!claim || claim.tense !== "past" || !message || !mayCount(message)) {
-    return null;
-  }
-  const text = clamp(maskPhones(claim.text), MAX_ITEM_CHARS);
-  return { kind: claim.kind, message, text: text || quoted(message) };
-}
-
-/** The newest message whose own words report a held call or meeting. */
-function markerContact(window: GroupWindow): PastContact | null {
-  for (const message of [...window.messages].reverse()) {
-    const kind = heldKind(contactClause(message.text));
-    if (kind && mayCount(message)) {
-      return { kind, message, text: quoted(message) };
-    }
-  }
-  return null;
-}
-
-/** A message of the client or the staff whose words do not refuse a contact. */
-function mayCount(message: WindowMessage): boolean {
-  return message.speaker !== "unknown" && !contactRefusal(message.text);
-}
-
-/** The clause that names a held call or meeting, else the whole message. */
+/** The clause that names a call or meeting, else the whole message. */
 function contactClause(text: string): string {
-  return text.split(/(?<=[.!?\n,])/).find((clause) => heldKind(clause)) ?? text;
-}
-
-/** The kind of held contact the text names, or null. */
-function heldKind(text: string): "call" | "meeting" | null {
-  return HELD.find((marker) => marker.pattern.test(text))?.kind ?? null;
+  return (
+    text.split(/(?<=[.!?\n,])/).find((clause) => NAMES_CONTACT.test(clause)) ??
+    text
+  );
 }

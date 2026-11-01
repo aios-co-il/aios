@@ -5,6 +5,7 @@ import { groupWindows } from "./windows.ts";
 const from = new Date("2026-11-01T00:00:00Z");
 const staff = {
   keys: new Map([[STAFF_KEY, "u-staff"]]),
+  keyTenants: new Map([[STAFF_KEY, new Set([TENANT])]]),
   tenantsOf: new Map([
     ["u-staff", new Set([TENANT])],
     ["u-aios", new Set([TENANT])],
@@ -114,10 +115,12 @@ Deno.test("groupWindows", async (t) => {
               out: true,
               key: STAFF_KEY,
               sentBy: "u-aios",
+              sendKind: "chat",
             }),
             message("s3", "2026-11-01T09:10:00Z", "מהשותף", {
               out: true,
               sentBy: "u-partner",
+              sendKind: "chat",
             }),
           ]),
         ],
@@ -126,8 +129,12 @@ Deno.test("groupWindows", async (t) => {
         staff,
       );
       assertEquals(
-        w.messages.map((m) => m.staffUserId),
-        ["u-staff", "u-aios", null],
+        w.messages.map((m) => [m.staffUserId, m.typedByPerson]),
+        [
+          ["u-staff", true],
+          ["u-aios", true],
+          [null, false],
+        ],
       );
       const [partnerClient] = groupWindows(
         [history(messages, { client_tenant_id: "partner-tenant" })],

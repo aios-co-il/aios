@@ -22,6 +22,8 @@ export type GroupMessage = {
   out: boolean;
   /** The AIOS user who sent it from AIOS, when one did. */
   sentBy: string | null;
+  /** chat_messages.send_kind (_shared/client-card/send-kind.ts); null when none was stored. */
+  sendKind: string | null;
   /** phone_match_key of the sender, or null when unknown. */
   key: string | null;
   /** An @lid sender with no known phone: neither client nor staff. */
@@ -94,7 +96,8 @@ function parseMessage(item: Json): GroupMessage | null {
   if (!row) {
     return null;
   }
-  const { id, provider_id, at, out, sent_by, key, lid_unmapped, text } = row;
+  const { id, provider_id, at, out, sent_by, send_kind, key, lid_unmapped } =
+    row;
   if (typeof id !== "string" || typeof at !== "string") {
     return null;
   }
@@ -104,8 +107,9 @@ function parseMessage(item: Json): GroupMessage | null {
     at,
     out: out === true,
     sentBy: typeof sent_by === "string" ? sent_by : null,
+    sendKind: typeof send_kind === "string" ? send_kind : null,
     key: typeof key === "string" ? key : null,
     lidUnmapped: lid_unmapped === true,
-    text: typeof text === "string" ? text : "",
+    text: typeof row.text === "string" ? row.text : "",
   };
 }

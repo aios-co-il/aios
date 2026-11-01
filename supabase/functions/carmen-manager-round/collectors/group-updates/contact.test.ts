@@ -6,7 +6,14 @@ import {
   pastContact,
   withContact,
 } from "./contact.ts";
-import { window } from "./group-fixtures.ts";
+import {
+  history,
+  message,
+  STAFF_KEY,
+  TENANT,
+  window,
+} from "./group-fixtures.ts";
+import { groupWindows } from "./windows.ts";
 
 const chat = window([
   { id: "m1", text: "מאשר את הבאנר" },
@@ -27,17 +34,33 @@ const claim = (fields: Partial<ContactClaim> = {}): ContactClaim => ({
   ...fields,
 });
 
-/** The contact found (kind, message id, card text), or null; `model` null: the model could not answer. */
-const found = (
-  w = chat,
-  model: { claim: ContactClaim | null } | null = { claim: claim() },
-) => {
-  const contact = pastContact(w, model);
+/** The contact found (kind, message id, card text), or null. */
+const found = (w = chat, c: ContactClaim | null = claim()) => {
+  const contact = pastContact(w, c);
   return contact ? [contact.kind, contact.message.id, contact.text] : null;
 };
 
 /** A one-message window from the client. */
 const said = (text: string) => window([{ text }]);
+
+// The reviewers' phrases: none may become a contact without the model, and
+// those the words refuse not even with a model that calls them held.
+const REFUSED = [
+  "ניפגש מחר ואשלח סיכום פגישה",
+  "עוד לא דיברנו בטלפון, אפשר מחר?",
+  "לא נפגשנו מאז החודש שעבר",
+  "שוחחנו עם הספק",
+  "כפי ששוחחנו כאן בקבוצה",
+];
+const NO_MARKERS = [
+  "דיברנו בטלפון או לא",
+  "דיברנו בטלפון ולא.",
+  "אם דיברנו בטלפון אז זה סגור",
+  "מתי נפגשנו בפעם האחרונה",
+  "בהמשך לפגישה שלנו ביום ראשון הקרוב",
+  "סיכום הפגישה הפנימית של הצוות",
+  "דיברנו בטלפון, זה לא נכון",
+];
 
 Deno.test("pastContact", async (t) => {
   await t.step("a held call the model names counts, in its words", () => {
@@ -45,82 +68,69 @@ Deno.test("pastContact", async (t) => {
   });
 
   await t.step("a held meeting the model names counts", () => {
-    const meeting = { claim: claim({ line: 3, kind: "meeting" }) };
-    assertEquals(found(chat, meeting)?.[0], "meeting");
+    assertEquals(
+      found(chat, claim({ line: 3, kind: "meeting" }))?.[0],
+      "meeting",
+    );
+  });
+
+  await t.step("with the model down there is no contact at all", () => {
+    assertEquals(found(chat, null), null);
+    for (const text of [...REFUSED, ...NO_MARKERS]) {
+      assertEquals(found(said(text), null), null, text);
+    }
   });
 
   await t.step(
-    "only when the model could not answer do the markers look",
+    "the model's planned, question or out-of-window line is none",
     () => {
-      assertEquals(found(chat, null), [
-        "meeting",
-        "m3",
-        'הלקוח: "בהמשך לפגישתנו, מצרף את ההצעה"',
-      ]);
-    },
-  );
-
-  await t.step(
-    "the model's planned, question or none is never overruled",
-    () => {
-      for (const model of [
-        { claim: null },
-        { claim: claim({ tense: "planned" }) },
-        { claim: claim({ tense: "question" }) },
-        { claim: claim({ line: 9 }) },
+      for (const c of [
+        claim({ tense: "planned" }),
+        claim({ tense: "question" }),
+        claim({ line: 9 }),
       ]) {
-        assertEquals(found(chat, model), null);
+        assertEquals(found(chat, c), null);
       }
     },
   );
 
-  await t.step("a planned meeting the model calls planned is none", () => {
-    const planned = said("ניפגש מחר ואשלח סיכום פגישה");
-    const model = {
-      claim: claim({ line: 1, kind: "meeting", tense: "planned" }),
-    };
-    assertEquals(found(planned, model), null);
-    assertEquals(found(planned, null), null);
-  });
-
-  await t.step("the words refuse a negation, a plan or a question", () => {
-    for (const text of [
-      "עוד לא דיברנו בטלפון, אפשר מחר?",
-      "לא נפגשנו מאז החודש שעבר",
-      "נדבר מחר בטלפון",
-      "דיברנו בטלפון?",
-    ]) {
-      // Neither a model that calls it held nor the markers take it.
-      assertEquals(
-        found(said(text), { claim: claim({ line: 1 }) }),
-        null,
-        text,
-      );
-      assertEquals(found(said(text), null), null, text);
+  await t.step("the words overrule a model that calls them held", () => {
+    for (const text of [...REFUSED, "נדבר מחר בטלפון", "דיברנו בטלפון?"]) {
+      assertEquals(found(said(text), claim({ line: 1 })), null, text);
     }
   });
 
-  await t.step("a talk with someone else or in the group is no contact", () => {
-    for (const text of [
-      "שוחחנו עם הספק",
-      "דיברנו בטלפון עם הספק",
-      "כפי ששוחחנו כאן בקבוצה",
-    ]) {
-      assertEquals(
-        found(said(text), { claim: claim({ line: 1 }) }),
-        null,
-        text,
-      );
-      assertEquals(found(said(text), null), null, text);
-    }
-  });
-
-  await t.step("an unknown sender never counts", () => {
+  await t.step("a message no person typed is never a contact", () => {
     const unknown = window([
       { text: "דיברנו בטלפון", speaker: "unknown", key: null },
     ]);
-    assertEquals(found(unknown, { claim: claim({ line: 1 }) }), null);
-    assertEquals(found(unknown, null), null);
+    assertEquals(found(unknown, claim({ line: 1 })), null);
+    const staff = {
+      keys: new Map([[STAFF_KEY, "u-staff"]]),
+      keyTenants: new Map([[STAFF_KEY, new Set([TENANT])]]),
+      tenantsOf: new Map([["u-staff", new Set([TENANT])]]),
+    };
+    const sent = (sendKind: string) =>
+      groupWindows(
+        [
+          history([
+            message("t1", "2026-11-01T09:00:00Z", "דיברנו בטלפון, מצורף הדוח", {
+              out: true,
+              sentBy: "u-staff",
+              sendKind,
+            }),
+          ]),
+        ],
+        { floor: "", groups: {} },
+        new Date("2026-11-01T00:00:00Z"),
+        staff,
+      )[0];
+    // An automation template that says "דיברנו בטלפון" reports nothing.
+    assertEquals(found(sent("automation"), claim({ line: 1 })), null);
+    assertEquals(
+      pastContact(sent("chat"), claim({ line: 1 }))?.message.staffUserId,
+      "u-staff",
+    );
   });
 });
 
@@ -177,8 +187,7 @@ Deno.test("withContact", async (t) => {
   const quiet = { material: false, update_text: "", items: [] };
 
   await t.step("a held contact alone makes the digest material", () => {
-    const contact = pastContact(chat, { claim: claim() });
-    assertEquals(withContact(quiet, contact), {
+    assertEquals(withContact(quiet, pastContact(chat, claim())), {
       material: true,
       update_text: "שיחת טלפון עם הלקוח על התקציב",
       items: [],
@@ -187,8 +196,7 @@ Deno.test("withContact", async (t) => {
 
   await t.step("otherwise the digest stays as it was", () => {
     const material = { material: true, update_text: "אישר", items: [] };
-    const contact = pastContact(chat, { claim: claim() });
-    assertEquals(withContact(material, contact), material);
+    assertEquals(withContact(material, pastContact(chat, claim())), material);
     assertEquals(withContact(quiet, null), quiet);
   });
 });
