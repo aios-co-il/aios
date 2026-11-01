@@ -42,7 +42,7 @@ export type Verdicts = Map<string, CachedReview>;
 /** At most this many model calls per tenant run. */
 const MAX_CALLS = 20;
 /** A model call needs about this much of the round's time. */
-const CALL_MS = 8_000;
+export const CALL_MS = 8_000;
 /** A rejected answer is logged up to this many characters. */
 const LOGGED_ANSWER_CHARS = 300;
 
