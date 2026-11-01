@@ -1,9 +1,16 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { history, message, STAFF_KEY } from "./group-fixtures.ts";
+import { history, message, STAFF_KEY, TENANT } from "./group-fixtures.ts";
 import { groupWindows } from "./windows.ts";
 
 const from = new Date("2026-11-01T00:00:00Z");
-const staff = new Map([[STAFF_KEY, "u-staff"]]);
+const staff = {
+  keys: new Map([[STAFF_KEY, "u-staff"]]),
+  tenantsOf: new Map([
+    ["u-staff", new Set([TENANT])],
+    ["u-aios", new Set([TENANT])],
+    ["u-partner", new Set(["partner-tenant"])],
+  ]),
+};
 const messages = [
   message("a", "2026-10-31T23:00:00Z", "לפני הרצפה"),
   message("b", "2026-11-01T09:00:00Z", "מתי עולה הקמפיין?"),
@@ -93,4 +100,45 @@ Deno.test("groupWindows", async (t) => {
       [],
     );
   });
+
+  await t.step(
+    "names a staff author only if a login of the client's own tenant",
+    () => {
+      const [w] = groupWindows(
+        [
+          history([
+            message("s1", "2026-11-01T09:00:00Z", "דיברנו בטלפון", {
+              key: STAFF_KEY,
+            }),
+            message("s2", "2026-11-01T09:05:00Z", "שלחתי מהמערכת", {
+              out: true,
+              key: STAFF_KEY,
+              sentBy: "u-aios",
+            }),
+            message("s3", "2026-11-01T09:10:00Z", "מהשותף", {
+              out: true,
+              sentBy: "u-partner",
+            }),
+          ]),
+        ],
+        { floor: "", groups: {} },
+        from,
+        staff,
+      );
+      assertEquals(
+        w.messages.map((m) => m.staffUserId),
+        ["u-staff", "u-aios", null],
+      );
+      const [partnerClient] = groupWindows(
+        [history(messages, { client_tenant_id: "partner-tenant" })],
+        { floor: "", groups: {} },
+        from,
+        staff,
+      );
+      assertEquals(
+        partnerClient.messages.map((m) => m.staffUserId),
+        [null, null, null, null],
+      );
+    },
+  );
 });

@@ -13,6 +13,7 @@ Deno.test("loadCardEntries", async (t) => {
         client_id: CLIENT,
         created_at: "2026-11-01T10:00:00Z",
         source: "human",
+        source_ref: null,
         content: "עדכון מהשותף",
       };
       const { db, calls } = recordingClient(() => [partnerEntry]);

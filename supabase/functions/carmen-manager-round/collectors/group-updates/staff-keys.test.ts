@@ -11,7 +11,7 @@ Deno.test("loadStaffKeys", async (t) => {
           case "agency_tenant_access":
             return [{ source_tenant_id: "t2", accessing_tenant_id: "t1" }];
           case "user_roles":
-            return [{ user_id: "u1" }];
+            return [{ user_id: "u1", tenant_id: "t1" }];
           case "profiles":
             return [
               {
@@ -37,7 +37,8 @@ Deno.test("loadStaffKeys", async (t) => {
             return [];
         }
       });
-      const keys = await loadStaffKeys(db, "t1");
+      const { keys, tenantsOf } = await loadStaffKeys(db, "t1");
+      assertEquals([...tenantsOf], [["u1", new Set(["t1"])]]);
       assertEquals(
         [...keys].sort(([a], [b]) => a.localeCompare(b)),
         [
@@ -62,13 +63,17 @@ Deno.test("loadStaffKeys", async (t) => {
     const { db } = recordingClient((call) => {
       switch (call.path) {
         case "user_roles":
-          return [{ user_id: "u1" }, { user_id: "u2" }];
+          return [
+            { user_id: "u1", tenant_id: "t1" },
+            { user_id: "u2", tenant_id: "t1" },
+          ];
         case "profiles":
           return [login("u1"), login("u2")];
         default:
           return [];
       }
     });
-    assertEquals([...(await loadStaffKeys(db, "t1"))], [["502222222", null]]);
+    const { keys } = await loadStaffKeys(db, "t1");
+    assertEquals([...keys], [["502222222", null]]);
   });
 });

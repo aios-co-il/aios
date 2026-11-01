@@ -7,7 +7,8 @@
  * ("אשר <code>"), never by Carmen on her own. The approving person vouches;
  * the entry belongs to the staff member who wrote the message when the round
  * knows them, else to the author of the summary entry, which is the client's
- * campaigner by record_client_card_entry's fallback.
+ * campaigner (else the tenant owner) by record_client_card_entry's fallback.
+ * Its source_ref prefix tells the group-update gate that no person typed it.
  */
 import type { ClientCardEntryInput } from "../client-card/entry-types.ts";
 import {
@@ -19,13 +20,16 @@ import type { Json } from "../database.types.ts";
 import type { DraftedFinding } from "./card-draft.ts";
 import { jsonObject } from "./json-object.ts";
 
+/** source_ref prefix of the contacts this flow writes. */
+export const GROUP_CONTACT_REF_PREFIX = "group_contact:";
+
 export type ContactDraft = {
   /** One of CONTACT_UPDATE_TYPES (call, meeting). */
   update_type: CarmenClientUpdateType;
   /** contactSourceRef(): the reporting message, so it is recorded once. */
   source_ref: string;
   content: string;
-  /** The staff member who wrote the message, when their phone names one person. */
+  /** The staff member of the client's tenant who wrote the message, when known. */
   participant_user_id: string | null;
   /** When the message was sent. */
   reported_at: string;
@@ -47,9 +51,25 @@ export function isContactUpdateType(
   );
 }
 
-/** The dedupe key of a contact reported by one group message. */
-export function contactSourceRef(groupId: string, messageId: string): string {
-  return `group_contact:${groupId}:${messageId}`;
+/**
+ * The dedupe key of a contact reported by one group message: the WhatsApp
+ * group chat and the provider's message id, the same for every tenant and
+ * line that stored the message.
+ */
+export function contactSourceRef(
+  groupChatId: string,
+  providerMessageId: string,
+): string {
+  return `${GROUP_CONTACT_REF_PREFIX}${groupChatId}:${providerMessageId}`;
+}
+
+/**
+ * True for an entry this flow wrote from a group message. It counts as
+ * contact for the pulse, but it is not a person's card update, so the
+ * group-update gate and the drafts still waiting ignore it.
+ */
+export function isGroupContactRef(sourceRef: string | null): boolean {
+  return !!sourceRef?.startsWith(GROUP_CONTACT_REF_PREFIX);
 }
 
 /** The entry text: Carmen's prefix naming the group, then the description. */

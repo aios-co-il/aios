@@ -7,6 +7,7 @@ import {
   contactDraftOf,
   contactSourceRef,
   draftNeedsPerson,
+  isGroupContactRef,
 } from "./card-contact.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -17,7 +18,7 @@ const APPROVER = "55555555-5555-4555-8555-555555555555";
 
 const contact: ContactDraft = {
   update_type: "call",
-  source_ref: contactSourceRef("g1", "m2"),
+  source_ref: contactSourceRef("120363000000000001@g.us", "BAE5F4886F6F2D05"),
   content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח על התקציב",
   participant_user_id: STAFF,
   reported_at: "2026-11-01T10:00:00Z",
@@ -37,7 +38,12 @@ Deno.test("cardContactEntry", async (t) => {
           entry.countsAsContact,
           entry.sourceRef,
         ],
-        ["carmen_confirmed", "call", true, "group_contact:g1:m2"],
+        [
+          "carmen_confirmed",
+          "call",
+          true,
+          "group_contact:120363000000000001@g.us:BAE5F4886F6F2D05",
+        ],
       );
       assertEquals(clientCardSourceCanCountAsContact(entry.source), true);
       const args = buildRecordClientCardEntryArgs(entry);
@@ -100,5 +106,16 @@ Deno.test("draftNeedsPerson", () => {
   assertEquals(
     [draftNeedsPerson({ contact }), draftNeedsPerson({})],
     [true, false],
+  );
+});
+
+Deno.test("isGroupContactRef", () => {
+  assertEquals(
+    [
+      isGroupContactRef(contact.source_ref),
+      isGroupContactRef("add_client_update:u1:2026-11-01T10:abc"),
+      isGroupContactRef(null),
+    ],
+    [true, false, false],
   );
 });

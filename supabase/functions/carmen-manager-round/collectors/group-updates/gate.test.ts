@@ -51,6 +51,19 @@ Deno.test("gateWindow", async (t) => {
     },
   );
 
+  await t.step(
+    "a contact an approved group draft wrote does not make the card current",
+    () => {
+      const approvedCall = entry(
+        "2026-11-01T11:30:00Z",
+        "[כרמן · מקבוצת הוואטסאפ] שיחה עם הלקוח",
+        "carmen_confirmed",
+        "group_contact:120363000000000001@g.us:wa-1",
+      );
+      assertEquals(gateWindow(three, [approvedCall]), "digest");
+    },
+  );
+
   await t.step("entries no person wrote do not make the card current", () => {
     const automatic = [
       "group_digest",

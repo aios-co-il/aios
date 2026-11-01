@@ -11,7 +11,8 @@ import { type GroupWindow, type Speaker, substantive } from "./windows.ts";
 
 const QUOTE_CHARS = 120;
 const MAX_FALLBACK_ITEMS = 5;
-const QUOTED_SPEAKER_HE: Record<Speaker, string> = {
+/** How a quote names its speaker (here and in contact.ts). */
+export const QUOTED_SPEAKER_HE: Record<Speaker, string> = {
   client: "הלקוח",
   staff: "הצוות",
   unknown: "משתתף לא מזוהה",

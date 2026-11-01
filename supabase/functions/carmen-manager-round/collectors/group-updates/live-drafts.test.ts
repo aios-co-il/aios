@@ -42,6 +42,30 @@ Deno.test("keptDrafts", async (t) => {
     assertEquals(kept, []);
   });
 
+  await t.step(
+    "approving another draft's reported call does not clear this one",
+    () => {
+      const kept = keptDrafts(
+        [draft("2026-11-09T10:00:00Z", "2026-11-09T12:00:00Z")],
+        [
+          entry(
+            "2026-11-10T08:00:00Z",
+            "[כרמן · מקבוצת הוואטסאפ] שיחה עם הלקוח",
+            "carmen_confirmed",
+            "group_contact:120363000000000001@g.us:wa-1",
+          ),
+          entry(
+            "2026-11-10T08:00:00Z",
+            "[כרמן · סיכום קבוצה] x",
+            "group_digest",
+          ),
+        ],
+        now,
+      );
+      assertEquals(kept.length, 1);
+    },
+  );
+
   await t.step("a draft older than the lookback lets it clear", () => {
     assertEquals(
       keptDrafts(

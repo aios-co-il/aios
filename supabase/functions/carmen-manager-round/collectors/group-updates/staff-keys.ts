@@ -4,7 +4,8 @@
  * with a role, active campaigners, sales people) and of their Manus lines. A
  * group message from one of these phones is a staff message even though it
  * reached the monitored line as inbound. Kept in memory for labelling, and
- * for naming the staff member who reported a call or meeting (contact.ts).
+ * for naming the staff member who reported a call or meeting (contact.ts),
+ * who must be a login of the client's own tenant.
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
@@ -13,12 +14,16 @@ import { phoneMatchKey } from "../../../_shared/telephony/phone.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { profilePhone, profilesBy } from "../../recipients/profiles.ts";
 
-/**
- * Each staff phone match key, with the AIOS person it belongs to when exactly
- * one login has it; null for a campaigner or sales record without a login, a
- * Manus line, or a phone two logins share.
- */
-export type StaffKeys = ReadonlyMap<string, string | null>;
+export type StaffKeys = {
+  /**
+   * Each staff phone match key, with the login it belongs to when exactly
+   * one login has it; null for a campaigner or sales record without a login,
+   * a Manus line, or a phone two logins share.
+   */
+  keys: ReadonlyMap<string, string | null>;
+  /** Each login's tenants among the tenant and its agency partners. */
+  tenantsOf: ReadonlyMap<string, ReadonlySet<string>>;
+};
 
 /** Phone match keys of the staff of the tenant and its agency partners. */
 export async function loadStaffKeys(
@@ -27,8 +32,14 @@ export async function loadStaffKeys(
 ): Promise<StaffKeys> {
   const tenantIds = await relatedTenants(db, tenantId);
   const [roles, members, campaigners, sales, lines] = await Promise.all([
-    db.from("user_roles").select("user_id").in("tenant_id", tenantIds),
-    db.from("tenant_users").select("user_id").in("tenant_id", tenantIds),
+    db
+      .from("user_roles")
+      .select("user_id, tenant_id")
+      .in("tenant_id", tenantIds),
+    db
+      .from("tenant_users")
+      .select("user_id, tenant_id")
+      .in("tenant_id", tenantIds),
     db
       .from("campaigners")
       .select("phone")
@@ -50,27 +61,44 @@ export async function loadStaffKeys(
   throwIf(campaigners.error, "campaigners");
   throwIf(sales.error, "sales_people");
   throwIf(lines.error, "tenant_integrations");
-  const userIds = [
-    ...new Set(
-      [...(roles.data ?? []), ...(members.data ?? [])].map((r) => r.user_id),
-    ),
-  ];
-  const logins = (await profilesBy(db, "id", userIds)).map((profile) => ({
-    key: phoneMatchKey(profilePhone(profile)),
-    userId: profile.id,
-  }));
-  return staffKeyMap(logins, [
+  const tenantsOf = loginTenants([
+    ...(roles.data ?? []),
+    ...(members.data ?? []),
+  ]);
+  const logins = (await profilesBy(db, "id", [...tenantsOf.keys()])).map(
+    (profile) => ({
+      key: phoneMatchKey(profilePhone(profile)),
+      userId: profile.id,
+    }),
+  );
+  const keys = staffKeyMap(logins, [
     ...(campaigners.data ?? []).map((row) => row.phone),
     ...(sales.data ?? []).map((row) => row.phone),
     ...(lines.data ?? []).map((row) => linePhone(row.settings)),
   ]);
+  return { keys, tenantsOf };
+}
+
+/** Each login with the tenants it has a role in. */
+function loginTenants(
+  rows: { user_id: string; tenant_id: string | null }[],
+): Map<string, Set<string>> {
+  const tenants = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const known = tenants.get(row.user_id) ?? new Set<string>();
+    if (row.tenant_id) {
+      known.add(row.tenant_id);
+    }
+    tenants.set(row.user_id, known);
+  }
+  return tenants;
 }
 
 /** The logins' keys with their person (null when two share one), then the other phones' keys. */
 function staffKeyMap(
   logins: { key: string | null; userId: string }[],
   otherPhones: (string | null)[],
-): StaffKeys {
+): StaffKeys["keys"] {
   const keys = new Map<string, string | null>();
   for (const { key, userId } of logins) {
     if (key) {

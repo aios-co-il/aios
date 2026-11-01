@@ -16749,6 +16749,8 @@ export type Database = {
         Returns: {
           client_id: string;
           client_name: string;
+          client_tenant_id: string;
+          group_chat_id: string;
           group_id: string;
           group_name: string;
           messages: Json;

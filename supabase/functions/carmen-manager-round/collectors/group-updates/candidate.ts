@@ -8,7 +8,8 @@
  * fingerprint names the window's first message, so a window digested again
  * after a lost watermark updates its finding instead of adding one. A call
  * or meeting the group reports as held rides along as card_draft.contact
- * (source_ref 'group_contact:<group_id>:<message_id>'), for the approval.
+ * (source_ref 'group_contact:<group_chat_id>:<provider message id>'), and
+ * the staff line quotes the message taken for it (CONTACT_QUOTE_CHARS).
  */
 import {
   contactContent,
@@ -22,14 +23,13 @@ import {
 } from "../../../_shared/manager-round/card-draft.ts";
 import type { FindingCandidate } from "../types.ts";
 import { clamp } from "./clamp.ts";
-import type { PastContact } from "./contact.ts";
+import { type PastContact, quoted } from "./contact.ts";
 import { MAX_ITEM_CHARS } from "./digest.ts";
 import { chatHandoff } from "./handoff.ts";
 import type { WindowDigest } from "./summarize.ts";
 import { substantive } from "./windows.ts";
 
-const CONTACT_NOTE_HE =
-  " בקבוצה דווח על שיחה או פגישה עם הלקוח; האישור ירשום אותה כקשר עם הלקוח.";
+const CONTACT_QUOTE_CHARS = 80;
 
 /** The finding for one material digest. */
 export function draftCandidate(digested: WindowDigest): FindingCandidate {
@@ -42,7 +42,7 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
     update_type: "group_summary",
     source_ref: `${window.groupId}:${window.last.id}`,
     content: cardDraftContent("group_digest", digest.update_text),
-    ...(contact ? { contact: contactDraft(window.groupId, contact) } : {}),
+    ...(contact ? { contact: contactDraft(window.groupChatId, contact) } : {}),
   };
   return {
     kind: "card_stale_group",
@@ -52,7 +52,7 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
     agency_id: null,
     source_event_at: first.at,
     summary_he: clamp(
-      `${window.clientName}: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס – ${clamp(digest.update_text, MAX_ITEM_CHARS)}.${contact ? CONTACT_NOTE_HE : ""} לרישום בכרטיס: "${APPROVE_DRAFT_WORD_HE}" ומספר הפריט`,
+      `${window.clientName}: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס – ${clamp(digest.update_text, MAX_ITEM_CHARS)}.${contact ? contactNote(contact) : ""} לרישום בכרטיס: "${APPROVE_DRAFT_WORD_HE}" ומספר הפריט`,
       500,
     ),
     evidence: {
@@ -88,14 +88,23 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
 }
 
 /**
+ * The staff line names the message taken as the contact, so the approver
+ * sees a wrong pick before "אשר".
+ */
+function contactNote(contact: PastContact): string {
+  const kind = contact.kind === "meeting" ? "פגישה" : "שיחה";
+  return ` לפי ההודעה ${quoted(contact.message, CONTACT_QUOTE_CHARS)} הייתה ${kind} עם הלקוח; האישור ירשום אותה כקשר עם הלקוח.`;
+}
+
+/**
  * The reported contact's entry: the message's staff author when known (a
  * client's message names nobody), else the summary's author on approval.
  */
-function contactDraft(groupId: string, contact: PastContact): ContactDraft {
+function contactDraft(groupChatId: string, contact: PastContact): ContactDraft {
   const { message } = contact;
   return {
     update_type: contact.kind,
-    source_ref: contactSourceRef(groupId, message.id),
+    source_ref: contactSourceRef(groupChatId, message.providerId),
     content: contactContent(contact.text),
     participant_user_id:
       message.speaker === "staff" ? message.staffUserId : null,

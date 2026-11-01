@@ -129,6 +129,11 @@ BEGIN
   IF v_row.client_id IS DISTINCT FROM v_client THEN
     RAISE EXCEPTION 'digest: the group belongs to its one client in scope, got %', v_row.client_id;
   END IF;
+  IF v_row.client_tenant_id IS DISTINCT FROM v_reader
+     OR v_row.group_chat_id IS NULL
+     OR v_row.messages -> 0 ->> 'provider_id' IS DISTINCT FROM 'qa1-' || v_tag THEN
+    RAISE EXCEPTION 'digest: the client''s tenant, the group chat and the provider id leave, got %', v_row;
+  END IF;
   SELECT string_agg(m ->> 'text', ',' ORDER BY ord) INTO v_texts
   FROM jsonb_array_elements(v_row.messages) WITH ORDINALITY AS x(m, ord);
   IF v_texts IS DISTINCT FROM 'QA first,QA lid,QA unmapped,QA org reply' THEN

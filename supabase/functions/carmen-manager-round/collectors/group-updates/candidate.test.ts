@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { cardDraftOf } from "../../../_shared/manager-round/card-draft.ts";
-import { CLIENT, GROUP, window } from "./group-fixtures.ts";
+import { CLIENT, GROUP, GROUP_CHAT, window } from "./group-fixtures.ts";
 import { draftCandidate } from "./candidate.ts";
 import { clamp } from "./clamp.ts";
 import { markerDigest } from "./fallback.ts";
@@ -83,6 +83,7 @@ Deno.test("draftCandidate", async (t) => {
         { id: "c1", text: "מאשר תקציב 5000" },
         {
           id: "c2",
+          providerId: "BAE5F4886F6F2D05",
           text: "דיברנו בטלפון, הכל סגור",
           speaker: "staff",
           staffUserId: "u-staff",
@@ -105,12 +106,18 @@ Deno.test("draftCandidate", async (t) => {
       });
       assertEquals(cardDraftOf(byStaff.evidence)?.contact, {
         update_type: "call",
-        source_ref: `group_contact:${GROUP}:c2`,
+        source_ref: `group_contact:${GROUP_CHAT}:BAE5F4886F6F2D05`,
         content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
         participant_user_id: "u-staff",
         reported_at: called.messages[1].at,
       });
-      assert(byStaff.summary_he.includes("כקשר עם הלקוח"));
+      // The approver sees which message was taken as the call.
+      assert(
+        byStaff.summary_he.includes(
+          'לפי ההודעה הצוות: "דיברנו בטלפון, הכל סגור" הייתה שיחה עם הלקוח',
+        ),
+      );
+      assert(byStaff.summary_he.includes('"אשר" ומספר הפריט'));
       const byClient = draftCandidate({
         ...digested,
         contact: { kind: "meeting", message: called.messages[0], text: "x" },

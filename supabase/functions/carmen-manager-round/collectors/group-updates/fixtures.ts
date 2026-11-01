@@ -32,13 +32,14 @@ export function fixtureSources(
     lines: () => Promise.resolve([]),
     histories: () => Promise.resolve(histories),
     staffKeys: () =>
-      Promise.resolve(
-        new Map(
+      Promise.resolve({
+        keys: new Map(
           list("staff_keys").flatMap((k): [string, null][] =>
             typeof k === "string" ? [[k, null]] : [],
           ),
         ),
-      ),
+        tenantsOf: new Map(),
+      }),
     cardEntries: () =>
       Promise.resolve(list("card_entries").flatMap(fixtureEntry)),
     liveDrafts: () => Promise.resolve([]),
@@ -58,7 +59,9 @@ function fixtureHistory(row: Json) {
     ? {
         client_id: clientId,
         client_name: text("client_name") ?? "",
+        client_tenant_id: text("client_tenant_id") ?? "",
         group_id: groupId,
+        group_chat_id: text("group_chat_id") ?? groupId,
         group_name: text("group_name") ?? "",
         messages: fields?.messages ?? [],
       }
@@ -68,10 +71,11 @@ function fixtureHistory(row: Json) {
 /** A fixture card entry, as a one-item list, or an empty list. */
 function fixtureEntry(row: Json): CardEntry[] {
   const fields = jsonObject(row);
-  const [clientId, at, source, content] = [
+  const [clientId, at, source, ref, content] = [
     fields?.client_id,
     fields?.created_at,
     fields?.source,
+    fields?.source_ref,
     fields?.content,
   ];
   return typeof clientId === "string" &&
@@ -82,6 +86,7 @@ function fixtureEntry(row: Json): CardEntry[] {
           client_id: clientId,
           created_at: at,
           source: typeof source === "string" ? source : "human",
+          source_ref: typeof ref === "string" ? ref : null,
           content,
         },
       ]

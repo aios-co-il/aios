@@ -173,6 +173,34 @@ Deno.test("digestWindows", async (t) => {
     },
   );
 
+  await t.step(
+    "the markers find a contact only when the model gave no answer",
+    async () => {
+      const called = window([
+        { text: "מה שלומכם?" },
+        { text: "בהמשך לשיחתנו בטלפון, הכל מאושר", speaker: "staff" },
+        { text: "תודה" },
+      ]);
+      const none = JSON.stringify({
+        material: false,
+        update_text: "",
+        items: [],
+        contact: null,
+      });
+      const [answered] = (
+        await digestWindows([called], [], ports(none).ports, run())
+      ).digests;
+      assertEquals(answered.contact, null);
+      const [silent] = (
+        await digestWindows([called], [], ports("not json").ports, run())
+      ).digests;
+      assertEquals(
+        [silent.by, silent.contact?.kind, silent.contact?.message.id],
+        ["markers", "call", "m2"],
+      );
+    },
+  );
+
   await t.step("no window: the meter is never loaded", async () => {
     const { ports: p } = ports(answer);
     const loaded: boolean[] = [];

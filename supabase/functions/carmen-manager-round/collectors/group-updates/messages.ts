@@ -15,9 +15,13 @@ type GroupRow =
 
 export type GroupMessage = {
   id: string;
+  /** The provider's message id (Green idMessage, else the row id). */
+  providerId: string;
   at: string;
   /** Sent from the monitored line itself or by a person in AIOS. */
   out: boolean;
+  /** The AIOS user who sent it from AIOS, when one did. */
+  sentBy: string | null;
   /** phone_match_key of the sender, or null when unknown. */
   key: string | null;
   /** An @lid sender with no known phone: neither client nor staff. */
@@ -90,14 +94,16 @@ function parseMessage(item: Json): GroupMessage | null {
   if (!row) {
     return null;
   }
-  const { id, at, out, key, lid_unmapped, text } = row;
+  const { id, provider_id, at, out, sent_by, key, lid_unmapped, text } = row;
   if (typeof id !== "string" || typeof at !== "string") {
     return null;
   }
   return {
     id,
+    providerId: typeof provider_id === "string" ? provider_id : id,
     at,
     out: out === true,
+    sentBy: typeof sent_by === "string" ? sent_by : null,
     key: typeof key === "string" ? key : null,
     lidUnmapped: lid_unmapped === true,
     text: typeof text === "string" ? text : "",

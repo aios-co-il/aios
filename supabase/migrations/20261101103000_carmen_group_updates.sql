@@ -58,6 +58,11 @@
 --   sender as digits; an @lid sender (Green senderData.sender, Manus
 --   _group_author_raw) still stored as its LID digits is mapped through
 --   wa_lid_map, and without a mapping its key is null and lid_unmapped true.
+--   A message sent from AIOS also names its sender (sent_by, a user id).
+-- - Each message carries the provider's id (Green idMessage, else the row
+--   id) and each group its group_chat_id and its client's tenant, so a call
+--   a message reports is recorded once per client however many tenants or
+--   lines stored it, and only a login of the client's own tenant is named.
 CREATE OR REPLACE FUNCTION public.get_client_group_digest_messages(
   p_tenant_id uuid,
   p_connection_user_ids uuid[],
@@ -70,7 +75,9 @@ CREATE OR REPLACE FUNCTION public.get_client_group_digest_messages(
 RETURNS TABLE (
   client_id uuid,
   client_name text,
+  client_tenant_id uuid,
   group_id uuid,
+  group_chat_id text,
   group_name text,
   messages jsonb
 )
@@ -136,7 +143,8 @@ AS $$
   ),
   -- ...minus the groups of another tenant's client that tenant reads itself.
   scoped AS (
-    SELECT o.group_id, o.group_name, c.id AS client_id, c.name AS client_name
+    SELECT o.group_id, o.group_chat_id, o.group_name, c.id AS client_id,
+           c.name AS client_name, c.tenant_id AS client_tenant_id
     FROM owned AS o
     JOIN public.clients AS c ON c.id = o.client_id
     WHERE (p_client_ids IS NULL OR o.client_id = ANY (p_client_ids))
@@ -209,13 +217,17 @@ AS $$
   )
   SELECT s.client_id,
          s.client_name,
+         s.client_tenant_id,
          s.group_id,
+         s.group_chat_id,
          s.group_name,
          jsonb_agg(
            jsonb_build_object(
              'id', r.id,
+             'provider_id', r.provider_id,
              'at', r.created_at,
              'out', r.direction = 'outbound' OR r.sent_by_user_id IS NOT NULL,
+             'sent_by', r.sent_by_user_id,
              'key', r.match_key,
              'lid_unmapped', r.lid_unmapped,
              'text', left(r.message_text, 500)
@@ -225,7 +237,8 @@ AS $$
   FROM recent AS r
   JOIN scoped AS s ON s.group_id = r.group_id
   WHERE r.age <= least(greatest(coalesce(p_per_group, 60), 1), 200)
-  GROUP BY s.client_id, s.client_name, s.group_id, s.group_name
+  GROUP BY s.client_id, s.client_name, s.client_tenant_id, s.group_id,
+           s.group_chat_id, s.group_name
 $$;
 
 COMMENT ON FUNCTION public.get_client_group_digest_messages(uuid, uuid[], timestamptz, text, public.chat_provider, uuid[], integer) IS
