@@ -15,10 +15,13 @@ import {
 } from "../client-card/sources.ts";
 import type { Json } from "../database.types.ts";
 import { type ContactDraft, contactDraftOf } from "./card-contact.ts";
-import { jsonObject } from "./json-object.ts";
+import { jsonObject, trimmedText } from "../pulse/json.ts";
 
 /** The reply word, sent before the finding's code. */
 export const APPROVE_DRAFT_WORD_HE = "אשר";
+
+/** "בלי שיחה" / "בלי פגישה" in the reply: write the summary without the reported contact. */
+const SKIP_CONTACT_REPLY = /בלי\s+ה?(?:שיחה|פגישה)/;
 
 /** The reply word (or its plural or feminine imperative), then the code. */
 const APPROVE_REPLY = new RegExp(
@@ -59,8 +62,8 @@ export function cardDraftOf(evidence: Json): CardDraft | null {
   const type = CARD_DRAFT_TYPES.find(
     (t) => t.value === draft?.update_type,
   )?.value;
-  const ref = text(draft?.source_ref);
-  const content = text(draft?.content);
+  const ref = trimmedText(draft?.source_ref);
+  const content = trimmedText(draft?.content);
   const contact = contactDraftOf(draft?.contact);
   return source && type && ref && content
     ? {
@@ -114,13 +117,13 @@ export function cardDraftContent(
   return `${prefix} ${wording.trim()}`;
 }
 
+/** True when the reply asks to leave the reported call or meeting out ("בלי שיחה"). */
+export function parseSkipContactReply(message: string): boolean {
+  return SKIP_CONTACT_REPLY.test(message);
+}
+
 /** The finding code in a reply such as "אשר 123", "אשרי #123" or "אשרו 123"; else null. */
 export function parseApproveDraftReply(message: string): number | null {
   const match = APPROVE_REPLY.exec(message);
   return match ? Number(match[1]) : null;
-}
-
-/** A trimmed non-empty string, or null. */
-function text(value: Json | undefined): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

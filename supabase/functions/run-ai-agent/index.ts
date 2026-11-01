@@ -105,7 +105,6 @@ import {
   isCardDraftTool,
   promoteCardDraftTool,
 } from "./card-draft-approval/tool.ts";
-import { isGroupSession } from "./group-session.ts";
 import {
   CREATIVE_STUDIO_TOOLS,
   executeCreativeStudioTool,
@@ -120,6 +119,7 @@ import {
 import {
   type FindingDraftReply,
   findingDraftReplyOf,
+  isGroupChat,
 } from "./finding-draft/reply.ts";
 import {
   WORKSHOP_SKIN,
@@ -6094,7 +6094,7 @@ async function executeTool(
       tenantId,
       args,
       requesterUserId: humanRequesterUserId ?? null,
-      isGroup: isGroupSession(waNotify),
+      reply: findingDraftReply ?? null,
     });
   }
   if (isCreativeStudioTool(name)) {
@@ -10178,7 +10178,7 @@ async function executeTool(
       let scopeNote = "current_chat";
       if (!browseAll && waNotify?.chat_id) {
         const chatId = String(waNotify.chat_id);
-        if (isGroupSession(waNotify)) {
+        if (isGroupChat(waNotify)) {
           const { data: g } = await supabase
             .from("whatsapp_groups")
             .select("id")

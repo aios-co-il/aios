@@ -9,6 +9,9 @@
  * knows them, else to the author of the summary entry, which is the client's
  * campaigner (else the tenant owner) by record_client_card_entry's fallback.
  * Its source_ref prefix tells the group-update gate that no person typed it.
+ *
+ * Limitation: the pulse dates the contact when it is approved (created_at);
+ * the message's own time is kept in metadata.reported_at.
  */
 import type { ClientCardEntryInput } from "../client-card/entry-types.ts";
 import {
@@ -18,7 +21,7 @@ import {
 } from "../client-card/sources.ts";
 import type { Json } from "../database.types.ts";
 import type { DraftedFinding } from "./card-draft.ts";
-import { jsonObject } from "./json-object.ts";
+import { jsonObject, trimmedText } from "../pulse/json.ts";
 
 /** source_ref prefix of the contacts this flow writes. */
 export const GROUP_CONTACT_REF_PREFIX = "group_contact:";
@@ -49,6 +52,11 @@ export function isContactUpdateType(
   return (
     isCarmenClientUpdateType(value) && CONTACT_UPDATE_TYPES.includes(value)
   );
+}
+
+/** The Hebrew word for a contact type: "פגישה" for a meeting, else "שיחה". */
+export function contactKindLabel(kind: CarmenClientUpdateType): string {
+  return kind === "meeting" ? "פגישה" : "שיחה";
 }
 
 /**
@@ -82,11 +90,11 @@ export function contactDraftOf(raw: Json | undefined): ContactDraft | null {
   const contact = jsonObject(raw);
   const [type, ref, content, at] = [
     contact?.update_type,
-    text(contact?.source_ref),
-    text(contact?.content),
-    text(contact?.reported_at),
+    trimmedText(contact?.source_ref),
+    trimmedText(contact?.content),
+    trimmedText(contact?.reported_at),
   ];
-  const participant = text(contact?.participant_user_id);
+  const participant = trimmedText(contact?.participant_user_id);
   return isContactUpdateType(type) && ref && content && at
     ? {
         update_type: type,
@@ -134,9 +142,4 @@ export function cardContactEntry(
       reported_at: contact.reported_at,
     },
   };
-}
-
-/** A trimmed non-empty string, or null. */
-function text(value: Json | undefined): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

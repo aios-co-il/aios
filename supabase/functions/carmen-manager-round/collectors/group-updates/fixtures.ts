@@ -5,7 +5,7 @@
  * draft is read, so a fixture run is deterministic and free.
  */
 import type { Json } from "../../../_shared/database.types.ts";
-import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
+import { jsonObject } from "../../../_shared/pulse/json.ts";
 import type { CardEntry } from "./card-entries.ts";
 import { GROUP_UPDATES_COLLECTOR } from "./id.ts";
 import { groupHistory } from "./messages.ts";
@@ -38,7 +38,7 @@ export function fixtureSources(
             typeof k === "string" ? [[k, null]] : [],
           ),
         ),
-        keyTenants: new Map(),
+        personTenants: new Map(),
         tenantsOf: new Map(),
       }),
     cardEntries: () =>

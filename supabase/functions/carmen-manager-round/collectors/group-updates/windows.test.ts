@@ -5,7 +5,7 @@ import { groupWindows } from "./windows.ts";
 const from = new Date("2026-11-01T00:00:00Z");
 const staff = {
   keys: new Map([[STAFF_KEY, "u-staff"]]),
-  keyTenants: new Map([[STAFF_KEY, new Set([TENANT])]]),
+  personTenants: new Map([[STAFF_KEY, new Set([TENANT])]]),
   tenantsOf: new Map([
     ["u-staff", new Set([TENANT])],
     ["u-aios", new Set([TENANT])],

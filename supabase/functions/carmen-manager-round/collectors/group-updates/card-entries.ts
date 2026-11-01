@@ -15,6 +15,9 @@ import { isGroupContactRef } from "../../../_shared/manager-round/card-contact.t
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 
+/** At most this many entries are compared per run; reaching it is logged. */
+export const CARD_ENTRY_LIMIT = 2_000;
+
 export type CardEntry = {
   client_id: string;
   created_at: string;
@@ -42,9 +45,16 @@ export async function loadCardEntries(
     .in("client_id", query.clientIds)
     .gte("created_at", query.since.toISOString())
     .order("created_at", { ascending: false })
-    .limit(2_000);
+    .limit(CARD_ENTRY_LIMIT);
   throwIf(error, "client_updates");
-  return data ?? [];
+  const entries = data ?? [];
+  if (entries.length === CARD_ENTRY_LIMIT) {
+    // The oldest entries were cut: a window may look uncovered, or a known item new.
+    console.warn(
+      `[carmen-manager-round] group updates: ${CARD_ENTRY_LIMIT} card entries read for ${query.clientIds.length} clients since ${query.since.toISOString()}; older ones were not compared`,
+    );
+  }
+  return entries;
 }
 
 /**

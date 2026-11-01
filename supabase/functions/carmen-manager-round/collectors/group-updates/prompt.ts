@@ -42,7 +42,7 @@ export function digestPrompt(window: GroupWindow, today: CardEntry[]): string {
     ...(card.length ? card : ["- אין"]),
     "",
     "ההודעות:",
-    ...transcript(window.messages),
+    ...transcriptLines(window.messages).lines,
     "",
     'אם הודעה מדווחת על שיחת טלפון או פגישה עם הלקוח (למשל "בהמשך לפגישתנו", "דיברנו בטלפון"),',
     "החזירי ב-contact את מספר השורה שלה (#), את הסוג (call לשיחה, meeting לפגישה) ואת הזמן:",
@@ -59,10 +59,18 @@ export function maskPhones(text: string): string {
   return text.replace(PHONE, "[טלפון]");
 }
 
-/** One line per message (#n is its place in the window), newest kept when the transcript is too long. */
-function transcript(messages: WindowMessage[]): string[] {
+/**
+ * One line per message (#n is its place in the window), newest kept when the
+ * transcript is too long; `from` is the index of the oldest message shown,
+ * so a model claim can only name a line the prompt showed (contact.ts).
+ */
+export function transcriptLines(messages: WindowMessage[]): {
+  lines: string[];
+  from: number;
+} {
   const lines: string[] = [];
   let size = 0;
+  let from = messages.length;
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     const line = `#${i + 1} [${when(message.at)}] ${SPEAKER_LABEL_HE[message.speaker]}: ${clamp(maskPhones(message.text), MAX_LINE_CHARS)}`;
@@ -71,8 +79,9 @@ function transcript(messages: WindowMessage[]): string[] {
     }
     lines.unshift(line);
     size += line.length;
+    from = i;
   }
-  return lines;
+  return { lines, from };
 }
 
 /** Day.month hour:minute in Israel time. */

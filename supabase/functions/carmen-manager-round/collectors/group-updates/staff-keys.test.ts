@@ -19,7 +19,7 @@ Deno.test("loadGroupStaff", async (t) => {
         }
       });
       const staff = await loadGroupStaff(db, "t1", SINCE);
-      assertEquals(staff.keyTenants.get("533333333"), new Set(["t2"]));
+      assertEquals(staff.personTenants.get("533333333"), new Set(["t2"]));
       const access = calls.find((c) => c.path === "agency_tenant_access");
       assertEquals(
         access?.query.get("or"),

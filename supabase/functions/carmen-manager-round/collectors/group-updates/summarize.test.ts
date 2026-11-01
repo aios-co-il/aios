@@ -156,7 +156,8 @@ Deno.test("digestWindows", async (t) => {
         [d.by, d.contact?.kind, d.contact?.message.id, d.digest.material],
         ["model", "call", "m2", true],
       );
-      assertEquals(d.digest.update_text, "שיחה עם הלקוח");
+      // The card line only names it; the call entry carries the description.
+      assertEquals(d.digest.update_text, "דווח בקבוצה על שיחה עם הלקוח");
       const later = window([
         { text: "מה שלומכם?" },
         { text: "נדבר מחר בטלפון", speaker: "staff" },

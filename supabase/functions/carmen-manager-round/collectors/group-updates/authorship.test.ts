@@ -4,12 +4,17 @@ import { message, STAFF_KEY, TENANT } from "./group-fixtures.ts";
 
 const PARTNER = "partner-tenant";
 const PARTNER_KEY = "509999999";
+// Line numbers: staff for labelling, never a person's words.
+const MANUS_LINE_KEY = "505555555";
+const PARTNER_LINE_KEY = "507777777";
 const staff = {
   keys: new Map<string, string | null>([
     [STAFF_KEY, "u-staff"],
     [PARTNER_KEY, "u-partner"],
+    [MANUS_LINE_KEY, null],
+    [PARTNER_LINE_KEY, null],
   ]),
-  keyTenants: new Map([
+  personTenants: new Map([
     [STAFF_KEY, new Set([TENANT])],
     [PARTNER_KEY, new Set([PARTNER])],
   ]),
@@ -80,6 +85,13 @@ Deno.test("authorshipOf", async (t) => {
       );
     },
   );
+
+  await t.step("a line's number is never a person's words", () => {
+    // Carmen's Manus line (her replies, automations) seen as a sender.
+    assertEquals(of({ key: MANUS_LINE_KEY }), [false, null]);
+    // A partner's line no tenant monitors, seen as a sender.
+    assertEquals(of({ key: PARTNER_LINE_KEY }), [false, null]);
+  });
 
   await t.step("a staff phone counts only for the client's own tenant", () => {
     assertEquals(of({ key: STAFF_KEY }), [true, "u-staff"]);

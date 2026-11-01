@@ -60,7 +60,7 @@ function sources(
     staff: () =>
       Promise.resolve({
         keys: new Map([[STAFF_KEY, null]]),
-        keyTenants: new Map(),
+        personTenants: new Map(),
         tenantsOf: new Map(),
       }),
     cardEntries: () => Promise.resolve(entries),

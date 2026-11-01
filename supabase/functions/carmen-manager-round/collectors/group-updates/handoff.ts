@@ -5,9 +5,9 @@
  * finding. The items are kept on the draft (evidence.chat_handoff) for the
  * feed and the card.
  *
- * AIO-254 phase 2: once AIO-252's chat collector is on develop, hand these to
- * it (seed its review of the group's last message) so a request the digest
- * found is checked for a staff reply without a second model call.
+ * Limitation: the chat collector does not read these yet. It classifies the
+ * group's messages with its own model call, so a request the digest found
+ * is checked for a staff reply only when the chat collector finds it too.
  */
 import type { DigestItem } from "./digest.ts";
 

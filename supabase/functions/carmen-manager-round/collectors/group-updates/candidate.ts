@@ -14,6 +14,7 @@
 import {
   contactContent,
   type ContactDraft,
+  contactKindLabel,
   contactSourceRef,
 } from "../../../_shared/manager-round/card-contact.ts";
 import {
@@ -93,8 +94,7 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
  * sees a wrong pick before "אשר".
  */
 function contactNote(contact: PastContact): string {
-  const kind = contact.kind === "meeting" ? "פגישה" : "שיחה";
-  return ` לפי ההודעה ${quoted(contact.message, CONTACT_QUOTE_CHARS)} הייתה ${kind} עם הלקוח; האישור ירשום אותה כקשר עם הלקוח.`;
+  return ` לפי ההודעה ${quoted(contact.message, CONTACT_QUOTE_CHARS)} הייתה ${contactKindLabel(contact.kind)} עם הלקוח; האישור ירשום אותה כקשר עם הלקוח.`;
 }
 
 /**

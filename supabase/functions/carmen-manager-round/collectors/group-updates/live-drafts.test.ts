@@ -66,6 +66,32 @@ Deno.test("keptDrafts", async (t) => {
     },
   );
 
+  await t.step(
+    "a draft whose entry is already on the card lets it clear",
+    () => {
+      const summary = {
+        source: "group_digest",
+        update_type: "group_summary",
+        source_ref: "g1:m9",
+        content: "[כרמן · סיכום קבוצה] x",
+      };
+      const approved = draft("2026-11-09T10:00:00Z", "2026-11-09T12:00:00Z");
+      approved.candidate.evidence = {
+        ...approved.candidate.evidence,
+        card_draft: summary,
+      };
+      const onCard = entry(
+        "2026-11-10T08:00:00Z",
+        summary.content,
+        "group_digest",
+        "g1:m9",
+      );
+      assertEquals(keptDrafts([approved], [onCard], now), []);
+      const elsewhere = { ...onCard, source_ref: "g1:m3" };
+      assertEquals(keptDrafts([approved], [elsewhere], now).length, 1);
+    },
+  );
+
   await t.step("a draft older than the lookback lets it clear", () => {
     assertEquals(
       keptDrafts(

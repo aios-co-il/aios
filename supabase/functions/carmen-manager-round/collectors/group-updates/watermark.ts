@@ -6,7 +6,7 @@
  * to this one (get_client_group_digest_messages).
  */
 import type { Json } from "../../../_shared/database.types.ts";
-import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
+import { jsonObject } from "../../../_shared/pulse/json.ts";
 
 /** A group's window never reaches further back than this. */
 export const LOOKBACK_DAYS = 7;

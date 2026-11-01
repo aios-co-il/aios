@@ -5,8 +5,9 @@
  * lines, line-numbers.ts). A group message from one of these phones is a
  * staff reply, even though it reached the monitored line as inbound. Built
  * in TypeScript on purpose: there is no SQL copy of the roster. Each phone
- * keeps its tenant and its login, so the group-update collector can name
- * the staff member of a client's own tenant (group-updates/authorship.ts).
+ * keeps its tenant and its login, and a person's phone (a login, campaigner
+ * or sales person) is told apart from a line's number, so the group-update
+ * collector counts only a person's words (group-updates/authorship.ts).
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { phoneMatchKey } from "../../../_shared/telephony/phone.ts";
@@ -21,14 +22,22 @@ export type StaffRoster = {
    * a line, or a phone two logins share.
    */
   keys: ReadonlyMap<string, string | null>;
-  /** Each staff phone match key with the tenants whose staff has it. */
-  keyTenants: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * Each key of a person's phone (a login, campaigner or sales person, never
+   * a line's number) with the tenants whose staff that person is.
+   */
+  personTenants: ReadonlyMap<string, ReadonlySet<string>>;
   /** Each login's tenants among those read. */
   tenantsOf: ReadonlyMap<string, ReadonlySet<string>>;
 };
 
-/** One staff phone: its match key, its tenant and its login, if any. */
-type StaffPhone = { key: string; tenantId: string; userId: string | null };
+/** One staff phone: its match key, its tenant, its login and whether a person holds it. */
+type StaffPhone = {
+  key: string;
+  tenantId: string;
+  userId: string | null;
+  person: boolean;
+};
 
 /** Phone match keys of everyone who speaks for the tenants. */
 export async function loadStaffKeys(
@@ -78,17 +87,19 @@ export async function loadStaffRoster(
   const phones = [
     ...profiles.flatMap((profile) =>
       [...(tenantsOf.get(profile.id) ?? [])].flatMap((tenant) =>
-        staffPhone(profilePhone(profile), tenant, profile.id),
+        staffPhone(profilePhone(profile), tenant, profile.id, true),
       ),
     ),
     ...[...(campaigners.data ?? []), ...(sales.data ?? [])].flatMap((row) =>
-      staffPhone(row.phone, row.tenant_id, null),
+      staffPhone(row.phone, row.tenant_id, null, true),
     ),
-    ...lines.flatMap((line) => staffPhone(line.phone, line.tenantId, null)),
+    ...lines.flatMap((line) =>
+      staffPhone(line.phone, line.tenantId, null, false),
+    ),
   ];
   return {
     keys: staffKeyMap(phones),
-    keyTenants: keyTenants(phones),
+    personTenants: personTenants(phones),
     tenantsOf,
   };
 }
@@ -113,9 +124,10 @@ function staffPhone(
   phone: string | null,
   tenantId: string | null,
   userId: string | null,
+  person: boolean,
 ): StaffPhone[] {
   const key = phoneMatchKey(phone);
-  return key && tenantId ? [{ key, tenantId, userId }] : [];
+  return key && tenantId ? [{ key, tenantId, userId, person }] : [];
 }
 
 /** The logins' keys with their person (null when two share one), then the other phones' keys. */
@@ -135,10 +147,10 @@ function staffKeyMap(phones: StaffPhone[]): StaffRoster["keys"] {
   return keys;
 }
 
-/** Each key with the tenants whose staff has it. */
-function keyTenants(phones: StaffPhone[]): StaffRoster["keyTenants"] {
+/** Each person's key with the tenants whose staff the person is; lines are left out. */
+function personTenants(phones: StaffPhone[]): StaffRoster["personTenants"] {
   const tenants = new Map<string, Set<string>>();
-  for (const { key, tenantId } of phones) {
+  for (const { key, tenantId } of phones.filter((phone) => phone.person)) {
     tenants.set(key, (tenants.get(key) ?? new Set<string>()).add(tenantId));
   }
   return tenants;

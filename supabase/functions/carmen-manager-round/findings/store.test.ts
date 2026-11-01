@@ -129,7 +129,16 @@ Deno.test(
           "2026-10-01T00:00:00Z",
         );
         await store.listLive(T, 300);
-        const [scoped, all] = calls.map((call) => call.query);
+        await store.listLive(T, 50, ["card_stale_group"], undefined, true);
+        const [scoped, all, writable] = calls.map((call) => call.query);
+        // Drafts waiting for a person are filtered in the query, not after it.
+        assertEquals(
+          [
+            writable.get("evidence->card_draft"),
+            writable.get("evidence->card_draft->contact"),
+          ],
+          ["not.is.null", "is.null"],
+        );
         assertEquals(
           [
             scoped.get("tenant_id"),

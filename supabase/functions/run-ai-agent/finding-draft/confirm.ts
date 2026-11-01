@@ -14,6 +14,8 @@ import {
   type ContactDraft,
   contactDraftOf,
 } from "../../_shared/manager-round/contact-draft.ts";
+import { trimmedText } from "../../_shared/pulse/json.ts";
+import { refuse, type ToolResult, typedCode } from "./args.ts";
 import type { DraftFinding, FindingDraftPorts } from "./ports.ts";
 import type { FindingDraftReply } from "./reply.ts";
 
@@ -25,8 +27,6 @@ export type ConfirmInput = {
   /** The message this run answers; null when the run has none. */
   reply: FindingDraftReply | null;
 };
-
-type ToolResult = Record<string, unknown>;
 
 type FoundDraft = { finding: DraftFinding; draft: ContactDraft };
 
@@ -62,7 +62,7 @@ async function logDraft(
   found: FoundDraft,
   userId: string,
 ): Promise<ToolResult> {
-  const content = textOf(input.args.content) ?? found.draft.text_he;
+  const content = trimmedText(input.args.content) ?? found.draft.text_he;
   const result = await ports.confirm({
     tenantId: input.tenantId,
     findingId: found.finding.id,
@@ -107,26 +107,7 @@ async function findDraft(
  * tool output) never logs a contact in their name.
  */
 function replyCode(input: ConfirmInput): number | null {
-  const written = input.reply?.shortCode ?? null;
-  const asked = shortCodeOf(input.args.short_code);
-  return written !== null && (asked === null || asked === written)
-    ? written
-    : null;
-}
-
-/** A positive integer code from a number or text such as "#123". */
-function shortCodeOf(raw: unknown): number | null {
-  const code = Number(
-    String(raw ?? "")
-      .replace(/^#/, "")
-      .trim(),
-  );
-  return Number.isInteger(code) && code > 0 ? code : null;
-}
-
-/** The person's own wording, when they gave one. */
-function textOf(raw: unknown): string | null {
-  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+  return typedCode(input.reply?.shortCode ?? null, input.args.short_code);
 }
 
 /** The one refusal for an unknown code and one this person may not log. */
@@ -135,9 +116,4 @@ function notFound(code: number): ToolResult {
     "not_found",
     `לא מצאתי פריט פתוח מספר ${code} שאפשר לתעד בשמך.`,
   );
-}
-
-/** A refusal Carmen reads back to the person. */
-function refuse(error: string, message: string): ToolResult {
-  return { success: false, error, message };
 }

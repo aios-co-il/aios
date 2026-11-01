@@ -5,9 +5,12 @@
  * typed it: sent from AIOS's chat (send_kind chat) by a login of that
  * tenant; typed in WhatsApp on a monitored line's own phone (no send_kind),
  * whose user is a login of that tenant and stands as its author; or written
- * from a staff phone of that tenant. AIOS's own sends (automation,
- * broadcast, carmen, staff_alert, a report or summary template, or an API
- * send with no kind) never count, even when they name a sender.
+ * from the phone of a login, campaigner or sales person of that tenant.
+ * A line's number never counts: Carmen's Manus line, or a line of the
+ * tenant or a partner that a monitored line saw as a sender, may carry
+ * AIOS's own sends. AIOS's own sends (automation, broadcast, carmen,
+ * staff_alert, a report or summary template, or an API send with no kind)
+ * never count, even when they name a sender.
  */
 import type { SendKind } from "../../../_shared/client-card/send-kind.ts";
 import type { GroupMessage } from "./messages.ts";
@@ -41,7 +44,7 @@ export function authorshipOf(
     return { typedByPerson: !!sender, staffUserId: sender };
   }
   const key = message.key;
-  const ownStaff = !!key && !!staff.keyTenants.get(key)?.has(clientTenantId);
+  const ownStaff = !!key && !!staff.personTenants.get(key)?.has(clientTenantId);
   return {
     typedByPerson: ownStaff,
     staffUserId: ownStaff && key ? login(staff.keys.get(key)) : null,

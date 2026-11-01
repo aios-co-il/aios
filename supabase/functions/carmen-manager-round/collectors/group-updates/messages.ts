@@ -7,7 +7,7 @@
 import type { Database, Json } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
-import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
+import { jsonObject } from "../../../_shared/pulse/json.ts";
 import { MONITORED_PROVIDER } from "../chat/activity.ts";
 
 type GroupRow =

@@ -114,8 +114,38 @@ Deno.test("loadStaffKeys", async (t) => {
           ["503333333", "u3"],
         ],
       );
-      assertEquals(roster.keyTenants.get("503333333"), new Set(["t2", "t1"]));
+      assertEquals(
+        roster.personTenants.get("503333333"),
+        new Set(["t2", "t1"]),
+      );
       assertEquals(roster.tenantsOf.get("u3"), new Set(["t2"]));
+    },
+  );
+
+  await t.step(
+    "a line's number is staff, but not a person's phone",
+    async () => {
+      const { db } = recordingClient(({ path }) => {
+        switch (path) {
+          case "campaigners":
+            return [{ phone: "0503333333", tenant_id: "t1" }];
+          case "tenant_integrations":
+            return [
+              {
+                tenant_id: "t1",
+                user_id: null,
+                integration_type: "manus_wa",
+                settings: { phone_number: "972505555555" },
+              },
+            ];
+          default:
+            return [];
+        }
+      });
+      const roster = await loadStaffRoster(db, TENANTS, NOW);
+      assertEquals(roster.keys.has("505555555"), true);
+      assertEquals(roster.personTenants.has("505555555"), false);
+      assertEquals(roster.personTenants.get("503333333"), new Set(["t1"]));
     },
   );
 });

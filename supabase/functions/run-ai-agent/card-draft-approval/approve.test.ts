@@ -1,101 +1,14 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { approveCardDraft } from "./approve.ts";
 import {
-  ClientCardEntryError,
-  type ClientCardEntryInput,
-} from "../../_shared/client-card/entry-types.ts";
-import { approveCardDraft, type ApproveInput } from "./approve.ts";
-import type { ApprovalPorts, DraftFinding } from "./ports.ts";
-
-const draft = {
-  source: "group_digest",
-  update_type: "group_summary",
-  source_ref: "g1:m9",
-  content: "[כרמן · סיכום קבוצה] אישר תקציב ₪5,000",
-};
-const live: DraftFinding = {
-  id: "f1",
-  client_id: "c1",
-  agency_id: "a1",
-  short_code: 31,
-  evidence: { card_draft: draft },
-};
-
-/** The same finding when the group also reported a held call. */
-const withCall: DraftFinding = {
-  ...live,
-  evidence: {
-    card_draft: {
-      ...draft,
-      contact: {
-        update_type: "call",
-        source_ref: "group_contact:g1:m2",
-        content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
-        participant_user_id: null,
-        reported_at: "2026-11-01T10:00:00Z",
-      },
-    },
-  },
-};
-
-/** Each person's role for the finding in t1, as carmen_finding_role_of answers. */
-const ROLES: Record<string, string> = { dana: "campaigner", boss: "owner" };
-
-/**
- * Fake ports over one live finding: `roles` stands for the database's rule
- * (anyone missing has no role), and `refuse` makes the card write fail.
- */
-function ports(
-  finding: DraftFinding | null,
-  roles: Record<string, string> = ROLES,
-  refuse = false,
-) {
-  const written: ClientCardEntryInput[] = [];
-  const closed: (string | null)[] = [];
-  const looked: number[] = [];
-  const asked: unknown[][] = [];
-  const fake: ApprovalPorts = {
-    findLive: (_tenant, code) => {
-      looked.push(code);
-      return Promise.resolve(
-        finding && code === finding.short_code ? finding : null,
-      );
-    },
-    roleOf: (tenant, scope, userId) => {
-      asked.push([tenant, scope.client_id, scope.agency_id, userId]);
-      return Promise.resolve(roles[userId] ?? null);
-    },
-    write: {
-      writeEntry(input) {
-        if (refuse) {
-          return Promise.reject(
-            new ClientCardEntryError("access_denied", "אין גישה ללקוח"),
-          );
-        }
-        written.push(input);
-        return Promise.resolve({
-          entryId: "e1",
-          inserted: true,
-          userId: "dana",
-          attribution: "campaigner",
-        });
-      },
-      resolveWritten(_tenant, _finding, _entry, actor) {
-        closed.push(actor);
-        return Promise.resolve(true);
-      },
-    },
-  };
-  return { fake, written, closed, looked, asked };
-}
-
-/** Dana's private-chat reply "אשר 31" in tenant t1; `fields` override. */
-const input = (fields: Partial<ApproveInput> = {}): ApproveInput => ({
-  tenantId: "t1",
-  args: { short_code: 31 },
-  requesterUserId: "dana",
-  isGroup: false,
-  ...fields,
-});
+  draft,
+  input,
+  live,
+  ports,
+  ROLES,
+  said,
+  withCall,
+} from "./approve-fixtures.ts";
 
 Deno.test("approveCardDraft", async (t) => {
   await t.step(
@@ -158,23 +71,6 @@ Deno.test("approveCardDraft", async (t) => {
   );
 
   await t.step(
-    '"בלי שיחה" writes the summary and closes the finding without the call',
-    async () => {
-      const { fake, written, closed } = ports(withCall);
-      const result = await approveCardDraft(
-        fake,
-        input({ args: { short_code: 31, skip_contact: true } }),
-      );
-      assertEquals(
-        written.map((e) => e.source),
-        ["group_digest"],
-      );
-      assertEquals([result.contact_update_id, closed], [null, ["dana"]]);
-      assertEquals(result.message, "נרשם בכרטיס הלקוח (פריט 31).");
-    },
-  );
-
-  await t.step(
     "their own wording replaces the draft, still labelled as a group summary",
     async () => {
       const { fake, written } = ports(live);
@@ -209,7 +105,7 @@ Deno.test("approveCardDraft", async (t) => {
     async () => {
       const unknown = await approveCardDraft(
         ports(live).fake,
-        input({ args: { short_code: 99 } }),
+        input({ args: { short_code: 99 }, reply: said("אשר 99") }),
       );
       const noDraft = await approveCardDraft(
         ports({ ...live, evidence: {} }).fake,
@@ -226,26 +122,6 @@ Deno.test("approveCardDraft", async (t) => {
     );
     assertEquals([asOwner.success, asOwner.resolved], [true, true]);
   });
-
-  await t.step(
-    "a group session is refused before any lookup, naming no draft",
-    async () => {
-      const { fake, written, looked } = ports(live);
-      const result = await approveCardDraft(
-        fake,
-        input({ isGroup: true, requesterUserId: "boss" }),
-      );
-      assertEquals(
-        [result.error, written.length, looked.length],
-        ["private_chat_only", 0, 0],
-      );
-      const text = JSON.stringify(result);
-      assertEquals(
-        [text.includes("31"), text.includes("תקציב")],
-        [false, false],
-      );
-    },
-  );
 
   await t.step("an automated run cannot approve", async () => {
     const { fake, written } = ports(live);

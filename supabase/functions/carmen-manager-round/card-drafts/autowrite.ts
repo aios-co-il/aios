@@ -76,6 +76,7 @@ export async function writeTeamDrafts(
     SCAN_LIMIT,
     kinds,
     earliestNotifySince(kinds, run.settings),
+    true,
   );
   const due = [...stored, ...(run.virtual ?? [])].filter((finding) =>
     isDue(finding, kinds, run),

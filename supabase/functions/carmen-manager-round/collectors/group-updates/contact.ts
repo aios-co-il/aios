@@ -11,18 +11,20 @@
  */
 import type { CarmenClientUpdateType } from "../../../_shared/client-card/sources.ts";
 import type { Json } from "../../../_shared/database.types.ts";
-import { isContactUpdateType } from "../../../_shared/manager-round/card-contact.ts";
-import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
+import {
+  contactKindLabel,
+  isContactUpdateType,
+} from "../../../_shared/manager-round/card-contact.ts";
+import { jsonObject } from "../../../_shared/pulse/json.ts";
 import { clamp } from "./clamp.ts";
 import {
   CONTACT_TENSES,
   type ContactTense,
   type Digest,
   MAX_ITEM_CHARS,
-  MAX_UPDATE_CHARS,
 } from "./digest.ts";
 import { QUOTED_SPEAKER_HE } from "./fallback.ts";
-import { maskPhones } from "./prompt.ts";
+import { maskPhones, transcriptLines } from "./prompt.ts";
 import type { GroupWindow, WindowMessage } from "./windows.ts";
 
 /** The model's answer: the transcript line (#n), the kind, its tense and a short description. */
@@ -86,14 +88,17 @@ export function parseContactClaim(raw: Json | undefined): ContactClaim | null {
 }
 
 /**
- * The held contact the model's claim names, unless the message was not typed
- * by a person or its words refuse it; null without a claim.
+ * The held contact the model's claim names, unless the line was not in the
+ * transcript the prompt showed, the message was not typed by a person or
+ * its words refuse it; null without a claim.
  */
 export function pastContact(
   window: GroupWindow,
   claim: ContactClaim | null,
 ): PastContact | null {
-  const message = claim ? window.messages[claim.line - 1] : undefined;
+  const index = claim ? claim.line - 1 : -1;
+  const shown = index >= transcriptLines(window.messages).from;
+  const message = shown ? window.messages[index] : undefined;
   if (!claim || claim.tense !== "past" || !message) {
     return null;
   }
@@ -104,7 +109,13 @@ export function pastContact(
   return { kind: claim.kind, message, text: text || quoted(message) };
 }
 
-/** A held contact is card news: it makes the digest material and, alone, its line. */
+/**
+ * A held contact is card news: it makes the digest material. With nothing
+ * else to say, the summary line only names it and the contact entry carries
+ * the description: the summary write is what attributes the contact to the
+ * client's campaigner (record_client_card_entry's fallback) and what the
+ * finding closes against, so it stays.
+ */
 export function withContact(
   digest: Digest,
   contact: PastContact | null,
@@ -113,7 +124,7 @@ export function withContact(
     ? {
         ...digest,
         material: true,
-        update_text: clamp(contact.text, MAX_UPDATE_CHARS),
+        update_text: `דווח בקבוצה על ${contactKindLabel(contact.kind)} עם הלקוח`,
       }
     : digest;
 }

@@ -94,6 +94,20 @@ Deno.test("pastContact", async (t) => {
     },
   );
 
+  await t.step("a line the prompt never showed is no contact", () => {
+    // The transcript keeps the newest ~6,000 characters; line 1 falls out.
+    const long = window(
+      Array.from({ length: 40 }, (_, i) => ({
+        text:
+          i === 0 || i === 39
+            ? "דיברנו בטלפון, הכל סגור"
+            : `הודעה ${i} ${"א".repeat(260)}`,
+      })),
+    );
+    assertEquals(found(long, claim({ line: 1 })), null);
+    assertEquals(found(long, claim({ line: 40 }))?.[1], "m40");
+  });
+
   await t.step("the words overrule a model that calls them held", () => {
     for (const text of [...REFUSED, "נדבר מחר בטלפון", "דיברנו בטלפון?"]) {
       assertEquals(found(said(text), claim({ line: 1 })), null, text);
@@ -107,7 +121,7 @@ Deno.test("pastContact", async (t) => {
     assertEquals(found(unknown, claim({ line: 1 })), null);
     const staff = {
       keys: new Map([[STAFF_KEY, "u-staff"]]),
-      keyTenants: new Map([[STAFF_KEY, new Set([TENANT])]]),
+      personTenants: new Map([[STAFF_KEY, new Set([TENANT])]]),
       tenantsOf: new Map([["u-staff", new Set([TENANT])]]),
     };
     const sent = (sendKind: string) =>
@@ -137,7 +151,7 @@ Deno.test("pastContact", async (t) => {
 Deno.test("pastContact on the agency line's own phone", async (t) => {
   const staff = {
     keys: new Map<string, string | null>(),
-    keyTenants: new Map<string, Set<string>>(),
+    personTenants: new Map<string, Set<string>>(),
     tenantsOf: new Map([["u-owner", new Set([TENANT])]]),
   };
   /** One outbound "בהמשך לפגישתנו" on the line of u-owner, typed on its phone or not. */
@@ -228,7 +242,7 @@ Deno.test("withContact", async (t) => {
   await t.step("a held contact alone makes the digest material", () => {
     assertEquals(withContact(quiet, pastContact(chat, claim())), {
       material: true,
-      update_text: "שיחת טלפון עם הלקוח על התקציב",
+      update_text: "דווח בקבוצה על שיחה עם הלקוח",
       items: [],
     });
   });

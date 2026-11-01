@@ -16,7 +16,7 @@ import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import type { FindingCandidate } from "../types.ts";
 import type { LiveChatFinding } from "./gate.ts";
-import { isJsonObject } from "../../../_shared/manager-round/json-object.ts";
+import { isJsonObject } from "../../../_shared/pulse/json.ts";
 
 const LIVE = `(${FINDING_LIVE_STATUSES.join(",")})`;
 

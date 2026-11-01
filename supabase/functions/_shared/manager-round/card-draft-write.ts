@@ -5,6 +5,10 @@
  * retry after a failed write or close returns the same entries and closes it
  * then. Used by the manager round (Carmen writes, no actor) and by
  * approve_card_draft (the approving person is the actor).
+ *
+ * Limitation: the writes and the close are separate database calls, so a
+ * close that fails leaves the entries on the card and the finding open until
+ * the next approval or round closes it.
  */
 import { recordClientCardEntry } from "../client-card/entry.ts";
 import type {

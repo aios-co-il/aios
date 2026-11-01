@@ -4,10 +4,7 @@
  * JSON, with every field checked and clamped; anything else is no digest.
  */
 import type { Json } from "../../../_shared/database.types.ts";
-import {
-  jsonObject,
-  type JsonObject,
-} from "../../../_shared/manager-round/json-object.ts";
+import { jsonObject, type JsonObject } from "../../../_shared/pulse/json.ts";
 import { clamp } from "./clamp.ts";
 
 /** Item types, in the order the card line lists them. */
