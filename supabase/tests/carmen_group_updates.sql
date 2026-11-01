@@ -41,6 +41,10 @@ DECLARE
   v_texts text;
   v_rows integer;
 BEGIN
+  -- chat_messages.connection_user_id references auth.users: each line is a user.
+  INSERT INTO auth.users (id, email)
+  SELECT u, 'qa-r6-line-' || u || '@example.invalid'
+  FROM unnest(ARRAY[v_line, v_org_line, v_private_line, v_manus_line, v_owner_line]) AS u;
   INSERT INTO public.tenants (id, name, slug) VALUES
     (v_reader, 'QA reader', 'qa-r6-reader-' || v_tag), (v_owner, 'QA owner', 'qa-r6-owner-' || v_tag);
   INSERT INTO public.agencies (id, tenant_id, name) VALUES
@@ -151,6 +155,23 @@ BEGIN
   END IF;
   IF v_row.messages::text LIKE '%' || v_lid || '%' OR v_row.messages::text LIKE '%972521111111%' THEN
     RAISE EXCEPTION 'digest: no raw phone or LID may leave the function';
+  END IF;
+
+  -- A message typed in WhatsApp on the line's own phone says so; an API send does not.
+  INSERT INTO public.chat_messages (tenant_id, provider, connection_user_id, direction,
+    message_text, sender_phone, group_id, created_at, raw_provider_data)
+  VALUES (v_reader, 'green_api', v_org_line, 'outbound', 'QA typed on phone', '972509990000',
+    v_group, now() - interval '10 minutes',
+    jsonb_build_object('idMessage', 'qa9-' || v_tag, 'typeWebhook', 'outgoingMessageReceived'));
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line, v_org_line], now() - interval '1 day', 'qa_group') AS r,
+         jsonb_array_elements(r.messages) AS m
+    WHERE r.group_id = v_group
+      AND m ->> 'provider_id' = 'qa9-' || v_tag
+      AND (m ->> 'typed_on_phone')::boolean
+      AND m ->> 'line_user' = v_org_line::text) THEN
+    RAISE EXCEPTION 'digest: a message typed on the line''s phone must say so';
   END IF;
 
   -- Manus stores a resolved author as the phone and an unresolved one as the LID.

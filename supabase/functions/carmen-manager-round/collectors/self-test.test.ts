@@ -13,6 +13,7 @@ Deno.test("selfTestCollector", async (t) => {
       const result = await selfTestCollector.collect({
         tenantId: TENANT,
         settings: resolveManagerSettings(null),
+        loadRules: () => Promise.resolve(null),
         now,
         since: now,
         watermark: null,

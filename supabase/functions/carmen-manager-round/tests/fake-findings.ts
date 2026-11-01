@@ -2,6 +2,7 @@
 import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
 import type { FindingsStore } from "../findings/store.ts";
 import type { UpsertOutcome } from "../findings/types.ts";
+import { resolveLive } from "./fake-resolve.ts";
 import { delivery, finding, type World } from "./fake-world.ts";
 
 const LIVE: readonly string[] = FINDING_LIVE_STATUSES;
@@ -62,6 +63,7 @@ export function fakeFindingsStore(w: World): FindingsStore {
         }),
       );
     },
+    resolve: (_tenant, _round, _collector, items) => resolveLive(w, items),
     markMissing: (_tenant, _round, scope) => {
       w.marks.push(scope);
       const missed = w.findings.filter(

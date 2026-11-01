@@ -14,17 +14,19 @@
 --
 -- 1. get_client_group_digest_messages: the recent messages of every WhatsApp
 --    group linked to exactly one client whose card the tenant may write, as
---    stored by the lines the round passes (the tenant's monitored Green API
---    lines, the same lines AIO-252's chat collector reads).
+--    stored by the lines the round passes (the tenant's Green API lines of an
+--    owner or agency owner, or shared org-wide: collectors/group-updates/
+--    lines.ts).
 -- 2. carmen_finding_role_of: who may act on a finding, for any person. The
 --    findings feed's rule (carmen_finding_viewer_role, carmen_manager_is_owner,
 --    AIO-251) now reads it for auth.uid(), so the feed and the "אשר <code>"
 --    approval apply one rule: whoever sees a finding may approve its draft.
 -- 3. carmen_finding_resolve_card_written: closes a live finding whose drafted
 --    entry is now on the card, by a person the rule allows or by Carmen.
--- 4. carmen_round_llm_spend: copied verbatim from AIO-252
---    (20261027101000_carmen_chat_sla.sql), so whichever of the two lands
---    last leaves the same definition.
+--
+-- The digest's model calls have no money limit (David's decision with
+-- AIO-252): each is logged to ai_usage_log under the tenant, and the run's
+-- calls are capped by the round's time budget, so no spend function exists.
 --
 -- The new functions are service-role only; the two AIO-251 functions keep
 -- their grants.
@@ -445,44 +447,6 @@ BEGIN
   RETURN true;
 END;
 $$;
-
--- ─── 4. carmen_round_llm_spend ──────────────────────────────────────────────
-
--- project_month_usd: the project's LLM spend since p_month_start, the sum the
--- health probe guards (ai_usage_log, agent_action_log and marketing_runs of
--- every tenant), because the OpenAI key and its budget are project-wide
--- today (_shared/ai.ts resolveOpenAIKey). day_usd: the tenant round's own
--- spend (ai_usage_log sources starting with p_source_prefix) since
--- p_day_start. Only the two sums leave.
-CREATE OR REPLACE FUNCTION public.carmen_round_llm_spend(
-  p_tenant_id uuid,
-  p_month_start timestamptz,
-  p_day_start timestamptz,
-  p_source_prefix text
-)
-RETURNS TABLE (project_month_usd numeric, day_usd numeric)
-  LANGUAGE sql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-AS $$
-  SELECT
-    (SELECT coalesce(sum(l.cost_usd), 0) FROM public.ai_usage_log AS l
-      WHERE l.created_at >= p_month_start)
-    + (SELECT coalesce(sum(a.cost_usd), 0) FROM public.agent_action_log AS a
-      WHERE a.created_at >= p_month_start)
-    + (SELECT coalesce(sum(r.cost_usd), 0) FROM public.marketing_runs AS r
-      WHERE r.created_at >= p_month_start),
-    (SELECT coalesce(sum(l.cost_usd), 0) FROM public.ai_usage_log AS l
-      WHERE l.tenant_id = p_tenant_id
-        AND l.created_at >= p_day_start
-        AND left(l.source, length(p_source_prefix)) = p_source_prefix)
-$$;
-
-REVOKE ALL ON FUNCTION public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)
-  FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)
-  TO service_role;
 
 DO $$
 DECLARE

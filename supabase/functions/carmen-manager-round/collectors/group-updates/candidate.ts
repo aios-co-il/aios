@@ -21,6 +21,7 @@ import {
   cardDraftContent,
   type CardDraft,
 } from "../../../_shared/manager-round/card-draft.ts";
+import { SUMMARY_MAX } from "../chat/summary.ts";
 import type { FindingCandidate } from "../types.ts";
 import { clamp } from "./clamp.ts";
 import { type PastContact, quoted } from "./contact.ts";
@@ -53,7 +54,7 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
     source_event_at: first.at,
     summary_he: clamp(
       `${window.clientName}: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס – ${clamp(digest.update_text, MAX_ITEM_CHARS)}.${contact ? contactNote(contact) : ""} לרישום בכרטיס: "${APPROVE_DRAFT_WORD_HE}" ומספר הפריט`,
-      500,
+      SUMMARY_MAX,
     ),
     evidence: {
       group_id: window.groupId,

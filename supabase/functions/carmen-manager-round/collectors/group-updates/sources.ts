@@ -1,7 +1,7 @@
 /**
  * Where the collector reads from: the round's service-role client (every
- * query names the tenant, or the clients in its scope) and the metered model
- * call (ask-model.ts). A preview never calls the model, and a dry run
+ * query names the tenant, or the clients in its scope) and the model call
+ * (ask-model.ts), logged under the tenant with no money limit. A preview never calls the model, and a dry run
  * outside Production may pass fixtures.group_updates instead (fixtures.ts).
  */
 import type { CollectorContext } from "../types.ts";
@@ -10,14 +10,13 @@ import { type CardEntry, loadCardEntries } from "./card-entries.ts";
 import { fixtureSources } from "./fixtures.ts";
 import { GROUP_UPDATES_COLLECTOR } from "./id.ts";
 import { monitoredLineIds } from "./lines.ts";
-import { loadLlmMeter, ROUND_SOURCE_PREFIX } from "./llm-meter.ts";
 import { type LiveDraft, loadLiveDrafts } from "./live-drafts.ts";
 import { type GroupHistory, loadGroupHistories } from "./messages.ts";
 import { loadStaffKeys, type StaffKeys } from "./staff-keys.ts";
 import { markersOnlyPorts, type SummarizePorts } from "./summarize.ts";
 
 /** ai_usage_log.source of the digest calls. */
-export const GROUP_LLM_SOURCE = `${ROUND_SOURCE_PREFIX}${GROUP_UPDATES_COLLECTOR}`;
+export const GROUP_LLM_SOURCE = `manager_round:${GROUP_UPDATES_COLLECTOR}`;
 
 export type GroupUpdateSources = {
   /** The monitored lines (lines.ts); the run keeps their ids in its watermark. */
@@ -55,9 +54,6 @@ function dbSources(ctx: CollectorContext): GroupUpdateSources {
       }),
     summarize: ctx.dryRun
       ? markersOnlyPorts()
-      : {
-          meter: () => loadLlmMeter(db, tenantId, ctx.settings, ctx.now),
-          ask: modelAsker(tenantId, GROUP_LLM_SOURCE),
-        },
+      : { ask: modelAsker(tenantId, GROUP_LLM_SOURCE) },
   };
 }

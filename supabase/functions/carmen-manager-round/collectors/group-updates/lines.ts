@@ -6,9 +6,9 @@
  * is never read, and neither is Carmen's Manus line, whose rows are stored
  * under its own provider. Nothing is ever sent through these lines.
  *
- * AIO-252's collectors/chat/connections.ts applies the same rule. AIO-252
- * merges first (its migration is dated earlier); AIO-254 then takes develop,
- * reads the lines through that module and deletes this copy before it merges.
+ * AIO-252's collectors/chat/connections.ts now reads every member's own
+ * line for client chats; group digests keep this narrower rule until David
+ * decides whether they should follow it (one reader is AIO-275).
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";

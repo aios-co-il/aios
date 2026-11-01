@@ -100,6 +100,25 @@ Deno.test("runCollectors", async (t) => {
   );
 
   await t.step(
+    "passes the run mode to the collector and reports its note",
+    async () => {
+      const contexts: CollectorContext[] = [];
+      const contact = collector((ctx) => {
+        contexts.push(ctx);
+        return Promise.resolve({
+          candidates: [],
+          watermark: null,
+          coverage: { complete: false, clientIds: null },
+          note: "lines_not_monitored:1",
+        });
+      });
+      const { reports } = await run(world(), [{ collector: contact, slot }]);
+      assertEquals(contexts[0]?.dryRun, false);
+      assertEquals(reports[0].reason, "lines_not_monitored:1");
+    },
+  );
+
+  await t.step(
     "counts and logs the candidates the database did not store",
     async () => {
       const w = world({

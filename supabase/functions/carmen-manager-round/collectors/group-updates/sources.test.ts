@@ -11,6 +11,7 @@ function context(dryRun: boolean) {
   const ctx: CollectorContext = {
     tenantId: "t1",
     settings: resolveManagerSettings(null),
+    loadRules: () => Promise.resolve(null),
     now: new Date("2026-11-01T17:37:00Z"),
     since: new Date("2026-10-31T17:37:00Z"),
     watermark: null,
@@ -24,23 +25,15 @@ function context(dryRun: boolean) {
 }
 
 Deno.test("groupUpdateSources", async (t) => {
-  await t.step(
-    "a preview never calls the model or reads the spend",
-    async () => {
-      const { ctx, calls } = context(true);
-      const { summarize } = groupUpdateSources(ctx);
-      assertEquals((await summarize.meter()).allows(), false);
-      assertEquals(await summarize.ask("p"), { text: null, costUsd: 0 });
-      assertEquals(calls, []);
-    },
-  );
+  await t.step("a preview never calls the model", () => {
+    const { ctx, calls } = context(true);
+    assertEquals(groupUpdateSources(ctx).summarize.ask, null);
+    assertEquals(calls, []);
+  });
 
-  await t.step("a scheduled run meters the tenant's allowance", async () => {
+  await t.step("a scheduled run asks the model with no spend read", () => {
     const { ctx, calls } = context(false);
-    await groupUpdateSources(ctx).summarize.meter();
-    assertEquals(calls.map((call) => call.path).sort(), [
-      "rpc/carmen_round_llm_spend",
-      "tenant_integrations",
-    ]);
+    assertEquals(typeof groupUpdateSources(ctx).summarize.ask, "function");
+    assertEquals(calls, []);
   });
 });

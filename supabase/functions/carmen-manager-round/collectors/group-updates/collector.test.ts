@@ -7,7 +7,6 @@ import { entry, GROUP, history, message, STAFF_KEY } from "./group-fixtures.ts";
 import type { CollectorContext } from "../types.ts";
 import { collectGroupUpdates, groupUpdatesCollector } from "./collector.ts";
 import type { CardEntry } from "./card-entries.ts";
-import { createLlmMeter } from "./llm-meter.ts";
 import type { LiveDraft } from "./live-drafts.ts";
 import type { GroupHistory } from "./messages.ts";
 import type { GroupUpdateSources } from "./sources.ts";
@@ -30,6 +29,7 @@ function ctx(
   return {
     tenantId: "t1",
     settings: resolveManagerSettings(null),
+    loadRules: () => Promise.resolve(null),
     now,
     since: new Date("2026-10-31T17:37:00Z"),
     watermark,
@@ -67,15 +67,6 @@ function sources(
     liveDrafts: () => Promise.resolve(drafts),
     summarize: {
       ask: () => Promise.resolve({ text: null, costUsd: 0.001 }),
-      meter: () =>
-        Promise.resolve(
-          createLlmMeter({
-            monthBudgetUsd: null,
-            monthSpentUsd: 0,
-            dailyCapUsd: 1,
-            daySpentUsd: 0,
-          }),
-        ),
     },
   };
   return { fake, asked };

@@ -2,6 +2,8 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { MANAGER_DEFAULTS } from "../../_shared/manager-round/settings.ts";
 import {
   addBusinessHours,
+  businessDaysLater,
+  businessHoursBetween,
   isBusinessTime,
   nextBusinessStart,
 } from "./business-hours.ts";
@@ -81,4 +83,39 @@ Deno.test("business hours (Israel time)", async (t) => {
       "2026-10-25T08:00:00.000Z",
     );
   });
+});
+
+Deno.test("businessHoursBetween", async (t) => {
+  const hours = (from: string, to: string, holidays: string[] = []) =>
+    businessHoursBetween(at(from), at(to), { ...calendar, holidays });
+
+  await t.step("counts only the business window of the day", () => {
+    assertEquals(hours("2026-10-27T05:00:00Z", "2026-10-27T09:30:00Z"), 2.5); // Tue 07:00-11:30
+    assertEquals(hours("2026-10-27T16:00:00Z", "2026-10-27T21:00:00Z"), 1); // Tue 18:00-23:00
+  });
+
+  await t.step("Friday is short, Saturday has none", () => {
+    // Thu 18:00 -> Sun 10:00: Thu 1h + Fri 09-13 4h + Sun 1h.
+    assertEquals(hours("2026-10-29T16:00:00Z", "2026-11-01T08:00:00Z"), 6);
+  });
+
+  await t.step("a holiday has none", () => {
+    assertEquals(
+      hours("2026-10-27T07:00:00Z", "2026-10-27T10:00:00Z", ["2026-10-27"]),
+      0,
+    );
+  });
+});
+
+Deno.test("businessDaysLater opens the business day n days on", () => {
+  const thursday = at("2026-10-29T15:00:00Z"); // Thu 17:00
+  assertEquals(
+    businessDaysLater(thursday, 2, calendar).toISOString(),
+    "2026-11-01T07:00:00.000Z", // Fri, (Shabbat skipped) Sun 09:00
+  );
+  const holiday = { ...calendar, holidays: ["2026-11-01"] };
+  assertEquals(
+    businessDaysLater(thursday, 2, holiday).toISOString(),
+    "2026-11-02T07:00:00.000Z",
+  );
 });

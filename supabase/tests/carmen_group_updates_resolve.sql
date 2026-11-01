@@ -1,6 +1,6 @@
 -- Group updates to the client card (20261101103000_carmen_group_updates):
--- carmen_finding_role_of, carmen_finding_resolve_card_written and
--- carmen_round_llm_spend inside one transaction that is rolled back. Run on a
+-- carmen_finding_role_of and carmen_finding_resolve_card_written inside one
+-- transaction that is rolled back. Run on a
 -- Preview branch or Staging (needs a client whose tenant has an owner).
 -- carmen_group_updates.sql covers get_client_group_digest_messages.
 BEGIN;
@@ -13,7 +13,6 @@ DECLARE
   v_round uuid := gen_random_uuid();
   v_finding uuid;
   v_entry uuid;
-  v_row record;
   v_ok boolean;
   v_failed boolean;
 BEGIN
@@ -126,21 +125,9 @@ BEGIN
     RAISE EXCEPTION 'resolve: an entry on the shared card must close the finding';
   END IF;
 
-  -- The LLM allowance reads the project's month and the tenant round's day.
-  INSERT INTO public.ai_usage_log (tenant_id, source, cost_usd, created_at) VALUES
-    (v_tenant, 'manager_round:group_updates', 0.25, now()),
-    (v_tenant, 'aiChat', 1.00, now()),
-    (v_tenant, 'manager_round:group_updates', 9.00, now() - interval '40 days');
-  SELECT * INTO v_row FROM public.carmen_round_llm_spend(
-    v_tenant, now() - interval '1 hour', now() - interval '1 hour', 'manager_round:');
-  IF v_row.project_month_usd < 1.25 OR v_row.day_usd < 0.25 OR v_row.day_usd >= 1 THEN
-    RAISE EXCEPTION 'llm spend: unexpected month % / day %', v_row.project_month_usd, v_row.day_usd;
-  END IF;
-
   -- Service role only.
   IF has_function_privilege('authenticated', 'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)', 'EXECUTE')
      OR has_function_privilege('anon', 'public.carmen_finding_resolve_card_written(uuid, uuid, uuid, uuid)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'public.carmen_round_llm_spend(uuid, timestamptz, timestamptz, text)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'public.carmen_finding_role_of(uuid, uuid, uuid, uuid)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'public.carmen_manager_is_owner_of(uuid, uuid)', 'EXECUTE')
      OR NOT has_function_privilege('authenticated', 'public.carmen_finding_viewer_role(uuid, uuid, uuid)', 'EXECUTE')

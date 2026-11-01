@@ -24,7 +24,7 @@ export type Gaps = {
 export type GapInput = {
   /** Each client resolved this run by id; a null client is no longer the tenant's. */
   clients: Map<string, ClientRecipients>;
-  /** Brief recipients and the people of open missing_phone gaps. */
+  /** Brief recipients, owners of owner-first findings and the people of open missing_phone gaps. */
   people: Recipient[];
   /** Keys of people of open missing_phone gaps the router can no longer reach. */
   gone: string[];

@@ -1,9 +1,8 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { RoundBudget } from "../../budget.ts";
 import { entry, window } from "./group-fixtures.ts";
-import { createLlmMeter } from "./llm-meter.ts";
 import type { AskModel } from "./ask-model.ts";
-import { digestWindows } from "./summarize.ts";
+import { digestWindows, markersOnlyPorts } from "./summarize.ts";
 
 const now = new Date("2026-11-01T17:30:00Z");
 const marked = window([
@@ -17,23 +16,14 @@ const answer = JSON.stringify({
   items: [{ type: "approval", text: "אישר את הבאנר" }],
 });
 
-/** Ports with a scripted model and a meter allowing `dailyCapUsd`. */
-function ports(text: string | null, dailyCapUsd = 1) {
+/** Ports with a scripted model. */
+function ports(text: string | null) {
   const prompts: string[] = [];
   const ask: AskModel = (prompt) => {
     prompts.push(prompt);
     return Promise.resolve({ text, costUsd: 0.002 });
   };
-  const meter = () =>
-    Promise.resolve(
-      createLlmMeter({
-        monthBudgetUsd: null,
-        monthSpentUsd: 0,
-        dailyCapUsd,
-        daySpentUsd: 0,
-      }),
-    );
-  return { ports: { ask, meter }, prompts };
+  return { ports: { ask }, prompts };
 }
 
 const run = (apiCalls = 10) => ({
@@ -42,7 +32,7 @@ const run = (apiCalls = 10) => ({
 });
 
 Deno.test("digestWindows", async (t) => {
-  await t.step("one metered model call per window", async () => {
+  await t.step("one counted model call per window", async () => {
     const { ports: p, prompts } = ports(answer);
     const { digests, llm } = await digestWindows([marked], [], p, run());
     assertEquals(digests[0].by, "model");
@@ -76,15 +66,19 @@ Deno.test("digestWindows", async (t) => {
   });
 
   await t.step(
-    "over the day's allowance the markers decide, with no call",
+    "a preview never asks the model: the markers decide",
     async () => {
-      const { ports: p, prompts } = ports(answer, 0);
-      const { digests, llm } = await digestWindows([marked], [], p, run());
+      const { digests, llm } = await digestWindows(
+        [marked],
+        [],
+        markersOnlyPorts(),
+        run(),
+      );
       assertEquals(
         [digests[0].by, digests[0].digest.material],
         ["markers", true],
       );
-      assertEquals([llm.calls, prompts.length], [0, 0]);
+      assertEquals(llm.calls, 0);
     },
   );
 
@@ -95,7 +89,7 @@ Deno.test("digestWindows", async (t) => {
   });
 
   await t.step(
-    "an unusable answer is metered and the markers decide",
+    "an unusable answer is counted and the markers decide",
     async () => {
       const { ports: p } = ports("not json");
       const { digests, llm } = await digestWindows([marked], [], p, run());
@@ -198,14 +192,9 @@ Deno.test("digestWindows", async (t) => {
     },
   );
 
-  await t.step("no window: the meter is never loaded", async () => {
-    const { ports: p } = ports(answer);
-    const loaded: boolean[] = [];
-    const meter = () => {
-      loaded.push(true);
-      return p.meter();
-    };
-    await digestWindows([], [], { ...p, meter }, run());
-    assertEquals(loaded, []);
+  await t.step("no window: no call", async () => {
+    const { ports: p, prompts } = ports(answer);
+    const { llm } = await digestWindows([], [], p, run());
+    assertEquals([llm.calls, prompts.length], [0, 0]);
   });
 });

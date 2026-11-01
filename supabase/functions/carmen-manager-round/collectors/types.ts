@@ -3,7 +3,7 @@
  *
  * A collector turns AIOS data into finding candidates for one tenant. It is
  * deterministic: an LLM may only word text or classify (chat intent, whether
- * a group digest matters), metered and cached, and never drops a finding a
+ * a group digest matters), logged and cached, and never drops a finding a
  * rule raised.
  * The round decides when a collector is due, upserts its candidates
  * (carmen_finding_upsert), auto-clears the findings it no longer reports
@@ -19,9 +19,9 @@
  *   service-role SQL functions; nothing is ever sent through Green API.
  * - Only the tenant's own clients and clients of agencies shared with it; a
  *   group shared by several tenants is read once per group_chat_id.
- * - LLM use (wording, classifying chat intent, drafting a group digest) is
- *   metered against the tenant's monthly budget (monthly_budget_usd and
- *   settings.round_llm_share_pct over ai_usage_log month to date), cached,
+ * - LLM use (chat intent, wording a group digest) is logged to ai_usage_log
+ *   under the tenant and counted in the run's stats (chat/llm-meter.ts),
+ *   capped per run by the round's time budget rather than by money, cached,
  *   with a deterministic fallback.
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
@@ -55,6 +55,8 @@ export type FindingCandidate = {
 export type CollectorContext = {
   tenantId: string;
   settings: ManagerSettings;
+  /** The tenant's pulse_alert_rules as stored now (RoundStateStore.loadRules), for a collector's own keys. */
+  loadRules: () => Promise<Json | null>;
   now: Date;
   /** End of the last successful run, or the collector's first run for this tenant. Never earlier. */
   since: Date;
@@ -71,16 +73,35 @@ export type CollectorContext = {
   dryRun: boolean;
 };
 
+/** A live finding of the collector that its run saw end, closed with why. */
+export type FindingResolution = {
+  kind: FindingKind;
+  fingerprint: string;
+  resolution: "answered";
+  /** Logged on the 'resolved' event, e.g. the response time. */
+  details: { [key: string]: Json | undefined };
+};
+
 export type CollectorResult = {
   candidates: FindingCandidate[];
   watermark: Json | null;
   /**
    * What the run fully checked, for auto-clear: complete=false (budget ran
-   * out) clears nothing; clientIds limits clearing to those clients.
+   * out) clears nothing; clientIds limits clearing to those clients, and
+   * kinds to those kinds (default: all the collector's kinds; a kind turned
+   * off is not checked, so its findings stay as they are).
    */
-  coverage: { complete: boolean; clientIds: string[] | null };
+  coverage: {
+    complete: boolean;
+    clientIds: string[] | null;
+    kinds?: readonly FindingKind[];
+  };
+  /** Findings to close now (e.g. a client wait staff answered), whatever `coverage` says. */
+  resolved?: FindingResolution[];
   /** LLM use of this run, summed into the round's heartbeat_logs row. */
   llm?: { calls: number; costUsd: number };
+  /** Why the run read less than it could (e.g. no monitored line), shown in its report. */
+  note?: string;
 };
 
 export type CollectorSchedule =

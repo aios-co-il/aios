@@ -1,7 +1,8 @@
 /**
- * Digests the gated windows: one model call per window while the tenant's
- * LLM allowance, the run's call cap and the round's time and API budget
- * allow, a few at a time; otherwise, or when the answer is unusable, the
+ * Digests the gated windows: one model call per window while the run's call
+ * cap and the round's time and API budget allow, a few at a time (no money
+ * limit: each call is logged under the tenant and counted in the run's
+ * stats); otherwise, in previews, or when the answer is unusable, the
  * markers decide. The model words the card line and may find news the
  * markers missed, but never drops what the markers found. Known items are
  * then dropped against today's card. A call or meeting the group reports as
@@ -9,6 +10,7 @@
  * digest material.
  */
 import type { RoundBudget } from "../../budget.ts";
+import { createLlmMeter, type LlmMeter } from "../chat/llm-meter.ts";
 import { type AskModel, MODEL_CALL_MS } from "./ask-model.ts";
 import { type CardEntry, todaysEntries } from "./card-entries.ts";
 import {
@@ -21,14 +23,12 @@ import {
 import { dropKnownItems } from "./dedupe.ts";
 import { type Digest, parseDigest, parseJson } from "./digest.ts";
 import { markerDigest } from "./fallback.ts";
-import { createLlmMeter, type LlmMeter } from "./llm-meter.ts";
 import { digestPrompt } from "./prompt.ts";
 import type { GroupWindow } from "./windows.ts";
 
 export type SummarizePorts = {
-  ask: AskModel;
-  /** Loaded on the first window that needs it. */
-  meter: () => Promise<LlmMeter>;
+  /** The model call; null in previews and fixtures, where the markers decide. */
+  ask: AskModel | null;
 };
 
 export type WindowDigest = {
@@ -56,7 +56,7 @@ export async function digestWindows(
   digests: WindowDigest[];
   llm: { calls: number; costUsd: number };
 }> {
-  const meter = windows.length ? await ports.meter() : null;
+  const meter = createLlmMeter();
   const digests: WindowDigest[] = [];
   for (let i = 0; i < windows.length; i += CONCURRENCY) {
     const batch = windows.slice(i, i + CONCURRENCY);
@@ -66,23 +66,12 @@ export async function digestWindows(
       )),
     );
   }
-  return { digests, llm: meter?.usage() ?? { calls: 0, costUsd: 0 } };
+  return { digests, llm: meter.usage() };
 }
 
 /** Ports that never call the model, so the markers decide (fixtures, previews). */
 export function markersOnlyPorts(): SummarizePorts {
-  return {
-    ask: () => Promise.resolve({ text: null, costUsd: 0 }),
-    meter: () =>
-      Promise.resolve(
-        createLlmMeter({
-          monthBudgetUsd: null,
-          monthSpentUsd: 0,
-          dailyCapUsd: 0,
-          daySpentUsd: 0,
-        }),
-      ),
-  };
+  return { ask: null };
 }
 
 /** The model's digest unless it drops what the markers found; known items dropped. */
@@ -90,13 +79,13 @@ async function digestOne(
   window: GroupWindow,
   entries: CardEntry[],
   ports: SummarizePorts,
-  meter: LlmMeter | null,
+  meter: LlmMeter,
   run: { budget: RoundBudget; now: Date },
 ): Promise<WindowDigest> {
   const today = todaysEntries(entries, window.clientId, run.now);
   const answer =
-    meter && mayAsk(meter, run.budget)
-      ? await ask(ports, meter, digestPrompt(window, today))
+    ports.ask && mayAsk(meter, run.budget)
+      ? await ask(ports.ask, meter, digestPrompt(window, today))
       : null;
   const markers = markerDigest(window);
   const useModel = !!answer && (answer.digest.material || !markers.material);
@@ -115,27 +104,26 @@ async function digestOne(
   };
 }
 
-/** Room for one more call in the allowance, the run cap and the round budget. */
+/** Room for one more call in the run cap and the round budget. */
 function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
   return (
     meter.usage().calls < MAX_CALLS &&
-    meter.allows() &&
     budget.hasTime(MODEL_CALL_MS) &&
     budget.takeApiCall()
   );
 }
 
 /**
- * One metered call: its digest and contact claim. A failed, late or
+ * One counted call: its digest and contact claim. A failed, late or
  * malformed answer is null and logged, so a broken model shows while the
  * markers decide.
  */
 async function ask(
-  ports: SummarizePorts,
+  askModel: AskModel,
   meter: LlmMeter,
   prompt: string,
 ): Promise<{ digest: Digest; claim: ContactClaim | null } | null> {
-  const { text, costUsd } = await ports.ask(prompt);
+  const { text, costUsd } = await askModel(prompt);
   meter.add(costUsd);
   const digest = parseDigest(text);
   if (!digest) {

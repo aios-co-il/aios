@@ -2956,6 +2956,7 @@ export type Database = {
       };
       call_logs: {
         Row: {
+          caller_resolution: string | null;
           caller_user_id: string;
           client_id: string | null;
           created_at: string;
@@ -2975,6 +2976,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          caller_resolution?: string | null;
           caller_user_id: string;
           client_id?: string | null;
           created_at?: string;
@@ -2994,6 +2996,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          caller_resolution?: string | null;
           caller_user_id?: string;
           client_id?: string | null;
           created_at?: string;
@@ -3621,6 +3624,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "carmen_brain_connections_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_chat_thread_reviews: {
+        Row: {
+          cost_usd: number | null;
+          last_reviewed_message_id: string;
+          model: string | null;
+          reviewed_at: string;
+          tenant_id: string;
+          thread_key: string;
+          verdict: Json;
+        };
+        Insert: {
+          cost_usd?: number | null;
+          last_reviewed_message_id: string;
+          model?: string | null;
+          reviewed_at?: string;
+          tenant_id: string;
+          thread_key: string;
+          verdict: Json;
+        };
+        Update: {
+          cost_usd?: number | null;
+          last_reviewed_message_id?: string;
+          model?: string | null;
+          reviewed_at?: string;
+          tenant_id?: string;
+          thread_key?: string;
+          verdict?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_chat_thread_reviews_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -16239,6 +16280,27 @@ export type Database = {
         Args: { p_connection_id: string; p_secret: string };
         Returns: undefined;
       };
+      carmen_finding_confirm_contact: {
+        Args: {
+          p_content: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+          p_update_type: string;
+          p_user_id: string;
+        };
+        Returns: { entry_id: string; inserted: boolean; outcome: string }[];
+      };
+      carmen_finding_may_confirm: {
+        Args: {
+          p_agency_id: string;
+          p_attributed: boolean;
+          p_client_id: string;
+          p_owner_user_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
       carmen_finding_resolve_card_written: {
         Args: {
           p_actor_user_id?: string;
@@ -16289,6 +16351,18 @@ export type Database = {
           id: string;
           resolution: string;
           status: string;
+        }[];
+      };
+      carmen_finding_resolve: {
+        Args: {
+          p_collector: string;
+          p_items: Json;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
         }[];
       };
       carmen_finding_record_send: {
@@ -16459,15 +16533,6 @@ export type Database = {
           phone: string;
           user_id: string;
         }[];
-      };
-      carmen_round_llm_spend: {
-        Args: {
-          p_day_start: string;
-          p_month_start: string;
-          p_source_prefix: string;
-          p_tenant_id: string;
-        };
-        Returns: { day_usd: number; project_month_usd: number }[];
       };
       carmen_round_try_lease: {
         Args: { p_seconds?: number; p_tenant_id: string };
@@ -16736,6 +16801,34 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      get_client_contact_evidence: {
+        Args: {
+          p_client_ids?: string[];
+          p_contact_since?: string;
+          p_min_call_seconds: number;
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          agency_id: string;
+          client_id: string;
+          client_name: string;
+          client_since: string;
+          last_contact_at: string;
+          last_log_at: string;
+          unlogged_call_at: string;
+          unlogged_call_id: string;
+          unlogged_call_resolution: string;
+          unlogged_call_seconds: number;
+          unlogged_call_user_id: string;
+          unlogged_call_user_name: string;
+          unlogged_meeting_at: string;
+          unlogged_meeting_id: string;
+          unlogged_meeting_key: string;
+          unlogged_meeting_source: string;
+          unlogged_meeting_summary: string;
+        }[];
+      };
       get_client_group_digest_messages: {
         Args: {
           p_client_ids?: string[];
@@ -16757,6 +16850,34 @@ export type Database = {
         }[];
       };
       get_client_tenant_id: { Args: { _client_id: string }; Returns: string };
+      get_client_thread_activity: {
+        Args: {
+          p_after_thread_key?: string;
+          p_client_ids?: string[];
+          p_collector: string;
+          p_connection_user_ids: string[];
+          p_per_thread?: number;
+          p_person_send_kinds: string[];
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          client_tenant_id: string;
+          created_at: string;
+          direction: string;
+          group_id: string;
+          message_id: string;
+          message_text: string;
+          sender_lid_unmapped: boolean;
+          sender_match_key: string;
+          sent_by_user_id: string;
+          thread_key: string;
+          thread_kind: string;
+        }[];
+      };
       get_cron_job_history: {
         Args: { p_jobid: number; p_limit?: number };
         Returns: {
@@ -16927,6 +17048,24 @@ export type Database = {
               wid: string;
             }[];
           };
+      get_unlinked_client_groups: {
+        Args: {
+          p_connection_user_ids: string[];
+          p_min_messages?: number;
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          group_chat_id: string;
+          group_id: string;
+          group_name: string;
+          last_message_at: string;
+          message_count: number;
+        }[];
+      };
       get_user_agency_ids: { Args: { _user_id: string }; Returns: string[] };
       get_user_campaigner_id: { Args: { _user_id: string }; Returns: string };
       get_user_client_ids: { Args: { _user_id: string }; Returns: string[] };

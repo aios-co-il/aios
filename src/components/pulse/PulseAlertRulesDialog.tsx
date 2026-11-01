@@ -19,6 +19,7 @@ import {
 } from "@/lib/pulseAlertRules";
 import { PulseCostRulesSection } from "@/components/pulse/PulseCostRulesSection";
 import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
+import { UnansweredReplyHoursField } from "./UnansweredReplyHoursField";
 import { ManagerModeSection } from "./manager-round/ManagerModeSection";
 import { useManagerSettingsDraft } from "./manager-round/useManagerSettingsDraft";
 
@@ -107,6 +108,8 @@ export function PulseAlertRulesDialog({
               />
             </div>
           </div>
+
+          <UnansweredReplyHoursField rules={rules} onChange={setRules} />
 
           <div className="rounded-lg border p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">

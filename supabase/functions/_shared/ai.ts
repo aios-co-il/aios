@@ -140,7 +140,6 @@ export async function aiEmbedBatch(
   }
 }
 
-/** Single-prompt chat completion → raw assistant string, or null. */
 /* ---------- Usage metering (additive, best-effort) ----------
    Every helper logs its OpenAI usage to ai_usage_log so the Command Center
    can show consumption and fire budget alerts. Failures are swallowed —
@@ -191,6 +190,7 @@ export function logAiUsage(row: {
   }
 }
 
+/** Single-prompt chat completion → raw assistant string, or null. */
 export async function aiChat(
   prompt: string,
   opts?: {

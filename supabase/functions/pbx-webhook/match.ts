@@ -1,6 +1,6 @@
 // Finds the call log and the lead (or client) an incoming PBX event belongs to.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import type { PbxEvent } from "../_shared/telephony/types.ts";
+import type { CallerResolution, PbxEvent } from "../_shared/telephony/types.ts";
 import { leadPhoneCandidates } from "./event.ts";
 
 export type CallLogRow = {
@@ -10,10 +10,12 @@ export type CallLogRow = {
   status: string;
   recording_url: string | null;
   recording_path: string | null;
+  caller_resolution: CallerResolution | null;
 };
 export type Owner = { leadId: string | null; clientId: string | null };
 
-const COLUMNS = "id, lead_id, client_id, status, recording_url, recording_path";
+const COLUMNS =
+  "id, lead_id, client_id, status, recording_url, recording_path, caller_resolution";
 // PBXs send the recording and final status minutes after the call; a later
 // event for the same owner belongs to a new call.
 const MATCH_WINDOW_MS = 3 * 60 * 60 * 1000;

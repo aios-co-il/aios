@@ -6,6 +6,7 @@ import {
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { FindingCandidate } from "../collectors/types.ts";
 import { throwIf } from "../../_shared/manager-round/db-error.ts";
+import { type ResolveFindings, resolveFindings } from "./resolve.ts";
 import {
   FINDING_COLUMNS,
   type FindingRow,
@@ -29,6 +30,7 @@ export type FindingsStore = {
     collector: { id: string; detectorVersion: string },
     candidates: FindingCandidate[],
   ): Promise<UpsertOutcome[]>;
+  resolve: ResolveFindings;
   /** Counts a miss for live findings in scope; returns how many were auto-cleared. */
   markMissing(
     tenantId: string,
@@ -84,6 +86,8 @@ export function createFindingsStore(db: DbClient): FindingsStore {
         return { ...row, outcome: row.outcome };
       });
     },
+
+    resolve: resolveFindings(db),
 
     async markMissing(tenantId, roundId, scope) {
       const { data, error } = await db.rpc("carmen_finding_mark_missing", {
