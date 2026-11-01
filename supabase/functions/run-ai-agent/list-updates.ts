@@ -1,5 +1,6 @@
-// Carmen's list_updates tool (AIO-232): a client's card entries or a lead's
-// updates, both only inside the caller's tenants.
+// Carmen's list_updates tool (AIO-232): the card entries of a client whose
+// card the caller's tenant may read, from every org that writes on it, or the
+// updates of a lead inside the caller's tenants.
 
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { listClientCardEntries } from "./client-card-list.ts";
@@ -7,6 +8,7 @@ import { listClientCardEntries } from "./client-card-list.ts";
 interface ListUpdatesInput {
   entityType: unknown;
   entityId: string;
+  tenantId: string;
   accessibleTenantIds: string[];
   limit?: number;
 }
@@ -19,6 +21,7 @@ export async function listUpdates(
   if (input.entityType === "client") {
     return await listClientCardEntries(supabase, {
       clientId: input.entityId,
+      tenantId: input.tenantId,
       accessibleTenantIds: input.accessibleTenantIds,
       limit: input.limit,
     });

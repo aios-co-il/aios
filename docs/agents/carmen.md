@@ -22,13 +22,19 @@ Hard rules for every agent:
 
 Approved phones stay on `carmen_whatsapp_identities` / `carmen_access_policies.private_phones`. Approved groups stay on `allowed_group_ids` (Manus only) and take their client and agency from `carmen_client_group_access`. Carmen introduces herself as the digital marketing manager of that agency. Group verification reuses `wa_pending_activations.group_chat_id`: the code is sent privately and typed in the group. `relationship_note` is tone only and does not grant access.
 
+## Chat tools scope (get_chat_history, search_conversation_history, get_recent_inbound_messages)
+
+- `run-ai-agent` reads `chat_messages` with the service role and scopes it itself (`run-ai-agent/chat-scope/`), from the verified caller and the WhatsApp chat of the turn, never from tool args.
+- owner/super_admin in this tenant (or a global role) read every chat. A group turn by anyone else reads only that group. Other staff read the client/lead threads they are responsible for plus their own private chat with Carmen. Unknown senders and runs with no user read nothing.
+- `green_api` rows follow the Chat page rule: `chat_allowed_connection_user_ids` = `get_chat_contacts` (own, org-wide and shared lines).
+
 ## AI providers (replacing the former Lovable AI gateway)
 
 We use the org's own connected models. Standardized helper: `supabase/functions/_shared/ai.ts`.
 
 - **Chat / extraction:** OpenAI `gpt-4o-mini` (via `OPENAI_API_KEY` secret), endpoint `api.openai.com/v1/chat/completions`.
 - **Embeddings:** OpenAI `text-embedding-3-small`, **1536 dims** — must match the `summary_embedding` vector columns on `carmen_memory_pointers` / `agent_memory`.
-- **Image gen:** OpenAI Images `gpt-image-1` (`/v1/images/generations`, returns base64 PNG).
+- **Image gen:** OpenAI Images `gpt-image-2.5-sunburst` (`gpt-image-1` was shut down on 2026-10-23) (`/v1/images/generations`, returns base64 PNG).
 - Per-tenant LLM keys for the main agent live in the `llm` row of `tenant_integrations` (see `resolveLLMTarget` in `run-ai-agent`).
 - **Transcription:** OpenAI Whisper (`whisper-1`). **TTS:** OpenAI (`gpt-4o-mini-tts`). Helpers `aiTranscribe`/`aiSpeak` in `_shared/ai.ts`.
 - **Telegram:** direct Telegram Bot API via the `TELEGRAM_BOT_TOKEN` secret (no connector).
@@ -43,7 +49,8 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - Keys live in Vault. Only the service role can call `carmen_brain_secret_set/get/delete`; browsers see `key_last4` only. Shared presets, validation and types: `_shared/carmen/brain-connections/` (one file per topic, imported directly by the UI).
 - A member with a `brain_access` row gets a new brain only after a manager grants its slug in הרשאות.
 - **"נתב חכם"** (route `smart`, seeded hidden, `config.router = "free_first"`): runs Carmen's loop on the connected brains marked `tier: "free"` and `client_data_ok` that the user could pick themselves (switch on, slug granted in הרשאות), in creation order; any failure (rate limit, request too large, auth, 5xx) moves to the next one, then to Carmen's own engine when the user holds the `internal` grant (`planBrainEngine`). With no eligible free brain it uses Carmen's own engine, or says why. Image attachments go straight to Carmen's own engine. A paid brain never runs automatically: there is no budget ledger yet (`cost.ts` / `budget-reservation.ts` are not wired, AIO-211). The reply stays on the `smart` thread. Code: `_shared/agent-channel/smart-router.ts`, `_shared/carmen/brain-engine/`.
-- **OpenRouter for media:** when the tenant has an OpenRouter brain with a key, Carmen's `generate_ad_image` uses OpenRouter's Image API (`google/gemini-3.1-flash-image`) and falls back to OpenAI `gpt-image-1`. The Video Studio offers OpenRouter as a scene engine (render worker `openrouter` provider). Code: `_shared/creative/openrouterImage.ts`, `render-worker/src/providers/openrouter.mjs`.
+- **OpenRouter as Carmen's last link:** when Carmen's own engine runs out of provider keys (missing, or refused with 401/402/403/429/quota), her loop continues on the tenant's OpenRouter brain, under the same rules as the smart router: marked `tier: "free"` and `client_data_ok`, active route, and the user's grant for it. A paid OpenRouter brain is never appended. Code: `_shared/carmen/brain-engine/openrouter-tail.ts`.
+- **OpenRouter for media:** when the tenant has an OpenRouter brain with a key, Carmen's `generate_ad_image` uses OpenRouter's Image API (`google/gemini-3.1-flash-image`) and falls back to OpenAI `gpt-image-2.5-sunburst`. The Video Studio offers OpenRouter as a scene engine (render worker `openrouter` provider). Code: `_shared/creative/openrouterImage.ts`, `render-worker/src/providers/openrouter.mjs`.
 
 ## Carmen memory architecture
 
@@ -70,15 +77,18 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 ## Client card writes (`client_updates`)
 
-- Every server-side write goes through `recordClientCardEntry` (`supabase/functions/_shared/client-card/entry.ts`), which calls the service-role RPC `record_client_card_entry`: it checks the tenant, dedupes on `source_ref` and attributes the row to a person. Browser writes follow the RLS in `20261026126000_client_card_provenance.sql`.
+- Every server-side write goes through `recordClientCardEntry` (`supabase/functions/_shared/client-card/entry.ts`), which calls the service-role RPC `record_client_card_entry`: it checks the tenant with `tenant_can_write_client` (the tenant's own client, or one of an agency shared with it `read_write`), dedupes on `source_ref` and attributes the row to a person. Browser writes follow the RLS in `20261030092000_client_card_provenance.sql`.
 - `source` says who wrote a row. The vocabulary, chip labels and the sources that may count as contact live in `_shared/client-card/sources.ts`; the pulse counts contact in `get_latest_client_call_updates`.
 - Carmen's `add_client_update` logs a call or meeting only for a person talking to her right now, on their behalf (`run-ai-agent/client-card-contact-policy.ts`); other runs get `human_requester_required`.
+- One card per client: whoever can see a client reads every entry on it, whichever org wrote it (the `client_updates` SELECT policy), so a browser insert is written as the signed-in user and an insert or edit keeps the row on a client the writer can see. Entries no person wrote are edited or deleted only by owners of the org that wrote them.
+- Carmen's `list_updates` (`run-ai-agent/client-card-list.ts`) reads a card only when the client belongs to the caller's tenant or its agency is shared with that tenant in `agency_tenant_access`; `accessibleTenantIds` alone also covers agencies that were never shared.
+- `update_client_health` and `batch_update_client_health` write the health status first, and fail without writing when `tenant_can_write_client` is false, so a `read_only` share never changes it (`setClientMoodStatus`). Their card entry is best-effort (`recordHealthCardEntryAfterUpdate`): any failed card write comes back as `card_entry_error` on a successful result, and the tool descriptions tell Carmen to say the card entry was not written.
 
 ## Carmen → Cursor bridge (preferred escalation for complex work)
 
 - Carmen talks to **Cursor Cloud Agents** over MCP via the `cursor-mcp` edge function. It exposes `request_dev_task` + `ask_cursor`, and each call creates a real Cloud Agent via `POST https://api.cursor.com/v1/agents`. See `supabase/functions/cursor-mcp/README.md`.
 - Required secrets: `CURSOR_API_KEY`, `CURSOR_MCP_BEARER`. Recommended: `CURSOR_CLOUD_ENV_NAME` (same environment David uses).
-- Same teach / keep-David-updated / fix-on-fail loop as Claude. Completion WhatsApp still uses `claude_notify_david`. Dispatches logged in `cursor_dispatches`.
+- Same teach / keep-David-updated loop and send rule as Claude (below). Completion WhatsApp still uses `claude_notify_david`. Dispatches logged in `cursor_dispatches`.
 - Frontend: MCP Connections preset **Cursor**; Profile → Escalation agent can be set to `cursor`.
 - **Grok Bot** (`grok-mcp`): preset **Grok Bot** in MCP Connections, bearer `GROK_MCP_BEARER` (falls back to `CURSOR_MCP_BEARER`). Tools: `mcp_Grok__request_dev_task` / `mcp_Grok__ask_grok`. Profile → Escalation agent can be set to `grok`. **Preferred:** POST to David's Grok Bot Cursor Automation webhook (`GROK_BOT_WEBHOOK_URL` + `GROK_BOT_WEBHOOK_KEY`, body `{task, context}`); Grok replies via `carmen-mcp` / `ask_carmen`. **Fallback:** Cursor Cloud Agents API (`GROK_MODEL_ID`, default `cursor-grok-4.6-high-fast`). Dispatches logged in `grok_dispatches`.
 - **Grok Bot → Carmen** is the reverse bridge (`carmen-mcp`): Grok Bot Settings → Plugins → custom MCP → the Staging/Production `carmen-mcp` URL (`<configured-outside-git>`) with bearer `CARMEN_MCP_BEARER`. Tool: `ask_carmen`. Dispatches logged in `carmen_mcp_dispatches`. See `supabase/functions/carmen-mcp/README.md`.
@@ -104,8 +114,9 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 ## Carmen → Claude bridge (legacy / alternate)
 
 - Carmen talks to Claude over MCP via the `claude-mcp` edge function (an MCP server). It exposes `request_dev_task` + `ask_claude`, and each call fires a real Claude Code on the web session via the Routines `/fire` API. See `supabase/functions/claude-mcp/README.md`.
-- When Carmen can't do something herself, she can escalate to Claude (always-on instruction in `ai_memory` + the `claude_escalation` skin) or to Cursor (`cursor_escalation`). The request also asks the coding agent to **teach Carmen**: write a reusable skin into `ai_skills` (`scope='tenant'`, `created_by_agent=true`) so she's independent next time.
-- The request carries two loop rules (mirrored in Carmen's instruction/skin): **keep David updated** — Carmen tells David at hand-off (with the session link) and again with a summary when the result/PR lands; and **fix-on-fail** — if a capability Carmen already learned fails in practice, she reports the exact error back (`request_dev_task`), the coding agent fixes the skin/code, and she retries.
+- When Carmen can't do something herself, she offers a dev task for Claude (always-on instruction in `ai_memory` + the `claude_escalation` skin) or Cursor (`cursor_escalation`). The request also asks the coding agent to **teach Carmen**: write a reusable skin into `ai_skills` (`scope='tenant'`, `created_by_agent=true`) so she's independent next time.
+- **A person sends every task** (`_shared/dev-task-approval.ts`). In an AIOS chat Carmen offers it and sends it after the user's yes in a later message. On WhatsApp or in an automation she opens it (`create_dev_task`), and a person sends it from the Command Center (`dev-task-center`, allowed dev tiers only). The rule covers every tool that starts a coding agent (Cursor, Claude, Grok, Manus, the GitHub agent, the Cursor task queue); a reply into a session already sent goes straight through.
+- **Keep David updated:** Carmen tells David at hand-off (with the session link) and again with a summary when the result/PR lands. When a capability she learned fails in practice, she reports the exact error and offers a fix task, sent the same way.
 - **Guaranteed update channel:** when a coding-agent session finishes a Carmen-delegated task, it pushes a WhatsApp update straight to David by running `select public.claude_notify_david('<message>', '<tenant_id>'::uuid);` via its Supabase connector. That SECURITY DEFINER function reads the shared bearer from Vault and calls the `claude-notify` edge function, which sends from the tenant's primary Carmen line (see Carmen's outbound lines below), independent of any live Carmen session.
 
 ## Safety rules for autonomous fixes (Carmen → Claude)

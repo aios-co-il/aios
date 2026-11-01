@@ -6,11 +6,16 @@ import { isRecord } from "./is-record.ts";
 import {
   buildSyncOutcome,
   isWriteSuccess,
+  nextFailedStreak,
   settingsMirrorOutcome,
   type SyncOutcome,
 } from "./outcome.ts";
 import { redactSyncError } from "./redact.ts";
-import type { SyncDbClient } from "./write-window.ts";
+import {
+  asSyncDbClient,
+  type SyncClient,
+  type SyncDbClient,
+} from "./write-window.ts";
 
 /** The crm_tables row a run belongs to; every read and write is scoped to its tenant. */
 export type SyncRunTable = { tableId: string; tenantId: string };
@@ -30,6 +35,10 @@ type SaveOptions = {
  * - `last_sync_attempt_at` / `last_sync_outcome` are recorded on every run (column
  *   + settings mirror). A catch-up chunk records only a failure: the refresh run
  *   that follows owns the outcome.
+ * - `sync_failed_streak` (settings) counts runs in a row that did not write, read
+ *   from the latest settings and reset by a write; the pulse alerts on two
+ *   (freshness.ts hasRepeatedSyncFailures). A catch-up chunk does not count: it
+ *   runs in the same invocation as the refresh run that follows it.
  * - The error text goes to the column only, redacted: the settings mirror has no
  *   `error`, because the public share-link endpoints return the settings verbatim.
  * - `settingsPatch` is merged into the latest settings, not the copy the run
@@ -37,10 +46,11 @@ type SaveOptions = {
  *   etc.); the read-modify-write is not atomic.
  */
 export async function saveSyncRun(
-  client: SyncDbClient,
+  syncClient: SyncClient,
   table: SyncRunTable,
   opts: SaveOptions,
 ): Promise<{ lastSyncAt: string | null; recorded: boolean }> {
+  const client = asSyncDbClient(syncClient);
   const outcome: SyncOutcome = opts.outcome.error
     ? { ...opts.outcome, error: redactSyncError(opts.outcome.error) }
     : opts.outcome;
@@ -56,9 +66,19 @@ export async function saveSyncRun(
     patch.last_sync_outcome = settingsMirrorOutcome(outcome);
   }
 
+  const countRun = record && !opts.catchup;
   if (Object.keys(patch).length > 0) {
     await mergeSettings(client, table, {
-      patch,
+      patch: (current) =>
+        countRun
+          ? {
+              ...patch,
+              sync_failed_streak: nextFailedStreak(
+                current.sync_failed_streak,
+                outcome.status,
+              ),
+            }
+          : patch,
       stampAt: stamp ? outcome.at : null,
       fallbackSettings: opts.fallbackSettings,
       log,
@@ -87,7 +107,7 @@ export async function saveSyncRun(
  * record is logged, so the caller's error response still goes out.
  */
 export function failedRunRecorder(
-  client: SyncDbClient,
+  client: SyncClient,
   run: SyncRunTable & {
     source: string;
     catchup?: boolean;
@@ -122,7 +142,8 @@ async function mergeSettings(
   client: SyncDbClient,
   table: SyncRunTable,
   input: {
-    patch: Record<string, unknown>;
+    /** The keys to write, built from the latest stored settings. */
+    patch: (current: Record<string, unknown>) => Record<string, unknown>;
     stampAt: string | null;
     fallbackSettings?: Record<string, unknown> | null;
     log: (message: string) => void;
@@ -144,7 +165,7 @@ async function mergeSettings(
   const { error } = await client
     .from("crm_tables")
     .update({
-      integration_settings: { ...current, ...input.patch },
+      integration_settings: { ...current, ...input.patch(current) },
       ...(input.stampAt ? { last_sync_at: input.stampAt } : {}),
     })
     .eq("id", table.tableId)

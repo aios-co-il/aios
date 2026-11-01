@@ -9,7 +9,7 @@ import {
   resolveCampaignDeliveryStatus,
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
-import { syncOutcomeProblem } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
+import { hasRepeatedSyncFailures } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
 import {
   isLegacyClientCallFlag,
   stripLegacyClientCallFlag,
@@ -531,10 +531,15 @@ function isUnknownDelivery(status: string | null | undefined): boolean {
   return !status || status === "unknown" || status === "other";
 }
 
-/** Rollup status reflects confirmed-active campaigns only — never flash red on unknown/paused. */
+/**
+ * Rollup status reflects confirmed-active campaigns only — never flash red on
+ * unknown/paused. The rows come from active report tables only, so every
+ * campaign paused is a warning unless another campaign of the client on the
+ * same platform is live (`liveElsewhere`).
+ */
 export function rollupStatusFromCampaigns(
   campaigns: CampaignRowWithDelivery[],
-  options: { deliveryHintsPending?: boolean } = {},
+  options: { deliveryHintsPending?: boolean; liveElsewhere?: boolean } = {},
 ): {
   status: PulseStatus;
   status_reason: string;
@@ -568,13 +573,22 @@ export function rollupStatusFromCampaigns(
   }
 
   if (pausedOrRemoved.length) {
-    return {
-      status: "healthy",
-      status_reason:
-        unknown.length && options.deliveryHintsPending
-          ? "מאמתים סטטוס — הקמפיינים הפעילים מושהים"
-          : "כל הקמפיינים מושהים — אין הוצאה פעילה שדורשת טיפול",
-    };
+    if (unknown.length && options.deliveryHintsPending) {
+      return {
+        status: "healthy",
+        status_reason: "מאמתים סטטוס — הקמפיינים הפעילים מושהים",
+      };
+    }
+    return options.liveElsewhere
+      ? {
+          status: "healthy",
+          status_reason: "הקמפיינים כאן מושהים — קמפיין אחר של הלקוח באוויר",
+        }
+      : {
+          status: "warning",
+          status_reason:
+            "כל הקמפיינים מושהים והדוח פעיל — אם הלקוח הושהה, לסמן את הדוח כלא פעיל",
+        };
   }
 
   if (unknown.length) {
@@ -646,6 +660,16 @@ export function rollupCampaignRowsByClientGoal(input: {
     groups.set(key, list);
   }
 
+  // Client + platform pairs with a live campaign in any goal: a paused goal
+  // beside them is not a "nothing live" warning.
+  const liveClientPlatforms = new Set(
+    input.campaignRows
+      .filter(
+        (row) => row.goal !== "unknown" && row.delivery_status === "active",
+      )
+      .map((row) => `${row.client_id}:${row.platform}`),
+  );
+
   const rollups: PulseClientGoalRollup[] = [];
   for (const [key, campaigns] of groups) {
     const parts = key.split(":");
@@ -687,6 +711,7 @@ export function rollupCampaignRowsByClientGoal(input: {
       campaigns,
       {
         deliveryHintsPending: hintsPending,
+        liveElsewhere: liveClientPlatforms.has(`${client_id}:${platform}`),
       },
     );
     const flags = Array.from(
@@ -903,7 +928,6 @@ export type PulseCampaignTable = {
   category?: string | null;
   campaign_active?: boolean | null;
   last_sync_at?: string | null;
-  last_sync_outcome?: unknown;
   integration_settings?: Record<string, unknown> | null;
 };
 
@@ -971,11 +995,9 @@ function resolveLastSyncAt(table: PulseCampaignTable): string | null {
   )[0];
 }
 
-/** Same rule as the snapshot: an empty or failed latest run is stale too. */
+/** Same rule as the snapshot (campaign-pulse.ts isSyncStale). */
 function isSyncStale(table: PulseCampaignTable, nowMs = Date.now()): boolean {
-  if (syncOutcomeProblem(table)) {
-    return true;
-  }
+  if (hasRepeatedSyncFailures(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();

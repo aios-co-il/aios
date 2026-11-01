@@ -50,16 +50,25 @@ export function matchesClientUpdateSourceFilter(
 
 /**
  * Who may edit or delete a card entry in the browser (same rule as RLS): a
- * person's own note, or any automatic entry for tenant and agency owners.
+ * person's own note, or an automatic entry that the current tenant wrote, for
+ * that tenant's owners and agency owners. The card also shows entries another
+ * org wrote on a shared client; RLS checks the writer's tenant, so they stay
+ * read-only here.
  */
 export function canModifyClientUpdate(input: {
   source: string | null | undefined;
   rowUserId: string | null | undefined;
   currentUserId: string | null | undefined;
+  rowTenantId: string | null | undefined;
+  currentTenantId: string | null | undefined;
   canManageAutomaticEntries: boolean;
 }): boolean {
   if (isHumanClientCardSource(input.source)) {
     return !!input.currentUserId && input.currentUserId === input.rowUserId;
   }
-  return input.canManageAutomaticEntries;
+  return (
+    input.canManageAutomaticEntries &&
+    !!input.currentTenantId &&
+    input.currentTenantId === input.rowTenantId
+  );
 }

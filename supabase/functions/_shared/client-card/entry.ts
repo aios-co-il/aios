@@ -4,7 +4,6 @@
 
 import { asUuidOrNull } from "../uuid.mjs";
 import type { Database } from "../database.types.ts";
-import type { DbClient } from "../supabase-clients.ts";
 import {
   clientCardSourceCanCountAsContact,
   isClientCardSource,
@@ -24,13 +23,27 @@ type RecordClientCardEntry =
 type RecordClientCardEntryRow = RecordClientCardEntry["Returns"][number];
 
 /**
+ * The one call recordClientCardEntry makes. DbClient fits it, and so does a
+ * test fake, which cannot build supabase-js's query builder without a cast.
+ */
+export type ClientCardEntryRpc = {
+  rpc(
+    fn: typeof RECORD_CLIENT_CARD_ENTRY_RPC,
+    args: RecordClientCardEntry["Args"],
+  ): PromiseLike<{
+    data: RecordClientCardEntry["Returns"] | null;
+    error: { code: string; message: string } | null;
+  }>;
+};
+
+/**
  * Write one client card entry. Every server-side write to client_updates goes
  * through record_client_card_entry, which checks the tenant, dedupes on
  * (client, source, source_ref) and attributes the row to a real person: the
  * named person, else the client's active campaigner, else the tenant owner.
  */
 export async function recordClientCardEntry(
-  supabase: Pick<DbClient, "rpc">,
+  supabase: ClientCardEntryRpc,
   input: ClientCardEntryInput,
 ): Promise<ClientCardEntryResult> {
   const args = buildRecordClientCardEntryArgs(input);

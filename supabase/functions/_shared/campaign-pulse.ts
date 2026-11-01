@@ -3,7 +3,7 @@
  * Shared by campaign-pulse-snapshot (and unit-tested) so connected clients with
  * stale sync are never collapsed into no_data.
  */
-import { syncOutcomeProblem } from "./ads-sync/freshness.ts";
+import { hasRepeatedSyncFailures } from "./ads-sync/freshness.ts";
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   isLegacyClientCallFlag,
@@ -39,8 +39,6 @@ export type CampaignTableLike = {
   category?: string | null;
   campaign_active?: boolean | null;
   last_sync_at?: string | null;
-  /** Latest run's outcome (also mirrored in integration_settings), see ads-sync/outcome.ts. */
-  last_sync_outcome?: unknown;
   integration_settings?: Record<string, unknown> | null;
 };
 
@@ -57,17 +55,17 @@ export function resolveLastSyncAt(table: CampaignTableLike): string | null {
 }
 
 /**
- * Stale = no successful write within `staleMs`, or the latest run came back empty
- * or failed (its stored rows were not refreshed, whatever last_sync_at says).
+ * Stale = the last two runs in a row failed or came back empty (the morning sync
+ * and the next one), or no successful write within `staleMs` (the syncs stopped
+ * running). One failed run alone is not stale, so a transient platform error (a
+ * rate limit) raises no connection alert; the report pages show it at once.
  */
 export function isSyncStale(
   table: CampaignTableLike,
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
-  if (syncOutcomeProblem(table)) {
-    return true;
-  }
+  if (hasRepeatedSyncFailures(table)) return true;
   const lastSync = resolveLastSyncAt(table);
   if (!lastSync) return true;
   const ts = new Date(lastSync).getTime();
@@ -178,6 +176,9 @@ export function buildHealthWhatsAppDigest(input: {
 const ALERT_TYPE_LABELS: Record<string, string> = {
   campaign_stopped: "קמפיין נעצר",
   ad_disapproved: "מודעה נדחתה",
+  account_disabled: "חשבון הפרסום הושבת או הוגבל",
+  ad_account_billing_issue: "בעיית חיוב בחשבון הפרסום",
+  no_live_ads: "אין מודעה באוויר",
   campaign_with_issues: "תקלה בקמפיין",
   cpl_spike: "CPL חורג",
 };
@@ -608,7 +609,8 @@ export function computeGoalMetricsFromRecords(
   const prevSpend = sumRecordFields(previous, ["spend", "cost"]);
 
   if (goal === "ecommerce") {
-    const purchases = sumRecordFields(current, ["purchases"]);
+    // Google Ads rows report purchases as `conversions`.
+    const purchases = sumRecordFields(current, ["purchases", "conversions"]);
     const revenue = sumRecordFields(current, [
       "purchase_value",
       "conversions_value",

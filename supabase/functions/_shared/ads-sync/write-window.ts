@@ -34,7 +34,25 @@ type TableApi = {
 };
 export type SyncDbClient = { from(table: string): TableApi };
 
+/**
+ * A client as callers pass it: supabase-js or a test fake. The entry points
+ * take this and narrow it with asSyncDbClient, because checking a whole
+ * supabase-js client against SyncDbClient exceeds TypeScript's instantiation
+ * depth (TS2589).
+ */
+export type SyncClient = { from(table: string): unknown };
+
+/** The duck-typed view the helpers use; `from` returns the PostgREST builder. */
+export function asSyncDbClient(client: SyncClient): SyncDbClient {
+  return client as SyncDbClient;
+}
+
 type WindowClients = {
+  deleteClient: SyncClient;
+  insertClient?: SyncClient;
+};
+
+type DbClients = {
   deleteClient: SyncDbClient;
   insertClient?: SyncDbClient;
 };
@@ -59,13 +77,17 @@ export async function syncAdsWindow(
     at?: string;
   },
 ): Promise<SyncOutcome> {
-  const plan = await confirmEmptyPlan(clients.deleteClient, {
+  const db: DbClients = {
+    deleteClient: asSyncDbClient(clients.deleteClient),
+    insertClient: clients.insertClient && asSyncDbClient(clients.insertClient),
+  };
+  const plan = await confirmEmptyPlan(db.deleteClient, {
     tableId: input.tableId,
     window: input.window,
     plan: planLevelWrite(input),
   });
   const written = plan.write
-    ? await writeAdsWindow(clients, { ...input, levelsOk: plan.levelsOk })
+    ? await writeAdsWindow(db, { ...input, levelsOk: plan.levelsOk })
     : null;
   return finalizeSyncOutcome(plan, written, {
     source: input.source,
@@ -81,7 +103,7 @@ export async function syncAdsWindow(
  * swept, or they inflate the report totals forever.
  */
 export async function writeAdsWindow(
-  clients: WindowClients,
+  clients: DbClients,
   input: {
     tableId: string;
     tenantId: string;

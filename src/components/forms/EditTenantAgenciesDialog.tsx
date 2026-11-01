@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { requireTenantId } from "@/lib/requireTenantId";
+import { saveAgencyShares } from "./agencyShares";
 
 interface EditTenantAgenciesDialogProps {
   open: boolean;
@@ -75,28 +77,13 @@ export default function EditTenantAgenciesDialog({
   }, [existingAccess]);
 
   const mutation = useMutation({
-    mutationFn: async (agencyIds: string[]) => {
-      // מחיקת גישות קיימות
-      await supabase
-        .from("agency_tenant_access")
-        .delete()
-        .eq("source_tenant_id", currentTenantId)
-        .eq("accessing_tenant_id", tenant.id);
-
-      // הוספת גישות חדשות
-      if (agencyIds.length > 0) {
-        const { error } = await supabase.from("agency_tenant_access").insert(
-          agencyIds.map((agencyId) => ({
-            source_tenant_id: currentTenantId,
-            agency_id: agencyId,
-            accessing_tenant_id: tenant.id,
-            access_level: "read_write",
-          })),
-        );
-
-        if (error) throw error;
-      }
-    },
+    mutationFn: (agencyIds: string[]) =>
+      saveAgencyShares(supabase, {
+        sourceTenantId: requireTenantId(currentTenantId),
+        accessingTenantId: tenant.id,
+        saved: existingAccess ?? [],
+        picked: agencyIds,
+      }),
     onSuccess: () => {
       toast.success("הגישות לסוכנויות עודכנו בהצלחה");
       queryClient.invalidateQueries({

@@ -1,5 +1,5 @@
 /** Image model for storyboard stills. Nano Banana Pro keeps a recurring character steadier. */
-export type StillModel = "gpt-image-1" | "nano-banana-pro";
+export type StillModel = "gpt-image-2.5-sunburst" | "nano-banana-pro";
 
 export const getStillModel = (
   payload: Record<string, unknown> | null | undefined,
@@ -9,7 +9,9 @@ export const getStillModel = (
     video && typeof video === "object"
       ? (video as Record<string, unknown>).still_model
       : undefined;
-  return model === "nano-banana-pro" ? "nano-banana-pro" : "gpt-image-1";
+  return model === "nano-banana-pro"
+    ? "nano-banana-pro"
+    : "gpt-image-2.5-sunburst";
 };
 
 export const getCharacterRefUrl = (

@@ -1,3 +1,8 @@
+import {
+  metaObjectiveGoal,
+  type FacebookCampaignType,
+} from "./meta-ads/campaign-objectives.ts";
+
 // Shared Facebook Insights → CRM record logic.
 //
 // Both `sync-facebook-insights` (manual "sync now") and
@@ -55,7 +60,7 @@ export interface InsightRecord {
   roas: number;
   campaign_objective: string | null;
   optimization_goal: string | null;
-  campaign_type: "lead" | "ecommerce" | "traffic" | "other";
+  campaign_type: FacebookCampaignType;
   effective_status?: string | null;
   configured_status?: string | null;
   updated_time?: string | null;
@@ -613,9 +618,8 @@ export function buildInsightRecord(
   const _objectiveForLeads = String(
     _campaignStatusForLeads?.objective || "",
   ).toUpperCase();
-  const _isLeadFormObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    _objectiveForLeads,
-  );
+  const _isLeadFormObjective =
+    metaObjectiveGoal(_objectiveForLeads) === "leads";
   const _isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     _objectiveForLeads,
   );
@@ -785,14 +789,8 @@ export function buildInsightRecord(
 
   const campaignStatus = campaignStatuses[insight.campaign_id];
   const objective = String(campaignStatus?.objective || "").toUpperCase();
-  const isEcommerceObjective = [
-    "OUTCOME_SALES",
-    "PRODUCT_CATALOG_SALES",
-    "SALES",
-  ].includes(objective);
-  const isLeadObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    objective,
-  );
+  const isEcommerceObjective = metaObjectiveGoal(objective) === "ecommerce";
+  const isLeadObjective = metaObjectiveGoal(objective) === "leads";
   const isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     objective,
   );
@@ -876,7 +874,7 @@ export function buildInsightRecord(
   if (configuredMetric) {
     results = Math.max(
       0,
-      ...configuredMetric.actionTypes.map((type) => sumByTypes([type])),
+      ...configuredMetric.actionTypes.map((type: string) => sumByTypes([type])),
     );
     resultKind = configuredMetric.kind;
   }
@@ -924,7 +922,7 @@ export function buildInsightRecord(
       "link_clicks",
       "landing_page_views",
     ].includes(configuredMetric.kind);
-  const campaignType: "lead" | "ecommerce" | "traffic" | "other" =
+  const campaignType: FacebookCampaignType =
     isEcommerceObjective || configuredEcommerce
       ? "ecommerce"
       : isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized
