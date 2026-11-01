@@ -1,6 +1,6 @@
 // Classifies a send address with resolve_send_recipient, the one classifier
 // of send addresses, which the database owns
-// (supabase/migrations/20261030095000_client_send_guard.sql).
+// (supabase/migrations/20261101102700_client_send_guard.sql).
 import type { DbClient } from "../supabase-clients.ts";
 import { addressShape } from "./address.ts";
 import {
