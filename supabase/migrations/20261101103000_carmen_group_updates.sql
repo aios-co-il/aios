@@ -14,9 +14,9 @@
 --
 -- 1. get_client_group_digest_messages: the recent messages of every WhatsApp
 --    group linked to exactly one client whose card the tenant may write, as
---    stored by the lines the round passes (the tenant's Green API lines of an
---    owner or agency owner, or shared org-wide: collectors/group-updates/
---    lines.ts).
+--    stored by the lines the round passes: the same lines AIO-252's chat
+--    collector reads (collectors/chat/connections.ts: every member's own
+--    active Green API line and the org-shared ones).
 -- 2. carmen_finding_role_of: who may act on a finding, for any person. The
 --    findings feed's rule (carmen_finding_viewer_role, carmen_manager_is_owner,
 --    AIO-251) now reads it for auth.uid(), so the feed and the "אשר <code>"

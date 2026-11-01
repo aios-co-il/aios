@@ -4,7 +4,7 @@ import { loadStaffKeys } from "./staff-keys.ts";
 
 Deno.test("loadStaffKeys", async (t) => {
   await t.step(
-    "match keys of the tenant's and its agency partners' staff and lines",
+    "match keys of the tenant's and its agency partners' staff and lines, each with its tenant",
     async () => {
       const { db, calls } = recordingClient((call) => {
         switch (call.path) {
@@ -29,15 +29,35 @@ Deno.test("loadStaffKeys", async (t) => {
           case "campaigners":
             return [{ phone: "+972 53 333 3333", tenant_id: "t2" }];
           case "tenant_integrations":
-            return [
-              { settings: { phone_number: "972544444444" }, tenant_id: "t1" },
-              { settings: null, tenant_id: "t1" },
-            ];
+            // linePhones reads one tenant at a time.
+            return call.query.get("tenant_id") === "in.(t1)"
+              ? [
+                  {
+                    tenant_id: "t1",
+                    user_id: null,
+                    integration_type: "manus_wa",
+                    settings: { phone_number: "972544444444" },
+                  },
+                  {
+                    tenant_id: "t1",
+                    user_id: "u-camp",
+                    integration_type: "green_api",
+                    settings: null,
+                  },
+                ]
+              : [];
+          case "chat_messages":
+            // A campaigner's own Green line, numbered by its webhook rows.
+            return { wid: "972555555555@c.us" };
           default:
             return [];
         }
       });
-      const { keys, keyTenants, tenantsOf } = await loadStaffKeys(db, "t1");
+      const { keys, keyTenants, tenantsOf } = await loadStaffKeys(
+        db,
+        "t1",
+        new Date("2026-10-25T00:00:00Z"),
+      );
       assertEquals([...tenantsOf], [["u1", new Set(["t1"])]]);
       assertEquals(
         [...keyTenants].sort(([a], [b]) => a.localeCompare(b)),
@@ -45,6 +65,7 @@ Deno.test("loadStaffKeys", async (t) => {
           ["502222222", new Set(["t1"])],
           ["533333333", new Set(["t2"])],
           ["544444444", new Set(["t1"])],
+          ["555555555", new Set(["t1"])],
         ],
       );
       assertEquals(
@@ -53,6 +74,7 @@ Deno.test("loadStaffKeys", async (t) => {
           ["502222222", "u1"],
           ["533333333", null],
           ["544444444", null],
+          ["555555555", null],
         ],
       );
       const roles = calls.find((c) => c.path === "user_roles");
@@ -81,7 +103,11 @@ Deno.test("loadStaffKeys", async (t) => {
           return [];
       }
     });
-    const { keys } = await loadStaffKeys(db, "t1");
+    const { keys } = await loadStaffKeys(
+      db,
+      "t1",
+      new Date("2026-10-25T00:00:00Z"),
+    );
     assertEquals([...keys], [["502222222", null]]);
   });
 });

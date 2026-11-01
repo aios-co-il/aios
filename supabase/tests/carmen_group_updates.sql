@@ -107,7 +107,8 @@ BEGIN
     (v_reader, 'green_api', v_org_line, 'outbound', 'QA org reply', '972509990000', v_group, NULL,
       now() - interval '2 hours', jsonb_build_object('idMessage', 'qa4-' || v_tag,
         'senderData', jsonb_build_object('sender', '972509990000@c.us'))),
-    -- Never returned: a private line, too old, a direct chat, Carmen's Manus line.
+    -- Not in the first read: a line it does not pass (a member's own, read
+    -- below when passed), too old, a direct chat, Carmen's Manus line.
     (v_reader, 'green_api', v_private_line, 'inbound', 'QA PRIVATE', '972521111111', v_group, NULL,
       now() - interval '1 hour', jsonb_build_object('idMessage', 'qa5-' || v_tag)),
     (v_reader, 'green_api', v_line, 'inbound', 'QA TOO OLD', '972521111111', v_group, NULL,
@@ -172,6 +173,16 @@ BEGIN
       AND (m ->> 'typed_on_phone')::boolean
       AND m ->> 'line_user' = v_org_line::text) THEN
     RAISE EXCEPTION 'digest: a message typed on the line''s phone must say so';
+  END IF;
+
+  -- A member's own line (a campaigner's) is read when the round passes it;
+  -- the round picks the lines (chat/connections.ts), not this function.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_private_line], now() - interval '1 day', 'qa_group') AS r,
+         jsonb_array_elements(r.messages) AS m
+    WHERE r.group_id = v_group AND m ->> 'text' = 'QA PRIVATE') THEN
+    RAISE EXCEPTION 'digest: a campaigner''s own line must be read when passed';
   END IF;
 
   -- Manus stores a resolved author as the phone and an unresolved one as the LID.

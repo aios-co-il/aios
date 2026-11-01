@@ -5,9 +5,12 @@ import { recordingClient } from "../../tests/recording-client.ts";
 import type { CollectorContext } from "../types.ts";
 import { groupUpdateSources } from "./sources.ts";
 
-/** A context over a recording client. */
-function context(dryRun: boolean) {
-  const { db, calls } = recordingClient();
+/** A context over a recording client answering with `respond`. */
+function context(
+  dryRun: boolean,
+  respond?: Parameters<typeof recordingClient>[0],
+) {
+  const { db, calls } = recordingClient(respond);
   const ctx: CollectorContext = {
     tenantId: "t1",
     settings: resolveManagerSettings(null),
@@ -30,6 +33,27 @@ Deno.test("groupUpdateSources", async (t) => {
     assertEquals(groupUpdateSources(ctx).summarize.ask, null);
     assertEquals(calls, []);
   });
+
+  await t.step(
+    "reads the chat collector's lines: a campaigner's own line included",
+    async () => {
+      const { ctx } = context(false, ({ path }) => {
+        switch (path) {
+          case "tenant_integrations":
+            return [
+              { user_id: "u-camp", connection_visibility: "private" },
+              { user_id: "stranger", connection_visibility: "private" },
+              { user_id: "office", connection_visibility: "org" },
+            ];
+          case "user_roles":
+            return [{ user_id: "u-camp" }];
+          default:
+            return [];
+        }
+      });
+      assertEquals(await groupUpdateSources(ctx).lines(), ["u-camp", "office"]);
+    },
+  );
 
   await t.step("a scheduled run asks the model with no spend read", () => {
     const { ctx, calls } = context(false);

@@ -8,7 +8,7 @@ import type { Database, Json } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
-import { MONITORED_PROVIDER } from "./lines.ts";
+import { MONITORED_PROVIDER } from "../chat/activity.ts";
 
 type GroupRow =
   Database["public"]["Functions"]["get_client_group_digest_messages"]["Returns"][number];
@@ -44,7 +44,7 @@ export const PER_GROUP = 60;
 
 export type HistoryQuery = {
   tenantId: string;
-  /** chat_messages.connection_user_id of the monitored lines (lines.ts). */
+  /** chat_messages.connection_user_id of the monitored lines (chat/connections.ts). */
   connectionIds: string[];
   since: Date;
   clientIds: string[] | null;

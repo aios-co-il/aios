@@ -18,7 +18,7 @@ SELECT pg_size_pretty(pg_total_relation_size('public.chat_messages'));
 --     DESC) or idx_chat_messages_group.
 EXPLAIN SELECT m.id FROM public.chat_messages AS m
 WHERE m.tenant_id = '<tenant>' AND m.provider = 'green_api'
-  AND m.connection_user_id = ANY ('{<green line owner>}'::uuid[])
+  AND m.connection_user_id = ANY ('{<monitored line user>}'::uuid[])
   AND m.group_id = ANY ('{<linked whatsapp_groups.id>}'::uuid[])
   AND m.created_at > now() - interval '1 day' AND NOT m.is_blocked;
 

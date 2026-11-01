@@ -1,18 +1,18 @@
 /**
  * Who speaks for the agency in a client group: the phone match keys of the
  * people of the tenant and of the tenants it shares agencies with (logins
- * with a role, active campaigners, sales people) and of their Manus lines. A
+ * with a role, active campaigners, sales people) and of their own lines
+ * (Manus and Green API, chat/line-numbers.ts), each with its tenant. A
  * group message from one of these phones is a staff message even though it
  * reached the monitored line as inbound. Kept in memory for labelling, and
  * for naming the staff member who reported a call or meeting (contact.ts),
  * who must be a login of the client's own tenant.
  */
-import type { Json } from "../../../_shared/database.types.ts";
-import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { phoneMatchKey } from "../../../_shared/telephony/phone.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { profilePhone, profilesBy } from "../../recipients/profiles.ts";
+import { linePhones } from "../chat/line-numbers.ts";
 
 export type StaffKeys = {
   /**
@@ -30,10 +30,14 @@ export type StaffKeys = {
 /** One staff phone: its match key, its tenant and its login, if any. */
 type StaffPhone = { key: string; tenantId: string; userId: string | null };
 
-/** Phone match keys of the staff of the tenant and its agency partners. */
+/**
+ * Phone match keys of the staff of the tenant and its agency partners; a
+ * Green line's own number is the one its webhook rows report since `since`.
+ */
 export async function loadStaffKeys(
   db: DbClient,
   tenantId: string,
+  since: Date,
 ): Promise<StaffKeys> {
   const tenantIds = await relatedTenants(db, tenantId);
   const [roles, members, campaigners, sales, lines] = await Promise.all([
@@ -55,17 +59,12 @@ export async function loadStaffKeys(
       .select("phone, tenant_id")
       .in("tenant_id", tenantIds)
       .eq("active", true),
-    db
-      .from("tenant_integrations")
-      .select("settings, tenant_id")
-      .in("tenant_id", tenantIds)
-      .eq("integration_type", "manus_wa"),
+    Promise.all(tenantIds.map((tenant) => linePhones(db, [tenant], since))),
   ]);
   throwIf(roles.error, "user_roles");
   throwIf(members.error, "tenant_users");
   throwIf(campaigners.error, "campaigners");
   throwIf(sales.error, "sales_people");
-  throwIf(lines.error, "tenant_integrations");
   const tenantsOf = loginTenants([
     ...(roles.data ?? []),
     ...(members.data ?? []),
@@ -80,8 +79,8 @@ export async function loadStaffKeys(
     ...[...(campaigners.data ?? []), ...(sales.data ?? [])].flatMap((row) =>
       staffPhone(row.phone, row.tenant_id, null),
     ),
-    ...(lines.data ?? []).flatMap((row) =>
-      staffPhone(linePhone(row.settings), row.tenant_id, null),
+    ...tenantIds.flatMap((tenant, i) =>
+      lines[i].flatMap((phone) => staffPhone(phone, tenant, null)),
     ),
   ];
   return {
@@ -157,12 +156,4 @@ async function relatedTenants(
     row.accessing_tenant_id,
   ]);
   return [...new Set([tenantId, ...ids])];
-}
-
-/** The number a Manus line sends from (settings.phone_number). */
-function linePhone(settings: Json | null): string | null {
-  const phone = jsonObject(settings)?.phone_number;
-  return typeof phone === "string" || typeof phone === "number"
-    ? String(phone)
-    : null;
 }
