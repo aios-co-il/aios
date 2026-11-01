@@ -5400,6 +5400,79 @@ export type Database = {
         };
         Relationships: [];
       };
+      cursor_task_sessions: {
+        Row: {
+          app_env: string | null;
+          created_at: string;
+          cursor_agent_id: string;
+          dev_task_id: string | null;
+          display_name: string;
+          human_task_id: string | null;
+          id: string;
+          last_seen_at: string;
+          session_url: string | null;
+          source_tool: string;
+          status: string;
+          task_title: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          app_env?: string | null;
+          created_at?: string;
+          cursor_agent_id: string;
+          dev_task_id?: string | null;
+          display_name: string;
+          human_task_id?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          session_url?: string | null;
+          source_tool: string;
+          status?: string;
+          task_title?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          app_env?: string | null;
+          created_at?: string;
+          cursor_agent_id?: string;
+          dev_task_id?: string | null;
+          display_name?: string;
+          human_task_id?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          session_url?: string | null;
+          source_tool?: string;
+          status?: string;
+          task_title?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cursor_task_sessions_dev_task_id_fkey";
+            columns: ["dev_task_id"];
+            isOneToOne: false;
+            referencedRelation: "dev_tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cursor_task_sessions_human_task_id_fkey";
+            columns: ["human_task_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cursor_task_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       custom_fields: {
         Row: {
           created_at: string;
@@ -10751,6 +10824,7 @@ export type Database = {
           timezone: string;
           updated_at: string;
           whatsapp_group_id: string | null;
+          whatsapp_integration_id: string | null;
         };
         Insert: {
           channels?: string[];
@@ -10777,6 +10851,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Update: {
           channels?: string[];
@@ -10803,6 +10878,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Relationships: [
           {
@@ -10838,6 +10914,13 @@ export type Database = {
             columns: ["whatsapp_group_id"];
             isOneToOne: false;
             referencedRelation: "whatsapp_groups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "report_schedules_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
             referencedColumns: ["id"];
           },
         ];
@@ -12966,6 +13049,8 @@ export type Database = {
           completion_creator_notified_at: string | null;
           created_at: string;
           created_by: string | null;
+          cursor_session_id: string | null;
+          cursor_session_url: string | null;
           due_date: string | null;
           due_time: string | null;
           duration_minutes: number | null;
@@ -13007,6 +13092,8 @@ export type Database = {
           completion_creator_notified_at?: string | null;
           created_at?: string;
           created_by?: string | null;
+          cursor_session_id?: string | null;
+          cursor_session_url?: string | null;
           due_date?: string | null;
           due_time?: string | null;
           duration_minutes?: number | null;
@@ -13048,6 +13135,8 @@ export type Database = {
           completion_creator_notified_at?: string | null;
           created_at?: string;
           created_by?: string | null;
+          cursor_session_id?: string | null;
+          cursor_session_url?: string | null;
           due_date?: string | null;
           due_time?: string | null;
           duration_minutes?: number | null;
@@ -13993,6 +14082,42 @@ export type Database = {
           window_start?: string;
         };
         Relationships: [];
+      };
+      tenant_report_settings: {
+        Row: {
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp_integration_id: string | null;
+        };
+        Insert: {
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Update: {
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_report_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tenant_report_settings_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tenant_settings: {
         Row: {
@@ -15744,6 +15869,10 @@ export type Database = {
         Args: { _tenant_id: string };
         Returns: boolean;
       };
+      can_manage_report_settings: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: boolean;
+      };
       can_manage_user_permissions: {
         Args: { target_user_id: string };
         Returns: boolean;
@@ -16382,6 +16511,25 @@ export type Database = {
         };
         Returns: string;
       };
+      list_report_whatsapp_senders: {
+        Args: { p_tenant_id: string; p_user_id?: string };
+        Returns: {
+          caller_can_manage: boolean;
+          carmen_role: string;
+          display_name: string;
+          group_chat_ids: string[];
+          id: string;
+          integration_type: string;
+          is_shared: boolean;
+          last4: string;
+          org_wide: boolean;
+          owner_name: string;
+          owner_tenant_id: string;
+          owner_tenant_name: string;
+          owner_user_id: string;
+          ready: boolean;
+        }[];
+      };
       list_system_cron_jobs: {
         Args: never;
         Returns: {
@@ -16699,6 +16847,14 @@ export type Database = {
         Args: { p_destination_key: string };
         Returns: undefined;
       };
+      report_whatsapp_sender_usable: {
+        Args: {
+          p_integration_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
       restore_archived_leads: {
         Args: { p_lead_ids: string[] };
         Returns: number;
@@ -16779,6 +16935,10 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      set_report_whatsapp_sender: {
+        Args: { p_integration_id?: string; p_tenant_id: string };
+        Returns: undefined;
+      };
       set_video_production: {
         Args: { p_item_id: string; p_patch: Json };
         Returns: Json;

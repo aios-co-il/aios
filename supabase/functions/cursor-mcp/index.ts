@@ -791,7 +791,12 @@ async function logDispatch(args: {
     if (!args.tenantId || !args.cursorAgentId?.startsWith("bc-")) return;
 
     if (args.reused) {
-      await touchCursorTaskSession(sb, args.cursorAgentId, "running");
+      await touchCursorTaskSession(
+        sb,
+        args.tenantId,
+        args.cursorAgentId,
+        "running",
+      );
       console.log(
         `[cursor-mcp] session_touch session_id=${args.cursorAgentId} tool=${args.tool}`,
       );
@@ -960,7 +965,12 @@ async function executeDirectSessionReply(args: {
   }
   if (followed.delivered === false) {
     if (args.tenantId) {
-      await touchCursorTaskSession(sbClient()!, args.session.sessionId, "busy");
+      await touchCursorTaskSession(
+        sbClient()!,
+        args.tenantId,
+        args.session.sessionId,
+        "busy",
+      );
     }
     throw new Error(
       `Cursor Direct session ${args.session.sessionId} is BUSY (only one run at a time). ` +
@@ -971,6 +981,7 @@ async function executeDirectSessionReply(args: {
   if (args.tenantId) {
     await touchCursorTaskSession(
       sbClient()!,
+      args.tenantId,
       args.session.sessionId,
       "running",
     );

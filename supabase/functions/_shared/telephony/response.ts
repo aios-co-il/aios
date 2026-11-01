@@ -1,4 +1,5 @@
-// JSON responses for the telephony edge functions.
+// JSON responses with CORS headers, for the telephony edge functions and the
+// report file senders (send-green-api-file, send-manus-wa-file).
 import { corsHeaders } from "../cors.ts";
 
 export const json = (body: unknown, status = 200) =>

@@ -67,12 +67,39 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a film sent to Kling with no Kling keys anywhere goes to a connected engine",
+  async () => {
+    // Staging, 1 Nov: no tenant or worker Kling keys, an OpenRouter brain connected.
+    const deps = {
+      sceneEngines: () =>
+        Promise.resolve(connectedSceneEngines({}, { openrouter: true })),
+    };
+    const settled = await settleEngine(
+      "workshop_produce_video",
+      { item_id: "i", engine: "kling" },
+      deps,
+    );
+    assertEquals(settled.args, { item_id: "i" });
+    assertStrictEquals(typeof settled.note, "string");
+  },
+);
+
 Deno.test("connected scene engines follow the tenant's keys", () => {
-  assertEquals(connectedSceneEngines({}), ["mock", "kling"]);
+  // No Kling keys anywhere: a film sent to Kling would fail in the worker, so it is not offered.
+  assertEquals(connectedSceneEngines({}), ["mock"]);
+  assertEquals(
+    connectedSceneEngines({ kling_access_key: "a", kling_secret_key: "s" }),
+    ["mock", "kling"],
+  );
+  // The worker of this environment holds the keys (RENDER_WORKER_KLING=1).
+  assertEquals(connectedSceneEngines({}, {}, true), ["mock", "kling"]);
   assertEquals(
     connectedSceneEngines(
       {
         elevenlabs_api_key: "e",
+        kling_access_key: "a",
+        kling_secret_key: "s",
         higgsfield_api_key_id: "id",
         higgsfield_api_key_secret: "secret",
       },
