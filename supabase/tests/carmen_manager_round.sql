@@ -229,8 +229,16 @@ BEGIN
       WHERE tenant_id = v_tenant) IS DISTINCT FROM '45' THEN
     RAISE EXCEPTION 'guard: a member must be able to save the cost thresholds';
   END IF;
-  -- The same save the way the app writes it: an upsert, whose INSERT phase
-  -- fires the trigger before the conflict is known.
+  -- The same save the way the app writes it: an upsert on tenant_id, whose
+  -- INSERT phase fires the trigger before the conflict is known. The
+  -- migrations never gave tenant_heartbeat_settings that key, so add it inside
+  -- this rolled-back transaction (it fails loudly if a tenant has two rows).
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.tenant_heartbeat_settings'::regclass AND contype IN ('p', 'u')
+  ) THEN
+    ALTER TABLE public.tenant_heartbeat_settings ADD PRIMARY KEY (tenant_id);
+  END IF;
   INSERT INTO public.tenant_heartbeat_settings (tenant_id, pulse_alert_rules)
   SELECT v_tenant, jsonb_set(s.pulse_alert_rules, '{manager,cost}', '{"trend_pct": 47}')
   FROM public.tenant_heartbeat_settings AS s WHERE s.tenant_id = v_tenant
