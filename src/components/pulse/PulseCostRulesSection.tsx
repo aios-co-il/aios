@@ -78,7 +78,7 @@ export function PulseCostRulesSection({
  * valid number (at least `min`) is stored, and leaving the field restores the
  * stored value. Clearing it never stores 0, so the minimum-spend guard stays on.
  */
-function ThresholdInput({
+export function ThresholdInput({
   label,
   value,
   min,

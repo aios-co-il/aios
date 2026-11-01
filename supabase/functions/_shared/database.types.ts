@@ -2956,6 +2956,7 @@ export type Database = {
       };
       call_logs: {
         Row: {
+          caller_resolution: string | null;
           caller_user_id: string;
           client_id: string | null;
           created_at: string;
@@ -2975,6 +2976,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          caller_resolution?: string | null;
           caller_user_id: string;
           client_id?: string | null;
           created_at?: string;
@@ -2994,6 +2996,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          caller_resolution?: string | null;
           caller_user_id?: string;
           client_id?: string | null;
           created_at?: string;
@@ -3628,6 +3631,44 @@ export type Database = {
           },
         ];
       };
+      carmen_chat_thread_reviews: {
+        Row: {
+          cost_usd: number | null;
+          last_reviewed_message_id: string;
+          model: string | null;
+          reviewed_at: string;
+          tenant_id: string;
+          thread_key: string;
+          verdict: Json;
+        };
+        Insert: {
+          cost_usd?: number | null;
+          last_reviewed_message_id: string;
+          model?: string | null;
+          reviewed_at?: string;
+          tenant_id: string;
+          thread_key: string;
+          verdict: Json;
+        };
+        Update: {
+          cost_usd?: number | null;
+          last_reviewed_message_id?: string;
+          model?: string | null;
+          reviewed_at?: string;
+          tenant_id?: string;
+          thread_key?: string;
+          verdict?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_chat_thread_reviews_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_client_group_access: {
         Row: {
           agency_id: string | null;
@@ -3755,6 +3796,285 @@ export type Database = {
             foreignKeyName: "carmen_command_center_access_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_findings: {
+        Row: {
+          agency_id: string | null;
+          client_id: string | null;
+          collector: string;
+          created_at: string;
+          detector_version: string;
+          escalation_level: number | null;
+          evidence: Json;
+          feedback: string | null;
+          fingerprint: string;
+          first_seen_at: string;
+          id: string;
+          kind: string;
+          ladder_started_at: string | null;
+          last_seen_at: string;
+          missed_runs: number;
+          next_action_at: string | null;
+          occurrence_count: number;
+          owner_user_id: string | null;
+          planned_actions: Json;
+          resolution: string | null;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          round_id: string | null;
+          routed_at: string | null;
+          severity: string;
+          short_code: number;
+          source_event_at: string;
+          status: string;
+          summary_he: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          agency_id?: string | null;
+          client_id?: string | null;
+          collector: string;
+          created_at?: string;
+          detector_version?: string;
+          escalation_level?: number | null;
+          evidence?: Json;
+          feedback?: string | null;
+          fingerprint: string;
+          first_seen_at?: string;
+          id?: string;
+          kind: string;
+          ladder_started_at?: string | null;
+          last_seen_at?: string;
+          missed_runs?: number;
+          next_action_at?: string | null;
+          occurrence_count?: number;
+          owner_user_id?: string | null;
+          planned_actions?: Json;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          round_id?: string | null;
+          routed_at?: string | null;
+          severity?: string;
+          short_code: number;
+          source_event_at: string;
+          status?: string;
+          summary_he: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          agency_id?: string | null;
+          client_id?: string | null;
+          collector?: string;
+          created_at?: string;
+          detector_version?: string;
+          escalation_level?: number | null;
+          evidence?: Json;
+          feedback?: string | null;
+          fingerprint?: string;
+          first_seen_at?: string;
+          id?: string;
+          kind?: string;
+          ladder_started_at?: string | null;
+          last_seen_at?: string;
+          missed_runs?: number;
+          next_action_at?: string | null;
+          occurrence_count?: number;
+          owner_user_id?: string | null;
+          planned_actions?: Json;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          round_id?: string | null;
+          routed_at?: string | null;
+          severity?: string;
+          short_code?: number;
+          source_event_at?: string;
+          status?: string;
+          summary_he?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_findings_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_findings_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_findings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_events: {
+        Row: {
+          actor_user_id: string | null;
+          created_at: string;
+          details: Json;
+          event: string;
+          finding_id: string;
+          id: string;
+          level: number | null;
+          note: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          details?: Json;
+          event: string;
+          finding_id: string;
+          id?: string;
+          level?: number | null;
+          note?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          details?: Json;
+          event?: string;
+          finding_id?: string;
+          id?: string;
+          level?: number | null;
+          note?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_events_tenant_id_finding_id_fkey";
+            columns: ["tenant_id", "finding_id"];
+            isOneToOne: false;
+            referencedRelation: "carmen_findings";
+            referencedColumns: ["tenant_id", "id"];
+          },
+          {
+            foreignKeyName: "carmen_finding_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_deliveries: {
+        Row: {
+          attempted_at: string | null;
+          channel: string;
+          created_at: string;
+          error: string | null;
+          finding_id: string;
+          id: string;
+          level: number;
+          message_key: string | null;
+          not_before: string;
+          provider_message_id: string | null;
+          recipient_key: string;
+          recipient_name: string | null;
+          recipient_phone: string | null;
+          recipient_user_id: string | null;
+          round_id: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempted_at?: string | null;
+          channel: string;
+          created_at?: string;
+          error?: string | null;
+          finding_id: string;
+          id?: string;
+          level: number;
+          message_key?: string | null;
+          not_before?: string;
+          provider_message_id?: string | null;
+          recipient_key: string;
+          recipient_name?: string | null;
+          recipient_phone?: string | null;
+          recipient_user_id?: string | null;
+          round_id?: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempted_at?: string | null;
+          channel?: string;
+          created_at?: string;
+          error?: string | null;
+          finding_id?: string;
+          id?: string;
+          level?: number;
+          message_key?: string | null;
+          not_before?: string;
+          provider_message_id?: string | null;
+          recipient_key?: string;
+          recipient_name?: string | null;
+          recipient_phone?: string | null;
+          recipient_user_id?: string | null;
+          round_id?: string | null;
+          slot?: string;
+          status?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_deliveries_tenant_id_finding_id_fkey";
+            columns: ["tenant_id", "finding_id"];
+            isOneToOne: false;
+            referencedRelation: "carmen_findings";
+            referencedColumns: ["tenant_id", "id"];
+          },
+          {
+            foreignKeyName: "carmen_finding_deliveries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_counters: {
+        Row: {
+          last_code: number;
+          tenant_id: string;
+        };
+        Insert: {
+          last_code?: number;
+          tenant_id: string;
+        };
+        Update: {
+          last_code?: number;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_counters_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
@@ -3996,6 +4316,50 @@ export type Database = {
             columns: ["user_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_round_state: {
+        Row: {
+          collector: string;
+          first_run_at: string;
+          last_error: string | null;
+          last_run_at: string | null;
+          last_slot: string | null;
+          locked_until: string | null;
+          tenant_id: string;
+          updated_at: string;
+          watermark: Json | null;
+        };
+        Insert: {
+          collector: string;
+          first_run_at?: string;
+          last_error?: string | null;
+          last_run_at?: string | null;
+          last_slot?: string | null;
+          locked_until?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+          watermark?: Json | null;
+        };
+        Update: {
+          collector?: string;
+          first_run_at?: string;
+          last_error?: string | null;
+          last_run_at?: string | null;
+          last_slot?: string | null;
+          locked_until?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+          watermark?: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_round_state_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
         ];
@@ -7401,6 +7765,11 @@ export type Database = {
           created_at: string;
           duration_ms: number | null;
           id: string;
+          llm_calls: number | null;
+          llm_cost_usd: number | null;
+          run_kind: string;
+          stats: Json | null;
+          status: string | null;
           summary: string | null;
           tasks_reviewed: number | null;
           tenant_id: string;
@@ -7412,6 +7781,11 @@ export type Database = {
           created_at?: string;
           duration_ms?: number | null;
           id?: string;
+          llm_calls?: number | null;
+          llm_cost_usd?: number | null;
+          run_kind?: string;
+          stats?: Json | null;
+          status?: string | null;
           summary?: string | null;
           tasks_reviewed?: number | null;
           tenant_id: string;
@@ -7423,6 +7797,11 @@ export type Database = {
           created_at?: string;
           duration_ms?: number | null;
           id?: string;
+          llm_calls?: number | null;
+          llm_cost_usd?: number | null;
+          run_kind?: string;
+          stats?: Json | null;
+          status?: string | null;
           summary?: string | null;
           tasks_reviewed?: number | null;
           tenant_id?: string;
@@ -16032,6 +16411,150 @@ export type Database = {
         Args: { p_connection_id: string; p_secret: string };
         Returns: undefined;
       };
+      carmen_finding_confirm_contact: {
+        Args: {
+          p_content: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+          p_update_type: string;
+          p_user_id: string;
+        };
+        Returns: { entry_id: string; inserted: boolean; outcome: string }[];
+      };
+      carmen_finding_may_confirm: {
+        Args: {
+          p_agency_id: string;
+          p_attributed: boolean;
+          p_client_id: string;
+          p_owner_user_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
+      carmen_finding_viewer_role: {
+        Args: { p_agency_id: string; p_client_id: string; p_tenant_id: string };
+        Returns: string;
+      };
+      carmen_finding_upsert: {
+        Args: {
+          p_candidates: Json;
+          p_collector: string;
+          p_detector_version: string;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          fingerprint: string;
+          kind: string;
+          outcome: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_set_status: {
+        Args: {
+          p_feedback?: string;
+          p_finding_id: string;
+          p_note?: string;
+          p_status?: string;
+        };
+        Returns: {
+          feedback: string;
+          id: string;
+          resolution: string;
+          status: string;
+        }[];
+      };
+      carmen_finding_resolve: {
+        Args: {
+          p_collector: string;
+          p_items: Json;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_record_send: {
+        Args: {
+          p_delivery_ids: string[];
+          p_error?: string;
+          p_message_key?: string;
+          p_not_before?: string;
+          p_provider_message_id?: string;
+          p_status: string;
+          p_tenant_id: string;
+        };
+        Returns: number;
+      };
+      carmen_finding_record_brief: {
+        Args: {
+          p_error?: string;
+          p_finding_ids: string[];
+          p_message_key: string;
+          p_provider_message_id?: string;
+          p_recipient: Json;
+          p_status: string;
+          p_tenant_id: string;
+        };
+        Returns: number;
+      };
+      carmen_finding_mark_missing: {
+        Args: {
+          p_after_misses?: number;
+          p_client_ids?: string[];
+          p_fingerprints?: string[];
+          p_kind: string;
+          p_round_id?: string;
+          p_seen: string[];
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_claim_deliveries: {
+        Args: { p_limit?: number; p_tenant_id: string };
+        Returns: {
+          attempted_at: string | null;
+          channel: string;
+          created_at: string;
+          error: string | null;
+          finding_id: string;
+          id: string;
+          level: number;
+          message_key: string | null;
+          not_before: string;
+          provider_message_id: string | null;
+          recipient_key: string;
+          recipient_name: string | null;
+          recipient_phone: string | null;
+          recipient_user_id: string | null;
+          round_id: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "carmen_finding_deliveries";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      carmen_finding_apply_route: {
+        Args: { p_decisions: Json; p_round_id: string; p_tenant_id: string };
+        Returns: number;
+      };
+      carmen_delivery_went_out: {
+        Args: { p_status: string };
+        Returns: boolean;
+      };
       carmen_fix_campaigner_access: {
         Args: {
           p_campaigner_id: string;
@@ -16047,6 +16570,31 @@ export type Database = {
       carmen_is_tenant_owner: {
         Args: { p_tenant_id: string };
         Returns: boolean;
+      };
+      carmen_manager_without_stamps: {
+        Args: { p_manager: Json };
+        Returns: Json;
+      };
+      carmen_manager_reset_ladders: {
+        Args: { p_kinds: string[]; p_tenant_id: string };
+        Returns: number;
+      };
+      carmen_manager_mode_sends: { Args: { p_mode: string }; Returns: boolean };
+      carmen_manager_kinds_without_stamps: {
+        Args: { p_kinds: Json };
+        Returns: Json;
+      };
+      carmen_manager_kind_sends: {
+        Args: { p_kind: Json; p_mode: string };
+        Returns: boolean;
+      };
+      carmen_manager_is_owner: {
+        Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_changed_kinds: {
+        Args: { p_new: Json; p_old: Json };
+        Returns: string[];
       };
       carmen_member_has_personal_key: {
         Args: { p_user_id: string };
@@ -16094,6 +16642,18 @@ export type Database = {
           phone: string;
           user_id: string;
         }[];
+      };
+      carmen_round_try_lease: {
+        Args: { p_seconds?: number; p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_round_end_lease: {
+        Args: { p_error?: string; p_tenant_id: string };
+        Returns: undefined;
+      };
+      carmen_round_claim_slot: {
+        Args: { p_key: string; p_slot: string; p_tenant_id: string };
+        Returns: boolean;
       };
       carmen_send_activation: {
         Args: { p_integration: string; p_phone: string; p_tenant: string };
@@ -16367,7 +16927,63 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      get_client_contact_evidence: {
+        Args: {
+          p_client_ids?: string[];
+          p_contact_since?: string;
+          p_min_call_seconds: number;
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          agency_id: string;
+          client_id: string;
+          client_name: string;
+          client_since: string;
+          last_contact_at: string;
+          last_log_at: string;
+          unlogged_call_at: string;
+          unlogged_call_id: string;
+          unlogged_call_resolution: string;
+          unlogged_call_seconds: number;
+          unlogged_call_user_id: string;
+          unlogged_call_user_name: string;
+          unlogged_meeting_at: string;
+          unlogged_meeting_id: string;
+          unlogged_meeting_key: string;
+          unlogged_meeting_source: string;
+          unlogged_meeting_summary: string;
+        }[];
+      };
       get_client_tenant_id: { Args: { _client_id: string }; Returns: string };
+      get_client_thread_activity: {
+        Args: {
+          p_after_thread_key?: string;
+          p_client_ids?: string[];
+          p_collector: string;
+          p_connection_user_ids: string[];
+          p_per_thread?: number;
+          p_person_send_kinds: string[];
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          client_tenant_id: string;
+          created_at: string;
+          direction: string;
+          group_id: string;
+          message_id: string;
+          message_text: string;
+          sender_lid_unmapped: boolean;
+          sender_match_key: string;
+          sent_by_user_id: string;
+          thread_key: string;
+          thread_kind: string;
+        }[];
+      };
       get_cron_job_history: {
         Args: { p_jobid: number; p_limit?: number };
         Returns: {
@@ -16538,6 +17154,24 @@ export type Database = {
               wid: string;
             }[];
           };
+      get_unlinked_client_groups: {
+        Args: {
+          p_connection_user_ids: string[];
+          p_min_messages?: number;
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          group_chat_id: string;
+          group_id: string;
+          group_name: string;
+          last_message_at: string;
+          message_count: number;
+        }[];
+      };
       get_user_agency_ids: { Args: { _user_id: string }; Returns: string[] };
       get_user_campaigner_id: { Args: { _user_id: string }; Returns: string };
       get_user_client_ids: { Args: { _user_id: string }; Returns: string[] };

@@ -371,8 +371,8 @@ Deno.test(
     assertStrictEquals(asked.needs_budget, true);
     assertStrictEquals(asked.refused, "no_budget");
     assertStrictEquals(asked.approval_token, "token-turn-1");
-    assertMatch(asked.approval_prompt, /מאשר תקציב URN1/);
-    assertMatch(asked.say_to_user, /מאשר תקציב URN1/);
+    assertMatch(asked.approval_prompt, /מאשר תקציב \$1 · URN1/);
+    assertMatch(asked.say_to_user, /מאשר תקציב \$1 · URN1/);
     assertStrictEquals("message" in asked, false);
     assertStrictEquals(generated, 0);
     const pending = lastPayload(askDb);

@@ -1,7 +1,7 @@
 import { assertObjectMatch, assertStrictEquals } from "jsr:@std/assert@1";
 
 import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
-import type { StaffAlertResult } from "./staff-alert.ts";
+import type { StaffAlertResult } from "../_shared/staff-alert/send.ts";
 import { logStaffAlertOutcome } from "./staff-alert-log.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
