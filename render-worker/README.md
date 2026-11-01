@@ -66,6 +66,8 @@ docker logs -f aios-render-worker-staging
 
 Give the Droplet at least 4 vCPUs.
 
+Kling keys given to a worker in its env file are invisible to the server, which offers Kling only when the tenant has its own Kling keys. When this environment's worker holds them, set `RENDER_WORKER_KLING=1` in that Supabase project's edge function secrets.
+
 ## Test
 
 ```bash
