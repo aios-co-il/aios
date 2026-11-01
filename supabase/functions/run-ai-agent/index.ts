@@ -6046,6 +6046,7 @@ async function executeTool(
           return connectedSceneEngines(
             (data?.settings || {}) as Record<string, unknown>,
             await videoConnectionsFor(supabase, tenantId),
+            Deno.env.get("RENDER_WORKER_KLING") === "1",
           );
         },
         videoConnections: () => videoConnectionsFor(supabase, tenantId),
