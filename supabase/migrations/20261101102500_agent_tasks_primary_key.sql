@@ -34,7 +34,7 @@ set
   enabled = false,
   result = coalesce(result, '{}'::jsonb) || jsonb_build_object(
     'last_error',
-    'missed: agent_tasks could not be updated when this task came due (20261101090000)'
+    'missed: agent_tasks could not be updated when this task came due (20261101102500)'
   )
 where status = 'pending'
   and schedule_type = 'once'
