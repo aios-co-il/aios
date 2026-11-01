@@ -9,7 +9,7 @@
 -- Requires AIO-242 (20261030093000_client_card_system_send_log.sql):
 -- resolve_whatsapp_group_client, whatsapp_group_client_ids,
 -- whatsapp_group_link_tenant_ok and chat_messages.send_kind. Merge order:
--- AIO-242, AIO-251 (20261027100000), then this migration.
+-- AIO-242, AIO-251 (20261101100000), then this migration.
 --
 -- 1. carmen_chat_thread_reviews: the last LLM verdict per client group
 --    thread and the last client message the model read, so each client line
