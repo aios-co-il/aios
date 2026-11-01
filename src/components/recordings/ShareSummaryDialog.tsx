@@ -42,6 +42,9 @@ import { cn } from "@/lib/utils";
 import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
 import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { markdownToEmailHtml, markdownToWhatsApp } from "./summaryFormat";
+import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
+import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
+import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
 
 export interface ShareableRecording {
   id: string;
@@ -78,6 +81,7 @@ export function ShareSummaryDialog({
   const [sendEmail, setSendEmail] = useState(false);
   const [attachDocx, setAttachDocx] = useState(true);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const waSender = useReportSenderChoice(tenantId);
   const [directPhone, setDirectPhone] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
@@ -109,7 +113,7 @@ export function ShareSummaryDialog({
     queryFn: async () => {
       const { data } = await supabase
         .from("whatsapp_groups")
-        .select("id, group_name")
+        .select("id, group_name, group_chat_id")
         .eq("tenant_id", tenantId)
         .eq("is_blocked", false)
         .order("group_name");
@@ -185,30 +189,20 @@ export function ShareSummaryDialog({
           .join("\n")
           .trim();
 
-        const msgResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-message`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              tenantId,
-              message: waText,
-              ...(hasGroup
-                ? { groupId: selectedGroupId }
-                : { phoneNumber: directPhone }),
-              ...(recording.client_id ? { clientId: recording.client_id } : {}),
-              // Logged on the client card once, from report_deliveries.
-              sendKind: "meeting_summary",
-              sendRef: recording.id,
-            }),
-          },
-        );
-        const msgResult = await msgResponse.json();
-        if (!msgResponse.ok)
-          throw new Error(msgResult.error || "שגיאה בשליחה בוואטסאפ");
+        const recipient = {
+          groupId: hasGroup ? selectedGroupId : null,
+          phoneNumber: hasGroup ? null : directPhone,
+          clientId: recording.client_id,
+        };
+        await sendReportWhatsApp({
+          tenantId,
+          pick: waSender.pick,
+          text: waText,
+          ...recipient,
+          // Logged on the client card once, from report_deliveries.
+          sendKind: "meeting_summary",
+          sendRef: recording.id,
+        });
         sentChannels.push("whatsapp");
 
         // Optional: the DOCX as an attached document
@@ -217,30 +211,16 @@ export function ShareSummaryDialog({
             const docxBlob = await (
               await fetch(recording.summary_file_url)
             ).blob();
-            const formData = new FormData();
-            formData.append(
-              "file",
-              docxBlob,
-              `סיכום פגישה - ${meetingName}.docx`,
-            );
-            formData.append("tenantId", tenantId);
-            formData.append("fileType", "document");
-            if (hasGroup) formData.append("groupId", selectedGroupId);
-            else formData.append("phoneNumber", directPhone);
-            if (recording.client_id)
-              formData.append("clientId", recording.client_id);
-            formData.append("sendKind", "meeting_summary");
-            formData.append("sendRef", recording.id);
-            const fileResponse = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
-              {
-                method: "POST",
-                headers: { Authorization: `Bearer ${session.access_token}` },
-                body: formData,
-              },
-            );
-            if (!fileResponse.ok)
-              console.error("DOCX attach failed:", await fileResponse.text());
+            await sendReportWhatsApp({
+              tenantId,
+              pick: waSender.pick,
+              file: docxBlob,
+              fileName: `סיכום פגישה - ${meetingName}.docx`,
+              fileType: "document",
+              ...recipient,
+              sendKind: "meeting_summary",
+              sendRef: recording.id,
+            });
           } catch (docxErr) {
             console.error("DOCX attach failed:", docxErr);
           }
@@ -418,6 +398,11 @@ export function ShareSummaryDialog({
 
           {sendWhatsApp && (
             <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+              <ReportSenderPicker
+                choice={waSender}
+                groups={groups}
+                groupId={selectedGroupId}
+              />
               <div>
                 <Label className="text-sm">קבוצת וואטסאפ (חיפוש לפי שם)</Label>
                 <GroupCombobox

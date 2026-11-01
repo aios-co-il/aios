@@ -10824,6 +10824,7 @@ export type Database = {
           timezone: string;
           updated_at: string;
           whatsapp_group_id: string | null;
+          whatsapp_integration_id: string | null;
         };
         Insert: {
           channels?: string[];
@@ -10850,6 +10851,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Update: {
           channels?: string[];
@@ -10876,6 +10878,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Relationships: [
           {
@@ -10911,6 +10914,13 @@ export type Database = {
             columns: ["whatsapp_group_id"];
             isOneToOne: false;
             referencedRelation: "whatsapp_groups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "report_schedules_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
             referencedColumns: ["id"];
           },
         ];
@@ -14073,6 +14083,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      tenant_report_settings: {
+        Row: {
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp_integration_id: string | null;
+        };
+        Insert: {
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Update: {
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_report_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tenant_report_settings_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenant_settings: {
         Row: {
           created_at: string;
@@ -15823,6 +15869,10 @@ export type Database = {
         Args: { _tenant_id: string };
         Returns: boolean;
       };
+      can_manage_report_settings: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: boolean;
+      };
       can_manage_user_permissions: {
         Args: { target_user_id: string };
         Returns: boolean;
@@ -16461,6 +16511,25 @@ export type Database = {
         };
         Returns: string;
       };
+      list_report_whatsapp_senders: {
+        Args: { p_tenant_id: string; p_user_id?: string };
+        Returns: {
+          caller_can_manage: boolean;
+          carmen_role: string;
+          display_name: string;
+          group_chat_ids: string[];
+          id: string;
+          integration_type: string;
+          is_shared: boolean;
+          last4: string;
+          org_wide: boolean;
+          owner_name: string;
+          owner_tenant_id: string;
+          owner_tenant_name: string;
+          owner_user_id: string;
+          ready: boolean;
+        }[];
+      };
       list_system_cron_jobs: {
         Args: never;
         Returns: {
@@ -16778,6 +16847,14 @@ export type Database = {
         Args: { p_destination_key: string };
         Returns: undefined;
       };
+      report_whatsapp_sender_usable: {
+        Args: {
+          p_integration_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
       restore_archived_leads: {
         Args: { p_lead_ids: string[] };
         Returns: number;
@@ -16858,6 +16935,10 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      set_report_whatsapp_sender: {
+        Args: { p_integration_id?: string; p_tenant_id: string };
+        Returns: undefined;
+      };
       set_video_production: {
         Args: { p_item_id: string; p_patch: Json };
         Returns: Json;
