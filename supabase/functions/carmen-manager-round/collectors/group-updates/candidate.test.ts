@@ -24,6 +24,7 @@ const candidate = draftCandidate({
   by: "model",
   modelMaterial: true,
   dropped: 0,
+  contact: null,
 });
 
 Deno.test("draftCandidate", async (t) => {
@@ -75,6 +76,52 @@ Deno.test("draftCandidate", async (t) => {
     },
   );
 
+  await t.step(
+    "a reported call rides along, owned by the staff member who wrote it",
+    () => {
+      const called = window([
+        { id: "c1", text: "מאשר תקציב 5000" },
+        {
+          id: "c2",
+          text: "דיברנו בטלפון, הכל סגור",
+          speaker: "staff",
+          staffUserId: "u-staff",
+        },
+      ]);
+      const digested = {
+        window: called,
+        digest: { material: true, update_text: "אישר תקציב", items: [] },
+        by: "model" as const,
+        modelMaterial: true,
+        dropped: 0,
+      };
+      const byStaff = draftCandidate({
+        ...digested,
+        contact: {
+          kind: "call",
+          message: called.messages[1],
+          text: "שיחת טלפון עם הלקוח",
+        },
+      });
+      assertEquals(cardDraftOf(byStaff.evidence)?.contact, {
+        update_type: "call",
+        source_ref: `group_contact:${GROUP}:c2`,
+        content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
+        participant_user_id: "u-staff",
+        reported_at: called.messages[1].at,
+      });
+      assert(byStaff.summary_he.includes("כקשר עם הלקוח"));
+      const byClient = draftCandidate({
+        ...digested,
+        contact: { kind: "meeting", message: called.messages[0], text: "x" },
+      });
+      assertEquals(
+        cardDraftOf(byClient.evidence)?.contact?.participant_user_id,
+        null,
+      );
+    },
+  );
+
   await t.step("carries no phone and no message text", () => {
     const text = JSON.stringify(candidate);
     assert(!text.includes("521111111"));
@@ -95,6 +142,7 @@ Deno.test("draftCandidate", async (t) => {
         by: "markers",
         modelMaterial: null,
         dropped: 0,
+        contact: null,
       });
       const text = JSON.stringify(marked);
       assert(!/050-?1234567|501234567/.test(text));

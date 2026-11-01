@@ -14,6 +14,15 @@ export const draft = {
   content: "[כרמן · סיכום קבוצה] אישר תקציב",
 };
 
+/** A call the group reported as held, which only a person's approval writes. */
+export const reportedCall = {
+  update_type: "call",
+  source_ref: "group_contact:g1:m2",
+  content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
+  participant_user_id: null,
+  reported_at: "2026-10-31T10:00:00Z",
+};
+
 /** Reports one card_stale_group candidate for client c1 holding `draft`. */
 export const draftCollector: Collector = {
   id: "group_updates_test",

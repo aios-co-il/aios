@@ -22,6 +22,11 @@ export const DIGEST_ITEM_TYPES = [
 
 export type DigestItemType = (typeof DIGEST_ITEM_TYPES)[number];
 
+/** A reported call or meeting: held, planned, or asked about (contact.ts). */
+export const CONTACT_TENSES = ["past", "planned", "question"] as const;
+
+export type ContactTense = (typeof CONTACT_TENSES)[number];
+
 export type DigestItem = { type: DigestItemType; text: string };
 
 export type Digest = {
@@ -67,8 +72,8 @@ function parseItem(raw: Json): DigestItem | null {
   return type && text ? { type, text } : null;
 }
 
-/** A parsed JSON object, or null. */
-function parseJson(raw: string | null): JsonObject | null {
+/** The model's answer as a JSON object, or null. */
+export function parseJson(raw: string | null): JsonObject | null {
   if (!raw) {
     return null;
   }

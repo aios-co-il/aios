@@ -1,7 +1,9 @@
 /**
  * "אשר <code>": writes the card entry a finding drafted (a group digest:
  * source group_digest, attributed to the client's campaigner, never counted
- * as contact), then closes the finding as fixed by the approving person.
+ * as contact) and, when the group reported a call or meeting as held, that
+ * contact (card-contact.ts: the approving person vouches for it), then
+ * closes the finding as fixed by the approving person.
  * Only in a private chat with Carmen: a group session is client-visible, so
  * there the tool refuses without naming the client or the draft. Only a
  * person the findings feed shows the finding to may approve it: the database
@@ -89,7 +91,8 @@ async function write(
       // false when someone closed the finding meanwhile; the entry is on the card.
       resolved: written.resolved,
       attributed_user_id: written.attributedUserId,
-      message: `נרשם בכרטיס הלקוח (פריט ${found.finding.short_code}).`,
+      contact_update_id: written.contactEntryId,
+      message: writtenMessage(found),
     };
   } catch (error) {
     if (error instanceof ClientCardEntryError) {
@@ -97,6 +100,17 @@ async function write(
     }
     throw error;
   }
+}
+
+/** What Carmen tells the approving person was written. */
+function writtenMessage(found: FoundDraft): string {
+  const code = found.finding.short_code;
+  const kind = found.draft.contact?.update_type;
+  const contact =
+    kind === "meeting" ? "הפגישה" : kind === "call" ? "השיחה" : null;
+  return contact
+    ? `נרשם בכרטיס הלקוח (פריט ${code}), ו${contact} שדווחה בקבוצה נרשמה כקשר עם הלקוח.`
+    : `נרשם בכרטיס הלקוח (פריט ${code}).`;
 }
 
 /** The live finding with the code and its draft. */

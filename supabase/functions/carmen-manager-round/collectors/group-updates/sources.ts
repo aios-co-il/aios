@@ -13,7 +13,7 @@ import { monitoredLineIds } from "./lines.ts";
 import { loadLlmMeter, ROUND_SOURCE_PREFIX } from "./llm-meter.ts";
 import { type LiveDraft, loadLiveDrafts } from "./live-drafts.ts";
 import { type GroupHistory, loadGroupHistories } from "./messages.ts";
-import { loadStaffKeys } from "./staff-keys.ts";
+import { loadStaffKeys, type StaffKeys } from "./staff-keys.ts";
 import { markersOnlyPorts, type SummarizePorts } from "./summarize.ts";
 
 /** ai_usage_log.source of the digest calls. */
@@ -23,7 +23,7 @@ export type GroupUpdateSources = {
   /** The monitored lines (lines.ts); the run keeps their ids in its watermark. */
   lines(): Promise<string[]>;
   histories(since: Date, lines: string[]): Promise<GroupHistory[]>;
-  staffKeys(): Promise<Set<string>>;
+  staffKeys(): Promise<StaffKeys>;
   cardEntries(clientIds: string[], since: Date): Promise<CardEntry[]>;
   liveDrafts(): Promise<LiveDraft[]>;
   summarize: SummarizePorts;

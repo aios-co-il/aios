@@ -104,6 +104,53 @@ Deno.test("approveCardDraft", async (t) => {
   );
 
   await t.step(
+    "a reported call is written as contact, vouched for by the approver",
+    async () => {
+      const contact = {
+        update_type: "call",
+        source_ref: "group_contact:g1:m2",
+        content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
+        participant_user_id: null,
+        reported_at: "2026-11-01T10:00:00Z",
+      };
+      const { fake, written } = ports({
+        ...live,
+        evidence: { card_draft: { ...draft, contact } },
+      });
+      // The owner approves; the message names nobody, so the campaigner owns it.
+      const result = await approveCardDraft(
+        fake,
+        input({ requesterUserId: "boss" }),
+      );
+      assertEquals(
+        written.map((e) => [
+          e.source,
+          e.sourceRef,
+          e.countsAsContact,
+          e.attributedUserId,
+        ]),
+        [
+          ["group_digest", "g1:m9", false, null],
+          ["carmen_confirmed", "group_contact:g1:m2", true, "dana"],
+        ],
+      );
+      assertEquals(written[1].metadata, {
+        finding_id: "f1",
+        short_code: 31,
+        written_by: "approval",
+        approved_by: "boss",
+        attributed_to: "summary_author",
+        reported_at: "2026-11-01T10:00:00Z",
+      });
+      assertEquals(result.contact_update_id, "e1");
+      assertEquals(
+        result.message,
+        "נרשם בכרטיס הלקוח (פריט 31), והשיחה שדווחה בקבוצה נרשמה כקשר עם הלקוח.",
+      );
+    },
+  );
+
+  await t.step(
     "their own wording replaces the draft, still labelled as a group summary",
     async () => {
       const { fake, written } = ports(live);

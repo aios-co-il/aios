@@ -141,6 +141,38 @@ Deno.test("digestWindows", async (t) => {
     },
   );
 
+  await t.step(
+    "a held call the model names makes a quiet window material",
+    async () => {
+      const called = window([
+        { text: "מה שלומכם?" },
+        { text: "דיברנו בטלפון עם הלקוח", speaker: "staff" },
+        { text: "תודה" },
+      ]);
+      const quiet = (tense: string) =>
+        JSON.stringify({
+          material: false,
+          update_text: "",
+          items: [],
+          contact: { line: 2, kind: "call", tense, text: "שיחה עם הלקוח" },
+        });
+      const { ports: held } = ports(quiet("past"));
+      const [d] = (await digestWindows([called], [], held, run())).digests;
+      assertEquals(
+        [d.by, d.contact?.kind, d.contact?.message.id, d.digest.material],
+        ["model", "call", "m2", true],
+      );
+      assertEquals(d.digest.update_text, "שיחה עם הלקוח");
+      const later = window([
+        { text: "מה שלומכם?" },
+        { text: "נדבר מחר בטלפון", speaker: "staff" },
+      ]);
+      const { ports: planned } = ports(quiet("planned"));
+      const [p] = (await digestWindows([later], [], planned, run())).digests;
+      assertEquals([p.contact, p.digest.material], [null, false]);
+    },
+  );
+
   await t.step("no window: the meter is never loaded", async () => {
     const { ports: p } = ports(answer);
     const loaded: boolean[] = [];

@@ -4,13 +4,21 @@
  * allow, a few at a time; otherwise, or when the answer is unusable, the
  * markers decide. The model words the card line and may find news the
  * markers missed, but never drops what the markers found. Known items are
- * then dropped against today's card.
+ * then dropped against today's card. A call or meeting the group reports as
+ * held (contact.ts) makes the digest material.
  */
 import type { RoundBudget } from "../../budget.ts";
 import { type AskModel, MODEL_CALL_MS } from "./ask-model.ts";
 import { type CardEntry, todaysEntries } from "./card-entries.ts";
+import {
+  type ContactClaim,
+  parseContactClaim,
+  type PastContact,
+  pastContact,
+  withContact,
+} from "./contact.ts";
 import { dropKnownItems } from "./dedupe.ts";
-import { type Digest, parseDigest } from "./digest.ts";
+import { type Digest, parseDigest, parseJson } from "./digest.ts";
 import { markerDigest } from "./fallback.ts";
 import { createLlmMeter, type LlmMeter } from "./llm-meter.ts";
 import { digestPrompt } from "./prompt.ts";
@@ -29,6 +37,8 @@ export type WindowDigest = {
   /** The model's own verdict (null without a usable answer), kept for precision review. */
   modelMaterial: boolean | null;
   dropped: number;
+  /** A call or meeting the group reports as held, drafted for approval. */
+  contact: PastContact | null;
 };
 
 /** At most this many model calls per tenant run, CONCURRENCY at a time. */
@@ -88,17 +98,19 @@ async function digestOne(
       ? await ask(ports, meter, digestPrompt(window, today))
       : null;
   const markers = markerDigest(window);
-  const useModel = !!answer && (answer.material || !markers.material);
+  const useModel = !!answer && (answer.digest.material || !markers.material);
+  const contact = pastContact(window, answer?.claim ?? null);
   const { digest, dropped } = dropKnownItems(
-    answer && useModel ? answer : markers,
+    answer && useModel ? answer.digest : markers,
     today,
   );
   return {
     window,
-    digest,
+    digest: withContact(digest, contact),
     by: useModel ? "model" : "markers",
-    modelMaterial: answer?.material ?? null,
+    modelMaterial: answer?.digest.material ?? null,
     dropped,
+    contact,
   };
 }
 
@@ -113,14 +125,15 @@ function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
 }
 
 /**
- * One metered call; a failed, late or malformed answer is null and logged,
- * so a broken model shows while the markers decide.
+ * One metered call: its digest and contact claim. A failed, late or
+ * malformed answer is null and logged, so a broken model shows while the
+ * markers decide.
  */
 async function ask(
   ports: SummarizePorts,
   meter: LlmMeter,
   prompt: string,
-): Promise<Digest | null> {
+): Promise<{ digest: Digest; claim: ContactClaim | null } | null> {
   const { text, costUsd } = await ports.ask(prompt);
   meter.add(costUsd);
   const digest = parseDigest(text);
@@ -128,6 +141,7 @@ async function ask(
     console.warn(
       `[carmen-manager-round] group digest: no usable model answer (${text === null ? "none" : "malformed"}); the markers decide`,
     );
+    return null;
   }
-  return digest;
+  return { digest, claim: parseContactClaim(parseJson(text)?.contact) };
 }

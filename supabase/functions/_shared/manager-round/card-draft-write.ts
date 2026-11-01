@@ -1,9 +1,10 @@
 /**
- * Writes a finding's drafted entry on the client card and closes the finding,
- * in that order: the entry is idempotent on its source_ref, so a retry after
- * a failed close returns the same entry and closes it then. Used by the
- * manager round (Carmen writes, no actor) and by approve_card_draft (the
- * approving person is the actor).
+ * Writes a finding's drafted entry on the client card, then the call or
+ * meeting the draft reports (on a person's approval only), and closes the
+ * finding, in that order: each entry is idempotent on its source_ref, so a
+ * retry after a failed write or close returns the same entries and closes it
+ * then. Used by the manager round (Carmen writes, no actor) and by
+ * approve_card_draft (the approving person is the actor).
  */
 import { recordClientCardEntry } from "../client-card/entry.ts";
 import type {
@@ -11,6 +12,7 @@ import type {
   ClientCardEntryResult,
 } from "../client-card/entry-types.ts";
 import type { DbClient } from "../supabase-clients.ts";
+import { cardContactEntry } from "./card-contact.ts";
 import {
   type CardDraft,
   cardDraftEntry,
@@ -41,15 +43,23 @@ export type CardDraftWritten = {
   /** false when the entry was already on the card. */
   inserted: boolean;
   attributedUserId: string;
+  /** The reported call or meeting's entry; null when the draft has none. */
+  contactEntryId: string | null;
   /** false when the finding had already been closed. */
   resolved: boolean;
 };
 
-/** Writes the entry, then resolves the finding as fixed. */
+/** Writes the entry and the reported contact, then resolves the finding as fixed. */
 export async function writeCardDraft(
   ports: CardDraftWritePorts,
   write: CardDraftWrite,
 ): Promise<CardDraftWritten> {
+  const { contact } = write.draft;
+  if (contact && !write.approvedBy) {
+    throw new Error(
+      "card draft: a reported call or meeting is written only on a person's approval",
+    );
+  }
   const entry = await ports.writeEntry(
     cardDraftEntry(
       write.tenantId,
@@ -58,6 +68,15 @@ export async function writeCardDraft(
       write.approvedBy,
     ),
   );
+  const contactEntry =
+    contact && write.approvedBy
+      ? await ports.writeEntry(
+          cardContactEntry(write.tenantId, write.finding, contact, {
+            approvedBy: write.approvedBy,
+            fallbackUserId: entry.userId,
+          }),
+        )
+      : null;
   const resolved = await ports.resolveWritten(
     write.tenantId,
     write.finding.id,
@@ -68,6 +87,7 @@ export async function writeCardDraft(
     entryId: entry.entryId,
     inserted: entry.inserted,
     attributedUserId: entry.userId,
+    contactEntryId: contactEntry?.entryId ?? null,
     resolved,
   };
 }

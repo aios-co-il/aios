@@ -25,6 +25,9 @@ Deno.test("digestPrompt", async (t) => {
       assert(prompt.includes("- שיחה על המבצע"));
       assert(!/0521111111|521111111/.test(prompt));
       assert(prompt.includes('"material"'));
+      assert(prompt.includes('"contact"'));
+      assert(/^#1 \[.*\] לקוח: /m.test(prompt));
+      assert(/^#2 \[.*\] צוות: מעלים מחר$/m.test(prompt));
     },
   );
 

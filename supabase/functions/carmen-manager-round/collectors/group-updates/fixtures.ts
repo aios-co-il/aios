@@ -33,8 +33,10 @@ export function fixtureSources(
     histories: () => Promise.resolve(histories),
     staffKeys: () =>
       Promise.resolve(
-        new Set(
-          list("staff_keys").flatMap((k) => (typeof k === "string" ? [k] : [])),
+        new Map(
+          list("staff_keys").flatMap((k): [string, null][] =>
+            typeof k === "string" ? [[k, null]] : [],
+          ),
         ),
       ),
     cardEntries: () =>

@@ -55,6 +55,7 @@ export function window(
     text: "",
     speaker: "client",
     substantive: true,
+    staffUserId: null,
     ...m,
   }));
   const last = full.at(-1);

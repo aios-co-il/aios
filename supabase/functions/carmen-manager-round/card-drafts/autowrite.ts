@@ -4,10 +4,13 @@
  * is written to the client card and the finding is closed, before routing,
  * so nobody is asked to approve what is already on the card. Only events at
  * or after the kind's notify_since and its collector's first run qualify
- * (the same gate as sending); an older draft waits for a person. observe and
- * david_only never write, and a settings change during the writes stops the
- * rest, as it stops sends. A dry run only counts.
+ * (the same gate as sending); an older draft waits for a person, and so does
+ * a draft holding a reported call or meeting, since only a person may vouch
+ * for client contact (draftNeedsPerson). observe and david_only never write,
+ * and a settings change during the writes stops the rest, as it stops sends.
+ * A dry run only counts.
  */
+import { draftNeedsPerson } from "../../_shared/manager-round/card-contact.ts";
 import { cardDraftOf } from "../../_shared/manager-round/card-draft.ts";
 import {
   writeCardDraft,
@@ -108,18 +111,23 @@ function earliestNotifySince(
   return times.length ? new Date(Math.min(...times)).toISOString() : undefined;
 }
 
-/** A finding of a writing kind with a draft, a client and an event Carmen may act on. */
+/**
+ * A finding of a writing kind with a draft Carmen may write alone, a client
+ * and an event Carmen may act on.
+ */
 function isDue(
   finding: FindingRow,
   kinds: FindingKind[],
   run: AutowriteRun,
 ): boolean {
   const kind = finding.kind;
+  const draft = cardDraftOf(finding.evidence);
   return (
     isFindingKind(kind) &&
     kinds.includes(kind) &&
     !!finding.client_id &&
-    !!cardDraftOf(finding.evidence) &&
+    !!draft &&
+    !draftNeedsPerson(draft) &&
     isDeliverable(finding, kind, run.settings, run.floors)
   );
 }

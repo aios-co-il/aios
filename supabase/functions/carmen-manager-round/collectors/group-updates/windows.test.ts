@@ -3,7 +3,7 @@ import { history, message, STAFF_KEY } from "./group-fixtures.ts";
 import { groupWindows } from "./windows.ts";
 
 const from = new Date("2026-11-01T00:00:00Z");
-const staff = new Set([STAFF_KEY]);
+const staff = new Map([[STAFF_KEY, "u-staff"]]);
 const messages = [
   message("a", "2026-10-31T23:00:00Z", "לפני הרצפה"),
   message("b", "2026-11-01T09:00:00Z", "מתי עולה הקמפיין?"),
@@ -26,12 +26,12 @@ Deno.test("groupWindows", async (t) => {
         staff,
       );
       assertEquals(
-        w.messages.map((m) => [m.id, m.speaker, m.substantive]),
+        w.messages.map((m) => [m.id, m.speaker, m.substantive, m.staffUserId]),
         [
-          ["b", "client", true],
-          ["c", "staff", true],
-          ["d", "staff", true],
-          ["e", "unknown", false],
+          ["b", "client", true, null],
+          ["c", "staff", true, "u-staff"],
+          ["d", "staff", true, null],
+          ["e", "unknown", false, null],
         ],
       );
       assertEquals(w.last, { at: "2026-11-01T09:15:00Z", id: "e" });

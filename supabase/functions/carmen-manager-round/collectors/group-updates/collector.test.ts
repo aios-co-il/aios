@@ -57,7 +57,7 @@ function sources(
       asked.push({ since, lines });
       return Promise.resolve(histories);
     },
-    staffKeys: () => Promise.resolve(new Set([STAFF_KEY])),
+    staffKeys: () => Promise.resolve(new Map([[STAFF_KEY, null]])),
     cardEntries: () => Promise.resolve(entries),
     liveDrafts: () => Promise.resolve(drafts),
     summarize: {

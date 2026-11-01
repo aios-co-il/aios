@@ -2,9 +2,11 @@
  * A client card entry a finding drafts (evidence.card_draft), shared by the
  * manager round, which drafts it and, in team mode with card_write on, writes
  * it, and Carmen's approve_card_draft tool, which writes it when a staff
- * member replies "אשר <code>" (AIO-254). Only entries that never count as
- * client contact can be drafted this way: a group digest is information, not
- * a conversation with the client.
+ * member replies "אשר <code>" (AIO-254). The drafted entry itself never
+ * counts as client contact: a group digest is information, not a
+ * conversation with the client. A call or meeting the group reports is a
+ * separate entry the draft may carry (card-contact.ts), written only on a
+ * person's approval.
  */
 import type { ClientCardEntryInput } from "../client-card/entry-types.ts";
 import {
@@ -12,6 +14,7 @@ import {
   type ClientCardSource,
 } from "../client-card/sources.ts";
 import type { Json } from "../database.types.ts";
+import { type ContactDraft, contactDraftOf } from "./card-contact.ts";
 import { jsonObject } from "./json-object.ts";
 
 /** The reply word, sent before the finding's code. */
@@ -38,6 +41,8 @@ export type CardDraft = {
   /** The card's dedupe key, e.g. `<group_id>:<last_message_id>`. */
   source_ref: string;
   content: string;
+  /** A call or meeting the group reported as held, written beside it on approval. */
+  contact?: ContactDraft;
 };
 
 /** The finding a draft is written for. */
@@ -56,8 +61,15 @@ export function cardDraftOf(evidence: Json): CardDraft | null {
   )?.value;
   const ref = text(draft?.source_ref);
   const content = text(draft?.content);
+  const contact = contactDraftOf(draft?.contact);
   return source && type && ref && content
-    ? { source, update_type: type, source_ref: ref, content }
+    ? {
+        source,
+        update_type: type,
+        source_ref: ref,
+        content,
+        ...(contact ? { contact } : {}),
+      }
     : null;
 }
 

@@ -3,7 +3,8 @@
  * people of the tenant and of the tenants it shares agencies with (logins
  * with a role, active campaigners, sales people) and of their Manus lines. A
  * group message from one of these phones is a staff message even though it
- * reached the monitored line as inbound. Kept in memory for labelling only.
+ * reached the monitored line as inbound. Kept in memory for labelling, and
+ * for naming the staff member who reported a call or meeting (contact.ts).
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import { jsonObject } from "../../../_shared/manager-round/json-object.ts";
@@ -12,11 +13,18 @@ import { phoneMatchKey } from "../../../_shared/telephony/phone.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { profilePhone, profilesBy } from "../../recipients/profiles.ts";
 
+/**
+ * Each staff phone match key, with the AIOS person it belongs to when exactly
+ * one login has it; null for a campaigner or sales record without a login, a
+ * Manus line, or a phone two logins share.
+ */
+export type StaffKeys = ReadonlyMap<string, string | null>;
+
 /** Phone match keys of the staff of the tenant and its agency partners. */
 export async function loadStaffKeys(
   db: DbClient,
   tenantId: string,
-): Promise<Set<string>> {
+): Promise<StaffKeys> {
   const tenantIds = await relatedTenants(db, tenantId);
   const [roles, members, campaigners, sales, lines] = await Promise.all([
     db.from("user_roles").select("user_id").in("tenant_id", tenantIds),
@@ -47,13 +55,35 @@ export async function loadStaffKeys(
       [...(roles.data ?? []), ...(members.data ?? [])].map((r) => r.user_id),
     ),
   ];
-  const phones = [
-    ...(await profilesBy(db, "id", userIds)).map(profilePhone),
+  const logins = (await profilesBy(db, "id", userIds)).map((profile) => ({
+    key: phoneMatchKey(profilePhone(profile)),
+    userId: profile.id,
+  }));
+  return staffKeyMap(logins, [
     ...(campaigners.data ?? []).map((row) => row.phone),
     ...(sales.data ?? []).map((row) => row.phone),
     ...(lines.data ?? []).map((row) => linePhone(row.settings)),
-  ];
-  return new Set(phones.flatMap((phone) => phoneMatchKey(phone) ?? []));
+  ]);
+}
+
+/** The logins' keys with their person (null when two share one), then the other phones' keys. */
+function staffKeyMap(
+  logins: { key: string | null; userId: string }[],
+  otherPhones: (string | null)[],
+): StaffKeys {
+  const keys = new Map<string, string | null>();
+  for (const { key, userId } of logins) {
+    if (key) {
+      const shared = keys.has(key) && keys.get(key) !== userId;
+      keys.set(key, shared ? null : userId);
+    }
+  }
+  for (const key of otherPhones.map(phoneMatchKey)) {
+    if (key && !keys.has(key)) {
+      keys.set(key, null);
+    }
+  }
+  return keys;
 }
 
 /** The tenant and the tenants it shares an agency with, either way. */

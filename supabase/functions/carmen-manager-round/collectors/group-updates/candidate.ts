@@ -6,8 +6,15 @@
  * only; no phone, and no raw message beyond the markers' quotes, of which
  * the staff line carries at most MAX_ITEM_CHARS (a group quote's limit). The
  * fingerprint names the window's first message, so a window digested again
- * after a lost watermark updates its finding instead of adding one.
+ * after a lost watermark updates its finding instead of adding one. A call
+ * or meeting the group reports as held rides along as card_draft.contact
+ * (source_ref 'group_contact:<group_id>:<message_id>'), for the approval.
  */
+import {
+  contactContent,
+  type ContactDraft,
+  contactSourceRef,
+} from "../../../_shared/manager-round/card-contact.ts";
 import {
   APPROVE_DRAFT_WORD_HE,
   cardDraftContent,
@@ -15,14 +22,18 @@ import {
 } from "../../../_shared/manager-round/card-draft.ts";
 import type { FindingCandidate } from "../types.ts";
 import { clamp } from "./clamp.ts";
+import type { PastContact } from "./contact.ts";
 import { MAX_ITEM_CHARS } from "./digest.ts";
 import { chatHandoff } from "./handoff.ts";
 import type { WindowDigest } from "./summarize.ts";
 import { substantive } from "./windows.ts";
 
+const CONTACT_NOTE_HE =
+  " בקבוצה דווח על שיחה או פגישה עם הלקוח; האישור ירשום אותה כקשר עם הלקוח.";
+
 /** The finding for one material digest. */
 export function draftCandidate(digested: WindowDigest): FindingCandidate {
-  const { window, digest } = digested;
+  const { window, digest, contact } = digested;
   const counted = substantive(window);
   const first = counted[0] ?? window.messages[0];
   const opening = window.messages[0]?.id ?? window.last.id;
@@ -31,6 +42,7 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
     update_type: "group_summary",
     source_ref: `${window.groupId}:${window.last.id}`,
     content: cardDraftContent("group_digest", digest.update_text),
+    ...(contact ? { contact: contactDraft(window.groupId, contact) } : {}),
   };
   return {
     kind: "card_stale_group",
@@ -40,7 +52,7 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
     agency_id: null,
     source_event_at: first.at,
     summary_he: clamp(
-      `${window.clientName}: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס – ${clamp(digest.update_text, MAX_ITEM_CHARS)}. לרישום בכרטיס: "${APPROVE_DRAFT_WORD_HE}" ומספר הפריט`,
+      `${window.clientName}: עדכון מקבוצת הוואטסאפ שעוד לא נרשם בכרטיס – ${clamp(digest.update_text, MAX_ITEM_CHARS)}.${contact ? CONTACT_NOTE_HE : ""} לרישום בכרטיס: "${APPROVE_DRAFT_WORD_HE}" ומספר הפריט`,
       500,
     ),
     evidence: {
@@ -58,6 +70,13 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
         unknown_messages: counted.filter((m) => m.speaker === "unknown").length,
       },
       card_draft: draft,
+      contact: contact
+        ? {
+            kind: contact.kind,
+            message_id: contact.message.id,
+            speaker: contact.message.speaker,
+          }
+        : null,
       items: digest.items,
       chat_handoff: chatHandoff(digest.items),
       digested_by: digested.by,
@@ -65,5 +84,21 @@ export function draftCandidate(digested: WindowDigest): FindingCandidate {
       dropped_items: digested.dropped,
     },
     owner_user_id: null,
+  };
+}
+
+/**
+ * The reported contact's entry: the message's staff author when known (a
+ * client's message names nobody), else the summary's author on approval.
+ */
+function contactDraft(groupId: string, contact: PastContact): ContactDraft {
+  const { message } = contact;
+  return {
+    update_type: contact.kind,
+    source_ref: contactSourceRef(groupId, message.id),
+    content: contactContent(contact.text),
+    participant_user_id:
+      message.speaker === "staff" ? message.staffUserId : null,
+    reported_at: message.at,
   };
 }

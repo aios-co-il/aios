@@ -15,6 +15,16 @@ const draft: CardDraft = {
   content: "[כרמן · סיכום קבוצה] אישר תקציב",
 };
 const finding = { id: "f1", short_code: 3, client_id: "c1" };
+const reported: CardDraft = {
+  ...draft,
+  contact: {
+    update_type: "call",
+    source_ref: "group_contact:g1:m2",
+    content: "[כרמן · מקבוצת הוואטסאפ] שיחת טלפון עם הלקוח",
+    participant_user_id: null,
+    reported_at: "2026-11-01T10:00:00Z",
+  },
+};
 
 /** Ports over an in-memory card: entries dedupe on source_ref. */
 function ports(failResolve = false) {
@@ -60,6 +70,7 @@ Deno.test("writeCardDraft", async (t) => {
         entryId: "e:g1:m9",
         inserted: true,
         attributedUserId: "camp",
+        contactEntryId: null,
         resolved: true,
       });
       assertEquals(entries.length, 1);
@@ -78,6 +89,56 @@ Deno.test("writeCardDraft", async (t) => {
         [again.inserted, again.resolved, entries.length],
         [false, false, 1],
       );
+    },
+  );
+
+  await t.step(
+    "an approval also writes the reported contact, once per message",
+    async () => {
+      const { fake, entries } = ports();
+      const first = await writeCardDraft(fake, {
+        tenantId: "t1",
+        finding,
+        draft: reported,
+        approvedBy: "u1",
+      });
+      // A later window's finding reports the same message again.
+      await writeCardDraft(fake, {
+        tenantId: "t1",
+        finding: { ...finding, id: "f2" },
+        draft: { ...reported, source_ref: "g1:m12" },
+        approvedBy: "u1",
+      });
+      assertEquals(first.contactEntryId, "e:group_contact:g1:m2");
+      assertEquals(
+        entries.map((e) => [
+          e.source,
+          e.sourceRef,
+          e.countsAsContact,
+          e.attributedUserId,
+        ]),
+        [
+          ["group_digest", "g1:m9", false, null],
+          ["carmen_confirmed", "group_contact:g1:m2", true, "camp"],
+          ["group_digest", "g1:m12", false, null],
+        ],
+      );
+    },
+  );
+
+  await t.step(
+    "Carmen alone never writes a draft holding a reported contact",
+    async () => {
+      const { fake, entries, resolved } = ports();
+      await assertRejects(() =>
+        writeCardDraft(fake, {
+          tenantId: "t1",
+          finding,
+          draft: reported,
+          approvedBy: null,
+        }),
+      );
+      assertEquals([entries.length, resolved.length], [0, 0]);
     },
   );
 

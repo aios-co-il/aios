@@ -38,9 +38,37 @@ Deno.test("loadStaffKeys", async (t) => {
         }
       });
       const keys = await loadStaffKeys(db, "t1");
-      assertEquals([...keys].sort(), ["502222222", "533333333", "544444444"]);
+      assertEquals(
+        [...keys].sort(([a], [b]) => a.localeCompare(b)),
+        [
+          ["502222222", "u1"],
+          ["533333333", null],
+          ["544444444", null],
+        ],
+      );
       const roles = calls.find((c) => c.path === "user_roles");
       assertEquals(roles?.query.get("tenant_id"), "in.(t1,t2)");
     },
   );
+
+  await t.step("a phone two logins share names neither of them", async () => {
+    const login = (id: string) => ({
+      id,
+      full_name: "",
+      phone: "050-2222222",
+      campaigner_id: null,
+      campaigners: null,
+    });
+    const { db } = recordingClient((call) => {
+      switch (call.path) {
+        case "user_roles":
+          return [{ user_id: "u1" }, { user_id: "u2" }];
+        case "profiles":
+          return [login("u1"), login("u2")];
+        default:
+          return [];
+      }
+    });
+    assertEquals([...(await loadStaffKeys(db, "t1"))], [["502222222", null]]);
+  });
 });
