@@ -9,10 +9,10 @@ import {
   type ContactDraft,
 } from "../../../_shared/manager-round/contact-draft.ts";
 import { dayMonth } from "../../calendar/day-month.ts";
+import { clip } from "../chat/clip.ts";
+import { SUMMARY_MAX } from "../chat/summary.ts";
 import type { CallEvidence, MeetingEvidence } from "./evidence.ts";
 
-/** carmen_findings.summary_he holds at most this many characters. */
-const SUMMARY_MAX = 500;
 const DRAFT_QUOTE_CHARS = 400;
 const REPLY_HINT = `לתיעוד השיבו "${CONFIRM_DRAFT_WORD_HE}" ומספר הפריט`;
 
@@ -22,11 +22,13 @@ export function callSummary(clientName: string, call: CallEvidence): string {
   if (!call.attributedUserId) {
     return clip(
       `${clientName}: שיחה מקו המשרד, נציג לא מזוהה (${when}). השיחה לא תועדה בכרטיס. ${REPLY_HINT}`,
+      SUMMARY_MAX,
     );
   }
   const who = call.attributedName ? ` של ${call.attributedName}` : "";
   return clip(
     `${clientName}: שיחה${who} עם הלקוח (${when}) לא תועדה בכרטיס. ${REPLY_HINT}`,
+    SUMMARY_MAX,
   );
 }
 
@@ -38,6 +40,7 @@ export function meetingSummary(
   const draft = meeting.summary ? "יש טיוטה מסיכום ההקלטה. " : "";
   return clip(
     `${clientName}: הפגישה מ־${dayMonth(new Date(meeting.at))} לא תועדה בכרטיס. ${draft}${REPLY_HINT}`,
+    SUMMARY_MAX,
   );
 }
 
@@ -51,6 +54,7 @@ export function noContactSummary(
     lastContactAt
       ? `${clientName}: אין שיחה, פגישה או הודעה מתועדת עם הלקוח מאז ${dayMonth(lastContactAt)}`
       : `${clientName}: אין שיחה, פגישה או הודעה מתועדת עם הלקוח ב־${days} הימים האחרונים`,
+    SUMMARY_MAX,
   );
 }
 
@@ -83,14 +87,5 @@ function plain(markdown: string): string {
     .replace(/[#*_`>|]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return flat.length > DRAFT_QUOTE_CHARS
-    ? `${flat.slice(0, DRAFT_QUOTE_CHARS - 1)}…`
-    : flat;
-}
-
-/** A summary within the column's limit. */
-function clip(summary: string): string {
-  return summary.length > SUMMARY_MAX
-    ? `${summary.slice(0, SUMMARY_MAX - 1)}…`
-    : summary;
+  return clip(flat, DRAFT_QUOTE_CHARS);
 }

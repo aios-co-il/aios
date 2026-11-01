@@ -25,7 +25,7 @@ COMMENT ON COLUMN public.call_logs.caller_resolution IS
 -- ─── 2. Contact evidence per client ─────────────────────────────────────────
 
 -- Per client the tenant follows up: its last logged contact, its last contact
--- and its oldest call and meeting no log covers (timestamps only, no text).
+-- and its oldest call and meeting no log covers (no message text).
 CREATE OR REPLACE FUNCTION public.get_client_contact_evidence(
   p_tenant_id uuid,
   p_since timestamptz,
@@ -75,22 +75,22 @@ AS $$
   ), mine AS (
     SELECT a.* FROM assigned AS a WHERE a.tenant_id = p_tenant_id
   ), scope AS (
-    -- Active clients whose card the tenant may write (as record_client_card_entry
-    -- requires) and one of its campaigners is on today, plus its own clients
-    -- nobody is on; a client staffed only by another tenant is that tenant's.
+    -- Active clients whose card the tenant may write (tenant_can_write_client,
+    -- as record_client_card_entry requires) and one of its campaigners is on
+    -- today, plus its own clients nobody is on; a client staffed only by
+    -- another tenant is that tenant's.
     SELECT c.id, c.name, c.agency_id, c.whatsapp_group_id,
       greatest(c.created_at, c.start_date::timestamp AT TIME ZONE 'Asia/Jerusalem') AS since
     FROM public.clients AS c
     WHERE c.status = 'active'
       AND (p_client_ids IS NULL OR c.id = ANY (p_client_ids))
+      -- Cheap pre-filter: own clients and agencies shared with the tenant.
+      AND (c.tenant_id = p_tenant_id OR c.agency_id IN (
+        SELECT ata.agency_id FROM public.agency_tenant_access AS ata
+        WHERE ata.accessing_tenant_id = p_tenant_id))
       AND (
         (
-          (c.tenant_id = p_tenant_id OR EXISTS (
-            SELECT 1 FROM public.agency_tenant_access AS ata
-            WHERE ata.agency_id = c.agency_id
-              AND ata.source_tenant_id = c.tenant_id
-              AND ata.accessing_tenant_id = p_tenant_id
-              AND ata.access_level = 'read_write'))
+          public.tenant_can_write_client(p_tenant_id, c.id)
           AND EXISTS (SELECT 1 FROM mine AS m WHERE m.client_id = c.id)
         )
         OR (
