@@ -60,6 +60,10 @@
 --   wa_lid_map, and without a mapping its key is null and lid_unmapped true.
 --   A message sent from AIOS also names its sender (sent_by, a user id) and
 --   its send_kind, so an automated send is never taken as a person's words.
+--   An outbound Green API row says whether it was typed on the line's phone
+--   (typeWebhook outgoingMessageReceived, or an outgoingMessageStatus the
+--   API did not send) rather than sent through the API, and names the line's
+--   user (line_user).
 -- - Each message carries the provider's id (Green idMessage, else the row
 --   id) and each group its group_chat_id and its client's tenant, so a call
 --   a message reports is recorded once per client however many tenants or
@@ -167,6 +171,12 @@ AS $$
   windowed AS (
     SELECT m.id, m.group_id, m.created_at, m.direction, m.sender_phone,
            m.sent_by_user_id, m.send_kind, m.message_text,
+           m.connection_user_id,
+           m.direction = 'outbound' AND m.provider = 'green_api'
+             AND (m.raw_provider_data ->> 'typeWebhook' = 'outgoingMessageReceived'
+               OR (m.raw_provider_data ->> 'typeWebhook' = 'outgoingMessageStatus'
+                 AND coalesce(m.raw_provider_data ->> 'sendByApi', 'false') <> 'true'))
+             AS typed_on_phone,
            coalesce(m.raw_provider_data ->> 'idMessage', m.id::text) AS provider_id,
            coalesce(m.raw_provider_data -> 'senderData' ->> 'sender',
                     m.raw_provider_data ->> '_group_author_raw') AS author_raw
@@ -230,6 +240,8 @@ AS $$
              'out', r.direction = 'outbound' OR r.sent_by_user_id IS NOT NULL,
              'sent_by', r.sent_by_user_id,
              'send_kind', r.send_kind,
+             'typed_on_phone', coalesce(r.typed_on_phone, false),
+             'line_user', r.connection_user_id,
              'key', r.match_key,
              'lid_unmapped', r.lid_unmapped,
              'text', left(r.message_text, 500)

@@ -56,6 +56,31 @@ Deno.test("authorshipOf", async (t) => {
     }
   });
 
+  await t.step(
+    "typed on the line's own phone: its user, if a login of the client's tenant",
+    () => {
+      assertEquals(
+        of({ out: true, typedOnPhone: true, lineUserId: "u-staff" }),
+        [true, "u-staff"],
+      );
+      // Sent through the API (no kind), or by AIOS on its own: never.
+      assertEquals(of({ out: true, lineUserId: "u-staff" }), [false, null]);
+      assertEquals(
+        of({
+          out: true,
+          typedOnPhone: true,
+          lineUserId: "u-staff",
+          sendKind: "automation",
+        }),
+        [false, null],
+      );
+      assertEquals(
+        of({ out: true, typedOnPhone: true, lineUserId: "u-partner" }),
+        [false, null],
+      );
+    },
+  );
+
   await t.step("a staff phone counts only for the client's own tenant", () => {
     assertEquals(of({ key: STAFF_KEY }), [true, "u-staff"]);
     assertEquals(of({ key: PARTNER_KEY }), [false, null]);

@@ -24,6 +24,10 @@ export type GroupMessage = {
   sentBy: string | null;
   /** chat_messages.send_kind (_shared/client-card/send-kind.ts); null when none was stored. */
   sendKind: string | null;
+  /** Outbound, typed on the line's phone in WhatsApp rather than sent through the API. */
+  typedOnPhone: boolean;
+  /** The user of the line that stored it (chat_messages.connection_user_id). */
+  lineUserId: string | null;
   /** phone_match_key of the sender, or null when unknown. */
   key: string | null;
   /** An @lid sender with no known phone: neither client nor staff. */
@@ -96,8 +100,7 @@ function parseMessage(item: Json): GroupMessage | null {
   if (!row) {
     return null;
   }
-  const { id, provider_id, at, out, sent_by, send_kind, key, lid_unmapped } =
-    row;
+  const { id, provider_id, at, out, sent_by, send_kind, key } = row;
   if (typeof id !== "string" || typeof at !== "string") {
     return null;
   }
@@ -108,8 +111,10 @@ function parseMessage(item: Json): GroupMessage | null {
     out: out === true,
     sentBy: typeof sent_by === "string" ? sent_by : null,
     sendKind: typeof send_kind === "string" ? send_kind : null,
+    typedOnPhone: row.typed_on_phone === true,
+    lineUserId: typeof row.line_user === "string" ? row.line_user : null,
     key: typeof key === "string" ? key : null,
-    lidUnmapped: lid_unmapped === true,
+    lidUnmapped: row.lid_unmapped === true,
     text: typeof row.text === "string" ? row.text : "",
   };
 }

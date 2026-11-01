@@ -3,9 +3,11 @@
  * only words a person typed may report one. The client's messages count; a
  * staff message counts only when a staff member of the client's own tenant
  * typed it: sent from AIOS's chat (send_kind chat) by a login of that
- * tenant, or written from a staff phone of that tenant. AIOS's own sends
- * (automation, broadcast, carmen, staff_alert, a report or summary template,
- * or no kind) never count, even when they name a sender.
+ * tenant; typed in WhatsApp on a monitored line's own phone (no send_kind),
+ * whose user is a login of that tenant and stands as its author; or written
+ * from a staff phone of that tenant. AIOS's own sends (automation,
+ * broadcast, carmen, staff_alert, a report or summary template, or an API
+ * send with no kind) never count, even when they name a sender.
  */
 import type { SendKind } from "../../../_shared/client-card/send-kind.ts";
 import type { GroupMessage } from "./messages.ts";
@@ -37,8 +39,7 @@ export function authorshipOf(
       ? userId
       : null;
   if (message.out) {
-    const sender =
-      message.sendKind === TYPED_SEND_KIND ? login(message.sentBy) : null;
+    const sender = outboundAuthor(message, login);
     return { typedByPerson: !!sender, staffUserId: sender };
   }
   const key = message.key;
@@ -48,4 +49,17 @@ export function authorshipOf(
     typedByPerson: ownStaff,
     staffUserId: ownStaff && key ? login(staffKeys.keys.get(key)) : null,
   };
+}
+
+/** The login who typed an outbound message: a chat send's sender, or the user of the line typed on in WhatsApp. */
+function outboundAuthor(
+  message: GroupMessage,
+  login: (userId: string | null | undefined) => string | null,
+): string | null {
+  if (message.sendKind === TYPED_SEND_KIND) {
+    return login(message.sentBy);
+  }
+  return message.sendKind === null && message.typedOnPhone
+    ? login(message.lineUserId)
+    : null;
 }

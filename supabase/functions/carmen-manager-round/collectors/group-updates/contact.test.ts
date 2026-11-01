@@ -134,6 +134,45 @@ Deno.test("pastContact", async (t) => {
   });
 });
 
+Deno.test("pastContact on the agency line's own phone", async (t) => {
+  const staff = {
+    keys: new Map<string, string | null>(),
+    keyTenants: new Map<string, Set<string>>(),
+    tenantsOf: new Map([["u-owner", new Set([TENANT])]]),
+  };
+  /** One outbound "בהמשך לפגישתנו" on the line of u-owner, typed on its phone or not. */
+  const outbound = (typedOnPhone: boolean) =>
+    groupWindows(
+      [
+        history([
+          message("p1", "2026-11-01T09:00:00Z", "בהמשך לפגישתנו, מצרף הצעה", {
+            out: true,
+            typedOnPhone,
+            lineUserId: "u-owner",
+          }),
+        ]),
+      ],
+      { floor: "", groups: {} },
+      new Date("2026-11-01T00:00:00Z"),
+      staff,
+    )[0];
+  const meeting = claim({ line: 1, kind: "meeting" });
+
+  await t.step(
+    "typed in WhatsApp on that phone: the line's user owns it",
+    () => {
+      assertEquals(
+        pastContact(outbound(true), meeting)?.message.staffUserId,
+        "u-owner",
+      );
+    },
+  );
+
+  await t.step("sent through the API with no person kind: never", () => {
+    assertEquals(pastContact(outbound(false), meeting), null);
+  });
+});
+
 Deno.test("contactRefusal", async (t) => {
   await t.step("reads the clause that names the contact", () => {
     assertEquals(

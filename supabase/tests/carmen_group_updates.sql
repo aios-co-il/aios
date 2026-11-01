@@ -131,7 +131,9 @@ BEGIN
   END IF;
   IF v_row.client_tenant_id IS DISTINCT FROM v_reader
      OR v_row.group_chat_id IS NULL
-     OR v_row.messages -> 0 ->> 'provider_id' IS DISTINCT FROM 'qa1-' || v_tag THEN
+     OR v_row.messages -> 0 ->> 'provider_id' IS DISTINCT FROM 'qa1-' || v_tag
+     OR (v_row.messages -> 3 ->> 'typed_on_phone')::boolean IS NOT FALSE
+     OR v_row.messages -> 3 ->> 'line_user' IS DISTINCT FROM v_org_line::text THEN
     RAISE EXCEPTION 'digest: the client''s tenant, the group chat and the provider id leave, got %', v_row;
   END IF;
   SELECT string_agg(m ->> 'text', ',' ORDER BY ord) INTO v_texts
