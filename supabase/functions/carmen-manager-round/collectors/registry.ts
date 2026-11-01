@@ -11,12 +11,14 @@ import type { Json } from "../../_shared/database.types.ts";
 import { latestSlot } from "../calendar/slots.ts";
 import type { RoundStateRow } from "../state/store.ts";
 import { chatCollector } from "./chat/collector.ts";
+import { contactCollector } from "./contact/collector.ts";
 import { selfTestCollector } from "./self-test.ts";
 import type { Collector } from "./types.ts";
 
 export const COLLECTORS: readonly Collector[] = [
   selfTestCollector,
   chatCollector,
+  contactCollector,
 ];
 
 export type DueCollector = {

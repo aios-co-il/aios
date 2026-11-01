@@ -45,7 +45,7 @@ Deno.test("persistRun", async (t) => {
     async () => {
       const w = world({
         findings: [
-          finding({ fingerprint: "answered" }),
+          finding({ fingerprint: "answered", kind: "no_contact" }),
           finding({ fingerprint: "other", kind: "data_gap" }),
         ],
       });

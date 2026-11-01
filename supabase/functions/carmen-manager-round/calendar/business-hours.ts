@@ -80,6 +80,31 @@ export function businessHoursBetween(
   return total / 3_600_000;
 }
 
+/**
+ * The opening of the business day `days` business days after the day of
+ * `start` (Saturday, holidays and days without hours are not counted).
+ */
+export function businessDaysLater(
+  start: Date,
+  days: number,
+  calendar: BusinessCalendar,
+): Date {
+  let day = jerusalemYmd(start);
+  let left = Math.max(1, Math.round(days));
+  for (let i = 0; i < MAX_DAYS; i++) {
+    day = shiftYmd(day, 1);
+    const window = businessWindow(day, calendar);
+    if (!window) {
+      continue;
+    }
+    left -= 1;
+    if (left === 0) {
+      return window.start;
+    }
+  }
+  return jerusalemLocalTimeToUtc(day, 0, 0);
+}
+
 /** The business window [start, end) of an Israel calendar day, or null. */
 export function businessWindow(
   day: string,

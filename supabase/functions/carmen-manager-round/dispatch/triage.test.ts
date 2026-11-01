@@ -31,7 +31,7 @@ Deno.test("triage", async (t) => {
     () => {
       assertEquals(
         split(finding(), "now", {
-          floors: { no_contact: "2026-11-01T07:30:00Z" },
+          floors: { cost_spike: "2026-11-01T07:30:00Z" },
         }),
         [1, 0, 0],
       );

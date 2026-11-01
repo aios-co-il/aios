@@ -12,6 +12,7 @@ export function collectorContext(
   return {
     tenantId: input.tenantId,
     settings: input.settings,
+    loadRules: () => deps.state.loadRules(input.tenantId),
     now: input.now,
     since: new Date(
       row?.last_run_at ?? row?.first_run_at ?? input.now.toISOString(),

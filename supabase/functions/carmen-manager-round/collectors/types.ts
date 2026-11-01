@@ -54,6 +54,8 @@ export type FindingCandidate = {
 export type CollectorContext = {
   tenantId: string;
   settings: ManagerSettings;
+  /** The tenant's pulse_alert_rules as stored now (RoundStateStore.loadRules), for a collector's own keys. */
+  loadRules: () => Promise<Json | null>;
   now: Date;
   /** End of the last successful run, or the collector's first run for this tenant. Never earlier. */
   since: Date;

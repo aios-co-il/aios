@@ -65,6 +65,21 @@ const route = (w: World, dryRun = false, virtual = undefined) =>
     virtual,
   });
 
+/** Routes only c1's unlogged call attributed to Noa (not on c1), whose phone is `phone`. */
+function routeCallBy(phone: string | null) {
+  const w = setup();
+  w.findings = [
+    finding({
+      client_id: "c1",
+      kind: "contact_not_logged",
+      owner_user_id: "noa",
+      evidence: { attributed: true },
+    }),
+  ];
+  w.contacts = { "user:noa": { name: "נועה", phone } };
+  return route(w);
+}
+
 Deno.test("routeTenant", async (t) => {
   await t.step(
     "routes every due finding and records the decisions",
@@ -216,6 +231,22 @@ Deno.test("routeTenant", async (t) => {
       assertEquals(w.deliveries[0].not_before, "2026-11-04T06:30:00.000Z");
     },
   );
+
+  await t.step("an attributed unlogged call goes to the caller", async () => {
+    const { decisions } = await routeCallBy("0504444444");
+    assertEquals(
+      decisions[0].deliveries.map((d) => d.recipient_key),
+      ["user:noa"],
+    );
+  });
+
+  await t.step("a caller without a phone is a missing_phone gap", async () => {
+    const { gaps } = await routeCallBy(null);
+    assertEquals(
+      gaps.map((g) => g.fingerprint),
+      ["person:user:owner", "person:user:noa"],
+    );
+  });
 
   await t.step("nothing to route loads nobody", async () => {
     const w = world({ failOn: "staff" });

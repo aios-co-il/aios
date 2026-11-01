@@ -10,6 +10,7 @@ function context(db: CollectorContext["db"]): CollectorContext {
   return {
     tenantId: TENANT,
     settings: SETTINGS,
+    loadRules: () => Promise.resolve(null),
     now: NOW,
     since: NOW,
     watermark: null,

@@ -24,16 +24,24 @@ const filled = (settings: Record<string, unknown>, key: string) =>
   typeof settings[key] === "string" && (settings[key] as string).trim() !== "";
 
 /**
- * Scene engines the tenant can run. Kling may be keyed on the render worker alone, which the
- * server cannot see, so it is never dropped; the free preview needs no key.
+ * Scene engines the tenant can run; the free preview needs no key. Kling runs on the tenant's own
+ * keys, or on keys the render worker of this environment holds, which the server cannot see:
+ * RENDER_WORKER_KLING=1 in the edge function secrets says it has them. Without either, a film
+ * sent to Kling failed in the worker (on Staging, 1 Nov: "KLING_ACCESS_KEY and KLING_SECRET_KEY
+ * are required").
  */
 export function connectedSceneEngines(
   settings: Record<string, unknown>,
   connections: VideoConnections = {},
+  workerHasKling = false,
 ): SceneEngine[] {
+  const kling =
+    workerHasKling ||
+    (filled(settings, "kling_access_key") &&
+      filled(settings, "kling_secret_key"));
   return [
     "mock",
-    "kling",
+    ...(kling ? (["kling"] as const) : []),
     ...(connections.openrouter ? (["openrouter"] as const) : []),
     ...(filled(settings, "elevenlabs_api_key")
       ? (["elevenlabs"] as const)

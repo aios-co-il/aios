@@ -4,14 +4,18 @@ import type { FindingRow, PlannedAction } from "../findings/types.ts";
 import {
   action,
   briefTime,
-  escalationTimes,
   isUrgent,
   type LadderContext,
   levelRecipients,
-  listTime,
   sendTime,
 } from "./ladder.ts";
 import { KIND_POLICY } from "./policy.ts";
+import {
+  isRollupKind,
+  kindEscalationTimes,
+  levelZeroTime,
+  rollupTime,
+} from "./rollup.ts";
 
 /** Who would hear about it at each level, and when. */
 export function ladderPreview(
@@ -29,8 +33,15 @@ export function ladderPreview(
   if (KIND_POLICY[kind].start === 2) {
     return [toOwner];
   }
-  const start = urgent ? sendTime(finding, ctx) : listTime(ctx);
-  const [toManagerAt, toOwnerAt] = escalationTimes(start, ctx.settings);
+  const start = levelZeroTime(finding, kind, ctx);
+  const [toManagerAt, toOwnerAt] = kindEscalationTimes(
+    start,
+    kind,
+    ctx.settings,
+  );
+  const managerAt = isRollupKind(kind)
+    ? rollupTime(toManagerAt, ctx.settings)
+    : toManagerAt;
   const critical =
     finding.severity === "critical"
       ? [
@@ -45,12 +56,16 @@ export function ladderPreview(
   return [
     ...critical,
     action(0, "notify", levelRecipients(0, kind, ctx), start),
-    action(1, "notify", levelRecipients(1, kind, ctx), toManagerAt),
-    action(
-      2,
-      urgent ? "notify" : "brief",
-      levelRecipients(2, kind, ctx),
-      toOwnerAt,
-    ),
+    action(1, "notify", levelRecipients(1, kind, ctx), managerAt),
+    ...(toOwnerAt
+      ? [
+          action(
+            2,
+            urgent ? "notify" : "brief",
+            levelRecipients(2, kind, ctx),
+            toOwnerAt,
+          ),
+        ]
+      : []),
   ];
 }

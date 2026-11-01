@@ -22,6 +22,7 @@ export function chatContext(
   return {
     tenantId: TENANT,
     settings: SETTINGS,
+    loadRules: () => Promise.resolve(null),
     now: NOW,
     since: NOW,
     watermark: null,
