@@ -129,7 +129,8 @@ describe("PulseAlertRulesDialog client card logging switch", () => {
 });
 
 describe("PulseAlertRulesDialog reply time in client groups", () => {
-  const REPLY_LABEL = "התראה כשלקוח לא קיבל מענה בקבוצה אחרי (שעות עבודה)";
+  const REPLY_LABEL =
+    "התראה כשלקוח לא קיבל מענה (בקבוצה או בצ׳אט פרטי) אחרי (שעות עבודה)";
 
   it("lets any member change it, starting from 3, and saves it with the rules", async () => {
     const onSave = renderDialog({ manager: { mode: "team" } });
