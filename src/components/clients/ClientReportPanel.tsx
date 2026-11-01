@@ -32,13 +32,18 @@ import { toPng } from "html-to-image";
 import { buildBrandedEmailHtml } from "@/lib/emailTemplate";
 import { EmailRecipientsSelector } from "./EmailRecipientsSelector";
 import { WhatsAppGroupSelect } from "./WhatsAppGroupSelect";
-import { ReportWhatsAppSenderSelect } from "./ReportWhatsAppSenderSelect";
+import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
+import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
+import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
+import { toastReportSent } from "@/components/report-sender/toastReportSent";
 import {
   ReportEmailSenderSelect,
   type ReportEmailSender,
 } from "./ReportEmailSenderSelect";
 import { syncReportTable, waitForSnapshotReady } from "@/lib/reportSync";
 import { downloadReportPdf } from "@/lib/reportPdf";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import {
   getReportLastSyncAt,
   getReportSyncProblem,
@@ -49,7 +54,6 @@ import {
   buildDefaultReportRecipientEmails,
   buildReportEmailOptions,
 } from "@/lib/defaultReportEmailRecipients";
-import { logSystemSendClientUpdate } from "@/lib/logSystemSendClientUpdate";
 
 interface ClientReportPanelProps {
   table: any;
@@ -150,6 +154,7 @@ export function ClientReportPanel({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const recordDelivery = useRecordReportDelivery();
   const snapshotRef = useRef<HTMLDivElement>(null);
 
   // Screenshot state
@@ -164,7 +169,7 @@ export function ClientReportPanel({
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [sendEmail, setSendEmail] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [waSenderId, setWaSenderId] = useState("");
+  const waSender = useReportSenderChoice(tenantId);
   const [directPhone, setDirectPhone] = useState("");
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
   const [emailSubject, setEmailSubject] = useState("");
@@ -502,9 +507,13 @@ export function ClientReportPanel({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
+    let effectiveShareLink: string | null = shareLink || null;
     try {
       // Auto-create share link if missing
-      const effectiveShareLink = shareLink || (await ensureShareLink());
+      if (!effectiveShareLink) {
+        effectiveShareLink = await ensureShareLink();
+      }
 
       if (sendWhatsApp) {
         const hasGroup = selectedGroupId && selectedGroupId !== "__none__";
@@ -514,62 +523,28 @@ export function ClientReportPanel({
           return;
         }
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session) throw new Error("Not authenticated");
-
         const captionParts: string[] = [];
         if (messageText) captionParts.push(messageText);
         if (effectiveShareLink)
           captionParts.push(`\n📊 צפה בדוח המלא: ${effectiveShareLink}`);
         const fullCaption = captionParts.join("");
 
-        const formData = new FormData();
-        formData.append("file", screenshotBlob, `report-${table.name}.png`);
-        formData.append("tenantId", tenantId);
-        formData.append("fileType", "image");
-        if (fullCaption) formData.append("caption", fullCaption);
-
-        if (hasGroup) {
-          formData.append("groupId", selectedGroupId);
-        } else if (directPhone) {
-          formData.append("phoneNumber", directPhone);
-        }
-        if (waSenderId) formData.append("integrationId", waSenderId);
-        if (clientId) formData.append("clientId", clientId);
-
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${session.access_token}` },
-            body: formData,
-          },
-        );
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "שגיאה בשליחה");
-        toast.success("הדוח נשלח בוואטסאפ בהצלחה");
-
-        // Auto-save the WhatsApp text as a weekly update in the client updates tab
-        if (messageText.trim()) {
-          try {
-            const logError = await logSystemSendClientUpdate({
-              tenantId,
-              clientId,
-              content: messageText.trim(),
-              updateType: "weekly_update",
-            });
-            if (logError) {
-              console.warn("Failed to auto-save weekly update:", logError);
-            }
-            queryClient.invalidateQueries({
-              queryKey: ["client-updates", clientId],
-            });
-          } catch (e) {
-            console.warn("Failed to auto-save weekly update:", e);
-          }
-        }
+        const sent = await sendReportWhatsApp({
+          tenantId,
+          pick: waSender.pick,
+          file: screenshotBlob,
+          fileName: `report-${table.name}.png`,
+          fileType: "image",
+          caption: fullCaption,
+          groupId: hasGroup ? selectedGroupId : null,
+          phoneNumber: hasGroup ? null : directPhone,
+          clientId,
+          // A report send: the client card logs it once, from report_deliveries.
+          sendKind: "report",
+          sendRef: table.id,
+        });
+        sentChannels.push("whatsapp");
+        toastReportSent(sent, "הדוח נשלח בוואטסאפ בהצלחה");
       }
 
       if (sendEmail) {
@@ -653,49 +628,9 @@ export function ClientReportPanel({
           if (error) throw new Error(error.message || "שגיאה בשליחה");
           if (data?.error) throw new Error(data.error);
         }
+        sentChannels.push("email");
         toast.success("הדוח נשלח באימייל בהצלחה");
-
-        // Auto-save the email text as a monthly SEO update
-        if (messageText.trim()) {
-          try {
-            const logError = await logSystemSendClientUpdate({
-              tenantId,
-              clientId,
-              content: messageText.trim(),
-              updateType: "monthly_seo",
-            });
-            if (logError) {
-              console.warn("Failed to auto-save monthly SEO update:", logError);
-            }
-            queryClient.invalidateQueries({
-              queryKey: ["client-updates", clientId],
-            });
-          } catch (e) {
-            console.warn("Failed to auto-save monthly SEO update:", e);
-          }
-        }
       }
-
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "table",
-          target_id: table.id,
-          channels: [
-            ...(sendWhatsApp ? ["whatsapp"] : []),
-            ...(sendEmail ? ["email"] : []),
-          ],
-          status: "sent",
-          details: {
-            source: "manual",
-            share_url: effectiveShareLink,
-            email_recipients: sendEmail ? emailRecipients : [],
-          },
-        });
-      if (deliveryLogError)
-        console.warn("Failed to log report delivery:", deliveryLogError);
     } catch (error: any) {
       console.error("Error sending report:", error);
       const msg = String(error?.message || "");
@@ -715,6 +650,17 @@ export function ClientReportPanel({
         toast.error("שגיאה בשליחת הדוח: " + msg);
       }
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "table",
+        targetId: table.id,
+        title: table.name,
+        shareUrl: effectiveShareLink,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients,
+      });
       setIsSending(false);
     }
   };
@@ -870,10 +816,10 @@ export function ClientReportPanel({
 
         {sendWhatsApp && (
           <div className="space-y-2">
-            <ReportWhatsAppSenderSelect
-              tenantId={tenantId}
-              value={waSenderId}
-              onChange={setWaSenderId}
+            <ReportSenderPicker
+              choice={waSender}
+              groups={groups}
+              groupId={selectedGroupId}
             />
             <WhatsAppGroupSelect
               groups={groups}

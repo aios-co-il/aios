@@ -1,4 +1,4 @@
--- Group updates to the client card (20261027103000_carmen_group_updates):
+-- Group updates to the client card (20261101103000_carmen_group_updates):
 -- carmen_finding_role_of, carmen_finding_resolve_card_written and
 -- carmen_round_llm_spend inside one transaction that is rolled back. Run on a
 -- Preview branch or Staging (needs a client whose tenant has an owner).

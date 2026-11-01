@@ -39,8 +39,12 @@ import {
   Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { markdownToEmailHtml, markdownToWhatsApp } from "./summaryFormat";
-import { logSystemSendClientUpdate } from "@/lib/logSystemSendClientUpdate";
+import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
+import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
+import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
 
 export interface ShareableRecording {
   id: string;
@@ -77,11 +81,13 @@ export function ShareSummaryDialog({
   const [sendEmail, setSendEmail] = useState(false);
   const [attachDocx, setAttachDocx] = useState(true);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const waSender = useReportSenderChoice(tenantId);
   const [directPhone, setDirectPhone] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const recordDelivery = useRecordReportDelivery();
 
   const meetingName = recording.meeting_topic || "פגישה";
   const meetingDate = recording.start_time
@@ -107,7 +113,7 @@ export function ShareSummaryDialog({
     queryFn: async () => {
       const { data } = await supabase
         .from("whatsapp_groups")
-        .select("id, group_name")
+        .select("id, group_name, group_chat_id")
         .eq("tenant_id", tenantId)
         .eq("is_blocked", false)
         .order("group_name");
@@ -147,34 +153,6 @@ export function ShareSummaryDialog({
     else setEmailSender("aios");
   }, [gmailToken]);
 
-  const logClientUpdate = async () => {
-    if (!recording.client_id) return;
-    try {
-      const channels = [
-        sendWhatsApp ? "בוואטסאפ" : null,
-        sendEmail ? "באימייל" : null,
-      ].filter(Boolean);
-      const error = await logSystemSendClientUpdate({
-        tenantId,
-        clientId: recording.client_id,
-        updateType: "meeting_summary",
-        content: `סיכום הפגישה "${meetingName}"${meetingDate ? ` (${meetingDate})` : ""} נשלח ללקוח${channels.length ? ` ${channels.join(" ו")}` : ""}`,
-        metadata: {
-          recording_id: recording.id,
-          channels: [
-            ...(sendWhatsApp ? ["whatsapp"] : []),
-            ...(sendEmail ? ["email"] : []),
-          ],
-        },
-      });
-      if (error) {
-        console.error("client_updates log failed:", error);
-      }
-    } catch (err) {
-      console.error("client_updates log failed:", err);
-    }
-  };
-
   const handleSend = async () => {
     if (!recording.summary_md) {
       toast.error("אין סיכום לשליחה — צור סיכום קודם");
@@ -186,6 +164,7 @@ export function ShareSummaryDialog({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
     try {
       const {
         data: { session },
@@ -210,27 +189,21 @@ export function ShareSummaryDialog({
           .join("\n")
           .trim();
 
-        const msgResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-message`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              tenantId,
-              message: waText,
-              ...(hasGroup
-                ? { groupId: selectedGroupId }
-                : { phoneNumber: directPhone }),
-              ...(recording.client_id ? { clientId: recording.client_id } : {}),
-            }),
-          },
-        );
-        const msgResult = await msgResponse.json();
-        if (!msgResponse.ok)
-          throw new Error(msgResult.error || "שגיאה בשליחה בוואטסאפ");
+        const recipient = {
+          groupId: hasGroup ? selectedGroupId : null,
+          phoneNumber: hasGroup ? null : directPhone,
+          clientId: recording.client_id,
+        };
+        await sendReportWhatsApp({
+          tenantId,
+          pick: waSender.pick,
+          text: waText,
+          ...recipient,
+          // Logged on the client card once, from report_deliveries.
+          sendKind: "meeting_summary",
+          sendRef: recording.id,
+        });
+        sentChannels.push("whatsapp");
 
         // Optional: the DOCX as an attached document
         if (attachDocx && recording.summary_file_url) {
@@ -238,28 +211,16 @@ export function ShareSummaryDialog({
             const docxBlob = await (
               await fetch(recording.summary_file_url)
             ).blob();
-            const formData = new FormData();
-            formData.append(
-              "file",
-              docxBlob,
-              `סיכום פגישה - ${meetingName}.docx`,
-            );
-            formData.append("tenantId", tenantId);
-            formData.append("fileType", "document");
-            if (hasGroup) formData.append("groupId", selectedGroupId);
-            else formData.append("phoneNumber", directPhone);
-            if (recording.client_id)
-              formData.append("clientId", recording.client_id);
-            const fileResponse = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
-              {
-                method: "POST",
-                headers: { Authorization: `Bearer ${session.access_token}` },
-                body: formData,
-              },
-            );
-            if (!fileResponse.ok)
-              console.error("DOCX attach failed:", await fileResponse.text());
+            await sendReportWhatsApp({
+              tenantId,
+              pick: waSender.pick,
+              file: docxBlob,
+              fileName: `סיכום פגישה - ${meetingName}.docx`,
+              fileType: "document",
+              ...recipient,
+              sendKind: "meeting_summary",
+              sendRef: recording.id,
+            });
           } catch (docxErr) {
             console.error("DOCX attach failed:", docxErr);
           }
@@ -373,9 +334,9 @@ export function ShareSummaryDialog({
             throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הסיכום נשלח באימייל בהצלחה");
         }
+        sentChannels.push("email");
       }
 
-      await logClientUpdate();
       onOpenChange(false);
     } catch (error) {
       console.error("Error sending summary:", error);
@@ -383,6 +344,19 @@ export function ShareSummaryDialog({
         "שגיאה בשליחת הסיכום: " + (error instanceof Error ? error.message : ""),
       );
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId: recording.client_id,
+        targetType: "meeting_summary",
+        targetId: recording.id,
+        title: meetingName,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        extraDetails: {
+          meeting_date: meetingDate || null,
+          recording_id: recording.id,
+        },
+      });
       setIsSending(false);
     }
   };
@@ -424,6 +398,11 @@ export function ShareSummaryDialog({
 
           {sendWhatsApp && (
             <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+              <ReportSenderPicker
+                choice={waSender}
+                groups={groups}
+                groupId={selectedGroupId}
+              />
               <div>
                 <Label className="text-sm">קבוצת וואטסאפ (חיפוש לפי שם)</Label>
                 <GroupCombobox

@@ -2,7 +2,7 @@
  * Rollout modes of Carmen's manager round and how a tenant's settings turn
  * into the mode of each finding kind. The database guard
  * (carmen_manager_mode_sends / carmen_manager_kind_sends in
- * 20261027100000_carmen_manager_round.sql) reads modes the same way.
+ * 20261101100000_carmen_manager_round.sql) reads modes the same way.
  */
 import type { FindingKind } from "./kinds.ts";
 import type { ManagerSettings } from "./settings.ts";

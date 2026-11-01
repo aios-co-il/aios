@@ -3,7 +3,7 @@ import {
   type SyncOutcomeStatus,
 } from "../_shared/ads-sync/outcome.ts";
 import { saveSyncRun } from "../_shared/ads-sync/save-run.ts";
-import type { SyncDbClient } from "../_shared/ads-sync/write-window.ts";
+import type { SyncClient } from "../_shared/ads-sync/write-window.ts";
 
 const SOURCE = "webhook-google-ads-sync";
 
@@ -12,7 +12,7 @@ const SOURCE = "webhook-google-ads-sync";
  * received was written; the attempt and its outcome are always recorded.
  */
 export async function recordWebhookRun(
-  client: SyncDbClient,
+  client: SyncClient,
   table: {
     id: string;
     tenant_id: string;

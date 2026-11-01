@@ -3,7 +3,11 @@
  * (AIO-226), once each. Nothing is replayed late: a hold still unreleased 24h
  * after its release time expires unsent.
  */
-import type { HeldPeerNotification } from "../_shared/shabbat/held-peer-notification.ts";
+import type { Json } from "../_shared/database.types.ts";
+import {
+  type HeldPeerNotification,
+  parseHeldRequestBody,
+} from "../_shared/shabbat/held-peer-notification.ts";
 import { jerusalemShabbatHoldUntil } from "../_shared/shabbat/quiet-window.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
@@ -102,14 +106,24 @@ export async function releaseHeldTaskNotifications(
 async function deliverHold(
   supabase: Pick<DbClient, "from">,
   holdId: string,
-  requestBody: HeldPeerNotification["request_body"],
+  storedBody: Json,
   deliver: Deliver,
 ): Promise<Pick<HeldReleaseResult, "result" | "error" | "record_error">> {
+  const requestBody = parseHeldRequestBody(storedBody);
+  if (!requestBody) {
+    const error = "invalid_request_body";
+    const recordError = await recordRelease(supabase, holdId, {
+      delivered: false,
+      error,
+    });
+    return { error, ...recordError };
+  }
+
   try {
     const result = await deliver(requestBody);
     const recordError = await recordRelease(supabase, holdId, {
       delivered: true,
-      result,
+      result: asStoredJson(result),
     });
     return { result, ...recordError };
   } catch (deliverError) {
@@ -129,7 +143,7 @@ async function deliverHold(
 async function recordRelease(
   supabase: Pick<DbClient, "from">,
   holdId: string,
-  releaseResult: Record<string, unknown>,
+  releaseResult: { [key: string]: Json | undefined },
 ): Promise<Pick<HeldReleaseResult, "record_error">> {
   const { error } = await supabase
     .from("task_notification_holds")
@@ -144,4 +158,9 @@ async function recordRelease(
     error.message,
   );
   return { record_error: error.message };
+}
+
+/** trigger-automation's reply was parsed from JSON, so it round-trips as Json. */
+function asStoredJson(value: unknown): Json {
+  return JSON.parse(JSON.stringify(value ?? null)) as Json;
 }

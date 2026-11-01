@@ -1,4 +1,4 @@
--- Client card provenance (20261026126000_client_card_provenance): Staging
+-- Client card provenance (20261030092000_client_card_provenance): Staging
 -- only. Synthetic rows on an existing client inside one transaction that is
 -- rolled back.
 BEGIN;
@@ -6,13 +6,19 @@ DO $test$
 DECLARE
   v_tenant uuid;
   v_other_tenant uuid;
+  v_other_owner uuid;
+  v_other_client uuid;
   v_client uuid;
   v_agency uuid;
+  v_unshared_agency uuid;
   v_owner uuid;
   v_member uuid;
+  v_member_campaigner uuid;
   v_campaigner uuid;
   v_carmen_row uuid;
   v_shared_row uuid;
+  v_other_row uuid;
+  v_moved_row uuid;
   v_ref text := 'qa-rollback-' || gen_random_uuid();
   v_counted_at timestamptz := now() + interval '1 day';
   v_last timestamptz;
@@ -21,10 +27,16 @@ DECLARE
   affected integer;
 BEGIN
   -- An owner (not a super admin) whose home tenant has a client with no team,
-  -- so attribution starts at the owner fallback.
-  SELECT ur.user_id, ur.tenant_id INTO v_owner, v_tenant
+  -- so attribution starts at the owner fallback. The client has an agency, so
+  -- it can be shared with another org. v_member is a campaigner of the same
+  -- tenant with no owner rights, assigned to the client before the RLS
+  -- checks so it is a client they can see.
+  SELECT ur.user_id, ur.tenant_id, tu.user_id, mp.campaigner_id
+  INTO v_owner, v_tenant, v_member, v_member_campaigner
   FROM public.user_roles AS ur
   JOIN public.profiles AS p ON p.id = ur.user_id
+  JOIN public.tenant_users AS tu ON tu.tenant_id = ur.tenant_id
+  JOIN public.profiles AS mp ON mp.id = tu.user_id
   WHERE ur.role = 'owner'::public.app_role
     AND public.get_user_tenant_id(ur.user_id) = ur.tenant_id
     AND NOT public.is_super_admin(ur.user_id)
@@ -32,61 +44,119 @@ BEGIN
       SELECT 1
       FROM public.clients AS c
       WHERE c.tenant_id = ur.tenant_id
+        AND c.agency_id IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM public.client_team AS ct WHERE ct.client_id = c.id)
+    )
+    AND mp.campaigner_id IS NOT NULL
+    AND tu.role NOT IN ('owner', 'agency_owner')
+    AND public.get_user_tenant_id(tu.user_id) = ur.tenant_id
+    AND public.has_role(tu.user_id, 'campaigner'::public.app_role)
+    AND NOT public.is_super_admin(tu.user_id)
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.user_roles AS own
+      WHERE own.user_id = tu.user_id
+        AND own.tenant_id = ur.tenant_id
+        AND own.role IN ('owner'::public.app_role, 'agency_owner'::public.app_role)
     )
   LIMIT 1;
 
   SELECT c.id, c.agency_id INTO v_client, v_agency
   FROM public.clients AS c
   WHERE c.tenant_id = v_tenant
+    AND c.agency_id IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM public.client_team AS ct WHERE ct.client_id = c.id)
   LIMIT 1;
 
-  -- A member of the same tenant with no owner rights (a campaigner's view).
-  SELECT tu.user_id INTO v_member
-  FROM public.tenant_users AS tu
-  WHERE tu.tenant_id = v_tenant
-    AND tu.role NOT IN ('owner', 'agency_owner')
-    AND public.get_user_tenant_id(tu.user_id) = v_tenant
-    AND NOT public.is_super_admin(tu.user_id)
-    AND NOT EXISTS (
-      SELECT 1
-      FROM public.user_roles AS ur
-      WHERE ur.user_id = tu.user_id
-        AND ur.tenant_id = v_tenant
-        AND ur.role IN ('owner'::public.app_role, 'agency_owner'::public.app_role)
-    )
-  LIMIT 1;
-
-  -- A second tenant with no agency access to the first one.
-  SELECT t.id INTO v_other_tenant
-  FROM public.tenants AS t
-  WHERE t.id <> v_tenant
+  -- A second tenant with no agency access to the first one, a client of its
+  -- own, and its owner (not a super admin) whose home tenant it is. The first
+  -- tenant's owner has no role there, so owner rights never cross between the
+  -- two.
+  SELECT ur.tenant_id, ur.user_id INTO v_other_tenant, v_other_owner
+  FROM public.user_roles AS ur
+  WHERE ur.role = 'owner'::public.app_role
+    AND ur.tenant_id <> v_tenant
+    AND public.get_user_tenant_id(ur.user_id) = ur.tenant_id
+    AND NOT public.is_super_admin(ur.user_id)
+    AND EXISTS (SELECT 1 FROM public.clients AS c WHERE c.tenant_id = ur.tenant_id)
     AND NOT EXISTS (
       SELECT 1
       FROM public.agency_tenant_access AS ata
-      WHERE ata.accessing_tenant_id = t.id
+      WHERE ata.accessing_tenant_id = ur.tenant_id
         AND ata.source_tenant_id = v_tenant
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.user_roles AS own
+      WHERE own.user_id = v_owner
+        AND own.tenant_id = ur.tenant_id
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.tenant_users AS own
+      WHERE own.user_id = v_owner
+        AND own.tenant_id = ur.tenant_id
     )
   LIMIT 1;
 
-  -- An active campaigner with an active profile, assigned to the client later.
+  SELECT c.id INTO v_other_client
+  FROM public.clients AS c
+  WHERE c.tenant_id = v_other_tenant
+  LIMIT 1;
+
+  -- An active campaigner with an active profile, assigned to the client later;
+  -- not the second tenant's owner, who must not see the client through it.
   SELECT cp.id INTO v_campaigner
   FROM public.campaigners AS cp
   JOIN public.profiles AS p ON p.campaigner_id = cp.id
   WHERE cp.active
     AND p.status <> 'inactive'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.profiles AS other
+      WHERE other.id = v_other_owner
+        AND other.campaigner_id = cp.id
+    )
   LIMIT 1;
 
   IF v_owner IS NULL OR v_client IS NULL OR v_member IS NULL
-    OR v_other_tenant IS NULL OR v_campaigner IS NULL THEN
-    RAISE EXCEPTION 'Requires an owner tenant with an unassigned client, a non-owner member, a second tenant and an active campaigner';
+    OR v_other_tenant IS NULL OR v_other_owner IS NULL OR v_other_client IS NULL
+    OR v_campaigner IS NULL THEN
+    RAISE EXCEPTION 'Requires an owner tenant with an unassigned agency client and a non-owner campaigner, a second tenant with its own owner and client, and an active campaigner';
   END IF;
 
-  -- Grants: only the service role may call the writer.
+  -- Grants: only the service role may call the writer; the write predicate is
+  -- for the service role and RLS (authenticated), never anon.
   IF has_function_privilege('authenticated', 'public.record_client_card_entry(uuid, uuid, text, text, text, text, uuid, boolean, jsonb)', 'EXECUTE')
     OR has_function_privilege('anon', 'public.record_client_card_entry(uuid, uuid, text, text, text, text, uuid, boolean, jsonb)', 'EXECUTE') THEN
     RAISE EXCEPTION 'record_client_card_entry is executable by anon or authenticated';
+  END IF;
+  IF has_function_privilege('anon', 'public.tenant_can_write_client(uuid, uuid)', 'EXECUTE')
+    OR NOT has_function_privilege('authenticated', 'public.tenant_can_write_client(uuid, uuid)', 'EXECUTE')
+    OR NOT has_function_privilege('service_role', 'public.tenant_can_write_client(uuid, uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'tenant_can_write_client grants are not service_role and authenticated only';
+  END IF;
+
+  -- Write predicate: the tenant's own client is writable; a foreign tenant's,
+  -- an unknown client or a NULL tenant is not.
+  IF public.tenant_can_write_client(v_tenant, v_client) IS NOT TRUE THEN
+    RAISE EXCEPTION 'tenant_can_write_client refused the tenant''s own client';
+  END IF;
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT FALSE
+    OR public.tenant_can_write_client(v_tenant, gen_random_uuid()) IS NOT FALSE
+    OR public.tenant_can_write_client(NULL, v_client) IS NOT FALSE THEN
+    RAISE EXCEPTION 'tenant_can_write_client allowed a foreign tenant, an unknown client or a NULL tenant';
+  END IF;
+
+  -- A read_write share of another agency of the client's tenant does not
+  -- cover the client.
+  INSERT INTO public.agencies (name, tenant_id)
+  VALUES ('QA ROLLBACK unshared agency', v_tenant)
+  RETURNING id INTO v_unshared_agency;
+  INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
+  VALUES (v_tenant, v_unshared_agency, v_other_tenant, 'read_write');
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT FALSE THEN
+    RAISE EXCEPTION 'tenant_can_write_client allowed a share of another agency';
   END IF;
 
   -- Tenant check: a client outside p_tenant is refused with 42501 ...
@@ -98,9 +168,29 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
 
-  -- ... and allowed once that tenant has agency read_write access.
+  -- ... and so is one of an agency shared with p_tenant read_only ...
   INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
-  VALUES (v_tenant, v_agency, v_other_tenant, 'read_write');
+  VALUES (v_tenant, v_agency, v_other_tenant, 'read_only');
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT FALSE THEN
+    RAISE EXCEPTION 'tenant_can_write_client allowed a read_only share';
+  END IF;
+  BEGIN
+    PERFORM public.record_client_card_entry(
+      v_other_tenant, v_client, 'QA ROLLBACK read_only share',
+      p_source => 'automation', p_attributed_user => v_owner);
+    RAISE EXCEPTION 'A read_only share wrote the card';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  -- ... and allowed once that share is read_write.
+  UPDATE public.agency_tenant_access
+  SET access_level = 'read_write'
+  WHERE source_tenant_id = v_tenant
+    AND agency_id = v_agency
+    AND accessing_tenant_id = v_other_tenant;
+  IF public.tenant_can_write_client(v_other_tenant, v_client) IS NOT TRUE THEN
+    RAISE EXCEPTION 'tenant_can_write_client refused a read_write share';
+  END IF;
   SELECT * INTO r1 FROM public.record_client_card_entry(
     v_other_tenant, v_client, 'QA ROLLBACK agency tenant',
     p_source => 'automation', p_attributed_user => v_owner);
@@ -171,12 +261,28 @@ BEGIN
     RAISE EXCEPTION 'The pulse counted % instead of the human counts_as_contact row', v_last;
   END IF;
 
-  -- RLS as a member without owner rights: human rows only, no edits to
-  -- entries no person wrote.
+  -- The member is the client's campaigner from here on, so they can see it.
+  INSERT INTO public.client_team (client_id, campaigner_id)
+  SELECT v_client, v_member_campaigner
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.client_team AS ct
+    WHERE ct.client_id = v_client
+      AND ct.campaigner_id = v_member_campaigner
+  );
+
+  -- RLS as a member without owner rights: human rows as themselves only, no
+  -- edits to entries no person wrote.
   PERFORM set_config('request.jwt.claim.sub', v_member::text, true);
   SET LOCAL ROLE authenticated;
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
   VALUES (v_client, v_tenant, v_member, 'QA ROLLBACK browser human', 'human');
+  BEGIN
+    INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
+    VALUES (v_client, v_tenant, v_owner, 'QA ROLLBACK forged author', 'human');
+    RAISE EXCEPTION 'The browser inserted a row attributed to someone else';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   BEGIN
     INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
     VALUES (v_client, v_tenant, v_member, 'QA ROLLBACK browser carmen', 'carmen');
@@ -198,14 +304,81 @@ BEGIN
   IF affected <> 1 THEN
     RAISE EXCEPTION 'The tenant owner could not edit a carmen row';
   END IF;
+  BEGIN
+    UPDATE public.client_updates
+    SET source = 'human', user_id = v_member
+    WHERE id = v_carmen_row;
+    RAISE EXCEPTION 'The tenant owner turned a carmen row into another person''s note';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
 
-  -- One shared card: the client's org sees the entry the sharing org wrote.
+  -- One shared card: the client's org sees the entry the sharing org wrote ...
   IF NOT EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_shared_row) THEN
     RAISE EXCEPTION 'The client''s org cannot see the entry the sharing org wrote';
   END IF;
+
+  -- ... but cannot edit or delete it: owner rights follow the writer's tenant.
+  UPDATE public.client_updates SET content = 'Must be denied' WHERE id = v_shared_row;
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN
+    RAISE EXCEPTION 'The client''s org edited an automatic entry the sharing org wrote';
+  END IF;
+  DELETE FROM public.client_updates WHERE id = v_shared_row;
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN
+    RAISE EXCEPTION 'The client''s org deleted an automatic entry the sharing org wrote';
+  END IF;
+  RESET ROLE;
+
+  -- One shared card, the other way: the sharing org sees the client's entries
+  -- and writes its own on it.
+  PERFORM set_config('request.jwt.claim.sub', v_other_owner::text, true);
+  SET LOCAL ROLE authenticated;
+  IF NOT EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_carmen_row) THEN
+    RAISE EXCEPTION 'The sharing org cannot see the entry the client''s org wrote';
+  END IF;
+  INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
+  VALUES (v_client, v_other_tenant, v_other_owner, 'QA ROLLBACK sharing org note', 'human')
+  RETURNING id INTO v_other_row;
+  INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
+  VALUES (v_other_client, v_other_tenant, v_other_owner, 'QA ROLLBACK own client note', 'human')
+  RETURNING id INTO v_moved_row;
+  RESET ROLE;
+
+  -- Without access to the client, its entries are hidden.
+  DELETE FROM public.agency_tenant_access
+  WHERE source_tenant_id = v_tenant
+    AND agency_id = v_agency
+    AND accessing_tenant_id = v_other_tenant;
+  SET LOCAL ROLE authenticated;
+  IF EXISTS (SELECT 1 FROM public.clients WHERE id = v_client) THEN
+    RAISE EXCEPTION 'Setup: the second tenant''s owner still sees the client after its access was revoked';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_carmen_row) THEN
+    RAISE EXCEPTION 'A user who cannot see the client sees its entries';
+  END IF;
+
+  -- ... and cannot write on it: no new entry, no edit of an own entry still
+  -- on it, no move of an own entry onto it.
+  BEGIN
+    INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, source)
+    VALUES (v_client, v_other_tenant, v_other_owner, 'QA ROLLBACK after revoke', 'human');
+    RAISE EXCEPTION 'A user who cannot see the client wrote an entry on it';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.client_updates SET content = 'Must be denied' WHERE id = v_other_row;
+    RAISE EXCEPTION 'A user who cannot see the client edited an entry on it';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.client_updates SET client_id = v_client WHERE id = v_moved_row;
+    RAISE EXCEPTION 'A user moved an entry onto a client they cannot see';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub', '', true);
 END;
 $test$;
-SELECT 'Tenant check, dedupe, attribution, refusals, pulse filter, RLS, shared card and grants passed' AS result;
+SELECT 'Write predicate, tenant check, dedupe, attribution, refusals, pulse filter, RLS, shared card, write scope and grants passed' AS result;
 ROLLBACK;

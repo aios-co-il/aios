@@ -6,16 +6,19 @@
 // owner fallback, never a group chat whose session row stores the
 // recipient's phone as last speaker). Pulse/notify is always 1:1.
 //
-// Auth: Authorization: Bearer == MANUS_MCP_BEARER (same shared secret as manus-mcp).
+// Auth (fails closed, AIO-239): Bearer MANUS_MCP_BEARER (manus-mcp's shared
+// secret) or this project's service-role key; only the latter when it is unset.
 //
 // Body: { tenant_id, message, chat_id? }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { loadNotifyReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
 import {
   normalizeNotifyPhone,
   pickNotifyDelivery,
   resolveCarmenNotifyTarget,
 } from "../_shared/carmen-notify-target.ts";
+import { authorizeSecretOrServiceRole } from "../_shared/auth/edge-caller-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,13 +35,6 @@ function json(body: any, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function bearerFrom(req: Request): string | undefined {
-  const h =
-    req.headers.get("authorization") || req.headers.get("Authorization");
-  const m = h?.match(/^Bearer\s+(.+)$/i);
-  return m ? m[1].trim() : undefined;
 }
 
 async function sendViaActionStep(
@@ -100,7 +96,13 @@ async function sendViaActionStep(
       ? "send-manus-wa-message"
       : "send-green-api-message";
 
-  const body: any = { tenantId, senderUserId: connectionUserId, message };
+  const body: Record<string, unknown> = {
+    tenantId,
+    senderUserId: connectionUserId,
+    message,
+    // A staff notification, never logged on a client card.
+    sendKind: "staff_alert",
+  };
   if (integrationId) body.integrationId = integrationId;
   if (groupId) body.groupId = groupId;
   else body.phoneNumber = phoneNumber;
@@ -130,8 +132,13 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
-  const required = Deno.env.get("MANUS_MCP_BEARER");
-  if (required && bearerFrom(req) !== required) {
+  const auth = authorizeSecretOrServiceRole({
+    authorization: req.headers.get("Authorization"),
+    secret: Deno.env.get("MANUS_MCP_BEARER"),
+    serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  });
+  if (!auth.ok) {
+    console.warn("[manus-notify] refused: no valid bearer");
     return json({ error: "unauthorized" }, 401);
   }
 
@@ -153,13 +160,11 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const [{ data: heartbeat }, { data: sessions }, { data: campaigners }] =
+  // A failed report-list read leaves the staff chain below to decide; each
+  // response flags the bypass (JSON drops the field when the list was read).
+  const [reportList, { data: sessions }, { data: campaigners }] =
     await Promise.all([
-      sb
-        .from("tenant_heartbeat_settings")
-        .select("campaign_pulse_phone")
-        .eq("tenant_id", tenantId)
-        .maybeSingle(),
+      loadNotifyReportRecipients(sb, tenantId, "manus-notify"),
       sb
         .from("carmen_whatsapp_sessions")
         .select(
@@ -187,7 +192,7 @@ Deno.serve(async (req) => {
 
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
-    campaignPulsePhone: heartbeat?.campaign_pulse_phone ?? null,
+    reportRecipients: reportList.recipients,
     sessions: (sessions || []).map((s: any) => ({
       chat_id: s.chat_id,
       phone: s.phone,
@@ -205,6 +210,7 @@ Deno.serve(async (req) => {
         target.reason ||
         "no resolvable Carmen WhatsApp recipient for this tenant",
       source: target.source,
+      report_recipients_unavailable: reportList.unavailable || undefined,
     });
   }
 
@@ -218,6 +224,7 @@ Deno.serve(async (req) => {
       reason: "no Carmen WhatsApp automation/session bridge for this tenant",
       source: target.source,
       chat_id: delivery.chatId,
+      report_recipients_unavailable: reportList.unavailable || undefined,
     });
   }
 
@@ -238,5 +245,6 @@ Deno.serve(async (req) => {
     phone: delivery.phoneNumber,
     contact_name: target.contactName,
     source: target.source,
+    report_recipients_unavailable: reportList.unavailable || undefined,
   });
 });

@@ -1,5 +1,5 @@
 -- Ops: read-only plan check for get_client_group_digest_messages in
--- 20261027103000_carmen_group_updates.sql (AIO-254). Run on Staging (or the
+-- 20261101103000_carmen_group_updates.sql (AIO-254). Run on Staging (or the
 -- PR's Preview branch) after the migration applies there, with real literals
 -- in place of the <placeholders>, and paste the output in the PR.
 --

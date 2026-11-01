@@ -13,6 +13,10 @@ import {
   fetchLastMetaCampaignActivity,
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
+import {
+  buildDestinationTypeMaps,
+  fetchAdsets,
+} from "../_shared/fb-insights/adsets.ts";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
 import {
   jerusalemToday,
@@ -212,18 +216,11 @@ Deno.serve(async (req) => {
         // is optimized for (its "Result" in Ads Manager) — e.g. the custom pixel
         // event "NewLead" rather than the broad fb_pixel_lead. This is what keeps
         // the lead counts matching Facebook instead of inflating them.
-        const adsets: any[] = [];
-        {
-          let next: string | null =
-            `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
-          while (next) {
-            const r = await fetch(next);
-            const d: any = await r.json();
-            if (d.error) break;
-            if (Array.isArray(d.data)) adsets.push(...d.data);
-            next = d.paging?.next || null;
-          }
-        }
+        const adsets = await fetchAdsets(
+          adAccountId,
+          accessToken,
+          "cron-sync-facebook-insights",
+        );
         const campaignObjectives: Record<string, string | null | undefined> =
           {};
         for (const c of Object.values(campaignStatuses))
@@ -234,6 +231,7 @@ Deno.serve(async (req) => {
         );
         const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
         const resultMetrics = buildResultMetricMaps(adsets);
+        const destinationTypes = buildDestinationTypeMaps(adsets);
 
         // Also fetch ad account status
         const accountUrl = `https://graph.facebook.com/v21.0/${adAccountId}?fields=account_status,disable_reason,name&access_token=${accessToken}`;
@@ -299,6 +297,7 @@ Deno.serve(async (req) => {
             resultLeadTypes,
             optimizationGoals,
             resultMetrics,
+            destinationTypes,
           );
           console.log(
             `[cron-sync-facebook-insights] ${table.name}: fetched ${insights.length} rows ${syncWindow.startDate}..${syncWindow.endDate}`,

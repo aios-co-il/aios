@@ -6,7 +6,11 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { readdirSync, readFileSync } from "node:fs";
-import { SERVICE_ONLY_RUN_FIELDS, bindRunAgentCaller } from "./caller-trust.ts";
+import {
+  SERVICE_ONLY_RUN_FIELDS,
+  bindRunAgentCaller,
+  runCallerPhone,
+} from "./caller-trust.ts";
 
 const USER = "22222222-2222-4222-8222-222222222222";
 const OWNER = "11111111-1111-4111-8111-111111111111";
@@ -97,7 +101,7 @@ Deno.test("service-only fields: source guards", async (t) => {
       for (const later of [
         "bodyJson.direct_tool",
         "const surface: Surface",
-        "resolveBrainEngine(",
+        "resolveWorkshopAwareEngine(",
         "handleRunAgent(",
       ])
         assert(
@@ -106,7 +110,7 @@ Deno.test("service-only fields: source guards", async (t) => {
         );
       assertMatch(
         agent,
-        /import \{ bindRunAgentCaller \} from "\.\/caller-trust\.ts";/,
+        /import \{[^}]*\bbindRunAgentCaller\b[^}]*\} from "\.\/caller-trust\.ts";/,
       );
     },
   );
@@ -148,6 +152,96 @@ Deno.test("service-only fields: source guards", async (t) => {
         assertNotMatch(src, /\blead_data\b|\bwa_notify\b/, String(file));
         assertNotMatch(src, /surface:\s*["']whatsapp["']/, String(file));
       }
+    },
+  );
+});
+
+Deno.test("runCallerPhone", async (t) => {
+  await t.step("reads only lead_data.phone", () => {
+    assertStrictEquals(runCallerPhone({ lead_data: { phone: " " } }), null);
+    assertStrictEquals(
+      runCallerPhone({ lead_data: { phone: 972501112222 } }),
+      "972501112222",
+    );
+    assertStrictEquals(
+      runCallerPhone({ lead_data: { contact_phone: "+972 50-111-2222" } }),
+      null,
+    );
+    assertStrictEquals(runCallerPhone({}), null);
+  });
+});
+
+Deno.test("automation and task runs: source guards", async (t) => {
+  await t.step("runCarmenAI sends no top-level automation_id", () => {
+    const carmen = readFileSync(
+      new URL("../_shared/carmen.ts", import.meta.url),
+      "utf8",
+    );
+    const run = carmen.slice(
+      carmen.indexOf("export async function runCarmenAI"),
+    );
+    const start = run.indexOf("const body = JSON.stringify({");
+    assert(start > 0);
+    const body = run.slice(start, run.indexOf("\n  });", start));
+    assertNotMatch(body, /\bautomation_id\s*:/);
+  });
+
+  await t.step(
+    "run-ai-agent refuses approval decisions outside a person's message",
+    () => {
+      const flow = agent.slice(
+        agent.indexOf("// ─── Chat approval flow (AIO-230)"),
+        agent.indexOf("// Deterministic path: meeting join URL"),
+      );
+      assert(flow.length > 0);
+      assertStrictEquals(flow.split("mayDecideApprovals &&").length - 1, 2);
+      assertMatch(
+        agent,
+        /const mayDecideApprovals = runMayDecideApprovals\(bodyJson, surface\);/,
+      );
+      const guard = agent.indexOf(
+        "} else if (!mayDecideApprovals && isApprovalDecisionTool(toolName)) {",
+      );
+      const loopExec = agent.search(/result = await executeTool\(\s*toolName,/);
+      assert(guard > 0 && loopExec > guard && loopExec - guard < 1500);
+      assertMatch(
+        agent,
+        /buildToolApiEntries\(\s*approvalScopedTools\(filteredTools, mayDecideApprovals\),/,
+      );
+      assertStrictEquals(
+        agent.split("buildToolApiEntries(filteredTools").length - 1,
+        0,
+      );
+      assertMatch(agent, /const callerPhone = runCallerPhone\(bodyJson\);/);
+    },
+  );
+
+  await t.step(
+    "run-ai-agent reads the caller's roles in this tenant only",
+    () => {
+      const section = agent.slice(
+        agent.indexOf("// 2.6. Resolve caller role"),
+        agent.indexOf("// 2.7."),
+      );
+      assertMatch(
+        section,
+        /\.from\("user_roles"\)\s*\.select\("role"\)\s*\.eq\("user_id", callerUserId\)\s*\.or\(`tenant_id\.eq\.\$\{resolvedTenantId\},tenant_id\.is\.null`\);\s*if \(rolesError\) \{\s*throw rolesError;/,
+      );
+    },
+  );
+
+  await t.step(
+    "run-ai-agent learns no instruction from an automation run",
+    () => {
+      const capture = agent.slice(
+        agent.indexOf("// ─── 2.7. Code-level instruction capture"),
+        agent.indexOf('await supabase.from("ai_memory").upsert('),
+      );
+      // The guard may also skip a workshop brief (PR 932); it must always skip an automation.
+      assertMatch(
+        capture,
+        /if \(\s*looksLikeInstruction &&\s*resolvedTenantId &&(?:\s*![A-Za-z]+ &&)*\s*!automationRun\s*\) \{/,
+      );
     },
   );
 });

@@ -1,7 +1,7 @@
 /**
  * Finding kinds of Carmen's manager round (AIO-251). The kind list and the
  * live statuses are also CHECK / index predicates in
- * supabase/migrations/20261027100000_carmen_manager_round.sql; kinds.test.ts
+ * supabase/migrations/20261101100000_carmen_manager_round.sql; kinds.test.ts
  * keeps the two in step.
  */
 

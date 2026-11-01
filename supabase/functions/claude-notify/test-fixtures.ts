@@ -73,7 +73,7 @@ export const withRole = <T extends { settings: Row }>(
   carmen_role: string,
 ) => ({ ...row, settings: { ...row.settings, carmen_role } });
 
-/** DB tables of a tenant with one Carmen automation (auto-1) and David's session. */
+/** DB tables of a tenant with one Carmen automation (auto-1), David's session and David's phone on its report list. */
 export function tenantTables({
   steps,
   integrations,
@@ -87,10 +87,14 @@ export function tenantTables({
 } = {}): Record<string, Row[]> {
   return {
     tenant_heartbeat_settings: [
+      { tenant_id: TENANT, campaign_pulse_enabled: true },
+    ],
+    carmen_report_recipients: [
       {
         tenant_id: TENANT,
-        campaign_pulse_phone: PHONE,
-        campaign_pulse_enabled: true,
+        user_id: null,
+        phone: `+${PHONE}`,
+        label: "David",
       },
     ],
     carmen_whatsapp_sessions: sessions ?? [

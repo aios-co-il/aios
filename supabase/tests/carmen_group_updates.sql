@@ -1,4 +1,4 @@
--- Group updates to the client card (20261027103000_carmen_group_updates):
+-- Group updates to the client card (20261101103000_carmen_group_updates):
 -- get_client_group_digest_messages over synthetic tenants, lines and group
 -- rows stored the way the webhooks store them (digits-only sender_phone, the
 -- raw sender in raw_provider_data), inside one transaction that is rolled

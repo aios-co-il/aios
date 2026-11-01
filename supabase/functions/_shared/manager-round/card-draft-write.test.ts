@@ -101,7 +101,7 @@ Deno.test("writeCardDraft", async (t) => {
 Deno.test("carmen_finding_resolve_card_written", async (t) => {
   const sql = await Deno.readTextFile(
     new URL(
-      "../../../migrations/20261027103000_carmen_group_updates.sql",
+      "../../../migrations/20261101103000_carmen_group_updates.sql",
       import.meta.url,
     ),
   );

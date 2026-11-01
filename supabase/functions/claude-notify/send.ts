@@ -66,6 +66,8 @@ export async function sendNotify(
       senderUserId,
       phoneNumber: delivery.phoneNumber,
       message,
+      // A staff notification, never logged on a client card.
+      sendKind: "staff_alert",
       ...(transport.integrationId
         ? { integrationId: transport.integrationId }
         : {}),
@@ -115,13 +117,16 @@ function refusal(
   };
 }
 
-/** Which step, line and recipient source the plan used. */
+/** Which step, line and recipient source the plan used, and a bypassed report list. */
 function planMeta(plan: TenantNotifyPlan) {
   return {
     transport: plan.transport.transport,
     automation_id: plan.transport.automationId,
     integration_id: plan.transport.integrationId,
     source: plan.target.source,
+    ...(plan.reportRecipientsUnavailable
+      ? { report_recipients_unavailable: true }
+      : {}),
   };
 }
 

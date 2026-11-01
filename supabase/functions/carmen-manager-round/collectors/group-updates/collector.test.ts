@@ -194,7 +194,7 @@ Deno.test("groupUpdatesCollector", async (t) => {
 
 const folder = new URL("./", import.meta.url);
 const migration = new URL(
-  "../../../../migrations/20261027103000_carmen_group_updates.sql",
+  "../../../../migrations/20261101103000_carmen_group_updates.sql",
   import.meta.url,
 );
 

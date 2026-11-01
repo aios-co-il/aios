@@ -232,6 +232,9 @@ function alertTypeLabel(type: string): string {
     cpl_spike: "קפיצה בעלות ליד",
     frequency_high: "תדירות גבוהה",
     ad_disapproved: "מודעה נדחתה",
+    account_disabled: "חשבון הפרסום הושבת או הוגבל",
+    ad_account_billing_issue: "בעיית חיוב בחשבון הפרסום",
+    no_live_ads: "אין מודעה באוויר",
   };
   return map[type] ?? type;
 }

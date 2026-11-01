@@ -30,6 +30,7 @@ import {
 } from "./tests/meta-graph-fixtures.ts";
 
 const realFetch = globalThis.fetch;
+const HOUR = 60 * 60 * 1000;
 
 /** Deno.test that puts the real fetch back afterwards (stubGraph replaces it). */
 function test(name: string, fn: () => void | Promise<void>) {
@@ -66,7 +67,12 @@ test("a failed campaign-level fetch keeps every stored row and is recorded as fa
   assertStrictEquals(settings.currency, "USD");
   assertStrictEquals(table.last_sync_attempt_at, RUN_AT);
   assertStrictEquals(columnStatus(table), "failed");
-  assertStrictEquals(isSyncStale(table, NOW), true);
+  // One failed run raises no pulse alert; 30h without a write does.
+  assertStrictEquals(isSyncStale(table, NOW), false);
+  assertStrictEquals(
+    isSyncStale(table, Date.parse(PREVIOUS_SYNC) + 31 * HOUR),
+    true,
+  );
 });
 
 test("a failed ad-level fetch replaces campaign and ad set rows but keeps stored ad rows", async () => {
@@ -115,7 +121,11 @@ test("an empty fetch keeps stored rows, marks the run empty and leaves last_sync
     "2026-10-25",
   );
   assertStrictEquals(syncOutcomeProblem(table), "empty");
-  assertStrictEquals(isSyncStale(table, NOW), true);
+  assertStrictEquals(isSyncStale(table, NOW), false);
+  assertStrictEquals(
+    isSyncStale(table, Date.parse(PREVIOUS_SYNC) + 31 * HOUR),
+    true,
+  );
 });
 
 test("an empty fetch over days with nothing stored is a clean no-delivery sync", async () => {
@@ -207,6 +217,10 @@ async function runMetaSync(db: FakeDb, catchup = false, window = WINDOW) {
     window.endDate,
     "token",
     {},
+    {},
+    {},
+    { byCampaign: {}, byAdset: {} },
+    { byCampaign: {}, byAdset: {} },
   );
   const outcome = await syncAdsWindow(
     { deleteClient: client },

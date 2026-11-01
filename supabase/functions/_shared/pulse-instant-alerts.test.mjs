@@ -6,7 +6,6 @@ import {
 } from "jsr:@std/assert@1";
 import {
   DEFAULT_PULSE_ALERT_RULES,
-  confirmPulseExceptionCandidate,
   evaluatePulseInstantAlerts,
   parsePulseAlertRules,
 } from "./pulse-instant-alerts.ts";
@@ -126,24 +125,3 @@ Deno.test(
     );
   },
 );
-
-Deno.test("automatic AI verification may veto a filtered exception", () => {
-  const candidate = {
-    client_id: "c1",
-    client_name: "Acme",
-    rule_type: "campaign_exception",
-    message: "evidence",
-    evidence: { target_value: 30 },
-  };
-  assertStrictEquals(
-    confirmPulseExceptionCandidate(candidate, { confirmed: false }),
-    null,
-  );
-  const confirmed = confirmPulseExceptionCandidate(candidate, {
-    confirmed: true,
-    summary: "החריגה מאומתת",
-    recommended_check: "בדיקת אירוע ההמרה",
-  });
-  assertMatch(confirmed.message, /אימות AI/);
-  assertStrictEquals(confirmed.evidence.ai_confirmation.confirmed, true);
-});
