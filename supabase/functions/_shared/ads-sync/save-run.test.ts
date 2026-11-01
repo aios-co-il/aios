@@ -86,6 +86,40 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "saveSyncRun: counts runs in a row that did not write; a write resets it",
+  async () => {
+    const db = storedTable();
+    const client = fakeClient(db);
+    const run = async (
+      status: "ok" | "empty" | "failed",
+      at: string,
+      catchup = false,
+    ) => {
+      await saveSyncRun(client, TABLE, {
+        outcome: buildSyncOutcome({
+          status,
+          rows: status === "ok" ? 5 : 0,
+          error: status === "failed" ? "boom" : null,
+          at,
+        }),
+        catchup,
+        log: () => {},
+      });
+      return storedTableRow(db).integration_settings.sync_failed_streak;
+    };
+    const at = (hours: number) =>
+      new Date(Date.parse(RUN_AT) + hours * 60 * 60 * 1000).toISOString();
+
+    assertStrictEquals(await run("failed", at(0)), 1);
+    // A failed catch-up chunk runs with the refresh run: it does not count.
+    assertStrictEquals(await run("failed", at(1), true), 1);
+    assertStrictEquals(await run("empty", at(9)), 2);
+    assertStrictEquals(await run("ok", at(18)), 0);
+    assertStrictEquals(storedTableRow(db).last_sync_at, at(18));
+  },
+);
+
 Deno.test("saveSyncRun: a row of another tenant is left alone", async () => {
   const db = storedTable();
   const before = structuredClone(db.tables.crm_tables);

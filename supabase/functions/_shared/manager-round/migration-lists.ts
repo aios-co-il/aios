@@ -4,7 +4,7 @@
  */
 
 export const MANAGER_ROUND_MIGRATION = new URL(
-  "../../../migrations/20261027100000_carmen_manager_round.sql",
+  "../../../migrations/20261101100000_carmen_manager_round.sql",
   import.meta.url,
 );
 

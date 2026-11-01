@@ -24,10 +24,13 @@ Deno.test("isManagerStaffRole recognizes Hebrew team manager", () => {
 });
 
 Deno.test(
-  "DMM pulse: campaign_pulse_phone → Felix, not newest David session",
+  "DMM: first report recipient → Felix, not newest David session",
   () => {
     const result = resolveCarmenNotifyTarget({
-      campaignPulsePhone: FELIX,
+      reportRecipients: [
+        { phone: FELIX, name: "פליקס", source: "configured" },
+        { phone: DAVID, name: "דוד", source: "configured" },
+      ],
       sessions: [
         {
           chat_id: `${DAVID}@c.us`,
@@ -47,17 +50,19 @@ Deno.test(
         { phone: "0501234567", full_name: "Other", role: "קמפיינר" },
       ],
     });
-    assertStrictEquals(result.source, "campaign_pulse_phone");
+    assertStrictEquals(result.source, "report_recipient");
     assertStrictEquals(normalizeNotifyPhone(result.chatId), FELIX);
     assertStrictEquals(result.phone, FELIX);
   },
 );
 
 Deno.test(
-  "DMM: without pulse phone, prefer Felix manager session over David (David not in staff)",
+  "DMM: with only the owner fallback, prefer Felix manager session over owner David",
   () => {
     const result = resolveCarmenNotifyTarget({
-      campaignPulsePhone: null,
+      reportRecipients: [
+        { phone: DAVID, name: "דוד", source: "owner_fallback" },
+      ],
       sessions: [
         {
           chat_id: `${DAVID}@c.us`,
@@ -87,7 +92,7 @@ Deno.test(
   "DMM: David-only sessions + Felix staff phone → Felix (no David fallback)",
   () => {
     const result = resolveCarmenNotifyTarget({
-      campaignPulsePhone: null,
+      reportRecipients: [],
       sessions: [
         { chat_id: `${DAVID}@c.us`, phone: DAVID, sender_name: "דוד" },
       ],
@@ -100,7 +105,7 @@ Deno.test(
 
 Deno.test("DMM: David sessions + empty staff → refuse", () => {
   const result = resolveCarmenNotifyTarget({
-    campaignPulsePhone: null,
+    reportRecipients: [],
     preferredPhone: null,
     sessions: [{ chat_id: `${DAVID}@c.us`, phone: DAVID, sender_name: "דוד" }],
     staff: [],
@@ -109,10 +114,10 @@ Deno.test("DMM: David sessions + empty staff → refuse", () => {
   assertStrictEquals(result.chatId, "");
 });
 
-Deno.test("preferred_phone wins over campaign_pulse_phone", () => {
+Deno.test("preferred_phone wins over the report recipients", () => {
   const result = resolveCarmenNotifyTarget({
     preferredPhone: DAVID,
-    campaignPulsePhone: FELIX,
+    reportRecipients: [{ phone: FELIX, name: "פליקס", source: "configured" }],
     sessions: [
       { chat_id: `${DAVID}@c.us`, phone: DAVID, sender_name: "דוד" },
       { chat_id: `${FELIX}@c.us`, phone: FELIX, sender_name: "פליקס" },
@@ -123,20 +128,15 @@ Deno.test("preferred_phone wins over campaign_pulse_phone", () => {
   assertStrictEquals(normalizeNotifyPhone(result.chatId), DAVID);
 });
 
-Deno.test(
-  "MC: campaign_pulse_phone David works when he is tenant staff",
-  () => {
-    const result = resolveCarmenNotifyTarget({
-      campaignPulsePhone: DAVID,
-      sessions: [
-        { chat_id: `${DAVID}@c.us`, phone: DAVID, sender_name: "דוד" },
-      ],
-      staff: [{ phone: "0507677613", full_name: "דוד", role: "owner" }],
-    });
-    assertStrictEquals(result.source, "campaign_pulse_phone");
-    assertStrictEquals(normalizeNotifyPhone(result.chatId), DAVID);
-  },
-);
+Deno.test("MC: report recipient David works when he is tenant staff", () => {
+  const result = resolveCarmenNotifyTarget({
+    reportRecipients: [{ phone: DAVID, name: "דוד", source: "configured" }],
+    sessions: [{ chat_id: `${DAVID}@c.us`, phone: DAVID, sender_name: "דוד" }],
+    staff: [{ phone: "0507677613", full_name: "דוד", role: "owner" }],
+  });
+  assertStrictEquals(result.source, "report_recipient");
+  assertStrictEquals(normalizeNotifyPhone(result.chatId), DAVID);
+});
 
 Deno.test(
   "manager staff preferred over campaigner when both have sessions",
@@ -205,7 +205,7 @@ Deno.test(
   "group-only sessions fall back to private phone digits, not the group JID",
   () => {
     const result = resolveCarmenNotifyTarget({
-      campaignPulsePhone: DAVID,
+      reportRecipients: [{ phone: DAVID, name: "דוד", source: "configured" }],
       sessions: [
         {
           chat_id: "120363425732219862@g.us",
@@ -215,7 +215,7 @@ Deno.test(
       ],
       staff: [{ phone: DAVID, full_name: "דוד", role: "owner" }],
     });
-    assertStrictEquals(result.source, "campaign_pulse_phone");
+    assertStrictEquals(result.source, "report_recipient");
     assertStrictEquals(result.phone, DAVID);
     assertStrictEquals(isGroupChatId(result.chatId), false);
     assertStrictEquals(normalizeNotifyPhone(result.chatId), DAVID);

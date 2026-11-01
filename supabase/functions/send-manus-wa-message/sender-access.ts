@@ -5,12 +5,15 @@
  */
 
 import {
-  mayUseLine,
   tenantUserAccess,
-  type LineRef,
   type TenantUserAccess,
 } from "../_shared/auth/tenant-access.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  sendLine,
+  type LineDeps,
+  type LineStep,
+} from "../_shared/report-sender/text-line.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
 /** Whether the user is a member of the tenant or a super admin, or the 500 to return. */
@@ -26,15 +29,13 @@ export async function senderAccess(
   }
 }
 
-/** Whether a caller with this access may send for the tenant from the line, or the 500 to return. */
-export async function lineAccess(
-  admin: Pick<DbClient, "rpc">,
-  tenantId: string,
-  access: TenantUserAccess,
-  line: LineRef,
-): Promise<boolean | Response> {
+/** The line this send uses (sendLine), or the 500 to return when a lookup fails. */
+export async function senderLine(
+  deps: LineDeps,
+  input: Parameters<typeof sendLine>[1],
+): Promise<LineStep | Response> {
   try {
-    return await mayUseLine(admin, tenantId, access, line);
+    return await sendLine(deps, input);
   } catch (e) {
     return accessLookupFailure(e);
   }

@@ -38,6 +38,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useConversationActions } from "./useConversationActions";
 import { getSessionSkin } from "@/lib/carmenSessionSkin";
+import {
+  applyWorkshopSkin,
+  emitWorkshopEvent,
+  getWorkshopContext,
+  prefilledDraft,
+  subscribeComposerPrefill,
+  workshopEventFrom,
+  workshopRequestParts,
+} from "@/lib/workshopBridge";
+import { answerableIndex, hidePartialQuickReplies } from "@/lib/quickReplies";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
@@ -62,6 +72,13 @@ import {
   topicIsLive,
   type TopicChat,
 } from "@/lib/chatTopics";
+import {
+  isStaleTurn,
+  liveTopicStatus,
+  markResumeChatClosed,
+  readResumeChat,
+  writeResumeChat,
+} from "@/lib/carmenResumeChat";
 import type {
   ConversationChannelStatus,
   HudStage,
@@ -103,6 +120,8 @@ interface ChatMessage {
   channel?: string;
   input_mode?: CarmenInputMode;
   delivery_mode?: "text" | "realtime";
+  /** The turn's reply_key: the same answer saved by client and server. */
+  replyKey?: string;
 }
 
 export interface CarmenChatBarHandle {
@@ -448,7 +467,13 @@ export const CarmenChatBar = forwardRef<
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("לא מחוברת");
-      const promptAddon = ctxMeta ? systemFixPromptAddon(ctxMeta) : undefined;
+      const workshop = workshopRequestParts(getWorkshopContext());
+      const promptAddon =
+        [ctxMeta ? systemFixPromptAddon(ctxMeta) : "", workshop?.promptAddon]
+          .filter(Boolean)
+          .join("\n\n") || undefined;
+      // The server saves the answer under this key too, even if the panel closes.
+      const replyKey = crypto.randomUUID();
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-ai-agent`,
         {
@@ -464,9 +489,14 @@ export const CarmenChatBar = forwardRef<
             stream: true,
             conversation_id: boundConvId || conversationIdRef.current,
             conversation_history: history,
-            system_prompt_addon: promptAddon || undefined,
+            system_prompt_addon: promptAddon,
             context_metadata: ctxMeta ?? undefined,
             active_skin: getSessionSkin(tenantId) ?? undefined,
+            reply_key: replyKey,
+            task_skills: workshop?.taskSkills,
+            workshop_item_id: workshop?.workshopItemId ?? undefined,
+            workshop_artifact_id: workshop?.workshopArtifactId ?? undefined,
+            workshop_client_id: workshop?.workshopClientId ?? undefined,
             brain_slug: runBrain || undefined,
           }),
         },
@@ -483,6 +513,7 @@ export const CarmenChatBar = forwardRef<
       let buffer = "";
       let answer = "";
       let gotDone = false;
+      let streamError = "";
       let speechBuf = "";
       let firstSegmentSent = false;
       let boundId = boundConvId;
@@ -534,6 +565,15 @@ export const CarmenChatBar = forwardRef<
                 ]);
                 scrollDown();
               }
+            } else if (parsed.type === "workshop") {
+              const event = workshopEventFrom(parsed);
+              if (event) emitWorkshopEvent(event);
+            } else if (
+              parsed.type === "skin" &&
+              typeof parsed.slug === "string" &&
+              workshop
+            ) {
+              applyWorkshopSkin(tenantId, parsed.slug);
             } else if (parsed.type === "conversation_id" && parsed.id) {
               boundId = parsed.id;
               if (
@@ -542,8 +582,14 @@ export const CarmenChatBar = forwardRef<
               ) {
                 rememberConv(parsed.id);
               }
+            } else if (parsed.type === "error") {
+              streamError =
+                typeof parsed.error === "string" ? parsed.error : "שגיאה";
             } else if (parsed.type === "done") {
               gotDone = true;
+              if (!streamError && parsed.success === false)
+                streamError =
+                  typeof parsed.error === "string" ? parsed.error : "";
               // A brain that failed before writing anything explains why here.
               if (!answer && typeof parsed.error === "string" && parsed.error)
                 answer = `⚠️ ${parsed.error}`;
@@ -557,28 +603,42 @@ export const CarmenChatBar = forwardRef<
       if (shouldSpeakWithLegacyTts(inputModeRef.current) && speechBuf.trim())
         enqueueSpeech(speechBuf);
       const finalText =
-        answer || (gotDone ? "" : "⚠️ החיבור נותק באמצע — נסי שוב.");
+        answer ||
+        (streamError
+          ? `⚠️ כרמן לא הצליחה לענות: ${streamError}`
+          : gotDone
+            ? ""
+            : "⚠️ החיבור נותק באמצע — נסי שוב.");
       if (finalText) {
         if (streamAppliesToActive(boundId, conversationIdRef.current)) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: finalText,
-              speaker: "carmen",
-              channel: runBrain || "internal",
-              ...tagChatTurn("typed"),
-            },
-          ]);
+          // The server's saved copy of this turn may have arrived first.
+          setMessages((prev) =>
+            prev.some((m) => m.replyKey === replyKey)
+              ? prev
+              : [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: finalText,
+                    speaker: "carmen",
+                    channel: runBrain || "internal",
+                    replyKey,
+                    ...tagChatTurn("typed"),
+                  },
+                ],
+          );
           setStreamingText("");
         }
         if (boundId) {
-          brain.persistAssistant(
-            boundId,
-            finalText,
-            crypto.randomUUID(),
-            persistSlug,
-          );
+          // A cut-off stream is not saved: the server saves the full answer.
+          if (gotDone)
+            brain
+              .persistAssistant(boundId, finalText, replyKey, persistSlug)
+              .then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: ["cc-conversations", tenantId],
+                }),
+              );
           delete streamBufRef.current[boundId];
         }
       } else if (streamAppliesToActive(boundId, conversationIdRef.current)) {
@@ -588,7 +648,7 @@ export const CarmenChatBar = forwardRef<
         revealAnswer();
       return finalText;
     },
-    [tenantId, enqueueSpeech, brain],
+    [tenantId, enqueueSpeech, brain, queryClient],
   );
 
   const sendText = useCallback(
@@ -1294,7 +1354,11 @@ export const CarmenChatBar = forwardRef<
           if (row.role === "user") return;
           setMessages((prev) => {
             if (row.id && prev.some((m) => m.id === row.id)) return prev;
-            if (
+            // A keyed row is one turn's answer: match the turn, not the text.
+            if (row.idempotency_key) {
+              if (prev.some((m) => m.replyKey === row.idempotency_key))
+                return prev;
+            } else if (
               row.role === "assistant" &&
               replyShownThisTurn(prev, row.content)
             )
@@ -1316,6 +1380,7 @@ export const CarmenChatBar = forwardRef<
                     : undefined,
                 speaker: row.speaker,
                 channel: row.channel,
+                replyKey: row.idempotency_key ?? undefined,
                 ...tagChatTurn(
                   row.channel && row.channel !== "internal"
                     ? "external_channel_callback"
@@ -1344,13 +1409,17 @@ export const CarmenChatBar = forwardRef<
         },
         (payload: { new: any }) => {
           if (payload.new?.status) brain.setStatus(payload.new.status);
+          // The topic list holds the status the composer trusts.
+          queryClient.invalidateQueries({
+            queryKey: ["cc-conversations", tenantId],
+          });
         },
       )
       .subscribe();
     return () => {
       (supabase as any).removeChannel(channel);
     };
-  }, [conversationId, brain]);
+  }, [conversationId, brain, queryClient, tenantId]);
 
   /** Send a finished conversation to Carmen's memory (importance-graded extraction). */
   const learnFromConversation = useCallback(async () => {
@@ -1397,7 +1466,10 @@ export const CarmenChatBar = forwardRef<
     }
   }, [learnFromConversation, tenantId, brain]);
 
-  const restoredRef = useRef(startFresh);
+  // The session panel opens fresh, except on the chat it was closed on in
+  // this tab: Carmen kept working on it meanwhile (lib/carmenResumeChat).
+  const resumeRef = useRef(startFresh ? readResumeChat(tenantId) : null);
+  const restoredRef = useRef(startFresh && !resumeRef.current);
   const seatSlugRef = useRef(brain.selected.slug);
   const loadConversation = useCallback(
     async (conv: TopicChat) => {
@@ -1407,10 +1479,9 @@ export const CarmenChatBar = forwardRef<
       // This chat picks its own seat; the seat-switch effect must not reset it.
       seatSlugRef.current = nextRoute.slug;
       brain.selectRoute(nextRoute, conv.id);
+      const status = liveTopicStatus(conv.status, conv.updated_at);
       brain.setStatus(
-        (topicIsLive(conv.status)
-          ? conv.status
-          : "idle") as ConversationChannelStatus,
+        (topicIsLive(status) ? status : "idle") as ConversationChannelStatus,
       );
       setStreamingText(streamBufRef.current[conv.id] || "");
       setIsStreaming(liveStreamIdsRef.current.includes(conv.id));
@@ -1424,7 +1495,9 @@ export const CarmenChatBar = forwardRef<
       try {
         const { data } = await (supabase as any)
           .from("ai_conversation_messages")
-          .select("id, role, content, speaker, channel, metadata, created_at")
+          .select(
+            "id, role, content, speaker, channel, metadata, idempotency_key, created_at",
+          )
           .eq("conversation_id", conv.id)
           .order("created_at", { ascending: true });
         if (Array.isArray(data) && data.length) msgs = data;
@@ -1447,6 +1520,7 @@ export const CarmenChatBar = forwardRef<
             content: m.content ?? "",
             speaker: m.speaker,
             channel: m.channel,
+            replyKey: (m as any).idempotency_key ?? undefined,
             attachments: Array.isArray((m as any).metadata?.attachments)
               ? (m as any).metadata.attachments
               : undefined,
@@ -1486,14 +1560,17 @@ export const CarmenChatBar = forwardRef<
   useEffect(() => {
     if (!tenantId || restoredRef.current || conversationIdRef.current) return;
     const seat = brain.selected.slug || "cursor";
+    const resumeId = resumeRef.current?.conversationId;
     const last =
       localStorage.getItem(lastConversationStorageKeyForSeat(tenantId, seat)) ||
       localStorage.getItem(lastConversationStorageKey(tenantId));
-    const hit = conversationsForRoute(
-      pastConversations ?? [],
-      brain.selected,
-      brain.routes,
-    ).find((c) => c.id === last);
+    const hit = resumeId
+      ? pastConversations?.find((c) => c.id === resumeId)
+      : conversationsForRoute(
+          pastConversations ?? [],
+          brain.selected,
+          brain.routes,
+        ).find((c) => c.id === last);
     if (hit) {
       restoredRef.current = true;
       loadConversation(hit);
@@ -1620,6 +1697,31 @@ export const CarmenChatBar = forwardRef<
   // Release the mic and stop audio when the page unmounts
   useEffect(() => () => endConversation(), [endConversation]);
 
+  // Session panel: remember its chat, and when it closed, for the reopen.
+  useEffect(() => {
+    if (startFresh && tenantId && restoredRef.current)
+      writeResumeChat(tenantId, conversationId);
+  }, [startFresh, tenantId, conversationId]);
+  useEffect(
+    () => () => {
+      if (startFresh) markResumeChatClosed();
+    },
+    [startFresh],
+  );
+  // The workshop board's "comment on this scene" writes its line here and hands over the focus.
+  useEffect(() => {
+    if (!isSidecar) return;
+    return subscribeComposerPrefill((text) => {
+      setInput((current) => prefilledDraft(current, text));
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      });
+    });
+  }, [isSidecar]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -1635,6 +1737,7 @@ export const CarmenChatBar = forwardRef<
   );
 
   const visibleMessages = filterMessagesForRoute(messages, brain.selected);
+  const lastAnswerIndex = answerableIndex(visibleMessages);
   const streamSeatKey = seatKeyFromRoute(brain.selected);
   const streamSprite =
     AGENT_SPRITES[streamSeatKey === "shared" ? "carmen" : streamSeatKey];
@@ -1643,8 +1746,9 @@ export const CarmenChatBar = forwardRef<
   const thisChatBusy = composerLockedForChat({
     conversationId,
     liveStreamIds,
+    stale: isStaleTurn(activeTopic?.status, activeTopic?.updated_at),
     status:
-      activeTopic?.status ??
+      liveTopicStatus(activeTopic?.status, activeTopic?.updated_at) ??
       (conversationId && liveStreamIds.includes(conversationId)
         ? "streaming"
         : brain.status),
@@ -1719,6 +1823,11 @@ export const CarmenChatBar = forwardRef<
                 speaker={m.speaker}
                 channel={m.channel}
                 tool={m.tool}
+                onQuickReply={
+                  i === lastAnswerIndex && !thisChatBusy
+                    ? (answer) => void sendText(answer)
+                    : undefined
+                }
               />
             ))}
             {streamingText && (
@@ -1738,7 +1847,7 @@ export const CarmenChatBar = forwardRef<
                 )}
                 <div className="cc-msg-bubble">
                   <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">
-                    {streamingText}
+                    {hidePartialQuickReplies(streamingText)}
                   </div>
                 </div>
               </div>

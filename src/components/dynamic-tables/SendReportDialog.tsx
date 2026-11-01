@@ -39,6 +39,12 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
+import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
+import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
+import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
+import { toastReportSent } from "@/components/report-sender/toastReportSent";
 
 /** Keep in sync with SEND_REPORT_CLIENT_TIMEOUT_MS in send-green-api-file-chat-resolve.mjs */
 const SEND_REPORT_WA_CLIENT_TIMEOUT_MS = 60_000;
@@ -77,11 +83,13 @@ export function SendReportDialog({
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [sendEmail, setSendEmail] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const waSender = useReportSenderChoice(tenantId);
   const [directPhone, setDirectPhone] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [emailSender, setEmailSender] = useState<"aios" | "gmail">("aios");
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const recordDelivery = useRecordReportDelivery();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -184,6 +192,7 @@ export function SendReportDialog({
     }
 
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
     try {
       const {
         data: { session },
@@ -203,51 +212,24 @@ export function SendReportDialog({
         if (shareLink) captionParts.push(`\n📊 צפה בדוח המלא: ${shareLink}`);
         const fullCaption = captionParts.join("");
 
-        const formData = new FormData();
-        formData.append("file", screenshotBlob, `report-${tableName}.png`);
-        formData.append("tenantId", tenantId);
-        formData.append("fileType", "image");
-        if (fullCaption) formData.append("caption", fullCaption);
-        // Group preferred; still send phone as fallback if group_chat_id is missing server-side.
-        if (hasGroup) {
-          formData.append("groupId", selectedGroupId);
-        }
-        if (directPhone.trim()) {
-          formData.append("phoneNumber", directPhone.trim());
-        }
-        if (clientId) formData.append("clientId", clientId);
-
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(
-          () => controller.abort(),
-          SEND_REPORT_WA_CLIENT_TIMEOUT_MS,
-        );
-        let response: Response;
-        try {
-          response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${session.access_token}` },
-              body: formData,
-              signal: controller.signal,
-            },
-          );
-        } catch (fetchErr: unknown) {
-          const name = fetchErr instanceof Error ? fetchErr.name : "";
-          if (name === "AbortError") {
-            throw new Error(
-              "שליחת הוואטסאפ ארכה יותר מדי — נסה שוב או בדוק את חיבור Green API",
-            );
-          }
-          throw fetchErr;
-        } finally {
-          window.clearTimeout(timeoutId);
-        }
-        const result = await response.json();
-        if (!response.ok)
-          throw new Error(result.error || "שגיאה בשליחה בוואטסאפ");
-        toast.success("הדוח נשלח בוואטסאפ בהצלחה");
+        // Group preferred; the phone still goes along as the fallback.
+        const sent = await sendReportWhatsApp({
+          tenantId,
+          pick: waSender.pick,
+          file: screenshotBlob,
+          fileName: `report-${tableName}.png`,
+          fileType: "image",
+          caption: fullCaption,
+          groupId: hasGroup ? selectedGroupId : null,
+          phoneNumber: directPhone.trim() || null,
+          clientId,
+          // A report send: the client card logs it once, from report_deliveries.
+          sendKind: "report",
+          sendRef: tableId,
+          timeoutMs: SEND_REPORT_WA_CLIENT_TIMEOUT_MS,
+        });
+        sentChannels.push("whatsapp");
+        toastReportSent(sent, "הדוח נשלח בוואטסאפ בהצלחה");
       }
 
       if (sendEmail) {
@@ -352,6 +334,7 @@ export function SendReportDialog({
             throw new Error(result.error || "שגיאה בשליחת אימייל");
           toast.success("הדוח נשלח באימייל בהצלחה");
         }
+        sentChannels.push("email");
       }
 
       onOpenChange(false);
@@ -359,6 +342,17 @@ export function SendReportDialog({
       console.error("Error sending report:", error);
       toast.error("שגיאה בשליחת הדוח: " + error.message);
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "table",
+        targetId: tableId,
+        title: tableName,
+        shareUrl: shareLink ?? null,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients: [emailAddress],
+      });
       setIsSending(false);
     }
   };
@@ -402,6 +396,11 @@ export function SendReportDialog({
 
           {sendWhatsApp && (
             <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+              <ReportSenderPicker
+                choice={waSender}
+                groups={groups}
+                groupId={selectedGroupId}
+              />
               <div>
                 <Label className="text-sm">קבוצת וואטסאפ (חיפוש לפי שם)</Label>
                 <GroupCombobox

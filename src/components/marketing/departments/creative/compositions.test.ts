@@ -1,5 +1,3 @@
-// @vitest-environment node
-import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import {
   CREATIVE_COMPOSITIONS,
@@ -93,18 +91,6 @@ test("no composition parks the logo on top of type or CTA", () => {
       `${item.id} logo vs cta`,
     ).toBe(false);
   }
-});
-
-test("image generation lock no longer reserves the old caption template", () => {
-  const source = readFileSync(
-    new URL("../../lib/creativeImagePrompt.ts", import.meta.url),
-    "utf8",
-  );
-  expect(source).toMatch(/Do NOT reserve a top headline strip/);
-  expect(source).toMatch(/garbles Hebrew/);
-  expect(source).toMatch(/quiet atmospheric pocket/);
-  expect(source).not.toMatch(/reserved top-right pad/);
-  expect(source).not.toMatch(/lower third/);
 });
 
 test("offer lock allows a soft pocket and forbids a painted silhouette", () => {

@@ -100,6 +100,27 @@ Deno.test("releaseHeldTaskNotifications", async (t) => {
   );
 
   await t.step(
+    "a hold whose stored request_body lost its shape is not sent",
+    async () => {
+      const supabase = fakeHolds();
+      await hold(supabase);
+      supabase.rows[0].request_body = { trigger_type: "task_update_added" };
+      const delivered: DeliveredBody[] = [];
+      const released = await releaseHeldTaskNotifications(
+        supabase,
+        async (body) => delivered.push(body),
+        SUNDAY_0830,
+      );
+      assertStrictEquals(delivered.length, 0);
+      assertStrictEquals(released[0].error, "invalid_request_body");
+      assertEquals(supabase.rows[0].release_result, {
+        delivered: false,
+        error: "invalid_request_body",
+      });
+    },
+  );
+
+  await t.step(
     "a failed release_result write is reported with the delivery",
     async () => {
       const supabase = fakeHolds(undefined, { record: "timeout" });

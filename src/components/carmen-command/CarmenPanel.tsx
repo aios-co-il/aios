@@ -71,6 +71,7 @@ import {
 } from "../../../supabase/functions/_shared/carmen-connection-role.ts";
 import { CarmenAutomationsList } from "./CarmenAutomationsList";
 import { SecondaryConnectionAutomationForm } from "./SecondaryConnectionAutomationForm";
+import { ReportSenderDefaultCard } from "@/components/report-sender/ReportSenderDefaultCard";
 import { CarmenSubAgents, isCarmenName } from "./CarmenSubAgents";
 import { CarmenTasksView, NewTaskChooser } from "./tasks/CarmenTasksView";
 import { AgentTaskEditor } from "./tasks/AgentTaskEditor";
@@ -427,6 +428,7 @@ function WhatsAppConnections({
           אוטומציות ומילות טריגר
         </Button>
       </div>
+      {tenantId && <ReportSenderDefaultCard tenantId={tenantId} />}
     </div>
   );
 }

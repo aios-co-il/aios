@@ -1,4 +1,4 @@
--- Carmen manager round (20261027100000_carmen_manager_round): synthetic
+-- Carmen manager round (20261101100000_carmen_manager_round): synthetic
 -- findings inside one transaction that is rolled back.
 BEGIN;
 DO $test$
@@ -210,8 +210,8 @@ BEGIN
     RAISE EXCEPTION 'guard: a save without manager must keep the stored settings';
   END IF;
 
-  -- The whole manager block is owner-only from the browser: a member who is
-  -- not an owner may save other settings, never caps or hours.
+  -- The manager block is owner-only from the browser: a member who is not an
+  -- owner may save other settings and the cost thresholds, never caps or hours.
   SELECT ur.user_id INTO v_member FROM public.user_roles AS ur
   WHERE ur.tenant_id = v_tenant AND ur.role::text NOT IN ('owner', 'agency_owner', 'super_admin')
   LIMIT 1;
@@ -222,6 +222,35 @@ BEGIN
   UPDATE public.tenant_heartbeat_settings
   SET pulse_alert_rules = pulse_alert_rules || '{"cpl_spike_pct": 61}'
   WHERE tenant_id = v_tenant;
+  UPDATE public.tenant_heartbeat_settings
+  SET pulse_alert_rules = jsonb_set(pulse_alert_rules, '{manager,cost}', '{"trend_pct": 45}')
+  WHERE tenant_id = v_tenant;
+  IF (SELECT pulse_alert_rules #>> '{manager,cost,trend_pct}' FROM public.tenant_heartbeat_settings
+      WHERE tenant_id = v_tenant) IS DISTINCT FROM '45' THEN
+    RAISE EXCEPTION 'guard: a member must be able to save the cost thresholds';
+  END IF;
+  -- The same save the way the app writes it: an upsert, whose INSERT phase
+  -- fires the trigger before the conflict is known.
+  INSERT INTO public.tenant_heartbeat_settings (tenant_id, pulse_alert_rules)
+  SELECT v_tenant, jsonb_set(s.pulse_alert_rules, '{manager,cost}', '{"trend_pct": 47}')
+  FROM public.tenant_heartbeat_settings AS s WHERE s.tenant_id = v_tenant
+  ON CONFLICT (tenant_id) DO UPDATE SET pulse_alert_rules = EXCLUDED.pulse_alert_rules;
+  IF (SELECT pulse_alert_rules #>> '{manager,cost,trend_pct}' FROM public.tenant_heartbeat_settings
+      WHERE tenant_id = v_tenant) IS DISTINCT FROM '47' THEN
+    RAISE EXCEPTION 'guard: a member''s upsert of the cost thresholds must be saved';
+  END IF;
+  BEGIN
+    INSERT INTO public.tenant_heartbeat_settings (tenant_id, pulse_alert_rules)
+    SELECT v_tenant, jsonb_set(s.pulse_alert_rules, '{manager,max_alerts_per_recipient_per_day}', '501')
+    FROM public.tenant_heartbeat_settings AS s WHERE s.tenant_id = v_tenant
+    ON CONFLICT (tenant_id) DO UPDATE SET pulse_alert_rules = EXCLUDED.pulse_alert_rules;
+    RAISE EXCEPTION 'Expected rejection';
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    IF v_message <> 'carmen_manager_settings_owner_only' THEN
+      RAISE EXCEPTION 'guard: a non-owner''s upsert changed the manager block (%)', v_message;
+    END IF;
+  END;
   BEGIN
     UPDATE public.tenant_heartbeat_settings
     SET pulse_alert_rules = jsonb_set(pulse_alert_rules, '{manager,max_alerts_per_recipient_per_day}', '500')

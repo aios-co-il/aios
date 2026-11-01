@@ -45,7 +45,7 @@ export type CallDirection = "inbound" | "outbound" | null;
 /**
  * How call_logs.caller_user_id was chosen (pbx-webhook, make-pbx-call). The
  * database owns the list: the call_logs CHECK and the attributed filter of
- * get_client_contact_evidence (20261027102000_contact_accountability.sql).
+ * get_client_contact_evidence (20261101102000_contact_accountability.sql).
  */
 export type CallerResolution = "extension" | "click_to_call" | "fallback";
 

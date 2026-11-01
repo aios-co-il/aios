@@ -91,6 +91,40 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a row whose data is not a JSON object comes back with data null",
+  async () => {
+    const db = createFakeDb({
+      crm_records: [
+        { id: "r1", table_id: "t1", data: { date: "2026-10-20", spend: 3 } },
+        { id: "r2", table_id: "t1", data: "2026-10-20" },
+        { id: "r3", table_id: "t1", data: [1, 2] },
+        { id: "r4", table_id: "t1", data: null },
+      ],
+    });
+
+    const rows = await fetchTableRecords(fakeClient(db), "t1");
+    assertEquals(rows, [
+      { id: "r1", table_id: "t1", data: { date: "2026-10-20", spend: 3 } },
+      { id: "r2", table_id: "t1", data: null },
+      { id: "r3", table_id: "t1", data: null },
+      { id: "r4", table_id: "t1", data: null },
+    ]);
+  },
+);
+
+Deno.test("a row without id or table_id throws", async () => {
+  const db = createFakeDb({
+    crm_records: [{ table_id: "t1", data: { date: "2026-10-20" } }],
+  });
+
+  await assertRejects(
+    () => fetchTableRecords(fakeClient(db), "t1"),
+    Error,
+    "unexpected row shape",
+  );
+});
+
 /** `count` rows over two tables, mixing levels (some level-less) and dates. */
 function seedRecords(count: number): Row[] {
   const rows: Row[] = [];

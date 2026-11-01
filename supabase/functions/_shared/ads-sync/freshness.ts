@@ -1,11 +1,15 @@
 /**
  * Reader side of truthful sync freshness (see outcome.ts): did the latest sync
- * run of a crm_tables row refresh its data? Shared by the pulse snapshot, the
- * health probe, the pulse dashboard and the report pages.
+ * run of a crm_tables row refresh its data? The report pages show the latest
+ * run at once; the pulse and the health probe alert only on a streak of
+ * SYNC_FAILURES_BEFORE_ALERT runs (hasRepeatedSyncFailures), so one transient
+ * failure raises no connection alert.
  */
 import { isRecord } from "./is-record.ts";
 import {
   isSyncOutcomeStatus,
+  readFailedStreak,
+  SYNC_FAILURES_BEFORE_ALERT,
   type SyncOutcome,
   type SyncOutcomeStatus,
 } from "./outcome.ts";
@@ -45,6 +49,17 @@ export function syncOutcomeProblem(table: SyncTableLike): SyncProblem | null {
 /** Latest recorded outcome: the newer of the column and the settings mirror. */
 export function resolveSyncOutcome(table: SyncTableLike): SyncOutcome | null {
   return latestOutcome(table)?.outcome ?? null;
+}
+
+/**
+ * The last SYNC_FAILURES_BEFORE_ALERT runs in a row failed or came back empty
+ * (`sync_failed_streak` in the settings, kept by save-run.ts).
+ */
+export function hasRepeatedSyncFailures(table: SyncTableLike): boolean {
+  return (
+    readFailedStreak(settingsOf(table).sync_failed_streak) >=
+    SYNC_FAILURES_BEFORE_ALERT
+  );
 }
 
 /** The worst problem in `problems` (failed beats empty). */

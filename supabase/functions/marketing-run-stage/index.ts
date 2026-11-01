@@ -13,7 +13,7 @@ const corsHeaders = {
 };
 
 const TEXT_MODEL = "gpt-4o-mini";
-const IMAGE_MODEL = "gpt-image-1";
+const IMAGE_MODEL = "gpt-image-2.5-sunburst";
 
 // GPT-4o-mini pricing (USD per 1M tokens)
 const COST_IN_PER_M = 0.15;
@@ -314,7 +314,7 @@ serve(async (req) => {
                 role: "user",
                 content:
                   userPrompt +
-                  "\n\nGenerate a concise gpt-image-1 prompt (max 200 words) in English for this marketing creative. Photograph the approved concept (big idea, visual language, first-second hook). Copy/headline is TYPE only — do not restage the slogan as a new scene. Focus on visual elements, style, composition, and lighting. NEVER request on-image text, letters, digits, captions, or logos — Hebrew type is composited later and the image API garbles it. Do not make a generic text-on-background ad.",
+                  "\n\nGenerate a concise image prompt (max 200 words) in English for this marketing creative. Photograph the approved concept (big idea, visual language, first-second hook). Copy/headline is TYPE only — do not restage the slogan as a new scene. Focus on visual elements, style, composition, and lighting. NEVER request on-image text, letters, digits, captions, or logos — Hebrew type is composited later and the image API garbles it. Do not make a generic text-on-background ad.",
               },
             ],
             max_tokens: 300,
@@ -353,7 +353,7 @@ serve(async (req) => {
       }
       const data = await aiRes.json();
       const b64Data = data.data?.[0]?.b64_json;
-      if (!b64Data) throw new Error("No image returned from gpt-image-1");
+      if (!b64Data) throw new Error(`No image returned from ${IMAGE_MODEL}`);
       const bytes = Uint8Array.from(atob(b64Data), (c) => c.charCodeAt(0));
       const fileName = `${Date.now()}-${runRow.id}.png`;
       const filePath = `${item.tenant_id}/marketing/${item_id}/${fileName}`;

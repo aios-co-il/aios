@@ -1,5 +1,6 @@
 import {
   deliverInstantPulseAlerts,
+  type InstantPulseAlertsInput,
   parsePulseAlertRules,
 } from "../_shared/pulse-instant-alerts.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
@@ -39,7 +40,7 @@ type SnapshotRequest = Record<string, unknown> | null | undefined;
 export async function gatedInstantAlerts(
   setting: PulseAlertSetting,
   body: SnapshotRequest,
-  input: Parameters<typeof deliverInstantPulseAlerts>[0],
+  input: InstantPulseAlertsInput,
 ): Promise<InstantPulseAlertResult> {
   const gate = instantPulseAlertsGate(setting, body);
   if (!gate.run) {
@@ -50,7 +51,16 @@ export async function gatedInstantAlerts(
 
 /** The result when no instant alert ran (no snapshots, or delivery threw). */
 export function noInstantAlerts(): InstantPulseAlertResult {
-  return { sent: 0, skipped: 0, candidates: 0, analyzed: 0, held: 0 };
+  return {
+    sent: 0,
+    skipped: 0,
+    summarized: 0,
+    summary_messages: 0,
+    candidates: 0,
+    wording_calls: 0,
+    worded: 0,
+    held: 0,
+  };
 }
 
 /**
