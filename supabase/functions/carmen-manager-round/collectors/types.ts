@@ -19,9 +19,9 @@
  * - Only the tenant's own clients and clients of agencies shared with it; a
  *   group shared by several tenants is read once per group_chat_id.
  * - LLM use (chat intent only) is metered against the tenant's monthly
- *   budget (monthly_budget_usd and round_llm_share_pct over ai_usage_log
- *   month to date), cached, with a deterministic fallback. The budget is not
- *   in ManagerSettings or CollectorContext yet; AIO-252 adds it.
+ *   budget (monthly_budget_usd and settings.round_llm_share_pct over
+ *   ai_usage_log month to date, chat/llm-meter.ts), cached, with a
+ *   deterministic fallback.
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { Json } from "../../_shared/database.types.ts";
@@ -68,6 +68,17 @@ export type CollectorContext = {
   db: DbClient;
   /** Request fixtures (non-production only); null in every scheduled run. */
   fixtures: Json | null;
+  /** A preview: the collector writes nothing, not even its own caches. */
+  dryRun: boolean;
+};
+
+/** A live finding of the collector that its run saw end, closed with why. */
+export type FindingResolution = {
+  kind: FindingKind;
+  fingerprint: string;
+  resolution: "answered";
+  /** Logged on the 'resolved' event, e.g. the response time. */
+  details: { [key: string]: Json | undefined };
 };
 
 export type CollectorResult = {
@@ -75,11 +86,21 @@ export type CollectorResult = {
   watermark: Json | null;
   /**
    * What the run fully checked, for auto-clear: complete=false (budget ran
-   * out) clears nothing; clientIds limits clearing to those clients.
+   * out) clears nothing; clientIds limits clearing to those clients, and
+   * kinds to those kinds (default: all the collector's kinds; a kind turned
+   * off is not checked, so its findings stay as they are).
    */
-  coverage: { complete: boolean; clientIds: string[] | null };
+  coverage: {
+    complete: boolean;
+    clientIds: string[] | null;
+    kinds?: readonly FindingKind[];
+  };
+  /** Findings to close now (e.g. a client wait staff answered), whatever `coverage` says. */
+  resolved?: FindingResolution[];
   /** LLM use of this run, summed into the round's heartbeat_logs row. */
   llm?: { calls: number; costUsd: number };
+  /** Why the run read less than it could (e.g. no monitored line), shown in its report. */
+  note?: string;
 };
 
 export type CollectorSchedule =

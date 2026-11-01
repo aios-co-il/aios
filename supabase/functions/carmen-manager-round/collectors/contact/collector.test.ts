@@ -55,6 +55,7 @@ function context(
     clientIds: null,
     db,
     fixtures: null,
+    dryRun: false,
     ...fields,
   };
 }

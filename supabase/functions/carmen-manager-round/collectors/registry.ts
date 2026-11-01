@@ -1,20 +1,23 @@
 /**
  * The collector registry. A new detector (unanswered requests AIO-252,
  * contact AIO-253, group updates AIO-254; the kinds without a detector yet
- * are listed in _shared/manager-round/kinds.ts) is one file in this folder
- * implementing `Collector` (types.ts) and one entry here. Ids share
+ * are listed in _shared/manager-round/kinds.ts) is one module in this folder
+ * (a file, or a folder such as chat/) implementing `Collector` (types.ts) and
+ * one entry here. Ids share
  * carmen_round_state with the round's own keys ('_round', 'router',
  * 'brief:*'), and each kind belongs to one collector (registry.test.ts).
  */
 import type { Json } from "../../_shared/database.types.ts";
 import { latestSlot } from "../calendar/slots.ts";
 import type { RoundStateRow } from "../state/store.ts";
+import { chatCollector } from "./chat/collector.ts";
 import { contactCollector } from "./contact/collector.ts";
 import { selfTestCollector } from "./self-test.ts";
 import type { Collector } from "./types.ts";
 
 export const COLLECTORS: readonly Collector[] = [
   selfTestCollector,
+  chatCollector,
   contactCollector,
 ];
 

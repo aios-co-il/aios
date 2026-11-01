@@ -117,6 +117,8 @@ async function sendFromLines(
         senderUserId,
         phoneNumber: phone,
         message: input.message,
+        // A staff notification: never a staff reply to a client (chat_sla) or a card entry.
+        sendKind: "staff_alert",
       },
     });
     last = staffAlertResult(outcome.status, {

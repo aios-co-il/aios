@@ -18,8 +18,7 @@ import {
   type SavePulseAlertRules,
 } from "@/lib/pulseAlertRules";
 import { PulseCostRulesSection } from "@/components/pulse/PulseCostRulesSection";
-import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
-import { ManagerModeSection } from "./manager-round/ManagerModeSection";
+import { ManagerSettingsSections } from "./manager-round/ManagerSettingsSections";
 import { useManagerSettingsDraft } from "./manager-round/useManagerSettingsDraft";
 
 type PulseAlertRulesDialogProps = {
@@ -157,8 +156,7 @@ export function PulseAlertRulesDialog({
             />
           </div>
 
-          {manager.section && <ManagerModeSection {...manager.section} />}
-          {manager.cardLog && <CardLogSystemSendsSwitch {...manager.cardLog} />}
+          <ManagerSettingsSections {...manager} />
         </div>
 
         <DialogFooter>

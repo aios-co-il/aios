@@ -1,8 +1,10 @@
 /**
- * Stores a successful collector run: upsert its candidates, auto-clear what a
- * complete run no longer reports, then save its watermark (only now, so a
- * failed run is retried from the same point). Candidates the database did
- * not store are counted and logged (findings/dropped.ts).
+ * Stores a successful collector run: upsert its candidates, close the
+ * findings it saw end (with their resolution), auto-clear what a complete run
+ * no longer reports, then save its watermark (only now, so a failed run is
+ * retried from the same point). `cleared` counts both kinds of closing.
+ * Candidates the database did not store are counted and logged
+ * (findings/dropped.ts).
  */
 import { type DroppedCounts, reportDropped } from "../findings/dropped.ts";
 import type { CollectorRunDeps, CollectorRunInput } from "./run.ts";
@@ -22,6 +24,12 @@ export async function persistRun(
     collector,
     candidates,
   );
+  const resolved = await deps.findings.resolve(
+    input.tenantId,
+    input.roundId,
+    collector.id,
+    (result.resolved ?? []).filter((r) => collector.kinds.includes(r.kind)),
+  );
   const cleared = result.coverage.complete
     ? await clearMissing(deps, input, collector, candidates, result)
     : 0;
@@ -35,7 +43,7 @@ export async function persistRun(
     { tenantId: input.tenantId, collector: collector.id },
     outcomes,
   );
-  return { inserted, cleared, dropped };
+  return { inserted, cleared: cleared + resolved, dropped };
 }
 
 /** Counts a miss for each kind's live findings the run covered and did not report. */
@@ -47,7 +55,11 @@ async function clearMissing(
   result: CollectorResult,
 ): Promise<number> {
   let cleared = 0;
+  const checked = result.coverage.kinds;
   for (const kind of collector.kinds) {
+    if (checked && !checked.includes(kind)) {
+      continue;
+    }
     cleared += await deps.findings.markMissing(input.tenantId, input.roundId, {
       kind,
       seen: candidates

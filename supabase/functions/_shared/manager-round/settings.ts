@@ -3,8 +3,8 @@
  *
  * Keys owned here (the mode rules live in ./modes.ts): mode, kinds,
  * notify_since (database-stamped, read only), brief_recipients,
- * business_hours, holidays, sla_business_hours, escalation_hours and
- * max_alerts_per_recipient_per_day. Other keys under
+ * business_hours, holidays, sla_business_hours, escalation_hours,
+ * max_alerts_per_recipient_per_day and round_llm_share_pct. Other keys under
  * manager (cost from AIO-236, card_log_system_sends from AIO-242, future
  * collectors' keys) are read by their own modules and never rewritten here.
  */
@@ -14,6 +14,7 @@ import {
   MANAGER_MODES,
   type ManagerMode,
 } from "./modes.ts";
+import { nonNegative, positive } from "./setting-numbers.ts";
 
 export type KindSettings = {
   enabled: boolean;
@@ -42,6 +43,11 @@ export type ManagerSettings = {
   /** Business hours after the first send: [to the manager, to the owner]. */
   escalation_hours: [number, number];
   max_alerts_per_recipient_per_day: number;
+  /**
+   * Percent of the tenant's monthly LLM budget the round may spend, spread
+   * evenly over 30 days (plan C7).
+   */
+  round_llm_share_pct: number;
 };
 
 export const MANAGER_DEFAULTS: Omit<ManagerSettings, "mode" | "kinds"> = {
@@ -59,6 +65,7 @@ export const MANAGER_DEFAULTS: Omit<ManagerSettings, "mode" | "kinds"> = {
   sla_business_hours: 4,
   escalation_hours: [4, 24],
   max_alerts_per_recipient_per_day: 8,
+  round_llm_share_pct: 10,
 };
 
 /** Resolves stored pulse_alert_rules (any shape) to complete manager settings. */
@@ -87,6 +94,14 @@ export function resolveManagerSettings(
     max_alerts_per_recipient_per_day: positive(
       manager.max_alerts_per_recipient_per_day,
       MANAGER_DEFAULTS.max_alerts_per_recipient_per_day,
+    ),
+    // 0 is valid: the round classifies with the markers only.
+    round_llm_share_pct: Math.min(
+      100,
+      nonNegative(
+        manager.round_llm_share_pct,
+        MANAGER_DEFAULTS.round_llm_share_pct,
+      ),
     ),
   };
 }
@@ -172,10 +187,4 @@ function stringList(raw: unknown): string[] {
 /** A parseable date string, or null. */
 function isoOrNull(raw: unknown): string | null {
   return typeof raw === "string" && !Number.isNaN(Date.parse(raw)) ? raw : null;
-}
-
-/** A positive number, or the fallback. */
-export function positive(raw: unknown, fallback: number): number {
-  const value = Number(raw);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
 }

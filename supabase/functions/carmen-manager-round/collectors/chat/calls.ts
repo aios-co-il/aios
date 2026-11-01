@@ -1,0 +1,57 @@
+/**
+ * Completed phone calls to clients: a call after a client's message answers
+ * it, whichever thread the message came in. A client of an agency shared
+ * with the tenant may be called from its own tenant, so the tenants of the
+ * clients read are searched too. A call stored as completed with zero
+ * seconds (a missed call some PBXs report as completed) is no answer.
+ * Calls are read by tenant and time and matched to the clients here, so the
+ * request never lists every client id. They are read newest first: a read
+ * stopped at its page cap drops the oldest calls, not the recent ones most
+ * likely to answer a wait.
+ */
+import type { DbClient } from "../../../_shared/supabase-clients.ts";
+import { throwIf } from "../../db-error.ts";
+import { MAX_PAGES, PAGE_ROWS } from "./paging.ts";
+
+export type CompletedCall = { client_id: string; created_at: string };
+
+/** The calls read, and whether every call was (false past the page cap). */
+export type CallsRead = { calls: CompletedCall[]; complete: boolean };
+
+/** Completed calls of these tenants to these clients since `since`. */
+export async function loadCompletedCalls(
+  db: DbClient,
+  tenantIds: string[],
+  clientIds: string[],
+  since: Date,
+): Promise<CallsRead> {
+  const wanted = new Set(clientIds);
+  if (!wanted.size) {
+    return { calls: [], complete: true };
+  }
+  const calls: CompletedCall[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const from = page * PAGE_ROWS;
+    const { data, error } = await db
+      .from("call_logs")
+      .select("client_id, created_at")
+      .in("tenant_id", tenantIds)
+      .eq("status", "completed")
+      .not("client_id", "is", null)
+      .or("duration.is.null,duration.gt.0")
+      .gte("created_at", since.toISOString())
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + PAGE_ROWS - 1);
+    throwIf(error, "call_logs");
+    for (const row of data ?? []) {
+      if (row.client_id && wanted.has(row.client_id)) {
+        calls.push({ client_id: row.client_id, created_at: row.created_at });
+      }
+    }
+    if ((data ?? []).length < PAGE_ROWS) {
+      return { calls, complete: true };
+    }
+  }
+  return { calls, complete: false };
+}

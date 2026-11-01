@@ -6,7 +6,8 @@
  * retiring the legacy alert, one contact model for the dashboards and the
  * no-call flag follow in AIO-274.
  */
-import { positive, record } from "../../../_shared/manager-round/settings.ts";
+import { record } from "../../../_shared/manager-round/settings.ts";
+import { positive } from "../../../_shared/manager-round/setting-numbers.ts";
 import { CLIENT_CALL_STALE_DAYS } from "../../../_shared/pulse/client-call.ts";
 import { parsePulseAlertRules } from "../../../_shared/pulse-instant-alerts.ts";
 

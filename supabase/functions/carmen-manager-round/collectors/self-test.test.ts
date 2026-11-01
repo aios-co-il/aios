@@ -20,6 +20,7 @@ Deno.test("selfTestCollector", async (t) => {
         budget: RoundBudget.create(1000, 0),
         clientIds: null,
         db: deps(world()).db,
+        dryRun: true,
         fixtures: {
           self_test: [
             {
