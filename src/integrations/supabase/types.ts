@@ -16781,6 +16781,7 @@ export type Database = {
           sender_match_key: string;
           sent_by_user_id: string;
           thread_key: string;
+          thread_kind: string;
         }[];
       };
       get_cron_job_history: {

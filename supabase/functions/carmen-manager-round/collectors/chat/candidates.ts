@@ -2,8 +2,9 @@
  * unanswered_request findings from the reviewed waits: the wait is past the
  * SLA and reads as a request (markers, or a confident LLM verdict that can
  * only add), or its finding is already open (it stays reported while the
- * client waits, so a changed verdict never drops it). Private-group text is
- * never put in a summary or in the evidence campaigners can read.
+ * client waits, so a changed verdict never drops it). Direct-chat and
+ * private-group text is never put in a summary or in the evidence campaigners
+ * can read.
  */
 import type { FindingCandidate } from "../types.ts";
 import type { ThreadReview } from "./gate.ts";
@@ -69,6 +70,7 @@ export function requestCandidates(
         source_event_at: (pending[0]?.at ?? new Date()).toISOString(),
         summary_he: requestSummary(thread, review.waitingHours, link),
         evidence: {
+          thread: thread.kind,
           first_pending_at: pending[0]?.at.toISOString(),
           last_pending_at: pending.at(-1)?.at.toISOString(),
           pending_count: pending.length,
@@ -87,7 +89,7 @@ export function requestCandidates(
   });
 }
 
-/** The chat link for a group whose text is not quoted (a private group). */
+/** The chat link for a thread whose text is not quoted (DMs and private groups). */
 export function threadLink(thread: Thread, chatLink: ChatLink): string | null {
   return thread.openToTeam ? null : chatLink(thread.clientId);
 }

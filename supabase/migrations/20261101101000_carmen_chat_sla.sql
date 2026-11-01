@@ -2,10 +2,10 @@
 -- components C17 and C18).
 --
 -- Read-only over chat_messages. Nothing here sends a message, and nothing
--- reads a thread that is not a group linked to a client: direct chats and
--- unlinked groups never leave these functions (an unlinked group's name and
--- message count leave only when the name matches one client, as a link
--- suggestion).
+-- reads a thread that is not a client's: a direct chat with a number on no
+-- client card and an unlinked group never leave these functions (an unlinked
+-- group's name and message count leave only when the name matches one
+-- client, as a link suggestion).
 --
 -- Requires AIO-242 (20261030093000_client_card_system_send_log.sql):
 -- resolve_whatsapp_group_client, whatsapp_group_client_ids,
@@ -15,10 +15,12 @@
 -- 1. carmen_chat_thread_reviews: the last LLM verdict per client group
 --    thread and the last client message the model read, so each client line
 --    is read once (later lines are sent as new). Service role only.
--- 2. get_client_thread_activity: the recent messages of every client group
---    of the given lines (the round passes the tenant's monitored Green API
---    lines). A group resolves to one client through
---    resolve_whatsapp_group_client. TypeScript decides who is staff.
+-- 2. get_client_thread_activity: the recent messages of every client thread
+--    of the given lines (the round passes the Green API lines of the
+--    tenant's members). A group resolves to one client through
+--    resolve_whatsapp_group_client; a direct chat only through its other
+--    party's phone, when it is the phone of a client or a client contact.
+--    TypeScript decides who is staff.
 -- 3. get_unlinked_client_groups: groups with traffic and no client link whose
 --    name contains exactly one client's name as whole words (an owner-level
 --    suggestion).
@@ -53,18 +55,22 @@ GRANT ALL ON public.carmen_chat_thread_reviews TO service_role;
 
 -- ─── 2. get_client_thread_activity ──────────────────────────────────────────
 
--- Up to p_per_thread recent messages (oldest first) of every client group
+-- Up to p_per_thread recent messages (oldest first) of every client thread
 -- of the lines p_connection_user_ids, since p_since (the caller's read
 -- window: collectors/chat/scope.ts), in thread_key order after
 -- p_after_thread_key (keyset paging: each page holds whole threads). A
--- thread is a group linked to exactly one client the tenant may act on;
--- direct chats are never read. Clients: the tenant's own and those of
--- agencies shared with it, not ended or inactive.
+-- thread is a group linked to exactly one client the tenant may act on, or a
+-- direct chat whose other party's phone is that of exactly one such client or
+-- client contact (clients.phone and client_contacts.phone by
+-- phone_match_key, the sources carmen_is_client_phone reads). A chat with
+-- any other number is never read, whatever chat_messages.client_id says.
+-- Clients: the tenant's own and those of agencies shared with it, not ended
+-- or inactive.
 -- A group linked to another tenant's client is read here unless that tenant
 -- reads it itself: its p_collector run succeeded in the last 40 hours (the
 -- round skips Saturday) and stored, in watermark.read_lines, a line with
 -- traffic in the same group (one reader per group_chat_id).
--- Groups the line owner blocked are skipped. A message stored twice (same
+-- Threads the line owner blocked are skipped. A message stored twice (same
 -- Green idMessage, e.g. on two monitored lines in one group) is returned
 -- once, as the copy of the line that sent it. A send AIOS stamped with a
 -- send_kind is returned only when a person made it from AIOS
@@ -89,6 +95,7 @@ CREATE OR REPLACE FUNCTION public.get_client_thread_activity(
 )
 RETURNS TABLE (
   thread_key text,
+  thread_kind text,
   client_id uuid,
   client_tenant_id uuid,
   client_name text,
@@ -107,7 +114,7 @@ RETURNS TABLE (
   SET search_path TO ''
 AS $$
   WITH clients_in_scope AS (
-    SELECT c.id, c.tenant_id, c.name
+    SELECT c.id, c.tenant_id, c.name, c.phone
     FROM public.clients AS c
     WHERE c.status NOT IN ('ended', 'inactive')
       AND (p_client_ids IS NULL OR c.id = ANY (p_client_ids))
@@ -116,17 +123,37 @@ AS $$
         WHERE ata.agency_id = c.agency_id
           AND ata.accessing_tenant_id = p_tenant_id))
   ),
+  -- Phone match key -> its one client (the client's or a client contact's
+  -- phone), computed once per call. A key on two clients matches neither.
+  key_clients AS MATERIALIZED (
+    SELECT k.match_key, (array_agg(k.client_id))[1] AS client_id
+    FROM (
+      SELECT cs.id AS client_id, public.phone_match_key(cs.phone) AS match_key
+      FROM clients_in_scope AS cs
+      UNION
+      SELECT cc.client_id, public.phone_match_key(cc.phone)
+      FROM public.client_contacts AS cc
+      JOIN clients_in_scope AS cs ON cs.id = cc.client_id
+    ) AS k
+    WHERE k.match_key IS NOT NULL
+    GROUP BY k.match_key
+    HAVING count(DISTINCT k.client_id) = 1
+  ),
   messages AS (
     SELECT cm.id, cm.created_at, cm.direction, cm.group_id,
            cm.connection_user_id, cm.sender_phone, cm.sent_by_user_id,
            cm.send_kind, cm.send_ref, left(cm.message_text, 500) AS message_text,
            coalesce(cm.raw_provider_data ->> 'idMessage', cm.id::text) AS provider_id,
-           (cm.raw_provider_data -> 'senderData' ->> 'sender') LIKE '%@lid' AS from_lid
+           -- A reply stored from outgoingMessageStatus has no senderData.
+           (CASE WHEN cm.group_id IS NULL
+              THEN coalesce(cm.raw_provider_data -> 'senderData' ->> 'chatId',
+                            cm.raw_provider_data ->> 'chatId')
+              ELSE cm.raw_provider_data -> 'senderData' ->> 'sender'
+            END) LIKE '%@lid' AS from_lid
     FROM public.chat_messages AS cm
     WHERE cm.tenant_id = p_tenant_id
       AND cm.provider = p_provider
       AND cm.connection_user_id = ANY (p_connection_user_ids)
-      AND cm.group_id IS NOT NULL
       AND cm.created_at >= p_since
       AND cm.is_blocked = false
   ),
@@ -142,7 +169,7 @@ AS $$
   group_clients AS MATERIALIZED (
     SELECT g.id AS group_id, g.group_chat_id,
            public.resolve_whatsapp_group_client(g.id) AS client_id
-    FROM (SELECT DISTINCT s.group_id FROM senders AS s) AS active
+    FROM (SELECT DISTINCT s.group_id FROM senders AS s WHERE s.group_id IS NOT NULL) AS active
     JOIN public.whatsapp_groups AS g ON g.id = active.group_id
     WHERE g.tenant_id = p_tenant_id
       AND g.is_blocked = false
@@ -167,9 +194,15 @@ AS $$
         AND ocm.created_at >= p_since)
   ),
   threaded AS (
-    SELECT s.*, gt.thread_key, gt.client_id AS thread_client_id
+    SELECT s.*, gt.thread_key, 'group'::text AS thread_kind, gt.client_id AS thread_client_id
     FROM senders AS s
     JOIN group_threads AS gt ON gt.group_id = s.group_id
+    UNION ALL
+    -- A direct chat: only with a phone on a client card (key_clients).
+    SELECT s.*, 'dm:' || s.connection_user_id || ':' || s.match_key, 'dm', kc.client_id
+    FROM senders AS s
+    JOIN key_clients AS kc ON kc.match_key = s.match_key
+    WHERE s.group_id IS NULL
   ),
   unblocked AS (
     SELECT t.*
@@ -178,7 +211,9 @@ AS $$
       SELECT 1 FROM public.blocked_contacts AS bc
       WHERE bc.tenant_id = p_tenant_id
         AND bc.connection_user_id = t.connection_user_id
-        AND bc.group_id = t.group_id)
+        AND (bc.group_id = t.group_id
+          OR (t.group_id IS NULL AND (bc.client_id = t.thread_client_id
+            OR bc.sender_phone = t.sender_phone))))
   ),
   deduped AS (
     SELECT DISTINCT ON (u.thread_key, u.provider_id) u.*
@@ -195,7 +230,7 @@ AS $$
            SELECT rs.id::text FROM public.report_schedules AS rs
            WHERE rs.tenant_id = p_tenant_id)))
   )
-  SELECT r.thread_key, r.thread_client_id, cs.tenant_id, cs.name,
+  SELECT r.thread_key, r.thread_kind, r.thread_client_id, cs.tenant_id, cs.name,
          r.group_id, r.id, r.created_at, r.direction, r.match_key,
          r.lid_unmapped, r.sent_by_user_id, r.message_text
   FROM ranked AS r

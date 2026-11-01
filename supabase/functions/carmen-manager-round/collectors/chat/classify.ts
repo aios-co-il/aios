@@ -3,9 +3,10 @@
  * it has not read yet (the review cache keeps the last one it read), in every
  * client streak and at any age, so a complaint without a listed word is seen
  * even when staff answered it and the client thanked them before the run.
- * Only groups open to the team (private groups never go to the model), at
- * most MAX_CALLS a run within the round's time and API budget, and never in
- * a preview. There is no money limit: each call's cost is logged under the
+ * Only groups open to the team (direct-chat text and private groups never go
+ * to the model), at most MAX_CALLS a run within the round's time and API
+ * budget, and never in a preview. There is no money limit: each call's cost
+ * is logged under the
  * tenant and counted in the run's stats (llm-meter.ts). Threads whose wait
  * is due are asked first. Without a verdict the markers decide.
  */

@@ -1,8 +1,8 @@
 /**
  * The Hebrew line staff receive for a chat finding. A group open to the team
- * (staff write there) is quoted (at most QUOTE_MAX characters). A group no
- * team member writes in is never quoted: the line carries only the time and
- * a link to the chat.
+ * (staff write there) is quoted (at most QUOTE_MAX characters). A direct
+ * chat, or a group no team member writes in, is never quoted: the line
+ * carries only the time and a link to the chat.
  */
 import { clip } from "./clip.ts";
 import { israelDayAndClock } from "./israel-time.ts";
@@ -67,13 +67,16 @@ export function isLowConfidence(turns: Turn[]): boolean {
   return turns.every((turn) => turn.unsure);
 }
 
-/** "בקבוצה <time>: "<quote>"", the quote only for a group open to the team. */
+/** "בקבוצה <time>: "<quote>"" or "בהודעה פרטית <time>". */
 function place(
   thread: Thread,
   turns: Turn[],
   marker: Marker,
   at: Date | undefined,
 ): string {
+  if (thread.kind !== "group") {
+    return `בהודעה פרטית ${when(at)}`;
+  }
   const quote = quoteOf(thread, turns, marker);
   return `בקבוצה ${when(at)}${quote ? `: "${quote}"` : ""}`;
 }

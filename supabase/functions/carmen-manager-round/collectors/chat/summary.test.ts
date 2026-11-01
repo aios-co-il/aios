@@ -1,11 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import {
-  il,
-  privateRow,
-  row,
-  staffRow,
-  thread,
-} from "../../tests/chat-fixtures.ts";
+import { dmRow, il, row, staffRow, thread } from "../../tests/chat-fixtures.ts";
 import {
   complaintSummary,
   isLowConfidence,
@@ -41,12 +35,12 @@ Deno.test("requestSummary", async (t) => {
   );
 
   await t.step(
-    "a private group carries the time and a link, never the text",
+    "a direct chat carries the time and a link, never the text",
     () => {
-      const hidden = thread([privateRow({ message_text: "סוד פרטי?" })]);
+      const dm = thread([dmRow({ message_text: "סוד פרטי?" })]);
       assertEquals(
-        requestSummary(hidden, 1, LINK),
-        `לקוח א: הלקוח כתב בקבוצה ב-27.10 בשעה 09:00 ועדיין לא קיבל מענה (שעה עסקית) – לצ׳אט: ${LINK}`,
+        requestSummary(dm, 1, LINK),
+        `לקוח א: הלקוח כתב בהודעה פרטית ב-27.10 בשעה 09:00 ועדיין לא קיבל מענה (שעה עסקית) – לצ׳אט: ${LINK}`,
       );
     },
   );
@@ -65,7 +59,9 @@ Deno.test("complaintSummary", async (t) => {
 Deno.test("quoteOf", async (t) => {
   await t.step("only a group open to the team is quoted", () => {
     const privateGroup = thread([row({ message_text: "מתי?" })]);
+    const dm = thread([dmRow({ message_text: "מתי?" })]);
     assertEquals(quoteOf(privateGroup, privateGroup.pending, "request"), null);
+    assertEquals(quoteOf(dm, dm.pending, "request"), null);
     const open = teamGroup("מתי   זה\nמגיע?");
     assertEquals(quoteOf(open, open.pending, "request"), "מתי זה מגיע?");
   });

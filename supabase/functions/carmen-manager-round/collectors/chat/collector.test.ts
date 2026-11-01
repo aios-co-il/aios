@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { resolveManagerSettings } from "../../../_shared/manager-round/settings.ts";
 import { latestSlot } from "../../calendar/slots.ts";
-import { il, privateRow, row, staffRow } from "../../tests/chat-fixtures.ts";
+import { dmRow, il, row, staffRow } from "../../tests/chat-fixtures.ts";
 import { chatContext, fakeChatSources } from "../../tests/fake-chat-sources.ts";
 import { modelAnswer } from "../../tests/fake-classify.ts";
 import type { CollectorContext } from "../types.ts";
@@ -25,7 +25,7 @@ const late = [
     created_at: il("09:00"),
     message_text: "אפשר להעלות את המבצע?",
   }),
-  privateRow({
+  dmRow({
     message_id: "d1",
     created_at: il("13:30"),
     message_text: "אני לא מרוצה",
@@ -59,14 +59,14 @@ Deno.test("chat collector", async (t) => {
         result.candidates.map((c) => [c.kind, c.fingerprint]),
         [
           ["unanswered_request", "chat:group:111@g.us:g1"],
-          ["client_complaint", "chat:group:222@g.us:complaint:d1"],
+          ["client_complaint", "chat:dm:owner:501234567:complaint:d1"],
           ["unlinked_group", "group:999@g.us"],
         ],
       );
       assertEquals(
         asked.length,
         1,
-        "only the group open to the team may go to the model",
+        "only the group thread may go to the model",
       );
       assertEquals(result.watermark, { read_lines: ["owner"] });
       assertEquals(result.coverage, {
@@ -75,6 +75,22 @@ Deno.test("chat collector", async (t) => {
         kinds: ["unanswered_request", "client_complaint", "unlinked_group"],
       });
       assert(!JSON.stringify(result.candidates).includes("לא מרוצה"));
+    },
+  );
+
+  await t.step(
+    "a client's unanswered direct message is raised by the markers, unquoted",
+    async () => {
+      const ask = "אפשר לקבל את הדוח?";
+      const dm = [dmRow({ message_id: "q1", message_text: ask })];
+      const { fake, asked } = fakeChatSources(dm, { answer: modelAnswer() });
+      const [found] = (await collect(fake)).candidates;
+      assertEquals(
+        [found.kind, found.fingerprint, found.evidence.classified_by],
+        ["unanswered_request", "chat:dm:owner:501234567:q1", "markers"],
+      );
+      assertEquals(asked.length, 0, "direct-chat text never goes to the model");
+      assert(!JSON.stringify(found).includes(ask));
     },
   );
 

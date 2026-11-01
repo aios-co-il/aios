@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { RoundBudget } from "../../budget.ts";
 import {
+  dmRow,
   il,
   receiptRows,
   REPORT_VERDICT,
@@ -19,7 +20,7 @@ import type { Thread } from "./threads.ts";
 
 const run = (dryRun = false) => ({
   tenantId: TENANT,
-  budget: RoundBudget.create(60_000, 10),
+  budget: RoundBudget.create(600_000, 100),
   dryRun,
 });
 
@@ -76,15 +77,19 @@ Deno.test("classifyThreads", async (t) => {
     },
   );
 
-  await t.step("private groups and thanks never go to the model", async () => {
-    const { fake, prompts } = fakeClassifyPorts();
-    const privateGroup = thread([row({ message_text: "פרטי" })]);
-    const { verdicts } = await classify(
-      [privateGroup, group("תודה רבה 🙏")],
-      fake,
-    );
-    assertEquals([prompts.length, verdicts.size], [0, 0]);
-  });
+  await t.step(
+    "direct chats, private groups and thanks never go to the model",
+    async () => {
+      const { fake, prompts } = fakeClassifyPorts();
+      const dm = thread([dmRow({ message_text: "פרטי" })]);
+      const privateGroup = thread([row({ message_text: "פרטי" })]);
+      const { verdicts } = await classify(
+        [dm, privateGroup, group("תודה רבה 🙏")],
+        fake,
+      );
+      assertEquals([prompts.length, verdicts.size], [0, 0]);
+    },
+  );
 
   await t.step(
     "a cached verdict for the same message is reused; a preview keeps an older one unasked",
@@ -205,20 +210,14 @@ Deno.test("classifyThreads", async (t) => {
     },
   );
 
-  await t.step(
-    "stops at 20 calls a run, however much they cost (no money limit)",
-    async () => {
-      const { fake, prompts } = fakeClassifyPorts({ costUsd: 5 });
-      const waiting = Array.from({ length: 25 }, (_, i) =>
-        group("יש עדכון", `group:${i}@g.us`),
-      );
-      const { llm } = await classifyThreads(waiting, all, fake, {
-        ...run(),
-        budget: RoundBudget.create(600_000, 100),
-      });
-      assertEquals([prompts.length, llm.calls, llm.costUsd], [20, 20, 100]);
-    },
-  );
+  await t.step("stops at 20 calls a run, however much they cost", async () => {
+    const { fake, prompts } = fakeClassifyPorts({ costUsd: 5 });
+    const waiting = Array.from({ length: 25 }, (_, i) =>
+      group("יש עדכון", `group:${i}@g.us`),
+    );
+    const { llm } = await classify(waiting, fake);
+    assertEquals([prompts.length, llm.calls, llm.costUsd], [20, 20, 100]);
+  });
 
   await t.step(
     "due waits are asked first; no answer stops asking",

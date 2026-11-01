@@ -52,7 +52,7 @@ export function needsModel(
   unread: Turn[],
   scope: ReadScope,
 ): boolean {
-  if (!thread.openToTeam) {
+  if (thread.kind !== "group" || !thread.openToTeam) {
     return false;
   }
   const unreadIds = new Set(unread.map((turn) => turn.id));

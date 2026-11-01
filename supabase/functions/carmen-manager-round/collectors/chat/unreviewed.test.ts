@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
+  dmRow,
   il,
   receiptRows,
   row,
@@ -94,8 +95,10 @@ Deno.test("needsModel", async (t) => {
     assertEquals(needsModel(waiting, waiting.pending, REQUESTS), true);
   });
 
-  await t.step("a private group never needs it", () => {
+  await t.step("direct chats and private groups never need it", () => {
+    const dm = thread([dmRow({ message_text: "הלידים זבל" })]);
     const privateGroup = thread([row({ message_text: "הלידים זבל" })]);
+    assertEquals(needsModel(dm, dm.pending, ALL), false);
     assertEquals(needsModel(privateGroup, privateGroup.pending, ALL), false);
   });
 });

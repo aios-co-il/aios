@@ -105,6 +105,7 @@ function complaint(
     source_event_at: turns[0].at.toISOString(),
     summary_he: complaintSummary(thread, shown, link),
     evidence: {
+      thread: thread.kind,
       first_message_at: turns[0].at.toISOString(),
       last_message_at: turns.at(-1)?.at.toISOString(),
       message_count: turns.length,

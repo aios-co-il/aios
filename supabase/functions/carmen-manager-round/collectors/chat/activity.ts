@@ -1,8 +1,8 @@
 /**
- * Reads of the client groups the chat collector reviews, through the
+ * Reads of the client threads the chat collector reviews, through the
  * service-role SQL functions of 20261101101000_carmen_chat_sla.sql: only
- * groups of the monitored lines linked to a client leave the database;
- * direct chats never do.
+ * client threads of the monitored lines leave the database (groups linked to
+ * a client, direct chats with a phone on a client card).
  */
 import { USER_SEND_KINDS } from "../../../_shared/client-card/send-kind.ts";
 import type { Database } from "../../../_shared/database.types.ts";
@@ -15,12 +15,13 @@ type Functions = Database["public"]["Functions"];
 type GeneratedActivityRow =
   Functions["get_client_thread_activity"]["Returns"][number];
 
-/** A message of a client group; the generator types these SQL NULLs as non-null. */
+/** A message of a client thread; the generator types these SQL NULLs as non-null. */
 export type ActivityRow = Omit<
   GeneratedActivityRow,
-  "client_tenant_id" | "sender_match_key" | "sent_by_user_id"
+  "client_tenant_id" | "group_id" | "sender_match_key" | "sent_by_user_id"
 > & {
   client_tenant_id: string | null;
+  group_id: string | null;
   sender_match_key: string | null;
   sent_by_user_id: string | null;
 };
@@ -45,7 +46,7 @@ export const MONITORED_PROVIDER = "green_api";
 export const PER_THREAD = 15;
 
 /**
- * Recent messages of every client group, oldest first per thread.
+ * Recent messages of every client-linked thread, oldest first per thread.
  * Pages are keyed by thread: a thread cut by the row cap is read whole on
  * the next page, so no thread loses a row between pages. `collectorId` lets
  * the function skip a shared group the client's own tenant reads itself.

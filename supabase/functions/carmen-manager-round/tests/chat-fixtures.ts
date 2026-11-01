@@ -27,6 +27,7 @@ export function row(fields: Partial<ActivityRow> = {}): ActivityRow {
   next += 1;
   return {
     thread_key: "group:111@g.us",
+    thread_kind: "group",
     client_id: "c1",
     client_name: "לקוח א",
     client_tenant_id: TENANT,
@@ -42,9 +43,14 @@ export function row(fields: Partial<ActivityRow> = {}): ActivityRow {
   };
 }
 
-/** A client message in a private group of client c1: no team member writes there. */
-export function privateRow(fields: Partial<ActivityRow> = {}): ActivityRow {
-  return row({ thread_key: "group:222@g.us", group_id: "g2", ...fields });
+/** A direct-chat row of client c1. */
+export function dmRow(fields: Partial<ActivityRow> = {}): ActivityRow {
+  return row({
+    thread_key: `dm:owner:${CLIENT_KEY}`,
+    thread_kind: "dm",
+    group_id: null,
+    ...fields,
+  });
 }
 
 /** A staff member's message in the group (the team is in it). */

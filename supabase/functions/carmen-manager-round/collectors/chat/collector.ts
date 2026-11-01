@@ -3,9 +3,10 @@
  * without a staff reply past the tenant's unanswered_reply_hours in business
  * hours (unanswered_request), client complaints at any age
  * (client_complaint) and unlinked groups that look like a client's
- * (unlinked_group), from the groups linked to a client on the tenant's
- * monitored lines (never direct chats). It only reads, only for the kinds the
- * tenant has not turned off, and only messages inside the read window
+ * (unlinked_group), from the client threads on the lines of the tenant's
+ * members (connections.ts): groups linked to a client, and direct chats with
+ * a phone on a client card, never a chat with any other number. It only
+ * reads, only for the kinds the tenant has not turned off, and only messages inside the read window
  * (scope.ts) and after the kinds' notify_since, so nothing older is ever
  * raised. A wait that staff answered (reply or completed call) is closed as
  * answered with its response time. The lines it read are kept in its
