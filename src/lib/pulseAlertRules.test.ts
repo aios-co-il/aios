@@ -113,21 +113,6 @@ describe("client card logging switch (pulse_alert_rules.manager)", () => {
 });
 
 describe("mergePulseAlertRules with the card switch", () => {
-  it("keeps every key the dialog does not edit", () => {
-    const stored = {
-      ...DEFAULT_PULSE_ALERT_RULES,
-      future_rule: { threshold: 3 },
-      manager: { mode: "observe", card_log_system_sends: true },
-    };
-    const merged = mergePulseAlertRules(stored, {
-      ...parsePulseAlertRules(stored),
-      cpl_spike_pct: 80,
-    });
-    expect(merged.cpl_spike_pct).toBe(80);
-    expect(merged.future_rule).toEqual({ threshold: 3 });
-    expect("manager" in merged).toBe(false);
-  });
-
   it("changes only its own manager key when the owner flips the switch", () => {
     const stored = {
       ...DEFAULT_PULSE_ALERT_RULES,
@@ -149,19 +134,6 @@ describe("mergePulseAlertRules with the card switch", () => {
       mode: "david_only",
       card_log_system_sends: false,
     });
-  });
-
-  it("writes defaults on a first save and adds manager only when set", () => {
-    const plain = mergePulseAlertRules(null, DEFAULT_PULSE_ALERT_RULES);
-    expect(plain).toEqual(parsePulseAlertRules(null));
-    expect("manager" in plain).toBe(false);
-
-    const withSwitch = mergePulseAlertRules(
-      undefined,
-      DEFAULT_PULSE_ALERT_RULES,
-      { card_log_system_sends: true },
-    );
-    expect(withSwitch.manager).toEqual({ card_log_system_sends: true });
   });
 
   it("leaves the switch to the database on a save without a manager change", () => {

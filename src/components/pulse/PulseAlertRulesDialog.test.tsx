@@ -1,13 +1,22 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PulseAlertRulesDialog } from "./PulseAlertRulesDialog";
 
-const owner = vi.hoisted(() => ({ value: false }));
+const owner = vi.hoisted(() => ({ value: false, calls: 0 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: () => Promise.resolve({ data: owner.value, error: null }),
+    rpc: () => {
+      owner.calls += 1;
+      return Promise.resolve({ data: owner.value, error: null });
+    },
   },
 }));
 vi.mock("@/hooks/useCurrentTenant", () => ({
@@ -22,6 +31,7 @@ const SWITCH_LABEL = "תיעוד אוטומטי בכרטיס הלקוח של ה�
 /** Renders the open dialog for a viewer the database does (or does not) treat as an owner; returns its onSave spy. */
 function renderDialog(value: unknown, isOwner = false) {
   owner.value = isOwner;
+  owner.calls = 0;
   const onSave = vi.fn();
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -36,6 +46,12 @@ function renderDialog(value: unknown, isOwner = false) {
   return onSave;
 }
 
+/** Waits until the owner check has been asked and its answer rendered. */
+async function ownerCheckAnswered() {
+  await waitFor(() => expect(owner.calls).toBeGreaterThan(0));
+  await act(() => Promise.resolve());
+}
+
 describe("PulseAlertRulesDialog manager mode", () => {
   it("lets an owner change Carmen's mode, starting from the stored one", async () => {
     const onSave = renderDialog({ manager: { mode: "david_only" } }, true);
@@ -44,14 +60,12 @@ describe("PulseAlertRulesDialog manager mode", () => {
     ).toHaveAttribute("aria-checked", "true");
     await userEvent.click(screen.getByRole("radio", { name: /צוות מלא/ }));
     await userEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
-    expect(onSave.mock.calls[0][1]).toEqual({
-      mode: "team",
-      card_log_system_sends: false,
-    });
+    expect(onSave.mock.calls[0][1]).toEqual({ mode: "team" });
   });
 
   it("hides the mode from others, whose save sends no manager change", async () => {
     const onSave = renderDialog({ manager: { mode: "team" } });
+    await ownerCheckAnswered();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
     expect(onSave.mock.calls[0][1]).toEqual({});
@@ -107,6 +121,7 @@ describe("PulseAlertRulesDialog client card logging switch", () => {
 
   it("is hidden from non-owners, whose save sends no manager change", async () => {
     const onSave = renderDialog({ manager: { card_log_system_sends: true } });
+    await ownerCheckAnswered();
     expect(screen.queryByText(SWITCH_LABEL)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
     expect(onSave.mock.calls[0][1]).toEqual({});

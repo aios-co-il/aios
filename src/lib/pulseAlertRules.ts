@@ -74,7 +74,6 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
 }
 
 /**
-/**
  * Saves the edited alert rules and the owner-only manager settings the dialog
  * sets outside them; the caller merges both into the stored pulse_alert_rules
  * (mergePulseAlertRules).
@@ -87,11 +86,13 @@ export type SavePulseAlertRules = (
 /**
  * The pulse_alert_rules value to save: the stored JSON with the dialog's rules
  * on top; keys the dialog does not know are kept. The manager block is sent
- * only when something in it changes (cost, key by key, or a managerPatch key):
- * without it the database keeps the stored block
- * (carmen_manager_settings_guard), so a stale page never reverts it and a
- * save that changes nothing there never touches it. An undefined managerPatch
- * value leaves the stored one.
+ * only when something in it changes (cost, key by key, or a managerPatch key
+ * whose value differs from the stored one); otherwise the database keeps the
+ * stored block (carmen_manager_settings_guard). When it is sent, it is the
+ * page's copy of the block with the changes on top, so a key someone else
+ * changed since the page loaded goes back to the page's value (for a non-owner
+ * the guard refuses that save). An undefined managerPatch value leaves the
+ * stored one.
  */
 export function mergePulseAlertRules(
   stored: unknown,
