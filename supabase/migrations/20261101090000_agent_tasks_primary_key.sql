@@ -11,7 +11,12 @@
 --
 -- No replay: one-shot tasks that came due while updates failed are switched
 -- off here instead of firing the moment the key exists; their result records
--- why. Nothing is sent by this migration.
+-- why. Nothing is sent by this migration. The window starts on 2026-10-09,
+-- the date of the catch-up migration that added the table to the publication;
+-- a task due before it was not stuck by this failure and is left as it is.
+-- On Production this matches two rows (2026-10-23 and 2026-11-01), on
+-- Staging none (read-only counts, 2026-11-01). The
+-- update fires update_agent_tasks_updated_at, which sets updated_at.
 
 do $$
 begin
@@ -35,5 +40,5 @@ where status = 'pending'
   and schedule_type = 'once'
   and enabled
   and last_run is null
-  and scheduled_at is not null
+  and scheduled_at >= timestamptz '2026-10-09 00:00:00+00'
   and scheduled_at <= now();
