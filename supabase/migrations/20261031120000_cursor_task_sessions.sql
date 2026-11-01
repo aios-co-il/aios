@@ -1,13 +1,14 @@
 -- Cursor Cloud Agent sessions (bc-…) that Carmen and the dev task center
 -- start, per org and task.
 --
--- The code that writes and reads this table (_shared/cursor-session-tracker.ts,
+-- The code that writes and reads this schema (_shared/cursor-session-tracker.ts,
 -- cursor-mcp, _shared/dev-tasks.ts, _shared/cursor-task-queue.ts and the
 -- "סשני Cursor פעילים" panel) shipped in August with migrations that never
--- reached Production: the Production baseline (20261009000000) has neither
--- the table nor the tasks columns, so every write has failed since. This
--- creates them as that code expects. IF NOT EXISTS keeps it safe on a
--- database that already has them.
+-- reached Production. Neither the Production baseline (20261009000000) nor
+-- Staging has cursor_task_sessions or the tasks cursor columns, and
+-- cursor_dispatches still allows only two tools, so every session write and
+-- every reply_to_cursor_session log has failed since. This adds them as that
+-- code expects.
 --
 -- Reads: the org's staff and super admins. Writes: service role only (edge
 -- functions). The table starts empty: nothing is backfilled and nothing is sent.
@@ -33,14 +34,14 @@ create table if not exists public.cursor_task_sessions (
 comment on table public.cursor_task_sessions is
   'Cursor Cloud Agent bc-… sessions per org and task (cursor-session-tracker.ts).';
 
--- The tracker upserts on the agent id.
-create unique index if not exists idx_cursor_task_sessions_agent
-  on public.cursor_task_sessions (cursor_agent_id);
+-- The tracker upserts on the org and the agent id.
+create unique index if not exists idx_cursor_task_sessions_tenant_agent
+  on public.cursor_task_sessions (tenant_id, cursor_agent_id);
 
 create index if not exists idx_cursor_task_sessions_tenant_status
   on public.cursor_task_sessions (tenant_id, status, updated_at desc);
 
-create index if not exists idx_cursor_task_sessions_task
+create index if not exists idx_cursor_task_sessions_human_task
   on public.cursor_task_sessions (human_task_id)
   where human_task_id is not null;
 
@@ -57,6 +58,13 @@ comment on column public.tasks.cursor_session_id is
   'Latest Cursor Cloud Agent bc-… working on this task.';
 comment on column public.tasks.cursor_session_url is
   'https://cursor.com/agents/bc-… for that session.';
+
+-- cursor-mcp logs every dispatch with the tool that made it.
+alter table public.cursor_dispatches
+  drop constraint if exists cursor_dispatches_tool_check;
+alter table public.cursor_dispatches
+  add constraint cursor_dispatches_tool_check
+  check (tool in ('request_dev_task', 'ask_cursor', 'reply_to_cursor_session'));
 
 alter table public.cursor_task_sessions enable row level security;
 

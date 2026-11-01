@@ -71,6 +71,7 @@ SELECT tenant_id FROM tenant_users WHERE user_id = auth.uid() LIMIT 1
 - ✅ import_history
 - ✅ workshop_artifacts
 - ✅ workshop_assets
+- ✅ cursor_task_sessions
 
 ### 5. טבלאות גלובליות (ללא tenant_id)
 
