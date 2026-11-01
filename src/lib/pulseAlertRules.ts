@@ -1,3 +1,4 @@
+import type { ManagerMode } from "../../supabase/functions/_shared/manager-round/modes.ts";
 import type { PulseCostRules } from "../../supabase/functions/_shared/pulse/cost-rules.ts";
 import { isJsonObject } from "../../supabase/functions/_shared/pulse/json.ts";
 
@@ -17,11 +18,15 @@ export type PulseAlertRules = {
 };
 
 /**
- * pulse_alert_rules.manager: only cost is edited from the dashboard (read by
- * resolvePulseCostRules); any other key is kept as stored.
+ * pulse_alert_rules.manager. Every member edits cost (read by
+ * resolvePulseCostRules); the rest is owner-only (carmen_manager_settings_guard).
+ * Other code may keep more keys there (collector settings, caps, hours); they
+ * are always preserved.
  */
 export type PulseManagerSettings = {
   cost?: Partial<PulseCostRules>;
+  /** Carmen's rollout mode for the manager round. */
+  mode?: ManagerMode;
   /**
    * Log what AIOS sends to a client (reports, dashboard shares, meeting
    * summaries, broadcasts, Carmen and automation messages, chat replies) on
@@ -69,43 +74,50 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
 }
 
 /**
- * The stored pulse_alert_rules with the dialog's values on top. Keys the dialog
- * does not know (future settings, other manager keys) survive a save instead of
- * being wiped; manager.cost is merged key by key, and manager is written only
- * when it is stored or edited. managerPatch holds the manager keys the dialog
- * sets outside the rules (the owner's card_log_system_sends switch); an
- * undefined value leaves the stored one.
+ * Saves the edited alert rules and the owner-only manager settings the dialog
+ * sets outside them; the caller merges both into the stored pulse_alert_rules
+ * (mergePulseAlertRules).
+ */
+export type SavePulseAlertRules = (
+  rules: PulseAlertRules,
+  manager: PulseManagerSettings,
+) => void;
+
+/**
+ * The pulse_alert_rules value to save: the stored JSON with the dialog's rules
+ * on top; keys the dialog does not know are kept. The manager block is sent
+ * only when something in it changes (cost, key by key, or a managerPatch key
+ * whose value differs from the stored one); otherwise the database keeps the
+ * stored block (carmen_manager_settings_guard). When it is sent, it is the
+ * page's copy of the block with the changes on top, so a key someone else
+ * changed since the page loaded goes back to the page's value (for a non-owner
+ * the guard refuses that save). An undefined managerPatch value leaves the
+ * stored one.
  */
 export function mergePulseAlertRules(
   stored: unknown,
   edited: PulseAlertRules,
   managerPatch: PulseManagerSettings = {},
 ): Record<string, unknown> {
-  const base = isJsonObject(stored) ? stored : {};
-  const { manager: parsedManager, ...rules } = parsePulseAlertRules(edited);
-  const patch = Object.fromEntries(
-    Object.entries(managerPatch).filter(([, value]) => value !== undefined),
-  );
-  const editedManager: PulseManagerSettings | undefined =
-    parsedManager || Object.keys(patch).length > 0
-      ? { ...parsedManager, ...patch }
-      : undefined;
+  const { manager: storedManager, ...base } = isJsonObject(stored)
+    ? stored
+    : {};
+  const { manager: editedManager, ...rules } = parsePulseAlertRules(edited);
   const merged: Record<string, unknown> = { ...base, ...rules };
-  const storedManager = isJsonObject(base.manager) ? base.manager : null;
-  if (!storedManager && !editedManager) {
-    return merged;
+  const block = isJsonObject(storedManager) ? storedManager : {};
+  const changes: Record<string, unknown> = Object.fromEntries(
+    Object.entries(managerPatch).filter(
+      ([key, value]) => value !== undefined && block[key] !== value,
+    ),
+  );
+  const storedCost = isJsonObject(block.cost) ? block.cost : {};
+  const cost = { ...storedCost, ...editedManager?.cost };
+  if (JSON.stringify(cost) !== JSON.stringify(storedCost)) {
+    changes.cost = cost;
   }
-  const manager: Record<string, unknown> = {
-    ...storedManager,
-    ...editedManager,
-  };
-  const storedCost = isJsonObject(storedManager?.cost)
-    ? storedManager.cost
-    : null;
-  if (storedCost || editedManager?.cost) {
-    manager.cost = { ...storedCost, ...editedManager?.cost };
+  if (Object.keys(changes).length > 0) {
+    merged.manager = { ...block, ...changes };
   }
-  merged.manager = manager;
   return merged;
 }
 

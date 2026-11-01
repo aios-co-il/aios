@@ -5,14 +5,14 @@ import {
   assertStringIncludes,
 } from "jsr:@std/assert@1";
 
-import { withConsoleErrors } from "../_shared/testing/console-errors.ts";
-import { fakeFetch } from "../_shared/testing/fake-fetch.ts";
-import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
+import { withConsoleErrors } from "../testing/console-errors.ts";
+import { fakeFetch } from "../testing/fake-fetch.ts";
+import { fakeSupabase } from "../testing/fake-supabase.ts";
 import {
   sendStaffAlert,
+  STAFF_ALERT_NO_LINE_HE,
   STAFF_ALERT_NO_PRIMARY_LINE_HE,
-} from "./staff-alert.ts";
-import { staffAlertToolResult } from "./staff-alert-tool-result.ts";
+} from "./send.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const REQUESTER = "33333333-3333-4333-8333-333333333333";
@@ -175,7 +175,7 @@ Deno.test("sendStaffAlert", async (t) => {
       assertStrictEquals(result.status, "no_line");
       assertStrictEquals(result.sent, false);
       assertStrictEquals(fetch.calls.length, 0);
-      assertMatch(staffAlertToolResult(result).error ?? "", /Manus/);
+      assertStrictEquals(result.error, STAFF_ALERT_NO_LINE_HE);
     },
   );
 
@@ -194,8 +194,6 @@ Deno.test("sendStaffAlert", async (t) => {
       const r1 = await unknown.run;
       assertStrictEquals(r1.status, "delivery_unknown");
       assertStrictEquals(unknown.fetch.calls.length, 1);
-      assertStrictEquals(staffAlertToolResult(r1).success, true);
-      assertMatch(staffAlertToolResult(r1).warning ?? "", /אל תשלחי/);
 
       // A broken connection may come after the message left: not retried either.
       const posted: string[] = [];
@@ -245,7 +243,7 @@ Deno.test("sendStaffAlert", async (t) => {
     });
     const result = await run;
     assertStrictEquals(result.status, "blocked_staging");
-    assertMatch(staffAlertToolResult(result).error ?? "", /Staging/);
+    assertStrictEquals(result.sent, false);
   });
 
   await t.step(
