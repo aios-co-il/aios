@@ -1,5 +1,5 @@
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { sendStaffAlert } from "./staff-alert.ts";
+import { sendStaffAlert } from "../_shared/staff-alert/send.ts";
 import { logStaffAlertOutcome } from "./staff-alert-log.ts";
 import {
   staffAlertToolResult,
@@ -8,7 +8,7 @@ import {
 
 /**
  * The send_whatsapp_to_staff / send_message_to_campaigner tool: send from
- * Carmen's primary Manus line (staff-alert.ts), record the outcome in
+ * Carmen's primary Manus line (_shared/staff-alert/send.ts), record the outcome in
  * agent_action_log and return the tool-facing result.
  */
 export async function sendStaffWhatsappMessage(args: {

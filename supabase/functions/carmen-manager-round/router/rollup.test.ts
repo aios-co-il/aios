@@ -1,0 +1,69 @@
+import { assertEquals } from "jsr:@std/assert@1";
+import { finding } from "../tests/fake-world.ts";
+import { avi, client, ctx, dana, keys, team } from "../tests/route-fixtures.ts";
+import { routeFinding } from "./route.ts";
+
+// Monday 2026-11-02 08:30 Israel time, the list the ladder starts with.
+const LIST = "2026-11-02T06:30:00.000Z";
+
+Deno.test("the weekly roll-up of no_contact", async (t) => {
+  await t.step(
+    "no_contact reaches the manager after 2 business days, in Sunday's roll-up, and stops",
+    () => {
+      const start = routeFinding(finding({ kind: "no_contact" }), ctx(team));
+      assertEquals(keys(start), [`0:${dana.key}:list:${LIST}`]);
+      assertEquals(start.next_action_at, "2026-11-04T07:00:00.000Z");
+      const atZero = finding({
+        kind: "no_contact",
+        escalation_level: 0,
+        status: "notified",
+        ladder_started_at: LIST,
+      });
+      const early = routeFinding(
+        atZero,
+        ctx(team, { now: new Date("2026-11-04T06:00:00Z") }),
+      );
+      assertEquals([early.escalation_level, early.deliveries], [0, []]);
+      const climbed = routeFinding(
+        atZero,
+        ctx(team, { now: new Date("2026-11-04T08:00:00Z") }),
+      );
+      assertEquals(climbed.escalation_level, 1);
+      assertEquals(keys(climbed), [
+        `1:${avi.key}:list:2026-11-08T06:30:00.000Z`,
+      ]);
+      assertEquals(climbed.next_action_at, null);
+    },
+  );
+
+  await t.step(
+    "no_contact of a client without a campaigner reaches the managers only in the roll-up",
+    () => {
+      const people = { client, campaigners: [], managers: [avi] };
+      const start = routeFinding(
+        finding({ kind: "no_contact" }),
+        ctx(team, { people }),
+      );
+      assertEquals(keys(start), [`0:${avi.key}:list:2026-11-08T06:30:00.000Z`]);
+      const preview = routeFinding(
+        finding({ kind: "no_contact" }),
+        ctx({ mode: "observe" }, { people }),
+      );
+      assertEquals(
+        preview.planned_actions?.[0]?.at,
+        "2026-11-08T06:30:00.000Z",
+      );
+    },
+  );
+
+  await t.step("observe shows the roll-up and no owner level", () => {
+    const decision = routeFinding(
+      finding({ kind: "no_contact" }),
+      ctx({ mode: "observe" }),
+    );
+    assertEquals(
+      decision.planned_actions?.map((a) => `${a.level}:${a.at}`),
+      [`0:2026-11-02T06:30:00.000Z`, `1:2026-11-08T06:30:00.000Z`],
+    );
+  });
+});
