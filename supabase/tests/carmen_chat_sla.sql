@@ -1,4 +1,4 @@
--- Carmen chat SLA (20261027101000_carmen_chat_sla): get_client_thread_activity
+-- Carmen chat SLA (20261101101000_carmen_chat_sla): get_client_thread_activity
 -- over synthetic tenants, lines and chat rows, inside one transaction that is
 -- rolled back. Tenants: the reader, an owner tenant whose agency is shared
 -- with the reader, and an unrelated tenant.

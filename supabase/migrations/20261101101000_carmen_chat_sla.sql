@@ -6,7 +6,7 @@
 -- threads never leave these functions (an unlinked group's name and message
 -- count leave only when the name matches one client, as a link suggestion).
 --
--- Requires AIO-242 (20261026136000_client_card_system_send_log.sql):
+-- Requires AIO-242 (20261030093000_client_card_system_send_log.sql):
 -- resolve_whatsapp_group_client, whatsapp_group_client_ids,
 -- whatsapp_group_link_tenant_ok and chat_messages.send_kind. Merge order:
 -- AIO-242, AIO-251 (20261027100000), then this migration.

@@ -1,5 +1,5 @@
 -- Ops: read-only plan check for the chat collector's reads in
--- 20261027101000_carmen_chat_sla.sql (AIO-252). Run on Staging (or the PR's
+-- 20261101101000_carmen_chat_sla.sql (AIO-252). Run on Staging (or the PR's
 -- Preview branch) after the migration applies there, with real literals in
 -- place of the <placeholders>, and paste the output in the PR body.
 --

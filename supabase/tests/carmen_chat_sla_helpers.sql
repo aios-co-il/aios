@@ -1,4 +1,4 @@
--- Carmen chat SLA (20261027101000_carmen_chat_sla): get_unlinked_client_groups,
+-- Carmen chat SLA (20261101101000_carmen_chat_sla): get_unlinked_client_groups,
 -- carmen_round_llm_spend, carmen_finding_resolve (with the cancel of planned
 -- deliveries) and the grants, over a synthetic tenant inside one transaction
 -- that is rolled back.
