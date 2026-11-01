@@ -28,6 +28,7 @@ describe("mergePulseAlertRules", () => {
       cpl_spike_enabled: true,
       cpl_spike_pct: 50,
       disconnected_enabled: true,
+      unanswered_reply_hours: 3,
       future_flag: "kept",
       manager: {
         mode: "observe",
@@ -49,6 +50,7 @@ describe("mergePulseAlertRules", () => {
       cpl_spike_enabled: true,
       cpl_spike_pct: 50,
       disconnected_enabled: true,
+      unanswered_reply_hours: 3,
     });
     expect(
       mergePulseAlertRules(null, { manager: { cost: { trend_pct: 45 } } })
@@ -56,15 +58,38 @@ describe("mergePulseAlertRules", () => {
     ).toEqual({ cost: { trend_pct: 45 } });
   });
 
-  it("keeps a stored manager block without cost as it is", () => {
+  it("saves the reply hours at the top level, so a non-owner's save sends no manager block", () => {
     const stored = { manager: { mode: "observe" } };
+    const merged = mergePulseAlertRules(
+      stored,
+      parsePulseAlertRules({ ...stored, unanswered_reply_hours: 6 }),
+    );
+    expect(merged.unanswered_reply_hours).toBe(6);
+    expect("manager" in merged).toBe(false);
+  });
+
+  it("sends no manager block when nothing in it changes", () => {
+    const stored = { manager: { mode: "observe" } };
+    // Without a manager key the settings guard keeps the stored block.
     expect(
-      mergePulseAlertRules(stored, parsePulseAlertRules(stored)).manager,
-    ).toEqual({ mode: "observe" });
+      "manager" in mergePulseAlertRules(stored, parsePulseAlertRules(stored)),
+    ).toBe(false);
   });
 });
 
 describe("parsePulseAlertRules", () => {
+  it("reads the reply hours as a number of at least 1, 3 by default", () => {
+    const hours = (raw: unknown) =>
+      parsePulseAlertRules({ unanswered_reply_hours: raw })
+        .unanswered_reply_hours;
+    expect([hours(5), hours("2"), hours(0.5)]).toEqual([5, 2, 1]);
+    expect([hours(undefined), hours("x"), hours(0), hours(-4)]).toEqual([
+      3, 3, 3, 3,
+    ]);
+    expect(parsePulseAlertRules(null).unanswered_reply_hours).toBe(3);
+    expect(DEFAULT_PULSE_ALERT_RULES.unanswered_reply_hours).toBe(3);
+  });
+
   it("keeps a manager block and drops one whose cost is not an object", () => {
     expect(
       parsePulseAlertRules({ manager: { cost: { trend_pct: 60 } } }).manager,
@@ -112,24 +137,6 @@ describe("client card logging switch (pulse_alert_rules.manager)", () => {
 });
 
 describe("mergePulseAlertRules with the card switch", () => {
-  it("keeps every key the dialog does not edit", () => {
-    const stored = {
-      ...DEFAULT_PULSE_ALERT_RULES,
-      future_rule: { threshold: 3 },
-      manager: { mode: "observe", card_log_system_sends: true },
-    };
-    const merged = mergePulseAlertRules(stored, {
-      ...parsePulseAlertRules(stored),
-      cpl_spike_pct: 80,
-    });
-    expect(merged.cpl_spike_pct).toBe(80);
-    expect(merged.future_rule).toEqual({ threshold: 3 });
-    expect(merged.manager).toEqual({
-      mode: "observe",
-      card_log_system_sends: true,
-    });
-  });
-
   it("changes only its own manager key when the owner flips the switch", () => {
     const stored = {
       ...DEFAULT_PULSE_ALERT_RULES,
@@ -153,32 +160,72 @@ describe("mergePulseAlertRules with the card switch", () => {
     });
   });
 
-  it("writes defaults on a first save and adds manager only when set", () => {
-    const plain = mergePulseAlertRules(null, DEFAULT_PULSE_ALERT_RULES);
-    expect(plain).toEqual(parsePulseAlertRules(null));
-    expect("manager" in plain).toBe(false);
-
-    const withSwitch = mergePulseAlertRules(
-      undefined,
-      DEFAULT_PULSE_ALERT_RULES,
+  it("leaves the switch to the database on a save without a manager change", () => {
+    const stored = { manager: { card_log_system_sends: true } };
+    for (const patch of [
+      {},
+      { card_log_system_sends: undefined },
       { card_log_system_sends: true },
-    );
-    expect(withSwitch.manager).toEqual({ card_log_system_sends: true });
+    ]) {
+      expect(
+        "manager" in
+          mergePulseAlertRules(stored, DEFAULT_PULSE_ALERT_RULES, patch),
+      ).toBe(false);
+    }
+  });
+});
+
+describe("mergePulseAlertRules and the manager block", () => {
+  it("keeps every key the dialog does not edit and leaves the manager block to the database", () => {
+    const stored = {
+      ...DEFAULT_PULSE_ALERT_RULES,
+      future_rule: { threshold: 3 },
+      manager: {
+        mode: "observe",
+        cost: { trend_pct: 50 },
+        card_log_system_sends: true,
+        notify_since: "2026-10-20T06:00:00Z",
+      },
+    };
+    const merged = mergePulseAlertRules(stored, {
+      ...parsePulseAlertRules(stored),
+      cpl_spike_pct: 80,
+    });
+    expect(merged.cpl_spike_pct).toBe(80);
+    expect(merged.future_rule).toEqual({ threshold: 3 });
+    // Without a manager key the settings guard keeps the stored block.
+    expect("manager" in merged).toBe(false);
   });
 
-  it("leaves the switch as it was on a save without a manager change", () => {
-    const stored = { manager: { card_log_system_sends: true } };
+  it("changes only the mode when an owner picks one", () => {
+    const stored = { manager: { mode: "observe", cost: { trend_pct: 50 } } };
+    const merged = mergePulseAlertRules(stored, DEFAULT_PULSE_ALERT_RULES, {
+      mode: "david_only",
+    });
+    expect(merged.manager).toEqual({
+      mode: "david_only",
+      cost: { trend_pct: 50 },
+    });
+  });
+
+  it("sends no manager block on a first save, an empty patch or an unchanged mode", () => {
     expect(
-      readCardLogSystemSends(
-        mergePulseAlertRules(stored, DEFAULT_PULSE_ALERT_RULES, {}),
-      ),
-    ).toBe(true);
+      "manager" in mergePulseAlertRules(null, DEFAULT_PULSE_ALERT_RULES),
+    ).toBe(false);
+    const stored = {
+      manager: { mode: "team", max_alerts_per_recipient_per_day: 3 },
+    };
     expect(
-      readCardLogSystemSends(
+      "manager" in
         mergePulseAlertRules(stored, DEFAULT_PULSE_ALERT_RULES, {
-          card_log_system_sends: undefined,
+          mode: undefined,
         }),
-      ),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      "manager" in
+        mergePulseAlertRules(stored, DEFAULT_PULSE_ALERT_RULES, {
+          mode: "team",
+        }),
+    ).toBe(false);
   });
 });
