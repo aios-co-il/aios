@@ -6,6 +6,7 @@ import {
   parsePulseAlertRules,
   readCardLogSystemSends,
   type PulseAlertRules,
+  type PulseManagerSettings,
   type SavePulseAlertRules,
 } from "@/lib/pulseAlertRules";
 import {
@@ -19,9 +20,10 @@ import type { ManagerModeSectionProps } from "./ManagerModeSection";
  * The owner-only manager settings while the alert rules dialog is open:
  * Carmen's mode and the client card logging switch. Both start from the stored
  * values on each open; `section` and `cardLog` are null for anyone the
- * database would refuse (carmen_manager_is_owner, also while that check
- * loads), and `save` sends them next to the edited rules only when the viewer
- * may change them.
+ * database would refuse (carmen_manager_is_owner, also while that check loads
+ * or if it fails), and `save` sends next to the edited rules only the settings
+ * the viewer may change and actually changed, so an untouched mode is never
+ * written (writing one resets the tenant's ladders).
  */
 export function useManagerSettingsDraft(
   open: boolean,
@@ -29,7 +31,17 @@ export function useManagerSettingsDraft(
   onSave: SavePulseAlertRules,
 ) {
   const { tenantId } = useCurrentTenant();
-  const canManage = useIsManagerOwner(tenantId).data === true;
+  const ownerCheck = useIsManagerOwner(tenantId);
+  const canManage = ownerCheck.data === true;
+
+  useEffect(() => {
+    if (ownerCheck.error) {
+      console.error(
+        "[pulse-alert-rules] owner check failed; owner settings hidden",
+        ownerCheck.error,
+      );
+    }
+  }, [ownerCheck.error]);
   const [mode, setMode] = useState<ManagerMode>(DEFAULT_MANAGER_MODE);
   const [cardLogSystemSends, setCardLogSystemSends] = useState(false);
 
@@ -52,8 +64,22 @@ export function useManagerSettingsDraft(
     save: (rules: PulseAlertRules) =>
       onSave(
         parsePulseAlertRules(rules),
-        canManage ? { mode, card_log_system_sends: cardLogSystemSends } : {},
+        canManage ? changedOwnerSettings(value, mode, cardLogSystemSends) : {},
       ),
+  };
+}
+
+/** The owner settings that differ from the stored ones. */
+function changedOwnerSettings(
+  stored: unknown,
+  mode: ManagerMode,
+  cardLogSystemSends: boolean,
+): PulseManagerSettings {
+  return {
+    ...(mode === resolveManagerSettings(stored).mode ? {} : { mode }),
+    ...(cardLogSystemSends === readCardLogSystemSends(stored)
+      ? {}
+      : { card_log_system_sends: cardLogSystemSends }),
   };
 }
 

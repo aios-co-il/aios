@@ -64,11 +64,20 @@ describe("useManagerSettingsDraft", () => {
     result.current.save(DEFAULT_PULSE_ALERT_RULES);
     expect(onSave).toHaveBeenCalledWith(DEFAULT_PULSE_ALERT_RULES, {
       mode: "team",
-      card_log_system_sends: false,
     });
   });
 
-  it("saves the client card switch next to the mode for an owner", async () => {
+  it("sends no owner setting the owner left as stored", async () => {
+    const { result, onSave } = renderDraft(
+      { manager: { mode: "team", card_log_system_sends: true } },
+      true,
+    );
+    await waitFor(() => expect(result.current.section).not.toBeNull());
+    result.current.save(DEFAULT_PULSE_ALERT_RULES);
+    expect(onSave).toHaveBeenCalledWith(DEFAULT_PULSE_ALERT_RULES, {});
+  });
+
+  it("saves the client card switch for an owner", async () => {
     const { result, onSave } = renderDraft(
       { manager: { card_log_system_sends: true } },
       true,
@@ -78,7 +87,6 @@ describe("useManagerSettingsDraft", () => {
     act(() => result.current.cardLog?.onCheckedChange(false));
     result.current.save(DEFAULT_PULSE_ALERT_RULES);
     expect(onSave).toHaveBeenCalledWith(DEFAULT_PULSE_ALERT_RULES, {
-      mode: "observe",
       card_log_system_sends: false,
     });
   });

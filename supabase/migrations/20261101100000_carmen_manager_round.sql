@@ -1165,10 +1165,18 @@ DECLARE
   v_mode_changed boolean;
   v_changed_kinds text[];
 BEGIN
-  -- An INSERT has no stored block: it is checked and stamped against an empty
-  -- one, and has no ladders to reset. An UPDATE compares with the stored block.
+  -- An INSERT is checked and stamped against the stored block of an existing
+  -- row (an upsert), else an empty one, and has no ladders to reset. An UPDATE
+  -- compares with the stored block.
   IF TG_OP = 'INSERT' THEN
-    v_old := '{}'::jsonb;
+    -- INSERT … ON CONFLICT DO UPDATE (the app's upsert) fires this before the
+    -- conflict is known, so compare with the stored row when there is one.
+    SELECT CASE WHEN jsonb_typeof(s.pulse_alert_rules -> 'manager') = 'object'
+      THEN s.pulse_alert_rules -> 'manager' END
+    INTO v_old
+    FROM public.tenant_heartbeat_settings AS s
+    WHERE s.tenant_id = NEW.tenant_id;
+    v_old := coalesce(v_old, '{}'::jsonb);
   ELSIF TG_OP = 'UPDATE' AND jsonb_typeof(OLD.pulse_alert_rules -> 'manager') = 'object' THEN
     v_old := OLD.pulse_alert_rules -> 'manager';
   END IF;
