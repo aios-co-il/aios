@@ -2,9 +2,12 @@
  * Drafts still waiting for approval. The collector reports each again while
  * it is still useful, so the round keeps it open; a draft is dropped (and
  * auto-cleared) once a person updated the card after its first message, once
- * its own entry is on the card (an approval that landed during the run), or
- * once its last message is older than the lookback.
+ * its own entries are on the card (an approval that landed during the run:
+ * the summary and, when the draft holds one, the reported contact, so an
+ * approval whose contact write failed can still be retried), or once its
+ * last message is older than the lookback.
  */
+import { CONTACT_ENTRY_SOURCE } from "../../../_shared/manager-round/card-contact.ts";
 import { cardDraftOf } from "../../../_shared/manager-round/card-draft.ts";
 import {
   FINDING_LIVE_STATUSES,
@@ -88,16 +91,27 @@ export function keptDrafts(
     .map((draft) => draft.candidate);
 }
 
-/** True when the draft's own entry (its source and source_ref) is already on the client's card. */
+/**
+ * True when every entry the draft writes is already on the client's card:
+ * its summary and, when it holds one, its reported contact.
+ */
 function entryOnCard(draft: LiveDraft, entries: CardEntry[]): boolean {
   const own = cardDraftOf(draft.candidate.evidence);
-  return (
-    !!own &&
+  if (!own) {
+    return false;
+  }
+  const wanted = [
+    { source: own.source, ref: own.source_ref },
+    ...(own.contact
+      ? [{ source: CONTACT_ENTRY_SOURCE, ref: own.contact.source_ref }]
+      : []),
+  ];
+  return wanted.every(({ source, ref }) =>
     entries.some(
       (entry) =>
         entry.client_id === draft.candidate.client_id &&
-        entry.source === own.source &&
-        entry.source_ref === own.source_ref,
-    )
+        entry.source === source &&
+        entry.source_ref === ref,
+    ),
   );
 }

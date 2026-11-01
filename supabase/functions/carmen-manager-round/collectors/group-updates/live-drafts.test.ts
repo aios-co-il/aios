@@ -92,6 +92,49 @@ Deno.test("keptDrafts", async (t) => {
     },
   );
 
+  await t.step(
+    "a draft holding a call stays until its contact is on the card too",
+    () => {
+      const ref = "group_contact:120363000000000001@g.us:wa-2";
+      const summary = {
+        source: "group_digest",
+        update_type: "group_summary",
+        source_ref: "g1:m9",
+        content: "[כרמן · סיכום קבוצה] x",
+        contact: {
+          update_type: "call",
+          source_ref: ref,
+          content: "[כרמן · מקבוצת הוואטסאפ] שיחה עם הלקוח",
+          participant_user_id: null,
+          reported_at: "2026-11-09T11:00:00Z",
+        },
+      };
+      const withCall = draft("2026-11-09T10:00:00Z", "2026-11-09T12:00:00Z");
+      withCall.candidate.evidence = {
+        ...withCall.candidate.evidence,
+        card_draft: summary,
+      };
+      const summaryOnCard = entry(
+        "2026-11-10T08:00:00Z",
+        summary.content,
+        "group_digest",
+        "g1:m9",
+      );
+      // The summary was written, the call write failed: the retry still finds it.
+      assertEquals(keptDrafts([withCall], [summaryOnCard], now).length, 1);
+      const callOnCard = entry(
+        "2026-11-10T08:00:01Z",
+        summary.contact.content,
+        "carmen_confirmed",
+        ref,
+      );
+      assertEquals(
+        keptDrafts([withCall], [summaryOnCard, callOnCard], now),
+        [],
+      );
+    },
+  );
+
   await t.step("a draft older than the lookback lets it clear", () => {
     assertEquals(
       keptDrafts(

@@ -17,11 +17,16 @@ import type { ClientCardEntryInput } from "../client-card/entry-types.ts";
 import {
   CONTACT_UPDATE_TYPES,
   type CarmenClientUpdateType,
+  type ClientCardSource,
   isCarmenClientUpdateType,
 } from "../client-card/sources.ts";
 import type { Json } from "../database.types.ts";
 import type { DraftedFinding } from "./card-draft.ts";
 import { jsonObject, trimmedText } from "../pulse/json.ts";
+
+/** The source of every contact entry this flow writes. */
+export const CONTACT_ENTRY_SOURCE =
+  "carmen_confirmed" satisfies ClientCardSource;
 
 /** source_ref prefix of the contacts this flow writes. */
 export const GROUP_CONTACT_REF_PREFIX = "group_contact:";
@@ -127,7 +132,7 @@ export function cardContactEntry(
     clientId: finding.client_id,
     content: contact.content,
     updateType: contact.update_type,
-    source: "carmen_confirmed",
+    source: CONTACT_ENTRY_SOURCE,
     sourceRef: contact.source_ref,
     attributedUserId: contact.participant_user_id ?? approval.fallbackUserId,
     countsAsContact: true,
