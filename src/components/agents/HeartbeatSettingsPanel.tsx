@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { MANAGER_ROUND_RUN_KIND } from "../../../supabase/functions/_shared/manager-round/run-kind.ts";
 import { PulseAlertRulesButton } from "./PulseAlertRulesButton";
+import { CarmenReportRecipientsSection } from "./CarmenReportRecipients/CarmenReportRecipientsSection";
 
 const DEFAULT_ALLOWED_ACTIONS = ["reminders", "status_update", "daily_summary"];
 
@@ -52,7 +53,6 @@ type HeartbeatSettingsInput = {
   active_hours_end: number;
   allowed_actions: string[];
   campaign_pulse_enabled?: boolean;
-  campaign_pulse_phone?: string | null;
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
   // The full stored JSON: alert rules plus keys this screen does not edit.
@@ -136,7 +136,6 @@ export function HeartbeatSettingsPanel() {
   // Campaign pulse fields, sent by the campaign-pulse controls only.
   const campaignPulseSettings = () => ({
     campaign_pulse_enabled: heartbeatSettings?.campaign_pulse_enabled || false,
-    campaign_pulse_phone: heartbeatSettings?.campaign_pulse_phone || null,
   });
 
   const campaignPulseDelivery = () => ({
@@ -238,30 +237,7 @@ export function HeartbeatSettingsPanel() {
               />
             </div>
           </div>
-          <div>
-            <Label className="text-xs">מספר WhatsApp לקבלת העדכון</Label>
-            <Input
-              // Uncontrolled field: remount once the stored phone loads/changes.
-              key={heartbeatSettings?.campaign_pulse_phone || ""}
-              dir="ltr"
-              defaultValue={heartbeatSettings?.campaign_pulse_phone || ""}
-              placeholder="9725XXXXXXXX"
-              className="h-8 text-xs mt-1"
-              onBlur={(event) => {
-                const campaignPulsePhone =
-                  event.target.value.replace(/[^\d+]/g, "") || null;
-                if (
-                  campaignPulsePhone === heartbeatSettings?.campaign_pulse_phone
-                )
-                  return;
-                saveHeartbeatSettings.mutate({
-                  ...coreSettings(),
-                  ...campaignPulseSettings(),
-                  campaign_pulse_phone: campaignPulsePhone,
-                });
-              }}
-            />
-          </div>
+          <CarmenReportRecipientsSection />
           <PulseAlertRulesButton
             stored={heartbeatSettings?.pulse_alert_rules}
             saving={saveHeartbeatSettings.isPending}

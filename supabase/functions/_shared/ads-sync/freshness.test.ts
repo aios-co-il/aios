@@ -2,6 +2,7 @@ import { assertStrictEquals } from "jsr:@std/assert@1";
 
 import { isSyncStale } from "../campaign-pulse.ts";
 import {
+  hasRepeatedSyncFailures,
   resolveSyncOutcome,
   syncOutcomeProblem,
   worstSyncProblem,
@@ -73,36 +74,42 @@ Deno.test(
 );
 
 Deno.test(
-  "isSyncStale: a fresh last_sync_at with an empty latest run is stale",
+  "isSyncStale: two runs in a row that did not write are stale, one is not",
   () => {
-    const fresh = iso(NOW - 2 * HOUR);
-    assertStrictEquals(isSyncStale({ last_sync_at: fresh }, NOW), false);
+    const lastWrite = iso(NOW - 10 * HOUR);
+    const table = (streak: number) => ({
+      last_sync_at: lastWrite,
+      integration_settings: {
+        last_sync_at: lastWrite,
+        sync_failed_streak: streak,
+        last_sync_outcome: { status: "failed", rows: 0, at: iso(NOW - HOUR) },
+      },
+    });
+    // One failure: the report pages flag it, the pulse does not alert.
+    assertStrictEquals(syncOutcomeProblem(table(1)), "failed");
+    assertStrictEquals(hasRepeatedSyncFailures(table(1)), false);
+    assertStrictEquals(isSyncStale(table(1), NOW), false);
+    // The morning run and the next one both failed.
+    assertStrictEquals(hasRepeatedSyncFailures(table(2)), true);
+    assertStrictEquals(isSyncStale(table(2), NOW), true);
+    // A stored streak that is not a count reads as none.
     assertStrictEquals(
-      isSyncStale(
-        {
-          last_sync_at: fresh,
-          integration_settings: {
-            last_sync_at: fresh,
-            last_sync_outcome: {
-              status: "empty",
-              rows: 0,
-              at: iso(NOW - HOUR),
-            },
-          },
-        },
-        NOW,
-      ),
-      true,
+      hasRepeatedSyncFailures({
+        integration_settings: { sync_failed_streak: "2" },
+      }),
+      false,
     );
+  },
+);
+
+Deno.test(
+  "isSyncStale: no write for 30h is stale even without a streak",
+  () => {
+    const table = { last_sync_at: iso(NOW - 31 * HOUR) };
+    assertStrictEquals(isSyncStale(table, NOW), true);
     assertStrictEquals(
-      isSyncStale(
-        {
-          last_sync_at: fresh,
-          last_sync_outcome: { status: "failed", rows: 0, at: iso(NOW - HOUR) },
-        },
-        NOW,
-      ),
-      true,
+      isSyncStale({ last_sync_at: iso(NOW - 29 * HOUR) }, NOW),
+      false,
     );
   },
 );

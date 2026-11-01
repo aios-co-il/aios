@@ -12,10 +12,13 @@ export const CAMPAIGN_LEVEL_FILTER =
 /** PostgREST returns at most max_rows (1000 on Supabase) per request. */
 export const CRM_RECORDS_PAGE_SIZE = 1000;
 
-export type CrmRecordRow = Pick<
-  Tables<"crm_records">,
-  "id" | "table_id" | "data"
->;
+/**
+ * A row as the readers return it. `data` is plain jsonb, so it is checked on
+ * read: the stored object, or null when the column holds anything else.
+ */
+export type CrmRecordRow = Pick<Tables<"crm_records">, "id" | "table_id"> & {
+  data: Record<string, unknown> | null;
+};
 
 type PageResult = PromiseLike<{
   data: unknown;
@@ -97,23 +100,32 @@ async function fetchAllPages(
     if (error) {
       throw new Error(`crm_records read failed: ${error.message || "error"}`);
     }
-    const page: unknown[] = Array.isArray(data) ? data : [];
-    if (!page.every(isCrmRecordRow)) {
-      throw new Error("crm_records read failed: unexpected row shape");
+    const page = (Array.isArray(data) ? data : []).map(parseCrmRecordRow);
+    for (const row of page) {
+      if (!row) {
+        throw new Error("crm_records read failed: unexpected row shape");
+      }
+      rows.push(row);
     }
-    rows.push(...page);
     if (page.length < size) {
       return rows;
     }
   }
 }
 
-/** A row carrying the columns every reader selects (COLUMNS). */
-function isCrmRecordRow(value: unknown): value is CrmRecordRow {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.table_id === "string" &&
-    "data" in value
-  );
+/** The columns every reader selects (COLUMNS), or null when one is missing. */
+function parseCrmRecordRow(value: unknown): CrmRecordRow | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.table_id !== "string" ||
+    !("data" in value)
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    table_id: value.table_id,
+    data: isRecord(value.data) ? value.data : null,
+  };
 }

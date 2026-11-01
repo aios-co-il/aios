@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { trustedInternalCron } from "../_shared/auth/edge-caller-auth.ts";
 import {
   buildAllLevelInsightRecords,
   buildCampaignOptimizationGoalMap,
@@ -10,6 +11,10 @@ import {
   FB_INSIGHTS_FIELD_TYPES,
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
+import {
+  buildDestinationTypeMaps,
+  fetchAdsets,
+} from "../_shared/fb-insights/adsets.ts";
 import {
   resolveAdsSyncWindow,
   toDateString,
@@ -59,7 +64,6 @@ Deno.serve(async (req) => {
     const requestBody = await req.json();
     const {
       table_id,
-      _internal_cron,
       start_date,
       end_date,
       scheduled_history_from,
@@ -68,9 +72,14 @@ Deno.serve(async (req) => {
       update_last_sync = true,
     } = requestBody;
 
-    // Auth: skip user check when called internally by cron
+    // AIO-239: the body flag counts only from the service-role bearer.
+    const internalCron = trustedInternalCron(
+      requestBody,
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    );
     let userId: string | null = null;
-    if (!_internal_cron) {
+    if (!internalCron) {
       const {
         data: { user },
         error: authError,
@@ -92,7 +101,7 @@ Deno.serve(async (req) => {
     }
 
     // Use admin client for reads to support both user and cron contexts
-    const readClient = _internal_cron ? supabaseAdmin : supabase;
+    const readClient = internalCron ? supabaseAdmin : supabase;
 
     // Get table with integration settings
     const { data: table, error: tableError } = await readClient
@@ -319,29 +328,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    const adsets: Array<{
-      id?: string;
-      campaign_id?: string;
-      optimization_goal?: string;
-      promoted_object?: unknown;
-    }> = [];
-    {
-      let next: string | null =
-        `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
-      while (next) {
-        const r = await fetch(next);
-        const d: any = await r.json();
-        if (d.error) break;
-        if (Array.isArray(d.data)) adsets.push(...d.data);
-        next = d.paging?.next || null;
-      }
-    }
+    const adsets = await fetchAdsets(
+      adAccountId,
+      accessToken,
+      "sync-facebook-ecommerce",
+    );
     const campaignObjectives: Record<string, string | null | undefined> = {};
     for (const c of Object.values(campaignStatuses))
       campaignObjectives[c.id] = c.objective;
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
     const resultMetrics = buildResultMetricMaps(adsets);
+    const destinationTypes = buildDestinationTypeMaps(adsets);
 
     const {
       records: insights,
@@ -356,6 +354,7 @@ Deno.serve(async (req) => {
       resultLeadTypes,
       optimizationGoals,
       resultMetrics,
+      destinationTypes,
     );
     console.log(
       `[sync-facebook-ecommerce] synced ${insights.length} rows`,

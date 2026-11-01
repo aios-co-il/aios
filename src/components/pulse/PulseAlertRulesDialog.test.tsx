@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PulseAlertRulesDialog } from "./PulseAlertRulesDialog";
@@ -55,6 +55,31 @@ describe("PulseAlertRulesDialog manager mode", () => {
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
     expect(onSave.mock.calls[0][1]).toEqual({});
+  });
+});
+
+describe("PulseAlertRulesDialog thresholds without a target", () => {
+  it("lets a field be cleared while typing and never stores 0 for it", async () => {
+    const onSave = renderDialog({
+      manager: { cost: { trend_pct: 50, min_spend_7d: 400 } },
+    });
+    const trend = screen.getByLabelText("עליית CPL/CPA (%)");
+    fireEvent.change(trend, { target: { value: "" } });
+    expect(trend).toHaveDisplayValue(""); // no snap back to 40 while typing
+    fireEvent.change(trend, { target: { value: "35" } });
+    expect(trend).toHaveDisplayValue("35");
+
+    const minSpend = screen.getByLabelText("הוצאה מינ׳ ב־7 ימים");
+    fireEvent.change(minSpend, { target: { value: "" } });
+    fireEvent.blur(minSpend);
+    expect(minSpend).toHaveDisplayValue("400"); // leaving it empty restores the value
+
+    fireEvent.click(screen.getByRole("button", { name: "שמור חוקים" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].manager.cost).toMatchObject({
+      trend_pct: 35,
+      min_spend_7d: 400,
+    });
   });
 });
 

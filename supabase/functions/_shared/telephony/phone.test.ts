@@ -1,5 +1,5 @@
 import { assertNotStrictEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import { normalizePhone, phoneMatchKey } from "./phone.ts";
+import { normalizePhone, phoneMatchKey, toGatewayPhone } from "./phone.ts";
 
 Deno.test("normalizePhone handles Israeli formats", () => {
   assertStrictEquals(normalizePhone("+972-50-123-4567"), "0501234567");
@@ -23,4 +23,11 @@ Deno.test("phoneMatchKey ignores formatting and country code", () => {
   assertStrictEquals(phoneMatchKey("123"), null);
   assertStrictEquals(phoneMatchKey("9721234"), null);
   assertNotStrictEquals(phoneMatchKey("052-987-6544"), "529876543");
+});
+
+Deno.test("toGatewayPhone adds the country code", () => {
+  assertStrictEquals(toGatewayPhone("050-123-4567"), "972501234567");
+  assertStrictEquals(toGatewayPhone("+972 50 123 4567"), "972501234567");
+  assertStrictEquals(toGatewayPhone("00972501234567"), "972501234567");
+  assertStrictEquals(toGatewayPhone("2025550100", "1"), "12025550100");
 });

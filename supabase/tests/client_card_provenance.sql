@@ -1,4 +1,4 @@
--- Client card provenance (20261026126000_client_card_provenance): Staging
+-- Client card provenance (20261030092000_client_card_provenance): Staging
 -- only. Synthetic rows on an existing client inside one transaction that is
 -- rolled back.
 BEGIN;

@@ -4,7 +4,11 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 
-import { buildSyncOutcome, scheduledMarkerPatch } from "./outcome.ts";
+import {
+  buildSyncOutcome,
+  nextFailedStreak,
+  scheduledMarkerPatch,
+} from "./outcome.ts";
 import { TOKEN } from "./tests/token-errors.ts";
 
 Deno.test(
@@ -36,4 +40,13 @@ Deno.test("buildSyncOutcome: redacts before the 300-char cut", () => {
   });
   assertStrictEquals(outcome.error?.includes(TOKEN.slice(0, 20)), false);
   assertMatch(outcome.error || "", /access_token=\[redacted\]/);
+});
+
+Deno.test("nextFailedStreak: a write resets, anything else adds one", () => {
+  assertStrictEquals(nextFailedStreak(undefined, "failed"), 1);
+  assertStrictEquals(nextFailedStreak(1, "empty"), 2);
+  assertStrictEquals(nextFailedStreak(2, "ok"), 0);
+  assertStrictEquals(nextFailedStreak(3, "partial"), 0);
+  assertStrictEquals(nextFailedStreak("x", "failed"), 1);
+  assertStrictEquals(nextFailedStreak(-4, "failed"), 1);
 });

@@ -11,8 +11,8 @@ MCP bridge (`request_dev_task` / `ask_claude`). Claude solves it and then, if th
 task represents a **reusable** capability, does two things:
 
 1. **Makes Carmen independent** — writes a skin (row in `public.ai_skills`,
-   `scope='tenant'`, `created_by_agent=true`) so Carmen can do it herself next
-   time, triggered by the relevant Hebrew/English phrases.
+   `created_by_agent=true`, scoped as `docs/agents/carmen.md` says) so Carmen can
+   do it herself next time, triggered by the relevant Hebrew/English phrases.
 2. **Remembers it here** — appends a dated entry below, so future Claude sessions
    know this ground has already been covered (and which skin slug owns it).
 
@@ -23,6 +23,10 @@ When a skin ships with a code change, put its `ai_skills` row in a migration in
 `supabase/migrations/` so the deploy workflow applies it to Staging, then
 Production. Older entries below that cite `supabase/ops/*.sql` record the
 legacy manual process.
+
+Production tenant ids used below: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019` is
+MarketingCaptain (slug `marketingcaptain`) and
+`6ad8f321-25db-4a04-8e44-e57a7c8961b2` is DMM (slug `dmm`).
 
 ## Entry format
 
@@ -37,6 +41,13 @@ legacy manual process.
 ## Log
 
 <!-- New entries go below this line, newest first. -->
+
+### 2026-10-27 — Learned conduct for every org's Carmen (AIO-262)
+
+- **Skin slug:** `group_response_only_when_addressed`, `wa_notify_never_group_session`, `carmen_session_keyed_by_chat_id` (tenant: global)
+- **What Carmen can now do:** Every org's Carmen follows these three rules, which MarketingCaptain's Carmen learned first; as global skins they reach every tenant's agents that load skills. MarketingCaptain's own tenant rows stay and still win for its Carmen. Its `dmm_notify_recipient_routing` row is retired (`is_active=false`): DMM's pulse recipients come from the per-org recipients setting (AIO-260).
+- **How:** Migration `20261030090000_carmen_learned_skins_for_every_org.sql` adds global rows whose text names no org's people, phones or clients and retires that row; `supabase/tests/carmen_learned_skins_global.sql` checks both. `identity-guard` and `diagnose_campaign_pulse_status` stay tenant rows, because a global row reaches every agent of every org and these set an agent's identity or add a tool. `wa_voice_transcript_capability`, `team_roster_awareness` and `pulse_health_wa_digest_and_sync_truth` get no global row: `run-ai-agent` already gives every org's Carmen the voice-note rule (`buildVoiceCapabilityPromptRule`) and the team roster, and `get_latest_campaign_pulse` returns the WhatsApp digest rule with its result.
+- **Origin:** DMM parity audit — David: every fix must reach DMM's Carmen too.
 
 ### 2026-10-14 — משימות שהושלמו נשארות בלוח השנה
 
@@ -351,6 +362,7 @@ legacy manual process.
 - **Skin slug:** `dmm_notify_recipient_routing` (tenant: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019`)
 - **What Carmen can now do:** Know that DMM outbound pulse/health digests go to Felix (`972558833168`) via `tenant_heartbeat_settings.campaign_pulse_phone`, not to David. David only receives a DMM notify when he is the explicit `chat_id` / preferred recipient. Cross-tenant “newest session” owner fallback is refused.
 - **How:** Configure/verify `campaign_pulse_phone` on Agent Tasks → heartbeat. Delivery path: `campaign-pulse-snapshot` / `carmen-health-probe` → `claude_notify_david` → `claude-notify` → `resolveCarmenNotifyTarget` (preferred → pulse phone → tenant campaigner/manager session → refuse). Shared helper: `_shared/carmen-notify-target`.
+- **Since AIO-260:** `campaign_pulse_phone` routes nothing. DMM's digests go to DMM's report list (Carmen → Heartbeat → "כרמן מדווחת ל"); an empty list, or one nobody on it can be reached on, sends them to DMM's owners and agency owners, David included if he holds such a role in DMM. Rules: `docs/agents/carmen.md` § Carmen report recipients. The skin row above still teaches the `campaign_pulse_phone` routing until AIO-262's skins migration retires it; that migration lands after AIO-260 and is dated after `20261030085000_carmen_report_recipients.sql`.
 - **Origin:** Carmen → Cursor DEV TASK — David: “כרמן dmm ממשיכה לשלוח לי עדכונים במקום לפליקס”.
 
 ### 2026-08-05 — Group replies only when addressed (not talked about)
@@ -397,7 +409,7 @@ legacy manual process.
 
 ### 2026-08-04 — Smooth WhatsApp Meta approval confirm → execute
 
-- **Retired 2026-10-27 (AIO-230, migration `20261026124000`):** the skin is inactive in every org. A bare "כן" runs only the caller's own pending row from the same conversation; see `docs/agents/carmen.md` § Approvals.
+- **Retired 2026-10-27 (AIO-230, migration `20261026124000`):** the skin is inactive in every org; keep it off. A bare "כן" runs only the caller's own pending row from the same conversation, and any other row needs "כן <קוד>"; see `docs/agents/carmen.md` § Approvals.
 - **Skin slug:** `wa_meta_approval_confirm_flow` (tenant: `2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019`)
 - **What Carmen can now do:** On WhatsApp confirms (`כן` / `מאשר` / `כן מאשר` / `תעשי את זה`), reliably bind to the latest matching pending Meta approval and execute it. If none pending — recover the last prepared request once, show a clear summary, and ask for one final confirmation. Never claim Meta execution without `execute_pending_approval` success.
 - **How:** Engine: phrase detector + auto-execute short confirms; smarter `execute_pending_approval` / `list_pending_approvals`; reuse existing pending duplicate instead of re-queue loops; prompt guardrails. Shared helper `_shared/wa-approval-flow`.

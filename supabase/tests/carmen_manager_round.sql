@@ -210,8 +210,8 @@ BEGIN
     RAISE EXCEPTION 'guard: a save without manager must keep the stored settings';
   END IF;
 
-  -- The whole manager block is owner-only from the browser: a member who is
-  -- not an owner may save other settings, never caps or hours.
+  -- The manager block is owner-only from the browser: a member who is not an
+  -- owner may save other settings and the cost thresholds, never caps or hours.
   SELECT ur.user_id INTO v_member FROM public.user_roles AS ur
   WHERE ur.tenant_id = v_tenant AND ur.role::text NOT IN ('owner', 'agency_owner', 'super_admin')
   LIMIT 1;
@@ -222,6 +222,13 @@ BEGIN
   UPDATE public.tenant_heartbeat_settings
   SET pulse_alert_rules = pulse_alert_rules || '{"cpl_spike_pct": 61}'
   WHERE tenant_id = v_tenant;
+  UPDATE public.tenant_heartbeat_settings
+  SET pulse_alert_rules = jsonb_set(pulse_alert_rules, '{manager,cost}', '{"trend_pct": 45}')
+  WHERE tenant_id = v_tenant;
+  IF (SELECT pulse_alert_rules #>> '{manager,cost,trend_pct}' FROM public.tenant_heartbeat_settings
+      WHERE tenant_id = v_tenant) IS DISTINCT FROM '45' THEN
+    RAISE EXCEPTION 'guard: a member must be able to save the cost thresholds';
+  END IF;
   BEGIN
     UPDATE public.tenant_heartbeat_settings
     SET pulse_alert_rules = jsonb_set(pulse_alert_rules, '{manager,max_alerts_per_recipient_per_day}', '500')

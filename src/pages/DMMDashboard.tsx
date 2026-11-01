@@ -44,6 +44,7 @@ import {
   RefreshCw,
   Search,
   Table2,
+  Target,
 } from "lucide-react";
 import {
   isFacebookIntegration,
@@ -51,8 +52,17 @@ import {
 } from "@/lib/agencyCampaignData";
 import { PulseClientRawCard } from "@/components/pulse/PulseClientRawCard";
 import { PulseAttentionTable } from "@/components/pulse/PulseAttentionTable";
+import { PulseTargetEditorDialog } from "@/components/pulse/PulseTargetEditorDialog/PulseTargetEditorDialog";
+import { PulseMissingTargetsList } from "@/components/pulse/PulseMissingTargetsList";
+import { PulseDashboardTabTrigger } from "@/components/pulse/PulseDashboardTabTrigger";
+import { usePulseAlertRules } from "@/components/pulse/usePulseAlertRules";
+import { usePulseTargetEditor } from "@/components/pulse/usePulseTargetEditor";
+import { useSavePulseTarget } from "@/components/pulse/useSavePulseTarget";
 import {
-  buildPlatformTargetPatch,
+  isPulseDashboardTab,
+  type PulseDashboardTab,
+} from "@/components/pulse/pulseDashboardTabs";
+import {
   buildPulseAttentionRows,
   type PulseAttentionClientContext,
 } from "@/lib/pulseAttentionMatrix";
@@ -115,9 +125,7 @@ export function CampaignPulseDashboard({
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
-  const [dashboardTab, setDashboardTab] = useState<"data" | "attention">(
-    "data",
-  );
+  const [dashboardTab, setDashboardTab] = useState<PulseDashboardTab>("data");
   const [filterService, setFilterService] = useState<
     "all" | "ppc_google" | "ppc_meta" | "seo" | "campaign"
   >("campaign");
@@ -128,9 +136,6 @@ export function CampaignPulseDashboard({
   const [callLogTarget, setCallLogTarget] =
     useState<PulseClientCallTarget | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [savingTargetTableId, setSavingTargetTableId] = useState<string | null>(
-    null,
-  );
   const periodBounds = useMemo(() => getPulsePeriodBounds(period), [period]);
   const campaignTrendBounds = useMemo(
     () => pulseTrendWindows(jerusalemYmd()),
@@ -350,6 +355,8 @@ export function CampaignPulseDashboard({
     staleTime: 30_000,
   });
 
+  const pulseAlertRules = usePulseAlertRules(tenantId);
+
   const { data: pulseCampaignTables = [], refetch: refetchPulseTables } =
     useQuery({
       queryKey: ["pulse-dash-tables", tenantId, clientIds.join(",")],
@@ -472,6 +479,7 @@ export function CampaignPulseDashboard({
         records: pulseCampaignRecords,
         tables: pulseCampaignTables,
         nowYmd: jerusalemYmd(),
+        alertRules: pulseAlertRules,
       });
     }
     return rehydrateCampaignBreakdownRows(
@@ -484,6 +492,7 @@ export function CampaignPulseDashboard({
     pulseCampaignTables,
     deliveryHints,
     pulseCampaignRecords,
+    pulseAlertRules,
   ]);
 
   const pulseInitialLoading =
@@ -775,33 +784,13 @@ export function CampaignPulseDashboard({
     return map;
   }, [pulseCampaignTables]);
 
-  async function savePlatformTarget(input: {
-    tableId: string;
-    goal: PulseCampaignGoal;
-    value: number | null;
-    existingSettings: Record<string, unknown>;
-  }) {
-    setSavingTargetTableId(input.tableId);
-    try {
-      const nextSettings = buildPlatformTargetPatch(
-        input.existingSettings,
-        input.goal,
-        input.value,
-      );
-      const { error } = await supabase
-        .from("crm_tables")
-        .update({ integration_settings: nextSettings as any })
-        .eq("id", input.tableId);
-      if (error) throw error;
-      toast.success("יעד הפלטפורמה נשמר");
-      await refetchPulseTables();
-      refetchPulseRecords();
-    } catch (error: any) {
-      toast.error(error?.message ?? "שמירת היעד נכשלה");
-    } finally {
-      setSavingTargetTableId(null);
-    }
-  }
+  const targetEditor = usePulseTargetEditor({
+    tables: pulseCampaignTables,
+    campaignRows: visibleCampaignRows,
+    clientMetaById,
+  });
+  const { save: savePulseTarget, savingKey: savingTargetKey } =
+    useSavePulseTarget(tenantId);
 
   const availablePlatforms = useMemo(() => {
     const types = new Set(
@@ -821,12 +810,14 @@ export function CampaignPulseDashboard({
       campaignCount: visibleCampaignRows.length,
       unclassifiedCount: unclassifiedCampaignRows.length,
       attentionCount: attentionRows.length,
+      missingTargetCount: targetEditor.missingCount,
     }),
     [
       clientRawViews.length,
       visibleCampaignRows.length,
       unclassifiedCampaignRows.length,
       attentionRows.length,
+      targetEditor.missingCount,
     ],
   );
 
@@ -1141,29 +1132,28 @@ export function CampaignPulseDashboard({
 
       <Tabs
         value={dashboardTab}
-        onValueChange={(value) =>
-          setDashboardTab(value as "data" | "attention")
-        }
+        onValueChange={(value) => {
+          if (isPulseDashboardTab(value)) {
+            setDashboardTab(value);
+          }
+        }}
         dir="rtl"
         className="space-y-3"
       >
         <TabsList className="h-auto w-full flex-wrap justify-start gap-1 sm:w-auto">
-          <TabsTrigger value="data" className="gap-2">
-            <Table2 className="h-4 w-4" />
-            נתונים
-          </TabsTrigger>
-          <TabsTrigger value="attention" className="gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            תשומת לב
-            {listSummary.attentionCount > 0 ? (
-              <Badge
-                variant="secondary"
-                className="mr-1 text-[10px] px-1.5 py-0"
-              >
-                {listSummary.attentionCount}
-              </Badge>
-            ) : null}
-          </TabsTrigger>
+          <PulseDashboardTabTrigger value="data" icon={Table2} label="נתונים" />
+          <PulseDashboardTabTrigger
+            value="attention"
+            icon={AlertTriangle}
+            label="תשומת לב"
+            count={listSummary.attentionCount}
+          />
+          <PulseDashboardTabTrigger
+            value="no_target"
+            icon={Target}
+            label="בלי יעד"
+            count={listSummary.missingTargetCount}
+          />
         </TabsList>
 
         <TabsContent value="data" className="space-y-3 mt-0">
@@ -1255,18 +1245,45 @@ export function CampaignPulseDashboard({
 
         <TabsContent value="attention" className="space-y-3 mt-0">
           <p className="text-sm text-muted-foreground">
-            שורה לכל לקוח × פלטפורמה — רק כשיש נושא רגיש. יעד מאושר → אחרת מגמת
-            7 ימים → אחרת בסיס 30 יום.
+            שורה לכל לקוח × פלטפורמה — רק כשיש נושא רגיש. היעילות נבדקת לכל
+            קמפיין מול היעד המאושר או יעד השוק של כרמן; קמפיין בלי יעד נבדק מול
+            4 השבועות הקודמים — אותם כללים כמו התראות הוואטסאפ.
           </p>
           <PulseAttentionTable
             rows={attentionRows}
             onOpenClient={openClientCard}
-            onSaveTarget={savePlatformTarget}
-            tableSettingsById={tableSettingsById}
-            savingTableId={savingTargetTableId}
+            onEditTargets={targetEditor.openFromAttention}
+          />
+        </TabsContent>
+
+        <TabsContent value="no_target" className="space-y-3 mt-0">
+          <p className="text-sm text-muted-foreground">
+            לקוחות וקמפיינים עם הוצאה ב־7 הימים האחרונים שאין להם יעד — לא מאושר
+            ולא יעד שוק של כרמן.
+          </p>
+          <PulseMissingTargetsList
+            groups={targetEditor.missingGroups}
+            clientMetaById={clientMetaById}
+            onOpenClient={openClientCard}
+            onSetTargets={targetEditor.openForClient}
           />
         </TabsContent>
       </Tabs>
+
+      <PulseTargetEditorDialog
+        open={!!targetEditor.context}
+        onOpenChange={(open) => {
+          if (!open) {
+            targetEditor.close();
+          }
+        }}
+        context={targetEditor.context}
+        campaigns={targetEditor.campaigns}
+        tableSettingsById={tableSettingsById}
+        tableTypeById={targetEditor.tableTypeById}
+        savingKey={savingTargetKey}
+        onSave={savePulseTarget}
+      />
 
       <PulseClientCallDialog
         open={!!callLogTarget}

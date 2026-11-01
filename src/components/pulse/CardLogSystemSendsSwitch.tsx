@@ -1,16 +1,14 @@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
-export type CardLogSystemSendsSwitchProps = {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-};
-
 /** The owner switch that logs what AIOS sends to a client on the client card. */
 export function CardLogSystemSendsSwitch({
   checked,
   onCheckedChange,
-}: CardLogSystemSendsSwitchProps) {
+}: {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
       <div>

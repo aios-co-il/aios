@@ -24,19 +24,29 @@ export const CARMEN_ROLES = [
     slug: "video_director",
     name: "במאית",
     portrait: "director",
-    members: ["video_director", "director"],
+    members: ["video_director", "director", "workshop_producer"],
   },
   {
     slug: "creative_direct",
     name: "מעצבת",
     portrait: "designer",
-    members: ["creative_direct", "designer", "graphic_designer"],
+    members: [
+      "creative_direct",
+      "designer",
+      "graphic_designer",
+      "workshop_designer",
+    ],
   },
   {
     slug: "video_editor",
     name: "עורכת וידאו",
     portrait: "video-editor",
-    members: ["video_editor", "video_editing", "creative_studio"],
+    members: [
+      "video_editor",
+      "video_editing",
+      "creative_studio",
+      "workshop_editor",
+    ],
   },
   {
     slug: "web_builder",

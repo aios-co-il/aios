@@ -14,10 +14,12 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
+  type PulseAlertRules,
   type SavePulseAlertRules,
 } from "@/lib/pulseAlertRules";
+import { PulseCostRulesSection } from "@/components/pulse/PulseCostRulesSection";
 import { ManagerSettingsSections } from "./manager-round/ManagerSettingsSections";
-import { useManagerModeDraft } from "./manager-round/useManagerModeDraft";
+import { useManagerSettingsDraft } from "./manager-round/useManagerSettingsDraft";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
@@ -34,8 +36,10 @@ export function PulseAlertRulesDialog({
   onSave,
   saving = false,
 }: PulseAlertRulesDialogProps) {
-  const [rules, setRules] = useState(DEFAULT_PULSE_ALERT_RULES);
-  const manager = useManagerModeDraft(open, value, onSave);
+  const [rules, setRules] = useState<PulseAlertRules>(
+    DEFAULT_PULSE_ALERT_RULES,
+  );
+  const manager = useManagerSettingsDraft(open, value, onSave);
 
   useEffect(() => {
     if (open) {
@@ -45,7 +49,7 @@ export function PulseAlertRulesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>חוקי התראות דופק ב-WhatsApp</DialogTitle>
           <DialogDescription>
@@ -134,6 +138,8 @@ export function PulseAlertRulesDialog({
               />
             </div>
           </div>
+
+          <PulseCostRulesSection rules={rules} onChange={setRules} />
 
           <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
             <div>

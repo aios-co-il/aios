@@ -1186,12 +1186,13 @@ BEGIN
   v_new := CASE WHEN jsonb_typeof(NEW.pulse_alert_rules -> 'manager') = 'object'
     THEN NEW.pulse_alert_rules -> 'manager' ELSE '{}'::jsonb END;
 
-  -- The whole manager block (rollout, recipients, caps, hours, holidays) is
-  -- owner-only from the browser; tenant_heartbeat_settings lets any member
-  -- update the row.
+  -- The manager block (rollout, recipients, caps, hours, holidays, the
+  -- client card switch) is owner-only from the browser; its cost thresholds
+  -- stay open to every member, like the rest of the alert rules.
+  -- tenant_heartbeat_settings lets any member update the row.
   IF auth.uid() IS NOT NULL
-     AND public.carmen_manager_without_stamps(v_new)
-       IS DISTINCT FROM public.carmen_manager_without_stamps(v_old)
+     AND public.carmen_manager_without_stamps(v_new) - 'cost'
+       IS DISTINCT FROM public.carmen_manager_without_stamps(v_old) - 'cost'
      AND NOT public.carmen_manager_is_owner(NEW.tenant_id) THEN
     RAISE EXCEPTION 'carmen_manager_settings_owner_only' USING ERRCODE = '42501';
   END IF;
