@@ -15,7 +15,8 @@ import { fixtureSources } from "./fixtures.ts";
 import { GROUP_UPDATES_COLLECTOR } from "./id.ts";
 import { type LiveDraft, loadLiveDrafts } from "./live-drafts.ts";
 import { type GroupHistory, loadGroupHistories } from "./messages.ts";
-import { loadStaffKeys, type StaffKeys } from "./staff-keys.ts";
+import type { StaffRoster } from "../chat/roster.ts";
+import { loadGroupStaff } from "./staff-keys.ts";
 import { markersOnlyPorts, type SummarizePorts } from "./summarize.ts";
 import { LOOKBACK_DAYS } from "./watermark.ts";
 
@@ -28,7 +29,8 @@ export type GroupUpdateSources = {
   /** The monitored lines (chat/connections.ts); the run keeps their ids in its watermark. */
   lines(): Promise<string[]>;
   histories(since: Date, lines: string[]): Promise<GroupHistory[]>;
-  staffKeys(): Promise<StaffKeys>;
+  /** The staff roster of the tenant and its agency partners (staff-keys.ts). */
+  staff(): Promise<StaffRoster>;
   cardEntries(clientIds: string[], since: Date): Promise<CardEntry[]>;
   liveDrafts(): Promise<LiveDraft[]>;
   summarize: SummarizePorts;
@@ -50,8 +52,8 @@ function dbSources(ctx: CollectorContext): GroupUpdateSources {
         { tenantId, connectionIds: lines, since, clientIds },
         GROUP_UPDATES_COLLECTOR,
       ),
-    staffKeys: () =>
-      loadStaffKeys(
+    staff: () =>
+      loadGroupStaff(
         db,
         tenantId,
         new Date(ctx.now.getTime() - LOOKBACK_DAYS * DAY_MS),

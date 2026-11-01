@@ -1,113 +1,34 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { recordingClient } from "../../tests/recording-client.ts";
-import { loadStaffKeys } from "./staff-keys.ts";
+import { loadGroupStaff } from "./staff-keys.ts";
 
-Deno.test("loadStaffKeys", async (t) => {
+const SINCE = new Date("2026-10-25T00:00:00Z");
+
+Deno.test("loadGroupStaff", async (t) => {
   await t.step(
-    "match keys of the tenant's and its agency partners' staff and lines, each with its tenant",
+    "the roster of the tenant and its agency partners, either way",
     async () => {
-      const { db, calls } = recordingClient((call) => {
-        switch (call.path) {
+      const { db, calls } = recordingClient(({ path }) => {
+        switch (path) {
           case "agency_tenant_access":
             return [{ source_tenant_id: "t2", accessing_tenant_id: "t1" }];
-          case "user_roles":
-            return [{ user_id: "u1", tenant_id: "t1" }];
-          case "profiles":
-            return [
-              {
-                id: "u1",
-                full_name: "",
-                phone: null,
-                campaigner_id: null,
-                campaigners: {
-                  phone: "050-2222222",
-                  tenant_id: "t1",
-                  active: true,
-                },
-              },
-            ];
           case "campaigners":
             return [{ phone: "+972 53 333 3333", tenant_id: "t2" }];
-          case "tenant_integrations":
-            // linePhones reads one tenant at a time.
-            return call.query.get("tenant_id") === "in.(t1)"
-              ? [
-                  {
-                    tenant_id: "t1",
-                    user_id: null,
-                    integration_type: "manus_wa",
-                    settings: { phone_number: "972544444444" },
-                  },
-                  {
-                    tenant_id: "t1",
-                    user_id: "u-camp",
-                    integration_type: "green_api",
-                    settings: null,
-                  },
-                ]
-              : [];
-          case "chat_messages":
-            // A campaigner's own Green line, numbered by its webhook rows.
-            return { wid: "972555555555@c.us" };
           default:
             return [];
         }
       });
-      const { keys, keyTenants, tenantsOf } = await loadStaffKeys(
-        db,
-        "t1",
-        new Date("2026-10-25T00:00:00Z"),
-      );
-      assertEquals([...tenantsOf], [["u1", new Set(["t1"])]]);
+      const staff = await loadGroupStaff(db, "t1", SINCE);
+      assertEquals(staff.keyTenants.get("533333333"), new Set(["t2"]));
+      const access = calls.find((c) => c.path === "agency_tenant_access");
       assertEquals(
-        [...keyTenants].sort(([a], [b]) => a.localeCompare(b)),
-        [
-          ["502222222", new Set(["t1"])],
-          ["533333333", new Set(["t2"])],
-          ["544444444", new Set(["t1"])],
-          ["555555555", new Set(["t1"])],
-        ],
+        access?.query.get("or"),
+        "(accessing_tenant_id.eq.t1,source_tenant_id.eq.t1)",
       );
-      assertEquals(
-        [...keys].sort(([a], [b]) => a.localeCompare(b)),
-        [
-          ["502222222", "u1"],
-          ["533333333", null],
-          ["544444444", null],
-          ["555555555", null],
-        ],
-      );
-      const roles = calls.find((c) => c.path === "user_roles");
-      assertEquals(roles?.query.get("tenant_id"), "in.(t1,t2)");
+      for (const table of ["user_roles", "tenant_users", "campaigners"]) {
+        const call = calls.find((c) => c.path === table);
+        assertEquals(call?.query.get("tenant_id"), "in.(t1,t2)", table);
+      }
     },
   );
-
-  await t.step("a phone two logins share names neither of them", async () => {
-    const login = (id: string) => ({
-      id,
-      full_name: "",
-      phone: "050-2222222",
-      campaigner_id: null,
-      campaigners: null,
-    });
-    const { db } = recordingClient((call) => {
-      switch (call.path) {
-        case "user_roles":
-          return [
-            { user_id: "u1", tenant_id: "t1" },
-            { user_id: "u2", tenant_id: "t1" },
-          ];
-        case "profiles":
-          return [login("u1"), login("u2")];
-        default:
-          return [];
-      }
-    });
-    const { keys } = await loadStaffKeys(
-      db,
-      "t1",
-      new Date("2026-10-25T00:00:00Z"),
-    );
-    assertEquals([...keys], [["502222222", null]]);
-  });
 });

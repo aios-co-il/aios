@@ -8,16 +8,19 @@
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { MONITORED_PROVIDER } from "./activity.ts";
-import { isJsonObject } from "./json-object.ts";
+import { isJsonObject } from "../../../_shared/manager-round/json-object.ts";
 
-/** The numbers of the tenants' Manus and Green API lines. */
+/** A line's number and the tenant whose line it is. */
+export type LinePhone = { tenantId: string; phone: string };
+
+/** The numbers of the tenants' Manus and Green API lines, each with its tenant. */
 export async function linePhones(
   db: DbClient,
   tenantIds: string[],
   since: Date,
-): Promise<string[]> {
+): Promise<LinePhone[]> {
   const { data, error } = await db
     .from("tenant_integrations")
     .select("tenant_id, user_id, integration_type, settings")
@@ -28,14 +31,22 @@ export async function linePhones(
   const wids = await Promise.all(
     lines.flatMap((line) =>
       line.integration_type === MONITORED_PROVIDER && line.user_id
-        ? [lineWid(db, line.tenant_id, line.user_id, since)]
+        ? [
+            lineWid(db, line.tenant_id, line.user_id, since).then((phone) => ({
+              tenantId: line.tenant_id,
+              phone,
+            })),
+          ]
         : [],
     ),
   );
   return [
-    ...lines.map((line) => settingsPhone(line.settings)),
+    ...lines.map((line) => ({
+      tenantId: line.tenant_id,
+      phone: settingsPhone(line.settings),
+    })),
     ...wids,
-  ].flatMap((phone) => phone ?? []);
+  ].flatMap(({ tenantId, phone }) => (phone ? [{ tenantId, phone }] : []));
 }
 
 /** The Green line's own number from its latest webhook row since `since`. */

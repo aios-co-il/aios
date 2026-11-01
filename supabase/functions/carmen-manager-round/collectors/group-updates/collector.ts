@@ -51,13 +51,13 @@ export async function collectGroupUpdates(
 ): Promise<CollectorResult> {
   const watermark = parseWatermark(ctx.watermark, ctx.since);
   const from = readFrom(watermark, ctx.now);
-  const [lines, staffKeys, drafts] = await Promise.all([
+  const [lines, staff, drafts] = await Promise.all([
     sources.lines(),
-    sources.staffKeys(),
+    sources.staff(),
     sources.liveDrafts(),
   ]);
   const histories = await sources.histories(from, lines);
-  const windows = groupWindows(histories, watermark, from, staffKeys);
+  const windows = groupWindows(histories, watermark, from, staff);
   const entries = await cardEntries(sources, windows, drafts, from, ctx.now);
   const gated = windows.map((window) => ({
     window,

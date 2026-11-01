@@ -7,7 +7,7 @@
 import { USER_SEND_KINDS } from "../../../_shared/client-card/send-kind.ts";
 import type { Database } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { MAX_PAGES, PAGE_ROWS } from "./paging.ts";
 
 type Functions = Database["public"]["Functions"];

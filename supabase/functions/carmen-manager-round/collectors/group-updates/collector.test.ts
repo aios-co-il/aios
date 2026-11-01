@@ -57,7 +57,7 @@ function sources(
       asked.push({ since, lines });
       return Promise.resolve(histories);
     },
-    staffKeys: () =>
+    staff: () =>
       Promise.resolve({
         keys: new Map([[STAFF_KEY, null]]),
         keyTenants: new Map(),

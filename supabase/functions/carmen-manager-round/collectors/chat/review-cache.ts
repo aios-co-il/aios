@@ -5,7 +5,7 @@
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { AI_CHAT_MODEL } from "../../../_shared/ai.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { type ChatVerdict, parseStoredVerdict } from "./verdict.ts";
 
 export type CachedReview = { messageId: string; verdict: ChatVerdict };

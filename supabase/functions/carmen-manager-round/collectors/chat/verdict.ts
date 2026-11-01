@@ -6,7 +6,7 @@
  */
 import type { Json } from "../../../_shared/database.types.ts";
 import { clip } from "./clip.ts";
-import { isJsonObject } from "./json-object.ts";
+import { isJsonObject } from "../../../_shared/manager-round/json-object.ts";
 
 export type ChatVerdict = {
   needs_reply: boolean;

@@ -10,7 +10,7 @@
  */
 import { type Authorship, authorshipOf } from "./authorship.ts";
 import type { GroupHistory, GroupMessage } from "./messages.ts";
-import type { StaffKeys } from "./staff-keys.ts";
+import type { StaffRoster } from "../chat/roster.ts";
 import { isSubstantive } from "./substantive.ts";
 import type { GroupMark, GroupWatermark } from "./watermark.ts";
 
@@ -39,13 +39,13 @@ export function groupWindows(
   histories: GroupHistory[],
   watermark: GroupWatermark,
   from: Date,
-  staffKeys: StaffKeys,
+  staff: StaffRoster,
 ): GroupWindow[] {
   return histories.flatMap((history) => {
     const mark = watermark.groups[history.group_id] ?? null;
     const messages = history.messages
       .filter((message) => isAfter(message, mark, from))
-      .map((message) => label(message, staffKeys, history.client_tenant_id));
+      .map((message) => label(message, staff, history.client_tenant_id));
     const last = messages.at(-1);
     return last
       ? [
@@ -88,21 +88,21 @@ function isAfter(
 /** The message with its speaker, who typed it and whether it counts. */
 function label(
   message: GroupMessage,
-  staffKeys: StaffKeys,
+  staff: StaffRoster,
   clientTenantId: string,
 ): WindowMessage {
-  const speaker = speakerOf(message, staffKeys);
+  const speaker = speakerOf(message, staff);
   return {
     ...message,
-    ...authorshipOf(message, speaker, staffKeys, clientTenantId),
+    ...authorshipOf(message, speaker, staff, clientTenantId),
     speaker,
     substantive: isSubstantive(message.text),
   };
 }
 
 /** Staff by line, person or phone; unknown without a phone; else the client. */
-function speakerOf(message: GroupMessage, staffKeys: StaffKeys): Speaker {
-  if (message.out || (message.key && staffKeys.keys.has(message.key))) {
+function speakerOf(message: GroupMessage, staff: StaffRoster): Speaker {
+  if (message.out || (message.key && staff.keys.has(message.key))) {
     return "staff";
   }
   return message.lidUnmapped || !message.key ? "unknown" : "client";

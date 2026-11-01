@@ -31,7 +31,7 @@ export function fixtureSources(
   return {
     lines: () => Promise.resolve([]),
     histories: () => Promise.resolve(histories),
-    staffKeys: () =>
+    staff: () =>
       Promise.resolve({
         keys: new Map(
           list("staff_keys").flatMap((k): [string, null][] =>

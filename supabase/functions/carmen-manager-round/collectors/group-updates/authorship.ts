@@ -11,7 +11,7 @@
  */
 import type { SendKind } from "../../../_shared/client-card/send-kind.ts";
 import type { GroupMessage } from "./messages.ts";
-import type { StaffKeys } from "./staff-keys.ts";
+import type { StaffRoster } from "../chat/roster.ts";
 import type { Speaker } from "./windows.ts";
 
 /** The only send_kind whose words a person typed (the AIOS chat composer). */
@@ -28,26 +28,23 @@ export type Authorship = {
 export function authorshipOf(
   message: GroupMessage,
   speaker: Speaker,
-  staffKeys: StaffKeys,
+  staff: StaffRoster,
   clientTenantId: string,
 ): Authorship {
   if (speaker !== "staff") {
     return { typedByPerson: speaker === "client", staffUserId: null };
   }
   const login = (userId: string | null | undefined) =>
-    userId && staffKeys.tenantsOf.get(userId)?.has(clientTenantId)
-      ? userId
-      : null;
+    userId && staff.tenantsOf.get(userId)?.has(clientTenantId) ? userId : null;
   if (message.out) {
     const sender = outboundAuthor(message, login);
     return { typedByPerson: !!sender, staffUserId: sender };
   }
   const key = message.key;
-  const ownStaff =
-    !!key && !!staffKeys.keyTenants.get(key)?.has(clientTenantId);
+  const ownStaff = !!key && !!staff.keyTenants.get(key)?.has(clientTenantId);
   return {
     typedByPerson: ownStaff,
-    staffUserId: ownStaff && key ? login(staffKeys.keys.get(key)) : null,
+    staffUserId: ownStaff && key ? login(staff.keys.get(key)) : null,
   };
 }
 
