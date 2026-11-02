@@ -387,6 +387,28 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a scene's text style and size are saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      title_style: "punch",
+      title_size: "huge",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["title_style", "title_size"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).title_style, "punch");
+    assertStrictEquals((scenes[1].meta as Row).title_size, "huge");
+    assertStrictEquals(db.rpcs.length, 0);
+    // A name the film does not know changes nothing.
+    const unknown = await update(db, { scene_id: "s-2", title_style: "spin" });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).title_style, "punch");
+  },
+);
+
 Deno.test("a client the caller cannot reach stops the change", async () => {
   const db = film({
     marketing_work_items: [project({ client_id: "client-9" })],

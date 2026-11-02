@@ -73,6 +73,17 @@ assert(
 
 const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
 const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom", "skin"];
+// The title styles and sizes of workshop-title-styles.ts.
+const TITLE_STYLES = [
+  "float",
+  "pop",
+  "typewriter",
+  "slide",
+  "reveal",
+  "punch",
+  "blur",
+];
+const TITLE_SIZES = ["small", "medium", "large", "huge"];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FONT = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 const frameNo = (n) => Number.isInteger(n) && n >= 0 && n <= totalFrames;
@@ -313,6 +324,13 @@ if (manifest.schemaVersion === 1) {
       still: scene.still || null,
       // A finished design is shown whole (render-worker workshop-manifest.mjs, keep_design).
       ...(scene.still && scene.fit === "contain" ? { fit: "contain" } : {}),
+      // How the scene's text enters and how large it is (workshop-title-styles.ts).
+      ...(TITLE_STYLES.includes(scene.titleStyle)
+        ? { titleStyle: scene.titleStyle }
+        : {}),
+      ...(TITLE_SIZES.includes(scene.titleSize)
+        ? { titleSize: scene.titleSize }
+        : {}),
       clip: scene.clip || null,
       caption: text(scene.caption, 180),
       move: scene.move,

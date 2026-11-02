@@ -1,6 +1,12 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
 import { motionField } from "./motion-text.ts";
 import { spokenField } from "./spoken-text.ts";
+import {
+  TITLE_SIZES,
+  TITLE_SIZE_HELP,
+  TITLE_STYLES,
+  TITLE_STYLE_HELP,
+} from "./title-styles.ts";
 import { VOICE_TOOL } from "./voice-tool.ts";
 
 export const WORKSHOP_SKIN = "carmen_workshop";
@@ -407,6 +413,16 @@ export const WORKSHOP_TOOLS = [
           description:
             "true: המעבר לסצנה הזו מחליף את הלוק של אותה דמות (למשל לסקין אחר של כרמן) ומקבל מעבר החלפת סקין (הבזק, פופ וסוויפ של אור). false: מעבר רגיל. בלי עלות, נכנס בהרכבה הבאה.",
         },
+        title_style: {
+          type: "string",
+          enum: [...TITLE_STYLES],
+          description: `${TITLE_STYLE_HELP} לסצנה הזו בלבד, מעל הבחירה של הסרט. בלי עלות, נכנס בהרכבה הבאה.`,
+        },
+        title_size: {
+          type: "string",
+          enum: [...TITLE_SIZES],
+          description: `${TITLE_SIZE_HELP} לסצנה הזו בלבד. בלי עלות, נכנס בהרכבה הבאה.`,
+        },
       },
       required: ["item_id"],
     },
@@ -506,6 +522,16 @@ export const WORKSHOP_TOOLS = [
           type: "boolean",
           description:
             "true כשהתמונות הן עיצוב מוכן עם טקסט (מודעה, פוסטר, באנר): כל תמונה נשארת בדיוק כמו שהיא, שלמה בתוך הפריים, והסרט מזיז עליה מצלמה ומוסיף כתוביות, קריינות ומוזיקה. בלי מנוע וידאו, כי מנוע וידאו מצייר את התמונה מחדש ומשבש את הטקסט שבה. לא עולה כסף על הסצנות. הבחירה נשמרת לסרט: false כשהמשתמש מבקש הנפשה אמיתית (דמויות שזזות, לא רק מצלמה), גם אם הסרט שמר את העיצוב קודם.",
+        },
+        title_style: {
+          type: "string",
+          enum: [...TITLE_STYLES],
+          description: `${TITLE_STYLE_HELP} לכל הסרט; סצנה יכולה לקבל סגנון משלה ב-workshop_update_scene.`,
+        },
+        title_size: {
+          type: "string",
+          enum: [...TITLE_SIZES],
+          description: `${TITLE_SIZE_HELP} לכל הסרט.`,
         },
         cta_text: {
           type: "string",
