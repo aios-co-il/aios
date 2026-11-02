@@ -402,6 +402,9 @@ Deno.test(
     assertStrictEquals((scenes[1].meta as Row).title_style, "punch");
     assertStrictEquals((scenes[1].meta as Row).title_size, "huge");
     assertStrictEquals(db.rpcs.length, 0);
+    // Carmen's tool says a scene's text style can be changed.
+    const tool = WORKSHOP_TOOLS.find((t) => t.name === "workshop_update_scene");
+    assertMatch(String(tool?.description), /title_style, title_size/);
     // A name the film does not know changes nothing.
     const unknown = await update(db, { scene_id: "s-2", title_style: "spin" });
     assertEquals(unknown.changed ?? [], []);
