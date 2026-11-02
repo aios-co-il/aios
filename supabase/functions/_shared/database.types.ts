@@ -17692,6 +17692,10 @@ export type Database = {
         Args: { p_lead_id: string };
         Returns: undefined;
       };
+      telegram_bot_state_source_tenant: {
+        Args: { _state_id: string };
+        Returns: string;
+      };
       tenant_can_use_integration: {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
