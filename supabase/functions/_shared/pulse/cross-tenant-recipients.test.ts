@@ -154,7 +154,7 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
   );
 
   await t.step(
-    "a campaign exception everyone already got elsewhere makes no AI call",
+    "a campaign exception everyone already got elsewhere is not sent",
     async () => {
       const supabase = fakeSupabase(
         [
@@ -167,16 +167,9 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
         ],
         { grants: [GRANT] },
       );
-      let aiCalls = 0;
-      const { result, sends } = await run(supabase, WEDNESDAY, [CAMPAIGN], {
-        phraseException: async () => {
-          aiCalls += 1;
-          return null;
-        },
-      });
+      const { result, sends } = await run(supabase, WEDNESDAY, [CAMPAIGN]);
       assertEquals(sends, []);
-      assertEquals(aiCalls, 0);
-      assertEquals(result.wording_calls, 0);
+      assertEquals(result.sent, 0);
     },
   );
 
@@ -188,7 +181,7 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
       });
       const recipients = await withoutPhonesAlertedElsewhere(
         { supabase, tenantId: "t1" },
-        { client_id: "c1", client_name: "Acme", message: "", ...LOST },
+        { client_id: "c1", client_name: "Acme", line: "", ...LOST },
         "a1",
         [{ phone: PULSE_PHONE }],
         24,

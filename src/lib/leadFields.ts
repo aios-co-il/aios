@@ -8,33 +8,35 @@
  * into one column.
  */
 
+import {
+  LEAD_SOURCE_KEY_LABELS,
+  leadSourceTagName,
+} from "../../supabase/functions/_shared/lead-source/source-key.ts";
+
+// The source mapping lives with its SQL twin; the lead forms import it here.
+export { inferLeadSource } from "../../supabase/functions/_shared/lead-source/source-key.ts";
+
 export const LEAD_SOURCE_LABELS: Record<string, string> = {
-  website: "אתר",
-  referral: "הפניה",
-  social_media: "רשתות חברתיות",
-  paid_ads: "FB",
-  cold_call: "שיחה קרה",
-  email_campaign: "דיוור",
-  event: "אירוע",
-  whatsapp: "וואטסאפ",
-  other: "אחר",
+  ...LEAD_SOURCE_KEY_LABELS,
   // Legacy UI values that are not on the current lead_source enum
   phone: "טלפון",
   facebook: "FB",
   google: "גוגל",
 };
 
-export const LEAD_SOURCE_SELECT_OPTIONS = [
-  { value: "paid_ads", label: "FB" },
-  { value: "website", label: "אתר" },
-  { value: "referral", label: "הפניה" },
-  { value: "social_media", label: "רשתות חברתיות" },
-  { value: "cold_call", label: "שיחה קרה" },
-  { value: "email_campaign", label: "דיוור" },
-  { value: "event", label: "אירוע" },
-  { value: "whatsapp", label: "וואטסאפ" },
-  { value: "other", label: "אחר" },
-] as const;
+export const LEAD_SOURCE_SELECT_OPTIONS = (
+  [
+    "paid_ads",
+    "website",
+    "referral",
+    "social_media",
+    "cold_call",
+    "email_campaign",
+    "event",
+    "whatsapp",
+    "other",
+  ] as const
+).map((value) => ({ value, label: LEAD_SOURCE_KEY_LABELS[value] }));
 
 export type LeadStatusLike = {
   status_key: string;
@@ -50,80 +52,8 @@ export type LeadSourceLike = {
   first_created_at?: string | null;
 };
 
-const KNOWN_SOURCE_ENUMS = new Set([
-  "website",
-  "referral",
-  "social_media",
-  "paid_ads",
-  "cold_call",
-  "email_campaign",
-  "event",
-  "whatsapp",
-  "other",
-]);
-
 function compactText(value: string): string {
   return value.toLowerCase().replace(/[\s_\-–—'"`״׳]/g, "");
-}
-
-export function inferLeadSource(raw: string | null | undefined): string {
-  if (!raw || !raw.trim()) return "other";
-  const v = compactText(raw);
-  if (KNOWN_SOURCE_ENUMS.has(raw.trim().toLowerCase()))
-    return raw.trim().toLowerCase();
-  if (v.includes("אתר") || v.includes("website")) return "website";
-  if (
-    v.includes("שיחה") ||
-    v.includes("טלפון") ||
-    v.includes("coldcall") ||
-    v === "phone"
-  ) {
-    return "cold_call";
-  }
-  if (v.includes("המלצה") || v.includes("referral") || v.includes("הפניה"))
-    return "referral";
-  if (
-    v === "fb" ||
-    v.includes("facebook") ||
-    v.includes("פייסבוק") ||
-    v.includes("google") ||
-    v.includes("גוגל") ||
-    v.includes("paidads") ||
-    v.includes("ppc")
-  ) {
-    return "paid_ads";
-  }
-  if (
-    v.includes("instagram") ||
-    v.includes("אינסטגרם") ||
-    v.includes("linkedin") ||
-    v.includes("לינקדאין") ||
-    v.includes("socialmedia") ||
-    v.includes("רשתותחברתיות") ||
-    v.includes("tiktok") ||
-    v.includes("טיקטוק")
-  ) {
-    return "social_media";
-  }
-  if (
-    v.includes("אימייל") ||
-    v.includes("email") ||
-    v.includes("מייל") ||
-    v.includes("newsletter")
-  ) {
-    return "email_campaign";
-  }
-  if (
-    v.includes("אירוע") ||
-    v.includes("event") ||
-    v.includes("כנס") ||
-    v.includes("תערוכה")
-  ) {
-    return "event";
-  }
-  if (v.includes("whatsapp") || v.includes("ווטסאפ") || v.includes("וואטסאפ"))
-    return "whatsapp";
-  return "other";
 }
 
 export function leadSourceDisplay(
@@ -144,9 +74,10 @@ const GENERIC_ORIGIN_TAG_NAMES = new Set(["אחר", "other"]);
 
 /**
  * Tag names derived from campaign + arrival source so leads can be filtered
- * by origin. Campaign name is kept as-is; source uses the display label (FB,
- * אתר, …). Empty / "אחר" sources are skipped, and a source that duplicates
- * the campaign name is not added twice.
+ * by origin. Campaign name is kept as-is; source uses its origin-tag name
+ * (leadSourceTagName: "Facebook Ads" and "FB" both tag FB, the same tag the
+ * database trigger adds). Empty / "אחר" sources are skipped, and a source that
+ * duplicates the campaign name is not added twice.
  */
 export function leadOriginTagNames(
   lead: LeadSourceLike | null | undefined,
@@ -166,7 +97,7 @@ export function leadOriginTagNames(
   };
 
   push(lead?.campaign_name);
-  push(leadSourceDisplay(lead));
+  push(leadSourceTagName(lead?.source));
   return names;
 }
 

@@ -4,6 +4,7 @@ import { summarizeExecution } from "./execution-summary.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
 import { findMetaStepClientRecipient } from "./client-recipient.ts";
+import { fieldValueEquals, sourceBranch } from "./field-match.ts";
 import { recordAutomationStepSend } from "./step-client-send.ts";
 import {
   buildWaNotifyFromOrigin,
@@ -2494,9 +2495,10 @@ Deno.serve(async (req) => {
                   const expected = String(stepConfig.condition_value || "");
                   const actual = String(stepData[field] ?? "");
                   let result = false;
-                  if (operator === "equals") result = actual === expected;
+                  if (operator === "equals")
+                    result = fieldValueEquals(field, actual, expected);
                   else if (operator === "not_equals")
-                    result = actual !== expected;
+                    result = !fieldValueEquals(field, actual, expected);
                   else if (operator === "contains")
                     result = actual
                       .toLowerCase()
@@ -2544,7 +2546,8 @@ Deno.serve(async (req) => {
                   ];
                   const matchedBranch = branches.includes(actualValue)
                     ? actualValue
-                    : branches[branches.length - 1];
+                    : (sourceBranch(switchField, actualValue, branches) ??
+                      branches[branches.length - 1]);
                   stepResponse = { matched_branch: matchedBranch };
                   nodeOutputs[step.id] = {
                     ...stepData,

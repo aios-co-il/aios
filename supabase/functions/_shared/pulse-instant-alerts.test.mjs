@@ -1,9 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertMatch,
-  assertStrictEquals,
-} from "jsr:@std/assert@1";
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   DEFAULT_PULSE_ALERT_RULES,
   evaluatePulseInstantAlerts,
@@ -50,7 +45,7 @@ Deno.test("evaluatePulseInstantAlerts respects disabled master switch", () => {
 });
 
 Deno.test(
-  "campaign exception includes target, evidence and last-change context",
+  "campaign exception keeps target and last-change evidence; its line names client, campaign, reason and figures",
   () => {
     const rows = evaluatePulseInstantAlerts(
       [
@@ -86,8 +81,14 @@ Deno.test(
     assert(exception);
     assertStrictEquals(exception.campaign_key, "meta:id:123");
     assertStrictEquals(exception.evidence.target_value, 30);
-    assertMatch(exception.message, /קמפיין: Leads/);
-    assertMatch(exception.message, /שינוי אחרון: 2026-09-10/);
+    assertStrictEquals(
+      exception.evidence.last_change_at,
+      "2026-09-10T08:00:00Z",
+    );
+    assertStrictEquals(
+      exception.line,
+      "Acme — Leads — חריגה מתמשכת מהיעד המאושר — 3 ימים: 52 · 7 ימים: 48 · יעד: CPL 30",
+    );
   },
 );
 

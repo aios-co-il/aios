@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { isGlobalSuperAdmin } from "../_shared/user-admin/role-grant.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,15 +54,17 @@ serve(async (req: Request) => {
       });
     }
 
-    // Check if current user is super_admin
-    const { data: currentUserRoles } = await supabase
+    // Only a global super_admin row counts; a tenant-scoped one is no super admin.
+    const { data: currentUserRoles, error: rolesError } = await supabase
       .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "super_admin")
-      .maybeSingle();
+      .select("role, tenant_id")
+      .eq("user_id", user.id);
 
-    if (!currentUserRoles) {
+    if (rolesError) {
+      throw new Error("Error checking user roles");
+    }
+
+    if (!isGlobalSuperAdmin(currentUserRoles ?? [])) {
       return new Response(
         JSON.stringify({
           error: "Only super admins can grant super admin access",
@@ -112,6 +115,7 @@ serve(async (req: Request) => {
       .select("role")
       .eq("user_id", foundUser.id)
       .eq("role", "super_admin")
+      .is("tenant_id", null)
       .maybeSingle();
 
     if (existingRole) {
