@@ -941,6 +941,40 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a new storyboard starts a new film without the last film's kept design",
+  async () => {
+    // Staging, 2 Nov: a film of new pictures was produced as a camera move over them.
+    const project = videoProject();
+    const item = project["marketing_work_items:select"];
+    const db = fakeDb({
+      "marketing_work_items:select": {
+        ...item,
+        payload: {
+          ...item.payload,
+          video: { ...item.payload.video, keep_design: true },
+        },
+      },
+    });
+    await executeWorkshopTool(db, "tenant-1", "workshop_storyboard", {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "divers over a reef", duration_s: 4 }],
+    });
+    const saved = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map(
+        (c) =>
+          (c.value as { payload?: { video?: Record<string, unknown> } })
+            .payload,
+      )
+      .filter((payload) => payload?.video)
+      .pop();
+    assertStrictEquals(saved?.video?.keep_design, undefined);
+    // The rest of the film's settings stay.
+    assertStrictEquals(saved?.video?.voice_id, "d4eLZ8u5dfBCsjp4YPyz");
+  },
+);
+
 /** Produces a film that keeps its design, whose one scene already has the clip `clip`. */
 async function produceKeptDesign(clip: Record<string, unknown>) {
   const db = fakeDb({

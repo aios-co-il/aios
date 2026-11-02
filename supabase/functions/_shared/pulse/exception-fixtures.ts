@@ -1,11 +1,6 @@
-// campaign_exception fixtures for the Deno tests of AIO-243 wording and the
-// per-run flood guard.
-import { assertEquals } from "jsr:@std/assert@1";
-import {
-  evaluatePulseInstantAlerts,
-  type PulseSnapshotAlertInput,
-} from "../pulse-instant-alerts.ts";
-import { healthy, NO_CONTACT_OFF, WEDNESDAY } from "./fake-alert-log.ts";
+// campaign_exception fixtures for the Deno tests of the pulse run message.
+import type { PulseSnapshotAlertInput } from "../pulse-instant-alerts.ts";
+import { healthy } from "./fake-alert-log.ts";
 
 type Campaign = NonNullable<
   PulseSnapshotAlertInput["campaign_breakdown"]
@@ -27,11 +22,6 @@ export const EXCEPTION_CAMPAIGN: Campaign = {
   last_change_at: "2026-10-20T08:00:00Z",
 };
 
-export const STATIC_CHECK =
-  "בדיקה מומלצת: לאמת יעד, אירוע אופטימיזציה ושינויים אחרונים לפני פעולה.";
-
-export const SUMMARY_HEADER = "🔴 *התראת דופק — סיכום חריגות קמפיין*";
-
 /** Client c1 with these campaigns, or with EXCEPTION_CAMPAIGN alone. */
 export function exceptionSnapshot(
   ...campaigns: Campaign[]
@@ -40,23 +30,6 @@ export function exceptionSnapshot(
     ...healthy([]),
     campaign_breakdown: campaigns.length ? campaigns : [EXCEPTION_CAMPAIGN],
   };
-}
-
-/** The message code builds for a snapshot with one campaign_exception. */
-export function deterministicExceptionMessage(
-  snapshot = exceptionSnapshot(),
-): string {
-  const rows = evaluatePulseInstantAlerts(
-    [snapshot],
-    [],
-    NO_CONTACT_OFF,
-    WEDNESDAY.getTime(),
-  );
-  assertEquals(
-    rows.map((row) => row.rule_type),
-    ["campaign_exception"],
-  );
-  return rows[0].message;
 }
 
 /** n eligible exceptions; campaign i has trend 10*i, so the last is worst. */
@@ -83,57 +56,6 @@ export const MANAGER_ON_AGENCY_A1 = {
   ],
 };
 
-/**
- * The owner sees both clients, the manager only c1 (agency a1): c1 has five
- * exceptions a1..a5 and c2 has b1 and b2, the two worst of the run.
- */
-export function ownerAndManagerClients(): PulseSnapshotAlertInput[] {
-  const c1: PulseSnapshotAlertInput = {
-    ...exceptionSnapshot(...exceptionCampaigns(5, "a")),
-    agency_id: "a1",
-  };
-  const c2: PulseSnapshotAlertInput = {
-    ...exceptionSnapshot(
-      ...exceptionCampaigns(2, "b").map((campaign, i) => ({
-        ...campaign,
-        trend_3d_pct: 100 + i,
-      })),
-    ),
-    client_id: "c2",
-    client_name: "Beta",
-    agency_id: "a2",
-  };
-  return [c1, c2];
-}
-
-/**
- * Each pulse_instant_alert_log row as "campaign_key delivery phones", with
- * delivery "own" or "summary", sorted.
- */
-export function loggedDeliveries(
-  log: Array<Record<string, unknown>>,
-): string[] {
-  return log
-    .map((row) =>
-      [
-        row.campaign_key,
-        evidenceOf(row).delivery ?? "own",
-        row.recipient_phone,
-      ].join(" "),
-    )
-    .sort();
-}
-
-/** True for the flood guard's summary message. */
-export function isSummary(message: string): boolean {
-  return message.startsWith(SUMMARY_HEADER);
-}
-
-/** The campaign name line of an individual campaign_exception message. */
-export function campaignOf(message: string): string | undefined {
-  return message.match(/קמפיין: (.*)/)?.[1];
-}
-
 /** The evidence object of a logged pulse_instant_alert_log row. */
 export function evidenceOf(
   row: Record<string, unknown>,
@@ -144,35 +66,18 @@ export function evidenceOf(
     : {};
 }
 
-/** The campaign names of the individual messages among these sends, sorted. */
-export function campaignNames(
-  sends: Array<{ message: string }>,
-): Array<string | undefined> {
-  return sends
-    .filter((send) => !isSummary(send.message))
-    .map((send) => campaignOf(send.message))
-    .sort();
+/** The section titles of a run message, in order, between header and footer. */
+export function sectionTitles(message: string): string[] {
+  return message
+    .split("\n\n")
+    .slice(1, -1)
+    .map((block) => block.split("\n")[0]);
 }
 
-/** The text of the summary message among these sends. */
-export function summaryText(sends: Array<{ message: string }>): string {
-  return sends.find((send) => isSummary(send.message))?.message ?? "";
-}
-
-/** The console.error calls made while `body` runs. */
-export async function consoleErrorsOf(
-  body: () => Promise<void>,
-): Promise<unknown[][]> {
-  const errors: unknown[][] = [];
-  const original = console.error;
-  console.error = (...args: unknown[]) => {
-    errors.push(args);
-  };
-  try {
-    await body();
-  } finally {
-    console.error = original;
-  }
-
-  return errors;
+/** The lines of the section titled `title` in a run message, title excluded. */
+export function sectionLines(message: string, title: string): string[] {
+  const block = message
+    .split("\n\n")
+    .find((each) => each.split("\n")[0] === title);
+  return block ? block.split("\n").slice(1) : [];
 }

@@ -1,11 +1,16 @@
--- Finance access rules (20261102100000_restore_finance_rls.sql) as each
--- persona meets them through RLS. Synthetic tenants, users and rows; full
--- rollback. Runs on a scratch database, a Preview branch or Staging.
+-- Finance access rules (20261102100000_restore_finance_rls.sql and
+-- 20261102113700_rls_super_admin_acting_tenant.sql) as each persona meets
+-- them through RLS. Synthetic tenants, users and rows; full rollback. Runs on
+-- a scratch database, a Preview branch or Staging.
 --
 -- read  = the tenant owner, a super admin, finance_view or finance
 -- write = the tenant owner, a super admin or finance
--- Own tenant only; a super admin reaches every tenant. payment_links stays
+-- Reads cover the acting tenant, and every tenant for a super admin. Writes
+-- cover the acting tenant only, a super admin's included. payment_links stays
 -- service-role only. suppliers stays tenant-wide (unchanged).
+--
+-- Inserts carry their own id and no RETURNING, and whether the row exists is
+-- read as postgres, so the INSERT policy alone decides the result.
 --
 -- Prints one line per persona and table, then raises if any line differs
 -- from the rule.
@@ -26,16 +31,16 @@ DECLARE
   super_admin uuid := gen_random_uuid();
   tag text := left(gen_random_uuid()::text, 8);
 
-  -- Insert statement per table: $1 tenant, $2 agency, $3 client, $4 supplier.
+  -- Insert statement per table: $1 tenant, $2 agency, $3 client, $4 supplier, $5 row id.
   inserts jsonb := jsonb_build_object(
-    'finance', 'insert into public.finance (tenant_id, agency_id, client_id, type, date, amount) values ($1, $2, $3, ''income'', current_date, 100) returning id',
-    'expense_payments', 'insert into public.expense_payments (tenant_id, expense_type, expense_id, expense_name, amount, payment_month) values ($1, ''supplier'', $4, ''QA'', 100, ''2026-11'') returning id',
-    'income_payments', 'insert into public.income_payments (tenant_id, client_id, client_name, amount, payment_month) values ($1, $3, ''QA'', 100, ''2026-11'') returning id',
-    'one_time_incomes', 'insert into public.one_time_incomes (tenant_id, client_id, product_name, amount, payment_month) values ($1, $3, ''QA'', 100, ''2026-11'') returning id',
-    'invoice_uploads', 'insert into public.invoice_uploads (tenant_id, file_path, agency_id, client_id, supplier_id) values ($1, ''qa/invoice.pdf'', $2, $3, $4) returning id',
-    'supplier_invoices', 'insert into public.supplier_invoices (tenant_id, supplier_id, invoice_name) values ($1, $4, ''QA'') returning id',
-    'payment_links', 'insert into public.payment_links (tenant_id, client_id, amount, payment_url) values ($1, $3, 100, ''https://example.invalid/pay'') returning id',
-    'client_tenant_financial_data', 'insert into public.client_tenant_financial_data (tenant_id, client_id, retainer, monthly_budget) values ($1, $3, 1000, 500) returning id'
+    'finance', 'insert into public.finance (id, tenant_id, agency_id, client_id, type, date, amount) values ($5, $1, $2, $3, ''income'', current_date, 100)',
+    'expense_payments', 'insert into public.expense_payments (id, tenant_id, expense_type, expense_id, expense_name, amount, payment_month) values ($5, $1, ''supplier'', $4, ''QA'', 100, ''2026-11'')',
+    'income_payments', 'insert into public.income_payments (id, tenant_id, client_id, client_name, amount, payment_month) values ($5, $1, $3, ''QA'', 100, ''2026-11'')',
+    'one_time_incomes', 'insert into public.one_time_incomes (id, tenant_id, client_id, product_name, amount, payment_month) values ($5, $1, $3, ''QA'', 100, ''2026-11'')',
+    'invoice_uploads', 'insert into public.invoice_uploads (id, tenant_id, file_path, agency_id, client_id, supplier_id) values ($5, $1, ''qa/invoice.pdf'', $2, $3, $4)',
+    'supplier_invoices', 'insert into public.supplier_invoices (id, tenant_id, supplier_id, invoice_name) values ($5, $1, $4, ''QA'')',
+    'payment_links', 'insert into public.payment_links (id, tenant_id, client_id, amount, payment_url) values ($5, $1, $3, 100, ''https://example.invalid/pay'')',
+    'client_tenant_financial_data', 'insert into public.client_tenant_financial_data (id, tenant_id, client_id, retainer, monthly_budget) values ($5, $1, $3, 1000, 500)'
   );
   -- expense_payments and income_payments have no update policy; payment_links has none at all.
   no_update text[] := array['expense_payments', 'income_payments', 'payment_links'];
@@ -75,10 +80,6 @@ BEGIN
     (tenant_a, no_finance_a, 'member'),
     (tenant_a, team_manager_a, 'member'),
     (tenant_b, owner_b, 'owner');
-  -- Each member's active tenant is pinned, so get_user_tenant_id resolves the same way every run.
-  INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
-    (owner_a, tenant_a), (finance_a, tenant_a), (finance_view_a, tenant_a),
-    (no_finance_a, tenant_a), (team_manager_a, tenant_a), (owner_b, tenant_b);
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
     (owner_a, 'owner', tenant_a),
     (finance_a, 'campaigner', tenant_a),
@@ -87,6 +88,13 @@ BEGIN
     (team_manager_a, 'team_manager', tenant_a),
     (owner_b, 'owner', tenant_b),
     (super_admin, 'super_admin', NULL);
+  -- Each persona's active tenant is pinned, so get_user_tenant_id resolves the same way every run.
+  -- The super admin belongs to no tenant and acts in A, as after switching to it; the role
+  -- comes first, as an active tenant must be one the user may use.
+  INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
+    (owner_a, tenant_a), (finance_a, tenant_a), (finance_view_a, tenant_a),
+    (no_finance_a, tenant_a), (team_manager_a, tenant_a), (owner_b, tenant_b),
+    (super_admin, tenant_a);
   -- The member without finance has other modules, and finance rows switched off.
   INSERT INTO public.user_permissions (user_id, module, can_access) VALUES
     (finance_a, 'finance', true),
@@ -97,9 +105,11 @@ BEGIN
 
   -- One row per table and tenant, as the service role would write it.
   FOR tbl IN SELECT jsonb_object_keys(inserts) LOOP
-    EXECUTE inserts->>tbl INTO new_id USING tenant_a, agency_a, client_a, supplier_a;
+    new_id := gen_random_uuid();
+    EXECUTE inserts->>tbl USING tenant_a, agency_a, client_a, supplier_a, new_id;
     seeds := jsonb_set(seeds, array[tbl || ':A'], to_jsonb(new_id));
-    EXECUTE inserts->>tbl INTO new_id USING tenant_b, agency_b, client_b, supplier_b;
+    new_id := gen_random_uuid();
+    EXECUTE inserts->>tbl USING tenant_b, agency_b, client_b, supplier_b, new_id;
     seeds := jsonb_set(seeds, array[tbl || ':B'], to_jsonb(new_id));
   END LOOP;
 
@@ -110,7 +120,7 @@ BEGIN
     jsonb_build_object('name', 'no finance A', 'role', 'authenticated', 'uid', no_finance_a, 'reads', '', 'writes', '', 'member', 'A'),
     jsonb_build_object('name', 'team manager A', 'role', 'authenticated', 'uid', team_manager_a, 'reads', '', 'writes', '', 'member', 'A'),
     jsonb_build_object('name', 'owner B', 'role', 'authenticated', 'uid', owner_b, 'reads', 'B', 'writes', 'B', 'member', 'B'),
-    jsonb_build_object('name', 'super admin', 'role', 'authenticated', 'uid', super_admin, 'reads', 'AB', 'writes', 'AB', 'member', 'AB'),
+    jsonb_build_object('name', 'super admin', 'role', 'authenticated', 'uid', super_admin, 'reads', 'AB', 'writes', 'A', 'member', 'AB'),
     jsonb_build_object('name', 'anon', 'role', 'anon', 'uid', NULL, 'reads', '', 'writes', '', 'member', '')
   );
 
@@ -134,12 +144,16 @@ BEGIN
         other_write := strpos(p->>'writes', CASE side WHEN 'A' THEN 'B' ELSE 'A' END) > 0;
 
         EXECUTE format('select count(*) from public.%I where tenant_id = $1', tbl) INTO n_read USING t_id;
+        new_id := gen_random_uuid();
         BEGIN
-          EXECUTE inserts->>tbl INTO new_id USING t_id, agency_id, client_id, supplier_id;
-          inserted := true;
+          EXECUTE inserts->>tbl USING t_id, agency_id, client_id, supplier_id, new_id;
         EXCEPTION WHEN insufficient_privilege THEN
-          inserted := false;
+          NULL;
         END;
+        -- Read as postgres, so neither the SELECT policy nor RETURNING colours the result.
+        RESET ROLE;
+        EXECUTE format('select exists (select 1 from public.%I where id = $1)', tbl) INTO inserted USING new_id;
+        EXECUTE format('SET LOCAL ROLE %I', p->>'role');
 
         IF inserted THEN
           -- Own row: edit it, try to move it to the other tenant, remove it.
@@ -163,6 +177,10 @@ BEGIN
           GET DIAGNOSTICS n_del = ROW_COUNT;
           got := format('read %s, insert denied, update %s, delete %s', n_read, n_upd, n_del);
         END IF;
+        -- Remove the persona's row as postgres, so a row a broken policy left behind cannot affect the next persona.
+        RESET ROLE;
+        EXECUTE format('delete from public.%I where id = $1', tbl) USING new_id;
+        EXECUTE format('SET LOCAL ROLE %I', p->>'role');
 
         IF can_write THEN
           want := format('read %s, insert ok, update %s, %s, delete 1',
@@ -202,5 +220,5 @@ BEGIN
   END IF;
 END;
 $test$;
-SELECT 'Finance read and write rules hold for owner, finance, finance_view, no finance, team manager, other tenant, super admin and anon' AS result;
+SELECT 'Finance read and write rules hold for owner, finance, finance_view, no finance, team manager, other tenant, super admin (acting tenant only) and anon' AS result;
 ROLLBACK;

@@ -1,15 +1,14 @@
 /**
  * Instant WhatsApp alerts from campaign pulse snapshots.
  * Everyone the organization's Carmen reports to, its owners and agency owners,
- * and the team managers of the client's agency receive per-campaign alerts
- * (deduped).
+ * and the team managers of the client's agency receive the run's alerts
+ * (deduped), as one message per phone per run.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { CarmenReportRecipient } from "./carmen-report-recipients/resolve.ts";
 import {
-  alertTargetText,
-  baselineTrendLines,
+  exceptionFiguresText,
   spentWithoutResults3d,
 } from "./pulse/instant-alert-lines.ts";
 import type { Json } from "./database.types.ts";
@@ -18,24 +17,13 @@ import {
   isNoDataWithoutTable,
   isRealConnectionLoss,
 } from "./pulse/connection-loss.ts";
-import { PULSE_ALERT_FOOTER } from "./pulse/alert-footer.ts";
 import {
   connectionLostFingerprint,
   cplSpikeFingerprint,
   noContactFingerprint,
 } from "./pulse/instant-alert-fingerprint.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
-import {
-  capExceptionMessages,
-  parsePulseInstantRunRules,
-  type PulseInstantRunRules,
-} from "./pulse/exception-flood-guard.ts";
-import { sendExceptionSummaries } from "./pulse/exception-summary.ts";
-import {
-  DEFAULT_EXCEPTION_CHECK_LINE,
-  type PhrasePulseException,
-} from "./pulse/exception-wording.ts";
-import { sendIndividualAlerts } from "./pulse/individual-alerts.ts";
+import { sendRunMessages } from "./pulse/instant-alert-send.ts";
 import { resolveInstantAlertRecipients } from "./pulse/instant-alert-recipients.ts";
 import { planInstantAlerts } from "./pulse/plan-instant-alerts.ts";
 
@@ -49,7 +37,6 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
-  instant: PulseInstantRunRules;
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -59,24 +46,18 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   cpl_spike_enabled: true,
   cpl_spike_pct: 50,
   disconnected_enabled: true,
-  instant: parsePulseInstantRunRules(undefined),
 };
 
 export type PulseInstantAlertCandidate = {
   client_id: string;
   client_name: string;
   rule_type: PulseAlertRuleType;
-  message: string;
+  /** The alert's line in its section of the run message, built by code. */
+  line: string;
   campaign_key?: string | null;
   fingerprint?: string | null;
   severity_score?: number | null;
   evidence?: { [key: string]: Json | undefined };
-  /**
-   * campaign_exception only: the labels a per-run summary line shows. They
-   * stay out of evidence, so digits in a name never license a model number.
-   */
-  campaign_name?: string | null;
-  status_reason?: string | null;
   /** connection_lost only: may go out on Shabbat (see isRealConnectionLoss). */
   shabbat_critical?: boolean;
 };
@@ -117,6 +98,8 @@ type CriticalIssueLike = {
   clientId: string;
   clientName?: string | null;
   alertType?: string | null;
+  /** The alert type's Hebrew label (selectPulseCriticalAlerts). */
+  label?: string | null;
   campaignName?: string | null;
 };
 
@@ -142,7 +125,6 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
-    instant: parsePulseInstantRunRules(input.instant),
   };
 }
 
@@ -176,8 +158,6 @@ export function evaluatePulseInstantAlerts(
 
     for (const campaign of campaignBreakdown) {
       if (campaign.alert_eligible !== true || !campaign.campaign_key) continue;
-      const target = alertTargetText(campaign);
-      const noResults3 = spentWithoutResults3d(campaign);
       const severity = Math.max(
         1,
         Math.abs(Number(campaign.trend_3d_pct) || 0),
@@ -200,7 +180,7 @@ export function evaluatePulseInstantAlerts(
         efficiency_7d: campaign.efficiency_7d ?? null,
         spend_3d: campaign.spend_3d ?? null,
         outcomes_3d: campaign.outcomes_3d ?? null,
-        no_results_3d: noResults3,
+        no_results_3d: spentWithoutResults3d(campaign),
         trend_3d_pct: campaign.trend_3d_pct ?? null,
         trend_7d_pct: campaign.trend_7d_pct ?? null,
         data_fresh_through: campaign.data_fresh_through ?? null,
@@ -211,26 +191,15 @@ export function evaluatePulseInstantAlerts(
         client_name: clientName,
         rule_type: "campaign_exception",
         campaign_key: campaign.campaign_key,
-        campaign_name: campaignName,
-        status_reason: statusReason,
         fingerprint,
         severity_score: severity,
         evidence,
-        message: [
-          "🔴 *התראת דופק — חריגת קמפיין מאומתת*",
-          `לקוח: ${clientName}`,
-          `קמפיין: ${campaignName}`,
-          `קטגוריה: ${campaign.goal || "לא מסווג"}`,
-          `סיבה: ${statusReason}`,
-          `יעד: ${target}`,
-          `3 ימים: ${campaign.efficiency_3d ?? (noResults3 ? "אין תוצאות" : "חסר")} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"}`,
-          ...baselineTrendLines(campaign),
-          `שינוי אחרון: ${campaign.last_change_at || "לא זמין"}`,
-          `נתונים עד: ${campaign.data_fresh_through || "לא זמין"}`,
-          "",
-          DEFAULT_EXCEPTION_CHECK_LINE,
-          PULSE_ALERT_FOOTER,
-        ].join("\n"),
+        line: [
+          clientName,
+          campaignName,
+          statusReason,
+          exceptionFiguresText(campaign),
+        ].join(" — "),
       });
     }
 
@@ -248,15 +217,11 @@ export function evaluatePulseInstantAlerts(
           client_name: clientName,
           rule_type: "no_contact",
           fingerprint: noContactFingerprint(snapshot.client_id, lastContact),
-          message: [
-            "🟡 *התראת דופק — אין עדכון קשר*",
-            `לקוח: ${clientName}`,
+          line: `${clientName} — ${
             missing
-              ? `לא תועדה שיחה/פגישה ב-${days} הימים האחרונים`
-              : `עדכון קשר אחרון: ${new Date(lastContact).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
-            "",
-            PULSE_ALERT_FOOTER,
-          ].join("\n"),
+              ? "לא תועד"
+              : `קשר אחרון: ${new Date(lastContact).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`
+          }`,
         });
       }
     }
@@ -276,13 +241,7 @@ export function evaluatePulseInstantAlerts(
           client_name: clientName,
           rule_type: "cpl_spike",
           fingerprint: cplSpikeFingerprint(snapshot.client_id),
-          message: [
-            "🔴 *התראת דופק — עליית CPL*",
-            `לקוח: ${clientName}`,
-            `CPL עלה ב-${Math.round(Number(change) * 10) / 10}% לעומת השבוע הקודם`,
-            "",
-            PULSE_ALERT_FOOTER,
-          ].join("\n"),
+          line: `${clientName} — CPL עלה ב-${Math.round(Number(change) * 10) / 10}% לעומת השבוע הקודם`,
         });
       }
     }
@@ -321,13 +280,9 @@ export function evaluatePulseInstantAlerts(
           rule_type: "connection_lost",
           fingerprint: connectionLostFingerprint(snapshot.client_id),
           shabbat_critical: isRealConnectionLoss(flags, statusNoData, critical),
-          message: [
-            "🔴 *התראת דופק — חיבור/קמפיין*",
-            `לקוח: ${clientName}`,
-            detail.length ? detail.join(" · ") : "דוח מנותק / חשבון לא פעיל",
-            "",
-            PULSE_ALERT_FOOTER,
-          ].join("\n"),
+          line: `${clientName} — ${
+            detail.length ? detail.join(" · ") : "דוח מנותק / חשבון לא פעיל"
+          }`,
         });
       }
     }
@@ -341,42 +296,31 @@ export type InstantPulseAlertsInput = {
   supabase: any;
   tenantId: string;
   tenantSlug?: string | null;
+  /** The organization's name, in the header of each run message. */
+  orgName: string;
   /** Whom the organization's Carmen reports to; alerted ahead of the owners and managers. */
   reportRecipients: CarmenReportRecipient[];
   snapshots: PulseSnapshotAlertInput[];
   criticalIssues: CriticalIssueLike[];
   rules: unknown;
   queueWhatsApp: QueueWhatsApp;
-  /** Optional wording for campaign_exception alerts; see wordPulseException. */
-  phraseException?: PhrasePulseException;
-  /** Wording timeout override for tests. */
-  wordingTimeoutMs?: number;
   /** Clock override for tests. */
   now?: Date;
 };
 
 /**
- * Sends a run's instant alerts: plan what goes out, cap campaign_exception
- * messages per phone, send the individual messages, then the summaries.
+ * Sends a run's instant alerts (AIO-290): plan what goes out, then queue one
+ * message per recipient phone with every alert planned for it.
  */
 export async function deliverInstantPulseAlerts(
   input: InstantPulseAlertsInput,
 ): Promise<{
-  /** Alerts sent as their own message. */
+  /** Alerts that reached at least one phone, each logged. */
   sent: number;
   skipped: number;
-  /**
-   * campaign_exception alerts over a recipient's per-run cap that went out
-   * only inside a summary message; logged like sent ones.
-   */
-  summarized: number;
-  /** Summary messages queued: at most one per recipient phone per run. */
-  summary_messages: number;
+  /** Run messages queued: at most one per recipient phone. */
+  messages: number;
   candidates: number;
-  /** Model wording calls made for campaign_exception alerts. */
-  wording_calls: number;
-  /** Alerts sent with model wording added to the deterministic text. */
-  worded: number;
   /** Non-critical candidates held for Shabbat (re-evaluated after it). */
   held: number;
 }> {
@@ -390,36 +334,38 @@ export async function deliverInstantPulseAlerts(
   const candidates = evaluated.filter(
     (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
   );
+  // Dedupe is per phone, so every candidate needs its recipients: read them
+  // once per agency in the run.
+  const recipientsByAgency = new Map<
+    string,
+    ReturnType<typeof resolveInstantAlertRecipients>
+  >();
   const plan = await planInstantAlerts(
     input,
     candidates,
     now,
-    (_candidate, agencyId) =>
-      resolveInstantAlertRecipients(
-        input.supabase,
-        input.tenantId,
-        agencyId,
-        input.reportRecipients,
-        input.tenantSlug,
-      ),
+    (_candidate, agencyId) => {
+      const key = agencyId ?? "";
+      const recipients =
+        recipientsByAgency.get(key) ??
+        resolveInstantAlertRecipients(
+          input.supabase,
+          input.tenantId,
+          agencyId,
+          input.reportRecipients,
+          input.tenantSlug,
+        );
+      recipientsByAgency.set(key, recipients);
+      return recipients;
+    },
   );
-  const summaryByPhone = capExceptionMessages(
-    plan.planned,
-    parsePulseAlertRules(input.rules).instant.max_exception_messages_per_run,
-  );
-  const individual = await sendIndividualAlerts(input, plan.planned);
-  const summary = await sendExceptionSummaries(input, summaryByPhone);
-  const undelivered = plan.planned.filter(
-    (item) => !item.sentTo.length && !item.summarizedTo.length,
-  ).length;
+  const { messages } = await sendRunMessages(input, plan.planned, now);
+  const sent = plan.planned.filter((item) => item.sentTo.length).length;
   return {
-    sent: individual.sent,
-    skipped: plan.skipped + undelivered,
-    summarized: summary.summarized,
-    summary_messages: summary.summary_messages,
+    sent,
+    skipped: plan.skipped + plan.planned.length - sent,
+    messages,
     candidates: evaluated.length,
-    wording_calls: individual.wording_calls,
-    worded: individual.worded,
     held: evaluated.length - candidates.length,
   };
 }

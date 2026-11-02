@@ -1,12 +1,17 @@
--- Site analytics access rules (20261102104000_restore_site_analytics_rls.sql)
--- as each persona meets them through RLS. Synthetic tenants, users and rows;
--- full rollback. Runs on a scratch database, a Preview branch or Staging.
+-- Site analytics access rules (20261102104000_restore_site_analytics_rls.sql
+-- and 20261102113700_rls_super_admin_acting_tenant.sql) as each persona meets
+-- them through RLS. Synthetic tenants, users and rows; full rollback. Runs on
+-- a scratch database, a Preview branch or Staging.
 --
 -- read:  every site_* table, members of the tenant; a super admin reads all
--- write: site_tracking_configs, members of the tenant (super admin: any);
+-- write: site_tracking_configs, members of the active tenant only (a super
+--        admin too: they write where they act, never into another tenant);
 --        visitors, sessions, page views and events, the service role only
 --
--- Prints one line per persona, then raises if any line differs from the rule.
+-- Inserts carry no RETURNING and are counted as postgres afterwards, so each
+-- insert is decided by the INSERT policy alone. Moves and deletes use spare
+-- rows seeded per persona. Prints one line per persona, then raises if any
+-- line differs from the rule.
 BEGIN;
 DO $test$
 DECLARE
@@ -21,8 +26,8 @@ DECLARE
   tables text[] := array['site_tracking_configs', 'site_visitors', 'site_sessions', 'site_pageviews', 'site_events'];
   seeds jsonb := '{}';
   personas jsonb;
-  p jsonb; tbl text; side text; other text;
-  t_id uuid; t_other uuid; c_id uuid; cfg uuid; visitor uuid; sess uuid; new_id uuid;
+  p jsonb; tbl text; side text; mark text;
+  t_id uuid; t_other uuid; c_id uuid; cfg uuid; spare uuid; visitor uuid; sess uuid; new_id uuid;
   n bigint; reads text; writes text;
   got text; want text;
   lines text[] := '{}';
@@ -41,14 +46,25 @@ BEGIN
   FROM unnest(array[owner_a, member_a, member_b, super_admin]) WITH ORDINALITY AS x(u, i);
   INSERT INTO public.tenant_users (tenant_id, user_id, role) VALUES
     (tenant_a, owner_a, 'owner'), (tenant_a, member_a, 'member'), (tenant_b, member_b, 'member');
-  -- Each member's active tenant is pinned, so get_user_tenant_id resolves the same way every run.
-  INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
-    (owner_a, tenant_a), (member_a, tenant_a), (member_b, tenant_b);
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
     (owner_a, 'owner', tenant_a), (member_a, 'campaigner', tenant_a),
     (member_b, 'campaigner', tenant_b), (super_admin, 'super_admin', NULL);
+  -- Active tenants are pinned, so get_user_tenant_id resolves the same way every run.
+  -- The super admin acts in tenant B and reaches tenant A only as a super admin;
+  -- the role comes first, as an active tenant must be one the user may use.
+  INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
+    (owner_a, tenant_a), (member_a, tenant_a), (member_b, tenant_b), (super_admin, tenant_b);
 
-  -- One tracked visit per tenant, as the analytics edge functions write it.
+  personas := jsonb_build_array(
+    jsonb_build_object('name', 'owner A', 'role', 'authenticated', 'uid', owner_a, 'reads', 'A', 'writes', 'A'),
+    jsonb_build_object('name', 'member A', 'role', 'authenticated', 'uid', member_a, 'reads', 'A', 'writes', 'A'),
+    jsonb_build_object('name', 'member B', 'role', 'authenticated', 'uid', member_b, 'reads', 'B', 'writes', 'B'),
+    jsonb_build_object('name', 'super admin', 'role', 'authenticated', 'uid', super_admin, 'reads', 'AB', 'writes', 'B'),
+    jsonb_build_object('name', 'anon', 'role', 'anon', 'uid', NULL, 'reads', '', 'writes', '')
+  );
+
+  -- Per tenant: one tracked visit, as the analytics edge functions write it,
+  -- and a spare tracking code per persona for the move and delete checks.
   FOREACH side IN ARRAY array['A', 'B'] LOOP
     t_id := CASE side WHEN 'A' THEN tenant_a ELSE tenant_b END;
     c_id := CASE side WHEN 'A' THEN client_a ELSE client_b END;
@@ -65,15 +81,12 @@ BEGIN
     VALUES (t_id, cfg, visitor, sess, 'qa_click', now()) RETURNING id INTO new_id;
     seeds := seeds || jsonb_build_object('site_events:' || side, new_id,
       'site_tracking_configs:' || side, cfg, 'site_visitors:' || side, visitor, 'site_sessions:' || side, sess);
+    FOR p IN SELECT * FROM jsonb_array_elements(personas) LOOP
+      INSERT INTO public.site_tracking_configs (tenant_id, client_id, website_domain)
+      VALUES (t_id, c_id, 'qa-spare-' || tag || '.invalid') RETURNING id INTO spare;
+      seeds := seeds || jsonb_build_object('spare:' || side || ':' || (p->>'name'), spare);
+    END LOOP;
   END LOOP;
-
-  personas := jsonb_build_array(
-    jsonb_build_object('name', 'owner A', 'role', 'authenticated', 'uid', owner_a, 'reads', 'A', 'writes', 'A'),
-    jsonb_build_object('name', 'member A', 'role', 'authenticated', 'uid', member_a, 'reads', 'A', 'writes', 'A'),
-    jsonb_build_object('name', 'member B', 'role', 'authenticated', 'uid', member_b, 'reads', 'B', 'writes', 'B'),
-    jsonb_build_object('name', 'super admin', 'role', 'authenticated', 'uid', super_admin, 'reads', 'AB', 'writes', 'AB'),
-    jsonb_build_object('name', 'anon', 'role', 'anon', 'uid', NULL, 'reads', '', 'writes', '')
-  );
 
   FOR p IN SELECT * FROM jsonb_array_elements(personas) LOOP
     RESET ROLE;
@@ -84,13 +97,14 @@ BEGIN
     got := ''; want := '';
 
     FOREACH side IN ARRAY array['A', 'B'] LOOP
-      other := CASE side WHEN 'A' THEN 'B' ELSE 'A' END;
       t_id := CASE side WHEN 'A' THEN tenant_a ELSE tenant_b END;
       t_other := CASE side WHEN 'A' THEN tenant_b ELSE tenant_a END;
       c_id := CASE side WHEN 'A' THEN client_a ELSE client_b END;
       cfg := (seeds->>('site_tracking_configs:' || side))::uuid;
+      spare := (seeds->>('spare:' || side || ':' || (p->>'name')))::uuid;
       visitor := (seeds->>('site_visitors:' || side))::uuid;
       sess := (seeds->>('site_sessions:' || side))::uuid;
+      mark := 'qa-new-' || tag || '-' || replace(p->>'name', ' ', '-') || '-' || side;
 
       -- Read: the tenant's row in every table.
       reads := '';
@@ -98,62 +112,59 @@ BEGIN
         EXECUTE format('select count(*) from public.%I where id = $1', tbl) INTO n USING (seeds->>(tbl || ':' || side))::uuid;
         reads := reads || n;
       END LOOP;
-      got := got || format(' %s:read=%s', side, reads);
-      want := want || format(' %s:read=%s', side,
-        CASE WHEN strpos(p->>'reads', side) > 0 THEN '11111' ELSE '00000' END);
 
-      -- Tracking codes: create, edit, move to the other tenant, delete.
       writes := '';
+      -- i: create a tracking code in this tenant (counted as postgres).
       BEGIN
         INSERT INTO public.site_tracking_configs (tenant_id, client_id, website_domain)
-        VALUES (t_id, c_id, 'qa-new-' || tag || '.invalid') RETURNING id INTO new_id;
-        writes := writes || 'i';
-      EXCEPTION WHEN insufficient_privilege THEN new_id := NULL;
+        VALUES (t_id, c_id, mark || '.invalid');
+      EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
+      RESET ROLE;
+      SELECT count(*) INTO n FROM public.site_tracking_configs WHERE website_domain = mark || '.invalid';
+      EXECUTE format('SET LOCAL ROLE %I', p->>'role');
+      IF n > 0 THEN writes := writes || 'i'; END IF;
+      -- u: edit the tenant's tracking code.
       UPDATE public.site_tracking_configs SET website_domain = 'qa-edit-' || tag || '.invalid' WHERE id = cfg;
       GET DIAGNOSTICS n = ROW_COUNT;
       IF n > 0 THEN writes := writes || 'u'; END IF;
-      IF new_id IS NOT NULL THEN
-        BEGIN
-          UPDATE public.site_tracking_configs SET tenant_id = t_other WHERE id = new_id;
-          GET DIAGNOSTICS n = ROW_COUNT;
-          IF n > 0 THEN writes := writes || 'm'; END IF;
-        EXCEPTION WHEN insufficient_privilege THEN NULL;
-        END;
-        DELETE FROM public.site_tracking_configs WHERE id = new_id;
-        GET DIAGNOSTICS n = ROW_COUNT;
-        IF n > 0 THEN writes := writes || 'd'; END IF;
-      ELSE
-        DELETE FROM public.site_tracking_configs WHERE id = cfg;
-        GET DIAGNOSTICS n = ROW_COUNT;
-        IF n > 0 THEN writes := writes || 'd'; END IF;
-      END IF;
-
-      -- Tracked data: no user insert, edit or delete.
+      -- m: move a spare code to the other tenant; d: delete it.
       BEGIN
-        INSERT INTO public.site_visitors (tenant_id, tracking_config_id, visitor_fingerprint)
-        VALUES (t_id, cfg, 'qa-new-' || tag);
-        writes := writes || 'V';
+        UPDATE public.site_tracking_configs SET tenant_id = t_other WHERE id = spare;
+        GET DIAGNOSTICS n = ROW_COUNT;
+        IF n > 0 THEN writes := writes || 'm'; END IF;
+      EXCEPTION WHEN insufficient_privilege THEN NULL;
+      END;
+      DELETE FROM public.site_tracking_configs WHERE id = spare;
+      GET DIAGNOSTICS n = ROW_COUNT;
+      IF n > 0 THEN writes := writes || 'd'; END IF;
+
+      -- Tracked data: V/S/P/E insert (counted as postgres), U edit, D delete; none is allowed.
+      BEGIN
+        INSERT INTO public.site_visitors (tenant_id, tracking_config_id, visitor_fingerprint) VALUES (t_id, cfg, mark);
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
       BEGIN
-        INSERT INTO public.site_sessions (tenant_id, tracking_config_id, visitor_id, started_at)
-        VALUES (t_id, cfg, visitor, now());
-        writes := writes || 'S';
+        INSERT INTO public.site_sessions (tenant_id, tracking_config_id, visitor_id, started_at, landing_page)
+        VALUES (t_id, cfg, visitor, now(), mark);
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
       BEGIN
         INSERT INTO public.site_pageviews (tenant_id, tracking_config_id, visitor_id, session_id, page_url, viewed_at)
-        VALUES (t_id, cfg, visitor, sess, 'https://qa.invalid/new', now());
-        writes := writes || 'P';
+        VALUES (t_id, cfg, visitor, sess, mark, now());
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
       BEGIN
         INSERT INTO public.site_events (tenant_id, tracking_config_id, visitor_id, session_id, event_name, occurred_at)
-        VALUES (t_id, cfg, visitor, sess, 'qa_new', now());
-        writes := writes || 'E';
+        VALUES (t_id, cfg, visitor, sess, mark, now());
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
+      RESET ROLE;
+      IF EXISTS (SELECT 1 FROM public.site_visitors WHERE visitor_fingerprint = mark) THEN writes := writes || 'V'; END IF;
+      IF EXISTS (SELECT 1 FROM public.site_sessions WHERE landing_page = mark) THEN writes := writes || 'S'; END IF;
+      IF EXISTS (SELECT 1 FROM public.site_pageviews WHERE page_url = mark) THEN writes := writes || 'P'; END IF;
+      IF EXISTS (SELECT 1 FROM public.site_events WHERE event_name = mark) THEN writes := writes || 'E'; END IF;
+      EXECUTE format('SET LOCAL ROLE %I', p->>'role');
       UPDATE public.site_sessions SET page_count = 9 WHERE id = sess;
       GET DIAGNOSTICS n = ROW_COUNT;
       IF n > 0 THEN writes := writes || 'U'; END IF;
@@ -161,14 +172,11 @@ BEGIN
       GET DIAGNOSTICS n = ROW_COUNT;
       IF n > 0 THEN writes := writes || 'D'; END IF;
 
-      got := got || format(' %s:write=%s', side, nullif(writes, ''));
-      -- A writer of only this tenant cannot move a code out of it; a super admin can.
-      want := want || format(' %s:write=%s', side,
-        CASE
-          WHEN strpos(p->>'writes', side) = 0 THEN NULL
-          WHEN strpos(p->>'writes', other) > 0 THEN 'iumd'
-          ELSE 'iud'
-        END);
+      got := got || format(' %s:read=%s:write=%s', side, reads, writes);
+      -- Nobody moves a code between tenants: writing needs the active tenant on both sides.
+      want := want || format(' %s:read=%s:write=%s', side,
+        CASE WHEN strpos(p->>'reads', side) > 0 THEN '11111' ELSE '00000' END,
+        CASE WHEN strpos(p->>'writes', side) > 0 THEN 'iud' ELSE '' END);
     END LOOP;
 
     lines := lines || format('%-12s%s', p->>'name', got);
@@ -195,5 +203,5 @@ BEGIN
   END IF;
 END;
 $test$;
-SELECT 'Site analytics: tenant reads, tracking-code writes, service-only tracked data and anon isolation passed' AS result;
+SELECT 'Site analytics: tenant reads, active-tenant tracking-code writes, service-only tracked data and anon isolation passed' AS result;
 ROLLBACK;

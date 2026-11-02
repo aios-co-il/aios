@@ -147,7 +147,7 @@ export function useUserPermissions() {
   // UI never offers a read or write the database refuses: the role flags above
   // differ from has_role / is_super_admin, and hasPermission lets management
   // roles through.
-  const { data: financeAccess } = useQuery({
+  const { data: financeAccess, isPending: financeAccessPending } = useQuery({
     queryKey: ["finance-access", userId, tenantId],
     queryFn: userId ? () => fetchFinanceAccess(userId) : skipToken,
     staleTime: 1000 * 60 * 5,
@@ -164,6 +164,8 @@ export function useUserPermissions() {
     hasPermission,
     canViewFinance,
     canEditFinance,
+    /** False until the finance access answer is in, so callers can show nothing instead of "no access". */
+    financeAccessReady: !financeAccessPending,
     isLoading,
     isFetching: permissionsFetching,
     isError: permissionsError,

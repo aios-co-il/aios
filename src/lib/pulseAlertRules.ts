@@ -7,11 +7,6 @@ import {
 } from "../../supabase/functions/_shared/pulse/unanswered-reply.ts";
 
 export type PulseAlertRules = {
-  /**
-   * Per-run limits the dialog does not edit, kept as stored; the edge parser
-   * (supabase/functions/_shared/pulse/exception-flood-guard.ts) reads them.
-   */
-  instant?: unknown;
   instant_wa_enabled?: boolean;
   no_contact_enabled?: boolean;
   no_contact_days?: number;
@@ -66,7 +61,6 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
   const input = raw as Record<string, unknown>;
   return {
-    ...(input.instant === undefined ? {} : { instant: input.instant }),
     instant_wa_enabled: input.instant_wa_enabled !== false,
     no_contact_enabled: input.no_contact_enabled !== false,
     no_contact_days: Math.max(

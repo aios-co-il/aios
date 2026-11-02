@@ -51,16 +51,7 @@ export async function gatedInstantAlerts(
 
 /** The result when no instant alert ran (no snapshots, or delivery threw). */
 export function noInstantAlerts(): InstantPulseAlertResult {
-  return {
-    sent: 0,
-    skipped: 0,
-    summarized: 0,
-    summary_messages: 0,
-    candidates: 0,
-    wording_calls: 0,
-    worded: 0,
-    held: 0,
-  };
+  return { sent: 0, skipped: 0, messages: 0, candidates: 0, held: 0 };
 }
 
 /**

@@ -1,33 +1,40 @@
--- Carmen command center and goals RLS (20261102102000_restore_carmen_command_rls):
--- synthetic tenants and personas inside one transaction that is rolled back.
--- Tenant A has an owner and a member; tenant B has a member (the outsider);
--- the super admin acts in tenant B; anon has no session. Each tenant holds one
--- row in each of the nine tables.
+-- Carmen command center and goals RLS (20261102102000_restore_carmen_command_rls,
+-- 20261102120200_carmen_command_rls_guard): synthetic tenants and personas
+-- inside one transaction that is rolled back. Tenant A has an owner and a
+-- member; tenant B has a member (the outsider); the super admin acts in tenant
+-- B; tenant C is empty; anon has no session. Tenants A and B hold one row in
+-- each of the nine tables; the member creates tenant A's heartbeat row.
+-- Browser inserts never use RETURNING and are checked as postgres, and
+-- inserts into another tenant target tenant C, so the INSERT policy alone
+-- decides them (RETURNING or ON CONFLICT onto a stored row would bring in the
+-- SELECT or UPDATE policy).
 BEGIN;
 DO $test$
 DECLARE
   v_tag text := replace(gen_random_uuid()::text, '-', '');
   v_tenant uuid := gen_random_uuid();
   v_other_tenant uuid := gen_random_uuid();
+  v_empty_tenant uuid := gen_random_uuid();
   v_owner uuid := gen_random_uuid();
   v_member uuid := gen_random_uuid();
   v_outsider uuid := gen_random_uuid();
   v_admin uuid := gen_random_uuid();
   v_agent uuid := gen_random_uuid();
   v_other_agent uuid := gen_random_uuid();
+  v_goal uuid := gen_random_uuid();
+  v_other_goal uuid := gen_random_uuid();
+  v_task uuid := gen_random_uuid();
+  v_other_task uuid := gen_random_uuid();
+  v_session uuid := gen_random_uuid();
+  v_other_session uuid := gen_random_uuid();
+  v_approval uuid := gen_random_uuid();
+  v_new_goal uuid := gen_random_uuid();
+  v_new_task uuid := gen_random_uuid();
+  v_admin_goal uuid := gen_random_uuid();
   v_tables text[] := ARRAY['goals', 'agent_tasks', 'tenant_heartbeat_settings', 'heartbeat_logs',
     'carmen_whatsapp_sessions', 'integration_alerts_log', 'integration_health',
     'agent_action_log', 'agent_approval_queue'];
   v_table text;
-  v_goal uuid;
-  v_other_goal uuid;
-  v_task uuid;
-  v_other_task uuid;
-  v_session uuid;
-  v_other_session uuid;
-  v_approval uuid;
-  v_new_goal uuid;
-  v_new_task uuid;
   v_rules jsonb;
   v_total bigint;
   v_own bigint;
@@ -41,7 +48,8 @@ BEGIN
   FROM unnest(ARRAY[v_owner, v_member, v_outsider, v_admin]) AS u;
   INSERT INTO public.tenants (id, name, slug) VALUES
     (v_tenant, 'QA tenant A', 'qa-rls-carmen-a-' || v_tag),
-    (v_other_tenant, 'QA tenant B', 'qa-rls-carmen-b-' || v_tag);
+    (v_other_tenant, 'QA tenant B', 'qa-rls-carmen-b-' || v_tag),
+    (v_empty_tenant, 'QA tenant C', 'qa-rls-carmen-c-' || v_tag);
   INSERT INTO public.tenant_users (tenant_id, user_id, role) VALUES
     (v_tenant, v_owner, 'owner'), (v_tenant, v_member, 'member'), (v_other_tenant, v_outsider, 'member');
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
@@ -52,28 +60,23 @@ BEGIN
 
   INSERT INTO public.ai_agents (id, tenant_id, name) VALUES
     (v_agent, v_tenant, 'QA agent A'), (v_other_agent, v_other_tenant, 'QA agent B');
-  INSERT INTO public.goals (tenant_id, title) VALUES (v_tenant, 'QA goal A') RETURNING id INTO v_goal;
-  INSERT INTO public.goals (tenant_id, title) VALUES (v_other_tenant, 'QA goal B') RETURNING id INTO v_other_goal;
-  INSERT INTO public.agent_tasks (tenant_id, agent_id, title, goal_id)
-  VALUES (v_tenant, v_agent, 'QA task A', v_goal) RETURNING id INTO v_task;
-  INSERT INTO public.agent_tasks (tenant_id, agent_id, title, goal_id)
-  VALUES (v_other_tenant, v_other_agent, 'QA task B', v_other_goal) RETURNING id INTO v_other_task;
+  INSERT INTO public.goals (id, tenant_id, title) VALUES
+    (v_goal, v_tenant, 'QA goal A'), (v_other_goal, v_other_tenant, 'QA goal B');
+  INSERT INTO public.agent_tasks (id, tenant_id, agent_id, title, goal_id) VALUES
+    (v_task, v_tenant, v_agent, 'QA task A', v_goal),
+    (v_other_task, v_other_tenant, v_other_agent, 'QA task B', v_other_goal);
   INSERT INTO public.tenant_heartbeat_settings (tenant_id, pulse_alert_rules)
-  SELECT t, '{"cpl_spike_pct": 50, "manager": {"mode": "observe",
-    "max_alerts_per_recipient_per_day": 5, "cost": {"trend_pct": 40}}}'::jsonb
-  FROM unnest(ARRAY[v_tenant, v_other_tenant]) AS t;
+  VALUES (v_other_tenant, '{"cpl_spike_pct": 50, "manager": {"mode": "observe",
+    "max_alerts_per_recipient_per_day": 5, "cost": {"trend_pct": 40}}}');
   INSERT INTO public.heartbeat_logs (tenant_id) VALUES (v_tenant), (v_other_tenant);
-  INSERT INTO public.carmen_whatsapp_sessions (tenant_id, chat_id)
-  VALUES (v_tenant, 'qa-' || v_tag || '@c.us') RETURNING id INTO v_session;
-  INSERT INTO public.carmen_whatsapp_sessions (tenant_id, chat_id)
-  VALUES (v_other_tenant, 'qa-' || v_tag || '@c.us') RETURNING id INTO v_other_session;
+  INSERT INTO public.carmen_whatsapp_sessions (id, tenant_id, chat_id) VALUES
+    (v_session, v_tenant, 'qa-' || v_tag || '@c.us'), (v_other_session, v_other_tenant, 'qa-' || v_tag || '@c.us');
   INSERT INTO public.integration_alerts_log (tenant_id, provider, alert_type)
   VALUES (v_tenant, 'qa', 'qa'), (v_other_tenant, 'qa', 'qa');
   INSERT INTO public.integration_health (tenant_id, provider) VALUES (v_tenant, 'qa'), (v_other_tenant, 'qa');
   INSERT INTO public.agent_action_log (tenant_id, action_type) VALUES (v_tenant, 'qa'), (v_other_tenant, 'qa');
-  INSERT INTO public.agent_approval_queue (tenant_id, action_type, title)
-  VALUES (v_tenant, 'qa', 'QA approval A') RETURNING id INTO v_approval;
-  INSERT INTO public.agent_approval_queue (tenant_id, action_type, title) VALUES (v_other_tenant, 'qa', 'QA approval B');
+  INSERT INTO public.agent_approval_queue (id, tenant_id, action_type, title) VALUES
+    (v_approval, v_tenant, 'qa', 'QA approval A'), (gen_random_uuid(), v_other_tenant, 'qa', 'QA approval B');
 
   -- The Heartbeat panel upserts on tenant_id, which needs #1010's primary
   -- key; add it inside this rolled-back transaction until that lands.
@@ -84,11 +87,20 @@ BEGIN
     ALTER TABLE public.tenant_heartbeat_settings ADD PRIMARY KEY (tenant_id);
   END IF;
 
-  -- Member of tenant A: reads the Carmen tasks list, goals, heartbeat
-  -- settings and every other table of the group for tenant A only.
+  -- Member of tenant A: creates the tenant's heartbeat row the way the tasks
+  -- view's first save does (a plain insert).
   PERFORM set_config('request.jwt.claim.sub', v_member::text, true);
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_member, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
+  INSERT INTO public.tenant_heartbeat_settings (tenant_id, max_concurrent_tasks) VALUES (v_tenant, 3);
+  RESET ROLE;
+  IF NOT EXISTS (SELECT 1 FROM public.tenant_heartbeat_settings WHERE tenant_id = v_tenant) THEN
+    RAISE EXCEPTION 'member: the own heartbeat row was not created';
+  END IF;
+  SET LOCAL ROLE authenticated;
+
+  -- ...reads the Carmen tasks list, goals, heartbeat settings and every other
+  -- table of the group for tenant A only.
   FOREACH v_table IN ARRAY v_tables LOOP
     EXECUTE format('SELECT count(*), count(*) FILTER (WHERE tenant_id = $1) FROM public.%I', v_table)
     INTO v_total, v_own USING v_tenant;
@@ -98,9 +110,15 @@ BEGIN
   END LOOP;
 
   -- ...creates, edits and deletes goals and Carmen tasks in tenant A only.
-  INSERT INTO public.goals (tenant_id, title) VALUES (v_tenant, 'QA member goal') RETURNING id INTO v_new_goal;
-  INSERT INTO public.agent_tasks (tenant_id, agent_id, title, goal_id)
-  VALUES (v_tenant, v_agent, 'QA member task', v_new_goal) RETURNING id INTO v_new_task;
+  INSERT INTO public.goals (id, tenant_id, title) VALUES (v_new_goal, v_tenant, 'QA member goal');
+  INSERT INTO public.agent_tasks (id, tenant_id, agent_id, title, goal_id)
+  VALUES (v_new_task, v_tenant, v_agent, 'QA member task', v_new_goal);
+  RESET ROLE;
+  IF NOT EXISTS (SELECT 1 FROM public.goals WHERE id = v_new_goal AND tenant_id = v_tenant)
+     OR NOT EXISTS (SELECT 1 FROM public.agent_tasks WHERE id = v_new_task AND tenant_id = v_tenant) THEN
+    RAISE EXCEPTION 'member: the own goal or task was not created';
+  END IF;
+  SET LOCAL ROLE authenticated;
   UPDATE public.goals SET status = 'in_progress' WHERE id IN (v_goal, v_other_goal);
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 1 THEN RAISE EXCEPTION 'member: goal edit reached % rows (expected own only)', v_rows; END IF;
@@ -114,12 +132,12 @@ BEGIN
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 1 THEN RAISE EXCEPTION 'member: goal delete reached % rows (expected own only)', v_rows; END IF;
   BEGIN
-    INSERT INTO public.goals (tenant_id, title) VALUES (v_other_tenant, 'Must be denied');
+    INSERT INTO public.goals (tenant_id, title) VALUES (v_empty_tenant, 'Must be denied');
     RAISE EXCEPTION 'member: a goal can be created in another tenant';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    INSERT INTO public.agent_tasks (tenant_id, agent_id, title) VALUES (v_other_tenant, v_other_agent, 'Must be denied');
+    INSERT INTO public.agent_tasks (tenant_id, agent_id, title) VALUES (v_empty_tenant, v_agent, 'Must be denied');
     RAISE EXCEPTION 'member: a task can be created in another tenant';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -137,8 +155,9 @@ BEGIN
   -- ...saves heartbeat settings and the cost thresholds the way the panel
   -- does (upsert on tenant_id) and the way the tasks view does (update).
   SELECT pulse_alert_rules INTO v_rules FROM public.tenant_heartbeat_settings WHERE tenant_id = v_tenant;
+  v_rules := v_rules || '{"manager": {"cost": {"trend_pct": 55}}}';
   INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled, interval_hours, pulse_alert_rules, updated_at)
-  VALUES (v_tenant, true, 6, jsonb_set(v_rules, '{manager,cost,trend_pct}', '55'), now())
+  VALUES (v_tenant, true, 6, v_rules, now())
   ON CONFLICT (tenant_id) DO UPDATE SET enabled = EXCLUDED.enabled, interval_hours = EXCLUDED.interval_hours,
     pulse_alert_rules = EXCLUDED.pulse_alert_rules, updated_at = EXCLUDED.updated_at;
   UPDATE public.tenant_heartbeat_settings SET max_concurrent_tasks = 4 WHERE tenant_id = v_tenant;
@@ -176,16 +195,16 @@ BEGIN
 
   -- ...cannot create or edit another tenant's heartbeat settings.
   BEGIN
-    INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled) VALUES (v_other_tenant, true)
-    ON CONFLICT (tenant_id) DO UPDATE SET enabled = EXCLUDED.enabled;
-    RAISE EXCEPTION 'member: another tenant''s heartbeat settings can be upserted';
+    INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled) VALUES (v_empty_tenant, true);
+    RAISE EXCEPTION 'member: another tenant''s heartbeat settings can be created';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   UPDATE public.tenant_heartbeat_settings SET enabled = true WHERE tenant_id = v_other_tenant;
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 0 THEN RAISE EXCEPTION 'member: another tenant''s heartbeat settings are editable'; END IF;
 
-  -- ...and writes none of the logs or the approval queue.
+  -- ...and writes none of the logs or the approval queue (approvals are
+  -- decided by carmen-approval-execute and resume-agent-run, AIO-230).
   BEGIN
     INSERT INTO public.agent_action_log (tenant_id, action_type) VALUES (v_tenant, 'Must be denied');
     RAISE EXCEPTION 'member: agent_action_log accepts a browser insert';
@@ -227,8 +246,8 @@ BEGIN
     END IF;
   END LOOP;
   SELECT pulse_alert_rules INTO v_rules FROM public.tenant_heartbeat_settings WHERE tenant_id = v_tenant;
-  v_rules := jsonb_set(jsonb_set(jsonb_set(v_rules, '{manager,max_alerts_per_recipient_per_day}', '7'),
-    '{manager,mode}', '"david_only"'), '{manager,cost,trend_pct}', '60');
+  v_rules := v_rules || jsonb_build_object('manager', v_rules -> 'manager'
+    || '{"mode": "david_only", "max_alerts_per_recipient_per_day": 7, "cost": {"trend_pct": 60}}');
   INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled, interval_hours, pulse_alert_rules, updated_at)
   VALUES (v_tenant, false, 4, v_rules, now())
   ON CONFLICT (tenant_id) DO UPDATE SET enabled = EXCLUDED.enabled, interval_hours = EXCLUDED.interval_hours,
@@ -264,15 +283,10 @@ BEGIN
   DELETE FROM public.agent_tasks WHERE id = v_task;
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 0 THEN RAISE EXCEPTION 'outsider: tenant A''s task is deletable'; END IF;
-  BEGIN
-    INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled) VALUES (v_tenant, true)
-    ON CONFLICT (tenant_id) DO UPDATE SET enabled = EXCLUDED.enabled;
-    RAISE EXCEPTION 'outsider: tenant A''s heartbeat settings can be upserted';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
   RESET ROLE;
 
-  -- Super admin acting in tenant B: reads every tenant, writes only tenant B.
+  -- Super admin acting in tenant B: reads every tenant, writes in tenant B,
+  -- and is refused every write into another tenant.
   PERFORM set_config('request.jwt.claim.sub', v_admin::text, true);
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
@@ -283,23 +297,67 @@ BEGIN
       RAISE EXCEPTION 'super admin: % shows % tenant B and % tenant A rows (expected 1 and 1)', v_table, v_own, v_other;
     END IF;
   END LOOP;
-  UPDATE public.goals SET title = 'Must be denied' WHERE id = v_goal;
+
+  INSERT INTO public.goals (id, tenant_id, title) VALUES (v_admin_goal, v_other_tenant, 'QA admin goal');
+  UPDATE public.agent_tasks SET status = 'paused' WHERE id = v_other_task;
   GET DIAGNOSTICS v_rows = ROW_COUNT;
-  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s goal is editable'; END IF;
-  UPDATE public.tenant_heartbeat_settings SET enabled = true WHERE tenant_id = v_tenant;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'super admin: the acting tenant''s task is not editable'; END IF;
+  UPDATE public.carmen_whatsapp_sessions SET open_group = true WHERE id = v_other_session;
   GET DIAGNOSTICS v_rows = ROW_COUNT;
-  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s heartbeat settings are editable'; END IF;
-  BEGIN
-    INSERT INTO public.agent_tasks (tenant_id, agent_id, title) VALUES (v_tenant, v_agent, 'Must be denied');
-    RAISE EXCEPTION 'super admin: a task can be created in another tenant';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'super admin: the acting tenant''s session is not editable'; END IF;
   UPDATE public.tenant_heartbeat_settings
   SET pulse_alert_rules = jsonb_set(pulse_alert_rules, '{manager,max_alerts_per_recipient_per_day}', '8')
   WHERE tenant_id = v_other_tenant;
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 1 THEN RAISE EXCEPTION 'super admin: the acting tenant''s manager settings are not editable'; END IF;
+
+  BEGIN
+    INSERT INTO public.goals (tenant_id, title) VALUES (v_tenant, 'Must be denied');
+    RAISE EXCEPTION 'super admin: a goal can be created in another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE public.goals SET title = 'Must be denied' WHERE id = v_goal;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s goal is editable'; END IF;
+  BEGIN
+    UPDATE public.goals SET tenant_id = v_tenant WHERE id = v_other_goal;
+    RAISE EXCEPTION 'super admin: a goal can be moved to another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  DELETE FROM public.goals WHERE id = v_goal;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s goal is deletable'; END IF;
+  BEGIN
+    INSERT INTO public.agent_tasks (tenant_id, agent_id, title) VALUES (v_tenant, v_agent, 'Must be denied');
+    RAISE EXCEPTION 'super admin: a task can be created in another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE public.agent_tasks SET status = 'failed' WHERE id = v_task;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s task is editable'; END IF;
+  DELETE FROM public.agent_tasks WHERE id = v_task;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s task is deletable'; END IF;
+  UPDATE public.carmen_whatsapp_sessions SET status = 'paused' WHERE id = v_session;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s session is editable'; END IF;
+  UPDATE public.tenant_heartbeat_settings SET enabled = true WHERE tenant_id = v_tenant;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'super admin: another tenant''s heartbeat settings are editable'; END IF;
+  BEGIN
+    INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled) VALUES (v_empty_tenant, true);
+    RAISE EXCEPTION 'super admin: another tenant''s heartbeat settings can be created';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   RESET ROLE;
+  IF NOT EXISTS (SELECT 1 FROM public.goals WHERE id = v_admin_goal AND tenant_id = v_other_tenant) THEN
+    RAISE EXCEPTION 'super admin: the goal in the acting tenant was not created';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.goals WHERE id = v_goal AND title = 'QA goal A')
+     OR NOT EXISTS (SELECT 1 FROM public.agent_tasks WHERE id = v_task AND status = 'running')
+     OR NOT EXISTS (SELECT 1 FROM public.carmen_whatsapp_sessions WHERE id = v_session AND status = 'active') THEN
+    RAISE EXCEPTION 'super admin: a tenant A row changed';
+  END IF;
 
   -- anon: reads nothing and writes nothing (the approval queue is not even granted).
   PERFORM set_config('request.jwt.claim.sub', '', true);
@@ -318,7 +376,7 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled) VALUES (gen_random_uuid(), true);
+    INSERT INTO public.tenant_heartbeat_settings (tenant_id, enabled) VALUES (v_empty_tenant, true);
     RAISE EXCEPTION 'anon: heartbeat settings can be created';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;

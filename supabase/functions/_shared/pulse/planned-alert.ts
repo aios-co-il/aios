@@ -5,10 +5,6 @@ export type PlannedInstantAlert = {
   candidate: PulseInstantAlertCandidate;
   /** Every phone this alert is for. */
   recipients: string[];
-  /** Phones that get this alert as its own message (the rest: a summary). */
-  individual: string[];
-  /** Phones its own message was queued to. */
+  /** Phones whose queued run message lists it. */
   sentTo: string[];
-  /** Phones whose queued summary message lists it. */
-  summarizedTo: string[];
 };

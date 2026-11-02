@@ -596,11 +596,11 @@ Deno.test(
 // ── Talking scenes from the user's own pictures ─────────────────────────────
 
 const skins = ["campaigner", "designer", "analyst"];
-const materials = (format = "9:16") =>
+const materials = (format = "9:16", video: Row = {}) =>
   memoryDb({
     marketing_work_items: [
       project({
-        payload: payload({ format, video: {} }),
+        payload: payload({ format, video }),
       }),
     ],
     workshop_assets: skins.map((skin, index) => ({
@@ -638,6 +638,25 @@ const editArgs = {
   ],
   durations: [4, null, null],
 };
+
+Deno.test(
+  "a new edit from the user's pictures starts without the last film's kept design",
+  async () => {
+    const db = materials("9:16", { keep_design: true, voice_id: "v-1" });
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_edit_from_assets",
+      editArgs,
+    )) as Row;
+    assertStrictEquals(result.success, true);
+    const video = (db.tables.marketing_work_items[0].payload as Row)
+      .video as Row;
+    // The production of the new film decides again (tools/keep-design.ts).
+    assertStrictEquals(video.keep_design, undefined);
+    assertStrictEquals(video.voice_id, "v-1");
+  },
+);
 
 Deno.test(
   "lipsync, dialogue, speaker and motion arrays reach each scene of the user's pictures",
