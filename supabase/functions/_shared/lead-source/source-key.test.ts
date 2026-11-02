@@ -8,8 +8,20 @@ import {
   leadSourceMatches,
   leadSourceTagName,
 } from "./source-key.ts";
+import { givenLeadSource } from "../lead-source-events.ts";
 
 const MIGRATIONS = new URL("../../../migrations/", import.meta.url);
+const SOURCE_KEY_TS = new URL("./source-key.ts", import.meta.url);
+
+/** Characters of a regex bracket class; `\s` and `[:space:]` read as " ". */
+function classChars(cls: string): string[] {
+  const text = cls
+    .replace("[:space:]", " ")
+    .replace("\\s", " ")
+    .replaceAll("\\-", "-")
+    .replaceAll("''", "'");
+  return [...new Set(text)].sort();
+}
 
 /** Body of the newest migration's `create or replace function public.<name>(`. */
 async function latestSqlFunction(name: string): Promise<string> {
@@ -141,4 +153,46 @@ Deno.test("SQL lead_source_tag_name uses the same labels", async () => {
     Object.entries(LEAD_SOURCE_KEY_LABELS).filter(([key]) => key !== "other"),
   );
   assertEquals(labels, known);
+});
+
+Deno.test("SQL lead_source_compact strips the same characters", async () => {
+  const sql = (await latestSqlFunction("lead_source_compact")).match(
+    /'\[(.+)\]'/,
+  );
+  const ts = (await Deno.readTextFile(SOURCE_KEY_TS)).match(
+    /compactLeadSource[\s\S]*?replace\(\/\[(.+?)\]\/g/,
+  );
+  assertEquals(classChars(sql?.[1] ?? ""), classChars(ts?.[1] ?? "?"));
+});
+
+Deno.test("SQL spells a named other the way isNamedOther does", async () => {
+  const ts = [
+    ...(await Deno.readTextFile(SOURCE_KEY_TS)).matchAll(
+      /compact === "([^"]*)"/g,
+    ),
+  ].map(([, word]) => word);
+  assertEquals(ts, ["", "other", "אחר"]);
+  for (const name of ["lead_source_matches", "lead_source_tag_name"]) {
+    const sql = (await latestSqlFunction(name)).match(
+      /lead_source_compact\(p_\w+\) in \(([^)]*)\)/,
+    );
+    assertEquals(
+      [...(sql?.[1] ?? "").matchAll(/'([^']*)'/g)].map(([, word]) => word),
+      ts,
+    );
+  }
+});
+
+Deno.test("SQL lead_source_is_given agrees with givenLeadSource", async () => {
+  const sql = (await latestSqlFunction("lead_source_is_given")).match(
+    /not in \(([^)]*)\)/,
+  );
+  const notGiven = [...(sql?.[1] ?? "").matchAll(/'([^']*)'/g)].map(
+    ([, word]) => word,
+  );
+  assertEquals(notGiven, ["", "other"]);
+  for (const word of notGiven) {
+    assertStrictEquals(givenLeadSource(` ${word.toUpperCase()} `), null);
+  }
+  assertStrictEquals(givenLeadSource(" אחר "), "אחר");
 });

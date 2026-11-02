@@ -1,5 +1,10 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
-import { fieldValueEquals, sourceBranch } from "./field-match.ts";
+import {
+  fieldValueContains,
+  fieldValueEquals,
+  fieldValueStartsWith,
+  sourceBranch,
+} from "./field-match.ts";
 
 Deno.test("a source condition on paid_ads holds for a lead sent as FB", () => {
   assertStrictEquals(fieldValueEquals("source", "FB", "paid_ads"), true);
@@ -10,6 +15,26 @@ Deno.test("a source condition on paid_ads holds for a lead sent as FB", () => {
 Deno.test("other fields still compare the exact text", () => {
   assertStrictEquals(fieldValueEquals("status", "FB", "paid_ads"), false);
   assertStrictEquals(fieldValueEquals("status", "new", "new"), true);
+});
+
+Deno.test("source contains / starts with read the text and its key", () => {
+  assertStrictEquals(fieldValueContains("source", "FB", "paid_ads"), true);
+  assertStrictEquals(fieldValueContains("source", "FB", "PAID"), true);
+  assertStrictEquals(
+    fieldValueContains("first_source", "Facebook Ads", "book"),
+    true,
+  );
+  assertStrictEquals(fieldValueContains("source", "FB", "website"), false);
+  assertStrictEquals(fieldValueStartsWith("source", "FB", "paid"), true);
+  assertStrictEquals(fieldValueStartsWith("source", "FB", "F"), true);
+  assertStrictEquals(fieldValueStartsWith("source", "FB", "web"), false);
+});
+
+Deno.test("other fields contain / start with the exact text only", () => {
+  assertStrictEquals(fieldValueContains("status", "FB", "paid_ads"), false);
+  assertStrictEquals(fieldValueContains("status", "New Lead", "lead"), true);
+  assertStrictEquals(fieldValueStartsWith("status", "FB", "paid"), false);
+  assertStrictEquals(fieldValueStartsWith("status", "new", "N"), false);
 });
 
 Deno.test("a switch on source picks the branch naming the same source", () => {

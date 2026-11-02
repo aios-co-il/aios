@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { transferLeadSourceEvents } from "./source-events.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -294,16 +295,16 @@ serve(async (req: Request) => {
           );
         }
 
-        // Keep the arrival source history; the lead delete below cascades.
-        const { data: sourceEventsToTransfer } = await supabase
-          .from("lead_source_events")
-          .update({ lead_id: master.id })
-          .in("lead_id", duplicateIds)
-          .select("id");
+        // Keep the arrival source history; the lead delete below cascades, so
+        // a failed move throws and stops the run before anything is deleted.
+        const sourceEventsTransferred = await transferLeadSourceEvents(
+          supabase,
+          { tenantId: tenant_id, masterId: master.id, duplicateIds },
+        );
 
-        if (sourceEventsToTransfer?.length) {
+        if (sourceEventsTransferred) {
           groupResult.actions.push(
-            `Transferred ${sourceEventsToTransfer.length} source events`,
+            `Transferred ${sourceEventsTransferred} source events`,
           );
         }
 
