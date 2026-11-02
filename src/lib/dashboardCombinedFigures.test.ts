@@ -4,6 +4,7 @@ import {
   combinedDashboardLeads,
   combinedDashboardSales,
   dashboardCampaignMode,
+  dashboardStore,
 } from "./dashboardCombinedFigures";
 import {
   dashboardGoalsOf,
@@ -11,7 +12,61 @@ import {
   mixedCampaigns,
 } from "./dashboardGoalFixtures";
 
-const noStore = { mode: "leads" as const, storeSells: false };
+const noWoo = { revenue: 0, orders: 0 };
+
+const analytics = (data: Record<string, unknown>) => ({
+  _source: "google_analytics",
+  data: { date: "2026-10-20", report_type: "daily", sessions: 50, ...data },
+});
+
+const wooStore = {
+  source: "WooCommerce" as const,
+  purchases: 0,
+  revenue: 2250,
+  addToCart: 7,
+};
+
+describe("dashboardStore", () => {
+  it("is WooCommerce when it sold in the range, with Analytics' add-to-cart", () => {
+    expect(
+      dashboardStore([analytics({ add_to_cart: 7 })], {
+        revenue: 900,
+        orders: 3,
+      }),
+    ).toStrictEqual({
+      source: "WooCommerce",
+      purchases: 3,
+      revenue: 900,
+      addToCart: 7,
+    });
+  });
+
+  it("is Analytics when its daily rows have revenue or purchases", () => {
+    expect(
+      dashboardStore(
+        [analytics({ purchases: 2, purchase_value: 400, add_to_cart: 5 })],
+        noWoo,
+      ),
+    ).toStrictEqual({
+      source: "Analytics",
+      purchases: 2,
+      revenue: 400,
+      addToCart: 5,
+    });
+  });
+
+  it("is none for undated Analytics rows, ₪0 revenue or add-to-cart alone", () => {
+    const trafficSource = {
+      _source: "google_analytics",
+      data: { report_type: "traffic_source", purchase_value: 800 },
+    };
+    expect(dashboardStore([trafficSource], noWoo)).toBeNull();
+    expect(
+      dashboardStore([analytics({ purchase_value: 0 })], noWoo),
+    ).toBeNull();
+    expect(dashboardStore([analytics({ add_to_cart: 9 })], noWoo)).toBeNull();
+  });
+});
 
 describe("combinedDashboardSales and combinedDashboardLeads", () => {
   it("a lead dashboard's cost per lead is its lead spend over its leads", () => {
@@ -20,7 +75,7 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
       leads: 20,
       cpl: 20,
     });
-    expect(combinedDashboardSales(summary, null).roas).toBe(0);
+    expect(combinedDashboardSales(summary, null).roas).toBeNull();
   });
 
   it("a mixed dashboard takes ROAS and CPL from each goal's sums", () => {
@@ -38,19 +93,19 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
 
   it("the store's revenue is set against all spend but the lead campaigns'", () => {
     const summary = dashboardGoalsOf(mixedCampaigns);
-    const sales = combinedDashboardSales(summary, {
-      purchases: 0,
-      revenue: 2250,
-      addToCart: 7,
-    });
     // ₪1,050 spend less ₪600 on lead campaigns; no store orders, so the
     // campaigns' purchases.
-    expect(sales).toStrictEqual({
+    expect(combinedDashboardSales(summary, wooStore)).toStrictEqual({
       purchases: 10,
       revenue: 2250,
       addToCart: 7,
       roas: 5,
     });
+  });
+
+  it("a store with only lead campaigns running has no ROAS", () => {
+    const summary = dashboardGoalsOf(leadCampaigns);
+    expect(combinedDashboardSales(summary, wooStore).roas).toBeNull();
   });
 
   it("a table's own KPIs and its dashboard rows agree", () => {
@@ -74,31 +129,28 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
 });
 
 describe("dashboardCampaignMode", () => {
+  const salesTable = [
+    {
+      integration_type: "google_ads",
+      integration_settings: { campaign_type: "ecommerce" },
+    },
+  ];
+
   it("lead campaigns give lead KPIs even when a table says sales", () => {
     const summary = dashboardGoalsOf(leadCampaigns);
-    expect(
-      dashboardCampaignMode(summary, { ...noStore, mode: "ecommerce" }),
-    ).toBe("leads");
+    expect(dashboardCampaignMode(summary, null, salesTable)).toBe("leads");
   });
 
-  it("a sales campaign or a selling store gives sales KPIs", () => {
-    expect(
-      dashboardCampaignMode(dashboardGoalsOf(mixedCampaigns), noStore),
-    ).toBe("ecommerce");
-    expect(
-      dashboardCampaignMode(dashboardGoalsOf(leadCampaigns), {
-        ...noStore,
-        storeSells: true,
-      }),
-    ).toBe("ecommerce");
+  it("a sales campaign or a store that sold gives sales KPIs", () => {
+    const mixed = dashboardGoalsOf(mixedCampaigns);
+    const leads = dashboardGoalsOf(leadCampaigns);
+    expect(dashboardCampaignMode(mixed, null, [])).toBe("ecommerce");
+    expect(dashboardCampaignMode(leads, wooStore, [])).toBe("ecommerce");
   });
 
-  it("without campaigns in the range the tables' mode stays", () => {
-    expect(
-      dashboardCampaignMode(dashboardGoalsOf([]), {
-        ...noStore,
-        mode: "ecommerce",
-      }),
-    ).toBe("ecommerce");
+  it("without campaigns in the range a sales table decides", () => {
+    const empty = dashboardGoalsOf([]);
+    expect(dashboardCampaignMode(empty, null, salesTable)).toBe("ecommerce");
+    expect(dashboardCampaignMode(empty, null, [])).toBe("leads");
   });
 });

@@ -4,14 +4,11 @@ import type { FacebookCampaignRow } from "@/lib/adsMetrics";
 import {
   combinedDashboardLeads,
   combinedDashboardSales,
-  type DashboardStoreSales,
+  type DashboardStore,
 } from "@/lib/dashboardCombinedFigures";
 import { summarizeDashboardGoals } from "@/lib/dashboardGoalSummary";
 import type { GoogleAdsCampaignSummaryRow } from "../GoogleAdsCampaignSection/types";
-import {
-  DashboardPlatformBreakdown,
-  type DashboardRevenueSource,
-} from "./DashboardPlatformBreakdown";
+import { DashboardPlatformBreakdown } from "./DashboardPlatformBreakdown";
 
 const fbCampaign = (
   name: string,
@@ -52,7 +49,7 @@ const format = {
 
 function renderBreakdown(
   platforms: Parameters<typeof summarizeDashboardGoals>[0],
-  store: (DashboardStoreSales & { source: DashboardRevenueSource }) | null,
+  store: DashboardStore | null,
 ) {
   const summary = summarizeDashboardGoals(platforms);
   render(
@@ -199,5 +196,28 @@ describe("DashboardPlatformBreakdown", () => {
     expect(
       screen.getByText("הכנסות WooCommerce / הוצאות פרסום ללא קמפייני לידים"),
     ).toBeTruthy();
+  });
+
+  it("a dash for ROAS and add-to-cart when nothing can be set against them", () => {
+    renderBreakdown(
+      {
+        facebook: {
+          ecommerce: [fbCampaign("FB sales", { purchases: 1 })],
+          leads: [fbCampaign("FB leads", { spend: 200, leads: 4 })],
+          traffic: [],
+        },
+        google: [],
+      },
+      { purchases: 2, revenue: 500, addToCart: 0, source: "WooCommerce" },
+    );
+    // All ₪200 went to lead campaigns, so the store's ₪500 has no spend.
+    expect(cellsOf('סה"כ').slice(4)).toStrictEqual([
+      "-",
+      "2",
+      "₪500",
+      "-",
+      "4",
+      "₪50",
+    ]);
   });
 });

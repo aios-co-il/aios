@@ -10,34 +10,32 @@ import {
 import {
   goalCpl,
   goalRoas,
-  type DashboardStoreSales,
+  type DashboardCombinedSales,
+  type DashboardRevenueSource,
 } from "@/lib/dashboardCombinedFigures";
 import type {
   DashboardGoalRow,
   DashboardGoalSummary,
 } from "@/lib/dashboardGoalSummary";
+import type { GoogleAdsFormatters } from "../GoogleAdsCampaignSection/types";
 import {
   DeliveryCells,
   GoalRowLabel,
   LeadCells,
   SalesCells,
-  type BreakdownFormatters,
   type PlatformLabelOf,
 } from "./BreakdownCells";
-
-/** Where the total row's revenue comes from when the dashboard has a store. */
-export type DashboardRevenueSource = "WooCommerce" | "Analytics";
 
 type Props = {
   summary: DashboardGoalSummary;
   /** Combined sales of the total row (combinedDashboardSales). */
-  sales: DashboardStoreSales & { roas: number };
+  sales: DashboardCombinedSales;
   /** Combined leads of the total row (combinedDashboardLeads). */
   leads: { leads: number; cpl: number };
   /** Null when the total row's revenue is what the sales campaigns report. */
   revenueSource: DashboardRevenueSource | null;
   platformLabel: PlatformLabelOf;
-  format: BreakdownFormatters;
+  format: GoogleAdsFormatters;
 };
 
 const DELIVERY_HEADERS = [
@@ -121,7 +119,10 @@ export function DashboardPlatformBreakdown({
                 <DeliveryCells metrics={summary.total} format={format} />
                 {showSales && (
                   <SalesCells
-                    figures={{ ...sales, addToCartTracked: true }}
+                    figures={{
+                      ...sales,
+                      addToCartTracked: sales.addToCart > 0,
+                    }}
                     format={format}
                   />
                 )}

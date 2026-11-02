@@ -5,12 +5,7 @@ import type {
   DashboardAdsPlatform,
   DashboardGoalRow,
 } from "@/lib/dashboardGoalSummary";
-
-export type BreakdownFormatters = {
-  formatCurrency: (value: number) => string;
-  formatNumber: (value: number) => string;
-  formatUnitCost: (value: number) => string;
-};
+import type { GoogleAdsFormatters } from "../GoogleAdsCampaignSection/types";
 
 /** A platform's name, text color and icon, as the dashboard page draws them. */
 export type PlatformLabelOf = (platform: DashboardAdsPlatform) => {
@@ -44,7 +39,7 @@ export function DeliveryCells({
   format,
 }: {
   metrics: { spend: number; impressions: number; clicks: number };
-  format: BreakdownFormatters;
+  format: GoogleAdsFormatters;
 }) {
   return (
     <>
@@ -70,9 +65,10 @@ export function SalesCells({
     addToCartTracked: boolean;
     purchases: number;
     revenue: number;
-    roas: number;
+    /** Null when no spend can be set against the revenue. */
+    roas: number | null;
   } | null;
-  format: BreakdownFormatters;
+  format: GoogleAdsFormatters;
 }) {
   if (!figures) {
     return <EmptyCells count={4} />;
@@ -87,9 +83,15 @@ export function SalesCells({
       <TableCell>{format.formatNumber(figures.purchases)}</TableCell>
       <TableCell>{format.formatCurrency(figures.revenue)}</TableCell>
       <TableCell>
-        <span className={figures.roas >= 1 ? "text-green-600" : "text-red-600"}>
-          {figures.roas.toFixed(2)}
-        </span>
+        {figures.roas === null ? (
+          "-"
+        ) : (
+          <span
+            className={figures.roas >= 1 ? "text-green-600" : "text-red-600"}
+          >
+            {figures.roas.toFixed(2)}
+          </span>
+        )}
       </TableCell>
     </>
   );
@@ -101,7 +103,7 @@ export function LeadCells({
   format,
 }: {
   figures: { leads: number; cpl: number } | null;
-  format: BreakdownFormatters;
+  format: GoogleAdsFormatters;
 }) {
   if (!figures) {
     return <EmptyCells count={2} />;

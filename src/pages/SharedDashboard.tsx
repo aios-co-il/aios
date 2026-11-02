@@ -1,15 +1,8 @@
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
-import {
-  DashboardPlatformBreakdown,
-  type DashboardRevenueSource,
-} from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
-import {
-  combinedDashboardLeads,
-  combinedDashboardSales,
-  dashboardCampaignMode,
-} from "@/lib/dashboardCombinedFigures";
-import { summarizeDashboardGoals } from "@/lib/dashboardGoalSummary";
+import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
+import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
+import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,8 +34,6 @@ import {
   Facebook,
   FileSpreadsheet,
   TrendingUp,
-  TrendingDown,
-  Minus,
   BarChart3,
   RefreshCw,
   ShoppingCart,
@@ -667,15 +658,6 @@ export default function SharedDashboard({
     [tables],
   );
 
-  // The tables' mode; dashboardCampaignMode prefers the campaigns' own goals.
-  const tablesCampaignType: CampaignType = useMemo(() => {
-    const types = Object.values(campaignTypeByPlatform);
-    const hasEcom = types.some((t) => t === "ecommerce");
-    const hasLeads = types.some((t) => t === "leads") || facebookMixedMode;
-    if (hasEcom && hasLeads) return "ecommerce"; // show ecom KPI row + leads cards when mixed
-    return hasEcom ? "ecommerce" : "leads";
-  }, [campaignTypeByPlatform, facebookMixedMode]);
-
   const summaryByPlatform = useMemo(() => {
     const platforms: Record<string, any> = {};
     // Mixed Facebook KPIs classify whole campaigns, as the campaign tables do:
@@ -1089,30 +1071,20 @@ export default function SharedDashboard({
     return { ecommerce, leads, traffic, all };
   }, [filteredRecords, tables, facebookMixedMode, campaignTypeByPlatform]);
 
-  // The "All" tab sums the campaign tables the platform tabs show, so each
-  // campaign counts toward its own goal there too.
-  const dashboardGoals = useMemo(
-    () =>
-      summarizeDashboardGoals({
-        facebook: facebookCampaignGroups,
-        google:
-          platformFilter === "all"
-            ? summarizeGoogleAdsCampaigns(
-                filteredRecords.filter(
-                  (r: { _source?: string }) => r._source === "google_ads",
-                ),
-                data?.tables || [],
-              ).campaigns
-            : [],
-      }),
-    [platformFilter, facebookCampaignGroups, filteredRecords, data?.tables],
-  );
-  const dashboardCampaignType = dashboardCampaignMode(dashboardGoals, {
-    mode: tablesCampaignType,
-    // Analytics rows with purchases make the store a sales store.
-    storeSells: Object.entries(campaignTypeByPlatform).some(
-      ([platform, type]) => type === "ecommerce" && !isAdsPlatform(platform),
-    ),
+  // The "All" tab's goals, store and combined figures, decided as on the
+  // other dashboard page.
+  const {
+    goals: dashboardGoals,
+    store: dashboardStore,
+    mode: dashboardCampaignType,
+    sales: combinedSales,
+    leads: combinedLeads,
+  } = useDashboardGoalTotals({
+    showAll: platformFilter === "all",
+    facebook: facebookCampaignGroups,
+    records: filteredRecords,
+    tables,
+    woo: { revenue: wooSummary.revenue, orders: wooSummary.orderCount },
   });
 
   const googleAdsSummary = useMemo(
@@ -1214,27 +1186,6 @@ export default function SharedDashboard({
       platformFilter === "google_analytics" ||
       platformFilter === "woocommerce") &&
     (showAnalyticsCards || hasWooData);
-  // Combined figures keep goals apart: CPL over lead campaigns' spend, ROAS
-  // without lead campaigns' spend (combinedDashboardSales).
-  const revenueSource: DashboardRevenueSource | null = hasWooData
-    ? "WooCommerce"
-    : showAnalyticsCards
-      ? "Analytics"
-      : null;
-  const combinedSales = combinedDashboardSales(
-    dashboardGoals,
-    revenueSource
-      ? {
-          purchases: hasWooData
-            ? wooSummary.orderCount
-            : totalSummary.analyticsPurchases,
-          revenue: hasWooData ? wooSummary.revenue : totalSummary.revenue,
-          addToCart: totalSummary.analyticsAddToCart,
-        }
-      : null,
-  );
-  const combinedLeads = combinedDashboardLeads(dashboardGoals);
-  const combinedRoas = combinedSales.roas;
 
   const isSnapshotReady =
     !isLoading && !!data?.dashboard && Array.isArray(tables);
@@ -1524,27 +1475,7 @@ export default function SharedDashboard({
                   {(platformFilter === "all" ||
                     platformFilter === "google_analytics" ||
                     platformFilter === "woocommerce") && (
-                    <Card
-                      className={`h-full bg-gradient-to-br ${combinedRoas >= 1 ? "from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900" : "from-red-50 to-red-100 dark:from-red-950 dark:to-red-900"}`}
-                    >
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">
-                          ROAS משולב
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <p className="text-3xl font-bold">
-                            {combinedRoas.toFixed(2)}
-                          </p>
-                          {combinedRoas > 1 ? (
-                            <TrendingUp className="h-6 w-6 text-green-600" />
-                          ) : combinedRoas < 1 ? (
-                            <TrendingDown className="h-6 w-6 text-red-600" />
-                          ) : (
-                            <Minus className="h-6 w-6 text-muted-foreground" />
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <CombinedRoasCard roas={combinedSales.roas} />
                   )}
                 </>
               ) : (
@@ -1810,7 +1741,7 @@ export default function SharedDashboard({
               summary={dashboardGoals}
               sales={combinedSales}
               leads={combinedLeads}
-              revenueSource={revenueSource}
+              revenueSource={dashboardStore?.source ?? null}
               platformLabel={(platform) => ({
                 ...PLATFORM_CONFIG[platform],
                 icon: getIntegrationIcon(platform),
