@@ -3521,54 +3521,6 @@ export type Database = {
           },
         ];
       };
-      carmen_batch_deliveries: {
-        Row: {
-          automation_id: string | null;
-          batch_id: string;
-          chat_id: string;
-          connection_user_id: string | null;
-          created_at: string;
-          created_by: string | null;
-          delivered_at: string | null;
-          is_group: boolean;
-          last_error: string | null;
-          phone_number: string | null;
-          status: string;
-          task_type: string | null;
-          tenant_id: string;
-        };
-        Insert: {
-          automation_id?: string | null;
-          batch_id: string;
-          chat_id: string;
-          connection_user_id?: string | null;
-          created_at?: string;
-          created_by?: string | null;
-          delivered_at?: string | null;
-          is_group?: boolean;
-          last_error?: string | null;
-          phone_number?: string | null;
-          status?: string;
-          task_type?: string | null;
-          tenant_id: string;
-        };
-        Update: {
-          automation_id?: string | null;
-          batch_id?: string;
-          chat_id?: string;
-          connection_user_id?: string | null;
-          created_at?: string;
-          created_by?: string | null;
-          delivered_at?: string | null;
-          is_group?: boolean;
-          last_error?: string | null;
-          phone_number?: string | null;
-          status?: string;
-          task_type?: string | null;
-          tenant_id?: string;
-        };
-        Relationships: [];
-      };
       carmen_brain_connections: {
         Row: {
           base_url: string | null;
@@ -10154,39 +10106,6 @@ export type Database = {
           },
         ];
       };
-      pbn_service_commands: {
-        Row: {
-          allowed_resource_ids: Json;
-          created_at: string;
-          expires_at: string;
-          id: string;
-          scope: string;
-          tenant_id: string;
-          token_hash: string;
-          used_at: string | null;
-        };
-        Insert: {
-          allowed_resource_ids?: Json;
-          created_at?: string;
-          expires_at: string;
-          id?: string;
-          scope: string;
-          tenant_id: string;
-          token_hash: string;
-          used_at?: string | null;
-        };
-        Update: {
-          allowed_resource_ids?: Json;
-          created_at?: string;
-          expires_at?: string;
-          id?: string;
-          scope?: string;
-          tenant_id?: string;
-          token_hash?: string;
-          used_at?: string | null;
-        };
-        Relationships: [];
-      };
       pbx_settings: {
         Row: {
           config: Json;
@@ -15152,54 +15071,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      wa_group_members: {
-        Row: {
-          contact_id: string | null;
-          contact_name: string | null;
-          contact_type: string | null;
-          created_at: string | null;
-          group_chat_id: string;
-          id: string;
-          is_admin: boolean | null;
-          last_synced_at: string | null;
-          name: string | null;
-          phone: string;
-          tenant_id: string;
-          updated_at: string | null;
-          wa_id: string | null;
-        };
-        Insert: {
-          contact_id?: string | null;
-          contact_name?: string | null;
-          contact_type?: string | null;
-          created_at?: string | null;
-          group_chat_id: string;
-          id?: string;
-          is_admin?: boolean | null;
-          last_synced_at?: string | null;
-          name?: string | null;
-          phone: string;
-          tenant_id: string;
-          updated_at?: string | null;
-          wa_id?: string | null;
-        };
-        Update: {
-          contact_id?: string | null;
-          contact_name?: string | null;
-          contact_type?: string | null;
-          created_at?: string | null;
-          group_chat_id?: string;
-          id?: string;
-          is_admin?: boolean | null;
-          last_synced_at?: string | null;
-          name?: string | null;
-          phone?: string;
-          tenant_id?: string;
-          updated_at?: string | null;
-          wa_id?: string | null;
-        };
-        Relationships: [];
-      };
       wa_lid_map: {
         Row: {
           connection_user_id: string | null;
@@ -17292,7 +17163,15 @@ export type Database = {
         Args: { _automation_id: string; _tenant_id: string };
         Returns: boolean;
       };
+      is_channel_admin: {
+        Args: { p_channel_id: string; p_user_id: string };
+        Returns: boolean;
+      };
       is_channel_member: {
+        Args: { p_channel_id: string; p_user_id: string };
+        Returns: boolean;
+      };
+      is_public_team_channel: {
         Args: { p_channel_id: string; p_user_id: string };
         Returns: boolean;
       };
@@ -17844,6 +17723,15 @@ export type Database = {
       user_can_annotate_lead: { Args: { _lead_id: string }; Returns: boolean };
       user_can_delete_users_for_tenant: {
         Args: { check_tenant_id: string };
+        Returns: boolean;
+      };
+      user_can_link_whatsapp_chat: {
+        Args: {
+          p_channel_id: string;
+          p_tenant_id: string;
+          p_whatsapp_chat_id: string;
+          p_whatsapp_group_id: string;
+        };
         Returns: boolean;
       };
       user_can_manage_campaigners_for_tenant: {

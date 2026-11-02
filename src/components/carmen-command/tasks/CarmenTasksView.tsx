@@ -169,19 +169,13 @@ export function CarmenTasksView({
   });
   const setMaxParallel = useMutation({
     mutationFn: async (n: number) => {
-      // tenant_heartbeat_settings has no unique key on tenant_id, so no upsert.
-      const { data: updated, error: e } = await db
+      const { error: e } = await db
         .from("tenant_heartbeat_settings")
-        .update({ max_concurrent_tasks: n })
-        .eq("tenant_id", tenantId)
-        .select("tenant_id");
+        .upsert(
+          { tenant_id: tenantId, max_concurrent_tasks: n },
+          { onConflict: "tenant_id" },
+        );
       if (e) throw e;
-      if (!updated?.length) {
-        const { error: insertError } = await db
-          .from("tenant_heartbeat_settings")
-          .insert({ tenant_id: tenantId, max_concurrent_tasks: n });
-        if (insertError) throw insertError;
-      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["carmen-max-parallel", tenantId] });
