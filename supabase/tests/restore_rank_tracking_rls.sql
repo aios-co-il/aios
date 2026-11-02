@@ -1,14 +1,18 @@
--- Rank tracking access rules (20261102105000_restore_rank_tracking_rls.sql)
--- as each persona meets them through RLS. Synthetic tenants, users and rows;
--- full rollback. Runs on a scratch database, a Preview branch or Staging.
+-- Rank tracking access rules (20261102105000_restore_rank_tracking_rls.sql
+-- and 20261102113700_rls_super_admin_acting_tenant.sql) as each persona meets
+-- them through RLS. Synthetic tenants, users and rows; full rollback. Runs on
+-- a scratch database, a Preview branch or Staging.
 --
--- projects and keywords: members of the tenant read, create, edit and delete;
---   a super admin reads, edits and deletes in every tenant and creates only in
---   their active tenant. Keywords follow their project.
+-- projects and keywords: members of the active tenant read, create, edit and
+--   delete; a super admin reads every tenant and writes only where they act,
+--   never into another tenant. Keywords follow their project.
 -- history: read as its keyword's project; written only by the service role.
 -- competitors, alerts and alert logs: service role only.
 --
--- Prints one line per persona, then raises if any line differs from the rule.
+-- Inserts carry no RETURNING and are counted as postgres afterwards, so each
+-- insert is decided by the INSERT policy alone. Moves and deletes use spare
+-- rows seeded per persona. Prints one line per persona, then raises if any
+-- line differs from the rule.
 BEGIN;
 DO $test$
 DECLARE
@@ -20,7 +24,7 @@ DECLARE
   super_admin uuid := gen_random_uuid();
   seeds jsonb := '{}';
   personas jsonb;
-  p jsonb; side text; other text;
+  p jsonb; side text; other text; mark text;
   t_id uuid; t_other uuid; proj_id uuid; kw_id uuid; hist_id uuid; spare_proj uuid; spare_kw uuid; new_id uuid;
   n bigint; reads text; acts text; got text; want text;
   lines text[] := '{}';
@@ -48,7 +52,7 @@ BEGIN
     jsonb_build_object('name', 'owner A', 'role', 'authenticated', 'uid', owner_a, 'reads', 'A', 'manages', 'A', 'creates', 'A'),
     jsonb_build_object('name', 'member A', 'role', 'authenticated', 'uid', member_a, 'reads', 'A', 'manages', 'A', 'creates', 'A'),
     jsonb_build_object('name', 'member B', 'role', 'authenticated', 'uid', member_b, 'reads', 'B', 'manages', 'B', 'creates', 'B'),
-    jsonb_build_object('name', 'super admin', 'role', 'authenticated', 'uid', super_admin, 'reads', 'AB', 'manages', 'AB', 'creates', 'B'),
+    jsonb_build_object('name', 'super admin', 'role', 'authenticated', 'uid', super_admin, 'reads', 'AB', 'manages', 'B', 'creates', 'B'),
     jsonb_build_object('name', 'anon', 'role', 'anon', 'uid', NULL, 'reads', '', 'manages', '', 'creates', '')
   );
 
@@ -92,6 +96,7 @@ BEGIN
       hist_id := (seeds->>('history:' || side))::uuid;
       spare_proj := (seeds->>('spare_project:' || side || ':' || (p->>'name')))::uuid;
       spare_kw := (seeds->>('spare_keyword:' || side || ':' || (p->>'name')))::uuid;
+      mark := 'qa-new-' || tag || '-' || replace(p->>'name', ' ', '-') || '-' || side;
 
       -- Read: project, keyword, history, then competitors, alerts and alert logs.
       SELECT (SELECT count(*) FROM public.rank_tracking_projects WHERE id = proj_id)::text
@@ -103,18 +108,19 @@ BEGIN
         INTO reads;
 
       acts := '';
-      -- i: create a project; k: add a keyword to the tenant's project.
+      -- i: create a project; k: add a keyword to the tenant's project (both counted as postgres).
       BEGIN
-        INSERT INTO public.rank_tracking_projects (tenant_id, name, domain)
-        VALUES (t_id, 'QA new', 'qa-new-' || tag || '.invalid');
-        acts := acts || 'i';
+        INSERT INTO public.rank_tracking_projects (tenant_id, name, domain) VALUES (t_id, mark, 'qa-new.invalid');
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
       BEGIN
-        INSERT INTO public.rank_tracking_keywords (project_id, keyword) VALUES (proj_id, 'qa new ' || (p->>'name'));
-        acts := acts || 'k';
+        INSERT INTO public.rank_tracking_keywords (project_id, keyword) VALUES (proj_id, mark);
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
+      RESET ROLE;
+      IF EXISTS (SELECT 1 FROM public.rank_tracking_projects WHERE name = mark) THEN acts := acts || 'i'; END IF;
+      IF EXISTS (SELECT 1 FROM public.rank_tracking_keywords WHERE keyword = mark) THEN acts := acts || 'k'; END IF;
+      EXECUTE format('SET LOCAL ROLE %I', p->>'role');
       -- u: edit the project; e: edit the keyword.
       UPDATE public.rank_tracking_projects SET name = 'QA edited' WHERE id = proj_id;
       GET DIAGNOSTICS n = ROW_COUNT;
@@ -135,17 +141,19 @@ BEGIN
         IF n > 0 THEN acts := acts || 'n'; END IF;
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
-      -- h: write a position (service role only); c: add a competitor (service role only).
+      -- h: write a position; c: add a competitor (service role only; counted as postgres).
       BEGIN
-        INSERT INTO public.rank_tracking_history (keyword_id, position) VALUES (kw_id, 1);
-        acts := acts || 'h';
+        INSERT INTO public.rank_tracking_history (keyword_id, position, url_found) VALUES (kw_id, 1, mark);
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
       BEGIN
-        INSERT INTO public.rank_tracking_competitors (project_id, domain) VALUES (proj_id, 'new-' || tag || '.invalid');
-        acts := acts || 'c';
+        INSERT INTO public.rank_tracking_competitors (project_id, domain) VALUES (proj_id, mark);
       EXCEPTION WHEN insufficient_privilege THEN NULL;
       END;
+      RESET ROLE;
+      IF EXISTS (SELECT 1 FROM public.rank_tracking_history WHERE url_found = mark) THEN acts := acts || 'h'; END IF;
+      IF EXISTS (SELECT 1 FROM public.rank_tracking_competitors WHERE domain = mark) THEN acts := acts || 'c'; END IF;
+      EXECUTE format('SET LOCAL ROLE %I', p->>'role');
       -- x: delete a keyword; d: delete a project.
       DELETE FROM public.rank_tracking_keywords WHERE id = spare_kw;
       GET DIAGNOSTICS n = ROW_COUNT;
@@ -158,10 +166,8 @@ BEGIN
       want := want || format(' %s:read=%s:%s', side,
         CASE WHEN strpos(p->>'reads', side) > 0 THEN '111000' ELSE '000000' END,
         CASE WHEN strpos(p->>'creates', side) > 0 THEN 'ik' ELSE '' END
-          || CASE WHEN strpos(p->>'manages', side) > 0 THEN 'ue' ELSE '' END
-          -- Only a manager of both tenants (a super admin) can move rows between them.
-          || CASE WHEN strpos(p->>'manages', side) > 0 AND strpos(p->>'manages', other) > 0 THEN 'mn' ELSE '' END
-          || CASE WHEN strpos(p->>'manages', side) > 0 THEN 'xd' ELSE '' END);
+          -- Nobody moves a row between tenants: writing needs the active tenant on both sides.
+          || CASE WHEN strpos(p->>'manages', side) > 0 THEN 'uexd' ELSE '' END);
     END LOOP;
 
     lines := lines || format('%-12s%s', p->>'name', got);
@@ -178,5 +184,5 @@ BEGIN
   END IF;
 END;
 $test$;
-SELECT 'Rank tracking: tenant projects and keywords, read-only history, service-only alerts and anon isolation passed' AS result;
+SELECT 'Rank tracking: active-tenant projects and keywords, read-only history, service-only alerts and anon isolation passed' AS result;
 ROLLBACK;
