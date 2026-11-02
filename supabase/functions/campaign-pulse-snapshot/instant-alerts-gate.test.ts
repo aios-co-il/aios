@@ -5,6 +5,7 @@ import {
   ACME,
   fakeSupabase,
   OWNER_RECIPIENT,
+  TEST_ORG,
   WEDNESDAY,
 } from "../_shared/pulse/fake-alert-log.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
@@ -29,6 +30,7 @@ async function gatedRun(setting: Setting, body: Body) {
   const result = await gatedInstantAlerts(setting, body, {
     supabase: fakeSupabase(),
     tenantId: "t1",
+    orgName: TEST_ORG,
     reportRecipients: [OWNER_RECIPIENT],
     snapshots: [ACME],
     criticalIssues: [],
@@ -105,7 +107,9 @@ Deno.test("gatedInstantAlerts", async (t) => {
         tenant_id: "t1",
         source: "post_facebook_sync",
       });
-      assertStrictEquals(refresh.sends.length, 2); // no_contact + connection_lost
+      // no_contact and connection_lost, in one run message
+      assertStrictEquals(refresh.sends.length, 1);
+      assertStrictEquals(refresh.result.sent, 2);
       assertStrictEquals(refresh.result.suppressed, undefined);
     },
   );

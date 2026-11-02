@@ -33,6 +33,21 @@ export function spentWithoutResults3d(campaign: AlertCampaign): boolean {
   );
 }
 
+/**
+ * A campaign_exception's figures in its run-message line: 3 and 7 days
+ * against the target, or, without one, how far they moved from the baseline.
+ */
+export function exceptionFiguresText(campaign: AlertCampaign): string {
+  const [baseline] = baselineTrendLines(campaign);
+  if (baseline) {
+    return baseline;
+  }
+  const threeDays =
+    campaign.efficiency_3d ??
+    (spentWithoutResults3d(campaign) ? "אין תוצאות" : "חסר");
+  return `3 ימים: ${threeDays} · 7 ימים: ${campaign.efficiency_7d ?? "חסר"} · יעד: ${alertTargetText(campaign)}`;
+}
+
 /** Without a target the comparison is the baseline: the line says how far it moved. */
 export function baselineTrendLines(campaign: AlertCampaign): string[] {
   const noResults3 = spentWithoutResults3d(campaign);

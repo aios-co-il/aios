@@ -1,44 +1,87 @@
-/** Sending one pulse instant alert and logging who got it (AIO-226). */
+/** Sending a run's pulse instant alerts and logging who got each (AIO-290). */
 import type {
+  InstantPulseAlertsInput,
   PulseInstantAlertCandidate,
-  QueueWhatsApp,
 } from "../pulse-instant-alerts.ts";
 import type { DbClient } from "../supabase-clients.ts";
+import type { PlannedInstantAlert } from "./planned-alert.ts";
+import { buildPulseRunMessage } from "./run-message.ts";
 
 /**
- * Queues the alert to each phone and logs the phones whose send was queued;
- * returns those phones. Only queued phones go in the log, because another
- * org's dedupe drops the phones it reads there (cross-tenant-recipients.ts).
+ * Queues one run message per recipient phone, listing every alert planned
+ * for it, and records each phone reached in the alert's `sentTo`. Then each
+ * alert is logged once per text it went out in, for the phones whose message
+ * was queued. A phone whose message is not queued gets no row, so an alert
+ * that reached no phone goes out next run. Only queued phones go in the log,
+ * because another org's dedupe drops the phones it reads there
+ * (cross-tenant-recipients.ts).
  */
-export async function queueAndLogInstantAlert(
-  input: {
-    supabase: Pick<DbClient, "from">;
-    tenantId: string;
-    queueWhatsApp: QueueWhatsApp;
-  },
-  candidate: PulseInstantAlertCandidate,
-  phones: string[],
-): Promise<string[]> {
-  const queuedPhones: string[] = [];
-  for (const phone of phones) {
-    if (await input.queueWhatsApp(candidate.message, phone)) {
-      queuedPhones.push(phone);
+export async function sendRunMessages(
+  input: Pick<
+    InstantPulseAlertsInput,
+    "supabase" | "tenantId" | "orgName" | "queueWhatsApp"
+  >,
+  planned: PlannedInstantAlert[],
+  now: Date,
+): Promise<{ messages: number }> {
+  let messages = 0;
+  // Per alert: each message text it went out in → the phones that got it.
+  const delivered = new Map<PlannedInstantAlert, Map<string, string[]>>();
+  for (const [phone, items] of alertsByPhone(planned)) {
+    const message = buildPulseRunMessage(
+      input.orgName,
+      now,
+      items.map((item) => item.candidate),
+    );
+    if (!(await input.queueWhatsApp(message, phone))) {
+      console.error(
+        "[pulse-instant-alerts] run message not queued; its alerts are not logged for this phone",
+        { tenant_id: input.tenantId, alerts: items.length },
+      );
+      continue;
+    }
+
+    messages += 1;
+    for (const item of items) {
+      item.sentTo.push(phone);
+      const phonesByText = delivered.get(item) ?? new Map<string, string[]>();
+      phonesByText.set(message, [...(phonesByText.get(message) ?? []), phone]);
+      delivered.set(item, phonesByText);
     }
   }
-  if (queuedPhones.length) {
-    await logInstantAlert(input, candidate, queuedPhones);
+
+  for (const [item, phonesByText] of delivered) {
+    for (const [message, phones] of phonesByText) {
+      await logInstantAlert(input, item.candidate, message, phones);
+    }
   }
-  return queuedPhones;
+
+  return { messages };
+}
+
+/** Each recipient phone with the planned alerts for it, in plan order. */
+function alertsByPhone(
+  planned: PlannedInstantAlert[],
+): Map<string, PlannedInstantAlert[]> {
+  const byPhone = new Map<string, PlannedInstantAlert[]>();
+  for (const item of planned) {
+    for (const phone of item.recipients) {
+      byPhone.set(phone, [...(byPhone.get(phone) ?? []), item]);
+    }
+  }
+
+  return byPhone;
 }
 
 /**
  * The pulse_instant_alert_log row dedupe reads, for `phones`, which received
- * `candidate.message` (its own text, or the summary that listed it). A failed
- * insert is logged, and the next run then resends.
+ * `message` (the run message that listed the alert). A failed insert is
+ * logged, and the next run then resends.
  */
-export async function logInstantAlert(
+async function logInstantAlert(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   candidate: PulseInstantAlertCandidate,
+  message: string,
   phones: string[],
 ): Promise<void> {
   const { error } = await input.supabase
@@ -47,12 +90,12 @@ export async function logInstantAlert(
       tenant_id: input.tenantId,
       client_id: candidate.client_id,
       rule_type: candidate.rule_type,
-      message: candidate.message,
+      message,
       recipient_phone: joinRecipientPhones(phones),
       campaign_key: candidate.campaign_key || null,
       fingerprint: candidate.fingerprint || null,
       severity_score: candidate.severity_score || null,
-      evidence: candidate.evidence || {},
+      evidence: { ...candidate.evidence, delivery: "digest" },
     });
   if (error) {
     console.error(

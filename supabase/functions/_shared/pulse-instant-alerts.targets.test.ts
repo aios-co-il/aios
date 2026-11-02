@@ -58,7 +58,7 @@ Deno.test(
       INSTANT_RULES,
     );
     assertStrictEquals(candidate.rule_type, "campaign_exception");
-    assertMatch(candidate.message, /יעד: CPL 60 · יעד שוק \(כרמן\)/);
+    assertMatch(candidate.line, /יעד: CPL 60 · יעד שוק \(כרמן\)$/);
     assertStrictEquals(candidate.evidence?.target_source, "carmen_market");
 
     const approved = onlyRow(
@@ -109,9 +109,11 @@ Deno.test(
       [],
       INSTANT_RULES,
     );
-    assertMatch(candidate.message, /יעד: אין יעד\n/);
-    assertMatch(candidate.message, /3 ימים: אין תוצאות/);
-    assertMatch(candidate.message, /החמרה מול הבסיס: 3 ימים אין תוצאות/);
+    // Without a target the line compares 3 and 7 days with the baseline.
+    assertMatch(
+      candidate.line,
+      / — החמרה מול הבסיס: 3 ימים אין תוצאות · 7 ימים 250%$/,
+    );
     assertStrictEquals(candidate.evidence?.no_results_3d, true);
 
     // Off by default: the same campaign is a yellow, silent exception.

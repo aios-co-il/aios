@@ -24,7 +24,7 @@ function exception(
     campaign_key: "meta:id:1",
     fingerprint: "meta:id:1:חריגה:cpl:30",
     severity_score: 40,
-    message: "",
+    line: "",
     ...overrides,
   };
 }
@@ -158,18 +158,12 @@ Deno.test("planInstantAlerts", async (t) => {
   );
 
   await t.step(
-    "a planned alert goes to every recipient on its own until the cap runs",
+    "a planned alert is for every recipient and has reached none yet",
     async () => {
       const candidate = exception();
       const result = await plan([candidate]);
       assertEquals(result.planned, [
-        {
-          candidate,
-          recipients: [OWNER_PHONE, MANAGER_PHONE],
-          individual: [OWNER_PHONE, MANAGER_PHONE],
-          sentTo: [],
-          summarizedTo: [],
-        },
+        { candidate, recipients: [OWNER_PHONE, MANAGER_PHONE], sentTo: [] },
       ]);
     },
   );

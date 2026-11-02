@@ -1,4 +1,9 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  exceptionSnapshot,
+  sectionLines,
+  sectionTitles,
+} from "./exception-fixtures.ts";
 import { ACME, fakeSupabase, run, WEDNESDAY } from "./fake-alert-log.ts";
 import {
   decideInstantAlertDelivery,
@@ -19,7 +24,7 @@ Deno.test("isInstantAlertSuppressed", async (t) => {
           client_id: "c1",
           client_name: "Acme",
           rule_type: "connection_lost",
-          message: "",
+          line: "",
           fingerprint: "connection_lost:c1:open",
         },
         24,
@@ -96,14 +101,40 @@ Deno.test("deliverInstantPulseAlerts dedupe", async (t) => {
   await t.step("two identical runs send each finding once", async () => {
     const supabase = fakeSupabase();
     const first = await run(supabase, WEDNESDAY);
-    assertStrictEquals(first.result.sent, 2); // no_contact + connection_lost
-    assertStrictEquals(first.sends.length, 2);
+    // no_contact and connection_lost, in one run message
+    assertStrictEquals(first.result.sent, 2);
+    assertStrictEquals(first.sends.length, 1);
     const second = await run(supabase, new Date(WEDNESDAY.getTime() + 3600e3));
     assertStrictEquals(second.result.sent, 0);
     assertStrictEquals(second.sends.length, 0);
     assertStrictEquals(supabase.log.length, 2);
     assert(supabase.log.every((row) => row.fingerprint));
   });
+
+  await t.step(
+    "an alert sent in a run message is not resent inside its throttle window; the next message lists only the new one",
+    async () => {
+      const supabase = fakeSupabase();
+      await run(supabase, WEDNESDAY);
+      const later = await run(
+        supabase,
+        new Date(WEDNESDAY.getTime() + 3600e3),
+        [
+          {
+            ...ACME,
+            campaign_breakdown: exceptionSnapshot().campaign_breakdown,
+          },
+        ],
+      );
+      assertStrictEquals(later.sends.length, 1);
+      assertEquals(sectionTitles(later.sends[0].message), ["🔴 חריגות קמפיין"]);
+      assertEquals(
+        sectionLines(later.sends[0].message, "🔴 חריגות קמפיין").length,
+        1,
+      );
+      assertStrictEquals(later.result.skipped, 2);
+    },
+  );
 
   await t.step(
     "a legacy NULL-fingerprint row inside the throttle window suppresses a resend",

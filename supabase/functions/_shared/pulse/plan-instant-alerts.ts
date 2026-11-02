@@ -83,13 +83,7 @@ export async function planInstantAlerts(
       ...earlier,
     ]);
     const phones = recipients.map((row) => row.phone);
-    planned.push({
-      candidate,
-      recipients: phones,
-      individual: phones,
-      sentTo: [],
-      summarizedTo: [],
-    });
+    planned.push({ candidate, recipients: phones, sentTo: [] });
   }
 
   return { planned, skipped };

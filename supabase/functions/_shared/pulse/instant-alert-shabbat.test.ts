@@ -5,6 +5,11 @@ import {
 } from "jsr:@std/assert@1";
 import type { PulseSnapshotAlertInput } from "../pulse-instant-alerts.ts";
 import {
+  exceptionCampaigns,
+  exceptionSnapshot,
+  sectionTitles,
+} from "./exception-fixtures.ts";
+import {
   fakeSupabase,
   healthy,
   NO_CONTACT_OFF,
@@ -16,6 +21,7 @@ import { isPulseAlertHeldForShabbat } from "./instant-alert-shabbat.ts";
 const SATURDAY_11 = new Date("2026-10-31T09:00:00Z"); // 11:00 Israel
 const SUNDAY_06 = new Date("2026-11-01T04:00:00Z"); // 06:00 Israel
 type Issue = { clientId: string; alertType: string };
+const CONNECTION = "🔴 חיבור / קמפיין נעצר";
 
 Deno.test("isPulseAlertHeldForShabbat", async (t) => {
   await t.step(
@@ -61,7 +67,7 @@ Deno.test("deliverInstantPulseAlerts on Shabbat", async (t) => {
       const sat = await run(supabase, saturday);
       assertStrictEquals(sat.result.sent, 1);
       assertStrictEquals(sat.result.held, 1);
-      assertMatch(sat.sends[0].message, /חיבור\/קמפיין/);
+      assertEquals(sectionTitles(sat.sends[0].message), [CONNECTION]);
       assertEquals(
         supabase.log.map((row) => row.rule_type),
         ["connection_lost"],
@@ -82,6 +88,31 @@ Deno.test("deliverInstantPulseAlerts on Shabbat", async (t) => {
       // Still inside connection_lost's 24h throttle and no_contact's 7 days.
       const sundayLater = await run(supabase, new Date("2026-11-01T07:00:00Z"));
       assertStrictEquals(sundayLater.result.sent, 0);
+    },
+  );
+
+  await t.step(
+    "held alerts join the first run's one message after Shabbat; the critical loss went out alone",
+    async () => {
+      const supabase = fakeSupabase();
+      const snapshot = {
+        ...exceptionSnapshot(...exceptionCampaigns(2)),
+        flags: ["סנכרון ישן: Meta"],
+        last_client_call_at: null,
+      };
+      const sat = await run(supabase, SATURDAY_11, [snapshot]);
+      assertStrictEquals(sat.sends.length, 1);
+      assertEquals(sectionTitles(sat.sends[0].message), [CONNECTION]);
+      assertEquals([sat.result.sent, sat.result.held], [1, 3]);
+
+      const sunday = await run(supabase, SUNDAY_06, [snapshot]);
+      assertStrictEquals(sunday.sends.length, 1);
+      // connection_lost is still inside its 24h throttle.
+      assertEquals(sectionTitles(sunday.sends[0].message), [
+        "🔴 חריגות קמפיין",
+        "🟡 אין עדכון קשר",
+      ]);
+      assertStrictEquals(sunday.result.sent, 3);
     },
   );
 
@@ -174,7 +205,7 @@ Deno.test("deliverInstantPulseAlerts on Shabbat", async (t) => {
         });
         assertStrictEquals(sat.result.sent, 1, label);
         assertStrictEquals(sat.result.held, 0, label);
-        assertMatch(sat.sends[0].message, /חיבור\/קמפיין/, label);
+        assertMatch(sat.sends[0].message, /🔴 חיבור \/ קמפיין נעצר/, label);
       }
     },
   );
