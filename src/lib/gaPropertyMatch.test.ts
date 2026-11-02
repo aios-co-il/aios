@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   bestGaPropertyMatch,
   findGaIntegrationForDomain,
@@ -14,7 +13,7 @@ test("picks the property whose name is the domain", () => {
     ],
     "https://www.example.com",
   );
-  assert.equal(id, "properties/2");
+  expect(id).toBe("properties/2");
 });
 
 test("picks an account named like the domain when the property title is not", () => {
@@ -29,7 +28,7 @@ test("picks an account named like the domain when the property title is not", ()
     ],
     "https://www.ggh-law.co.il/",
   );
-  assert.equal(id, "properties/517439257");
+  expect(id).toBe("properties/517439257");
 });
 
 test("picks the property whose site URL is the domain", () => {
@@ -48,7 +47,7 @@ test("picks the property whose site URL is the domain", () => {
     ],
     "periodontics.co.il",
   );
-  assert.equal(id, "properties/2");
+  expect(id).toBe("properties/2");
 });
 
 test("does not match a different site", () => {
@@ -56,7 +55,7 @@ test("does not match a different site", () => {
     [{ id: "properties/1", name: "www.drdogs.net", accountName: "Dr Kelev" }],
     "ggh-law.co.il",
   );
-  assert.equal(id, null);
+  expect(id).toBe(null);
 });
 
 test("uses the user's own login when a shared login has the same domain", () => {
@@ -75,7 +74,7 @@ test("uses the user's own login when a shared login has the same domain", () => 
     ],
     "ggh-law.co.il",
   );
-  assert.equal(found?.integrationId, "yuval");
+  expect(found?.integrationId).toBe("yuval");
 });
 
 test("keeps a shared login when it is the only match", () => {
@@ -94,8 +93,8 @@ test("keeps a shared login when it is the only match", () => {
     ],
     "ggh-law.co.il",
   );
-  assert.equal(found?.integrationId, "anna");
-  assert.equal(found?.propertyId, "properties/517439257");
+  expect(found?.integrationId).toBe("anna");
+  expect(found?.propertyId).toBe("properties/517439257");
 });
 
 test("an explicitly selected shared login wins a tie with the user's own login", () => {
@@ -115,7 +114,7 @@ test("an explicitly selected shared login wins a tie with the user's own login",
     "ggh-law.co.il",
     "anna",
   );
-  assert.equal(found?.integrationId, "anna");
+  expect(found?.integrationId).toBe("anna");
 });
 
 test("searches every Google login and keeps the current one on a tie", () => {
@@ -133,8 +132,8 @@ test("searches every Google login and keeps the current one on a tie", () => {
     "ggh-law.co.il",
     "david",
   );
-  assert.equal(found?.integrationId, "david");
-  assert.equal(found?.propertyId, "properties/9");
+  expect(found?.integrationId).toBe("david");
+  expect(found?.propertyId).toBe("properties/9");
 });
 
 test("falls through to the site-url lookup when names do not match", async () => {
@@ -158,8 +157,8 @@ test("falls through to the site-url lookup when names do not match", async () =>
       ];
     },
   );
-  assert.equal(found?.propertyId, "properties/520692191");
-  assert.deepEqual(calls, [
+  expect(found?.propertyId).toBe("properties/520692191");
+  expect(calls).toStrictEqual([
     { id: "anna", matchDomain: null },
     { id: "anna", matchDomain: "periodontics.co.il" },
   ]);

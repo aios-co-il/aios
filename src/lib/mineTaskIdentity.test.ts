@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildMineAssignmentOrFilter,
   buildMineQueueOrFilter,
@@ -13,29 +12,26 @@ test("buildMineAssignmentOrFilter ORs every campaigner id and sales person", () 
     userId: "user-1",
     campaignerIds: ["c1", "c2"],
   });
-  assert.equal(
-    filter,
+  expect(filter).toBe(
     "campaigner_id.eq.c1,campaigner_id.eq.c2,sales_person_id.eq.s1",
   );
 });
 
 test("buildMineAssignmentOrFilter returns null when no assignment keys", () => {
-  assert.equal(
+  expect(
     buildMineAssignmentOrFilter({
       kind: "none",
       userId: "user-1",
       campaignerIds: [],
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("buildMineQueueOrFilter falls back to created_by when there is no staff row", () => {
-  assert.equal(
+  expect(
     buildMineQueueOrFilter(
       { kind: "created_by", userId: "user-1", campaignerIds: [] },
       "mine",
     ),
-    "created_by.eq.user-1",
-  );
+  ).toBe("created_by.eq.user-1");
 });

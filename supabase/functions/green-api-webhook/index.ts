@@ -8,11 +8,6 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import {
-  isClaimLeaseExpired,
-  isDuplicateClaimError,
-  isOwnConnectionSender,
-} from "../_shared/automation-execution.ts";
-import {
   handleCarmenMessage,
   fetchKnownEntityNames,
 } from "../_shared/carmen.ts";
@@ -31,6 +26,16 @@ import {
   propagateWhatsappGroupInviteLink,
   resolveWhatsappGroupInviteLink,
 } from "../_shared/whatsapp-groups.ts";
+import { recordCarmenFallbackGroupReply } from "../_shared/client-card/system-send.ts";
+import { forwardStoredSend } from "./stored-send-forward.ts";
+import {
+  claimWebhookMessage,
+  type WebhookMessageClaim,
+} from "./message-claim.ts";
+import {
+  claimAutomationDispatch,
+  rememberConnectionWid,
+} from "./automation-dispatch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -293,13 +298,16 @@ async function forwardToTeamChannels(
   }
 }
 
-// Send a WhatsApp message via Green API (used by shared Carmen handler)
+/**
+ * Send a WhatsApp message via Green API (used by the shared Carmen handler).
+ * Returns the provider response (its idMessage) when sent, null otherwise.
+ */
 async function sendGreenApiMessage(
   instanceId: string,
   apiToken: string,
   chatId: string,
   message: string,
-): Promise<boolean> {
+): Promise<Record<string, unknown> | null> {
   try {
     const url = `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`;
     const res = await fetch(url, {
@@ -307,10 +315,17 @@ async function sendGreenApiMessage(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chatId, message }),
     });
-    return res.ok;
+    if (!res.ok) {
+      return null;
+    }
+    const body = await res.json().catch((err) => {
+      console.error("❌ sendGreenApiMessage: unreadable response", err);
+      return null;
+    });
+    return body && typeof body === "object" ? body : {};
   } catch (e) {
     console.error("❌ sendGreenApiMessage error:", e);
-    return false;
+    return null;
   }
 }
 
@@ -319,12 +334,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Set once this invocation owns the idMessage claim; released if processing
-  // fails so Green API's retry is not mistaken for a duplicate.
-  let releaseMessageClaim: (() => Promise<void>) | null = null;
-  // Marks the claim done once the message is stored, so a later retry is a
-  // true duplicate rather than a takeover candidate.
-  let markMessageClaimDone: (() => Promise<void>) | null = null;
+  // This delivery's idMessage claim, released if processing fails so Green
+  // API's retry is handled instead of dropped as a duplicate.
+  let messageClaim: WebhookMessageClaim | null = null;
 
   try {
     const supabaseClient = createClient(
@@ -429,17 +441,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Remember this connection's own number so other connections of the same
-    // tenant can recognise its messages as ours (see claimAutomationDispatch).
-    if (selfWid && integration.settings?.wid !== selfWid) {
-      const { error: widError } = await supabaseClient
-        .from("tenant_integrations")
-        .update({ settings: { ...(integration.settings ?? {}), wid: selfWid } })
-        .eq("id", integration.id);
-      if (widError) {
-        console.error("[green-api] failed to record connection wid:", widError);
-      }
-    }
+    // The tenant's other connections recognise this number's messages as ours.
+    await rememberConnectionWid(supabaseClient, integration, selfWid);
 
     // Handle outgoingMessageStatus for messages sent from WhatsApp directly
     if (isOutgoingStatus) {
@@ -905,156 +908,55 @@ Deno.serve(async (req) => {
     }
 
     // 🔁 IDEMPOTENCY: Green API can deliver the same message event more than once.
-    // Atomically claim the idMessage first (unique key on
-    // processed_webhook_messages): a concurrent redelivery loses the race and
-    // stops here, so Carmen and automations run once per message. The
-    // chat_messages lookup below stays as a fallback for messages stored
-    // before the claim existed.
+    // Claim the idMessage first (message-claim.ts): a redelivery stops here, so
+    // the message is stored, mirrored and dispatched once. The chat_messages
+    // lookup below still catches messages stored before the claim existed, and
+    // still owes an API echo its stored send's team mirror.
     const incomingIdMessage = webhookData.idMessage;
-    if (incomingIdMessage && tenantId) {
-      const claimKey = `${connectionUserId ?? "none"}:${incomingIdMessage}`;
-      const { error: claimErr } = await supabaseClient
-        .from("processed_webhook_messages")
-        .insert({
-          provider: "green_api",
-          tenant_id: tenantId,
-          external_message_id: claimKey,
-        });
-      let ownsClaim = !claimErr;
-      if (isDuplicateClaimError(claimErr)) {
-        // Another invocation claimed it. Take over only if that one never
-        // finished and its lease ran out (killed by a timeout or redeploy).
-        const { data: existing } = await supabaseClient
-          .from("processed_webhook_messages")
-          .select("processed_at, completed_at")
-          .eq("provider", "green_api")
-          .eq("tenant_id", tenantId)
-          .eq("external_message_id", claimKey)
-          .maybeSingle();
-        if (existing && isClaimLeaseExpired(existing, Date.now())) {
-          const { data: takenOver } = await supabaseClient
-            .from("processed_webhook_messages")
-            .update({ processed_at: new Date().toISOString() })
-            .eq("provider", "green_api")
-            .eq("tenant_id", tenantId)
-            .eq("external_message_id", claimKey)
-            .eq("processed_at", existing.processed_at)
-            .is("completed_at", null)
-            .select("external_message_id");
-          ownsClaim = (takenOver?.length ?? 0) > 0;
-          if (ownsClaim) {
-            console.warn("[green-api] took over stale message claim", {
-              idMessage: incomingIdMessage,
-            });
-          }
-        }
-        if (!ownsClaim) {
-          console.log("[green-api] duplicate webhook dropped", {
-            idMessage: incomingIdMessage,
-          });
-          return new Response(
-            JSON.stringify({ received: true, duplicate: true }),
-            {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            },
-          );
-        }
-      }
-      if (ownsClaim) {
-        releaseMessageClaim = async () => {
-          await supabaseClient
-            .from("processed_webhook_messages")
-            .delete()
-            .eq("provider", "green_api")
-            .eq("tenant_id", tenantId)
-            .eq("external_message_id", claimKey)
-            .is("completed_at", null);
-        };
-        markMessageClaimDone = async () => {
-          releaseMessageClaim = null;
-          const { error } = await supabaseClient
-            .from("processed_webhook_messages")
-            .update({ completed_at: new Date().toISOString() })
-            .eq("provider", "green_api")
-            .eq("tenant_id", tenantId)
-            .eq("external_message_id", claimKey);
-          if (error) {
-            console.error(
-              "[green-api] failed to complete message claim:",
-              error,
-            );
-          }
-        };
-      } else if (claimErr) {
-        // Transient DB issue: keep processing rather than lose the message.
-        console.error("[green-api] dedup claim failed (continuing):", claimErr);
-      }
+    messageClaim = await claimWebhookMessage(supabaseClient, {
+      tenantId,
+      connectionUserId,
+      idMessage: incomingIdMessage,
+    });
+    if (messageClaim.duplicate) {
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-    // One automation dispatch per message per tenant: if a tenant has two
-    // connections in the same group, both receive the message but only the
-    // first one triggers automations.
-    //
-    // Loop guard: never trigger automations from a message sent by one of the
-    // tenant's own connected numbers. That message is our own output (API
-    // sends are never dispatched on their own connection) or was typed on our
-    // phone (dispatched once, on that connection). So our output can never
-    // re-enter as a trigger, which is what an automation loop needs.
-    const claimAutomationDispatch = async (): Promise<boolean> => {
-      if (isIncoming && tenantId && senderWid) {
-        const { data: ownConnections } = await supabaseClient
-          .from("tenant_integrations")
-          .select("settings")
-          .eq("tenant_id", tenantId)
-          .eq("is_active", true)
-          .in("integration_type", ["green_api", "manus_wa", "meta_whatsapp"]);
-        const ownNumbers = (ownConnections ?? []).flatMap((row: any) => [
-          row.settings?.wid,
-          row.settings?.phone_number,
-          row.settings?.display_phone_number,
-        ]);
-        if (isOwnConnectionSender(senderWid, ownNumbers)) {
-          console.log(
-            "[green-api] message from our own connected number, not dispatching",
-            { idMessage: incomingIdMessage, senderWid },
-          );
-          return false;
-        }
-      }
-      if (!incomingIdMessage || !tenantId) return true;
-      const { error } = await supabaseClient
-        .from("processed_webhook_messages")
-        .insert({
-          provider: "green_api_dispatch",
-          tenant_id: tenantId,
-          external_message_id: incomingIdMessage,
-          completed_at: new Date().toISOString(),
-        });
-      if (isDuplicateClaimError(error)) {
-        console.log("[green-api] automation already dispatched for message", {
-          idMessage: incomingIdMessage,
-          connectionUserId,
-        });
-        return false;
-      }
-      if (error) {
-        console.error(
-          "[green-api] dispatch claim failed (dispatching anyway):",
-          error,
-        );
-      }
-      return true;
+    // claimAutomationDispatch's key: dispatched once per tenant, never our own.
+    const automationDispatch = {
+      tenantId,
+      typeWebhook,
+      senderWid,
+      idMessage: incomingIdMessage,
     };
-
+    const isApiEcho = typeWebhook === "outgoingAPIMessageReceived";
+    const storedSendForward = {
+      supabaseClient,
+      tenantId,
+      connectionUserId,
+      idMessage: incomingIdMessage,
+      webhookData,
+      connectionDisplayName,
+      forwardToTeamChannels,
+    };
     if (incomingIdMessage) {
-      const { data: dupMsg } = await supabaseClient
+      const { data: dupMsg, error: dupMsgError } = await supabaseClient
         .from("chat_messages")
-        .select("id")
+        .select("id, team_forward:raw_provider_data->>team_forward")
         .eq("tenant_id", tenantId)
         .eq("connection_user_id", connectionUserId)
         .eq("raw_provider_data->>idMessage", incomingIdMessage)
         .limit(1)
         .maybeSingle();
+      if (dupMsgError) {
+        console.error("❌ Duplicate message check failed:", dupMsgError);
+      }
       if (dupMsg) {
+        if (isApiEcho && dupMsg.team_forward === "pending") {
+          await forwardStoredSend(storedSendForward);
+        }
+        await messageClaim.complete();
         return new Response(
           JSON.stringify({ received: true, duplicate: true }),
           {
@@ -1399,7 +1301,7 @@ Deno.serve(async (req) => {
         selfWid,
         isOutgoing,
       });
-      const { error: insertError } = await supabaseClient
+      const { data: savedGroupRows, error: insertError } = await supabaseClient
         .from("chat_messages")
         .insert({
           group_id: groupId,
@@ -1413,18 +1315,25 @@ Deno.serve(async (req) => {
           sender_name: senderData.senderName || null,
           is_blocked: false,
           raw_provider_data: webhookData,
-        });
+        })
+        .select("id");
 
       if (insertError) {
         console.error("❌ Failed to save group message:", insertError);
         throw insertError;
       }
+      // merge_green_api_send_echo dropped this echo: the send stored the
+      // message after the duplicate check above.
+      const groupEchoMerged =
+        isApiEcho &&
+        Array.isArray(savedGroupRows) &&
+        savedGroupRows.length === 0;
       console.log("[green-api group] chat_messages saved", {
         groupChatId,
         participantPhone,
         direction: isOutgoing ? "outbound" : "inbound",
       });
-      if (markMessageClaimDone) await markMessageClaimDone();
+      await messageClaim.complete();
 
       // Map members only when this group is in Carmen's Manus catalog.
       // Never invoke Carmen from Green when manus_wa is active (below).
@@ -1459,16 +1368,20 @@ Deno.serve(async (req) => {
       const forwardedSenderName = isOutgoing
         ? connectionDisplayName
         : senderData.senderName;
-      await forwardToTeamChannels(
-        supabaseClient,
-        tenantId,
-        connectionUserId,
-        senderData.chatId,
-        forwardedSenderName,
-        messageText,
-        messageData,
-        groupId,
-      );
+      if (groupEchoMerged) {
+        await forwardStoredSend(storedSendForward);
+      } else {
+        await forwardToTeamChannels(
+          supabaseClient,
+          tenantId,
+          connectionUserId,
+          senderData.chatId,
+          forwardedSenderName,
+          messageText,
+          messageData,
+          groupId,
+        );
+      }
 
       // For incoming group messages, add "unread" tag automatically
       if (isIncoming) {
@@ -1602,7 +1515,9 @@ Deno.serve(async (req) => {
           };
 
           const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-          if (await claimAutomationDispatch())
+          if (
+            await claimAutomationDispatch(supabaseClient, automationDispatch)
+          ) {
             fetch(triggerUrl, {
               method: "POST",
               headers: {
@@ -1613,6 +1528,7 @@ Deno.serve(async (req) => {
             }).catch((err) =>
               console.error("❌ Error triggering group automation:", err),
             );
+          }
         } catch (automationError) {
           console.error(
             "❌ Error preparing group automation trigger:",
@@ -1827,7 +1743,7 @@ Deno.serve(async (req) => {
     // Don't persist the transient resolve helper field.
     delete (rawDataWithAvatar as any)._voiceResolve;
 
-    const { error: insertError } = await supabaseClient
+    const { data: savedRows, error: insertError } = await supabaseClient
       .from("chat_messages")
       .insert({
         client_id: clientId,
@@ -1842,24 +1758,31 @@ Deno.serve(async (req) => {
         is_blocked: false,
         connection_user_id: connectionUserId,
         raw_provider_data: rawDataWithAvatar,
-      });
+      })
+      .select("id");
 
     if (insertError) {
       console.error("❌ Failed to save message:", insertError);
       throw insertError;
     }
-    if (markMessageClaimDone) await markMessageClaimDone();
+    await messageClaim.complete();
 
-    // Forward to linked team channels (individual chats)
-    await forwardToTeamChannels(
-      supabaseClient,
-      tenantId,
-      connectionUserId,
-      senderData.chatId,
-      senderData.senderName,
-      messageText,
-      messageData,
-    );
+    // Forward to linked team channels (individual chats). When
+    // merge_green_api_send_echo dropped this echo, the stored send's mirror
+    // is claimed instead.
+    if (isApiEcho && Array.isArray(savedRows) && savedRows.length === 0) {
+      await forwardStoredSend(storedSendForward);
+    } else {
+      await forwardToTeamChannels(
+        supabaseClient,
+        tenantId,
+        connectionUserId,
+        senderData.chatId,
+        senderData.senderName,
+        messageText,
+        messageData,
+      );
+    }
 
     // For incoming messages, add "unread" tag automatically
     if (!isOutgoing) {
@@ -2003,12 +1926,27 @@ Deno.serve(async (req) => {
           sourceChannel: "operator_mirror",
           connectionRole: carmenRole,
           sendMessage: async (chatId: string, message: string) => {
-            return await sendGreenApiMessage(
+            const response = await sendGreenApiMessage(
               instanceId,
               apiToken,
               chatId,
               message,
             );
+            if (!response) {
+              return false;
+            }
+            // Logged like a reply through the action step: only in a client's
+            // group, only while the tenant has card logging on.
+            await recordCarmenFallbackGroupReply(supabaseClient, {
+              tenantId,
+              chatId,
+              message,
+              provider: "green_api",
+              connectionUserId,
+              integrationId: integration.id,
+              providerResponse: response,
+            });
+            return true;
           },
         });
         if (result.handled) {
@@ -2085,7 +2023,7 @@ Deno.serve(async (req) => {
         };
 
         const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-        if (await claimAutomationDispatch())
+        if (await claimAutomationDispatch(supabaseClient, automationDispatch)) {
           fetch(triggerUrl, {
             method: "POST",
             headers: {
@@ -2096,6 +2034,7 @@ Deno.serve(async (req) => {
           }).catch((err) =>
             console.error("❌ Error triggering automation:", err),
           );
+        }
       } catch (automationError) {
         console.error(
           "❌ Error preparing automation trigger:",
@@ -2118,14 +2057,7 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("❌ Error in green-api-webhook:", error);
-    if (releaseMessageClaim) {
-      await releaseMessageClaim().catch((releaseError) =>
-        console.error(
-          "[green-api] failed to release dedup claim:",
-          releaseError,
-        ),
-      );
-    }
+    await messageClaim?.release();
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     return new Response(

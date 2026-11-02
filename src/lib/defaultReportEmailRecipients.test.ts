@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   buildDefaultReportRecipientEmails,
   buildReportEmailOptions,
@@ -8,7 +7,7 @@ import {
 
 test("default recipients include Anna, David, DMM", () => {
   const emails = buildDefaultReportRecipientEmails(null);
-  assert.deepEqual(emails, [
+  expect(emails).toStrictEqual([
     "adamchik2301@gmail.com",
     "david.castelnuovo@gmail.com",
     "dmm4business@gmail.com",
@@ -17,8 +16,8 @@ test("default recipients include Anna, David, DMM", () => {
 
 test("default recipients append client email once", () => {
   const emails = buildDefaultReportRecipientEmails("Client@Example.com");
-  assert.equal(emails.length, 4);
-  assert.ok(emails.includes("client@example.com"));
+  expect(emails.length).toBe(4);
+  expect(emails.includes("client@example.com")).toBeTruthy();
 });
 
 test("options list dedupes team member overlapping defaults", () => {
@@ -33,7 +32,7 @@ test("options list dedupes team member overlapping defaults", () => {
     ],
   });
   const emails = options.map((o) => o.email);
-  assert.equal(new Set(emails).size, emails.length);
-  assert.ok(emails.includes("client@x.com"));
-  assert.equal(DEFAULT_REPORT_EMAIL_RECIPIENTS.length, 3);
+  expect(new Set(emails).size).toBe(emails.length);
+  expect(emails.includes("client@x.com")).toBeTruthy();
+  expect(DEFAULT_REPORT_EMAIL_RECIPIENTS.length).toBe(3);
 });

@@ -1,6 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import {
+  assertMatch,
+  assertNotStrictEquals,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 function taskNotificationRecipientKey(input) {
   const recipient = String(
     input.notifyCampaignerId || input.campaignerId || input.salesPersonId || "",
@@ -18,8 +20,8 @@ function taskUpdateEventKey(content) {
   return hash.toString(16);
 }
 
-test("recipient key prefers explicit notify campaigner override", () => {
-  assert.equal(
+Deno.test("recipient key prefers explicit notify campaigner override", () => {
+  assertStrictEquals(
     taskNotificationRecipientKey({
       notifyCampaignerId: "leon",
       campaignerId: "other",
@@ -28,23 +30,26 @@ test("recipient key prefers explicit notify campaigner override", () => {
   );
 });
 
-test("recipient key falls back to assignee campaigner then sales person", () => {
-  assert.equal(
-    taskNotificationRecipientKey({
-      campaignerId: "leon",
-      salesPersonId: "sales-1",
-    }),
-    "leon",
-  );
-  assert.equal(
-    taskNotificationRecipientKey({
-      salesPersonId: "sales-1",
-    }),
-    "sales-1",
-  );
-});
+Deno.test(
+  "recipient key falls back to assignee campaigner then sales person",
+  () => {
+    assertStrictEquals(
+      taskNotificationRecipientKey({
+        campaignerId: "leon",
+        salesPersonId: "sales-1",
+      }),
+      "leon",
+    );
+    assertStrictEquals(
+      taskNotificationRecipientKey({
+        salesPersonId: "sales-1",
+      }),
+      "sales-1",
+    );
+  },
+);
 
-test("task updates keep a distinct key per comment", () => {
+Deno.test("task updates keep a distinct key per comment", () => {
   const first = taskNotificationRecipientKey({
     notifyCampaignerId: "daniel",
     eventKey: taskUpdateEventKey("מה עם הגרפיקה?"),
@@ -53,6 +58,6 @@ test("task updates keep a distinct key per comment", () => {
     notifyCampaignerId: "daniel",
     eventKey: taskUpdateEventKey("זה בנוי בקלוד"),
   });
-  assert.notEqual(first, second);
-  assert.match(first, /^daniel:[0-9a-f]+$/);
+  assertNotStrictEquals(first, second);
+  assertMatch(first, /^daniel:[0-9a-f]+$/);
 });

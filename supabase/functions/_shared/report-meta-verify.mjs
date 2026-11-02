@@ -2,19 +2,11 @@
 // campaigns and dates (campaign level only — adset/ad rows would double count).
 // Used by Carmen's verify_report_vs_meta tool.
 
-const SALES = new Set([
-  "OUTCOME_SALES",
-  "PRODUCT_CATALOG_SALES",
-  "SALES",
-  "CONVERSIONS",
-]);
-const LEADS = new Set(["OUTCOME_LEADS", "LEAD_GENERATION"]);
+import { metaObjectiveGoal } from "./meta-ads/campaign-objectives.ts";
 
+/** Report goal of a Meta campaign objective; "other" when the objective alone cannot tell. */
 export function objectiveKind(objective) {
-  const o = String(objective || "").toUpperCase();
-  if (SALES.has(o)) return "ecommerce";
-  if (LEADS.has(o)) return "leads";
-  return "other";
+  return metaObjectiveGoal(objective) ?? "other";
 }
 
 /** Report type of a facebook table: leads-only, ecommerce, or mixed (shows both). */

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   clipEstimate,
   framesToAnimate,
@@ -23,14 +22,13 @@ const frame = (overrides: Partial<StoryboardFrame>): StoryboardFrame => ({
 });
 
 test("the estimate bills 5 s blocks: up to 5 s is one clip, longer scenes two", () => {
-  assert.deepEqual(
+  expect(
     clipEstimate([
       frame({ duration: 3 }),
       frame({ duration: 5 }),
       frame({ duration: 8 }),
     ]),
-    { count: 3, seconds: 20, usd: 3.4, credits: 20400 },
-  );
+  ).toStrictEqual({ count: 3, seconds: 20, usd: 3.4, credits: 20400 });
 });
 
 test("animate all takes approved, failed and stale scenes that have a still", () => {
@@ -64,16 +62,17 @@ test("animate all takes approved, failed and stale scenes that have a still", ()
     }),
     frame({ id: "nostill", order: 7, status: "still_approved" }),
   ]);
-  assert.deepEqual(
-    picked.map((f) => f.id),
-    ["approved", "failed", "stale"],
-  );
+  expect(picked.map((f) => f.id)).toStrictEqual([
+    "approved",
+    "failed",
+    "stale",
+  ]);
 });
 
 test("an untouched draft takes the server storyboard as is", () => {
   const previous = [frame({ status: "still_approved" })];
   const server = [frame({ status: "clip_generating", title: "חדש" })];
-  assert.equal(mergeServerScenes(previous, server, previous), server);
+  expect(mergeServerScenes(previous, server, previous)).toBe(server);
 });
 
 test("an edited draft keeps its text and takes only job progress", () => {
@@ -89,7 +88,7 @@ test("an edited draft keeps its text and takes only job progress", () => {
       title: "שונה",
     }),
   ];
-  assert.deepEqual(mergeServerScenes(draft, server, previous), [
+  expect(mergeServerScenes(draft, server, previous)).toStrictEqual([
     frame({
       status: "clip_ready",
       clipAssetId: "c1",
@@ -125,8 +124,8 @@ test("scene rows carry the current clip path and stale flag", () => {
     ]),
     () => 0,
   );
-  assert.equal(mapped.clipAssetId, "c");
-  assert.equal(mapped.clipPath, "t/c/i/a/clip-v2.mp4");
-  assert.equal(mapped.clipStale, true);
-  assert.equal(mapped.imageUrl, "https://x/still.png");
+  expect(mapped.clipAssetId).toBe("c");
+  expect(mapped.clipPath).toBe("t/c/i/a/clip-v2.mp4");
+  expect(mapped.clipStale).toBe(true);
+  expect(mapped.imageUrl).toBe("https://x/still.png");
 });

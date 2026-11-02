@@ -17,10 +17,15 @@
 //   list: listId (members of a static / synced list, or a dynamic CRM-filter
 //         list's filter resolved live)
 //   wa_groups: groupIds
+//   manual: manualContacts (typed emails / phones, no CRM record)
 //   includeIds / excludeIds: manual pick within a source
 import { resolveClients, resolveLeads } from "./crm-sources.ts";
 import { resolveStaticList } from "./lists.ts";
-import { resolveCampaigners, resolveWaGroups } from "./other-sources.ts";
+import {
+  resolveCampaigners,
+  resolveManualContacts,
+  resolveWaGroups,
+} from "./other-sources.ts";
 import { hasItems } from "./query.ts";
 import {
   type AudienceDb,
@@ -50,6 +55,9 @@ export async function resolveAudience(
       break;
     case "wa_groups":
       return resolveWaGroups(db, tenantId, filter);
+    case "manual":
+      recipients = resolveManualContacts(filter);
+      break;
     case "list": {
       if (!filter.listId) throw new Error("missing_listId");
       const { data: list, error } = await db

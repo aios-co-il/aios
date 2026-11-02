@@ -11,7 +11,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  formatLastClientCall,
   formatPulseMoney,
   pulseSpendColumnLabel,
   type PulseSnapshotRow,
@@ -23,6 +22,7 @@ import {
 } from "@/lib/pulseCampaignGoals";
 import { ExternalLink } from "lucide-react";
 import type { PulsePeriod } from "@/lib/pulseDashboard";
+import { PulseClientCallCell } from "./PulseClientCallCell";
 
 const GOAL_SECTION_LABELS: Record<PulseCampaignGoal, string> = {
   leads: "לידים",
@@ -245,25 +245,6 @@ export function PulseClientRawCard({
   onOpenClient,
   onCallLog,
 }: PulseClientRawCardProps) {
-  const callSnapshot: PulseSnapshotRow = pulse ?? {
-    client_id: "",
-    agency_id: null,
-    status: "no_data",
-    is_ecommerce: false,
-    spend_7d: 0,
-    leads_7d: null,
-    cpl_7d: null,
-    cpl_change_pct: null,
-    purchases_7d: null,
-    revenue_7d: null,
-    roas_7d: null,
-    flags: [],
-    data_fresh_through: null,
-    calculated_at: null,
-    last_client_call_at: null,
-    last_client_call_by: null,
-  };
-
   const sections = GOAL_SECTION_ORDER.map((goal) => ({
     goal,
     label: GOAL_SECTION_LABELS[goal],
@@ -309,17 +290,7 @@ export function PulseClientRawCard({
             <span className="text-muted-foreground">קמפיינר: </span>
             {campaignerName}
           </div>
-          <div>
-            <span className="text-muted-foreground">שיחה אחרונה: </span>
-            <button
-              type="button"
-              className="underline decoration-dotted underline-offset-2 hover:text-primary"
-              onClick={onCallLog}
-              disabled={!pulse}
-            >
-              {formatLastClientCall(callSnapshot)}
-            </button>
-          </div>
+          <PulseClientCallCell pulse={pulse} onCallLog={onCallLog} />
           <div>
             <span className="text-muted-foreground">נגיעה בקמפיין: </span>
             {formatDate(lastCampaignTouchAt)}

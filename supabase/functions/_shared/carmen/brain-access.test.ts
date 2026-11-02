@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { allowedRoutes, brainLevel, carmenEnabledFor } from "./brain-access.ts";
 
 const ana = {
@@ -7,24 +6,24 @@ const ana = {
   brain_access: { internal: "full", cursor: "bugfix", junk: "admin" },
 };
 
-test("users without a permissions row keep full access", () => {
-  assert.equal(brainLevel(null, "cursor"), "full");
-  assert.equal(carmenEnabledFor(null), true);
+Deno.test("users without a permissions row keep full access", () => {
+  assertStrictEquals(brainLevel(null, "cursor"), "full");
+  assertStrictEquals(carmenEnabledFor(null), true);
 });
 
-test("a row without brain settings keeps every brain", () => {
+Deno.test("a row without brain settings keeps every brain", () => {
   const legacy = { enabled: true, brain_access: null };
-  assert.equal(brainLevel(legacy, "cursor"), "full");
-  assert.equal(carmenEnabledFor(legacy), true);
-  assert.equal(brainLevel({ ...legacy, enabled: false }, "cursor"), null);
+  assertStrictEquals(brainLevel(legacy, "cursor"), "full");
+  assertStrictEquals(carmenEnabledFor(legacy), true);
+  assertStrictEquals(brainLevel({ ...legacy, enabled: false }, "cursor"), null);
 });
 
-test("a row limits the user to the brains it lists", () => {
-  assert.equal(brainLevel(ana, "internal"), "full");
-  assert.equal(brainLevel(ana, "cursor"), "bugfix");
-  assert.equal(brainLevel(ana, "claude"), null);
-  assert.equal(brainLevel(ana, "junk"), null);
-  assert.deepEqual(
+Deno.test("a row limits the user to the brains it lists", () => {
+  assertStrictEquals(brainLevel(ana, "internal"), "full");
+  assertStrictEquals(brainLevel(ana, "cursor"), "bugfix");
+  assertStrictEquals(brainLevel(ana, "claude"), null);
+  assertStrictEquals(brainLevel(ana, "junk"), null);
+  assertEquals(
     allowedRoutes(
       [{ slug: "internal" }, { slug: "cursor" }, { slug: "claude" }],
       ana,
@@ -33,8 +32,11 @@ test("a row limits the user to the brains it lists", () => {
   );
 });
 
-test("disabled rows and rows with no brains block Carmen", () => {
-  assert.equal(carmenEnabledFor({ ...ana, enabled: false }), false);
-  assert.equal(brainLevel({ ...ana, enabled: false }, "internal"), null);
-  assert.equal(carmenEnabledFor({ enabled: true, brain_access: {} }), false);
+Deno.test("disabled rows and rows with no brains block Carmen", () => {
+  assertStrictEquals(carmenEnabledFor({ ...ana, enabled: false }), false);
+  assertStrictEquals(brainLevel({ ...ana, enabled: false }, "internal"), null);
+  assertStrictEquals(
+    carmenEnabledFor({ enabled: true, brain_access: {} }),
+    false,
+  );
 });

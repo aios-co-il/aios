@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   agenciesFromJoin,
   mergeAgencyLists,
@@ -27,45 +26,41 @@ const SHARED = {
 };
 
 test("owned default beats other owned agencies", () => {
-  assert.equal(
+  expect(
     pickTenantHomeAgencyId(TENANT, [OWNED_FIRST, OWNED_DEFAULT, SHARED]),
-    OWNED_DEFAULT.id,
-  );
+  ).toBe(OWNED_DEFAULT.id);
 });
 
 test("first owned agency is used when none is default", () => {
-  assert.equal(
-    pickTenantHomeAgencyId(TENANT, [OWNED_FIRST, SHARED]),
+  expect(pickTenantHomeAgencyId(TENANT, [OWNED_FIRST, SHARED])).toBe(
     OWNED_FIRST.id,
   );
 });
 
 test("shared agency is used when the tenant owns none", () => {
-  assert.equal(pickTenantHomeAgencyId(TENANT, [SHARED]), SHARED.id);
+  expect(pickTenantHomeAgencyId(TENANT, [SHARED])).toBe(SHARED.id);
 });
 
 test("returns null without a tenant or agency list", () => {
-  assert.equal(pickTenantHomeAgencyId(null, [SHARED]), null);
-  assert.equal(pickTenantHomeAgencyId(TENANT, []), null);
-  assert.equal(pickTenantHomeAgencyId(TENANT, undefined), null);
+  expect(pickTenantHomeAgencyId(null, [SHARED])).toBe(null);
+  expect(pickTenantHomeAgencyId(TENANT, [])).toBe(null);
+  expect(pickTenantHomeAgencyId(TENANT, undefined)).toBe(null);
 });
 
 test("mergeAgencyLists de-duplicates owned and shared rows", () => {
   const merged = mergeAgencyLists([OWNED_FIRST, SHARED], [SHARED]);
-  assert.deepEqual(
-    merged.map((row) => row.id),
-    [OWNED_FIRST.id, SHARED.id],
-  );
+  expect(merged.map((row) => row.id)).toStrictEqual([
+    OWNED_FIRST.id,
+    SHARED.id,
+  ]);
 });
 
 test("agenciesFromJoin accepts a nested object or array", () => {
-  assert.deepEqual(
-    agenciesFromJoin(SHARED).map((row) => row.id),
-    [SHARED.id],
-  );
-  assert.deepEqual(
-    agenciesFromJoin([SHARED, null]).map((row) => row.id),
-    [SHARED.id],
-  );
-  assert.deepEqual(agenciesFromJoin(null), []);
+  expect(agenciesFromJoin(SHARED).map((row) => row.id)).toStrictEqual([
+    SHARED.id,
+  ]);
+  expect(agenciesFromJoin([SHARED, null]).map((row) => row.id)).toStrictEqual([
+    SHARED.id,
+  ]);
+  expect(agenciesFromJoin(null)).toStrictEqual([]);
 });

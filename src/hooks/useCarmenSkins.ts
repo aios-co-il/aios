@@ -1,3 +1,6 @@
+import { CARMEN_CHARACTER } from "@/lib/agentSeats";
+import { CARMEN_ROLES } from "../../supabase/functions/_shared/carmen/skin-roles";
+import { getSkinPortrait } from "@/lib/carmenSkinPortraits";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,10 +72,9 @@ export function useCarmenSkins() {
           slug: r.slug,
           name: r.name,
           description: r.description ?? null,
-          avatarUrl: await signProfileImage(
-            tenantId!,
-            avatars[r.slug]?.avatarPath,
-          ),
+          avatarUrl:
+            (await signProfileImage(tenantId!, avatars[r.slug]?.avatarPath)) ||
+            getSkinPortrait(r.slug, r.name),
         })),
       );
     },
@@ -134,8 +136,21 @@ export function useCarmenSkins() {
     [tenantId, patchMetadata],
   );
 
+  const visibleSkins = CARMEN_ROLES.map((role) => {
+    const match = skins.find((skin) => skin.slug === role.slug);
+    return {
+      slug: role.slug,
+      name: role.name,
+      description: match?.description ?? null,
+      avatarUrl:
+        match?.avatarUrl ||
+        getSkinPortrait(role.slug) ||
+        (role.slug === "marketing_manager" ? CARMEN_CHARACTER : undefined),
+    };
+  });
   return {
     skins,
+    visibleSkins,
     activeSlug,
     isLoading: agentQuery.isLoading || skinsQuery.isLoading,
     setActiveSkin,

@@ -3,6 +3,7 @@
  * Detects explicit confirm/reject phrases and helps resolve the latest matching
  * pending approval without repeated "לאשר?" loops.
  */
+import { APPROVAL_ERROR_MESSAGES_HE } from "./carmen/approvals/error-messages.ts";
 
 export const META_APPROVAL_TOOLS = Object.freeze([
   "fb_duplicate_ad_variants",
@@ -200,12 +201,24 @@ export function formatApprovalExecutionReply(execResult, pendingRow) {
     const already = execResult.already_executed ? " (כבר בוצע קודם)" : "";
     return `בוצע: ${title}${already}.`;
   }
-  const err =
+  const code =
     execResult?.error ||
     execResult?.result?.error ||
     execResult?.message ||
     "הביצוע נכשל";
-  return `לא הצלחתי לבצע את "${title}": ${err}. לא בוצע כלום ב-Meta.`;
+  const err =
+    typeof code !== "string"
+      ? String(code?.message || JSON.stringify(code))
+      : Object.hasOwn(APPROVAL_ERROR_MESSAGES_HE, code)
+        ? APPROVAL_ERROR_MESSAGES_HE[code]
+        : code;
+  // The executor failed after claiming the row: the action may have run.
+  if (execResult?.outcome_unknown === true) {
+    return `לא הצלחתי לוודא אם "${title}" בוצע: ${err}. ייתכן שהפעולה כן בוצעה — כדאי לבדוק לפני שמנסים שוב.`;
+  }
+  // A row someone else is running right now may still succeed.
+  const nothingDone = code === "in_progress" ? "" : " לא בוצע כלום.";
+  return `לא הצלחתי לבצע את "${title}": ${err}.${nothingDone}`;
 }
 
 export function buildApprovalFlowAcceptanceCases() {

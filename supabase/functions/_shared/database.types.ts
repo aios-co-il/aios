@@ -2956,6 +2956,7 @@ export type Database = {
       };
       call_logs: {
         Row: {
+          caller_resolution: string | null;
           caller_user_id: string;
           client_id: string | null;
           created_at: string;
@@ -2967,6 +2968,7 @@ export type Database = {
           provider: string | null;
           provider_call_id: string | null;
           recording_duration: number | null;
+          recording_path: string | null;
           recording_url: string | null;
           status: string;
           tenant_id: string;
@@ -2974,6 +2976,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          caller_resolution?: string | null;
           caller_user_id: string;
           client_id?: string | null;
           created_at?: string;
@@ -2985,6 +2988,7 @@ export type Database = {
           provider?: string | null;
           provider_call_id?: string | null;
           recording_duration?: number | null;
+          recording_path?: string | null;
           recording_url?: string | null;
           status?: string;
           tenant_id: string;
@@ -2992,6 +2996,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          caller_resolution?: string | null;
           caller_user_id?: string;
           client_id?: string | null;
           created_at?: string;
@@ -3003,6 +3008,7 @@ export type Database = {
           provider?: string | null;
           provider_call_id?: string | null;
           recording_duration?: number | null;
+          recording_path?: string | null;
           recording_url?: string | null;
           status?: string;
           tenant_id?: string;
@@ -3145,6 +3151,35 @@ export type Database = {
             foreignKeyName: "campaign_pulse_overrides_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      campaign_pulse_refresh_claims: {
+        Row: {
+          claim_count: number;
+          last_claimed_at: string;
+          last_claimed_by: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          claim_count?: number;
+          last_claimed_at?: string;
+          last_claimed_by?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          claim_count?: number;
+          last_claimed_at?: string;
+          last_claimed_by?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "campaign_pulse_refresh_claims_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
@@ -3534,6 +3569,106 @@ export type Database = {
         };
         Relationships: [];
       };
+      carmen_brain_connections: {
+        Row: {
+          base_url: string | null;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          key_last4: string | null;
+          kind: string;
+          model: string | null;
+          name: string;
+          profile: Json;
+          provider_preset: string | null;
+          secret_id: string | null;
+          settings: Json;
+          slug: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          base_url?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          key_last4?: string | null;
+          kind: string;
+          model?: string | null;
+          name: string;
+          profile?: Json;
+          provider_preset?: string | null;
+          secret_id?: string | null;
+          settings?: Json;
+          slug: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          base_url?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          key_last4?: string | null;
+          kind?: string;
+          model?: string | null;
+          name?: string;
+          profile?: Json;
+          provider_preset?: string | null;
+          secret_id?: string | null;
+          settings?: Json;
+          slug?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_brain_connections_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_chat_thread_reviews: {
+        Row: {
+          cost_usd: number | null;
+          last_reviewed_message_id: string;
+          model: string | null;
+          reviewed_at: string;
+          tenant_id: string;
+          thread_key: string;
+          verdict: Json;
+        };
+        Insert: {
+          cost_usd?: number | null;
+          last_reviewed_message_id: string;
+          model?: string | null;
+          reviewed_at?: string;
+          tenant_id: string;
+          thread_key: string;
+          verdict: Json;
+        };
+        Update: {
+          cost_usd?: number | null;
+          last_reviewed_message_id?: string;
+          model?: string | null;
+          reviewed_at?: string;
+          tenant_id?: string;
+          thread_key?: string;
+          verdict?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_chat_thread_reviews_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_client_group_access: {
         Row: {
           agency_id: string | null;
@@ -3661,6 +3796,285 @@ export type Database = {
             foreignKeyName: "carmen_command_center_access_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_findings: {
+        Row: {
+          agency_id: string | null;
+          client_id: string | null;
+          collector: string;
+          created_at: string;
+          detector_version: string;
+          escalation_level: number | null;
+          evidence: Json;
+          feedback: string | null;
+          fingerprint: string;
+          first_seen_at: string;
+          id: string;
+          kind: string;
+          ladder_started_at: string | null;
+          last_seen_at: string;
+          missed_runs: number;
+          next_action_at: string | null;
+          occurrence_count: number;
+          owner_user_id: string | null;
+          planned_actions: Json;
+          resolution: string | null;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          round_id: string | null;
+          routed_at: string | null;
+          severity: string;
+          short_code: number;
+          source_event_at: string;
+          status: string;
+          summary_he: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          agency_id?: string | null;
+          client_id?: string | null;
+          collector: string;
+          created_at?: string;
+          detector_version?: string;
+          escalation_level?: number | null;
+          evidence?: Json;
+          feedback?: string | null;
+          fingerprint: string;
+          first_seen_at?: string;
+          id?: string;
+          kind: string;
+          ladder_started_at?: string | null;
+          last_seen_at?: string;
+          missed_runs?: number;
+          next_action_at?: string | null;
+          occurrence_count?: number;
+          owner_user_id?: string | null;
+          planned_actions?: Json;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          round_id?: string | null;
+          routed_at?: string | null;
+          severity?: string;
+          short_code: number;
+          source_event_at: string;
+          status?: string;
+          summary_he: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          agency_id?: string | null;
+          client_id?: string | null;
+          collector?: string;
+          created_at?: string;
+          detector_version?: string;
+          escalation_level?: number | null;
+          evidence?: Json;
+          feedback?: string | null;
+          fingerprint?: string;
+          first_seen_at?: string;
+          id?: string;
+          kind?: string;
+          ladder_started_at?: string | null;
+          last_seen_at?: string;
+          missed_runs?: number;
+          next_action_at?: string | null;
+          occurrence_count?: number;
+          owner_user_id?: string | null;
+          planned_actions?: Json;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
+          round_id?: string | null;
+          routed_at?: string | null;
+          severity?: string;
+          short_code?: number;
+          source_event_at?: string;
+          status?: string;
+          summary_he?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_findings_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_findings_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_findings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_events: {
+        Row: {
+          actor_user_id: string | null;
+          created_at: string;
+          details: Json;
+          event: string;
+          finding_id: string;
+          id: string;
+          level: number | null;
+          note: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          details?: Json;
+          event: string;
+          finding_id: string;
+          id?: string;
+          level?: number | null;
+          note?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          details?: Json;
+          event?: string;
+          finding_id?: string;
+          id?: string;
+          level?: number | null;
+          note?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_events_tenant_id_finding_id_fkey";
+            columns: ["tenant_id", "finding_id"];
+            isOneToOne: false;
+            referencedRelation: "carmen_findings";
+            referencedColumns: ["tenant_id", "id"];
+          },
+          {
+            foreignKeyName: "carmen_finding_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_deliveries: {
+        Row: {
+          attempted_at: string | null;
+          channel: string;
+          created_at: string;
+          error: string | null;
+          finding_id: string;
+          id: string;
+          level: number;
+          message_key: string | null;
+          not_before: string;
+          provider_message_id: string | null;
+          recipient_key: string;
+          recipient_name: string | null;
+          recipient_phone: string | null;
+          recipient_user_id: string | null;
+          round_id: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempted_at?: string | null;
+          channel: string;
+          created_at?: string;
+          error?: string | null;
+          finding_id: string;
+          id?: string;
+          level: number;
+          message_key?: string | null;
+          not_before?: string;
+          provider_message_id?: string | null;
+          recipient_key: string;
+          recipient_name?: string | null;
+          recipient_phone?: string | null;
+          recipient_user_id?: string | null;
+          round_id?: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempted_at?: string | null;
+          channel?: string;
+          created_at?: string;
+          error?: string | null;
+          finding_id?: string;
+          id?: string;
+          level?: number;
+          message_key?: string | null;
+          not_before?: string;
+          provider_message_id?: string | null;
+          recipient_key?: string;
+          recipient_name?: string | null;
+          recipient_phone?: string | null;
+          recipient_user_id?: string | null;
+          round_id?: string | null;
+          slot?: string;
+          status?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_deliveries_tenant_id_finding_id_fkey";
+            columns: ["tenant_id", "finding_id"];
+            isOneToOne: false;
+            referencedRelation: "carmen_findings";
+            referencedColumns: ["tenant_id", "id"];
+          },
+          {
+            foreignKeyName: "carmen_finding_deliveries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_counters: {
+        Row: {
+          last_code: number;
+          tenant_id: string;
+        };
+        Insert: {
+          last_code?: number;
+          tenant_id: string;
+        };
+        Update: {
+          last_code?: number;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_counters_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
@@ -3863,6 +4277,92 @@ export type Database = {
           valid_until?: string | null;
         };
         Relationships: [];
+      };
+      carmen_report_recipients: {
+        Row: {
+          created_at: string;
+          id: string;
+          label: string | null;
+          phone: string | null;
+          tenant_id: string;
+          user_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          label?: string | null;
+          phone?: string | null;
+          tenant_id: string;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          label?: string | null;
+          phone?: string | null;
+          tenant_id?: string;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_report_recipients_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_report_recipients_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_round_state: {
+        Row: {
+          collector: string;
+          first_run_at: string;
+          last_error: string | null;
+          last_run_at: string | null;
+          last_slot: string | null;
+          locked_until: string | null;
+          tenant_id: string;
+          updated_at: string;
+          watermark: Json | null;
+        };
+        Insert: {
+          collector: string;
+          first_run_at?: string;
+          last_error?: string | null;
+          last_run_at?: string | null;
+          last_slot?: string | null;
+          locked_until?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+          watermark?: Json | null;
+        };
+        Update: {
+          collector?: string;
+          first_run_at?: string;
+          last_error?: string | null;
+          last_run_at?: string | null;
+          last_slot?: string | null;
+          locked_until?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+          watermark?: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_round_state_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       carmen_whatsapp_identities: {
         Row: {
@@ -4161,6 +4661,8 @@ export type Database = {
           provider: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data: Json | null;
           read_at: string | null;
+          send_kind: string | null;
+          send_ref: string | null;
           sender_name: string | null;
           sender_phone: string | null;
           sent_by_user_id: string | null;
@@ -4184,6 +4686,8 @@ export type Database = {
           provider?: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data?: Json | null;
           read_at?: string | null;
+          send_kind?: string | null;
+          send_ref?: string | null;
           sender_name?: string | null;
           sender_phone?: string | null;
           sent_by_user_id?: string | null;
@@ -4207,6 +4711,8 @@ export type Database = {
           provider?: Database["public"]["Enums"]["chat_provider"];
           raw_provider_data?: Json | null;
           read_at?: string | null;
+          send_kind?: string | null;
+          send_ref?: string | null;
           sender_name?: string | null;
           sender_phone?: string | null;
           sent_by_user_id?: string | null;
@@ -4357,6 +4863,57 @@ export type Database = {
           tool?: string;
         };
         Relationships: [];
+      };
+      client_auto_send_opt_ins: {
+        Row: {
+          client_id: string;
+          created_at: string;
+          enabled: boolean;
+          id: string;
+          send_kind: Database["public"]["Enums"]["client_auto_send_kind"];
+          target: Database["public"]["Enums"]["client_auto_send_target"];
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          client_id: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          send_kind: Database["public"]["Enums"]["client_auto_send_kind"];
+          target: Database["public"]["Enums"]["client_auto_send_target"];
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          client_id?: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          send_kind?: Database["public"]["Enums"]["client_auto_send_kind"];
+          target?: Database["public"]["Enums"]["client_auto_send_target"];
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "client_auto_send_opt_ins_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_auto_send_opt_ins_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       client_contacts: {
         Row: {
@@ -4534,6 +5091,72 @@ export type Database = {
           },
         ];
       };
+      client_send_refusals: {
+        Row: {
+          channel: string;
+          client_id: string | null;
+          created_at: string;
+          enforced: boolean;
+          function_name: string;
+          group_id: string | null;
+          id: string;
+          lead_id: string | null;
+          reason: string;
+          recipient_kind: string;
+          send_kind: string | null;
+          send_ref: string | null;
+          subject_client_id: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          channel: string;
+          client_id?: string | null;
+          created_at?: string;
+          enforced: boolean;
+          function_name: string;
+          group_id?: string | null;
+          id?: string;
+          lead_id?: string | null;
+          reason: string;
+          recipient_kind: string;
+          send_kind?: string | null;
+          send_ref?: string | null;
+          subject_client_id?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          channel?: string;
+          client_id?: string | null;
+          created_at?: string;
+          enforced?: boolean;
+          function_name?: string;
+          group_id?: string | null;
+          id?: string;
+          lead_id?: string | null;
+          reason?: string;
+          recipient_kind?: string;
+          send_kind?: string | null;
+          send_ref?: string | null;
+          subject_client_id?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "client_send_refusals_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "client_send_refusals_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       client_suppliers: {
         Row: {
           client_id: string;
@@ -4679,8 +5302,12 @@ export type Database = {
         Row: {
           client_id: string;
           content: string;
+          counts_as_contact: boolean | null;
           created_at: string;
           id: string;
+          metadata: Json | null;
+          source: string;
+          source_ref: string | null;
           tenant_id: string;
           update_type: string | null;
           updated_at: string;
@@ -4689,8 +5316,12 @@ export type Database = {
         Insert: {
           client_id: string;
           content: string;
+          counts_as_contact?: boolean | null;
           created_at?: string;
           id?: string;
+          metadata?: Json | null;
+          source?: string;
+          source_ref?: string | null;
           tenant_id: string;
           update_type?: string | null;
           updated_at?: string;
@@ -4699,8 +5330,12 @@ export type Database = {
         Update: {
           client_id?: string;
           content?: string;
+          counts_as_contact?: boolean | null;
           created_at?: string;
           id?: string;
+          metadata?: Json | null;
+          source?: string;
+          source_ref?: string | null;
           tenant_id?: string;
           update_type?: string | null;
           updated_at?: string;
@@ -5099,6 +5734,8 @@ export type Database = {
           integration_type: string | null;
           integrations: Json | null;
           last_sync_at: string | null;
+          last_sync_attempt_at: string | null;
+          last_sync_outcome: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5118,6 +5755,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name: string;
           slug: string;
           tenant_id: string;
@@ -5137,6 +5776,8 @@ export type Database = {
           integration_type?: string | null;
           integrations?: Json | null;
           last_sync_at?: string | null;
+          last_sync_attempt_at?: string | null;
+          last_sync_outcome?: Json | null;
           name?: string;
           slug?: string;
           tenant_id?: string;
@@ -5239,6 +5880,79 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      cursor_task_sessions: {
+        Row: {
+          app_env: string | null;
+          created_at: string;
+          cursor_agent_id: string;
+          dev_task_id: string | null;
+          display_name: string;
+          human_task_id: string | null;
+          id: string;
+          last_seen_at: string;
+          session_url: string | null;
+          source_tool: string;
+          status: string;
+          task_title: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          app_env?: string | null;
+          created_at?: string;
+          cursor_agent_id: string;
+          dev_task_id?: string | null;
+          display_name: string;
+          human_task_id?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          session_url?: string | null;
+          source_tool: string;
+          status?: string;
+          task_title?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          app_env?: string | null;
+          created_at?: string;
+          cursor_agent_id?: string;
+          dev_task_id?: string | null;
+          display_name?: string;
+          human_task_id?: string | null;
+          id?: string;
+          last_seen_at?: string;
+          session_url?: string | null;
+          source_tool?: string;
+          status?: string;
+          task_title?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cursor_task_sessions_dev_task_id_fkey";
+            columns: ["dev_task_id"];
+            isOneToOne: false;
+            referencedRelation: "dev_tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cursor_task_sessions_human_task_id_fkey";
+            columns: ["human_task_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cursor_task_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       custom_fields: {
         Row: {
@@ -7051,6 +7765,11 @@ export type Database = {
           created_at: string;
           duration_ms: number | null;
           id: string;
+          llm_calls: number | null;
+          llm_cost_usd: number | null;
+          run_kind: string;
+          stats: Json | null;
+          status: string | null;
           summary: string | null;
           tasks_reviewed: number | null;
           tenant_id: string;
@@ -7062,6 +7781,11 @@ export type Database = {
           created_at?: string;
           duration_ms?: number | null;
           id?: string;
+          llm_calls?: number | null;
+          llm_cost_usd?: number | null;
+          run_kind?: string;
+          stats?: Json | null;
+          status?: string | null;
           summary?: string | null;
           tasks_reviewed?: number | null;
           tenant_id: string;
@@ -7073,6 +7797,11 @@ export type Database = {
           created_at?: string;
           duration_ms?: number | null;
           id?: string;
+          llm_calls?: number | null;
+          llm_cost_usd?: number | null;
+          run_kind?: string;
+          stats?: Json | null;
+          status?: string | null;
           summary?: string | null;
           tasks_reviewed?: number | null;
           tenant_id?: string;
@@ -8450,7 +9179,7 @@ export type Database = {
       };
       marketing_pipelines: {
         Row: {
-          client_id: string;
+          client_id: string | null;
           created_at: string;
           id: string;
           is_active: boolean;
@@ -8460,7 +9189,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          client_id: string;
+          client_id?: string | null;
           created_at?: string;
           id?: string;
           is_active?: boolean;
@@ -8470,7 +9199,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          client_id?: string;
+          client_id?: string | null;
           created_at?: string;
           id?: string;
           is_active?: boolean;
@@ -9195,6 +9924,33 @@ export type Database = {
           },
         ];
       };
+      meta_data_deletion_requests: {
+        Row: {
+          confirmation_code: string;
+          created_at: string;
+          fb_user_id: string | null;
+          id: string;
+          issued_at: string | null;
+          status: string;
+        };
+        Insert: {
+          confirmation_code: string;
+          created_at?: string;
+          fb_user_id?: string | null;
+          id?: string;
+          issued_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          confirmation_code?: string;
+          created_at?: string;
+          fb_user_id?: string | null;
+          id?: string;
+          issued_at?: string | null;
+          status?: string;
+        };
+        Relationships: [];
+      };
       meta_whatsapp_tenant_credentials: {
         Row: {
           access_token: string;
@@ -9431,6 +10187,47 @@ export type Database = {
         };
         Relationships: [];
       };
+      pbx_settings: {
+        Row: {
+          config: Json;
+          created_at: string;
+          id: string;
+          inbound_secret: string;
+          is_active: boolean;
+          outbound_auth_value: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          inbound_secret: string;
+          is_active?: boolean;
+          outbound_auth_value?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          inbound_secret?: string;
+          is_active?: boolean;
+          outbound_auth_value?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pbx_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       processed_events: {
         Row: {
           event_key: string;
@@ -9454,18 +10251,21 @@ export type Database = {
       };
       processed_webhook_messages: {
         Row: {
+          completed_at: string | null;
           external_message_id: string;
           processed_at: string;
           provider: string;
           tenant_id: string;
         };
         Insert: {
+          completed_at?: string | null;
           external_message_id: string;
           processed_at?: string;
           provider: string;
           tenant_id: string;
         };
         Update: {
+          completed_at?: string | null;
           external_message_id?: string;
           processed_at?: string;
           provider?: string;
@@ -10191,6 +10991,147 @@ export type Database = {
           },
         ];
       };
+      reconcile_findings: {
+        Row: {
+          aios_value: number | null;
+          campaign_id: string | null;
+          client_id: string | null;
+          created_at: string;
+          date: string | null;
+          details: Json;
+          id: string;
+          kind: string;
+          metric: string | null;
+          platform_value: number | null;
+          run_id: string;
+          table_id: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          aios_value?: number | null;
+          campaign_id?: string | null;
+          client_id?: string | null;
+          created_at?: string;
+          date?: string | null;
+          details?: Json;
+          id?: string;
+          kind: string;
+          metric?: string | null;
+          platform_value?: number | null;
+          run_id: string;
+          table_id?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          aios_value?: number | null;
+          campaign_id?: string | null;
+          client_id?: string | null;
+          created_at?: string;
+          date?: string | null;
+          details?: Json;
+          id?: string;
+          kind?: string;
+          metric?: string | null;
+          platform_value?: number | null;
+          run_id?: string;
+          table_id?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reconcile_findings_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "reconcile_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_table_id_fkey";
+            columns: ["table_id"];
+            isOneToOne: false;
+            referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_findings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      reconcile_runs: {
+        Row: {
+          client_id: string | null;
+          finished_at: string | null;
+          id: string;
+          platform: string | null;
+          started_at: string;
+          status: string;
+          summary: Json;
+          table_id: string | null;
+          tenant_id: string;
+          window_end: string | null;
+          window_start: string | null;
+        };
+        Insert: {
+          client_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          platform?: string | null;
+          started_at?: string;
+          status: string;
+          summary?: Json;
+          table_id?: string | null;
+          tenant_id: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Update: {
+          client_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          platform?: string | null;
+          started_at?: string;
+          status?: string;
+          summary?: Json;
+          table_id?: string | null;
+          tenant_id?: string;
+          window_end?: string | null;
+          window_start?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reconcile_runs_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_runs_table_id_fkey";
+            columns: ["table_id"];
+            isOneToOne: false;
+            referencedRelation: "crm_tables";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reconcile_runs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       recording_folders: {
         Row: {
           created_at: string;
@@ -10382,6 +11323,7 @@ export type Database = {
           timezone: string;
           updated_at: string;
           whatsapp_group_id: string | null;
+          whatsapp_integration_id: string | null;
         };
         Insert: {
           channels?: string[];
@@ -10408,6 +11350,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Update: {
           channels?: string[];
@@ -10434,6 +11377,7 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
           whatsapp_group_id?: string | null;
+          whatsapp_integration_id?: string | null;
         };
         Relationships: [
           {
@@ -10469,6 +11413,13 @@ export type Database = {
             columns: ["whatsapp_group_id"];
             isOneToOne: false;
             referencedRelation: "whatsapp_groups";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "report_schedules_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
             referencedColumns: ["id"];
           },
         ];
@@ -12491,6 +13442,53 @@ export type Database = {
           },
         ];
       };
+      task_notification_holds: {
+        Row: {
+          created_at: string;
+          hold_key: string;
+          hold_reason: string;
+          hold_until: string;
+          id: string;
+          notification_type: string;
+          release_result: Json | null;
+          released_at: string | null;
+          request_body: Json;
+          task_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          hold_key?: string;
+          hold_reason?: string;
+          hold_until: string;
+          id?: string;
+          notification_type: string;
+          release_result?: Json | null;
+          released_at?: string | null;
+          request_body: Json;
+          task_id: string;
+        };
+        Update: {
+          created_at?: string;
+          hold_key?: string;
+          hold_reason?: string;
+          hold_until?: string;
+          id?: string;
+          notification_type?: string;
+          release_result?: Json | null;
+          released_at?: string | null;
+          request_body?: Json;
+          task_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_notification_holds_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       task_updates: {
         Row: {
           attachments: Json | null;
@@ -12550,6 +13548,8 @@ export type Database = {
           completion_creator_notified_at: string | null;
           created_at: string;
           created_by: string | null;
+          cursor_session_id: string | null;
+          cursor_session_url: string | null;
           due_date: string | null;
           due_time: string | null;
           duration_minutes: number | null;
@@ -12591,6 +13591,8 @@ export type Database = {
           completion_creator_notified_at?: string | null;
           created_at?: string;
           created_by?: string | null;
+          cursor_session_id?: string | null;
+          cursor_session_url?: string | null;
           due_date?: string | null;
           due_time?: string | null;
           duration_minutes?: number | null;
@@ -12632,6 +13634,8 @@ export type Database = {
           completion_creator_notified_at?: string | null;
           created_at?: string;
           created_by?: string | null;
+          cursor_session_id?: string | null;
+          cursor_session_url?: string | null;
           due_date?: string | null;
           due_time?: string | null;
           duration_minutes?: number | null;
@@ -13577,6 +14581,42 @@ export type Database = {
           window_start?: string;
         };
         Relationships: [];
+      };
+      tenant_report_settings: {
+        Row: {
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          whatsapp_integration_id: string | null;
+        };
+        Insert: {
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Update: {
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          whatsapp_integration_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_report_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tenant_report_settings_whatsapp_integration_id_fkey";
+            columns: ["whatsapp_integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tenant_settings: {
         Row: {
@@ -14866,6 +15906,141 @@ export type Database = {
           },
         ];
       };
+      workshop_artifacts: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          folder: string;
+          id: string;
+          item_id: string;
+          kind: string;
+          meta: Json;
+          ref_id: string | null;
+          ref_table: string | null;
+          status: string;
+          tenant_id: string;
+          thumb_url: string | null;
+          title: string;
+          updated_at: string;
+          url: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          folder?: string;
+          id?: string;
+          item_id: string;
+          kind: string;
+          meta?: Json;
+          ref_id?: string | null;
+          ref_table?: string | null;
+          status?: string;
+          tenant_id: string;
+          thumb_url?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          folder?: string;
+          id?: string;
+          item_id?: string;
+          kind?: string;
+          meta?: Json;
+          ref_id?: string | null;
+          ref_table?: string | null;
+          status?: string;
+          tenant_id?: string;
+          thumb_url?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workshop_artifacts_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workshop_artifacts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      workshop_assets: {
+        Row: {
+          asset_type: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          item_id: string;
+          meta: Json;
+          source: string;
+          storage_path: string | null;
+          tenant_id: string;
+          text: string | null;
+          title: string;
+          updated_at: string;
+          url: string | null;
+          use_as_reference: boolean;
+        };
+        Insert: {
+          asset_type: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          item_id: string;
+          meta?: Json;
+          source?: string;
+          storage_path?: string | null;
+          tenant_id: string;
+          text?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+          use_as_reference?: boolean;
+        };
+        Update: {
+          asset_type?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          item_id?: string;
+          meta?: Json;
+          source?: string;
+          storage_path?: string | null;
+          tenant_id?: string;
+          text?: string | null;
+          title?: string;
+          updated_at?: string;
+          url?: string | null;
+          use_as_reference?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workshop_assets_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workshop_assets_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       zoom_recordings: {
         Row: {
           agency_id: string | null;
@@ -15037,6 +16212,33 @@ export type Database = {
         };
         Returns: string;
       };
+      attach_video_narration: {
+        Args: {
+          p_item_id: string;
+          p_lines?: Json;
+          p_meta?: Json;
+          p_run_id?: string;
+          p_url: string;
+        };
+        Returns: {
+          content: string | null;
+          created_at: string;
+          id: string;
+          item_id: string;
+          meta: Json;
+          run_id: string | null;
+          stage_id: string | null;
+          tenant_id: string;
+          type: string;
+          url: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_assets";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       attach_video_scene_asset: {
         Args: {
           p_kind: string;
@@ -15133,6 +16335,16 @@ export type Database = {
         };
         Returns: undefined;
       };
+      broadcast_lists_recipient: {
+        Args: {
+          p_address: string;
+          p_broadcast_id: string;
+          p_group_id?: string;
+          p_shape: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
       broadcast_matching_entity_ids: {
         Args: { p_entity_type: string; p_filter: Json; p_tenant_id: string };
         Returns: string[];
@@ -15162,8 +16374,16 @@ export type Database = {
         Args: { _agency_id: string; _user_id: string };
         Returns: boolean;
       };
+      can_manage_client_auto_sends: {
+        Args: { p_client_id: string };
+        Returns: boolean;
+      };
       can_manage_lead_archive: {
         Args: { _tenant_id: string };
+        Returns: boolean;
+      };
+      can_manage_report_settings: {
+        Args: { p_tenant_id: string; p_user_id: string };
         Returns: boolean;
       };
       can_manage_user_permissions: {
@@ -15182,6 +16402,180 @@ export type Database = {
         };
         Returns: Json;
       };
+      carmen_brain_secret_delete: {
+        Args: { p_connection_id: string };
+        Returns: undefined;
+      };
+      carmen_brain_secret_get: {
+        Args: { p_connection_id: string };
+        Returns: string;
+      };
+      carmen_brain_secret_set: {
+        Args: { p_connection_id: string; p_secret: string };
+        Returns: undefined;
+      };
+      carmen_finding_confirm_contact: {
+        Args: {
+          p_content: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+          p_update_type: string;
+          p_user_id: string;
+        };
+        Returns: { entry_id: string; inserted: boolean; outcome: string }[];
+      };
+      carmen_finding_may_confirm: {
+        Args: {
+          p_agency_id: string;
+          p_attributed: boolean;
+          p_client_id: string;
+          p_owner_user_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
+      carmen_finding_resolve_card_written: {
+        Args: {
+          p_actor_user_id?: string;
+          p_entry_id: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
+      carmen_finding_role_of: {
+        Args: {
+          p_agency_id?: string;
+          p_client_id?: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
+      carmen_finding_viewer_role: {
+        Args: { p_agency_id: string; p_client_id: string; p_tenant_id: string };
+        Returns: string;
+      };
+      carmen_finding_upsert: {
+        Args: {
+          p_candidates: Json;
+          p_collector: string;
+          p_detector_version: string;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          fingerprint: string;
+          kind: string;
+          outcome: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_set_status: {
+        Args: {
+          p_feedback?: string;
+          p_finding_id: string;
+          p_note?: string;
+          p_status?: string;
+        };
+        Returns: {
+          feedback: string;
+          id: string;
+          resolution: string;
+          status: string;
+        }[];
+      };
+      carmen_finding_resolve: {
+        Args: {
+          p_collector: string;
+          p_items: Json;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_record_send: {
+        Args: {
+          p_delivery_ids: string[];
+          p_error?: string;
+          p_message_key?: string;
+          p_not_before?: string;
+          p_provider_message_id?: string;
+          p_status: string;
+          p_tenant_id: string;
+        };
+        Returns: number;
+      };
+      carmen_finding_record_brief: {
+        Args: {
+          p_error?: string;
+          p_finding_ids: string[];
+          p_message_key: string;
+          p_provider_message_id?: string;
+          p_recipient: Json;
+          p_status: string;
+          p_tenant_id: string;
+        };
+        Returns: number;
+      };
+      carmen_finding_mark_missing: {
+        Args: {
+          p_after_misses?: number;
+          p_client_ids?: string[];
+          p_fingerprints?: string[];
+          p_kind: string;
+          p_round_id?: string;
+          p_seen: string[];
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_claim_deliveries: {
+        Args: { p_limit?: number; p_tenant_id: string };
+        Returns: {
+          attempted_at: string | null;
+          channel: string;
+          created_at: string;
+          error: string | null;
+          finding_id: string;
+          id: string;
+          level: number;
+          message_key: string | null;
+          not_before: string;
+          provider_message_id: string | null;
+          recipient_key: string;
+          recipient_name: string | null;
+          recipient_phone: string | null;
+          recipient_user_id: string | null;
+          round_id: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "carmen_finding_deliveries";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      carmen_finding_apply_route: {
+        Args: { p_decisions: Json; p_round_id: string; p_tenant_id: string };
+        Returns: number;
+      };
+      carmen_delivery_went_out: {
+        Args: { p_status: string };
+        Returns: boolean;
+      };
       carmen_fix_campaigner_access: {
         Args: {
           p_campaigner_id: string;
@@ -15189,6 +16583,43 @@ export type Database = {
           p_tenant: string;
         };
         Returns: Json;
+      };
+      carmen_is_client_phone: {
+        Args: { p_phone: string; p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_is_tenant_owner: {
+        Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_is_owner_of: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_without_stamps: {
+        Args: { p_manager: Json };
+        Returns: Json;
+      };
+      carmen_manager_reset_ladders: {
+        Args: { p_kinds: string[]; p_tenant_id: string };
+        Returns: number;
+      };
+      carmen_manager_mode_sends: { Args: { p_mode: string }; Returns: boolean };
+      carmen_manager_kinds_without_stamps: {
+        Args: { p_kinds: Json };
+        Returns: Json;
+      };
+      carmen_manager_kind_sends: {
+        Args: { p_kind: Json; p_mode: string };
+        Returns: boolean;
+      };
+      carmen_manager_is_owner: {
+        Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_changed_kinds: {
+        Args: { p_new: Json; p_old: Json };
+        Returns: string[];
       };
       carmen_member_has_personal_key: {
         Args: { p_user_id: string };
@@ -15215,9 +16646,47 @@ export type Database = {
           source_location: string;
         }[];
       };
+      carmen_report_client_phones: {
+        Args: { p_tenant_id: string };
+        Returns: string[];
+      };
+      carmen_report_staff: {
+        Args: { p_tenant_id: string };
+        Returns: {
+          full_name: string;
+          is_owner: boolean;
+          phone: string;
+          user_id: string;
+        }[];
+      };
+      carmen_report_staff_rows: {
+        Args: { p_tenant_id: string };
+        Returns: {
+          full_name: string;
+          is_owner: boolean;
+          phone: string;
+          user_id: string;
+        }[];
+      };
+      carmen_round_try_lease: {
+        Args: { p_seconds?: number; p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_round_end_lease: {
+        Args: { p_error?: string; p_tenant_id: string };
+        Returns: undefined;
+      };
+      carmen_round_claim_slot: {
+        Args: { p_key: string; p_slot: string; p_tenant_id: string };
+        Returns: boolean;
+      };
       carmen_send_activation: {
         Args: { p_integration: string; p_phone: string; p_tenant: string };
         Returns: Json;
+      };
+      chat_allowed_connection_user_ids: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: string[];
       };
       check_circuit_breaker: {
         Args: { p_provider: string; p_tenant_id: string };
@@ -15242,6 +16711,14 @@ export type Database = {
           };
       claim_campaign_pulse_delivery: {
         Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      claim_campaign_pulse_refresh: {
+        Args: {
+          p_min_interval_seconds: number;
+          p_requested_by?: string;
+          p_tenant_id: string;
+        };
         Returns: boolean;
       };
       claim_client_retention_delivery: {
@@ -15304,6 +16781,23 @@ export type Database = {
       };
       cleanup_old_events: { Args: never; Returns: number };
       cleanup_old_jobs: { Args: never; Returns: number };
+      client_auto_send_allowed: {
+        Args: {
+          p_client_id: string;
+          p_kind: Database["public"]["Enums"]["client_auto_send_kind"];
+          p_target: Database["public"]["Enums"]["client_auto_send_target"];
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
+      client_auto_send_targets: {
+        Args: { p_client_id: string };
+        Returns: {
+          email: boolean;
+          whatsapp_direct: boolean;
+          whatsapp_group: boolean;
+        }[];
+      };
       client_update_documents_phone_call: {
         Args: { p_content: string };
         Returns: boolean;
@@ -15373,6 +16867,13 @@ export type Database = {
           name: string;
           slug: string;
           table_id: string;
+        }[];
+      };
+      find_phone_owner: {
+        Args: { p_match_key: string; p_tenant_id: string };
+        Returns: {
+          client_id: string;
+          lead_id: string;
         }[];
       };
       format_client_mood_status_label: {
@@ -15451,7 +16952,83 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      get_client_contact_evidence: {
+        Args: {
+          p_client_ids?: string[];
+          p_contact_since?: string;
+          p_min_call_seconds: number;
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          agency_id: string;
+          client_id: string;
+          client_name: string;
+          client_since: string;
+          last_contact_at: string;
+          last_log_at: string;
+          unlogged_call_at: string;
+          unlogged_call_id: string;
+          unlogged_call_resolution: string;
+          unlogged_call_seconds: number;
+          unlogged_call_user_id: string;
+          unlogged_call_user_name: string;
+          unlogged_meeting_at: string;
+          unlogged_meeting_id: string;
+          unlogged_meeting_key: string;
+          unlogged_meeting_source: string;
+          unlogged_meeting_summary: string;
+        }[];
+      };
+      get_client_group_digest_messages: {
+        Args: {
+          p_client_ids?: string[];
+          p_collector: string;
+          p_connection_user_ids: string[];
+          p_per_group?: number;
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          client_tenant_id: string;
+          group_chat_id: string;
+          group_id: string;
+          group_name: string;
+          messages: Json;
+        }[];
+      };
       get_client_tenant_id: { Args: { _client_id: string }; Returns: string };
+      get_client_thread_activity: {
+        Args: {
+          p_after_thread_key?: string;
+          p_client_ids?: string[];
+          p_collector: string;
+          p_connection_user_ids: string[];
+          p_per_thread?: number;
+          p_person_send_kinds: string[];
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          client_tenant_id: string;
+          created_at: string;
+          direction: string;
+          group_id: string;
+          message_id: string;
+          message_text: string;
+          sender_lid_unmapped: boolean;
+          sender_match_key: string;
+          sent_by_user_id: string;
+          thread_key: string;
+          thread_kind: string;
+        }[];
+      };
       get_cron_job_history: {
         Args: { p_jobid: number; p_limit?: number };
         Returns: {
@@ -15622,6 +17199,24 @@ export type Database = {
               wid: string;
             }[];
           };
+      get_unlinked_client_groups: {
+        Args: {
+          p_connection_user_ids: string[];
+          p_min_messages?: number;
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          group_chat_id: string;
+          group_id: string;
+          group_name: string;
+          last_message_at: string;
+          message_count: number;
+        }[];
+      };
       get_user_agency_ids: { Args: { _user_id: string }; Returns: string[] };
       get_user_campaigner_id: { Args: { _user_id: string }; Returns: string };
       get_user_client_ids: { Args: { _user_id: string }; Returns: string[] };
@@ -15743,6 +17338,25 @@ export type Database = {
         };
         Returns: string;
       };
+      list_report_whatsapp_senders: {
+        Args: { p_tenant_id: string; p_user_id?: string };
+        Returns: {
+          caller_can_manage: boolean;
+          carmen_role: string;
+          display_name: string;
+          group_chat_ids: string[];
+          id: string;
+          integration_type: string;
+          is_shared: boolean;
+          last4: string;
+          org_wide: boolean;
+          owner_name: string;
+          owner_tenant_id: string;
+          owner_tenant_name: string;
+          owner_user_id: string;
+          ready: boolean;
+        }[];
+      };
       list_system_cron_jobs: {
         Args: never;
         Returns: {
@@ -15825,10 +17439,25 @@ export type Database = {
       };
       normalize_google_customer_id: { Args: { raw: string }; Returns: string };
       normalize_meta_ad_account_id: { Args: { raw: string }; Returns: string };
+      patch_marketing_work_item: {
+        Args: {
+          p_item_id: string;
+          p_payload_patch?: Json;
+          p_status?: string;
+          p_tenant_id: string;
+          p_title?: string;
+        };
+        Returns: {
+          id: string;
+          status: Database["public"]["Enums"]["marketing_item_status"];
+          title: string;
+        }[];
+      };
       permanently_delete_archived_leads: {
         Args: { p_lead_ids: string[] };
         Returns: number;
       };
+      phone_match_key: { Args: { p_phone: string }; Returns: string };
       produce_video: {
         Args: {
           p_aspect?: string;
@@ -15837,6 +17466,7 @@ export type Database = {
           p_item_id: string;
           p_music_prompt?: string;
           p_provider?: string;
+          p_redo_preview?: boolean;
           p_stage_id?: string;
           p_voice_id?: string;
           p_with_music?: boolean;
@@ -15851,6 +17481,46 @@ export type Database = {
           p_generate_audio?: boolean;
           p_item_id: string;
           p_provider?: string;
+          p_scene_ids: string[];
+          p_stage_id?: string;
+        };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      queue_video_lipsync: {
+        Args: {
+          p_estimate?: Json;
+          p_item_id: string;
+          p_retry?: boolean;
           p_scene_ids: string[];
           p_stage_id?: string;
         };
@@ -15963,6 +17633,25 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      record_client_card_entry: {
+        Args: {
+          p_attributed_user?: string;
+          p_client: string;
+          p_content: string;
+          p_counts_as_contact?: boolean;
+          p_metadata?: Json;
+          p_source?: string;
+          p_source_ref?: string;
+          p_tenant: string;
+          p_update_type?: string;
+        };
+        Returns: {
+          attributed_user_id: string;
+          attribution: string;
+          entry_id: string;
+          inserted: boolean;
+        }[];
+      };
       record_integration_failure: {
         Args: { p_provider: string; p_tenant_id: string };
         Returns: undefined;
@@ -15984,6 +17673,30 @@ export type Database = {
       release_manychat_destination_lock: {
         Args: { p_destination_key: string };
         Returns: undefined;
+      };
+      report_whatsapp_sender_usable: {
+        Args: {
+          p_integration_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
+      resolve_send_recipient: {
+        Args: {
+          p_address: string;
+          p_group_id?: string;
+          p_shape: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          ambiguous: boolean;
+          client_ids: string[];
+          group_id: string;
+          lead_id: string;
+          recipient_kind: string;
+          sender_staff: boolean;
+        }[];
       };
       restore_archived_leads: {
         Args: { p_lead_ids: string[] };
@@ -16065,6 +17778,11 @@ export type Database = {
               whatsapp_avatar_url: string;
             }[];
           };
+      send_scope_tenant_ids: { Args: { p_tenant: string }; Returns: string[] };
+      set_report_whatsapp_sender: {
+        Args: { p_integration_id?: string; p_tenant_id: string };
+        Returns: undefined;
+      };
       set_video_production: {
         Args: { p_item_id: string; p_patch: Json };
         Returns: Json;
@@ -16092,6 +17810,14 @@ export type Database = {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
       };
+      tenant_can_write_client: {
+        Args: { p_client: string; p_tenant: string };
+        Returns: boolean;
+      };
+      tenant_holds_agency: {
+        Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };
+        Returns: boolean;
+      };
       try_acquire_manychat_destination_lock: {
         Args: { p_destination_key: string; p_ttl_seconds?: number };
         Returns: boolean;
@@ -16117,6 +17843,10 @@ export type Database = {
         Args: { check_tenant_id: string };
         Returns: boolean;
       };
+      user_can_manage_client_card_entries: {
+        Args: { check_tenant_id: string };
+        Returns: boolean;
+      };
       user_can_manage_crm_dashboard: {
         Args: {
           _agency_id: string;
@@ -16128,6 +17858,10 @@ export type Database = {
       };
       user_can_view_campaigner: {
         Args: { _campaigner_id: string; _user_id: string };
+        Returns: boolean;
+      };
+      user_can_view_client_send_refusal: {
+        Args: { p_client_id: string; p_tenant_id: string };
         Returns: boolean;
       };
       user_has_agency_access: {
@@ -16187,6 +17921,111 @@ export type Database = {
         Args: { p_data: Json; p_table_id: string };
         Returns: boolean;
       };
+      video_narration_line: {
+        Args: { p_meta: Json; p_voiceover: string };
+        Returns: string;
+      };
+      video_narration_ready: { Args: { p_item_id: string }; Returns: boolean };
+      video_talking_line: {
+        Args: { p_meta: Json; p_voiceover: string };
+        Returns: string;
+      };
+      video_voice_matches: {
+        Args: { p_meta: Json; p_voice: string };
+        Returns: boolean;
+      };
+      workshop_assign_client: {
+        Args: { p_client_id?: string; p_item_id: string };
+        Returns: {
+          client_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          current_stage_id: string | null;
+          id: string;
+          links: Json;
+          payload: Json;
+          pipeline_id: string | null;
+          scheduled_date: string | null;
+          status: Database["public"]["Enums"]["marketing_item_status"];
+          target_channel: string | null;
+          tenant_id: string;
+          title: string | null;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_work_items";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      workshop_creative_stage: {
+        Args: { p_client_id?: string; p_tenant_id: string };
+        Returns: {
+          pipeline_id: string;
+          stage_id: string;
+        }[];
+      };
+      workshop_edit_scene_text: {
+        Args: {
+          p_dialogue?: string;
+          p_overlay_text?: string;
+          p_scene_id: string;
+          p_voiceover_text?: string;
+        };
+        Returns: {
+          clip_asset_id: string | null;
+          clip_stale: boolean;
+          created_at: string;
+          created_by: string | null;
+          duration_s: number;
+          focal_x: number;
+          id: string;
+          item_id: string;
+          locked: boolean;
+          meta: Json;
+          motion_prompt: string;
+          overlay_text: string;
+          position: number;
+          shot: string;
+          status: Database["public"]["Enums"]["marketing_video_scene_status"];
+          still_asset_id: string | null;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+          visual_prompt: string;
+          voice_asset_id: string | null;
+          voiceover_text: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "marketing_video_scenes";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      workshop_list_projects: {
+        Args: { p_client?: string; p_limit?: number; p_tenant_id: string };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          department_hint: string;
+          format: string;
+          has_board: boolean;
+          has_copy: boolean;
+          has_creative: boolean;
+          has_seo_plan: boolean;
+          id: string;
+          project_type: string;
+          stage_type: string;
+          status: string;
+          target_channel: string;
+          title: string;
+          track: string;
+          updated_at: string;
+          workshop_edit: boolean;
+        }[];
+      };
     };
     Enums: {
       agency_status: "active" | "paused" | "former";
@@ -16240,6 +18079,8 @@ export type Database = {
         | "integration_disconnected";
       chat_provider:
         "manychat" | "green_api" | "internal" | "manus_wa" | "meta_whatsapp";
+      client_auto_send_kind: "lead_alert" | "campaign_alert" | "automation";
+      client_auto_send_target: "whatsapp_group" | "whatsapp_direct" | "email";
       client_mood_status:
         "happy" | "wavering" | "churn_risk" | "not_progressing";
       client_status: "active" | "paused" | "ended" | "onboarding" | "inactive";
@@ -16513,6 +18354,8 @@ export const Constants = {
         "manus_wa",
         "meta_whatsapp",
       ],
+      client_auto_send_kind: ["lead_alert", "campaign_alert", "automation"],
+      client_auto_send_target: ["whatsapp_group", "whatsapp_direct", "email"],
       client_mood_status: [
         "happy",
         "wavering",

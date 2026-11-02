@@ -1,27 +1,26 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   isInvalidCursorModelError,
   pickCreativeModelFromCatalog,
   resolveCreativeCursorModel,
 } from "./cursorCreativeModel.ts";
 
-test("composer-2.5-fast is an alias, not a model id", () => {
-  assert.deepEqual(resolveCreativeCursorModel("composer-2.5-fast"), {
+Deno.test("composer-2.5-fast is an alias, not a model id", () => {
+  assertEquals(resolveCreativeCursorModel("composer-2.5-fast"), {
     id: "composer-2.5",
     params: [{ id: "fast", value: "true" }],
   });
-  assert.deepEqual(resolveCreativeCursorModel(""), {
+  assertEquals(resolveCreativeCursorModel(""), {
     id: "composer-2.5",
     params: [{ id: "fast", value: "true" }],
   });
-  assert.equal(
+  assertStrictEquals(
     resolveCreativeCursorModel("claude-4.6-sonnet-thinking").id,
     "claude-4.6-sonnet-thinking",
   );
 });
 
-test("catalog pick uses the live composer id and fast param", () => {
+Deno.test("catalog pick uses the live composer id and fast param", () => {
   const picked = pickCreativeModelFromCatalog(
     [
       {
@@ -32,16 +31,16 @@ test("catalog pick uses the live composer id and fast param", () => {
     ],
     { id: "composer-2.5", params: [{ id: "fast", value: "true" }] },
   );
-  assert.equal(picked.id, "composer-2.5");
-  assert.deepEqual(picked.params, [{ id: "fast", value: "true" }]);
+  assertStrictEquals(picked.id, "composer-2.5");
+  assertEquals(picked.params, [{ id: "fast", value: "true" }]);
 });
 
-test("invalid model errors are detected for retry-without-model", () => {
-  assert.equal(
+Deno.test("invalid model errors are detected for retry-without-model", () => {
+  assertStrictEquals(
     isInvalidCursorModelError(
       "Model 'composer-2.5-fast' is not available or invalid",
     ),
     true,
   );
-  assert.equal(isInvalidCursorModelError("unauthorized"), false);
+  assertStrictEquals(isInvalidCursorModelError("unauthorized"), false);
 });

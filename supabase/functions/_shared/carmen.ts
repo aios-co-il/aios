@@ -902,19 +902,25 @@ export async function findCarmenSessionAutomation(
   return null;
 }
 
-// Look up the first send action step of a Carmen automation and dispatch the reply through it
-// (Manus or Green API), regardless of which webhook received the inbound message.
-// Returns true when delivery succeeded via the action step; false if no action step is configured
-// or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
+/**
+ * Look up the first send action step of a Carmen automation and dispatch the reply through it
+ * (Manus or Green API), regardless of which webhook received the inbound message.
+ * Returns true when delivery succeeded via the action step; false if no action step is configured
+ * or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
+ * The send is stamped send_kind "carmen": the chat_messages trigger logs it on the client card
+ * only in a group that belongs to one client. Notifications to team members pass "staff_alert"
+ * and are never logged.
+ */
 export async function sendCarmenReplyViaActionStep(args: {
   supabase: any;
   automationId: string;
   tenantId: string;
-  connectionUserId: string;
+  connectionUserId: string | null;
   chatId: string;
   phoneNumber: string;
   isGroup: boolean;
   message: string;
+  sendKind?: "carmen" | "staff_alert";
 }): Promise<boolean> {
   const {
     supabase,
@@ -925,6 +931,7 @@ export async function sendCarmenReplyViaActionStep(args: {
     phoneNumber,
     isGroup,
     message,
+    sendKind = "carmen",
   } = args;
 
   if (!replyDestinationIsConsistent({ chatId, isGroup })) {
@@ -1001,6 +1008,7 @@ export async function sendCarmenReplyViaActionStep(args: {
     tenantId,
     senderUserId: connectionUserId,
     message,
+    sendKind,
   };
   if (integrationId) body.integrationId = integrationId;
   if (groupId) {
@@ -1044,7 +1052,7 @@ export interface CarmenWaNotify {
   surface: "whatsapp";
   tenant_id: string;
   automation_id: string | null;
-  connection_user_id: string;
+  connection_user_id: string | null;
   chat_id: string;
   phone_number: string | null;
   is_group: boolean;
@@ -1195,7 +1203,7 @@ export async function findActiveCarmenSession(
   supabase: any,
   tenantId: string,
   chatId: string,
-  connectionUserId: string,
+  connectionUserId: string | null,
   idleMinutes: number = CARMEN_SESSION_IDLE_MINUTES_DEFAULT,
   integrationId?: string | null,
 ): Promise<any | null> {
@@ -1250,8 +1258,8 @@ export interface CarmenContext {
   tenantId: string;
   /** Row id of the tenant_integrations record that received this message. */
   integrationId: string;
-  /** User who owns the integration (used as Carmen session owner). */
-  connectionUserId: string;
+  /** User who owns the integration (used as Carmen session owner); null when unowned. */
+  connectionUserId: string | null;
   /** Provider chat id (e.g. "972501234567@c.us"). */
   chatId: string;
   /** Counterpart phone (digits only or with country code). */

@@ -1,7 +1,18 @@
+import {
+  ELEVENLABS_VIDEO_USD_PER_SECOND,
+  HIGGSFIELD_USD_PER_SECOND,
+  KLING_CREDITS_PER_5S,
+  KLING_USD_PER_5S,
+  MUSIC_USD_PER_MINUTE,
+  OPENROUTER_USD_PER_SECOND,
+  VOICE_USD_PER_1000_CHARS,
+  musicQuoteSeconds,
+} from "../../../../../supabase/functions/_shared/workshop/clip-prices.ts";
 import type { StoryboardFrame } from "./types";
 
 /** Scene animation engine stored on the video project (`payload.video.scene_engine`). */
-export type SceneEngine = "mock" | "kling" | "elevenlabs" | "higgsfield";
+export type SceneEngine =
+  "mock" | "kling" | "elevenlabs" | "higgsfield" | "openrouter";
 
 /**
  * Sound engine. ElevenLabs writes a separate voiceover and music bed.
@@ -22,6 +33,7 @@ const SCENE_ENGINES: SceneEngine[] = [
   "kling",
   "elevenlabs",
   "higgsfield",
+  "openrouter",
 ];
 const SOUND_ENGINES: SoundEngine[] = ["elevenlabs", "higgsfield"];
 
@@ -30,20 +42,13 @@ export const SCENE_ENGINE_LABEL: Record<SceneEngine, string> = {
   kling: "Kling",
   elevenlabs: "ElevenLabs",
   higgsfield: "Higgsfield",
+  openrouter: "OpenRouter (Kling 3)",
 };
 
 export const SOUND_ENGINE_LABEL: Record<SoundEngine, string> = {
   elevenlabs: "ElevenLabs — קריינות ומוזיקה",
   higgsfield: "Higgsfield — סאונד בתוך הקליפ",
 };
-
-/** Planning rates until the first paid run records the real invoice. */
-const KLING_USD_PER_5S = 0.85;
-const KLING_CREDITS_PER_5S = 5100;
-const ELEVENLABS_VIDEO_USD_PER_SECOND = 0.15;
-const HIGGSFIELD_USD_PER_SECOND = 0.1;
-const ELEVENLABS_VOICE_USD_PER_1000_CHARS = 0.12;
-const ELEVENLABS_MUSIC_USD_PER_MINUTE = 0.5;
 
 const roundUsd = (value: number) => Math.round(value * 100) / 100;
 
@@ -90,11 +95,16 @@ export const elevenLabsClipSeconds = (duration: number) => {
   return 8;
 };
 
-/** Kling and the free preview render a 5 s or 10 s clip. Higgsfield uses the scene length. */
+/**
+ * Kling and the free preview render a 5 s or 10 s clip. Higgsfield uses the
+ * scene length; OpenRouter (Kling 3) too, from 3 to 15 s.
+ */
 export const sceneClipSeconds = (engine: SceneEngine, duration: number) => {
   if (engine === "elevenlabs") return elevenLabsClipSeconds(duration);
   if (engine === "higgsfield")
     return Math.min(15, Math.max(1, Math.ceil(Number(duration) || 5)));
+  if (engine === "openrouter")
+    return Math.min(15, Math.max(3, Math.ceil(Number(duration) || 5)));
   return Number(duration) > 5 ? 10 : 5;
 };
 
@@ -129,6 +139,21 @@ export function sceneEstimate(
       label: SCENE_ENGINE_LABEL.kling,
     };
   }
+  if (engine === "openrouter") {
+    // OpenRouter bills a Kling clip for at least 5 s, even a shorter one.
+    const billed = frames.reduce(
+      (sum, frame) =>
+        sum + Math.max(5, sceneClipSeconds(engine, frame.duration)),
+      0,
+    );
+    return {
+      count: frames.length,
+      seconds,
+      usd: roundUsd(billed * OPENROUTER_USD_PER_SECOND),
+      credits: 0,
+      label: SCENE_ENGINE_LABEL.openrouter,
+    };
+  }
   const rate =
     engine === "elevenlabs"
       ? ELEVENLABS_VIDEO_USD_PER_SECOND
@@ -146,11 +171,15 @@ export function sceneEstimate(
  * Scenes that need a (new) voiceover: they have text, and no current voice or one spoken
  * from different text. Unchanged voiceovers are not paid for again.
  */
-export const framesToVoice = (frames: StoryboardFrame[]) =>
-  frames.filter((frame) => {
+export const framesToVoice = (frames: StoryboardFrame[]) => {
+  const spoken = frames.filter((frame) => frame.voiceover.trim());
+  const stale = spoken.some((frame) => {
     const text = frame.voiceover.trim();
-    return !!text && (!frame.voiceAssetId || frame.voiceText !== text);
+    return !frame.voiceAssetId || frame.voiceText !== text;
   });
+  // One changed line re-speaks the whole script, so the narration stays one take.
+  return stale ? spoken : [];
+};
 
 export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
   const spoken = framesToVoice(frames);
@@ -164,12 +193,16 @@ export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
       (sum, frame) => sum + (Number(frame.duration) || 0),
       0,
     ),
-    usd: roundUsd((characters / 1000) * ELEVENLABS_VOICE_USD_PER_1000_CHARS),
+    usd: roundUsd((characters / 1000) * VOICE_USD_PER_1000_CHARS),
     credits: 0,
     label: "ElevenLabs קריינות",
   };
 }
 
+/**
+ * The music bed: `seconds` is the storyboard, the price covers the film the bed is made for
+ * (the narration's stretch, the end card and a tail; musicQuoteSeconds in clip-prices.ts).
+ */
 export function musicEstimate(frames: StoryboardFrame[]): EngineEstimate {
   const seconds = frames.reduce(
     (sum, frame) => sum + (Number(frame.duration) || 0),
@@ -178,7 +211,7 @@ export function musicEstimate(frames: StoryboardFrame[]): EngineEstimate {
   return {
     count: 1,
     seconds,
-    usd: roundUsd((seconds / 60) * ELEVENLABS_MUSIC_USD_PER_MINUTE),
+    usd: roundUsd((musicQuoteSeconds(seconds) / 60) * MUSIC_USD_PER_MINUTE),
     credits: 0,
     label: "ElevenLabs מוזיקה",
   };

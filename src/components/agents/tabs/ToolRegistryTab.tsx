@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,7 +92,7 @@ export function ToolRegistryTab() {
         input_schema: parsedSchema,
         handler_ref: tool.handler_ref || null,
         display_name: tool.display_name || tool.name,
-      };
+      } as TablesInsert<"agent_tools">;
       if (tool.id) {
         const { error } = await supabase
           .from("agent_tools")

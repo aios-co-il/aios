@@ -56,9 +56,14 @@ export function composerLockedForChat(args: {
   conversationId: string | null;
   liveStreamIds: string[];
   status?: string | null;
+  /** The turn has been "streaming" too long to be real (carmenResumeChat). */
+  stale?: boolean;
 }): boolean {
+  if (args.stale) return false;
   if (args.conversationId && args.liveStreamIds.includes(args.conversationId))
     return true;
+  // A turn still running on the server, e.g. after the panel was reopened.
+  if (args.conversationId && args.status === "streaming") return true;
   if (
     !args.conversationId &&
     args.liveStreamIds.length &&

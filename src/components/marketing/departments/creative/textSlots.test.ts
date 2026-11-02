@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   applySlotsToLayers,
   inkOnLuma,
@@ -32,8 +31,8 @@ const paintRect = (
 };
 
 test("inkOnLuma picks contrast for a quiet pocket", () => {
-  assert.equal(inkOnLuma(0.2), "#ffffff");
-  assert.equal(inkOnLuma(0.8), "#111111");
+  expect(inkOnLuma(0.2)).toBe("#ffffff");
+  expect(inkOnLuma(0.8)).toBe("#111111");
 });
 
 test("pixel slots land on the uniform quiet half, not the busy half", () => {
@@ -51,15 +50,15 @@ test("pixel slots land on the uniform quiet half, not the busy half", () => {
     }
   }
   const slots = proposeTextSlotsFromPixels({ data, width, height });
-  assert.ok(slots.length >= 1);
+  expect(slots.length >= 1).toBeTruthy();
   const headline = slots.find((slot) => slot.role === "headline");
-  assert.ok(headline);
-  assert.ok(
+  expect(headline).toBeTruthy();
+  expect(
     (headline?.x ?? 99) < 50,
     "headline should sit in the calm left pocket",
-  );
-  assert.equal(headline?.textColor, "#ffffff");
-  assert.equal(headline?.source, "pixels");
+  ).toBeTruthy();
+  expect(headline?.textColor).toBe("#ffffff");
+  expect(headline?.source).toBe("pixels");
 });
 
 test("noisy frames fall back to the composition slots", () => {
@@ -76,13 +75,13 @@ test("noisy frames fall back to the composition slots", () => {
       data[i + 3] = 255;
     }
   }
-  assert.equal(proposeTextSlotsFromPixels({ data, width, height }).length, 0);
+  expect(proposeTextSlotsFromPixels({ data, width, height }).length).toBe(0);
   const fallback = slotsFromComposition("offer");
-  assert.ok(
+  expect(
     fallback.some(
       (slot) => slot.role === "headline" && slot.source === "composition",
     ),
-  );
+  ).toBeTruthy();
 });
 
 test("applySlotsToLayers moves headline and CTA without touching footer chrome", () => {
@@ -150,11 +149,11 @@ test("applySlotsToLayers moves headline and CTA without touching footer chrome",
       source: "pixels",
     },
   ]);
-  assert.equal(next[0].x, 0);
-  assert.equal(next[1].x, 8);
-  assert.equal(next[1].color, "#ffffff");
-  assert.equal(next[2].y, 80);
-  assert.equal(next[3].role, "footer");
+  expect(next[0].x).toBe(0);
+  expect(next[1].x).toBe(8);
+  expect(next[1].color).toBe("#ffffff");
+  expect(next[2].y).toBe(80);
+  expect(next[3].role).toBe("footer");
 });
 
 test("proposeAndApplySlots uses composition when pixels are missing", () => {
@@ -179,6 +178,6 @@ test("proposeAndApplySlots uses composition when pixels are missing", () => {
     createdAt: "",
     compositionId: "offer",
   });
-  assert.equal(result.slots[0].source, "composition");
-  assert.ok((result.variation.layers[0].width ?? 0) > 10);
+  expect(result.slots[0].source).toBe("composition");
+  expect((result.variation.layers[0].width ?? 0) > 10).toBeTruthy();
 });

@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import {
+  filmInProductionMessage,
+  isFilmInProduction,
+} from "@/components/workshop/filmInProduction";
 import type { ImageGenerationCost } from "./imageCost";
 import type { StoryboardFrame } from "./types";
 import { layoutStoryboardRtl, storyboardFrameX } from "./utils";
@@ -97,7 +101,11 @@ export async function saveVideoStoryboard({
     p_item_id: itemId,
     p_scenes: framesToScenes(frames) as unknown as Json,
   });
-  if (error) throw error;
+  // The scenes of a film being produced stay as they are; the toast says why.
+  if (error)
+    throw isFilmInProduction(error)
+      ? new Error(filmInProductionMessage("את הסטוריבורד"))
+      : error;
 
   for (const still of stillsToAttach(persistedStills, frames))
     await attachSceneStill(still);

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import type { StoryboardFrame } from "./types.ts";
 import {
   getProduction,
@@ -52,19 +51,16 @@ test("the plan makes missing stills, animates them and every scene without a cur
     ],
     settings,
   );
-  assert.deepEqual(
-    plan.stills.map((f) => f.id),
-    ["new"],
-  );
-  assert.deepEqual(plan.clips.map((f) => f.id).sort(), [
+  expect(plan.stills.map((f) => f.id)).toStrictEqual(["new"]);
+  expect(plan.clips.map((f) => f.id).sort()).toStrictEqual([
     "new",
     "stale",
     "still",
   ]);
-  assert.equal(plan.music, true);
-  assert.equal(plan.usd.stills, 0.13);
-  assert.equal(plan.usd.clips, 0);
-  assert.equal(plan.assembleOnly, false);
+  expect(plan.music).toBe(true);
+  expect(plan.usd.stills).toBe(0.13);
+  expect(plan.usd.clips).toBe(0);
+  expect(plan.assembleOnly).toBe(false);
 });
 
 test("a finished storyboard with only text edits is assembled again for free", () => {
@@ -82,19 +78,18 @@ test("a finished storyboard with only text edits is assembled again for free", (
     ],
     { ...settings, hasMusic: true },
   );
-  assert.equal(plan.assembleOnly, true);
-  assert.equal(plan.usd.total, 0);
+  expect(plan.assembleOnly).toBe(true);
+  expect(plan.usd.total).toBe(0);
 });
 
 test("production state and progress read from payload.video.production", () => {
-  assert.equal(
-    getProduction({ video: { production: { status: "nope" } } }),
+  expect(getProduction({ video: { production: { status: "nope" } } })).toBe(
     null,
   );
   const running = getProduction({
     video: { production: { status: "running" } },
   });
-  assert.equal(running?.status, "running");
+  expect(running?.status).toBe("running");
   const progress = productionProgress(
     [
       frame({ status: "clip_generating" }),
@@ -103,11 +98,10 @@ test("production state and progress read from payload.video.production", () => {
     running,
     undefined,
   );
-  assert.match(progress!.label, /1 מתוך 2/);
-  assert.equal(productionProgress([], { status: "done" }, undefined), null);
-  assert.equal(
+  expect(progress!.label).toMatch(/1 מתוך 2/);
+  expect(productionProgress([], { status: "done" }, undefined)).toBe(null);
+  expect(
     productionProgress([frame({ status: "clip_ready" })], running, "running")
       ?.label,
-    "מרכיב את הסרט…",
-  );
+  ).toBe("מרכיב את הסרט…");
 });

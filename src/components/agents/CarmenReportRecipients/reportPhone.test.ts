@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import { toReportPhoneE164 } from "./reportPhone";
+
+describe("toReportPhoneE164", () => {
+  it("turns a local Israeli mobile into E.164", () => {
+    expect(toReportPhoneE164("050-123-4567")).toBe("+972501234567");
+  });
+
+  it("reads a mobile typed without its leading 0 as Israeli", () => {
+    expect(toReportPhoneE164("541234567")).toBe("+972541234567");
+    expect(toReportPhoneE164("+972 54-123-4567")).toBe("+972541234567");
+  });
+
+  it("keeps an international number", () => {
+    expect(toReportPhoneE164("+1 (415) 555-0100")).toBe("+14155550100");
+  });
+
+  it("refuses input that cannot be a phone", () => {
+    expect(toReportPhoneE164("")).toBeNull();
+    expect(toReportPhoneE164("12345")).toBeNull();
+    expect(toReportPhoneE164("phone")).toBeNull();
+  });
+
+  it("refuses an 8-digit number the sends would skip", () => {
+    expect(toReportPhoneE164("+1234 5678")).toBeNull();
+  });
+});

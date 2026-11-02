@@ -1,0 +1,106 @@
+# Drains Staging's video queue every 10 minutes: when a video run is waiting, it runs develop's
+# render worker once until the queue is empty (the Production worker is a container, not this).
+name: Drain render worker (Staging)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-worker-staging
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    # Only develop's code drains Staging; a dispatch from another branch does nothing.
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: staging
+    env:
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      # The account token can read every project's keys, Production's included. Only this step
+      # sees it, and it runs before anything from the repository is checked out or installed, so
+      # no branch code or dependency script can replace a program it calls. The steps after it
+      # get the Staging service key only.
+      - name: Resolve Staging service key
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PROJECT_REF}" ]; then
+            echo "The staging environment's SUPABASE_PROJECT_REF is empty" >&2
+            exit 1
+          fi
+          KEYS="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys")"
+          SERVICE_KEY="$(jq -r '.[] | select(.name == "service_role") | .api_key' <<<"$KEYS")"
+          if [ -z "$SERVICE_KEY" ] || [ "$SERVICE_KEY" = "null" ]; then
+            echo "Could not resolve the Staging service_role key" >&2
+            exit 1
+          fi
+          echo "::add-mask::$SERVICE_KEY"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> "$GITHUB_ENV"
+          echo "SUPABASE_URL=https://${PROJECT_REF}.supabase.co" >> "$GITHUB_ENV"
+
+      # Most runs find the queue empty. One request decides before anything is installed:
+      # what claim_video_run takes, a queued video run or one left running for 45 minutes.
+      - name: Check the queue
+        id: queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          STALE="$(date -u -d '45 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          RUNS="$(curl --fail --silent --show-error --get \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --data-urlencode "select=id" \
+            --data-urlencode "kind=not.is.null" \
+            --data-urlencode "or=(status.eq.queued,and(status.eq.running,started_at.lt.$STALE))" \
+            --data-urlencode "limit=1" \
+            "$SUPABASE_URL/rest/v1/marketing_runs")"
+          if [ "$(jq length <<<"$RUNS")" -gt 0 ]; then
+            echo "work=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "work=false" >> "$GITHUB_OUTPUT"
+            echo "No video run is waiting on Staging; nothing to install"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.queue.outputs.work == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        if: steps.queue.outputs.work == 'true'
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        if: steps.queue.outputs.work == 'true'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install Remotion
+        if: steps.queue.outputs.work == 'true'
+        working-directory: workers/creative-video/remotion
+        run: npm ci --ignore-scripts --no-audit --no-fund && npx remotion browser ensure
+
+      - name: Drain queued video runs
+        if: steps.queue.outputs.work == 'true'
+        working-directory: render-worker
+        env:
+          DRAIN: "1"
+          VIDEO_PROVIDER: mock
+          CONCURRENCY: "2"
+          POLL_MS: "2000"
+          WORKER_ID: gha-staging
+          WORKER_ENV: staging
+        # exec: the runner's stop signal reaches node (not only bash), so it requeues its runs.
+        run: exec node src/index.mjs

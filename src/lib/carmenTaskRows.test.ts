@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   agentTaskScheduleLabel,
   agentTaskStatus,
@@ -17,41 +16,36 @@ import {
 } from "./taskSchedulePresets.ts";
 
 test("recurring cron task without next_run is flagged as not scheduled", () => {
-  assert.equal(
+  expect(
     agentTaskScheduleLabel({
       schedule_type: "recurring",
       cron_expression: "0 9 * * *",
       next_run: null,
     }),
-    "כל יום ב-09:00 · לא תוזמנה",
-  );
-  assert.equal(
+  ).toBe("כל יום ב-09:00 · לא תוזמנה");
+  expect(
     agentTaskScheduleLabel({
       schedule_type: "recurring",
       cron_expression: "0 9 * * *",
       next_run: "2026-12-01T07:00:00Z",
     }),
-    "כל יום ב-09:00",
-  );
+  ).toBe("כל יום ב-09:00");
 });
 
 test("a completed recurring task stays scheduled, a completed one-off is done", () => {
-  assert.equal(
-    agentTaskStatus({ schedule_type: "daily", status: "completed" }),
+  expect(agentTaskStatus({ schedule_type: "daily", status: "completed" })).toBe(
     "scheduled",
   );
-  assert.equal(
-    agentTaskStatus({ schedule_type: "once", status: "completed" }),
+  expect(agentTaskStatus({ schedule_type: "once", status: "completed" })).toBe(
     "done",
   );
-  assert.equal(
+  expect(
     agentTaskStatus({
       schedule_type: "recurring",
       status: "pending",
       enabled: false,
     }),
-    "paused",
-  );
+  ).toBe("paused");
 });
 
 test("mapAgentTask: kind, executor and next run", () => {
@@ -66,14 +60,14 @@ test("mapAgentTask: kind, executor and next run", () => {
     engine_model: "gpt-5",
     ai_agents: { name: "כרמן" },
   });
-  assert.equal(row.kind, "recurring");
-  assert.equal(row.executorLabel, "כרמן · gpt-5");
-  assert.equal(row.nextRunAt, "2026-12-01T07:00:00Z");
-  assert.equal(row.key, "agent_tasks:t1");
+  expect(row.kind).toBe("recurring");
+  expect(row.executorLabel).toBe("כרמן · gpt-5");
+  expect(row.nextRunAt).toBe("2026-12-01T07:00:00Z");
+  expect(row.key).toBe("agent_tasks:t1");
 });
 
 test("goals and dev tasks map to unified statuses", () => {
-  assert.equal(
+  expect(
     mapGoal({
       id: "g",
       title: "x",
@@ -81,36 +75,30 @@ test("goals and dev tasks map to unified statuses", () => {
       autonomous_mode: true,
       engine_status: "EXECUTING",
     }).status,
-    "running",
-  );
-  assert.equal(
-    mapGoal({ id: "g", title: "x", status: "completed" }).status,
+  ).toBe("running");
+  expect(mapGoal({ id: "g", title: "x", status: "completed" }).status).toBe(
     "done",
   );
-  assert.equal(
+  expect(
     mapDevTask({ id: "d", title: "x", status: "sent_to_cursor" }).status,
-    "running",
-  );
-  assert.equal(
-    mapDevTask({ id: "d", title: "x", status: "draft" }).status,
+  ).toBe("running");
+  expect(mapDevTask({ id: "d", title: "x", status: "draft" }).status).toBe(
     "draft",
   );
 });
 
 test("cron jobs: inactive is paused, failed last run is failed", () => {
   const meta = { label: "בדיקת דופק בוקר", description: "" };
-  assert.equal(
+  expect(
     mapCronJob({ jobid: 1, schedule: "30 7 * * *", active: false }, meta)
       .status,
-    "paused",
-  );
-  assert.equal(
+  ).toBe("paused");
+  expect(
     mapCronJob(
       { jobid: 1, schedule: "30 7 * * *", active: true, last_status: "failed" },
       meta,
     ).status,
-    "failed",
-  );
+  ).toBe("failed");
 });
 
 test("selectRows hides finished items, filters by kind and sorts running first", () => {
@@ -135,26 +123,19 @@ test("selectRows hides finished items, filters by kind and sorts running first",
     }),
     mapGoal({ id: "g", title: "goal", status: "active" }),
   ];
-  assert.deepEqual(
-    selectRows(rows, "all").map((r) => r.id),
-    ["c", "b", "g"],
-  );
-  assert.deepEqual(
+  expect(selectRows(rows, "all").map((r) => r.id)).toStrictEqual([
+    "c",
+    "b",
+    "g",
+  ]);
+  expect(
     selectRows(rows, "all", { showFinished: true }).map((r) => r.id),
-    ["c", "b", "g", "a"],
-  );
-  assert.deepEqual(
-    selectRows(rows, "goal").map((r) => r.id),
-    ["g"],
-  );
-  assert.deepEqual(
-    selectRows(rows, "running").map((r) => r.id),
-    ["c"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["c", "b", "g", "a"]);
+  expect(selectRows(rows, "goal").map((r) => r.id)).toStrictEqual(["g"]);
+  expect(selectRows(rows, "running").map((r) => r.id)).toStrictEqual(["c"]);
+  expect(
     selectRows(rows, "all", { search: "goal" }).map((r) => r.id),
-    ["g"],
-  );
+  ).toStrictEqual(["g"]);
 });
 
 test("schedule presets round-trip through cron", () => {
@@ -182,24 +163,23 @@ test("schedule presets round-trip through cron", () => {
   for (const s of cases) {
     const cron = buildCron(s);
     const back = scheduleFromCron(cron);
-    assert.equal(back.preset, s.preset, cron);
-    assert.equal(buildCron(back), cron);
+    expect(back.preset, cron).toBe(s.preset);
+    expect(buildCron(back)).toBe(cron);
   }
-  assert.equal(
+  expect(
     buildCron({
       ...DEFAULT_RECURRING,
       preset: "weekly",
       weekday: 0,
       time: "08:00",
     }),
-    "0 8 * * 0",
-  );
-  assert.equal(scheduleFromCron("5 4 * 2 *").preset, "custom");
+  ).toBe("0 8 * * 0");
+  expect(scheduleFromCron("5 4 * 2 *").preset).toBe("custom");
 });
 
 test("isUsableCron rejects every-minute schedules", () => {
-  assert.equal(isUsableCron("* * * * *"), false);
-  assert.equal(isUsableCron("*/15 * * * *"), true);
-  assert.equal(isUsableCron("0 9 * * *"), true);
-  assert.equal(isUsableCron("nonsense"), false);
+  expect(isUsableCron("* * * * *")).toBe(false);
+  expect(isUsableCron("*/15 * * * *")).toBe(true);
+  expect(isUsableCron("0 9 * * *")).toBe(true);
+  expect(isUsableCron("nonsense")).toBe(false);
 });

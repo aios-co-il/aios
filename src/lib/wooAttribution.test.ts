@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   aggregateOrdersByAttribution,
   buildWooAttributionLabel,
@@ -18,23 +17,21 @@ test("extractWooOrderAttribution reads WC meta fields", () => {
     { key: "_wc_order_attribution_utm_campaign", value: "120250917574950776" },
     { key: "_wc_order_attribution_referrer", value: "https://facebook.com/" },
   ]);
-  assert.equal(attr?.utm_source, "fb");
-  assert.equal(attr?.utm_medium, "paid");
-  assert.equal(attr?.label, "Facebook ממומן");
+  expect(attr?.utm_source).toBe("fb");
+  expect(attr?.utm_medium).toBe("paid");
+  expect(attr?.label).toBe("Facebook ממומן");
 });
 
 test("extractWooOrderAttribution returns null when no attribution meta", () => {
-  assert.equal(
-    extractWooOrderAttribution([{ key: "_ga_tracked", value: "1" }]),
+  expect(extractWooOrderAttribution([{ key: "_ga_tracked", value: "1" }])).toBe(
     null,
   );
 });
 
 test("buildWooAttributionLabel maps direct traffic", () => {
-  assert.equal(
+  expect(
     buildWooAttributionLabel({ source_type: "typein", utm_source: "(direct)" }),
-    "ישיר / Direct",
-  );
+  ).toBe("ישיר / Direct");
 });
 
 test("aggregateOrdersByAttribution groups valid orders by label", () => {
@@ -61,12 +58,12 @@ test("aggregateOrdersByAttribution groups valid orders by label", () => {
     },
   ]);
   const fb = rows.find((r) => r.label === "Facebook ממומן");
-  assert.equal(fb?.orders, 2);
-  assert.equal(fb?.revenue, 800);
+  expect(fb?.orders).toBe(2);
+  expect(fb?.revenue).toBe(800);
 });
 
 test("isGooglePaidWooAttribution detects google/cpc and gclid", () => {
-  assert.equal(
+  expect(
     isGooglePaidWooAttribution({
       source_type: "utm",
       utm_source: "google",
@@ -79,9 +76,8 @@ test("isGooglePaidWooAttribution detects google/cpc and gclid", () => {
       device_type: null,
       label: "Google Ads",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isGooglePaidWooAttribution({
       source_type: "utm",
       utm_source: null,
@@ -94,9 +90,8 @@ test("isGooglePaidWooAttribution detects google/cpc and gclid", () => {
       device_type: null,
       label: "Google Ads",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isGooglePaidWooAttribution({
       source_type: "organic",
       utm_source: "google",
@@ -109,31 +104,28 @@ test("isGooglePaidWooAttribution detects google/cpc and gclid", () => {
       device_type: null,
       label: "Google אורגני",
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("shouldUseGoogleWooAttributionOverlay is opt-in per client (Avieli only by default)", () => {
   const avieliId = Array.from(GOOGLE_WOO_ATTRIBUTION_CLIENT_IDS)[0];
-  assert.equal(shouldUseGoogleWooAttributionOverlay(avieliId), true);
-  assert.equal(shouldUseGoogleWooAttributionOverlay("other-client-id"), false);
-  assert.equal(shouldUseGoogleWooAttributionOverlay(null), false);
+  expect(shouldUseGoogleWooAttributionOverlay(avieliId)).toBe(true);
+  expect(shouldUseGoogleWooAttributionOverlay("other-client-id")).toBe(false);
+  expect(shouldUseGoogleWooAttributionOverlay(null)).toBe(false);
 });
 
 test("shouldUseGoogleWooAttributionOverlay respects table integration_settings override", () => {
-  assert.equal(
+  expect(
     shouldUseGoogleWooAttributionOverlay("any-client", {
       use_woo_google_attribution: true,
     }),
-    true,
-  );
+  ).toBe(true);
   const avieliId = Array.from(GOOGLE_WOO_ATTRIBUTION_CLIENT_IDS)[0];
-  assert.equal(
+  expect(
     shouldUseGoogleWooAttributionOverlay(avieliId, {
       use_woo_google_attribution: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("summarizeGoogleAttributedWooOrders splits paid vs organic Google", () => {
@@ -167,8 +159,8 @@ test("summarizeGoogleAttributedWooOrders splits paid vs organic Google", () => {
       attribution: { label: "Google ממומן" } as any,
     },
   ]);
-  assert.equal(summary.paidOrders, 1);
-  assert.equal(summary.paidRevenue, 500);
-  assert.equal(summary.organicOrders, 1);
-  assert.equal(summary.organicRevenue, 150);
+  expect(summary.paidOrders).toBe(1);
+  expect(summary.paidRevenue).toBe(500);
+  expect(summary.organicOrders).toBe(1);
+  expect(summary.organicRevenue).toBe(150);
 });

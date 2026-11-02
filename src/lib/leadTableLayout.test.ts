@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   groupLeadsBySurfaceUsers,
   isSalesPersonOnSurface,
@@ -28,21 +27,21 @@ const otherAgency = {
 };
 
 test("parseLeadTableLayout defaults to by_date", () => {
-  assert.equal(parseLeadTableLayout(null), "by_date");
-  assert.equal(parseLeadTableLayout("kanban"), "by_date");
-  assert.equal(parseLeadTableLayout("by_user"), "by_user");
-  assert.equal(parseLeadTableLayout("by_date"), "by_date");
+  expect(parseLeadTableLayout(null)).toBe("by_date");
+  expect(parseLeadTableLayout("kanban")).toBe("by_date");
+  expect(parseLeadTableLayout("by_user")).toBe("by_user");
+  expect(parseLeadTableLayout("by_date")).toBe("by_date");
 });
 
 test("isSalesPersonOnSurface keeps everyone when agency is all", () => {
-  assert.equal(isSalesPersonOnSurface(dana, "all"), true);
-  assert.equal(isSalesPersonOnSurface(otherAgency, null), true);
+  expect(isSalesPersonOnSurface(dana, "all")).toBe(true);
+  expect(isSalesPersonOnSurface(otherAgency, null)).toBe(true);
 });
 
 test("isSalesPersonOnSurface uses primary agency or extra memberships", () => {
-  assert.equal(isSalesPersonOnSurface(dana, "agency-a"), true);
-  assert.equal(isSalesPersonOnSurface(noam, "agency-a"), true);
-  assert.equal(isSalesPersonOnSurface(otherAgency, "agency-a"), false);
+  expect(isSalesPersonOnSurface(dana, "agency-a")).toBe(true);
+  expect(isSalesPersonOnSurface(noam, "agency-a")).toBe(true);
+  expect(isSalesPersonOnSurface(otherAgency, "agency-a")).toBe(false);
 });
 
 test("sortLeadsByDate newest first", () => {
@@ -51,10 +50,7 @@ test("sortLeadsByDate newest first", () => {
     { id: "new", created_at: "2026-09-01T00:00:00.000Z" },
     { id: "mid", created_at: "2026-06-01T00:00:00.000Z" },
   ]);
-  assert.deepEqual(
-    sorted.map((lead) => lead.id),
-    ["new", "mid", "old"],
-  );
+  expect(sorted.map((lead) => lead.id)).toStrictEqual(["new", "mid", "old"]);
 });
 
 test("groupLeadsBySurfaceUsers lists surface users even when empty", () => {
@@ -70,12 +66,9 @@ test("groupLeadsBySurfaceUsers lists surface users even when empty", () => {
     "agency-a",
   );
 
-  assert.deepEqual(
-    groups.map((group) => group.id),
-    ["dana", "noam"],
-  );
-  assert.equal(groups[0].leads[0].id, "l1");
-  assert.equal(groups[1].leads.length, 0);
+  expect(groups.map((group) => group.id)).toStrictEqual(["dana", "noam"]);
+  expect(groups[0].leads[0].id).toBe("l1");
+  expect(groups[1].leads.length).toBe(0);
 });
 
 test("groupLeadsBySurfaceUsers keeps off-surface assignees and sorts dates", () => {
@@ -101,13 +94,12 @@ test("groupLeadsBySurfaceUsers keeps off-surface assignees and sorts dates", () 
     "agency-a",
   );
 
-  assert.deepEqual(
+  expect(
     groups.map((group) => [group.id, group.leads.map((lead) => lead.id)]),
-    [
-      ["dana", []],
-      ["other", ["newer", "older"]],
-      [UNASSIGNED_LEAD_GROUP_ID, ["free"]],
-    ],
-  );
-  assert.equal(groups[1].label, "מיכל");
+  ).toStrictEqual([
+    ["dana", []],
+    ["other", ["newer", "older"]],
+    [UNASSIGNED_LEAD_GROUP_ID, ["free"]],
+  ]);
+  expect(groups[1].label).toBe("מיכל");
 });

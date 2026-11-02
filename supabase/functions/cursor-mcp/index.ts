@@ -54,6 +54,7 @@ import {
   touchCursorTaskSession,
 } from "../_shared/cursor-session-tracker.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
+import { GLOBAL_SKIN_RULE } from "../_shared/carmen/learned-skin-scope.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -790,7 +791,12 @@ async function logDispatch(args: {
     if (!args.tenantId || !args.cursorAgentId?.startsWith("bc-")) return;
 
     if (args.reused) {
-      await touchCursorTaskSession(sb, args.cursorAgentId, "running");
+      await touchCursorTaskSession(
+        sb,
+        args.tenantId,
+        args.cursorAgentId,
+        "running",
+      );
       console.log(
         `[cursor-mcp] session_touch session_id=${args.cursorAgentId} tool=${args.tool}`,
       );
@@ -867,7 +873,7 @@ function teachingBlock(tenantId: string | null): string {
     `   1. Make Carmen independent: insert a concise skin row into public.ai_skills via Supabase with ` +
     `scope='tenant', tenant_id=<above>, is_active=true, created_by_agent=true, a short name + description, ` +
     `clear operational steps, a snake_case slug, a system_prompt with the exact procedure, ` +
-    `and triggers (Hebrew + English phrases).\n` +
+    `and triggers (Hebrew + English phrases). ${GLOBAL_SKIN_RULE}\n` +
     `   2. Remember it for future sessions: append a short dated entry to docs/carmen-learned-skills.md and include it in your PR.\n` +
     `B) UPDATE DAVID: when you finish, make sure David is updated with the result. ${callbackLine}\n` +
     `C) FIX-ON-FAIL: if this request says a capability previously taught to Carmen FAILED in practice, that is the priority — ` +
@@ -959,7 +965,12 @@ async function executeDirectSessionReply(args: {
   }
   if (followed.delivered === false) {
     if (args.tenantId) {
-      await touchCursorTaskSession(sbClient()!, args.session.sessionId, "busy");
+      await touchCursorTaskSession(
+        sbClient()!,
+        args.tenantId,
+        args.session.sessionId,
+        "busy",
+      );
     }
     throw new Error(
       `Cursor Direct session ${args.session.sessionId} is BUSY (only one run at a time). ` +
@@ -970,6 +981,7 @@ async function executeDirectSessionReply(args: {
   if (args.tenantId) {
     await touchCursorTaskSession(
       sbClient()!,
+      args.tenantId,
       args.session.sessionId,
       "running",
     );

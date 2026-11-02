@@ -20,7 +20,9 @@ export const elevenLabsClipSeconds = (seconds) => {
 export const elevenLabsAspect = (aspect) =>
   aspect === "16:9" ? "16:9" : "9:16";
 
-const imageMime = (bytes) => {
+export const elevenLabsBaseUrl = BASE;
+
+export const imageMime = (bytes) => {
   if (bytes?.[0] === 0xff && bytes?.[1] === 0xd8) return "image/jpeg";
   if (bytes?.[0] === 0x89 && bytes?.[1] === 0x50) return "image/png";
   return "image/webp";
@@ -60,6 +62,11 @@ export function elevenLabsProvider({ apiKey, fetchImpl = fetch } = {}) {
   return {
     name: "elevenlabs",
     model: MODEL(),
+    // Veo 3.1 speaks a quoted line with lip sync when generate_audio is on, so a talking scene
+    // needs no separate pass. Docs: https://elevenlabs.io/docs/api-reference/flows/video/create
+    // and https://elevenlabs.io/docs/overview/capabilities/image-video ("Realistic dialogue,
+    // lip-sync"). Hebrew speech quality: verify with one paid call.
+    nativeSpeech: true,
     estimate({ durationS }) {
       const seconds = elevenLabsClipSeconds(durationS);
       return { credits: 0, usd: +(seconds * USD_PER_SECOND()).toFixed(2) };

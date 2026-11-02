@@ -1,51 +1,79 @@
-import assert from "node:assert/strict";
+import {
+  assertEquals,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import { readFile } from "node:fs/promises";
-import test from "node:test";
-
+import { STATUS_ALERT_TYPES } from "./campaign-status-alerts/types.ts";
 import { checkOutbound } from "./integration-guard.ts";
 
-test("staging pulse WhatsApp destination is blocked unless explicitly allowlisted", () => {
-  const blocked = checkOutbound({
-    appEnv: "staging",
-    stagingSafeMode: "true",
-    integration: "whatsapp",
-    destination: "972501234567",
-    allowlistRaw: "",
-  });
-  assert.equal(blocked.decision, "BLOCK");
-  assert.equal(blocked.reason, "empty_allowlist");
+Deno.test(
+  "staging pulse WhatsApp destination is blocked unless explicitly allowlisted",
+  () => {
+    const blocked = checkOutbound({
+      appEnv: "staging",
+      stagingSafeMode: "true",
+      integration: "whatsapp",
+      destination: "972501234567",
+      allowlistRaw: "",
+    });
+    assertStrictEquals(blocked.decision, "BLOCK");
+    assertStrictEquals(blocked.reason, "empty_allowlist");
 
-  const allowed = checkOutbound({
-    appEnv: "staging",
-    stagingSafeMode: "true",
-    integration: "whatsapp",
-    destination: "972501234567",
-    allowlistRaw: "972501234567",
-  });
-  assert.equal(allowed.decision, "ALLOW");
-  assert.equal(allowed.reason, "allowlist_match");
-});
+    const allowed = checkOutbound({
+      appEnv: "staging",
+      stagingSafeMode: "true",
+      integration: "whatsapp",
+      destination: "972501234567",
+      allowlistRaw: "972501234567",
+    });
+    assertStrictEquals(allowed.decision, "ALLOW");
+    assertStrictEquals(allowed.reason, "allowlist_match");
+  },
+);
 
-test("pulse queue terminates at the Manus sender guarded by checkWhatsAppSend", async () => {
-  const snapshot = await readFile(
-    new URL("../campaign-pulse-snapshot/index.ts", import.meta.url),
-    "utf8",
-  );
-  const sender = await readFile(
-    new URL("../send-manus-wa-message/index.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(snapshot, /claude_notify_david/);
-  assert.match(sender, /checkWhatsAppSend/);
-  assert.match(sender, /decision === ['"]BLOCK['"]/);
-});
+Deno.test(
+  "pulse queue terminates at the Manus sender guarded by checkWhatsAppSend",
+  async () => {
+    const snapshot = await readFile(
+      new URL("../campaign-pulse-snapshot/index.ts", import.meta.url),
+      "utf8",
+    );
+    const sender = await readFile(
+      new URL("../send-manus-wa-message/index.ts", import.meta.url),
+      "utf8",
+    );
+    assertMatch(snapshot, /claude_notify_david/);
+    assertMatch(sender, /checkWhatsAppSend/);
+    assertMatch(sender, /decision === ['"]BLOCK['"]/);
+  },
+);
 
-test("legacy Facebook monitor cannot emit duplicate KPI alerts", async () => {
-  const monitor = await readFile(
-    new URL("../fb-campaign-monitor/index.ts", import.meta.url),
-    "utf8",
-  );
-  assert.doesNotMatch(monitor, /cpl_spike/);
-  assert.doesNotMatch(monitor, /כרמן נתחי/);
-  assert.match(monitor, /platform-operational failures/);
-});
+Deno.test(
+  "legacy Facebook monitor cannot emit duplicate KPI alerts",
+  async () => {
+    // KPI exceptions belong to campaign-pulse-snapshot; the monitor records and
+    // sends platform-operational failures only.
+    assertEquals([...STATUS_ALERT_TYPES].sort(), [
+      "account_disabled",
+      "ad_account_billing_issue",
+      "ad_disapproved",
+      "campaign_stopped",
+      "campaign_with_issues",
+      "no_live_ads",
+    ]);
+    for (const path of [
+      "../fb-campaign-monitor/",
+      "./campaign-status-alerts/",
+    ]) {
+      const dir = new URL(path, import.meta.url);
+      for await (const entry of Deno.readDir(dir)) {
+        if (!entry.isFile || entry.name.includes(".test.")) continue;
+        const source = await readFile(new URL(entry.name, dir), "utf8");
+        assertNotMatch(source, /cpl_spike/);
+        assertNotMatch(source, /כרמן נתחי/);
+      }
+    }
+  },
+);

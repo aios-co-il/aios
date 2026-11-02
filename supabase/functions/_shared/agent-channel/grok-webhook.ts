@@ -1,9 +1,16 @@
 export async function fireGrokBotWebhook(args: {
   task: string;
   context: string;
+  /** Tenant overrides from Carmen settings; env secrets otherwise. */
+  url?: string;
+  key?: string;
 }): Promise<{ id: string; url: string }> {
-  const url = String(Deno.env.get("GROK_BOT_WEBHOOK_URL") || "").trim();
-  const key = String(Deno.env.get("GROK_BOT_WEBHOOK_KEY") || "").trim();
+  const url = String(
+    args.url || Deno.env.get("GROK_BOT_WEBHOOK_URL") || "",
+  ).trim();
+  const key = String(
+    args.key || Deno.env.get("GROK_BOT_WEBHOOK_KEY") || "",
+  ).trim();
   if (!url || !key) throw new Error("Grok Bot webhook is not configured.");
 
   const task = args.task.trim();

@@ -1,6 +1,9 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import {
+  assert,
+  assertMatch,
+  assertNotMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   OPENAI_CREDIT_BALANCE_UNAVAILABLE_REASON,
   buildOpenAiBillingStatus,
@@ -14,13 +17,13 @@ import {
   sumOrganizationCosts,
 } from "./openai-billing.mjs";
 
-test("super_admin guard helper", () => {
-  assert.equal(isSuperAdminRole("super_admin"), true);
-  assert.equal(isSuperAdminRole("owner"), false);
-  assert.equal(isSuperAdminRole("campaigner"), false);
+Deno.test("super_admin guard helper", () => {
+  assertStrictEquals(isSuperAdminRole("super_admin"), true);
+  assertStrictEquals(isSuperAdminRole("owner"), false);
+  assertStrictEquals(isSuperAdminRole("campaigner"), false);
 });
 
-test("sumOrganizationCosts aggregates daily buckets", () => {
+Deno.test("sumOrganizationCosts aggregates daily buckets", () => {
   const payload = {
     data: [
       {
@@ -40,13 +43,13 @@ test("sumOrganizationCosts aggregates daily buckets", () => {
     ],
   };
   const sum = sumOrganizationCosts(payload);
-  assert.equal(sum.total_cost, 4);
-  assert.equal(sum.currency, "usd");
-  assert.equal(sum.line_items[0].name, "gpt-4o-mini");
-  assert.equal(sum.line_items[0].value, 3.25);
+  assertStrictEquals(sum.total_cost, 4);
+  assertStrictEquals(sum.currency, "usd");
+  assertStrictEquals(sum.line_items[0].name, "gpt-4o-mini");
+  assertStrictEquals(sum.line_items[0].value, 3.25);
 });
 
-test("sumCompletionsUsage aggregates tokens", () => {
+Deno.test("sumCompletionsUsage aggregates tokens", () => {
   const payload = {
     data: [
       {
@@ -58,13 +61,13 @@ test("sumCompletionsUsage aggregates tokens", () => {
     ],
   };
   const u = sumCompletionsUsage(payload);
-  assert.equal(u.input_tokens, 150);
-  assert.equal(u.output_tokens, 50);
-  assert.equal(u.total_tokens, 200);
-  assert.equal(u.num_model_requests, 3);
+  assertStrictEquals(u.input_tokens, 150);
+  assertStrictEquals(u.output_tokens, 50);
+  assertStrictEquals(u.total_tokens, 200);
+  assertStrictEquals(u.num_model_requests, 3);
 });
 
-test("buildOpenAiBillingStatus never fabricates remaining credit", () => {
+Deno.test("buildOpenAiBillingStatus never fabricates remaining credit", () => {
   const status = buildOpenAiBillingStatus({
     costs: {
       data: [
@@ -77,18 +80,18 @@ test("buildOpenAiBillingStatus never fabricates remaining credit", () => {
     },
     period: monthUtcBounds(new Date("2026-08-15T12:00:00Z")),
   });
-  assert.equal(status.remaining_credit, null);
-  assert.equal(status.remaining_credit_available, false);
-  assert.match(
+  assertStrictEquals(status.remaining_credit, null);
+  assertStrictEquals(status.remaining_credit_available, false);
+  assertMatch(
     status.remaining_credit_reason,
     /does not expose remaining prepaid credit/i,
   );
-  assert.equal(status.current_month_usage_cost, 12.5);
-  assert.equal(status.period, "2026-08");
-  assert.ok(status.ok);
+  assertStrictEquals(status.current_month_usage_cost, 12.5);
+  assertStrictEquals(status.period, "2026-08");
+  assert(status.ok);
 });
 
-test("WhatsApp summary is concise and mentions unavailable credit", () => {
+Deno.test("WhatsApp summary is concise and mentions unavailable credit", () => {
   const status = buildOpenAiBillingStatus({
     costs: {
       data: [
@@ -111,14 +114,14 @@ test("WhatsApp summary is concise and mentions unavailable credit", () => {
     period: monthUtcBounds(new Date("2026-08-04T00:00:00Z")),
   });
   const text = formatOpenAiBillingWhatsApp(status);
-  assert.match(text, /לא זמינה/);
-  assert.match(text, /\$3\.20/i);
-  assert.doesNotMatch(text, /sk-/);
-  assert.ok(text.length < 800);
-  assert.ok(OPENAI_CREDIT_BALANCE_UNAVAILABLE_REASON.includes("billing"));
+  assertMatch(text, /לא זמינה/);
+  assertMatch(text, /\$3\.20/i);
+  assertNotMatch(text, /sk-/);
+  assert(text.length < 800);
+  assert(OPENAI_CREDIT_BALANCE_UNAVAILABLE_REASON.includes("billing"));
 });
 
-test("extractDailyCostBuckets preserves dates and sums", () => {
+Deno.test("extractDailyCostBuckets preserves dates and sums", () => {
   const payload = {
     data: [
       {
@@ -132,12 +135,12 @@ test("extractDailyCostBuckets preserves dates and sums", () => {
     ],
   };
   const days = extractDailyCostBuckets(payload);
-  assert.equal(days.length, 2);
-  assert.equal(days[0].cost, 1.5);
-  assert.equal(days[1].cost, 2);
+  assertStrictEquals(days.length, 2);
+  assertStrictEquals(days[0].cost, 1.5);
+  assertStrictEquals(days[1].cost, 2);
 });
 
-test("extractDailyUsageBuckets aggregates per day", () => {
+Deno.test("extractDailyUsageBuckets aggregates per day", () => {
   const payload = {
     data: [
       {
@@ -149,12 +152,12 @@ test("extractDailyUsageBuckets aggregates per day", () => {
     ],
   };
   const days = extractDailyUsageBuckets(payload);
-  assert.equal(days[0].total_tokens, 150);
-  assert.equal(days[0].num_model_requests, 2);
+  assertStrictEquals(days[0].total_tokens, 150);
+  assertStrictEquals(days[0].num_model_requests, 2);
 });
 
-test("redactSecretsFromText strips API keys", () => {
+Deno.test("redactSecretsFromText strips API keys", () => {
   const redacted = redactSecretsFromText("Bearer sk-abc1234567890xyz error");
-  assert.doesNotMatch(redacted, /sk-abc/);
-  assert.match(redacted, /\*\*\*/);
+  assertNotMatch(redacted, /sk-abc/);
+  assertMatch(redacted, /\*\*\*/);
 });

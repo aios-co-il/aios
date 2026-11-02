@@ -15,13 +15,19 @@ import {
   DEFAULT_PULSE_ALERT_RULES,
   parsePulseAlertRules,
   type PulseAlertRules,
+  type SavePulseAlertRules,
 } from "@/lib/pulseAlertRules";
+import { PulseCostRulesSection } from "@/components/pulse/PulseCostRulesSection";
+import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
+import { UnansweredReplyHoursField } from "./UnansweredReplyHoursField";
+import { ManagerModeSection } from "./manager-round/ManagerModeSection";
+import { useManagerSettingsDraft } from "./manager-round/useManagerSettingsDraft";
 
 type PulseAlertRulesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: unknown;
-  onSave: (rules: PulseAlertRules) => Promise<void> | void;
+  onSave: SavePulseAlertRules;
   saving?: boolean;
 };
 
@@ -35,14 +41,17 @@ export function PulseAlertRulesDialog({
   const [rules, setRules] = useState<PulseAlertRules>(
     DEFAULT_PULSE_ALERT_RULES,
   );
+  const manager = useManagerSettingsDraft(open, value, onSave);
 
   useEffect(() => {
-    if (open) setRules(parsePulseAlertRules(value));
+    if (open) {
+      setRules(parsePulseAlertRules(value));
+    }
   }, [open, value]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>חוקי התראות דופק ב-WhatsApp</DialogTitle>
           <DialogDescription>
@@ -100,6 +109,8 @@ export function PulseAlertRulesDialog({
             </div>
           </div>
 
+          <UnansweredReplyHoursField rules={rules} onChange={setRules} />
+
           <div className="rounded-lg border p-3 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -132,6 +143,8 @@ export function PulseAlertRulesDialog({
             </div>
           </div>
 
+          <PulseCostRulesSection rules={rules} onChange={setRules} />
+
           <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
             <div>
               <Label className="text-sm">ניתוק / חשבון לא פעיל</Label>
@@ -146,16 +159,16 @@ export function PulseAlertRulesDialog({
               }
             />
           </div>
+
+          {manager.section && <ManagerModeSection {...manager.section} />}
+          {manager.cardLog && <CardLogSystemSendsSwitch {...manager.cardLog} />}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ביטול
           </Button>
-          <Button
-            disabled={saving}
-            onClick={() => onSave(parsePulseAlertRules(rules))}
-          >
+          <Button disabled={saving} onClick={() => manager.save(rules)}>
             שמור חוקים
           </Button>
         </DialogFooter>

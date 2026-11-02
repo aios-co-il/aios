@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   resolvePermissionGateView,
   type PermissionGateState,
@@ -22,7 +21,7 @@ function state(
 }
 
 test("super-admin always sees the page, even if permissions query failed", () => {
-  assert.equal(
+  expect(
     resolvePermissionGateView(
       state({
         isSuperAdmin: true,
@@ -32,19 +31,17 @@ test("super-admin always sees the page, even if permissions query failed", () =>
         allowed: false,
       }),
     ),
-    "children",
-  );
+  ).toBe("children");
 });
 
 test("routes without a permission check never block", () => {
-  assert.equal(
+  expect(
     resolvePermissionGateView(state({ permission: undefined, allowed: false })),
-    "children",
-  );
+  ).toBe("children");
 });
 
 test("stale error with cached access does not flash error UI", () => {
-  assert.equal(
+  expect(
     resolvePermissionGateView(
       state({
         isError: true,
@@ -54,12 +51,11 @@ test("stale error with cached access does not flash error UI", () => {
         allowed: true,
       }),
     ),
-    "children",
-  );
+  ).toBe("children");
 });
 
 test("cached error without data does not flash error or redirect on first paint", () => {
-  assert.equal(
+  expect(
     resolvePermissionGateView(
       state({
         isError: true,
@@ -68,12 +64,11 @@ test("cached error without data does not flash error or redirect on first paint"
         allowed: false,
       }),
     ),
-    "skeleton",
-  );
+  ).toBe("skeleton");
 });
 
 test("settled load failure without data shows the retry error", () => {
-  assert.equal(
+  expect(
     resolvePermissionGateView(
       state({
         isError: true,
@@ -83,12 +78,11 @@ test("settled load failure without data shows the retry error", () => {
         allowed: false,
       }),
     ),
-    "error",
-  );
+  ).toBe("error");
 });
 
 test("error that is currently refetching stays on skeleton, not error UI", () => {
-  assert.equal(
+  expect(
     resolvePermissionGateView(
       state({
         isError: true,
@@ -98,19 +92,15 @@ test("error that is currently refetching stays on skeleton, not error UI", () =>
         allowed: false,
       }),
     ),
-    "skeleton",
-  );
+  ).toBe("skeleton");
 });
 
 test("missing permission after a successful load redirects", () => {
-  assert.equal(
-    resolvePermissionGateView(state({ allowed: false })),
-    "redirect",
-  );
+  expect(resolvePermissionGateView(state({ allowed: false }))).toBe("redirect");
 });
 
 test("first load shows skeleton", () => {
-  assert.equal(
+  expect(
     resolvePermissionGateView(
       state({
         isLoading: true,
@@ -119,6 +109,5 @@ test("first load shows skeleton", () => {
         allowed: false,
       }),
     ),
-    "skeleton",
-  );
+  ).toBe("skeleton");
 });

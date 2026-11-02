@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   applyLeadTableColumnWidths,
   formatLeadFilesColumn,
@@ -18,8 +17,8 @@ import {
 
 test("name and actions stay visible even when the org hides them", () => {
   const hidden = () => false;
-  assert.equal(isLeadTableColumnVisible("contact_name", hidden), true);
-  assert.equal(isLeadTableColumnVisible("actions", hidden), true);
+  expect(isLeadTableColumnVisible("contact_name", hidden)).toBe(true);
+  expect(isLeadTableColumnVisible("actions", hidden)).toBe(true);
 });
 
 test("optional columns follow org visibility, defaulting to shown", () => {
@@ -27,8 +26,8 @@ test("optional columns follow org visibility, defaulting to shown", () => {
   const isFieldVisible = (key: string, fallback = true) =>
     key in visibility ? visibility[key] : fallback;
 
-  assert.equal(isLeadTableColumnVisible("tags", isFieldVisible), false);
-  assert.equal(isLeadTableColumnVisible("phone", isFieldVisible), true);
+  expect(isLeadTableColumnVisible("tags", isFieldVisible)).toBe(false);
+  expect(isLeadTableColumnVisible("phone", isFieldVisible)).toBe(true);
 });
 
 test("added columns stay hidden until their own preference is on", () => {
@@ -38,17 +37,18 @@ test("added columns stay hidden until their own preference is on", () => {
   const isFieldVisible = (key: string, fallback = true) =>
     key in visibility ? visibility[key] : fallback;
 
-  assert.equal(isLeadTableColumnVisible("notes", isFieldVisible), true);
-  assert.equal(isLeadTableColumnVisible("files", isFieldVisible), false);
-  assert.equal(
-    isLeadTableColumnVisible("call_recording", isFieldVisible),
+  expect(isLeadTableColumnVisible("notes", isFieldVisible)).toBe(true);
+  expect(isLeadTableColumnVisible("files", isFieldVisible)).toBe(false);
+  expect(isLeadTableColumnVisible("call_recording", isFieldVisible)).toBe(
     false,
   );
-  assert.equal(isLeadTableColumnVisible("phone", isFieldVisible), true);
-  assert.ok(LEAD_TABLE_OPTIONAL_COLUMNS.some((field) => field.key === "notes"));
-  assert.ok(
+  expect(isLeadTableColumnVisible("phone", isFieldVisible)).toBe(true);
+  expect(
+    LEAD_TABLE_OPTIONAL_COLUMNS.some((field) => field.key === "notes"),
+  ).toBeTruthy();
+  expect(
     !LEAD_TABLE_OPTIONAL_COLUMNS.some((field) => field.key === "phone"),
-  );
+  ).toBeTruthy();
 });
 
 test("custom columns skip system fields and table preferences", () => {
@@ -75,27 +75,25 @@ test("custom columns skip system fields and table preferences", () => {
     ],
     new Set(["phone"]),
   );
-  assert.deepEqual(
-    columns.map((field) => field.visibilityKey),
-    ["table_column:employees"],
-  );
-  assert.equal(readLeadCustomColumnValue({ employees: 12 }, "employees"), 12);
-  assert.equal(readLeadCustomColumnValue("nope", "employees"), null);
+  expect(columns.map((field) => field.visibilityKey)).toStrictEqual([
+    "table_column:employees",
+  ]);
+  expect(readLeadCustomColumnValue({ employees: 12 }, "employees")).toBe(12);
+  expect(readLeadCustomColumnValue("nope", "employees")).toBe(null);
 });
 
 test("formats dates, checkboxes, and file counts", () => {
-  assert.equal(formatLeadTableFieldValue("2026-10-13", "date"), "13/10/2026");
-  assert.equal(formatLeadTableFieldValue(true, "checkbox"), "כן");
-  assert.equal(formatLeadTableFieldValue("", "text"), "—");
-  assert.equal(
+  expect(formatLeadTableFieldValue("2026-10-13", "date")).toBe("13/10/2026");
+  expect(formatLeadTableFieldValue(true, "checkbox")).toBe("כן");
+  expect(formatLeadTableFieldValue("", "text")).toBe("—");
+  expect(
     formatLeadFilesColumn({
       attachments: [{}],
       folder_links: [],
       folder_link: " https://files.example ",
     }),
-    "2 קבצים",
-  );
-  assert.equal(formatLeadFilesColumn({}), "—");
+  ).toBe("2 קבצים");
+  expect(formatLeadFilesColumn({})).toBe("—");
 });
 
 test("parseLeadTableColumnWidths keeps known CRM columns inside bounds", () => {
@@ -109,7 +107,7 @@ test("parseLeadTableColumnWidths keeps known CRM columns inside bounds", () => {
       status: "nope",
     }),
   );
-  assert.deepEqual(widths, {
+  expect(widths).toStrictEqual({
     name: 240,
     phone: 80,
     tags: 800,
@@ -126,10 +124,10 @@ test("column widths round-trip through storage", () => {
     },
   };
   writeLeadTableColumnWidths({ company: 220, nope: 100 }, storage);
-  assert.equal(saved.has(LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY), true);
-  assert.deepEqual(readLeadTableColumnWidths(storage), { company: 220 });
-  assert.deepEqual(readLeadTableColumnWidths(null), { company: 220 });
-  assert.deepEqual(
+  expect(saved.has(LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY)).toBe(true);
+  expect(readLeadTableColumnWidths(storage)).toStrictEqual({ company: 220 });
+  expect(readLeadTableColumnWidths(null)).toStrictEqual({ company: 220 });
+  expect(
     applyLeadTableColumnWidths(
       [
         { id: "company", width: 170 },
@@ -137,26 +135,24 @@ test("column widths round-trip through storage", () => {
       ],
       readLeadTableColumnWidths(storage),
     ),
-    [
-      { id: "company", width: 220 },
-      { id: "phone", width: 130 },
-    ],
-  );
+  ).toStrictEqual([
+    { id: "company", width: 220 },
+    { id: "phone", width: 130 },
+  ]);
 });
 
 test("toggleable catalog excludes required columns", () => {
-  assert.ok(
+  expect(
     LEAD_TABLE_TOGGLEABLE_COLUMNS.some((field) => field.key === "tags"),
-  );
-  assert.ok(
+  ).toBeTruthy();
+  expect(
     !LEAD_TABLE_TOGGLEABLE_COLUMNS.some(
       (field) => field.key === "contact_name",
     ),
-  );
-  assert.equal(
+  ).toBeTruthy();
+  expect(
     LEAD_TABLE_COLUMN_FIELDS.filter((field) => field.required)
       .map((field) => field.key)
       .join(","),
-    "contact_name,actions",
-  );
+  ).toBe("contact_name,actions");
 });

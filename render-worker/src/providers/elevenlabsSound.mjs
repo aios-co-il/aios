@@ -89,3 +89,48 @@ export async function composeMusic({
   }
   return new Uint8Array(await response.arrayBuffer());
 }
+
+export const SOUND_EFFECT_MODEL = () =>
+  process.env.ELEVENLABS_SFX_MODEL || "eleven_text_to_sound_v2";
+
+/** POST /v1/sound-generation body (ElevenLabs text to sound effects). */
+export const soundEffectBody = ({
+  text,
+  durationS,
+  promptInfluence = 0.5,
+  model = SOUND_EFFECT_MODEL(),
+}) => ({
+  text,
+  duration_seconds: Math.min(30, Math.max(0.5, Number(durationS) || 1)),
+  prompt_influence: promptInfluence,
+  model_id: model,
+});
+
+/** One sound effect as MP3 bytes. Billed per second of the requested duration. */
+export async function generateSoundEffect({
+  apiKey,
+  text,
+  durationS,
+  promptInfluence,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(
+    `${BASE()}/v1/sound-generation?output_format=mp3_44100_128`,
+    {
+      method: "POST",
+      headers: { ...headers(apiKey), Accept: "audio/mpeg" },
+      body: JSON.stringify(
+        soundEffectBody({ text, durationS, promptInfluence }),
+      ),
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `elevenlabs sound effect ${response.status}: ${detail.slice(0, 300)}`,
+    );
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length === 0) throw new Error("elevenlabs sound effect: empty");
+  return bytes;
+}

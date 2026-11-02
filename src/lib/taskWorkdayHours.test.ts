@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   generateWorkdayTimeSlots,
   workdaySlotIndex,
@@ -7,17 +6,17 @@ import {
 
 test("workday slots run from 07:00 through 19:00", () => {
   const slots = generateWorkdayTimeSlots();
-  assert.equal(slots[0], "07:00");
-  assert.equal(slots[1], "07:30");
-  assert.equal(slots[slots.length - 1], "19:00");
-  assert.equal(slots.includes("00:00"), false);
-  assert.equal(slots.includes("23:30"), false);
-  assert.equal(slots.includes("06:30"), false);
-  assert.equal(slots.includes("19:30"), false);
+  expect(slots[0]).toBe("07:00");
+  expect(slots[1]).toBe("07:30");
+  expect(slots[slots.length - 1]).toBe("19:00");
+  expect(slots.includes("00:00")).toBe(false);
+  expect(slots.includes("23:30")).toBe(false);
+  expect(slots.includes("06:30")).toBe(false);
+  expect(slots.includes("19:30")).toBe(false);
 });
 
 test("workdaySlotIndex is relative to 07:00", () => {
-  assert.equal(workdaySlotIndex("07:00"), 0);
-  assert.equal(workdaySlotIndex("07:30"), 1);
-  assert.equal(workdaySlotIndex("10:00"), 6);
+  expect(workdaySlotIndex("07:00")).toBe(0);
+  expect(workdaySlotIndex("07:30")).toBe(1);
+  expect(workdaySlotIndex("10:00")).toBe(6);
 });

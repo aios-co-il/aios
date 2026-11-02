@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   isReferenceRunActive,
   proposalToFrames,
@@ -7,7 +6,7 @@ import {
 } from "./videoReference.ts";
 
 test("reference path is tenant-first and keeps a safe extension", () => {
-  assert.equal(
+  expect(
     referenceVideoPath({
       tenantId: "t",
       clientId: null,
@@ -15,8 +14,7 @@ test("reference path is tenant-first and keeps a safe extension", () => {
       fileName: "My Ad.MOV",
       now: 5,
     }),
-    "t/general/i/reference/reference-5.mov",
-  );
+  ).toBe("t/general/i/reference/reference-5.mov");
 });
 
 test("proposal frames become fresh draft frames with clamped durations", () => {
@@ -29,20 +27,19 @@ test("proposal frames become fresh draft frames with clamped durations", () => {
     (order) => -(order - 1) * 300,
     () => `id-${++n}`,
   );
-  assert.deepEqual(
+  expect(
     frames.map((frame) => [frame.id, frame.order, frame.duration]),
-    [
-      ["id-1", 1, 2.5],
-      ["id-2", 2, 30],
-    ],
-  );
-  assert.equal(frames[0].motionPrompt, "slow push in");
-  assert.equal(frames[1].title, "סצנה 2");
-  assert.equal(frames[1].status, "draft");
+  ).toStrictEqual([
+    ["id-1", 1, 2.5],
+    ["id-2", 2, 30],
+  ]);
+  expect(frames[0].motionPrompt).toBe("slow push in");
+  expect(frames[1].title).toBe("סצנה 2");
+  expect(frames[1].status).toBe("draft");
 });
 
 test("queued and running runs are active", () => {
-  assert.equal(isReferenceRunActive({ status: "queued" }), true);
-  assert.equal(isReferenceRunActive({ status: "completed" }), false);
-  assert.equal(isReferenceRunActive(null), false);
+  expect(isReferenceRunActive({ status: "queued" })).toBe(true);
+  expect(isReferenceRunActive({ status: "completed" })).toBe(false);
+  expect(isReferenceRunActive(null)).toBe(false);
 });

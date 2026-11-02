@@ -1,12 +1,11 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   collectTaskAssigneeIds,
   shouldFanOutRecurringTasks,
 } from "./recurringTaskAssignees.ts";
 
 test("collectTaskAssigneeIds dedupes primary and collaborators", () => {
-  assert.deepEqual(collectTaskAssigneeIds("a", ["b", "c", "a"]), [
+  expect(collectTaskAssigneeIds("a", ["b", "c", "a"])).toStrictEqual([
     "a",
     "b",
     "c",
@@ -14,7 +13,7 @@ test("collectTaskAssigneeIds dedupes primary and collaborators", () => {
 });
 
 test("shouldFanOutRecurringTasks only when recurring and multiple assignees", () => {
-  assert.equal(shouldFanOutRecurringTasks("weekly", ["a", "b"]), true);
-  assert.equal(shouldFanOutRecurringTasks("weekly", ["a"]), false);
-  assert.equal(shouldFanOutRecurringTasks(null, ["a", "b"]), false);
+  expect(shouldFanOutRecurringTasks("weekly", ["a", "b"])).toBe(true);
+  expect(shouldFanOutRecurringTasks("weekly", ["a"])).toBe(false);
+  expect(shouldFanOutRecurringTasks(null, ["a", "b"])).toBe(false);
 });

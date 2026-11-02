@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { History, PanelRightClose } from "lucide-react";
 
 interface CommandCenterSidecarHeaderProps {
@@ -6,6 +7,9 @@ interface CommandCenterSidecarHeaderProps {
   path: string;
   onToggleHistory: () => void;
   onClose?: () => void;
+  /** Extra buttons before the history toggle (full-page Carmen). */
+  actions?: ReactNode;
+  subtitle?: string;
 }
 
 /** Sidecar title row with the history toggle and the end-session control. */
@@ -15,9 +19,16 @@ export function CommandCenterSidecarHeader({
   path,
   onToggleHistory,
   onClose,
+  actions,
+  subtitle,
 }: CommandCenterSidecarHeaderProps) {
   return (
-    <header className="cc-sidecar-header flex shrink-0 items-center justify-between gap-2 border-b border-[var(--cc-line)] px-3 py-2">
+    <header
+      className={`cc-sidecar-header flex shrink-0 items-center gap-2 border-b border-[var(--cc-line)] px-3 py-2 ${
+        // Full page: every control sits on the right, next to the title.
+        actions ? "justify-start gap-4" : "justify-between"
+      }`}
+    >
       <div className="min-w-0">
         <p className="truncate text-sm font-bold text-[var(--cc-accent)]">
           {session ? `${name} · איתך במערכת` : "כרמן · תיקון מערכת"}
@@ -26,10 +37,11 @@ export function CommandCenterSidecarHeader({
           className="truncate text-[10px] text-[var(--cc-text-dim)]"
           title={path}
         >
-          {session ? "פגישת עבודה" : path}
+          {subtitle ?? (session ? "פגישת עבודה" : path)}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {actions}
         <button
           type="button"
           title="היסטוריית שיחות"

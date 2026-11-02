@@ -54,6 +54,11 @@ export const DIRECT_APPROVAL_TOOLS = Object.freeze([
   "set_automation_meta_lead_form",
   "set_campaign_table_active",
   "create_finance_entry",
+  // Carmen's market target alerts like an approved one (AIO-236).
+  "set_market_target",
+  "workshop_make_creative",
+  "workshop_make_stills",
+  "workshop_produce_video",
 ]);
 
 const BLOCKED = new Set(DIRECT_BLOCKED_TOOLS);
@@ -67,7 +72,13 @@ export function classifyDirectTool(name) {
   return "direct";
 }
 
-/** Tools from Carmen's catalogue that a direct caller may see. */
+/**
+ * Tools from Carmen's catalogue that a direct caller may see.
+ * @template {{ name: string }} T
+ * @param {readonly T[]} allTools
+ * @param {{ allowedTools?: readonly string[], disabledTools?: readonly string[], isManager?: boolean }} [options]
+ * @returns {T[]}
+ */
 export function directToolPool(
   allTools,
   { allowedTools = [], disabledTools = [], isManager = false } = {},
