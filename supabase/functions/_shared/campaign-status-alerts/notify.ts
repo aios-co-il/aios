@@ -85,6 +85,8 @@ export async function notifyWhatsapp(
           message,
           tenantId,
           senderUserId: owner.user_id,
+          // Managers and campaigners only: the client send guard refuses a client.
+          sendKind: "staff_alert",
         }),
       });
     } catch (e) {
