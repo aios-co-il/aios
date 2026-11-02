@@ -44,6 +44,17 @@ describe("readableReferenceUrls", () => {
     ]);
   });
 
+  it("signs again an expired link the board showed", async () => {
+    const { supabase, signed } = storage();
+    // The assets panel shows uploads through short-lived signed links.
+    const shown = `${BASE}/sign/entity-attachments/${TENANT}/workshop/item-1/poster.png?token=old`;
+    const urls = await readableReferenceUrls(supabase, TENANT, [shown]);
+    assertEquals(signed, [
+      `entity-attachments/${TENANT}/workshop/item-1/poster.png`,
+    ]);
+    assertEquals(urls.length, 1);
+  });
+
   it("keeps a public link as it is", async () => {
     const { supabase, signed } = storage();
     const link = "https://cdn.example.com/look.jpg";
