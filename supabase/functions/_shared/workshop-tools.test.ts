@@ -941,6 +941,58 @@ Deno.test(
   },
 );
 
+/** Produces a film that keeps its design, whose one scene already has the clip `clip`. */
+async function produceKeptDesign(clip: Record<string, unknown>) {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [
+      scene("s-1", { still_asset_id: "a", clip_asset_id: "c-1" }),
+    ],
+    "marketing_assets:select": [{ id: "c-1", meta: clip }],
+    "rpc:produce_video": { status: "running", clips: 1 },
+  });
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1", confirmed: true, keep_design: true },
+    async () => {},
+    null,
+    { defaultEngine: async () => "openrouter" as const },
+  );
+  const marked = db.calls.findIndex(
+    (c) =>
+      c.table === "marketing_video_scenes" &&
+      c.op === "update" &&
+      (c.value as { clip_stale?: boolean }).clip_stale === true,
+  );
+  const produced = db.calls.findIndex((c) => c.table === "rpc:produce_video");
+  return { marked, produced };
+}
+
+Deno.test(
+  "a finished design that a video model already redrew is made again from the picture",
+  async () => {
+    // Staging, 2 Nov: the poster's OpenRouter clip stayed in the film with garbled text.
+    const { marked, produced } = await produceKeptDesign({
+      provider: "openrouter",
+      source_still_asset_id: "a",
+    });
+    assert(marked >= 0);
+    // produce_video queues a clip only for an outdated scene, so the mark comes first.
+    assert(marked < produced);
+  },
+);
+
+Deno.test(
+  "a video the user uploaded stays in a film that keeps its design",
+  async () => {
+    const { marked, produced } = await produceKeptDesign({ path: "u.mp4" });
+    assertStrictEquals(marked, -1);
+    assert(produced >= 0);
+  },
+);
+
 Deno.test(
   "with no paid keys the film is produced on the free preview engine",
   async () => {
