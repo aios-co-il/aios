@@ -17217,6 +17217,12 @@ export type Database = {
       get_user_agency_ids: { Args: { _user_id: string }; Returns: string[] };
       get_user_campaigner_id: { Args: { _user_id: string }; Returns: string };
       get_user_client_ids: { Args: { _user_id: string }; Returns: string[] };
+      get_user_gmail_connection: {
+        Args: never;
+        Returns: {
+          google_email: string;
+        }[];
+      };
       get_user_sales_person_agency_ids: {
         Args: { _user_id: string };
         Returns: string[];
