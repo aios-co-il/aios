@@ -3,10 +3,11 @@
 -- 1. processed_webhook_messages.completed_at: green-api-webhook claims each
 --    delivery's idMessage (unique key from 20261021090000) and marks the claim
 --    done once the message is stored. An unfinished claim older than the lease
---    (5 min, MESSAGE_CLAIM_LEASE_MS in green-api-webhook/message-claim.ts)
+--    (5 min, MESSAGE_CLAIM_LEASE_MS in green-api-webhook/message-claim-lease.ts)
 --    belongs to a delivery that died mid-way, so Green API's retry may take it
---    over instead of being dropped as a duplicate. Existing rows (Manus claims,
---    Carmen group fingerprints) keep NULL; only green-api-webhook reads it.
+--    over instead of being dropped as a duplicate; release and completion are
+--    fenced on the claim's processed_at. Existing rows (Manus claims, Carmen
+--    group fingerprints) keep NULL; only green-api-webhook reads it.
 -- 2. trigger-automation inserted every automation_executions row as 'running'
 --    and never closed it, which turned its 30s cooldown into "drop every group
 --    message within 30s of the previous one". It now writes one finished row per

@@ -915,7 +915,7 @@ Deno.serve(async (req) => {
     const incomingIdMessage = webhookData.idMessage;
     messageClaim = await claimWebhookMessage({
       tenantId,
-      connectionUserId,
+      integrationId: integration.id,
       idMessage: incomingIdMessage,
     });
     if (messageClaim.duplicate) {

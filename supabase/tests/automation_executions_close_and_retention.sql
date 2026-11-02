@@ -9,7 +9,7 @@ DO $test$
 DECLARE
   v_tenant uuid := gen_random_uuid();
   v_other_tenant uuid := gen_random_uuid();
-  v_claim text := 'qa-connection:QA-ROLLBACK-1';
+  v_claim text := 'qa-line:QA-ROLLBACK-1';
   v_claimed_at timestamptz;
   v_rows int;
   v_command text;
@@ -98,7 +98,7 @@ BEGIN
      now() - interval '31 days', now() - interval '31 days', 'failed', 1, 'boom');
 
   INSERT INTO public.processed_webhook_messages (provider, tenant_id, external_message_id, processed_at)
-  VALUES ('green_api', v_tenant, 'qa-connection:QA-ROLLBACK-OLD', now() - interval '15 days');
+  VALUES ('green_api', v_tenant, 'qa-line:QA-ROLLBACK-OLD', now() - interval '15 days');
 
   -- Retention: run the scheduled statements -------------------------------
   IF to_regclass('cron.job') IS NULL THEN
@@ -122,7 +122,7 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM public.processed_webhook_messages
-    WHERE tenant_id = v_tenant AND external_message_id = 'qa-connection:QA-ROLLBACK-OLD'
+    WHERE tenant_id = v_tenant AND external_message_id = 'qa-line:QA-ROLLBACK-OLD'
   ) OR (
     SELECT count(*) FROM public.processed_webhook_messages
     WHERE tenant_id IN (v_tenant, v_other_tenant)

@@ -12,15 +12,16 @@ import { forwardStoredSend } from "./stored-send-forward.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const OWNER = "44444444-4444-4444-8444-444444444444";
+const LINE = "77777777-7777-4777-8777-777777777777";
 const GROUP = "66666666-6666-4666-8666-666666666666";
 const ID = "BAE5F1";
-const KEY = { tenantId: TENANT, connectionUserId: OWNER, idMessage: ID };
+const KEY = { tenantId: TENANT, integrationId: LINE, idMessage: ID };
 
 /** KEY's claim, unfinished and past its lease. */
 const staleClaim = () => ({
   provider: MESSAGE_CLAIM_PROVIDER,
   tenant_id: TENANT,
-  external_message_id: `${OWNER}:${ID}`,
+  external_message_id: `${LINE}:${ID}`,
   processed_at: new Date(Date.now() - 10 * 60_000).toISOString(),
 });
 
@@ -75,7 +76,9 @@ function echoDeliveries(seed: {
     if (dupMsg.raw_provider_data.team_forward === "pending") {
       await forwardStoredSend({
         supabaseClient: db,
-        ...KEY,
+        tenantId: TENANT,
+        connectionUserId: OWNER,
+        idMessage: ID,
         webhookData: {
           senderData: { chatId: "120363@g.us", senderName: "דוד" },
           messageData: { typeMessage: "textMessage" },

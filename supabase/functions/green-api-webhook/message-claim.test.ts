@@ -3,17 +3,15 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import { fakeClaimTables } from "./fake-claim-tables.ts";
 import {
   claimWebhookMessage,
-  isClaimLeaseExpired,
-  MESSAGE_CLAIM_LEASE_MS,
   MESSAGE_CLAIM_PROVIDER,
 } from "./message-claim.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
-const OWNER = "44444444-4444-4444-8444-444444444444";
+const LINE = "77777777-7777-4777-8777-777777777777";
 const SECOND_LINE = "55555555-5555-4555-8555-555555555555";
 const ID = "BAE5F1";
-const KEY = { tenantId: TENANT, connectionUserId: OWNER, idMessage: ID };
-const CLAIM_ID = `${OWNER}:${ID}`;
+const KEY = { tenantId: TENANT, integrationId: LINE, idMessage: ID };
+const CLAIM_ID = `${LINE}:${ID}`;
 
 /** An ISO time the given number of minutes ago. */
 const minutesAgo = (minutes: number) =>
@@ -50,18 +48,45 @@ Deno.test("claimWebhookMessage", async (t) => {
   });
 
   await t.step(
-    "each connection of the tenant claims its own delivery",
+    "each line of the tenant claims its own delivery, with or without a user",
     async () => {
+      // Two Green lines in one group, neither with a user_id: the claim is
+      // keyed by the line, so both store the message.
       const db = fakeClaimTables();
       const first = await claimWebhookMessage(KEY, db);
       const second = await claimWebhookMessage(
-        {
-          ...KEY,
-          connectionUserId: SECOND_LINE,
-        },
+        { ...KEY, integrationId: SECOND_LINE },
         db,
       );
       assertEquals([first.duplicate, second.duplicate], [false, false]);
+      assertEquals(db.claims.map((claim) => claim.external_message_id).sort(), [
+        `${SECOND_LINE}:${ID}`,
+        CLAIM_ID,
+      ]);
+    },
+  );
+
+  await t.step(
+    "a delivery that outlived its lease cannot release or complete the retry's claim",
+    async () => {
+      const db = fakeClaimTables();
+      const stale = await claimWebhookMessage(
+        KEY,
+        db,
+        () => Date.now() - 10 * 60_000,
+      );
+      const retry = await claimWebhookMessage(KEY, db);
+      assertEquals([stale.duplicate, retry.duplicate], [false, false]);
+
+      // The stale delivery then throws (release) or finishes (complete).
+      await stale.release();
+      await stale.complete();
+      assertEquals(db.claims.length, 1);
+      assertEquals(db.claims[0].completed_at, null);
+      assertEquals((await claimWebhookMessage(KEY, db)).duplicate, true);
+
+      await retry.complete();
+      assert(db.claims[0].completed_at, "the retry completes its own claim");
     },
   );
 
@@ -160,39 +185,4 @@ Deno.test("claimWebhookMessage", async (t) => {
       assertEquals(db.claims.length, 0);
     },
   );
-});
-
-Deno.test("isClaimLeaseExpired", async (t) => {
-  const claimedAt = "2026-10-24T10:00:00Z";
-  const start = Date.parse(claimedAt);
-
-  await t.step("a completed claim never expires", () => {
-    assertEquals(
-      isClaimLeaseExpired(
-        { processed_at: claimedAt, completed_at: "2026-10-24T10:00:05Z" },
-        start + 24 * 60 * 60_000,
-      ),
-      false,
-    );
-  });
-
-  await t.step("an unfinished claim expires at the end of its lease", () => {
-    const claim = { processed_at: claimedAt, completed_at: null };
-    assertEquals(isClaimLeaseExpired(claim, start + 60_000), false);
-    assertEquals(
-      isClaimLeaseExpired(claim, start + MESSAGE_CLAIM_LEASE_MS),
-      true,
-    );
-  });
-
-  await t.step("an unfinished claim without a readable time is expired", () => {
-    assertEquals(
-      isClaimLeaseExpired({ processed_at: null, completed_at: null }, start),
-      true,
-    );
-    assertEquals(
-      isClaimLeaseExpired({ processed_at: "never", completed_at: null }, start),
-      true,
-    );
-  });
 });
