@@ -1,0 +1,12 @@
+---
+description: Edge function placement and database access conventions.
+globs: supabase/functions/**
+alwaysApply: false
+---
+<!-- Keep in sync with .claude/rules/edge-functions.md: same rule, different frontmatter. -->
+
+# Edge functions
+
+- **Colocate code with its only caller.** A helper used by one edge function lives in that function's folder (`supabase/functions/<fn>/`), test beside it.
+- **`supabase/functions/_shared/` holds only code that two or more functions import**; a feature's shared code goes in `_shared/<feature>/`, one small file per topic. Reuse what it already provides before writing a new helper.
+- **Upsert where a unique constraint exists** (`upsert(row, { onConflict, ignoreDuplicates })`) rather than select-then-insert. Keep select-then-insert only when an upsert would overwrite data, and say so in a one-line comment.
