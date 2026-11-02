@@ -18,6 +18,16 @@ export function isJsonObject(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/** The value when it is a JSON object, else null. */
+export function jsonObject(value: unknown): JsonObject | null {
+  return isJsonObject(value) ? value : null;
+}
+
+/** A trimmed non-empty string, else null (also for any other JSON value). */
+export function trimmedText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 /** Do two JSON values hold the same data, whatever the order of their keys? */
 export function sameJson(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {

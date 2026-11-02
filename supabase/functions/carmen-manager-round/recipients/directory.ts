@@ -5,7 +5,7 @@
  */
 import { isCampaignRole } from "../../_shared/client-team/campaign-role.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 import { type Contact, loadContacts } from "./contacts.ts";
 import { profilePhone, profilesBy } from "./profiles.ts";
 

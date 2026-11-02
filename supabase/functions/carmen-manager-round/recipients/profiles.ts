@@ -1,6 +1,6 @@
 /** Login profiles for routing, with the campaigner record each one links to. */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 
 /** Profiles (name, phone, campaigner link and that record) by id or campaigner id. */
 export async function profilesBy(

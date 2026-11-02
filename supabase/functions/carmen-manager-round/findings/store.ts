@@ -5,7 +5,7 @@ import {
 } from "../../_shared/manager-round/kinds.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { FindingCandidate } from "../collectors/types.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 import { type ResolveFindings, resolveFindings } from "./resolve.ts";
 import {
   FINDING_COLUMNS,
@@ -43,11 +43,19 @@ export type FindingsStore = {
     now: Date,
     limit: number,
   ): Promise<FindingRow[]>;
-  /** Live findings, newest first (for the brief), optionally of some kinds only. */
+  /**
+   * Live findings, newest first (for the brief), optionally of some kinds
+   * only; `eventSince` skips findings about older events, and
+   * `carmenWritable` keeps only card drafts Carmen may write herself (a
+   * draft and no reported contact, draftNeedsPerson), so drafts waiting for
+   * a person never fill the scan.
+   */
   listLive(
     tenantId: string,
     limit: number,
     kinds?: readonly string[],
+    eventSince?: string,
+    carmenWritable?: boolean,
   ): Promise<FindingRow[]>;
   byIds(tenantId: string, ids: string[]): Promise<FindingRow[]>;
   applyRoute(
@@ -112,13 +120,21 @@ export function createFindingsStore(db: DbClient): FindingsStore {
       return data ?? [];
     },
 
-    async listLive(tenantId, limit, kinds) {
+    async listLive(tenantId, limit, kinds, eventSince, carmenWritable) {
       const live = db
         .from("carmen_findings")
         .select(FINDING_COLUMNS)
         .eq("tenant_id", tenantId)
         .in("status", [...FINDING_LIVE_STATUSES]);
-      const { data, error } = await (kinds ? live.in("kind", [...kinds]) : live)
+      const ofKinds = kinds ? live.in("kind", [...kinds]) : live;
+      const writable = carmenWritable
+        ? ofKinds
+            .not("evidence->card_draft", "is", null)
+            .is("evidence->card_draft->contact", null)
+        : ofKinds;
+      const { data, error } = await (
+        eventSince ? writable.gte("source_event_at", eventSince) : writable
+      )
         .order("last_seen_at", { ascending: false })
         .limit(limit);
       throwIf(error, "carmen_findings live");
