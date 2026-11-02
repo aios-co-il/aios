@@ -1,9 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import {
-  leadOriginTagNames,
-  leadSourceDisplay,
-  type LeadSourceLike,
-} from "@/lib/leadFields";
+import { leadOriginTagNames, type LeadSourceLike } from "@/lib/leadFields";
+import { leadSourceTagName } from "../../supabase/functions/_shared/lead-source/source-key.ts";
 
 const SOURCE_TAG_COLOR = "#3B82F6";
 const CAMPAIGN_TAG_COLOR = "#8B5CF6";
@@ -46,7 +43,7 @@ export async function ensureLeadOriginTags(params: {
         ? maxSortData[0].sort_order
         : 0) + 1;
 
-    const sourceLabel = leadSourceDisplay(lead).trim();
+    const sourceLabel = leadSourceTagName(lead.source) ?? "";
     const tagIds: string[] = [];
 
     for (const name of names) {

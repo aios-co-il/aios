@@ -87,6 +87,19 @@ test("leadOriginTagNames creates campaign and source tags without duplicating א
   expect(leadOriginTagNames(null)).toStrictEqual([]);
 });
 
+test("a source kept as sent gets the same origin tag the CRM filter uses", () => {
+  for (const source of ["FB", "Facebook Ads", "פייסבוק", "paid_ads"]) {
+    expect(leadOriginTagNames({ source })).toStrictEqual(["FB"]);
+  }
+  expect(leadOriginTagNames({ source: "site" })).toStrictEqual(["אתר"]);
+  expect(leadOriginTagNames({ source: "Promo X" })).toStrictEqual(["Promo X"]);
+});
+
+test("leadSourceDisplay shows a sent source as sent", () => {
+  expect(leadSourceDisplay({ source: "Facebook Ads" })).toBe("Facebook Ads");
+  expect(leadSourceDisplay({ source: "site" })).toBe("site");
+});
+
 test("ללא מענה and אין מענה resolve to no_answer_1", () => {
   expect(resolveResponseStatusKey("ללא מענה", defaultStatuses)).toBe(
     "no_answer_1",
