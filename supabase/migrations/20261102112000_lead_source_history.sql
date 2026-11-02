@@ -41,6 +41,8 @@ create policy "Users can view source events of visible leads"
   to authenticated
   using (exists (select 1 from public.leads l where l.id = lead_id));
 
+-- Signed-in users only read; the intake functions write as service_role.
+revoke all on public.lead_source_events from public, anon, authenticated;
 grant select on public.lead_source_events to authenticated;
 grant all on public.lead_source_events to service_role;
 
@@ -70,6 +72,9 @@ begin
   return new;
 end;
 $$;
+
+-- Runs only as the leads trigger; no role calls it directly.
+revoke all on function public.leads_record_first_source_event() from public, anon, authenticated;
 
 drop trigger if exists leads_record_first_source_event on public.leads;
 create trigger leads_record_first_source_event
