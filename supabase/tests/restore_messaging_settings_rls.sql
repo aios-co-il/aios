@@ -1,5 +1,5 @@
 -- Telephony, Telegram and ManyChat access rules
--- (20261102113400_restore_messaging_settings_rls): who reads and writes
+-- (20261102113900_restore_messaging_settings_rls): who reads and writes
 -- telephony_settings, telegram_bot_state, telegram_messages and sync_jobs,
 -- and the upsert telegram-verify-bot makes as the caller. Staging only: the
 -- test's own users, tenants and rows, and a full rollback. Inserts made as a
