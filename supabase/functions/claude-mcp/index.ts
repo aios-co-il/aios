@@ -32,6 +32,8 @@
 // session-URL relay is the single message — the extra ping had caused duplicate messages.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { GLOBAL_SKIN_RULE } from "../_shared/carmen/learned-skin-scope.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { dispatchDevTaskOnce, duplicateReply } from "./dev-dispatch-guard.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -359,6 +361,11 @@ function teachingBlock(
   );
 }
 
+/** Carmen's reply for a dev task that opened a new Claude session. */
+function dispatchedReply(url: string): string {
+  return `✅ Dispatched the dev task to Claude Code. Claude is now working on it and will open a pull request when finished.\nSession: ${url}`;
+}
+
 async function handleToolCall(
   name: string,
   args: Record<string, any>,
@@ -383,17 +390,32 @@ async function handleToolCall(
       `\nPlease implement this in the AIOS codebase and open a pull request when done.` +
       (await recentDispatchContext(ctx.tenantId)) +
       teachingBlock(ctx.tenantId, ctx.agentId);
-    const url = await fireRoutine(id, token, text);
-    await logDispatch({
-      tenantId: ctx.tenantId,
-      agentId: ctx.agentId,
-      tool: "request_dev_task",
-      requestText: task,
-      context,
-      branch,
-      sessionUrl: url,
-    });
-    return `✅ Dispatched the dev task to Claude Code. Claude is now working on it and will open a pull request when finished.\nSession: ${url}`;
+    if (!ctx.tenantId) {
+      // No tenant means no dedupe key; dispatch unguarded as before.
+      console.warn(
+        "[claude-mcp] request_dev_task without tenant: no duplicate guard",
+      );
+      const url = await fireRoutine(id, token, text);
+      await logDispatch({
+        tenantId: null,
+        agentId: ctx.agentId,
+        tool: "request_dev_task",
+        requestText: task,
+        context,
+        branch,
+        sessionUrl: url,
+      });
+      return dispatchedReply(url);
+    }
+    const outcome = await dispatchDevTaskOnce(
+      serviceClient(),
+      { tenantId: ctx.tenantId, agentId: ctx.agentId, task, context, branch },
+      () => fireRoutine(id, token, text),
+    );
+    if (outcome.duplicate) {
+      return duplicateReply(outcome.sessionUrl);
+    }
+    return dispatchedReply(outcome.sessionUrl);
   }
 
   if (name === "ask_claude") {

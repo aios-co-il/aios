@@ -4784,6 +4784,7 @@ export type Database = {
           context: string | null;
           created_at: string;
           id: string;
+          request_hash: string | null;
           request_text: string;
           session_url: string | null;
           status: string;
@@ -4796,6 +4797,7 @@ export type Database = {
           context?: string | null;
           created_at?: string;
           id?: string;
+          request_hash?: string | null;
           request_text: string;
           session_url?: string | null;
           status?: string;
@@ -4808,6 +4810,7 @@ export type Database = {
           context?: string | null;
           created_at?: string;
           id?: string;
+          request_hash?: string | null;
           request_text?: string;
           session_url?: string | null;
           status?: string;
@@ -16630,6 +16633,21 @@ export type Database = {
           p_tenant_id: string;
         };
         Returns: boolean;
+      };
+      claim_claude_dev_dispatch: {
+        Args: {
+          p_agent_id?: string;
+          p_branch: string;
+          p_context: string;
+          p_request_text: string;
+          p_tenant_id: string;
+          p_window_seconds: number;
+        };
+        Returns: {
+          claimed: boolean;
+          dispatch_id: string;
+          existing_session_url: string;
+        }[];
       };
       claim_client_retention_delivery: {
         Args: { p_tenant_id: string };

@@ -133,11 +133,20 @@ isn't blind to what came before:
 All three are best-effort and never block a dispatch: a logging/notify failure is
 swallowed and the session still fires.
 
+- **Duplicate guard (`request_dev_task`).** Before firing, the dispatch row is
+  reserved through `claim_claude_dev_dispatch` (`dev-dispatch-guard.ts`). The same
+  task for the same tenant inside `DEV_DISPATCH_WINDOW_SECONDS` (15 minutes) gets
+  the first session's link and opens no new session. Matching rule and lease
+  behaviour: `supabase/migrations/20261102210000_claude_dev_dispatch_guard.sql`.
+  If the reservation fails, the call fails and nothing fires. A call with no
+  resolved tenant is not guarded.
+
 ## Notes & limits
 
 - **Async only.** `/fire` returns once the session is _created_; it does not
   stream output or wait. Carmen gets a session URL, not the final result.
-- **No idempotency.** Each call creates a new session — don't retry blindly.
+- **Idempotency.** Only `request_dev_task` repeats inside the window are
+  collapsed (above); every `ask_claude` call creates a new session — don't retry blindly.
 - **Auth.** This endpoint can launch real Claude sessions, so `CLAUDE_MCP_BEARER`
   should always be set in production. The function rejects calls without it.
 - **Experimental API.** The routine fire endpoint is behind the dated beta
