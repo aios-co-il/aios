@@ -8,6 +8,7 @@ import {
 } from "./dashboardCombinedFigures";
 import {
   dashboardGoalsOf,
+  facebookRecord,
   leadCampaigns,
   mixedCampaigns,
 } from "./dashboardGoalFixtures";
@@ -141,11 +142,26 @@ describe("dashboardCampaignMode", () => {
     expect(dashboardCampaignMode(summary, null, salesTable)).toBe("leads");
   });
 
-  it("a sales campaign or a store that sold gives sales KPIs", () => {
+  it("a sales campaign gives sales KPIs", () => {
     const mixed = dashboardGoalsOf(mixedCampaigns);
-    const leads = dashboardGoalsOf(leadCampaigns);
     expect(dashboardCampaignMode(mixed, null, [])).toBe("ecommerce");
-    expect(dashboardCampaignMode(leads, wooStore, [])).toBe("ecommerce");
+  });
+
+  it("a store gives sales KPIs only with spend outside lead campaigns", () => {
+    const leadsAndTraffic = dashboardGoalsOf([
+      ...leadCampaigns,
+      facebookRecord("FB traffic", {
+        campaign_objective: "OUTCOME_TRAFFIC",
+        spend: 50,
+      }),
+    ]);
+    const leadsOnly = dashboardGoalsOf(leadCampaigns);
+    const analyticsStore = { ...wooStore, source: "Analytics" as const };
+    expect(dashboardCampaignMode(leadsAndTraffic, wooStore, [])).toBe(
+      "ecommerce",
+    );
+    expect(dashboardCampaignMode(leadsOnly, wooStore, [])).toBe("leads");
+    expect(dashboardCampaignMode(leadsOnly, analyticsStore, [])).toBe("leads");
   });
 
   it("without campaigns in the range a sales table decides", () => {

@@ -77,12 +77,11 @@ export function combinedDashboardSales(
       roas: roasOrNull(sales.revenue, sales.spend),
     };
   }
-  const storeSpend = summary.total.spend - summary.goals.leads.spend;
   return {
     purchases: store.purchases || sales.purchases,
     revenue: store.revenue,
     addToCart: store.addToCart,
-    roas: roasOrNull(store.revenue, storeSpend),
+    roas: roasOrNull(store.revenue, nonLeadSpend(summary)),
   };
 }
 
@@ -96,9 +95,11 @@ export function combinedDashboardLeads(summary: DashboardGoalSummary): {
 }
 
 /**
- * The dashboard's KPI mode: sales when it has a sales campaign or a store that
- * sold in the range, leads when its campaigns are lead or traffic campaigns,
- * and without either, sales only when a table is set up for sales.
+ * The dashboard's KPI mode: sales when it has a sales campaign, or a store
+ * that sold with spend outside lead campaigns to measure it against; leads
+ * when its campaigns are lead or traffic campaigns. Lead campaigns never show
+ * ROAS, so a lead-only client stays in leads mode in every date range, store
+ * or not. Without campaigns in the range, a table set up for sales decides.
  */
 export function dashboardCampaignMode(
   summary: DashboardGoalSummary,
@@ -108,7 +109,7 @@ export function dashboardCampaignMode(
     integration_settings?: Record<string, unknown> | null;
   }>,
 ): "ecommerce" | "leads" {
-  if (summary.hasEcommerce || store) {
+  if (summary.hasEcommerce || (store && nonLeadSpend(summary) > 0)) {
     return "ecommerce";
   }
   if (summary.rows.length > 0) {
@@ -130,6 +131,11 @@ export function goalRoas(metrics: { spend: number; revenue: number }): number {
 /** Spend over leads. */
 export function goalCpl(metrics: { spend: number; leads: number }): number {
   return metrics.leads > 0 ? metrics.spend / metrics.leads : 0;
+}
+
+/** Spend on sales and traffic campaigns: what a store's revenue is set against. */
+function nonLeadSpend(summary: DashboardGoalSummary): number {
+  return summary.total.spend - summary.goals.leads.spend;
 }
 
 /** Revenue over spend, or null without spend. */

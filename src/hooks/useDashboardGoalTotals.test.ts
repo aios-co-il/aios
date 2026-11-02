@@ -1,7 +1,11 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { groupFacebookRowsByGoal } from "@/lib/facebookGoalGroups";
-import { leadCampaigns, mixedCampaigns } from "@/lib/dashboardGoalFixtures";
+import {
+  facebookRecord,
+  leadCampaigns,
+  mixedCampaigns,
+} from "@/lib/dashboardGoalFixtures";
 import {
   dashboardGoalTotals,
   useDashboardGoalTotals,
@@ -46,7 +50,9 @@ const sharedShape = (record: FixtureRecord) => ({
   _integrationSettings: {},
 });
 
-function totalsOf(records: DashboardTotalsRecord[]) {
+const noWoo = { revenue: 0, orders: 0 };
+
+function totalsOf(records: DashboardTotalsRecord[], woo = noWoo) {
   return dashboardGoalTotals({
     showAll: true,
     facebook: groupFacebookRowsByGoal(
@@ -56,23 +62,26 @@ function totalsOf(records: DashboardTotalsRecord[]) {
     ),
     records,
     tables,
-    woo: { revenue: 0, orders: 0 },
+    woo,
   });
 }
 
 /** The totals each page would show for the same records. */
-const bothPages = (records: FixtureRecord[]) => [
-  totalsOf(records.map(internalShape)),
-  totalsOf(records.map(sharedShape)),
+const bothPages = (records: FixtureRecord[], woo = noWoo) => [
+  totalsOf(records.map(internalShape), woo),
+  totalsOf(records.map(sharedShape), woo),
 ];
+
+/** WooCommerce with ₪5,000 and 12 orders in the range. */
+const woo = { revenue: 5000, orders: 12 };
 
 describe("dashboardGoalTotals", () => {
   it("Analytics without daily rows in the range is no store on either page", () => {
     for (const totals of bothPages([...mixedCampaigns, trafficSourceRow])) {
       expect(totals.store).toBeNull();
       // The sales campaigns' ₪1,400 over their ₪400.
-      expect(totals.sales.roas).toBe(3.5);
-      expect(totals.mode).toBe("ecommerce");
+      expect(totals.combinedSales.roas).toBe(3.5);
+      expect(totals.dashboardCampaignType).toBe("ecommerce");
     }
   });
 
@@ -80,7 +89,7 @@ describe("dashboardGoalTotals", () => {
     const records = [...mixedCampaigns, analyticsRow({ purchase_value: 0 })];
     for (const totals of bothPages(records)) {
       expect(totals.store).toBeNull();
-      expect(totals.sales.roas).toBe(3.5);
+      expect(totals.combinedSales.roas).toBe(3.5);
     }
   });
 
@@ -88,8 +97,8 @@ describe("dashboardGoalTotals", () => {
     const records = [...leadCampaigns, analyticsRow({ add_to_cart: 12 })];
     for (const totals of bothPages(records)) {
       expect(totals.store).toBeNull();
-      expect(totals.mode).toBe("leads");
-      expect(totals.leads).toStrictEqual({ leads: 20, cpl: 20 });
+      expect(totals.dashboardCampaignType).toBe("leads");
+      expect(totals.combinedLeads).toStrictEqual({ leads: 20, cpl: 20 });
     }
   });
 
@@ -104,7 +113,41 @@ describe("dashboardGoalTotals", () => {
         source: "Analytics",
         revenue: 2250,
       });
-      expect(totals.sales.roas).toBe(5);
+      expect(totals.combinedSales.roas).toBe(5);
+    }
+  });
+});
+
+describe("dashboardGoalTotals with a WooCommerce store", () => {
+  it("lead campaigns stay in leads mode, with no ROAS", () => {
+    for (const totals of bothPages(leadCampaigns, woo)) {
+      expect(totals.store).toMatchObject({ source: "WooCommerce" });
+      expect(totals.dashboardCampaignType).toBe("leads");
+      expect(totals.combinedSales.roas).toBeNull();
+    }
+  });
+
+  it("a lead-only client stays in leads mode whatever the range", () => {
+    // A range with campaign data, and one where only the store sold.
+    for (const records of [leadCampaigns, []]) {
+      for (const totals of bothPages(records, woo)) {
+        expect(totals.dashboardCampaignType).toBe("leads");
+      }
+    }
+  });
+
+  it("traffic spend beside lead campaigns gives sales mode", () => {
+    const records = [
+      ...leadCampaigns,
+      facebookRecord("FB traffic", {
+        campaign_objective: "OUTCOME_TRAFFIC",
+        spend: 50,
+      }),
+    ];
+    for (const totals of bothPages(records, woo)) {
+      expect(totals.dashboardCampaignType).toBe("ecommerce");
+      // ₪5,000 over the ₪50 spent outside lead campaigns.
+      expect(totals.combinedSales.roas).toBe(100);
     }
   });
 });

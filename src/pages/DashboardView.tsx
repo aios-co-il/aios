@@ -1367,11 +1367,11 @@ export default function DashboardView() {
   // The "All" tab's goals, store and combined figures, decided as on the
   // other dashboard page.
   const {
-    goals: dashboardGoals,
-    store: dashboardStore,
-    mode: dashboardCampaignType,
-    sales: combinedSales,
-    leads: combinedLeads,
+    dashboardGoals,
+    store,
+    dashboardCampaignType,
+    combinedSales,
+    combinedLeads,
   } = useDashboardGoalTotals({
     showAll: platformFilter === "all",
     facebook: facebookCampaignGroups,
@@ -2517,7 +2517,7 @@ export default function DashboardView() {
                   summary={dashboardGoals}
                   sales={combinedSales}
                   leads={combinedLeads}
-                  revenueSource={dashboardStore?.source ?? null}
+                  revenueSource={store?.source ?? null}
                   platformLabel={(platform) => ({
                     ...PLATFORM_CONFIG[platform],
                     icon: getIntegrationIcon(platform),

@@ -39,11 +39,11 @@ export type DashboardGoalTotalsInput = {
 };
 
 export type DashboardGoalTotals = {
-  goals: DashboardGoalSummary;
+  dashboardGoals: DashboardGoalSummary;
   store: DashboardStore | null;
-  mode: "ecommerce" | "leads";
-  sales: DashboardCombinedSales;
-  leads: { leads: number; cpl: number };
+  dashboardCampaignType: "ecommerce" | "leads";
+  combinedSales: DashboardCombinedSales;
+  combinedLeads: { leads: number; cpl: number };
 };
 
 /**
@@ -80,16 +80,20 @@ export function dashboardGoalTotals(
   const googleRecords = input.showAll
     ? input.records.filter((record) => record._source === "google_ads")
     : [];
-  const goals = summarizeDashboardGoals({
+  const dashboardGoals = summarizeDashboardGoals({
     facebook: input.facebook,
     google: summarizeGoogleAdsCampaigns(googleRecords, input.tables).campaigns,
   });
   const store = dashboardStore(input.records, input.woo);
   return {
-    goals,
+    dashboardGoals,
     store,
-    mode: dashboardCampaignMode(goals, store, input.tables),
-    sales: combinedDashboardSales(goals, store),
-    leads: combinedDashboardLeads(goals),
+    dashboardCampaignType: dashboardCampaignMode(
+      dashboardGoals,
+      store,
+      input.tables,
+    ),
+    combinedSales: combinedDashboardSales(dashboardGoals, store),
+    combinedLeads: combinedDashboardLeads(dashboardGoals),
   };
 }
