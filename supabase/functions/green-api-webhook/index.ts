@@ -442,7 +442,7 @@ Deno.serve(async (req) => {
     }
 
     // The tenant's other connections recognise this number's messages as ours.
-    await rememberConnectionWid(supabaseClient, integration, selfWid);
+    await rememberConnectionWid(integration, selfWid);
 
     // Handle outgoingMessageStatus for messages sent from WhatsApp directly
     if (isOutgoingStatus) {
@@ -913,7 +913,7 @@ Deno.serve(async (req) => {
     // lookup below still catches messages stored before the claim existed, and
     // still owes an API echo its stored send's team mirror.
     const incomingIdMessage = webhookData.idMessage;
-    messageClaim = await claimWebhookMessage(supabaseClient, {
+    messageClaim = await claimWebhookMessage({
       tenantId,
       connectionUserId,
       idMessage: incomingIdMessage,
@@ -1515,9 +1515,7 @@ Deno.serve(async (req) => {
           };
 
           const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-          if (
-            await claimAutomationDispatch(supabaseClient, automationDispatch)
-          ) {
+          if (await claimAutomationDispatch(automationDispatch)) {
             fetch(triggerUrl, {
               method: "POST",
               headers: {
@@ -2023,7 +2021,7 @@ Deno.serve(async (req) => {
         };
 
         const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-        if (await claimAutomationDispatch(supabaseClient, automationDispatch)) {
+        if (await claimAutomationDispatch(automationDispatch)) {
           fetch(triggerUrl, {
             method: "POST",
             headers: {

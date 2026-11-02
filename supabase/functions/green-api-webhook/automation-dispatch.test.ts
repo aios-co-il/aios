@@ -71,8 +71,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
   await t.step("a customer's message dispatches once", async () => {
     const db = fakeClaimTables({ integrations: integrations() });
     const incoming = message("incomingMessageReceived", CUSTOMER);
-    assertEquals(await claimAutomationDispatch(db, incoming), true);
-    assertEquals(await claimAutomationDispatch(db, incoming), false);
+    assertEquals(await claimAutomationDispatch(incoming, db), true);
+    assertEquals(await claimAutomationDispatch(incoming, db), false);
     assertEquals(db.claims.length, 1);
     assertEquals(db.claims[0].provider, DISPATCH_CLAIM_PROVIDER);
   });
@@ -83,8 +83,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
       const db = fakeClaimTables({ integrations: integrations() });
       const incoming = message("incomingMessageReceived", CUSTOMER);
       const results = await Promise.all([
-        claimAutomationDispatch(db, incoming),
-        claimAutomationDispatch(db, incoming),
+        claimAutomationDispatch(incoming, db),
+        claimAutomationDispatch(incoming, db),
       ]);
       assertEquals(results.sort(), [false, true]);
     },
@@ -97,8 +97,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
       // Line A sent it through the API: its echo on A, and B receiving it.
       const echoOnA = message("outgoingAPIMessageReceived", LINE_A, "REPLY1");
       const receivedOnB = message("incomingMessageReceived", LINE_A, "REPLY1");
-      assertEquals(await claimAutomationDispatch(db, echoOnA), false);
-      assertEquals(await claimAutomationDispatch(db, receivedOnB), false);
+      assertEquals(await claimAutomationDispatch(echoOnA, db), false);
+      assertEquals(await claimAutomationDispatch(receivedOnB, db), false);
       assertEquals(db.claims.length, 0);
     },
   );
@@ -110,8 +110,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
       for (const sender of ["972503333333@c.us", "972504444444@c.us"]) {
         assertEquals(
           await claimAutomationDispatch(
-            db,
             message("incomingMessageReceived", sender, sender),
+            db,
           ),
           false,
           sender,
@@ -126,16 +126,16 @@ Deno.test("claimAutomationDispatch", async (t) => {
       const db = fakeClaimTables({ integrations: integrations() });
       assertEquals(
         await claimAutomationDispatch(
-          db,
           message("outgoingMessageReceived", LINE_A),
+          db,
         ),
         true,
       );
       // The same message as B receives it is already dispatched, and ours.
       assertEquals(
         await claimAutomationDispatch(
-          db,
           message("incomingMessageReceived", LINE_A),
+          db,
         ),
         false,
       );
@@ -146,8 +146,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
     const db = fakeClaimTables({ integrations: integrations() });
     assertEquals(
       await claimAutomationDispatch(
-        db,
         message("outgoingMessageStatus", LINE_A),
+        db,
       ),
       false,
     );
@@ -160,8 +160,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
       for (const sender of ["972505555555@c.us", "972506666666@c.us"]) {
         assertEquals(
           await claimAutomationDispatch(
-            db,
             message("incomingMessageReceived", sender, sender),
+            db,
           ),
           true,
           sender,
@@ -177,8 +177,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
     );
     assertEquals(
       await claimAutomationDispatch(
-        db,
         message("incomingMessageReceived", CUSTOMER),
+        db,
       ),
       true,
     );
@@ -191,8 +191,8 @@ Deno.test("claimAutomationDispatch", async (t) => {
     );
     assertEquals(
       await claimAutomationDispatch(
-        db,
         message("incomingMessageReceived", CUSTOMER),
+        db,
       ),
       true,
     );
@@ -220,9 +220,9 @@ Deno.test("rememberConnectionWid", async (t) => {
     const db = fakeClaimTables({ integrations: integrations() });
     const [lineA] = db.integrations;
     await rememberConnectionWid(
-      db,
       { id: "int-a", tenant_id: TENANT, settings: { instance_name: "A" } },
       LINE_A,
+      db,
     );
     assertEquals(lineA.settings, { instance_name: "A", wid: LINE_A });
   });
@@ -237,14 +237,14 @@ Deno.test("rememberConnectionWid", async (t) => {
       },
     };
     await rememberConnectionWid(
-      spy,
       { id: "int-a", tenant_id: TENANT, settings: { wid: LINE_A } },
       LINE_A,
+      spy,
     );
     await rememberConnectionWid(
-      spy,
       { id: "int-a", tenant_id: TENANT, settings: null },
       null,
+      spy,
     );
     assertEquals(writes, []);
   });
@@ -252,9 +252,9 @@ Deno.test("rememberConnectionWid", async (t) => {
   await t.step("never writes another tenant's connection", async () => {
     const db = fakeClaimTables({ integrations: integrations() });
     await rememberConnectionWid(
-      db,
       { id: "int-other", tenant_id: TENANT, settings: {} },
       LINE_A,
+      db,
     );
     assertEquals(db.integrations[5].settings, { wid: "972506666666@c.us" });
   });

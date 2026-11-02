@@ -1,10 +1,9 @@
 -- Reliable WhatsApp → automation dispatch (AIO-204):
--- 20261102110000_automation_executions_close_and_retention and
--- 20261102111000_message_claim_lease. Synthetic rows inside one transaction
--- that is rolled back. The claim and dispatch statements are the ones
--- green-api-webhook's message-claim.ts and automation-dispatch.ts send through
--- PostgREST; the retention statements are read from cron.job when pg_cron is
--- installed.
+-- 20261102110000_automation_executions_close_and_retention. Synthetic rows
+-- inside one transaction that is rolled back. The claim and dispatch
+-- statements are the ones green-api-webhook's message-claim.ts and
+-- automation-dispatch.ts send through PostgREST; the retention statements are
+-- read from cron.job when pg_cron is installed.
 BEGIN;
 DO $test$
 DECLARE

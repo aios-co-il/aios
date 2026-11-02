@@ -56,7 +56,7 @@ function echoDeliveries(seed: {
   };
   const mirrors: unknown[][] = [];
   const deliver = async (): Promise<"duplicate" | "stored" | "new"> => {
-    const claim = await claimWebhookMessage(db, KEY);
+    const claim = await claimWebhookMessage(KEY, db);
     if (claim.duplicate) {
       return "duplicate";
     }
@@ -122,7 +122,7 @@ Deno.test("message claim with #961's API echo mirror", async (t) => {
     "an echo whose delivery failed is mirrored by the retry",
     async () => {
       const run = echoDeliveries({ chats: [pendingSend("pending")] });
-      await (await claimWebhookMessage(run.claims, KEY)).release();
+      await (await claimWebhookMessage(KEY, run.claims)).release();
       assertEquals(await run.deliver(), "stored");
       assertEquals(run.mirrors.length, 1);
     },

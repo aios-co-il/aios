@@ -1,7 +1,7 @@
 // Green API can deliver one message event more than once. green-api-webhook
 // claims each delivery's idMessage before anything runs, so a redelivery is
 // dropped instead of storing, mirroring or dispatching the message twice.
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
 
 export type WebhookMessageClaim = {
   /** Another delivery of this message holds the claim: drop this one. */
@@ -32,10 +32,11 @@ type ClaimMatch = {
  * external_message_id). The claim is a lease: a duplicate takes over only an
  * unfinished claim older than MESSAGE_CLAIM_LEASE_MS. A claim insert that fails
  * for another reason processes the message unclaimed rather than lose it.
+ * `db` defaults to the typed service client; tests pass a fake.
  */
 export async function claimWebhookMessage(
-  db: ClaimDb,
   key: MessageClaimKey,
+  db: ClaimDb = serviceClient(),
 ): Promise<WebhookMessageClaim> {
   const idMessage =
     typeof key.idMessage === "string" ? key.idMessage.trim() : "";

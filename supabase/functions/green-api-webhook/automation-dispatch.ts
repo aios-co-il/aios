@@ -2,7 +2,7 @@
 // once per tenant, and never a message the tenant itself sent. An automation
 // loop needs our own output to come back as a trigger; this gate is what stops
 // it (AIO-204).
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
 import type { Json } from "../_shared/database.types.ts";
 import { isRecord } from "../_shared/client-card/is-record.ts";
 import { phoneMatchKey } from "../_shared/telephony/phone.ts";
@@ -24,11 +24,11 @@ type DispatchDb = Pick<DbClient, "from">;
  *   typed on our phone and dispatched on that number's own connection;
  * - another connection of the tenant already dispatched it.
  * A claim insert that fails for another reason dispatches rather than lose the
- * message.
+ * message. `db` defaults to the typed service client; tests pass a fake.
  */
 export async function claimAutomationDispatch(
-  db: DispatchDb,
   msg: AutomationDispatch,
+  db: DispatchDb = serviceClient(),
 ): Promise<boolean> {
   const idMessage =
     typeof msg.idMessage === "string" ? msg.idMessage.trim() : "";
@@ -112,11 +112,12 @@ export function isOwnConnectionSender(
 /**
  * Records this connection's own WhatsApp id in settings.wid, so the tenant's
  * other connections recognise its messages as ours. Writes only when it changed.
+ * `db` defaults to the typed service client; tests pass a fake.
  */
 export async function rememberConnectionWid(
-  db: DispatchDb,
   integration: { id: string; tenant_id: string; settings: Json | null },
   selfWid: string | null,
+  db: DispatchDb = serviceClient(),
 ): Promise<void> {
   const settings = isRecord(integration.settings) ? integration.settings : {};
   if (!selfWid || settings.wid === selfWid) {

@@ -32,10 +32,10 @@ Deno.test("claimWebhookMessage", async (t) => {
     "a redelivery after the message is stored is dropped",
     async () => {
       const db = fakeClaimTables();
-      const first = await claimWebhookMessage(db, KEY);
+      const first = await claimWebhookMessage(KEY, db);
       assertEquals(first.duplicate, false);
       await first.complete();
-      assertEquals((await claimWebhookMessage(db, KEY)).duplicate, true);
+      assertEquals((await claimWebhookMessage(KEY, db)).duplicate, true);
       assertEquals(db.claims.length, 1);
     },
   );
@@ -43,8 +43,8 @@ Deno.test("claimWebhookMessage", async (t) => {
   await t.step("of two concurrent deliveries, one owns the claim", async () => {
     const db = fakeClaimTables();
     const claims = await Promise.all([
-      claimWebhookMessage(db, KEY),
-      claimWebhookMessage(db, KEY),
+      claimWebhookMessage(KEY, db),
+      claimWebhookMessage(KEY, db),
     ]);
     assertEquals(claims.map((claim) => claim.duplicate).sort(), [false, true]);
   });
@@ -53,11 +53,14 @@ Deno.test("claimWebhookMessage", async (t) => {
     "each connection of the tenant claims its own delivery",
     async () => {
       const db = fakeClaimTables();
-      const first = await claimWebhookMessage(db, KEY);
-      const second = await claimWebhookMessage(db, {
-        ...KEY,
-        connectionUserId: SECOND_LINE,
-      });
+      const first = await claimWebhookMessage(KEY, db);
+      const second = await claimWebhookMessage(
+        {
+          ...KEY,
+          connectionUserId: SECOND_LINE,
+        },
+        db,
+      );
       assertEquals([first.duplicate, second.duplicate], [false, false]);
     },
   );
@@ -66,9 +69,9 @@ Deno.test("claimWebhookMessage", async (t) => {
     "a failed delivery releases its claim; the retry is handled",
     async () => {
       const db = fakeClaimTables();
-      await (await claimWebhookMessage(db, KEY)).release();
+      await (await claimWebhookMessage(KEY, db)).release();
       assertEquals(db.claims.length, 0);
-      assertEquals((await claimWebhookMessage(db, KEY)).duplicate, false);
+      assertEquals((await claimWebhookMessage(KEY, db)).duplicate, false);
     },
   );
 
@@ -76,7 +79,7 @@ Deno.test("claimWebhookMessage", async (t) => {
     "a failure after the message is stored keeps the claim",
     async () => {
       const db = fakeClaimTables();
-      const claim = await claimWebhookMessage(db, KEY);
+      const claim = await claimWebhookMessage(KEY, db);
       await claim.complete();
       await claim.release();
       assertEquals(db.claims.length, 1);
@@ -90,7 +93,7 @@ Deno.test("claimWebhookMessage", async (t) => {
       const db = fakeClaimTables({
         claims: [claimRow({ processed_at: minutesAgo(1) })],
       });
-      assertEquals((await claimWebhookMessage(db, KEY)).duplicate, true);
+      assertEquals((await claimWebhookMessage(KEY, db)).duplicate, true);
     },
   );
 
@@ -101,8 +104,8 @@ Deno.test("claimWebhookMessage", async (t) => {
         claims: [claimRow({ processed_at: minutesAgo(10) })],
       });
       const retries = await Promise.all([
-        claimWebhookMessage(db, KEY),
-        claimWebhookMessage(db, KEY),
+        claimWebhookMessage(KEY, db),
+        claimWebhookMessage(KEY, db),
       ]);
       assertEquals(retries.map((claim) => claim.duplicate).sort(), [
         false,
@@ -120,14 +123,14 @@ Deno.test("claimWebhookMessage", async (t) => {
         }),
       ],
     });
-    assertEquals((await claimWebhookMessage(db, KEY)).duplicate, true);
+    assertEquals((await claimWebhookMessage(KEY, db)).duplicate, true);
   });
 
   await t.step(
     "a failed claim insert processes the message unclaimed",
     async () => {
       const db = fakeClaimTables({}, { failInsert: { code: "57014" } });
-      const claim = await claimWebhookMessage(db, KEY);
+      const claim = await claimWebhookMessage(KEY, db);
       assertEquals(claim.duplicate, false);
       await claim.release();
       assertEquals(db.claims.length, 0);
@@ -141,7 +144,7 @@ Deno.test("claimWebhookMessage", async (t) => {
         { claims: [claimRow({ processed_at: minutesAgo(10) })] },
         { failSelect: { code: "57014" } },
       );
-      assertEquals((await claimWebhookMessage(db, KEY)).duplicate, true);
+      assertEquals((await claimWebhookMessage(KEY, db)).duplicate, true);
     },
   );
 
@@ -150,7 +153,7 @@ Deno.test("claimWebhookMessage", async (t) => {
     async () => {
       const db = fakeClaimTables();
       assertEquals(
-        (await claimWebhookMessage(db, { ...KEY, idMessage: undefined }))
+        (await claimWebhookMessage({ ...KEY, idMessage: undefined }, db))
           .duplicate,
         false,
       );
