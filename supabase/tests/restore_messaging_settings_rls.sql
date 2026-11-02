@@ -36,6 +36,7 @@ DECLARE
   u_member uuid := gen_random_uuid();
   u_other uuid := gen_random_uuid();
   u_admin uuid := gen_random_uuid();
+  u_sharer uuid := gen_random_uuid();
   v_tag text := left(gen_random_uuid()::text, 8);
   t_a uuid := gen_random_uuid();
   t_b uuid := gen_random_uuid();
@@ -45,18 +46,19 @@ DECLARE
   n bigint;
 BEGIN
   -- Fixtures, written as postgres. t_a is the main tenant, t_b another tenant
-  -- (where the super admin acts), t_c a second tenant of t_a's owner.
+  -- (where the super admin acts), t_c a second tenant of t_a's owner. u_sharer
+  -- is a member of t_a and t_b.
   v_tenants := ARRAY[t_a, t_b, t_c];
   INSERT INTO auth.users (id, email)
   SELECT u, 'qa-rls-messaging-' || u || '@example.invalid'
-  FROM unnest(ARRAY[u_owner, u_member, u_other, u_admin]) AS u;
+  FROM unnest(ARRAY[u_owner, u_member, u_other, u_admin, u_sharer]) AS u;
   INSERT INTO public.tenants (id, name, slug) VALUES
     (t_a, 'QA ROLLBACK A', 'qa-rls-messaging-a-' || v_tag),
     (t_b, 'QA ROLLBACK B', 'qa-rls-messaging-b-' || v_tag),
     (t_c, 'QA ROLLBACK C', 'qa-rls-messaging-c-' || v_tag);
   INSERT INTO public.tenant_users (user_id, tenant_id, role) VALUES
     (u_owner, t_a, 'owner'), (u_owner, t_c, 'member'), (u_member, t_a, 'member'),
-    (u_other, t_b, 'owner'), (u_admin, t_b, 'member');
+    (u_other, t_b, 'owner'), (u_admin, t_b, 'member'), (u_sharer, t_a, 'member'), (u_sharer, t_b, 'member');
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
     (u_owner, 'owner', t_a), (u_member, 'campaigner', t_a), (u_other, 'owner', t_b), (u_admin, 'super_admin', NULL);
   INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
@@ -274,6 +276,27 @@ BEGIN
   PERFORM pg_temp.qa_act(NULL, 'none');
   PERFORM pg_temp.qa_expect((SELECT count(*) FROM public.telegram_messages WHERE tenant_id = t_b AND chat_id = 6), 1, 'the super admin''s message in t_b is stored');
   PERFORM pg_temp.qa_expect((SELECT count(*) FROM public.telegram_bot_state WHERE tenant_id = t_b AND shared_from_state_id IS NULL AND bot_username = 'qa_b_bot_v3'), 1, 'the super admin''s new bot in t_b is stored');
+
+  -- u_sharer shares t_a's bot into t_b. t_b's owner, who is not in t_a, disconnects as the settings page does (every
+  -- bot row of the tenant, the active copy included), then reconnects t_b's own bot.
+  PERFORM pg_temp.qa_act(u_sharer);
+  INSERT INTO public.telegram_bot_state (tenant_id, shared_from_state_id, bot_username, is_active) VALUES (t_b, bot_a, 'qa_a_bot', true);
+  PERFORM pg_temp.qa_act(u_other);
+  UPDATE public.telegram_bot_state SET is_active = false WHERE tenant_id = t_b;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM pg_temp.qa_expect(n, 2, 't_b''s owner disconnects t_b''s bot and the copy shared from t_a');
+  PERFORM pg_temp.qa_expect((SELECT count(*) FROM public.telegram_bot_state WHERE tenant_id = t_b AND is_active), 0, 'every bot row of t_b is inactive');
+  INSERT INTO public.telegram_bot_state (tenant_id, shared_from_state_id, bot_username, is_active, update_offset)
+  VALUES (t_b, NULL, 'qa_b_bot_v4', true, 0)
+  ON CONFLICT (tenant_id, shared_from_state_id) DO UPDATE SET bot_username = excluded.bot_username, is_active = excluded.is_active;
+  PERFORM pg_temp.qa_expect((SELECT count(*) FROM public.telegram_bot_state WHERE tenant_id = t_b AND shared_from_state_id IS NULL AND is_active AND bot_username = 'qa_b_bot_v4'), 1, 't_b''s owner reconnects t_b''s own bot');
+  -- The service role (edge functions) has no signed-in user, so the source trigger leaves its writes alone.
+  PERFORM pg_temp.qa_act(NULL, 'service_role');
+  UPDATE public.telegram_bot_state SET shared_from_state_id = copy_c WHERE tenant_id = t_b AND shared_from_state_id = bot_a;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM pg_temp.qa_expect(n, 1, 'the service role changes a copy''s source');
+  DELETE FROM public.telegram_bot_state WHERE tenant_id = t_b AND shared_from_state_id = copy_c;
+  PERFORM pg_temp.qa_act(NULL, 'none');
 
   -- Anonymous: nothing.
   PERFORM pg_temp.qa_act(NULL, 'anon');

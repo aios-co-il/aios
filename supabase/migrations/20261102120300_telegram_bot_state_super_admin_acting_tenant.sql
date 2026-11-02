@@ -14,9 +14,14 @@
 --
 -- #1022's update rule also never checked shared_from_state_id, so an owner
 -- could point the tenant's bot at a bot of a tenant they are not in, a copy
--- telegram_bot_state_shared_insert refuses. The update now allows a source
--- only where shared_insert would, with the same helper calls. Sharing itself
--- and the other #1022 tables are unchanged.
+-- telegram_bot_state_shared_insert refuses. A BEFORE UPDATE trigger now
+-- refuses a signed-in user's change of that source unless shared_insert would
+-- accept it (same helper calls). It is a trigger, not part of the update
+-- policy, because the policy's WITH CHECK also runs on rows whose source does
+-- not change: the settings page disconnects every bot row of the tenant, and
+-- the owner of a tenant holding a copy shared from a tenant they are not in
+-- would be refused. The service role (edge functions) has no auth.uid() and
+-- is not checked. Sharing itself and the other #1022 tables are unchanged.
 --
 -- The closing guard also covers what the earlier guards missed:
 -- - the four #1022 tables and the nine Carmen command center tables
@@ -25,9 +30,11 @@
 -- - on the 51 tables of 20261102113700, whose guard checked names but not
 --   commands, each policy is for the command its name states;
 -- - every policy of the three groups is TO authenticated only, and each of
---   their tables keeps row-level security on.
+--   their tables keeps row-level security on;
+-- - the source trigger exists and is enabled.
 --
--- No data changes. Safe to re-run: each policy is dropped before it is created.
+-- No data changes. Safe to re-run: each policy and the trigger are dropped
+-- before they are created.
 
 -- The owner, or a super admin, adds the acting tenant's own bot; a shared copy goes through shared_insert.
 drop policy if exists telegram_bot_state_owner_insert on public.telegram_bot_state;
@@ -42,7 +49,7 @@ create policy telegram_bot_state_owner_insert on public.telegram_bot_state
     )
   );
 
--- The owner, or a super admin, edits the acting tenant's bot rows; they stay there, with a source shared_insert allows.
+-- The owner, or a super admin, edits the acting tenant's bot rows (connect, disconnect), which stay in that tenant.
 drop policy if exists telegram_bot_state_owner_update on public.telegram_bot_state;
 create policy telegram_bot_state_owner_update on public.telegram_bot_state
   for update to authenticated
@@ -59,10 +66,6 @@ create policy telegram_bot_state_owner_update on public.telegram_bot_state
       public.has_role((select auth.uid()), 'owner'::public.app_role)
       or public.is_super_admin((select auth.uid()))
     )
-    and (
-      shared_from_state_id is null
-      or public.user_is_tenant_member(public.telegram_bot_state_source_tenant(shared_from_state_id))
-    )
   );
 
 -- The owner, or a super admin, removes the acting tenant's bot rows.
@@ -76,6 +79,34 @@ create policy telegram_bot_state_owner_delete on public.telegram_bot_state
       or public.is_super_admin((select auth.uid()))
     )
   );
+
+-- Refuses a signed-in user's new source for a bot row unless they belong to the source bot's tenant, as shared_insert.
+create or replace function public.telegram_bot_state_source_guard()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if new.shared_from_state_id is distinct from old.shared_from_state_id
+     and new.shared_from_state_id is not null
+     and (select auth.uid()) is not null
+     and not public.user_is_tenant_member(public.telegram_bot_state_source_tenant(new.shared_from_state_id)) then
+    raise exception 'telegram_bot_state: the source bot must belong to a tenant you are a member of'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+-- Runs only as the telegram_bot_state trigger; no role calls it directly.
+revoke all on function public.telegram_bot_state_source_guard() from public, anon, authenticated;
+
+drop trigger if exists telegram_bot_state_source_guard on public.telegram_bot_state;
+create trigger telegram_bot_state_source_guard
+  before update on public.telegram_bot_state
+  for each row
+  execute function public.telegram_bot_state_source_guard();
 
 -- Guard. Permissive policies OR together, so a leftover, missing or widened policy would change access unnoticed.
 do $$
@@ -183,6 +214,17 @@ begin
     where not coalesce(
       (select c.relrowsecurity from pg_class as c where c.oid = to_regclass(format('public.%I', t.table_name))),
       false
+    )
+    union all
+    -- The policies leave a change of a bot row's source to this trigger.
+    select 'telegram_bot_state trigger telegram_bot_state_source_guard is missing or disabled'
+    where not exists (
+      select 1
+      from pg_trigger as tg
+      where tg.tgrelid = 'public.telegram_bot_state'::regclass
+        and tg.tgname = 'telegram_bot_state_source_guard'
+        and tg.tgfoid = to_regprocedure('public.telegram_bot_state_source_guard()')
+        and tg.tgenabled in ('O', 'A')
     )
   )
   select string_agg(problem, '; ' order by problem) into v_problems from problems;
