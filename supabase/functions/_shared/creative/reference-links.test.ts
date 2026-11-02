@@ -69,6 +69,13 @@ describe("readableReferenceUrls", () => {
     assertEquals(signed, []);
   });
 
+  it("never signs a path that climbs out of the tenant's folder", async () => {
+    const { supabase, signed } = storage();
+    const climbing = `${BASE}/public/entity-attachments/${TENANT}/..%2F${OTHER}/workshop/x/secret.png`;
+    assertEquals(await readableReferenceUrls(supabase, TENANT, [climbing]), []);
+    assertEquals(signed, []);
+  });
+
   it("leaves out an upload that cannot be signed", async () => {
     const { supabase } = storage(true);
     const upload = `${BASE}/public/entity-attachments/${TENANT}/workshop/item-1/poster.png`;

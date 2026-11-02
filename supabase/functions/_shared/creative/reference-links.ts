@@ -28,8 +28,9 @@ export interface SigningClient {
 const SIGNED_SECONDS = 600;
 
 /**
- * The links to fetch for these references. A private upload of another tenant is left out, so a
- * reference can never read someone else's files; one that cannot be signed is left out and logged.
+ * The links to fetch for these references. A private upload outside the tenant's own folder is
+ * left out, so a reference can never read someone else's files; one that cannot be signed is left
+ * out and logged.
  */
 export async function readableReferenceUrls(
   supabase: SigningClient,
@@ -42,7 +43,8 @@ export async function readableReferenceUrls(
       if (!path) {
         return url;
       }
-      if (!path.startsWith(`${tenantId}/`)) {
+      // A ".." segment could climb out of the tenant's folder, as render-worker guard.mjs refuses.
+      if (!path.startsWith(`${tenantId}/`) || path.split("/").includes("..")) {
         console.error("[ad-image] reference outside the tenant's files", path);
         return null;
       }
