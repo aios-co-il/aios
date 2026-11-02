@@ -1,4 +1,6 @@
 import { Facebook } from "lucide-react";
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
+import { isCampaignOff } from "@/lib/campaignOffState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,10 +126,12 @@ function CampaignGoalTable({
   goal,
   campaigns,
   period,
+  inactiveTableIds,
 }: {
   goal: PulseCampaignGoal;
   campaigns: PulseCampaignGoalRow[];
   period: PulsePeriod;
+  inactiveTableIds: ReadonlySet<string>;
 }) {
   const spendLabel = pulseSpendColumnLabel(period).split(" ")[0];
   const outcomeLabel = outcomeColumnLabel(
@@ -193,6 +197,12 @@ function CampaignGoalTable({
                     row.delivery_status || "unknown",
                   )}
                 </Badge>
+                <CampaignOffBadge
+                  off={isCampaignOff({
+                    deliveryStatus: row.delivery_status,
+                    reportActive: !inactiveTableIds.has(row.table_id),
+                  })}
+                />
               </TableCell>
               <TableCell className="tabular-nums">
                 {formatPulseMoney(row.spend_7d)}
@@ -230,6 +240,8 @@ export type PulseClientRawCardProps = {
   pulse: PulseSnapshotRow | null;
   campaignsByGoal: Partial<Record<PulseCampaignGoal, PulseCampaignGoalRow[]>>;
   lastCampaignTouchAt: string | null;
+  /** Report tables switched off (`campaign_active` false); their campaigns show "כבוי". */
+  inactiveTableIds: ReadonlySet<string>;
   onOpenClient: () => void;
   onCallLog: () => void;
 };
@@ -242,6 +254,7 @@ export function PulseClientRawCard({
   pulse,
   campaignsByGoal,
   lastCampaignTouchAt,
+  inactiveTableIds,
   onOpenClient,
   onCallLog,
 }: PulseClientRawCardProps) {
@@ -313,6 +326,7 @@ export function PulseClientRawCard({
                 goal={section.goal}
                 campaigns={section.campaigns}
                 period={period}
+                inactiveTableIds={inactiveTableIds}
               />
             </div>
           ))

@@ -51,6 +51,7 @@ import {
   type AgencyPlatformFilter,
 } from "@/lib/agencyCampaignData";
 import { PulseClientRawCard } from "@/components/pulse/PulseClientRawCard";
+import { switchedOffTableIds } from "@/lib/campaignOffState";
 import { PulseAttentionTable } from "@/components/pulse/PulseAttentionTable";
 import { PulseTargetEditorDialog } from "@/components/pulse/PulseTargetEditorDialog/PulseTargetEditorDialog";
 import { PulseMissingTargetsList } from "@/components/pulse/PulseMissingTargetsList";
@@ -384,6 +385,11 @@ export function CampaignPulseDashboard({
 
   const pulseTableIds = useMemo(
     () => pulseCampaignTables.map((table) => table.id),
+    [pulseCampaignTables],
+  );
+
+  const inactivePulseTableIds = useMemo(
+    () => switchedOffTableIds(pulseCampaignTables),
     [pulseCampaignTables],
   );
 
@@ -1228,6 +1234,7 @@ export function CampaignPulseDashboard({
                   pulse={view.pulse}
                   campaignsByGoal={view.campaignsByGoal}
                   lastCampaignTouchAt={view.lastCampaignTouchAt}
+                  inactiveTableIds={inactivePulseTableIds}
                   onOpenClient={() => openClientCard(view.clientId)}
                   onCallLog={() => {
                     if (!view.pulse) return;

@@ -1,3 +1,4 @@
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import {
   CAMPAIGN_GOAL_TITLES,
   CAMPAIGN_GOAL_TOTAL_LABELS,
@@ -13,7 +14,12 @@ type Metrics = {
   conversions_value: number;
 };
 
-export type GoogleAdsGoalTableRow = Metrics & { key: string; name: string };
+export type GoogleAdsGoalTableRow = Metrics & {
+  key: string;
+  name: string;
+  /** Campaign switched off; marked with the "כבוי" badge. */
+  off?: boolean;
+};
 
 type Props = {
   goal: GoogleCampaignGoal;
@@ -82,7 +88,10 @@ export function GoogleAdsGoalTable({
         <tbody>
           {rows.map((row) => (
             <tr key={row.key} className="border-b hover:bg-muted/30">
-              <td className="p-2 text-right font-medium">{row.name}</td>
+              <td className="p-2 text-right font-medium">
+                <CampaignOffBadge off={row.off === true} />
+                {row.name}
+              </td>
               <MetricCells
                 m={row}
                 isEcommerce={isEcommerce}

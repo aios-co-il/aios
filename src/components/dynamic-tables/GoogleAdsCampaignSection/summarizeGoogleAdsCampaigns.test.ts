@@ -67,4 +67,17 @@ describe("summarizeGoogleAdsCampaigns", () => {
     expect(summary.campaigns[0].spend).toBe(15);
     expect(summary.totals.clicks).toBe(3);
   });
+
+  it("marks a switched-off report's campaigns off and drops those that spent nothing", () => {
+    const summary = summarizeGoogleAdsCampaigns(
+      [
+        row({ campaign_id: "spent", campaign_name: "Spent", cost: 40 }),
+        row({ campaign_id: "idle", campaign_name: "Idle", cost: 0 }),
+      ],
+      [{ ...table, campaign_active: false }],
+    );
+    expect(
+      summary.campaigns.map((campaign) => [campaign.name, campaign.off]),
+    ).toStrictEqual([["Spent", true]]);
+  });
 });
