@@ -1,5 +1,15 @@
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
+import {
+  DashboardPlatformBreakdown,
+  type DashboardRevenueSource,
+} from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
+import {
+  combinedDashboardLeads,
+  combinedDashboardSales,
+  dashboardCampaignMode,
+} from "@/lib/dashboardCombinedFigures";
+import { summarizeDashboardGoals } from "@/lib/dashboardGoalSummary";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -62,7 +72,6 @@ import {
   facebookTableUsesMixedRows,
   facebookObjectiveKind,
   isFacebookLeadsOnlyTable,
-  summarizeFacebookCampaignGroup,
 } from "@/lib/adsMetrics";
 import {
   formatCurrency as formatCurrencyAmount,
@@ -658,7 +667,8 @@ export default function SharedDashboard({
     [tables],
   );
 
-  const dashboardCampaignType: CampaignType = useMemo(() => {
+  // The tables' mode; dashboardCampaignMode prefers the campaigns' own goals.
+  const tablesCampaignType: CampaignType = useMemo(() => {
     const types = Object.values(campaignTypeByPlatform);
     const hasEcom = types.some((t) => t === "ecommerce");
     const hasLeads = types.some((t) => t === "leads") || facebookMixedMode;
@@ -842,9 +852,6 @@ export default function SharedDashboard({
     };
   }, [summaryByPlatform, globalAdsMetrics]);
 
-  const combinedCpl =
-    totalSummary.results > 0 ? totalSummary.spend / totalSummary.results : 0;
-
   // WooCommerce summary — aligns with PublicWooCommerceView so the "All" tab
   // KPI cards match the WooCommerce tab exactly.
   const wooSummary = useMemo(() => {
@@ -857,12 +864,6 @@ export default function SharedDashboard({
 
   const hasWooData =
     hasWooCommerce && (wooSummary.revenue > 0 || wooSummary.orderCount > 0);
-
-  // ROAS is computed from WooCommerce revenue when available (real store revenue),
-  // falling back to Analytics revenue when there's no WooCommerce data.
-  const roasRevenue = hasWooData ? wooSummary.revenue : totalSummary.revenue;
-  const combinedRoas =
-    totalSummary.roas_spend > 0 ? roasRevenue / totalSummary.roas_spend : 0;
 
   // Analytics source breakdown
   const analyticsSourceBreakdown = useMemo(() => {
@@ -1088,125 +1089,31 @@ export default function SharedDashboard({
     return { ecommerce, leads, traffic, all };
   }, [filteredRecords, tables, facebookMixedMode, campaignTypeByPlatform]);
 
-  type PlatformBreakdownRowKind = "ecommerce" | "leads" | "standard";
-
-  const platformBreakdownRows = useMemo(() => {
-    if (platformFilter !== "all") return [];
-
-    const rows: Array<{
-      key: string;
-      platform: string;
-      label: string;
-      rowKind: PlatformBreakdownRowKind;
-      metrics: {
-        spend: number;
-        impressions: number;
-        clicks: number;
-        addToCart: number;
-        addToCartTracked: boolean;
-        purchases: number;
-        revenue: number;
-        roas: number;
-        leads: number;
-        cpl: number;
-        results: number;
-      };
-    }> = [];
-
-    Object.entries(summaryByPlatform)
-      .filter(
-        ([platform]) =>
-          platform !== "ahrefs" &&
-          platform !== "seo" &&
-          !isAnalyticsPlatform(platform),
-      )
-      .forEach(([platform, metrics]: [string, any]) => {
-        if (platform === "facebook_insights" && facebookMixedMode) {
-          if (facebookCampaignGroups.ecommerce.length > 0) {
-            const s = summarizeFacebookCampaignGroup(
-              facebookCampaignGroups.ecommerce,
-            );
-            rows.push({
-              key: "facebook_ecommerce",
-              platform,
-              label: "Facebook - קמפיינים איקומרס",
-              rowKind: "ecommerce",
-              metrics: {
-                spend: s.spend,
-                impressions: s.impressions,
-                clicks: s.clicks,
-                addToCart: s.addToCart,
-                addToCartTracked: s.addToCart > 0,
-                purchases: s.purchases,
-                revenue: s.revenue,
-                roas: s.roas,
-                leads: s.leads,
-                cpl: s.cpl,
-                results: s.purchases,
-              },
-            });
-          }
-          if (facebookCampaignGroups.leads.length > 0) {
-            const s = summarizeFacebookCampaignGroup(
-              facebookCampaignGroups.leads,
-            );
-            rows.push({
-              key: "facebook_leads",
-              platform,
-              label: "Facebook - קמפיינים לידים",
-              rowKind: "leads",
-              metrics: {
-                spend: s.spend,
-                impressions: s.impressions,
-                clicks: s.clicks,
-                addToCart: s.addToCart,
-                addToCartTracked: s.addToCart > 0,
-                purchases: s.purchases,
-                revenue: s.revenue,
-                roas: s.roas,
-                leads: s.leads,
-                cpl: s.cpl,
-                results: s.leads,
-              },
-            });
-          }
-          return;
-        }
-
-        const config = PLATFORM_CONFIG[platform] || { name: platform };
-        // All-tab platform rows mirror each ads platform's own reporting (like Facebook).
-        // WooCommerce attribution is reserved for the Google Ads tab KPI cards / total row.
-        const purchases = metrics.purchases;
-        const revenue = metrics.revenue;
-        const roas = metrics.spend > 0 ? revenue / metrics.spend : 0;
-        rows.push({
-          key: platform,
-          platform,
-          label: config.name,
-          rowKind: "standard",
-          metrics: {
-            spend: metrics.spend,
-            impressions: metrics.impressions,
-            clicks: metrics.clicks,
-            addToCart: metrics.addToCart,
-            addToCartTracked: metrics.addToCartTracked,
-            purchases,
-            revenue,
-            roas,
-            leads: metrics.leads,
-            cpl: metrics.cpl,
-            results: metrics.results,
-          },
-        });
-      });
-
-    return rows;
-  }, [
-    platformFilter,
-    summaryByPlatform,
-    facebookMixedMode,
-    facebookCampaignGroups,
-  ]);
+  // The "All" tab sums the campaign tables the platform tabs show, so each
+  // campaign counts toward its own goal there too.
+  const dashboardGoals = useMemo(
+    () =>
+      summarizeDashboardGoals({
+        facebook: facebookCampaignGroups,
+        google:
+          platformFilter === "all"
+            ? summarizeGoogleAdsCampaigns(
+                filteredRecords.filter(
+                  (r: { _source?: string }) => r._source === "google_ads",
+                ),
+                data?.tables || [],
+              ).campaigns
+            : [],
+      }),
+    [platformFilter, facebookCampaignGroups, filteredRecords, data?.tables],
+  );
+  const dashboardCampaignType = dashboardCampaignMode(dashboardGoals, {
+    mode: tablesCampaignType,
+    // Analytics rows with purchases make the store a sales store.
+    storeSells: Object.entries(campaignTypeByPlatform).some(
+      ([platform, type]) => type === "ecommerce" && !isAdsPlatform(platform),
+    ),
+  });
 
   const googleAdsSummary = useMemo(
     () =>
@@ -1307,6 +1214,27 @@ export default function SharedDashboard({
       platformFilter === "google_analytics" ||
       platformFilter === "woocommerce") &&
     (showAnalyticsCards || hasWooData);
+  // Combined figures keep goals apart: CPL over lead campaigns' spend, ROAS
+  // without lead campaigns' spend (combinedDashboardSales).
+  const revenueSource: DashboardRevenueSource | null = hasWooData
+    ? "WooCommerce"
+    : showAnalyticsCards
+      ? "Analytics"
+      : null;
+  const combinedSales = combinedDashboardSales(
+    dashboardGoals,
+    revenueSource
+      ? {
+          purchases: hasWooData
+            ? wooSummary.orderCount
+            : totalSummary.analyticsPurchases,
+          revenue: hasWooData ? wooSummary.revenue : totalSummary.revenue,
+          addToCart: totalSummary.analyticsAddToCart,
+        }
+      : null,
+  );
+  const combinedLeads = combinedDashboardLeads(dashboardGoals);
+  const combinedRoas = combinedSales.roas;
 
   const isSnapshotReady =
     !isLoading && !!data?.dashboard && Array.isArray(tables);
@@ -1518,36 +1446,28 @@ export default function SharedDashboard({
                       </CardContent>
                     </Card>
                   )}
-                  {showAdsCards &&
-                    facebookMixedMode &&
-                    totalSummary.leads > 0 && (
-                      <Card className="h-full bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
-                        <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                          <p className="text-sm text-muted-foreground">לידים</p>
-                          <p className="text-3xl font-bold mt-2">
-                            {formatNumber(totalSummary.leads)}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
-                  {showAdsCards &&
-                    facebookMixedMode &&
-                    totalSummary.leads > 0 && (
-                      <Card className="h-full bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900">
-                        <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                          <p className="text-sm text-muted-foreground">
-                            עלות לליד (CPL)
-                          </p>
-                          <p className="text-3xl font-bold mt-2">
-                            {formatCurrency(
-                              totalSummary.leads > 0
-                                ? totalSummary.spend / totalSummary.leads
-                                : 0,
-                            )}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
+                  {showAdsCards && combinedLeads.leads > 0 && (
+                    <Card className="h-full bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
+                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
+                        <p className="text-sm text-muted-foreground">לידים</p>
+                        <p className="text-3xl font-bold mt-2">
+                          {formatNumber(combinedLeads.leads)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {showAdsCards && combinedLeads.leads > 0 && (
+                    <Card className="h-full bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900">
+                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
+                        <p className="text-sm text-muted-foreground">
+                          עלות לליד (CPL)
+                        </p>
+                        <p className="text-3xl font-bold mt-2">
+                          {formatCurrency(combinedLeads.cpl)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
                   {showRevenueCards && (
                     <Card className="h-full bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
                       <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
@@ -1569,7 +1489,7 @@ export default function SharedDashboard({
                   {showRevenueCards &&
                     ((hasWooData && wooSummary.orderCount > 0) ||
                       totalSummary.analyticsPurchases > 0 ||
-                      totalSummary.results > 0) && (
+                      dashboardGoals.goals.ecommerce.purchases > 0) && (
                       <Card className="h-full bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
                         <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
                           <p className="text-sm text-muted-foreground">
@@ -1582,8 +1502,7 @@ export default function SharedDashboard({
                               hasWooData
                                 ? wooSummary.orderCount
                                 : totalSummary.analyticsPurchases ||
-                                    totalSummary.adsPurchases ||
-                                    totalSummary.results,
+                                    dashboardGoals.goals.ecommerce.purchases,
                             )}
                           </p>
                         </CardContent>
@@ -1635,7 +1554,7 @@ export default function SharedDashboard({
                       <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
                         <p className="text-sm text-muted-foreground">לידים</p>
                         <p className="text-3xl font-bold mt-2">
-                          {formatNumber(totalSummary.results)}
+                          {formatNumber(combinedLeads.leads)}
                         </p>
                       </CardContent>
                     </Card>
@@ -1657,7 +1576,7 @@ export default function SharedDashboard({
                           עלות לליד (CPL)
                         </p>
                         <p className="text-3xl font-bold mt-2">
-                          {formatCurrency(combinedCpl)}
+                          {formatCurrency(combinedLeads.cpl)}
                         </p>
                       </CardContent>
                     </Card>
@@ -1886,283 +1805,18 @@ export default function SharedDashboard({
           )}
 
           {/* Platform Breakdown Table */}
-          {platformBreakdownRows.length > 0 && platformFilter === "all" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>פירוט לפי פלטפורמה</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-right">פלטפורמה</TableHead>
-                        <TableHead className="text-right">הוצאה</TableHead>
-                        {facebookMixedMode ||
-                        dashboardCampaignType === "ecommerce" ? (
-                          <>
-                            <TableHead className="text-right">חשיפות</TableHead>
-                            <TableHead className="text-right">קליקים</TableHead>
-                            <TableHead className="text-right">
-                              עלות לקליק
-                            </TableHead>
-                            <TableHead className="text-right">
-                              הוספה לעגלה
-                            </TableHead>
-                            <TableHead className="text-right">רכישות</TableHead>
-                            <TableHead className="text-right">הכנסות</TableHead>
-                            <TableHead className="text-right">ROAS</TableHead>
-                            {facebookMixedMode && (
-                              <>
-                                <TableHead className="text-right">
-                                  לידים
-                                </TableHead>
-                                <TableHead className="text-right">
-                                  עלות לליד
-                                </TableHead>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <TableHead className="text-right">חשיפות</TableHead>
-                            <TableHead className="text-right">קליקים</TableHead>
-                            <TableHead className="text-right">
-                              עלות לקליק
-                            </TableHead>
-                            <TableHead className="text-right">לידים</TableHead>
-                            <TableHead className="text-right">
-                              עלות לליד
-                            </TableHead>
-                          </>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {platformBreakdownRows.map((row) => {
-                        const config = PLATFORM_CONFIG[row.platform] || {
-                          name: row.platform,
-                          color: "text-muted-foreground",
-                        };
-                        const metrics = row.metrics;
-                        const showEcomCols = facebookMixedMode
-                          ? row.rowKind !== "leads"
-                          : dashboardCampaignType === "ecommerce";
-                        const showLeadsCols = facebookMixedMode
-                          ? row.rowKind !== "ecommerce"
-                          : dashboardCampaignType !== "ecommerce";
-                        return (
-                          <TableRow key={row.key}>
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                {getIntegrationIcon(row.platform)}
-                                <span className={config.color}>
-                                  {row.label}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {formatCurrency(metrics.spend)}
-                            </TableCell>
-                            {facebookMixedMode ||
-                            dashboardCampaignType === "ecommerce" ? (
-                              <>
-                                <TableCell>
-                                  {formatNumber(metrics.impressions)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatNumber(metrics.clicks)}
-                                </TableCell>
-                                <TableCell>
-                                  {metrics.clicks > 0
-                                    ? formatUnitCost(
-                                        metrics.spend / metrics.clicks,
-                                      )
-                                    : "-"}
-                                </TableCell>
-                                <TableCell>
-                                  {showEcomCols
-                                    ? metrics.addToCartTracked
-                                      ? formatNumber(metrics.addToCart)
-                                      : "-"
-                                    : "-"}
-                                </TableCell>
-                                <TableCell>
-                                  {showEcomCols
-                                    ? formatNumber(metrics.purchases)
-                                    : "-"}
-                                </TableCell>
-                                <TableCell>
-                                  {showEcomCols
-                                    ? formatCurrency(metrics.revenue)
-                                    : "-"}
-                                </TableCell>
-                                <TableCell>
-                                  {showEcomCols ? (
-                                    <span
-                                      className={
-                                        metrics.roas >= 1
-                                          ? "text-green-600 font-semibold"
-                                          : "text-red-600"
-                                      }
-                                    >
-                                      {metrics.roas.toFixed(2)}
-                                    </span>
-                                  ) : (
-                                    "-"
-                                  )}
-                                </TableCell>
-                                {facebookMixedMode && (
-                                  <>
-                                    <TableCell>
-                                      {showLeadsCols
-                                        ? formatNumber(metrics.leads)
-                                        : "-"}
-                                    </TableCell>
-                                    <TableCell>
-                                      {showLeadsCols && metrics.cpl > 0
-                                        ? formatCurrency(metrics.cpl)
-                                        : "-"}
-                                    </TableCell>
-                                  </>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <TableCell>
-                                  {formatNumber(metrics.impressions)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatNumber(metrics.clicks)}
-                                </TableCell>
-                                <TableCell>
-                                  {metrics.clicks > 0
-                                    ? formatUnitCost(
-                                        metrics.spend / metrics.clicks,
-                                      )
-                                    : "-"}
-                                </TableCell>
-                                <TableCell>
-                                  {formatNumber(metrics.results)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(metrics.cpl)}
-                                </TableCell>
-                              </>
-                            )}
-                          </TableRow>
-                        );
-                      })}
-                      <TableRow className="bg-muted/50 font-bold border-t-2">
-                        <TableCell>
-                          סה"כ
-                          {dashboardCampaignType === "ecommerce" && (
-                            <span className="text-xs font-normal text-muted-foreground block">
-                              {hasWooData
-                                ? "הכנסות WooCommerce / הוצאות פרסום"
-                                : "הכנסות מ-Analytics / הוצאות פרסום"}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {formatCurrency(totalSummary.spend)}
-                        </TableCell>
-                        {facebookMixedMode ||
-                        dashboardCampaignType === "ecommerce" ? (
-                          <>
-                            <TableCell>
-                              {formatNumber(totalSummary.impressions)}
-                            </TableCell>
-                            <TableCell>
-                              {formatNumber(totalSummary.clicks)}
-                            </TableCell>
-                            <TableCell>
-                              {totalSummary.clicks > 0
-                                ? formatUnitCost(
-                                    totalSummary.spend / totalSummary.clicks,
-                                  )
-                                : "-"}
-                            </TableCell>
-                            <TableCell>
-                              {formatNumber(totalSummary.analyticsAddToCart)}
-                            </TableCell>
-                            <TableCell>
-                              {formatNumber(
-                                hasWooData
-                                  ? wooSummary.orderCount
-                                  : totalSummary.analyticsPurchases ||
-                                      totalSummary.results,
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {formatCurrency(
-                                hasWooData
-                                  ? wooSummary.revenue
-                                  : totalSummary.revenue,
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <span
-                                className={
-                                  combinedRoas >= 1
-                                    ? "text-green-600"
-                                    : "text-red-600"
-                                }
-                              >
-                                {combinedRoas.toFixed(2)}
-                              </span>
-                            </TableCell>
-                            {facebookMixedMode && (
-                              <>
-                                <TableCell>
-                                  {formatNumber(totalSummary.leads)}
-                                </TableCell>
-                                <TableCell>
-                                  {combinedCpl > 0
-                                    ? formatCurrency(combinedCpl)
-                                    : "-"}
-                                </TableCell>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <TableCell>
-                              {formatNumber(totalSummary.impressions)}
-                            </TableCell>
-                            <TableCell>
-                              {formatNumber(totalSummary.clicks)}
-                            </TableCell>
-                            <TableCell>
-                              {totalSummary.clicks > 0
-                                ? formatUnitCost(
-                                    totalSummary.spend / totalSummary.clicks,
-                                  )
-                                : "-"}
-                            </TableCell>
-                            <TableCell>
-                              {formatNumber(totalSummary.results)}
-                            </TableCell>
-                            <TableCell>{formatCurrency(combinedCpl)}</TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-                {dashboardCampaignType === "ecommerce" &&
-                  (hasWooData || showAnalyticsCards) && (
-                    <p className="text-xs text-muted-foreground mt-3 px-1">
-                      * נתוני רכישות וערך רכישות של פייסבוק מבוססים על דיווח
-                      פייסבוק (כולל ייחוס צפייה וחלון 7 ימים), ועשויים להיות
-                      גבוהים מהמכירות בפועל בשל ספירה כפולה בין קמפיינים. ה-ROAS
-                      הכללי בשורת הסה"כ מחושב לפי הכנסות{" "}
-                      {hasWooData ? "WooCommerce" : "Analytics"} בפועל חלקי סך
-                      הוצאות הפרסום.
-                    </p>
-                  )}
-              </CardContent>
-            </Card>
+          {dashboardGoals.rows.length > 0 && platformFilter === "all" && (
+            <DashboardPlatformBreakdown
+              summary={dashboardGoals}
+              sales={combinedSales}
+              leads={combinedLeads}
+              revenueSource={revenueSource}
+              platformLabel={(platform) => ({
+                ...PLATFORM_CONFIG[platform],
+                icon: getIntegrationIcon(platform),
+              })}
+              format={{ formatCurrency, formatNumber, formatUnitCost }}
+            />
           )}
 
           {/* Snapshot end marker — limits screenshot to KPIs + Platform Breakdown */}
