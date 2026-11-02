@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { canGrantRole } from "../_shared/user-admin/role-grant.ts";
 import {
   pickExistingTeamMember,
   type TeamMemberCandidate,
@@ -327,12 +328,11 @@ serve(async (req: Request) => {
 
     const { data: roles, error: rolesError } = await supabaseAdmin
       .from("user_roles")
-      .select("role")
-      .eq("user_id", requesterId)
-      .in("role", ["owner", "agency_owner"]);
+      .select("role, tenant_id")
+      .eq("user_id", requesterId);
 
-    if (rolesError || !roles || roles.length === 0) {
-      throw new Error("Only owners and agency owners can invite users");
+    if (rolesError) {
+      throw new Error("Error checking user roles");
     }
 
     const {
@@ -366,6 +366,14 @@ serve(async (req: Request) => {
       if (!tenantIdFinal) {
         throw new Error("Tenant ID is required");
       }
+    }
+
+    // An owner or agency owner invites only into a tenant it holds that role in,
+    // and only a super admin invites a super admin.
+    if (
+      !canGrantRole(roles ?? [], tenantIdFinal, role, ["owner", "agency_owner"])
+    ) {
+      throw new Error("Only owners and agency owners can invite users");
     }
 
     const { data: tenantRow } = await supabaseAdmin
