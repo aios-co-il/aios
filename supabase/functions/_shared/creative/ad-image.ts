@@ -14,6 +14,7 @@ import { tenantImageKeys } from "./tenant-image-keys.ts";
 import { publicFetchAsFetch } from "../public-fetch.ts";
 import { tenantOpenRouterKey } from "./openrouterImage.ts";
 import { pictureFromEngines } from "./picture-engines.ts";
+import { readableReferenceUrls } from "./reference-links.ts";
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -58,7 +59,7 @@ export async function makeAdImage(
       suggestion: "פנה למנהל המערכת להגדרת המפתח.",
     };
   const loadedReferences = await loadReferences(
-    referenceUrls,
+    await readableReferenceUrls(supabase, tenantId, referenceUrls),
     publicFetchAsFetch,
   );
   if (referenceUrls.length > 0 && loadedReferences.references.length === 0) {
