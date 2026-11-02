@@ -116,6 +116,8 @@ export type WorkshopScene = {
   id: string;
   durationFrames: number;
   still?: string | null;
+  /** "contain": a finished design, shown whole over a blurred copy of itself. Cover otherwise. */
+  fit?: "contain" | "cover";
   clip?: string | null;
   voice?: string | null;
   /**

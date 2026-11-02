@@ -14,7 +14,7 @@ import {
 import type { Json } from "../../../_shared/database.types.ts";
 import { isJsonObject } from "../../../_shared/pulse/json.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import type { FindingCandidate } from "../types.ts";
 import type { LiveChatFinding } from "./gate.ts";
 

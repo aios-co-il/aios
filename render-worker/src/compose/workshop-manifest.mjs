@@ -285,6 +285,8 @@ export function buildWorkshopManifest(timeline) {
       frameCount,
       still: p.useStill ? p.name : null,
       clip: p.useStill ? null : p.name,
+      // A finished design is shown whole over a blurred copy of itself, never cropped.
+      ...(p.useStill && timeline.keepDesign === true ? { fit: "contain" } : {}),
       clipFrames: p.clipFrames,
       voice: p.voice,
       caption: String(p.scene.overlayText ?? "")

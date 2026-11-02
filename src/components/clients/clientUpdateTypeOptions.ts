@@ -17,6 +17,7 @@ import {
   SYSTEM_SEND_UPDATE_TYPES,
   type SystemSendUpdateType,
 } from "../../../supabase/functions/_shared/client-card/send-kind.ts";
+import { CARD_DRAFT_TYPES } from "../../../supabase/functions/_shared/manager-round/card-draft.ts";
 
 export const INTERACTION_TYPES = [
   { value: "call", label: "שיחה", icon: Phone },
@@ -49,4 +50,6 @@ export const DISPLAY_UPDATE_TYPES = [
     ...type,
     icon: SYSTEM_SEND_TYPE_ICONS[type.value],
   })),
+  // Carmen's group digest entries (AIO-254).
+  ...CARD_DRAFT_TYPES.map((type) => ({ ...type, icon: MessageSquare })),
 ];

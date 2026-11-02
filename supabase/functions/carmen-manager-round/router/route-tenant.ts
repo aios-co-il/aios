@@ -34,6 +34,12 @@ export type RouteTenantInput = {
   dryRun: boolean;
   /** Dry-run only: candidates shown as if they were new findings. */
   virtual?: FindingRow[];
+  /**
+   * Findings whose draft Carmen wrote to the card this run (or, in a dry
+   * run, would write): closed, so never routed. A real run has closed them
+   * already; a dry run closes nothing, so the preview drops them here.
+   */
+  onCard?: readonly string[];
 };
 
 export type RouteTenantResult = {
@@ -54,7 +60,9 @@ export async function routeTenant(
     input.now,
     ROUTE_LIMIT,
   );
-  const findings = [...stored, ...(input.virtual ?? [])];
+  const findings = [...stored, ...(input.virtual ?? [])].filter(
+    (finding) => !input.onCard?.includes(finding.id),
+  );
   const open = await listOpenGaps(deps.findings, input.tenantId);
   if (!findings.length && !open.length) {
     return { findings, decisions: [], gaps: [], gapsDropped: {} };

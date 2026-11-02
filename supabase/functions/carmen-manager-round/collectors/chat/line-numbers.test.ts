@@ -32,9 +32,9 @@ Deno.test("linePhones", async (t) => {
             ],
       );
       assertEquals(await linePhones(db, ["t1", "t2"], NOW), [
-        "972505555555",
-        "0507777777",
-        "972506666666",
+        { tenantId: "t1", phone: "972505555555" },
+        { tenantId: "t2", phone: "0507777777" },
+        { tenantId: "t2", phone: "972506666666" },
       ]);
       const lines = calls.find((c) => c.path === "tenant_integrations");
       assertEquals(

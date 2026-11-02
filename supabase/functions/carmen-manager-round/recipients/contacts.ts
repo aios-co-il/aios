@@ -4,7 +4,7 @@
  * of the tenant, or an active campaigner record (campaigner:<id>).
  */
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import { throwIf } from "../db-error.ts";
+import { throwIf } from "../../_shared/manager-round/db-error.ts";
 import { profilePhone, profilesBy } from "./profiles.ts";
 
 export type Contact = { name: string; phone: string | null };
