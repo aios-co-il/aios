@@ -17856,6 +17856,7 @@ export type Database = {
       };
       user_can_link_whatsapp_chat: {
         Args: {
+          p_channel_id: string;
           p_tenant_id: string;
           p_whatsapp_chat_id: string;
           p_whatsapp_group_id: string;

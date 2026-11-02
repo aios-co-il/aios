@@ -133,6 +133,8 @@ BEGIN
   UPDATE public.team_channel_invites SET is_active = false WHERE id = v_invite;
   GET DIAGNOSTICS v_n = ROW_COUNT;
   IF v_n <> 1 THEN RAISE EXCEPTION 'admin: a channel admin must deactivate an invite'; END IF;
+  -- Active again, so the outsider below would see it if active invites were readable by anyone.
+  UPDATE public.team_channel_invites SET is_active = true WHERE id = v_invite;
 
   -- WhatsApp: a group and a direct chat on the admin's own line link; the
   -- member's line is not readable by the admin, so its chats do not.
@@ -336,8 +338,8 @@ BEGIN
       'UPDATE public.team_channel_whatsapp_links SET display_name = %L WHERE id = %L', 'QA', v_link)],
     ['member: removed a link of a channel they do not administer', format(
       'DELETE FROM public.team_channel_whatsapp_links WHERE channel_id = %L', v_private)],
-    ['member: reactivated an invite of a channel they do not administer', format(
-      'UPDATE public.team_channel_invites SET is_active = true WHERE id = %L', v_invite)],
+    ['member: deactivated an invite of a channel they do not administer', format(
+      'UPDATE public.team_channel_invites SET is_active = false WHERE id = %L', v_invite)],
     ['member: edited someone else''s file', format(
       'UPDATE public.team_chat_files SET file_name = %L WHERE id = %L', 'QA', v_file)],
     ['member: deleted someone else''s file', format(
@@ -488,7 +490,7 @@ BEGIN
     ['super admin: deleted another tenant''s category', format(
       'DELETE FROM public.team_channel_categories WHERE id = %L', v_category)],
     ['super admin: edited another tenant''s invite', format(
-      'UPDATE public.team_channel_invites SET is_active = true WHERE id = %L', v_invite)],
+      'UPDATE public.team_channel_invites SET is_active = false WHERE id = %L', v_invite)],
     ['super admin: edited another tenant''s link', format(
       'UPDATE public.team_channel_whatsapp_links SET display_name = %L WHERE id = %L', 'QA', v_link)],
     ['super admin: removed another tenant''s link', format(
