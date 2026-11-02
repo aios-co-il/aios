@@ -1,4 +1,4 @@
--- Missing primary keys (20261101104000_missing_primary_keys): checks each
+-- Missing primary keys (20261102113100_missing_primary_keys): checks each
 -- table's key, then upserts tenant_heartbeat_settings inside one transaction
 -- that is rolled back.
 BEGIN;

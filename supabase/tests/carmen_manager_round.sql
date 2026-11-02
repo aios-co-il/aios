@@ -230,7 +230,7 @@ BEGIN
     RAISE EXCEPTION 'guard: a member must be able to save the cost thresholds';
   END IF;
   -- The same save the way the app writes it: an upsert on tenant_id (the
-  -- primary key since 20261101104000), whose INSERT phase fires the trigger
+  -- primary key since 20261102113100), whose INSERT phase fires the trigger
   -- before the conflict is known.
   INSERT INTO public.tenant_heartbeat_settings (tenant_id, pulse_alert_rules)
   SELECT v_tenant, jsonb_set(s.pulse_alert_rules, '{manager,cost}', '{"trend_pct": 47}')
