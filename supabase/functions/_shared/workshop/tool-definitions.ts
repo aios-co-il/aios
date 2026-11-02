@@ -1,5 +1,6 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
 import { motionField } from "./motion-text.ts";
+import { pictureField } from "./picture-text.ts";
 import { spokenField } from "./spoken-text.ts";
 import { VOICE_TOOL } from "./voice-tool.ts";
 
@@ -299,7 +300,7 @@ export const WORKSHOP_TOOLS = [
               },
               visual_prompt: {
                 type: "string",
-                description: "תיאור הפריים באנגלית, בלי טקסט על התמונה",
+                description: pictureField("תיאור הפריים באנגלית."),
               },
               motion_prompt: {
                 type: "string",
@@ -391,8 +392,9 @@ export const WORKSHOP_TOOLS = [
         },
         visual_prompt: {
           type: "string",
-          description:
+          description: pictureField(
             "תיאור התמונה באנגלית, רק לתמונה שנוצרה ב-AI. אחרי שינוי, workshop_make_stills יוצר מחדש רק אותה (עולה כסף).",
+          ),
         },
         duration_s: {
           type: "number",
