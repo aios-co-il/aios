@@ -28,8 +28,8 @@
 -- - terminology_presets: a super_admin role scoped to a tenant no longer counts
 --   as a super admin (is_super_admin requires tenant_id null).
 -- - error_logs: super admins read; nobody inserts through the API (anon could).
--- - automation_executions: members read their tenant's runs, so the Visual
---   Workspace can count them. It never had a policy in a migration.
+-- - automation_executions: members read their tenant's runs (David's
+--   decision). It never had a policy in a migration.
 -- - time_entry_breaks: the active tenant, like time_entries, not every tenant
 --   of the user.
 --
