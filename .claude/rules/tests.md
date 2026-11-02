@@ -2,6 +2,7 @@
 paths:
   - "**/*.test.ts"
   - "**/*.test.tsx"
+  - "**/*.test.mjs"
 ---
 
 # Tests

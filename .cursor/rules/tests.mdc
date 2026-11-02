@@ -1,6 +1,6 @@
 ---
 description: Tests
-globs: **/*.test.ts,**/*.test.tsx
+globs: **/*.test.ts,**/*.test.tsx,**/*.test.mjs
 alwaysApply: false
 ---
 

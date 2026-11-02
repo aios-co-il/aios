@@ -40,7 +40,9 @@ Each rule applies to the lines your change adds or edits. Rules for one area liv
 9. **Scope CI secrets to the steps that use them.**
 10. **Names and addresses**: the product is "Carmen Marketing OS"; each new public address uses `@aios.co.il`.
 11. **Every deferred item, workaround or `FIXME` carries a Linear id** in the code or the PR body.
+12. **Tenant-keyed and private**: every unique and dedupe key in code and migrations includes `tenant_id`, and uploads go to private buckets read through signed URLs.
+13. **A bug fix ships a test that fails on the old code** at the integration point that broke (`.claude/rules/tests.md`).
 
 ### Agent docs
 
-12. **One home per rule**: a rule in `AGENTS.md`, a skill or `docs/agents/*` points to its source instead of restating config values or another doc, uses the same definitions as the docs it touches, states the target behaviour positively, and drops exposition. When behaviour changes, update the doc agents read for that area in the same PR.
+14. **One home per rule**: a rule in `AGENTS.md`, a skill or `docs/agents/*` points to its source instead of restating config values or another doc, uses the same definitions as the docs it touches, states the target behaviour positively, and drops exposition. When behaviour changes, update the doc agents read for that area in the same PR.

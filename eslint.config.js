@@ -8,10 +8,12 @@ export default tseslint.config(
   { ignores: ["dist", ".local"] },
   {
     rules: {
+      curly: "warn",
       "max-lines": [
         "warn",
         { max: 150, skipBlankLines: true, skipComments: true },
       ],
+      "no-unneeded-ternary": "warn",
     },
   },
   {
@@ -33,8 +35,6 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/unified-signatures": "error",
-      "no-unneeded-ternary": "warn",
-      curly: "warn",
       "@typescript-eslint/no-non-null-assertion": "warn",
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
