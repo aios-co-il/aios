@@ -36,7 +36,8 @@ const RLS_REFUSAL = "42501";
 /**
  * Saves the tenant's bot once the caller is a signed-in user and Telegram
  * accepts the token. The save runs as the caller, so the owner policies of
- * telegram_bot_state refuse a user who is not the owner of that active tenant.
+ * telegram_bot_state refuse anyone but the owner of that active tenant or a
+ * super admin acting in it.
  */
 export async function handleVerifyBot(
   req: Request,

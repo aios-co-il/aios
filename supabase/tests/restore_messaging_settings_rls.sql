@@ -1,10 +1,13 @@
 -- Telephony, Telegram and ManyChat access rules
--- (20261102113900_restore_messaging_settings_rls): who reads and writes
--- telephony_settings, telegram_bot_state, telegram_messages and sync_jobs,
--- and the upsert telegram-verify-bot makes as the caller. Staging only: the
--- test's own users, tenants and rows, and a full rollback. Inserts made as a
--- persona use no RETURNING and are counted as postgres, so only the INSERT
--- policy decides them.
+-- (20261102113900_restore_messaging_settings_rls, and
+-- 20261102120300_telegram_bot_state_super_admin_acting_tenant for the super
+-- admin's bot writes): who reads and writes telephony_settings,
+-- telegram_bot_state, telegram_messages and sync_jobs, and the upsert
+-- telegram-verify-bot makes as the caller. Staging only: the test's own users,
+-- tenants and rows, and a full rollback. Inserts made as a persona use no
+-- RETURNING and are counted as postgres, so only the INSERT policy decides
+-- them. An edit that reassigns or moves a row keeps it readable to the persona
+-- making it, so only the UPDATE policy's WITH CHECK can refuse it.
 BEGIN;
 
 -- Acts as p_user (auth.uid()) with database role p_role; 'none' returns to the session user.
@@ -93,6 +96,12 @@ BEGIN
     RAISE EXCEPTION 'owner shared into a tenant they are not a member of';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  -- Turning the own bot into a copy in t_c keeps it readable there (shared_select), so only the update rule refuses it.
+  BEGIN
+    UPDATE public.telegram_bot_state SET tenant_id = t_c, shared_from_state_id = bot_b WHERE id = bot_a;
+    RAISE EXCEPTION 'owner moved the tenant''s bot into another tenant as a copy';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
 
   INSERT INTO public.telegram_messages (tenant_id, chat_id, text) VALUES (t_a, 3, 'QA A out');
   BEGIN
@@ -127,6 +136,11 @@ BEGIN
   BEGIN
     UPDATE public.telephony_settings SET tenant_id = t_b WHERE tenant_id = t_a AND user_id = u_member;
     RAISE EXCEPTION 'member moved own telephony settings to another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.telephony_settings SET user_id = u_admin WHERE tenant_id = t_a AND user_id = u_member;
+    RAISE EXCEPTION 'member handed own telephony settings to someone else';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
@@ -211,6 +225,23 @@ BEGIN
   DELETE FROM public.telegram_bot_state WHERE shared_from_state_id = bot_a OR id = bot_a;
   GET DIAGNOSTICS n = ROW_COUNT;
   PERFORM pg_temp.qa_expect(n, 0, 'super admin deletes another tenant''s bot or copy');
+  -- ...and connects, disconnects and replaces t_b's bot, but cannot move it out of t_b.
+  INSERT INTO public.telegram_bot_state (tenant_id, shared_from_state_id, bot_username, is_active, update_offset)
+  VALUES (t_b, NULL, 'qa_b_bot_v2', true, 0)
+  ON CONFLICT (tenant_id, shared_from_state_id) DO UPDATE SET bot_username = excluded.bot_username, is_active = excluded.is_active;
+  PERFORM pg_temp.qa_expect((SELECT count(*) FROM public.telegram_bot_state WHERE id = bot_b AND bot_username = 'qa_b_bot_v2'), 1, 'super admin reconnects t_b''s bot (verify-bot upsert)');
+  UPDATE public.telegram_bot_state SET is_active = false WHERE tenant_id = t_b;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM pg_temp.qa_expect(n, 1, 'super admin disconnects t_b''s bot');
+  BEGIN
+    UPDATE public.telegram_bot_state SET tenant_id = t_c WHERE id = bot_b;
+    RAISE EXCEPTION 'super admin moved t_b''s bot into another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  DELETE FROM public.telegram_bot_state WHERE id = bot_b;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM pg_temp.qa_expect(n, 1, 'super admin removes t_b''s bot');
+  INSERT INTO public.telegram_bot_state (tenant_id, bot_username, is_active) VALUES (t_b, 'qa_b_bot_v3', true);
   UPDATE public.telephony_settings SET personal_phone = 'Must be denied' WHERE tenant_id = t_a;
   GET DIAGNOSTICS n = ROW_COUNT;
   PERFORM pg_temp.qa_expect(n, 0, 'super admin edits another tenant''s telephony settings');
@@ -221,6 +252,7 @@ BEGIN
   END;
   PERFORM pg_temp.qa_act(NULL, 'none');
   PERFORM pg_temp.qa_expect((SELECT count(*) FROM public.telegram_messages WHERE tenant_id = t_b AND chat_id = 6), 1, 'the super admin''s message in t_b is stored');
+  PERFORM pg_temp.qa_expect((SELECT count(*) FROM public.telegram_bot_state WHERE tenant_id = t_b AND shared_from_state_id IS NULL AND bot_username = 'qa_b_bot_v3'), 1, 'the super admin''s new bot in t_b is stored');
 
   -- Anonymous: nothing.
   PERFORM pg_temp.qa_act(NULL, 'anon');
