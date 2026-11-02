@@ -23,9 +23,10 @@ export function showCampaignRow(row: { off: boolean; spend: number }): boolean {
 
 /**
  * A campaign is off when its report is switched off (`campaign_active`) or
- * the platform says it is paused or removed. An unknown status is not off:
- * Google Ads records carry no campaign status, so only the report switch
- * can turn a Google campaign off.
+ * the platform says it is paused or removed: Meta's `effective_status`, or
+ * Google's `campaign_status` (`resolveCampaignDeliveryStatus`). An unknown
+ * status is not off, so a Google row synced before it stored a status stays
+ * on until its next sync.
  */
 export function isCampaignOff(input: {
   deliveryStatus?: string | null;

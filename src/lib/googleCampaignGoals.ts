@@ -4,6 +4,7 @@ import {
 } from "@/lib/googleGoalPresence";
 import { classifyPulseCampaignGoal } from "@/lib/pulseCampaignGoals";
 import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleAdsRecord } from "../../supabase/functions/sync-google-ads-data/gaql-records.ts";
 import {
   type CampaignGoalVote,
   resolveCampaignGoals,
@@ -26,6 +27,7 @@ export type GoogleAdsRowData = {
   conversions?: number | string;
   conversions_value?: number | string;
   conversion_goal?: GoogleCampaignGoal;
+  campaign_status?: GoogleAdsRecord["campaign_status"];
 };
 
 export type GoogleReportRecord = {
