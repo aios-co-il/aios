@@ -311,6 +311,8 @@ if (manifest.schemaVersion === 1) {
       id: scene.id,
       durationFrames: scene.frameCount,
       still: scene.still || null,
+      // A finished design is shown whole (render-worker workshop-manifest.mjs, keep_design).
+      ...(scene.still && scene.fit === "contain" ? { fit: "contain" } : {}),
       clip: scene.clip || null,
       caption: text(scene.caption, 180),
       move: scene.move,

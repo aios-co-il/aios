@@ -53,6 +53,7 @@ export function buildTimeline(
     soundDesign = false,
     captionStyle = "motion",
     brandName = null,
+    keepDesign = false,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -97,6 +98,8 @@ export function buildTimeline(
   const totalS = frames.reduce((sum, frame) => sum + frame.durationS, 0);
   return {
     fps: 25,
+    // A finished design (video.keep_design): its pictures fit whole in the frame, not cropped.
+    keepDesign: keepDesign === true,
     aspect,
     width,
     height,

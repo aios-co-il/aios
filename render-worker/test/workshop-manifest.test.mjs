@@ -351,3 +351,20 @@ test("a lip-synced line is captioned on its own voice's word timings", () => {
   expect(words[1].startFrame).toBe(clipStart + 15);
   expect(words[1].endFrame).toBe(clipStart + 30);
 });
+
+test("a finished design is shown whole in the frame, any other picture fills it", () => {
+  const designed = buildWorkshopManifest({
+    aspect: "9:16",
+    keepDesign: true,
+    scenes: [scene("poster"), scene("filmed", { clipProvider: "openrouter" })],
+  });
+  // A 4:5 poster in a 9:16 film keeps its sides (Staging, 2 Nov: its headline was cut).
+  expect(designed.manifest.scenes[0].fit).toBe("contain");
+  // A real video clip is never boxed in.
+  expect(designed.manifest.scenes[1].fit).toBeUndefined();
+  const plain = buildWorkshopManifest({
+    aspect: "9:16",
+    scenes: [scene("photo")],
+  });
+  expect(plain.manifest.scenes[0].fit).toBeUndefined();
+});
