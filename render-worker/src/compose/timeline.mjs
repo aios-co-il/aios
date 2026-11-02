@@ -56,6 +56,7 @@ export function buildTimeline(
     keepDesign = false,
     titleStyle = null,
     titleSize = null,
+    font = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -108,6 +109,8 @@ export function buildTimeline(
     // How the scenes' text enters and how large it is in a film without narration.
     titleStyle: titleStyle || null,
     titleSize: titleSize || null,
+    // The film's font (title-style.mjs FILM_FONTS); the brand's, else Heebo, when unset.
+    font: font || null,
     aspect,
     width,
     height,

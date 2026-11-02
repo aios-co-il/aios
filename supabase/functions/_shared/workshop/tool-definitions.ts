@@ -2,6 +2,8 @@ import { EDIT_TOOL } from "./edit-tool.ts";
 import { motionField } from "./motion-text.ts";
 import { spokenField } from "./spoken-text.ts";
 import {
+  FILM_FONTS,
+  FILM_FONT_HELP,
   TITLE_SIZES,
   TITLE_SIZE_HELP,
   TITLE_STYLES,
@@ -532,6 +534,11 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: [...TITLE_SIZES],
           description: `${TITLE_SIZE_HELP} לכל הסרט.`,
+        },
+        font: {
+          type: "string",
+          enum: [...FILM_FONTS],
+          description: FILM_FONT_HELP,
         },
         cta_text: {
           type: "string",

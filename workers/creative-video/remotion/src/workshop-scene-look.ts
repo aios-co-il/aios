@@ -1,3 +1,4 @@
+import type { FilmFont } from "./workshop-fonts";
 import type { TitleSize, TitleStyle } from "./workshop-title-styles";
 
 /** How a scene of the Workshop film is drawn (manifest.ts WorkshopScene): its picture and text. */
@@ -8,4 +9,10 @@ export type SceneLook = {
   titleStyle?: TitleStyle;
   /** How large that text is; "medium" (the captions' size) when unset. */
   titleSize?: TitleSize;
+};
+
+/** How the whole Workshop film's text looks (manifest.ts WorkshopFilmProps). */
+export type FilmLook = {
+  /** The font Carmen chose (workshop-fonts.ts); the brand's font, else Heebo, when unset. */
+  font?: FilmFont | null;
 };
