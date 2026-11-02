@@ -118,6 +118,49 @@ Deno.test(
     );
 
     await t.step(
+      "listLive reads the tenant's live findings of the kinds, from eventSince on",
+      async () => {
+        const { db, calls } = recordingClient();
+        const store = createFindingsStore(db);
+        await store.listLive(
+          T,
+          50,
+          ["card_stale_group"],
+          "2026-10-01T00:00:00Z",
+        );
+        await store.listLive(T, 300);
+        await store.listLive(T, 50, ["card_stale_group"], undefined, true);
+        const [scoped, all, writable] = calls.map((call) => call.query);
+        // Drafts waiting for a person are filtered in the query, not after it.
+        assertEquals(
+          [
+            writable.get("evidence->card_draft"),
+            writable.get("evidence->card_draft->contact"),
+          ],
+          ["not.is.null", "is.null"],
+        );
+        assertEquals(
+          [
+            scoped.get("tenant_id"),
+            scoped.get("kind"),
+            scoped.get("source_event_at"),
+            scoped.get("limit"),
+          ],
+          [
+            `eq.${T}`,
+            "in.(card_stale_group)",
+            "gte.2026-10-01T00:00:00Z",
+            "50",
+          ],
+        );
+        assertEquals(
+          [all.get("kind"), all.get("source_event_at")],
+          [null, null],
+        );
+      },
+    );
+
+    await t.step(
       "markMissing omits an absent scope; byIds stays in the tenant",
       async () => {
         const { db, calls } = recordingClient(() => [

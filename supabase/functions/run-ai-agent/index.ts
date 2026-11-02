@@ -100,6 +100,12 @@ import {
   isVideoDirectorTool,
 } from "../_shared/video-director-tools.ts";
 import {
+  CARD_DRAFT_TOOLS,
+  executeCardDraftTool,
+  isCardDraftTool,
+  promoteCardDraftTool,
+} from "./card-draft-approval/tool.ts";
+import {
   CREATIVE_STUDIO_TOOLS,
   executeCreativeStudioTool,
   isCreativeStudioTool,
@@ -113,6 +119,7 @@ import {
 import {
   type FindingDraftReply,
   findingDraftReplyOf,
+  isGroupChat,
 } from "./finding-draft/reply.ts";
 import {
   WORKSHOP_SKIN,
@@ -2622,6 +2629,7 @@ const ALL_TOOLS = [
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
   ...PULSE_TARGET_TOOLS,
+  ...CARD_DRAFT_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -6080,6 +6088,14 @@ async function executeTool(
       (clientId) =>
         assertCallerCanAccessClient(supabase, clientId, callerScope),
     );
+  }
+  if (isCardDraftTool(name)) {
+    return executeCardDraftTool(supabase, {
+      tenantId,
+      args,
+      requesterUserId: humanRequesterUserId ?? null,
+      reply: findingDraftReply ?? null,
+    });
   }
   if (isCreativeStudioTool(name)) {
     return executeCreativeStudioTool(
@@ -10162,9 +10178,7 @@ async function executeTool(
       let scopeNote = "current_chat";
       if (!browseAll && waNotify?.chat_id) {
         const chatId = String(waNotify.chat_id);
-        const isGroupChat =
-          /@g\.us/i.test(chatId) || waNotify.is_group === true;
-        if (isGroupChat) {
+        if (isGroupChat(waNotify)) {
           const { data: g } = await supabase
             .from("whatsapp_groups")
             .select("id")
@@ -15232,6 +15246,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               fullSchemaNames,
             );
             promoteFindingDraftTool(userText, picked, fullSchemaNames);
+            promoteCardDraftTool(userText, picked, fullSchemaNames);
           },
         },
       );

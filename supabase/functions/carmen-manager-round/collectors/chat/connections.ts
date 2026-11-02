@@ -10,7 +10,7 @@
  * phase 2). Nothing is ever sent through these lines.
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
-import { throwIf } from "../../db-error.ts";
+import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { MONITORED_PROVIDER } from "./activity.ts";
 
 export type MonitoredLines = {

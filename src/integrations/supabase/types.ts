@@ -16432,6 +16432,24 @@ export type Database = {
         };
         Returns: boolean;
       };
+      carmen_finding_resolve_card_written: {
+        Args: {
+          p_actor_user_id?: string;
+          p_entry_id: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+        };
+        Returns: boolean;
+      };
+      carmen_finding_role_of: {
+        Args: {
+          p_agency_id?: string;
+          p_client_id?: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
       carmen_finding_viewer_role: {
         Args: { p_agency_id: string; p_client_id: string; p_tenant_id: string };
         Returns: string;
@@ -16569,6 +16587,10 @@ export type Database = {
       };
       carmen_is_tenant_owner: {
         Args: { p_tenant_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_is_owner_of: {
+        Args: { p_tenant_id: string; p_user_id: string };
         Returns: boolean;
       };
       carmen_manager_without_stamps: {
@@ -16955,6 +16977,26 @@ export type Database = {
           unlogged_meeting_summary: string;
         }[];
       };
+      get_client_group_digest_messages: {
+        Args: {
+          p_client_ids?: string[];
+          p_collector: string;
+          p_connection_user_ids: string[];
+          p_per_group?: number;
+          p_provider?: Database["public"]["Enums"]["chat_provider"];
+          p_since: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          client_id: string;
+          client_name: string;
+          client_tenant_id: string;
+          group_chat_id: string;
+          group_id: string;
+          group_name: string;
+          messages: Json;
+        }[];
+      };
       get_client_tenant_id: { Args: { _client_id: string }; Returns: string };
       get_client_thread_activity: {
         Args: {
@@ -17175,6 +17217,12 @@ export type Database = {
       get_user_agency_ids: { Args: { _user_id: string }; Returns: string[] };
       get_user_campaigner_id: { Args: { _user_id: string }; Returns: string };
       get_user_client_ids: { Args: { _user_id: string }; Returns: string[] };
+      get_user_gmail_connection: {
+        Args: never;
+        Returns: {
+          google_email: string;
+        }[];
+      };
       get_user_sales_person_agency_ids: {
         Args: { _user_id: string };
         Returns: string[];
@@ -17196,6 +17244,10 @@ export type Database = {
         Returns: Json;
       };
       has_finance_permission: { Args: { _user_id: string }; Returns: boolean };
+      has_finance_write_permission: {
+        Args: { _user_id: string };
+        Returns: boolean;
+      };
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"];
