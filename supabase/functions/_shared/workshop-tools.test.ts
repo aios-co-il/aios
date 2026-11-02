@@ -876,6 +876,72 @@ Deno.test(
 );
 
 Deno.test(
+  "a finished design is produced as a camera move over the original picture",
+  async () => {
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+      "rpc:produce_video": { status: "running", clips: 1 },
+    });
+    await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", confirmed: true, keep_design: true },
+      async () => {},
+      null,
+      { defaultEngine: async () => "openrouter" as const },
+    );
+    const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
+      ?.value as { p_provider: string };
+    // Not a video model, which redraws the picture and garbles its text.
+    assertStrictEquals(rpc.p_provider, "mock");
+    const saved = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map(
+        (c) =>
+          (c.value as { payload?: { video?: Record<string, unknown> } })
+            .payload,
+      )
+      .filter((payload) => payload?.video)
+      .pop();
+    // The render reads it to fit the whole picture in the frame.
+    assertStrictEquals(saved?.video?.keep_design, true);
+  },
+);
+
+Deno.test(
+  "a later production of a finished design keeps it without being asked again",
+  async () => {
+    const project = videoProject();
+    const item = project["marketing_work_items:select"];
+    const db = fakeDb({
+      "marketing_work_items:select": {
+        ...item,
+        payload: {
+          ...item.payload,
+          video: { ...item.payload.video, keep_design: true },
+        },
+      },
+      "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+      "rpc:produce_video": { status: "running", clips: 1 },
+    });
+    await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_produce_video",
+      { item_id: "item-1", confirmed: true },
+      async () => {},
+      null,
+      { defaultEngine: async () => "openrouter" as const },
+    );
+    const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
+      ?.value as { p_provider: string };
+    assertStrictEquals(rpc.p_provider, "mock");
+  },
+);
+
+Deno.test(
   "with no paid keys the film is produced on the free preview engine",
   async () => {
     const asked = (await executeWorkshopTool(

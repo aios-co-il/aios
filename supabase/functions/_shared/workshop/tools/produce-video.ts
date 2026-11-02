@@ -23,6 +23,7 @@ import {
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
+import { keepsDesign } from "./keep-design.ts";
 
 type Scene = Record<string, unknown>;
 
@@ -194,6 +195,11 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     if (resolved) engine = resolved;
   }
   if (!engine) engine = "mock";
+  // A finished design keeps its own text: the camera moves over the original picture.
+  const keepDesign = keepsDesign(args, video);
+  if (keepDesign) {
+    engine = "mock";
+  }
   // The scenes produce_video queues a clip for: none yet, stale, failed, or (on a paid
   // engine) made by the free preview.
   const previewClips =
@@ -334,6 +340,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             scene_engine: engine,
             sound_engine: "elevenlabs",
             sound_design: soundDesign,
+            keep_design: keepDesign,
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },
