@@ -35,13 +35,14 @@ BEGIN
   FROM unnest(array[owner_a, member_a, member_b, super_admin]) WITH ORDINALITY AS x(u, i);
   INSERT INTO public.tenant_users (tenant_id, user_id, role) VALUES
     (tenant_a, owner_a, 'owner'), (tenant_a, member_a, 'member'), (tenant_b, member_b, 'member');
-  -- Active tenants are pinned, so get_user_tenant_id resolves the same way every run.
-  -- The super admin works in tenant B and reaches tenant A only as a super admin.
-  INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
-    (owner_a, tenant_a), (member_a, tenant_a), (member_b, tenant_b), (super_admin, tenant_b);
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
     (owner_a, 'owner', tenant_a), (member_a, 'seo', tenant_a),
     (member_b, 'seo', tenant_b), (super_admin, 'super_admin', NULL);
+  -- Active tenants are pinned, so get_user_tenant_id resolves the same way every run.
+  -- The super admin works in tenant B and reaches tenant A only as a super admin;
+  -- the role comes first, as an active tenant must be one the user may use.
+  INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
+    (owner_a, tenant_a), (member_a, tenant_a), (member_b, tenant_b), (super_admin, tenant_b);
 
   personas := jsonb_build_array(
     jsonb_build_object('name', 'owner A', 'role', 'authenticated', 'uid', owner_a, 'reads', 'A', 'manages', 'A', 'creates', 'A'),
