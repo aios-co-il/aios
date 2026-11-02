@@ -41,7 +41,7 @@ DECLARE
   t_b uuid := gen_random_uuid();
   t_c uuid := gen_random_uuid();
   v_tenants uuid[];
-  bot_a uuid; bot_b uuid;
+  bot_a uuid; bot_b uuid; copy_c uuid;
   n bigint;
 BEGIN
   -- Fixtures, written as postgres. t_a is the main tenant, t_b another tenant
@@ -96,12 +96,28 @@ BEGIN
     RAISE EXCEPTION 'owner shared into a tenant they are not a member of';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
-  -- Turning the own bot into a copy in t_c keeps it readable there (shared_select), so only the update rule refuses it.
+  SELECT id INTO copy_c FROM public.telegram_bot_state WHERE tenant_id = t_c AND shared_from_state_id = bot_a;
+  PERFORM pg_temp.qa_expect(CASE WHEN copy_c IS NULL THEN 0 ELSE 1 END, 1, 'owner reads the copy''s id');
+  -- Turning the own bot into a copy in t_c keeps it readable there (shared_select), and the source (t_c's copy) is
+  -- one shared_insert accepts, so only the update rule's tenant check refuses it.
   BEGIN
-    UPDATE public.telegram_bot_state SET tenant_id = t_c, shared_from_state_id = bot_b WHERE id = bot_a;
+    UPDATE public.telegram_bot_state SET tenant_id = t_c, shared_from_state_id = copy_c WHERE id = bot_a;
     RAISE EXCEPTION 'owner moved the tenant''s bot into another tenant as a copy';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  -- The update allows a source exactly where shared_insert would: refused for t_b's bot (the owner is not in t_b)...
+  BEGIN
+    UPDATE public.telegram_bot_state SET shared_from_state_id = bot_b WHERE id = bot_a;
+    RAISE EXCEPTION 'owner pointed the tenant''s bot at a bot of a tenant they are not in';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  -- ...allowed for t_c's copy (the owner is in t_c), then undone.
+  UPDATE public.telegram_bot_state SET shared_from_state_id = copy_c WHERE id = bot_a;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM pg_temp.qa_expect(n, 1, 'owner points the tenant''s bot at a source in a tenant they are in');
+  UPDATE public.telegram_bot_state SET shared_from_state_id = NULL WHERE id = bot_a;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM pg_temp.qa_expect(n, 1, 'owner makes it the tenant''s own bot again');
 
   INSERT INTO public.telegram_messages (tenant_id, chat_id, text) VALUES (t_a, 3, 'QA A out');
   BEGIN
@@ -236,6 +252,11 @@ BEGIN
   BEGIN
     UPDATE public.telegram_bot_state SET tenant_id = t_c WHERE id = bot_b;
     RAISE EXCEPTION 'super admin moved t_b''s bot into another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.telegram_bot_state SET shared_from_state_id = bot_a WHERE id = bot_b;
+    RAISE EXCEPTION 'super admin pointed t_b''s bot at a bot of a tenant they are not in';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   DELETE FROM public.telegram_bot_state WHERE id = bot_b;

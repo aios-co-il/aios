@@ -11,7 +11,12 @@
 -- (get_user_tenant_id). The three policies now accept the owner or a super
 -- admin, in the acting tenant only, and a bot row stays in that tenant. The
 -- insert still covers only the tenant's own bot (shared_from_state_id null).
--- Sharing and the other #1022 tables are unchanged.
+--
+-- #1022's update rule also never checked shared_from_state_id, so an owner
+-- could point the tenant's bot at a bot of a tenant they are not in, a copy
+-- telegram_bot_state_shared_insert refuses. The update now allows a source
+-- only where shared_insert would, with the same helper calls. Sharing itself
+-- and the other #1022 tables are unchanged.
 --
 -- The closing guard also covers what the earlier guards missed:
 -- - the four #1022 tables and the nine Carmen command center tables
@@ -19,12 +24,12 @@
 --   have exactly the expected policies, by name and command;
 -- - on the 51 tables of 20261102113700, whose guard checked names but not
 --   commands, each policy is for the command its name states;
--- - every policy of the three groups is TO authenticated only.
+-- - every policy of the three groups is TO authenticated only, and each of
+--   their tables keeps row-level security on.
 --
 -- No data changes. Safe to re-run: each policy is dropped before it is created.
 
--- The owner of the active tenant, or a super admin acting in it, adds the tenant's own bot; a shared copy goes
--- through telegram_bot_state_shared_insert.
+-- The owner, or a super admin, adds the acting tenant's own bot; a shared copy goes through shared_insert.
 drop policy if exists telegram_bot_state_owner_insert on public.telegram_bot_state;
 create policy telegram_bot_state_owner_insert on public.telegram_bot_state
   for insert to authenticated
@@ -37,8 +42,7 @@ create policy telegram_bot_state_owner_insert on public.telegram_bot_state
     )
   );
 
--- The owner of the active tenant, or a super admin acting in it, edits its bot rows (connect, disconnect), which
--- stay in that tenant.
+-- The owner, or a super admin, edits the acting tenant's bot rows; they stay there, with a source shared_insert allows.
 drop policy if exists telegram_bot_state_owner_update on public.telegram_bot_state;
 create policy telegram_bot_state_owner_update on public.telegram_bot_state
   for update to authenticated
@@ -55,9 +59,13 @@ create policy telegram_bot_state_owner_update on public.telegram_bot_state
       public.has_role((select auth.uid()), 'owner'::public.app_role)
       or public.is_super_admin((select auth.uid()))
     )
+    and (
+      shared_from_state_id is null
+      or public.user_is_tenant_member(public.telegram_bot_state_source_tenant(shared_from_state_id))
+    )
   );
 
--- The owner of the active tenant, or a super admin acting in it, removes its bot rows.
+-- The owner, or a super admin, removes the acting tenant's bot rows.
 drop policy if exists telegram_bot_state_owner_delete on public.telegram_bot_state;
 create policy telegram_bot_state_owner_delete on public.telegram_bot_state
   for delete to authenticated
@@ -168,6 +176,14 @@ begin
     select format('%s policy "%s" applies to %s', l.table_name, l.policy_name, l.roles::text)
     from live as l
     where l.roles <> array['authenticated']::name[]
+    union all
+    -- Without row-level security no policy applies, and the grants alone decide.
+    select format('%s is missing or has row-level security off', t.table_name)
+    from (select table_name from listed_tables union select table_name from named_tables) as t
+    where not coalesce(
+      (select c.relrowsecurity from pg_class as c where c.oid = to_regclass(format('public.%I', t.table_name))),
+      false
+    )
   )
   select string_agg(problem, '; ' order by problem) into v_problems from problems;
 
