@@ -584,6 +584,18 @@ test("on an engine that speaks, a talking scene is one clip with the line in the
   ).toBe(true);
 });
 
+test("a talking scene's motion never asks the engine for text", () => {
+  const prompt = talkingPrompt(
+    "She smiles at the camera. A Hebrew title floats beside her.",
+    { line: "שלום", speaker: "Carmen" },
+  );
+  expect(prompt.startsWith("She smiles at the camera. Carmen looks")).toBe(
+    true,
+  );
+  expect(prompt).not.toMatch(/title floats/);
+  expect(prompt).toMatch(/No text, no letters, no logos\.$/);
+});
+
 test("a silent engine leaves the clip silent for the lip-sync pass", async () => {
   const db = fakeDb();
   const submits = [];

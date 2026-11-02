@@ -1,4 +1,5 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
+import { motionField } from "./motion-text.ts";
 import { spokenField } from "./spoken-text.ts";
 import { VOICE_TOOL } from "./voice-tool.ts";
 
@@ -302,7 +303,7 @@ export const WORKSHOP_TOOLS = [
               },
               motion_prompt: {
                 type: "string",
-                description: "איך הפריים זז, באנגלית",
+                description: motionField("איך הפריים זז, באנגלית."),
               },
               overlay_text: { type: "string" },
               voiceover_text: {
@@ -386,7 +387,7 @@ export const WORKSHOP_TOOLS = [
         },
         motion_prompt: {
           type: "string",
-          description: "איך הסצנה זזה, באנגלית",
+          description: motionField("איך הסצנה זזה, באנגלית."),
         },
         visual_prompt: {
           type: "string",
@@ -504,7 +505,7 @@ export const WORKSHOP_TOOLS = [
         keep_design: {
           type: "boolean",
           description:
-            "true כשהתמונות הן עיצוב מוכן עם טקסט (מודעה, פוסטר, באנר): כל תמונה נשארת בדיוק כמו שהיא, שלמה בתוך הפריים, והסרט מזיז עליה מצלמה ומוסיף כתוביות, קריינות ומוזיקה. בלי מנוע וידאו, כי מנוע וידאו מצייר את התמונה מחדש ומשבש את הטקסט שבה. לא עולה כסף על הסצנות.",
+            "true כשהתמונות הן עיצוב מוכן עם טקסט (מודעה, פוסטר, באנר): כל תמונה נשארת בדיוק כמו שהיא, שלמה בתוך הפריים, והסרט מזיז עליה מצלמה ומוסיף כתוביות, קריינות ומוזיקה. בלי מנוע וידאו, כי מנוע וידאו מצייר את התמונה מחדש ומשבש את הטקסט שבה. לא עולה כסף על הסצנות. הבחירה נשמרת לסרט: false כשהמשתמש מבקש הנפשה אמיתית (דמויות שזזות, לא רק מצלמה), גם אם הסרט שמר את העיצוב קודם.",
         },
         cta_text: {
           type: "string",
