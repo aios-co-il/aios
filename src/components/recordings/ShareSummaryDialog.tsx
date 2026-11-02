@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchGmailConnection } from "@/lib/gmailConnection";
 import {
   Dialog,
   DialogContent,
@@ -124,18 +125,7 @@ export function ShareSummaryDialog({
 
   const { data: gmailToken } = useQuery({
     queryKey: ["gmail-token-check"],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase
-        .from("gmail_tokens")
-        .select("google_email")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      return data;
-    },
+    queryFn: fetchGmailConnection,
     enabled: open,
   });
 

@@ -1,5 +1,6 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCurrentTenant } from "./useCurrentTenant";
 import { useUserRole } from "./useUserRole";
 
 /**
@@ -20,6 +21,7 @@ export function useUserPermissions() {
     isAgencyOwner,
     userId,
   } = useUserRole();
+  const { tenantId } = useCurrentTenant();
   const hasManagementAccess = isOwner || isTeamManager || isAgencyOwner;
 
   const {
@@ -141,14 +143,27 @@ export function useUserPermissions() {
     return permissions?.[module] === true;
   };
 
-  const canViewFinance = (): boolean => {
-    if (isSuperAdmin || isOwner) return true;
-    return hasPermission("finance_view");
-  };
+  // Finance access comes from the helpers the finance RLS policies use, so the
+  // UI never offers a read or write the database refuses: the role flags above
+  // differ from has_role / is_super_admin, and hasPermission lets management
+  // roles through.
+  const { data: financeAccess } = useQuery({
+    queryKey: ["finance-access", userId, tenantId],
+    queryFn: userId ? () => fetchFinanceAccess(userId) : skipToken,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+
+  /** Read rule: owner, super admin, finance_view or finance (has_finance_permission). */
+  const canViewFinance = (): boolean => financeAccess?.read === true;
+
+  /** Write rule: owner, super admin or finance (has_finance_write_permission). */
+  const canEditFinance = (): boolean => financeAccess?.write === true;
 
   return {
     hasPermission,
     canViewFinance,
+    canEditFinance,
     isLoading,
     isFetching: permissionsFetching,
     isError: permissionsError,
@@ -157,4 +172,21 @@ export function useUserPermissions() {
     isSuperAdmin,
     isOwner,
   };
+}
+
+/** Asks the database helpers behind the finance RLS policies whether the user may read and write financial data. */
+async function fetchFinanceAccess(
+  userId: string,
+): Promise<{ read: boolean; write: boolean }> {
+  const [read, write] = await Promise.all([
+    supabase.rpc("has_finance_permission", { _user_id: userId }),
+    supabase.rpc("has_finance_write_permission", { _user_id: userId }),
+  ]);
+  if (read.error) {
+    throw read.error;
+  }
+  if (write.error) {
+    throw write.error;
+  }
+  return { read: read.data === true, write: write.data === true };
 }
