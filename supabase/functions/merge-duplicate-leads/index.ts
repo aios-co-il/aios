@@ -2,8 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { requireAuth } from "../_shared/security.ts";
 import { userClient } from "../_shared/supabase-clients.ts";
-import { authorizeMergeCaller } from "./caller-access.ts";
-import { transferLeadSourceEvents } from "./source-events.ts";
+import { authorizeMergeRequest } from "./caller-access.ts";
+import { type MovedCounts, moveDuplicateRows } from "./lead-moves.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,12 +37,10 @@ serve(async (req: Request) => {
   try {
     // Only the tenant's owner, or a super admin acting in it, may merge and
     // delete its leads; the service-role client below does the work after.
-    const auth = await requireAuth(req);
-    const { tenant_id, dry_run = true } = await req.json();
-    const access = await authorizeMergeCaller(
-      auth,
+    const access = await authorizeMergeRequest(
+      await requireAuth(req),
+      req,
       () => userClient(req.headers.get("Authorization") ?? ""),
-      tenant_id,
     );
     if (!access.allowed) {
       return new Response(JSON.stringify({ error: access.error }), {
@@ -50,6 +48,7 @@ serve(async (req: Request) => {
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
+    const { tenantId: tenant_id, dryRun: dry_run } = access;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -220,106 +219,25 @@ serve(async (req: Request) => {
       };
 
       if (!dry_run) {
-        // Transfer tags from duplicates to master (avoid duplicates)
-        for (const dupId of duplicateIds) {
-          const { data: dupTags } = await supabase
-            .from("chat_contact_tags")
-            .select("tag_id, tenant_id, user_id")
-            .eq("lead_id", dupId);
-
-          if (dupTags && dupTags.length > 0) {
-            // Get existing master tags
-            const { data: masterTags } = await supabase
-              .from("chat_contact_tags")
-              .select("tag_id")
-              .eq("lead_id", master.id);
-
-            const existingTagIds = new Set(
-              (masterTags || []).map((t) => t.tag_id),
-            );
-
-            for (const tag of dupTags) {
-              if (!existingTagIds.has(tag.tag_id)) {
-                const { error: insertError } = await supabase
-                  .from("chat_contact_tags")
-                  .insert({
-                    tag_id: tag.tag_id,
-                    lead_id: master.id,
-                    tenant_id: tag.tenant_id,
-                    user_id: tag.user_id,
-                  });
-
-                if (!insertError) {
-                  results.tags_transferred++;
-                  groupResult.actions.push(
-                    `Transferred tag ${tag.tag_id} to master`,
-                  );
-                }
-              }
-            }
-
-            // Delete original tags from duplicate
-            await supabase
-              .from("chat_contact_tags")
-              .delete()
-              .eq("lead_id", dupId);
-          }
+        // Everything on the duplicates moves first: their delete below
+        // cascades, so a failed move stops the run before it.
+        let moved: MovedCounts;
+        try {
+          moved = await moveDuplicateRows(supabase, {
+            tenantId: tenant_id,
+            masterId: master.id,
+            duplicateIds,
+          });
+        } catch (error) {
+          return stoppedRunResponse(results, error);
         }
-
-        // Transfer lead_updates
-        const { data: updatesToTransfer } = await supabase
-          .from("lead_updates")
-          .update({ lead_id: master.id })
-          .in("lead_id", duplicateIds)
-          .select();
-
-        if (updatesToTransfer) {
-          results.updates_transferred += updatesToTransfer.length;
-          groupResult.actions.push(
-            `Transferred ${updatesToTransfer.length} updates`,
-          );
-        }
-
-        // Transfer tasks
-        const { data: tasksToTransfer } = await supabase
-          .from("tasks")
-          .update({ lead_id: master.id })
-          .in("lead_id", duplicateIds)
-          .select();
-
-        if (tasksToTransfer) {
-          results.tasks_transferred += tasksToTransfer.length;
-          groupResult.actions.push(
-            `Transferred ${tasksToTransfer.length} tasks`,
-          );
-        }
-
-        // Transfer chat_messages
-        const { data: messagesToTransfer } = await supabase
-          .from("chat_messages")
-          .update({ lead_id: master.id })
-          .in("lead_id", duplicateIds)
-          .select();
-
-        if (messagesToTransfer) {
-          results.messages_transferred += messagesToTransfer.length;
-          groupResult.actions.push(
-            `Transferred ${messagesToTransfer.length} messages`,
-          );
-        }
-
-        // Keep the arrival source history; the lead delete below cascades, so
-        // a failed move throws and stops the run before anything is deleted.
-        const sourceEventsTransferred = await transferLeadSourceEvents(
-          supabase,
-          { tenantId: tenant_id, masterId: master.id, duplicateIds },
+        results.tags_transferred += moved.tags;
+        results.updates_transferred += moved.updates;
+        results.tasks_transferred += moved.tasks;
+        results.messages_transferred += moved.messages;
+        groupResult.actions.push(
+          `Transferred ${moved.tags} tags, ${moved.updates} updates, ${moved.tasks} tasks, ${moved.messages} messages and ${moved.sourceEvents} source events`,
         );
-
-        if (sourceEventsTransferred) {
-          groupResult.actions.push(
-            `Transferred ${sourceEventsTransferred} source events`,
-          );
-        }
 
         // Update master status if needed
         const bestStatus = duplicates.find(
@@ -396,3 +314,20 @@ serve(async (req: Request) => {
     });
   }
 });
+
+/**
+ * A run that stopped on a failed move: the error, plus what the groups merged
+ * before it did (their details included). The failed group deleted nothing;
+ * rows it moved before the failure stay on its surviving lead.
+ */
+function stoppedRunResponse(results: object, error: unknown): Response {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("merge-duplicate-leads stopped:", message);
+  return new Response(
+    JSON.stringify({ error: message, stopped: true, ...results }),
+    {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    },
+  );
+}

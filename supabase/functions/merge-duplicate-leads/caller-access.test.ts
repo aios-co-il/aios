@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import {
-  authorizeMergeCaller,
+  authorizeMergeRequest,
   type CallerRoles,
   type MergeAccess,
   type MergeAuth,
@@ -39,8 +39,29 @@ function rolesOf(userId: string): CallerRoles {
 
 const signedIn = (userId: string): MergeAuth => ({ kind: "user", userId });
 
-const check = (userId: string, tenantId: unknown = TENANT) =>
-  authorizeMergeCaller(signedIn(userId), () => rolesOf(userId), tenantId);
+/** A POST with this raw body. */
+const post = (body: string) =>
+  new Request("http://localhost/merge-duplicate-leads", {
+    method: "POST",
+    body,
+  });
+
+const check = (userId: string, body: unknown = { tenant_id: TENANT }) =>
+  authorizeMergeRequest(signedIn(userId), post(JSON.stringify(body)), () =>
+    rolesOf(userId),
+  );
+
+const allowed = (dryRun: boolean): MergeAccess => ({
+  allowed: true,
+  tenantId: TENANT,
+  dryRun,
+});
+
+const notAnObject: MergeAccess = {
+  allowed: false,
+  status: 400,
+  error: "Request body must be a JSON object",
+};
 
 const denied: MergeAccess = {
   allowed: false,
@@ -48,7 +69,7 @@ const denied: MergeAccess = {
   error: "Only the tenant's owner can merge its duplicate leads",
 };
 
-Deno.test("anon or no user gets 401", async () => {
+Deno.test("anon or no user gets 401 before the body is read", async () => {
   const noLookups = (): CallerRoles => {
     throw new Error("no lookup without a user");
   };
@@ -57,18 +78,28 @@ Deno.test("anon or no user gets 401", async () => {
     status: 401,
     error: "Unauthorized",
   };
-  assertEquals(
-    await authorizeMergeCaller(null, noLookups, TENANT),
-    unauthorized,
-  );
-  assertEquals(
-    await authorizeMergeCaller(
-      { kind: "service", userId: null },
-      noLookups,
-      TENANT,
-    ),
-    unauthorized,
-  );
+  const callers: MergeAuth[] = [null, { kind: "service", userId: null }];
+  for (const auth of callers) {
+    for (const body of [JSON.stringify({ tenant_id: TENANT }), "null", "{"]) {
+      const req = post(body);
+      assertEquals(
+        await authorizeMergeRequest(auth, req, noLookups),
+        unauthorized,
+      );
+      assertEquals(req.bodyUsed, false);
+    }
+  }
+});
+
+Deno.test("a body that is not a JSON object gets 400", async () => {
+  for (const body of ["null", "[]", '"FB"', "{", ""]) {
+    assertEquals(
+      await authorizeMergeRequest(signedIn("owner-a"), post(body), () =>
+        rolesOf("owner-a"),
+      ),
+      notAnObject,
+    );
+  }
 });
 
 Deno.test("a member of the tenant who is not its owner gets 403", async () => {
@@ -84,15 +115,19 @@ Deno.test("a super admin acting in a different tenant gets 403", async () => {
 });
 
 Deno.test("the tenant's owner may merge", async () => {
-  assertEquals(await check("owner-a"), { allowed: true });
+  assertEquals(await check("owner-a"), allowed(true));
+  assertEquals(
+    await check("owner-a", { tenant_id: TENANT, dry_run: false }),
+    allowed(false),
+  );
 });
 
 Deno.test("a super admin acting in the tenant may merge", async () => {
-  assertEquals(await check("super-in-a"), { allowed: true });
+  assertEquals(await check("super-in-a"), allowed(true));
 });
 
 Deno.test("a signed-in caller without tenant_id gets 400", async () => {
-  assertEquals(await check("owner-a", ""), {
+  assertEquals(await check("owner-a", { tenant_id: "" }), {
     allowed: false,
     status: 400,
     error: "tenant_id is required",
@@ -104,7 +139,12 @@ Deno.test("a failed role lookup throws instead of allowing", async () => {
     rpc: async () => ({ data: null, error: { message: "timeout" } }),
   };
   await assertRejects(
-    () => authorizeMergeCaller(signedIn("owner-a"), () => failing, TENANT),
+    () =>
+      authorizeMergeRequest(
+        signedIn("owner-a"),
+        post(JSON.stringify({ tenant_id: TENANT })),
+        () => failing,
+      ),
     Error,
     "timeout",
   );

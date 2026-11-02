@@ -15,9 +15,9 @@ export type CallerRoles = {
   ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 };
 
-/** Go ahead, or the HTTP status and error to return. */
+/** Go ahead with this tenant, or the HTTP status and error to return. */
 export type MergeAccess =
-  | { allowed: true }
+  | { allowed: true; tenantId: string; dryRun: boolean }
   | { allowed: false; status: 400 | 401 | 403; error: string };
 
 const DENIED: MergeAccess = {
@@ -30,16 +30,26 @@ const DENIED: MergeAccess = {
  * Whether this caller may merge (and delete) the tenant's duplicate leads:
  * a signed-in owner or super admin acting in that tenant (get_user_tenant_id),
  * the rule RLS applies to writes. A super admin writes only in the tenant
- * they act in. The lookups run with the caller's own JWT.
+ * they act in. A caller with no user gets 401 before the body is read; the
+ * role lookups run with the caller's own JWT.
  */
-export async function authorizeMergeCaller(
+export async function authorizeMergeRequest(
   auth: MergeAuth,
+  req: Request,
   asCaller: () => CallerRoles,
-  tenantId: unknown,
 ): Promise<MergeAccess> {
   if (auth?.kind !== "user" || !auth.userId) {
     return { allowed: false, status: 401, error: "Unauthorized" };
   }
+  const body = await jsonObjectBody(req);
+  if (!body) {
+    return {
+      allowed: false,
+      status: 400,
+      error: "Request body must be a JSON object",
+    };
+  }
+  const tenantId = body.tenant_id;
   if (typeof tenantId !== "string" || !tenantId) {
     return { allowed: false, status: 400, error: "tenant_id is required" };
   }
@@ -60,7 +70,25 @@ export async function authorizeMergeCaller(
   if (failed) {
     throw new Error(`Role lookup failed: ${failed.message}`);
   }
-  return owner.data === true || superAdmin.data === true
-    ? { allowed: true }
-    : DENIED;
+  if (owner.data !== true && superAdmin.data !== true) {
+    return DENIED;
+  }
+  // Omitted dry_run means a dry run, as before; any falsy value runs it.
+  const dryRun = body.dry_run === undefined ? true : Boolean(body.dry_run);
+  return { allowed: true, tenantId, dryRun };
+}
+
+/** The request's JSON body when it is an object; null for anything else. */
+async function jsonObjectBody(
+  req: Request,
+): Promise<Record<string, unknown> | null> {
+  const body: unknown = await req.json().catch((error: unknown) => {
+    console.warn("merge-duplicate-leads: body is not JSON:", error);
+    return null;
+  });
+  return isRecord(body) ? body : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
