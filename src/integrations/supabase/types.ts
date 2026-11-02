@@ -17205,7 +17205,15 @@ export type Database = {
         Args: { _automation_id: string; _tenant_id: string };
         Returns: boolean;
       };
+      is_channel_admin: {
+        Args: { p_channel_id: string; p_user_id: string };
+        Returns: boolean;
+      };
       is_channel_member: {
+        Args: { p_channel_id: string; p_user_id: string };
+        Returns: boolean;
+      };
+      is_public_team_channel: {
         Args: { p_channel_id: string; p_user_id: string };
         Returns: boolean;
       };
@@ -17764,6 +17772,15 @@ export type Database = {
       user_can_annotate_lead: { Args: { _lead_id: string }; Returns: boolean };
       user_can_delete_users_for_tenant: {
         Args: { check_tenant_id: string };
+        Returns: boolean;
+      };
+      user_can_link_whatsapp_chat: {
+        Args: {
+          p_channel_id: string;
+          p_tenant_id: string;
+          p_whatsapp_chat_id: string;
+          p_whatsapp_group_id: string;
+        };
         Returns: boolean;
       };
       user_can_manage_campaigners_for_tenant: {
