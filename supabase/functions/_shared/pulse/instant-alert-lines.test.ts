@@ -3,6 +3,7 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   alertTargetText,
   baselineTrendLines,
+  exceptionFiguresText,
   spentWithoutResults3d,
 } from "./instant-alert-lines.ts";
 
@@ -69,3 +70,35 @@ Deno.test("only a campaign without a target gets the baseline line", () => {
     [],
   );
 });
+
+Deno.test(
+  "an exception's figures compare 3 and 7 days with the target, else the baseline",
+  () => {
+    assertStrictEquals(
+      exceptionFiguresText({
+        target_kind: "cpl",
+        target_value: 30,
+        efficiency_3d: 52,
+        efficiency_7d: 48,
+      }),
+      "3 ימים: 52 · 7 ימים: 48 · יעד: CPL 30",
+    );
+    assertStrictEquals(
+      exceptionFiguresText({
+        target_kind: "cpl",
+        target_value: 30,
+        spend_3d: 300,
+        efficiency_7d: null,
+      }),
+      "3 ימים: אין תוצאות · 7 ימים: חסר · יעד: CPL 30",
+    );
+    assertStrictEquals(
+      exceptionFiguresText({
+        target_value: null,
+        trend_3d_pct: 52,
+        trend_7d_pct: 48,
+      }),
+      "החמרה מול הבסיס: 3 ימים 52% · 7 ימים 48%",
+    );
+  },
+);

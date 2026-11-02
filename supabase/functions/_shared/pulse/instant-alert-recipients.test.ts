@@ -214,7 +214,7 @@ Deno.test("resolveInstantAlertRecipients", async (t) => {
 
 Deno.test("deliverInstantPulseAlerts to report recipients", async (t) => {
   await t.step(
-    "every report recipient gets each alert; one log row and one throttle cover them all",
+    "every report recipient gets one message with each alert; one log row and one throttle cover them all",
     async () => {
       const supabase = fakeAlertLog();
       const reportRecipients = [
@@ -226,12 +226,10 @@ Deno.test("deliverInstantPulseAlerts to report recipients", async (t) => {
       });
 
       assertStrictEquals(first.result.sent, 2); // no_contact + connection_lost
-      assertEquals(first.sends.map((send) => send.phone).sort(), [
-        "972500000011",
-        "972500000011",
-        "972500000012",
-        "972500000012",
-      ]);
+      assertEquals(
+        first.sends.map((send) => send.phone),
+        ["972500000011", "972500000012"],
+      );
       assertStrictEquals(supabase.log.length, 2);
       assertStrictEquals(
         supabase.log[0].recipient_phone,

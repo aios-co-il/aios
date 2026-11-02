@@ -148,3 +148,15 @@ describe("PulseAlertRulesDialog reply time in client groups", () => {
     expect(screen.getByLabelText(REPLY_LABEL)).toHaveDisplayValue("6");
   });
 });
+
+describe("PulseAlertRulesDialog description", () => {
+  it("says a run's alerts reach each recipient as one message, with no per-run cap", async () => {
+    renderDialog(null);
+    await ownerCheckAnswered();
+    const description = screen.getByText(/התראות מיידיות נשלחות/);
+    expect(description).toHaveTextContent(
+      "כל ההתראות של ריצת דופק מגיעות לכל נמען בהודעה אחת",
+    );
+    expect(description).not.toHaveTextContent(/סיכום חריגות|לכל היותר/);
+  });
+});

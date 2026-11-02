@@ -39,6 +39,9 @@ export const ACME: PulseSnapshotAlertInput = {
 
 export const WEDNESDAY = new Date("2026-10-28T07:00:00Z"); // 09:00 Israel
 
+/** The organization name run() puts in each run message's header. */
+export const TEST_ORG = "Test Org";
+
 /** The owner run() alerts when the organization has no report list. */
 export const OWNER_RECIPIENT: CarmenReportRecipient = {
   name: "Owner",
@@ -156,6 +159,7 @@ export async function run(
     supabase,
     tenantId: "t1",
     tenantSlug: "test-tenant",
+    orgName: TEST_ORG,
     reportRecipients: [OWNER_RECIPIENT],
     snapshots,
     criticalIssues: [],

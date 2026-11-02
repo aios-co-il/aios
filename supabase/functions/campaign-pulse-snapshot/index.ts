@@ -41,7 +41,6 @@ import {
 } from "../_shared/pulse-delivery.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
 import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
-import { phraseException } from "./phrase-exception.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -816,7 +815,7 @@ Deno.serve(async (req) => {
     }
     const { data: tenantRow } = await supabase
       .from("tenants")
-      .select("slug")
+      .select("slug, name")
       .eq("id", tenantId)
       .maybeSingle();
     const tenantSlug = tenantRow?.slug || tenantId;
@@ -837,13 +836,13 @@ Deno.serve(async (req) => {
           supabase,
           tenantId,
           tenantSlug,
+          orgName: tenantRow?.name || tenantSlug,
           reportRecipients: report.recipients,
           snapshots,
           criticalIssues,
           rules: setting.pulse_alert_rules,
           queueWhatsApp: (message, chatId) =>
             queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, chatId),
-          phraseException,
         });
       } catch (instantAlertError) {
         console.warn(
@@ -1001,7 +1000,7 @@ Deno.serve(async (req) => {
         {
           type: "deterministic_campaign_pulse",
           sent,
-          ai_used: instantAlerts.wording_calls > 0,
+          ai_used: false,
           external_api_calls: metaActivityCalls,
           dashboard_url: dashboardUrl,
           clients_checked: snapshots.length,
@@ -1033,7 +1032,7 @@ Deno.serve(async (req) => {
         setting.campaign_pulse_enabled &&
         !manualDeliveryBypass &&
         !deliveryClaimed,
-      ai_used: instantAlerts.wording_calls > 0,
+      ai_used: false,
       external_api_calls: metaActivityCalls,
     });
   }
