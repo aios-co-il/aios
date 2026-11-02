@@ -1,7 +1,7 @@
 import {
   folderTree,
   type ArtifactKind,
-} from "../../../supabase/functions/_shared/workshop/artifacts.ts";
+} from "@functions/_shared/workshop/artifacts.ts";
 
 export interface WorkshopArtifact {
   id: string;
@@ -42,8 +42,9 @@ export const referenceIsVideo = (artifact: WorkshopArtifact) =>
   /\.(mp4|mov|webm)(\?|$)/i.test(artifact.url ?? "");
 
 export function pageTypeFor(artifact: WorkshopArtifact): PageType {
-  if (artifact.kind === "reference")
+  if (artifact.kind === "reference") {
     return referenceIsVideo(artifact) ? "video" : "image";
+  }
   return pageTypeOf(artifact.kind);
 }
 
@@ -51,7 +52,9 @@ export function artifactText(artifact: WorkshopArtifact): string {
   const meta = artifact.meta;
   for (const key of ["text", "content", "brief"]) {
     const value = meta[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
   }
   return "";
 }
@@ -106,7 +109,9 @@ export const SCENES_FOLDER = "video/scenes";
  */
 export function folderTabs(artifacts: WorkshopArtifact[], sceneCount: number) {
   const folders = foldersOf(artifacts);
-  if (sceneCount === 0) return folders;
+  if (sceneCount === 0) {
+    return folders;
+  }
   const scenes = { folder: SCENES_FOLDER, label: "סצנות", count: sceneCount };
   return folders.some((entry) => entry.folder === SCENES_FOLDER)
     ? folders.map((entry) =>
@@ -169,7 +174,9 @@ const engineName = (value: unknown) =>
 /** When the worker could not use the chosen engine for a clip, the page says what it used instead. */
 export function fallbackNote(artifact: WorkshopArtifact): string | null {
   const from = engineName(artifact.meta.fallback_from);
-  if (!from) return null;
+  if (!from) {
+    return null;
+  }
   const used = engineName(artifact.meta.provider);
   return used
     ? `הונפש ב${used} במקום ${from}`

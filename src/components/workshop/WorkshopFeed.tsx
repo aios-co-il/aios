@@ -23,7 +23,7 @@ import {
   projectFormat,
   shouldFollow,
   type WorkshopArtifact,
-} from "./workshopFeed";
+} from "./workshopFeedModel";
 
 const IDEAS = [
   "סרטון קצר של כרמן ליד מחשב",
