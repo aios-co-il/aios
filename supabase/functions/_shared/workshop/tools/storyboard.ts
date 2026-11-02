@@ -13,6 +13,7 @@ import {
 import { asRecord, recordArtifact } from "../record.ts";
 import { loadScenes, paidReplaceRefusal } from "../scene-helpers.ts";
 import { storyboardText } from "../storyboard-text.ts";
+import { forgetKeptDesign } from "./keep-design.ts";
 import { storyboardSource, withSourcePicture } from "./storyboard-source.ts";
 import { type ToolContext } from "../tool-context.ts";
 
@@ -117,7 +118,7 @@ export async function workshopStoryboard(ctx: ToolContext) {
   }
   const folded = withLook(project.payload, {}, { anchorUrl: null });
   await savePayload(supabase, tenantId, itemId, {
-    ...folded.payload,
+    ...forgetKeptDesign(folded.payload),
     project_type: "video",
   });
   const total = rows.reduce((sum, scene) => sum + scene.duration_s, 0);

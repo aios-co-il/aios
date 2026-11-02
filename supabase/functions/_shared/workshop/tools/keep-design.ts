@@ -5,6 +5,7 @@
  * Hebrew text. The free preview engine is that camera move; the render also fits the whole
  * picture in the frame (video.keep_design) instead of cropping it.
  */
+import { asRecord } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
 
 /** Whether this production keeps the pictures as designed: the call says so, or the film did. */
@@ -16,6 +17,23 @@ export function keepsDesign(
     return args.keep_design;
   }
   return video.keep_design === true;
+}
+
+/**
+ * The project's payload for a new film (a new storyboard or a new edit): it starts without the
+ * last film's choice to keep the design, so the production of the new film makes that choice
+ * again. Kept, a film of new pictures was produced as a camera move (Staging, 2 Nov).
+ */
+export function forgetKeptDesign(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const video = asRecord(payload.video);
+  if (!("keep_design" in video)) {
+    return payload;
+  }
+  const next = { ...video };
+  delete next.keep_design;
+  return { ...payload, video: next };
 }
 
 /**
