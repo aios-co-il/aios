@@ -7,10 +7,10 @@
  * in that group as an inbound message from this number.
  */
 import type { Json } from "../../../_shared/database.types.ts";
+import { isJsonObject } from "../../../_shared/pulse/json.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../db-error.ts";
 import { MONITORED_PROVIDER } from "./activity.ts";
-import { isJsonObject } from "./json-object.ts";
 
 /** The numbers of the tenants' Manus and Green API lines. */
 export async function linePhones(

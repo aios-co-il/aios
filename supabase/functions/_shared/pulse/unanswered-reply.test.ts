@@ -1,11 +1,13 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   DEFAULT_UNANSWERED_REPLY_HOURS,
+  MIN_UNANSWERED_REPLY_HOURS,
   resolveUnansweredReplyHours,
 } from "./unanswered-reply.ts";
 
 Deno.test("resolveUnansweredReplyHours", async (t) => {
   await t.step("keeps a stored number of hours, at least 1", () => {
+    assertEquals(MIN_UNANSWERED_REPLY_HOURS, 1);
     assertEquals(
       [5, "2", 1.5, 0.5].map(resolveUnansweredReplyHours),
       [5, 2, 1.5, 1],

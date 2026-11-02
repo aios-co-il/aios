@@ -43,7 +43,7 @@ export type ManagerSettings = {
   business_hours: BusinessHours;
   /** Israel calendar days (YYYY-MM-DD) with no business hours. */
   holidays: string[];
-  /** Business hours a client's group message may wait for a staff reply (read by the chat collector, AIO-252). */
+  /** Business hours a client's message in a linked group or a private chat may wait for a staff reply (read by the chat collector, AIO-252). */
   unanswered_reply_hours: number;
   /** Business hours after the first send: [to the manager, to the owner]. */
   escalation_hours: [number, number];
