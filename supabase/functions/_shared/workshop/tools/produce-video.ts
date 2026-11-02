@@ -23,7 +23,7 @@ import {
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
-import { keepsDesign } from "../keep-design.ts";
+import { keepsDesign } from "./keep-design.ts";
 
 type Scene = Record<string, unknown>;
 
