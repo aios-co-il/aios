@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { requireAuth } from "../_shared/security.ts";
+import { userClient } from "../_shared/supabase-clients.ts";
+import { authorizeMergeCaller } from "./caller-access.ts";
 import { transferLeadSourceEvents } from "./source-events.ts";
 
 const corsHeaders = {
@@ -32,6 +35,22 @@ serve(async (req: Request) => {
   }
 
   try {
+    // Only the tenant's owner, or a super admin acting in it, may merge and
+    // delete its leads; the service-role client below does the work after.
+    const auth = await requireAuth(req);
+    const { tenant_id, dry_run = true } = await req.json();
+    const access = await authorizeMergeCaller(
+      auth,
+      () => userClient(req.headers.get("Authorization") ?? ""),
+      tenant_id,
+    );
+    if (!access.allowed) {
+      return new Response(JSON.stringify({ error: access.error }), {
+        status: access.status,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -42,12 +61,6 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-
-    const { tenant_id, dry_run = true } = await req.json();
-
-    if (!tenant_id) {
-      throw new Error("tenant_id is required");
-    }
 
     // Step 1: Find all duplicate phone groups
     const { data: duplicatePhones, error: dupError } = await supabase.rpc(
