@@ -8,6 +8,7 @@ import { elevenLabsProvider } from "./elevenlabs.mjs";
 import { higgsfieldCredential } from "./higgsfield-credential.mjs";
 import { higgsfieldProvider } from "./higgsfield.mjs";
 import { klingProvider } from "./kling.mjs";
+import { textlessMotion } from "./textless-motion.mjs";
 import {
   elevenLabsLipsyncProvider,
   heygenLipsyncProvider,
@@ -76,7 +77,7 @@ export function lipsyncProviderNames(run, keys = {}, env = process.env) {
  */
 export const talkingPrompt = (motionPrompt, { line, speaker } = {}) =>
   [
-    String(motionPrompt ?? "").trim() ||
+    textlessMotion(motionPrompt) ||
       "Subtle natural motion, gentle camera push-in.",
     `${String(speaker ?? "").trim() || "The character"} looks at the camera and says in Hebrew, with natural lip movement matching every word: "${String(line ?? "").trim()}".`,
     "Only this line is spoken. No subtitles. No text, no letters, no logos.",
@@ -141,10 +142,13 @@ export function getVideoProvider(
   return factory(keys);
 }
 
-/** Every clip prompt ends with the no-text rule; image models garble Hebrew. */
+/**
+ * Every clip prompt ends with the no-text rule, and its motion never asks for text
+ * (textless-motion.mjs): image models garble Hebrew.
+ */
 export const clipPrompt = (motionPrompt) =>
   [
-    String(motionPrompt ?? "").trim() ||
+    textlessMotion(motionPrompt) ||
       "Subtle natural motion, gentle camera push-in.",
     "No text, no letters, no logos.",
   ].join(" ");

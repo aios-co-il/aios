@@ -1,4 +1,5 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
+import { motionField } from "./motion-text.ts";
 import { spokenField } from "./spoken-text.ts";
 import { VOICE_TOOL } from "./voice-tool.ts";
 
@@ -302,7 +303,7 @@ export const WORKSHOP_TOOLS = [
               },
               motion_prompt: {
                 type: "string",
-                description: "איך הפריים זז, באנגלית",
+                description: motionField("איך הפריים זז, באנגלית."),
               },
               overlay_text: { type: "string" },
               voiceover_text: {
@@ -386,7 +387,7 @@ export const WORKSHOP_TOOLS = [
         },
         motion_prompt: {
           type: "string",
-          description: "איך הסצנה זזה, באנגלית",
+          description: motionField("איך הסצנה זזה, באנגלית."),
         },
         visual_prompt: {
           type: "string",
