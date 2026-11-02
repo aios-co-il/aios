@@ -23,7 +23,11 @@ import {
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
-import { keepsDesign } from "./keep-design.ts";
+import {
+  keepsDesign,
+  redrawnClipIds,
+  remakeRedrawnClips,
+} from "./keep-design.ts";
 
 type Scene = Record<string, unknown>;
 
@@ -211,12 +215,22 @@ export async function workshopProduceVideo(ctx: ToolContext) {
           itemId,
           scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
         );
+  // A finished design's scenes that a video model already redrew are made again from the picture.
+  const redrawnClips = keepDesign
+    ? await redrawnClipIds(
+        supabase,
+        tenantId,
+        itemId,
+        scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
+      )
+    : new Set<string>();
   const animated = scenes.filter(
     (scene) =>
       !scene.clip_asset_id ||
       scene.clip_stale === true ||
       scene.status === "failed" ||
-      previewClips.has(String(scene.clip_asset_id)),
+      previewClips.has(String(scene.clip_asset_id)) ||
+      redrawnClips.has(String(scene.clip_asset_id)),
   );
   const costScenes = animated.map(costSceneOf);
   // A kept clip that does not say the scene's current line (a line changed on the board) is
@@ -352,6 +366,21 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "שמירת הפרויקט נכשלה",
+    };
+  }
+  try {
+    await remakeRedrawnClips(
+      supabase,
+      tenantId,
+      itemId,
+      scenes
+        .filter((scene) => redrawnClips.has(String(scene.clip_asset_id)))
+        .map((scene) => String(scene.id)),
+    );
+  } catch (error) {
+    await refund();
+    return {
+      error: error instanceof Error ? error.message : "סימון הסצנות נכשל",
     };
   }
   const produced = await supabase.rpc("produce_video", {
