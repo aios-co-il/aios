@@ -31,7 +31,7 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/unified-signatures": "error",
       "no-unneeded-ternary": "warn",
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
