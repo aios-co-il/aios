@@ -23,6 +23,7 @@ import { KaraokeCaptions, SceneCaption } from "./workshop-captions";
 import { EndCard } from "./workshop-end-card";
 import { Kicker } from "./workshop-kicker";
 import { MotionCaptions } from "./workshop-motion-captions";
+import { MotionTitle } from "./workshop-motion-title";
 import { sceneHeadline } from "./workshop-scene-text";
 import { SkinFlash, SkinSweep } from "./workshop-skin";
 import { TitleCard } from "./workshop-title-card";
@@ -135,7 +136,8 @@ const Picture: React.FC<{
   accent: string;
   /** The scene's on-screen text to draw ("" for none), at the bottom or at the top. */
   caption: string;
-  captionAt: "top" | "bottom";
+  /** "top" over spoken captions; "motion": motion graphics where captions would sit. */
+  captionAt: "top" | "bottom" | "motion";
   title: TitleMode;
 }> = ({ scene, enter, exitFrames, accent, caption, captionAt, title }) => {
   const frame = useCurrentFrame();
@@ -218,14 +220,16 @@ const Picture: React.FC<{
           />
           {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
         </AbsoluteFill>
-        {caption ? (
+        {!caption ? null : captionAt === "motion" ? (
+          <MotionTitle text={caption} enter={enter} accent={accent} />
+        ) : (
           <SceneCaption
             text={caption}
             enter={enter}
             accent={accent}
             at={captionAt}
           />
-        ) : null}
+        )}
         {kicker && title === "kicker" ? (
           <Kicker text={kicker} enter={enter} accent={accent} />
         ) : null}
@@ -318,7 +322,8 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
     const enter = enterOf(index);
     const next = scenes[index + 1];
     // Over spoken captions the scene's text shows at the top unless its title or the
-    // captions already show it; without them, as the scene's caption at the bottom.
+    // captions already show it; without them, as motion graphics (or, in a karaoke film, as
+    // the scene's caption at the bottom).
     const caption = spoken.length
       ? sceneHeadline(
           scene,
@@ -339,7 +344,7 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
           exitFrames={next?.transition === "skin" ? enterOf(index + 1) : 0}
           accent={accent}
           caption={caption}
-          captionAt={spoken.length ? "top" : "bottom"}
+          captionAt={spoken.length ? "top" : motion ? "motion" : "bottom"}
           title={title}
         />
       </Sequence>
