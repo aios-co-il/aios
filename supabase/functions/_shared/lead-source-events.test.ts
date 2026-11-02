@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   givenLeadSource,
   recordLeadSourceEvent,
@@ -10,23 +9,26 @@ function fakeClient() {
   return {
     inserts,
     from: (table: string) => ({
-      insert: async (row: Record<string, unknown>) => {
+      insert: (row: Record<string, unknown>) => {
         inserts.push({ table, row });
-        return { error: null };
+        return Promise.resolve({ error: null });
       },
     }),
   };
 }
 
-test("givenLeadSource returns the trimmed text, or null when none was given", () => {
-  assert.equal(givenLeadSource("FB"), "FB");
-  assert.equal(givenLeadSource("  פייסבוק "), "פייסבוק");
-  assert.equal(givenLeadSource("Other"), null);
-  assert.equal(givenLeadSource("  "), null);
-  assert.equal(givenLeadSource(undefined), null);
-});
+Deno.test(
+  "givenLeadSource returns the trimmed text, or null when none was given",
+  () => {
+    assertStrictEquals(givenLeadSource("FB"), "FB");
+    assertStrictEquals(givenLeadSource("  פייסבוק "), "פייסבוק");
+    assertStrictEquals(givenLeadSource("Other"), null);
+    assertStrictEquals(givenLeadSource("  "), null);
+    assertStrictEquals(givenLeadSource(undefined), null);
+  },
+);
 
-test("records a repeat arrival with the source as sent", async () => {
+Deno.test("records a repeat arrival with the source as sent", async () => {
   const client = fakeClient();
   await recordLeadSourceEvent(client, {
     leadId: "lead-1",
@@ -34,7 +36,7 @@ test("records a repeat arrival with the source as sent", async () => {
     source: " FB ",
     campaignName: " מכירות ",
   });
-  assert.deepEqual(client.inserts, [
+  assertEquals(client.inserts, [
     {
       table: "lead_source_events",
       row: {
@@ -47,9 +49,9 @@ test("records a repeat arrival with the source as sent", async () => {
   ]);
 });
 
-test("adds nothing when the arrival names no source", async () => {
+Deno.test("adds nothing when the arrival names no source", async () => {
   const client = fakeClient();
   await recordLeadSourceEvent(client, { leadId: "lead-1", source: "" });
   await recordLeadSourceEvent(client, { leadId: "lead-1", source: "other" });
-  assert.equal(client.inserts.length, 0);
+  assertStrictEquals(client.inserts.length, 0);
 });
