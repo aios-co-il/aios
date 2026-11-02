@@ -22,6 +22,8 @@ import {
   managerGroupAccessViaAllowedPhones,
 } from "./carmen-group-sender.ts";
 import { buildObservedGroupMembersNote } from "./carmen-observe-group-member.ts";
+import { groupScopeGate } from "./carmen/group-scope.ts";
+import { resolveCarmenIdentityPhone } from "./carmen/identity-phone.ts";
 import {
   loadGroupAgencyVoice,
   loadRelationshipNote,
@@ -1315,23 +1317,6 @@ function phoneTail(value: string | null | undefined): string {
     .slice(-9);
 }
 
-async function resolveCarmenIdentityPhone(
-  supabase: any,
-  phoneNumber: string,
-): Promise<string> {
-  const digits = String(phoneNumber || "").replace(/\D/g, "");
-  const tail = phoneTail(digits);
-  if (tail && /^[5-9]\d{8}$/.test(tail)) return digits;
-  if (!digits) return digits;
-  const { data: known } = await supabase
-    .from("wa_lid_map")
-    .select("phone")
-    .eq("lid", digits)
-    .maybeSingle();
-  if (known?.phone) return String(known.phone).replace(/\D/g, "");
-  return digits;
-}
-
 type CarmenTenantStaff = {
   campaignerId: string;
   displayName: string | null;
@@ -1812,6 +1797,10 @@ export async function handleCarmenMessage(
     { isGroup },
   );
 
+  const groupScope = isGroup
+    ? groupScopeGate(mergedScope, cfg, sourceChannel)
+    : null;
+
   // GROUP SAFETY GATE: a blocked group must stay completely silent regardless
   // of provider, automation scope, or an already-warm Carmen session. Green API
   // checks this before calling us, but Manus reaches the shared handler directly,
@@ -1859,6 +1848,17 @@ export async function handleCarmenMessage(
       !groupMessageInvokesCarmen(messageText)
     ) {
       return { handled: false, reason: "group_not_addressed" };
+    }
+
+    // Before identity, so a group that was never opted in gets no reply at all.
+    if (!groupScope?.allowed) {
+      console.log("[carmen] group not opted in; staying silent", {
+        tenantId,
+        chatId,
+        scopeMode: mergedScope.scopeMode,
+        sourceChannel,
+      });
+      return { handled: false, reason: "group_requires_explicit_scope" };
     }
   }
 
@@ -2366,28 +2366,10 @@ export async function handleCarmenMessage(
     }
   }
 
-  // Default-deny groups: a legacy "all-scope" automation must NOT auto-trigger inside
-  // WhatsApp groups. Groups require explicit opt-in via scopeMode === 'specific_group'
-  // (and the group listed in allowedGroups) — this way disabling the dedicated groups
-  // automation actually silences Carmen in groups.
-  //
-  // Exception — open-member-groups mode: when the automation opts in via
-  // `carmen_open_member_groups: true`, Carmen may answer in ANY group her own
-  // WhatsApp number is a member of (being added to the group IS the opt-in),
-  // but only for messages arriving via her OWN instance (sourceChannel
-  // 'own_instance'). The operator's mirrored green_api channel keeps the legacy
-  // default-deny — that channel sees ALL the operator's personal groups.
-  const openMemberGroups =
-    isGroup &&
-    (mergedScope.openMemberGroups ||
-      carmenAutomation.configuration?.carmen_open_member_groups === true) &&
-    sourceChannel === "own_instance";
-  if (isGroup && scopeMode !== "specific_group" && !openMemberGroups) {
-    return { handled: false, reason: "group_requires_explicit_scope" };
-  }
-  // Sessions opened through the exception are direct-address-only for their whole
-  // lifetime (see the open_group gate in the continuation branch above).
-  const openGroupStart = openMemberGroups && scopeMode !== "specific_group";
+  // Sessions opened through open-member-groups mode are direct-address-only for
+  // their whole lifetime (see the open_group gate in the continuation branch above).
+  const openGroupStart =
+    groupScope?.allowed === true && groupScope.openGroupStart;
 
   const triggerKeywords = resolveTriggerKeywords(
     carmenAutomation.configuration,
