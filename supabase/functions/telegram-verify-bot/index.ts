@@ -49,19 +49,22 @@ Deno.serve(async (req) => {
 
     const botInfo = data.result;
 
-    // Upsert bot state
+    // Upsert the tenant's own bot (not a shared copy). The conflict target is
+    // telegram_bot_state_tenant_source_unique (NULLS NOT DISTINCT): ON CONFLICT
+    // cannot infer a partial index, so "tenant_id" alone failed with 42P10.
     const { error: upsertErr } = await supabase
       .from("telegram_bot_state")
       .upsert(
         {
           tenant_id,
+          shared_from_state_id: null,
           bot_username: botInfo.username,
           bot_name: botInfo.first_name,
           is_active: true,
           update_offset: 0,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "tenant_id" },
+        { onConflict: "tenant_id,shared_from_state_id" },
       );
 
     if (upsertErr) {
