@@ -7,15 +7,16 @@ import {
 import { ACME, fakeSupabase, run, WEDNESDAY } from "./fake-alert-log.ts";
 import {
   decideInstantAlertDelivery,
-  isInstantAlertSuppressed,
   isSameInstantAlertFinding,
+  ownRecentDeliveries,
+  phonesStillDue,
 } from "./instant-alert-dedupe.ts";
 
-Deno.test("isInstantAlertSuppressed", async (t) => {
+Deno.test("ownRecentDeliveries", async (t) => {
   await t.step(
-    "a failed dedupe lookup suppresses the send instead of resending",
+    "a failed dedupe lookup answers null, so the planner skips instead of resending",
     async () => {
-      const suppressed = await isInstantAlertSuppressed(
+      const rows = await ownRecentDeliveries(
         {
           supabase: fakeSupabase([], { failing: ["pulse_instant_alert_log"] }),
           tenantId: "t1",
@@ -30,9 +31,45 @@ Deno.test("isInstantAlertSuppressed", async (t) => {
         24,
         WEDNESDAY,
       );
-      assertStrictEquals(suppressed, true);
+      assertStrictEquals(rows, null);
     },
   );
+});
+
+Deno.test("phonesStillDue", async (t) => {
+  const exception = {
+    rule_type: "campaign_exception" as const,
+    fingerprint: "k",
+    severity_score: 52,
+  };
+
+  await t.step(
+    "each phone is judged on the rows that reached it, 10% rule included",
+    () => {
+      // Newest first: A got it at 50, A and B at 40 before that.
+      const rows = [
+        { fingerprint: "k", severity_score: 50, recipient_phone: "A" },
+        { fingerprint: "k", severity_score: 40, recipient_phone: "A,B" },
+      ];
+      assertEquals(phonesStillDue(exception, ["A", "B", "C"], rows), [
+        "B",
+        "C",
+      ]);
+    },
+  );
+
+  await t.step("a row that lists no phone holds every phone", () => {
+    for (const recipient_phone of [null, ""]) {
+      assertEquals(
+        phonesStillDue(
+          { rule_type: "no_contact", fingerprint: "k" },
+          ["A", "B"],
+          [{ fingerprint: "k", recipient_phone }],
+        ),
+        [],
+      );
+    }
+  });
 });
 
 Deno.test("isSameInstantAlertFinding", async (t) => {

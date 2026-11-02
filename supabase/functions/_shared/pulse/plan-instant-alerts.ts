@@ -6,9 +6,11 @@ import type {
 } from "../pulse-instant-alerts.ts";
 import { withoutPhonesAlertedElsewhere } from "./cross-tenant-recipients.ts";
 import {
-  isInstantAlertSuppressed,
   type InstantAlertLogRow,
+  ownRecentDeliveries,
+  phonesStillDue,
 } from "./instant-alert-dedupe.ts";
+import { joinRecipientPhones } from "./instant-alert-send.ts";
 import type { PlannedInstantAlert } from "./planned-alert.ts";
 
 const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
@@ -19,12 +21,13 @@ const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
 };
 
 /**
- * Code decides what goes out, before any message is queued: dedupe and
- * throttle, then the org's recipients from `recipientsFor` minus the phones
- * an org sharing the client's agency already alerted. Alerts accepted
- * earlier in this run count like log rows, since they are logged only after
- * the sends. Two overlapping runs of one org can both plan an alert: there
- * is no per-org run lease yet (AIO-158).
+ * Code decides what goes out, before any message is queued: the org's
+ * recipients from `recipientsFor`, minus each phone this org already sent
+ * the finding to inside the rule's throttle window (dedupe is per phone),
+ * minus the phones an org sharing the client's agency already alerted.
+ * Alerts accepted earlier in this run count like log rows, since they are
+ * logged only after the sends. Two overlapping runs of one org can both plan
+ * an alert: there is no per-org run lease yet (AIO-158).
  */
 export async function planInstantAlerts(
   input: Pick<InstantPulseAlertsInput, "supabase" | "tenantId" | "snapshots">,
@@ -46,15 +49,13 @@ export async function planInstantAlerts(
       candidate.campaign_key || "",
     ].join("|");
     const earlier = acceptedThisRun.get(runKey) || [];
-    if (
-      await isInstantAlertSuppressed(
-        input,
-        candidate,
-        throttleHours,
-        now,
-        earlier,
-      )
-    ) {
+    const delivered = await ownRecentDeliveries(
+      input,
+      candidate,
+      throttleHours,
+      now,
+    );
+    if (!delivered) {
       skipped += 1;
       continue;
     }
@@ -62,11 +63,16 @@ export async function planInstantAlerts(
     const agencyId = input.snapshots.find(
       (snapshot) => snapshot.client_id === candidate.client_id,
     )?.agency_id;
+    const due = phonesStillDue(
+      candidate,
+      (await recipientsFor(candidate, agencyId)).map((row) => row.phone),
+      [...earlier, ...delivered],
+    );
     const recipients = await withoutPhonesAlertedElsewhere(
       input,
       candidate,
       agencyId,
-      await recipientsFor(candidate, agencyId),
+      due.map((phone) => ({ phone })),
       throttleHours,
       now,
     );
@@ -75,14 +81,15 @@ export async function planInstantAlerts(
       continue;
     }
 
+    const phones = recipients.map((row) => row.phone);
     acceptedThisRun.set(runKey, [
       {
         fingerprint: candidate.fingerprint,
         severity_score: candidate.severity_score,
+        recipient_phone: joinRecipientPhones(phones),
       },
       ...earlier,
     ]);
-    const phones = recipients.map((row) => row.phone);
     planned.push({ candidate, recipients: phones, sentTo: [] });
   }
 

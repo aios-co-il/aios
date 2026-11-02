@@ -136,6 +136,34 @@ Deno.test("sendRunMessages", async (t) => {
   );
 
   await t.step(
+    "the phone whose message failed gets the alerts next run; the phone they reached stays throttled",
+    async () => {
+      const supabase = fakeSupabase([], OWNER);
+      await withConsoleErrors(async () => {
+        await run(supabase, WEDNESDAY, [ACME], {
+          queueWhatsApp: async (_message, phone) => phone !== OWNER_PHONE,
+        });
+      });
+
+      const retry = await run(supabase, new Date(WEDNESDAY.getTime() + 3600e3));
+      assertEquals(
+        retry.sends.map((send) => send.phone),
+        [OWNER_PHONE],
+      );
+      assertEquals([retry.result.messages, retry.result.sent], [1, 2]);
+      assertEquals(logged(supabase.log), [
+        `c1 connection_lost ${PULSE_PHONE}`,
+        `c1 connection_lost ${OWNER_PHONE}`,
+        `c1 no_contact ${PULSE_PHONE}`,
+        `c1 no_contact ${OWNER_PHONE}`,
+      ]);
+
+      const after = await run(supabase, new Date(WEDNESDAY.getTime() + 7200e3));
+      assertEquals(after.sends, []);
+    },
+  );
+
+  await t.step(
     "alerts whose messages all failed are skipped, not logged, and go out next run",
     async () => {
       const supabase = fakeSupabase([], OWNER);

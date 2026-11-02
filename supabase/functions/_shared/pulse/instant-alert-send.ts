@@ -11,9 +11,9 @@ import { buildPulseRunMessage } from "./run-message.ts";
  * Queues one run message per recipient phone, listing every alert planned
  * for it, and records each phone reached in the alert's `sentTo`. Then each
  * alert is logged once per text it went out in, for the phones whose message
- * was queued. A phone whose message is not queued gets no row, so an alert
- * that reached no phone goes out next run. Only queued phones go in the log,
- * because another org's dedupe drops the phones it reads there
+ * was queued. A phone whose message is not queued is left out of the rows,
+ * so it gets the alert in the next run's message (dedupe is per phone,
+ * phonesStillDue). Another org's dedupe drops the phones it reads there too
  * (cross-tenant-recipients.ts).
  */
 export async function sendRunMessages(

@@ -334,18 +334,30 @@ export async function deliverInstantPulseAlerts(
   const candidates = evaluated.filter(
     (candidate) => !isPulseAlertHeldForShabbat(candidate, now),
   );
+  // Dedupe is per phone, so every candidate needs its recipients: read them
+  // once per agency in the run.
+  const recipientsByAgency = new Map<
+    string,
+    ReturnType<typeof resolveInstantAlertRecipients>
+  >();
   const plan = await planInstantAlerts(
     input,
     candidates,
     now,
-    (_candidate, agencyId) =>
-      resolveInstantAlertRecipients(
-        input.supabase,
-        input.tenantId,
-        agencyId,
-        input.reportRecipients,
-        input.tenantSlug,
-      ),
+    (_candidate, agencyId) => {
+      const key = agencyId ?? "";
+      const recipients =
+        recipientsByAgency.get(key) ??
+        resolveInstantAlertRecipients(
+          input.supabase,
+          input.tenantId,
+          agencyId,
+          input.reportRecipients,
+          input.tenantSlug,
+        );
+      recipientsByAgency.set(key, recipients);
+      return recipients;
+    },
   );
   const { messages } = await sendRunMessages(input, plan.planned, now);
   const sent = plan.planned.filter((item) => item.sentTo.length).length;

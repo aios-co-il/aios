@@ -2,24 +2,26 @@
 import type { Tables } from "../database.types.ts";
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
 import type { DbClient } from "../supabase-clients.ts";
+import { splitRecipientPhones } from "./instant-alert-send.ts";
 
 export type InstantAlertLogRow = Partial<
-  Pick<Tables<"pulse_instant_alert_log">, "fingerprint" | "severity_score">
+  Pick<
+    Tables<"pulse_instant_alert_log">,
+    "fingerprint" | "severity_score" | "recipient_phone"
+  >
 >;
 
 /**
- * True when this candidate must not go out: a matching log row inside the
- * rule's throttle window, or a failed lookup. A failed dedupe lookup must not
- * turn into a resend. `acceptedThisRun` holds the rows of alerts accepted
- * earlier in the same run (newest first), which are not logged yet.
+ * This org's log rows of the candidate's finding inside the rule's throttle
+ * window, newest first, or null when the lookup failed: a failed dedupe
+ * lookup must not turn into a resend.
  */
-export async function isInstantAlertSuppressed(
+export async function ownRecentDeliveries(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   candidate: PulseInstantAlertCandidate,
   throttleHours: number,
   now: Date,
-  acceptedThisRun: InstantAlertLogRow[] = [],
-): Promise<boolean> {
+): Promise<InstantAlertLogRow[] | null> {
   const { data, error } = await recentAlertDeliveries(
     input.supabase,
     [input.tenantId],
@@ -29,10 +31,39 @@ export async function isInstantAlertSuppressed(
   );
   if (error) {
     console.warn("[pulse-instant-alerts] dedupe lookup failed", error.message);
-    return true;
+    return null;
   }
-  return !decideInstantAlertDelivery(candidate, [...acceptedThisRun, ...data])
-    .send;
+  return data;
+}
+
+/**
+ * The phones the candidate is still due for (AIO-290): for each phone,
+ * decideInstantAlertDelivery runs on the rows that reached it, so a phone
+ * whose message failed gets the alert next run while the phones it reached
+ * keep their throttle window. A row that lists no phone (older rows may not)
+ * counts for every phone. `rows` are newest first.
+ */
+export function phonesStillDue(
+  candidate: Pick<
+    PulseInstantAlertCandidate,
+    "rule_type" | "fingerprint" | "severity_score"
+  >,
+  phones: string[],
+  rows: InstantAlertLogRow[],
+): string[] {
+  return phones.filter(
+    (phone) =>
+      decideInstantAlertDelivery(
+        candidate,
+        rows.filter((row) => rowReachedPhone(row, phone)),
+      ).send,
+  );
+}
+
+/** True when the row lists `phone`, or lists no phone at all. */
+function rowReachedPhone(row: InstantAlertLogRow, phone: string): boolean {
+  const listed = splitRecipientPhones(row.recipient_phone ?? null);
+  return !listed.length || listed.includes(phone);
 }
 
 /**

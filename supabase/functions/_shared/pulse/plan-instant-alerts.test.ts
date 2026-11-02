@@ -103,7 +103,7 @@ Deno.test("planInstantAlerts", async (t) => {
   );
 
   await t.step(
-    "a logged finding is skipped and a sharing org's phones are left out",
+    "a logged finding is skipped for the phones it reached and a sharing org's phones are left out",
     async () => {
       const sentAt = new Date(WEDNESDAY.getTime() - 3600e3).toISOString();
       const logged = {
@@ -117,10 +117,26 @@ Deno.test("planInstantAlerts", async (t) => {
       const ownLog = await plan(
         [exception()],
         fakeSupabase([
-          { ...logged, tenant_id: "t1", recipient_phone: OWNER_PHONE },
+          {
+            ...logged,
+            tenant_id: "t1",
+            recipient_phone: `${OWNER_PHONE},${MANAGER_PHONE}`,
+          },
         ]),
       );
       assertEquals(ownLog, { planned: [], skipped: 1 });
+
+      // Dedupe is per phone: a phone the logged alert did not reach is due.
+      const ownerOnly = await plan(
+        [exception()],
+        fakeSupabase([
+          { ...logged, tenant_id: "t1", recipient_phone: OWNER_PHONE },
+        ]),
+      );
+      assertEquals(
+        ownerOnly.planned.map((item) => item.recipients),
+        [[MANAGER_PHONE]],
+      );
 
       const otherOrgLog = [
         { ...logged, tenant_id: "t2", recipient_phone: OWNER_PHONE },
