@@ -236,7 +236,8 @@ export async function loadFilmSources(db, run) {
 /**
  * The film's settings on the run's work item, read for the run's tenant: the brand kit (colors,
  * font, logo, CTA) and the brand's name, the caption style (video.caption_style, "motion" unless
- * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), and
+ * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), whether
+ * its pictures are finished designs to show whole (video.keep_design), and
  * whether this run may pay for the effects: only the assembly of a running production
  * (advance_video_production records its render_run_id), up to what its approved quote priced
  * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
@@ -256,6 +257,7 @@ export async function loadFilmSettings(db, run) {
     captionStyle: captionStyleOf(row?.payload?.video?.caption_style),
     brandName: brandNameFromPayload(row?.payload),
     soundDesign: row?.payload?.video?.sound_design === true,
+    keepDesign: row?.payload?.video?.keep_design === true,
     effectsQuotedUsd:
       production?.status === "running" &&
       String(production.render_run_id ?? "") === String(run.id)
@@ -416,6 +418,7 @@ export async function renderFilm({
       soundDesign: settings.soundDesign,
       captionStyle: settings.captionStyle,
       brandName: settings.brandName,
+      keepDesign: settings.keepDesign,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

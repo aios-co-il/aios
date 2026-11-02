@@ -58,6 +58,28 @@ const camera = (move: WorkshopMove, progress: number) => {
 
 const cover = { width: "100%", height: "100%", objectFit: "cover" } as const;
 
+/**
+ * A finished design (an ad or poster with its own text) is shown whole: a blurred copy fills the
+ * frame behind it, so a 4:5 poster in a 9:16 film keeps its sides instead of being cropped.
+ */
+const ContainedStill: React.FC<{ src: string }> = ({ src }) => (
+  <AbsoluteFill>
+    <AbsoluteFill>
+      <Img
+        src={src}
+        style={{
+          ...cover,
+          filter: "blur(40px) brightness(0.6)",
+          transform: "scale(1.15)",
+        }}
+      />
+    </AbsoluteFill>
+    <AbsoluteFill>
+      <Img src={src} style={{ ...cover, objectFit: "contain" }} />
+    </AbsoluteFill>
+  </AbsoluteFill>
+);
+
 /** A clip shorter than its scene holds its last frame instead of going black. */
 const Clip: React.FC<{ scene: WorkshopScene }> = ({ scene }) => {
   const frame = useCurrentFrame();
@@ -167,6 +189,8 @@ const Picture: React.FC<{
                   </Sequence>
                 ) : null}
               </>
+            ) : scene.still && scene.fit === "contain" ? (
+              <ContainedStill src={staticFile(scene.still)} />
             ) : scene.still ? (
               <Img src={staticFile(scene.still)} style={cover} />
             ) : (
