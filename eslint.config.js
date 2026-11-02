@@ -31,7 +31,7 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
-      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/unified-signatures": "error",
       "no-unneeded-ternary": "warn",
       curly: "warn",
