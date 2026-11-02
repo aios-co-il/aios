@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { assembleFilm } from "../compose/assemble.mjs";
 import { brandFromPayload, brandNameFromPayload } from "../compose/brand.mjs";
 import { captionStyleOf } from "../compose/motion-captions.mjs";
-import { titleSizeOf, titleStyleOf } from "../compose/title-style.mjs";
+import {
+  filmFontOf,
+  titleSizeOf,
+  titleStyleOf,
+} from "../compose/title-style.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
@@ -242,7 +246,7 @@ export async function loadFilmSources(db, run) {
  * font, logo, CTA) and the brand's name, the caption style (video.caption_style, "motion" unless
  * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), whether
  * its pictures are finished designs to show whole (video.keep_design), how its scenes' text
- * enters and how large it is (video.title_style, video.title_size), and
+ * enters and how large it is (video.title_style, video.title_size), its font (video.font), and
  * whether this run may pay for the effects: only the assembly of a running production
  * (advance_video_production records its render_run_id), up to what its approved quote priced
  * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
@@ -265,6 +269,7 @@ export async function loadFilmSettings(db, run) {
     keepDesign: row?.payload?.video?.keep_design === true,
     titleStyle: titleStyleOf(row?.payload?.video?.title_style),
     titleSize: titleSizeOf(row?.payload?.video?.title_size),
+    font: filmFontOf(row?.payload?.video?.font),
     effectsQuotedUsd:
       production?.status === "running" &&
       String(production.render_run_id ?? "") === String(run.id)
@@ -428,6 +433,7 @@ export async function renderFilm({
       keepDesign: settings.keepDesign,
       titleStyle: settings.titleStyle,
       titleSize: settings.titleSize,
+      font: settings.font,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

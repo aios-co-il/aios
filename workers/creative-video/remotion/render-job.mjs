@@ -84,6 +84,23 @@ const TITLE_STYLES = [
   "blur",
 ];
 const TITLE_SIZES = ["small", "medium", "large", "huge"];
+// The film fonts of src/workshop-fonts.ts: their keys and files.
+const FONTS = [
+  "heebo",
+  "rubik",
+  "assistant",
+  "secular-one",
+  "suez-one",
+  "frank-ruhl-libre",
+];
+const FONT_FILES = [
+  "Heebo-Bold.ttf",
+  "Rubik.ttf",
+  "Assistant.ttf",
+  "SecularOne-Regular.ttf",
+  "SuezOne-Regular.ttf",
+  "FrankRuhlLibre.ttf",
+];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FONT = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 const frameNo = (n) => Number.isInteger(n) && n >= 0 && n <= totalFrames;
@@ -213,8 +230,13 @@ if (manifest.schemaVersion === 1) {
   const root = await realpath(dirname(resolve(manifestPath)));
   const publicDir = join(root, "public");
   await mkdir(join(publicDir, "fonts"), { recursive: true });
-  const fontSource = resolve("public/fonts/Heebo-Bold.ttf");
-  await copyFile(fontSource, join(publicDir, "fonts/Heebo-Bold.ttf"));
+  // Every film font (src/workshop-fonts.ts), so the composition can set any of them.
+  for (const file of FONT_FILES) {
+    await copyFile(
+      resolve(`public/fonts/${file}`),
+      join(publicDir, `fonts/${file}`),
+    );
+  }
   const v3 = manifest.schemaVersion === 3;
   for (const scene of sorted) {
     const still = scene.still || null;
@@ -316,6 +338,7 @@ if (manifest.schemaVersion === 1) {
     // Motion-graphic captions (render-worker motion-captions.mjs); karaoke lines otherwise.
     captionStyle:
       v3 && manifest.captionStyle === "motion" ? "motion" : "karaoke",
+    font: FONTS.includes(manifest.font) ? manifest.font : null,
     brand,
     endCardFrames,
     scenes: sorted.map((scene) => ({

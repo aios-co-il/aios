@@ -23,7 +23,7 @@ import {
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
-import { isTitleSize, isTitleStyle } from "../title-styles.ts";
+import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -366,6 +366,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             ...(isTitleSize(args.title_size)
               ? { title_size: args.title_size }
               : {}),
+            ...(isFilmFont(args.font) ? { font: args.font } : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },

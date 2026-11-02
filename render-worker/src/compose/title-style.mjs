@@ -1,7 +1,8 @@
 /**
  * How a scene's on-screen text enters and how large it is, in a Workshop film without narration
- * (Remotion workshop-title-styles.ts draws them). A scene's own choice (meta.title_style,
- * meta.title_size) wins over the film's (payload.video.title_style, title_size).
+ * (Remotion workshop-title-styles.ts draws them), and the film's font (payload.video.font,
+ * Remotion workshop-fonts.ts). A scene's own choice (meta.title_style, meta.title_size) wins over
+ * the film's (payload.video.title_style, title_size).
  */
 
 export const TITLE_STYLES = [
@@ -23,3 +24,17 @@ export const titleStyleOf = (value) =>
 /** A known title size, or null. */
 export const titleSizeOf = (value) =>
   TITLE_SIZES.includes(value) ? value : null;
+
+/** The keys of the film fonts (Remotion workshop-fonts.ts). */
+export const FILM_FONTS = [
+  "heebo",
+  "rubik",
+  "assistant",
+  "secular-one",
+  "suez-one",
+  "frank-ruhl-libre",
+];
+
+/** A known film font, or null. */
+export const filmFontOf = (value) =>
+  FILM_FONTS.includes(value) ? value : null;
