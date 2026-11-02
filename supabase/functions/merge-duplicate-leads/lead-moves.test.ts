@@ -3,10 +3,11 @@ import { type MergeDb, moveDuplicateRows } from "./lead-moves.ts";
 
 type Failure = { table: string; op: "select" | "update" | "upsert" };
 
+// tag-2 was added from another tenant; it stays that tenant's row.
 const TAGS = [
-  { tag_id: "tag-1", user_id: "u1" },
-  { tag_id: "tag-1", user_id: "u2" },
-  { tag_id: "tag-2", user_id: "u1" },
+  { tag_id: "tag-1", user_id: "u1", tenant_id: "t1" },
+  { tag_id: "tag-1", user_id: "u2", tenant_id: "t1" },
+  { tag_id: "tag-2", user_id: "u1", tenant_id: "t2" },
 ];
 
 /**
@@ -24,24 +25,19 @@ function fakeDb(fail?: Failure) {
   const db: MergeDb = {
     from: (table) => ({
       select: (columns) => ({
-        eq: (_column, tenantId) => ({
-          in: (_leadColumn, ids) => {
-            calls.push([table, "select", columns, tenantId, ids]);
-            return answer(table, "select", TAGS);
+        in: (_leadColumn, ids) => {
+          calls.push([table, "select", columns, ids]);
+          return answer(table, "select", TAGS);
+        },
+      }),
+      update: (row) => ({
+        in: (_leadColumn, ids) => ({
+          select: (_columns) => {
+            calls.push([table, "update", row, ids]);
+            return answer(table, "update", [{ id: "row-1" }]);
           },
         }),
       }),
-      update: (row) => {
-        const moved = (tenantId: string | null) => ({
-          in: (_leadColumn: "lead_id", ids: string[]) => ({
-            select: (_columns: "id") => {
-              calls.push([table, "update", row, tenantId, ids]);
-              return answer(table, "update", [{ id: "row-1" }]);
-            },
-          }),
-        });
-        return { ...moved(null), eq: (_column, tenantId) => moved(tenantId) };
-      },
       upsert: (rows, options) => ({
         select: (_columns) => {
           calls.push([table, "upsert", rows, options]);
@@ -60,7 +56,7 @@ const merge = {
 };
 
 Deno.test(
-  "moves everything on the duplicates to the surviving lead, in the tenant",
+  "moves everything on the duplicates to the surviving lead, whatever each row's tenant",
   async () => {
     const { db, calls } = fakeDb();
     assertEquals(await moveDuplicateRows(db, merge), {
@@ -71,25 +67,30 @@ Deno.test(
       sourceEvents: 1,
     });
     const toMaster = { lead_id: "master" };
-    const tagOf = (tagId: string) => ({
+    const tagOf = (tagId: string, tenantId: string) => ({
       tag_id: tagId,
       lead_id: "master",
-      tenant_id: "t1",
+      tenant_id: tenantId,
       user_id: "u1",
     });
     assertEquals(calls, [
-      ["chat_contact_tags", "select", "tag_id, user_id", "t1", ["d1", "d2"]],
+      // The duplicate ids come from the tenant's leads and scope every move.
+      [
+        "chat_contact_tags",
+        "select",
+        "tag_id, user_id, tenant_id",
+        ["d1", "d2"],
+      ],
       [
         "chat_contact_tags",
         "upsert",
-        [tagOf("tag-1"), tagOf("tag-2")],
+        [tagOf("tag-1", "t1"), tagOf("tag-2", "t2")],
         { onConflict: "tag_id,lead_id", ignoreDuplicates: true },
       ],
-      // lead_updates has no tenant_id; the duplicates are the tenant's leads.
-      ["lead_updates", "update", toMaster, null, ["d1", "d2"]],
-      ["tasks", "update", toMaster, "t1", ["d1", "d2"]],
-      ["chat_messages", "update", toMaster, "t1", ["d1", "d2"]],
-      ["lead_source_events", "update", toMaster, "t1", ["d1", "d2"]],
+      ["lead_updates", "update", toMaster, ["d1", "d2"]],
+      ["tasks", "update", toMaster, ["d1", "d2"]],
+      ["chat_messages", "update", toMaster, ["d1", "d2"]],
+      ["lead_source_events", "update", toMaster, ["d1", "d2"]],
     ]);
   },
 );

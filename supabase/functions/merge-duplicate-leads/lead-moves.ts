@@ -13,7 +13,6 @@ type MovedTable =
 type QueryError = { message: string } | null;
 type Rows<T> = PromiseLike<{ data: T[] | null; error: QueryError }>;
 type ByLeads<T> = { in: (column: "lead_id", ids: string[]) => T };
-type ByTenant<T> = { eq: (column: "tenant_id", value: string) => ByLeads<T> };
 type Returning = { select: (columns: "id") => Rows<unknown> };
 
 /** A tag row as the surviving lead gets it. */
@@ -28,11 +27,9 @@ export type TagRow = {
 export type MergeDb = {
   from: (table: MovedTable) => {
     select: (
-      columns: "tag_id, user_id",
-    ) => ByTenant<Rows<{ tag_id: string; user_id: string }>>;
-    update: (row: {
-      lead_id: string;
-    }) => ByTenant<Returning> & ByLeads<Returning>;
+      columns: "tag_id, user_id, tenant_id",
+    ) => ByLeads<Rows<{ tag_id: string; user_id: string; tenant_id: string }>>;
+    update: (row: { lead_id: string }) => ByLeads<Returning>;
     upsert: (
       rows: TagRow[],
       options: { onConflict: "tag_id,lead_id"; ignoreDuplicates: true },
@@ -57,9 +54,11 @@ export type MovedCounts = {
 };
 
 /**
- * Give the surviving lead everything on the duplicates, within the tenant.
- * Throws on the first failure, so the caller deletes nothing: the duplicate
- * delete would cascade whatever was not moved.
+ * Give the surviving lead everything on the duplicates. The duplicate ids come
+ * from the tenant's own leads, so they scope every move; a row on them is
+ * moved whatever its own tenant_id (e.g. a task a super admin added from
+ * another tenant), as the delete would otherwise cascade or orphan it.
+ * Throws on the first failure, so the caller deletes nothing.
  */
 export async function moveDuplicateRows(
   db: MergeDb,
@@ -80,8 +79,7 @@ export async function moveDuplicateRows(
 async function copyTags(db: MergeDb, merge: LeadMerge): Promise<number> {
   const { data: tags, error } = await db
     .from("chat_contact_tags")
-    .select("tag_id, user_id")
-    .eq("tenant_id", merge.tenantId)
+    .select("tag_id, user_id, tenant_id")
     .in("lead_id", merge.duplicateIds);
   if (error) {
     throw stopped("chat_contact_tags read", merge, error);
@@ -92,7 +90,7 @@ async function copyTags(db: MergeDb, merge: LeadMerge): Promise<number> {
       rows.set(tag.tag_id, {
         tag_id: tag.tag_id,
         lead_id: merge.masterId,
-        tenant_id: merge.tenantId,
+        tenant_id: tag.tenant_id,
         user_id: tag.user_id,
       });
     }
@@ -113,19 +111,15 @@ async function copyTags(db: MergeDb, merge: LeadMerge): Promise<number> {
   return copied?.length ?? 0;
 }
 
-/**
- * Point the duplicates' rows at the surviving lead. lead_updates has no
- * tenant_id; the duplicates themselves were read from the tenant's leads.
- */
+/** Point the duplicates' rows at the surviving lead. */
 async function moveRows(
   db: MergeDb,
   table: Exclude<MovedTable, "chat_contact_tags">,
   merge: LeadMerge,
 ): Promise<number> {
-  const update = db.from(table).update({ lead_id: merge.masterId });
-  const scoped =
-    table === "lead_updates" ? update : update.eq("tenant_id", merge.tenantId);
-  const { data, error } = await scoped
+  const { data, error } = await db
+    .from(table)
+    .update({ lead_id: merge.masterId })
     .in("lead_id", merge.duplicateIds)
     .select("id");
   if (error) {
