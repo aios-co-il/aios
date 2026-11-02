@@ -148,6 +148,11 @@ import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
 import { useLeadsViewMode } from "@/hooks/useLeadsViewMode";
+import { useLeadStageScopeDefault } from "@/components/leads/useLeadStageScopeDefault";
+import {
+  opensOnNewLeads,
+  type LeadStageScope,
+} from "@/components/leads/leadStageScope";
 import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
@@ -1074,6 +1079,11 @@ export default function Leads() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const { viewMode, setViewMode, defaultView, setDefaultView } =
     useLeadsViewMode(userId);
+  const {
+    savedScope: savedStageScope,
+    isSettled: stageScopeSettled,
+    saveScope: saveStageScope,
+  } = useLeadStageScopeDefault();
   const [tableLayout, setTableLayoutState] = useState<LeadTableLayout>(() => {
     if (typeof window === "undefined") return "by_date";
     return parseLeadTableLayout(
@@ -1131,17 +1141,37 @@ export default function Leads() {
     if (isKanbanView) setPage(1);
   }, [isKanbanView]);
 
+  // Open on new leads per the saved default (else chat only). Wait for the
+  // saved default so a late answer never overrides what the screen opened on.
   useEffect(() => {
-    if (viewMode !== "chat") {
-      skipChatStageDefault.current = false;
+    if (!stageScopeSettled) {
       return;
     }
-    if (skipChatStageDefault.current || activePresetId) return;
-    if (filterStageIds.length > 0) return;
-    if (!pipelineStagesData?.length) return;
+    if (!opensOnNewLeads(savedStageScope, viewMode)) {
+      // Without a saved default, each return to chat re-opens on new leads.
+      if (savedStageScope === null) {
+        skipChatStageDefault.current = false;
+      }
+      return;
+    }
+    if (
+      skipChatStageDefault.current ||
+      activePresetId ||
+      filterStageIds.length > 0 ||
+      !pipelineStagesData?.length
+    ) {
+      return;
+    }
     setStageFilterMode("show");
     setFilterStageIds([pipelineStagesData[0].stage_key]);
-  }, [viewMode, pipelineStagesData, activePresetId, filterStageIds]);
+  }, [
+    viewMode,
+    pipelineStagesData,
+    activePresetId,
+    filterStageIds,
+    savedStageScope,
+    stageScopeSettled,
+  ]);
 
   // Reset page to 1 and clear accumulated leads when filters change
   useEffect(() => {
@@ -3151,6 +3181,17 @@ export default function Leads() {
     setActivePresetId(null);
   };
 
+  /** Saves the opening scope and shows it right away. */
+  const handleDefaultStageScope = (scope: LeadStageScope) => {
+    saveStageScope(scope);
+    const newStageKey = pipelineStagesData?.[0]?.stage_key;
+    if (scope === "all") {
+      handleStageSelect("all");
+    } else if (newStageKey) {
+      handleStageSelect(newStageKey);
+    }
+  };
+
   const stagePresetCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const stage of PIPELINE_STAGES) {
@@ -3316,6 +3357,8 @@ export default function Leads() {
                   stageFilterMode={stageFilterMode}
                   onStageSelect={handleStageSelect}
                   stageCounts={stagePresetCounts}
+                  defaultStageScope={savedStageScope}
+                  onDefaultStageScopeChange={handleDefaultStageScope}
                 />
                 {viewMode === "table" && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -3503,6 +3546,8 @@ export default function Leads() {
               stageFilterMode={stageFilterMode}
               onStageSelect={handleStageSelect}
               stageCounts={stagePresetCounts}
+              defaultStageScope={savedStageScope}
+              onDefaultStageScopeChange={handleDefaultStageScope}
             />
 
             <div className="flex shrink-0 items-center gap-2">
