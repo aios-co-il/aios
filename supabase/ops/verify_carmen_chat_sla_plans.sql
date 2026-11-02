@@ -29,9 +29,12 @@ WHERE ocm.group_id = '<whatsapp_groups.id>' AND ocm.tenant_id = '<client tenant>
 LIMIT 1;
 
 -- (c) The direct-chat client lookup (key_clients): a scan of clients for the
---     tenant only (idx_clients_tenant_*), and of client_contacts by client_id.
+--     tenant only (idx_clients_tenant_*). client_contacts has no client_id
+--     index, so its contacts are read with a Seq Scan of the whole table:
+--     its size is the second result below.
 EXPLAIN SELECT public.phone_match_key(c.phone) FROM public.clients AS c
 WHERE c.tenant_id = '<tenant>' AND c.status NOT IN ('ended', 'inactive');
+SELECT pg_size_pretty(pg_total_relation_size('public.client_contacts'));
 
 -- (d) get_unlinked_client_groups (traffic CTE): idx_chat_messages_provider as in (a).
 EXPLAIN SELECT cm.group_id, count(*) FROM public.chat_messages AS cm

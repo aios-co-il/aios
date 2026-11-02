@@ -7,6 +7,9 @@ import {
 } from "../_shared/meta-whatsapp.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
+import { lineStore } from "../_shared/report-sender/line-store.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,6 +117,31 @@ Deno.serve(async (request) => {
     if (!tenantId) return reply({ error: "tenant_not_found" }, 404);
     if (!to) return reply({ error: "phone_number_required" }, 400);
 
+    const service = serviceClient();
+    const access = lineStore(service);
+    // callerMaySendForTenant's rule, kept inline because superAdmin is reused
+    // below for the integration ownership check.
+    const [member, superAdmin] = await Promise.all([
+      access.isMember(tenantId, userId),
+      access.isSuperAdmin(userId),
+    ]);
+    if (!member && !superAdmin) {
+      return reply({ error: "forbidden" }, 403);
+    }
+
+    const refused = await refuseClientSend(service, {
+      functionName: "send-meta-whatsapp-message",
+      tenantId,
+      channel: "whatsapp",
+      address: to,
+      groupId: null,
+      isServiceRole,
+      body,
+    });
+    if (refused) {
+      return refused;
+    }
+
     const guard = checkWhatsAppSend(to);
     if (guard.decision === "BLOCK") {
       console.warn("[send-meta-whatsapp] blocked by integration-guard", guard);
@@ -126,18 +154,6 @@ Deno.serve(async (request) => {
         403,
       );
     }
-
-    const [{ data: membership }, { data: superAdmin }] = await Promise.all([
-      admin
-        .from("tenant_users")
-        .select("user_id")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .maybeSingle(),
-      admin.rpc("is_super_admin", { _user_id: userId }),
-    ]);
-    if (!membership && superAdmin !== true)
-      return reply({ error: "forbidden" }, 403);
 
     let integrationQuery = admin
       .from("tenant_integrations")

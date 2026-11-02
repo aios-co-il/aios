@@ -1,0 +1,133 @@
+// The vocabulary of the client send guard (AIO-261): who an automatic send
+// reaches, who asked for it, and why the guard may refuse it. The web app
+// imports this module for the refusal labels, so it stays free of Deno and
+// browser APIs.
+import type { SendKind } from "../client-card/send-kind.ts";
+
+export type SendChannel = "whatsapp" | "email" | "telegram";
+
+/**
+ * `person`: a signed-in person picked the recipient (the call carries their
+ * JWT). `system`: the service role, so a program computed the recipient.
+ */
+export type SendOrigin = "person" | "system";
+
+/** What resolve_send_recipient calls an address, nearest the client first. */
+export const RECIPIENT_KINDS = [
+  "client",
+  "client_contact",
+  "client_group",
+  "lead",
+  "staff",
+  "unknown",
+] as const;
+
+export type RecipientKind = (typeof RECIPIENT_KINDS)[number];
+
+/** recipient_kind of a logged refusal whose address could not be resolved. */
+export const UNRESOLVED_RECIPIENT = "unresolved";
+
+export type SendRecipient = {
+  kind: RecipientKind;
+  /** Every client the address belongs to, across the sender's scope. */
+  clientIds: string[];
+  leadId: string | null;
+  groupId: string | null;
+  /** A WhatsApp group linked to more than one client. */
+  ambiguous: boolean;
+  /**
+   * The phone or email is also staff of the sending tenant itself: a
+   * member's profile, an active campaigner or sales person, an approved
+   * campaigner identity (pulse phones are not staff). The resolver has then
+   * dropped the sender's own cards, so any clientIds left are other
+   * tenants' clients, as for a client org's owner seen from that org. Only
+   * staff alerts and reports use it.
+   */
+  senderStaff: boolean;
+};
+
+/** Why the guard refused a send; client_send_refusals.reason holds these. */
+export const CLIENT_SEND_REFUSALS = [
+  "unclassified_service_send",
+  "person_only_kind",
+  "staff_only",
+  "proof_missing",
+  "proof_invalid",
+  "automation_without_ref",
+  "not_opted_in",
+  "no_subject",
+  "subject_mismatch",
+  "ambiguous_group",
+  "automation_broadcast_unverified",
+  "carmen_unverified",
+  "unresolvable_address",
+  "guard_error",
+] as const;
+
+export type ClientSendRefusal = (typeof CLIENT_SEND_REFUSALS)[number];
+
+/** One send the guard decides on, built by clientSendRequest. */
+export type ClientSendRequest = {
+  /** The edge function that sends, for the refusal log. */
+  functionName: string;
+  /** The sending tenant, already checked against the caller. */
+  tenantId: string;
+  channel: SendChannel;
+  /** What the provider gets: a chat id, phone, email or Telegram chat id. */
+  address: string;
+  /**
+   * The whatsapp_groups row whose chat id is the address; null when the send
+   * goes to a phone. The address is then a group whatever its suffix, and the
+   * resolver trusts the row even outside the sender's scope (a line shared
+   * from another tenant) when its chat id is the address.
+   */
+  groupId: string | null;
+  origin: SendOrigin;
+  /** The stored send_kind: null when a service-role caller named none. */
+  sendKind: SendKind | null;
+  sendRef: string | null;
+  /** The client the content is about: the sender's clientId field. */
+  subjectClientId: string | null;
+};
+
+/**
+ * What a sender knows about one send when it asks the guard: its checked
+ * tenant, the address the provider gets, the group row only when the send
+ * goes to that row's chat, and its request's own guard fields.
+ */
+export type SenderSend = {
+  functionName: string;
+  tenantId: string;
+  channel: SendChannel;
+  address: string;
+  groupId: unknown;
+  isServiceRole: boolean;
+  /** The request's sendKind, sendRef and clientId, as sent. */
+  body: { sendKind?: unknown; sendRef?: unknown; clientId?: unknown };
+};
+
+/**
+ * `observed`: a refusal that is only logged while its rule is observed
+ * (OBSERVED_REFUSALS in rules.ts); the send goes out.
+ */
+export type ClientSendDecision =
+  | {
+      allowed: true;
+      recipient: SendRecipient | null;
+      observed: ClientSendRefusal | null;
+    }
+  | {
+      allowed: false;
+      reason: ClientSendRefusal;
+      recipient: SendRecipient | null;
+    };
+
+export type ClientSendRefused = Extract<ClientSendDecision, { allowed: false }>;
+
+/**
+ * authorizeClientSend bound to a database, as a sender's checks step takes
+ * it, so a test can answer for the guard.
+ */
+export type ClientSendGuard = (
+  request: ClientSendRequest,
+) => Promise<ClientSendDecision>;

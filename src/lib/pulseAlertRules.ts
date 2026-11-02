@@ -19,8 +19,9 @@ export type PulseAlertRules = {
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
   /**
-   * Business hours a client's message in a linked group may wait for a staff
-   * reply before Carmen alerts the campaigner (the manager round reads it).
+   * Business hours a client's message in a linked group or a private chat may
+   * wait for a staff reply before Carmen alerts the campaigner (the manager
+   * round reads it).
    */
   unanswered_reply_hours?: number;
   manager?: PulseManagerSettings;

@@ -5,8 +5,8 @@
  * never leaves AIOS.
  */
 import type { Json } from "../../../_shared/database.types.ts";
-import { clip } from "./clip.ts";
 import { isJsonObject } from "../../../_shared/pulse/json.ts";
+import { clip } from "./clip.ts";
 
 export type ChatVerdict = {
   needs_reply: boolean;

@@ -1,4 +1,11 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { authorizeClientSend } from "../_shared/client-send/authorize.ts";
+import {
+  CLIENT,
+  guardDb,
+  resolved,
+} from "../_shared/client-send/fake-guard-db.ts";
+import type { ClientSendRequest } from "../_shared/client-send/types.ts";
 import type { GuardResult } from "../_shared/integration-guard.ts";
 import type { SenderLine } from "../_shared/report-sender/line-store.ts";
 import {
@@ -10,6 +17,7 @@ import {
 const TENANT = "tenant-a";
 const MEMBER = "user-member";
 const COLLEAGUE = "user-colleague";
+const GROUP = "66666666-6666-4666-8666-666666666666";
 
 /** A ready Green API line of the given tenant and owner. */
 const line = (id: string, tenant_id: string, user_id = MEMBER): SenderLine => ({
@@ -48,6 +56,7 @@ function deps(overrides: Partial<GreenFileSendDeps> = {}): GreenFileSendDeps {
     },
     legacyLine: async () => lines.own,
     guard: () => ALLOW,
+    clientSendGuard: (request) => authorizeClientSend(guardDb().db, request),
     ...overrides,
   };
 }
@@ -59,6 +68,10 @@ const send: GreenFileSendInput = {
   groupId: null,
   groupChatId: undefined,
   phoneNumber: "0501234567",
+  clientId: CLIENT,
+  isServiceRole: false,
+  sendKind: "report",
+  sendRef: null,
 };
 
 Deno.test("prepareGreenFileSend refuses", async (t) => {
@@ -153,5 +166,101 @@ Deno.test("prepareGreenFileSend resolves the line and chat", async (t) => {
       integrationId: null,
     });
     assertEquals("line" in result ? result.line.id : null, "own");
+  });
+});
+
+Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
+  await t.step("a person's report to a client, without a lookup", async () => {
+    const requests: ClientSendRequest[] = [];
+    const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
+    const result = await prepareGreenFileSend(
+      deps({
+        clientSendGuard: (request) => {
+          requests.push(request);
+          return authorizeClientSend(guard.db, request);
+        },
+      }),
+      send,
+    );
+    assertEquals("line" in result, true);
+    assertEquals(requests, [
+      {
+        functionName: "send-green-api-file",
+        tenantId: TENANT,
+        channel: "whatsapp",
+        address: "972501234567@c.us",
+        groupId: null,
+        origin: "person",
+        sendKind: "report",
+        sendRef: null,
+        subjectClientId: CLIENT,
+      },
+    ]);
+    assertEquals(guard.rpcCalls, []);
+  });
+
+  await t.step("the group row only when the file goes there", async () => {
+    const requests: ClientSendRequest[] = [];
+    const recording = deps({
+      clientSendGuard: (request) => {
+        requests.push(request);
+        return authorizeClientSend(guardDb().db, request);
+      },
+    });
+    await prepareGreenFileSend(recording, {
+      ...send,
+      groupId: GROUP,
+      groupChatId: "120363416882903532@g.us",
+    });
+    await prepareGreenFileSend(recording, { ...send, groupId: GROUP });
+    assertEquals(
+      requests.map((request) => [request.address, request.groupId]),
+      [
+        ["120363416882903532@g.us", GROUP],
+        ["972501234567@c.us", null],
+      ],
+    );
+  });
+
+  await t.step("a service-role send, as the auth step says", async () => {
+    const requests: ClientSendRequest[] = [];
+    await prepareGreenFileSend(
+      deps({
+        clientSendGuard: (request) => {
+          requests.push(request);
+          return authorizeClientSend(guardDb().db, request);
+        },
+      }),
+      { ...send, isServiceRole: true },
+    );
+    assertEquals(
+      requests.map((request) => request.origin),
+      ["system"],
+    );
+  });
+
+  await t.step("a refusal stops the send before Green API", async () => {
+    const destinations: string[] = [];
+    const result = await prepareGreenFileSend(
+      deps({
+        clientSendGuard: async () => ({
+          allowed: false,
+          reason: "staff_only",
+          recipient: null,
+        }),
+        guard: (destination) => {
+          destinations.push(destination);
+          return ALLOW;
+        },
+      }),
+      send,
+    );
+    assertEquals(result, {
+      refusal: {
+        status: 403,
+        body: { error: "client_send_not_authorized", reason: "staff_only" },
+      },
+    });
+    assertEquals(destinations, []);
   });
 });

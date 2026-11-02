@@ -4,6 +4,7 @@ import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { claimIdenticalWhatsAppSend } from "../_shared/facebook-lead-dedup.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
 import { sendLine } from "../_shared/report-sender/text-line.ts";
 import { liveLineDeps } from "./line.ts";
 
@@ -259,6 +260,19 @@ Deno.serve(async (req) => {
       }
 
       chatId = `${e164Digits}@c.us`;
+    }
+
+    const refused = await refuseClientSend(serviceClient(), {
+      functionName: "send-green-api-message",
+      tenantId,
+      channel: "whatsapp",
+      address: chatId,
+      groupId: groupChatId ? groupId : null,
+      isServiceRole,
+      body: { sendKind, sendRef, clientId },
+    });
+    if (refused) {
+      return refused;
     }
 
     const guard = checkWhatsAppSend(

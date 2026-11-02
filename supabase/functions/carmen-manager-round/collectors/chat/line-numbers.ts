@@ -7,10 +7,10 @@
  * in that group as an inbound message from this number.
  */
 import type { Json } from "../../../_shared/database.types.ts";
+import { isJsonObject } from "../../../_shared/pulse/json.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { MONITORED_PROVIDER } from "./activity.ts";
-import { isJsonObject } from "../../../_shared/pulse/json.ts";
 
 /** A line's number and the tenant whose line it is. */
 export type LinePhone = { tenantId: string; phone: string };
