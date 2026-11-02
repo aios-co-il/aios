@@ -101,7 +101,7 @@ let clientsAgencyDefaultApplied = false;
 export default function Clients() {
   const { selectedAgency, setSelectedAgency } = useAgency();
   const { userAgencyIds } = useUserAgencies();
-  const { canViewFinance } = useUserPermissions();
+  const { canViewFinance, financeAccessReady } = useUserPermissions();
   const {
     campaignerId,
     isCampaigner,
@@ -1082,6 +1082,7 @@ export default function Clients() {
             clients={visibleClients || []}
             agencies={agencies}
             canViewFinance={canViewFinance()}
+            financeAccessReady={financeAccessReady}
             getClientFinancialData={getClientFinancialData}
             initialClientId={pendingChatClientId ?? deepLinkClientId}
             initialTab={deepLinkTab}
@@ -1617,6 +1618,9 @@ export default function Clients() {
                     </TableCell>
                     <TableCell className="py-4">
                       {(() => {
+                        if (!financeAccessReady) {
+                          return null;
+                        }
                         const financialData = getClientFinancialData(client.id);
                         const retainerValue =
                           financialData?.retainer ||
@@ -1640,6 +1644,9 @@ export default function Clients() {
 
                     <TableCell className="py-4">
                       {(() => {
+                        if (!financeAccessReady) {
+                          return null;
+                        }
                         const financialData = getClientFinancialData(client.id);
                         const budgetValue =
                           financialData?.monthly_budget ||
