@@ -82,7 +82,7 @@ import {
   resolveNewTaskAgency,
   buildTasksBoardScopeOrFilter,
   resolveTasksBoardScope,
-  filterTasksForBoardView,
+  filterTasksBySelectedAgency,
   syncLocalTasksForAgencyFilter,
   filterTasksByBoardTenantScope,
 } from "@/lib/taskBoardAgency";
@@ -799,11 +799,7 @@ export function WeeklyTaskBoard() {
   const applyBoardViewFilters = useMemo(
     () => (rows: FullTask[]) => {
       let filtered = filterTasksByBoardTenantScope(
-        filterTasksForBoardView(
-          rows,
-          selectedAgency,
-          effectiveCampaignerFilter,
-        ),
+        filterTasksBySelectedAgency(rows, selectedAgency),
         tenantId!,
         crossTenantAgencyIds,
       );
@@ -867,7 +863,6 @@ export function WeeklyTaskBoard() {
       fetchedTasks,
       previousLocal: localTasks,
       selectedAgency,
-      campaignerFilter: effectiveCampaignerFilter,
       applyCampaignerFilter: applyBoardViewFilters,
     });
     setLocalTasks(next);
