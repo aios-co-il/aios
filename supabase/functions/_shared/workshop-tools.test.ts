@@ -883,7 +883,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    await executeWorkshopTool(
+    const result = (await executeWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -891,11 +891,13 @@ Deno.test(
       async () => {},
       null,
       { defaultEngine: async () => "openrouter" as const },
-    );
+    )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as { p_provider: string };
     // Not a video model, which redraws the picture and garbles its text.
     assertStrictEquals(rpc.p_provider, "mock");
+    // Asked for in this call: nothing to point out.
+    assertStrictEquals(result.kept_design_note, undefined);
     const saved = db.calls
       .filter((c) => c.table === "marketing_work_items" && c.op === "update")
       .map(
@@ -926,7 +928,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    await executeWorkshopTool(
+    const result = (await executeWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -934,10 +936,13 @@ Deno.test(
       async () => {},
       null,
       { defaultEngine: async () => "openrouter" as const },
-    );
+    )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as { p_provider: string };
     assertStrictEquals(rpc.p_provider, "mock");
+    // Staging, 2 Nov: Carmen did not know the film still kept its design when the user asked for
+    // real animation, so she is told how to undo it.
+    assertMatch(String(result.kept_design_note), /keep_design=false/);
   },
 );
 

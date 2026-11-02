@@ -31,6 +31,9 @@ import {
 
 type Scene = Record<string, unknown>;
 
+const KEPT_DESIGN_NOTE =
+  "הסרט שמר את העיצוב מההפקה הקודמת (keep_design): הסצנות הן תנועת מצלמה על התמונות, בלי הנפשה. אם המשתמש ביקש הנפשה אמיתית, אמרי לו והפיקי שוב עם keep_design=false.";
+
 /**
  * Of the scenes kept as they are, the talking ones the production lip-syncs again: a still to
  * lip-sync and a clip that does not say the current line (advance_video_production's rule).
@@ -451,6 +454,10 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     engine: ENGINE_LABEL[engine],
     client_id: clientId,
     ...(soundDesign ? { sound_design: true } : {}),
+    // A design kept from the film's last production, not asked for now: Carmen can undo it.
+    ...(keepDesign && typeof args.keep_design !== "boolean"
+      ? { kept_design_note: KEPT_DESIGN_NOTE }
+      : {}),
     message:
       "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",
     artifact,
