@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   resolveBoardTaskAgency,
   resolveNewTaskAgency,
@@ -210,6 +210,7 @@ test("resolveTasksBoardScope ignores own-tenant agency ids (not cross-tenant sha
     type: "tenant_or_shared",
     tenantId: "tenant-promo",
     crossTenantAgencyIds: ["agency-dmm-mc"],
+    ownedAgencyShares: [],
   });
 });
 
@@ -269,4 +270,48 @@ test("syncLocalTasksForAgencyFilter applies settled server rows for the agency",
     selectedAgency: PROMO,
   });
   expect(settled.map((task) => task.id)).toStrictEqual(["2"]);
+});
+
+describe("own agency tasks stamped by a tenant it is shared with", () => {
+  const mcTenant = "tenant-mc";
+  const promoShare = { agencyId: PROMO, tenantId: "tenant-promo" };
+
+  test("the board fetch asks for each owned agency and share tenant pair", () => {
+    const scope = resolveTasksBoardScope({
+      tenantId: mcTenant,
+      ownedAgencyShares: [promoShare],
+    });
+    expect(buildTasksBoardScopeOrFilter(scope)).toBe(
+      "tenant_id.eq.tenant-mc,and(agency_id.eq.agency-promo,tenant_id.eq.tenant-promo)",
+    );
+  });
+
+  test("a task the share tenant made on the owned agency stays on the board", () => {
+    expect(
+      taskBelongsToBoardTenantScope(
+        {
+          tenant_id: "tenant-promo",
+          agency_id: PROMO,
+          client_id: null,
+          clients: null,
+        },
+        mcTenant,
+        [],
+        [promoShare],
+      ),
+    ).toBe(true);
+  });
+
+  test("a task on the owned agency from a tenant without the share is dropped", () => {
+    const rows = [
+      { id: "kept", tenant_id: "tenant-promo", agency_id: PROMO },
+      { id: "unshared", tenant_id: "tenant-other", agency_id: PROMO },
+      { id: "other-agency", tenant_id: "tenant-promo", agency_id: DMM },
+    ];
+    expect(
+      filterTasksByBoardTenantScope(rows, mcTenant, [], [promoShare]).map(
+        (task) => task.id,
+      ),
+    ).toStrictEqual(["kept"]);
+  });
 });

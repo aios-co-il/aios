@@ -74,6 +74,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useViewAs } from "@/contexts/ViewAsContext";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
+import { useOwnedAgencyShares } from "./useOwnedAgencyShares";
 import { useAgency } from "@/contexts/AgencyContext";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -205,6 +206,7 @@ export function WeeklyTaskBoard() {
 
   // Fetch clients for inline selector
   const { crossTenantAgencyIds } = useCrossTenantAgencyIds();
+  const ownedAgencyShares = useOwnedAgencyShares(tenantId);
 
   // Fetch campaigners for quick filter (include cross-tenant via shared agencies)
   const { data: campaignersList = [] } = useQuery({
@@ -524,6 +526,7 @@ export function WeeklyTaskBoard() {
       "tasks",
       tenantId,
       crossTenantAgencyIds,
+      ownedAgencyShares,
       (agencies || []).map((agency) => agency.id).join(","),
       viewMode === "chat" ? "chat" : format(dateRange.start, "yyyy-MM-dd"),
       viewMode === "chat" ? "chat" : format(dateRange.end, "yyyy-MM-dd"),
@@ -563,6 +566,7 @@ export function WeeklyTaskBoard() {
       const boardScope = resolveTasksBoardScope({
         tenantId: tenantId!,
         crossTenantAgencyIds,
+        ownedAgencyShares,
       });
 
       let collaboratorTaskIds: string[] = [];
@@ -814,6 +818,7 @@ export function WeeklyTaskBoard() {
         ),
         tenantId!,
         crossTenantAgencyIds,
+        ownedAgencyShares,
       );
       filtered = filterTasksByCampaignerBoardFilter(
         filtered,
@@ -858,6 +863,7 @@ export function WeeklyTaskBoard() {
       viewMode,
       tenantId,
       crossTenantAgencyIds,
+      ownedAgencyShares,
       mineIdentity,
       isViewingAs,
       boardUserId,
