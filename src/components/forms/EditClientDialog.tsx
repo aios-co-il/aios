@@ -396,8 +396,9 @@ export function EditClientDialog({
     },
   });
 
-  const { canViewFinance } = useUserPermissions();
+  const { canViewFinance, canEditFinance } = useUserPermissions();
   const showFinanceFields = canViewFinance();
+  const financeFieldsReadOnly = !canEditFinance();
 
   // Fetch tenant-specific financial data
   const { data: financialData } = useQuery({
@@ -534,8 +535,9 @@ export function EditClientDialog({
         throw new Error("אין הרשאה לעדכן את הלקוח (או שהלקוח לא נמצא)");
       }
 
-      // Update or insert tenant-specific financial data
-      if (canViewFinance()) {
+      // Retainer and budget follow the finance write rule (RLS on
+      // client_tenant_financial_data); anyone else saves the client without them.
+      if (canEditFinance()) {
         const financialPayload = {
           client_id: client.id,
           tenant_id: tenantId,
@@ -925,7 +927,11 @@ export function EditClientDialog({
                               {getFieldLabel("retainer", "ריטיינר")} (₪)
                             </FormLabel>
                             <FormControl>
-                              <Input {...field} type="number" />
+                              <Input
+                                {...field}
+                                type="number"
+                                disabled={financeFieldsReadOnly}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -942,7 +948,11 @@ export function EditClientDialog({
                               (₪)
                             </FormLabel>
                             <FormControl>
-                              <Input {...field} type="number" />
+                              <Input
+                                {...field}
+                                type="number"
+                                disabled={financeFieldsReadOnly}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
