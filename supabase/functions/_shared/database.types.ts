@@ -8531,7 +8531,7 @@ export type Database = {
           lead_id: string;
           received_at: string;
           source: string;
-          tenant_id: string | null;
+          tenant_id: string;
         };
         Insert: {
           campaign_name?: string | null;
@@ -8539,7 +8539,7 @@ export type Database = {
           lead_id: string;
           received_at?: string;
           source: string;
-          tenant_id?: string | null;
+          tenant_id: string;
         };
         Update: {
           campaign_name?: string | null;
@@ -8547,7 +8547,7 @@ export type Database = {
           lead_id?: string;
           received_at?: string;
           source?: string;
-          tenant_id?: string | null;
+          tenant_id?: string;
         };
         Relationships: [
           {
@@ -17378,7 +17378,13 @@ export type Database = {
         Args: { p_campaign_name: string; p_source: string };
         Returns: string[];
       };
+      lead_source_compact: { Args: { p_source: string }; Returns: string };
       lead_source_is_given: { Args: { p_source: string }; Returns: boolean };
+      lead_source_key: { Args: { p_source: string }; Returns: string };
+      lead_source_matches: {
+        Args: { p_source: string; p_wanted: string };
+        Returns: boolean;
+      };
       lead_source_tag_name: { Args: { p_source: string }; Returns: string };
       link_visitor_to_lead: {
         Args: {

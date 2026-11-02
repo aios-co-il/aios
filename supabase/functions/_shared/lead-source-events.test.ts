@@ -51,7 +51,18 @@ Deno.test("records a repeat arrival with the source as sent", async () => {
 
 Deno.test("adds nothing when the arrival names no source", async () => {
   const client = fakeClient();
-  await recordLeadSourceEvent(client, { leadId: "lead-1", source: "" });
-  await recordLeadSourceEvent(client, { leadId: "lead-1", source: "other" });
+  const lead = { leadId: "lead-1", tenantId: "tenant-1" };
+  await recordLeadSourceEvent(client, { ...lead, source: "" });
+  await recordLeadSourceEvent(client, { ...lead, source: "other" });
+  assertStrictEquals(client.inserts.length, 0);
+});
+
+Deno.test("adds nothing for a lead without a tenant", async () => {
+  const client = fakeClient();
+  await recordLeadSourceEvent(client, {
+    leadId: "lead-1",
+    tenantId: null,
+    source: "FB",
+  });
   assertStrictEquals(client.inserts.length, 0);
 });

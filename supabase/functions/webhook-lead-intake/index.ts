@@ -481,7 +481,7 @@ Deno.serve(async (req) => {
 
       await recordLeadSourceEvent(supabase, {
         leadId: existingLead.id,
-        tenantId,
+        tenantId: existingLead.tenant_id,
         source: sentSource,
         campaignName: payload.campaign_name,
       });

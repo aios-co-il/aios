@@ -7,8 +7,9 @@ export function givenLeadSource(raw: unknown): string | null {
 }
 
 /**
- * Add a dated row to the lead's arrival-source history. New leads get their
- * first row from a database trigger; call this for repeat arrivals.
+ * Add a dated row to the lead's arrival-source history, under the lead's own
+ * tenant (pass the lead row's tenant_id). New leads get their first row from a
+ * database trigger; call this for repeat arrivals.
  */
 export async function recordLeadSourceEvent(
   supabase: {
@@ -20,16 +21,23 @@ export async function recordLeadSourceEvent(
   },
   args: {
     leadId: string;
-    tenantId?: string | null;
+    tenantId: string | null;
     source: unknown;
     campaignName?: string | null;
   },
 ): Promise<void> {
   const source = givenLeadSource(args.source);
   if (!source) return;
+  if (!args.tenantId) {
+    console.error(
+      "⚠️ Lead source event skipped: lead has no tenant",
+      args.leadId,
+    );
+    return;
+  }
   const { error } = await supabase.from("lead_source_events").insert({
     lead_id: args.leadId,
-    tenant_id: args.tenantId ?? null,
+    tenant_id: args.tenantId,
     source,
     campaign_name: args.campaignName?.trim() || null,
   });

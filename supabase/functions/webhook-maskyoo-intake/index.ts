@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
       await updateLeadWithRepeatReopen(supabase, existingLead.id, updates);
       await recordLeadSourceEvent(supabase, {
         leadId: existingLead.id,
-        tenantId,
+        tenantId: existingLead.tenant_id,
         source: "cold_call",
       });
 

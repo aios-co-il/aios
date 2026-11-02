@@ -833,7 +833,7 @@ serve(async (req) => {
 
                 await recordLeadSourceEvent(supabase, {
                   leadId: existingLead.id,
-                  tenantId: integration.tenant_id,
+                  tenantId: existingLead.tenant_id,
                   source: leadRecord.source || "paid_ads",
                   campaignName: leadRecord.campaign_name,
                 });
