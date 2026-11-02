@@ -32,6 +32,10 @@ import { EntityTaskCard } from "@/components/tasks/EntityTaskCard";
 import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import {
+  UPDATE_AUTHOR_SELECT,
+  resolveUpdateAuthorName,
+} from "@/lib/updateAuthor";
 import { ensureLeadHomeAgency } from "@/lib/resolveTenantAgencyDb";
 
 interface LeadUpdatesTabProps {
@@ -94,7 +98,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
         .select(
           `
           *,
-          profiles:user_id (full_name, email)
+          ${UPDATE_AUTHOR_SELECT}
         `,
         )
         .eq("lead_id", leadId)
@@ -377,9 +381,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
                           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                             <User className="h-3 w-3 shrink-0" />
                             <span>
-                              {update.profiles?.full_name ||
-                                update.profiles?.email ||
-                                "משתמש"}
+                              {resolveUpdateAuthorName(update.profiles)}
                             </span>
                             <span>•</span>
                             <Calendar className="h-3 w-3 shrink-0" />
