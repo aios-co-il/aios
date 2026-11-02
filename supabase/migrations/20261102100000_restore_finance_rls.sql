@@ -23,8 +23,9 @@
 --   the full finance permission, so a user granted it sees the Finance page's
 --   rows. Writes to finance now need the full permission, not finance_view.
 -- - suppliers and client_suppliers are unchanged.
--- - anon can no longer execute has_finance_permission. Only policies TO
---   authenticated call it, and no client calls it as an RPC.
+-- - anon can no longer execute has_finance_permission. Policies TO
+--   authenticated call it, and so does useUserPermissions (signed in), which
+--   reads both helpers so the app offers exactly what these policies allow.
 --
 -- No data changes.
 
