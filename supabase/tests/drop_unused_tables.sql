@@ -1,4 +1,4 @@
--- Drop unused tables (20261101105000_drop_unused_tables): checks that none of
+-- Drop unused tables (20261102113200_drop_unused_tables): checks that none of
 -- the twelve dropped tables exists. Reads only, inside one transaction that is
 -- rolled back.
 BEGIN;
