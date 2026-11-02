@@ -1,11 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { normalizeLeadNotes, patchLeadNotesInCache } from "./leadNotes.ts";
 
 test("blank notes are stored as empty", () => {
-  assert.equal(normalizeLeadNotes("  שלום  "), "שלום");
-  assert.equal(normalizeLeadNotes("   "), null);
-  assert.equal(normalizeLeadNotes(""), null);
+  expect(normalizeLeadNotes("  שלום  ")).toBe("שלום");
+  expect(normalizeLeadNotes("   ")).toBe(null);
+  expect(normalizeLeadNotes("")).toBe(null);
 });
 
 test("notes cache update touches the matching lead only", () => {
@@ -13,7 +12,7 @@ test("notes cache update touches the matching lead only", () => {
     { id: "a", notes: "ישן" },
     { id: "b", notes: null },
   ];
-  assert.deepEqual(patchLeadNotesInCache(table, "b", "חדש"), [
+  expect(patchLeadNotesInCache(table, "b", "חדש")).toStrictEqual([
     { id: "a", notes: "ישן" },
     { id: "b", notes: "חדש" },
   ]);
@@ -21,7 +20,7 @@ test("notes cache update touches the matching lead only", () => {
   const kanban = {
     new: { leads: [{ id: "a", notes: "ישן" }], totalCount: 1 },
   };
-  assert.deepEqual(patchLeadNotesInCache(kanban, "a", null), {
+  expect(patchLeadNotesInCache(kanban, "a", null)).toStrictEqual({
     new: { leads: [{ id: "a", notes: null }], totalCount: 1 },
   });
 });

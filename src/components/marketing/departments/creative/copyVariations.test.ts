@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   copyBlockLabel,
   copyBlocksForGeneration,
@@ -41,37 +40,37 @@ CTA:
 
 test("splits a Copy-department document into one block per וריאציה", () => {
   const blocks = splitCopyVariations(DOC);
-  assert.equal(blocks.length, 2);
-  assert.equal(blocks[0].key, "1");
-  assert.equal(blocks[0].parts.headline, "המתחרים");
-  assert.equal(blocks[0].parts.cta, "השאירו פרטים לבדיקת הנוכחות שלכם");
-  assert.equal(blocks[1].key, "2");
-  assert.equal(blocks[1].parts.headline, "רודוס");
-  assert.equal(blocks[1].parts.offer, "כולל מזוודה וטרולי");
-  assert.match(copyBlockLabel(blocks[0]), /פומו תחרותי/);
+  expect(blocks.length).toBe(2);
+  expect(blocks[0].key).toBe("1");
+  expect(blocks[0].parts.headline).toBe("המתחרים");
+  expect(blocks[0].parts.cta).toBe("השאירו פרטים לבדיקת הנוכחות שלכם");
+  expect(blocks[1].key).toBe("2");
+  expect(blocks[1].parts.headline).toBe("רודוס");
+  expect(blocks[1].parts.offer).toBe("כולל מזוודה וטרולי");
+  expect(copyBlockLabel(blocks[0])).toMatch(/פומו תחרותי/);
 });
 
 test("bullet variation headers keep the copy angle", () => {
   const [block] = splitCopyVariations(
     "וריאציה 3 • מגולל לצ'אט\nכותרת: תפתח צ'אט",
   );
-  assert.equal(block?.angle, "מגולל לצ'אט");
-  assert.match(copyBlockLabel(block!), /מגולל לצ'אט/);
+  expect(block?.angle).toBe("מגולל לצ'אט");
+  expect(copyBlockLabel(block!)).toMatch(/מגולל לצ'אט/);
 });
 
 test("a document without headers is a single copy block", () => {
   const blocks = splitCopyVariations("כותרת: רודוס\nCTA: הזמינו");
-  assert.equal(blocks.length, 1);
-  assert.equal(blocks[0].parts.headline, "רודוס");
+  expect(blocks.length).toBe(1);
+  expect(blocks[0].parts.headline).toBe("רודוס");
 });
 
 test("multiple כותרת blocks split when there is no וריאציה header", () => {
   const blocks = splitCopyVariations(
     "כותרת:\nאלפא\nCTA: אחד\n\nכותרת:\nבטא\nCTA: שתיים",
   );
-  assert.equal(blocks.length, 2);
-  assert.equal(blocks[0].parts.headline, "אלפא");
-  assert.equal(blocks[1].parts.headline, "בטא");
+  expect(blocks.length).toBe(2);
+  expect(blocks[0].parts.headline).toBe("אלפא");
+  expect(blocks[1].parts.headline).toBe("בטא");
 });
 
 const stored = (
@@ -113,12 +112,12 @@ test("hydrateCopyVariations preserves approval by variation key", () => {
     }),
     stored({ key: "2", approved: false, id: "keep-2" }),
   ]);
-  assert.equal(next.length, 2);
-  assert.equal(next[0].id, "keep-1");
-  assert.equal(next[0].approved, true);
-  assert.equal(next[0].headline, "המתחרים");
-  assert.equal(next[1].id, "keep-2");
-  assert.equal(next[1].approved, false);
+  expect(next.length).toBe(2);
+  expect(next[0].id).toBe("keep-1");
+  expect(next[0].approved).toBe(true);
+  expect(next[0].headline).toBe("המתחרים");
+  expect(next[1].id).toBe("keep-2");
+  expect(next[1].approved).toBe(false);
 });
 
 test("copyBlocksForGeneration prefers approved copies", () => {
@@ -129,9 +128,9 @@ test("copyBlocksForGeneration prefers approved copies", () => {
       stored({ key: "2", approved: false }),
     ],
   });
-  assert.equal(blocks.length, 1);
-  assert.equal(blocks[0].key, "1");
-  assert.equal(blocks[0].parts.headline, "המתחרים");
+  expect(blocks.length).toBe(1);
+  expect(blocks[0].key).toBe("1");
+  expect(blocks[0].parts.headline).toBe("המתחרים");
 });
 
 test("pairConceptsToCopyVariations links by copyKey then by index", () => {
@@ -146,10 +145,10 @@ test("pairConceptsToCopyVariations links by copyKey then by index", () => {
     ],
     copies,
   );
-  assert.equal(paired[0].copyId, "b");
-  assert.equal(paired[0].copyKey, "2");
-  assert.equal(paired[1].copyId, "a");
-  assert.equal(paired[1].copyKey, "1");
+  expect(paired[0].copyId).toBe("b");
+  expect(paired[0].copyKey).toBe("2");
+  expect(paired[1].copyId).toBe("a");
+  expect(paired[1].copyKey).toBe("1");
 });
 
 test("conceptCopyJobsForGeneration yields one job per approved concept with its copy", () => {
@@ -164,19 +163,19 @@ test("conceptCopyJobsForGeneration yields one job per approved concept with its 
       concept({ id: "c2", name: "Old Spice", copyKey: "1" }),
     ],
   });
-  assert.equal(jobs.length, 2);
-  assert.equal(jobs[0].concept?.name, "Think Small");
-  assert.equal(jobs[0].copy.key, "2");
-  assert.match(jobs[0].copy.text, /רודוס/);
-  assert.equal(jobs[1].concept?.name, "Old Spice");
-  assert.equal(jobs[1].copy.key, "1");
+  expect(jobs.length).toBe(2);
+  expect(jobs[0].concept?.name).toBe("Think Small");
+  expect(jobs[0].copy.key).toBe("2");
+  expect(jobs[0].copy.text).toMatch(/רודוס/);
+  expect(jobs[1].concept?.name).toBe("Old Spice");
+  expect(jobs[1].copy.key).toBe("1");
 });
 
 test("conceptCopyJobsForGeneration falls back to copy blocks when there are no concepts", () => {
   const jobs = conceptCopyJobsForGeneration({ copy_text: DOC });
-  assert.equal(jobs.length, 2);
-  assert.equal(jobs[0].concept, undefined);
-  assert.equal(jobs[0].copy.key, "1");
+  expect(jobs.length).toBe(2);
+  expect(jobs[0].concept).toBe(undefined);
+  expect(jobs[0].copy.key).toBe("1");
 });
 
 test("applyVariationText edits one variation without swallowing siblings", () => {
@@ -189,15 +188,15 @@ test("applyVariationText edits one variation without swallowing siblings", () =>
     text: "וריאציה 1 — פומו\nכותרת:\nישן\nCTA:\nישן",
   });
   const next = applyVariationText(item, "כותרת:\nחדש\nCTA:\nלחצו");
-  assert.equal(next.id, "keep-1");
-  assert.equal(next.key, "1");
-  assert.equal(next.approved, true);
-  assert.equal(next.approvedAt, "2026-08-26T00:00:00.000Z");
-  assert.equal(next.headline, "חדש");
-  assert.equal(next.cta, "לחצו");
-  assert.match(next.text, /^וריאציה 1/);
-  assert.equal(next.text.includes("וריאציה 2"), false);
-  assert.equal(stripVariationHeader(next.text).includes("חדש"), true);
+  expect(next.id).toBe("keep-1");
+  expect(next.key).toBe("1");
+  expect(next.approved).toBe(true);
+  expect(next.approvedAt).toBe("2026-08-26T00:00:00.000Z");
+  expect(next.headline).toBe("חדש");
+  expect(next.cta).toBe("לחצו");
+  expect(next.text).toMatch(/^וריאציה 1/);
+  expect(next.text.includes("וריאציה 2")).toBe(false);
+  expect(stripVariationHeader(next.text).includes("חדש")).toBe(true);
 });
 
 test("applyVariationText ignores a pasted sibling variation header", () => {
@@ -206,11 +205,11 @@ test("applyVariationText ignores a pasted sibling variation header", () => {
     item,
     "וריאציה 9 — גנוב\nכותרת:\nרק זה\nCTA:\nכאן",
   );
-  assert.equal(next.id, "b");
-  assert.equal(next.key, "2");
-  assert.match(next.text, /^וריאציה 2/);
-  assert.equal(next.text.includes("וריאציה 9"), false);
-  assert.equal(next.headline, "רק זה");
+  expect(next.id).toBe("b");
+  expect(next.key).toBe("2");
+  expect(next.text).toMatch(/^וריאציה 2/);
+  expect(next.text.includes("וריאציה 9")).toBe(false);
+  expect(next.headline).toBe("רק זה");
 });
 
 test("applyVariationText keeps only the first pasted chunk when a full document is dropped in", () => {
@@ -228,10 +227,10 @@ test("applyVariationText keeps only the first pasted chunk when a full document 
       "של אחר",
     ].join("\n"),
   );
-  assert.equal(next.key, "1");
-  assert.equal(next.headline, "שלי");
-  assert.equal(next.text.includes("וריאציה 2"), false);
-  assert.equal(next.text.includes("של אחר"), false);
+  expect(next.key).toBe("1");
+  expect(next.headline).toBe("שלי");
+  expect(next.text.includes("וריאציה 2")).toBe(false);
+  expect(next.text.includes("של אחר")).toBe(false);
 });
 
 test("replaceCopyVariationText leaves sibling copy untouched", () => {
@@ -240,14 +239,14 @@ test("replaceCopyVariationText leaves sibling copy untouched", () => {
     stored({ id: "b", key: "2", text: "וריאציה 2 — B\nכותרת:\nבטא" }),
   ];
   const next = replaceCopyVariationText(variations, "a", "כותרת:\nגמא");
-  assert.match(next[0].text, /גמא/);
-  assert.equal(next[1].text, variations[1].text);
-  assert.equal(next[0].id, "a");
-  assert.equal(next[1].id, "b");
+  expect(next[0].text).toMatch(/גמא/);
+  expect(next[1].text).toBe(variations[1].text);
+  expect(next[0].id).toBe("a");
+  expect(next[1].id).toBe("b");
   const joined = joinCopyVariations(next);
-  assert.match(joined, /גמא/);
-  assert.match(joined, /בטא/);
-  assert.equal(joined.includes("אלפא"), false);
+  expect(joined).toMatch(/גמא/);
+  expect(joined).toMatch(/בטא/);
+  expect(joined.includes("אלפא")).toBe(false);
 });
 
 test("remapCopyVariationKeys appends after existing keys with new ids", () => {
@@ -256,10 +255,10 @@ test("remapCopyVariationKeys appends after existing keys with new ids", () => {
     [stored({ id: "old", key: "1", text: "כותרת:\nחדש", angle: "כאב" })],
     existing,
   );
-  assert.equal(remapped.length, 1);
-  assert.equal(remapped[0].key, "3");
-  assert.notEqual(remapped[0].id, "old");
-  assert.match(remapped[0].text, /^וריאציה 3/);
+  expect(remapped.length).toBe(1);
+  expect(remapped[0].key).toBe("3");
+  expect(remapped[0].id).not.toBe("old");
+  expect(remapped[0].text).toMatch(/^וריאציה 3/);
 });
 
 test("linkApprovedConceptsToCopy fills only approved concepts that have no copy yet", () => {
@@ -281,14 +280,14 @@ test("linkApprovedConceptsToCopy fills only approved concepts that have no copy 
     ],
     copies,
   );
-  assert.equal(linked[0].copyId, "keep");
-  assert.equal(linked[1].copyId, "n1");
-  assert.equal(linked[1].copyKey, "3");
-  assert.equal(linked[2].copyId, "");
+  expect(linked[0].copyId).toBe("keep");
+  expect(linked[1].copyId).toBe("n1");
+  expect(linked[1].copyKey).toBe("3");
+  expect(linked[2].copyId).toBe("");
 });
 
 test("stampCopiesWithConcept writes two variations locked to that concept", () => {
-  assert.equal(COPY_VARIATIONS_PER_CONCEPT, 2);
+  expect(COPY_VARIATIONS_PER_CONCEPT).toBe(2);
   const stamped = stampCopiesWithConcept(
     [
       stored({ id: "a", key: "3", text: "כותרת:\nאלפא" }),
@@ -296,12 +295,12 @@ test("stampCopiesWithConcept writes two variations locked to that concept", () =
     ],
     concept({ id: "c1", name: "הכיס הריק" }),
   );
-  assert.equal(stamped.length, 2);
-  assert.equal(stamped[0].conceptId, "c1");
-  assert.equal(stamped[0].conceptName, "הכיס הריק");
-  assert.equal(stamped[0].angle, "הכיס הריק");
-  assert.match(stamped[0].text, /הכיס הריק/);
-  assert.equal(copiesForConcept(stamped, "c1").length, 2);
+  expect(stamped.length).toBe(2);
+  expect(stamped[0].conceptId).toBe("c1");
+  expect(stamped[0].conceptName).toBe("הכיס הריק");
+  expect(stamped[0].angle).toBe("הכיס הריק");
+  expect(stamped[0].text).toMatch(/הכיס הריק/);
+  expect(copiesForConcept(stamped, "c1").length).toBe(2);
 });
 
 test("linkConceptToGeneratedCopy sets the primary copy only when empty", () => {
@@ -314,12 +313,12 @@ test("linkConceptToGeneratedCopy sets the primary copy only when empty", () => {
     "c1",
     copies,
   );
-  assert.equal(first[0].copyId, "n1");
-  assert.equal(first[0].copyKey, "3");
+  expect(first[0].copyId).toBe("n1");
+  expect(first[0].copyKey).toBe("3");
   const kept = linkConceptToGeneratedCopy(
     [concept({ id: "c1", copyId: "keep", copyKey: "1" })],
     "c1",
     copies,
   );
-  assert.equal(kept[0].copyId, "keep");
+  expect(kept[0].copyId).toBe("keep");
 });

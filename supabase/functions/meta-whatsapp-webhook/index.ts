@@ -669,6 +669,7 @@ Deno.serve(async (request) => {
                         senderUserId: target.userId,
                         phoneNumber: item.peerPhone,
                         message,
+                        sendKind: "carmen",
                       }),
                     },
                   );

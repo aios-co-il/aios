@@ -635,6 +635,19 @@ export default function Landing() {
           />
         </a>
         <span>© {new Date().getFullYear()} Carmen Marketing OS</span>
+        <nav className="flex items-center gap-2.5" aria-label="מידע משפטי">
+          <Link to="/privacy" className="hover:text-white">
+            מדיניות פרטיות
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link to="/terms" className="hover:text-white">
+            תנאי שימוש
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link to="/data-deletion" className="hover:text-white">
+            מחיקת מידע
+          </Link>
+        </nav>
         <a href="#">חזרה למעלה ↑</a>
       </footer>
     </main>

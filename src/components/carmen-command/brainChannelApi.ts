@@ -23,6 +23,10 @@ export type ChannelSendResult = {
   duplicate?: boolean;
   error?: string;
   inline_reply?: string;
+  /** Who answered when it is not `kind` (a model brain's slug). */
+  speaker?: string;
+  /** Stream run-ai-agent with this brain_slug: the brain runs as Carmen. */
+  run_brain?: string;
 };
 
 /** A channel call's outcome: HTTP status plus the function's JSON body. */

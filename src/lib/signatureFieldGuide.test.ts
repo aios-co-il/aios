@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import type { DocumentField } from "../components/signatures/signatureFieldTypes.ts";
 import {
   fieldFillLabel,
@@ -32,9 +31,9 @@ function field(
 }
 
 test("isFieldRequired follows the stored flag only", () => {
-  assert.equal(isFieldRequired({ required: true }), true);
-  assert.equal(isFieldRequired({ required: false }), false);
-  assert.equal(isFieldRequired({}), false);
+  expect(isFieldRequired({ required: true })).toBe(true);
+  expect(isFieldRequired({ required: false })).toBe(false);
+  expect(isFieldRequired({})).toBe(false);
 });
 
 test("sortFieldsReadingOrder is page, then y, then right-to-left", () => {
@@ -60,10 +59,12 @@ test("sortFieldsReadingOrder is page, then y, then right-to-left", () => {
       position: { x: 10, y: 5, width: 10, height: 4, page: 1 },
     }),
   ];
-  assert.deepEqual(
-    sortFieldsReadingOrder(fields).map((item) => item.id),
-    ["top", "right", "left", "page2"],
-  );
+  expect(sortFieldsReadingOrder(fields).map((item) => item.id)).toStrictEqual([
+    "top",
+    "right",
+    "left",
+    "page2",
+  ]);
 });
 
 test("nextFieldToFill walks required empties first, then optional, and wraps", () => {
@@ -87,26 +88,23 @@ test("nextFieldToFill walks required empties first, then optional, and wraps", (
       position: { x: 10, y: 30, width: 10, height: 4, page: 1 },
     }),
   ];
-  assert.equal(nextFieldToFill(fields, {})?.id, "req-a");
-  assert.equal(nextFieldToFill(fields, { "req-a": "דוד" })?.id, "req-b");
-  assert.equal(
+  expect(nextFieldToFill(fields, {})?.id).toBe("req-a");
+  expect(nextFieldToFill(fields, { "req-a": "דוד" })?.id).toBe("req-b");
+  expect(
     nextFieldToFill(fields, { "req-a": "דוד", "req-b": "2026-09-20" })?.id,
-    "opt",
-  );
-  assert.equal(
+  ).toBe("opt");
+  expect(
     nextFieldToFill(fields, { "req-a": "דוד", "req-b": "2026-09-20" }, "opt")
       ?.id,
-    "opt",
-  );
-  assert.equal(nextFieldToFill(fields, { "req-a": "דוד" }, "req-b")?.id, "opt");
-  assert.equal(
+  ).toBe("opt");
+  expect(nextFieldToFill(fields, { "req-a": "דוד" }, "req-b")?.id).toBe("opt");
+  expect(
     nextFieldToFill(fields, {
       "req-a": "דוד",
       "req-b": "2026-09-20",
       opt: "הערה",
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("missingRequiredForSubmit lists required gaps and a signature if none exists", () => {
@@ -120,22 +118,17 @@ test("missingRequiredForSubmit lists required gaps and a signature if none exist
     {},
     { name: "", companyId: "" },
   );
-  assert.deepEqual(
-    missing.map((item) => item.id),
-    ["name", "sig"],
-  );
-  assert.equal(
-    hasAnySignature(fields, { sig: "data:image/png;base64,xx" }),
+  expect(missing.map((item) => item.id)).toStrictEqual(["name", "sig"]);
+  expect(hasAnySignature(fields, { sig: "data:image/png;base64,xx" })).toBe(
     true,
   );
-  assert.equal(
+  expect(
     missingRequiredForSubmit(
       fields,
       { name: "דוד", sig: "data:image/png;base64,xx" },
       { name: "", companyId: "" },
     ).length,
-    0,
-  );
+  ).toBe(0);
 });
 
 test("filled stamp without company details stays missing", () => {
@@ -147,21 +140,17 @@ test("filled stamp without company details stays missing", () => {
     { stamp: "data:image/png;base64,xx" },
     { name: "", companyId: "" },
   );
-  assert.deepEqual(
-    missing.map((item) => item.id),
-    ["stamp"],
-  );
+  expect(missing.map((item) => item.id)).toStrictEqual(["stamp"]);
 });
 
 test("fieldFillLabel falls back to the placement label", () => {
-  assert.equal(fieldFillLabel(field({ id: "t", type: "text" })), "מילוי");
-  assert.equal(
+  expect(fieldFillLabel(field({ id: "t", type: "text" }))).toBe("מילוי");
+  expect(
     fieldFillLabel(field({ id: "n", type: "full_name", label: "שם מלא" })),
-    "שם מלא",
-  );
+  ).toBe("שם מלא");
 });
 
 test("isFieldFilled ignores whitespace", () => {
-  assert.equal(isFieldFilled({ id: "a" }, { a: "  " }), false);
-  assert.equal(isFieldFilled({ id: "a" }, { a: "כן" }), true);
+  expect(isFieldFilled({ id: "a" }, { a: "  " })).toBe(false);
+  expect(isFieldFilled({ id: "a" }, { a: "כן" })).toBe(true);
 });

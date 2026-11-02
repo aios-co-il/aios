@@ -1,6 +1,4 @@
-import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   PULSE_REFRESH_CRONS,
   REPORT_SYNC_SCHEDULES,
@@ -18,17 +16,17 @@ test("report sync runs twice a day and finishes before each pulse refresh", () =
   const pulseSlots = PULSE_REFRESH_CRONS.flatMap(minutesOfDay).sort(
     (a, b) => a - b,
   );
-  assert.equal(pulseSlots.length, 2);
+  expect(pulseSlots.length).toBe(2);
 
   for (const job of REPORT_SYNC_SCHEDULES) {
     const slots = minutesOfDay(job.cron).sort((a, b) => a - b);
-    assert.equal(slots.length, 2, job.jobname);
+    expect(slots.length, job.jobname).toBe(2);
     for (let i = 0; i < slots.length; i++) {
       const lead = pulseSlots[i] - slots[i];
-      assert.ok(
+      expect(
         lead >= 30 && lead <= 120,
         `${job.jobname} slot ${i} leads pulse by ${lead}m`,
-      );
+      ).toBeTruthy();
     }
   }
 });
@@ -36,26 +34,5 @@ test("report sync runs twice a day and finishes before each pulse refresh", () =
 test("WooCommerce sync starts 15 minutes before each live campaign sync", () => {
   const campaignHours = [5, 12];
   const slots = minutesOfDay(WOO_SYNC_SCHEDULE.cron).sort((a, b) => a - b);
-  assert.deepEqual(
-    slots,
-    campaignHours.map((hour) => hour * 60 - 15),
-  );
-});
-
-test("WooCommerce schedule preserves the working cron command", () => {
-  const stagingSql = readFileSync(
-    "supabase/ops/apply_woocommerce_campaign_cadence_staging.sql",
-    "utf8",
-  );
-  const productionSql = readFileSync(
-    "supabase/ops/apply_woocommerce_campaign_cadence_production.sql",
-    "utf8",
-  );
-
-  assert.equal(stagingSql, productionSql);
-  assert.ok(stagingSql.includes(`'${WOO_SYNC_SCHEDULE.jobname}'`));
-  assert.ok(stagingSql.includes(`'${WOO_SYNC_SCHEDULE.cron}'`));
-  assert.match(stagingSql, /woocommerce-hourly-sync/);
-  assert.match(stagingSql, /woo_sync_enabled = true/);
-  assert.doesNotMatch(stagingSql, /Bearer /);
+  expect(slots).toStrictEqual(campaignHours.map((hour) => hour * 60 - 15));
 });

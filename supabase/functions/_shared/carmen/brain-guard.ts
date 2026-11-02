@@ -17,7 +17,7 @@ import {
 
 /** A user's permissions row for one Carmen agent, or null (unrestricted). */
 export async function loadCarmenAccessRow(
-  sb: SupabaseClient,
+  sb: Pick<SupabaseClient, "from">,
   tenantId: string,
   carmenAgentId: string,
   userId: string,
@@ -86,7 +86,7 @@ export function channelActionDenied(
  * for other, non-Carmen agents are not governed by these rows.
  */
 export async function internalBrainAllowed(
-  sb: SupabaseClient,
+  sb: Pick<SupabaseClient, "from">,
   args: { userId: string; tenantId?: unknown; agentId?: unknown },
 ): Promise<boolean> {
   let tenantId = typeof args.tenantId === "string" ? args.tenantId : "";
@@ -117,12 +117,30 @@ export async function internalBrainDenied(
   auth: { kind: "user" | "service"; userId: string | null } | null,
   target: { tenantId?: unknown; agentId?: unknown },
 ): Promise<Response | null> {
-  if (auth?.kind !== "user" || !auth.userId) return null;
+  const refusal = await internalBrainRefusal(sb, auth, target);
+  return refusal ? brainDenied("internal") : null;
+}
+
+/**
+ * The refusal message when a signed-in user may not run Carmen's main brain,
+ * else null; a caller that is not a signed-in user passes. trigger-automation
+ * checks the user who started a run with it, since it calls Carmen with the
+ * service key.
+ */
+export async function internalBrainRefusal(
+  sb: Pick<SupabaseClient, "from">,
+  caller: { kind: string; userId?: string | null } | null | undefined,
+  target: { tenantId?: unknown; agentId?: unknown },
+): Promise<string | null> {
+  if (caller?.kind !== "user" || !caller.userId) {
+    return null;
+  }
+
   const allowed = await internalBrainAllowed(sb, {
-    userId: auth.userId,
+    userId: caller.userId,
     ...target,
   });
-  return allowed ? null : brainDenied("internal");
+  return allowed ? null : DENIED_MESSAGE.internal;
 }
 
 const DENIED_MESSAGE: Record<DeniedTarget, string> = {

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { inferLayerShadow } from "./layerShadow.ts";
 import {
   EDITOR_FONT_WEIGHTS,
@@ -25,32 +24,30 @@ test("offer headlines use a weight the editor Select can render", () => {
     format: "1:1",
   });
   const headline = layers.find((layer) => layer.role === "headline");
-  assert.equal(headline?.fontWeight, "900");
-  assert.ok(EDITOR_FONT_WEIGHTS.includes("900"));
-  assert.equal(safeFontWeight(headline?.fontWeight), "900");
-  assert.equal(safeHexColor(headline?.color), "#111111");
-  assert.equal(inferLayerShadow(headline!).shadowStyle, "none");
+  expect(headline?.fontWeight).toBe("900");
+  expect(EDITOR_FONT_WEIGHTS.includes("900")).toBeTruthy();
+  expect(safeFontWeight(headline?.fontWeight)).toBe("900");
+  expect(safeHexColor(headline?.color)).toBe("#111111");
+  expect(inferLayerShadow(headline!).shadowStyle).toBe("none");
 });
 
 test("safeFontWeight maps unknown weights instead of crashing Select", () => {
-  assert.equal(safeFontWeight("500"), "800");
-  assert.equal(safeFontWeight(undefined), "800");
-  assert.equal(safeFontWeight("700"), "700");
+  expect(safeFontWeight("500")).toBe("800");
+  expect(safeFontWeight(undefined)).toBe("800");
+  expect(safeFontWeight("700")).toBe("700");
 });
 
 test("safeHexColor only returns #rrggbb for color inputs", () => {
-  assert.equal(safeHexColor("#fff"), "#ffffff");
-  assert.equal(safeHexColor("rgba(0,0,0,0.4)"), "#111111");
-  assert.equal(safeHexColor("#dc2626"), "#dc2626");
+  expect(safeHexColor("#fff")).toBe("#ffffff");
+  expect(safeHexColor("rgba(0,0,0,0.4)")).toBe("#111111");
+  expect(safeHexColor("#dc2626")).toBe("#dc2626");
 });
 
 test("safeSelectValue falls back when an icon name is missing from the list", () => {
-  assert.equal(
-    safeSelectValue("nope", ["search", "shield"], "search"),
+  expect(safeSelectValue("nope", ["search", "shield"], "search")).toBe(
     "search",
   );
-  assert.equal(
-    safeSelectValue("shield", ["search", "shield"], "search"),
+  expect(safeSelectValue("shield", ["search", "shield"], "search")).toBe(
     "shield",
   );
 });

@@ -1,75 +1,80 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   isOwnerSender,
   parseWhatsAppDirectCommand,
   whatsAppReplyText,
 } from "./whatsapp-direct-logic.ts";
 
-test("parses Claude and Cursor prefixes in Hebrew and English", () => {
-  assert.deepEqual(parseWhatsAppDirectCommand("קלוד תבדוק את הדופק"), {
+Deno.test("parses Claude and Cursor prefixes in Hebrew and English", () => {
+  assertEquals(parseWhatsAppDirectCommand("קלוד תבדוק את הדופק"), {
     provider: "claude",
     content: "תבדוק את הדופק",
   });
-  assert.deepEqual(parseWhatsAppDirectCommand("  Claude: fix the report"), {
+  assertEquals(parseWhatsAppDirectCommand("  Claude: fix the report"), {
     provider: "claude",
     content: "fix the report",
   });
-  assert.deepEqual(parseWhatsAppDirectCommand("קרסר, תפתח PR"), {
+  assertEquals(parseWhatsAppDirectCommand("קרסר, תפתח PR"), {
     provider: "cursor",
     content: "תפתח PR",
   });
-  assert.deepEqual(parseWhatsAppDirectCommand("cursor - run tests"), {
+  assertEquals(parseWhatsAppDirectCommand("cursor - run tests"), {
     provider: "cursor",
     content: "run tests",
   });
 });
 
-test("ignores Carmen messages, bare triggers and words that only start with the trigger", () => {
-  assert.equal(parseWhatsAppDirectCommand("כרמן מה קורה"), null);
-  assert.equal(parseWhatsAppDirectCommand("קלוד"), null);
-  assert.equal(parseWhatsAppDirectCommand("claudette hello"), null);
-  assert.equal(parseWhatsAppDirectCommand("מה עם קלוד?"), null);
-});
+Deno.test(
+  "ignores Carmen messages, bare triggers and words that only start with the trigger",
+  () => {
+    assertStrictEquals(parseWhatsAppDirectCommand("כרמן מה קורה"), null);
+    assertStrictEquals(parseWhatsAppDirectCommand("קלוד"), null);
+    assertStrictEquals(parseWhatsAppDirectCommand("claudette hello"), null);
+    assertStrictEquals(parseWhatsAppDirectCommand("מה עם קלוד?"), null);
+  },
+);
 
-test("own reply echo never re-triggers a channel", () => {
-  assert.equal(
+Deno.test("own reply echo never re-triggers a channel", () => {
+  assertStrictEquals(
     parseWhatsAppDirectCommand(whatsAppReplyText("claude", "OK")),
     null,
   );
-  assert.equal(
+  assertStrictEquals(
     parseWhatsAppDirectCommand(whatsAppReplyText("cursor", "קלוד done")),
     null,
   );
 });
 
-test("only the owner writing from their profile phone may open a direct channel", () => {
-  assert.equal(
-    isOwnerSender({
-      senderPhone: "972501234567",
-      ownerPhones: [null, "050-123-4567"],
-      roles: ["owner"],
-    }),
-    true,
-  );
-  assert.equal(
-    isOwnerSender({
-      senderPhone: "972501234567",
-      ownerPhones: [null, "050-123-4567"],
-      roles: ["campaigner"],
-    }),
-    false,
-  );
-  assert.equal(
-    isOwnerSender({
-      senderPhone: "972509999999",
-      ownerPhones: [null, "050-123-4567"],
-      roles: ["owner"],
-    }),
-    false,
-  );
-  assert.equal(
-    isOwnerSender({ senderPhone: "", ownerPhones: [""], roles: ["owner"] }),
-    false,
-  );
-});
+Deno.test(
+  "only the owner writing from their profile phone may open a direct channel",
+  () => {
+    assertStrictEquals(
+      isOwnerSender({
+        senderPhone: "972501234567",
+        ownerPhones: [null, "050-123-4567"],
+        roles: ["owner"],
+      }),
+      true,
+    );
+    assertStrictEquals(
+      isOwnerSender({
+        senderPhone: "972501234567",
+        ownerPhones: [null, "050-123-4567"],
+        roles: ["campaigner"],
+      }),
+      false,
+    );
+    assertStrictEquals(
+      isOwnerSender({
+        senderPhone: "972509999999",
+        ownerPhones: [null, "050-123-4567"],
+        roles: ["owner"],
+      }),
+      false,
+    );
+    assertStrictEquals(
+      isOwnerSender({ senderPhone: "", ownerPhones: [""], roles: ["owner"] }),
+      false,
+    );
+  },
+);

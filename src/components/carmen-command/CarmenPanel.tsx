@@ -48,6 +48,7 @@ import { EvalsTab } from "@/components/agents/tabs/EvalsTab";
 import { AgentAccessTab } from "@/components/agents/tabs/AgentAccessTab";
 import { CarmenConversationAccessTab } from "@/components/agents/tabs/CarmenConversationAccessTab";
 import { CarmenPermissionsTab } from "@/components/agents/tabs/CarmenPermissionsTab";
+import { BrainConnectionsTab } from "@/components/agents/tabs/brain-connections/BrainConnectionsTab";
 import { AgentLearningTab } from "@/components/agents/tabs/AgentLearningTab";
 import { HeartbeatSettingsPanel } from "@/components/agents/HeartbeatSettingsPanel";
 import SkinsManager from "@/pages/SkinsManager";
@@ -70,6 +71,7 @@ import {
 } from "../../../supabase/functions/_shared/carmen-connection-role.ts";
 import { CarmenAutomationsList } from "./CarmenAutomationsList";
 import { SecondaryConnectionAutomationForm } from "./SecondaryConnectionAutomationForm";
+import { ReportSenderDefaultCard } from "@/components/report-sender/ReportSenderDefaultCard";
 import { CarmenSubAgents, isCarmenName } from "./CarmenSubAgents";
 import { CarmenTasksView, NewTaskChooser } from "./tasks/CarmenTasksView";
 import { AgentTaskEditor } from "./tasks/AgentTaskEditor";
@@ -117,8 +119,8 @@ export const SETTINGS_SECTIONS: {
   },
   {
     value: "brain",
-    label: "מוח ומפתחות AI",
-    hint: "מנוע ברירת מחדל וספקי AI",
+    label: "מוחות, חיבורים ומפתחות AI",
+    hint: "בורר המוחות, מודלים מחוברים, המוח הפנימי",
     icon: Brain,
   },
   {
@@ -426,6 +428,7 @@ function WhatsAppConnections({
           אוטומציות ומילות טריגר
         </Button>
       </div>
+      {tenantId && <ReportSenderDefaultCard tenantId={tenantId} />}
     </div>
   );
 }
@@ -508,14 +511,29 @@ export function CarmenPanel({
         return <ProfileTab agent={agent} onManageKeys={manageKeys} />;
       case "brain":
         return (
-          <div className="space-y-5">
-            <BrainSelector
-              value={agent.engine}
-              onChange={(v) => updateEngine.mutate(v)}
-              onManageKeys={manageKeys}
-            />
-            <LLMSettings embedded />
-          </div>
+          <SubTabs
+            items={[
+              {
+                value: "connections",
+                label: "מוחות וחיבורים",
+                node: <BrainConnectionsTab />,
+              },
+              {
+                value: "internal",
+                label: "המוח הפנימי של כרמן",
+                node: (
+                  <div className="space-y-5">
+                    <BrainSelector
+                      value={agent.engine}
+                      onChange={(v) => updateEngine.mutate(v)}
+                      onManageKeys={manageKeys}
+                    />
+                    <LLMSettings embedded />
+                  </div>
+                ),
+              },
+            ]}
+          />
         );
       case "skins":
         return <SkinsManager embedded />;

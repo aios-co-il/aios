@@ -30,10 +30,6 @@ import {
   Trash2,
   X,
   Check,
-  Phone,
-  Mail,
-  Video,
-  AlertTriangle,
   Activity,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -46,6 +42,22 @@ import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveClientUpdateType } from "@/lib/clientUpdateType";
+import {
+  canModifyClientUpdate,
+  matchesClientUpdateSourceFilter,
+  type ClientUpdateSourceFilter,
+} from "@/components/clients/clientUpdateSource";
+import {
+  deleteClientUpdate,
+  editClientUpdate,
+} from "@/components/clients/clientUpdateWrites";
+import { useUserRole } from "@/hooks/useUserRole";
+import { ClientUpdateBadges } from "@/components/clients/ClientUpdateBadges";
+import { ClientUpdateSourceFilterSelect } from "@/components/clients/ClientUpdateSourceFilterSelect";
+import {
+  DISPLAY_UPDATE_TYPES,
+  INTERACTION_TYPES,
+} from "@/components/clients/clientUpdateTypeOptions";
 import {
   getClientMoodChanges,
   type ClientMoodStatus,
@@ -89,17 +101,6 @@ const MOOD_STATUS_OPTIONS = [
     bg: "bg-orange-50 border-orange-200",
   },
 ];
-const INTERACTION_TYPES = [
-  { value: "call", label: "שיחה", icon: Phone },
-  { value: "email", label: "מייל", icon: Mail },
-  { value: "meeting", label: "פגישה", icon: Video },
-  { value: "whatsapp", label: "וואטסאפ", icon: MessageSquare },
-  { value: "weekly_update", label: "עדכון שבועי", icon: AlertTriangle },
-  { value: "seo_update", label: "עדכון SEO", icon: AlertTriangle },
-  { value: "meeting_summary", label: "סיכום פגישה", icon: Video },
-  { value: "other", label: "אחר", icon: AlertTriangle },
-  { value: "pulse_override", label: "תיקון דופק", icon: Activity },
-];
 
 export function ClientUpdatesTab({
   clientId,
@@ -110,6 +111,8 @@ export function ClientUpdatesTab({
   const [updateTypeFilter, setUpdateTypeFilter] =
     useState<UpdateTypeFilter>("all");
   const [moodFilter, setMoodFilter] = useState<MoodFilter>("all");
+  const [sourceFilter, setSourceFilter] =
+    useState<ClientUpdateSourceFilter>("all");
   const [editingTask, setEditingTask] = useState<any>(null);
   const [newUpdate, setNewUpdate] = useState("");
   const [newUpdateType, setNewUpdateType] = useState<string>("weekly_update");
@@ -117,6 +120,11 @@ export function ClientUpdatesTab({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const { user } = useCurrentUser();
+  // With canModifyClientUpdate, mirrors user_can_manage_client_card_entries
+  // (row tenant) to hide buttons RLS would refuse; the role hook keeps
+  // "view as" showing the viewed user's rights.
+  const { isOwner, isAgencyOwner } = useUserRole();
+  const canManageAutomaticEntries = isOwner || isAgencyOwner;
 
   // ── CRM: communication log state ──────────────────────────────────────────
   const [commStatus, setCommStatus] = useState<string>(
@@ -307,45 +315,37 @@ export function ClientUpdatesTab({
       setNewUpdate("");
       toast.success("העדכון נוסף בהצלחה");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("client_updates insert failed:", error);
       toast.error("שגיאה בהוספת העדכון");
     },
   });
 
   // Edit update mutation
   const editUpdateMutation = useMutation({
-    mutationFn: async ({ id, content }: { id: string; content: string }) => {
-      const { error } = await supabase
-        .from("client_updates")
-        .update({ content })
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, content }: { id: string; content: string }) =>
+      editClientUpdate(id, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
       setEditingUpdateId(null);
       setEditingUpdateContent("");
       toast.success("העדכון נערך בהצלחה");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("client_updates edit failed:", error);
       toast.error("שגיאה בעריכת העדכון");
     },
   });
 
   // Delete update mutation
   const deleteUpdateMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("client_updates")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: deleteClientUpdate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
       toast.success("העדכון נמחק בהצלחה");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("client_updates delete failed:", error);
       toast.error("שגיאה במחיקת העדכון");
     },
   });
@@ -404,6 +404,7 @@ export function ClientUpdatesTab({
       .filter(
         (update) =>
           moodFilter === "all" &&
+          matchesClientUpdateSourceFilter(update.source, sourceFilter) &&
           (updateTypeFilter === "all" ||
             (update.update_type ?? "other") === updateTypeFilter),
       )
@@ -418,6 +419,7 @@ export function ClientUpdatesTab({
       .filter(
         (change) =>
           isInDateRange(change.created_at) &&
+          sourceFilter === "all" &&
           (updateTypeFilter === "all" || updateTypeFilter === "mood_change") &&
           (moodFilter === "all" || change.moodStatus === moodFilter),
       )
@@ -433,7 +435,14 @@ export function ClientUpdatesTab({
         new Date(b.createdAt ?? 0).getTime() -
         new Date(a.createdAt ?? 0).getTime(),
     );
-  }, [communicationLogs, dateFilter, moodFilter, updateTypeFilter, updates]);
+  }, [
+    communicationLogs,
+    dateFilter,
+    moodFilter,
+    sourceFilter,
+    updateTypeFilter,
+    updates,
+  ]);
 
   const isLoading = tasksLoading || updatesLoading || communicationLogsLoading;
 
@@ -579,7 +588,7 @@ export function ClientUpdatesTab({
                         <SelectItem value="mood_change">
                           שינוי מצב לקוח
                         </SelectItem>
-                        {INTERACTION_TYPES.map((option) => (
+                        {DISPLAY_UPDATE_TYPES.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -587,6 +596,10 @@ export function ClientUpdatesTab({
                       </SelectContent>
                     </Select>
                   </div>
+                  <ClientUpdateSourceFilterSelect
+                    value={sourceFilter}
+                    onChange={setSourceFilter}
+                  />
                   <div className="w-full sm:w-52">
                     <Label className="text-xs text-muted-foreground mb-1 block">
                       סינון לפי מצב לקוח
@@ -701,7 +714,14 @@ export function ClientUpdatesTab({
 
                     const update = event.update;
                     const isEditing = editingUpdateId === update.id;
-                    const isOwner = user?.id === update.user_id;
+                    const canModify = canModifyClientUpdate({
+                      source: update.source,
+                      rowUserId: update.user_id,
+                      currentUserId: user?.id,
+                      rowTenantId: update.tenant_id,
+                      currentTenantId: tenantId,
+                      canManageAutomaticEntries,
+                    });
 
                     return (
                       <Card
@@ -752,23 +772,10 @@ export function ClientUpdatesTab({
                             </div>
                           ) : (
                             <>
-                              {update.update_type &&
-                                (() => {
-                                  const t = INTERACTION_TYPES.find(
-                                    (o) => o.value === update.update_type,
-                                  );
-                                  if (!t) return null;
-                                  const Icon = t.icon;
-                                  return (
-                                    <Badge
-                                      variant="outline"
-                                      className="mb-2 gap-1 text-xs bg-card"
-                                    >
-                                      <Icon className="h-3 w-3" />
-                                      {t.label}
-                                    </Badge>
-                                  );
-                                })()}
+                              <ClientUpdateBadges
+                                updateType={update.update_type}
+                                source={update.source}
+                              />
                               <p className="text-sm whitespace-pre-wrap">
                                 {update.content}
                               </p>
@@ -790,7 +797,7 @@ export function ClientUpdatesTab({
                                     )}
                                   </span>
                                 </div>
-                                {isOwner && (
+                                {canModify && (
                                   <div className="flex gap-1 shrink-0">
                                     <Button
                                       size="icon"

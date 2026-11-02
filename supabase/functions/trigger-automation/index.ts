@@ -2,11 +2,15 @@
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
+import { findMetaStepClientRecipient } from "./client-recipient.ts";
+import { recordAutomationStepSend } from "./step-client-send.ts";
 import {
   buildWaNotifyFromOrigin,
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
 import { formatClientFollowUpMessage } from "../_shared/client-follow-up-message.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import { isCampaignRole } from "../_shared/client-team/campaign-role.ts";
 import {
   dropUnresolvedTemplateLines,
   sanitizeTemplateParameter,
@@ -23,6 +27,7 @@ import {
   releaseTaskNotificationDelivery,
   taskNotificationRecipientKey,
 } from "../_shared/task-notification-dedupe.ts";
+import { holdOnShabbat } from "./shabbat-hold-response.ts";
 import {
   formatTaskNotificationMessage,
   resolveTaskNotificationLinkTenantId,
@@ -62,6 +67,8 @@ import {
   bearerToken,
 } from "../_shared/automation-run-auth.ts";
 import { userClient } from "../_shared/supabase-clients.ts";
+import { prepareAgentRun } from "./agent-run.ts";
+import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1008,7 +1015,7 @@ async function sendTaskNotificationFromTenantCarmen(
       .or(`end_date.is.null,end_date.gte.${today}`)
       .order("created_at", { ascending: true });
     const preferred = (team || []).find((row: any) =>
-      /campaign|ppc|קמפיינ/i.test(String(row.role_on_account || "")),
+      isCampaignRole(row.role_on_account),
     );
     campaignerId = preferred?.campaigner_id || team?.[0]?.campaigner_id || null;
   }
@@ -1294,6 +1301,7 @@ async function sendTaskNotificationFromTenantCarmen(
     phoneNumber: recipient.phone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
   if (!sent) {
     await releaseTaskNotificationDelivery(supabase, {
@@ -1444,6 +1452,7 @@ async function sendClientFollowUpFromTenantCarmen(
     phoneNumber: recipientPhone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
 
   console.log("[client-follow-up-carmen]", {
@@ -1475,6 +1484,12 @@ Deno.serve(async (req) => {
 
     const requestBody = await req.json();
 
+    // Who this run acts for, from the caller the auth check below proved
+    // (AIO-241): the signed-in user who started it, or the sender a WhatsApp
+    // provider webhook relayed. Any other run (lead intake, flow webhooks, cron)
+    // acts for no one, so Carmen never takes an identity from outside data.
+    let runCaller: AutomationRunCaller | null = null;
+
     // Running one automation by id (tests, manual triggers, reruns) is limited
     // to the service role and to users who may manage that automation.
     if (requestBody?.automationId) {
@@ -1501,6 +1516,7 @@ Deno.serve(async (req) => {
           status: decision.status,
         });
       }
+      runCaller = automationRunCaller(requestBody, decision.caller);
     }
 
     // Backward-compat alias: old name → new name
@@ -1509,6 +1525,10 @@ Deno.serve(async (req) => {
     }
 
     if (TASK_NOTIFICATION_TYPES.has(requestBody.trigger_type)) {
+      const held = await holdOnShabbat(supabase, requestBody, req, corsHeaders);
+      if (held) {
+        return held;
+      }
       const taskNotification = await sendTaskNotificationFromTenantCarmen(
         supabase,
         requestBody,
@@ -1550,6 +1570,7 @@ Deno.serve(async (req) => {
           status: decision.status,
         });
       }
+      runCaller = automationRunCaller(requestBody, decision.caller);
     }
 
     // ===== AUTOMATION SAFETY GUARDS =====
@@ -3088,13 +3109,22 @@ Deno.serve(async (req) => {
                         payloadData?.sender_phone || payloadData?.phone || null,
                     });
                     if (waNotify) agentBody.wa_notify = waNotify;
+                    const agentRun = await prepareAgentRun(
+                      supabase,
+                      runCaller,
+                      { tenantId, agentId },
+                      agentBody,
+                    );
+                    if ("refusal" in agentRun) {
+                      throw new Error(agentRun.refusal);
+                    }
                     const agentRes = await fetch(agentUrl, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                       },
-                      body: JSON.stringify(agentBody),
+                      body: JSON.stringify(agentRun.body),
                     });
                     stepResponse = await agentRes.json();
                     previousStepOutput = stepResponse;
@@ -3757,13 +3787,11 @@ Deno.serve(async (req) => {
               const agentId = agentConfig.agent_id;
               if (agentId) {
                 const agentUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-ai-agent`;
-                const agentRes = await fetch(agentUrl, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                  },
-                  body: JSON.stringify({
+                const agentRun = await prepareAgentRun(
+                  supabase,
+                  runCaller,
+                  { tenantId, agentId },
+                  {
                     agent_id: agentId,
                     command_text:
                       payloadData?.command_text ||
@@ -3783,9 +3811,21 @@ Deno.serve(async (req) => {
                       pipeline_stage: payloadData?.pipeline_stage,
                       agency_name: payloadData?.agency_name,
                     },
-                  }),
-                });
-                response = await agentRes.json();
+                  },
+                );
+                if ("refusal" in agentRun) {
+                  response = { error: agentRun.refusal };
+                } else {
+                  const agentRes = await fetch(agentUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify(agentRun.body),
+                  });
+                  response = await agentRes.json();
+                }
               } else {
                 response = { error: "No agent_id configured in automation" };
               }
@@ -5700,6 +5740,8 @@ async function resolveWaIntegration(
       idInstance: config.external_instance_id,
       apiTokenInstance: config.external_api_token,
       providerType: "green_api" as const,
+      connectionUserId: null,
+      integrationId: null,
     };
   }
 
@@ -5742,7 +5784,14 @@ async function resolveWaIntegration(
     if (!idInstance || !apiTokenInstance)
       throw new Error("הגדרות Green API חסרות");
   }
-  return { idInstance, apiTokenInstance, providerType };
+  return {
+    idInstance,
+    apiTokenInstance,
+    providerType,
+    connectionUserId:
+      typeof integration.user_id === "string" ? integration.user_id : null,
+    integrationId: typeof integration.id === "string" ? integration.id : null,
+  };
 }
 
 async function sendWaMessage(opts: {
@@ -5963,15 +6012,23 @@ async function executeMetaWhatsappMessage(
   const phoneField = String(config.phone_field || "phone");
   const sendingToClient =
     phoneField === "client_phone" || phoneField === "recipient_phone";
+  const leadId = sendingToClient
+    ? data?.lead_id || null
+    : data?.lead_id || data?.id || null;
+  const clientRecipientId = await findMetaStepClientRecipient(supabase, {
+    tenantId,
+    phoneNumber,
+    data,
+    leadId,
+  });
   const payload: Record<string, unknown> = {
     tenantId,
     integrationId: integration.id,
     senderUserId,
     phoneNumber,
-    clientId: data?.client_id || null,
-    leadId: sendingToClient
-      ? data?.lead_id || null
-      : data?.lead_id || data?.id || null,
+    clientId: clientRecipientId || data?.client_id || null,
+    leadId,
+    ...(clientRecipientId ? { sendKind: "automation" } : {}),
   };
 
   if (sendMode === "template") {
@@ -6096,8 +6153,13 @@ async function executeGreenApiMessage(
     }
 
     // Resolve integration once
-    const { idInstance, apiTokenInstance, providerType } =
-      await resolveWaIntegration(supabase, config, tenantId);
+    const {
+      idInstance,
+      apiTokenInstance,
+      providerType,
+      connectionUserId,
+      integrationId,
+    } = await resolveWaIntegration(supabase, config, tenantId);
 
     // Build message once (using available data; no per-recipient contactRecord override)
     let message = replaceTemplateVariables(
@@ -6151,6 +6213,17 @@ async function executeGreenApiMessage(
             results.push({ chatId, status: "skipped", result: r });
           } else {
             results.push({ chatId, status: "sent", result: r });
+            await recordAutomationStepSend(supabase, {
+              tenantId,
+              chatId,
+              message,
+              provider: providerType,
+              connectionUserId,
+              integrationId,
+              providerResponse: r,
+              data,
+              recipients: config.recipients,
+            });
           }
         } catch (sendErr) {
           if (sendClaimInserted) {
@@ -6538,6 +6611,18 @@ async function executeGreenApiMessage(
     throw sendErr;
   }
 
+  await recordAutomationStepSend(supabase, {
+    tenantId,
+    chatId,
+    message,
+    provider: providerType,
+    connectionUserId: integration?.user_id ?? null,
+    integrationId: integration?.id ?? null,
+    providerResponse: sendResult,
+    data,
+    contact: contactRecord,
+  });
+
   return {
     success: true,
     message_sent: message,
@@ -6753,6 +6838,8 @@ async function executeGreenApiToCampaigner(
       channel: "whatsapp",
       provider: "green_api",
       raw_provider_data: { automation: true, send_target, sendResult },
+      // A message to the campaigner, never logged on a client card.
+      send_kind: "staff_alert",
     });
 
     if (chatError) {
@@ -6906,43 +6993,27 @@ async function executeAddClientUpdate(
     tenantSlug,
   );
 
-  // Get a system user ID for the update
-  const { data: ownerRole } = await supabase
-    .from("user_roles")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .eq("role", "owner")
-    .limit(1)
-    .maybeSingle();
-
-  const userId = ownerRole?.user_id || data.user_id;
-
-  if (!userId) {
-    throw new Error("לא נמצא משתמש לשמירת העדכון");
-  }
-
-  // Insert update into client_updates table
-  const { data: insertedUpdate, error: insertError } = await supabase
-    .from("client_updates")
-    .insert({
-      client_id: clientId,
-      tenant_id: tenantId,
-      user_id: userId,
+  // record_client_card_entry checks the client is in this tenant, marks the
+  // row as an automation entry (never counted as client contact) and
+  // attributes it to the client's campaigner, else the tenant owner.
+  try {
+    const entry = await recordClientCardEntry(supabase, {
+      tenantId,
+      clientId,
       content: updateContent,
-    })
-    .select()
-    .single();
-
-  if (insertError) {
+      source: "automation",
+    });
+    return {
+      success: true,
+      update_id: entry.entryId,
+      content: updateContent,
+    };
+  } catch (insertError) {
     console.error("Error inserting client update:", insertError);
-    throw new Error(`שגיאה בשמירת עדכון: ${insertError.message}`);
+    const reason =
+      insertError instanceof Error ? insertError.message : String(insertError);
+    throw new Error(`שגיאה בשמירת עדכון: ${reason}`);
   }
-
-  return {
-    success: true,
-    update_id: insertedUpdate.id,
-    content: updateContent,
-  };
 }
 
 // Execute create task action

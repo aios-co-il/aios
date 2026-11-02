@@ -1,27 +1,26 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { coerceHumanTaskStatus, mapHumanTaskStatus } from "./taskStatus.ts";
 
 test("maps completed to the DB enum value done", () => {
-  assert.equal(mapHumanTaskStatus("completed"), "done");
-  assert.equal(mapHumanTaskStatus("COMPLETED"), "done");
-  assert.equal(mapHumanTaskStatus("done"), "done");
+  expect(mapHumanTaskStatus("completed")).toBe("done");
+  expect(mapHumanTaskStatus("COMPLETED")).toBe("done");
+  expect(mapHumanTaskStatus("done")).toBe("done");
 });
 
 test("passes through open and in_progress", () => {
-  assert.equal(mapHumanTaskStatus("open"), "open");
-  assert.equal(mapHumanTaskStatus("in_progress"), "in_progress");
+  expect(mapHumanTaskStatus("open")).toBe("open");
+  expect(mapHumanTaskStatus("in_progress")).toBe("in_progress");
 });
 
 test("rejects cancelled and unknown values", () => {
-  assert.throws(() => mapHumanTaskStatus("cancelled"), /לא תקין/);
-  assert.throws(() => mapHumanTaskStatus(""), /לא תקין/);
+  expect(() => mapHumanTaskStatus("cancelled")).toThrow(/לא תקין/);
+  expect(() => mapHumanTaskStatus("")).toThrow(/לא תקין/);
 });
 
 test("coerceHumanTaskStatus never throws and defaults unknown to open", () => {
-  assert.equal(coerceHumanTaskStatus("completed"), "done");
-  assert.equal(coerceHumanTaskStatus("in_progress"), "in_progress");
-  assert.equal(coerceHumanTaskStatus("cancelled"), "open");
-  assert.equal(coerceHumanTaskStatus(""), "open");
-  assert.equal(coerceHumanTaskStatus(null), "open");
+  expect(coerceHumanTaskStatus("completed")).toBe("done");
+  expect(coerceHumanTaskStatus("in_progress")).toBe("in_progress");
+  expect(coerceHumanTaskStatus("cancelled")).toBe("open");
+  expect(coerceHumanTaskStatus("")).toBe("open");
+  expect(coerceHumanTaskStatus(null)).toBe("open");
 });

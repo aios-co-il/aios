@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   isMicCaptureMode,
   loadMicCaptureMode,
@@ -9,15 +8,15 @@ import {
 } from "./carmenTranscribeOnly.ts";
 
 test("transcribe_only blocks TTS responses", () => {
-  assert.equal(shouldAllowTtsResponse("transcribe_only"), false);
-  assert.equal(shouldAllowTtsResponse("typed"), true);
-  assert.equal(shouldAllowTtsResponse("realtime_voice"), true);
+  expect(shouldAllowTtsResponse("transcribe_only")).toBe(false);
+  expect(shouldAllowTtsResponse("typed")).toBe(true);
+  expect(shouldAllowTtsResponse("realtime_voice")).toBe(true);
 });
 
 test("mic capture mode validates known values", () => {
-  assert.equal(isMicCaptureMode("transcribe_only"), true);
-  assert.equal(isMicCaptureMode("realtime_voice"), true);
-  assert.equal(isMicCaptureMode("typed"), false);
+  expect(isMicCaptureMode("transcribe_only")).toBe(true);
+  expect(isMicCaptureMode("realtime_voice")).toBe(true);
+  expect(isMicCaptureMode("typed")).toBe(false);
 });
 
 test("loadMicCaptureMode defaults to realtime_voice", () => {
@@ -25,9 +24,9 @@ test("loadMicCaptureMode defaults to realtime_voice", () => {
   const prev = globalThis.localStorage.getItem(MIC_CAPTURE_MODE_KEY);
   try {
     globalThis.localStorage.setItem(MIC_CAPTURE_MODE_KEY, "transcribe_only");
-    assert.equal(loadMicCaptureMode(), "transcribe_only");
+    expect(loadMicCaptureMode()).toBe("transcribe_only");
     globalThis.localStorage.removeItem(MIC_CAPTURE_MODE_KEY);
-    assert.equal(loadMicCaptureMode(), "realtime_voice");
+    expect(loadMicCaptureMode()).toBe("realtime_voice");
   } finally {
     if (prev == null) globalThis.localStorage.removeItem(MIC_CAPTURE_MODE_KEY);
     else globalThis.localStorage.setItem(MIC_CAPTURE_MODE_KEY, prev);
@@ -40,9 +39,9 @@ test("logTranscribeOnlyEvent prefixes structured pipeline steps", () => {
   console.info = (...args: unknown[]) => lines.push(args);
   try {
     logTranscribeOnlyEvent("send_text", { chars: 12 });
-    assert.equal(lines.length, 1);
-    assert.equal(lines[0][0], "[carmen:transcribe_only]");
-    assert.deepEqual(lines[0][1], { step: "send_text", chars: 12 });
+    expect(lines.length).toBe(1);
+    expect(lines[0][0]).toBe("[carmen:transcribe_only]");
+    expect(lines[0][1]).toStrictEqual({ step: "send_text", chars: 12 });
   } finally {
     console.info = orig;
   }

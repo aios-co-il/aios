@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   appendCopyConcepts,
   copyConceptsGenerateGate,
@@ -30,16 +29,15 @@ const concept = (overrides: Partial<CopyConcept> = {}): CopyConcept => ({
 
 test("formatCopyConceptsForImagePrompt forbids restaging the slogan", () => {
   const prompt = formatCopyConceptsForImagePrompt([concept()]);
-  assert.equal(
-    prompt.startsWith("MUST FOLLOW THIS APPROVED VISUAL CONCEPT"),
+  expect(prompt.startsWith("MUST FOLLOW THIS APPROVED VISUAL CONCEPT")).toBe(
     true,
   );
-  assert.match(prompt, /do NOT choose the scene/i);
-  assert.match(prompt, /CONCEPT PHOTOGRAPH — HARD LOCK/);
-  assert.match(prompt, /PHOTOGRAPH THIS SCENE/);
-  assert.match(prompt, /words only — do not restage/);
-  assert.match(prompt, /ארנק פעור/);
-  assert.match(prompt, /literal illustration of the copy/);
+  expect(prompt).toMatch(/do NOT choose the scene/i);
+  expect(prompt).toMatch(/CONCEPT PHOTOGRAPH — HARD LOCK/);
+  expect(prompt).toMatch(/PHOTOGRAPH THIS SCENE/);
+  expect(prompt).toMatch(/words only — do not restage/);
+  expect(prompt).toMatch(/ארנק פעור/);
+  expect(prompt).toMatch(/literal illustration of the copy/);
 });
 
 test("resolveVisualPrompt prefers live approved concepts over a stale stored prompt", () => {
@@ -47,23 +45,21 @@ test("resolveVisualPrompt prefers live approved concepts over a stale stored pro
     { visual_prompt: "OLD STORED PROMPT ABOUT THE HEADLINE" },
     [concept()],
   );
-  assert.match(prompt, /MUST FOLLOW THIS APPROVED VISUAL CONCEPT/);
-  assert.match(prompt, /ארנק פעור/);
-  assert.doesNotMatch(prompt, /OLD STORED PROMPT/);
+  expect(prompt).toMatch(/MUST FOLLOW THIS APPROVED VISUAL CONCEPT/);
+  expect(prompt).toMatch(/ארנק פעור/);
+  expect(prompt).not.toMatch(/OLD STORED PROMPT/);
 });
 
 test("resolveVisualPrompt falls back to stored visual_prompt when there are no concepts", () => {
-  assert.equal(
-    resolveVisualPrompt({ visual_prompt: "KEEP THIS" }, []),
+  expect(resolveVisualPrompt({ visual_prompt: "KEEP THIS" }, [])).toBe(
     "KEEP THIS",
   );
-  assert.equal(isApprovedConceptPrompt("KEEP THIS"), false);
-  assert.equal(
+  expect(isApprovedConceptPrompt("KEEP THIS")).toBe(false);
+  expect(
     isApprovedConceptPrompt(
       "MUST FOLLOW THIS APPROVED VISUAL CONCEPT\nPHOTOGRAPH THIS SCENE: locked door",
     ),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("formatCopyConceptsForImagePrompt with primaryId locks to that concept only", () => {
@@ -75,12 +71,12 @@ test("formatCopyConceptsForImagePrompt with primaryId locks to that concept only
   const prompt = formatCopyConceptsForImagePrompt([concept(), second], {
     primaryId: "c2",
   });
-  assert.match(prompt, /Concept name: הכיסא הריק/);
-  assert.match(prompt, /כיסא מול דלת נעולה/);
-  assert.match(prompt, /ONLY concept for this still/);
-  assert.doesNotMatch(prompt, /הכיס הריק/);
-  assert.doesNotMatch(prompt, /Additional approved concepts/);
-  assert.equal(findCopyConcept([concept(), second], "c2")?.name, "הכיסא הריק");
+  expect(prompt).toMatch(/Concept name: הכיסא הריק/);
+  expect(prompt).toMatch(/כיסא מול דלת נעולה/);
+  expect(prompt).toMatch(/ONLY concept for this still/);
+  expect(prompt).not.toMatch(/הכיס הריק/);
+  expect(prompt).not.toMatch(/Additional approved concepts/);
+  expect(findCopyConcept([concept(), second], "c2")?.name).toBe("הכיסא הריק");
 });
 
 test("resolveVisualPrompt with primaryId photographs the chosen approved concept", () => {
@@ -89,9 +85,9 @@ test("resolveVisualPrompt with primaryId photographs the chosen approved concept
     [concept(), concept({ id: "c2", name: "הקהל", bigIdea: "אולם ריק" })],
     { primaryId: "c2" },
   );
-  assert.match(prompt, /אולם ריק/);
-  assert.doesNotMatch(prompt, /ארנק פעור/);
-  assert.doesNotMatch(prompt, /Additional approved concepts/);
+  expect(prompt).toMatch(/אולם ריק/);
+  expect(prompt).not.toMatch(/ארנק פעור/);
+  expect(prompt).not.toMatch(/Additional approved concepts/);
 });
 
 test("pickConceptForBatchIndex prefers unused approved concepts then rotates", () => {
@@ -100,12 +96,12 @@ test("pickConceptForBatchIndex prefers unused approved concepts then rotates", (
     concept({ id: "b", name: "ב" }),
     concept({ id: "c", name: "ג" }),
   ];
-  assert.equal(pickConceptForBatchIndex(concepts, 0, ["a"])?.id, "b");
-  assert.equal(pickConceptForBatchIndex(concepts, 1, ["a"])?.id, "c");
-  assert.equal(pickConceptForBatchIndex(concepts, 2, ["a"])?.id, "b");
-  assert.equal(pickConceptForBatchIndex(concepts, 0, ["a", "b", "c"])?.id, "a");
-  assert.equal(pickConceptForBatchIndex(concepts, 1, ["a", "b", "c"])?.id, "b");
-  assert.equal(pickConceptForBatchIndex([], 0)?.id, undefined);
+  expect(pickConceptForBatchIndex(concepts, 0, ["a"])?.id).toBe("b");
+  expect(pickConceptForBatchIndex(concepts, 1, ["a"])?.id).toBe("c");
+  expect(pickConceptForBatchIndex(concepts, 2, ["a"])?.id).toBe("b");
+  expect(pickConceptForBatchIndex(concepts, 0, ["a", "b", "c"])?.id).toBe("a");
+  expect(pickConceptForBatchIndex(concepts, 1, ["a", "b", "c"])?.id).toBe("b");
+  expect(pickConceptForBatchIndex([], 0)?.id).toBe(undefined);
 });
 
 test("parseConceptsFromCarmen reads copy variation number into copyKey", () => {
@@ -116,30 +112,27 @@ test("parseConceptsFromCarmen reads copy variation number into copyKey", () => {
 הוק: תוצאות AI
 קופי: 2
 `);
-  assert.equal(parsed[0]?.copyKey, "2");
-  assert.equal(parsed[0]?.copyAngle, "2");
+  expect(parsed[0]?.copyKey).toBe("2");
+  expect(parsed[0]?.copyAngle).toBe("2");
 });
 
 test("copyConceptsGenerateGate allows concepts from a title or brief without copy", () => {
-  assert.deepEqual(
+  expect(
     copyConceptsGenerateGate({
       title: "",
       brief: "",
       copyText: "",
       variationCount: 0,
     }),
-    { canGenerate: false, block: "need_context" },
-  );
-  assert.equal(
+  ).toStrictEqual({ canGenerate: false, block: "need_context" });
+  expect(
     copyConceptsGenerateGate({ title: "השקה", brief: "", copyText: "" })
       .canGenerate,
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     copyConceptsGenerateGate({ title: "", brief: "בריף קצר", copyText: "" })
       .canGenerate,
-    true,
-  );
+  ).toBe(true);
 });
 
 test("appendCopyConcepts keeps existing cards and skips duplicate names", () => {
@@ -148,14 +141,14 @@ test("appendCopyConcepts keeps existing cards and skips duplicate names", () => 
     concept({ id: "dup", name: "הכיס הריק" }),
     concept({ id: "new", name: "הכיסא הריק", bigIdea: "כיסא מול דלת" }),
   ]);
-  assert.equal(next.length, 2);
-  assert.equal(next[0].id, "keep");
-  assert.equal(next[1].id, "new");
+  expect(next.length).toBe(2);
+  expect(next[0].id).toBe("keep");
+  expect(next[1].id).toBe("new");
 });
 
 test("formatApprovedConceptsForCopy lists approved ideas for the copywriter", () => {
   const text = formatApprovedConceptsForCopy([concept()]);
-  assert.match(text, /הכיס הריק/);
-  assert.match(text, /ארנק פעור/);
-  assert.match(text, /סצנה במקום טקסט על רקע/);
+  expect(text).toMatch(/הכיס הריק/);
+  expect(text).toMatch(/ארנק פעור/);
+  expect(text).toMatch(/סצנה במקום טקסט על רקע/);
 });

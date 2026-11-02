@@ -27,6 +27,7 @@ import {
   isClientCallUpdate,
   resolveClientUpdateType,
 } from "@/lib/clientUpdateType";
+import { CONTACT_COUNTING_SOURCES } from "../../../supabase/functions/_shared/client-card/sources.ts";
 
 export type PulseClientCallTarget = {
   clientId: string;
@@ -73,18 +74,29 @@ export function PulseClientCallDialog({
           id,
           content,
           update_type,
+          source,
+          counts_as_contact,
           created_at,
           user_id,
           profiles:user_id (full_name, email)
         `,
         )
         .eq("client_id", target.clientId)
-        .in("update_type", ["call", "weekly_update"])
+        // Only human or Carmen-confirmed rows can count as contact; filtering here
+        // keeps automatic report rows from crowding real calls out of the 30.
+        .in("source", [...CONTACT_COUNTING_SOURCES])
+        .or("update_type.in.(call,weekly_update),counts_as_contact.is.true")
         .order("created_at", { ascending: false })
         .limit(30);
       if (error) throw error;
+      // Same rule as the pulse (get_latest_client_call_updates).
       return (data ?? []).filter((row: any) =>
-        isClientCallUpdate(row.update_type, row.content ?? ""),
+        isClientCallUpdate(
+          row.update_type,
+          row.content ?? "",
+          row.source,
+          row.counts_as_contact,
+        ),
       );
     },
     enabled: open && !!target?.clientId,
@@ -137,7 +149,7 @@ export function PulseClientCallDialog({
         lastClientCallAt: inserted.created_at,
         lastClientCallBy: recordedBy,
       });
-      toast.success("השיחה תועדה — צבע הדופק עודכן");
+      toast.success("השיחה תועדה");
       onOpenChange(false);
     } catch (err: any) {
       toast.error(err?.message || "שגיאה בשמירה");

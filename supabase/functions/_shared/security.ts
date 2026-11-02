@@ -1,5 +1,6 @@
 // Shared security helpers for edge functions
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { isServiceKey } from "./timing-safe-equal.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -20,7 +21,7 @@ export async function requireAuth(
     return null;
   const token = authHeader.slice(7).trim();
   if (!token) return null;
-  if (token === SUPABASE_SERVICE_ROLE_KEY) {
+  if (isServiceKey(token, SUPABASE_SERVICE_ROLE_KEY)) {
     return { kind: "service", userId: null };
   }
   try {

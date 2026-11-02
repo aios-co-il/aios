@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   COMBINED_DASHBOARD_DATE_FILTERS,
   SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
@@ -30,11 +29,10 @@ test("every offered preset resolves to its own window", () => {
       if (value === "custom" || value === "all" || value === "last_30_days")
         continue;
       const range = getDashboardDateRange(value, NOW);
-      assert.notDeepEqual(
+      expect(
         range,
-        thirtyDays,
         `${listName}: "${value}" resolves to the 30-day window`,
-      );
+      ).not.toStrictEqual(thirtyDays);
     }
   }
 });
@@ -43,9 +41,9 @@ test("the 70-day dashboard preset reaches back further than the 30-day one", () 
   const thirty = getDashboardDateRange("last_30_days", NOW);
   const seventy = getDashboardDateRange("last_70_days", NOW);
 
-  assert.equal(thirty.startDate, "2026-08-19");
-  assert.equal(seventy.startDate, "2026-07-10");
-  assert.equal(seventy.endDate, thirty.endDate);
+  expect(thirty.startDate).toBe("2026-08-19");
+  expect(seventy.startDate).toBe("2026-07-10");
+  expect(seventy.endDate).toBe(thirty.endDate);
 });
 
 test("all requested long-range presets are offered on every report surface", () => {
@@ -58,34 +56,29 @@ test("all requested long-range presets are offered on every report surface", () 
   for (const [listName, presets] of presetLists) {
     const values = new Set(presets.map(({ value }) => value));
     for (const value of requested) {
-      assert.ok(values.has(value), `${listName}: missing "${value}"`);
+      expect(values.has(value), `${listName}: missing "${value}"`).toBeTruthy();
     }
   }
 
-  assert.equal(
-    getDashboardDateRange("last_60_days", NOW).startDate,
+  expect(getDashboardDateRange("last_60_days", NOW).startDate).toBe(
     "2026-07-20",
   );
-  assert.equal(
-    getDashboardDateRange("last_90_days", NOW).startDate,
+  expect(getDashboardDateRange("last_90_days", NOW).startDate).toBe(
     "2026-06-20",
   );
-  assert.equal(
-    getDashboardDateRange("last_120_days", NOW).startDate,
+  expect(getDashboardDateRange("last_120_days", NOW).startDate).toBe(
     "2026-05-21",
   );
-  assert.equal(
-    getDashboardDateRange("last_365_days", NOW).startDate,
+  expect(getDashboardDateRange("last_365_days", NOW).startDate).toBe(
     "2025-09-18",
   );
 });
 
 test("a custom range is used verbatim", () => {
-  assert.deepEqual(
+  expect(
     getDashboardDateRange("custom", NOW, "2026-05-01", "2026-05-31"),
-    {
-      startDate: "2026-05-01",
-      endDate: "2026-05-31",
-    },
-  );
+  ).toStrictEqual({
+    startDate: "2026-05-01",
+    endDate: "2026-05-31",
+  });
 });

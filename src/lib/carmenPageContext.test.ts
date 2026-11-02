@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   collectCarmenUiContext,
   formatUiContextForPrompt,
@@ -13,9 +12,9 @@ test("collectCarmenUiContext extracts route params and module", () => {
     params: { tenantSlug: "marketingcaptain", clientId: "abc-123" },
     commandCenterView: "dashboard",
   });
-  assert.equal(ctx.module, "clients");
-  assert.equal(ctx.route_params.clientId, "abc-123");
-  assert.equal(ctx.command_center_view, "dashboard");
+  expect(ctx.module).toBe("clients");
+  expect(ctx.route_params.clientId).toBe("abc-123");
+  expect(ctx.command_center_view).toBe("dashboard");
 });
 
 test("formatUiContextForPrompt includes path and ids", () => {
@@ -25,11 +24,11 @@ test("formatUiContextForPrompt includes path and ids", () => {
       params: { tenantSlug: "foo", taskId: "task-1" },
     }),
   );
-  assert.match(text, /tasks\/task-1/);
-  assert.match(text, /taskId=task-1/);
+  expect(text).toMatch(/tasks\/task-1/);
+  expect(text).toMatch(/taskId=task-1/);
 });
 
 test("moduleLabel falls back to raw slug", () => {
-  assert.equal(moduleLabel("clients"), "לקוחות");
-  assert.equal(moduleLabel("custom-page"), "custom-page");
+  expect(moduleLabel("clients")).toBe("לקוחות");
+  expect(moduleLabel("custom-page")).toBe("custom-page");
 });

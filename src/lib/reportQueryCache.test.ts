@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import type { DehydratedState } from "@tanstack/react-query";
 
 // Test the persistence filter inline (same rules as reportQueryCache.ts).
@@ -71,6 +70,6 @@ test("empty report arrays are not persisted", () => {
   };
 
   const filtered = filterQueries(state);
-  assert.equal(filtered.queries.length, 1);
-  assert.deepEqual(filtered.queries[0].state.data, [{ id: "t1" }]);
+  expect(filtered.queries.length).toBe(1);
+  expect(filtered.queries[0].state.data).toStrictEqual([{ id: "t1" }]);
 });

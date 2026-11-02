@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   deliveryForInputMode,
   onRealtimeUnavailable,
@@ -11,60 +10,58 @@ import {
 } from "./carmenCommandInput.ts";
 
 test("typed, transcribe-only, and callback turns are text-only", () => {
-  assert.equal(deliveryForInputMode("typed"), "text");
-  assert.equal(deliveryForInputMode("transcribe_only"), "text");
-  assert.equal(deliveryForInputMode("external_channel_callback"), "text");
-  assert.equal(deliveryForInputMode("realtime_voice"), "realtime");
+  expect(deliveryForInputMode("typed")).toBe("text");
+  expect(deliveryForInputMode("transcribe_only")).toBe("text");
+  expect(deliveryForInputMode("external_channel_callback")).toBe("text");
+  expect(deliveryForInputMode("realtime_voice")).toBe("realtime");
 });
 
 test("typed replies never go through carmen-speak", () => {
-  assert.equal(shouldSpeakWithLegacyTts("typed"), false);
-  assert.equal(shouldSpeakWithLegacyTts("transcribe_only"), false);
-  assert.equal(shouldSpeakWithLegacyTts("realtime_voice"), false);
-  assert.equal(shouldSpeakWithLegacyTts("external_channel_callback"), false);
+  expect(shouldSpeakWithLegacyTts("typed")).toBe(false);
+  expect(shouldSpeakWithLegacyTts("transcribe_only")).toBe(false);
+  expect(shouldSpeakWithLegacyTts("realtime_voice")).toBe(false);
+  expect(shouldSpeakWithLegacyTts("external_channel_callback")).toBe(false);
 });
 
 test("volume toggle is Live-only", () => {
-  assert.equal(volumeControlsLiveSession("typed"), false);
-  assert.equal(volumeControlsLiveSession("transcribe_only"), false);
-  assert.equal(volumeControlsLiveSession("realtime_voice"), true);
-  assert.equal(volumeControlsLiveSession("external_channel_callback"), false);
+  expect(volumeControlsLiveSession("typed")).toBe(false);
+  expect(volumeControlsLiveSession("transcribe_only")).toBe(false);
+  expect(volumeControlsLiveSession("realtime_voice")).toBe(true);
+  expect(volumeControlsLiveSession("external_channel_callback")).toBe(false);
 });
 
 test("Realtime failure must not fall back to transcribe-voice", () => {
   const result = onRealtimeUnavailable();
-  assert.equal(result.fallbackToLegacyListen, false);
-  assert.match(result.description, /Realtime/);
+  expect(result.fallbackToLegacyListen).toBe(false);
+  expect(result.description).toMatch(/Realtime/);
 });
 
 test("typed send never reopens the legacy listen loop", () => {
-  assert.equal(
+  expect(
     shouldResumeLegacyListen({ inputMode: "typed", realtimeActive: false }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldResumeLegacyListen({
       inputMode: "realtime_voice",
       realtimeActive: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("live voice does not dump transcription into the typed thread", () => {
-  assert.equal(shouldLogRealtimeTranscript(), false);
+  expect(shouldLogRealtimeTranscript()).toBe(false);
 });
 
 test("chat turns are tagged with input and delivery mode", () => {
-  assert.deepEqual(tagChatTurn("typed"), {
+  expect(tagChatTurn("typed")).toStrictEqual({
     input_mode: "typed",
     delivery_mode: "text",
   });
-  assert.deepEqual(tagChatTurn("transcribe_only"), {
+  expect(tagChatTurn("transcribe_only")).toStrictEqual({
     input_mode: "transcribe_only",
     delivery_mode: "text",
   });
-  assert.deepEqual(tagChatTurn("realtime_voice"), {
+  expect(tagChatTurn("realtime_voice")).toStrictEqual({
     input_mode: "realtime_voice",
     delivery_mode: "realtime",
   });

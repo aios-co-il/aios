@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   addFacebookResult,
   emptyFacebookResultTotals,
@@ -20,10 +19,10 @@ test("checkout-optimized campaign sums results with its Hebrew label", () => {
   let totals = emptyFacebookResultTotals();
   totals = addFacebookResult(totals, checkoutDay(1));
   totals = addFacebookResult(totals, checkoutDay(2));
-  assert.equal(totals.results, 3);
-  assert.equal(totals.result_kind, "initiate_checkout");
-  assert.equal(totals.result_label, "התחלות תשלום");
-  assert.equal(facebookCostPerResult(629, totals.results).toFixed(2), "209.67");
+  expect(totals.results).toBe(3);
+  expect(totals.result_kind).toBe("initiate_checkout");
+  expect(totals.result_label).toBe("התחלות תשלום");
+  expect(facebookCostPerResult(629, totals.results).toFixed(2)).toBe("209.67");
 });
 
 test("rows synced before result_label existed fall back to the kind label", () => {
@@ -31,15 +30,15 @@ test("rows synced before result_label existed fall back to the kind label", () =
     results: 2,
     result_kind: "purchases",
   });
-  assert.equal(totals.result_label, "רכישות");
-  assert.equal(facebookResultLabel("initiate_checkout"), "התחלות תשלום");
+  expect(totals.result_label).toBe("רכישות");
+  expect(facebookResultLabel("initiate_checkout")).toBe("התחלות תשלום");
 });
 
 test("a campaign whose result metric changes mid-range is flagged mixed", () => {
   let totals = addFacebookResult(emptyFacebookResultTotals(), checkoutDay(3));
   totals = addFacebookResult(totals, { results: 1, result_kind: "purchases" });
-  assert.equal(totals.result_mixed, true);
-  assert.equal(totals.results, 3);
+  expect(totals.result_mixed).toBe(true);
+  expect(totals.results).toBe(3);
 });
 
 test("column label is specific only when all campaigns share one result", () => {
@@ -51,10 +50,10 @@ test("column label is specific only when all campaigns share one result", () => 
     results: 0,
     result_kind: "purchases",
   });
-  assert.equal(facebookResultsColumnLabel([checkout]), "התחלות תשלום");
-  assert.equal(facebookResultsColumnLabel([checkout, purchase]), "תוצאות");
+  expect(facebookResultsColumnLabel([checkout])).toBe("התחלות תשלום");
+  expect(facebookResultsColumnLabel([checkout, purchase])).toBe("תוצאות");
 });
 
 test("cost per result is zero when nothing converted", () => {
-  assert.equal(facebookCostPerResult(716, 0), 0);
+  expect(facebookCostPerResult(716, 0)).toBe(0);
 });

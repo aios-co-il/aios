@@ -5,6 +5,7 @@ import {
   FALLBACK_BRAIN_ROUTES,
   initialSelectedRoute,
   pickDefaultRoute,
+  rememberRouteLabels,
   type BrainRoute,
 } from "@/lib/agentChannelRouting";
 import { fetchBrainRoutes, fetchChannelHealth } from "./brainChannelApi";
@@ -45,6 +46,7 @@ export function useBrainRoutes(tenantId: string | null) {
   }, [data, isError]);
 
   const list = data?.list ?? FALLBACK_BRAIN_ROUTES;
+  rememberRouteLabels(list);
   return {
     routes: list,
     selected,
