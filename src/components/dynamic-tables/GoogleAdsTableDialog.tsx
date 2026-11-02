@@ -47,23 +47,18 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { ADS_TABLE_CREATE_DATE_RANGE_OPTIONS } from "@/lib/dashboardDateFilters";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
+import {
+  type GoogleAdsAccount,
+  MANAGER_ACCOUNT_HINT,
+  MANAGER_ACCOUNT_OPTION_NOTE,
+  MANAGER_ACCOUNT_REFUSAL,
+} from "./googleAdsAccounts";
 
 interface GoogleAdsTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assignedClientIds?: string[];
-}
-
-interface GoogleAdsAccount {
-  id: string;
-  name: string;
-  currency: string;
-  manager: boolean;
-  manager_id?: string;
-  // Which connection (tenant_integrations row) this account is reached through.
-  integration_id?: string;
-  integration_user_id?: string;
-  integration_email?: string | null;
 }
 
 const dateRangeOptions = ADS_TABLE_CREATE_DATE_RANGE_OPTIONS;
@@ -212,14 +207,20 @@ export function GoogleAdsTableDialog({
       // Trigger initial sync (direct API)
       try {
         toast.info("מסנכרן נתונים מ-Google Ads...");
-        await supabase.functions.invoke("sync-google-ads-data", {
-          method: "POST",
-          body: { table_id: data.id },
-        });
+        const { error: syncError } = await supabase.functions.invoke(
+          "sync-google-ads-data",
+          { method: "POST", body: { table_id: data.id } },
+        );
+        if (syncError) {
+          throw syncError;
+        }
         toast.success("הנתונים סונכרנו בהצלחה");
       } catch (err) {
         console.error("Initial sync failed:", err);
-        toast.error("הטבלה נוצרה אך הסנכרון נכשל - נסה לסנכרן ידנית");
+        const reason = await edgeFunctionErrorMessage(err, "נסה לסנכרן ידנית");
+        toast.error("הטבלה נוצרה אך הסנכרון נכשל: " + reason, {
+          duration: 12000,
+        });
       }
 
       handleClose();
@@ -239,6 +240,11 @@ export function GoogleAdsTableDialog({
 
     if (!selectedAccount) {
       toast.error("יש לבחור חשבון Google Ads");
+      return;
+    }
+
+    if (accounts.find((acc) => acc.id === selectedAccount)?.manager) {
+      toast.error(MANAGER_ACCOUNT_REFUSAL);
       return;
     }
 
@@ -423,10 +429,16 @@ export function GoogleAdsTableDialog({
                           );
 
                           return (
-                            <SelectItem key={account.id} value={account.id}>
+                            <SelectItem
+                              key={account.id}
+                              value={account.id}
+                              disabled={account.manager}
+                            >
                               {account.name} ({formattedAccountId}) •{" "}
-                              {account.currency}{" "}
-                              {account.manager ? "(MCC)" : ""}
+                              {account.currency}
+                              {account.manager
+                                ? MANAGER_ACCOUNT_OPTION_NOTE
+                                : ""}
                               {account.integration_email
                                 ? ` • ${account.integration_email}`
                                 : ""}
@@ -435,6 +447,9 @@ export function GoogleAdsTableDialog({
                         })}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {MANAGER_ACCOUNT_HINT}
+                  </p>
                 </>
               )}
             </div>
