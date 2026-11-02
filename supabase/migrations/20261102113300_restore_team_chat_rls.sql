@@ -8,23 +8,27 @@
 -- channel's members can read them.
 --
 -- The rules follow the app (every tenant member has team chat; content is
--- scoped by channel membership) and are narrower than the lost originals:
--- - team_channel_members: only a channel admin, the channel's creator or a
---   super admin adds members. The original let anyone join any channel,
---   private ones included.
+-- scoped by channel membership; channel settings belong to the channel's
+-- admins) and are narrower than the lost originals:
+-- - Writes happen only in the tenant the user acts in (get_user_tenant_id).
+--   A super admin reads every tenant but writes like any member of the tenant
+--   they act in (TENANT_ISOLATION.md); the originals let a super admin edit
+--   channels, members and files of any tenant.
+-- - team_channel_members: only a channel admin or the channel's creator adds
+--   members. The original let anyone join any channel, private ones included.
 -- - team_channel_members: an admin removes or edits members of their own
 --   channel only. The original compared a column with itself, so an admin of
 --   any channel could remove the members of every channel.
--- - team_channels: channel admins and super admins edit a channel. The
---   original's admin check never matched, so only super admins could.
+-- - team_channels: channel admins edit a channel. The original's admin check
+--   never matched, so only super admins could.
 -- - team_chat_files: files of a private channel are visible to its members
 --   (and the uploader) only, client cards included. Files of public channels
 --   stay visible to the tenant, as before.
--- - team_channel_whatsapp_links: members read the channel's links; only a
---   channel admin or a super admin links a WhatsApp group or chat, and only
---   one carried by a WhatsApp line they may read (the Chat page's rule,
---   chat_allowed_connection_user_ids). The original let any member bridge
---   any of the tenant's chats into their channel.
+-- - team_channel_whatsapp_links: members read the channel's links; only the
+--   channel's admin links a WhatsApp group or chat, and only one carried by a
+--   WhatsApp line they may read (the Chat page's rule,
+--   chat_allowed_connection_user_ids). The original let any member bridge any
+--   of the tenant's chats into their channel.
 -- - team_channel_invites: channel members read their channel's invites; the
 --   original let anyone, anon included, list every active token. The invite
 --   page reads one token through get_channel_invite_by_token.
@@ -79,8 +83,10 @@ AS $$
   );
 $$;
 
--- True when a line the caller may read (chat_allowed_connection_user_ids) has carried this group or chat id in the tenant.
+-- True when the channel and the link are in the caller's active tenant and a line the caller
+-- may read there (chat_allowed_connection_user_ids) has carried this group or chat id.
 CREATE OR REPLACE FUNCTION public.user_can_link_whatsapp_chat(
+  p_channel_id uuid,
   p_tenant_id uuid,
   p_whatsapp_group_id uuid,
   p_whatsapp_chat_id text
@@ -101,7 +107,9 @@ BEGIN
   END IF;
 
   IF p_tenant_id IS DISTINCT FROM public.get_user_tenant_id(v_user)
-     AND NOT public.is_super_admin(v_user) THEN
+     OR NOT EXISTS (
+       SELECT 1 FROM public.team_channels c WHERE c.id = p_channel_id AND c.tenant_id = p_tenant_id
+     ) THEN
     RETURN false;
   END IF;
 
@@ -143,14 +151,14 @@ $$;
 
 ALTER FUNCTION public.is_channel_admin(uuid, uuid) OWNER TO postgres;
 ALTER FUNCTION public.is_public_team_channel(uuid, uuid) OWNER TO postgres;
-ALTER FUNCTION public.user_can_link_whatsapp_chat(uuid, uuid, text) OWNER TO postgres;
+ALTER FUNCTION public.user_can_link_whatsapp_chat(uuid, uuid, uuid, text) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.is_channel_admin(uuid, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.is_public_team_channel(uuid, uuid) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.user_can_link_whatsapp_chat(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.user_can_link_whatsapp_chat(uuid, uuid, uuid, text) FROM PUBLIC, anon, authenticated;
 -- The policies below run as the signed-in user, so authenticated calls them.
 GRANT EXECUTE ON FUNCTION public.is_channel_admin(uuid, uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_public_team_channel(uuid, uuid) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.user_can_link_whatsapp_chat(uuid, uuid, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.user_can_link_whatsapp_chat(uuid, uuid, uuid, text) TO authenticated, service_role;
 
 -- ─── team_channels ──────────────────────────────────────────────────────────
 
@@ -159,7 +167,7 @@ DROP POLICY IF EXISTS team_channels_insert ON public.team_channels;
 DROP POLICY IF EXISTS team_channels_update ON public.team_channels;
 DROP POLICY IF EXISTS team_channels_delete ON public.team_channels;
 
--- Members and the creator see a channel of their tenant; super admins see all.
+-- Members and the creator see a channel of their tenant; super admins read every tenant's.
 CREATE POLICY team_channels_select ON public.team_channels FOR SELECT TO authenticated
   USING (
     (tenant_id = public.get_user_tenant_id((SELECT auth.uid()))
@@ -171,20 +179,14 @@ CREATE POLICY team_channels_select ON public.team_channels FOR SELECT TO authent
 CREATE POLICY team_channels_insert ON public.team_channels FOR INSERT TO authenticated
   WITH CHECK (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND created_by = (SELECT auth.uid()));
 
--- Channel admins and super admins edit a channel; it stays in the tenant.
+-- Channel admins edit their channel; it stays in the tenant.
 CREATE POLICY team_channels_update ON public.team_channels FOR UPDATE TO authenticated
-  USING (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(id, (SELECT auth.uid())))
-    OR public.is_super_admin((SELECT auth.uid()))
-  )
-  WITH CHECK (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(id, (SELECT auth.uid())))
-    OR public.is_super_admin((SELECT auth.uid()))
-  );
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(id, (SELECT auth.uid())))
+  WITH CHECK (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(id, (SELECT auth.uid())));
 
--- The creator or a super admin deletes a channel (members, messages and links cascade).
+-- The creator deletes their channel in their tenant (members, messages and links cascade).
 CREATE POLICY team_channels_delete ON public.team_channels FOR DELETE TO authenticated
-  USING (created_by = (SELECT auth.uid()) OR public.is_super_admin((SELECT auth.uid())));
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND created_by = (SELECT auth.uid()));
 
 -- ─── team_channel_members ───────────────────────────────────────────────────
 
@@ -193,54 +195,51 @@ DROP POLICY IF EXISTS team_channel_members_insert ON public.team_channel_members
 DROP POLICY IF EXISTS team_channel_members_update ON public.team_channel_members;
 DROP POLICY IF EXISTS team_channel_members_delete ON public.team_channel_members;
 
--- Tenant members see who is in which channel; super admins see all.
+-- Tenant members see who is in which channel; super admins read every tenant's.
 CREATE POLICY team_channel_members_select ON public.team_channel_members FOR SELECT TO authenticated
   USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) OR public.is_super_admin((SELECT auth.uid())));
 
--- A channel admin or the channel's creator adds members (no self-join); super admins too.
+-- A channel admin or the channel's creator adds members in their tenant (no self-join).
 CREATE POLICY team_channel_members_insert ON public.team_channel_members FOR INSERT TO authenticated
   WITH CHECK (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid()))
-      AND (
-        public.is_channel_admin(channel_id, (SELECT auth.uid()))
-        OR EXISTS (
-          SELECT 1
-          FROM public.team_channels c
-          WHERE c.id = team_channel_members.channel_id
-            AND c.tenant_id = team_channel_members.tenant_id
-            AND c.created_by = (SELECT auth.uid())
-        )
-      ))
-    OR public.is_super_admin((SELECT auth.uid()))
+    tenant_id = public.get_user_tenant_id((SELECT auth.uid()))
+    AND (
+      public.is_channel_admin(channel_id, (SELECT auth.uid()))
+      OR EXISTS (
+        SELECT 1
+        FROM public.team_channels c
+        WHERE c.id = team_channel_members.channel_id
+          AND c.tenant_id = team_channel_members.tenant_id
+          AND c.created_by = (SELECT auth.uid())
+      )
+    )
   );
 
--- Channel admins and super admins edit member settings; admin-only so a member cannot make themselves admin.
+-- Channel admins edit member settings; admin-only so a member cannot make themselves admin.
 CREATE POLICY team_channel_members_update ON public.team_channel_members FOR UPDATE TO authenticated
-  USING (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
-    OR public.is_super_admin((SELECT auth.uid()))
-  )
-  WITH CHECK (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
-    OR public.is_super_admin((SELECT auth.uid()))
-  );
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
+  WITH CHECK (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())));
 
--- A member leaves; an admin removes members of their own channel; super admins remove anyone.
+-- A member leaves, or an admin removes members of their own channel, in their tenant.
 CREATE POLICY team_channel_members_delete ON public.team_channel_members FOR DELETE TO authenticated
   USING (
-    user_id = (SELECT auth.uid())
-    OR (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
-    OR public.is_super_admin((SELECT auth.uid()))
+    tenant_id = public.get_user_tenant_id((SELECT auth.uid()))
+    AND (user_id = (SELECT auth.uid()) OR public.is_channel_admin(channel_id, (SELECT auth.uid())))
   );
 
 -- ─── team_channel_categories ────────────────────────────────────────────────
 
-DROP POLICY IF EXISTS team_channel_categories_all ON public.team_channel_categories;
+DROP POLICY IF EXISTS team_channel_categories_select ON public.team_channel_categories;
+DROP POLICY IF EXISTS team_channel_categories_write ON public.team_channel_categories;
 
--- Tenant members manage their tenant's channel categories; super admins all.
-CREATE POLICY team_channel_categories_all ON public.team_channel_categories FOR ALL TO authenticated
-  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) OR public.is_super_admin((SELECT auth.uid())))
-  WITH CHECK (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) OR public.is_super_admin((SELECT auth.uid())));
+-- Tenant members see their tenant's channel categories; super admins read every tenant's.
+CREATE POLICY team_channel_categories_select ON public.team_channel_categories FOR SELECT TO authenticated
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) OR public.is_super_admin((SELECT auth.uid())));
+
+-- Tenant members manage their tenant's channel categories.
+CREATE POLICY team_channel_categories_write ON public.team_channel_categories FOR ALL TO authenticated
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())))
+  WITH CHECK (tenant_id = public.get_user_tenant_id((SELECT auth.uid())));
 
 -- ─── team_channel_invites ───────────────────────────────────────────────────
 
@@ -248,7 +247,7 @@ DROP POLICY IF EXISTS team_channel_invites_select ON public.team_channel_invites
 DROP POLICY IF EXISTS team_channel_invites_insert ON public.team_channel_invites;
 DROP POLICY IF EXISTS team_channel_invites_update ON public.team_channel_invites;
 
--- Channel members see the channel's invite links; super admins see all.
+-- Channel members see the channel's invite links; super admins read every tenant's.
 CREATE POLICY team_channel_invites_select ON public.team_channel_invites FOR SELECT TO authenticated
   USING (
     (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_member(channel_id, (SELECT auth.uid())))
@@ -275,39 +274,33 @@ DROP POLICY IF EXISTS team_channel_whatsapp_links_insert ON public.team_channel_
 DROP POLICY IF EXISTS team_channel_whatsapp_links_update ON public.team_channel_whatsapp_links;
 DROP POLICY IF EXISTS team_channel_whatsapp_links_delete ON public.team_channel_whatsapp_links;
 
--- Channel members see which WhatsApp chats feed the channel; super admins see all.
+-- Channel members see which WhatsApp chats feed the channel; super admins read every tenant's.
 CREATE POLICY team_channel_whatsapp_links_select ON public.team_channel_whatsapp_links FOR SELECT TO authenticated
   USING (
     (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_member(channel_id, (SELECT auth.uid())))
     OR public.is_super_admin((SELECT auth.uid()))
   );
 
--- A channel admin (or super admin) links a WhatsApp group or chat carried by a line they may read.
+-- The channel's admin links a WhatsApp group or chat of their tenant carried by a line they may read.
 CREATE POLICY team_channel_whatsapp_links_insert ON public.team_channel_whatsapp_links FOR INSERT TO authenticated
   WITH CHECK (
-    ((tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
-      OR public.is_super_admin((SELECT auth.uid())))
-    AND public.user_can_link_whatsapp_chat(tenant_id, whatsapp_group_id, whatsapp_chat_id)
+    tenant_id = public.get_user_tenant_id((SELECT auth.uid()))
+    AND public.is_channel_admin(channel_id, (SELECT auth.uid()))
+    AND public.user_can_link_whatsapp_chat(channel_id, tenant_id, whatsapp_group_id, whatsapp_chat_id)
   );
 
--- A channel admin (or super admin) edits a link; the new target needs the same line access.
+-- The channel's admin edits a link; the new target needs the same line access.
 CREATE POLICY team_channel_whatsapp_links_update ON public.team_channel_whatsapp_links FOR UPDATE TO authenticated
-  USING (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
-    OR public.is_super_admin((SELECT auth.uid()))
-  )
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
   WITH CHECK (
-    ((tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
-      OR public.is_super_admin((SELECT auth.uid())))
-    AND public.user_can_link_whatsapp_chat(tenant_id, whatsapp_group_id, whatsapp_chat_id)
+    tenant_id = public.get_user_tenant_id((SELECT auth.uid()))
+    AND public.is_channel_admin(channel_id, (SELECT auth.uid()))
+    AND public.user_can_link_whatsapp_chat(channel_id, tenant_id, whatsapp_group_id, whatsapp_chat_id)
   );
 
--- A channel admin (or super admin) removes a link.
+-- The channel's admin removes a link.
 CREATE POLICY team_channel_whatsapp_links_delete ON public.team_channel_whatsapp_links FOR DELETE TO authenticated
-  USING (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())))
-    OR public.is_super_admin((SELECT auth.uid()))
-  );
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND public.is_channel_admin(channel_id, (SELECT auth.uid())));
 
 -- ─── team_chat_files ────────────────────────────────────────────────────────
 
@@ -336,17 +329,14 @@ CREATE POLICY team_chat_files_insert ON public.team_chat_files FOR INSERT TO aut
     AND public.is_channel_member(channel_id, (SELECT auth.uid()))
   );
 
--- The uploader (or a super admin) edits a file record, e.g. links it to a client.
+-- The uploader edits their file record in their tenant, e.g. links it to a client.
 CREATE POLICY team_chat_files_update ON public.team_chat_files FOR UPDATE TO authenticated
-  USING (uploaded_by = (SELECT auth.uid()) OR public.is_super_admin((SELECT auth.uid())))
-  WITH CHECK (
-    (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND uploaded_by = (SELECT auth.uid()))
-    OR public.is_super_admin((SELECT auth.uid()))
-  );
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND uploaded_by = (SELECT auth.uid()))
+  WITH CHECK (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND uploaded_by = (SELECT auth.uid()));
 
--- The uploader (or a super admin) deletes a file record.
+-- The uploader deletes their file record in their tenant.
 CREATE POLICY team_chat_files_delete ON public.team_chat_files FOR DELETE TO authenticated
-  USING (uploaded_by = (SELECT auth.uid()) OR public.is_super_admin((SELECT auth.uid())));
+  USING (tenant_id = public.get_user_tenant_id((SELECT auth.uid())) AND uploaded_by = (SELECT auth.uid()));
 
 -- ─── team_message_read_status ───────────────────────────────────────────────
 
@@ -386,33 +376,72 @@ CREATE POLICY team_messages_insert ON public.team_messages FOR INSERT TO authent
     AND public.is_channel_member(channel_id, (SELECT auth.uid()))
   );
 
--- The sender edits their message; it stays theirs and in a channel they belong to.
+-- The sender edits their message in their tenant; it stays theirs and in a channel they belong to.
 CREATE POLICY team_messages_update ON public.team_messages FOR UPDATE TO authenticated
-  USING (sender_id = (SELECT auth.uid()))
-  WITH CHECK (sender_id = (SELECT auth.uid()) AND public.is_channel_member(channel_id, (SELECT auth.uid())));
+  USING (sender_id = (SELECT auth.uid()) AND tenant_id = public.get_user_tenant_id((SELECT auth.uid())))
+  WITH CHECK (
+    sender_id = (SELECT auth.uid())
+    AND tenant_id = public.get_user_tenant_id((SELECT auth.uid()))
+    AND public.is_channel_member(channel_id, (SELECT auth.uid()))
+  );
 
--- The sender (or a super admin) deletes a message.
+-- The sender deletes their message in their tenant.
 CREATE POLICY team_messages_delete ON public.team_messages FOR DELETE TO authenticated
-  USING (sender_id = (SELECT auth.uid()) OR public.is_super_admin((SELECT auth.uid())));
+  USING (sender_id = (SELECT auth.uid()) AND tenant_id = public.get_user_tenant_id((SELECT auth.uid())));
 
 -- ─── Check ──────────────────────────────────────────────────────────────────
 
--- Fails the migration if a restored table still has no policy.
+-- Fails the migration unless the ten tables carry exactly the policies above, each TO authenticated only
+-- (permissive policies OR together, so a leftover policy would widen access).
 DO $$
 DECLARE
-  v_missing text;
-BEGIN
-  SELECT string_agg(t.name, ', ' ORDER BY t.name)
-  INTO v_missing
-  FROM unnest(ARRAY[
+  v_expected text[] := ARRAY[
+    'team_channels.team_channels_select', 'team_channels.team_channels_insert',
+    'team_channels.team_channels_update', 'team_channels.team_channels_delete',
+    'team_channel_members.team_channel_members_select', 'team_channel_members.team_channel_members_insert',
+    'team_channel_members.team_channel_members_update', 'team_channel_members.team_channel_members_delete',
+    'team_channel_categories.team_channel_categories_select', 'team_channel_categories.team_channel_categories_write',
+    'team_channel_invites.team_channel_invites_select', 'team_channel_invites.team_channel_invites_insert',
+    'team_channel_invites.team_channel_invites_update',
+    'team_channel_whatsapp_links.team_channel_whatsapp_links_select',
+    'team_channel_whatsapp_links.team_channel_whatsapp_links_insert',
+    'team_channel_whatsapp_links.team_channel_whatsapp_links_update',
+    'team_channel_whatsapp_links.team_channel_whatsapp_links_delete',
+    'team_chat_files.team_chat_files_select', 'team_chat_files.team_chat_files_insert',
+    'team_chat_files.team_chat_files_update', 'team_chat_files.team_chat_files_delete',
+    'team_message_read_status.team_message_read_status_select',
+    'team_message_read_status.team_message_read_status_insert',
+    'team_message_read_status.team_message_read_status_update',
+    'team_messages.team_messages_select', 'team_messages.team_messages_insert',
+    'team_messages.team_messages_update', 'team_messages.team_messages_delete'
+  ];
+  v_tables text[] := ARRAY[
     'team_channels', 'team_channel_members', 'team_channel_categories', 'team_channel_invites',
-    'team_channel_whatsapp_links', 'team_chat_files', 'team_message_read_status', 'team_messages'
-  ]) AS t(name)
-  WHERE NOT EXISTS (
-    SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t.name
-  );
-  IF v_missing IS NOT NULL THEN
-    RAISE EXCEPTION 'restore_team_chat_rls: no policy on %', v_missing;
+    'team_channel_whatsapp_links', 'team_chat_files', 'team_message_attachments',
+    'team_message_reactions', 'team_message_read_status', 'team_messages'
+  ];
+  v_missing text[];
+  v_unexpected text[];
+  v_wide text;
+BEGIN
+  SELECT
+    ARRAY(SELECT unnest(v_expected) EXCEPT
+          SELECT p.tablename || '.' || p.policyname FROM pg_policies p
+          WHERE p.schemaname = 'public' AND p.tablename = ANY (v_tables)),
+    ARRAY(SELECT p.tablename || '.' || p.policyname FROM pg_policies p
+          WHERE p.schemaname = 'public' AND p.tablename = ANY (v_tables)
+          EXCEPT SELECT unnest(v_expected))
+  INTO v_missing, v_unexpected;
+  IF cardinality(v_missing) > 0 OR cardinality(v_unexpected) > 0 THEN
+    RAISE EXCEPTION 'restore_team_chat_rls: missing policies %, unexpected policies %', v_missing, v_unexpected;
+  END IF;
+
+  SELECT string_agg(p.tablename || '.' || p.policyname, ', ')
+  INTO v_wide
+  FROM pg_policies p
+  WHERE p.schemaname = 'public' AND p.tablename = ANY (v_tables) AND p.roles <> ARRAY['authenticated']::name[];
+  IF v_wide IS NOT NULL THEN
+    RAISE EXCEPTION 'restore_team_chat_rls: policies not limited to authenticated: %', v_wide;
   END IF;
 END;
 $$;
