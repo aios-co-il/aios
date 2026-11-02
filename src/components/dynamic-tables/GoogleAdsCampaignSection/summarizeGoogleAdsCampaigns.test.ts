@@ -80,4 +80,36 @@ describe("summarizeGoogleAdsCampaigns", () => {
       summary.campaigns.map((campaign) => [campaign.name, campaign.off]),
     ).toStrictEqual([["Spent", true]]);
   });
+
+  it("marks one paused Google campaign off while the report stays on", () => {
+    const summary = summarizeGoogleAdsCampaigns(
+      [
+        row({
+          campaign_id: "paused",
+          campaign_name: "Paused",
+          campaign_status: "PAUSED",
+          cost: 25,
+        }),
+        row({
+          campaign_id: "idle",
+          campaign_name: "Idle",
+          campaign_status: "PAUSED",
+          cost: 0,
+        }),
+        row({
+          campaign_id: "live",
+          campaign_name: "Live",
+          campaign_status: "ENABLED",
+          cost: 30,
+        }),
+      ],
+      [table],
+    );
+    expect(
+      summary.campaigns.map((campaign) => [campaign.name, campaign.off]),
+    ).toStrictEqual([
+      ["Live", false],
+      ["Paused", true],
+    ]);
+  });
 });

@@ -14,8 +14,12 @@ import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
-import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
+import {
+  GAQL_METRICS,
+  type GoogleAdsRecord,
+  parseGaqlResults,
+} from "./gaql-records.ts";
 
 const SOURCE = "sync-google-ads-data";
 
@@ -29,43 +33,6 @@ const corsHeaders = {
 const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
-
-interface GoogleAdsRecord {
-  date: string;
-  entity_level?: "campaign" | "adset" | "ad";
-  campaign_id: string;
-  campaign_name: string;
-  adset_id?: string;
-  adset_name?: string;
-  ad_id?: string;
-  ad_name?: string;
-  impressions: number;
-  clicks: number;
-  ctr: number;
-  cpc: number;
-  cost: number;
-  conversions: number;
-  conversions_value: number;
-  /** Secondary/all conversion actions (not used for primary KPI; stored for diagnostics). */
-  all_conversions: number;
-  all_conversions_value: number;
-  cost_per_conversion: number;
-  roas: number;
-  /**
-   * Add-to-cart conversions, from the ADD_TO_CART conversion action category.
-   * Left undefined when the account tracks no add-to-cart action at all, so the
-   * report can tell "not tracked" apart from "nobody added to cart".
-   */
-  add_to_cart?: number;
-  /** Campaign type (PERFORMANCE_MAX, SEARCH, SHOPPING…) and bidding, for goal detection. */
-  campaign_channel_type?: string;
-  bidding_strategy_type?: string;
-  /** What the campaign converts on, from its conversion goals: drives the pulse goal. */
-  conversion_goal?: GoogleCampaignGoal;
-  // Verified leads from connected WordPress site (Elementor submissions with matching gad_campaignid)
-  verified_leads?: number;
-  verified_source?: string; // site URL we verified against, for transparency
-}
 
 /**
  * Merge a patch into crm_tables.integration_settings using the LATEST row,
@@ -558,70 +525,6 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    const gaqlMetrics = `
-        metrics.impressions,
-        metrics.clicks,
-        metrics.ctr,
-        metrics.average_cpc,
-        metrics.cost_micros,
-        metrics.conversions,
-        metrics.conversions_value,
-        metrics.all_conversions,
-        metrics.all_conversions_value,
-        metrics.cost_per_conversion`;
-
-    const parseGaqlResults = (
-      batchesArr: any[],
-      entityLevel: "campaign" | "adset" | "ad",
-    ): GoogleAdsRecord[] => {
-      const parsed: GoogleAdsRecord[] = [];
-      for (const batch of batchesArr) {
-        for (const result of batch.results || []) {
-          const costMicros = parseInt(result.metrics?.costMicros || "0");
-          const cost = costMicros / 1000000;
-          const conversions = parseFloat(result.metrics?.conversions || "0");
-          const conversionsValue = parseFloat(
-            result.metrics?.conversionsValue || "0",
-          );
-          const allConversions = parseFloat(
-            result.metrics?.allConversions || "0",
-          );
-          const allConversionsValue = parseFloat(
-            result.metrics?.allConversionsValue || "0",
-          );
-          const finalConversions = conversions;
-          const roas = cost > 0 ? conversionsValue / cost : 0;
-          parsed.push({
-            entity_level: entityLevel,
-            date: result.segments?.date || "",
-            campaign_id: result.campaign?.id || "",
-            campaign_name: result.campaign?.name || "",
-            campaign_channel_type:
-              result.campaign?.advertisingChannelType || undefined,
-            bidding_strategy_type:
-              result.campaign?.biddingStrategyType || undefined,
-            adset_id: result.adGroup?.id || undefined,
-            adset_name: result.adGroup?.name || undefined,
-            ad_id: result.adGroupAd?.ad?.id || undefined,
-            ad_name: result.adGroupAd?.ad?.name || undefined,
-            impressions: parseInt(result.metrics?.impressions || "0"),
-            clicks: parseInt(result.metrics?.clicks || "0"),
-            ctr: parseFloat(result.metrics?.ctr || "0") * 100,
-            cpc: parseInt(result.metrics?.averageCpc || "0") / 1000000,
-            cost,
-            conversions: finalConversions,
-            conversions_value: conversionsValue,
-            all_conversions: allConversions,
-            all_conversions_value: allConversionsValue,
-            cost_per_conversion:
-              parseInt(result.metrics?.costPerConversion || "0") / 1000000,
-            roas: Math.round(roas * 100) / 100,
-          });
-        }
-      }
-      return parsed;
-    };
-
     const runGaqlSearch = async (query: string) => {
       const response = await adsFetch(
         `https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`,
@@ -655,9 +558,10 @@ Deno.serve(async (req) => {
         segments.date,
         campaign.id,
         campaign.name,
+        campaign.status,
         campaign.advertising_channel_type,
         campaign.bidding_strategy_type,
-        ${gaqlMetrics}
+        ${GAQL_METRICS}
       FROM campaign
       WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
       ORDER BY segments.date DESC
@@ -668,9 +572,10 @@ Deno.serve(async (req) => {
         segments.date,
         campaign.id,
         campaign.name,
+        campaign.status,
         ad_group.id,
         ad_group.name,
-        ${gaqlMetrics}
+        ${GAQL_METRICS}
       FROM ad_group
       WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
       ORDER BY segments.date DESC
@@ -681,11 +586,12 @@ Deno.serve(async (req) => {
         segments.date,
         campaign.id,
         campaign.name,
+        campaign.status,
         ad_group.id,
         ad_group.name,
         ad_group_ad.ad.id,
         ad_group_ad.ad.name,
-        ${gaqlMetrics}
+        ${GAQL_METRICS}
       FROM ad_group_ad
       WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
       ORDER BY segments.date DESC

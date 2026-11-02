@@ -75,6 +75,43 @@ describe("campaignOffKeys", () => {
     expect([...campaignOffKeys(records, byCampaign)]).toEqual(["a"]);
   });
 
+  it("marks a paused Google campaign off by its synced status", () => {
+    const records = [
+      {
+        data: {
+          campaign_id: "g1",
+          date: "2026-10-01",
+          campaign_status: "ENABLED",
+        },
+      },
+      {
+        data: {
+          campaign_id: "g1",
+          date: "2026-10-03",
+          campaign_status: "PAUSED",
+        },
+      },
+      {
+        data: {
+          campaign_id: "g2",
+          date: "2026-10-03",
+          campaign_status: "REMOVED",
+        },
+      },
+      {
+        data: {
+          campaign_id: "g3",
+          date: "2026-10-03",
+          campaign_status: "ENABLED",
+        },
+      },
+    ];
+    expect([...campaignOffKeys(records, byCampaign)].sort()).toEqual([
+      "g1",
+      "g2",
+    ]);
+  });
+
   it("leaves a campaign with no stored status on", () => {
     const records = [
       { data: { campaign_id: "g1", date: "2026-10-03", cost: 50 } },
