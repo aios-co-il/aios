@@ -2,6 +2,7 @@ import {
   leadPhoneVariants,
   pickDuplicateLead,
 } from "./lead-duplicate-match.ts";
+import type { Tables } from "../_shared/database.types.ts";
 
 /** The slice of the Supabase client these helpers use, so tests can fake it. */
 export type LeadDb = { from: (table: string) => any };
@@ -24,7 +25,7 @@ export async function getExistingLead(
   db: LeadDb,
   tenantId: string | null,
   incoming: InboundContact,
-) {
+): Promise<Tables<"leads"> | null> {
   const phoneVariants = leadPhoneVariants(incoming.phone);
   if (phoneVariants.length === 0) return null;
 
@@ -36,7 +37,7 @@ export async function getExistingLead(
     .order("created_at", { ascending: false })
     .limit(20);
 
-  const match = pickDuplicateLead(leadsByPhone, incoming);
+  const match = pickDuplicateLead<Tables<"leads">>(leadsByPhone, incoming);
   if (match) return match;
 
   // Stored phones may use other spellings; scan recent leads as a fallback
@@ -47,7 +48,7 @@ export async function getExistingLead(
     .not("phone", "is", null)
     .order("created_at", { ascending: false })
     .limit(500);
-  return pickDuplicateLead(recentLeads, incoming);
+  return pickDuplicateLead<Tables<"leads">>(recentLeads, incoming);
 }
 
 /**
