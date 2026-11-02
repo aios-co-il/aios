@@ -8,9 +8,9 @@
 
 ### 1. Tenant Context
 
-- כל משתמש שייך לארגון אחד בלבד (tenant_users table)
+- משתמש יכול להיות חבר בכמה ארגונים (שורה לכל ארגון ב-`tenant_users`), ופועל בכל רגע בארגון פעיל אחד (`user_active_tenant`)
 - המערכת משתמשת ב-TenantProvider לניהול הארגון הנוכחי
-- Super admins יכולים לצפות בכל הארגונים אבל לא לשנות נתונים בין ארגונים
+- Super admins יכולים לצפות בכל הארגונים ולעבור לכל ארגון, אבל כותבים נתונים רק בארגון הפעיל שלהם
 
 ### 2. Row Level Security (RLS)
 
@@ -38,15 +38,13 @@ USING (
 
 #### get_user_tenant_id
 
-מחזירה את ה-tenant_id של המשתמש:
-
-```sql
-SELECT tenant_id FROM tenant_users WHERE user_id = auth.uid() LIMIT 1
-```
+מחזירה את ה-tenant הפעיל של המשתמש (`user_active_tenant`), ואם אין כזה את החברות הראשונה שלו ב-`tenant_users`.
 
 #### get_effective_tenant_id
 
-מחזירה את ה-tenant הפעיל כרגע (לעתיד: תמיכה במעבר בין tenants ל-super admin)
+אותו כלל עבור המשתמש המחובר (`auth.uid()`).
+
+מעבר tenant: משתמש כותב רק את השורה שלו ב-`user_active_tenant`, ורק ל-tenant שהוא חבר בו (`user_is_tenant_member`); super admin עובר לכל tenant. trigger על הטבלה אוכף את אותו כלל גם בכתיבה של service role, ושורה של super admin שאיבד את התפקיד ואינו חבר ב-tenant שלה נמחקת. שתי הפונקציות סומכות על הכלל הזה ואינן בודקות חברות בעצמן.
 
 #### is_super_admin
 
