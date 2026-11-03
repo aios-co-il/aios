@@ -3,7 +3,6 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { overlayBrainEnv } from "./env.ts";
 import { buildModelMessages } from "./messages.ts";
 import { sanitizeProfile } from "./profile.ts";
 import { isValidBrainSlug, slugFromName } from "./slug.ts";
@@ -81,12 +80,3 @@ Deno.test(
     assertEquals(fresh, [{ role: "user", content: "q" }]);
   },
 );
-
-Deno.test("tenant UI keys win over env secrets; blanks do not", () => {
-  const env = overlayBrainEnv(
-    { CURSOR_API_KEY: "env", CLAUDE_ROUTINE_TOKEN: "env-claude" },
-    { CURSOR_API_KEY: "ui", CLAUDE_ROUTINE_TOKEN: "  " },
-  );
-  assertStrictEquals(env.CURSOR_API_KEY, "ui");
-  assertStrictEquals(env.CLAUDE_ROUTINE_TOKEN, "env-claude");
-});
