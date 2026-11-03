@@ -913,6 +913,42 @@ Deno.test(
 );
 
 Deno.test(
+  "the film's text style and size are saved for the render",
+  async () => {
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+      "rpc:produce_video": { status: "running", clips: 1 },
+    });
+    await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_produce_video",
+      {
+        item_id: "item-1",
+        confirmed: true,
+        title_style: "typewriter",
+        title_size: "large",
+      },
+      async () => {},
+      null,
+      { defaultEngine: async () => "mock" as const },
+    );
+    const video = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map(
+        (c) =>
+          (c.value as { payload?: { video?: Record<string, unknown> } }).payload
+            ?.video,
+      )
+      .filter(Boolean)
+      .pop();
+    assertStrictEquals(video?.title_style, "typewriter");
+    assertStrictEquals(video?.title_size, "large");
+  },
+);
+
+Deno.test(
   "a later production of a finished design keeps it without being asked again",
   async () => {
     const project = videoProject();

@@ -23,6 +23,7 @@ import {
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
+import { isTitleSize, isTitleStyle } from "../title-styles.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -358,6 +359,13 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             sound_engine: "elevenlabs",
             sound_design: soundDesign,
             keep_design: keepDesign,
+            // How the scenes' text enters and how large it is (title-styles.ts).
+            ...(isTitleStyle(args.title_style)
+              ? { title_style: args.title_style }
+              : {}),
+            ...(isTitleSize(args.title_size)
+              ? { title_size: args.title_size }
+              : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },

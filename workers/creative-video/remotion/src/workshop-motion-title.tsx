@@ -1,8 +1,8 @@
 /**
  * A scene's on-screen text as motion graphics, for a film without spoken captions: each word
- * springs in after the one before it, the text floats gently while it shows (a slow bob and
- * sway, as if in water), and numbers are drawn in the accent colour. On Staging (2 Nov) a film
- * without narration showed its text only as a plain caption line.
+ * enters after the one before it in the scene's style (workshop-title-styles.ts; the float
+ * style also bobs and sways as if in water), and numbers are drawn in the accent colour. On
+ * Staging (2 Nov) a film without narration showed its text only as a plain caption line.
  */
 import React from "react";
 import {
@@ -12,44 +12,59 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { captionLayout, readableAccent, ramp } from "./workshop-layout";
+import { captionLayout, readableAccent } from "./workshop-layout";
 import { TITLE_EXIT, motionTitleWords } from "./workshop-title-timing";
+import {
+  SPRING_OF,
+  floats,
+  wordLook,
+  SIZE_SCALE,
+  type TitleSize,
+  type TitleStyle,
+} from "./workshop-title-styles";
 
 const clamp = {
   extrapolateLeft: "clamp",
   extrapolateRight: "clamp",
 } as const;
 
-/** One word: it rises, grows and sharpens into place from its entrance frame. */
+/** One word of the title, drawn in the scene's style (workshop-title-styles.ts). */
 const TitleWordView: React.FC<{
   text: string;
   at: number;
   colour: string;
   frame: number;
-}> = ({ text, at, colour, frame }) => {
+  style: TitleStyle;
+}> = ({ text, at, colour, frame, style }) => {
   const { fps } = useVideoConfig();
   const t = frame - at;
-  const p = spring({
-    frame: Math.max(0, t),
-    fps,
-    config: { damping: 13, mass: 0.5, stiffness: 160 },
-  });
-  const shown = t >= 0;
-  const blur = (1 - ramp(t, 5)) * 10;
-  return (
+  const p = spring({ frame: Math.max(0, t), fps, config: SPRING_OF[style] });
+  const look = wordLook(style, t, p);
+  const word = (
     <span
       style={{
         display: "inline-block",
         color: colour,
-        opacity: shown ? ramp(t, 4) : 0,
-        transform: `translateY(${((1 - p) * 0.6).toFixed(3)}em) scale(${(0.6 + 0.4 * p).toFixed(3)})`,
-        filter: shown && blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : undefined,
+        opacity: look.opacity,
+        transform: `translate(${look.x.toFixed(3)}em, ${look.y.toFixed(3)}em) scale(${look.scale.toFixed(3)}) rotate(${look.rotate.toFixed(2)}deg)`,
+        filter: look.blur > 0.2 ? `blur(${look.blur.toFixed(1)}px)` : undefined,
+        // Typed from the reading side: Hebrew starts at the right.
+        clipPath:
+          look.shown < 1
+            ? `inset(0 0 0 ${((1 - look.shown) * 100).toFixed(1)}%)`
+            : undefined,
         textShadow:
           "0 0.04em 0 rgba(0,0,0,0.4), 0 0.06em 0.35em rgba(0,10,30,0.75)",
       }}
     >
       {text}
     </span>
+  );
+  // The reveal rises out of a mask that hides it below its line.
+  return style === "reveal" ? (
+    <span style={{ display: "inline-block", overflow: "hidden" }}>{word}</span>
+  ) : (
+    word
   );
 };
 
@@ -59,7 +74,9 @@ export const MotionTitle: React.FC<{
   /** Frames of the scene's own entrance transition, before its first frame. */
   enter: number;
   accent: string;
-}> = ({ text, enter, accent }) => {
+  style: TitleStyle;
+  size: TitleSize;
+}> = ({ text, enter, accent, style, size }) => {
   const frame = useCurrentFrame() - enter;
   const { width, height, durationInFrames } = useVideoConfig();
   const frames = durationInFrames - enter;
@@ -68,6 +85,7 @@ export const MotionTitle: React.FC<{
     return null;
   }
   const layout = captionLayout(width, height);
+  const fontSize = Math.round(layout.fontSize * SIZE_SCALE[size]);
   const leave = interpolate(
     frame,
     [frames - TITLE_EXIT, frames],
@@ -75,8 +93,8 @@ export const MotionTitle: React.FC<{
     clamp,
   );
   // The float: a slow bob and sway, out of step so it never looks mechanical.
-  const bob = Math.sin(frame / 14) * layout.fontSize * 0.12;
-  const sway = Math.sin(frame / 23 + 1.3) * 1.4;
+  const bob = floats(style) ? Math.sin(frame / 14) * fontSize * 0.12 : 0;
+  const sway = floats(style) ? Math.sin(frame / 23 + 1.3) * 1.4 : 0;
   const key = readableAccent(accent);
   return (
     <AbsoluteFill
@@ -95,10 +113,10 @@ export const MotionTitle: React.FC<{
           columnGap: "0.28em",
           maxWidth: layout.safeWidth,
           fontWeight: 900,
-          fontSize: layout.fontSize,
+          fontSize,
           lineHeight: 1.15,
           opacity: leave,
-          transform: `translateY(${(bob - (1 - leave) * layout.fontSize * 0.5).toFixed(1)}px) rotate(${sway.toFixed(2)}deg)`,
+          transform: `translateY(${(bob - (1 - leave) * fontSize * 0.5).toFixed(1)}px) rotate(${sway.toFixed(2)}deg)`,
         }}
       >
         {words.map((word, index) => (
@@ -108,6 +126,7 @@ export const MotionTitle: React.FC<{
             at={word.at}
             colour={word.key ? key : "#ffffff"}
             frame={frame}
+            style={style}
           />
         ))}
       </div>

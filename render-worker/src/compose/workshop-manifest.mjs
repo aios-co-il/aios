@@ -135,6 +135,16 @@ function brandOf(brand, files) {
   return out.ctaText ? { ...out, ctaLines: ctaLines(out.ctaText) } : out;
 }
 
+/** A scene's text style and size for the manifest: its own, else the film's, else none. */
+function titleLookOf(scene, timeline) {
+  const titleStyle = scene.titleStyle || timeline.titleStyle || null;
+  const titleSize = scene.titleSize || timeline.titleSize || null;
+  return {
+    ...(titleStyle ? { titleStyle } : {}),
+    ...(titleSize ? { titleSize } : {}),
+  };
+}
+
 /**
  * @returns {{ manifest: object, files: { from: string, to: string }[] }}
  */
@@ -287,6 +297,8 @@ export function buildWorkshopManifest(timeline) {
       clip: p.useStill ? null : p.name,
       // A finished design is shown whole over a blurred copy of itself, never cropped.
       ...(p.useStill && timeline.keepDesign === true ? { fit: "contain" } : {}),
+      // How the scene's text enters and how large it is: its own choice, else the film's.
+      ...titleLookOf(p.scene, timeline),
       clipFrames: p.clipFrames,
       voice: p.voice,
       caption: String(p.scene.overlayText ?? "")

@@ -54,6 +54,8 @@ export function buildTimeline(
     captionStyle = "motion",
     brandName = null,
     keepDesign = false,
+    titleStyle = null,
+    titleSize = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -92,6 +94,9 @@ export function buildTimeline(
       skinRef: scene.skinRef || null,
       pictureKey: scene.pictureKey || null,
       overlayText: String(scene.overlayText ?? "").trim(),
+      // The scene's own text style and size (title-style.mjs), else the film's.
+      titleStyle: scene.titleStyle || null,
+      titleSize: scene.titleSize || null,
       durationS: sceneSeconds(scene.durationS),
     }));
   const [width, height] = frameSize(aspect);
@@ -100,6 +105,9 @@ export function buildTimeline(
     fps: 25,
     // A finished design (video.keep_design): its pictures fit whole in the frame, not cropped.
     keepDesign: keepDesign === true,
+    // How the scenes' text enters and how large it is in a film without narration.
+    titleStyle: titleStyle || null,
+    titleSize: titleSize || null,
     aspect,
     width,
     height,

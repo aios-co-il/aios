@@ -221,7 +221,13 @@ const Picture: React.FC<{
           {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
         </AbsoluteFill>
         {!caption ? null : captionAt === "motion" ? (
-          <MotionTitle text={caption} enter={enter} accent={accent} />
+          <MotionTitle
+            text={caption}
+            enter={enter}
+            accent={accent}
+            style={scene.titleStyle ?? "float"}
+            size={scene.titleSize ?? "medium"}
+          />
         ) : (
           <SceneCaption
             text={caption}
