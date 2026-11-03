@@ -1,4 +1,10 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
+import {
+  END_CARD_STYLES,
+  END_CARD_STYLE_HELP,
+  SCENE_TRANSITIONS,
+  TRANSITION_HELP,
+} from "./film-look.ts";
 import { motionField } from "./motion-text.ts";
 import { spokenField } from "./spoken-text.ts";
 import {
@@ -425,6 +431,11 @@ export const WORKSHOP_TOOLS = [
           enum: [...TITLE_SIZES],
           description: `${TITLE_SIZE_HELP} לסצנה הזו בלבד. בלי עלות, נכנס בהרכבה הבאה.`,
         },
+        transition: {
+          type: "string",
+          enum: [...SCENE_TRANSITIONS],
+          description: `${TRANSITION_HELP} לסצנה הזו בלבד; מבטל החלפת סקין אוטומטית במעבר הזה. בלי עלות, נכנס בהרכבה הבאה.`,
+        },
       },
       required: ["item_id"],
     },
@@ -539,6 +550,11 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: [...FILM_FONTS],
           description: FILM_FONT_HELP,
+        },
+        end_card_style: {
+          type: "string",
+          enum: [...END_CARD_STYLES],
+          description: END_CARD_STYLE_HELP,
         },
         cta_text: {
           type: "string",

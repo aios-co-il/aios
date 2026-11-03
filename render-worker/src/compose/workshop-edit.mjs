@@ -1,8 +1,12 @@
 /** Edit decisions for the Workshop film: transitions, scene lengths and the music mix. */
 
+import { SCENE_TRANSITIONS } from "./film-look.mjs";
+
 export const WORKSHOP_TRANSITIONS = ["crossfade", "slide", "zoom", "wipe"];
-const ALL_TRANSITIONS = new Set([...WORKSHOP_TRANSITIONS, "cut"]);
+const ALL_TRANSITIONS = new Set(SCENE_TRANSITIONS);
 const MAX_TRANSITION_FRAMES = 15;
+/** A whip and a glitch are short and sharp; a ripple takes its time to spread. */
+const FRAMES_OF = { whip: 9, glitch: 8, ripple: 20 };
 
 export const MIX = {
   music: 0.2,
@@ -72,7 +76,7 @@ export function transitionFrames(previous, current, type) {
   return Math.max(
     0,
     Math.min(
-      MAX_TRANSITION_FRAMES,
+      FRAMES_OF[type] ?? MAX_TRANSITION_FRAMES,
       Math.floor(previous / 3),
       Math.floor(current / 3),
     ),
