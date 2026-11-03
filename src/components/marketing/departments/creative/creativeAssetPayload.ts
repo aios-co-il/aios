@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { CreativeFormat } from "./types";
 import { CREATIVE_COMPOSITIONS, type CompositionId } from "./compositions";
 import {
   CREATIVE_VISUAL_STYLES,
@@ -7,10 +6,7 @@ import {
 } from "./visualStyles";
 import { storedObject } from "./storedPayload";
 
-export const creativeFormat = z.custom<CreativeFormat>(
-  (value) =>
-    value === "9:16" || value === "1:1" || value === "4:5" || value === "16:9",
-);
+export const creativeFormat = z.enum(["9:16", "1:1", "4:5", "16:9"]);
 export const visualStyle = z.custom<CreativeVisualStyleId>((value) =>
   CREATIVE_VISUAL_STYLES.some((style) => style.id === value),
 );

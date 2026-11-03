@@ -4,8 +4,9 @@ import type {
   creativeLayer,
   creativeComment,
   storyboardFrame,
+  creativeFormat,
 } from "./creativeAssetPayload";
-export type CreativeFormat = "9:16" | "1:1" | "4:5" | "16:9";
+export type CreativeFormat = z.output<typeof creativeFormat>;
 
 import type { BrandBook, StyleReference } from "./brandKit";
 import type { CreativeVisualStyleId } from "./visualStyles";
