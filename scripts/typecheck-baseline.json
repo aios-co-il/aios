@@ -270,34 +270,6 @@
       "count": 1
     },
     {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ brief_files: BriefFile[]; department: string; }' is not assignable to type 'Json | undefined'.\n  Types of property 'brief_files' are incompatible.\n    Type 'BriefFile[]' is not assignable to type 'Json | undefined'.\n      Type 'BriefFile[]' is not assignable to type 'Json[]'.\n        Type 'BriefFile' is not assignable to type 'Json'.\n          Type 'BriefFile' is not assignable to type '{ [key: string]: Json | undefined; }'.\n            Index signature for type 'string' is missing in type 'BriefFile'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ department: string; copy_text: string; copy_variations: JsonValue; copy_concepts: JsonValue; copy_chat: ChatTurn[]; copy_prompt: string; last_skin_slug: string; copy_conversation_id: any; }' is not assignable to type 'Json | undefined'.\n  Type '{ department: string; copy_text: string; copy_variations: JsonValue; copy_concepts: JsonValue; copy_chat: ChatTurn[]; copy_prompt: string; last_skin_slug: string; copy_conversation_id: any; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'copy_chat' is incompatible with index signature.\n      Type 'ChatTurn[]' is not assignable to type 'Json | undefined'.\n        Type 'ChatTurn[]' is not assignable to type 'Json[]'.\n          Type 'ChatTurn' is not assignable to type 'Json'.\n            Type 'ChatTurn' is not assignable to type '{ [key: string]: Json | undefined; }'.\n              Index signature for type 'string' is missing in type 'ChatTurn'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2322,
-      "message": "Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n  Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.",
-      "source": "payload",
-      "count": 2
-    },
-    {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n      Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "insert",
-      "count": 1
-    },
-    {
       "file": "src/components/marketing/departments/CreativeDepartment.tsx",
       "code": 2322,
       "message": "Type '{ brief_text: string; copy_text: string | undefined; instructions: string | undefined; format: CreativeFormat; project_type: CreativeProjectType; ... 5 more ...; department: string; }' is not assignable to type 'Json | undefined'.\n  Type '{ brief_text: string; copy_text: string | undefined; instructions: string | undefined; format: CreativeFormat; project_type: CreativeProjectType; ... 5 more ...; department: string; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'brand_book' is incompatible with index signature.\n      Type 'BrandBook | null' is not assignable to type 'Json | undefined'.\n        Type 'BrandBook' is not assignable to type 'Json | undefined'.\n          Type 'BrandBook' is not assignable to type '{ [key: string]: Json | undefined; }'.\n            Index signature for type 'string' is missing in type 'BrandBook'.",
@@ -331,13 +303,6 @@
       "message": "Type '{ variations: CreativeVariation[]; department: string; image_url: string; visual_prompt: unknown; }' is not assignable to type 'Json | undefined'.\n  Type '{ variations: CreativeVariation[]; department: string; image_url: string; visual_prompt: unknown; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'variations' is incompatible with index signature.\n      Type 'CreativeVariation[]' is not assignable to type 'Json | undefined'.\n        Type 'CreativeVariation[]' is not assignable to type 'Json[]'.\n          Type 'CreativeVariation' is not assignable to type 'Json'.\n            Type 'CreativeVariation' is not assignable to type '{ [key: string]: Json | undefined; }'.\n              Index signature for type 'string' is missing in type 'CreativeVariation'.",
       "source": "payload",
       "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n  Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.",
-      "source": "payload",
-      "count": 3
     },
     {
       "file": "src/components/marketing/departments/CreativeDepartment.tsx",
