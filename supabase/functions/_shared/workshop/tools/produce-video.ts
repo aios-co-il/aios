@@ -22,6 +22,7 @@ import {
 } from "../video-cost.ts";
 import { isSceneOverlay } from "../scene-overlays.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
+import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
@@ -338,7 +339,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
   const ctaText =
     typeof args.cta_text === "string"
-      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 120)
+      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, CTA_MAX_CHARS)
       : "";
   const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
   // The quote is charged before the RPC (the payload's video settings must be saved first); a
