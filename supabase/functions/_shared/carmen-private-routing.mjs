@@ -42,7 +42,9 @@ export const MAX_PHONE_DIGITS = 13;
  */
 export function looksLikeRealPhone(value) {
   const d = digitsOnly(value);
-  if (!d || d.length > MAX_PHONE_DIGITS) return false;
+  if (!d || d.length > MAX_PHONE_DIGITS) {
+    return false;
+  }
   return /^[5-9]\d{8}$/.test(phoneTail9(d));
 }
 

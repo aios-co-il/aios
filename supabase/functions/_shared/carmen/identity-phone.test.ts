@@ -37,6 +37,27 @@ Deno.test("resolveCarmenIdentityPhone", async (t) => {
     assertEquals(await resolveCarmenIdentityPhone(sb, LID), "");
   });
 
+  await t.step(
+    "logs a failed LID lookup and leaves the author unresolved",
+    async () => {
+      const logged: Array<Array<unknown>> = [];
+      const originalError = console.error;
+      console.error = (...args: Array<unknown>) => {
+        logged.push(args);
+      };
+      try {
+        assertEquals(
+          await resolveCarmenIdentityPhone(failingLidMap(), LID),
+          "",
+        );
+      } finally {
+        console.error = originalError;
+      }
+      assertEquals(logged.length, 1);
+      assertEquals(logged[0][1], { lid: LID, error: "lookup failed" });
+    },
+  );
+
   await t.step("keeps a foreign phone the map does not know", async () => {
     const sb = fakeTables({});
     assertEquals(
@@ -49,3 +70,16 @@ Deno.test("resolveCarmenIdentityPhone", async (t) => {
     assertEquals(await resolveCarmenIdentityPhone(fakeTables({}), ""), "");
   });
 });
+
+/** A LID map whose lookup returns an error, as a failed PostgREST read does. */
+function failingLidMap() {
+  const query = {
+    select: () => query,
+    eq: () => query,
+    maybeSingle: async () => ({
+      data: null,
+      error: { message: "lookup failed" },
+    }),
+  };
+  return { from: () => query };
+}

@@ -11,7 +11,10 @@ type LidMapReader = {
         column: "lid",
         value: string,
       ): {
-        maybeSingle(): PromiseLike<{ data: { phone?: unknown } | null }>;
+        maybeSingle(): PromiseLike<{
+          data: { phone?: unknown } | null;
+          error: { message: string } | null;
+        }>;
       };
     };
   };
@@ -24,7 +27,8 @@ type LidMapReader = {
  * (224686986293269 → 986293269), so the tail alone never makes it a phone.
  * A LID that `wa_lid_map` does not know resolves to "" (the caller answers
  * "unresolved author") instead of being matched by its tail against
- * `carmen_whatsapp_identities`. A shorter number that is not Israeli-shaped
+ * `carmen_whatsapp_identities`; so does a LID whose lookup fails, after the
+ * error is logged. A shorter number that is not Israeli-shaped
  * (a foreign phone) is kept as it is.
  */
 export async function resolveCarmenIdentityPhone(
@@ -35,11 +39,19 @@ export async function resolveCarmenIdentityPhone(
   if (!digits || looksLikeRealPhone(digits)) {
     return digits;
   }
-  const { data: known } = await supabase
+  const { data: known, error } = await supabase
     .from("wa_lid_map")
     .select("phone")
     .eq("lid", digits)
     .maybeSingle();
+  if (error) {
+    // Unresolved, not matched by its tail: the caller answers "unresolved author".
+    console.error("[carmen] wa_lid_map lookup failed", {
+      lid: digits,
+      error: error.message,
+    });
+    return "";
+  }
   const knownPhone = digitsOnly(known?.phone);
   if (knownPhone && knownPhone.length <= MAX_PHONE_DIGITS) {
     return knownPhone;

@@ -22,7 +22,10 @@ import {
   managerGroupAccessViaAllowedPhones,
 } from "./carmen-group-sender.ts";
 import { buildObservedGroupMembersNote } from "./carmen-observe-group-member.ts";
-import { groupScopeGate } from "./carmen/group-scope.ts";
+import {
+  type CarmenSourceChannel,
+  groupScopeGate,
+} from "./carmen/group-scope.ts";
 import { resolveCarmenIdentityPhone } from "./carmen/identity-phone.ts";
 import {
   loadGroupAgencyVoice,
@@ -1283,7 +1286,7 @@ export interface CarmenContext {
    * activates on 'own_instance' — the operator mirror keeps the legacy
    * default-deny so Carmen never answers in the operator's private groups.
    */
-  sourceChannel?: "own_instance" | "operator_mirror" | null;
+  sourceChannel?: CarmenSourceChannel | null;
   /**
    * Role of the receiving connection. "secondary" (e.g. the owner's personal
    * phone) only wakes Carmen for a trigger-word message through an automation

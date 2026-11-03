@@ -13,7 +13,7 @@ type Row = Record<string, unknown>;
  * A Supabase stand-in for the handler: every query is thenable and resolves to the
  * rows of its table that match its .eq()/.in() filters; writes resolve empty.
  */
-function fakeDb(tables: Record<string, Row[]>) {
+function fakeDb(tables: Record<string, Array<Row>>) {
   return {
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = [];
@@ -24,7 +24,7 @@ function fakeDb(tables: Record<string, Row[]>) {
           filters.push((row) => row[column] === value);
           return query;
         },
-        in: (column: string, values: unknown[]) => {
+        in: (column: string, values: Array<unknown>) => {
           filters.push((row) => values.includes(row[column]));
           return query;
         },
@@ -56,7 +56,7 @@ function fakeDb(tables: Record<string, Row[]>) {
 }
 
 /** A tenant whose Carmen automation has the given scope, and one registered group. */
-function tenantDb(scope: Row, extra: Record<string, Row[]> = {}) {
+function tenantDb(scope: Row, extra: Record<string, Array<Row>> = {}) {
   return fakeDb({
     automation_flow_steps: [
       {
@@ -85,7 +85,7 @@ function groupTurn(
   phoneNumber: string,
   sourceChannel: CarmenContext["sourceChannel"] = "own_instance",
 ) {
-  const sent: string[] = [];
+  const sent: Array<string> = [];
   const ctx: CarmenContext = {
     supabase,
     tenantId: TENANT,

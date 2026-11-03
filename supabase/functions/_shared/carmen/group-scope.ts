@@ -1,4 +1,5 @@
-import type { CarmenContext } from "../carmen.ts";
+/** The WhatsApp channel a message reached Carmen on (CarmenContext.sourceChannel). */
+export type CarmenSourceChannel = "own_instance" | "operator_mirror";
 
 export type GroupScopeGate =
   | { allowed: false; reason: "group_requires_explicit_scope" }
@@ -23,7 +24,7 @@ export type GroupScopeGate =
 export function groupScopeGate(
   scope: { scopeMode: string; openMemberGroups: boolean },
   automationConfig: { carmen_open_member_groups?: unknown },
-  sourceChannel: CarmenContext["sourceChannel"],
+  sourceChannel: CarmenSourceChannel | null | undefined,
 ): GroupScopeGate {
   const openMemberGroups =
     (scope.openMemberGroups ||
