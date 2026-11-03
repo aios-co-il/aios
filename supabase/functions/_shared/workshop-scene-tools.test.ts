@@ -387,6 +387,98 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a scene's text style and size are saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      title_style: "punch",
+      title_size: "huge",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["title_style", "title_size"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).title_style, "punch");
+    assertStrictEquals((scenes[1].meta as Row).title_size, "huge");
+    assertStrictEquals(db.rpcs.length, 0);
+    // Carmen's tool says a scene's text style can be changed.
+    const tool = WORKSHOP_TOOLS.find((t) => t.name === "workshop_update_scene");
+    assertMatch(String(tool?.description), /title_style, title_size/);
+    // A name the film does not know changes nothing.
+    const unknown = await update(db, { scene_id: "s-2", title_style: "spin" });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).title_style, "punch");
+  },
+);
+
+Deno.test(
+  "a scene's key-word emphasis is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      title_emphasis: "stamp",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["title_emphasis"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).title_emphasis, "stamp");
+    assertStrictEquals(db.rpcs.length, 0);
+    // An effect the film does not know changes nothing.
+    const unknown = await update(db, {
+      scene_id: "s-2",
+      title_emphasis: "sparkle",
+    });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).title_emphasis, "stamp");
+  },
+);
+
+Deno.test(
+  "a scene's overlay is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      scene_overlay: "bubbles",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["scene_overlay"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).scene_overlay, "bubbles");
+    assertStrictEquals(db.rpcs.length, 0);
+    // "none" turns the film's overlay off for this scene; an unknown name changes nothing.
+    const off = await update(db, { scene_id: "s-2", scene_overlay: "none" });
+    assertEquals(off.changed, ["scene_overlay"]);
+    const unknown = await update(db, {
+      scene_id: "s-2",
+      scene_overlay: "fireworks",
+    });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).scene_overlay, "none");
+  },
+);
+
+Deno.test(
+  "a scene's own transition is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, { scene_id: "s-2", transition: "ripple" });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["transition"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).transition, "ripple");
+    assertStrictEquals(db.rpcs.length, 0);
+    // "skin" is the worker's own, and an unknown name changes nothing.
+    for (const transition of ["skin", "spin"]) {
+      const unknown = await update(db, { scene_id: "s-2", transition });
+      assertEquals(unknown.changed ?? [], []);
+    }
+    assertStrictEquals((scenes[1].meta as Row).transition, "ripple");
+  },
+);
+
 Deno.test("a client the caller cannot reach stops the change", async () => {
   const db = film({
     marketing_work_items: [project({ client_id: "client-9" })],
