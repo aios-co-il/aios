@@ -32,9 +32,9 @@ import {
   type TaskStatus,
 } from "@/lib/carmenTaskRows";
 import { computeNextRun } from "../../../../supabase/functions/_shared/agent-task-schedule.ts";
-import { asAutomationKey } from "@/lib/carmenAutomations";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { carmenTasksKey, useCarmenTasks } from "../useCarmenTasks";
-import { setAutomationEnabled } from "./automationSwitch";
+import { toggleAutomation } from "./automationSwitch";
 
 const db = supabase as any;
 
@@ -141,10 +141,7 @@ export function CarmenTasksView({
           .eq("id", row.id);
         if (e) throw e;
       } else if (row.source === "automation") {
-        const key = asAutomationKey(row.id);
-        if (key && tenantId) {
-          await setAutomationEnabled(tenantId, key, on);
-        }
+        await toggleAutomation(requireTenantId(tenantId), row.id, on);
       } else if (row.source === "cron_job") {
         const { error: e } = await db.rpc("update_system_cron_job", {
           p_jobid: Number(row.id),

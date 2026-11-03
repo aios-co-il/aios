@@ -718,6 +718,7 @@ export function CarmenPanel({
             tenantId={tenantId}
             automationKey={id}
             onDone={done}
+            onOpenSettings={() => onNavigate("task/heartbeat")}
           />
         );
       }
