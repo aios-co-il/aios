@@ -203,6 +203,7 @@ import {
   type StoredCallRecording,
   type StoredFileRecording,
 } from "@/lib/leadRecordings";
+import { buildLeadSalesPersonAssignments } from "./leadSalesPersonAssignments";
 
 // Kanban opens the chat view. The CRM table opens the same record as a popup.
 const LeadEditContext = createContext<((leadId: string) => void) | null>(null);
@@ -1288,7 +1289,7 @@ export default function Leads() {
         const agencyIds =
           selectedAgency && selectedAgency !== "all"
             ? [selectedAgency]
-            : agencies?.map((a) => a.id) || null;
+            : agencies?.map((a) => a.id) || undefined;
 
         const { data, error } = await supabase.rpc("count_leads_by_tags", {
           p_tenant_id: tenantId,
@@ -1412,7 +1413,7 @@ export default function Leads() {
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
           ? [selectedAgency]
-          : agencies?.map((a) => a.id) || null;
+          : agencies?.map((a) => a.id) || undefined;
 
       const stageIds = stagesForKanbanQuery(
         filterStageIds,
@@ -1426,7 +1427,7 @@ export default function Leads() {
 
       // Build sales person filter - support multi-select
       // When viewing as a sales person, override the filter
-      let salesPersonFilter: string[] | null = null;
+      let salesPersonFilter: Array<string> | undefined;
       if (isViewingAs && viewAsSalesPersonId) {
         // Force filter to the viewed-as sales person
         salesPersonFilter = [viewAsSalesPersonId];
@@ -1444,19 +1445,20 @@ export default function Leads() {
         p_limit_per_stage: responseNeedsClient
           ? Math.min(leadsPerStageLimit * 3, 200)
           : leadsPerStageLimit,
-        p_search_query: searchQuery.trim() || null,
+        p_search_query: searchQuery.trim() || undefined,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses: kanbanResponseStatuses(
-          filterResponseStatus,
-          responseStatusFilterMode,
-        ),
+        p_response_statuses:
+          kanbanResponseStatuses(
+            filterResponseStatus,
+            responseStatusFilterMode,
+          ) ?? undefined,
         p_follow_up_today: filterFollowUpToday,
-        p_start_date: startDate?.toISOString() || null,
-        p_end_date: endDate ? endOfDayIso(endDate) : null,
+        p_start_date: startDate?.toISOString(),
+        p_end_date: endDate ? endOfDayIso(endDate) : undefined,
         p_tag_ids:
           filterTagIds.length > 0 && !filterTagIds.includes("none")
             ? filterTagIds
-            : null,
+            : undefined,
       });
 
       if (error) throw error;
@@ -1568,9 +1570,9 @@ export default function Leads() {
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
           ? [selectedAgency]
-          : agencies?.map((a) => a.id) || null;
+          : agencies?.map((a) => a.id) || undefined;
 
-      let salesPersonFilter: string[] | null = null;
+      let salesPersonFilter: Array<string> | undefined;
       if (isViewingAs && viewAsSalesPersonId) {
         salesPersonFilter = [viewAsSalesPersonId];
       } else if (
@@ -1585,19 +1587,20 @@ export default function Leads() {
         p_agency_ids: agencyIds,
         p_stages: PIPELINE_STAGES.map((s) => s.id),
         p_limit_per_stage: 0,
-        p_search_query: searchQuery.trim() || null,
+        p_search_query: searchQuery.trim() || undefined,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses: kanbanResponseStatuses(
-          filterResponseStatus,
-          responseStatusFilterMode,
-        ),
+        p_response_statuses:
+          kanbanResponseStatuses(
+            filterResponseStatus,
+            responseStatusFilterMode,
+          ) ?? undefined,
         p_follow_up_today: filterFollowUpToday,
-        p_start_date: startDate?.toISOString() || null,
-        p_end_date: endDate ? endOfDayIso(endDate) : null,
+        p_start_date: startDate?.toISOString(),
+        p_end_date: endDate ? endOfDayIso(endDate) : undefined,
         p_tag_ids:
           filterTagIds.length > 0 && !filterTagIds.includes("none")
             ? filterTagIds
-            : null,
+            : undefined,
       });
       if (error) throw error;
 
@@ -1663,7 +1666,7 @@ export default function Leads() {
         const agencyIds =
           selectedAgency && selectedAgency !== "all"
             ? [selectedAgency]
-            : agencies?.map((a) => a.id) || null;
+            : agencies?.map((a) => a.id) || undefined;
 
         const { data: rpcLeads, error: rpcError } = await supabase.rpc(
           "get_leads_by_tags",
@@ -2850,10 +2853,10 @@ export default function Leads() {
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
           ? [selectedAgency]
-          : agencies?.map((a) => a.id) || null;
+          : agencies?.map((a) => a.id) || undefined;
 
       // Keep filters aligned with the initial Kanban fetch (incl. View-As override)
-      let salesPersonFilter: string[] | null = null;
+      let salesPersonFilter: Array<string> | undefined;
       if (isViewingAs && viewAsSalesPersonId) {
         salesPersonFilter = [viewAsSalesPersonId];
       } else if (
@@ -2874,19 +2877,20 @@ export default function Leads() {
           ? Math.min(leadsPerStageLimit * 3, 200)
           : leadsPerStageLimit,
         p_offset_per_stage: newOffset,
-        p_search_query: searchQuery.trim() || null,
+        p_search_query: searchQuery.trim() || undefined,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses: kanbanResponseStatuses(
-          filterResponseStatus,
-          responseStatusFilterMode,
-        ),
+        p_response_statuses:
+          kanbanResponseStatuses(
+            filterResponseStatus,
+            responseStatusFilterMode,
+          ) ?? undefined,
         p_follow_up_today: filterFollowUpToday,
-        p_start_date: startDate?.toISOString() || null,
-        p_end_date: endDate ? endOfDayIso(endDate) : null,
+        p_start_date: startDate?.toISOString(),
+        p_end_date: endDate ? endOfDayIso(endDate) : undefined,
         p_tag_ids:
           filterTagIds.length > 0 && !filterTagIds.includes("none")
             ? filterTagIds
-            : null,
+            : undefined,
       });
 
       if (error) throw error;
@@ -4658,21 +4662,10 @@ function TableWithStickyScroll({
       if (!leadsData || leadsData.length === 0)
         throw new Error("לא נמצאו לידים");
 
-      // Create junction table entries for ALL combinations of leads × salespeople
-      const assignments: {
-        lead_id: string;
-        sales_person_id: string;
-        tenant_id: string;
-      }[] = [];
-      for (const lead of leadsData) {
-        for (const salesPersonId of salesPersonIds) {
-          assignments.push({
-            lead_id: lead.id,
-            sales_person_id: salesPersonId,
-            tenant_id: lead.tenant_id,
-          });
-        }
-      }
+      const assignments = buildLeadSalesPersonAssignments(
+        leadsData,
+        salesPersonIds,
+      );
 
       // Insert into junction table (upsert to avoid duplicates)
       const { error: insertError } = await supabase
