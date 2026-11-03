@@ -1280,6 +1280,8 @@ Deno.test(
     ]);
     assertEquals(seen[2].references, seen[1].references);
     assertMatch(seen[0].prompt, /dark bob, teal blazer/);
+    // Staging, 2 Nov: a picture asked for a plaque to write on came back with a blank one.
+    assertMatch(seen[0].prompt, /no signs, plaques, banners/);
     assertMatch(seen[1].prompt, /approved first frame/);
     assertNotMatch(seen[0].prompt, /approved first frame/);
     const saved = db.calls
