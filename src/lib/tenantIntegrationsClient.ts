@@ -52,7 +52,7 @@ export type TenantIntegrationRow = {
 
 export type ClientIntegration = Omit<TenantIntegrationRow, "api_key"> & {
   has_credential: boolean;
-  api_key?: undefined;
+  api_key?: TenantIntegrationRow["api_key"];
   _isOwn?: boolean;
   _sharedByName?: string | null;
 };
@@ -112,7 +112,7 @@ export function toClientIntegration<T extends TenantIntegrationRow>(
   };
 
   if (!isGoogle && row.api_key != null) {
-    (result as TenantIntegrationRow).api_key = row.api_key;
+    result.api_key = row.api_key;
   }
 
   return result;
