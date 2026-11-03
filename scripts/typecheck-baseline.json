@@ -1397,62 +1397,6 @@
       "count": 3
     },
     {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string | null' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "p_end_date",
-      "count": 3
-    },
-    {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string | null' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "p_search_query",
-      "count": 3
-    },
-    {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string | null' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "p_start_date",
-      "count": 3
-    },
-    {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string | null' is not assignable to type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenant_id",
-      "count": 1
-    },
-    {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string[] | null' is not assignable to type 'string[] | undefined'.\n  Type 'null' is not assignable to type 'string[] | undefined'.",
-      "source": "p_agency_ids",
-      "count": 5
-    },
-    {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string[] | null' is not assignable to type 'string[] | undefined'.\n  Type 'null' is not assignable to type 'string[] | undefined'.",
-      "source": "p_response_statuses",
-      "count": 3
-    },
-    {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string[] | null' is not assignable to type 'string[] | undefined'.\n  Type 'null' is not assignable to type 'string[] | undefined'.",
-      "source": "p_sales_person_ids",
-      "count": 3
-    },
-    {
-      "file": "src/pages/Leads.tsx",
-      "code": 2322,
-      "message": "Type 'string[] | null' is not assignable to type 'string[] | undefined'.\n  Type 'null' is not assignable to type 'string[] | undefined'.",
-      "source": "p_tag_ids",
-      "count": 3
-    },
-    {
       "file": "src/pages/ManusWhatsAppSettings.tsx",
       "code": 2322,
       "message": "Type 'string | undefined' is not assignable to type 'string | null'.\n  Type 'undefined' is not assignable to type 'string | null'.",

@@ -4,9 +4,6 @@ import {
   resolveNewTaskAgency,
   resolveTaskEffectiveAgency,
   filterTasksBySelectedAgency,
-  filterTasksForBoardView,
-  headerAgencyAppliesToBoard,
-  resolveTasksBoardAgencyFilter,
   buildTasksBoardScopeOrFilter,
   resolveTasksBoardScope,
   syncLocalTasksForAgencyFilter,
@@ -92,82 +89,17 @@ test("filterTasksBySelectedAgency leaves the list alone for all", () => {
   expect(filterTasksBySelectedAgency(all, null)).toBe(all);
 });
 
-test("mine view keeps assigned tasks across agencies regardless of header", () => {
-  const rows = [
-    misstampedDmmTask,
-    promoClientTaskStampedDmm,
-    promoTaskNoClient,
-  ];
-  expect(
-    filterTasksForBoardView(rows, "all", "mine").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-  expect(
-    filterTasksForBoardView(rows, PROMO, "mine").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-});
-
-test("resolveTasksBoardAgencyFilter ignores header on person queues", () => {
-  expect(resolveTasksBoardAgencyFilter("mine", "all")).toBe("all");
-  expect(resolveTasksBoardAgencyFilter("mine", PROMO)).toBe("all");
-  expect(resolveTasksBoardAgencyFilter("staff-david", PROMO)).toBe("all");
-  expect(resolveTasksBoardAgencyFilter("all", PROMO)).toBe(PROMO);
-});
-
-test("team view still honors the header agency", () => {
-  const rows = [
-    misstampedDmmTask,
-    promoClientTaskStampedDmm,
-    promoTaskNoClient,
-  ];
-  expect(
-    filterTasksForBoardView(rows, PROMO, "all").map((task) => task.id),
-  ).toStrictEqual(["2", "3"]);
-});
-
-test("header agency applies on team board only", () => {
-  expect(headerAgencyAppliesToBoard("all", PROMO)).toBe(true);
-  expect(headerAgencyAppliesToBoard("all", "all")).toBe(false);
-  expect(headerAgencyAppliesToBoard("mine", "all")).toBe(false);
-  expect(headerAgencyAppliesToBoard("mine", PROMO)).toBe(false);
-  expect(headerAgencyAppliesToBoard("staff-david", PROMO)).toBe(false);
-});
-
-test("picking a specific campaigner keeps tasks across agencies", () => {
-  const rows = [
-    misstampedDmmTask,
-    promoClientTaskStampedDmm,
-    promoTaskNoClient,
-  ];
-  expect(
-    filterTasksForBoardView(rows, "all", "staff-david").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-  expect(
-    filterTasksForBoardView(rows, PROMO, "staff-david").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-});
-
-test("syncLocalTasksForAgencyFilter keeps mine rows across agencies while fetching", () => {
-  const duringFetch = syncLocalTasksForAgencyFilter({
-    isFetching: true,
-    fetchedTasks: [],
-    previousLocal: [misstampedDmmTask, promoTaskNoClient],
-    selectedAgency: "all",
-    campaignerFilter: "mine",
-  });
-  expect(duringFetch.map((task) => task.id)).toStrictEqual(["1", "3"]);
-});
-
-test("syncLocalTasksForAgencyFilter can narrow by campaigner while fetching", () => {
-  const rows = [
+test("my queue honors the header agency through the client's agency", () => {
+  const myRows = [
     { ...misstampedDmmTask, campaigner_id: "staff-itay" },
+    { ...promoClientTaskStampedDmm, campaigner_id: "staff-itay" },
     { ...promoTaskNoClient, campaigner_id: "staff-other" },
   ];
-  const duringFetch = syncLocalTasksForAgencyFilter({
-    isFetching: true,
-    fetchedTasks: [],
-    previousLocal: rows,
-    selectedAgency: "all",
-    campaignerFilter: "mine",
+  const board = syncLocalTasksForAgencyFilter({
+    isFetching: false,
+    fetchedTasks: myRows,
+    previousLocal: [],
+    selectedAgency: PROMO,
     applyCampaignerFilter: (tasks) =>
       filterTasksByCampaignerBoardFilter(tasks, "mine", {
         kind: "assigned",
@@ -176,7 +108,17 @@ test("syncLocalTasksForAgencyFilter can narrow by campaigner while fetching", ()
         campaignerIds: ["staff-itay"],
       }),
   });
-  expect(duringFetch.map((task) => task.id)).toStrictEqual(["1"]);
+  expect(board.map((task) => task.id)).toStrictEqual(["2"]);
+});
+
+test("my queue keeps every agency when the header is all", () => {
+  const duringFetch = syncLocalTasksForAgencyFilter({
+    isFetching: true,
+    fetchedTasks: [],
+    previousLocal: [misstampedDmmTask, promoTaskNoClient],
+    selectedAgency: "all",
+  });
+  expect(duringFetch.map((task) => task.id)).toStrictEqual(["1", "3"]);
 });
 
 test("buildTasksBoardScopeOrFilter scopes tenant and shared agencies only", () => {

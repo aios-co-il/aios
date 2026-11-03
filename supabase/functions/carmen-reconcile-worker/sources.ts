@@ -2,6 +2,7 @@
  * What one "tables" or "retry" call runs on (AIO-238): the store, the platform
  * source for each table, and the resync trigger.
  */
+import { tenantsWithAutomationOff } from "../_shared/automations/switches.ts";
 import type { CallBudget } from "../_shared/reconcile/budget.ts";
 import { createMetaSource } from "../_shared/reconcile/meta-source.ts";
 import { resolveMetaToken } from "../_shared/reconcile/meta-token.ts";
@@ -66,6 +67,8 @@ function workerStore(db: DbClient, request: WorkerRequest): ReconcileStore {
       readAiosCampaignRows(db, table.id, start, end),
     latestRun: (tableId) => latestRunForTable(db, tableId),
     saveRun: (run, findings) => saveReconcileRun(db, run, findings),
+    tenantsOff: (tenantIds) =>
+      tenantsWithAutomationOff(db, "reconcile_nightly", tenantIds),
   };
 }
 
