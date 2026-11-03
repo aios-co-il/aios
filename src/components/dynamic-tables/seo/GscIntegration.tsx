@@ -194,9 +194,12 @@ export function GscIntegration({
   // shared-agency tenant scope when provided.
   const lookupTenants =
     Array.isArray(tenantIds) && tenantIds.length > 0 ? tenantIds : tenantId;
-  const { data: integrationRows = [], isLoading: isLoadingIntegration } =
+  const { data: integrationRows, isLoading: isLoadingIntegration } =
     useUserIntegrations(lookupTenants, "google_search_console");
-  const gscIntegrations = integrationRows.filter(hasIntegrationId);
+  const gscIntegrations = useMemo(
+    () => integrationRows?.filter(hasIntegrationId) ?? [],
+    [integrationRows],
+  );
 
   // Selection priority for the GSC integration to use:
   //   1. The connection explicitly selected for this report.

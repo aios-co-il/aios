@@ -346,7 +346,10 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
     accessibleTenantIds,
     "google_search_console",
   );
-  const gscUserIntegrations = gscIntegrationRows?.filter(hasIntegrationId);
+  const gscUserIntegrations = useMemo(
+    () => gscIntegrationRows?.filter(hasIntegrationId),
+    [gscIntegrationRows],
+  );
   const { data: gaUserIntegrations } = useUserIntegrations(
     accessibleTenantIds,
     "google_analytics",

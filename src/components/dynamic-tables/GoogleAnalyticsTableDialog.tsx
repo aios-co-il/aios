@@ -75,11 +75,14 @@ export function GoogleAnalyticsTableDialog({
   const [pickedProperty, setPickedProperty] = useState<GAProperty | null>(null);
 
   // Fetch user's own + shared GA integrations
-  const { data: integrationRows = [], isLoading: integrationLoading } =
+  const { data: integrationRows, isLoading: integrationLoading } =
     useUserIntegrations(activeTenantId ?? undefined, "google_analytics", {
       enabled: open,
     });
-  const allIntegrations = integrationRows.filter(hasIntegrationId);
+  const allIntegrations = useMemo(
+    () => integrationRows?.filter(hasIntegrationId) ?? [],
+    [integrationRows],
+  );
 
   // Use selected or first available integration
   const integration = selectedIntegrationId
