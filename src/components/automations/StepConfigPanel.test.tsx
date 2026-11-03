@@ -22,7 +22,9 @@ describe("StepConfigPanel Green API connection choices", () => {
     );
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     const selector = screen.getByText("חיבור Green API").parentElement;
-    if (!selector) throw new Error("Missing connection selector");
+    if (!selector) {
+      throw new Error("Missing connection selector");
+    }
     await userEvent.click(within(selector).getByRole("combobox"));
     expect(
       screen.queryByRole("option", { name: "חיבור one" }),
