@@ -883,7 +883,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    await executeWorkshopTool(
+    const result = (await executeWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -891,11 +891,13 @@ Deno.test(
       async () => {},
       null,
       { defaultEngine: async () => "openrouter" as const },
-    );
+    )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as { p_provider: string };
     // Not a video model, which redraws the picture and garbles its text.
     assertStrictEquals(rpc.p_provider, "mock");
+    // Asked for in this call: nothing to point out.
+    assertStrictEquals(result.kept_design_note, undefined);
     const saved = db.calls
       .filter((c) => c.table === "marketing_work_items" && c.op === "update")
       .map(
@@ -926,7 +928,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    await executeWorkshopTool(
+    const result = (await executeWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -934,10 +936,47 @@ Deno.test(
       async () => {},
       null,
       { defaultEngine: async () => "openrouter" as const },
-    );
+    )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as { p_provider: string };
     assertStrictEquals(rpc.p_provider, "mock");
+    // Staging, 2 Nov: Carmen did not know the film still kept its design when the user asked for
+    // real animation, so she is told how to undo it.
+    assertMatch(String(result.kept_design_note), /keep_design=false/);
+  },
+);
+
+Deno.test(
+  "a new storyboard starts a new film without the last film's kept design",
+  async () => {
+    // Staging, 2 Nov: a film of new pictures was produced as a camera move over them.
+    const project = videoProject();
+    const item = project["marketing_work_items:select"];
+    const db = fakeDb({
+      "marketing_work_items:select": {
+        ...item,
+        payload: {
+          ...item.payload,
+          video: { ...item.payload.video, keep_design: true },
+        },
+      },
+    });
+    await executeWorkshopTool(db, "tenant-1", "workshop_storyboard", {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "divers over a reef", duration_s: 4 }],
+    });
+    const saved = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map(
+        (c) =>
+          (c.value as { payload?: { video?: Record<string, unknown> } })
+            .payload,
+      )
+      .filter((payload) => payload?.video)
+      .pop();
+    assertStrictEquals(saved?.video?.keep_design, undefined);
+    // The rest of the film's settings stay.
+    assertStrictEquals(saved?.video?.voice_id, "d4eLZ8u5dfBCsjp4YPyz");
   },
 );
 
@@ -1205,6 +1244,8 @@ Deno.test(
     ]);
     assertEquals(seen[2].references, seen[1].references);
     assertMatch(seen[0].prompt, /dark bob, teal blazer/);
+    // Staging, 2 Nov: a picture asked for a plaque to write on came back with a blank one.
+    assertMatch(seen[0].prompt, /no signs, plaques, banners/);
     assertMatch(seen[1].prompt, /approved first frame/);
     assertNotMatch(seen[0].prompt, /approved first frame/);
     const saved = db.calls

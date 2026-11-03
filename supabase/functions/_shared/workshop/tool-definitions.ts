@@ -1,4 +1,6 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
+import { motionField } from "./motion-text.ts";
+import { pictureField } from "./picture-text.ts";
 import { spokenField } from "./spoken-text.ts";
 import { VOICE_TOOL } from "./voice-tool.ts";
 
@@ -298,11 +300,11 @@ export const WORKSHOP_TOOLS = [
               },
               visual_prompt: {
                 type: "string",
-                description: "תיאור הפריים באנגלית, בלי טקסט על התמונה",
+                description: pictureField("תיאור הפריים באנגלית."),
               },
               motion_prompt: {
                 type: "string",
-                description: "איך הפריים זז, באנגלית",
+                description: motionField("איך הפריים זז, באנגלית."),
               },
               overlay_text: { type: "string" },
               voiceover_text: {
@@ -386,12 +388,13 @@ export const WORKSHOP_TOOLS = [
         },
         motion_prompt: {
           type: "string",
-          description: "איך הסצנה זזה, באנגלית",
+          description: motionField("איך הסצנה זזה, באנגלית."),
         },
         visual_prompt: {
           type: "string",
-          description:
+          description: pictureField(
             "תיאור התמונה באנגלית, רק לתמונה שנוצרה ב-AI. אחרי שינוי, workshop_make_stills יוצר מחדש רק אותה (עולה כסף).",
+          ),
         },
         duration_s: {
           type: "number",
@@ -504,7 +507,7 @@ export const WORKSHOP_TOOLS = [
         keep_design: {
           type: "boolean",
           description:
-            "true כשהתמונות הן עיצוב מוכן עם טקסט (מודעה, פוסטר, באנר): כל תמונה נשארת בדיוק כמו שהיא, שלמה בתוך הפריים, והסרט מזיז עליה מצלמה ומוסיף כתוביות, קריינות ומוזיקה. בלי מנוע וידאו, כי מנוע וידאו מצייר את התמונה מחדש ומשבש את הטקסט שבה. לא עולה כסף על הסצנות.",
+            "true כשהתמונות הן עיצוב מוכן עם טקסט (מודעה, פוסטר, באנר): כל תמונה נשארת בדיוק כמו שהיא, שלמה בתוך הפריים, והסרט מזיז עליה מצלמה ומוסיף כתוביות, קריינות ומוזיקה. בלי מנוע וידאו, כי מנוע וידאו מצייר את התמונה מחדש ומשבש את הטקסט שבה. לא עולה כסף על הסצנות. הבחירה נשמרת לסרט: false כשהמשתמש מבקש הנפשה אמיתית (דמויות שזזות, לא רק מצלמה), גם אם הסרט שמר את העיצוב קודם.",
         },
         cta_text: {
           type: "string",
