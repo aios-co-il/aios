@@ -1,44 +1,47 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+
 /**
  * Author line of the update feeds (client card, lead card, pulse call dialog).
  *
- * `profiles.full_name` is empty for many campaigner logins, because nothing
- * fills it when a campaigner gets an account; the name lives on the linked
- * `campaigners` row (`profiles.campaigner_id`). The writer's name is shown
- * before the email, which is only the last resort.
+ * profiles RLS shows a non-owner only their own row, so the feeds cannot read a
+ * teammate's name through a profiles embed. `tenant_member_names` returns just
+ * the id and display name of the tenant's members (profile name, else the
+ * linked campaigner's name, which many campaigner logins rely on because
+ * nothing fills `profiles.full_name` for them).
  */
 
-export interface UpdateAuthorCampaigner {
-  full_name?: string | null;
-}
-
-export interface UpdateAuthorProfile {
-  full_name?: string | null;
-  email?: string | null;
-  campaigners?: UpdateAuthorCampaigner | UpdateAuthorCampaigner[] | null;
-}
-
-/** PostgREST embed returning everything `resolveUpdateAuthorName` needs. */
-export const UPDATE_AUTHOR_SELECT =
-  "profiles:user_id (full_name, email, campaigners:campaigner_id (full_name))";
+export type MemberNames = ReadonlyMap<string, string>;
 
 export const UNKNOWN_UPDATE_AUTHOR = "משתמש";
 
-/** Name to show for an update's writer: profile name, campaigner name, email, then a generic label. */
-export function resolveUpdateAuthorName(
-  profile?: UpdateAuthorProfile | null,
-): string {
-  const campaigners = profile?.campaigners;
-  const campaigner = Array.isArray(campaigners) ? campaigners[0] : campaigners;
-
-  return (
-    nonEmpty(profile?.full_name) ??
-    nonEmpty(campaigner?.full_name) ??
-    nonEmpty(profile?.email) ??
-    UNKNOWN_UPDATE_AUTHOR
-  );
+/** Display names of the tenant's members, by user id; members without a name are left out. */
+export async function fetchTenantMemberNames(
+  db: Pick<SupabaseClient<Database>, "rpc">,
+  tenantId: string,
+): Promise<Map<string, string>> {
+  const { data, error } = await db.rpc("tenant_member_names", {
+    p_tenant_id: tenantId,
+  });
+  if (error) {
+    throw error;
+  }
+  const names = new Map<string, string>();
+  for (const row of data ?? []) {
+    const name = row.full_name?.trim();
+    if (name) {
+      names.set(row.user_id, name);
+    }
+  }
+  return names;
 }
 
-function nonEmpty(value?: string | null): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
+/** Name to show for an update's writer: the member's name, then `fallback` (e.g. the caller's email), then a generic label. */
+export function resolveUpdateAuthorName(
+  names: MemberNames | undefined,
+  userId: string | null | undefined,
+  fallback?: string | null,
+): string {
+  const name = userId ? names?.get(userId) : undefined;
+  return name ?? (fallback?.trim() || UNKNOWN_UPDATE_AUTHOR);
 }
