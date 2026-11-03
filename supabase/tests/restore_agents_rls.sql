@@ -22,7 +22,7 @@ DECLARE
   v_global_tool uuid := gen_random_uuid();
   -- One minimal row per table: $1 tenant, $2 an agent of that tenant, $3 a unique text, $4 the row id.
   -- An eval run belongs to an eval of the tenant, and a supervisor link names a child agent of the
-  -- tenant it does not link yet (20261103100000 restores those keys).
+  -- tenant it does not link yet (20261103110000 restores those keys).
   v_insert jsonb := jsonb_build_object(
     'agent_evals', 'insert into public.agent_evals (id, tenant_id, agent_id, name) values ($4, $1, $2, $3)',
     'agent_eval_runs', 'insert into public.agent_eval_runs (id, tenant_id, eval_id, agent_id) values ($4, $1, (select e.id from public.agent_evals as e where e.tenant_id = $1 order by e.id limit 1), $2)',

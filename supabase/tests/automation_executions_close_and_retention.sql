@@ -88,7 +88,7 @@ BEGIN
   VALUES ('green_api_dispatch', v_other_tenant, 'QA-ROLLBACK-1', now());
 
   -- trigger-automation's finished run row (with or without a primary key) --
-  -- Its tenant exists: 20261103100000 restores automation_executions_tenant_id_fkey.
+  -- Its tenant exists: 20261103110000 restores automation_executions_tenant_id_fkey.
   INSERT INTO public.tenants (id, name, slug)
   VALUES (v_tenant, 'QA ROLLBACK automation runs', 'qa-ae-runs-' || left(v_tenant::text, 8));
   INSERT INTO public.automation_executions

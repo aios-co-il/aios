@@ -1,4 +1,4 @@
--- Restored and added constraints (20261103100000_restore_lost_constraints):
+-- Restored and added constraints (20261103110000_restore_lost_constraints):
 -- each foreign key, check, unique key and index exists, and the two keys left
 -- out on purpose do not; the changed and new foreign keys have their ON DELETE
 -- action; the 4 client keys whose orphans the migration archived are
@@ -238,7 +238,7 @@ BEGIN
   -- itself cannot run here, because the keys are valid; the scratch simulation in the PR covers it.)
   SELECT count(*) INTO v_count
   FROM archive.orphan_rows AS a
-  WHERE a.reason LIKE '%by 20261103100000'
+  WHERE a.reason LIKE '%by 20261103110000'
     AND (
       EXISTS (SELECT 1 FROM public.clients AS c WHERE c.id = (a.row ->> 'client_id')::uuid)
       OR (a.reason LIKE '%row deleted%' AND (

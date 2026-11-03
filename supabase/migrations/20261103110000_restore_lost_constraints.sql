@@ -165,7 +165,7 @@ create table if not exists archive.orphan_rows (
 revoke all on table archive.orphan_rows from public, anon, authenticated;
 alter table archive.orphan_rows enable row level security;
 comment on table archive.orphan_rows is
-  'Rows a migration deleted or changed, as they were before. 20261103100000_restore_lost_constraints: rows whose client was deleted.';
+  'Rows a migration deleted or changed, as they were before. 20261103110000_restore_lost_constraints: rows whose client was deleted.';
 
 do $$
 declare
@@ -408,7 +408,7 @@ begin
         )
         select (select count(*) from orphan), (select count(*) from archived)
         $sql$,
-        v_rel, r.table_name, 'client_id pointed at a deleted client; row deleted by 20261103100000'
+        v_rel, r.table_name, 'client_id pointed at a deleted client; row deleted by 20261103110000'
       ) into v_count, v_archived using r.ids;
     else
       execute format(
@@ -433,7 +433,7 @@ begin
         )
         select (select count(*) from cleared), (select count(*) from archived)
         $sql$,
-        v_rel, r.table_name, 'client_id pointed at a deleted client; client_id cleared by 20261103100000'
+        v_rel, r.table_name, 'client_id pointed at a deleted client; client_id cleared by 20261103110000'
       ) into v_count, v_archived using r.ids;
     end if;
     if v_archived <> v_count then
