@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getCronMeta } from "@/lib/cronJobsCatalog";
+import { mapAutomations } from "@/lib/carmenAutomations";
+import { requireTenantId } from "@/lib/requireTenantId";
+import { loadAutomationSettings } from "./tasks/automationSwitch";
 import {
   mapAgentTask,
   mapCronJob,
@@ -50,41 +53,55 @@ export function useCarmenTasks(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 20_000,
     queryFn: async () => {
-      const [agentTasks, goals, devTasks, cronJobs] = await Promise.all([
-        selectWithFallback(
-          "agent_tasks",
-          [
-            `${AGENT_TASK_V2_COLUMNS}, ai_agents(name)`,
-            `${AGENT_TASK_COLUMNS}, ai_agents(name)`,
-          ],
-          (q) =>
-            q
-              .eq("tenant_id", tenantId!)
-              .order("created_at", { ascending: false })
-              .limit(300),
-        ).catch(() => []),
-        selectWithFallback("goals", [GOAL_ENGINE_COLUMNS, GOAL_COLUMNS], (q) =>
-          q
+      const [agentTasks, goals, devTasks, cronJobs, automations] =
+        await Promise.all([
+          selectWithFallback(
+            "agent_tasks",
+            [
+              `${AGENT_TASK_V2_COLUMNS}, ai_agents(name)`,
+              `${AGENT_TASK_COLUMNS}, ai_agents(name)`,
+            ],
+            (q) =>
+              q
+                .eq("tenant_id", tenantId!)
+                .order("created_at", { ascending: false })
+                .limit(300),
+          ).catch(() => []),
+          selectWithFallback(
+            "goals",
+            [GOAL_ENGINE_COLUMNS, GOAL_COLUMNS],
+            (q) =>
+              q
+                .eq("tenant_id", tenantId!)
+                .order("updated_at", { ascending: false })
+                .limit(200),
+          ).catch(() => []),
+          db
+            .from("dev_tasks")
+            .select(
+              "id, title, problem, status, priority, assigned_agent, pr_url, cursor_session_url, created_at, updated_at",
+            )
             .eq("tenant_id", tenantId!)
             .order("updated_at", { ascending: false })
-            .limit(200),
-        ).catch(() => []),
-        db
-          .from("dev_tasks")
-          .select(
-            "id, title, problem, status, priority, assigned_agent, pr_url, cursor_session_url, created_at, updated_at",
-          )
-          .eq("tenant_id", tenantId!)
-          .order("updated_at", { ascending: false })
-          .limit(100)
-          .then((r: any) => (r.error ? [] : (r.data ?? [])))
-          .catch(() => []),
-        // Super-admin only; everyone else simply doesn't see system jobs.
-        db
-          .rpc("list_system_cron_jobs")
-          .then((r: any) => (r.error ? [] : (r.data ?? [])))
-          .catch(() => []),
-      ]);
+            .limit(100)
+            .then((r: any) => (r.error ? [] : (r.data ?? [])))
+            .catch(() => []),
+          // Super-admin only; everyone else simply doesn't see system jobs.
+          db
+            .rpc("list_system_cron_jobs")
+            .then((r: any) => (r.error ? [] : (r.data ?? [])))
+            .catch(() => []),
+          // A failed read shows every automation as on, the stored default.
+          loadAutomationSettings(requireTenantId(tenantId)).catch(
+            (e: unknown) => {
+              console.error(
+                "[carmen-tasks] automation switches read failed",
+                e,
+              );
+              return [];
+            },
+          ),
+        ]);
 
       const rows: CarmenTaskRow[] = [
         ...agentTasks
@@ -96,6 +113,7 @@ export function useCarmenTasks(tenantId: string | null) {
         ...(cronJobs as Record<string, any>[]).map((j) =>
           mapCronJob(j, getCronMeta(String(j.jobname))),
         ),
+        ...mapAutomations(automations),
       ];
       return {
         rows,

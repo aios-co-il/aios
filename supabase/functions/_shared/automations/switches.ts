@@ -1,19 +1,10 @@
 /**
  * Per-org switches for Carmen's automations (AIO-314). A worker asks before
  * it acts for an org; a missing row means on, so an org that never touched
- * the screen keeps today's behaviour. The frontend imports AUTOMATION_KEYS
- * from here (AIO-315).
+ * the screen keeps today's behaviour. The keys live in ./keys.ts.
  */
 import type { DbClient } from "../supabase-clients.ts";
-
-/** Every automation an org can switch off, by the key stored in the table. */
-export const AUTOMATION_KEYS = [
-  "meta_status_check",
-  "google_status_check",
-  "reconcile_nightly",
-] as const;
-
-export type AutomationKey = (typeof AUTOMATION_KEYS)[number];
+import type { AutomationKey } from "./keys.ts";
 
 /** The orgs among `tenantIds` that switched `key` off. */
 export async function tenantsWithAutomationOff(

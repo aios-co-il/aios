@@ -12,6 +12,7 @@ import {
   Search,
   Server,
   Target,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +32,9 @@ import {
   type TaskStatus,
 } from "@/lib/carmenTaskRows";
 import { computeNextRun } from "../../../../supabase/functions/_shared/agent-task-schedule.ts";
+import { asAutomationKey } from "@/lib/carmenAutomations";
 import { carmenTasksKey, useCarmenTasks } from "../useCarmenTasks";
+import { setAutomationEnabled } from "./automationSwitch";
 
 const db = supabase as any;
 
@@ -41,6 +44,7 @@ const KIND_ICON: Record<TaskKind, typeof Repeat> = {
   goal: Target,
   dev: Code2,
   system: Server,
+  automation: Zap,
 };
 
 const STATUS_TONE: Record<TaskStatus, string> = {
@@ -136,6 +140,11 @@ export function CarmenTasksView({
           )
           .eq("id", row.id);
         if (e) throw e;
+      } else if (row.source === "automation") {
+        const key = asAutomationKey(row.id);
+        if (key && tenantId) {
+          await setAutomationEnabled(tenantId, key, on);
+        }
       } else if (row.source === "cron_job") {
         const { error: e } = await db.rpc("update_system_cron_job", {
           p_jobid: Number(row.id),
@@ -264,6 +273,7 @@ export function CarmenTasksView({
             row.enabled !== null &&
             (row.source === "agent_tasks" ||
               row.source === "cron_job" ||
+              row.source === "automation" ||
               row.source === "goals");
           return (
             <li key={row.key}>
