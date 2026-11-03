@@ -50,18 +50,32 @@ export type BrainRouteSummary = {
   active: boolean;
 };
 
-/** A built-in brain's key state; secrets are reported as booleans only. */
+/** Where a built-in brain's keys come from for this tenant (AIO-303). */
+export type BuiltinKeySourceKind = "own" | "shared" | "project";
+
+export type TenantRef = { id: string; name: string };
+
+/** A built-in brain's key state; secrets are reported as last 4 only. */
 export type BuiltinBrainState = {
   slug: string;
   label: string;
   id_label: string | null;
   external_id: string | null;
   key_last4: string | null;
-  env_configured: boolean;
+  /** null: the brain is not configured for this tenant. */
+  source: BuiltinKeySourceKind | null;
+  /** The tenant that shares its keys, when source is "shared". */
+  shared_from: TenantRef | null;
+  /** Tenants this tenant shares the brain with. */
+  shared_to: TenantRef[];
+  /** This tenant holds the keys itself, so it may share them. */
+  can_share: boolean;
 };
 
 export type BrainConnectionsState = {
   connections: BrainConnection[];
   routes: BrainRouteSummary[];
   builtins: BuiltinBrainState[];
+  /** Other tenants the caller belongs to, to share built-in brains with. */
+  share_targets: TenantRef[];
 };
