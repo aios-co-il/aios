@@ -66,7 +66,7 @@ type BoardTenantScopedTask = AgencyScopedTask & {
 };
 
 /**
- * A tenant that holds one of this tenant's own agencies through
+ * A tenant this tenant shared one of its own agencies with directly through
  * agency_tenant_access. Tasks it creates on that agency carry its tenant_id.
  */
 export type OwnedAgencyShare = { agencyId: string; tenantId: string };
@@ -86,7 +86,7 @@ export function taskBelongsToBoardTenantScope(
   task: BoardTenantScopedTask,
   tenantId: string,
   sharedAgencyIds: string[],
-  ownedAgencyShares: OwnedAgencyShare[] = [],
+  ownedAgencyShares: Array<OwnedAgencyShare> = [],
 ): boolean {
   if (!tenantId) return true;
   if (task.tenant_id === tenantId) return true;
@@ -108,7 +108,7 @@ export function filterTasksByBoardTenantScope<T extends BoardTenantScopedTask>(
   tasks: T[],
   tenantId: string,
   sharedAgencyIds: string[],
-  ownedAgencyShares: OwnedAgencyShare[] = [],
+  ownedAgencyShares: Array<OwnedAgencyShare> = [],
 ): T[] {
   if (!tenantId) return tasks;
   return tasks.filter((task) =>
@@ -162,14 +162,14 @@ export type TasksBoardScope =
       type: "tenant_or_shared";
       tenantId: string;
       crossTenantAgencyIds: string[];
-      ownedAgencyShares: OwnedAgencyShare[];
+      ownedAgencyShares: Array<OwnedAgencyShare>;
     }
   | { type: "tenant"; tenantId: string };
 
 export function resolveTasksBoardScope(input: {
   tenantId: string;
   crossTenantAgencyIds?: string[];
-  ownedAgencyShares?: OwnedAgencyShare[];
+  ownedAgencyShares?: Array<OwnedAgencyShare>;
 }): TasksBoardScope {
   const { tenantId, crossTenantAgencyIds = [], ownedAgencyShares = [] } = input;
   const sharedAgencyIds = Array.from(new Set(crossTenantAgencyIds));

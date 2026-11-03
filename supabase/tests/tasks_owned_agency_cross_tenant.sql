@@ -1,7 +1,8 @@
 -- Own-agency tasks across tenants (AIO-296,
--- 20261102121500_tasks_owned_agency_cross_tenant): the tenant that owns an
--- agency reads and updates the agency's tasks stamped with a tenant the agency
--- is shared with, and nothing stamped with a tenant that does not hold it.
+-- 20261103111000_tasks_owned_agency_cross_tenant): the tenant that owns an
+-- agency reads and updates the agency's tasks stamped with a tenant it shared
+-- the agency with directly, and nothing stamped with a tenant that does not
+-- hold it or holds it only through a re-share.
 -- The test seeds its own users, tenants and rows and rolls everything back, so
 -- it runs on a scratch database, a Preview branch or Staging.
 BEGIN;
@@ -55,9 +56,10 @@ DO $test$
 DECLARE
   v_tag text := left(gen_random_uuid()::text, 8);
   u_owner uuid := gen_random_uuid(); u_camp uuid := gen_random_uuid();
-  t_own uuid; t_share uuid; t_other uuid;
+  t_own uuid; t_share uuid; t_reshare uuid; t_other uuid;
   ag_own uuid; cp_own uuid; cp_other uuid;
-  task_assigned uuid; task_unassigned uuid; task_unshared uuid; task_home uuid;
+  task_assigned uuid; task_unassigned uuid; task_unshared uuid; task_reshared uuid;
+  task_home uuid;
   v_ids uuid[];
   n bigint;
 BEGIN
@@ -66,13 +68,15 @@ BEGIN
   SELECT x.u, 'qa-own-agency-tasks-' || v_tag || '-' || x.i || '@example.invalid'
   FROM unnest(array[u_owner, u_camp]) WITH ORDINALITY AS x (u, i);
 
-  -- t_own owns ag_own and shares it with t_share. t_other never holds it.
+  -- t_own owns ag_own and shares it with t_share, which re-shares it with
+  -- t_reshare. t_other never holds it.
   INSERT INTO public.tenants (name, slug) VALUES ('QA ROLLBACK own', 'qa-own-agency-own-' || v_tag) RETURNING id INTO t_own;
   INSERT INTO public.tenants (name, slug) VALUES ('QA ROLLBACK share', 'qa-own-agency-share-' || v_tag) RETURNING id INTO t_share;
+  INSERT INTO public.tenants (name, slug) VALUES ('QA ROLLBACK reshare', 'qa-own-agency-reshare-' || v_tag) RETURNING id INTO t_reshare;
   INSERT INTO public.tenants (name, slug) VALUES ('QA ROLLBACK other', 'qa-own-agency-other-' || v_tag) RETURNING id INTO t_other;
   INSERT INTO public.agencies (name, tenant_id) VALUES ('QA ROLLBACK own', t_own) RETURNING id INTO ag_own;
   INSERT INTO public.agency_tenant_access (source_tenant_id, agency_id, accessing_tenant_id, access_level)
-  VALUES (t_own, ag_own, t_share, 'read_write');
+  VALUES (t_own, ag_own, t_share, 'read_write'), (t_share, ag_own, t_reshare, 'read_write');
   INSERT INTO public.campaigners (full_name, tenant_id) VALUES ('QA ROLLBACK own', t_own) RETURNING id INTO cp_own;
   INSERT INTO public.campaigners (full_name, tenant_id) VALUES ('QA ROLLBACK other', t_own) RETURNING id INTO cp_other;
 
@@ -87,7 +91,7 @@ BEGIN
   UPDATE public.profiles SET campaigner_id = cp_own, sales_person_id = NULL WHERE id = u_camp;
 
   -- Two tasks t_share made on ag_own, one a tenant without the share stamped
-  -- on it, and one in t_own itself.
+  -- on it, one the re-share tenant made, and one in t_own itself.
   INSERT INTO public.tasks (title, tenant_id, agency_id, campaigner_id)
   VALUES ('QA ROLLBACK assigned', t_share, ag_own, cp_own) RETURNING id INTO task_assigned;
   INSERT INTO public.tasks (title, tenant_id, agency_id, campaigner_id)
@@ -95,19 +99,25 @@ BEGIN
   INSERT INTO public.tasks (title, tenant_id, agency_id)
   VALUES ('QA ROLLBACK unshared', t_other, ag_own) RETURNING id INTO task_unshared;
   INSERT INTO public.tasks (title, tenant_id, agency_id, campaigner_id)
+  VALUES ('QA ROLLBACK reshared', t_reshare, ag_own, cp_own) RETURNING id INTO task_reshared;
+  INSERT INTO public.tasks (title, tenant_id, agency_id, campaigner_id)
   VALUES ('QA ROLLBACK home', t_own, ag_own, cp_other) RETURNING id INTO task_home;
-  v_ids := array[task_assigned, task_unassigned, task_unshared, task_home];
+  v_ids := array[task_assigned, task_unassigned, task_unshared, task_reshared, task_home];
 
-  -- The agency owner reads both shared-tenant tasks and its own, not the unshared stamp.
+  -- The agency owner reads both shared-tenant tasks and its own, not the
+  -- unshared stamp or the re-share tenant's task.
   PERFORM pg_temp.qa_act(u_owner);
   SELECT count(*) INTO n FROM public.tasks WHERE id = ANY (v_ids);
   PERFORM pg_temp.qa_expect(n, 3, 'Owner reads own-agency tasks');
   PERFORM pg_temp.qa_expect(
     (SELECT count(*) FROM public.tasks WHERE id = task_unshared), 0,
     'Owner reads a task stamped with a tenant that does not hold the agency');
+  PERFORM pg_temp.qa_expect(
+    (SELECT count(*) FROM public.tasks WHERE id = task_reshared), 0,
+    'Owner reads a task stamped with a re-share tenant');
 
   -- The owner completes a shared-tenant task, but not the unshared stamp, and
-  -- cannot move a task to a tenant that does not hold the agency.
+  -- cannot move a task to a tenant without a direct share of the agency.
   n := pg_temp.qa_rows(format(
     'UPDATE public.tasks SET status = %L WHERE id = %L', 'done', task_assigned));
   PERFORM pg_temp.qa_expect(n, 1, 'Owner updates a shared-tenant task');
@@ -117,9 +127,13 @@ BEGIN
   PERFORM pg_temp.qa_refused(format(
     'UPDATE public.tasks SET tenant_id = %L WHERE id = %L', t_other, task_unassigned),
     'Owner moves a task to a tenant without the agency');
+  PERFORM pg_temp.qa_refused(format(
+    'UPDATE public.tasks SET tenant_id = %L WHERE id = %L', t_reshare, task_unassigned),
+    'Owner moves a task to a re-share tenant');
 
   -- A campaigner of t_own reads and updates only the shared-tenant task assigned to it.
-  -- In-tenant visibility is unchanged: the home task is not its own.
+  -- In-tenant visibility is unchanged: the home task is not its own. The
+  -- re-share tenant's task stays hidden though it is assigned to it.
   PERFORM pg_temp.qa_act(u_camp);
   SELECT count(*) INTO n FROM public.tasks WHERE id = ANY (v_ids);
   PERFORM pg_temp.qa_expect(n, 1, 'Campaigner reads own-agency tasks');
