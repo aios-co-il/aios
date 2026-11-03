@@ -1744,6 +1744,7 @@ export function CreativeDepartment({
           ) || latestPayload.visual_prompt,
       };
 
+      const assetMeta = active ? serializeCreativeAssetMeta(active) : null;
       const { error: itemError } = await supabase
         .from("marketing_work_items")
         .update({ payload: nextPayload })
@@ -1764,7 +1765,7 @@ export function CreativeDepartment({
               layers: active.layers,
               format: active.format,
             }),
-            meta: serializeCreativeAssetMeta(active),
+            meta: assetMeta,
           });
         if (assetError) throw assetError;
       }
