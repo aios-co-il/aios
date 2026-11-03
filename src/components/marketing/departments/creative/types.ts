@@ -1,12 +1,11 @@
 import type { z } from "zod";
 import type {
-  creativeFormat,
   creativeVariation,
   creativeLayer,
   creativeComment,
   storyboardFrame,
 } from "./creativeAssetPayload";
-export type CreativeFormat = z.output<typeof creativeFormat>;
+export type CreativeFormat = "9:16" | "1:1" | "4:5" | "16:9";
 
 import type { BrandBook, StyleReference } from "./brandKit";
 import type { CreativeVisualStyleId } from "./visualStyles";
@@ -20,19 +19,29 @@ export interface StoryboardStyleLock {
   referenceImageUrl?: string;
 }
 
-export type StoryboardFrame = z.output<typeof storyboardFrame>;
+export interface StoryboardFrame extends z.output<typeof storyboardFrame> {
+  id: z.output<typeof storyboardFrame>["id"];
+}
 
 export type VideoSceneStatus = NonNullable<StoryboardFrame["status"]>;
 
-export type CreativeComment = z.output<typeof creativeComment>;
+export interface CreativeComment extends z.output<typeof creativeComment> {
+  id: z.output<typeof creativeComment>["id"];
+}
 
 export type LayerShadowStyle = NonNullable<CreativeLayer["shadowStyle"]>;
 
 export type CreativeLayerRole = NonNullable<CreativeLayer["role"]>;
 
-export type CreativeLayer = z.output<typeof creativeLayer>;
+export interface CreativeLayer extends z.output<typeof creativeLayer> {
+  id: z.output<typeof creativeLayer>["id"];
+}
 
-export type CreativeVariation = z.output<typeof creativeVariation>;
+export interface CreativeVariation extends z.output<typeof creativeVariation> {
+  id: z.output<typeof creativeVariation>["id"];
+  layers: Array<CreativeLayer>;
+  comments: Array<CreativeComment>;
+}
 
 export interface CreativeItem {
   id: string;
