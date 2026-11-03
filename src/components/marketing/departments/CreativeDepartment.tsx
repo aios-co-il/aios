@@ -1,3 +1,4 @@
+import { jsonObject, type JsonObject } from "@functions/_shared/pulse/json";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -508,18 +509,14 @@ export function CreativeDepartment({
   }, [selected]);
   const copyBlocks = useMemo(() => {
     try {
-      return copyBlocksForGeneration(
-        (selected?.payload ?? null) as Record<string, unknown> | null,
-      );
+      return copyBlocksForGeneration(selected?.payload ?? null);
     } catch {
       return [];
     }
   }, [selected]);
   const copyJobs = useMemo(() => {
     try {
-      return conceptCopyJobsForGeneration(
-        (selected?.payload ?? null) as Record<string, unknown> | null,
-      );
+      return conceptCopyJobsForGeneration(selected?.payload ?? null);
     } catch {
       return [];
     }
@@ -1716,9 +1713,8 @@ export function CreativeDepartment({
         .eq("tenant_id", tenantId)
         .maybeSingle();
       if (readError) throw readError;
-      const latestPayload = (latestRow?.payload ??
-        selected.payload ??
-        {}) as Record<string, unknown>;
+      const latestPayload =
+        jsonObject(latestRow?.payload) ?? selected.payload ?? {};
       const nextIds = new Set(nextVariations.map((row) => row.id));
       const dropIds = variations
         .map((row) => row.id)
@@ -1962,7 +1958,7 @@ export function CreativeDepartment({
       : undefined;
     const referencePlan = collectStaticReferencePlan({
       projectRefUrls,
-      techniqueUrl: styleRefUrl,
+      techniqueUrl: styleRefUrl ?? undefined,
       instructions,
       editTargetUrl: resolvedEditTarget ?? undefined,
       directorUrls: resolvedDirectorRefs,
@@ -2993,9 +2989,9 @@ export function CreativeDepartment({
                     <p className="text-xs leading-relaxed whitespace-pre-wrap">
                       {getLinkedCopyText(selected)}
                     </p>
-                    {selected?.payload?.linked_copy_title && (
+                    {Boolean(selected?.payload?.linked_copy_title) && (
                       <p className="mt-2 text-[10px] text-muted-foreground">
-                        מקור: {String(selected.payload.linked_copy_title)}
+                        מקור: {String(selected?.payload?.linked_copy_title)}
                       </p>
                     )}
                   </Card>
@@ -3044,7 +3040,7 @@ export function CreativeDepartment({
                             size="sm"
                             variant="outline"
                             className="mt-2 h-7 w-full gap-1 text-[11px]"
-                            disabled={loadingContext || !selected.client_id}
+                            disabled={loadingContext || !selected?.client_id}
                           >
                             <WandSparkles className="h-3 w-3" />
                             צור וריאציה מהקונספט
@@ -3313,7 +3309,7 @@ export function CreativeDepartment({
           <Button
             size="sm"
             className="gap-1.5 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
-            disabled={loadingContext || !selected.client_id}
+            disabled={loadingContext || !selected?.client_id}
           >
             {workInFlight ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4523,7 +4519,7 @@ function ManualCreativeDialog({
       }
       const linkedCopy = mode === "from_copy" ? selectedCopyItem : null;
       const at = new Date().toISOString();
-      let payload: Record<string, unknown> = {
+      let payload: JsonObject = {
         brief_text: brief.trim() || undefined,
         copy_text: copyText.trim() || undefined,
         format,

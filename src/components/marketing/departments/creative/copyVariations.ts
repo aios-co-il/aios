@@ -15,7 +15,7 @@ export interface CopyVariationBlock {
 }
 
 /** First-class copy unit stored on the work-item payload (`copy_variations`). */
-export interface StoredCopyVariation {
+export type StoredCopyVariation = {
   id: string;
   key: string;
   label: string;
@@ -28,7 +28,7 @@ export interface StoredCopyVariation {
   conceptName?: string;
   approved: boolean;
   approvedAt: string | null;
-}
+};
 
 export const COPY_VARIATIONS_PER_CONCEPT = 2;
 

@@ -1,3 +1,4 @@
+import type { JsonObject, JsonValue } from "@functions/_shared/pulse/json";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,13 +31,13 @@ export type ContentPlanItem = {
 
 type SeoPlan = {
   contentPlan?: ContentPlanItem[];
-  clusters?: unknown[];
+  clusters?: Array<JsonValue>;
   strategy?: Record<string, string>;
 };
 
 interface Props {
   workItemId: string;
-  payload: Record<string, unknown> | null;
+  payload: JsonObject | null;
   onUpdated: () => void;
   onApproved?: () => void;
 }
@@ -62,7 +63,7 @@ export function SeoContentPlanReview({
 
   const savePlan = async (
     nextItems: ContentPlanItem[],
-    extraPayload?: Record<string, unknown>,
+    extraPayload?: JsonObject,
   ) => {
     setSaving(true);
     try {

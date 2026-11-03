@@ -1,3 +1,4 @@
+import type { JsonObject } from "@functions/_shared/pulse/json";
 export type CreativeFormat = "9:16" | "1:1" | "4:5" | "16:9";
 
 import type { BrandBook, StyleReference } from "./brandKit";
@@ -55,11 +56,11 @@ export type VideoSceneStatus =
   | "clip_approved"
   | "failed";
 
-export interface CreativeComment {
+export type CreativeComment = {
   id: string;
   text: string;
   createdAt: string;
-}
+};
 
 export type LayerShadowStyle = "none" | "soft" | "extrude" | "halo";
 
@@ -77,7 +78,7 @@ export type CreativeLayerRole =
   | "cta_fill"
   | "divider";
 
-export interface CreativeLayer {
+export type CreativeLayer = {
   id: string;
   type: "background" | "text" | "shape" | "image";
   x: number;
@@ -106,9 +107,9 @@ export interface CreativeLayer {
   shadowColor?: string;
   shadowBlur?: number;
   locked?: boolean;
-}
+};
 
-export interface CreativeVariation {
+export type CreativeVariation = {
   id: string;
   name: string;
   imageUrl: string;
@@ -131,14 +132,14 @@ export interface CreativeVariation {
   styleSourceId?: string;
   /** When true: letter-empty template + editable RTL layers. When false: finished ad with painted type. */
   liveTextLayers?: boolean;
-}
+};
 
 export interface CreativeItem {
   id: string;
   title: string | null;
   status: string;
   client_id: string | null;
-  payload: Record<string, unknown> | null;
+  payload: JsonObject | null;
   current_stage_id: string | null;
   target_channel: string | null;
   created_at: string;

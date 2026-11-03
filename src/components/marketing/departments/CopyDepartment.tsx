@@ -1,3 +1,4 @@
+import type { JsonValue } from "@functions/_shared/pulse/json";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateBlockNote } from "@blocknote/react";
@@ -115,9 +116,6 @@ interface Props {
   onClientChange: (id: string | null) => void;
 }
 
-type JsonValue =
-  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
 interface CopyItem {
   id: string;
   title: string | null;
@@ -130,18 +128,18 @@ interface CopyItem {
   updated_at: string;
 }
 
-interface ChatTurn {
+type ChatTurn = {
   role: "user" | "assistant";
   content: string;
   at: string;
-}
+};
 
-interface BriefFile {
+type BriefFile = {
   name: string;
   path?: string;
   size?: number;
   type?: string;
-}
+};
 
 interface ClientRow {
   id: string;
@@ -586,9 +584,7 @@ export function CopyDepartment({
       ].slice(-40);
       const nextVariations = hydrateCopyVariations(
         copyDocument,
-        parseCopyVariationsFromPayload(
-          selected.payload as Record<string, unknown>,
-        ),
+        parseCopyVariationsFromPayload(selected.payload),
       );
       const nextConcepts = existing
         ? concepts
@@ -1151,9 +1147,7 @@ export function CopyDepartment({
       );
       if (!creativeStage) throw new Error("שלב קריאייטיב לא נמצא");
       const readyConcepts = approvedCopyConcepts(
-        parseCopyConceptsFromPayload(
-          selected.payload as Record<string, unknown>,
-        ),
+        parseCopyConceptsFromPayload(selected.payload),
       );
       if (readyConcepts.length === 0) {
         throw new Error("אשרו לפחות קונספט אחד לפני ההעברה לקריאייטיב");
@@ -1161,9 +1155,7 @@ export function CopyDepartment({
       const readyCopies = approvedCopyVariations(
         hydrateCopyVariations(
           asText(selected.payload?.copy_text),
-          parseCopyVariationsFromPayload(
-            selected.payload as Record<string, unknown>,
-          ),
+          parseCopyVariationsFromPayload(selected.payload),
         ),
       );
       if (copyVariations.length > 0 && readyCopies.length === 0) {
@@ -1185,11 +1177,8 @@ export function CopyDepartment({
         existing = target as HandoffWorkItem;
       }
       const nextCreativePayload = overlayCopyHandoffPayload({
-        existingPayload: (existing?.payload ?? null) as Record<
-          string,
-          unknown
-        > | null,
-        copyPayload: (selected.payload ?? {}) as Record<string, unknown>,
+        existingPayload: existing?.payload ?? null,
+        copyPayload: selected.payload ?? {},
         copyItem: { id: selected.id, title: selected.title },
         concepts,
         approved: readyConcepts,
@@ -1231,7 +1220,7 @@ export function CopyDepartment({
         .from("marketing_work_items")
         .update({
           payload: stampCopyPayloadAfterHandoff(
-            (selected.payload ?? {}) as Record<string, unknown>,
+            selected.payload ?? {},
             creativeId,
             at,
           ),
@@ -1283,7 +1272,7 @@ export function CopyDepartment({
       const copyItem: HandoffWorkItem = {
         id: selected.id,
         title: selected.title,
-        payload: (selected.payload ?? {}) as Record<string, unknown>,
+        payload: selected.payload ?? {},
         client_id: selected.client_id,
         status: selected.status,
         current_stage_id: selected.current_stage_id,
@@ -2010,7 +1999,7 @@ function NewProjectDialog({
   open: boolean;
   onClose: () => void;
   tenantId: string;
-  defaultClientId?: string;
+  defaultClientId?: string | null;
   onCreated: (id: string) => void;
 }) {
   const [title, setTitle] = useState("");
