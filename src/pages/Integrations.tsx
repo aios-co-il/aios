@@ -30,6 +30,10 @@ import {
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import {
+  fetchMicrosoftStatus,
+  MICROSOFT_STATUS_QUERY_KEY,
+} from "@/lib/microsoftConnection";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useHasIntegrationAccess } from "@/hooks/useUserIntegrations";
@@ -303,6 +307,11 @@ export default function Integrations() {
       if (error) return null;
       return data as { connected: boolean } | null;
     },
+  });
+
+  const { data: microsoftStatus } = useQuery({
+    queryKey: MICROSOFT_STATUS_QUERY_KEY,
+    queryFn: fetchMicrosoftStatus,
   });
 
   // Check WordPress / WooCommerce integration status
@@ -658,6 +667,15 @@ export default function Integrations() {
       isConnected: !!gmailStatus?.connected,
       route: "gmail-settings",
       gradient: "bg-gradient-to-r from-red-500 to-red-700",
+    },
+    {
+      icon: <Mail className="h-6 w-6" />,
+      title: "Microsoft 365",
+      description: "חיבור חשבון Microsoft עסקי או Outlook פרטי",
+      features: ["Outlook מייל ויומן", "Teams", "OneDrive", "אנשי קשר"],
+      isConnected: !!microsoftStatus?.connected,
+      route: "microsoft-settings",
+      gradient: "bg-gradient-to-r from-sky-500 to-blue-700",
     },
     {
       icon: <Brain className="h-6 w-6" />,
