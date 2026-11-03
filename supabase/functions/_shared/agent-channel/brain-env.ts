@@ -1,13 +1,13 @@
 /**
- * Tenant brain keys from Carmen settings (carmen_brain_connections + Vault).
- * A built-in brain's UI key replaces its env secret for that tenant's sends;
- * without one, the project env secret is used as before.
+ * The env a brain send reads: project env without built-in brain keys, plus
+ * each built-in brain's keys from its one source (own, shared, or project
+ * for a home tenant). See key-source.ts (AIO-303).
  */
-import { overlayBrainEnv } from "../carmen/brain-connections/env.ts";
 import {
-  type SecretClient,
-  tenantBrainOverrides,
-} from "../carmen/brain-connections/overrides.ts";
+  brainEnvFrom,
+  resolveBuiltinKeys,
+} from "../carmen/brain-connections/key-source.ts";
+import type { SecretClient } from "../carmen/brain-connections/overrides.ts";
 import { serviceClient } from "../supabase-clients.ts";
 import type { SendContext } from "./types.ts";
 
@@ -20,15 +20,13 @@ export function projectEnv(): Record<string, string | undefined> {
   }
 }
 
-/** Project env with this tenant's UI keys laid over it. */
+/** This tenant's brain env; a brain it may not use has no keys in it. */
 export async function loadBrainEnv(
   sb: SecretClient,
   tenantId: string,
 ): Promise<Record<string, string | undefined>> {
-  return overlayBrainEnv(
-    projectEnv(),
-    await tenantBrainOverrides(sb, tenantId),
-  );
+  const project = projectEnv();
+  return brainEnvFrom(project, await resolveBuiltinKeys(sb, tenantId, project));
 }
 
 /** The env a launcher should read for this send, loaded once per send. */

@@ -15,6 +15,8 @@ export type BrainWriteAction =
   | "delete"
   | "set_builtin"
   | "reset_builtin"
+  | "share_builtin"
+  | "unshare_builtin"
   | "set_active";
 
 type Write = {

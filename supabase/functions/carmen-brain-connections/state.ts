@@ -1,7 +1,5 @@
 /** What the settings screen shows: connections, every route, built-in keys. */
-import { BUILTIN_BRAIN_KEYS } from "../_shared/carmen/brain-connections/presets.ts";
 import { sanitizeProfile } from "../_shared/carmen/brain-connections/profile.ts";
-import { settingString } from "../_shared/carmen/brain-connections/overrides.ts";
 import type {
   BrainConnection,
   BrainConnectionsState,
@@ -9,8 +7,8 @@ import type {
   BrainRouteType,
 } from "../_shared/carmen/brain-connections/types.ts";
 import { ensureDefaultRoutes } from "../_shared/agent-channel/store.ts";
-import { projectEnv } from "../_shared/agent-channel/brain-env.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { builtinState } from "./builtin-state.ts";
 import { type ActionContext, check, HttpError } from "./request.ts";
 
 /** Every column but secret_id. */
@@ -38,23 +36,10 @@ export async function listState(
   check(conns.error, "Loading brain connections");
   check(routes.error, "Loading brain routes");
   const rows = conns.data ?? [];
-  const env = projectEnv();
   return {
     connections: rows.map(toConnection),
     routes: (routes.data ?? []).map(toRoute),
-    builtins: BUILTIN_BRAIN_KEYS.map((spec) => {
-      const row = rows.find(
-        (r) => r.kind === "builtin" && r.slug === spec.slug,
-      );
-      return {
-        slug: spec.slug,
-        label: spec.label,
-        id_label: spec.idLabel ?? null,
-        external_id: settingString(row?.settings, "external_id") || null,
-        key_last4: row?.key_last4 ?? null,
-        env_configured: !!env[spec.secretEnv],
-      };
-    }),
+    ...(await builtinState(ctx, rows)),
   };
 }
 
