@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
@@ -10,39 +10,46 @@ describe("StepConfigPanel Green API connection choices", () => {
   it("keeps the owned connection selectable beside an ownerless connection", async () => {
     backend.integrations[0].user_id = null;
     const onUpdate = vi.fn();
-    const { queryClient, wrapper } = withTestQuery();
+    const user = userEvent.setup();
     render(
-      <StepConfigPanel
-        node={node}
-        open
-        onClose={vi.fn()}
-        onUpdate={onUpdate}
-      />,
-      { wrapper },
+      withTestQuery(
+        <StepConfigPanel
+          node={node}
+          open
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+        />,
+      ),
     );
-    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
-    const selector = screen.getByText("חיבור Green API").parentElement;
+    const selector = (await screen.findByText("חיבור Green API")).parentElement;
     if (!selector) {
       throw new Error("Missing connection selector");
     }
-    await userEvent.click(within(selector).getByRole("combobox"));
+    await user.click(within(selector).getByRole("combobox"));
+    const ownedConnection = await screen.findByRole("option", {
+      name: "חיבור two",
+    });
     expect(
       screen.queryByRole("option", { name: "חיבור one" }),
     ).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("option", { name: "חיבור two" }));
+    await user.click(ownedConnection);
     expect(onUpdate).toHaveBeenCalledWith(node.id, {
       configuration: { connection_user_id: "u2" },
     });
   });
 
   it("retains the selector when multiple connections have owners", async () => {
-    const { queryClient, wrapper } = withTestQuery();
     render(
-      <StepConfigPanel node={node} open onClose={vi.fn()} onUpdate={vi.fn()} />,
-      { wrapper },
+      withTestQuery(
+        <StepConfigPanel
+          node={node}
+          open
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+        />,
+      ),
     );
-    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
-    expect(screen.getByText("חיבור Green API")).toBeInTheDocument();
+    expect(await screen.findByText("חיבור Green API")).toBeInTheDocument();
   });
 });
 
