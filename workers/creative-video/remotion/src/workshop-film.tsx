@@ -23,6 +23,7 @@ import { Kicker } from "./workshop-kicker";
 import { MotionCaptions } from "./workshop-motion-captions";
 import { MotionTitle } from "./workshop-motion-title";
 import { filmFontFamily, fontFaces } from "./workshop-fonts";
+import { SceneOverlayView } from "./workshop-overlay";
 import { SceneMedia } from "./workshop-scene-media";
 import { sceneHeadline } from "./workshop-scene-text";
 import { SkinFlash, SkinSweep } from "./workshop-skin";
@@ -143,6 +144,15 @@ const Picture: React.FC<{
           />
           {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
         </AbsoluteFill>
+        {scene.overlay && scene.overlay !== "none" ? (
+          <SceneOverlayView
+            overlay={scene.overlay}
+            sceneId={scene.id}
+            enter={enter}
+            accent={accent}
+            hasText={Boolean(caption) || captionAt === "top"}
+          />
+        ) : null}
         {!caption ? null : captionAt === "motion" ? (
           <MotionTitle
             text={caption}
@@ -150,6 +160,7 @@ const Picture: React.FC<{
             accent={accent}
             style={scene.titleStyle ?? "float"}
             size={scene.titleSize ?? "medium"}
+            emphasis={scene.titleEmphasis ?? "none"}
           />
         ) : (
           <SceneCaption
