@@ -1,3 +1,4 @@
+import { CTA_MAX_CHARS } from "./cta.ts";
 import { EDIT_TOOL } from "./edit-tool.ts";
 import { motionField } from "./motion-text.ts";
 import { pictureField } from "./picture-text.ts";
@@ -537,8 +538,7 @@ export const WORKSHOP_TOOLS = [
         },
         cta_text: {
           type: "string",
-          description:
-            'קריאה לפעולה לסגיר הסרט, כשהסיום שנבחר כולל קריאה לפעולה: בדרך כלל קצרה (למשל "מחכים לכם בגפן"), וכשהמשתמש נתן משפט שלם מעבירים אותו בדיוק כמו שכתב (עד 120 תווים). משפט ארוך נשבר לעד שלוש שורות בסגיר. מופיעה בסוף הסרט עם הלוגו אם יש.',
+          description: `קריאה לפעולה לסגיר הסרט, כשהסיום שנבחר כולל קריאה לפעולה: בדרך כלל קצרה (למשל "מחכים לכם בגפן"), וכשהמשתמש נתן משפט שלם מעבירים אותו בדיוק כמו שכתב (עד ${CTA_MAX_CHARS} תווים). משפט ארוך נשבר לעד שלוש שורות בסגיר. מופיעה בסוף הסרט עם הלוגו אם יש.`,
         },
       },
       required: ["item_id"],
