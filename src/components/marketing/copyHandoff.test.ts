@@ -307,6 +307,7 @@ describe("validated copy handoff integration", () => {
           title: "SEO",
           client_id: "client-1",
           current_stage_id: null,
+          pipeline_id: null,
           payload: { department: "seo", format: 123 },
         },
         {
@@ -314,9 +315,11 @@ describe("validated copy handoff integration", () => {
           title: "קריאייטיב",
           client_id: "client-1",
           current_stage_id: null,
+          pipeline_id: null,
           payload: { department: "creative", storyboard: [] },
         },
       ],
+      new Set(),
       new Set(),
     );
     expect(

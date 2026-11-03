@@ -1,6 +1,6 @@
+import { loadCopyHandoffTargets } from "./copyHandoffTargets";
 import {
   readCopyDepartmentItems,
-  readCreativeHandoffItems,
   filesFromAttachments,
   readCopyPayload,
   readCopyWorkItem,
@@ -49,7 +49,6 @@ import {
   type StoredCopyVariation,
 } from "@/components/marketing/departments/creative/copyVariations";
 import {
-  listOpenCreativeProjects,
   overlayCopyHandoffPayload,
   stampCopyPayloadAfterHandoff,
   suggestedCreativeTarget,
@@ -1223,35 +1222,7 @@ export function CopyDepartment({
         status: selected.status,
         current_stage_id: selected.current_stage_id,
       };
-      const [
-        { data: siblings, error: siblingError },
-        { data: creativeStages, error: stageError },
-      ] = await Promise.all([
-        supabase
-          .from("marketing_work_items")
-          .select(
-            "id,title,status,payload,current_stage_id,client_id,created_at,updated_at",
-          )
-          .eq("tenant_id", tenantId)
-          .eq("client_id", selected.client_id)
-          .neq("id", selected.id)
-          .neq("status", "archived"),
-        supabase
-          .from("marketing_pipeline_stages")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("stage_type", "creative"),
-      ]);
-      if (siblingError) throw siblingError;
-      if (stageError) throw stageError;
-      const open = listOpenCreativeProjects(
-        copyItem,
-        readCreativeHandoffItems(
-          siblings ?? [],
-          new Set((creativeStages ?? []).map((stage) => stage.id)),
-        ),
-        (creativeStages ?? []).map((stage) => stage.id),
-      );
+      const open = await loadCopyHandoffTargets(tenantId, copyItem);
       if (open.length === 0) {
         handoff.mutate(null);
         return;
