@@ -1,3 +1,5 @@
+import type { CreativeVideoSettings } from "./creative/creativeProjectSettings";
+import { serializeCreativeVideoSettingsPatch } from "./creative/creativeVideoSettingsPatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -1214,16 +1216,12 @@ export function CreativeDepartment({
     }
   };
 
-  const updateVideoSettings = async (patch: Record<string, unknown>) => {
+  const updateVideoSettings = async (patch: Partial<CreativeVideoSettings>) => {
     if (!selected) return;
-    const current = (selected.payload?.video ?? {}) as Record<string, unknown>;
     const { error } = await supabase
       .from("marketing_work_items")
       .update({
-        payload: {
-          ...(selected.payload ?? {}),
-          video: { ...current, ...patch },
-        } as never,
+        payload: serializeCreativeVideoSettingsPatch(selected.payload, patch),
       })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
