@@ -432,6 +432,10 @@ export function buildWorkshopManifest(timeline) {
       captionStyle,
       ...(timeline.font ? { font: timeline.font } : {}),
       ...(timeline.endCardStyle ? { endCardStyle: timeline.endCardStyle } : {}),
+      ...(timeline.endCardBackground
+        ? { endCardBackground: timeline.endCardBackground }
+        : {}),
+      ...(timeline.endCardGlass ? { endCardGlass: true } : {}),
       captions:
         captionStyle === "motion"
           ? motionCaptions(framed, {

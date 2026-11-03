@@ -72,8 +72,8 @@ assert(
 );
 
 const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
-// The transitions of src/workshop-transitions.ts and the end-card designs of
-// src/workshop-end-card-layout.ts.
+// The transitions of src/workshop-transitions.ts, the end-card designs of
+// src/workshop-end-card-layout.ts and its backgrounds of src/workshop-end-card-backdrop.ts.
 const TRANSITIONS = [
   "cut",
   "crossfade",
@@ -86,6 +86,14 @@ const TRANSITIONS = [
   "glitch",
 ];
 const END_CARD_STYLES = ["classic", "bold", "minimal", "split"];
+const END_CARD_BACKGROUNDS = [
+  "last-scene",
+  "gradient",
+  "pattern",
+  "particles",
+  "light-rays",
+  "plain",
+];
 // The title styles and sizes of workshop-title-styles.ts.
 const TITLE_STYLES = [
   "float",
@@ -373,6 +381,10 @@ if (manifest.schemaVersion === 1) {
     endCardStyle: END_CARD_STYLES.includes(manifest.endCardStyle)
       ? manifest.endCardStyle
       : null,
+    endCardBackground: END_CARD_BACKGROUNDS.includes(manifest.endCardBackground)
+      ? manifest.endCardBackground
+      : null,
+    endCardGlass: manifest.endCardGlass === true,
     brand,
     endCardFrames,
     scenes: sorted.map((scene) => ({

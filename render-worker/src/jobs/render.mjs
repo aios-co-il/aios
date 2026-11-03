@@ -11,7 +11,12 @@ import {
   titleStyleOf,
 } from "../compose/title-style.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
-import { endCardStyleOf, sceneTransitionOf } from "../compose/film-look.mjs";
+import {
+  endCardBackgroundOf,
+  endCardGlassOf,
+  endCardStyleOf,
+  sceneTransitionOf,
+} from "../compose/film-look.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { sceneOverlayOf } from "../compose/scene-overlay.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
@@ -256,8 +261,9 @@ export async function loadFilmSources(db, run) {
  * its pictures are finished designs to show whole (video.keep_design), how its scenes' text
  * enters, how large it is and how its key words are emphasised (video.title_style,
  * video.title_size, video.title_emphasis), its font (video.font), the graphics over its scenes'
- * pictures (video.scene_overlay), its closing card's design (video.end_card_style), and whether
- * this run may pay for the effects: only the assembly of a running production
+ * pictures (video.scene_overlay), its closing card's design, what plays behind it and whether it
+ * sits on glass (video.end_card_style, end_card_background, end_card_glass), and whether this run
+ * may pay for the effects: only the assembly of a running production
  * (advance_video_production records its render_run_id), up to what its approved quote priced
  * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
  * production). Every other render, and a production quoted without them (the Video Studio's
@@ -283,6 +289,10 @@ export async function loadFilmSettings(db, run) {
     font: filmFontOf(row?.payload?.video?.font),
     sceneOverlay: sceneOverlayOf(row?.payload?.video?.scene_overlay),
     endCardStyle: endCardStyleOf(row?.payload?.video?.end_card_style),
+    endCardBackground: endCardBackgroundOf(
+      row?.payload?.video?.end_card_background,
+    ),
+    endCardGlass: endCardGlassOf(row?.payload?.video?.end_card_glass),
     effectsQuotedUsd:
       production?.status === "running" &&
       String(production.render_run_id ?? "") === String(run.id)
@@ -450,6 +460,8 @@ export async function renderFilm({
       font: settings.font,
       sceneOverlay: settings.sceneOverlay,
       endCardStyle: settings.endCardStyle,
+      endCardBackground: settings.endCardBackground,
+      endCardGlass: settings.endCardGlass,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

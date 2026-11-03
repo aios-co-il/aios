@@ -27,7 +27,7 @@ import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
 import { isTitleEmphasis } from "../title-emphasis.ts";
-import { isEndCardStyle } from "../film-look.ts";
+import { isEndCardBackground, isEndCardStyle } from "../film-look.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -379,9 +379,15 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             ...(isSceneOverlay(args.scene_overlay)
               ? { scene_overlay: args.scene_overlay }
               : {}),
-            // The closing card's design (film-look.ts).
+            // The closing card's design, its background and its glass (film-look.ts).
             ...(isEndCardStyle(args.end_card_style)
               ? { end_card_style: args.end_card_style }
+              : {}),
+            ...(isEndCardBackground(args.end_card_background)
+              ? { end_card_background: args.end_card_background }
+              : {}),
+            ...(typeof args.end_card_glass === "boolean"
+              ? { end_card_glass: args.end_card_glass }
               : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),

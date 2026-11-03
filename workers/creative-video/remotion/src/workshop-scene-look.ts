@@ -1,3 +1,4 @@
+import type { EndCardBackground } from "./workshop-end-card-backdrop";
 import type { EndCardStyle } from "./workshop-end-card-layout";
 import type { FilmFont } from "./workshop-fonts";
 import type { TitleEmphasis } from "./workshop-title-emphasis";
@@ -27,4 +28,8 @@ export type FilmLook = {
   font?: FilmFont | null;
   /** The closing card's design (workshop-end-card.tsx); "classic" when unset. */
   endCardStyle?: EndCardStyle | null;
+  /** What plays behind it (workshop-end-card-backdrop.ts); the film's last scene when unset. */
+  endCardBackground?: EndCardBackground | null;
+  /** Its logo and call to action sit on frosted glass (workshop-end-card-glass.ts). */
+  endCardGlass?: boolean | null;
 };

@@ -60,6 +60,8 @@ export function buildTimeline(
     font = null,
     sceneOverlay = null,
     endCardStyle = null,
+    endCardBackground = null,
+    endCardGlass = false,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -123,6 +125,9 @@ export function buildTimeline(
     sceneOverlay: sceneOverlay || null,
     // The closing card's design (film-look.mjs END_CARD_STYLES); the classic card when unset.
     endCardStyle: endCardStyle || null,
+    // What plays behind it (END_CARD_BACKGROUNDS; the last scene when unset) and its glass.
+    endCardBackground: endCardBackground || null,
+    endCardGlass: endCardGlass === true,
     aspect,
     width,
     height,
