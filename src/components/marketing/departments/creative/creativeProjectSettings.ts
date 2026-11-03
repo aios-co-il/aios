@@ -107,8 +107,13 @@ export function readCreativeVideoProduction(payload: unknown) {
 /** Decode the stored container without exposing its arbitrary keys to application models. */
 function videoObject(payload: unknown) {
   const root = z.record(z.unknown()).safeParse(payload);
-  const parsed = z
-    .record(z.unknown())
-    .safeParse(root.success ? root.data.video : undefined);
+  if (payload != null && !root.success) {
+    console.error("Invalid creative video container", { fields: ["payload"] });
+  }
+  const video = root.success ? root.data.video : undefined;
+  const parsed = z.record(z.unknown()).safeParse(video);
+  if (video != null && !parsed.success) {
+    console.error("Invalid creative video container", { fields: ["video"] });
+  }
   return parsed.success ? parsed.data : {};
 }

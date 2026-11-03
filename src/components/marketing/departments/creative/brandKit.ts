@@ -44,6 +44,9 @@ const asColors = (value: unknown) =>
 /** Decode stored brand data while retaining metadata outside the named fields. */
 export const getBrandKit = (payload: unknown): CreativeBrandKit => {
   const parsed = z.record(z.unknown()).safeParse(payload);
+  if (payload != null && !parsed.success) {
+    console.error("Invalid creative brand container", { fields: ["payload"] });
+  }
   const raw = parsed.success ? parsed.data : {};
   const book = creativeBrandBook.safeParse(raw.brand_book);
   if (raw.brand_book != null && !book.success) {
@@ -52,6 +55,11 @@ export const getBrandKit = (payload: unknown): CreativeBrandKit => {
     });
   }
   const refs = Array.isArray(raw.style_references) ? raw.style_references : [];
+  if (raw.style_references != null && !Array.isArray(raw.style_references)) {
+    console.error("Invalid creative brand container", {
+      fields: ["style_references"],
+    });
+  }
   return {
     logoUrl: asString(raw.logo_url),
     website: asString(raw.client_website),

@@ -77,6 +77,20 @@ describe("creative brand/video boundaries", () => {
     );
   });
 
+  it("logs malformed present containers without exposing private input", () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    getBrandKit({ style_references: "private" });
+    getBrandKit(42);
+    readCreativeVideoSettings({ video: [] });
+    readCreativeVideoSettings("private");
+    expect(diagnostic.mock.calls.map((call) => call[1])).toEqual([
+      { fields: ["style_references"] },
+      { fields: ["payload"] },
+      { fields: ["video"] },
+      { fields: ["payload"] },
+    ]);
+  });
+
   it("preserves root and nested metadata while applying a concrete video patch", () => {
     const payload = {
       server_revision: 4,
