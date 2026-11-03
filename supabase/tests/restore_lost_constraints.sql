@@ -11,8 +11,8 @@
 -- Carmen session without the link, a user delete keeps the SEO update without
 -- the user and leaves communication_logs.updated_by alone, a client delete
 -- keeps its marketing pipeline and work item and removes its communication
--- log, and a tenant delete in delete-tenant's order (clients, then the tenant)
--- removes the rows behind the new tenant keys and the other client's log. A NOT
+-- log, and a single DELETE of the tenant removes the rows behind the new tenant
+-- keys and all its logs, one of them on another tenant's client. A NOT
 -- VALID constraint passes the other checks: it still applies to new rows.
 -- Synthetic tenant, user and rows, full rollback, so it runs on a scratch
 -- database, a Preview branch or Staging.
@@ -28,6 +28,9 @@ DECLARE
   v_agency uuid := gen_random_uuid();
   v_client uuid := gen_random_uuid();
   v_client_b uuid := gen_random_uuid();
+  v_other_tenant uuid := gen_random_uuid();
+  v_other_agency uuid := gen_random_uuid();
+  v_other_client uuid := gen_random_uuid();
   v_agent uuid := gen_random_uuid();
   v_agent_b uuid := gen_random_uuid();
   v_user uuid := gen_random_uuid();
@@ -189,7 +192,7 @@ BEGIN
       ('agent_approval_queue', 'agent_approval_queue_agent_id_fkey', 'n'),
       ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_ai_conversation_id_fkey', 'n'),
       ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'n'),
-      ('communication_logs', 'communication_logs_tenant_id_fkey', 'a'),
+      ('communication_logs', 'communication_logs_tenant_id_fkey', 'c'),
       ('communication_logs', 'communication_logs_client_id_fkey', 'c'),
       ('marketing_work_items', 'marketing_work_items_pipeline_id_fkey', 'c'),
       ('telegram_messages', 'telegram_messages_client_id_fkey', 'a'),
@@ -241,6 +244,11 @@ BEGIN
   INSERT INTO public.invoice_uploads (tenant_id, file_path, agency_id, client_id) VALUES (v_tenant, 'qa/ok.pdf', v_agency, v_client);
   INSERT INTO public.communication_logs (id, tenant_id, client_id, updated_by) VALUES (v_log, v_tenant, v_client, v_user);
   INSERT INTO public.communication_logs (tenant_id, client_id) VALUES (v_tenant, v_client_b);
+  -- A log of the tenant on another tenant's client, as with a shared agency.
+  INSERT INTO public.tenants (id, name, slug) VALUES (v_other_tenant, 'QA constraints other ' || v_tag, 'qa-constraints-other-' || v_tag);
+  INSERT INTO public.agencies (id, tenant_id, name) VALUES (v_other_agency, v_other_tenant, 'QA other agency');
+  INSERT INTO public.clients (id, tenant_id, agency_id, name) VALUES (v_other_client, v_other_tenant, v_other_agency, 'QA other client');
+  INSERT INTO public.communication_logs (tenant_id, client_id) VALUES (v_tenant, v_other_client);
   INSERT INTO public.goals (tenant_id, title) VALUES (v_tenant, 'QA goal');
   INSERT INTO public.agent_supervisors (tenant_id, supervisor_agent_id, child_agent_id) VALUES (v_tenant, v_agent, v_agent_b);
   INSERT INTO public.maskyoo_numbers (tenant_id, phone_last9, display_number) VALUES (v_tenant, '000000000', 'QA');
@@ -366,13 +374,13 @@ BEGIN
     RAISE EXCEPTION 'client delete: the pipeline or its work item was removed or changed';
   END IF;
 
-  -- Deleting the tenant the way delete-tenant does, clients first, then the tenant: the other
-  -- client's communication log goes with that client, so the log's tenant key (no ON DELETE
-  -- action) does not refuse the tenant, and the rows behind the new tenant keys go with it. (In a
-  -- single DELETE of the tenant, that key's check runs before the cascade through clients reaches
-  -- the log, and refuses it.)
-  DELETE FROM public.clients WHERE tenant_id = v_tenant;
+  -- A single DELETE of the tenant, with its clients and communication logs still there, removes
+  -- its logs, including the one on the other tenant's client, and the rows behind the new tenant
+  -- keys. The other tenant and its client stay.
   DELETE FROM public.tenants WHERE id = v_tenant;
+  IF NOT EXISTS (SELECT 1 FROM public.clients WHERE id = v_other_client) THEN
+    RAISE EXCEPTION 'tenant delete: the other tenant''s client is gone';
+  END IF;
   SELECT (SELECT count(*) FROM public.communication_logs WHERE tenant_id = v_tenant)
        + (SELECT count(*) FROM public.automation_executions WHERE tenant_id = v_tenant)
        + (SELECT count(*) FROM public.integration_health WHERE tenant_id = v_tenant)

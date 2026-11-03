@@ -11,16 +11,18 @@
 -- export of Production's live schema from about June 2026, before the loss.
 -- It is not proven complete: a constraint added and lost between the export and
 -- 2026-10-09 outside any migration would be in neither. Where the export has a
--- constraint, its definition is used, with two changes David decided:
+-- constraint, its definition is used, with three changes David decided:
 --   carmen_whatsapp_sessions_ai_conversation_id_fkey  ON DELETE SET NULL: a user
 --     can delete a conversation, and Carmen's session only loses the link
 --   seo_monthly_updates_updated_by_fkey  ON DELETE SET NULL: every user can be
 --     deleted, and their updates stay in the history
--- Two follow the export and not the old migrations:
---   agent_action_log_agent_id_fkey     ON DELETE SET NULL, as 20260529095654
---                                      (20260327_agent_github_tables.sql had none)
---   communication_logs_tenant_id_fkey  no ON DELETE action, as 20260408041833
---                                      (20260407_dmm_crm_adaptation.sql cascaded)
+--   communication_logs_tenant_id_fkey  ON DELETE CASCADE, like the other tenant
+--     keys here: deleting an organization deletes its own records (the export
+--     and 20260408041833 had no action, which made delete-tenant fail for a
+--     tenant with logs on another tenant's client)
+-- One follows the export and not the old migrations:
+--   agent_action_log_agent_id_fkey  ON DELETE SET NULL, as 20260529095654
+--                                   (20260327_agent_github_tables.sql had none)
 -- Eight come only from the export, because Production got them outside any
 -- migration: the tenant keys (ON DELETE CASCADE) of automation_executions,
 -- integration_health, job_queue, processed_events and tenant_rate_limits, and
@@ -71,14 +73,12 @@
 -- monthly updates and clears its other rows here, but no marketing pipeline
 -- (see marketing_pipelines_client_id_fkey below), so it does not reach the work
 -- items, workshop artifacts, assets and video scenes built since. Deleting a
--- conversation or a user clears the session or SEO update that named it. A
--- delete that would leave an orphan behind a key with no ON DELETE action is
--- refused: a lead or client with Telegram messages (Production has none), and a
--- tenant that still has communication logs. delete-tenant deletes the clients
--- first, which removes their logs, so it works, except for a tenant with logs on
--- another tenant's client: on Production, 472 logs of 2 tenants, 284 of them
--- through a shared agency. A single DELETE of a tenant that has logs is refused
--- too, because the key's check runs before the cascade through clients.
+-- conversation or a user clears the session or SEO update that named it.
+-- Deleting a tenant also removes its communication logs on another tenant's
+-- client (on Production, 472 logs of 2 tenants, 284 of them through a shared
+-- agency). A delete that would leave an orphan behind a key with no ON DELETE
+-- action is refused: a lead or client with Telegram messages (Production has
+-- none).
 --
 -- Not restored, on purpose:
 -- - marketing_pipelines_client_id_fkey (ON DELETE CASCADE in the old schema):
@@ -249,11 +249,8 @@ begin
       ('automation_shared_tenants', 'automation_shared_tenants_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_ai_conversation_id_fkey', 'f', array['ai_conversation_id'], 'public.ai_conversations', array['id'], 'FOREIGN KEY (ai_conversation_id) REFERENCES public.ai_conversations(id) ON DELETE SET NULL'),
       ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_automation_id_fkey', 'f', array['automation_id'], 'public.automations', array['id'], 'FOREIGN KEY (automation_id) REFERENCES public.automations(id) ON DELETE SET NULL'),
-      -- The tenant key has no ON DELETE action, as on Production before the loss. delete-tenant
-      -- deletes the clients first, which removes their logs; a single DELETE of a tenant that
-      -- still has logs is refused, because this check runs before the cascade through clients.
       ('communication_logs', 'communication_logs_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE'),
-      ('communication_logs', 'communication_logs_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)'),
+      ('communication_logs', 'communication_logs_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('goals', 'goals_parent_goal_id_fkey', 'f', array['parent_goal_id'], 'public.goals', array['id'], 'FOREIGN KEY (parent_goal_id) REFERENCES public.goals(id) ON DELETE SET NULL'),
       ('goals', 'goals_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('heartbeat_logs', 'heartbeat_logs_agent_id_fkey', 'f', array['agent_id'], 'public.ai_agents', array['id'], 'FOREIGN KEY (agent_id) REFERENCES public.ai_agents(id) ON DELETE SET NULL'),
