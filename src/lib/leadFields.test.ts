@@ -67,6 +67,24 @@ test("repeat inbound keeps the first created_at and first source", () => {
   expect(leadFirstSourceDisplay({ first_source: "paid_ads" })).toBe("FB");
 });
 
+test("a new spelling of the same channel is not an updated source", () => {
+  expect(
+    leadArrivalSourceChanged({ source: "FB", first_source: "paid_ads" }),
+  ).toBe(false);
+  expect(leadSourceFieldLabel({ source: "FB", first_source: "paid_ads" })).toBe(
+    "מקור הליד",
+  );
+  expect(
+    leadArrivalSourceChanged({ source: "Promo Y", first_source: "Promo X" }),
+  ).toBe(true);
+  expect(
+    leadArrivalSourceChanged({ source: "Promo X", first_source: "other" }),
+  ).toBe(true);
+  expect(
+    leadArrivalSourceChanged({ source: "promo x", first_source: "Promo X" }),
+  ).toBe(false);
+});
+
 test("leadOriginTagNames creates campaign and source tags without duplicating אחר", () => {
   expect(
     leadOriginTagNames({ campaign_name: "שיווק", source: "paid_ads" }),

@@ -1,3 +1,4 @@
+import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
 import {
   googleCampaignGoalOf,
   type GoogleReportRecord,
@@ -17,12 +18,16 @@ import type {
  * Google Ads campaigns of a report with each campaign's own goal (ecommerce or
  * leads). One account can run both, so totals are kept per goal: purchases and
  * ROAS only from ecommerce campaigns, conversions and cost per conversion only
- * from lead campaigns.
+ * from lead campaigns. Only campaign-level rows count: the sync also stores
+ * ad group and ad rows under the same campaign id.
  */
 export function summarizeGoogleAdsCampaigns(
-  records: GoogleReportRecord[],
+  allRecords: GoogleReportRecord[],
   tables: GoogleReportTable[],
 ): GoogleAdsCampaignSummary {
+  const records = allRecords.filter((record) =>
+    shouldIncludeInAdsDashboardAggregate(record.data, "google_ads"),
+  );
   const fallbackGoal = googleReportFallbackGoal(tables);
   const { goalOf } = googleCampaignGoalOf(records, tables, fallbackGoal);
 

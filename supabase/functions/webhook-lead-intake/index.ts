@@ -11,12 +11,9 @@ import {
 import { unarchiveExistingLead } from "../_shared/unarchive-lead.ts";
 import {
   applyRepeatInboundReopen,
-  updateLeadWithRepeatReopen,
+  reopenRepeatLead,
 } from "../_shared/lead-repeat-reopen.ts";
-import {
-  givenLeadSource,
-  recordLeadSourceEvent,
-} from "../_shared/lead-source-events.ts";
+import { givenLeadSource } from "../_shared/lead-source-events.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 import { RETURNING_LEAD_TAG } from "./lead-duplicate-match.ts";
 import {
@@ -468,23 +465,17 @@ Deno.serve(async (req) => {
       if (hasUpdates) {
         updates.updated_at = new Date().toISOString();
 
-        const { error: updateError } = await updateLeadWithRepeatReopen(
+        const { error: updateError } = await reopenRepeatLead(
           supabase,
-          existingLead.id,
+          existingLead,
           updates,
+          { source: sentSource, campaignName: payload.campaign_name },
         );
 
         if (updateError) {
           console.error("❌ Error updating existing lead:", updateError);
         }
       }
-
-      await recordLeadSourceEvent(supabase, {
-        leadId: existingLead.id,
-        tenantId: existingLead.tenant_id,
-        source: sentSource,
-        campaignName: payload.campaign_name,
-      });
 
       // Returning lead: tag it, plus any tag the webhook asked for
       if (tenantId) {
