@@ -40,8 +40,9 @@ describe("AlertsManagementDialog creation", () => {
 async function submitAlert() {
   const user = userEvent.setup();
   render(
-    <AlertsManagementDialog open onOpenChange={vi.fn()} tableId="table-1" />,
-    { wrapper: withTestQuery().wrapper },
+    withTestQuery(
+      <AlertsManagementDialog open onOpenChange={vi.fn()} tableId="table-1" />,
+    ),
   );
   await user.click(screen.getByRole("button", { name: "הוספת התראה חדשה" }));
   await user.type(
@@ -56,12 +57,15 @@ const backend = vi.hoisted(() => ({
   insert: vi.fn(),
   error: vi.fn(),
 }));
+
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenantId: backend.tenantId }),
 }));
+
 vi.mock("sonner", () => ({
   toast: { error: backend.error, success: vi.fn() },
 }));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({

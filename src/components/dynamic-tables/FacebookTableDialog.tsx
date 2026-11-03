@@ -97,7 +97,7 @@ export function FacebookTableDialog({
   const [selectedIntegrationId, setSelectedIntegrationId] = useState("");
 
   const { data: fbIntegrations = [], isLoading: loadingIntegrations } =
-    useUserIntegrations(tenantId ?? undefined, "facebook_lead_ads", {
+    useUserIntegrations(tenantId, "facebook_lead_ads", {
       enabled: open,
     });
   const { data: agencies = [] } = useTableDialogAgencies({

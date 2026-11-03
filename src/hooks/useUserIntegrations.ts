@@ -22,7 +22,7 @@ import { isReportTenantScopedIntegration } from "@/lib/reportIntegrationTypes";
  * differs from where the GSC/GA integration was created). RLS still applies.
  */
 export function useUserIntegrations(
-  tenantId: string | string[] | undefined,
+  tenantId: string | Array<string> | null | undefined,
   integrationType: string,
   options?: { enabled?: boolean; returnAll?: boolean },
 ) {

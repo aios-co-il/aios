@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import {
   useAgencyClients,
@@ -60,30 +60,31 @@ export function GoogleSearchConsoleTableDialog({
 
   const { data: integration, isLoading: integrationLoading } = useQuery({
     queryKey: ["gsc-integration", activeTenantId],
-    queryFn: async () => {
-      if (!activeTenantId) {
-        return null;
-      }
-      const { data, error } = await supabase
-        .from("tenant_integrations")
-        .select(CLIENT_INTEGRATION_COLUMNS)
-        .eq("tenant_id", activeTenantId)
-        .eq("integration_type", "google_search_console")
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    queryFn: activeTenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("tenant_integrations")
+            .select(CLIENT_INTEGRATION_COLUMNS)
+            .eq("tenant_id", activeTenantId)
+            .eq("integration_type", "google_search_console")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-      if (error) throw error;
-      if (!data) {
-        return null;
-      }
-      const settings = jsonObject(data.settings);
-      if (data.settings !== null && settings === null) {
-        console.error("Ignoring malformed GSC integration settings");
-      }
-      return toClientIntegration({ ...data, settings });
-    },
+          if (error) {
+            throw error;
+          }
+          if (!data) {
+            return null;
+          }
+          const settings = jsonObject(data.settings);
+          if (data.settings !== null && settings === null) {
+            console.error("Ignoring malformed GSC integration settings");
+          }
+          return toClientIntegration({ ...data, settings });
+        }
+      : skipToken,
     enabled: open && !!activeTenantId,
   });
 

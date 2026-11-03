@@ -76,7 +76,7 @@ export function GoogleAnalyticsTableDialog({
 
   // Fetch user's own + shared GA integrations
   const { data: integrationRows, isLoading: integrationLoading } =
-    useUserIntegrations(activeTenantId ?? undefined, "google_analytics", {
+    useUserIntegrations(activeTenantId, "google_analytics", {
       enabled: open,
     });
   const allIntegrations = useMemo(
