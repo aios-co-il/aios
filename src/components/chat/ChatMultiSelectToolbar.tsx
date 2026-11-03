@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { removeContactTag, TAG_REMOVE_REFUSED } from "./removeContactTag";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -120,25 +121,26 @@ export function ChatMultiSelectToolbar({
       } = await supabase.auth.getUser();
       if (!user || !tenantId) throw new Error("No user or tenant");
 
-      for (const contact of selectedContacts) {
-        let query = supabase
-          .from("chat_contact_tags")
-          .delete()
-          .eq("tag_id", tagId)
-          .eq("user_id", user.id)
-          .eq("tenant_id", tenantId);
-
-        if (contact.contact_type === "client") {
-          query = query.eq("client_id", contact.id);
-        } else if (contact.contact_type === "lead") {
-          query = query.eq("lead_id", contact.id);
-        } else if (contact.contact_type === "group") {
-          query = query.eq("group_id", contact.id);
-        } else if (contact.contact_type === "unknown" && contact.sender_phone) {
-          query = query.eq("sender_phone", contact.sender_phone);
-        }
-
-        await query;
+      // Telegram chats carry no contact tags.
+      const results = await Promise.allSettled(
+        selectedContacts.flatMap((contact) =>
+          contact.contact_type === "telegram"
+            ? []
+            : [
+                removeContactTag(supabase, tenantId, tagId, {
+                  type: contact.contact_type,
+                  id: contact.id,
+                  senderPhone: contact.sender_phone,
+                }),
+              ],
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected");
+      if (failed.length) {
+        console.error("[chat-tags] bulk remove failed", failed);
+        throw new Error(
+          `התג לא הוסר מ-${failed.length} צ'אטים: ${TAG_REMOVE_REFUSED}`,
+        );
       }
     },
     onSuccess: () => {
@@ -151,8 +153,8 @@ export function ChatMultiSelectToolbar({
       setRemoveTagOpen(false);
       toast.success(`התג הוסר מ-${selectedContacts.length} צ'אטים`);
     },
-    onError: () => {
-      toast.error("שגיאה בהסרת התג");
+    onError: (error: Error) => {
+      toast.error(error.message || "שגיאה בהסרת התג");
     },
   });
 
