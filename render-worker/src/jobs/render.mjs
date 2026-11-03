@@ -11,6 +11,7 @@ import {
 } from "../compose/title-style.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
+import { sceneOverlayOf } from "../compose/scene-overlay.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
   assertTenantPath,
@@ -215,6 +216,8 @@ export async function loadFilmSources(db, run) {
         // The scene's own text style and size, over the film's (title-style.mjs).
         titleStyle: titleStyleOf(sceneMeta.title_style),
         titleSize: titleSizeOf(sceneMeta.title_size),
+        // The graphics over the scene's picture, over the film's (scene-overlay.mjs).
+        sceneOverlay: sceneOverlayOf(sceneMeta.scene_overlay),
         voicePath,
         voiceAlignment: voice ? metaOf(voice).alignment || null : null,
         lipsync: clipTalks,
@@ -246,7 +249,8 @@ export async function loadFilmSources(db, run) {
  * font, logo, CTA) and the brand's name, the caption style (video.caption_style, "motion" unless
  * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), whether
  * its pictures are finished designs to show whole (video.keep_design), how its scenes' text
- * enters and how large it is (video.title_style, video.title_size), its font (video.font), and
+ * enters and how large it is (video.title_style, video.title_size), its font (video.font), the
+ * graphics over its scenes' pictures (video.scene_overlay), and
  * whether this run may pay for the effects: only the assembly of a running production
  * (advance_video_production records its render_run_id), up to what its approved quote priced
  * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
@@ -270,6 +274,7 @@ export async function loadFilmSettings(db, run) {
     titleStyle: titleStyleOf(row?.payload?.video?.title_style),
     titleSize: titleSizeOf(row?.payload?.video?.title_size),
     font: filmFontOf(row?.payload?.video?.font),
+    sceneOverlay: sceneOverlayOf(row?.payload?.video?.scene_overlay),
     effectsQuotedUsd:
       production?.status === "running" &&
       String(production.render_run_id ?? "") === String(run.id)
@@ -434,6 +439,7 @@ export async function renderFilm({
       titleStyle: settings.titleStyle,
       titleSize: settings.titleSize,
       font: settings.font,
+      sceneOverlay: settings.sceneOverlay,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

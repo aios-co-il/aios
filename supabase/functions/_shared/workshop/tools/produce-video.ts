@@ -23,6 +23,7 @@ import {
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
+import { isSceneOverlay } from "../scene-overlays.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
 import {
   keepsDesign,
@@ -367,6 +368,10 @@ export async function workshopProduceVideo(ctx: ToolContext) {
               ? { title_size: args.title_size }
               : {}),
             ...(isFilmFont(args.font) ? { font: args.font } : {}),
+            // The graphics over every scene's picture (scene-overlays.ts).
+            ...(isSceneOverlay(args.scene_overlay)
+              ? { scene_overlay: args.scene_overlay }
+              : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },

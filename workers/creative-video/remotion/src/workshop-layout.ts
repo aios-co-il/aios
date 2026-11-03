@@ -78,7 +78,8 @@ export const lineEm = (words: { text: string; key?: boolean }[]) =>
   ) +
   WORD_GAP_EM * Math.max(0, words.length - 1);
 
-const channels = (hex: string): [number, number, number] | null => {
+/** A hex colour's channels (0–1), or null for anything else. */
+export const channels = (hex: string): [number, number, number] | null => {
   const raw = hex.replace("#", "");
   const full =
     raw.length === 3

@@ -951,6 +951,43 @@ Deno.test(
 );
 
 Deno.test(
+  "the film's scene overlay is saved for the render, an unknown one is not",
+  async () => {
+    const savedOverlay = async (sceneOverlay: string) => {
+      const db = fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        "rpc:produce_video": { status: "running", clips: 1 },
+      });
+      await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, scene_overlay: sceneOverlay },
+        async () => {},
+        null,
+        { defaultEngine: async () => "mock" as const },
+      );
+      const video = db.calls
+        .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+        .map(
+          (c) =>
+            (c.value as { payload?: { video?: Record<string, unknown> } })
+              .payload?.video,
+        )
+        .filter(Boolean)
+        .pop();
+      assertStrictEquals(typeof video, "object");
+      return video?.scene_overlay;
+    };
+    assertStrictEquals(await savedOverlay("confetti"), "confetti");
+    assertStrictEquals(await savedOverlay("sparkles"), undefined);
+  },
+);
+
+Deno.test(
   "a later production of a finished design keeps it without being asked again",
   async () => {
     const project = videoProject();
