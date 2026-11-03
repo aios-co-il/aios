@@ -14,7 +14,7 @@ import {
   resolveCampaignDeliveryStatus,
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
-import { jsonObject } from "../../supabase/functions/_shared/pulse/json.ts";
+import { jsonObject } from "@functions/_shared/pulse/json.ts";
 import { hasRepeatedSyncFailures } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
 import {
   isLegacyClientCallFlag,

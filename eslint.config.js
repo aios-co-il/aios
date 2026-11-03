@@ -35,6 +35,7 @@ export default tseslint.config(
       "@typescript-eslint/unified-signatures": "error",
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
+      "@typescript-eslint/array-type": ["warn", { default: "generic" }], // AIO-305
     },
   },
   {

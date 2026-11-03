@@ -360,7 +360,7 @@ export async function fetchAllLeadsForExport(
       tag_id: string;
       chat_tags?: { name?: string | null } | null;
     };
-    const tagRows: TagRow[] = [];
+    const tagRows: Array<TagRow> = [];
     for (const idChunk of chunk(leadIds, RELATED_IN_CHUNK)) {
       const chunkRows = await paginateQuery<TagRow>(async (from, to) => {
         const { data, error } = await supabase
@@ -396,7 +396,7 @@ export async function fetchAllLeadsForExport(
       user_id: string;
       profiles?: { full_name?: string | null } | null;
     };
-    const updateRows: UpdateRow[] = [];
+    const updateRows: Array<UpdateRow> = [];
     for (const idChunk of chunk(leadIds, RELATED_IN_CHUNK)) {
       const chunkRows = await paginateQuery<UpdateRow>(async (from, to) => {
         const { data, error } = await supabase
