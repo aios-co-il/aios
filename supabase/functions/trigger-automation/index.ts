@@ -3,7 +3,12 @@ import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.t
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
 import { findMetaStepClientRecipient } from "./client-recipient.ts";
-import { fieldValueEquals, sourceBranch } from "./field-match.ts";
+import {
+  fieldValueContains,
+  fieldValueEquals,
+  fieldValueStartsWith,
+  sourceBranch,
+} from "./field-match.ts";
 import { recordAutomationStepSend } from "./step-client-send.ts";
 import {
   buildWaNotifyFromOrigin,
@@ -2532,28 +2537,25 @@ Deno.serve(async (req) => {
                   const expected = String(stepConfig.condition_value || "");
                   const actual = String(stepData[field] ?? "");
                   let result = false;
-                  if (operator === "equals")
+                  if (operator === "equals") {
                     result = fieldValueEquals(field, actual, expected);
-                  else if (operator === "not_equals")
+                  } else if (operator === "not_equals") {
                     result = !fieldValueEquals(field, actual, expected);
-                  else if (operator === "contains")
-                    result = actual
-                      .toLowerCase()
-                      .includes(expected.toLowerCase());
-                  else if (operator === "not_contains")
-                    result = !actual
-                      .toLowerCase()
-                      .includes(expected.toLowerCase());
-                  else if (operator === "starts_with")
-                    result = actual.startsWith(expected);
-                  else if (operator === "greater_than")
+                  } else if (operator === "contains") {
+                    result = fieldValueContains(field, actual, expected);
+                  } else if (operator === "not_contains") {
+                    result = !fieldValueContains(field, actual, expected);
+                  } else if (operator === "starts_with") {
+                    result = fieldValueStartsWith(field, actual, expected);
+                  } else if (operator === "greater_than") {
                     result = parseFloat(actual) > parseFloat(expected);
-                  else if (operator === "less_than")
+                  } else if (operator === "less_than") {
                     result = parseFloat(actual) < parseFloat(expected);
-                  else if (operator === "is_empty")
+                  } else if (operator === "is_empty") {
                     result = !actual || actual === "undefined";
-                  else if (operator === "is_not_empty")
+                  } else if (operator === "is_not_empty") {
                     result = !!actual && actual !== "undefined";
+                  }
                   stepResponse = { condition_result: result };
                   nodeOutputs[step.id] = {
                     ...stepData,
