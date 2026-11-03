@@ -9,6 +9,7 @@
 ### 1. Tenant Context
 
 - משתמש יכול להיות חבר בכמה ארגונים (שורה לכל ארגון ב-`tenant_users`), ופועל בכל רגע בארגון פעיל אחד (`user_active_tenant`)
+- הגישה לארגון באה משורת `tenant_users` עצמה. חבר שהושבת או נמחק מארגון יוצא מ-`tenant_users` ומ-`user_roles` של הארגון, ונרשם ב-`tenant_inactive_members` (`inactive` או `deleted`), כך שחברי הארגון עדיין רואים את שמו בהיסטוריה. הבעלים, או super admin שפועל בארגון, משביתים, מפעילים מחדש ומוחקים, דרך `set-user-active` ו-`delete-user` (`20261103110000_user_deactivate_keep_history.sql`)
 - המערכת משתמשת ב-TenantProvider לניהול הארגון הנוכחי
 - Super admins יכולים לצפות בכל הארגונים ולעבור לכל ארגון, אבל כותבים נתונים רק בארגון הפעיל שלהם
 
@@ -70,6 +71,7 @@ USING (
 - ✅ workshop_artifacts
 - ✅ workshop_assets
 - ✅ cursor_task_sessions
+- ✅ tenant_inactive_members
 
 ### 5. טבלאות גלובליות (ללא tenant_id)
 

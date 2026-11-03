@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useMemberName } from "@/hooks/useMemberName";
 import {
   formatLastClientCall,
   type PulseSnapshotRow,
@@ -56,6 +57,7 @@ export function PulseClientCallDialog({
 }: PulseClientCallDialogProps) {
   const { tenantId } = useCurrentTenant();
   const { user } = useCurrentUser();
+  const memberName = useMemberName();
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -207,9 +209,7 @@ export function PulseClientCallDialog({
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2 flex-wrap">
                         <User className="h-3 w-3 shrink-0" />
                         <span>
-                          {update.profiles?.full_name ||
-                            update.profiles?.email ||
-                            "משתמש"}
+                          {memberName(update.user_id, update.profiles)}
                         </span>
                         <span>•</span>
                         <Calendar className="h-3 w-3 shrink-0" />

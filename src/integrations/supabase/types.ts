@@ -5363,7 +5363,7 @@ export type Database = {
           tenant_id: string;
           update_type: string | null;
           updated_at: string;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           client_id: string;
@@ -5377,7 +5377,7 @@ export type Database = {
           tenant_id: string;
           update_type?: string | null;
           updated_at?: string;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           client_id?: string;
@@ -5391,7 +5391,7 @@ export type Database = {
           tenant_id?: string;
           update_type?: string | null;
           updated_at?: string;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
@@ -8669,7 +8669,7 @@ export type Database = {
           id: string;
           lead_id: string;
           updated_at: string;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           content: string;
@@ -8677,7 +8677,7 @@ export type Database = {
           id?: string;
           lead_id: string;
           updated_at?: string;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           content?: string;
@@ -8685,7 +8685,7 @@ export type Database = {
           id?: string;
           lead_id?: string;
           updated_at?: string;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
@@ -10391,6 +10391,7 @@ export type Database = {
           calendar_iframe_code: string | null;
           campaigner_id: string | null;
           created_at: string;
+          deleted_at: string | null;
           email: string;
           full_name: string | null;
           id: string;
@@ -10407,6 +10408,7 @@ export type Database = {
           calendar_iframe_code?: string | null;
           campaigner_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           email: string;
           full_name?: string | null;
           id: string;
@@ -10423,6 +10425,7 @@ export type Database = {
           calendar_iframe_code?: string | null;
           campaigner_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           email?: string;
           full_name?: string | null;
           id?: string;
@@ -13559,7 +13562,7 @@ export type Database = {
           task_id: string;
           update_type: string;
           updated_at: string;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           attachments?: Json | null;
@@ -13569,7 +13572,7 @@ export type Database = {
           task_id: string;
           update_type?: string;
           updated_at?: string;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           attachments?: Json | null;
@@ -13579,7 +13582,7 @@ export type Database = {
           task_id?: string;
           update_type?: string;
           updated_at?: string;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
@@ -14547,6 +14550,57 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      tenant_inactive_members: {
+        Row: {
+          campaigner_was_active: boolean | null;
+          changed_at: string;
+          changed_by: string | null;
+          member_role: string;
+          roles: Database["public"]["Enums"]["app_role"][];
+          sales_person_was_active: boolean | null;
+          status: string;
+          tenant_id: string;
+          user_id: string;
+        };
+        Insert: {
+          campaigner_was_active?: boolean | null;
+          changed_at?: string;
+          changed_by?: string | null;
+          member_role?: string;
+          roles?: Database["public"]["Enums"]["app_role"][];
+          sales_person_was_active?: boolean | null;
+          status: string;
+          tenant_id: string;
+          user_id: string;
+        };
+        Update: {
+          campaigner_was_active?: boolean | null;
+          changed_at?: string;
+          changed_by?: string | null;
+          member_role?: string;
+          roles?: Database["public"]["Enums"]["app_role"][];
+          sales_person_was_active?: boolean | null;
+          status?: string;
+          tenant_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_inactive_members_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tenant_inactive_members_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tenant_integrations: {
         Row: {
@@ -16383,6 +16437,10 @@ export type Database = {
         Args: { p_slugs: string[]; p_tenant_id: string };
         Returns: undefined;
       };
+      caller_manages_tenant_members: {
+        Args: { _tenant_id: string };
+        Returns: boolean;
+      };
       can_access_agency: {
         Args: { _agency_id: string; _user_id: string };
         Returns: boolean;
@@ -17477,6 +17535,18 @@ export type Database = {
       };
       normalize_google_customer_id: { Args: { raw: string }; Returns: string };
       normalize_meta_ad_account_id: { Args: { raw: string }; Returns: string };
+      offboard_tenant_member: {
+        Args: {
+          p_actor: string;
+          p_status: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: {
+          account_deleted: boolean;
+          remaining_tenants: number;
+        }[];
+      };
       patch_marketing_work_item: {
         Args: {
           p_item_id: string;
@@ -17671,6 +17741,10 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      reactivate_tenant_member: {
+        Args: { p_actor: string; p_tenant_id: string; p_user_id: string };
+        Returns: undefined;
+      };
       record_client_card_entry: {
         Args: {
           p_attributed_user?: string;
@@ -17858,6 +17932,10 @@ export type Database = {
       };
       tenant_holds_agency: {
         Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };
+        Returns: boolean;
+      };
+      tenant_member_is_owner: {
+        Args: { p_tenant_id: string; p_user_id: string };
         Returns: boolean;
       };
       try_acquire_manychat_destination_lock: {

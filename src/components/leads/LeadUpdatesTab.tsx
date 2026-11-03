@@ -32,6 +32,7 @@ import { EntityTaskCard } from "@/components/tasks/EntityTaskCard";
 import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useMemberName } from "@/hooks/useMemberName";
 import { ensureLeadHomeAgency } from "@/lib/resolveTenantAgencyDb";
 
 interface LeadUpdatesTabProps {
@@ -48,6 +49,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const { user } = useCurrentUser();
+  const memberName = useMemberName();
 
   // Fetch tasks for this lead
   const { data: tasks, isLoading: tasksLoading } = useQuery({
@@ -377,9 +379,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
                           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                             <User className="h-3 w-3 shrink-0" />
                             <span>
-                              {update.profiles?.full_name ||
-                                update.profiles?.email ||
-                                "משתמש"}
+                              {memberName(update.user_id, update.profiles)}
                             </span>
                             <span>•</span>
                             <Calendar className="h-3 w-3 shrink-0" />

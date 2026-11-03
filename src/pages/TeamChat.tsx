@@ -39,6 +39,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import type { DeleteMemberResult } from "@functions/_shared/user-admin/member-results.ts";
+import { MEMBER_STATUSES_KEY } from "@/hooks/useMemberName";
+import { invokeEdgeFunction } from "@/lib/edgeFunctionInvoke";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -942,25 +945,18 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
     const deletedId = deleteConfirmUser.id;
     const membersQueryKey = ["team-members-manage", tenantId] as const;
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
       queryClient.setQueryData<any[]>(
         membersQueryKey,
         (old) => old?.filter((member) => member.id !== deletedId) ?? old,
       );
-      const { data, error } = await supabase.functions.invoke("delete-user", {
-        body: { userId: deletedId, tenantId },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Delete failed");
-      toast.success(
-        data?.removedFromTenantOnly ? "המשתמש הוסר מהארגון" : "המשתמש נמחק",
+      const result = await invokeEdgeFunction<DeleteMemberResult>(
+        "delete-user",
+        { userId: deletedId, tenantId },
       );
+      toast.success(
+        result.removedFromTenantOnly ? "המשתמש הוסר מהארגון" : "המשתמש נמחק",
+      );
+      void queryClient.invalidateQueries({ queryKey: [MEMBER_STATUSES_KEY] });
       setDeleteConfirmUser(null);
       queryClient.invalidateQueries({ queryKey: membersQueryKey });
     } catch (err: any) {
