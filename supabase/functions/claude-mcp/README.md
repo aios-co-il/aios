@@ -137,7 +137,7 @@ swallowed and the session still fires.
   reserved through `claim_claude_dev_dispatch` (`dev-dispatch-guard.ts`). The same
   task for the same tenant inside `DEV_DISPATCH_WINDOW_SECONDS` (15 minutes) gets
   the first session's link and opens no new session. Matching rule and lease
-  behaviour: `supabase/migrations/20261102210000_claude_dev_dispatch_guard.sql`.
+  behaviour: `supabase/migrations/20261103114000_claude_dev_dispatch_guard.sql`.
   If the reservation fails, the call fails and nothing fires. A call with no
   resolved tenant is not guarded.
 
