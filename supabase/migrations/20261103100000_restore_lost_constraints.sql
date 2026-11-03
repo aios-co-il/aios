@@ -11,8 +11,12 @@
 -- export of Production's live schema from about June 2026, before the loss.
 -- It is not proven complete: a constraint added and lost between the export and
 -- 2026-10-09 outside any migration would be in neither. Where the export has a
--- constraint, its definition is used. Two differ from the old migrations and
--- follow the export:
+-- constraint, its definition is used, with two changes David decided:
+--   carmen_whatsapp_sessions_ai_conversation_id_fkey  ON DELETE SET NULL: a user
+--     can delete a conversation, and Carmen's session only loses the link
+--   seo_monthly_updates_updated_by_fkey  ON DELETE SET NULL: every user can be
+--     deleted, and their updates stay in the history
+-- Two follow the export and not the old migrations:
 --   agent_action_log_agent_id_fkey     ON DELETE SET NULL, as 20260529095654
 --                                      (20260327_agent_github_tables.sql had none)
 --   communication_logs_tenant_id_fkey  no ON DELETE action, as 20260408041833
@@ -25,12 +29,16 @@
 -- ON CONFLICT (tenant_id, resource_type) and fails with 42P10 until
 -- unique_tenant_resource exists.
 --
--- Restored: 66 foreign keys, 17 check constraints and 10 unique keys. Every
+-- Restored: 67 foreign keys, 17 check constraints and 10 unique keys. Every
 -- one is in the export except the 3 keys of marketing_ab_variants, a table
 -- 20260627150000 created after the export. Production has every table and
 -- column involved, with the same types. Four parents (agent_evals,
 -- agent_knowledge_folders, agent_runs, telegram_bot_state) get their primary
 -- key from 20261102113100_missing_primary_keys, which runs before this.
+--
+-- Recreated: agent_approval_queue_agent_id_fkey, which 20261009000100 re-added
+-- with no ON DELETE action, gets the export's ON DELETE SET NULL, so deleting
+-- an agent keeps its approval history.
 --
 -- Added, never on Production (not in the export):
 -- - agent_action_log_tenant_id_fkey and agent_approval_queue_tenant_id_fkey
@@ -41,40 +49,48 @@
 --   idx_carmen_sessions_automation, idx_woo_customers_tenant,
 --   idx_woo_products_tenant and idx_woo_sync_log_tenant.
 --
--- Production rows that break one (read-only, 2026-11-03): child rows whose
--- client no longer exists, so these 4 foreign keys stay NOT VALID there:
---   communication_logs_client_id_fkey      116 of 1,124 rows
---   seo_monthly_updates_client_id_fkey      55 of 427
---   ahrefs_reports_client_id_fkey            3 of 219
---   maskyoo_numbers_client_id_fkey           3 of 71
--- No other foreign key has an orphan, no check fails on any row and no unique
--- key has a duplicate. Staging breaks none of them. A NOT VALID foreign key
--- still checks every new row and every changed key; the existing orphans are
--- reported, not changed. If validation fails anywhere, the constraint stays NOT
--- VALID and a WARNING names it with its count of rows, so the deploy does not
--- fail; a unique key with duplicates is skipped the same way.
+-- Data change, the only one: rows whose client no longer exists (Production,
+-- read-only, 2026-11-03; Staging has none). Most of those clients were
+-- duplicates; past clients are made inactive, not deleted. Each row is first
+-- copied, as jsonb, to archive.orphan_rows, a new table in a new schema that is
+-- not exposed to the API. Then:
+--   communication_logs   116 of 1,124 rows  deleted (client_id is NOT NULL)
+--   seo_monthly_updates   55 of 427         deleted (client_id is NOT NULL)
+--   ahrefs_reports         3 of 219         client_id cleared, report kept
+--   maskyoo_numbers        3 of 71          client_id cleared, number kept
+-- after which their 4 client keys validate. A re-run archives and changes
+-- nothing. No other foreign key has an orphan, no check fails on any row and no
+-- unique key has a duplicate, and Staging breaks none of them. If validation
+-- still fails anywhere, the constraint stays NOT VALID and a WARNING names it
+-- with its count of rows, so the deploy does not fail; it still checks every
+-- new row and changed key. A unique key with duplicates is skipped the same way.
 --
 -- Deletes: with the keys back, deleting a tenant or an agent again removes or
--- clears these child rows. Deleting a client
--- removes its communication logs and SEO monthly updates and clears its other
--- rows here, but no marketing pipeline (see marketing_pipelines_client_id_fkey
--- below), so it does not reach the work items, workshop artifacts, assets and
--- video scenes built since. A delete that would leave an orphan behind a key
--- with no ON DELETE action is refused: a tenant whose communication logs
--- outlive its clients, a lead or client with Telegram messages (Production has
--- none), and a user named in seo_monthly_updates.updated_by (113 rows, 4
--- users; Production already has 22 such keys to auth.users without an action).
+-- clears these child rows; an agent's action log and approval requests stay,
+-- without the agent. Deleting a client removes its communication logs and SEO
+-- monthly updates and clears its other rows here, but no marketing pipeline
+-- (see marketing_pipelines_client_id_fkey below), so it does not reach the work
+-- items, workshop artifacts, assets and video scenes built since. Deleting a
+-- conversation or a user clears the session or SEO update that named it. A
+-- delete that would leave an orphan behind a key with no ON DELETE action is
+-- refused: a lead or client with Telegram messages (Production has none), and a
+-- tenant that still has communication logs. delete-tenant deletes the clients
+-- first, which removes their logs, so it works, except for a tenant with logs on
+-- another tenant's client: on Production, 472 logs of 2 tenants, 284 of them
+-- through a shared agency. A single DELETE of a tenant that has logs is refused
+-- too, because the key's check runs before the cascade through clients.
 --
 -- Not restored, on purpose:
 -- - marketing_pipelines_client_id_fkey (ON DELETE CASCADE in the old schema):
 --   a client delete would cascade through its pipelines' work items into the
 --   workshop artifacts, assets and video scenes built after the loss. SET NULL
---   fails too: a pipeline without a client is the tenant's one "no client"
---   pipeline per track (marketing_pipelines_tenant_general_track_idx,
---   20261026100300), so the second client delete in a tenant and track would
---   fail with 23505, and Production has 3 tenant and track pairs with 2 or
---   more client pipelines. Left as Production has it: no key, and deleting a
---   client deletes no pipeline.
+--   fails too: an active pipeline without a client is the tenant's one active
+--   "no client" pipeline per track (marketing_pipelines_tenant_general_track_idx,
+--   20261026103200). Once a tenant has one in a track, from a workshop project
+--   without a client or from an earlier client delete, deleting a client with an
+--   active pipeline in that track fails with 23505. Production has 3 tenant and
+--   track pairs with 2 or more active client pipelines. Left as Production has
+--   it: no key, and deleting a client deletes no pipeline.
 -- - carmen_whatsapp_sessions_status_check (active, ended): Carmen now also
 --   writes 'expired' (_shared/carmen.ts); 286 of 356 rows fail it.
 -- - integration_alerts_log_alert_type_check (3 types): the edge functions
@@ -83,9 +99,6 @@
 --   storyboard rows (supabase/ops/apply_marketing_assets_type_staging.sql).
 -- - social_pages_platform_check (facebook, instagram): the client connections
 --   tab also adds tiktok, linkedin and youtube pages.
--- - carmen_whatsapp_sessions_ai_conversation_id_fkey (no ON DELETE action):
---   333 sessions point at a conversation that the Carmen command center and
---   AI support pages let its owner delete; the key would refuse that delete.
 -- - communication_logs_updated_by_fkey: only 20260407_dmm_crm_adaptation.sql
 --   had it, and the delete-user function would fail on it after removing the
 --   user's profile, roles and memberships.
@@ -101,31 +114,51 @@
 --   processed_events_event_key_unique, ai_memory_uq_user_tenant_cat_key).
 -- - processed_webhook_messages_pkey: its unique index on the same columns
 --   dedupes it; 20261102113100 left it unkeyed on purpose.
--- - agent_approval_queue_agent_id_fkey keeps no ON DELETE action, as
---   20261009000100 re-created it (the export has SET NULL), so an agent with
---   approval requests still cannot be deleted.
 -- - crm_dashboards_type_check and goals_status_check keep the definitions
 --   Production changed them to after the export.
+-- The other keys to auth.users with no ON DELETE action are left to a separate
+-- change.
 --
 -- Locks: ADD FOREIGN KEY ... NOT VALID takes SHARE ROW EXCLUSIVE on the table
 -- and its parent (tenants, clients, auth.users and others), which blocks their
 -- writes but not their reads; ADD CHECK ... NOT VALID and ADD UNIQUE take
 -- ACCESS EXCLUSIVE on their table; CREATE INDEX takes SHARE; VALIDATE takes
--- SHARE UPDATE EXCLUSIVE, which blocks neither. The migration is one DO
--- statement, so every lock is held until it commits. The tables are small (the
--- largest, automation_executions, has about 45,000 rows), so that is a second
--- or less. If a long transaction holds a lock on one of them, lock_timeout
--- makes the deploy fail after 5 seconds instead of queueing every query on
--- tenants or clients behind it.
+-- SHARE UPDATE EXCLUSIVE, which blocks neither; the archive step's deletes and
+-- updates take ROW EXCLUSIVE. Dropping the old agent_approval_queue_agent_id_fkey
+-- takes ACCESS EXCLUSIVE on agent_approval_queue and ai_agents, which blocks
+-- their reads too, so it runs last. The migration commits as one transaction,
+-- so every lock is held until then. The tables are small (the largest,
+-- automation_executions, has about 45,000 rows), so that is a second or less.
+-- If a long transaction holds a lock on one of them, lock_timeout makes the
+-- deploy fail after 5 seconds instead of queueing every query on tenants,
+-- clients or ai_agents behind it.
 --
--- No data changes, and nothing is sent. Safe to re-run: a constraint or index
--- that already exists by name is left as it is (a NOT VALID one is validated
--- again), and one whose table or column is missing is skipped with a NOTICE.
--- The closing guard requires every constraint and index here to exist with
--- its expected definition, and allows NOT VALID only for a constraint this
--- run reported as broken.
+-- Nothing is sent. Safe to re-run: a constraint or index that already exists by
+-- name is left as it is (a NOT VALID one is validated again;
+-- agent_approval_queue_agent_id_fkey is replaced only while it differs), and one
+-- whose table or column is missing is skipped with a NOTICE. The closing guard
+-- requires every constraint and index here to exist with its expected
+-- definition, and allows NOT VALID only for a constraint this run reported as
+-- broken.
 
-set local lock_timeout = '5s';
+select set_config('lock_timeout', '5s', true);
+
+-- Where the rows this migration deletes or changes are kept, as they were. The
+-- schema is not exposed to the API; anon and authenticated have no access.
+create schema if not exists archive;
+revoke all on schema archive from public, anon, authenticated;
+create table if not exists archive.orphan_rows (
+  source_table text not null,
+  row_id uuid not null,
+  row jsonb not null,
+  reason text not null,
+  archived_at timestamptz not null default now(),
+  primary key (source_table, row_id, reason)
+);
+revoke all on table archive.orphan_rows from public, anon, authenticated;
+alter table archive.orphan_rows enable row level security;
+comment on table archive.orphan_rows is
+  'Rows a migration deleted or changed, as they were before. 20261103100000_restore_lost_constraints: rows whose client was deleted.';
 
 do $$
 declare
@@ -143,6 +176,9 @@ declare
   v_not_valid text[] := '{}';
   v_problems text[] := '{}';
   v_def text;
+  v_archived bigint;
+  -- Existing keys whose definition this migration replaces when it differs from the one below.
+  v_replace text[] := array['agent_approval_queue_agent_id_fkey'];
 begin
   -- table, name, kind (u unique, i index, c check, f foreign key), columns it reads,
   -- parent table and columns (f), and its definition as pg_get_constraintdef / pg_get_indexdef prints it.
@@ -211,7 +247,11 @@ begin
       ('automation_executions', 'automation_executions_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('automation_shared_tenants', 'automation_shared_tenants_automation_id_fkey', 'f', array['automation_id'], 'public.automations', array['id'], 'FOREIGN KEY (automation_id) REFERENCES public.automations(id) ON DELETE CASCADE'),
       ('automation_shared_tenants', 'automation_shared_tenants_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
+      ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_ai_conversation_id_fkey', 'f', array['ai_conversation_id'], 'public.ai_conversations', array['id'], 'FOREIGN KEY (ai_conversation_id) REFERENCES public.ai_conversations(id) ON DELETE SET NULL'),
       ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_automation_id_fkey', 'f', array['automation_id'], 'public.automations', array['id'], 'FOREIGN KEY (automation_id) REFERENCES public.automations(id) ON DELETE SET NULL'),
+      -- The tenant key has no ON DELETE action, as on Production before the loss. delete-tenant
+      -- deletes the clients first, which removes their logs; a single DELETE of a tenant that
+      -- still has logs is refused, because this check runs before the cascade through clients.
       ('communication_logs', 'communication_logs_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE'),
       ('communication_logs', 'communication_logs_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)'),
       ('goals', 'goals_parent_goal_id_fkey', 'f', array['parent_goal_id'], 'public.goals', array['id'], 'FOREIGN KEY (parent_goal_id) REFERENCES public.goals(id) ON DELETE SET NULL'),
@@ -254,10 +294,80 @@ begin
       ('woocommerce_products', 'woocommerce_products_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('woocommerce_sync_log', 'woocommerce_sync_log_site_id_fkey', 'f', array['site_id'], 'public.social_media_wordpress_sites', array['id'], 'FOREIGN KEY (site_id) REFERENCES public.social_media_wordpress_sites(id) ON DELETE CASCADE'),
       ('woocommerce_sync_log', 'woocommerce_sync_log_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
-      -- Foreign keys to auth.users last: their lock on auth.users is held for the shortest time.
-      ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'f', array['updated_by'], 'auth.users', array['id'], 'FOREIGN KEY (updated_by) REFERENCES auth.users(id)')
+      -- Foreign keys to auth.users near the end: their lock on auth.users is held for a short time.
+      ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'f', array['updated_by'], 'auth.users', array['id'], 'FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL'),
+      -- Replaced last (see v_replace): dropping the old key locks ai_agents against reads until commit.
+      ('agent_approval_queue', 'agent_approval_queue_agent_id_fkey', 'f', array['agent_id'], 'public.ai_agents', array['id'], 'FOREIGN KEY (agent_id) REFERENCES public.ai_agents(id) ON DELETE SET NULL')
     ) as t (table_name, constraint_name, kind, columns, ref_table, ref_columns, definition)
   ) as s;
+
+  -- The only data change: rows whose client no longer exists. Each is copied to
+  -- archive.orphan_rows, then deleted where client_id cannot be null, or its client_id
+  -- cleared where it can. One statement per table, so exactly the archived rows change.
+  -- A re-run finds none.
+  for r in
+    select * from (values
+      ('communication_logs', 'delete'),
+      ('seo_monthly_updates', 'delete'),
+      ('ahrefs_reports', 'clear'),
+      ('maskyoo_numbers', 'clear')
+    ) as o (table_name, action)
+  loop
+    v_rel := to_regclass(format('public.%I', r.table_name));
+    if v_rel is null or not exists (
+      select 1 from pg_attribute as a
+      where a.attrelid = v_rel and a.attname = 'client_id' and a.attnum > 0 and not a.attisdropped
+    ) then
+      continue;
+    end if;
+    if r.action = 'delete' then
+      execute format(
+        $sql$
+        with orphan as (
+          delete from %1$s as t
+          where t.client_id is not null
+            and not exists (select 1 from public.clients as c where c.id = t.client_id)
+          returning t.*
+        ), archived as (
+          insert into archive.orphan_rows (source_table, row_id, row, reason)
+          select %2$L, o.id, to_jsonb(o), %3$L from orphan as o
+          on conflict do nothing
+          returning 1
+        )
+        select (select count(*) from orphan), (select count(*) from archived)
+        $sql$,
+        v_rel, r.table_name, 'client_id pointed at a deleted client; row deleted by 20261103100000'
+      ) into v_count, v_archived;
+    else
+      execute format(
+        $sql$
+        with orphan as (
+          select t.id, to_jsonb(t) as row
+          from %1$s as t
+          where t.client_id is not null
+            and not exists (select 1 from public.clients as c where c.id = t.client_id)
+          for update of t
+        ), archived as (
+          insert into archive.orphan_rows (source_table, row_id, row, reason)
+          select %2$L, o.id, o.row, %3$L from orphan as o
+          on conflict do nothing
+          returning 1
+        ), cleared as (
+          update %1$s as t set client_id = null
+          from orphan as o
+          where t.id = o.id
+          returning 1
+        )
+        select (select count(*) from cleared), (select count(*) from archived)
+        $sql$,
+        v_rel, r.table_name, 'client_id pointed at a deleted client; client_id cleared by 20261103100000'
+      ) into v_count, v_archived;
+    end if;
+    if v_count > 0 then
+      raise notice 'restore lost constraints: % rows of public.% archived (%) and %',
+        v_count, r.table_name, v_archived, case r.action when 'delete' then 'deleted' else 'cleared' end;
+    end if;
+  end loop;
 
   for r in
     select x.*
@@ -314,6 +424,15 @@ begin
     select c.oid, c.convalidated into v_oid, v_valid
     from pg_constraint as c
     where c.conrelid = v_rel and c.conname = r.constraint_name;
+
+    if v_oid is not null and r.constraint_name = any (v_replace) then
+      v_def := regexp_replace(replace(pg_get_constraintdef(v_oid), 'REFERENCES public.', 'REFERENCES '), ' NOT VALID$', '');
+      if v_def <> replace(r.definition, 'REFERENCES public.', 'REFERENCES ') then
+        execute format('alter table %s drop constraint %I', v_rel, r.constraint_name);
+        raise notice 'restore lost constraints: % replaced, it was %', r.constraint_name, v_def;
+        v_oid := null;
+      end if;
+    end if;
 
     if r.kind = 'u' then
       if v_oid is not null then

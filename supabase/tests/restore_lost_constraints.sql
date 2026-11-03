@@ -1,14 +1,19 @@
 -- Restored and added constraints (20261103100000_restore_lost_constraints):
 -- each foreign key, check, unique key and index exists, and the two keys left
 -- out on purpose do not; the changed and new foreign keys have their ON DELETE
--- action; a sample of the foreign keys, with every new tenant key, refuses a
+-- action; the 4 client keys whose orphans the migration archived are
+-- validated; archive.orphan_rows exists and anon and authenticated cannot
+-- reach it; a sample of the foreign keys, with every new tenant key, refuses a
 -- row whose parent does not exist; every check refuses a value outside it; five
 -- unique keys refuse a duplicate; check_rate_limit(uuid, text, integer) finds
--- its ON CONFLICT target. Then the deletes: an agent delete clears its action
--- log rows, a client delete keeps its marketing pipeline and work item and
--- removes its communication log, a user named in communication_logs.updated_by
--- can be deleted, and a tenant delete removes the rows behind the new tenant
--- keys. A NOT VALID constraint passes too: it still applies to new rows.
+-- its ON CONFLICT target. Then the deletes: an agent delete keeps its action
+-- log and approval rows without the agent, a conversation delete keeps the
+-- Carmen session without the link, a user delete keeps the SEO update without
+-- the user and leaves communication_logs.updated_by alone, a client delete
+-- keeps its marketing pipeline and work item and removes its communication
+-- log, and a tenant delete in delete-tenant's order (clients, then the tenant)
+-- removes the rows behind the new tenant keys and the other client's log. A NOT
+-- VALID constraint passes the other checks: it still applies to new rows.
 -- Synthetic tenant, user and rows, full rollback, so it runs on a scratch
 -- database, a Preview branch or Staging.
 --
@@ -22,12 +27,16 @@ DECLARE
   v_tenant uuid := gen_random_uuid();
   v_agency uuid := gen_random_uuid();
   v_client uuid := gen_random_uuid();
+  v_client_b uuid := gen_random_uuid();
   v_agent uuid := gen_random_uuid();
   v_agent_b uuid := gen_random_uuid();
   v_user uuid := gen_random_uuid();
   v_pipeline uuid := gen_random_uuid();
   v_item uuid := gen_random_uuid();
   v_log uuid := gen_random_uuid();
+  v_seo uuid := gen_random_uuid();
+  v_conversation uuid := gen_random_uuid();
+  v_session uuid := gen_random_uuid();
   v_missing uuid := gen_random_uuid();
   v_status text;
   v_state text;
@@ -94,6 +103,7 @@ BEGIN
       ('automation_executions', 'automation_executions_tenant_id_fkey', 'f'),
       ('automation_shared_tenants', 'automation_shared_tenants_automation_id_fkey', 'f'),
       ('automation_shared_tenants', 'automation_shared_tenants_tenant_id_fkey', 'f'),
+      ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_ai_conversation_id_fkey', 'f'),
       ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_automation_id_fkey', 'f'),
       ('communication_logs', 'communication_logs_client_id_fkey', 'f'),
       ('communication_logs', 'communication_logs_tenant_id_fkey', 'f'),
@@ -136,7 +146,8 @@ BEGIN
       ('woocommerce_products', 'woocommerce_products_tenant_id_fkey', 'f'),
       ('woocommerce_sync_log', 'woocommerce_sync_log_site_id_fkey', 'f'),
       ('woocommerce_sync_log', 'woocommerce_sync_log_tenant_id_fkey', 'f'),
-      ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'f')
+      ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'f'),
+      ('agent_approval_queue', 'agent_approval_queue_agent_id_fkey', 'f')
     ) AS t (table_name, object_name, kind)
   LOOP
     v_rel := to_regclass(format('public.%I', k.table_name));
@@ -175,6 +186,9 @@ BEGIN
   FOR k IN
     SELECT * FROM (VALUES
       ('agent_action_log', 'agent_action_log_agent_id_fkey', 'n'),
+      ('agent_approval_queue', 'agent_approval_queue_agent_id_fkey', 'n'),
+      ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_ai_conversation_id_fkey', 'n'),
+      ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'n'),
       ('communication_logs', 'communication_logs_tenant_id_fkey', 'a'),
       ('communication_logs', 'communication_logs_client_id_fkey', 'c'),
       ('marketing_work_items', 'marketing_work_items_pipeline_id_fkey', 'c'),
@@ -195,21 +209,47 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- The client keys whose orphans the migration archived and removed or cleared are validated.
+  SELECT string_agg(c.conname, ', ') INTO v_constraint
+  FROM pg_constraint AS c
+  WHERE c.conname IN ('communication_logs_client_id_fkey', 'seo_monthly_updates_client_id_fkey',
+                      'ahrefs_reports_client_id_fkey', 'maskyoo_numbers_client_id_fkey')
+    AND NOT c.convalidated;
+  IF v_constraint IS NOT NULL THEN
+    RAISE EXCEPTION 'validated: % is still NOT VALID', v_constraint;
+  END IF;
+
+  -- The archive exists and is closed to the API roles.
+  IF to_regclass('archive.orphan_rows') IS NULL THEN
+    RAISE EXCEPTION 'archive: archive.orphan_rows is missing';
+  END IF;
+  IF has_schema_privilege('anon', 'archive', 'USAGE') OR has_schema_privilege('authenticated', 'archive', 'USAGE')
+     OR has_table_privilege('anon', 'archive.orphan_rows', 'SELECT')
+     OR has_table_privilege('authenticated', 'archive.orphan_rows', 'SELECT') THEN
+    RAISE EXCEPTION 'archive: anon or authenticated can reach archive.orphan_rows';
+  END IF;
+
   -- Fixture: one tenant with an agency, a client, two agents and a user.
   INSERT INTO auth.users (id, email) VALUES (v_user, 'qa-constraints-' || v_tag || '@example.invalid');
   INSERT INTO public.tenants (id, name, slug) VALUES (v_tenant, 'QA constraints ' || v_tag, 'qa-constraints-' || v_tag);
   INSERT INTO public.agencies (id, tenant_id, name) VALUES (v_agency, v_tenant, 'QA agency');
-  INSERT INTO public.clients (id, tenant_id, agency_id, name) VALUES (v_client, v_tenant, v_agency, 'QA client');
+  INSERT INTO public.clients (id, tenant_id, agency_id, name) VALUES (v_client, v_tenant, v_agency, 'QA client'), (v_client_b, v_tenant, v_agency, 'QA client B');
   INSERT INTO public.ai_agents (id, tenant_id, name) VALUES (v_agent, v_tenant, 'QA agent'), (v_agent_b, v_tenant, 'QA agent B');
   SELECT (enum_range(NULL::public.seo_monthly_status))[1]::text INTO v_status;
 
   -- The same rows with real parents are accepted, so each refusal below comes from its own key.
   INSERT INTO public.invoice_uploads (tenant_id, file_path, agency_id, client_id) VALUES (v_tenant, 'qa/ok.pdf', v_agency, v_client);
   INSERT INTO public.communication_logs (id, tenant_id, client_id, updated_by) VALUES (v_log, v_tenant, v_client, v_user);
+  INSERT INTO public.communication_logs (tenant_id, client_id) VALUES (v_tenant, v_client_b);
   INSERT INTO public.goals (tenant_id, title) VALUES (v_tenant, 'QA goal');
   INSERT INTO public.agent_supervisors (tenant_id, supervisor_agent_id, child_agent_id) VALUES (v_tenant, v_agent, v_agent_b);
   INSERT INTO public.maskyoo_numbers (tenant_id, phone_last9, display_number) VALUES (v_tenant, '000000000', 'QA');
   INSERT INTO public.agent_action_log (tenant_id, action_type, agent_id) VALUES (v_tenant, 'qa', v_agent_b);
+  INSERT INTO public.agent_approval_queue (tenant_id, action_type, title, agent_id) VALUES (v_tenant, 'qa', 'QA approval', v_agent_b);
+  INSERT INTO public.seo_monthly_updates (id, tenant_id, client_id, month, status, updated_by)
+  VALUES (v_seo, v_tenant, v_client, date '2026-10-01', v_status::public.seo_monthly_status, v_user);
+  INSERT INTO public.ai_conversations (id, tenant_id, user_id) VALUES (v_conversation, v_tenant, v_user);
+  INSERT INTO public.carmen_whatsapp_sessions (id, tenant_id, chat_id, ai_conversation_id) VALUES (v_session, v_tenant, 'qa-' || v_tag, v_conversation);
   INSERT INTO public.marketing_pipelines (id, tenant_id, client_id, track, name) VALUES (v_pipeline, v_tenant, v_client, 'campaigns', 'QA pipeline');
   INSERT INTO public.marketing_work_items (id, tenant_id, pipeline_id) VALUES (v_item, v_tenant, v_pipeline);
   INSERT INTO public.automation_executions (tenant_id, execution_id, automation_id) VALUES (v_tenant, 'qa-' || v_tag, v_missing);
@@ -245,6 +285,8 @@ BEGIN
       ('23503', 'goals_parent_goal_id_fkey', 'insert into public.goals (tenant_id, title, parent_goal_id) values ($1, ''QA'', $5)'),
       ('23503', 'agent_action_log_agent_id_fkey', 'insert into public.agent_action_log (tenant_id, action_type, agent_id) values ($1, ''qa'', $5)'),
       ('23503', 'agent_action_log_tenant_id_fkey', 'insert into public.agent_action_log (tenant_id, action_type) values ($5, ''qa'')'),
+      ('23503', 'agent_approval_queue_agent_id_fkey', 'insert into public.agent_approval_queue (tenant_id, action_type, title, agent_id) values ($1, ''qa'', ''QA'', $5)'),
+      ('23503', 'carmen_whatsapp_sessions_ai_conversation_id_fkey', 'insert into public.carmen_whatsapp_sessions (tenant_id, chat_id, ai_conversation_id) values ($1, ''qa-x-'' || $7, $5)'),
       ('23503', 'agent_runs_parent_run_id_fkey', 'insert into public.agent_runs (tenant_id, agent_id, goal, parent_run_id) values ($1, $4, ''qa'', $5)'),
       ('23503', 'woocommerce_orders_site_id_fkey', 'insert into public.woocommerce_orders (tenant_id, site_id, woo_order_id) values ($1, $5, 1)'),
       ('23503', 'automation_executions_tenant_id_fkey', 'insert into public.automation_executions (tenant_id, execution_id) values ($5, $7)'),
@@ -291,14 +333,25 @@ BEGIN
     END;
   END LOOP;
 
-  -- Deleting an agent clears its action log rows (ON DELETE SET NULL) instead of being refused.
+  -- Deleting an agent keeps its action log and approval rows without the agent (ON DELETE SET NULL).
   DELETE FROM public.ai_agents WHERE id = v_agent_b;
-  IF NOT EXISTS (SELECT 1 FROM public.agent_action_log WHERE tenant_id = v_tenant AND action_type = 'qa' AND agent_id IS NULL) THEN
-    RAISE EXCEPTION 'agent delete: the action log row is gone or still names the agent';
+  IF NOT EXISTS (SELECT 1 FROM public.agent_action_log WHERE tenant_id = v_tenant AND action_type = 'qa' AND agent_id IS NULL)
+     OR NOT EXISTS (SELECT 1 FROM public.agent_approval_queue WHERE tenant_id = v_tenant AND title = 'QA approval' AND agent_id IS NULL) THEN
+    RAISE EXCEPTION 'agent delete: an action log or approval row is gone or still names the agent';
   END IF;
 
-  -- Deleting a user named in communication_logs.updated_by succeeds (no key on that column).
+  -- Deleting a conversation keeps Carmen's session without the link.
+  DELETE FROM public.ai_conversations WHERE id = v_conversation;
+  IF NOT EXISTS (SELECT 1 FROM public.carmen_whatsapp_sessions WHERE id = v_session AND ai_conversation_id IS NULL) THEN
+    RAISE EXCEPTION 'conversation delete: the session is gone or still names the conversation';
+  END IF;
+
+  -- Deleting a user keeps the SEO update without the user, and leaves communication_logs.updated_by
+  -- alone (no key on that column).
   DELETE FROM auth.users WHERE id = v_user;
+  IF NOT EXISTS (SELECT 1 FROM public.seo_monthly_updates WHERE id = v_seo AND updated_by IS NULL) THEN
+    RAISE EXCEPTION 'user delete: the SEO update is gone or still names the user';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM public.communication_logs WHERE id = v_log AND updated_by = v_user) THEN
     RAISE EXCEPTION 'user delete: the communication log changed';
   END IF;
@@ -313,9 +366,15 @@ BEGIN
     RAISE EXCEPTION 'client delete: the pipeline or its work item was removed or changed';
   END IF;
 
-  -- Deleting the tenant removes the rows behind the new tenant keys.
+  -- Deleting the tenant the way delete-tenant does, clients first, then the tenant: the other
+  -- client's communication log goes with that client, so the log's tenant key (no ON DELETE
+  -- action) does not refuse the tenant, and the rows behind the new tenant keys go with it. (In a
+  -- single DELETE of the tenant, that key's check runs before the cascade through clients reaches
+  -- the log, and refuses it.)
+  DELETE FROM public.clients WHERE tenant_id = v_tenant;
   DELETE FROM public.tenants WHERE id = v_tenant;
-  SELECT (SELECT count(*) FROM public.automation_executions WHERE tenant_id = v_tenant)
+  SELECT (SELECT count(*) FROM public.communication_logs WHERE tenant_id = v_tenant)
+       + (SELECT count(*) FROM public.automation_executions WHERE tenant_id = v_tenant)
        + (SELECT count(*) FROM public.integration_health WHERE tenant_id = v_tenant)
        + (SELECT count(*) FROM public.job_queue WHERE tenant_id = v_tenant)
        + (SELECT count(*) FROM public.processed_events WHERE tenant_id = v_tenant)

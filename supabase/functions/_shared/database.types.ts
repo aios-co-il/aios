@@ -4777,6 +4777,13 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "carmen_whatsapp_sessions_ai_conversation_id_fkey";
+            columns: ["ai_conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_conversations";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "carmen_whatsapp_sessions_automation_id_fkey";
             columns: ["automation_id"];
             isOneToOne: false;
