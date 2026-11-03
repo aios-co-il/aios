@@ -3583,6 +3583,71 @@ export type Database = {
           },
         ];
       };
+      carmen_brain_home_tenants: {
+        Row: {
+          created_at: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_brain_home_tenants_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_brain_key_shares: {
+        Row: {
+          builtin_slug: string;
+          created_at: string;
+          granted_by: string | null;
+          id: string;
+          source_tenant_id: string;
+          target_tenant_id: string;
+        };
+        Insert: {
+          builtin_slug: string;
+          created_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          source_tenant_id: string;
+          target_tenant_id: string;
+        };
+        Update: {
+          builtin_slug?: string;
+          created_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          source_tenant_id?: string;
+          target_tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_brain_key_shares_source_tenant_id_fkey";
+            columns: ["source_tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_brain_key_shares_target_tenant_id_fkey";
+            columns: ["target_tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_chat_thread_reviews: {
         Row: {
           cost_usd: number | null;
