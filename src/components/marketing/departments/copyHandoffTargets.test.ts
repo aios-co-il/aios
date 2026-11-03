@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadCopyHandoffTargets } from "./copyHandoffTargets";
 
 const state = vi.hoisted(() => ({
-  calls: [] as Array<[table: string, method: string, ...args: string[]]>,
+  calls: [] as Array<[table: string, method: string, ...args: Array<string>]>,
   pipelineError: null as Error | null,
 }));
 

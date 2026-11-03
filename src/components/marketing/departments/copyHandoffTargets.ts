@@ -7,7 +7,9 @@ export async function loadCopyHandoffTargets(
   tenantId: string,
   copyItem: HandoffWorkItem,
 ) {
-  if (!copyItem.client_id) throw new Error("Copy handoff requires a client");
+  if (!copyItem.client_id) {
+    throw new Error("Copy handoff requires a client");
+  }
   const [
     { data: siblings, error: siblingError },
     { data: creativeStages, error: stageError },
@@ -33,9 +35,15 @@ export async function loadCopyHandoffTargets(
       .eq("tenant_id", tenantId)
       .eq("track", "social_organic"),
   ]);
-  if (siblingError) throw siblingError;
-  if (stageError) throw stageError;
-  if (pipelineError) throw pipelineError;
+  if (siblingError) {
+    throw siblingError;
+  }
+  if (stageError) {
+    throw stageError;
+  }
+  if (pipelineError) {
+    throw pipelineError;
+  }
   const creativeStageIds = new Set(
     (creativeStages ?? []).map((stage) => stage.id),
   );
