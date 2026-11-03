@@ -1,20 +1,10 @@
+import type { z } from "zod";
+import type { imageCost } from "./creativeAssetPayload";
 export type ImageQuality = "low" | "medium" | "high";
 export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
 export type ImageCostSource = "api" | "official_table" | "inferred";
 
-export interface ImageGenerationCost {
-  model: "gpt-image-1" | "gpt-image-2.5-sunburst" | "gemini-3-pro-image";
-  quality: ImageQuality;
-  size: ImageSize;
-  textTokens: number;
-  imageInTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  costUsd: number;
-  source: ImageCostSource;
-  createdAt: string;
-  referenceCount?: number;
-}
+export type ImageGenerationCost = z.output<typeof imageCost>;
 
 /** Official gpt-image-1 rates (USD per 1M tokens). */
 export const GPT_IMAGE1_USD_PER_M = {

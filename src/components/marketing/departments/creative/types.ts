@@ -1,8 +1,14 @@
-export type CreativeFormat = "9:16" | "1:1" | "4:5" | "16:9";
+import type { z } from "zod";
+import type {
+  creativeFormat,
+  creativeVariation,
+  creativeLayer,
+  creativeComment,
+  storyboardFrame,
+} from "./creativeAssetPayload";
+export type CreativeFormat = z.output<typeof creativeFormat>;
 
 import type { BrandBook, StyleReference } from "./brandKit";
-import type { CompositionId } from "./compositions";
-import type { ImageGenerationCost } from "./imageCost";
 import type { CreativeVisualStyleId } from "./visualStyles";
 
 export type CreativeProjectType = "static" | "video";
@@ -14,124 +20,19 @@ export interface StoryboardStyleLock {
   referenceImageUrl?: string;
 }
 
-export interface StoryboardFrame {
-  id: string;
-  order: number;
-  title: string;
-  shot: string;
-  visualPrompt: string;
-  overlayText: string;
-  voiceover: string;
-  /** What moves in the scene (camera and subject); used when animating. */
-  motionPrompt?: string;
-  duration: number;
-  imageUrl?: string;
-  generationCost?: ImageGenerationCost;
-  x: number;
-  y: number;
-  /** marketing_video_scenes.status; set for scenes loaded from the table. */
-  status?: VideoSceneStatus;
-  locked?: boolean;
-  /** The project's fixed character appears in this scene (default true). */
-  hasCharacter?: boolean;
-  stillAssetId?: string;
-  /** Current clip (marketing_assets id) and its path in the private creative-video bucket. */
-  clipAssetId?: string;
-  clipPath?: string;
-  /** The still or prompt changed after the clip was made. */
-  clipStale?: boolean;
-  /** Current voiceover asset and the text it was spoken from. */
-  voiceAssetId?: string;
-  voiceText?: string;
-}
+export type StoryboardFrame = z.output<typeof storyboardFrame>;
 
-export type VideoSceneStatus =
-  | "draft"
-  | "still_generating"
-  | "still_ready"
-  | "still_approved"
-  | "clip_generating"
-  | "clip_ready"
-  | "clip_approved"
-  | "failed";
+export type VideoSceneStatus = NonNullable<StoryboardFrame["status"]>;
 
-export interface CreativeComment {
-  id: string;
-  text: string;
-  createdAt: string;
-}
+export type CreativeComment = z.output<typeof creativeComment>;
 
-export type LayerShadowStyle = "none" | "soft" | "extrude" | "halo";
+export type LayerShadowStyle = NonNullable<CreativeLayer["shadowStyle"]>;
 
-export type CreativeLayerRole =
-  | "logo"
-  | "hero"
-  | "type_field"
-  | "headline"
-  | "sub"
-  | "bullet"
-  | "icon"
-  | "icon_label"
-  | "footer"
-  | "cta"
-  | "cta_fill"
-  | "divider";
+export type CreativeLayerRole = NonNullable<CreativeLayer["role"]>;
 
-export interface CreativeLayer {
-  id: string;
-  type: "background" | "text" | "shape" | "image";
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation?: number;
-  src?: string;
-  role?: CreativeLayerRole;
-  icon?: string;
-  text?: string;
-  fontFamily?: string;
-  fontSize?: number;
-  fontWeight?: string;
-  color?: string;
-  textAlign?: "right" | "center" | "left";
-  fill?: string;
-  opacity?: number;
-  borderRadius?: number;
-  textShadow?: string;
-  boxShadow?: string;
-  letterSpacing?: string;
-  lineHeight?: number;
-  shadowStyle?: LayerShadowStyle;
-  shadowDepth?: number;
-  shadowColor?: string;
-  shadowBlur?: number;
-  locked?: boolean;
-}
+export type CreativeLayer = z.output<typeof creativeLayer>;
 
-export interface CreativeVariation {
-  id: string;
-  name: string;
-  imageUrl: string;
-  format: CreativeFormat;
-  layers: CreativeLayer[];
-  comments: CreativeComment[];
-  createdAt: string;
-  source?: "ai" | "manual_edit" | "storyboard_import";
-  visualStyle?: CreativeVisualStyleId;
-  copyKey?: string;
-  copyLabel?: string;
-  copyText?: string;
-  conceptId?: string;
-  conceptName?: string;
-  rejected?: boolean;
-  rejectNote?: string;
-  parentId?: string;
-  generationCost?: ImageGenerationCost;
-  compositionId?: CompositionId;
-  styleSourceId?: string;
-  /** When true: letter-empty template + editable RTL layers. When false: finished ad with painted type. */
-  liveTextLayers?: boolean;
-}
+export type CreativeVariation = z.output<typeof creativeVariation>;
 
 export interface CreativeItem {
   id: string;
