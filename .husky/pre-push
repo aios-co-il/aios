@@ -1,4 +1,5 @@
-# The gate checks src/ and its tsconfig, so skip it when the push touches neither.
+# The gate checks src/ and its tsconfig, plus the edge functions src/ imports (mostly _shared, also meta-data-deletion;
+# imports are transitive, so any function counts). Skip it when the push touches none of them.
 # Git feeds one "<local ref> <local sha> <remote ref> <remote sha>" line per ref; diff what is being pushed.
 zero=0000000000000000000000000000000000000000
 changed=""
@@ -12,6 +13,6 @@ while read -r _ local_sha _ remote_sha; do
   changed="$changed
 $(git diff --name-only "$base" "$local_sha")"
 done
-if printf '%s\n' "$changed" | grep -Eq '^(src/.*\.tsx?|tsconfig.*\.json|package\.json|pnpm-lock\.yaml)$'; then
+if printf '%s\n' "$changed" | grep -Eq '^((src|supabase/functions)/.*\.tsx?|tsconfig.*\.json|package\.json|pnpm-lock\.yaml)$'; then
   pnpm typecheck
 fi
