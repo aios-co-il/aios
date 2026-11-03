@@ -2344,7 +2344,15 @@ export type Database = {
           tenant_id?: string;
           trigger_type?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "automation_executions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       automation_flow_steps: {
         Row: {
@@ -8292,7 +8300,15 @@ export type Database = {
           total_calls?: number;
           total_failures?: number;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "integration_health_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       integration_tenant_access: {
         Row: {
@@ -8584,7 +8600,15 @@ export type Database = {
           status?: Database["public"]["Enums"]["job_status"];
           tenant_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "job_queue_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       lead_alert_failure_notifications: {
         Row: {
@@ -9573,15 +9597,7 @@ export type Database = {
           track?: string;
           updated_at?: string;
         };
-        Relationships: [
-          {
-            foreignKeyName: "marketing_pipelines_client_id_fkey";
-            columns: ["client_id"];
-            isOneToOne: false;
-            referencedRelation: "clients";
-            referencedColumns: ["id"];
-          },
-        ];
+        Relationships: [];
       };
       marketing_runs: {
         Row: {
@@ -10602,7 +10618,15 @@ export type Database = {
           processed_at?: string;
           tenant_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "processed_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       processed_webhook_messages: {
         Row: {
@@ -15017,7 +15041,15 @@ export type Database = {
           tenant_id?: string;
           window_start?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "tenant_rate_limits_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tenant_report_settings: {
         Row: {

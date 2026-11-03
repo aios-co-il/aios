@@ -1,40 +1,80 @@
 -- Restore the foreign keys, check constraints and unique keys Production lost
--- (AIO-67, AIO-71 to AIO-75). Before 2026-10-09 a direct change on Production,
--- not a migration, dropped them along with the access rules and the primary
--- keys. The baseline (20261009000000) is a dump of Production taken after that,
--- so Staging and every Preview, which are built from it, lack them too. The
--- definitions below are the ones the pre-baseline migrations created (removed
--- from the repo in #855; see a18b7cb79^:supabase/migrations), each checked
--- against Production's tables and column types (read-only, 2026-11-03).
+-- (AIO-67, AIO-71 to AIO-75), and add a few that the old migrations defined but
+-- that never reached Production. Before 2026-10-09 a direct change on
+-- Production, not a migration, dropped them along with the access rules and the
+-- primary keys. The baseline (20261009000000) is a dump of Production taken
+-- after that, so Staging and every Preview, which are built from it, lack them
+-- too.
 --
--- Restored: 65 foreign keys, 17 check constraints and 7 unique keys, with the
--- original ON DELETE actions, plus the 5 indexes the old schema had on a
--- foreign key column that Production lacks. Production has every table and
+-- Where the list comes from: the pre-baseline migrations (removed from the repo
+-- in #855; see a18b7cb79^:supabase/migrations) and database/schema.sql, an
+-- export of Production's live schema from about June 2026, before the loss.
+-- It is not proven complete: a constraint added and lost between the export and
+-- 2026-10-09 outside any migration would be in neither. Where the export has a
+-- constraint, its definition is used. Two differ from the old migrations and
+-- follow the export:
+--   agent_action_log_agent_id_fkey     ON DELETE SET NULL, as 20260529095654
+--                                      (20260327_agent_github_tables.sql had none)
+--   communication_logs_tenant_id_fkey  no ON DELETE action, as 20260408041833
+--                                      (20260407_dmm_crm_adaptation.sql cascaded)
+-- Eight come only from the export, because Production got them outside any
+-- migration: the tenant keys (ON DELETE CASCADE) of automation_executions,
+-- integration_health, job_queue, processed_events and tenant_rate_limits, and
+-- the unique keys unique_execution, unique_idempotency_key and
+-- unique_tenant_resource. check_rate_limit(uuid, text, integer) inserts with
+-- ON CONFLICT (tenant_id, resource_type) and fails with 42P10 until
+-- unique_tenant_resource exists.
+--
+-- Restored: 66 foreign keys, 17 check constraints and 10 unique keys. Every
+-- one is in the export except the 3 keys of marketing_ab_variants, a table
+-- 20260627150000 created after the export. Production has every table and
 -- column involved, with the same types. Four parents (agent_evals,
 -- agent_knowledge_folders, agent_runs, telegram_bot_state) get their primary
 -- key from 20261102113100_missing_primary_keys, which runs before this.
 --
--- Production rows that break a restored constraint (2026-11-03): child rows
--- whose client no longer exists, so these 5 foreign keys stay NOT VALID there:
+-- Added, never on Production (not in the export):
+-- - agent_action_log_tenant_id_fkey and agent_approval_queue_tenant_id_fkey
+--   (ON DELETE CASCADE), from 20260327_agent_github_tables.sql, which never
+--   ran there: Production's tables came from 20260529095654 without them.
+-- - 5 indexes on a foreign key column: idx_communication_logs_tenant (from
+--   20260407_dmm_crm_adaptation.sql, which never ran there either),
+--   idx_carmen_sessions_automation, idx_woo_customers_tenant,
+--   idx_woo_products_tenant and idx_woo_sync_log_tenant.
+--
+-- Production rows that break one (read-only, 2026-11-03): child rows whose
+-- client no longer exists, so these 4 foreign keys stay NOT VALID there:
 --   communication_logs_client_id_fkey      116 of 1,124 rows
 --   seo_monthly_updates_client_id_fkey      55 of 427
---   marketing_pipelines_client_id_fkey       6 of 45
 --   ahrefs_reports_client_id_fkey            3 of 219
 --   maskyoo_numbers_client_id_fkey           3 of 71
--- No check fails on any row and no unique key has a duplicate. Staging breaks
--- none of them. A NOT VALID foreign key still checks every new row and every
--- changed key; the existing orphans are reported, not changed. If validation
--- fails anywhere, the constraint stays NOT VALID and a WARNING names it with
--- its count of rows, so the deploy does not fail; a unique key with duplicates
--- is skipped the same way.
+-- No other foreign key has an orphan, no check fails on any row and no unique
+-- key has a duplicate. Staging breaks none of them. A NOT VALID foreign key
+-- still checks every new row and every changed key; the existing orphans are
+-- reported, not changed. If validation fails anywhere, the constraint stays NOT
+-- VALID and a WARNING names it with its count of rows, so the deploy does not
+-- fail; a unique key with duplicates is skipped the same way.
 --
--- With the keys back, deleting a tenant, client or agent again removes or
--- clears these child rows as the old schema did, and a delete that would leave
--- an orphan behind a key with no ON DELETE action is refused (an agent with
--- action log rows, a lead or client with Telegram messages, a user named in
--- updated_by).
+-- Deletes: with the keys back, deleting a tenant or an agent again removes or
+-- clears these child rows. Deleting a client
+-- removes its communication logs and SEO monthly updates and clears its other
+-- rows here, but no marketing pipeline (see marketing_pipelines_client_id_fkey
+-- below), so it does not reach the work items, workshop artifacts, assets and
+-- video scenes built since. A delete that would leave an orphan behind a key
+-- with no ON DELETE action is refused: a tenant whose communication logs
+-- outlive its clients, a lead or client with Telegram messages (Production has
+-- none), and a user named in seo_monthly_updates.updated_by (113 rows, 4
+-- users; Production already has 22 such keys to auth.users without an action).
 --
 -- Not restored, on purpose:
+-- - marketing_pipelines_client_id_fkey (ON DELETE CASCADE in the old schema):
+--   a client delete would cascade through its pipelines' work items into the
+--   workshop artifacts, assets and video scenes built after the loss. SET NULL
+--   fails too: a pipeline without a client is the tenant's one "no client"
+--   pipeline per track (marketing_pipelines_tenant_general_track_idx,
+--   20261026100300), so the second client delete in a tenant and track would
+--   fail with 23505, and Production has 3 tenant and track pairs with 2 or
+--   more client pipelines. Left as Production has it: no key, and deleting a
+--   client deletes no pipeline.
 -- - carmen_whatsapp_sessions_status_check (active, ended): Carmen now also
 --   writes 'expired' (_shared/carmen.ts); 286 of 356 rows fail it.
 -- - integration_alerts_log_alert_type_check (3 types): the edge functions
@@ -46,19 +86,37 @@
 -- - carmen_whatsapp_sessions_ai_conversation_id_fkey (no ON DELETE action):
 --   333 sessions point at a conversation that the Carmen command center and
 --   AI support pages let its owner delete; the key would refuse that delete.
+-- - communication_logs_updated_by_fkey: only 20260407_dmm_crm_adaptation.sql
+--   had it, and the delete-user function would fail on it after removing the
+--   user's profile, roles and memberships.
 -- - crm_tables_shared_tenants (4 constraints): the table is not on Production.
 -- - marketing_pipeline_stages_agent_id_fkey, _pipeline_id_fkey and
 --   seo_call_snapshots_tenant_id_client_id_category_period_star_key: Production
 --   has them under other names (marketing_pipeline_stages_agent_fk,
 --   _pipeline_fk, seo_call_snapshots_unique_period).
+-- - unique_tenant_provider, unique_event_key and
+--   ai_memory_user_id_tenant_id_category_key_key: a unique index on the same
+--   or fewer columns already covers each
+--   (integration_health_tenant_provider_unique,
+--   processed_events_event_key_unique, ai_memory_uq_user_tenant_cat_key).
+-- - processed_webhook_messages_pkey: its unique index on the same columns
+--   dedupes it; 20261102113100 left it unkeyed on purpose.
+-- - agent_approval_queue_agent_id_fkey keeps no ON DELETE action, as
+--   20261009000100 re-created it (the export has SET NULL), so an agent with
+--   approval requests still cannot be deleted.
+-- - crm_dashboards_type_check and goals_status_check keep the definitions
+--   Production changed them to after the export.
 --
 -- Locks: ADD FOREIGN KEY ... NOT VALID takes SHARE ROW EXCLUSIVE on the table
 -- and its parent (tenants, clients, auth.users and others), which blocks their
 -- writes but not their reads; ADD CHECK ... NOT VALID and ADD UNIQUE take
 -- ACCESS EXCLUSIVE on their table; CREATE INDEX takes SHARE; VALIDATE takes
 -- SHARE UPDATE EXCLUSIVE, which blocks neither. The migration is one DO
--- statement, so every lock is held until it commits. The tables are small
--- (the largest has 7,587 rows), so that is a second or less.
+-- statement, so every lock is held until it commits. The tables are small (the
+-- largest, automation_executions, has about 45,000 rows), so that is a second
+-- or less. If a long transaction holds a lock on one of them, lock_timeout
+-- makes the deploy fail after 5 seconds instead of queueing every query on
+-- tenants or clients behind it.
 --
 -- No data changes, and nothing is sent. Safe to re-run: a constraint or index
 -- that already exists by name is left as it is (a NOT VALID one is validated
@@ -66,6 +124,8 @@
 -- The closing guard requires every constraint and index here to exist with
 -- its expected definition, and allows NOT VALID only for a constraint this
 -- run reported as broken.
+
+set local lock_timeout = '5s';
 
 do $$
 declare
@@ -95,10 +155,13 @@ begin
       ('agent_tools', 'agent_tools_tenant_id_name_key', 'u', array['tenant_id', 'name'], null, null, 'UNIQUE (tenant_id, name)'),
       ('agent_user_profiles', 'agent_user_profiles_agent_id_contact_phone_key', 'u', array['agent_id', 'contact_phone'], null, null, 'UNIQUE (agent_id, contact_phone)'),
       ('ai_skills', 'ai_skills_user_id_tenant_id_name_key', 'u', array['user_id', 'tenant_id', 'name'], null, null, 'UNIQUE (user_id, tenant_id, name)'),
+      ('automation_executions', 'unique_execution', 'u', array['execution_id', 'automation_id'], null, null, 'UNIQUE (execution_id, automation_id)'),
+      ('job_queue', 'unique_idempotency_key', 'u', array['tenant_id', 'idempotency_key'], null, null, 'UNIQUE (tenant_id, idempotency_key)'),
       ('marketing_pipelines', 'marketing_pipelines_client_track_unique', 'u', array['client_id', 'track'], null, null, 'UNIQUE (client_id, track)'),
       ('maskyoo_manual_overrides', 'maskyoo_manual_overrides_tenant_id_maskyoo_last9_period_day_key', 'u', array['tenant_id', 'maskyoo_last9', 'period_days'], null, null, 'UNIQUE (tenant_id, maskyoo_last9, period_days)'),
       ('maskyoo_numbers', 'maskyoo_numbers_tenant_id_phone_last9_key', 'u', array['tenant_id', 'phone_last9'], null, null, 'UNIQUE (tenant_id, phone_last9)'),
-      -- Indexes the old schema had on a foreign key column, missing on Production.
+      ('tenant_rate_limits', 'unique_tenant_resource', 'u', array['tenant_id', 'resource_type'], null, null, 'UNIQUE (tenant_id, resource_type)'),
+      -- Indexes on a foreign key column (additions: the old migrations had them, Production never did).
       ('carmen_whatsapp_sessions', 'idx_carmen_sessions_automation', 'i', array['automation_id'], null, null, 'CREATE INDEX idx_carmen_sessions_automation ON public.carmen_whatsapp_sessions USING btree (automation_id)'),
       ('communication_logs', 'idx_communication_logs_tenant', 'i', array['tenant_id', 'created_at'], null, null, 'CREATE INDEX idx_communication_logs_tenant ON public.communication_logs USING btree (tenant_id, created_at DESC)'),
       ('woocommerce_customers', 'idx_woo_customers_tenant', 'i', array['tenant_id'], null, null, 'CREATE INDEX idx_woo_customers_tenant ON public.woocommerce_customers USING btree (tenant_id)'),
@@ -123,7 +186,7 @@ begin
       ('telegram_messages', 'telegram_messages_direction_check', 'c', array['direction'], null, null, 'CHECK ((direction = ANY (ARRAY[''inbound''::text, ''outbound''::text])))'),
       ('whatsapp_sessions', 'whatsapp_sessions_status_check', 'c', array['status'], null, null, 'CHECK ((status = ANY (ARRAY[''active''::text, ''ended''::text])))'),
       -- Foreign keys.
-      ('agent_action_log', 'agent_action_log_agent_id_fkey', 'f', array['agent_id'], 'public.ai_agents', array['id'], 'FOREIGN KEY (agent_id) REFERENCES public.ai_agents(id)'),
+      ('agent_action_log', 'agent_action_log_agent_id_fkey', 'f', array['agent_id'], 'public.ai_agents', array['id'], 'FOREIGN KEY (agent_id) REFERENCES public.ai_agents(id) ON DELETE SET NULL'),
       ('agent_action_log', 'agent_action_log_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('agent_approval_queue', 'agent_approval_queue_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('agent_eval_runs', 'agent_eval_runs_agent_id_fkey', 'f', array['agent_id'], 'public.ai_agents', array['id'], 'FOREIGN KEY (agent_id) REFERENCES public.ai_agents(id) ON DELETE CASCADE'),
@@ -145,28 +208,31 @@ begin
       ('ahrefs_reports', 'ahrefs_reports_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE SET NULL'),
       ('ahrefs_reports', 'ahrefs_reports_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('ai_skills', 'ai_skills_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
+      ('automation_executions', 'automation_executions_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('automation_shared_tenants', 'automation_shared_tenants_automation_id_fkey', 'f', array['automation_id'], 'public.automations', array['id'], 'FOREIGN KEY (automation_id) REFERENCES public.automations(id) ON DELETE CASCADE'),
       ('automation_shared_tenants', 'automation_shared_tenants_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_automation_id_fkey', 'f', array['automation_id'], 'public.automations', array['id'], 'FOREIGN KEY (automation_id) REFERENCES public.automations(id) ON DELETE SET NULL'),
       ('communication_logs', 'communication_logs_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE'),
-      ('communication_logs', 'communication_logs_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
+      ('communication_logs', 'communication_logs_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)'),
       ('goals', 'goals_parent_goal_id_fkey', 'f', array['parent_goal_id'], 'public.goals', array['id'], 'FOREIGN KEY (parent_goal_id) REFERENCES public.goals(id) ON DELETE SET NULL'),
       ('goals', 'goals_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('heartbeat_logs', 'heartbeat_logs_agent_id_fkey', 'f', array['agent_id'], 'public.ai_agents', array['id'], 'FOREIGN KEY (agent_id) REFERENCES public.ai_agents(id) ON DELETE SET NULL'),
       ('heartbeat_logs', 'heartbeat_logs_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
+      ('integration_health', 'integration_health_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('invoice_uploads', 'invoice_uploads_agency_id_fkey', 'f', array['agency_id'], 'public.agencies', array['id'], 'FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE SET NULL'),
       ('invoice_uploads', 'invoice_uploads_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE SET NULL'),
       ('invoice_uploads', 'invoice_uploads_finance_id_fkey', 'f', array['finance_id'], 'public.finance', array['id'], 'FOREIGN KEY (finance_id) REFERENCES public.finance(id) ON DELETE SET NULL'),
       ('invoice_uploads', 'invoice_uploads_supplier_id_fkey', 'f', array['supplier_id'], 'public.suppliers', array['id'], 'FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id) ON DELETE SET NULL'),
       ('invoice_uploads', 'invoice_uploads_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
+      ('job_queue', 'job_queue_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('marketing_ab_variants', 'marketing_ab_variants_stage_id_fkey', 'f', array['stage_id'], 'public.marketing_pipeline_stages', array['id'], 'FOREIGN KEY (stage_id) REFERENCES public.marketing_pipeline_stages(id) ON DELETE SET NULL'),
       ('marketing_ab_variants', 'marketing_ab_variants_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('marketing_ab_variants', 'marketing_ab_variants_work_item_id_fkey', 'f', array['work_item_id'], 'public.marketing_work_items', array['id'], 'FOREIGN KEY (work_item_id) REFERENCES public.marketing_work_items(id) ON DELETE CASCADE'),
       ('marketing_item_transitions', 'marketing_item_transitions_item_id_fkey', 'f', array['item_id'], 'public.marketing_work_items', array['id'], 'FOREIGN KEY (item_id) REFERENCES public.marketing_work_items(id) ON DELETE CASCADE'),
       ('marketing_pipeline_stages', 'marketing_pipeline_stages_parent_stage_id_fkey', 'f', array['parent_stage_id'], 'public.marketing_pipeline_stages', array['id'], 'FOREIGN KEY (parent_stage_id) REFERENCES public.marketing_pipeline_stages(id) ON DELETE SET NULL'),
-      ('marketing_pipelines', 'marketing_pipelines_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE'),
       ('marketing_work_items', 'marketing_work_items_pipeline_id_fkey', 'f', array['pipeline_id'], 'public.marketing_pipelines', array['id'], 'FOREIGN KEY (pipeline_id) REFERENCES public.marketing_pipelines(id) ON DELETE CASCADE'),
       ('maskyoo_numbers', 'maskyoo_numbers_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE SET NULL'),
+      ('processed_events', 'processed_events_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('seo_monthly_updates', 'seo_monthly_updates_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE'),
       ('seo_monthly_updates', 'seo_monthly_updates_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('social_media_wordpress_sites', 'social_media_wordpress_sites_agency_id_fkey', 'f', array['agency_id'], 'public.agencies', array['id'], 'FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE SET NULL'),
@@ -174,10 +240,12 @@ begin
       ('social_publications', 'social_publications_page_id_fkey', 'f', array['page_id'], 'public.social_pages', array['id'], 'FOREIGN KEY (page_id) REFERENCES public.social_pages(id) ON DELETE SET NULL'),
       ('telegram_bot_state', 'telegram_bot_state_shared_from_state_id_fkey', 'f', array['shared_from_state_id'], 'public.telegram_bot_state', array['id'], 'FOREIGN KEY (shared_from_state_id) REFERENCES public.telegram_bot_state(id) ON DELETE CASCADE'),
       ('telegram_bot_state', 'telegram_bot_state_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
+      -- No ON DELETE action, as before the loss: Production has no Telegram message (0 rows), so none would block a delete.
       ('telegram_messages', 'telegram_messages_client_id_fkey', 'f', array['client_id'], 'public.clients', array['id'], 'FOREIGN KEY (client_id) REFERENCES public.clients(id)'),
       ('telegram_messages', 'telegram_messages_lead_id_fkey', 'f', array['lead_id'], 'public.leads', array['id'], 'FOREIGN KEY (lead_id) REFERENCES public.leads(id)'),
       ('telegram_messages', 'telegram_messages_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('tenant_heartbeat_settings', 'tenant_heartbeat_settings_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
+      ('tenant_rate_limits', 'tenant_rate_limits_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('woocommerce_customers', 'woocommerce_customers_site_id_fkey', 'f', array['site_id'], 'public.social_media_wordpress_sites', array['id'], 'FOREIGN KEY (site_id) REFERENCES public.social_media_wordpress_sites(id) ON DELETE CASCADE'),
       ('woocommerce_customers', 'woocommerce_customers_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       ('woocommerce_orders', 'woocommerce_orders_site_id_fkey', 'f', array['site_id'], 'public.social_media_wordpress_sites', array['id'], 'FOREIGN KEY (site_id) REFERENCES public.social_media_wordpress_sites(id) ON DELETE CASCADE'),
@@ -187,7 +255,6 @@ begin
       ('woocommerce_sync_log', 'woocommerce_sync_log_site_id_fkey', 'f', array['site_id'], 'public.social_media_wordpress_sites', array['id'], 'FOREIGN KEY (site_id) REFERENCES public.social_media_wordpress_sites(id) ON DELETE CASCADE'),
       ('woocommerce_sync_log', 'woocommerce_sync_log_tenant_id_fkey', 'f', array['tenant_id'], 'public.tenants', array['id'], 'FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE'),
       -- Foreign keys to auth.users last: their lock on auth.users is held for the shortest time.
-      ('communication_logs', 'communication_logs_updated_by_fkey', 'f', array['updated_by'], 'auth.users', array['id'], 'FOREIGN KEY (updated_by) REFERENCES auth.users(id)'),
       ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'f', array['updated_by'], 'auth.users', array['id'], 'FOREIGN KEY (updated_by) REFERENCES auth.users(id)')
     ) as t (table_name, constraint_name, kind, columns, ref_table, ref_columns, definition)
   ) as s;

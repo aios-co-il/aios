@@ -1,9 +1,16 @@
--- Restored constraints (20261103100000_restore_lost_constraints): each
--- foreign key, check, unique key and index exists; a sample of the foreign
--- keys refuses a row whose parent does not exist; every check refuses a value
--- outside it; two unique keys refuse a duplicate. A NOT VALID constraint
--- passes too: it still applies to new rows. Synthetic tenant and rows, full
--- rollback, so it runs on a scratch database, a Preview branch or Staging.
+-- Restored and added constraints (20261103100000_restore_lost_constraints):
+-- each foreign key, check, unique key and index exists, and the two keys left
+-- out on purpose do not; the changed and new foreign keys have their ON DELETE
+-- action; a sample of the foreign keys, with every new tenant key, refuses a
+-- row whose parent does not exist; every check refuses a value outside it; five
+-- unique keys refuse a duplicate; check_rate_limit(uuid, text, integer) finds
+-- its ON CONFLICT target. Then the deletes: an agent delete clears its action
+-- log rows, a client delete keeps its marketing pipeline and work item and
+-- removes its communication log, a user named in communication_logs.updated_by
+-- can be deleted, and a tenant delete removes the rows behind the new tenant
+-- keys. A NOT VALID constraint passes too: it still applies to new rows.
+-- Synthetic tenant, user and rows, full rollback, so it runs on a scratch
+-- database, a Preview branch or Staging.
 --
 -- Each refused insert must fail with the expected error class and name the
 -- expected constraint, so a NOT NULL or another key cannot pass for it.
@@ -17,10 +24,15 @@ DECLARE
   v_client uuid := gen_random_uuid();
   v_agent uuid := gen_random_uuid();
   v_agent_b uuid := gen_random_uuid();
+  v_user uuid := gen_random_uuid();
+  v_pipeline uuid := gen_random_uuid();
+  v_item uuid := gen_random_uuid();
+  v_log uuid := gen_random_uuid();
   v_missing uuid := gen_random_uuid();
   v_status text;
   v_state text;
   v_constraint text;
+  v_count bigint;
   v_tag text := left(gen_random_uuid()::text, 8);
 BEGIN
   FOR k IN
@@ -29,9 +41,12 @@ BEGIN
       ('agent_tools', 'agent_tools_tenant_id_name_key', 'u'),
       ('agent_user_profiles', 'agent_user_profiles_agent_id_contact_phone_key', 'u'),
       ('ai_skills', 'ai_skills_user_id_tenant_id_name_key', 'u'),
+      ('automation_executions', 'unique_execution', 'u'),
+      ('job_queue', 'unique_idempotency_key', 'u'),
       ('marketing_pipelines', 'marketing_pipelines_client_track_unique', 'u'),
       ('maskyoo_manual_overrides', 'maskyoo_manual_overrides_tenant_id_maskyoo_last9_period_day_key', 'u'),
       ('maskyoo_numbers', 'maskyoo_numbers_tenant_id_phone_last9_key', 'u'),
+      ('tenant_rate_limits', 'unique_tenant_resource', 'u'),
       ('carmen_whatsapp_sessions', 'idx_carmen_sessions_automation', 'i'),
       ('communication_logs', 'idx_communication_logs_tenant', 'i'),
       ('woocommerce_customers', 'idx_woo_customers_tenant', 'i'),
@@ -76,6 +91,7 @@ BEGIN
       ('ahrefs_reports', 'ahrefs_reports_client_id_fkey', 'f'),
       ('ahrefs_reports', 'ahrefs_reports_tenant_id_fkey', 'f'),
       ('ai_skills', 'ai_skills_tenant_id_fkey', 'f'),
+      ('automation_executions', 'automation_executions_tenant_id_fkey', 'f'),
       ('automation_shared_tenants', 'automation_shared_tenants_automation_id_fkey', 'f'),
       ('automation_shared_tenants', 'automation_shared_tenants_tenant_id_fkey', 'f'),
       ('carmen_whatsapp_sessions', 'carmen_whatsapp_sessions_automation_id_fkey', 'f'),
@@ -85,19 +101,21 @@ BEGIN
       ('goals', 'goals_tenant_id_fkey', 'f'),
       ('heartbeat_logs', 'heartbeat_logs_agent_id_fkey', 'f'),
       ('heartbeat_logs', 'heartbeat_logs_tenant_id_fkey', 'f'),
+      ('integration_health', 'integration_health_tenant_id_fkey', 'f'),
       ('invoice_uploads', 'invoice_uploads_agency_id_fkey', 'f'),
       ('invoice_uploads', 'invoice_uploads_client_id_fkey', 'f'),
       ('invoice_uploads', 'invoice_uploads_finance_id_fkey', 'f'),
       ('invoice_uploads', 'invoice_uploads_supplier_id_fkey', 'f'),
       ('invoice_uploads', 'invoice_uploads_tenant_id_fkey', 'f'),
+      ('job_queue', 'job_queue_tenant_id_fkey', 'f'),
       ('marketing_ab_variants', 'marketing_ab_variants_stage_id_fkey', 'f'),
       ('marketing_ab_variants', 'marketing_ab_variants_tenant_id_fkey', 'f'),
       ('marketing_ab_variants', 'marketing_ab_variants_work_item_id_fkey', 'f'),
       ('marketing_item_transitions', 'marketing_item_transitions_item_id_fkey', 'f'),
       ('marketing_pipeline_stages', 'marketing_pipeline_stages_parent_stage_id_fkey', 'f'),
-      ('marketing_pipelines', 'marketing_pipelines_client_id_fkey', 'f'),
       ('marketing_work_items', 'marketing_work_items_pipeline_id_fkey', 'f'),
       ('maskyoo_numbers', 'maskyoo_numbers_client_id_fkey', 'f'),
+      ('processed_events', 'processed_events_tenant_id_fkey', 'f'),
       ('seo_monthly_updates', 'seo_monthly_updates_client_id_fkey', 'f'),
       ('seo_monthly_updates', 'seo_monthly_updates_tenant_id_fkey', 'f'),
       ('social_media_wordpress_sites', 'social_media_wordpress_sites_agency_id_fkey', 'f'),
@@ -109,6 +127,7 @@ BEGIN
       ('telegram_messages', 'telegram_messages_lead_id_fkey', 'f'),
       ('telegram_messages', 'telegram_messages_tenant_id_fkey', 'f'),
       ('tenant_heartbeat_settings', 'tenant_heartbeat_settings_tenant_id_fkey', 'f'),
+      ('tenant_rate_limits', 'tenant_rate_limits_tenant_id_fkey', 'f'),
       ('woocommerce_customers', 'woocommerce_customers_site_id_fkey', 'f'),
       ('woocommerce_customers', 'woocommerce_customers_tenant_id_fkey', 'f'),
       ('woocommerce_orders', 'woocommerce_orders_site_id_fkey', 'f'),
@@ -117,7 +136,6 @@ BEGIN
       ('woocommerce_products', 'woocommerce_products_tenant_id_fkey', 'f'),
       ('woocommerce_sync_log', 'woocommerce_sync_log_site_id_fkey', 'f'),
       ('woocommerce_sync_log', 'woocommerce_sync_log_tenant_id_fkey', 'f'),
-      ('communication_logs', 'communication_logs_updated_by_fkey', 'f'),
       ('seo_monthly_updates', 'seo_monthly_updates_updated_by_fkey', 'f')
     ) AS t (table_name, object_name, kind)
   LOOP
@@ -137,7 +155,48 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- Fixture: one tenant with an agency, a client and two agents.
+  -- Left out on purpose: the delete-user function would fail on the first, and the second would
+  -- cascade a client delete into workshop work (or, as SET NULL, collide with the "no client" pipeline).
+  FOR k IN
+    SELECT * FROM (VALUES
+      ('communication_logs', 'communication_logs_updated_by_fkey'),
+      ('marketing_pipelines', 'marketing_pipelines_client_id_fkey')
+    ) AS t (table_name, object_name)
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint AS c
+      WHERE c.conrelid = to_regclass(format('public.%I', k.table_name)) AND c.conname = k.object_name
+    ) THEN
+      RAISE EXCEPTION 'absent: constraint % on public.% must not exist', k.object_name, k.table_name;
+    END IF;
+  END LOOP;
+
+  -- ON DELETE actions: a no action, c cascade, n set null.
+  FOR k IN
+    SELECT * FROM (VALUES
+      ('agent_action_log', 'agent_action_log_agent_id_fkey', 'n'),
+      ('communication_logs', 'communication_logs_tenant_id_fkey', 'a'),
+      ('communication_logs', 'communication_logs_client_id_fkey', 'c'),
+      ('marketing_work_items', 'marketing_work_items_pipeline_id_fkey', 'c'),
+      ('telegram_messages', 'telegram_messages_client_id_fkey', 'a'),
+      ('telegram_messages', 'telegram_messages_lead_id_fkey', 'a'),
+      ('automation_executions', 'automation_executions_tenant_id_fkey', 'c'),
+      ('integration_health', 'integration_health_tenant_id_fkey', 'c'),
+      ('job_queue', 'job_queue_tenant_id_fkey', 'c'),
+      ('processed_events', 'processed_events_tenant_id_fkey', 'c'),
+      ('tenant_rate_limits', 'tenant_rate_limits_tenant_id_fkey', 'c')
+    ) AS t (table_name, object_name, action)
+  LOOP
+    SELECT c.confdeltype::text INTO v_state
+    FROM pg_constraint AS c
+    WHERE c.conrelid = to_regclass(format('public.%I', k.table_name)) AND c.conname = k.object_name;
+    IF v_state IS DISTINCT FROM k.action THEN
+      RAISE EXCEPTION 'on delete: % has action %, expected %', k.object_name, v_state, k.action;
+    END IF;
+  END LOOP;
+
+  -- Fixture: one tenant with an agency, a client, two agents and a user.
+  INSERT INTO auth.users (id, email) VALUES (v_user, 'qa-constraints-' || v_tag || '@example.invalid');
   INSERT INTO public.tenants (id, name, slug) VALUES (v_tenant, 'QA constraints ' || v_tag, 'qa-constraints-' || v_tag);
   INSERT INTO public.agencies (id, tenant_id, name) VALUES (v_agency, v_tenant, 'QA agency');
   INSERT INTO public.clients (id, tenant_id, agency_id, name) VALUES (v_client, v_tenant, v_agency, 'QA client');
@@ -146,12 +205,26 @@ BEGIN
 
   -- The same rows with real parents are accepted, so each refusal below comes from its own key.
   INSERT INTO public.invoice_uploads (tenant_id, file_path, agency_id, client_id) VALUES (v_tenant, 'qa/ok.pdf', v_agency, v_client);
-  INSERT INTO public.communication_logs (tenant_id, client_id) VALUES (v_tenant, v_client);
+  INSERT INTO public.communication_logs (id, tenant_id, client_id, updated_by) VALUES (v_log, v_tenant, v_client, v_user);
   INSERT INTO public.goals (tenant_id, title) VALUES (v_tenant, 'QA goal');
   INSERT INTO public.agent_supervisors (tenant_id, supervisor_agent_id, child_agent_id) VALUES (v_tenant, v_agent, v_agent_b);
   INSERT INTO public.maskyoo_numbers (tenant_id, phone_last9, display_number) VALUES (v_tenant, '000000000', 'QA');
+  INSERT INTO public.agent_action_log (tenant_id, action_type, agent_id) VALUES (v_tenant, 'qa', v_agent_b);
+  INSERT INTO public.marketing_pipelines (id, tenant_id, client_id, track, name) VALUES (v_pipeline, v_tenant, v_client, 'campaigns', 'QA pipeline');
+  INSERT INTO public.marketing_work_items (id, tenant_id, pipeline_id) VALUES (v_item, v_tenant, v_pipeline);
+  INSERT INTO public.automation_executions (tenant_id, execution_id, automation_id) VALUES (v_tenant, 'qa-' || v_tag, v_missing);
+  INSERT INTO public.integration_health (tenant_id, provider) VALUES (v_tenant, 'qa-' || v_tag);
+  INSERT INTO public.job_queue (tenant_id, idempotency_key) VALUES (v_tenant, 'qa-' || v_tag);
+  INSERT INTO public.processed_events (tenant_id, event_key) VALUES (v_tenant, 'qa-' || v_tag);
 
-  -- $1 tenant, $2 agency, $3 client, $4 agent, $5 a uuid no row has, $6 a seo_monthly_status value.
+  -- check_rate_limit(uuid, text, integer) inserts ON CONFLICT (tenant_id, resource_type): without
+  -- unique_tenant_resource it fails with 42P10.
+  IF NOT public.check_rate_limit(v_tenant, 'qa-' || v_tag, 300)
+     OR NOT public.check_rate_limit(v_tenant, 'qa-' || v_tag, 300) THEN
+    RAISE EXCEPTION 'check_rate_limit refused the first two calls';
+  END IF;
+
+  -- $1 tenant, $2 agency, $3 client, $4 agent, $5 a uuid no row has, $6 a seo_monthly_status value, $7 a unique text.
   FOR k IN
     SELECT * FROM (VALUES
       -- Foreign keys: a parent that does not exist.
@@ -162,16 +235,23 @@ BEGIN
       ('23503', 'invoice_uploads_finance_id_fkey', 'insert into public.invoice_uploads (tenant_id, file_path, finance_id) values ($1, ''qa/x.pdf'', $5)'),
       ('23503', 'communication_logs_client_id_fkey', 'insert into public.communication_logs (tenant_id, client_id) values ($1, $5)'),
       ('23503', 'communication_logs_tenant_id_fkey', 'insert into public.communication_logs (tenant_id, client_id) values ($5, $3)'),
-      ('23503', 'communication_logs_updated_by_fkey', 'insert into public.communication_logs (tenant_id, client_id, updated_by) values ($1, $3, $5)'),
       ('23503', 'seo_monthly_updates_client_id_fkey', 'insert into public.seo_monthly_updates (tenant_id, client_id, month, status) values ($1, $5, date ''2026-11-01'', $6::public.seo_monthly_status)'),
-      ('23503', 'marketing_pipelines_client_id_fkey', 'insert into public.marketing_pipelines (tenant_id, client_id) values ($1, $5)'),
+      ('23503', 'seo_monthly_updates_updated_by_fkey', 'insert into public.seo_monthly_updates (tenant_id, client_id, month, status, updated_by) values ($1, $3, date ''2026-11-01'', $6::public.seo_monthly_status, $5)'),
+      ('23503', 'marketing_work_items_pipeline_id_fkey', 'insert into public.marketing_work_items (tenant_id, pipeline_id) values ($1, $5)'),
       ('23503', 'telegram_messages_tenant_id_fkey', 'insert into public.telegram_messages (tenant_id, chat_id) values ($5, 1)'),
       ('23503', 'telegram_messages_lead_id_fkey', 'insert into public.telegram_messages (tenant_id, chat_id, lead_id) values ($1, 1, $5)'),
+      ('23503', 'telegram_messages_client_id_fkey', 'insert into public.telegram_messages (tenant_id, chat_id, client_id) values ($1, 1, $5)'),
       ('23503', 'telegram_bot_state_shared_from_state_id_fkey', 'insert into public.telegram_bot_state (tenant_id, shared_from_state_id) values ($1, $5)'),
       ('23503', 'goals_parent_goal_id_fkey', 'insert into public.goals (tenant_id, title, parent_goal_id) values ($1, ''QA'', $5)'),
       ('23503', 'agent_action_log_agent_id_fkey', 'insert into public.agent_action_log (tenant_id, action_type, agent_id) values ($1, ''qa'', $5)'),
+      ('23503', 'agent_action_log_tenant_id_fkey', 'insert into public.agent_action_log (tenant_id, action_type) values ($5, ''qa'')'),
       ('23503', 'agent_runs_parent_run_id_fkey', 'insert into public.agent_runs (tenant_id, agent_id, goal, parent_run_id) values ($1, $4, ''qa'', $5)'),
       ('23503', 'woocommerce_orders_site_id_fkey', 'insert into public.woocommerce_orders (tenant_id, site_id, woo_order_id) values ($1, $5, 1)'),
+      ('23503', 'automation_executions_tenant_id_fkey', 'insert into public.automation_executions (tenant_id, execution_id) values ($5, $7)'),
+      ('23503', 'integration_health_tenant_id_fkey', 'insert into public.integration_health (tenant_id, provider) values ($5, $7)'),
+      ('23503', 'job_queue_tenant_id_fkey', 'insert into public.job_queue (tenant_id) values ($5)'),
+      ('23503', 'processed_events_tenant_id_fkey', 'insert into public.processed_events (tenant_id, event_key) values ($5, $7 || ''-x'')'),
+      ('23503', 'tenant_rate_limits_tenant_id_fkey', 'insert into public.tenant_rate_limits (tenant_id, resource_type) values ($5, $7)'),
       -- Checks: a value outside each.
       ('23514', 'agent_runs_status_check', 'insert into public.agent_runs (tenant_id, agent_id, goal, status) values ($1, $4, ''qa'', ''qa-bad'')'),
       ('23514', 'campaign_schedules_action_check', 'insert into public.campaign_schedules (tenant_id, entity_id, entity_type, action, run_at) values ($1, ''1'', ''fb_campaign'', ''qa-bad'', now())'),
@@ -192,11 +272,14 @@ BEGIN
       ('23514', 'whatsapp_sessions_status_check', 'insert into public.whatsapp_sessions (tenant_id, chat_id, status) values ($1, ''qa'', ''qa-bad'')'),
       -- Unique keys: a second row with the same key.
       ('23505', 'agent_supervisors_supervisor_agent_id_child_agent_id_key', 'insert into public.agent_supervisors (tenant_id, supervisor_agent_id, child_agent_id) values ($1, $4, (select s.child_agent_id from public.agent_supervisors as s where s.supervisor_agent_id = $4 limit 1))'),
-      ('23505', 'maskyoo_numbers_tenant_id_phone_last9_key', 'insert into public.maskyoo_numbers (tenant_id, phone_last9, display_number) values ($1, ''000000000'', ''QA'')')
+      ('23505', 'maskyoo_numbers_tenant_id_phone_last9_key', 'insert into public.maskyoo_numbers (tenant_id, phone_last9, display_number) values ($1, ''000000000'', ''QA'')'),
+      ('23505', 'unique_execution', 'insert into public.automation_executions (tenant_id, execution_id, automation_id) select tenant_id, execution_id, automation_id from public.automation_executions where tenant_id = $1 and execution_id = ''qa-'' || $7'),
+      ('23505', 'unique_idempotency_key', 'insert into public.job_queue (tenant_id, idempotency_key) values ($1, ''qa-'' || $7)'),
+      ('23505', 'unique_tenant_resource', 'insert into public.tenant_rate_limits (tenant_id, resource_type) values ($1, ''qa-'' || $7)')
     ) AS t (sqlstate, constraint_name, statement)
   LOOP
     BEGIN
-      EXECUTE k.statement USING v_tenant, v_agency, v_client, v_agent, v_missing, v_status;
+      EXECUTE k.statement USING v_tenant, v_agency, v_client, v_agent, v_missing, v_status, v_tag;
       RAISE EXCEPTION 'refused: % accepted a row it must refuse', k.constraint_name
         USING ERRCODE = 'P0001';
     EXCEPTION WHEN foreign_key_violation OR check_violation OR unique_violation THEN
@@ -207,7 +290,41 @@ BEGIN
       END IF;
     END;
   END LOOP;
+
+  -- Deleting an agent clears its action log rows (ON DELETE SET NULL) instead of being refused.
+  DELETE FROM public.ai_agents WHERE id = v_agent_b;
+  IF NOT EXISTS (SELECT 1 FROM public.agent_action_log WHERE tenant_id = v_tenant AND action_type = 'qa' AND agent_id IS NULL) THEN
+    RAISE EXCEPTION 'agent delete: the action log row is gone or still names the agent';
+  END IF;
+
+  -- Deleting a user named in communication_logs.updated_by succeeds (no key on that column).
+  DELETE FROM auth.users WHERE id = v_user;
+  IF NOT EXISTS (SELECT 1 FROM public.communication_logs WHERE id = v_log AND updated_by = v_user) THEN
+    RAISE EXCEPTION 'user delete: the communication log changed';
+  END IF;
+
+  -- Deleting a client removes its communication log but keeps its pipeline and that pipeline's work item.
+  DELETE FROM public.clients WHERE id = v_client;
+  IF EXISTS (SELECT 1 FROM public.communication_logs WHERE id = v_log) THEN
+    RAISE EXCEPTION 'client delete: the communication log is still there';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.marketing_pipelines WHERE id = v_pipeline AND client_id = v_client)
+     OR NOT EXISTS (SELECT 1 FROM public.marketing_work_items WHERE id = v_item AND pipeline_id = v_pipeline) THEN
+    RAISE EXCEPTION 'client delete: the pipeline or its work item was removed or changed';
+  END IF;
+
+  -- Deleting the tenant removes the rows behind the new tenant keys.
+  DELETE FROM public.tenants WHERE id = v_tenant;
+  SELECT (SELECT count(*) FROM public.automation_executions WHERE tenant_id = v_tenant)
+       + (SELECT count(*) FROM public.integration_health WHERE tenant_id = v_tenant)
+       + (SELECT count(*) FROM public.job_queue WHERE tenant_id = v_tenant)
+       + (SELECT count(*) FROM public.processed_events WHERE tenant_id = v_tenant)
+       + (SELECT count(*) FROM public.tenant_rate_limits WHERE tenant_id = v_tenant)
+  INTO v_count;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'tenant delete: % rows of the tenant are left', v_count;
+  END IF;
 END
 $test$;
-SELECT 'restore lost constraints: existence, orphan, check and duplicate refusals passed' AS result;
+SELECT 'restore lost constraints: existence, actions, refusals and deletes passed' AS result;
 ROLLBACK;
