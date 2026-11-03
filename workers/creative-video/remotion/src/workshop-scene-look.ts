@@ -1,5 +1,6 @@
 import type { EndCardStyle } from "./workshop-end-card-layout";
 import type { FilmFont } from "./workshop-fonts";
+import type { SceneOverlay } from "./workshop-overlays";
 import type { TitleSize, TitleStyle } from "./workshop-title-styles";
 import type { WorkshopTransition } from "./workshop-transitions";
 
@@ -11,6 +12,8 @@ export type SceneLook = {
   titleStyle?: TitleStyle;
   /** How large that text is; "medium" (the captions' size) when unset. */
   titleSize?: TitleSize;
+  /** The graphics over the picture, under the text (workshop-overlays.ts); none when unset. */
+  overlay?: SceneOverlay;
   /** How the scene enters over the one before it (workshop-transitions.ts). */
   transition?: WorkshopTransition;
 };

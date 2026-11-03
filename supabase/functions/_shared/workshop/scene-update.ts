@@ -3,8 +3,8 @@
  * out what to write and what the change costs later, without touching the database.
  *
  * Free in itself. What a change makes the next workshop_produce_video do:
- *   - text on screen and its style or size, narration, length, title, skin switch, the
- *     transition into the scene: assembled again, nothing re-animated;
+ *   - text on screen and its style or size, the graphics over the picture, narration, length,
+ *     title, skin switch, the transition into the scene: assembled again, nothing re-animated;
  *   - motion: that scene's clip only is made again (the scene trigger marks it stale), priced in
  *     the production quote like any stale clip;
  *   - the talking line: recorded again and lip-synced on the scene's picture (queue_video_lipsync),
@@ -17,6 +17,7 @@
  */
 
 import { asRecord } from "./record.ts";
+import { isSceneOverlay } from "./scene-overlays.ts";
 import { talkingLine } from "./talking.ts";
 import { isSceneTransition } from "./film-look.ts";
 import { isTitleSize, isTitleStyle } from "./title-styles.ts";
@@ -167,11 +168,12 @@ export function planSceneUpdate(
     changed.push("skin_switch");
     metaChanged = true;
   }
-  // How the scene's text enters and how large it is (title-styles.ts), and the transition
-  // into it (film-look.ts): assembly only.
+  // How the scene's text enters and how large it is (title-styles.ts), the graphics over its
+  // picture (scene-overlays.ts) and the transition into it (film-look.ts): assembly only.
   for (const [key, valid] of [
     ["title_style", isTitleStyle],
     ["title_size", isTitleSize],
+    ["scene_overlay", isSceneOverlay],
     ["transition", isSceneTransition],
   ] as const) {
     if (valid(args[key]) && args[key] !== meta[key]) {
