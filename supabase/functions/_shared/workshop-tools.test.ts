@@ -1023,6 +1023,42 @@ Deno.test(
 );
 
 Deno.test(
+  "the film's key-word emphasis is saved for the render, an unknown one is not",
+  async () => {
+    const savedEmphasis = async (titleEmphasis: string) => {
+      const db = fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        "rpc:produce_video": { status: "running", clips: 1 },
+      });
+      await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, title_emphasis: titleEmphasis },
+        async () => {},
+        null,
+        { defaultEngine: async () => "mock" as const },
+      );
+      const video = db.calls
+        .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+        .map(
+          (c) =>
+            (c.value as { payload?: { video?: Record<string, unknown> } })
+              .payload?.video,
+        )
+        .filter(Boolean)
+        .pop();
+      return video ? video.title_emphasis : "no video saved";
+    };
+    assertStrictEquals(await savedEmphasis("count"), "count");
+    assertStrictEquals(await savedEmphasis("sparkle"), undefined);
+  },
+);
+
+Deno.test(
   "a later production of a finished design keeps it without being asked again",
   async () => {
     const project = videoProject();
