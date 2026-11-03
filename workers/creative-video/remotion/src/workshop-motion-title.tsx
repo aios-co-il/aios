@@ -2,7 +2,8 @@
  * A scene's on-screen text as motion graphics, for a film without spoken captions: each word
  * enters after the one before it in the scene's style (workshop-title-styles.ts; the float
  * style also bobs and sways as if in water), and numbers are drawn in the accent colour. On
- * Staging (2 Nov) a film without narration showed its text only as a plain caption line.
+ * Staging (2 Nov) a film without narration showed its text only as a plain caption line. Once
+ * in, the key words get the scene's emphasis (workshop-title-emphasis-view.tsx).
  */
 import React from "react";
 import {
@@ -14,6 +15,8 @@ import {
 } from "remotion";
 import { captionLayout, readableAccent } from "./workshop-layout";
 import { TITLE_EXIT, motionTitleWords } from "./workshop-title-timing";
+import type { TitleEmphasis } from "./workshop-title-emphasis";
+import { EmphasizedWord } from "./workshop-title-emphasis-view";
 import {
   SPRING_OF,
   floats,
@@ -30,7 +33,7 @@ const clamp = {
 
 /** One word of the title, drawn in the scene's style (workshop-title-styles.ts). */
 const TitleWordView: React.FC<{
-  text: string;
+  text: React.ReactNode;
   at: number;
   colour: string;
   frame: number;
@@ -76,7 +79,8 @@ export const MotionTitle: React.FC<{
   accent: string;
   style: TitleStyle;
   size: TitleSize;
-}> = ({ text, enter, accent, style, size }) => {
+  emphasis: TitleEmphasis;
+}> = ({ text, enter, accent, style, size, emphasis }) => {
   const frame = useCurrentFrame() - enter;
   const { width, height, durationInFrames } = useVideoConfig();
   const frames = durationInFrames - enter;
@@ -119,16 +123,31 @@ export const MotionTitle: React.FC<{
           transform: `translateY(${(bob - (1 - leave) * fontSize * 0.5).toFixed(1)}px) rotate(${sway.toFixed(2)}deg)`,
         }}
       >
-        {words.map((word, index) => (
-          <TitleWordView
-            key={`${index}-${word.text}`}
-            text={word.text}
-            at={word.at}
-            colour={word.key ? key : "#ffffff"}
-            frame={frame}
-            style={style}
-          />
-        ))}
+        {words.map((word, index) => {
+          const draw = (content: React.ReactNode, colour: string) => (
+            <TitleWordView
+              key={`${index}-${word.text}`}
+              text={content}
+              at={word.at}
+              colour={colour}
+              frame={frame}
+              style={style}
+            />
+          );
+          return word.key ? (
+            <EmphasizedWord
+              key={`${index}-${word.text}`}
+              word={word}
+              effect={emphasis}
+              frame={frame}
+              frames={frames}
+              accent={key}
+              draw={draw}
+            />
+          ) : (
+            draw(word.text, "#ffffff")
+          );
+        })}
       </div>
     </AbsoluteFill>
   );

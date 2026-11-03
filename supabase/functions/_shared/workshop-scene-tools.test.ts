@@ -412,6 +412,29 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a scene's key-word emphasis is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      title_emphasis: "stamp",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["title_emphasis"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).title_emphasis, "stamp");
+    assertStrictEquals(db.rpcs.length, 0);
+    // An effect the film does not know changes nothing.
+    const unknown = await update(db, {
+      scene_id: "s-2",
+      title_emphasis: "sparkle",
+    });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).title_emphasis, "stamp");
+  },
+);
+
 Deno.test("a client the caller cannot reach stops the change", async () => {
   const db = film({
     marketing_work_items: [project({ client_id: "client-9" })],

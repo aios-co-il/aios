@@ -2,6 +2,7 @@ import { EDIT_TOOL } from "./edit-tool.ts";
 import { motionField } from "./motion-text.ts";
 import { pictureField } from "./picture-text.ts";
 import { spokenField } from "./spoken-text.ts";
+import { TITLE_EMPHASES, TITLE_EMPHASIS_HELP } from "./title-emphasis.ts";
 import {
   FILM_FONTS,
   FILM_FONT_HELP,
@@ -427,6 +428,11 @@ export const WORKSHOP_TOOLS = [
           enum: [...TITLE_SIZES],
           description: `${TITLE_SIZE_HELP} לסצנה הזו בלבד. בלי עלות, נכנס בהרכבה הבאה.`,
         },
+        title_emphasis: {
+          type: "string",
+          enum: [...TITLE_EMPHASES],
+          description: `${TITLE_EMPHASIS_HELP} לסצנה הזו בלבד, מעל הבחירה של הסרט. בלי עלות, נכנס בהרכבה הבאה.`,
+        },
       },
       required: ["item_id"],
     },
@@ -536,6 +542,11 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: [...TITLE_SIZES],
           description: `${TITLE_SIZE_HELP} לכל הסרט.`,
+        },
+        title_emphasis: {
+          type: "string",
+          enum: [...TITLE_EMPHASES],
+          description: `${TITLE_EMPHASIS_HELP} לכל הסרט; סצנה יכולה לקבל אפקט משלה ב-workshop_update_scene.`,
         },
         font: {
           type: "string",

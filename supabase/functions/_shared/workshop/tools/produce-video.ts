@@ -24,6 +24,7 @@ import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
+import { isTitleEmphasis } from "../title-emphasis.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -359,12 +360,16 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             sound_engine: "elevenlabs",
             sound_design: soundDesign,
             keep_design: keepDesign,
-            // How the scenes' text enters and how large it is (title-styles.ts).
+            // How the scenes' text enters, how large it is and how its key words are emphasised
+            // (title-styles.ts, title-emphasis.ts).
             ...(isTitleStyle(args.title_style)
               ? { title_style: args.title_style }
               : {}),
             ...(isTitleSize(args.title_size)
               ? { title_size: args.title_size }
+              : {}),
+            ...(isTitleEmphasis(args.title_emphasis)
+              ? { title_emphasis: args.title_emphasis }
               : {}),
             ...(isFilmFont(args.font) ? { font: args.font } : {}),
             // The narration is checked against this voice; a new one re-narrates the film.

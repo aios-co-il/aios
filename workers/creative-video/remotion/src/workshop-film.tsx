@@ -228,6 +228,7 @@ const Picture: React.FC<{
             accent={accent}
             style={scene.titleStyle ?? "float"}
             size={scene.titleSize ?? "medium"}
+            emphasis={scene.titleEmphasis ?? "none"}
           />
         ) : (
           <SceneCaption
