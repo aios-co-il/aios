@@ -177,6 +177,31 @@ Deno.test(
 );
 
 Deno.test(
+  "a film ending with a call to action passes the user's own line whole",
+  async () => {
+    const payload = {
+      project_type: "video",
+      workshop_brief: { answers: { סיום: "לוגו וקריאה לפעולה" } },
+    };
+    const query = () => {
+      const chain: Record<string, unknown> = {};
+      for (const name of ["select", "eq", "in", "lt", "order", "update"])
+        chain[name] = () => chain;
+      chain.maybeSingle = async () => ({ data: { payload } });
+      chain.then = (resolve: (value: unknown) => void) =>
+        resolve({ data: [], error: null });
+      return chain;
+    };
+    const note = String(
+      await workshopTurnNote({ from: query }, "t1", "item-1", "שלום"),
+    );
+    // Staging, 2 Nov: "up to 6 words" cut the user's 20% offer short on the end card.
+    assertMatch(note, /בדיוק כמו שכתב, עד 120 תווים/);
+    assert(!/עד 6 מילים/.test(note));
+  },
+);
+
+Deno.test(
   "a tapped answer is saved to the brief at the start of the turn",
   async () => {
     const { workshopTurnNote } = await import("./turn-note.ts");
@@ -238,5 +263,23 @@ Deno.test(
     assert(note?.includes(DO_THE_STEP));
     // A picture project hears it can become a film from one of its pictures.
     assert(note?.includes(ANY_KIND));
+  },
+);
+
+Deno.test(
+  "the closing line's limit is one number for the tool and the turn note",
+  async () => {
+    const { CTA_MAX_CHARS } = await import("./cta.ts");
+    const { WORKSHOP_TOOLS } = await import("./tool-definitions.ts");
+    const produce = WORKSHOP_TOOLS.find(
+      (tool) => tool.name === "workshop_produce_video",
+    );
+    const cta = (
+      produce?.parameters.properties as Record<string, { description?: string }>
+    ).cta_text;
+    assertMatch(
+      String(cta?.description),
+      new RegExp(`עד ${CTA_MAX_CHARS} תווים`),
+    );
   },
 );
