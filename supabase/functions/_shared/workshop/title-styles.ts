@@ -2,7 +2,8 @@
  * How a scene's on-screen text enters and how large it is, in a film without narration. The
  * render worker (title-style.mjs) and the film (Remotion workshop-title-styles.ts) know the same
  * names; a scene's own choice (meta.title_style, meta.title_size) wins over the film's
- * (payload.video.title_style, title_size).
+ * (payload.video.title_style, title_size). The film's font (payload.video.font) is one of the
+ * Hebrew fonts the film carries (Remotion workshop-fonts.ts).
  */
 
 export const TITLE_STYLES = [
@@ -35,3 +36,22 @@ export const TITLE_STYLE_HELP =
 
 export const TITLE_SIZE_HELP =
   "גודל הטקסט על המסך: small, medium (בגודל הכתוביות), large או huge. בלי זה: medium.";
+
+/** The Hebrew fonts the film carries (Remotion workshop-fonts.ts). */
+export const FILM_FONTS = [
+  "heebo",
+  "rubik",
+  "assistant",
+  "secular-one",
+  "suez-one",
+  "frank-ruhl-libre",
+] as const;
+
+export type FilmFont = (typeof FILM_FONTS)[number];
+
+export const isFilmFont = (value: unknown): value is FilmFont =>
+  typeof value === "string" &&
+  (FILM_FONTS as readonly string[]).includes(value);
+
+export const FILM_FONT_HELP =
+  "הפונט של כל הטקסט בסרט: heebo (נקי ומודרני, ברירת המחדל), rubik (עגול וידידותי, לצעירים ולמבצעים), assistant (דק ואלגנטי), secular-one (עבה ובולט, לכותרות חזקות), suez-one (סריף כבד, קלאסי ומרשים), frank-ruhl-libre (סריף ספרותי, יוקרה ותרבות). בלי זה: הפונט של המותג אם הוא אחד מהם, אחרת heebo. לבחור לפי אופי המותג והבריף, ולשאול רק כשהמשתמש ביקש פונט.";

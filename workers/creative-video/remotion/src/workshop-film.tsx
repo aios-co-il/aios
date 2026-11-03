@@ -24,6 +24,7 @@ import { EndCard } from "./workshop-end-card";
 import { Kicker } from "./workshop-kicker";
 import { MotionCaptions } from "./workshop-motion-captions";
 import { MotionTitle } from "./workshop-motion-title";
+import { filmFontFamily, fontFaces } from "./workshop-fonts";
 import { sceneHeadline } from "./workshop-scene-text";
 import { SkinFlash, SkinSweep } from "./workshop-skin";
 import { TitleCard } from "./workshop-title-card";
@@ -285,13 +286,12 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   captionStyle,
   brand,
   endCardFrames,
+  font,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const accent = brand?.primaryColor || WORKSHOP_ACCENT;
-  const fontFamily = brand?.fontFamily
-    ? `"${brand.fontFamily}", Heebo, Arial, sans-serif`
-    : "Heebo, Arial, sans-serif";
+  const fontFamily = filmFontFamily(font, brand?.fontFamily);
   const spoken = (captions ?? []).filter((c) => c.words.length);
   // Motion graphics when the manifest asks for them; karaoke lines for older films.
   const motion = captionStyle === "motion";
@@ -359,15 +359,10 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   const endFrames = endCardFrames && brand ? endCardFrames : 0;
   const endEnter = Math.min(END_TRANSITION, Math.floor(endFrames / 3));
   return (
-    <AbsoluteFill style={{ background: "#07111c", fontFamily }}>
-      <style>{`
-        @font-face {
-          font-family: "Heebo";
-          src: url("${staticFile("fonts/Heebo-Bold.ttf")}") format("truetype");
-          font-weight: 100 900;
-          font-style: normal;
-        }
-      `}</style>
+    <AbsoluteFill
+      style={{ background: "#07111c", fontFamily, fontSynthesis: "none" }}
+    >
+      <style>{fontFaces(staticFile)}</style>
       {pictures}
       {spoken.length && motion ? (
         <MotionCaptions
