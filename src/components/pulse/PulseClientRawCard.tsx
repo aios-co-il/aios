@@ -126,12 +126,10 @@ function CampaignGoalTable({
   goal,
   campaigns,
   period,
-  inactiveTableIds,
 }: {
   goal: PulseCampaignGoal;
   campaigns: PulseCampaignGoalRow[];
   period: PulsePeriod;
-  inactiveTableIds: ReadonlySet<string>;
 }) {
   const spendLabel = pulseSpendColumnLabel(period).split(" ")[0];
   const outcomeLabel = outcomeColumnLabel(
@@ -198,10 +196,7 @@ function CampaignGoalTable({
                   )}
                 </Badge>
                 <CampaignOffBadge
-                  off={isCampaignOff({
-                    deliveryStatus: row.delivery_status,
-                    reportActive: !inactiveTableIds.has(row.table_id),
-                  })}
+                  off={isCampaignOff({ deliveryStatus: row.delivery_status })}
                 />
               </TableCell>
               <TableCell className="tabular-nums">
@@ -240,8 +235,6 @@ export type PulseClientRawCardProps = {
   pulse: PulseSnapshotRow | null;
   campaignsByGoal: Partial<Record<PulseCampaignGoal, PulseCampaignGoalRow[]>>;
   lastCampaignTouchAt: string | null;
-  /** Report tables switched off (`campaign_active` false); their campaigns show "כבוי". */
-  inactiveTableIds: ReadonlySet<string>;
   onOpenClient: () => void;
   onCallLog: () => void;
 };
@@ -254,7 +247,6 @@ export function PulseClientRawCard({
   pulse,
   campaignsByGoal,
   lastCampaignTouchAt,
-  inactiveTableIds,
   onOpenClient,
   onCallLog,
 }: PulseClientRawCardProps) {
@@ -326,7 +318,6 @@ export function PulseClientRawCard({
                 goal={section.goal}
                 campaigns={section.campaigns}
                 period={period}
-                inactiveTableIds={inactiveTableIds}
               />
             </div>
           ))

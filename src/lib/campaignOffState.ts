@@ -2,8 +2,8 @@ import { resolveCampaignDeliveryStatus } from "@/lib/pulseCampaignGoals";
 
 /** A report record as every campaign report receives it. */
 export type CampaignOffRecord = {
-  table_id?: string | null;
-  _tableId?: string | null;
+  table_id?: string;
+  _tableId?: string;
   data?: Record<string, unknown> | null;
 };
 
@@ -40,7 +40,7 @@ export function isCampaignOff(input: {
 
 /** Ids of the report tables that are switched off. */
 export function switchedOffTableIds(
-  tables: CampaignOffTable[] | null | undefined,
+  tables: Array<CampaignOffTable> | null | undefined,
 ): Set<string> {
   return new Set(
     (tables ?? [])
@@ -54,7 +54,7 @@ export function switchedOffTableIds(
  * records without a table id, so one table stands for all of them.
  */
 export function reportOffLookup(
-  tables: CampaignOffTable[] | null | undefined,
+  tables: Array<CampaignOffTable> | null | undefined,
 ): (record: CampaignOffRecord) => boolean {
   const list = tables ?? [];
   const offIds = switchedOffTableIds(list);
@@ -71,7 +71,7 @@ export function reportOffLookup(
  * campaign's status at that time on the rows it writes.
  */
 export function campaignOffKeys<T extends CampaignOffRecord>(
-  records: T[],
+  records: Array<T>,
   keyOf: (data: Record<string, unknown>, record: T) => string,
   isReportOff: (record: T) => boolean = () => false,
 ): Set<string> {
@@ -104,7 +104,7 @@ export function campaignOffKeys<T extends CampaignOffRecord>(
 
 /** Marks each row on or off and drops the off rows that spent nothing. */
 export function applyCampaignOffRule<T extends object>(
-  rows: T[],
+  rows: Array<T>,
   options: {
     keyOf: (row: T) => string;
     spendOf: (row: T) => number;
