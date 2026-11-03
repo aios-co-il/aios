@@ -17,6 +17,7 @@ import {
 } from "./motion-captions.mjs";
 import { PREVIEW_PROVIDER } from "../providers/index.mjs";
 import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
+import { overlayFieldOf } from "./scene-overlay.mjs";
 import { isSkinSwitch, sceneTransitionFor } from "./skin-switch.mjs";
 import {
   MIX,
@@ -299,6 +300,8 @@ export function buildWorkshopManifest(timeline) {
       ...(p.useStill && timeline.keepDesign === true ? { fit: "contain" } : {}),
       // How the scene's text enters and how large it is: its own choice, else the film's.
       ...titleLookOf(p.scene, timeline),
+      // The graphics over its picture, under its text: its own choice, else the film's.
+      ...overlayFieldOf(p.scene, timeline),
       clipFrames: p.clipFrames,
       voice: p.voice,
       caption: String(p.scene.overlayText ?? "")
