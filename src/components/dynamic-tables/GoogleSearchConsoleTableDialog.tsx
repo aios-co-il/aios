@@ -1,3 +1,4 @@
+import { jsonObject } from "@functions/_shared/pulse/json";
 import { useEffect, useState } from "react";
 import {
   Dialog,
@@ -60,6 +61,9 @@ export function GoogleSearchConsoleTableDialog({
   const { data: integration, isLoading: integrationLoading } = useQuery({
     queryKey: ["gsc-integration", activeTenantId],
     queryFn: async () => {
+      if (!activeTenantId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select(CLIENT_INTEGRATION_COLUMNS)
@@ -71,7 +75,14 @@ export function GoogleSearchConsoleTableDialog({
         .maybeSingle();
 
       if (error) throw error;
-      return data ? toClientIntegration(data) : null;
+      if (!data) {
+        return null;
+      }
+      const settings = jsonObject(data.settings);
+      if (data.settings !== null && settings === null) {
+        console.error("Ignoring malformed GSC integration settings");
+      }
+      return toClientIntegration({ ...data, settings });
     },
     enabled: open && !!activeTenantId,
   });

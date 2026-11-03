@@ -1,3 +1,4 @@
+import { hasIntegrationId } from "./integrationIdentity";
 import { useState, useMemo } from "react";
 import {
   Dialog,
@@ -74,8 +75,11 @@ export function GoogleAnalyticsTableDialog({
   const [pickedProperty, setPickedProperty] = useState<GAProperty | null>(null);
 
   // Fetch user's own + shared GA integrations
-  const { data: allIntegrations = [], isLoading: integrationLoading } =
-    useUserIntegrations(activeTenantId, "google_analytics", { enabled: open });
+  const { data: integrationRows = [], isLoading: integrationLoading } =
+    useUserIntegrations(activeTenantId ?? undefined, "google_analytics", {
+      enabled: open,
+    });
+  const allIntegrations = integrationRows.filter(hasIntegrationId);
 
   // Use selected or first available integration
   const integration = selectedIntegrationId

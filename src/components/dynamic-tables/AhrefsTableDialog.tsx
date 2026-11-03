@@ -56,6 +56,9 @@ export function AhrefsTableDialog({
   const { data: integration, isLoading: integrationLoading } = useQuery({
     queryKey: ["ahrefs-integration", activeTenantId],
     queryFn: async () => {
+      if (!activeTenantId) {
+        return null;
+      }
       const {
         data: { user },
       } = await supabase.auth.getUser();

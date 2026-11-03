@@ -144,7 +144,9 @@ export function AddIntegrationDialog({
   const { data: integration, isLoading: integrationLoading } = useQuery({
     queryKey: ["platform-integration", selectedPlatform, activeTenantId],
     queryFn: async () => {
-      if (!selectedPlatform) return null;
+      if (!selectedPlatform || !activeTenantId) {
+        return null;
+      }
       const platform = PLATFORMS.find((p) => p.type === selectedPlatform);
       if (!platform) return null;
 
