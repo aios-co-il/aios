@@ -91,6 +91,9 @@ export function CashFlowTab() {
   const { data: agencies } = useQuery({
     queryKey: ["cf-agencies", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
@@ -104,6 +107,9 @@ export function CashFlowTab() {
   const { data: clients } = useQuery({
     queryKey: ["cf-clients", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("clients")
         .select("id, name, agency_id, retainer, monthly_fixed_expense, status")
@@ -117,6 +123,9 @@ export function CashFlowTab() {
   const { data: suppliers } = useQuery({
     queryKey: ["cf-suppliers", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("suppliers")
         .select(
@@ -132,6 +141,9 @@ export function CashFlowTab() {
   const { data: oneTimeIncomes } = useQuery({
     queryKey: ["cf-one-time", tenantId, monthsToFetch],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("one_time_incomes")
         .select("id, client_id, product_name, amount, payment_month, is_paid")
@@ -146,6 +158,9 @@ export function CashFlowTab() {
   const { data: incomePayments } = useQuery({
     queryKey: ["cf-income-payments", tenantId, selectedMonth],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("income_payments")
         .select("id, client_id, amount, payment_month, received_at")
@@ -160,6 +175,9 @@ export function CashFlowTab() {
   const { data: expensePayments } = useQuery({
     queryKey: ["cf-expense-payments", tenantId, selectedMonth],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("expense_payments")
         .select("id, expense_type, expense_id, amount, payment_month, paid_at")
@@ -953,10 +971,10 @@ export function CashFlowTab() {
               oneTimeIncomes={oneTimeIncomes || []}
               incomePayments={incomePayments || []}
               expensePayments={expensePayments || []}
-              onMarkIncome={(p) => markIncome.mutate(p)}
-              onUnmarkIncome={(id) => unmarkIncome.mutate(id)}
-              onMarkExpense={(p) => markExpense.mutate(p)}
-              onUnmarkExpense={(id) => unmarkExpense.mutate(id)}
+              onMarkIncome={markIncome.mutate}
+              onUnmarkIncome={unmarkIncome.mutate}
+              onMarkExpense={markExpense.mutate}
+              onUnmarkExpense={unmarkExpense.mutate}
             />
           )}
         </DialogContent>

@@ -56,6 +56,9 @@ export function InvoiceIntakeTab() {
   const { data: suppliers } = useQuery({
     queryKey: ["accounting-suppliers-list", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("suppliers")
         .select("id, name")
@@ -68,6 +71,9 @@ export function InvoiceIntakeTab() {
   const { data: clients } = useQuery({
     queryKey: ["accounting-clients-list", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("clients")
         .select("id, name, agency_id")
@@ -80,6 +86,9 @@ export function InvoiceIntakeTab() {
   const { data: agencies } = useQuery({
     queryKey: ["accounting-agencies-list", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("agencies")
         .select("id, name")
