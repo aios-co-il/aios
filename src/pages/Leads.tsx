@@ -203,7 +203,7 @@ import {
   type StoredCallRecording,
   type StoredFileRecording,
 } from "@/lib/leadRecordings";
-import { buildLeadSalesPersonAssignments } from "./leadSalesPersonAssignments";
+import { buildLeadSalesPersonAssignments } from "@/components/LeadsPage/leadSalesPersonAssignments";
 
 // Kanban opens the chat view. The CRM table opens the same record as a popup.
 const LeadEditContext = createContext<((leadId: string) => void) | null>(null);
