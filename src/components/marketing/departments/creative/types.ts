@@ -41,6 +41,7 @@ export interface CreativeLayer extends z.output<typeof creativeLayer> {
 
 export interface CreativeVariation extends z.output<typeof creativeVariation> {
   id: z.output<typeof creativeVariation>["id"];
+  format: CreativeFormat;
   layers: Array<CreativeLayer>;
   comments: Array<CreativeComment>;
 }
