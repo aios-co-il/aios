@@ -1,21 +1,17 @@
 import { basename } from "node:path";
 
-// One sequential task list per run: prettier must finish before the rule twins are generated from the
-// formatted sources, and only twins of staged sources are generated and staged.
-const isRule = (file) => /\.claude\/rules\/[^/]+\.md$/.test(file);
+const quoted = (files) => files.map((f) => `"${f}"`).join(" ");
 
+// Globs must not overlap: lint-staged runs matching tasks concurrently, so two tasks would race on one file.
+// Each file belongs to exactly one task: code (format, then lint), rule sources (format, generate twins),
+// or anything else (format).
 export default {
-  "*": (files) => {
-    const quoted = (list) => list.map((f) => `"${f}"`).join(" ");
-    const rules = files.filter(isRule);
-    const commands = [`prettier --write --ignore-unknown ${quoted(files)}`];
-    if (rules.length > 0) {
-      commands.push(
-        `node scripts/sync-cursor-rules.ts ${quoted(rules)}`,
-        `git add ${rules.map((f) => `".cursor/rules/${basename(f, ".md")}.mdc"`).join(" ")}`,
-      );
-    }
-    return commands;
-  },
-  "*.{ts,tsx,js,mjs}": "eslint --cache --quiet",
+  "*.{ts,tsx,js,mjs}": ["prettier --write", "eslint --cache --quiet"],
+  ".claude/rules/*.md": (files) => [
+    `prettier --write ${quoted(files)}`,
+    `node scripts/sync-cursor-rules.ts ${quoted(files)}`,
+    `git add ${files.map((f) => `".cursor/rules/${basename(f, ".md")}.mdc"`).join(" ")}`,
+  ],
+  "!(*.{ts,tsx,js,mjs}|.claude/rules/*.md)":
+    "prettier --write --ignore-unknown",
 };
