@@ -1713,8 +1713,15 @@ export function CreativeDepartment({
         .eq("tenant_id", tenantId)
         .maybeSingle();
       if (readError) throw readError;
-      const latestPayload =
-        jsonObject(latestRow?.payload) ?? selected.payload ?? {};
+      const latestPayload = jsonObject(
+        latestRow?.payload ?? selected.payload ?? {},
+      );
+      if (!latestPayload) {
+        console.error("Invalid creative project payload", {
+          itemId: selected.id,
+        });
+        throw new Error("לא ניתן לשמור: נתוני הפרויקט אינם אובייקט תקין");
+      }
       const nextIds = new Set(nextVariations.map((row) => row.id));
       const dropIds = variations
         .map((row) => row.id)
