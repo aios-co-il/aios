@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { opensOnNewLeads, parseLeadStageScope } from "./leadStageScope";
+import {
+  decideOpeningStage,
+  opensOnNewLeads,
+  parseLeadStageScope,
+} from "./leadStageScope";
 
 describe("parseLeadStageScope", () => {
   it("accepts all or new and nothing else", () => {
@@ -23,5 +27,36 @@ describe("opensOnNewLeads", () => {
     expect(opensOnNewLeads(null, "chat")).toBe(true);
     expect(opensOnNewLeads(null, "table")).toBe(false);
     expect(opensOnNewLeads(null, "kanban")).toBe(false);
+  });
+});
+
+describe("decideOpeningStage", () => {
+  const base = {
+    savedScope: "new" as const,
+    viewMode: "table" as const,
+    userChoseFilter: false,
+    firstStageKey: "new",
+  };
+
+  it("applies the first stage when the screen opens on new leads", () => {
+    expect(decideOpeningStage(base)).toEqual({
+      kind: "apply",
+      stageKey: "new",
+    });
+  });
+
+  it("leaves a chosen filter or a scope of all alone", () => {
+    expect(decideOpeningStage({ ...base, userChoseFilter: true })).toEqual({
+      kind: "leave",
+    });
+    expect(decideOpeningStage({ ...base, savedScope: "all" })).toEqual({
+      kind: "leave",
+    });
+  });
+
+  it("waits for the pipeline stages", () => {
+    expect(decideOpeningStage({ ...base, firstStageKey: undefined })).toEqual({
+      kind: "wait",
+    });
   });
 });

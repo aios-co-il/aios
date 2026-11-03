@@ -98,7 +98,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   useState,
   ReactNode,
-  useRef,
+  useCallback,
   useEffect,
   useMemo,
   createContext,
@@ -149,10 +149,8 @@ import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialo
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
 import { useLeadsViewMode } from "@/hooks/useLeadsViewMode";
 import { useLeadStageScopeDefault } from "@/components/leads/useLeadStageScopeDefault";
-import {
-  opensOnNewLeads,
-  type LeadStageScope,
-} from "@/components/leads/leadStageScope";
+import { useOpeningStageFilter } from "@/components/leads/useOpeningStageFilter";
+import { type LeadStageScope } from "@/components/leads/leadStageScope";
 import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
@@ -1003,7 +1001,6 @@ export default function Leads() {
     id: string;
     name: string;
   } | null>(null);
-  const skipChatStageDefault = useRef(false);
 
   // Convert dynamic pipeline stages to format compatible with existing code
   const PIPELINE_STAGES = useMemo(() => {
@@ -1142,37 +1139,20 @@ export default function Leads() {
     if (isKanbanView) setPage(1);
   }, [isKanbanView]);
 
-  // Open on new leads per the saved default (else chat only). Wait for the
-  // saved default so a late answer never overrides what the screen opened on.
-  useEffect(() => {
-    if (!stageScopeSettled) {
-      return;
-    }
-    if (!opensOnNewLeads(savedStageScope, viewMode)) {
-      // Without a saved default, each return to chat re-opens on new leads.
-      if (savedStageScope === null) {
-        skipChatStageDefault.current = false;
-      }
-      return;
-    }
-    if (
-      skipChatStageDefault.current ||
-      activePresetId ||
-      filterStageIds.length > 0 ||
-      !pipelineStagesData?.length
-    ) {
-      return;
-    }
+  // Open on new leads per the saved default (else chat only), once per view.
+  const applyOpeningStage = useCallback((stageKey: string) => {
     setStageFilterMode("show");
-    setFilterStageIds([pipelineStagesData[0].stage_key]);
-  }, [
+    setFilterStageIds([stageKey]);
+  }, []);
+  const { markUserChoice } = useOpeningStageFilter({
+    tenantId,
     viewMode,
-    pipelineStagesData,
-    activePresetId,
-    filterStageIds,
-    savedStageScope,
-    stageScopeSettled,
-  ]);
+    savedScope: savedStageScope,
+    isSettled: stageScopeSettled,
+    hasFilterOrPreset: Boolean(activePresetId) || filterStageIds.length > 0,
+    firstStageKey: pipelineStagesData?.[0]?.stage_key,
+    applyStage: applyOpeningStage,
+  });
 
   // Reset page to 1 and clear accumulated leads when filters change
   useEffect(() => {
@@ -2742,7 +2722,7 @@ export default function Leads() {
       setSearchQuery("");
       setActivePresetId(null);
     } else {
-      skipChatStageDefault.current = true;
+      markUserChoice();
       // Apply preset filters - handle both old (string) and new (array) format
       const f = preset.filters as Record<string, any>;
       // Handle legacy salesPersonId (string) format and new salesPersonIds (array) format
@@ -3179,7 +3159,7 @@ export default function Leads() {
   };
 
   const handleStageSelect = (stageId: string) => {
-    skipChatStageDefault.current = true;
+    markUserChoice();
     setStageFilterMode("show");
     setFilterStageIds(stageId === "all" ? [] : [stageId]);
     setActivePresetId(null);
