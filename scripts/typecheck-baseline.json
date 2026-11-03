@@ -242,125 +242,6 @@
       "count": 1
     },
     {
-      "file": "src/components/dynamic-tables/AddIntegrationDialog.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "activeTenantId",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/AhrefsTableDialog.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "activeTenantId",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/AlertsManagementDialog.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ comparison_type: string; created_at?: string | null | undefined; created_by?: string | null | undefined; id?: string | undefined; is_active?: boolean | null | undefined; is_percentage?: boolean | ... 1 more ... | undefined; ... 8 more ...; updated_at?: string | ... 1 more ... | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ comparison_type: string; created_at?: string | null | undefined; created_by?: string | null | undefined; id?: string | undefined; is_active?: boolean | null | undefined; is_percentage?: boolean | ... 1 more ... | undefined; ... 8 more ...; updated_at?: string | ... 1 more ... | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ comparison_type: string; created_at?: string | null | undefined; created_by?: string | null | undefined; id?: string | undefined; is_active?: boolean | null | undefined; is_percentage?: boolean | ... 1 more ... | undefined; ... 8 more ...; updated_at?: string | ... 1 more ... | undefined; },...'.",
-      "source": "tenant_id",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/FacebookEcommerceTableDialog.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
-      "source": "tenantId",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/FacebookTableDialog.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
-      "source": "tenantId",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type '{ id: unknown; label: string; own: boolean; }[]' is not assignable to type 'GaConnection[]'.\n  Type '{ id: unknown; label: string; own: boolean; }' is not assignable to type 'GaConnection'.\n    Types of property 'id' are incompatible.\n      Type 'unknown' is not assignable to type 'string'.",
-      "source": "connections",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type '{}' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
-      "source": "key",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleAnalyticsTableDialog.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
-      "source": "activeTenantId",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleSearchConsoleTableDialog.tsx",
-      "code": 2345,
-      "message": "Argument of type '{ id: string; tenant_id: string; user_id: string | null; integration_type: string; is_active: boolean; settings: Json; display_name: string | null; connection_visibility: string; ... 7 more ...; api_token_last_4: string | null; }' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Types of property 'settings' are incompatible.\n    Type 'Json' is not assignable to type 'Record<string, unknown> | null | undefined'.\n      Type 'string' is not assignable to type 'Record<string, unknown>'.",
-      "source": "data",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/GoogleSearchConsoleTableDialog.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "activeTenantId",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/seo/GscIntegration.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
-      "source": "key",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/seo/GscIntegration.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/SeoDashboardView.tsx",
-      "code": 7006,
-      "message": "Parameter 'kw' implicitly has an 'any' type.",
-      "source": "kw",
-      "count": 2
-    },
-    {
-      "file": "src/components/dynamic-tables/SeoReportTabs.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'Key | null | undefined'.",
-      "source": "key",
-      "count": 1
-    },
-    {
-      "file": "src/components/dynamic-tables/SeoReportTabs.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'string'.",
-      "source": "value",
-      "count": 1
-    },
-    {
       "file": "src/components/layout/HeaderModuleShortcuts.tsx",
       "code": 2322,
       "message": "Type '{ children: (false | Element | Element[])[]; align: \"start\"; className: string; dir: string; }' is not assignable to type 'IntrinsicAttributes & Omit<DropdownMenuContentProps & RefAttributes<HTMLDivElement>, \"ref\"> & RefAttributes<...>'.\n  Property 'dir' does not exist on type 'IntrinsicAttributes & Omit<DropdownMenuContentProps & RefAttributes<HTMLDivElement>, \"ref\"> & RefAttributes<...>'.",
@@ -909,13 +790,6 @@
     {
       "file": "src/pages/GoogleAnalyticsSettings.tsx",
       "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
-      "source": "currentTenantId",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GoogleAnalyticsSettings.tsx",
-      "code": 2345,
       "message": "Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<string | null>'.",
       "source": "integ.id",
       "count": 1
@@ -932,13 +806,6 @@
       "code": 2345,
       "message": "Argument of type 'unknown' is not assignable to parameter of type 'string'.",
       "source": "integ.id",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GoogleSearchConsoleSettings.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
-      "source": "currentTenantId",
       "count": 1
     },
     {
