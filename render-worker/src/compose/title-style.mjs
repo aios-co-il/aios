@@ -25,6 +25,25 @@ export const titleStyleOf = (value) =>
 export const titleSizeOf = (value) =>
   TITLE_SIZES.includes(value) ? value : null;
 
+/**
+ * How a title's key words (numbers, prices, dates) are emphasised once in (Remotion
+ * workshop-title-emphasis.ts): the scene's meta.title_emphasis over the film's
+ * payload.video.title_emphasis.
+ */
+export const TITLE_EMPHASES = [
+  "none",
+  "count",
+  "underline",
+  "circle",
+  "stamp",
+  "marker",
+  "shake",
+];
+
+/** A known title emphasis, or null. */
+export const titleEmphasisOf = (value) =>
+  TITLE_EMPHASES.includes(value) ? value : null;
+
 /** The keys of the film fonts (Remotion workshop-fonts.ts). */
 export const FILM_FONTS = [
   "heebo",

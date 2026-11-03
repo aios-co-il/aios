@@ -6,11 +6,17 @@ import { brandFromPayload, brandNameFromPayload } from "../compose/brand.mjs";
 import { captionStyleOf } from "../compose/motion-captions.mjs";
 import {
   filmFontOf,
+  titleEmphasisOf,
   titleSizeOf,
   titleStyleOf,
 } from "../compose/title-style.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
-import { endCardStyleOf, sceneTransitionOf } from "../compose/film-look.mjs";
+import {
+  endCardBackgroundOf,
+  endCardGlassOf,
+  endCardStyleOf,
+  sceneTransitionOf,
+} from "../compose/film-look.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { sceneOverlayOf } from "../compose/scene-overlay.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
@@ -214,9 +220,10 @@ export async function loadFilmSources(db, run) {
             : null,
         skinRef,
         pictureKey: skinRef || source(still) || source(clip),
-        // The scene's own text style and size, over the film's (title-style.mjs).
+        // The scene's own text style, size and emphasis, over the film's (title-style.mjs).
         titleStyle: titleStyleOf(sceneMeta.title_style),
         titleSize: titleSizeOf(sceneMeta.title_size),
+        titleEmphasis: titleEmphasisOf(sceneMeta.title_emphasis),
         // The graphics over the scene's picture, over the film's (scene-overlay.mjs).
         sceneOverlay: sceneOverlayOf(sceneMeta.scene_overlay),
         // The transition Carmen chose into the scene, over the film's cycle (film-look.mjs).
@@ -252,11 +259,12 @@ export async function loadFilmSources(db, run) {
  * font, logo, CTA) and the brand's name, the caption style (video.caption_style, "motion" unless
  * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), whether
  * its pictures are finished designs to show whole (video.keep_design), how its scenes' text
- * enters and how large it is (video.title_style, video.title_size), its font (video.font), the
- * graphics over its scenes' pictures (video.scene_overlay), its closing card's design
- * (video.end_card_style), and whether this run may pay for the effects: only the assembly of a
- * running production (advance_video_production records its render_run_id), up to what its
- * approved quote priced
+ * enters, how large it is and how its key words are emphasised (video.title_style,
+ * video.title_size, video.title_emphasis), its font (video.font), the graphics over its scenes'
+ * pictures (video.scene_overlay), its closing card's design, what plays behind it and whether it
+ * sits on glass (video.end_card_style, end_card_background, end_card_glass), and whether this run
+ * may pay for the effects: only the assembly of a running production
+ * (advance_video_production records its render_run_id), up to what its approved quote priced
  * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
  * production). Every other render, and a production quoted without them (the Video Studio's
  * own plan), is free (0).
@@ -277,9 +285,14 @@ export async function loadFilmSettings(db, run) {
     keepDesign: row?.payload?.video?.keep_design === true,
     titleStyle: titleStyleOf(row?.payload?.video?.title_style),
     titleSize: titleSizeOf(row?.payload?.video?.title_size),
+    titleEmphasis: titleEmphasisOf(row?.payload?.video?.title_emphasis),
     font: filmFontOf(row?.payload?.video?.font),
     sceneOverlay: sceneOverlayOf(row?.payload?.video?.scene_overlay),
     endCardStyle: endCardStyleOf(row?.payload?.video?.end_card_style),
+    endCardBackground: endCardBackgroundOf(
+      row?.payload?.video?.end_card_background,
+    ),
+    endCardGlass: endCardGlassOf(row?.payload?.video?.end_card_glass),
     effectsQuotedUsd:
       production?.status === "running" &&
       String(production.render_run_id ?? "") === String(run.id)
@@ -443,9 +456,12 @@ export async function renderFilm({
       keepDesign: settings.keepDesign,
       titleStyle: settings.titleStyle,
       titleSize: settings.titleSize,
+      titleEmphasis: settings.titleEmphasis,
       font: settings.font,
       sceneOverlay: settings.sceneOverlay,
       endCardStyle: settings.endCardStyle,
+      endCardBackground: settings.endCardBackground,
+      endCardGlass: settings.endCardGlass,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

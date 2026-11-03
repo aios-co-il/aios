@@ -56,9 +56,12 @@ export function buildTimeline(
     keepDesign = false,
     titleStyle = null,
     titleSize = null,
+    titleEmphasis = null,
     font = null,
     sceneOverlay = null,
     endCardStyle = null,
+    endCardBackground = null,
+    endCardGlass = false,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -97,9 +100,10 @@ export function buildTimeline(
       skinRef: scene.skinRef || null,
       pictureKey: scene.pictureKey || null,
       overlayText: String(scene.overlayText ?? "").trim(),
-      // The scene's own text style and size (title-style.mjs), else the film's.
+      // The scene's own text style, size and emphasis (title-style.mjs), else the film's.
       titleStyle: scene.titleStyle || null,
       titleSize: scene.titleSize || null,
+      titleEmphasis: scene.titleEmphasis || null,
       // The graphics over the scene's picture (scene-overlay.mjs), else the film's.
       sceneOverlay: scene.sceneOverlay || null,
       durationS: sceneSeconds(scene.durationS),
@@ -110,15 +114,20 @@ export function buildTimeline(
     fps: 25,
     // A finished design (video.keep_design): its pictures fit whole in the frame, not cropped.
     keepDesign: keepDesign === true,
-    // How the scenes' text enters and how large it is in a film without narration.
+    // How the scenes' text enters, how large it is and how its key words are emphasised, in a
+    // film without narration.
     titleStyle: titleStyle || null,
     titleSize: titleSize || null,
+    titleEmphasis: titleEmphasis || null,
     // The film's font (title-style.mjs FILM_FONTS); the brand's, else Heebo, when unset.
     font: font || null,
     // The graphics over every scene's picture, unless a scene chose its own.
     sceneOverlay: sceneOverlay || null,
     // The closing card's design (film-look.mjs END_CARD_STYLES); the classic card when unset.
     endCardStyle: endCardStyle || null,
+    // What plays behind it (END_CARD_BACKGROUNDS; the last scene when unset) and its glass.
+    endCardBackground: endCardBackground || null,
+    endCardGlass: endCardGlass === true,
     aspect,
     width,
     height,

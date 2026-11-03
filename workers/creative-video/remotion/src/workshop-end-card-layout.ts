@@ -19,6 +19,10 @@ export type EndCardProps = {
   brand: WorkshopBrand;
   accent: string;
   fontFamily: string;
+  /** The design paints its own ground (the "plain" background); else a background shows. */
+  ground: boolean;
+  /** The logo and call to action sit on frosted glass (workshop-end-card-glass-panel.tsx). */
+  glass: boolean;
 };
 
 /** Width of a bold Hebrew glyph in ems, on average (render-worker compose/end-card.mjs). */

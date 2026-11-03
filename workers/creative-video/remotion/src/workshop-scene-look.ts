@@ -1,5 +1,7 @@
+import type { EndCardBackground } from "./workshop-end-card-backdrop";
 import type { EndCardStyle } from "./workshop-end-card-layout";
 import type { FilmFont } from "./workshop-fonts";
+import type { TitleEmphasis } from "./workshop-title-emphasis";
 import type { SceneOverlay } from "./workshop-overlays";
 import type { TitleSize, TitleStyle } from "./workshop-title-styles";
 import type { WorkshopTransition } from "./workshop-transitions";
@@ -12,6 +14,8 @@ export type SceneLook = {
   titleStyle?: TitleStyle;
   /** How large that text is; "medium" (the captions' size) when unset. */
   titleSize?: TitleSize;
+  /** How its key words (numbers, prices, dates) are emphasised once in; "none" when unset. */
+  titleEmphasis?: TitleEmphasis;
   /** The graphics over the picture, under the text (workshop-overlays.ts); none when unset. */
   overlay?: SceneOverlay;
   /** How the scene enters over the one before it (workshop-transitions.ts). */
@@ -24,4 +28,8 @@ export type FilmLook = {
   font?: FilmFont | null;
   /** The closing card's design (workshop-end-card.tsx); "classic" when unset. */
   endCardStyle?: EndCardStyle | null;
+  /** What plays behind it (workshop-end-card-backdrop.ts); the film's last scene when unset. */
+  endCardBackground?: EndCardBackground | null;
+  /** Its logo and call to action sit on frosted glass (workshop-end-card-glass.ts). */
+  endCardGlass?: boolean | null;
 };

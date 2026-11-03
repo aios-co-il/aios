@@ -26,7 +26,8 @@ import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
-import { isEndCardStyle } from "../film-look.ts";
+import { isTitleEmphasis } from "../title-emphasis.ts";
+import { isEndCardBackground, isEndCardStyle } from "../film-look.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -362,21 +363,31 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             sound_engine: "elevenlabs",
             sound_design: soundDesign,
             keep_design: keepDesign,
-            // How the scenes' text enters and how large it is (title-styles.ts).
+            // How the scenes' text enters, how large it is and how its key words are emphasised
+            // (title-styles.ts, title-emphasis.ts).
             ...(isTitleStyle(args.title_style)
               ? { title_style: args.title_style }
               : {}),
             ...(isTitleSize(args.title_size)
               ? { title_size: args.title_size }
               : {}),
+            ...(isTitleEmphasis(args.title_emphasis)
+              ? { title_emphasis: args.title_emphasis }
+              : {}),
             ...(isFilmFont(args.font) ? { font: args.font } : {}),
             // The graphics over every scene's picture (scene-overlays.ts).
             ...(isSceneOverlay(args.scene_overlay)
               ? { scene_overlay: args.scene_overlay }
               : {}),
-            // The closing card's design (film-look.ts).
+            // The closing card's design, its background and its glass (film-look.ts).
             ...(isEndCardStyle(args.end_card_style)
               ? { end_card_style: args.end_card_style }
+              : {}),
+            ...(isEndCardBackground(args.end_card_background)
+              ? { end_card_background: args.end_card_background }
+              : {}),
+            ...(typeof args.end_card_glass === "boolean"
+              ? { end_card_glass: args.end_card_glass }
               : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
