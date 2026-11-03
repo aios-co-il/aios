@@ -412,6 +412,25 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a scene's own transition is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, { scene_id: "s-2", transition: "ripple" });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["transition"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).transition, "ripple");
+    assertStrictEquals(db.rpcs.length, 0);
+    // "skin" is the worker's own, and an unknown name changes nothing.
+    for (const transition of ["skin", "spin"]) {
+      const unknown = await update(db, { scene_id: "s-2", transition });
+      assertEquals(unknown.changed ?? [], []);
+    }
+    assertStrictEquals((scenes[1].meta as Row).transition, "ripple");
+  },
+);
+
 Deno.test("a client the caller cannot reach stops the change", async () => {
   const db = film({
     marketing_work_items: [project({ client_id: "client-9" })],

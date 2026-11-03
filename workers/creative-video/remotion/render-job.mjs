@@ -72,7 +72,20 @@ assert(
 );
 
 const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
-const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom", "skin"];
+// The transitions of src/workshop-transitions.ts and the end-card designs of
+// src/workshop-end-card-layout.ts.
+const TRANSITIONS = [
+  "cut",
+  "crossfade",
+  "slide",
+  "wipe",
+  "zoom",
+  "skin",
+  "whip",
+  "ripple",
+  "glitch",
+];
+const END_CARD_STYLES = ["classic", "bold", "minimal", "split"];
 // The title styles and sizes of workshop-title-styles.ts.
 const TITLE_STYLES = [
   "float",
@@ -339,6 +352,9 @@ if (manifest.schemaVersion === 1) {
     captionStyle:
       v3 && manifest.captionStyle === "motion" ? "motion" : "karaoke",
     font: FONTS.includes(manifest.font) ? manifest.font : null,
+    endCardStyle: END_CARD_STYLES.includes(manifest.endCardStyle)
+      ? manifest.endCardStyle
+      : null,
     brand,
     endCardFrames,
     scenes: sorted.map((scene) => ({
