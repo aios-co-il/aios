@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { getCronMeta } from "@/lib/cronJobsCatalog";
+import { CronSendsBadge } from "./CronSendsBadge";
 import {
   describeCronHe,
   isValidCron,
@@ -139,6 +140,14 @@ export function SystemJobEditor({
         </p>
         {meta?.description && (
           <p className="text-sm text-muted-foreground">{meta.description}</p>
+        )}
+        {meta && (
+          <div className="mt-1 space-y-1">
+            <CronSendsBadge meta={meta} />
+            {meta.sendsNote && (
+              <p className="text-xs text-muted-foreground">{meta.sendsNote}</p>
+            )}
+          </div>
         )}
         <p
           className="mt-1 font-mono text-[11px] text-muted-foreground"

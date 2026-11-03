@@ -3,9 +3,6 @@ import {
   AbsoluteFill,
   Audio,
   Easing,
-  Freeze,
-  Img,
-  OffthreadVideo,
   Sequence,
   interpolate,
   staticFile,
@@ -18,20 +15,22 @@ import {
   type WorkshopMove,
   type WorkshopMusicLoop,
   type WorkshopScene,
+  type WorkshopTransition,
 } from "./manifest";
 import { KaraokeCaptions, SceneCaption } from "./workshop-captions";
 import { EndCard } from "./workshop-end-card";
 import { Kicker } from "./workshop-kicker";
 import { MotionCaptions } from "./workshop-motion-captions";
+import { MotionTitle } from "./workshop-motion-title";
+import { filmFontFamily, fontFaces } from "./workshop-fonts";
+import { SceneOverlayView } from "./workshop-overlay";
+import { SceneMedia } from "./workshop-scene-media";
 import { sceneHeadline } from "./workshop-scene-text";
 import { SkinFlash, SkinSweep } from "./workshop-skin";
 import { TitleCard } from "./workshop-title-card";
-import {
-  edgeFade,
-  enterStyle,
-  skinEnter,
-  skinExit,
-} from "./workshop-transition";
+import { edgeFade, skinEnter, skinExit } from "./workshop-transition";
+import { transitionLook } from "./workshop-transitions";
+import { TransitionFilter } from "./workshop-transition-filter";
 
 export type {
   WorkshopFilmProps,
@@ -56,90 +55,24 @@ const camera = (move: WorkshopMove, progress: number) => {
   return { scale: interpolate(progress, [0, 1], [1.02, 1.12]), x: 0, y: 0 };
 };
 
-const cover = { width: "100%", height: "100%", objectFit: "cover" } as const;
-
-/**
- * A finished design (an ad or poster with its own text) is shown whole: a blurred copy fills the
- * frame behind it, so a 4:5 poster in a 9:16 film keeps its sides instead of being cropped.
- */
-const ContainedStill: React.FC<{ src: string }> = ({ src }) => (
-  <AbsoluteFill>
-    <AbsoluteFill>
-      <Img
-        src={src}
-        style={{
-          ...cover,
-          filter: "blur(40px) brightness(0.6)",
-          transform: "scale(1.15)",
-        }}
-      />
-    </AbsoluteFill>
-    <AbsoluteFill>
-      <Img src={src} style={{ ...cover, objectFit: "contain" }} />
-    </AbsoluteFill>
-  </AbsoluteFill>
-);
-
-/** A clip shorter than its scene holds its last frame instead of going black. */
-const Clip: React.FC<{ scene: WorkshopScene }> = ({ scene }) => {
-  const frame = useCurrentFrame();
-  const volume = Math.max(0, Math.min(1, scene.clipVolume ?? 0));
-  const video = (muted: boolean) => (
-    <OffthreadVideo
-      src={staticFile(scene.clip || "")}
-      muted={muted || volume === 0}
-      volume={volume}
-      style={cover}
-    />
-  );
-  const length = scene.clipFrames ?? 0;
-  if (length > 0 && frame >= length)
-    return <Freeze frame={Math.max(0, length - 1)}>{video(true)}</Freeze>;
-  return video(false);
-};
-
-/** Frames the move fades in over the talking clip's last frame (lip sync to the skin's move). */
-const MOVE_FADE = 5;
-
-/** After a line lip-synced on the still, the scene's animated clip: the skin's own move. */
-const MoveClip: React.FC<{ scene: WorkshopScene }> = ({ scene }) => {
-  const frame = useCurrentFrame();
-  const video = (
-    <OffthreadVideo
-      src={staticFile(scene.moveClip || "")}
-      muted
-      style={cover}
-    />
-  );
-  const length = scene.moveFrames ?? 0;
-  return (
-    <AbsoluteFill
-      style={{ opacity: interpolate(frame, [0, MOVE_FADE], [0, 1], clamp) }}
-    >
-      {length > 0 && frame >= length ? (
-        <Freeze frame={Math.max(0, length - 1)}>{video}</Freeze>
-      ) : (
-        video
-      )}
-    </AbsoluteFill>
-  );
-};
-
 type TitleMode = "none" | "kicker" | "card";
 
 const Picture: React.FC<{
   scene: WorkshopScene;
   enter: number;
-  /** Frames of the next scene's skin switch over this scene's end (0 for another cut). */
+  /** Frames of the next scene's transition over this scene's end, and that transition. */
   exitFrames: number;
+  exitType?: WorkshopTransition;
   accent: string;
   /** The scene's on-screen text to draw ("" for none), at the bottom or at the top. */
   caption: string;
-  captionAt: "top" | "bottom";
+  /** "top" over spoken captions; "motion": motion graphics where captions would sit. */
+  captionAt: "top" | "bottom" | "motion";
   title: TitleMode;
-}> = ({ scene, enter, exitFrames, accent, caption, captionAt, title }) => {
+}> = (props) => {
+  const { scene, enter, exitFrames, accent, caption, captionAt, title } = props;
   const frame = useCurrentFrame();
-  const { durationInFrames, fps } = useVideoConfig();
+  const { durationInFrames, fps, width } = useVideoConfig();
   const progress = interpolate(
     frame,
     [0, Math.max(1, durationInFrames - 1)],
@@ -153,7 +86,20 @@ const Picture: React.FC<{
     scene.transition === "skin" && enter > 0
       ? skinEnter(frame, enter, fps)
       : null;
-  const out = skinExit(frame, durationInFrames, exitFrames);
+  const skinOut = props.exitType === "skin" ? exitFrames : 0;
+  const out = skinExit(frame, durationInFrames, skinOut);
+  // Every other transition, in and out (whip, ripple and glitch through an SVG filter).
+  const fxId = `fx-${scene.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+  const look = transitionLook({
+    type: scene.transition || "crossfade",
+    enter,
+    exitType: props.exitType,
+    exitFrames,
+    frame,
+    total: durationInFrames,
+    width,
+    id: fxId,
+  });
   const punch = (skin?.scale ?? 1) * out.scale;
   const blur = Math.max(skin?.blur ?? 0, out.blur);
   const filters = [
@@ -162,12 +108,12 @@ const Picture: React.FC<{
   ].filter(Boolean);
   return (
     <AbsoluteFill>
+      {look.fx ? <TransitionFilter id={fxId} fx={look.fx} /> : null}
       <AbsoluteFill
         style={{
           background: "#07111c",
-          ...(skin
-            ? { opacity: skin.shown ? 1 : 0 }
-            : enterStyle(scene.transition || "crossfade", frame, enter)),
+          ...look.style,
+          ...(skin ? { opacity: skin.shown ? 1 : 0 } : {}),
         }}
       >
         <AbsoluteFill
@@ -180,27 +126,7 @@ const Picture: React.FC<{
           <AbsoluteFill
             style={{ transform: `scale(${scale}) translate(${x}%, ${y}%)` }}
           >
-            {scene.clip ? (
-              <>
-                <Clip scene={scene} />
-                {scene.moveClip ? (
-                  <Sequence from={Math.max(0, scene.moveFrom ?? 0)}>
-                    <MoveClip scene={scene} />
-                  </Sequence>
-                ) : null}
-              </>
-            ) : scene.still && scene.fit === "contain" ? (
-              <ContainedStill src={staticFile(scene.still)} />
-            ) : scene.still ? (
-              <Img src={staticFile(scene.still)} style={cover} />
-            ) : (
-              <AbsoluteFill
-                style={{
-                  background:
-                    "radial-gradient(circle at 50% 30%, #164257, #07111c 70%)",
-                }}
-              />
-            )}
+            <SceneMedia scene={scene} />
           </AbsoluteFill>
           {scene.lipsync ? null : (
             <AbsoluteFill
@@ -218,14 +144,32 @@ const Picture: React.FC<{
           />
           {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
         </AbsoluteFill>
-        {caption ? (
+        {scene.overlay && scene.overlay !== "none" ? (
+          <SceneOverlayView
+            overlay={scene.overlay}
+            sceneId={scene.id}
+            enter={enter}
+            accent={accent}
+            hasText={Boolean(caption) || captionAt === "top"}
+          />
+        ) : null}
+        {!caption ? null : captionAt === "motion" ? (
+          <MotionTitle
+            text={caption}
+            enter={enter}
+            accent={accent}
+            style={scene.titleStyle ?? "float"}
+            size={scene.titleSize ?? "medium"}
+            emphasis={scene.titleEmphasis ?? "none"}
+          />
+        ) : (
           <SceneCaption
             text={caption}
             enter={enter}
             accent={accent}
             at={captionAt}
           />
-        ) : null}
+        )}
         {kicker && title === "kicker" ? (
           <Kicker text={kicker} enter={enter} accent={accent} />
         ) : null}
@@ -275,13 +219,15 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   captionStyle,
   brand,
   endCardFrames,
+  font,
+  endCardStyle,
+  endCardBackground,
+  endCardGlass,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const accent = brand?.primaryColor || WORKSHOP_ACCENT;
-  const fontFamily = brand?.fontFamily
-    ? `"${brand.fontFamily}", Heebo, Arial, sans-serif`
-    : "Heebo, Arial, sans-serif";
+  const fontFamily = filmFontFamily(font, brand?.fontFamily);
   const spoken = (captions ?? []).filter((c) => c.words.length);
   // Motion graphics when the manifest asks for them; karaoke lines for older films.
   const motion = captionStyle === "motion";
@@ -318,7 +264,8 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
     const enter = enterOf(index);
     const next = scenes[index + 1];
     // Over spoken captions the scene's text shows at the top unless its title or the
-    // captions already show it; without them, as the scene's caption at the bottom.
+    // captions already show it; without them, as motion graphics (or, in a karaoke film, as
+    // the scene's caption at the bottom).
     const caption = spoken.length
       ? sceneHeadline(
           scene,
@@ -336,10 +283,11 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
         <Picture
           scene={scene}
           enter={enter}
-          exitFrames={next?.transition === "skin" ? enterOf(index + 1) : 0}
+          exitFrames={next ? enterOf(index + 1) : 0}
+          exitType={next?.transition}
           accent={accent}
           caption={caption}
-          captionAt={spoken.length ? "top" : "bottom"}
+          captionAt={spoken.length ? "top" : motion ? "motion" : "bottom"}
           title={title}
         />
       </Sequence>
@@ -347,16 +295,15 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   });
   const endFrames = endCardFrames && brand ? endCardFrames : 0;
   const endEnter = Math.min(END_TRANSITION, Math.floor(endFrames / 3));
+  // The frame of the last scene's own clock the end card starts at: it plays on behind it.
+  const last = scenes.length - 1;
+  const lastSceneFrom =
+    last < 0 ? 0 : cursor - endEnter - starts[last] + enterOf(last);
   return (
-    <AbsoluteFill style={{ background: "#07111c", fontFamily }}>
-      <style>{`
-        @font-face {
-          font-family: "Heebo";
-          src: url("${staticFile("fonts/Heebo-Bold.ttf")}") format("truetype");
-          font-weight: 100 900;
-          font-style: normal;
-        }
-      `}</style>
+    <AbsoluteFill
+      style={{ background: "#07111c", fontFamily, fontSynthesis: "none" }}
+    >
+      <style>{fontFaces(staticFile)}</style>
       {pictures}
       {spoken.length && motion ? (
         <MotionCaptions
@@ -400,7 +347,16 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
               ),
             }}
           >
-            <EndCard brand={brand} accent={accent} fontFamily={fontFamily} />
+            <EndCard
+              brand={brand}
+              accent={accent}
+              fontFamily={fontFamily}
+              design={endCardStyle}
+              background={endCardBackground}
+              glass={endCardGlass}
+              lastScene={scenes.at(-1)}
+              lastSceneFrom={lastSceneFrom}
+            />
           </AbsoluteFill>
         </Sequence>
       ) : null}

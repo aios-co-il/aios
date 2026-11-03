@@ -22,6 +22,8 @@ export interface ReconcileStore {
   readAios: AiosReader;
   latestRun(tableId: string): Promise<LatestRun | null>;
   saveRun(run: StoredRun, findings: ReconcileFinding[]): Promise<string>;
+  /** The orgs among these that switched the nightly check off (AIO-314). */
+  tenantsOff(tenantIds: Array<string>): Promise<Set<string>>;
 }
 
 export type ChunkDeps = {

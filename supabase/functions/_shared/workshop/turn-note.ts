@@ -11,6 +11,7 @@ import {
   briefAnswersOf,
   withBriefAnswers,
 } from "./brief-answers.ts";
+import { CTA_MAX_CHARS } from "./cta.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { asksForVideo } from "./roles.ts";
 import {
@@ -185,7 +186,9 @@ export async function workshopTurnNote(
       lines.push(`השלב הבא: ${nextFilmStep(state)}.`);
       if (/קריאה לפעולה/.test(answerFor(briefAnswersOf(payload), "סיום")))
         lines.push(
-          "הסיום שנבחר כולל קריאה לפעולה: בהפקה העבירי cta_text קצר (עד 6 מילים).",
+          // The user's own closing line (an offer, a date) is passed whole (cta_text, up to
+          // CTA_MAX_CHARS); Staging, 2 Nov: told "up to 6 words", Carmen cut a 20% offer short.
+          `הסיום שנבחר כולל קריאה לפעולה: בהפקה העבירי cta_text. משפט סיום שהמשתמש נתן (מבצע, הנחה, תאריך) עובר בדיוק כמו שכתב, עד ${CTA_MAX_CHARS} תווים; בלי משפט כזה, קריאה קצרה.`,
         );
     }
     return lines.length > 1 ? lines.join("\n") : null;

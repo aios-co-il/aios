@@ -9,7 +9,7 @@ export function getTaskDeadlineDate(task: TaskDeadlineFields): string | null {
 }
 
 export function isTaskOverdue(
-  task: TaskDeadlineFields & { status: string },
+  task: TaskDeadlineFields & { status?: string },
   today: Date,
 ): boolean {
   if (task.status === "done") return false;

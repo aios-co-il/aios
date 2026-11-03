@@ -8,6 +8,10 @@ import {
   googleFindingsFor,
   type OperationalCampaignState,
 } from "../_shared/campaign-operational-health.ts";
+import {
+  automationEnabled,
+  logAutomationOff,
+} from "../_shared/automations/switches.ts";
 import { recordFindings } from "../_shared/campaign-status-alerts/record.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 
@@ -18,6 +22,13 @@ export async function recordGoogleFindings(input: {
   campaigns: OperationalCampaignState[];
 }): Promise<{ created: number; resolved: number }> {
   const db = serviceClient();
+  // The org switched the Google status check off; the sync itself still runs (AIO-314).
+  if (!(await automationEnabled(db, input.tenantId, "google_status_check"))) {
+    logAutomationOff("sync-google-ads-data", "google_status_check", [
+      input.tenantId,
+    ]);
+    return { created: 0, resolved: 0 };
+  }
   const { data: client } = await db
     .from("clients")
     .select("name")
