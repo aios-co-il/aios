@@ -22,7 +22,7 @@ export default defineConfig({
           name: "frontend",
           environment: "happy-dom",
           setupFiles: ["./src/test/setup.ts"],
-          include: ["src/**/*.test.{ts,tsx}"],
+          include: ["src/**/*.test.{ts,tsx,mjs}"],
         },
       },
       {

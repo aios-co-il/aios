@@ -1,0 +1,17 @@
+---
+description: TypeScript
+globs: "**/*.ts,**/*.tsx"
+alwaysApply: false
+---
+
+<!-- Generated from .claude/rules/typescript.md by scripts/sync-cursor-rules.ts; edit that file. -->
+
+# TypeScript
+
+- **The main flow reads as named steps**: `const existingLead = await getExistingLead(...)`. Request parsing, auth and each multi-step block get a named function; the handler or component body stays a short sequence of intents.
+- **The entry point comes first**: `Deno.serve`, the exported component or the main export at the top, helpers below it (function declarations hoist).
+- **Code lives beside its only caller**: a helper used by one module sits in that module's folder with its test, and a new file in `supabase/functions/_shared/` or `src/lib/` with one importer moves next to that importer.
+- **Direct form**: return the boolean expression (`return !(a && b)`), and leave a blank line between test cases and type declarations.
+- **Narrow types to fit.** Use `instanceof` (for example `FunctionsHttpError`), a type guard, `requireTenantId` (`src/lib/requireTenantId.ts`) or a corrected type wherever the code would reach for `as unknown as`, `as never` or `String(x)` on a string. Removing `: any` means giving the real type.
+- **Import under the original name**: `DbClient`, `settings` and the like keep their own names, with no `import { X as Y }` aliases.
+- **Comments explain why**: write one for a constraint, trade-off or gotcha the code cannot show, and put JSDoc (`/** … */`) above each function declaration.
