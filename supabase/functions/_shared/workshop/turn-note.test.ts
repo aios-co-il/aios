@@ -177,6 +177,31 @@ Deno.test(
 );
 
 Deno.test(
+  "a film ending with a call to action passes the user's own line whole",
+  async () => {
+    const payload = {
+      project_type: "video",
+      workshop_brief: { answers: { סיום: "לוגו וקריאה לפעולה" } },
+    };
+    const query = () => {
+      const chain: Record<string, unknown> = {};
+      for (const name of ["select", "eq", "in", "lt", "order", "update"])
+        chain[name] = () => chain;
+      chain.maybeSingle = async () => ({ data: { payload } });
+      chain.then = (resolve: (value: unknown) => void) =>
+        resolve({ data: [], error: null });
+      return chain;
+    };
+    const note = String(
+      await workshopTurnNote({ from: query }, "t1", "item-1", "שלום"),
+    );
+    // Staging, 2 Nov: "up to 6 words" cut the user's 20% offer short on the end card.
+    assertMatch(note, /בדיוק כמו שכתב, עד 120 תווים/);
+    assert(!/עד 6 מילים/.test(note));
+  },
+);
+
+Deno.test(
   "a tapped answer is saved to the brief at the start of the turn",
   async () => {
     const { workshopTurnNote } = await import("./turn-note.ts");

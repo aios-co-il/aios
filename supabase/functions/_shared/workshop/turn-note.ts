@@ -185,7 +185,9 @@ export async function workshopTurnNote(
       lines.push(`השלב הבא: ${nextFilmStep(state)}.`);
       if (/קריאה לפעולה/.test(answerFor(briefAnswersOf(payload), "סיום")))
         lines.push(
-          "הסיום שנבחר כולל קריאה לפעולה: בהפקה העבירי cta_text קצר (עד 6 מילים).",
+          // The user's own closing line (an offer, a date) is passed whole (cta_text, up to 120
+          // characters); Staging, 2 Nov: told "up to 6 words", Carmen cut a 20% offer short.
+          "הסיום שנבחר כולל קריאה לפעולה: בהפקה העבירי cta_text. משפט סיום שהמשתמש נתן (מבצע, הנחה, תאריך) עובר בדיוק כמו שכתב, עד 120 תווים; בלי משפט כזה, קריאה קצרה.",
         );
     }
     return lines.length > 1 ? lines.join("\n") : null;
