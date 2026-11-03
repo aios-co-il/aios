@@ -17,7 +17,7 @@ afterEach(() => vi.restoreAllMocks());
 
 /** Stand in for a JSON database row before the domain read boundary. */
 function row(id: string, payload: unknown) {
-  return { id, payload, current_stage_id: "stage" };
+  return { id, payload, current_stage_id: "stage", pipeline_id: null };
 }
 
 describe("copy payload read and normalization boundary", () => {
@@ -55,10 +55,34 @@ describe("copy payload read and normalization boundary", () => {
       readCopyDepartmentItems(rows, new Set()).map((item) => item.id),
     ).toEqual(["copy"]);
     expect(
-      readCreativeHandoffItems(rows, new Set()).map((item) => item.id),
+      readCreativeHandoffItems(rows, new Set(), new Set()).map(
+        (item) => item.id,
+      ),
     ).toEqual(["creative"]);
     expect(diagnostic).toHaveBeenCalledExactlyOnceWith("Invalid copy payload", {
       paths: ["copy_variations.0.approved"],
+    });
+  });
+
+  it("routes social pipelines before decoding and keeps explicitly creative rows", () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    const rows = [
+      { ...row("image", { image_url: "post.png" }), pipeline_id: "social" },
+      { ...row("variations", { variations: [] }), pipeline_id: "social" },
+      { ...row("staged", { format: 123 }), pipeline_id: "social" },
+      { ...row("tagged", { department: "creative" }), pipeline_id: "social" },
+      { ...row("creative", { image_url: "ad.png" }), pipeline_id: "campaigns" },
+      { ...row("invalid", { format: 123 }), pipeline_id: "campaigns" },
+    ];
+    expect(
+      readCreativeHandoffItems(
+        rows,
+        new Set(["stage"]),
+        new Set(["social"]),
+      ).map((item) => item.id),
+    ).toEqual(["tagged", "creative"]);
+    expect(diagnostic).toHaveBeenCalledExactlyOnceWith("Invalid copy payload", {
+      paths: ["format"],
     });
   });
 

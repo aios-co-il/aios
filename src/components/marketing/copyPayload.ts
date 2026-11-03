@@ -45,9 +45,19 @@ export function readCopyDepartmentItems<
 
 /** Read only eligible creative siblings; unrelated departments cannot block a handoff. */
 export function readCreativeHandoffItems<
-  T extends { payload: unknown; current_stage_id: string | null },
->(rows: Array<T>, creativeStageIds: ReadonlySet<string>) {
-  return readDepartmentItems(rows, creativeStageIds, isCreativeDepartmentItem);
+  T extends {
+    payload: unknown;
+    current_stage_id: string | null;
+    pipeline_id: string | null;
+  },
+>(
+  rows: Array<T>,
+  creativeStageIds: ReadonlySet<string>,
+  socialPipelineIds: ReadonlySet<string>,
+) {
+  return readDepartmentItems(rows, creativeStageIds, (row, stageId) =>
+    isCreativeDepartmentItem(row, stageId, socialPipelineIds),
+  );
 }
 
 /** Normalize file references while retaining storage metadata outside known fields. */
