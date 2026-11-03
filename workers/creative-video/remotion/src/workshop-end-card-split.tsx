@@ -8,6 +8,8 @@ import {
   useVideoConfig,
 } from "remotion";
 import { CtaLines } from "./workshop-end-card-cta";
+import { glassStyle } from "./workshop-end-card-glass";
+import { GlassPanel } from "./workshop-end-card-glass-panel";
 import {
   ctaFontSize,
   ctaLinesOf,
@@ -25,6 +27,8 @@ export const SplitEndCard: React.FC<EndCardProps> = ({
   brand,
   accent,
   fontFamily,
+  ground,
+  glass,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
@@ -32,7 +36,11 @@ export const SplitEndCard: React.FC<EndCardProps> = ({
   const wide = width > height;
   const lines = ctaLinesOf(brand);
   const half = wide ? width / 2 : width;
-  const fontSize = ctaFontSize(lines, half * 0.98, unit * 0.075);
+  const fontSize = ctaFontSize(
+    lines,
+    half * (glass ? 0.9 : 0.98),
+    unit * 0.075,
+  );
   const slide = spring({ frame, fps, config: { damping: 17, mass: 0.6 } });
   const logoIn = spring({ frame: frame - 6, fps, config: { damping: 14 } });
   const offset = (1 - slide) * 100;
@@ -40,7 +48,9 @@ export const SplitEndCard: React.FC<EndCardProps> = ({
     <AbsoluteFill
       style={{
         flexDirection: wide ? "row-reverse" : "column",
-        background: `radial-gradient(circle at 50% 50%, ${brand.secondaryColor || "#10202e"} 0%, #05080f 85%)`,
+        background: ground
+          ? `radial-gradient(circle at 50% 50%, ${brand.secondaryColor || "#10202e"} 0%, #05080f 85%)`
+          : undefined,
         fontFamily,
       }}
     >
@@ -52,18 +62,24 @@ export const SplitEndCard: React.FC<EndCardProps> = ({
           justifyContent: "center",
         }}
       >
-        {brand.logo ? (
-          <Img
-            src={staticFile(brand.logo)}
-            style={{
-              maxWidth: wide ? "70%" : "62%",
-              maxHeight: Math.round((wide ? height : height / 2) * 0.55),
-              objectFit: "contain",
-              opacity: logoIn,
-              transform: `scale(${(0.9 + 0.1 * logoIn).toFixed(3)})`,
-            }}
-          />
-        ) : null}
+        <GlassPanel
+          glass={glass && Boolean(brand.logo)}
+          gap={0}
+          width={wide ? "66%" : "64%"}
+        >
+          {brand.logo ? (
+            <Img
+              src={staticFile(brand.logo)}
+              style={{
+                maxWidth: glass ? "100%" : wide ? "70%" : "62%",
+                maxHeight: Math.round((wide ? height : height / 2) * 0.55),
+                objectFit: "contain",
+                opacity: logoIn,
+                transform: `scale(${(0.9 + 0.1 * logoIn).toFixed(3)})`,
+              }}
+            />
+          ) : null}
+        </GlassPanel>
       </div>
       <div
         style={{
@@ -73,7 +89,9 @@ export const SplitEndCard: React.FC<EndCardProps> = ({
           alignItems: "center",
           justifyContent: "center",
           gap: Math.round(unit * 0.035),
-          background: accent,
+          // With glass the accent half is frosted accent over the background.
+          ...(glass ? glassStyle(unit, accent) : { background: accent }),
+          borderRadius: 0,
           color: inkOn(accent),
           transform: wide
             ? `translateX(${(-offset).toFixed(2)}%)`

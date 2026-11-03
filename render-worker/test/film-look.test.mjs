@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import {
   END_CARD_STYLES,
   SCENE_TRANSITIONS,
+  endCardBackgroundOf,
+  endCardGlassOf,
   endCardStyleOf,
   sceneTransitionOf,
 } from "../src/compose/film-look.mjs";
@@ -140,5 +142,48 @@ describe("film look", () => {
     expect((await settingsFor({ end_card_style: "neon" })).endCardStyle).toBe(
       null,
     );
+  });
+
+  test("the film's end-card background and glass are read and reach the manifest", async () => {
+    expect(endCardBackgroundOf("light-rays")).toBe("light-rays");
+    expect(endCardBackgroundOf("neon")).toBeNull();
+    expect(endCardGlassOf(true)).toBe(true);
+    expect(endCardGlassOf("true")).toBe(false);
+    const settingsFor = (video) =>
+      loadFilmSettings(
+        { select: async () => [{ payload: { video } }] },
+        { item_id: "i1", tenant_id: "t1" },
+      );
+    const chosen = await settingsFor({
+      end_card_background: "particles",
+      end_card_glass: true,
+    });
+    expect(chosen.endCardBackground).toBe("particles");
+    expect(chosen.endCardGlass).toBe(true);
+    const unknown = await settingsFor({
+      end_card_background: "neon",
+      end_card_glass: "yes",
+    });
+    expect(unknown.endCardBackground).toBeNull();
+    expect(unknown.endCardGlass).toBe(false);
+    const timeline = buildTimeline([scene("a")], {
+      endCardBackground: chosen.endCardBackground,
+      endCardGlass: chosen.endCardGlass,
+    });
+    const { manifest } = buildWorkshopManifest({
+      ...timeline,
+      aspect: "9:16",
+      scenes: [{ id: "a", durationS: 2, clipPath: "a.mp4" }],
+    });
+    expect(manifest.endCardBackground).toBe("particles");
+    expect(manifest.endCardGlass).toBe(true);
+    // Unset, the film decides (its last scene, no glass): the manifest carries neither.
+    const plain = buildWorkshopManifest({
+      ...buildTimeline([scene("a")]),
+      aspect: "9:16",
+      scenes: [{ id: "a", durationS: 2, clipPath: "a.mp4" }],
+    });
+    expect(plain.manifest.endCardBackground).toBeUndefined();
+    expect(plain.manifest.endCardGlass).toBeUndefined();
   });
 });

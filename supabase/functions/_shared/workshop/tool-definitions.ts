@@ -1,5 +1,8 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
 import {
+  END_CARD_BACKGROUNDS,
+  END_CARD_BACKGROUND_HELP,
+  END_CARD_GLASS_HELP,
   END_CARD_STYLES,
   END_CARD_STYLE_HELP,
   SCENE_TRANSITIONS,
@@ -557,6 +560,15 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: [...END_CARD_STYLES],
           description: END_CARD_STYLE_HELP,
+        },
+        end_card_background: {
+          type: "string",
+          enum: [...END_CARD_BACKGROUNDS],
+          description: END_CARD_BACKGROUND_HELP,
+        },
+        end_card_glass: {
+          type: "boolean",
+          description: END_CARD_GLASS_HELP,
         },
         cta_text: {
           type: "string",

@@ -10,7 +10,12 @@ import {
   titleStyleOf,
 } from "../compose/title-style.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
-import { endCardStyleOf, sceneTransitionOf } from "../compose/film-look.mjs";
+import {
+  endCardBackgroundOf,
+  endCardGlassOf,
+  endCardStyleOf,
+  sceneTransitionOf,
+} from "../compose/film-look.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
@@ -250,7 +255,8 @@ export async function loadFilmSources(db, run) {
  * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), whether
  * its pictures are finished designs to show whole (video.keep_design), how its scenes' text
  * enters and how large it is (video.title_style, video.title_size), its font (video.font),
- * its closing card's design (video.end_card_style), and whether this run may pay for the
+ * its closing card's design, what plays behind it and whether it sits on glass
+ * (video.end_card_style, end_card_background, end_card_glass), and whether this run may pay for the
  * effects: only the assembly of a running production (advance_video_production records its
  * render_run_id), up to what its approved quote priced
  * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
@@ -275,6 +281,10 @@ export async function loadFilmSettings(db, run) {
     titleSize: titleSizeOf(row?.payload?.video?.title_size),
     font: filmFontOf(row?.payload?.video?.font),
     endCardStyle: endCardStyleOf(row?.payload?.video?.end_card_style),
+    endCardBackground: endCardBackgroundOf(
+      row?.payload?.video?.end_card_background,
+    ),
+    endCardGlass: endCardGlassOf(row?.payload?.video?.end_card_glass),
     effectsQuotedUsd:
       production?.status === "running" &&
       String(production.render_run_id ?? "") === String(run.id)
@@ -440,6 +450,8 @@ export async function renderFilm({
       titleSize: settings.titleSize,
       font: settings.font,
       endCardStyle: settings.endCardStyle,
+      endCardBackground: settings.endCardBackground,
+      endCardGlass: settings.endCardGlass,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;

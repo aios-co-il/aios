@@ -986,6 +986,27 @@ Deno.test("the film's end-card design is saved for the render", async () => {
 });
 
 Deno.test(
+  "the film's end-card background and glass are saved for the render",
+  async () => {
+    const video = await producedVideo({
+      end_card_background: "light-rays",
+      end_card_glass: true,
+    });
+    assertStrictEquals(video?.end_card_background, "light-rays");
+    assertStrictEquals(video?.end_card_glass, true);
+    const off = await producedVideo({ end_card_glass: false });
+    assertStrictEquals(off?.end_card_glass, false);
+    // A background the film does not know, or glass that is not a yes or no, is not saved.
+    const unknown = await producedVideo({
+      end_card_background: "neon",
+      end_card_glass: "yes",
+    });
+    assertStrictEquals(unknown?.end_card_background, undefined);
+    assertStrictEquals(unknown?.end_card_glass, undefined);
+  },
+);
+
+Deno.test(
   "a later production of a finished design keeps it without being asked again",
   async () => {
     const project = videoProject();
