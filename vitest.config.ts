@@ -22,7 +22,7 @@ export default defineConfig({
           name: "frontend",
           environment: "happy-dom",
           setupFiles: ["./src/test/setup.ts"],
-          include: ["src/**/*.test.{ts,tsx}"],
+          include: ["src/**/*.test.{ts,tsx,mjs}"],
         },
       },
       {
@@ -33,6 +33,7 @@ export default defineConfig({
           include: [
             "render-worker/test/**/*.test.mjs",
             "scripts/**/*.test.mjs",
+            "scripts/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",
           ],
         },

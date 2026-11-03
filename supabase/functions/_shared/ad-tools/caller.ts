@@ -3,9 +3,10 @@
  *
  * - This project's service-role key: carmen-approval-execute,
  *   campaign-scheduler-cron and the client campaign shutdown runner. The body
- *   tenant_id stands: the service role is trusted to name the tenant. Note
- *   that carmen-approval-execute spreads the stored tool_input after the
- *   approval row's tenant_id, so a tool_input.tenant_id currently wins there.
+ *   tenant_id stands: the service role is trusted to name the tenant.
+ *   carmen-approval-execute sends the approval row's tenant_id and an
+ *   approval_id, and its targets are checked like a user's (./scope.ts,
+ *   shared agencies included), since the model wrote the tool_input.
  * - A user JWT: the tenant is the user's active tenant (get_user_tenant_id),
  *   confirmed against tenant_users; a body tenant_id is ignored. Reads need
  *   membership; writes need owner, agency_owner or super_admin (a super admin
@@ -22,7 +23,13 @@ import type { AdScopeStore, AdToolAccess } from "./scope.ts";
 type AdToolFunction = "carmen-fb-tools" | "carmen-google-tools";
 
 export type AdToolCaller =
-  | { kind: "service_role"; tenantId: string }
+  | {
+      kind: "service_role";
+      tenantId: string;
+      /** Set by carmen-approval-execute: the targets are checked like a
+       * user's, against the approval row's tenant (AIO-307). */
+      approvalRun: boolean;
+    }
   | { kind: "user"; userId: string; tenantId: string; isApprover: boolean };
 
 export type AdToolIdentity = {
@@ -54,6 +61,7 @@ export async function authorizeAdToolCaller(input: {
   authorization: string | null | undefined;
   serviceRoleKey: string;
   bodyTenantId: unknown;
+  bodyApprovalId?: unknown;
   access: AdToolAccess;
   identity: AdToolIdentity;
 }): Promise<AdToolAuthResult> {
@@ -62,7 +70,7 @@ export async function authorizeAdToolCaller(input: {
     return denied(401, "unauthorized");
   }
   if (isServiceKey(token, input.serviceRoleKey.trim())) {
-    return serviceRoleCaller(input.bodyTenantId);
+    return serviceRoleCaller(input.bodyTenantId, input.bodyApprovalId);
   }
   // The public anon key, or a service-role JWT that is not this project's.
   const role = jwtRole(token);
@@ -81,6 +89,7 @@ export function authorizeGateCaller(
     authorization: input.authorization,
     serviceRoleKey: input.serviceRoleKey,
     bodyTenantId: input.body.tenant_id,
+    bodyApprovalId: input.body.approval_id,
     access,
     identity: input.identity,
   });
@@ -95,12 +104,26 @@ export function adToolAccess(
   return read ? "read" : "write";
 }
 
-/** The service role names the tenant in the body. */
-function serviceRoleCaller(bodyTenantId: unknown): AdToolAuthResult {
+/** The service role names the tenant in the body; an approval_id marks a run
+ * of an approved action, whose targets are checked. */
+function serviceRoleCaller(
+  bodyTenantId: unknown,
+  bodyApprovalId: unknown,
+): AdToolAuthResult {
   if (typeof bodyTenantId !== "string" || !bodyTenantId.trim()) {
     return denied(400, "tenant_id and action required");
   }
-  return { ok: true, caller: { kind: "service_role", tenantId: bodyTenantId } };
+  const approvalRun = typeof bodyApprovalId === "string" && !!bodyApprovalId;
+  return {
+    ok: true,
+    caller: { kind: "service_role", tenantId: bodyTenantId, approvalRun },
+  };
+}
+
+/** A user's targets are always checked; the service role's only for an
+ * approved action, whose input the model wrote. */
+export function checksTargets(caller: AdToolCaller): boolean {
+  return caller.kind === "user" || caller.approvalRun;
 }
 
 /** A valid session, an active tenant they belong to (or a super admin where

@@ -883,7 +883,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    await executeWorkshopTool(
+    const result = (await executeWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -891,11 +891,13 @@ Deno.test(
       async () => {},
       null,
       { defaultEngine: async () => "openrouter" as const },
-    );
+    )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as { p_provider: string };
     // Not a video model, which redraws the picture and garbles its text.
     assertStrictEquals(rpc.p_provider, "mock");
+    // Asked for in this call: nothing to point out.
+    assertStrictEquals(result.kept_design_note, undefined);
     const saved = db.calls
       .filter((c) => c.table === "marketing_work_items" && c.op === "update")
       .map(
@@ -907,6 +909,173 @@ Deno.test(
       .pop();
     // The render reads it to fit the whole picture in the frame.
     assertStrictEquals(saved?.video?.keep_design, true);
+  },
+);
+
+Deno.test(
+  "the film's text style, size and font are saved for the render",
+  async () => {
+    const db = fakeDb({
+      ...videoProject(),
+      "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+      "rpc:produce_video": { status: "running", clips: 1 },
+    });
+    await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_produce_video",
+      {
+        item_id: "item-1",
+        confirmed: true,
+        title_style: "typewriter",
+        title_size: "large",
+        font: "suez-one",
+      },
+      async () => {},
+      null,
+      { defaultEngine: async () => "mock" as const },
+    );
+    const video = db.calls
+      .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+      .map(
+        (c) =>
+          (c.value as { payload?: { video?: Record<string, unknown> } }).payload
+            ?.video,
+      )
+      .filter(Boolean)
+      .pop();
+    assertStrictEquals(video?.title_style, "typewriter");
+    assertStrictEquals(video?.title_size, "large");
+    assertStrictEquals(video?.font, "suez-one");
+  },
+);
+
+/** The film's payload.video as the last work-item update of `workshop_produce_video` wrote it. */
+async function producedVideo(args: Record<string, unknown>) {
+  const db = fakeDb({
+    ...videoProject(),
+    "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
+    "rpc:produce_video": { status: "running", clips: 1 },
+  });
+  await executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_produce_video",
+    { item_id: "item-1", confirmed: true, ...args },
+    async () => {},
+    null,
+    { defaultEngine: async () => "mock" as const },
+  );
+  return db.calls
+    .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+    .map(
+      (c) =>
+        (c.value as { payload?: { video?: Record<string, unknown> } }).payload
+          ?.video,
+    )
+    .filter(Boolean)
+    .pop();
+}
+
+Deno.test("the film's end-card design is saved for the render", async () => {
+  const video = await producedVideo({ end_card_style: "split" });
+  assertStrictEquals(video?.end_card_style, "split");
+  // A design the film does not know is not saved.
+  const unknown = await producedVideo({ end_card_style: "neon" });
+  assertStrictEquals(unknown?.end_card_style, undefined);
+});
+
+Deno.test(
+  "the film's scene overlay is saved for the render, an unknown one is not",
+  async () => {
+    const savedOverlay = async (sceneOverlay: string) => {
+      const db = fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        "rpc:produce_video": { status: "running", clips: 1 },
+      });
+      await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, scene_overlay: sceneOverlay },
+        async () => {},
+        null,
+        { defaultEngine: async () => "mock" as const },
+      );
+      const video = db.calls
+        .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+        .map(
+          (c) =>
+            (c.value as { payload?: { video?: Record<string, unknown> } })
+              .payload?.video,
+        )
+        .filter(Boolean)
+        .pop();
+      assertStrictEquals(typeof video, "object");
+      return video?.scene_overlay;
+    };
+    assertStrictEquals(await savedOverlay("confetti"), "confetti");
+    assertStrictEquals(await savedOverlay("sparkles"), undefined);
+  },
+);
+
+Deno.test(
+  "the film's key-word emphasis is saved for the render, an unknown one is not",
+  async () => {
+    const savedEmphasis = async (titleEmphasis: string) => {
+      const db = fakeDb({
+        ...videoProject(),
+        "marketing_video_scenes:select": [
+          scene("s-1", { still_asset_id: "a" }),
+        ],
+        "rpc:produce_video": { status: "running", clips: 1 },
+      });
+      await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_produce_video",
+        { item_id: "item-1", confirmed: true, title_emphasis: titleEmphasis },
+        async () => {},
+        null,
+        { defaultEngine: async () => "mock" as const },
+      );
+      const video = db.calls
+        .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+        .map(
+          (c) =>
+            (c.value as { payload?: { video?: Record<string, unknown> } })
+              .payload?.video,
+        )
+        .filter(Boolean)
+        .pop();
+      return video ? video.title_emphasis : "no video saved";
+    };
+    assertStrictEquals(await savedEmphasis("count"), "count");
+    assertStrictEquals(await savedEmphasis("sparkle"), undefined);
+  },
+);
+
+Deno.test(
+  "the film's end-card background and glass are saved for the render",
+  async () => {
+    const video = await producedVideo({
+      end_card_background: "light-rays",
+      end_card_glass: true,
+    });
+    assertStrictEquals(video?.end_card_background, "light-rays");
+    assertStrictEquals(video?.end_card_glass, true);
+    const off = await producedVideo({ end_card_glass: false });
+    assertStrictEquals(off?.end_card_glass, false);
+    // A background the film does not know, or glass that is not a yes or no, is not saved.
+    const unknown = await producedVideo({
+      end_card_background: "neon",
+      end_card_glass: "yes",
+    });
+    assertStrictEquals(unknown?.end_card_background, undefined);
+    assertStrictEquals(unknown?.end_card_glass, undefined);
   },
 );
 
@@ -926,7 +1095,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    await executeWorkshopTool(
+    const result = (await executeWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -934,10 +1103,13 @@ Deno.test(
       async () => {},
       null,
       { defaultEngine: async () => "openrouter" as const },
-    );
+    )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as { p_provider: string };
     assertStrictEquals(rpc.p_provider, "mock");
+    // Staging, 2 Nov: Carmen did not know the film still kept its design when the user asked for
+    // real animation, so she is told how to undo it.
+    assertMatch(String(result.kept_design_note), /keep_design=false/);
   },
 );
 
@@ -1239,6 +1411,8 @@ Deno.test(
     ]);
     assertEquals(seen[2].references, seen[1].references);
     assertMatch(seen[0].prompt, /dark bob, teal blazer/);
+    // Staging, 2 Nov: a picture asked for a plaque to write on came back with a blank one.
+    assertMatch(seen[0].prompt, /no signs, plaques, banners/);
     assertMatch(seen[1].prompt, /approved first frame/);
     assertNotMatch(seen[0].prompt, /approved first frame/);
     const saved = db.calls

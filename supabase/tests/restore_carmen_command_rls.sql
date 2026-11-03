@@ -1,9 +1,11 @@
 -- Carmen command center and goals RLS (20261102102000_restore_carmen_command_rls,
--- 20261102120200_carmen_command_rls_guard): synthetic tenants and personas
--- inside one transaction that is rolled back. Tenant A has an owner and a
--- member; tenant B has a member (the outsider); the super admin acts in tenant
--- B; tenant C is empty; anon has no session. Tenants A and B hold one row in
--- each of the nine tables; the member creates tenant A's heartbeat row.
+-- guarded by 20261102120200_carmen_command_rls_guard and
+-- 20261102120300_telegram_bot_state_super_admin_acting_tenant): synthetic
+-- tenants and personas inside one transaction that is rolled back. Tenant A
+-- has an owner and a member; tenant B has a member (the outsider); the super
+-- admin acts in tenant B; tenant C is empty; anon has no session. Tenants A
+-- and B hold one row in each of the nine tables; the member creates tenant A's
+-- heartbeat row.
 -- Browser inserts never use RETURNING and are checked as postgres, and
 -- inserts into another tenant target tenant C, so the INSERT policy alone
 -- decides them (RETURNING or ON CONFLICT onto a stored row would bring in the
@@ -310,6 +312,25 @@ BEGIN
   WHERE tenant_id = v_other_tenant;
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   IF v_rows <> 1 THEN RAISE EXCEPTION 'super admin: the acting tenant''s manager settings are not editable'; END IF;
+
+  -- ...but cannot move an acting-tenant row out. The super admin still reads
+  -- the moved row, so only the UPDATE policy's WITH CHECK refuses it. Tenant C
+  -- holds no session or heartbeat row, so no unique key decides instead.
+  BEGIN
+    UPDATE public.agent_tasks SET tenant_id = v_tenant WHERE id = v_other_task;
+    RAISE EXCEPTION 'super admin: a task can be moved to another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.carmen_whatsapp_sessions SET tenant_id = v_empty_tenant WHERE id = v_other_session;
+    RAISE EXCEPTION 'super admin: a Carmen session can be moved to another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.tenant_heartbeat_settings SET tenant_id = v_empty_tenant WHERE tenant_id = v_other_tenant;
+    RAISE EXCEPTION 'super admin: heartbeat settings can be moved to another tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
 
   BEGIN
     INSERT INTO public.goals (tenant_id, title) VALUES (v_tenant, 'Must be denied');

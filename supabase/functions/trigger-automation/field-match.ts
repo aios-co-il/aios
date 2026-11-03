@@ -1,4 +1,9 @@
-import { leadSourceMatches } from "../_shared/lead-source/source-key.ts";
+import {
+  inferLeadSource,
+  LEAD_SOURCE_KEY_LABELS,
+  leadSourceMatches,
+  leadSourceTagName,
+} from "../_shared/lead-source/source-key.ts";
 
 /** Lead fields that hold the arrival source as sent ("FB", "Facebook Ads"…). */
 const SOURCE_FIELDS = new Set(["source", "first_source"]);
@@ -19,6 +24,36 @@ export function fieldValueEquals(
 }
 
 /**
+ * Whether a condition step's field value contains the configured text, in any
+ * case. A lead source also counts by its key and card label, so `source
+ * contains paid_ads` holds for "FB" and `source contains FB` for "paid_ads".
+ */
+export function fieldValueContains(
+  field: string,
+  actual: string,
+  expected: string,
+): boolean {
+  const wanted = expected.toLowerCase();
+  return conditionTexts(field, actual).some((text) =>
+    text.toLowerCase().includes(wanted),
+  );
+}
+
+/**
+ * Whether a condition step's field value starts with the configured text. A
+ * lead source also counts by its key and card label ("FB" starts with "paid").
+ */
+export function fieldValueStartsWith(
+  field: string,
+  actual: string,
+  expected: string,
+): boolean {
+  return conditionTexts(field, actual).some((text) =>
+    text.startsWith(expected),
+  );
+}
+
+/**
  * The switch branch that names the same lead source as `actual`, for a value
  * no branch spells exactly; undefined for other fields or when none matches.
  */
@@ -31,4 +66,20 @@ export function sourceBranch(
     return undefined;
   }
   return branches.find((branch) => leadSourceMatches(branch, actual));
+}
+
+/**
+ * The texts a text condition reads: a lead source as sent, plus its key and
+ * card label when it names one. Unknown text reads only as sent; "other" is
+ * added only for an empty or named-other source (it has no origin tag).
+ */
+function conditionTexts(field: string, actual: string): string[] {
+  if (!SOURCE_FIELDS.has(field)) {
+    return [actual];
+  }
+  const key = inferLeadSource(actual);
+  if (key === "other" && leadSourceTagName(actual) !== null) {
+    return [actual];
+  }
+  return [actual, key, LEAD_SOURCE_KEY_LABELS[key]];
 }
