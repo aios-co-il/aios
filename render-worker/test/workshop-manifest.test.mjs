@@ -368,3 +368,25 @@ test("a finished design is shown whole in the frame, any other picture fills it"
   });
   expect(plain.manifest.scenes[0].fit).toBeUndefined();
 });
+
+test("a scene's own text style and size win over the film's", () => {
+  const { manifest } = buildWorkshopManifest({
+    aspect: "9:16",
+    titleStyle: "pop",
+    titleSize: "large",
+    scenes: [
+      scene("own", { titleStyle: "typewriter", titleSize: "huge" }),
+      scene("film"),
+    ],
+  });
+  expect(manifest.scenes[0]).toMatchObject({
+    titleStyle: "typewriter",
+    titleSize: "huge",
+  });
+  expect(manifest.scenes[1]).toMatchObject({
+    titleStyle: "pop",
+    titleSize: "large",
+  });
+  const plain = buildWorkshopManifest({ aspect: "9:16", scenes: [scene("x")] });
+  expect(plain.manifest.scenes[0].titleStyle).toBeUndefined();
+});

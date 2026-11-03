@@ -119,6 +119,14 @@ test("clip prompts always end with the no-text rule", () => {
     "Camera dollies in No text, no letters, no logos.",
   );
   expect(clipPrompt("")).toMatch(/push-in\. No text, no letters, no logos\.$/);
+  // A motion that asked for text: that sentence never reaches the video model.
+  expect(
+    clipPrompt("Bubbles rise. The Hebrew offer text drifts as if buoyant."),
+  ).toBe("Bubbles rise. No text, no letters, no logos.");
+  // Only the text request: the default motion takes its place.
+  expect(clipPrompt("Keep the overlay text floating.")).toMatch(
+    /^Subtle natural motion/,
+  );
 });
 
 test("unknown providers are rejected and mock is the default", () => {

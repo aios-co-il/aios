@@ -1,4 +1,7 @@
-import { givenLeadSource } from "./lead-source-events.ts";
+import {
+  givenLeadSource,
+  recordLeadSourceEvent,
+} from "./lead-source-events.ts";
 
 /** When an inbound lead matches an existing phone/email, reopen the card at the top. */
 
@@ -65,4 +68,33 @@ export async function updateLeadWithRepeatReopen(
   if (Object.keys(fallback).length === 0) return { error: null };
   const retry = await supabase.from("leads").update(fallback).eq("id", leadId);
   return { error: retry.error };
+}
+
+/**
+ * Update a returning lead, then add this arrival to its source history. The
+ * history row is written only after the update succeeded, so a failed update
+ * leaves no arrival behind; the caller reports the returned error.
+ */
+export async function reopenRepeatLead(
+  supabase: Parameters<typeof updateLeadWithRepeatReopen>[0] &
+    Parameters<typeof recordLeadSourceEvent>[0],
+  lead: { id: string; tenant_id: string | null },
+  updates: Record<string, unknown>,
+  arrival: { source: unknown; campaignName?: string | null },
+): Promise<{ error: { message?: string } | null }> {
+  const { error } = await updateLeadWithRepeatReopen(
+    supabase,
+    lead.id,
+    updates,
+  );
+  if (error) {
+    return { error };
+  }
+  await recordLeadSourceEvent(supabase, {
+    leadId: lead.id,
+    tenantId: lead.tenant_id,
+    source: arrival.source,
+    campaignName: arrival.campaignName,
+  });
+  return { error: null };
 }

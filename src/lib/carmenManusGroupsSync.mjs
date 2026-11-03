@@ -9,7 +9,16 @@ function isNotBlocked(row) {
   return row?.is_blocked !== true;
 }
 
-/** Build authoritative group catalog from tenant_integrations sync metadata. */
+/**
+ * @typedef {{ groupChatId: string, groupId: string, name: string }} SyncedGroupEntry
+ * @typedef {{ id: string, group_name: string, group_chat_id: string, is_blocked: boolean | null }} MergeableGroupRow
+ */
+
+/**
+ * Build authoritative group catalog from tenant_integrations sync metadata.
+ * @param {Array<{ settings?: import("@/integrations/supabase/types").Json }> | null | undefined} integrations
+ * @returns {{ entries: SyncedGroupEntry[], chatIds: string[], hasSync: boolean }}
+ */
 export function collectSyncedCatalog(integrations) {
   const byChatId = new Map();
   let hasSync = false;
@@ -52,7 +61,12 @@ export function collectSyncedCatalog(integrations) {
   };
 }
 
-/** Merge gateway sync catalog with whatsapp_groups rows (DB wins on names). */
+/**
+ * Merge gateway sync catalog with whatsapp_groups rows (DB wins on names).
+ * @param {SyncedGroupEntry[]} entries
+ * @param {Map<string, MergeableGroupRow>} dbByChatId
+ * @returns {MergeableGroupRow[]}
+ */
 export function mergeSyncCatalogWithDb(entries, dbByChatId) {
   const byId = new Map();
 
