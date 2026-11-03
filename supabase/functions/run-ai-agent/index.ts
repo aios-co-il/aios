@@ -13759,6 +13759,7 @@ async function executeTool(
 import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
+import { runTenantDenied } from "./run-tenant-access.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -16786,6 +16787,17 @@ Deno.serve(async (req) => {
     return await handleDirectTool(bodyJson);
   }
 
+  // A signed-in user runs only in a tenant they belong to (AIO-306), checked
+  // before any brain, key or tool of that tenant is read.
+  const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const tenantDenied = await runTenantDenied(guardClient, auth, bodyJson);
+  if (tenantDenied) {
+    return new Response(JSON.stringify({ error: tenantDenied }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const wantStream = bodyJson.stream === true;
   const surface: Surface =
     bodyJson.surface === "aios"
@@ -16800,7 +16812,6 @@ Deno.serve(async (req) => {
 
   // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
   // the route, grant and keys are all read here, never taken from the body.
-  const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const engine = await resolveWorkshopAwareEngine(
     guardClient,
     auth,

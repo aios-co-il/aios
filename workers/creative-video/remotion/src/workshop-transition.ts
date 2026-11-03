@@ -1,39 +1,9 @@
-import type { CSSProperties } from "react";
 import { Easing, interpolate, spring } from "remotion";
-import type { WorkshopTransition } from "./manifest";
 
 const clamp = {
   extrapolateLeft: "clamp",
   extrapolateRight: "clamp",
 } as const;
-
-/**
- * How an incoming scene draws over the outgoing one during its first `frames` frames.
- * Hebrew reads right to left: a slide brings the next page in from the left, as an RTL
- * carousel does, and a wipe reveals the picture from right to left.
- */
-export function enterStyle(
-  type: WorkshopTransition,
-  frame: number,
-  frames: number,
-): CSSProperties {
-  // A skin switch draws itself (skinEnter): no fade or move of the whole scene.
-  if (type === "cut" || type === "skin" || frames <= 0) return {};
-  const p = interpolate(frame, [0, frames], [0, 1], {
-    ...clamp,
-    easing: Easing.inOut(Easing.cubic),
-  });
-  if (p >= 1) return {};
-  if (type === "slide")
-    return {
-      transform: `translateX(${(p - 1) * 100}%)`,
-      boxShadow: "0 0 60px rgba(0,0,0,0.55)",
-    };
-  if (type === "wipe") return { clipPath: `inset(0 0 0 ${(1 - p) * 100}%)` };
-  if (type === "zoom")
-    return { opacity: p, transform: `scale(${1.25 - 0.25 * p})` };
-  return { opacity: p };
-}
 
 /**
  * A skin switch (the same character in another picture) over `frames` frames: the outgoing

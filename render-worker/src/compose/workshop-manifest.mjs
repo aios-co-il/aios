@@ -17,6 +17,7 @@ import {
 } from "./motion-captions.mjs";
 import { PREVIEW_PROVIDER } from "../providers/index.mjs";
 import { isTrailer, mixProfile, musicLoops } from "./music-bed.mjs";
+import { overlayFieldOf } from "./scene-overlay.mjs";
 import { isSkinSwitch, sceneTransitionFor } from "./skin-switch.mjs";
 import {
   MIX,
@@ -133,6 +134,21 @@ function brandOf(brand, files) {
   if (!Object.values(out).some(Boolean)) return null;
   // A whole-sentence call to action is shown in up to three balanced lines (end-card.mjs).
   return out.ctaText ? { ...out, ctaLines: ctaLines(out.ctaText) } : out;
+}
+
+/**
+ * A scene's text style, size and key-word emphasis for the manifest: its own, else the film's,
+ * else none.
+ */
+function titleLookOf(scene, timeline) {
+  const titleStyle = scene.titleStyle || timeline.titleStyle || null;
+  const titleSize = scene.titleSize || timeline.titleSize || null;
+  const titleEmphasis = scene.titleEmphasis || timeline.titleEmphasis || null;
+  return {
+    ...(titleStyle ? { titleStyle } : {}),
+    ...(titleSize ? { titleSize } : {}),
+    ...(titleEmphasis ? { titleEmphasis } : {}),
+  };
 }
 
 /**
@@ -287,6 +303,10 @@ export function buildWorkshopManifest(timeline) {
       clip: p.useStill ? null : p.name,
       // A finished design is shown whole over a blurred copy of itself, never cropped.
       ...(p.useStill && timeline.keepDesign === true ? { fit: "contain" } : {}),
+      // How the scene's text enters, its size and emphasis: its own choice, else the film's.
+      ...titleLookOf(p.scene, timeline),
+      // The graphics over its picture, under its text: its own choice, else the film's.
+      ...overlayFieldOf(p.scene, timeline),
       clipFrames: p.clipFrames,
       voice: p.voice,
       caption: String(p.scene.overlayText ?? "")
@@ -410,6 +430,12 @@ export function buildWorkshopManifest(timeline) {
           }
         : {}),
       captionStyle,
+      ...(timeline.font ? { font: timeline.font } : {}),
+      ...(timeline.endCardStyle ? { endCardStyle: timeline.endCardStyle } : {}),
+      ...(timeline.endCardBackground
+        ? { endCardBackground: timeline.endCardBackground }
+        : {}),
+      ...(timeline.endCardGlass ? { endCardGlass: true } : {}),
       captions:
         captionStyle === "motion"
           ? motionCaptions(framed, {

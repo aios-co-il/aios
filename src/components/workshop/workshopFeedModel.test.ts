@@ -11,7 +11,7 @@ import {
   storagePathsIn,
   withSignedUrls,
   type WorkshopArtifact,
-} from "./workshopFeed.ts";
+} from "./workshopFeedModel.ts";
 
 const page = (over: Partial<WorkshopArtifact>): WorkshopArtifact => ({
   id: "a",

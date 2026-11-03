@@ -602,6 +602,7 @@ function addDays(date, days) {
   return new Date(date.getTime() + days * DAY_MS);
 }
 
+/** @param {string} nowYmd */
 export function pulseTrendWindows(nowYmd) {
   const today = utcDate(nowYmd);
   const end = addDays(today, -1);

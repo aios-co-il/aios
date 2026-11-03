@@ -1,9 +1,12 @@
 import {
   assertEquals,
+  assertMatch,
   assertRejects,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
+import { EDIT_TOOL } from "../edit-tool.ts";
+import { WORKSHOP_TOOLS } from "../tool-definitions.ts";
 import { keepsDesign, redrawnClipIds } from "./keep-design.ts";
 
 /** A Supabase stand-in whose asset read answers `answer`. */
@@ -68,5 +71,20 @@ describe("redrawnClipIds", () => {
       Error,
       "denied",
     );
+  });
+});
+
+describe("Carmen's instructions for keep_design", () => {
+  // Staging, 2 Nov: told only when to keep the design, Carmen kept a film's earlier choice when
+  // the user asked for real animation.
+  it("say when to turn it off, in both tools that make a film", () => {
+    const produce = WORKSHOP_TOOLS.find(
+      (tool) => tool.name === "workshop_produce_video",
+    );
+    const param = (
+      produce?.parameters.properties as Record<string, { description?: string }>
+    ).keep_design;
+    assertMatch(String(param?.description), /false כשהמשתמש מבקש הנפשה/);
+    assertMatch(EDIT_TOOL.description, /keep_design=false/);
   });
 });
