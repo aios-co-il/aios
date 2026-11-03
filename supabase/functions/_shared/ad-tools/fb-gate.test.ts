@@ -58,7 +58,7 @@ Deno.test(
     const res = await fbGate(SERVICE, pause("9002", B), calls);
     assertEquals(res, {
       ok: true,
-      caller: { kind: "service_role", tenantId: B },
+      caller: { kind: "service_role", tenantId: B, approvalRun: false },
     });
     assertEquals(calls, []); // trusted caller: no user or target lookups
     denied(await fbGate(SERVICE, { action: "pause" }), 400);
@@ -146,14 +146,13 @@ Deno.test(
 Deno.test(
   "fbTokenSource: the service role keeps the client-owning tenant's token",
   () => {
-    assertEquals(fbTokenSource({ kind: "service_role", tenantId: B }, CRW), {
+    const service = {
+      kind: "service_role" as const,
       tenantId: B,
-      clientId: CRW,
-    });
-    assertEquals(fbTokenSource({ kind: "service_role", tenantId: B }, ""), {
-      tenantId: B,
-      clientId: null,
-    });
+      approvalRun: false,
+    };
+    assertEquals(fbTokenSource(service, CRW), { tenantId: B, clientId: CRW });
+    assertEquals(fbTokenSource(service, ""), { tenantId: B, clientId: null });
   },
 );
 

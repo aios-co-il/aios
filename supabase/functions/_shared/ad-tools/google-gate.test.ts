@@ -54,9 +54,32 @@ Deno.test(
     const res = await gadsGate(SERVICE, pause(B, B), calls);
     assertEquals(res, {
       ok: true,
-      caller: { kind: "service_role", tenantId: B },
+      caller: { kind: "service_role", tenantId: B, approvalRun: false },
     });
     assertEquals(calls, []);
+  },
+);
+
+Deno.test(
+  "authorizeGoogleToolRequest: an approved action is held to its tenant's scope",
+  async () => {
+    denied(
+      await gadsGate(SERVICE, {
+        ...pause("1112223333", B),
+        approval_id: "approval-1",
+      }),
+      403,
+      "target_out_of_scope",
+    );
+    assertStrictEquals(
+      (
+        await gadsGate(SERVICE, {
+          ...pause("1112223333", A),
+          approval_id: "approval-1",
+        })
+      ).ok,
+      true,
+    );
   },
 );
 

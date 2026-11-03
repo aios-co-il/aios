@@ -4,6 +4,7 @@
  * wall-clock deadline is reached, then hand back the cursor for the next call.
  * Report-only: it stores runs and findings and never sends anything.
  */
+import { logAutomationOff } from "../_shared/automations/switches.ts";
 import { MIN_CALLS } from "../_shared/reconcile/budget.ts";
 import {
   platformFor,
@@ -23,6 +24,8 @@ export async function runReconcileChunk(
     afterId: opts.cursor,
     limit: fetchLimit,
   });
+  const off = await deps.store.tenantsOff(tables.map((t) => t.tenant_id));
+  logAutomationOff("carmen-reconcile-worker", "reconcile_nightly", off);
   const processed: ProcessedTable[] = [];
   const rateLimited = new Set<ReconcilePlatform>();
   const rateLimitedTables: string[] = [];
@@ -35,7 +38,11 @@ export async function runReconcileChunk(
     if (stopped) {
       break;
     }
-    if (table.client_status && table.client_status !== "active") {
+    // An inactive client, or an org that switched the nightly check off.
+    if (
+      (table.client_status && table.client_status !== "active") ||
+      off.has(table.tenant_id)
+    ) {
       cursor = table.id;
       considered += 1;
       continue;

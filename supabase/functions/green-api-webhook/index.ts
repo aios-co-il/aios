@@ -28,6 +28,14 @@ import {
 } from "../_shared/whatsapp-groups.ts";
 import { recordCarmenFallbackGroupReply } from "../_shared/client-card/system-send.ts";
 import { forwardStoredSend } from "./stored-send-forward.ts";
+import {
+  claimWebhookMessage,
+  type WebhookMessageClaim,
+} from "./message-claim.ts";
+import {
+  claimAutomationDispatch,
+  rememberConnectionWid,
+} from "./automation-dispatch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -326,6 +334,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // This delivery's idMessage claim, released if processing fails so Green
+  // API's retry is handled instead of dropped as a duplicate.
+  let messageClaim: WebhookMessageClaim | null = null;
+
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -428,6 +440,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // The tenant's other connections recognise this number's messages as ours.
+    await rememberConnectionWid(integration, selfWid);
 
     // Handle outgoingMessageStatus for messages sent from WhatsApp directly
     if (isOutgoingStatus) {
@@ -893,9 +908,28 @@ Deno.serve(async (req) => {
     }
 
     // 🔁 IDEMPOTENCY: Green API can deliver the same message event more than once.
-    // The message insert dedups the row, but Carmen was still invoked twice →
-    // duplicate replies. If we already stored this idMessage, stop here.
+    // Claim the idMessage first (message-claim.ts): a redelivery stops here, so
+    // the message is stored, mirrored and dispatched once. The chat_messages
+    // lookup below still catches messages stored before the claim existed, and
+    // still owes an API echo its stored send's team mirror.
     const incomingIdMessage = webhookData.idMessage;
+    messageClaim = await claimWebhookMessage({
+      tenantId,
+      integrationId: integration.id,
+      idMessage: incomingIdMessage,
+    });
+    if (messageClaim.duplicate) {
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // claimAutomationDispatch's key: dispatched once per tenant, never our own.
+    const automationDispatch = {
+      tenantId,
+      typeWebhook,
+      senderWid,
+      idMessage: incomingIdMessage,
+    };
     const isApiEcho = typeWebhook === "outgoingAPIMessageReceived";
     const storedSendForward = {
       supabaseClient,
@@ -922,6 +956,7 @@ Deno.serve(async (req) => {
         if (isApiEcho && dupMsg.team_forward === "pending") {
           await forwardStoredSend(storedSendForward);
         }
+        await messageClaim.complete();
         return new Response(
           JSON.stringify({ received: true, duplicate: true }),
           {
@@ -1298,6 +1333,7 @@ Deno.serve(async (req) => {
         participantPhone,
         direction: isOutgoing ? "outbound" : "inbound",
       });
+      await messageClaim.complete();
 
       // Map members only when this group is in Carmen's Manus catalog.
       // Never invoke Carmen from Green when manus_wa is active (below).
@@ -1479,16 +1515,18 @@ Deno.serve(async (req) => {
           };
 
           const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-          fetch(triggerUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify(automationPayload),
-          }).catch((err) =>
-            console.error("❌ Error triggering group automation:", err),
-          );
+          if (await claimAutomationDispatch(automationDispatch)) {
+            fetch(triggerUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify(automationPayload),
+            }).catch((err) =>
+              console.error("❌ Error triggering group automation:", err),
+            );
+          }
         } catch (automationError) {
           console.error(
             "❌ Error preparing group automation trigger:",
@@ -1725,6 +1763,7 @@ Deno.serve(async (req) => {
       console.error("❌ Failed to save message:", insertError);
       throw insertError;
     }
+    await messageClaim.complete();
 
     // Forward to linked team channels (individual chats). When
     // merge_green_api_send_echo dropped this echo, the stored send's mirror
@@ -1982,16 +2021,18 @@ Deno.serve(async (req) => {
         };
 
         const triggerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-automation`;
-        fetch(triggerUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify(automationPayload),
-        }).catch((err) =>
-          console.error("❌ Error triggering automation:", err),
-        );
+        if (await claimAutomationDispatch(automationDispatch)) {
+          fetch(triggerUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify(automationPayload),
+          }).catch((err) =>
+            console.error("❌ Error triggering automation:", err),
+          );
+        }
       } catch (automationError) {
         console.error(
           "❌ Error preparing automation trigger:",
@@ -2014,6 +2055,7 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("❌ Error in green-api-webhook:", error);
+    await messageClaim?.release();
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     return new Response(

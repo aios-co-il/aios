@@ -77,6 +77,7 @@ import { CarmenTasksView, NewTaskChooser } from "./tasks/CarmenTasksView";
 import { AgentTaskEditor } from "./tasks/AgentTaskEditor";
 import { GoalEditor } from "./tasks/GoalEditor";
 import { DevTaskEditor } from "./tasks/DevTaskEditor";
+import { AutomationEditor } from "./tasks/AutomationEditor";
 import { SystemJobEditor } from "./tasks/SystemJobEditor";
 
 /**
@@ -85,7 +86,7 @@ import { SystemJobEditor } from "./tasks/SystemJobEditor";
  * screen. Paths:
  *   ""                         root menu
  *   tasks | tasks:<filter>     unified tasks list
- *   task/<source>/<id>         edit one task (agent_tasks|goals|dev_tasks|cron_job)
+ *   task/<source>/<id>         edit one task (agent_tasks|goals|dev_tasks|cron_job|automation)
  *   task/heartbeat             heartbeat + campaign pulse settings
  *   new | new/<kind>           create (task|recurring|goal|dev|template/<key>)
  *   settings/<section>[/<id>]  one settings section (optionally drilled in)
@@ -710,6 +711,17 @@ export function CarmenPanel({
             onDone={done}
           />
         );
+      if (source === "automation") {
+        return (
+          <AutomationEditor
+            key={id}
+            tenantId={tenantId}
+            automationKey={id}
+            onDone={done}
+            onOpenSettings={() => onNavigate("task/heartbeat")}
+          />
+        );
+      }
       if (source === "cron_job")
         return (
           <SystemJobEditor

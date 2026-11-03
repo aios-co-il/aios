@@ -1,4 +1,8 @@
 /** One tenant's scan: every active Meta report's ad account, a few at a time. */
+import {
+  automationEnabled,
+  logAutomationOff,
+} from "../_shared/automations/switches.ts";
 import { resolveMetaReportToken } from "../_shared/meta-report-token.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 import { recordFindings } from "../_shared/campaign-status-alerts/record.ts";
@@ -54,6 +58,11 @@ export async function runTenantScan(tenantId: string): Promise<ScanStats> {
     alerts_resolved: 0,
     errors: 0,
   };
+  // The org switched the Meta status check off in Carmen's automations (AIO-314).
+  if (!(await automationEnabled(db, tenantId, "meta_status_check"))) {
+    logAutomationOff("fb-campaign-monitor", "meta_status_check", [tenantId]);
+    return stats;
+  }
   const reports = await loadReportAccounts(db, tenantId);
   const tokens = new Map<string, Promise<string | null>>();
   const tokenFor = (integrationId: string | null) => {
