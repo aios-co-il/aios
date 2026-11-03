@@ -1,5 +1,5 @@
 import type { CarmenVideoProps, SceneKind } from "./video";
-import type { SceneLook } from "./workshop-scene-look";
+import type { FilmLook, SceneLook } from "./workshop-scene-look";
 export type InputScene = {
   id: string;
   order: number;
@@ -161,7 +161,7 @@ export type WorkshopMusicLoop = {
   fadeInFrames: number;
   fadeOutFrames: number;
 };
-export type WorkshopFilmProps = {
+export type WorkshopFilmProps = FilmLook & {
   scenes: WorkshopScene[];
   narration?: string | null;
   music?: string | null;

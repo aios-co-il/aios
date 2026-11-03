@@ -913,7 +913,7 @@ Deno.test(
 );
 
 Deno.test(
-  "the film's text style and size are saved for the render",
+  "the film's text style, size and font are saved for the render",
   async () => {
     const db = fakeDb({
       ...videoProject(),
@@ -929,6 +929,7 @@ Deno.test(
         confirmed: true,
         title_style: "typewriter",
         title_size: "large",
+        font: "suez-one",
       },
       async () => {},
       null,
@@ -945,6 +946,7 @@ Deno.test(
       .pop();
     assertStrictEquals(video?.title_style, "typewriter");
     assertStrictEquals(video?.title_size, "large");
+    assertStrictEquals(video?.font, "suez-one");
   },
 );
 
