@@ -6,6 +6,7 @@ import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 
 describe("SaveAsTemplateDialog authentication", () => {
   it("reports a missing user without issuing an invalid insert", async () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
     backend.userId = undefined;
     render(
       <SaveAsTemplateDialog
@@ -22,6 +23,10 @@ describe("SaveAsTemplateDialog authentication", () => {
       ),
     );
     expect(backend.insert).not.toHaveBeenCalled();
+    expect(diagnostic).toHaveBeenCalledExactlyOnceWith(
+      "Template save failed:",
+      "נדרשת התחברות לשמירת טמפלייט",
+    );
   });
 
   it("attributes a saved template to the signed-in user", async () => {
@@ -61,6 +66,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   backend.userId = "user-1";
   backend.error.mockClear();
   backend.insert.mockReset().mockReturnValue({

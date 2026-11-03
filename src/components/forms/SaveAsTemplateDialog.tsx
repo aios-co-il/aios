@@ -72,6 +72,7 @@ export function SaveAsTemplateDialog({
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      console.error("Template save failed:", error.message);
       toast.error("שגיאה בשמירת הטמפלייט: " + error.message);
     },
   });

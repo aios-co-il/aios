@@ -649,6 +649,7 @@ export default function AddTaskForm({
       setOpen(false);
     },
     onError: (error: Error) => {
+      console.error("Task creation failed:", error.message);
       toast.error(`שגיאה בהוספת משימה: ${error.message}`);
     },
   });
