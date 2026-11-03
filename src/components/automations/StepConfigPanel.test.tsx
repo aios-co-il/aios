@@ -1,20 +1,36 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
 import { withTestQuery } from "@/test/withTestQuery";
 import type { FlowNodeData } from "./FlowNode";
 import { StepConfigPanel } from "./StepConfigPanel";
 
 describe("StepConfigPanel Green API connection choices", () => {
-  it("omits ownerless connections that cannot supply a connection_user_id", async () => {
+  it("keeps the owned connection selectable beside an ownerless connection", async () => {
     backend.integrations[0].user_id = null;
+    const onUpdate = vi.fn();
     const { queryClient, wrapper } = withTestQuery();
     render(
-      <StepConfigPanel node={node} open onClose={vi.fn()} onUpdate={vi.fn()} />,
+      <StepConfigPanel
+        node={node}
+        open
+        onClose={vi.fn()}
+        onUpdate={onUpdate}
+      />,
       { wrapper },
     );
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
-    expect(screen.queryByText("חיבור Green API")).not.toBeInTheDocument();
+    const selector = screen.getByText("חיבור Green API").parentElement;
+    if (!selector) throw new Error("Missing connection selector");
+    await userEvent.click(within(selector).getByRole("combobox"));
+    expect(
+      screen.queryByRole("option", { name: "חיבור one" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: "חיבור two" }));
+    expect(onUpdate).toHaveBeenCalledWith(node.id, {
+      configuration: { connection_user_id: "u2" },
+    });
   });
 
   it("retains the selector when multiple connections have owners", async () => {
@@ -67,6 +83,13 @@ vi.mock("@/integrations/supabase/client", () => ({
     }),
   },
 }));
+
+beforeAll(() => {
+  Object.assign(HTMLElement.prototype, {
+    hasPointerCapture: () => false,
+    releasePointerCapture: () => {},
+  });
+});
 
 beforeEach(() => {
   backend.integrations = [

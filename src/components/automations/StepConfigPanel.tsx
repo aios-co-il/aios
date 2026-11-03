@@ -4087,15 +4087,15 @@ function WhatsAppTriggerConfig({
         .eq("integration_type", "green_api")
         .eq("is_active", true);
       if (error) throw error;
-      return (data || []).filter(
-        (
-          integration,
-        ): integration is typeof integration & { user_id: string } =>
-          integration.user_id !== null,
-      );
+      return data || [];
     },
     enabled: !!tenantId,
   });
+
+  const selectableIntegrations = (greenApiIntegrations || []).filter(
+    (integration): integration is typeof integration & { user_id: string } =>
+      integration.user_id !== null,
+  );
 
   return (
     <div className="space-y-4">
@@ -4316,7 +4316,7 @@ function WhatsAppTriggerConfig({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">כל החיבורים</SelectItem>
-              {greenApiIntegrations.map((int) => (
+              {selectableIntegrations.map((int) => (
                 <SelectItem key={int.id} value={int.user_id}>
                   {(int.settings as any)?.display_name ||
                     `חיבור ${int.instance_id}`}
