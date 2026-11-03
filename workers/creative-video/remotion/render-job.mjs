@@ -84,6 +84,16 @@ const TITLE_STYLES = [
   "blur",
 ];
 const TITLE_SIZES = ["small", "medium", "large", "huge"];
+// The key-word emphases of src/workshop-title-emphasis.ts.
+const TITLE_EMPHASES = [
+  "none",
+  "count",
+  "underline",
+  "circle",
+  "stamp",
+  "marker",
+  "shake",
+];
 // The film fonts of src/workshop-fonts.ts: their keys and files.
 const FONTS = [
   "heebo",
@@ -353,6 +363,9 @@ if (manifest.schemaVersion === 1) {
         : {}),
       ...(TITLE_SIZES.includes(scene.titleSize)
         ? { titleSize: scene.titleSize }
+        : {}),
+      ...(TITLE_EMPHASES.includes(scene.titleEmphasis)
+        ? { titleEmphasis: scene.titleEmphasis }
         : {}),
       clip: scene.clip || null,
       caption: text(scene.caption, 180),

@@ -56,6 +56,7 @@ export function buildTimeline(
     keepDesign = false,
     titleStyle = null,
     titleSize = null,
+    titleEmphasis = null,
     font = null,
   } = {},
 ) {
@@ -95,9 +96,10 @@ export function buildTimeline(
       skinRef: scene.skinRef || null,
       pictureKey: scene.pictureKey || null,
       overlayText: String(scene.overlayText ?? "").trim(),
-      // The scene's own text style and size (title-style.mjs), else the film's.
+      // The scene's own text style, size and emphasis (title-style.mjs), else the film's.
       titleStyle: scene.titleStyle || null,
       titleSize: scene.titleSize || null,
+      titleEmphasis: scene.titleEmphasis || null,
       durationS: sceneSeconds(scene.durationS),
     }));
   const [width, height] = frameSize(aspect);
@@ -106,9 +108,11 @@ export function buildTimeline(
     fps: 25,
     // A finished design (video.keep_design): its pictures fit whole in the frame, not cropped.
     keepDesign: keepDesign === true,
-    // How the scenes' text enters and how large it is in a film without narration.
+    // How the scenes' text enters, how large it is and how its key words are emphasised, in a
+    // film without narration.
     titleStyle: titleStyle || null,
     titleSize: titleSize || null,
+    titleEmphasis: titleEmphasis || null,
     // The film's font (title-style.mjs FILM_FONTS); the brand's, else Heebo, when unset.
     font: font || null,
     aspect,

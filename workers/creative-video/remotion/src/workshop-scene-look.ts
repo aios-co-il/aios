@@ -1,4 +1,5 @@
 import type { FilmFont } from "./workshop-fonts";
+import type { TitleEmphasis } from "./workshop-title-emphasis";
 import type { TitleSize, TitleStyle } from "./workshop-title-styles";
 
 /** How a scene of the Workshop film is drawn (manifest.ts WorkshopScene): its picture and text. */
@@ -9,6 +10,8 @@ export type SceneLook = {
   titleStyle?: TitleStyle;
   /** How large that text is; "medium" (the captions' size) when unset. */
   titleSize?: TitleSize;
+  /** How its key words (numbers, prices, dates) are emphasised once in; "none" when unset. */
+  titleEmphasis?: TitleEmphasis;
 };
 
 /** How the whole Workshop film's text looks (manifest.ts WorkshopFilmProps). */
