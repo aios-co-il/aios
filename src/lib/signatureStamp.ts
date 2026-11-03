@@ -33,7 +33,7 @@ export function applySignatureStamp(
   name: string,
   companyId: string,
 ) {
-  const next = {
+  const next: Record<string, string> = {
     ...values,
     [STAMP_NAME_KEY]: name.trim(),
     [STAMP_ID_KEY]: companyId.trim(),

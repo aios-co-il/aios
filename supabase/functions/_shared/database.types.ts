@@ -10212,18 +10212,21 @@ export type Database = {
       };
       processed_webhook_messages: {
         Row: {
+          completed_at: string | null;
           external_message_id: string;
           processed_at: string;
           provider: string;
           tenant_id: string;
         };
         Insert: {
+          completed_at?: string | null;
           external_message_id: string;
           processed_at?: string;
           provider: string;
           tenant_id: string;
         };
         Update: {
+          completed_at?: string | null;
           external_message_id?: string;
           processed_at?: string;
           provider?: string;

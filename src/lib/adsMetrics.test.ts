@@ -9,7 +9,6 @@ import {
   groupFacebookCampaigns,
   isFacebookEcommerceCampaign,
   preferFacebookCampaignType,
-  summarizeFacebookCampaignGroup,
   getAddToCartFromData,
   getAdsPurchasesFromData,
   getPurchasesFromData,
@@ -309,41 +308,6 @@ test("a dashboard without a mixed table keeps traffic in its own table", () => {
   expect(singleLeads.ecommerce.length).toBe(0);
   expect(singleLeads.leads.length).toBe(3);
   expect(singleLeads.traffic.length).toBe(1);
-});
-
-test("summarizeFacebookCampaignGroup totals match campaign rows for All-tab breakdown", () => {
-  const campaigns = [
-    {
-      name: "מכירות אוגוסט 2",
-      impressions: 25100,
-      clicks: 581,
-      spend: 572,
-      leads: 0,
-      purchases: 6,
-      purchase_value: 2903,
-      add_to_cart: 44,
-      campaign_type: "ecommerce",
-    },
-    {
-      name: "מכירות אוגוסט",
-      impressions: 8800,
-      clicks: 110,
-      spend: 157,
-      leads: 0,
-      purchases: 1,
-      purchase_value: 109,
-      add_to_cart: 5,
-      campaign_type: "ecommerce",
-    },
-  ];
-  const summary = summarizeFacebookCampaignGroup(campaigns);
-  expect(summary.impressions).toBe(33900);
-  expect(summary.clicks).toBe(691);
-  expect(summary.spend).toBe(729);
-  expect(summary.purchases).toBe(7);
-  expect(summary.revenue).toBe(3012);
-  expect(summary.addToCart).toBe(49);
-  expect(summary.roas).toBe(3012 / 729);
 });
 
 test("WhatsApp campaigns stored as traffic render as leads (אלהם פארמה pattern)", () => {

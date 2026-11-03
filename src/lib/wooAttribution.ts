@@ -69,13 +69,16 @@ export function extractWooOrderAttribution(
 
 /** Human-readable Hebrew label for dashboard grouping. */
 export function buildWooAttributionLabel(
-  attr: {
-    source_type?: string | null;
-    utm_source?: string | null;
-    utm_medium?: string | null;
-    referrer?: string | null;
-    session_entry?: string | null;
-  } | null,
+  attr:
+    | {
+        source_type?: string | null;
+        utm_source?: string | null;
+        utm_medium?: string | null;
+        referrer?: string | null;
+        session_entry?: string | null;
+      }
+    | null
+    | undefined,
 ): string {
   if (!attr) return "לא ידוע";
 
@@ -222,8 +225,8 @@ export function shouldUseGoogleWooAttributionOverlay(
 /** Summarize Google-attributed WooCommerce orders for Ads dashboard overlays. */
 export function summarizeGoogleAttributedWooOrders(
   orders: Array<{
-    total?: number | string;
-    status?: string;
+    total?: number | string | null;
+    status?: string | null;
     attribution?: WooOrderAttribution | null;
   }>,
 ): WooGoogleAttributionSummary {
@@ -252,8 +255,8 @@ export function summarizeGoogleAttributedWooOrders(
 /** Group valid orders by attribution label for dashboard tables. */
 export function aggregateOrdersByAttribution(
   orders: Array<{
-    total?: number | string;
-    status?: string;
+    total?: number | string | null;
+    status?: string | null;
     attribution?: WooOrderAttribution | null;
   }>,
 ): WooAttributionBreakdownRow[] {
