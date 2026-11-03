@@ -1,4 +1,4 @@
--- Restored constraints (20261103090000_restore_lost_constraints): each
+-- Restored constraints (20261103100000_restore_lost_constraints): each
 -- foreign key, check, unique key and index exists; a sample of the foreign
 -- keys refuses a row whose parent does not exist; every check refuses a value
 -- outside it; two unique keys refuse a duplicate. A NOT VALID constraint
