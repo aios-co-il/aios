@@ -3521,6 +3521,41 @@ export type Database = {
           },
         ];
       };
+      carmen_automation_settings: {
+        Row: {
+          automation_key: string;
+          config: Json;
+          enabled: boolean;
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          automation_key: string;
+          config?: Json;
+          enabled?: boolean;
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          automation_key?: string;
+          config?: Json;
+          enabled?: boolean;
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_automation_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_brain_connections: {
         Row: {
           base_url: string | null;

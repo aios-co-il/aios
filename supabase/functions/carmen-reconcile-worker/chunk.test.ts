@@ -68,6 +68,28 @@ describe("runReconcileChunk", () => {
     );
   });
 
+  it("passes over tables of an org that switched the nightly check off", async () => {
+    const tables = [
+      table("a", "facebook_insights", { tenant_id: "tenant-off" }),
+      table("b"),
+    ];
+    const source = createFixtureSource({ b: { account, rows: [] } }, "staging");
+    const { store, saved } = memoryStore(tables, {}, {}, ["tenant-off"]);
+    const r = await runReconcileChunk(deps(store, source), {
+      cursor: null,
+      maxTables: 5,
+    });
+    assertEquals(
+      r.processed.map((p) => p.table_id),
+      ["b"],
+    );
+    assertEquals(
+      saved.map((s) => s.run.table_id),
+      ["b"],
+    );
+    assertStrictEquals(r.done, true);
+  });
+
   it("does not call a rate-limited platform again in the same chunk", async () => {
     const tables = [table("a"), table("b"), table("c", "google_ads")];
     let calls = 0;
