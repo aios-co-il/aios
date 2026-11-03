@@ -42,8 +42,6 @@ test("empty report arrays are not persisted", () => {
           status: "success",
           dataUpdateCount: 1,
           errorUpdateCount: 0,
-          errorUpdatedCount: 0,
-          isPaused: false,
         },
       },
       {
@@ -62,8 +60,6 @@ test("empty report arrays are not persisted", () => {
           status: "success",
           dataUpdateCount: 1,
           errorUpdateCount: 0,
-          errorUpdatedCount: 0,
-          isPaused: false,
         },
       },
     ],
