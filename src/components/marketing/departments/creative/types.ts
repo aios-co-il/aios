@@ -6,7 +6,8 @@ import type {
   storyboardFrame,
   creativeFormat,
 } from "./creativeAssetPayload";
-export type CreativeFormat = z.output<typeof creativeFormat>;
+// Retain the public domain name in existing diagnostic fingerprints (AIO-334).
+export type CreativeFormat = Extract<z.output<typeof creativeFormat>, string>;
 
 import type { BrandBook, StyleReference } from "./brandKit";
 import type { CreativeVisualStyleId } from "./visualStyles";
