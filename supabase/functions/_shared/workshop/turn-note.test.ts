@@ -265,3 +265,21 @@ Deno.test(
     assert(note?.includes(ANY_KIND));
   },
 );
+
+Deno.test(
+  "the closing line's limit is one number for the tool and the turn note",
+  async () => {
+    const { CTA_MAX_CHARS } = await import("./cta.ts");
+    const { WORKSHOP_TOOLS } = await import("./tool-definitions.ts");
+    const produce = WORKSHOP_TOOLS.find(
+      (tool) => tool.name === "workshop_produce_video",
+    );
+    const cta = (
+      produce?.parameters.properties as Record<string, { description?: string }>
+    ).cta_text;
+    assertMatch(
+      String(cta?.description),
+      new RegExp(`עד ${CTA_MAX_CHARS} תווים`),
+    );
+  },
+);
