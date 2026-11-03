@@ -1,6 +1,6 @@
 ---
 description: Edge functions
-globs: supabase/functions/**
+globs: "supabase/functions/**"
 alwaysApply: false
 ---
 

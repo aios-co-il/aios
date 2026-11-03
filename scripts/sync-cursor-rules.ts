@@ -44,7 +44,7 @@ for (const file of sources) {
 
   const output = `---
 description: ${description}
-globs: ${globs.join(",")}
+globs: "${globs.join(",")}"
 alwaysApply: false
 ---
 

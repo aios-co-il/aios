@@ -1,6 +1,6 @@
 ---
 description: Migrations and DB tests
-globs: supabase/migrations/**,supabase/tests/**,supabase/ops/**
+globs: "supabase/migrations/**,supabase/tests/**,supabase/ops/**"
 alwaysApply: false
 ---
 
