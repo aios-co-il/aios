@@ -25,6 +25,7 @@ import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
+import { isEndCardStyle } from "../film-look.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -368,6 +369,10 @@ export async function workshopProduceVideo(ctx: ToolContext) {
               ? { title_size: args.title_size }
               : {}),
             ...(isFilmFont(args.font) ? { font: args.font } : {}),
+            // The closing card's design (film-look.ts).
+            ...(isEndCardStyle(args.end_card_style)
+              ? { end_card_style: args.end_card_style }
+              : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },

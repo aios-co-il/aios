@@ -57,6 +57,7 @@ export function buildTimeline(
     titleStyle = null,
     titleSize = null,
     font = null,
+    endCardStyle = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -111,6 +112,8 @@ export function buildTimeline(
     titleSize: titleSize || null,
     // The film's font (title-style.mjs FILM_FONTS); the brand's, else Heebo, when unset.
     font: font || null,
+    // The closing card's design (film-look.mjs END_CARD_STYLES); the classic card when unset.
+    endCardStyle: endCardStyle || null,
     aspect,
     width,
     height,
