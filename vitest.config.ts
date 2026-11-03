@@ -33,6 +33,7 @@ export default defineConfig({
           include: [
             "render-worker/test/**/*.test.mjs",
             "scripts/**/*.test.mjs",
+            "scripts/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",
           ],
         },
