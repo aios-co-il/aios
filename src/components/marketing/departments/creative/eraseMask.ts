@@ -24,7 +24,7 @@ export const buildErasePrompt = (hint?: string): string => {
 export const createKeepMask = (
   width: number,
   height: number,
-): Uint8ClampedArray => {
+): Uint8ClampedArray<ArrayBuffer> => {
   const data = new Uint8ClampedArray(
     Math.max(1, width) * Math.max(1, height) * 4,
   );
@@ -73,12 +73,12 @@ const interpolate = (points: ErasePoint[]): ErasePoint[] => {
   return result;
 };
 
-export const applyEraseMarks = (
-  data: Uint8ClampedArray,
+export const applyEraseMarks = <T extends ArrayBufferLike>(
+  data: Uint8ClampedArray<T>,
   width: number,
   height: number,
   marks: EraseMark[],
-): Uint8ClampedArray => {
+): Uint8ClampedArray<T> => {
   for (const mark of marks) {
     if (mark.type === "rect") {
       const left = Math.floor(clamp01(mark.x) * width);

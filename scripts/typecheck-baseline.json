@@ -524,13 +524,6 @@
     {
       "file": "src/components/marketing/departments/CopyDepartment.tsx",
       "code": 2322,
-      "message": "Type 'MarketingClientFilter' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "defaultClientId",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2322,
       "message": "Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n  Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.",
       "source": "payload",
       "count": 2
@@ -540,62 +533,6 @@
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n      Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/creative/copyVariations.test.ts",
-      "code": 2307,
-      "message": "Cannot find module '../../../copyConcepts.ts' or its corresponding type declarations.",
-      "source": "\"../../../copyConcepts.ts\"",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/creative/CreativeBriefEditor.tsx",
-      "code": 7005,
-      "message": "Variable 'uploaded' implicitly has an 'any[]' type.",
-      "source": "uploaded",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/creative/CreativeBriefEditor.tsx",
-      "code": 7034,
-      "message": "Variable 'uploaded' implicitly has type 'any[]' in some locations where its type cannot be determined.",
-      "source": "uploaded",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/creative/CreativeEraseDialog.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(sw: number, sh: number, settings?: ImageDataSettings | undefined): ImageData', gave the following error.\n    Argument of type 'Uint8ClampedArray<ArrayBufferLike>' is not assignable to parameter of type 'number'.\n  Overload 2 of 2, '(data: ImageDataArray, sw: number, sh?: number | undefined, settings?: ImageDataSettings | undefined): ImageData', gave the following error.\n    Argument of type 'Uint8ClampedArray<ArrayBufferLike>' is not assignable to parameter of type 'ImageDataArray'.\n      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.\n        Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.\n          Types of property '[Symbol.toStringTag]' are incompatible.\n            Type '\"SharedArrayBuffer\"' is not assignable to type '\"ArrayBuffer\"'.",
-      "source": "mask",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/creative/designedLayers.ts",
-      "code": 2367,
-      "message": "This comparison appears to be unintentional because the types 'keyof CopyParts' and '\"skip\"' have no overlap.",
-      "source": "pending !== \"skip\"",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/creative/utils.ts",
-      "code": 2322,
-      "message": "Type '({ id: string; name: string; imageUrl: string; format: CreativeFormat; layers: never[]; comments: never[]; createdAt: string; source: \"storyboard_import\"; } | null)[]' is not assignable to type 'CreativeVariation[]'.\n  Type '{ id: string; name: string; imageUrl: string; format: CreativeFormat; layers: never[]; comments: never[]; createdAt: string; source: \"storyboard_import\"; } | null' is not assignable to type 'CreativeVariation'.\n    Type 'null' is not assignable to type 'CreativeVariation'.",
-      "source": "return",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/creative/utils.ts",
-      "code": 2677,
-      "message": "A type predicate's type must be assignable to its parameter's type.\n  Type 'CreativeVariation' is not assignable to type '{ id: string; name: string; imageUrl: string; format: CreativeFormat; layers: never[]; comments: never[]; createdAt: string; source: \"storyboard_import\"; }'.\n    Types of property 'layers' are incompatible.\n      Type 'CreativeLayer[]' is not assignable to type 'never[]'.\n        Type 'CreativeLayer' is not assignable to type 'never'.",
-      "source": "CreativeVariation",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 18047,
-      "message": "'selected' is possibly 'null'.",
-      "source": "selected",
       "count": 1
     },
     {
@@ -642,20 +579,6 @@
     },
     {
       "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type 'string | null | undefined' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "techniqueUrl",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type 'unknown' is not assignable to type 'ReactNode'.",
-      "source": "{selected?.payload?.linked_copy_title && ( <p className=\"mt-2 text-[10px] text-muted-foreground\"> מקור: {String(selected.payload.linked_copy_title)} </p> )}",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n      Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "insert",
@@ -666,20 +589,6 @@
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ content?: string | null | undefined; created_at?: string | undefined; id?: string | undefined; item_id: string; meta?: Json | undefined; run_id?: string | null | undefined; stage_id?: string | ... 1 more ... | undefined; tenant_id: string; type: string; url?: string | ... 1 more ... | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type '{ source: string; skin_slug: string; variation_id: string; variation_name: string; comments: CreativeComment[]; layers: CreativeLayer[]; format: CreativeFormat; }' is not assignable to type 'Json | undefined'.\n      Types of property 'comments' are incompatible.\n        Type 'CreativeComment[]' is not assignable to type 'Json | undefined'.\n          Type 'CreativeComment[]' is not assignable to type 'Json[]'.\n            Type 'CreativeComment' is not assignable to type 'Json'.\n              Type 'CreativeComment' is not assignable to type '{ [key: string]: Json | undefined; }'.\n                Index signature for type 'string' is missing in type 'CreativeComment'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ content?: string | null | undefined; created_at?: string | undefined; id?: string | undefined; item_id: string; meta?: Json | undefined; run_id?: string | null | undefined; stage_id?: string | ... 1 more ... | undefined; tenant_id: string; type: string; url?: string | ... 1 more ... | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ content?: string | null | undefined; created_at?: string | undefined; id?: string | undefined; item_id: string; meta?: Json | undefined; run_id?: string | null | undefined; stage_id?: string | ... 1 more ... | undefined; tenant_id: string; type: string; url?: string | ... 1 more ... | undefi...'.",
       "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/SeoGeoDepartment.tsx",
-      "code": 2322,
-      "message": "Type 'MarketingClientFilter' is not assignable to type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "clientId",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/publishing/PublishingStudio.tsx",
-      "code": 18048,
-      "message": "'site' is possibly 'undefined'.",
-      "source": "site",
       "count": 1
     },
     {
@@ -701,27 +610,6 @@
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n      Property 'tenant_id' is missing in type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }[]' but required in type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.\n      Type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }' is not assignable to type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n        Type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n          Types of property 'status' are incompatible.\n            Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",
       "source": "inserts",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/StageWorkspace.tsx",
-      "code": 2322,
-      "message": "Type 'string' is not assignable to type '\"manual\" | \"auto\" | \"hybrid\" | undefined'.",
-      "source": "approval_mode",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/StageWorkspace.tsx",
-      "code": 2345,
-      "message": "Argument of type '{ current_stage_id: string; status: string; } | { status: string; current_stage_id?: undefined; }' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n  Type '{ current_stage_id: string; status: string; }' is not assignable to type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n    Type '{ current_stage_id: string; status: string; }' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n      Types of property 'status' are incompatible.\n        Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",
-      "source": "update",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/WorkItemSidePanel.tsx",
-      "code": 2345,
-      "message": "Argument of type 'Partial<any>' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, Partial<...>>'.\n  Type 'Partial<any>' is not assignable to type '{ [x: string]: never; [x: number]: never; [x: symbol]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
       "count": 1
     },
     {

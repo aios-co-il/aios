@@ -1962,7 +1962,7 @@ export function CreativeDepartment({
       : undefined;
     const referencePlan = collectStaticReferencePlan({
       projectRefUrls,
-      techniqueUrl: styleRefUrl,
+      techniqueUrl: styleRefUrl ?? undefined,
       instructions,
       editTargetUrl: resolvedEditTarget ?? undefined,
       directorUrls: resolvedDirectorRefs,
@@ -2993,9 +2993,9 @@ export function CreativeDepartment({
                     <p className="text-xs leading-relaxed whitespace-pre-wrap">
                       {getLinkedCopyText(selected)}
                     </p>
-                    {selected?.payload?.linked_copy_title && (
+                    {Boolean(selected?.payload?.linked_copy_title) && (
                       <p className="mt-2 text-[10px] text-muted-foreground">
-                        מקור: {String(selected.payload.linked_copy_title)}
+                        מקור: {String(selected?.payload?.linked_copy_title)}
                       </p>
                     )}
                   </Card>
@@ -3044,7 +3044,7 @@ export function CreativeDepartment({
                             size="sm"
                             variant="outline"
                             className="mt-2 h-7 w-full gap-1 text-[11px]"
-                            disabled={loadingContext || !selected.client_id}
+                            disabled={loadingContext || !selected?.client_id}
                           >
                             <WandSparkles className="h-3 w-3" />
                             צור וריאציה מהקונספט
@@ -3313,7 +3313,7 @@ export function CreativeDepartment({
           <Button
             size="sm"
             className="gap-1.5 bg-gradient-to-r from-pink-600 to-violet-600 text-white"
-            disabled={loadingContext || !selected.client_id}
+            disabled={loadingContext || !selected?.client_id}
           >
             {workInFlight ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
