@@ -81,9 +81,7 @@ export function manifestToProps(manifest: InputManifest): CarmenVideoProps {
 /** Workshop film (manifest schemaVersion 2 and 3). Every v3 field is optional. */
 export type WorkshopMove =
   "push" | "drift-left" | "drift-right" | "rise" | "pull" | "static";
-/** "skin": the same character in another picture (flash, scale pop and light sweep). */
-export type WorkshopTransition =
-  "cut" | "crossfade" | "slide" | "wipe" | "zoom" | "skin";
+export type { WorkshopTransition } from "./workshop-transitions";
 export type WorkshopWord = {
   text: string;
   startFrame: number;
@@ -130,7 +128,6 @@ export type WorkshopScene = SceneLook & {
    */
   kicker?: string | null;
   move?: WorkshopMove;
-  transition?: WorkshopTransition;
   transitionFrames?: number;
   lipsync?: boolean;
   clipVolume?: number;

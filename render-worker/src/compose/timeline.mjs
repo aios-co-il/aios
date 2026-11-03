@@ -58,6 +58,7 @@ export function buildTimeline(
     titleSize = null,
     font = null,
     sceneOverlay = null,
+    endCardStyle = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -116,6 +117,8 @@ export function buildTimeline(
     font: font || null,
     // The graphics over every scene's picture, unless a scene chose its own.
     sceneOverlay: sceneOverlay || null,
+    // The closing card's design (film-look.mjs END_CARD_STYLES); the classic card when unset.
+    endCardStyle: endCardStyle || null,
     aspect,
     width,
     height,

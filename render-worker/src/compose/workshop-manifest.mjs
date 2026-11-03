@@ -426,6 +426,7 @@ export function buildWorkshopManifest(timeline) {
         : {}),
       captionStyle,
       ...(timeline.font ? { font: timeline.font } : {}),
+      ...(timeline.endCardStyle ? { endCardStyle: timeline.endCardStyle } : {}),
       captions:
         captionStyle === "motion"
           ? motionCaptions(framed, {
