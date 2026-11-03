@@ -72,7 +72,20 @@ assert(
 );
 
 const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
-const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom", "skin"];
+// The transitions of src/workshop-transitions.ts and the end-card designs of
+// src/workshop-end-card-layout.ts.
+const TRANSITIONS = [
+  "cut",
+  "crossfade",
+  "slide",
+  "wipe",
+  "zoom",
+  "skin",
+  "whip",
+  "ripple",
+  "glitch",
+];
+const END_CARD_STYLES = ["classic", "bold", "minimal", "split"];
 // The title styles and sizes of workshop-title-styles.ts.
 const TITLE_STYLES = [
   "float",
@@ -93,6 +106,14 @@ const TITLE_EMPHASES = [
   "stamp",
   "marker",
   "shake",
+];
+// The graphics over a scene's picture (src/workshop-overlays.ts), "none" left out.
+const OVERLAYS = [
+  "bubbles",
+  "particles",
+  "confetti",
+  "light-leak",
+  "lower-third",
 ];
 // The film fonts of src/workshop-fonts.ts: their keys and files.
 const FONTS = [
@@ -349,6 +370,9 @@ if (manifest.schemaVersion === 1) {
     captionStyle:
       v3 && manifest.captionStyle === "motion" ? "motion" : "karaoke",
     font: FONTS.includes(manifest.font) ? manifest.font : null,
+    endCardStyle: END_CARD_STYLES.includes(manifest.endCardStyle)
+      ? manifest.endCardStyle
+      : null,
     brand,
     endCardFrames,
     scenes: sorted.map((scene) => ({
@@ -367,6 +391,7 @@ if (manifest.schemaVersion === 1) {
       ...(TITLE_EMPHASES.includes(scene.titleEmphasis)
         ? { titleEmphasis: scene.titleEmphasis }
         : {}),
+      ...(OVERLAYS.includes(scene.overlay) ? { overlay: scene.overlay } : {}),
       clip: scene.clip || null,
       caption: text(scene.caption, 180),
       move: scene.move,

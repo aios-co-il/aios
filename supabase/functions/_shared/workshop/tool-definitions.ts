@@ -1,7 +1,14 @@
 import { CTA_MAX_CHARS } from "./cta.ts";
 import { EDIT_TOOL } from "./edit-tool.ts";
+import {
+  END_CARD_STYLES,
+  END_CARD_STYLE_HELP,
+  SCENE_TRANSITIONS,
+  TRANSITION_HELP,
+} from "./film-look.ts";
 import { motionField } from "./motion-text.ts";
 import { pictureField } from "./picture-text.ts";
+import { SCENE_OVERLAYS, SCENE_OVERLAY_HELP } from "./scene-overlays.ts";
 import { spokenField } from "./spoken-text.ts";
 import { TITLE_EMPHASES, TITLE_EMPHASIS_HELP } from "./title-emphasis.ts";
 import {
@@ -434,6 +441,16 @@ export const WORKSHOP_TOOLS = [
           enum: [...TITLE_EMPHASES],
           description: `${TITLE_EMPHASIS_HELP} לסצנה הזו בלבד, מעל הבחירה של הסרט. בלי עלות, נכנס בהרכבה הבאה.`,
         },
+        scene_overlay: {
+          type: "string",
+          enum: [...SCENE_OVERLAYS],
+          description: `${SCENE_OVERLAY_HELP} לסצנה הזו בלבד, מעל הבחירה של הסרט (none מכבה כאן את של הסרט). בלי עלות, נכנס בהרכבה הבאה.`,
+        },
+        transition: {
+          type: "string",
+          enum: [...SCENE_TRANSITIONS],
+          description: `${TRANSITION_HELP} לסצנה הזו בלבד; מבטל החלפת סקין אוטומטית במעבר הזה. בלי עלות, נכנס בהרכבה הבאה.`,
+        },
       },
       required: ["item_id"],
     },
@@ -553,6 +570,16 @@ export const WORKSHOP_TOOLS = [
           type: "string",
           enum: [...FILM_FONTS],
           description: FILM_FONT_HELP,
+        },
+        scene_overlay: {
+          type: "string",
+          enum: [...SCENE_OVERLAYS],
+          description: `${SCENE_OVERLAY_HELP} לכל הסרט; סצנה יכולה לקבל גרפיקה משלה ב-workshop_update_scene.`,
+        },
+        end_card_style: {
+          type: "string",
+          enum: [...END_CARD_STYLES],
+          description: END_CARD_STYLE_HELP,
         },
         cta_text: {
           type: "string",

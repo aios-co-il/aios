@@ -58,6 +58,8 @@ export function buildTimeline(
     titleSize = null,
     titleEmphasis = null,
     font = null,
+    sceneOverlay = null,
+    endCardStyle = null,
   } = {},
 ) {
   const narration = narrationPath || null;
@@ -100,6 +102,8 @@ export function buildTimeline(
       titleStyle: scene.titleStyle || null,
       titleSize: scene.titleSize || null,
       titleEmphasis: scene.titleEmphasis || null,
+      // The graphics over the scene's picture (scene-overlay.mjs), else the film's.
+      sceneOverlay: scene.sceneOverlay || null,
       durationS: sceneSeconds(scene.durationS),
     }));
   const [width, height] = frameSize(aspect);
@@ -115,6 +119,10 @@ export function buildTimeline(
     titleEmphasis: titleEmphasis || null,
     // The film's font (title-style.mjs FILM_FONTS); the brand's, else Heebo, when unset.
     font: font || null,
+    // The graphics over every scene's picture, unless a scene chose its own.
+    sceneOverlay: sceneOverlay || null,
+    // The closing card's design (film-look.mjs END_CARD_STYLES); the classic card when unset.
+    endCardStyle: endCardStyle || null,
     aspect,
     width,
     height,

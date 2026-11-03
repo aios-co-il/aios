@@ -20,12 +20,14 @@ import {
   isSceneEngine,
   quotedProductionEstimate,
 } from "../video-cost.ts";
+import { isSceneOverlay } from "../scene-overlays.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
 import { isTitleEmphasis } from "../title-emphasis.ts";
+import { isEndCardStyle } from "../film-look.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -373,6 +375,14 @@ export async function workshopProduceVideo(ctx: ToolContext) {
               ? { title_emphasis: args.title_emphasis }
               : {}),
             ...(isFilmFont(args.font) ? { font: args.font } : {}),
+            // The graphics over every scene's picture (scene-overlays.ts).
+            ...(isSceneOverlay(args.scene_overlay)
+              ? { scene_overlay: args.scene_overlay }
+              : {}),
+            // The closing card's design (film-look.ts).
+            ...(isEndCardStyle(args.end_card_style)
+              ? { end_card_style: args.end_card_style }
+              : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },

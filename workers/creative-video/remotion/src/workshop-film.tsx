@@ -18,6 +18,7 @@ import {
   type WorkshopMove,
   type WorkshopMusicLoop,
   type WorkshopScene,
+  type WorkshopTransition,
 } from "./manifest";
 import { KaraokeCaptions, SceneCaption } from "./workshop-captions";
 import { EndCard } from "./workshop-end-card";
@@ -25,15 +26,13 @@ import { Kicker } from "./workshop-kicker";
 import { MotionCaptions } from "./workshop-motion-captions";
 import { MotionTitle } from "./workshop-motion-title";
 import { filmFontFamily, fontFaces } from "./workshop-fonts";
+import { SceneOverlayView } from "./workshop-overlay";
 import { sceneHeadline } from "./workshop-scene-text";
 import { SkinFlash, SkinSweep } from "./workshop-skin";
 import { TitleCard } from "./workshop-title-card";
-import {
-  edgeFade,
-  enterStyle,
-  skinEnter,
-  skinExit,
-} from "./workshop-transition";
+import { edgeFade, skinEnter, skinExit } from "./workshop-transition";
+import { transitionLook } from "./workshop-transitions";
+import { TransitionFilter } from "./workshop-transition-filter";
 
 export type {
   WorkshopFilmProps,
@@ -132,17 +131,19 @@ type TitleMode = "none" | "kicker" | "card";
 const Picture: React.FC<{
   scene: WorkshopScene;
   enter: number;
-  /** Frames of the next scene's skin switch over this scene's end (0 for another cut). */
+  /** Frames of the next scene's transition over this scene's end, and that transition. */
   exitFrames: number;
+  exitType?: WorkshopTransition;
   accent: string;
   /** The scene's on-screen text to draw ("" for none), at the bottom or at the top. */
   caption: string;
   /** "top" over spoken captions; "motion": motion graphics where captions would sit. */
   captionAt: "top" | "bottom" | "motion";
   title: TitleMode;
-}> = ({ scene, enter, exitFrames, accent, caption, captionAt, title }) => {
+}> = (props) => {
+  const { scene, enter, exitFrames, accent, caption, captionAt, title } = props;
   const frame = useCurrentFrame();
-  const { durationInFrames, fps } = useVideoConfig();
+  const { durationInFrames, fps, width } = useVideoConfig();
   const progress = interpolate(
     frame,
     [0, Math.max(1, durationInFrames - 1)],
@@ -156,7 +157,20 @@ const Picture: React.FC<{
     scene.transition === "skin" && enter > 0
       ? skinEnter(frame, enter, fps)
       : null;
-  const out = skinExit(frame, durationInFrames, exitFrames);
+  const skinOut = props.exitType === "skin" ? exitFrames : 0;
+  const out = skinExit(frame, durationInFrames, skinOut);
+  // Every other transition, in and out (whip, ripple and glitch through an SVG filter).
+  const fxId = `fx-${scene.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+  const look = transitionLook({
+    type: scene.transition || "crossfade",
+    enter,
+    exitType: props.exitType,
+    exitFrames,
+    frame,
+    total: durationInFrames,
+    width,
+    id: fxId,
+  });
   const punch = (skin?.scale ?? 1) * out.scale;
   const blur = Math.max(skin?.blur ?? 0, out.blur);
   const filters = [
@@ -165,12 +179,12 @@ const Picture: React.FC<{
   ].filter(Boolean);
   return (
     <AbsoluteFill>
+      {look.fx ? <TransitionFilter id={fxId} fx={look.fx} /> : null}
       <AbsoluteFill
         style={{
           background: "#07111c",
-          ...(skin
-            ? { opacity: skin.shown ? 1 : 0 }
-            : enterStyle(scene.transition || "crossfade", frame, enter)),
+          ...look.style,
+          ...(skin ? { opacity: skin.shown ? 1 : 0 } : {}),
         }}
       >
         <AbsoluteFill
@@ -221,6 +235,15 @@ const Picture: React.FC<{
           />
           {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
         </AbsoluteFill>
+        {scene.overlay && scene.overlay !== "none" ? (
+          <SceneOverlayView
+            overlay={scene.overlay}
+            sceneId={scene.id}
+            enter={enter}
+            accent={accent}
+            hasText={Boolean(caption) || captionAt === "top"}
+          />
+        ) : null}
         {!caption ? null : captionAt === "motion" ? (
           <MotionTitle
             text={caption}
@@ -288,6 +311,7 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   brand,
   endCardFrames,
   font,
+  endCardStyle,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
@@ -348,7 +372,8 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
         <Picture
           scene={scene}
           enter={enter}
-          exitFrames={next?.transition === "skin" ? enterOf(index + 1) : 0}
+          exitFrames={next ? enterOf(index + 1) : 0}
+          exitType={next?.transition}
           accent={accent}
           caption={caption}
           captionAt={spoken.length ? "top" : motion ? "motion" : "bottom"}
@@ -407,7 +432,12 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
               ),
             }}
           >
-            <EndCard brand={brand} accent={accent} fontFamily={fontFamily} />
+            <EndCard
+              brand={brand}
+              accent={accent}
+              fontFamily={fontFamily}
+              design={endCardStyle}
+            />
           </AbsoluteFill>
         </Sequence>
       ) : null}

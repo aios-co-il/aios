@@ -11,7 +11,9 @@ import {
   titleStyleOf,
 } from "../compose/title-style.mjs";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.mjs";
+import { endCardStyleOf, sceneTransitionOf } from "../compose/film-look.mjs";
 import { assembleWithRemotion } from "../compose/remotion.mjs";
+import { sceneOverlayOf } from "../compose/scene-overlay.mjs";
 import { buildTimeline } from "../compose/timeline.mjs";
 import {
   assertTenantPath,
@@ -217,6 +219,10 @@ export async function loadFilmSources(db, run) {
         titleStyle: titleStyleOf(sceneMeta.title_style),
         titleSize: titleSizeOf(sceneMeta.title_size),
         titleEmphasis: titleEmphasisOf(sceneMeta.title_emphasis),
+        // The graphics over the scene's picture, over the film's (scene-overlay.mjs).
+        sceneOverlay: sceneOverlayOf(sceneMeta.scene_overlay),
+        // The transition Carmen chose into the scene, over the film's cycle (film-look.mjs).
+        transition: sceneTransitionOf(sceneMeta.transition),
         voicePath,
         voiceAlignment: voice ? metaOf(voice).alignment || null : null,
         lipsync: clipTalks,
@@ -249,8 +255,9 @@ export async function loadFilmSources(db, run) {
  * "karaoke"), whether the brief asked for trailer sound design (video.sound_design), whether
  * its pictures are finished designs to show whole (video.keep_design), how its scenes' text
  * enters, how large it is and how its key words are emphasised (video.title_style,
- * video.title_size, video.title_emphasis), its font (video.font), and
- * whether this run may pay for the effects: only the assembly of a running production
+ * video.title_size, video.title_emphasis), its font (video.font), the graphics over its scenes'
+ * pictures (video.scene_overlay), its closing card's design (video.end_card_style), and whether
+ * this run may pay for the effects: only the assembly of a running production
  * (advance_video_production records its render_run_id), up to what its approved quote priced
  * them at (effectsQuotedUsd; workshop_produce_video puts estimate.sound_effects on the
  * production). Every other render, and a production quoted without them (the Video Studio's
@@ -274,6 +281,8 @@ export async function loadFilmSettings(db, run) {
     titleSize: titleSizeOf(row?.payload?.video?.title_size),
     titleEmphasis: titleEmphasisOf(row?.payload?.video?.title_emphasis),
     font: filmFontOf(row?.payload?.video?.font),
+    sceneOverlay: sceneOverlayOf(row?.payload?.video?.scene_overlay),
+    endCardStyle: endCardStyleOf(row?.payload?.video?.end_card_style),
     effectsQuotedUsd:
       production?.status === "running" &&
       String(production.render_run_id ?? "") === String(run.id)
@@ -439,6 +448,8 @@ export async function renderFilm({
       titleSize: settings.titleSize,
       titleEmphasis: settings.titleEmphasis,
       font: settings.font,
+      sceneOverlay: settings.sceneOverlay,
+      endCardStyle: settings.endCardStyle,
     });
     const output = join(dir, "film.mp4");
     let durationS = timeline.totalS;
