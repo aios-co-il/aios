@@ -3,35 +3,41 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { asAutomationKey, automationMeta } from "@/lib/carmenAutomations";
+import type { CronJobMeta } from "@/lib/cronJobsCatalog";
+import {
+  asSettingsAutomationKey,
+  settingsAutomationMeta,
+} from "@/lib/carmenSettingsAutomations";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { carmenTasksKey, useCarmenTasks } from "../useCarmenTasks";
-import { setAutomationEnabled } from "./automationSwitch";
+import { toggleAutomation } from "./automationSwitch";
 import { CronSendsBadge } from "./CronSendsBadge";
 
 /**
- * One of Carmen's automations for this org (AIO-315): what it does, what it
- * sends, and its on/off switch. Only owners can change it (RLS); for anyone
- * else the save fails with the database's message.
+ * One of Carmen's automations for this org (AIO-315, AIO-316): what it does,
+ * what it sends, and its on/off switch. The database decides who may change
+ * it; a refused save shows its message. Automations kept in the heartbeat
+ * settings also link to those full settings.
  */
 export function AutomationEditor({
   tenantId,
   automationKey,
   onDone,
+  onOpenSettings,
 }: {
   tenantId: string | null;
   automationKey: string;
   onDone: () => void;
+  onOpenSettings: () => void;
 }) {
   const qc = useQueryClient();
-  const key = asAutomationKey(automationKey);
+  const meta = findAutomationMeta(automationKey);
+  const inHeartbeatSettings = asSettingsAutomationKey(automationKey) !== null;
   const { data } = useCarmenTasks(tenantId);
   const row = data?.rows.find((r) => r.key === `automation:${automationKey}`);
   const save = useMutation({
-    mutationFn: (enabled: boolean) => {
-      if (!tenantId || !key) {
-        throw new Error("אין ארגון או אוטומציה");
-      }
-      return setAutomationEnabled(tenantId, key, enabled);
-    },
+    mutationFn: (enabled: boolean) =>
+      toggleAutomation(requireTenantId(tenantId), automationKey, enabled),
     onSuccess: (_, enabled) => {
       qc.invalidateQueries({ queryKey: carmenTasksKey(tenantId) });
       toast.success(enabled ? "האוטומציה הופעלה" : "האוטומציה כובתה לארגון");
@@ -39,11 +45,11 @@ export function AutomationEditor({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (!key) {
+  if (!meta) {
     return <p className="text-sm text-muted-foreground">האוטומציה לא נמצאה.</p>;
   }
-  const meta = automationMeta(key);
-  const enabled = row?.enabled ?? true;
+  // The switch waits for the stored value; each kind has its own default.
+  const enabled = row?.enabled === true;
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -70,18 +76,41 @@ export function AutomationEditor({
             כיבוי עוצר את האוטומציה רק לארגון הזה. ריצות שפוספסו לא מושלמות
             בדיעבד.
           </p>
+          {automationKey === "manager_round" && (
+            <p className="text-xs text-muted-foreground">
+              הדלקה כאן מחזירה למצב צפייה (דשבורד בלבד); מצב שליחה בוחרים בכל
+              ההגדרות.
+            </p>
+          )}
         </div>
         <Switch
           checked={enabled}
-          disabled={save.isPending}
+          disabled={save.isPending || !row}
           onCheckedChange={(on) => save.mutate(on)}
           aria-label={enabled ? "כיבוי" : "הפעלה"}
         />
       </div>
 
-      <Button variant="outline" onClick={onDone}>
-        חזרה למשימות
-      </Button>
+      <div className="flex gap-2">
+        {inHeartbeatSettings && (
+          <Button variant="outline" onClick={onOpenSettings}>
+            כל ההגדרות
+          </Button>
+        )}
+        <Button variant="outline" onClick={onDone}>
+          חזרה למשימות
+        </Button>
+      </div>
     </div>
   );
+}
+
+/** The catalog entry of either kind of automation, or null for an unknown id. */
+function findAutomationMeta(id: string): CronJobMeta | null {
+  const key = asAutomationKey(id);
+  if (key) {
+    return automationMeta(key);
+  }
+  const settingsKey = asSettingsAutomationKey(id);
+  return settingsKey ? settingsAutomationMeta(settingsKey) : null;
 }

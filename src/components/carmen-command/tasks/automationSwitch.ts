@@ -4,8 +4,13 @@
  * as the mutation's error.
  */
 import { supabase } from "@/integrations/supabase/client";
-import type { AutomationSetting } from "@/lib/carmenAutomations";
+import {
+  asAutomationKey,
+  type AutomationSetting,
+} from "@/lib/carmenAutomations";
+import { asSettingsAutomationKey } from "@/lib/carmenSettingsAutomations";
 import type { AutomationKey } from "../../../../supabase/functions/_shared/automations/keys.ts";
+import { setHeartbeatAutomation } from "./heartbeatAutomationSwitch";
 
 /** The org's stored switches; an automation with no row is on. */
 export async function loadAutomationSettings(
@@ -36,4 +41,24 @@ export async function setAutomationEnabled(
   if (error) {
     throw error;
   }
+}
+
+/**
+ * Switches any automation card: a carmen_automation_settings switch or one
+ * kept in tenant_heartbeat_settings (AIO-316). An unknown id is refused.
+ */
+export async function toggleAutomation(
+  tenantId: string,
+  id: string,
+  enabled: boolean,
+): Promise<void> {
+  const key = asAutomationKey(id);
+  if (key) {
+    return setAutomationEnabled(tenantId, key, enabled);
+  }
+  const settingsKey = asSettingsAutomationKey(id);
+  if (settingsKey) {
+    return setHeartbeatAutomation(tenantId, settingsKey, enabled);
+  }
+  throw new Error("האוטומציה לא נמצאה");
 }

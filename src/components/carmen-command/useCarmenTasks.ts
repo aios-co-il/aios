@@ -2,8 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getCronMeta } from "@/lib/cronJobsCatalog";
 import { mapAutomations } from "@/lib/carmenAutomations";
+import { mapSettingsAutomations } from "@/lib/carmenSettingsAutomations";
 import { requireTenantId } from "@/lib/requireTenantId";
 import { loadAutomationSettings } from "./tasks/automationSwitch";
+import {
+  loadHeartbeatAutomations,
+  type HeartbeatAutomationRow,
+} from "./tasks/heartbeatAutomationSwitch";
 import {
   mapAgentTask,
   mapCronJob,
@@ -53,7 +58,7 @@ export function useCarmenTasks(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 20_000,
     queryFn: async () => {
-      const [agentTasks, goals, devTasks, cronJobs, automations] =
+      const [agentTasks, goals, devTasks, cronJobs, automations, heartbeat] =
         await Promise.all([
           selectWithFallback(
             "agent_tasks",
@@ -101,6 +106,13 @@ export function useCarmenTasks(tenantId: string | null) {
               return [];
             },
           ),
+          // A failed read shows the cards with the table defaults.
+          loadHeartbeatAutomations(requireTenantId(tenantId)).catch(
+            (e: unknown): HeartbeatAutomationRow => {
+              console.error("[carmen-tasks] heartbeat settings read failed", e);
+              return { fields: null, updatedAt: null };
+            },
+          ),
         ]);
 
       const rows: CarmenTaskRow[] = [
@@ -114,6 +126,7 @@ export function useCarmenTasks(tenantId: string | null) {
           mapCronJob(j, getCronMeta(String(j.jobname))),
         ),
         ...mapAutomations(automations),
+        ...mapSettingsAutomations(heartbeat.fields, heartbeat.updatedAt),
       ];
       return {
         rows,
