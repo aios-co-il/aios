@@ -42,6 +42,9 @@ export default function EditTenantAgenciesDialog({
   const { data: agencies, isLoading: loadingAgencies } = useQuery({
     queryKey: ["agencies", currentTenantId],
     queryFn: async () => {
+      if (!currentTenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
@@ -58,6 +61,9 @@ export default function EditTenantAgenciesDialog({
   const { data: existingAccess, isLoading: loadingAccess } = useQuery({
     queryKey: ["agency-tenant-access", currentTenantId, tenant.id],
     queryFn: async () => {
+      if (!currentTenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agency_tenant_access")
         .select("agency_id")
