@@ -8,7 +8,6 @@ import type {
   BrainConnection,
   BrainRouteSummary,
   BrainRouteType,
-  BuiltinBrainState,
 } from "../../../../../supabase/functions/_shared/carmen/brain-connections/types.ts";
 import { BrainRouteCard } from "./BrainRouteCard";
 import { BuiltinKeyDialog } from "./BuiltinKeyDialog";
@@ -38,7 +37,8 @@ export function BrainConnectionsTab() {
   const [modelDialog, setModelDialog] = useState<{
     conn: BrainConnection | null;
   } | null>(null);
-  const [keyDialog, setKeyDialog] = useState<BuiltinBrainState | null>(null);
+  // The slug, so the open dialog reads fresh state after a save or share.
+  const [keySlug, setKeySlug] = useState<string | null>(null);
 
   if (!tenantId) return null;
   if (isLoading)
@@ -59,6 +59,7 @@ export function BrainConnectionsTab() {
 
   const connections = new Map(data.connections.map((c) => [c.id, c]));
   const builtins = new Map(data.builtins.map((b) => [b.slug, b]));
+  const keyDialog = keySlug ? builtins.get(keySlug) : undefined;
   const byType = (type: BrainRouteType) =>
     data.routes.filter((r) => r.route_type === type);
   const card = (r: BrainRouteSummary) => {
@@ -87,7 +88,7 @@ export function BrainConnectionsTab() {
               success: "נמחק",
             });
         }}
-        onKey={() => setKeyDialog(builtins.get(r.slug) ?? null)}
+        onKey={() => setKeySlug(r.slug)}
       />
     );
   };
@@ -126,8 +127,9 @@ export function BrainConnectionsTab() {
       {keyDialog && (
         <BuiltinKeyDialog
           builtin={keyDialog}
+          shareTargets={data.share_targets}
           write={write}
-          onClose={() => setKeyDialog(null)}
+          onClose={() => setKeySlug(null)}
         />
       )}
     </div>

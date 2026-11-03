@@ -13,6 +13,8 @@
 //   test          { connection_id } | { base_url, model, api_key }
 //   set_builtin   { builtin_slug, api_key?, external_id? }
 //   reset_builtin { builtin_slug }
+//   share_builtin   { builtin_slug, target_tenant_id }
+//   unshare_builtin { builtin_slug, target_tenant_id }
 //   set_active    { route_id, active }
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireAuth } from "../_shared/security.ts";
@@ -22,6 +24,7 @@ import { isTenantManager } from "./auth.ts";
 import { resetBuiltin, setBuiltin } from "./builtin-actions.ts";
 import { createModel, deleteModel, updateModel } from "./model-actions.ts";
 import { type ActionContext, HttpError } from "./request.ts";
+import { shareBuiltin, unshareBuiltin } from "./share-actions.ts";
 import { listState } from "./state.ts";
 import { testModel } from "./test-connection.ts";
 import { setActive } from "./visibility.ts";
@@ -33,6 +36,8 @@ const WRITES: Record<string, (ctx: ActionContext) => Promise<void>> = {
   delete: deleteModel,
   set_builtin: setBuiltin,
   reset_builtin: resetBuiltin,
+  share_builtin: shareBuiltin,
+  unshare_builtin: unshareBuiltin,
   set_active: setActive,
 };
 

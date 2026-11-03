@@ -82,7 +82,8 @@ export async function syncSignatureRecipientPosition(
     const sigField = fields.find(
       (field) =>
         (field.type === "signature" || field.type === "signature_stamp") &&
-        (field.recipient_index ?? 0) === Math.max(0, recipient.sign_order - 1),
+        (field.recipient_index ?? 0) ===
+          Math.max(0, (recipient.sign_order ?? 0) - 1),
     );
     const { error } = await supabase
       .from("signature_recipients")
