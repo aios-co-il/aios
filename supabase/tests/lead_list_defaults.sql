@@ -1,45 +1,33 @@
--- Saved Leads-screen default (20261102140000_lead_list_defaults): Staging
--- only. A member of two tenants and a member of one save defaults inside one
--- transaction that is rolled back.
+-- Saved Leads-screen default (20261103113000_lead_list_defaults): a member
+-- of two tenants and a colleague in one of them save defaults. Synthetic users
+-- and tenants inside one transaction that is rolled back.
 BEGIN;
 DO $test$
 DECLARE
-  v_user uuid;
-  v_other_user uuid;
+  v_tag text := replace(gen_random_uuid()::text, '-', '');
+  v_user uuid := gen_random_uuid();
+  v_other_user uuid := gen_random_uuid();
   v_tenant uuid;
   v_second_tenant uuid;
   v_foreign_tenant uuid;
   v_scope text;
   v_count integer;
 BEGIN
-  -- A non super admin who belongs to two tenants, and a member of the first
-  -- tenant who is someone else.
-  SELECT tu.user_id, min(tu.tenant_id::text)::uuid, max(tu.tenant_id::text)::uuid
-  INTO v_user, v_tenant, v_second_tenant
-  FROM public.tenant_users AS tu
-  WHERE NOT public.is_super_admin(tu.user_id)
-  GROUP BY tu.user_id
-  HAVING count(DISTINCT tu.tenant_id) >= 2
-  LIMIT 1;
-
-  SELECT tu.user_id INTO v_other_user
-  FROM public.tenant_users AS tu
-  WHERE tu.tenant_id = v_tenant
-    AND tu.user_id <> v_user
-    AND NOT public.is_super_admin(tu.user_id)
-  LIMIT 1;
-
-  SELECT t.id INTO v_foreign_tenant
-  FROM public.tenants AS t
-  WHERE NOT EXISTS (
-    SELECT 1 FROM public.tenant_users AS tu
-    WHERE tu.tenant_id = t.id AND tu.user_id = v_user
-  )
-  LIMIT 1;
-
-  IF v_user IS NULL OR v_other_user IS NULL OR v_foreign_tenant IS NULL THEN
-    RAISE EXCEPTION 'Fixture missing: need a two-tenant member, a colleague and a foreign tenant';
-  END IF;
+  -- The user belongs to two tenants, the colleague to the first, and nobody
+  -- here belongs to the third.
+  INSERT INTO auth.users (id, email)
+  SELECT u, 'qa-lead-list-default-' || u || '@example.invalid'
+  FROM unnest(ARRAY[v_user, v_other_user]) AS u;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK first', 'qa-lld-first-' || v_tag) RETURNING id INTO v_tenant;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK second', 'qa-lld-second-' || v_tag) RETURNING id INTO v_second_tenant;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK foreign', 'qa-lld-foreign-' || v_tag) RETURNING id INTO v_foreign_tenant;
+  INSERT INTO public.tenant_users (tenant_id, user_id, role) VALUES
+    (v_tenant, v_user, 'member'),
+    (v_second_tenant, v_user, 'member'),
+    (v_tenant, v_other_user, 'member');
 
   -- Only 'all' and 'new' are valid scopes.
   BEGIN
