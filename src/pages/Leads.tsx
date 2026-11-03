@@ -4705,7 +4705,8 @@ function TableWithStickyScroll({
         description: `כל ${selectedLeads.length} הלידים שויכו ל-${selectedSalesPeople.length} אנשי מכירות`,
       });
     },
-    onError: (error: any) => {
+    onError: (error) => {
+      console.error("Bulk lead assignment failed:", error.message);
       toast({
         title: "שגיאה בשיוך לידים",
         description: error.message,
