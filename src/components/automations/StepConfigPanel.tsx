@@ -4087,7 +4087,12 @@ function WhatsAppTriggerConfig({
         .eq("integration_type", "green_api")
         .eq("is_active", true);
       if (error) throw error;
-      return data || [];
+      return (data || []).filter(
+        (
+          integration,
+        ): integration is typeof integration & { user_id: string } =>
+          integration.user_id !== null,
+      );
     },
     enabled: !!tenantId,
   });
