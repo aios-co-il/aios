@@ -26,8 +26,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { Badge } from "@/components/ui/badge";
 import { LeadFiltersFooter } from "./LeadFiltersFooter";
+import { saveLeadFilterPreset, toPresetFilters } from "./saveLeadFilterPreset";
 import {
-  leadStagePresetFields,
   normalizeLeadValueFilterMode,
   type LeadValueFilterMode,
 } from "@/lib/leadStageFilter";
@@ -224,43 +224,26 @@ export function LeadFiltersDialog({
 
     setIsSaving(true);
     try {
-      const filtersToSave = {
-        searchQuery: filters.searchQuery || null,
-        salesPersonIds: filters.salesPersonIds,
-        ...leadStagePresetFields(filters.stageIds),
-        stageFilterMode: filters.stageFilterMode,
-        responseStatus: filters.responseStatus,
-        responseStatusFilterMode: filters.responseStatusFilterMode,
-        tagIds: filters.tagIds,
-        startDate: filters.startDate?.toISOString() || null,
-        endDate: filters.endDate?.toISOString() || null,
-        followUpToday: filters.followUpToday,
-      };
-
-      const { error } = await supabase.from("lead_filter_presets").insert({
-        tenant_id: tenantId,
-        user_id: userId,
-        name: presetName,
-        filters: filtersToSave,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "פריסט נשמר בהצלחה",
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["lead-filter-presets", tenantId],
-      });
-      onApply(filters);
-      onOpenChange(false);
-    } catch (error: any) {
-      toast({
-        title: "שגיאה בשמירת פריסט",
-        description: error.message,
-        variant: "destructive",
-      });
+      await saveLeadFilterPreset(
+        supabase,
+        { tenantId, userId, name: presetName, filters },
+        {
+          onSaved: () => {
+            toast({ title: "פריסט נשמר בהצלחה" });
+            queryClient.invalidateQueries({
+              queryKey: ["lead-filter-presets", tenantId],
+            });
+          },
+          onError: (message) =>
+            toast({
+              title: "שגיאה בשמירת פריסט",
+              description: message,
+              variant: "destructive",
+            }),
+          onApply,
+          onOpenChange,
+        },
+      );
     } finally {
       setIsSaving(false);
     }
@@ -272,18 +255,7 @@ export function LeadFiltersDialog({
 
     setIsUpdating(true);
     try {
-      const filtersToSave = {
-        searchQuery: filters.searchQuery || null,
-        salesPersonIds: filters.salesPersonIds,
-        ...leadStagePresetFields(filters.stageIds),
-        stageFilterMode: filters.stageFilterMode,
-        responseStatus: filters.responseStatus,
-        responseStatusFilterMode: filters.responseStatusFilterMode,
-        tagIds: filters.tagIds,
-        startDate: filters.startDate?.toISOString() || null,
-        endDate: filters.endDate?.toISOString() || null,
-        followUpToday: filters.followUpToday,
-      };
+      const filtersToSave = toPresetFilters(filters);
 
       const { error } = await supabase
         .from("lead_filter_presets")
