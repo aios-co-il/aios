@@ -7,7 +7,7 @@ import {
 } from "@/lib/adsMetrics";
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import type { GoogleGoalPresence } from "@/lib/googleGoalPresence";
-import { adsRowOutcomes } from "./adsRowOutcomes";
+import { adsRowOutcomes } from "@/lib/adsRowOutcomes";
 
 type RecordData = Record<string, unknown>;
 

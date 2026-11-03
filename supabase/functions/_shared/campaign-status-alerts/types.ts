@@ -30,15 +30,14 @@ export const STATUS_ALERT_TYPES = [
 
 export type StatusAlertType = (typeof STATUS_ALERT_TYPES)[number];
 
-/** Types that send a WhatsApp; campaign_with_issues is recorded only. */
+/**
+ * Types that send a WhatsApp: none for now (David, AIO-310). Production
+ * creates thousands of status alerts a day and one message per alert per
+ * phone would flood managers, so every type is recorded and shown on the
+ * pulse dashboard only. One combined message for new blocks is AIO-309.
+ */
 export const NOTIFY_ALERT_TYPES: ReadonlySet<string> = new Set<StatusAlertType>(
-  [
-    "account_disabled",
-    "ad_account_billing_issue",
-    "campaign_stopped",
-    "ad_disapproved",
-    "no_live_ads",
-  ],
+  [],
 );
 
 export type Finding = {

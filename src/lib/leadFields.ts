@@ -10,6 +10,7 @@
 
 import {
   LEAD_SOURCE_KEY_LABELS,
+  leadSourceMatches,
   leadSourceTagName,
 } from "../../supabase/functions/_shared/lead-source/source-key.ts";
 
@@ -111,13 +112,22 @@ export function leadCreatedAtWasBumped(
   );
 }
 
+/**
+ * Whether the lead now arrives through another channel than it first did.
+ * Sources compare by key, so "paid_ads" then "FB" is the same channel (both
+ * show as FB); unknown texts compare as written, and match in both directions
+ * because a configured "other" alone would take any unknown text.
+ */
 export function leadArrivalSourceChanged(
   lead: LeadSourceLike | null | undefined,
 ): boolean {
-  return !!(
-    lead?.first_source &&
-    lead.source &&
-    lead.first_source !== lead.source
+  const first = lead?.first_source;
+  const current = lead?.source;
+  if (!first || !current) {
+    return false;
+  }
+  return !(
+    leadSourceMatches(first, current) && leadSourceMatches(current, first)
   );
 }
 

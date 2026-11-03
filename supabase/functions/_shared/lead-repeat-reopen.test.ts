@@ -1,8 +1,71 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   applyRepeatInboundReopen,
+  reopenRepeatLead,
   withoutNewLeadOriginColumns,
 } from "./lead-repeat-reopen.ts";
+
+/** Fake client: the leads update resolves to `updateError`; inserts are kept. */
+function fakeIntakeDb(updateError: { message: string } | null) {
+  const inserts: Array<{ table: string; row: Record<string, unknown> }> = [];
+  const db = {
+    from: (table: string) => ({
+      update: () => ({ eq: async () => ({ error: updateError }) }),
+      insert: async (row: Record<string, unknown>) => {
+        inserts.push({ table, row });
+        return { error: null };
+      },
+    }),
+  };
+  return { db, inserts };
+}
+
+const returningLead = { id: "lead-1", tenant_id: "tenant-1" };
+
+Deno.test(
+  "a reopened lead gets its arrival in the source history",
+  async () => {
+    const { db, inserts } = fakeIntakeDb(null);
+    const { error } = await reopenRepeatLead(
+      db,
+      returningLead,
+      { notes: "x" },
+      {
+        source: "FB",
+        campaignName: "מכירות",
+      },
+    );
+    assertStrictEquals(error, null);
+    assertEquals(inserts, [
+      {
+        table: "lead_source_events",
+        row: {
+          lead_id: "lead-1",
+          tenant_id: "tenant-1",
+          source: "FB",
+          campaign_name: "מכירות",
+        },
+      },
+    ]);
+  },
+);
+
+Deno.test(
+  "a failed lead update returns its error and adds no history row",
+  async () => {
+    const { db, inserts } = fakeIntakeDb({ message: "timeout" });
+    const { error } = await reopenRepeatLead(
+      db,
+      returningLead,
+      {},
+      {
+        source: "FB",
+      },
+    );
+    assertEquals(error, { message: "timeout" });
+    assertStrictEquals(inserts.length, 0);
+  },
+);
 
 Deno.test("repeat inbound bumps created_at and keeps the original date", () => {
   const updates = applyRepeatInboundReopen(

@@ -3,7 +3,9 @@
  * out what to write and what the change costs later, without touching the database.
  *
  * Free in itself. What a change makes the next workshop_produce_video do:
- *   - text on screen, narration, length, title, skin switch: assembled again, nothing re-animated;
+ *   - text on screen and its style, size or emphasis, the graphics over the picture, narration,
+ *     length, title, skin switch, the transition into the scene: assembled again, nothing
+ *     re-animated;
  *   - motion: that scene's clip only is made again (the scene trigger marks it stale), priced in
  *     the production quote like any stale clip;
  *   - the talking line: recorded again and lip-synced on the scene's picture (queue_video_lipsync),
@@ -16,7 +18,11 @@
  */
 
 import { asRecord } from "./record.ts";
+import { isSceneOverlay } from "./scene-overlays.ts";
 import { talkingLine } from "./talking.ts";
+import { isTitleEmphasis } from "./title-emphasis.ts";
+import { isSceneTransition } from "./film-look.ts";
+import { isTitleSize, isTitleStyle } from "./title-styles.ts";
 import { type SceneEngine, speaksNatively } from "./video-cost.ts";
 
 export interface SceneRow {
@@ -163,6 +169,22 @@ export function planSceneUpdate(
     nextMeta.skin_switch = args.skin_switch;
     changed.push("skin_switch");
     metaChanged = true;
+  }
+  // How the scene's text enters, how large it is and how its key words are emphasised
+  // (title-styles.ts, title-emphasis.ts), the graphics over its picture (scene-overlays.ts) and
+  // the transition into it (film-look.ts): assembly only.
+  for (const [key, valid] of [
+    ["title_style", isTitleStyle],
+    ["title_size", isTitleSize],
+    ["title_emphasis", isTitleEmphasis],
+    ["scene_overlay", isSceneOverlay],
+    ["transition", isSceneTransition],
+  ] as const) {
+    if (valid(args[key]) && args[key] !== meta[key]) {
+      nextMeta[key] = args[key];
+      changed.push(key);
+      metaChanged = true;
+    }
   }
   // A picture of the user's that starts talking says its line in the project's chosen voice.
   if (

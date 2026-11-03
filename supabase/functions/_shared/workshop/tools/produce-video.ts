@@ -20,9 +20,14 @@ import {
   isSceneEngine,
   quotedProductionEstimate,
 } from "../video-cost.ts";
+import { isSceneOverlay } from "../scene-overlays.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
+import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
+import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
+import { isTitleEmphasis } from "../title-emphasis.ts";
+import { isEndCardBackground, isEndCardStyle } from "../film-look.ts";
 import {
   keepsDesign,
   redrawnClipIds,
@@ -30,6 +35,9 @@ import {
 } from "./keep-design.ts";
 
 type Scene = Record<string, unknown>;
+
+const KEPT_DESIGN_NOTE =
+  "הסרט שמר את העיצוב מההפקה הקודמת (keep_design): הסצנות הן תנועת מצלמה על התמונות, בלי הנפשה. אם המשתמש ביקש הנפשה אמיתית, אמרי לו והפיקי שוב עם keep_design=false.";
 
 /**
  * Of the scenes kept as they are, the talking ones the production lip-syncs again: a still to
@@ -333,7 +341,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
   const ctaText =
     typeof args.cta_text === "string"
-      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 120)
+      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, CTA_MAX_CHARS)
       : "";
   const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
   // The quote is charged before the RPC (the payload's video settings must be saved first); a
@@ -355,6 +363,32 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             sound_engine: "elevenlabs",
             sound_design: soundDesign,
             keep_design: keepDesign,
+            // How the scenes' text enters, how large it is and how its key words are emphasised
+            // (title-styles.ts, title-emphasis.ts).
+            ...(isTitleStyle(args.title_style)
+              ? { title_style: args.title_style }
+              : {}),
+            ...(isTitleSize(args.title_size)
+              ? { title_size: args.title_size }
+              : {}),
+            ...(isTitleEmphasis(args.title_emphasis)
+              ? { title_emphasis: args.title_emphasis }
+              : {}),
+            ...(isFilmFont(args.font) ? { font: args.font } : {}),
+            // The graphics over every scene's picture (scene-overlays.ts).
+            ...(isSceneOverlay(args.scene_overlay)
+              ? { scene_overlay: args.scene_overlay }
+              : {}),
+            // The closing card's design, its background and its glass (film-look.ts).
+            ...(isEndCardStyle(args.end_card_style)
+              ? { end_card_style: args.end_card_style }
+              : {}),
+            ...(isEndCardBackground(args.end_card_background)
+              ? { end_card_background: args.end_card_background }
+              : {}),
+            ...(typeof args.end_card_glass === "boolean"
+              ? { end_card_glass: args.end_card_glass }
+              : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },
@@ -451,6 +485,10 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     engine: ENGINE_LABEL[engine],
     client_id: clientId,
     ...(soundDesign ? { sound_design: true } : {}),
+    // A design kept from the film's last production, not asked for now: Carmen can undo it.
+    ...(keepDesign && typeof args.keep_design !== "boolean"
+      ? { kept_design_note: KEPT_DESIGN_NOTE }
+      : {}),
     message:
       "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",
     artifact,

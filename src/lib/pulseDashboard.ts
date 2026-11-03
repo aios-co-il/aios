@@ -14,6 +14,7 @@ import {
   resolveCampaignDeliveryStatus,
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
+import { jsonObject } from "@functions/_shared/pulse/json.ts";
 import { hasRepeatedSyncFailures } from "../../supabase/functions/_shared/ads-sync/freshness.ts";
 import {
   isLegacyClientCallFlag,
@@ -446,7 +447,7 @@ export async function fetchPulseCampaignDeliveryHints(
       if (error) throw error;
       if (!data?.length) break;
       for (const record of data) {
-        const dataRow = record.data || {};
+        const dataRow = jsonObject(record.data) ?? {};
         const campaignId = dataRow.campaign_id || dataRow.campaignId;
         const date = typeof dataRow.date === "string" ? dataRow.date : null;
         if (!campaignId || !date) continue;
@@ -689,7 +690,7 @@ export function rollupCampaignRowsByClientGoal(input: {
     const outcomeValues = campaigns.map((row) => row.outcomes_7d);
     const hasAnyOutcome = outcomeValues.some((value) => value !== null);
     const outcomes_7d = hasAnyOutcome
-      ? outcomeValues.reduce((total, value) => total + (value ?? 0), 0)
+      ? outcomeValues.reduce<number>((total, value) => total + (value ?? 0), 0)
       : null;
     const revenue_7d = campaigns.reduce(
       (total, row) => total + (row.revenue_7d || 0),

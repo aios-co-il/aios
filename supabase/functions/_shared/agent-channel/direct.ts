@@ -87,10 +87,10 @@ export async function launchCloudDirect(
     return launchCodexViaOpenAiApi(ctx);
   }
 
-  // Tenant keys from Carmen settings win over project env secrets.
+  // Each brain's keys come from one source: own, shared, or project (home).
   const env = await sendEnv(ctx);
-  const grokWebhookUrl = env.GROK_BOT_WEBHOOK_URL;
-  const grokWebhookKey = env.GROK_BOT_WEBHOOK_KEY;
+  const grokWebhookUrl = env.GROK_BOT_WEBHOOK_URL ?? "";
+  const grokWebhookKey = env.GROK_BOT_WEBHOOK_KEY ?? "";
   const grokWebhook = grokUsesExistingWebhook(grokWebhookUrl, grokWebhookKey);
   const apiKey = cursorApiKey(env);
   if (!apiKey && !(provider === "grok" && grokWebhook)) {
