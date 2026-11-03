@@ -101,7 +101,9 @@ export function FacebookEcommerceTableDialog({
   const [selectedIntegrationId, setSelectedIntegrationId] = useState("");
 
   const { data: fbIntegrations = [], isLoading: loadingIntegrations } =
-    useUserIntegrations(tenantId, "facebook_lead_ads", { enabled: open });
+    useUserIntegrations(tenantId, "facebook_lead_ads", {
+      enabled: open,
+    });
   const { data: agencies = [] } = useTableDialogAgencies({
     includeShared: true,
     enabled: open,

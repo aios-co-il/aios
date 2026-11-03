@@ -1,3 +1,4 @@
+# The newest Node 22. From 22.18 Node runs the worker's .ts sources directly, stripping types.
 FROM node:22-bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -20,4 +21,4 @@ RUN cd /opt/aios/workers/creative-video/remotion \
   && npm ci --omit=dev --no-audit --no-fund \
   && npx remotion browser ensure
 WORKDIR /opt/aios/render-worker
-CMD ["node", "src/index.mjs"]
+CMD ["node", "src/index.ts"]

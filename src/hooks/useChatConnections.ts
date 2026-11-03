@@ -31,7 +31,7 @@ export interface ChatConnection {
  * Fetches all chat-capable integrations (Manus WA, Green API, Telegram, ManyChat)
  * the current user has access to: own + shared via integration_user_permissions.
  */
-export function useChatConnections(tenantId: string | undefined) {
+export function useChatConnections(tenantId: string | null | undefined) {
   const { userId } = useCurrentUser();
 
   return useQuery({

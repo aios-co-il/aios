@@ -106,6 +106,8 @@ interface ClientsChatViewProps {
   clients: any[];
   agencies?: any[];
   canViewFinance?: boolean;
+  /** False while finance access is loading; the business-tab guard waits for it. */
+  financeAccessReady?: boolean;
   getClientFinancialData?: (clientId: string) => any;
   initialClientId?: string; // deep-link: open this client on mount
   initialTab?: string; // deep-link: open this tab on mount (?tab=recordings)
@@ -126,7 +128,14 @@ const MOOD_CONFIG: Record<string, { emoji: string; text: string }> = {
   not_progressing: { emoji: "😔", text: "לא מתקדם" },
 };
 
-const CLIENT_TAB_OPTIONS = [
+interface ClientTabOption {
+  value: string;
+  label: string;
+  icon: typeof FileText;
+  financeOnly?: boolean;
+}
+
+const CLIENT_TAB_OPTIONS: ReadonlyArray<ClientTabOption> = [
   { value: "details", label: "פרטי לקוח", icon: FileText },
   { value: "connections", label: "חיבורים", icon: Link },
   {
@@ -150,6 +159,7 @@ export function ClientsChatView({
   clients,
   agencies,
   canViewFinance,
+  financeAccessReady = true,
   getClientFinancialData,
   initialClientId,
   initialTab,
@@ -176,12 +186,13 @@ export function ClientsChatView({
     onSelectedClientChange?.(selectedClientId);
   }, [onSelectedClientChange, selectedClientId]);
 
-  // Guard: redirect away from "business" tab if user lacks finance view permission
+  // Guard: redirect away from "business" tab if user lacks finance view permission.
+  // Wait for the answer, so a ?tab=business deep link survives the first render.
   useEffect(() => {
-    if (activeTab === "business" && !canViewFinance) {
+    if (financeAccessReady && activeTab === "business" && !canViewFinance) {
       setActiveTab("details");
     }
-  }, [activeTab, canViewFinance]);
+  }, [activeTab, canViewFinance, financeAccessReady]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(
     new Set(),

@@ -180,7 +180,16 @@ Deno.serve(async (req) => {
         .eq("next_run", task.next_run)
         .select("id")
         .maybeSingle();
-      if (claimErr || !claimed) continue;
+      if (claimErr) {
+        // A failed claim is an error, not a lost race: say so in the response.
+        console.error(
+          `[dispatch-agent-tasks] claim failed for ${task.id}:`,
+          claimErr.message,
+        );
+        errors.push({ id: task.id, stage: "claim", error: claimErr.message });
+        continue;
+      }
+      if (!claimed) continue;
 
       fetch(`${SUPABASE_URL}/functions/v1/run-agent-task`, {
         method: "POST",
@@ -230,7 +239,16 @@ Deno.serve(async (req) => {
       const { data: claimed, error: claimErr } = await claimQuery
         .select("id")
         .maybeSingle();
-      if (claimErr || !claimed) {
+      if (claimErr) {
+        // A failed claim is an error, not a lost race: say so in the response.
+        console.error(
+          `[dispatch-agent-tasks] claim failed for ${task.id}:`,
+          claimErr.message,
+        );
+        errors.push({ id: task.id, stage: "claim", error: claimErr.message });
+        continue;
+      }
+      if (!claimed) {
         // Another worker got it
         continue;
       }

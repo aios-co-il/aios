@@ -1,5 +1,5 @@
 // Phone normalization and matching for Israeli numbers, shared by telephony
-// webhooks (Maskyoo and the generic PBX).
+// webhooks (Maskyoo and the generic PBX) and the Manus WhatsApp senders.
 
 /** Digits-only local Israeli format (0XXXXXXXXX). */
 export function normalizePhone(phone: unknown): string | null {
@@ -20,4 +20,22 @@ export function phoneMatchKey(phone: unknown): string | null {
   const n = normalizePhone(phone);
   if (!n || n.length < 7) return null;
   return n.slice(-9);
+}
+
+/**
+ * Digits with the country code, from a local or international number: the
+ * recipient form the Manus WhatsApp gateway expects.
+ */
+export function toGatewayPhone(input: string, defaultCc = "972"): string {
+  let digits = (input || "").replace(/\D/g, "");
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+  if (digits.startsWith(defaultCc)) {
+    return digits;
+  }
+  if (digits.startsWith("0")) {
+    return defaultCc + digits.slice(1);
+  }
+  return defaultCc + digits;
 }

@@ -61,6 +61,8 @@ export async function sendNotify(
     supabaseUrl: deps.supabaseUrl,
     serviceRoleKey: deps.serviceRoleKey,
     functionName: transport.functionName,
+    // A staff notification, never logged on a client card.
+    sendKind: "staff_alert",
     body: {
       tenantId: plan.tenantId,
       senderUserId,
@@ -115,13 +117,16 @@ function refusal(
   };
 }
 
-/** Which step, line and recipient source the plan used. */
+/** Which step, line and recipient source the plan used, and a bypassed report list. */
 function planMeta(plan: TenantNotifyPlan) {
   return {
     transport: plan.transport.transport,
     automation_id: plan.transport.automationId,
     integration_id: plan.transport.integrationId,
     source: plan.target.source,
+    ...(plan.reportRecipientsUnavailable
+      ? { report_recipients_unavailable: true }
+      : {}),
   };
 }
 
