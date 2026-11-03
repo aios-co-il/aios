@@ -1,9 +1,15 @@
 // redeploy trigger: Carmen sessions keyed by chat JID only; never speaker-phone fallback (2026-08-27b)
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
+import { summarizeExecution } from "./execution-summary.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
 import { findMetaStepClientRecipient } from "./client-recipient.ts";
-import { fieldValueEquals, sourceBranch } from "./field-match.ts";
+import {
+  fieldValueContains,
+  fieldValueEquals,
+  fieldValueStartsWith,
+  sourceBranch,
+} from "./field-match.ts";
 import { recordAutomationStepSend } from "./step-client-send.ts";
 import {
   buildWaNotifyFromOrigin,
@@ -1626,48 +1632,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Guard: cooldown - prevent same trigger+entity from firing again within 30 seconds
-    if (
-      requestBody.trigger_type === "whatsapp_message_received" &&
-      entityKey !== "no-entity"
-    ) {
-      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
-      const { data: recentExec } = await supabase
-        .from("automation_executions")
-        .select("id")
-        .eq("tenant_id", requestBody.tenant_id)
-        .eq("trigger_type", "whatsapp_message_received")
-        .eq("entity_id", entityKey)
-        .gte("started_at", thirtySecondsAgo)
-        .eq("status", "running")
-        .limit(1)
-        .maybeSingle();
-
-      if (recentExec) {
-        return new Response(
-          JSON.stringify({ error: "Cooldown active", entity: entityKey }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 429,
-          },
-        );
-      }
-    }
-
-    const { data: execRecord } = await supabase
-      .from("automation_executions")
-      .insert({
-        execution_id: executionId,
-        tenant_id: requestBody.tenant_id || null,
-        automation_id: requestBody.automationId || null,
-        trigger_type: requestBody.trigger_type || null,
-        entity_id: entityKey !== "no-entity" ? entityKey : null,
-        depth: executionDepth,
-        status: "running",
-        started_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+    // No time-based cooldown here: it used to drop every group message that
+    // arrived within 30s of the previous one. Redelivered webhooks are now
+    // deduplicated at the source by provider message id (green-api-webhook),
+    // and the execution row is written only once automations have matched.
 
     // ===== END SAFETY GUARDS =====
 
@@ -2532,28 +2500,25 @@ Deno.serve(async (req) => {
                   const expected = String(stepConfig.condition_value || "");
                   const actual = String(stepData[field] ?? "");
                   let result = false;
-                  if (operator === "equals")
+                  if (operator === "equals") {
                     result = fieldValueEquals(field, actual, expected);
-                  else if (operator === "not_equals")
+                  } else if (operator === "not_equals") {
                     result = !fieldValueEquals(field, actual, expected);
-                  else if (operator === "contains")
-                    result = actual
-                      .toLowerCase()
-                      .includes(expected.toLowerCase());
-                  else if (operator === "not_contains")
-                    result = !actual
-                      .toLowerCase()
-                      .includes(expected.toLowerCase());
-                  else if (operator === "starts_with")
-                    result = actual.startsWith(expected);
-                  else if (operator === "greater_than")
+                  } else if (operator === "contains") {
+                    result = fieldValueContains(field, actual, expected);
+                  } else if (operator === "not_contains") {
+                    result = !fieldValueContains(field, actual, expected);
+                  } else if (operator === "starts_with") {
+                    result = fieldValueStartsWith(field, actual, expected);
+                  } else if (operator === "greater_than") {
                     result = parseFloat(actual) > parseFloat(expected);
-                  else if (operator === "less_than")
+                  } else if (operator === "less_than") {
                     result = parseFloat(actual) < parseFloat(expected);
-                  else if (operator === "is_empty")
+                  } else if (operator === "is_empty") {
                     result = !actual || actual === "undefined";
-                  else if (operator === "is_not_empty")
+                  } else if (operator === "is_not_empty") {
                     result = !!actual && actual !== "undefined";
+                  }
                   stepResponse = { condition_result: result };
                   nodeOutputs[step.id] = {
                     ...stepData,
@@ -3926,6 +3891,31 @@ Deno.serve(async (req) => {
         }
       }),
     );
+
+    // Record the run only if at least one automation actually ran (conditions
+    // met, not skipped), with its final status.
+    const summary = summarizeExecution(results);
+    if (summary.actions_count > 0) {
+      const { error: execInsertError } = await supabase
+        .from("automation_executions")
+        .insert({
+          execution_id: executionId,
+          tenant_id: requestBody.tenant_id || tenantId || null,
+          automation_id: requestBody.automationId || null,
+          trigger_type: requestBody.trigger_type || null,
+          entity_id: entityKey !== "no-entity" ? entityKey : null,
+          depth: executionDepth,
+          started_at: new Date(executionStartTime).toISOString(),
+          finished_at: new Date().toISOString(),
+          ...summary,
+        });
+      if (execInsertError) {
+        console.error(
+          "[trigger-automation] execution record insert failed:",
+          execInsertError,
+        );
+      }
+    }
 
     return new Response(
       JSON.stringify({

@@ -82,7 +82,7 @@ import {
   resolveNewTaskAgency,
   buildTasksBoardScopeOrFilter,
   resolveTasksBoardScope,
-  filterTasksForBoardView,
+  filterTasksBySelectedAgency,
   syncLocalTasksForAgencyFilter,
   filterTasksByBoardTenantScope,
 } from "@/lib/taskBoardAgency";
@@ -216,7 +216,7 @@ export function WeeklyTaskBoard() {
     queryFn: () => fetchActiveCampaigners(tenantId!, crossTenantAgencyIds),
     enabled: !!tenantId,
   });
-  const { selectedAgency, setSelectedAgency, agencies } = useAgency();
+  const { selectedAgency, agencies } = useAgency();
 
   const { data: clientsList = [] } = useQuery({
     queryKey: ["clients-for-task-selector", tenantId, crossTenantAgencyIds],
@@ -288,14 +288,6 @@ export function WeeklyTaskBoard() {
       appliedOwnerBoardDefaultRef.current = true;
     }
   }, [isViewingAs, user?.id]);
-
-  // Personal queue: default header to "all agencies" so cross-agency
-  // assignments are visible. User can still narrow by agency afterward.
-  useLayoutEffect(() => {
-    if (isMineQueueFilter(effectiveCampaignerFilter)) {
-      setSelectedAgency("all");
-    }
-  }, [effectiveCampaignerFilter, setSelectedAgency]);
 
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
   const [filtersIncludeToolbar, setFiltersIncludeToolbar] = useState(false);
@@ -807,11 +799,7 @@ export function WeeklyTaskBoard() {
   const applyBoardViewFilters = useMemo(
     () => (rows: FullTask[]) => {
       let filtered = filterTasksByBoardTenantScope(
-        filterTasksForBoardView(
-          rows,
-          selectedAgency,
-          effectiveCampaignerFilter,
-        ),
+        filterTasksBySelectedAgency(rows, selectedAgency),
         tenantId!,
         crossTenantAgencyIds,
       );
@@ -875,7 +863,6 @@ export function WeeklyTaskBoard() {
       fetchedTasks,
       previousLocal: localTasks,
       selectedAgency,
-      campaignerFilter: effectiveCampaignerFilter,
       applyCampaignerFilter: applyBoardViewFilters,
     });
     setLocalTasks(next);

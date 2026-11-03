@@ -80,4 +80,24 @@ describe("summarizeGoogleAdsCampaigns", () => {
       summary.campaigns.map((campaign) => [campaign.name, campaign.off]),
     ).toStrictEqual([["Spent", true]]);
   });
+
+  it("counts a campaign once, not again for its ad group and ad rows", () => {
+    const levelRow = (entity_level: string) => ({
+      _tableId: "g",
+      data: {
+        date: "2026-10-20",
+        entity_level,
+        campaign_id: "search",
+        campaign_name: "Search",
+        cost: 100,
+        conversions: 4,
+      },
+    });
+    const summary = summarizeGoogleAdsCampaigns(
+      [levelRow("campaign"), levelRow("adset"), levelRow("ad")],
+      [table],
+    );
+    expect(summary.campaigns).toHaveLength(1);
+    expect(summary.totals).toMatchObject({ spend: 100, conversions: 4 });
+  });
 });

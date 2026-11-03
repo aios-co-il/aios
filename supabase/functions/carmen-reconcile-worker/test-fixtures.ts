@@ -57,6 +57,7 @@ export function memoryStore(
   tables: ListedTable[],
   aios: Record<string, CampaignDayRow[]>,
   previous: Record<string, string> = {},
+  offTenants: Array<string> = [],
 ) {
   const saved: SavedRun[] = [];
   const store: ReconcileStore = {
@@ -78,6 +79,8 @@ export function memoryStore(
       saved.push({ run, findings });
       return Promise.resolve(`run-${saved.length}`);
     },
+    tenantsOff: (ids) =>
+      Promise.resolve(new Set(ids.filter((id) => offTenants.includes(id)))),
   };
   return { store, saved };
 }

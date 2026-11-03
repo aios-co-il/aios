@@ -32,7 +32,7 @@ test("date windows remain separate and cancellation is forwarded", async () => {
   const signal = new AbortController().signal;
   const client = {
     functions: {
-      invoke: async (path, opts) => {
+      invoke: async (path: string, opts: { signal?: AbortSignal }) => {
         expect(path).toMatch(/date_from=2026-09-01/);
         expect(opts.signal).toBe(signal);
         return { data: [], error: null };
