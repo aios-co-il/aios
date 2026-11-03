@@ -16,7 +16,7 @@ function isNotBlocked(row) {
 
 /**
  * Build authoritative group catalog from tenant_integrations sync metadata.
- * @param {unknown} integrations
+ * @param {Array<{ settings?: import("@/integrations/supabase/types").Json }> | null | undefined} integrations
  * @returns {{ entries: SyncedGroupEntry[], chatIds: string[], hasSync: boolean }}
  */
 export function collectSyncedCatalog(integrations) {
