@@ -355,13 +355,14 @@ export async function fetchAllLeadsForExport(
   const updatesByLead: Record<string, LeadExportUpdate[]> = {};
 
   if (leadIds.length > 0) {
-    const tagRows: Array<{
+    type TagRow = {
       lead_id: string | null;
       tag_id: string;
       chat_tags?: { name?: string | null } | null;
-    }> = [];
+    };
+    const tagRows: TagRow[] = [];
     for (const idChunk of chunk(leadIds, RELATED_IN_CHUNK)) {
-      const chunkRows = await paginateQuery(async (from, to) => {
+      const chunkRows = await paginateQuery<TagRow>(async (from, to) => {
         const { data, error } = await supabase
           .from("chat_contact_tags")
           .select("lead_id, tag_id, chat_tags (name)")
@@ -388,15 +389,16 @@ export async function fetchAllLeadsForExport(
       }
     }
 
-    const updateRows: Array<{
+    type UpdateRow = {
       lead_id: string;
       content: string;
       created_at: string;
       user_id: string;
       profiles?: { full_name?: string | null } | null;
-    }> = [];
+    };
+    const updateRows: UpdateRow[] = [];
     for (const idChunk of chunk(leadIds, RELATED_IN_CHUNK)) {
-      const chunkRows = await paginateQuery(async (from, to) => {
+      const chunkRows = await paginateQuery<UpdateRow>(async (from, to) => {
         const { data, error } = await supabase
           .from("lead_updates")
           .select(
