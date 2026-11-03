@@ -1,11 +1,12 @@
-/** carmen-fb-tools gate (AIO-239): the caller, then for a user the client_id
- * and the Meta object the action changes. */
+/** carmen-fb-tools gate (AIO-239): the caller, then for a user or an approved
+ * action (AIO-307) the client_id and the Meta object the action changes. */
 import {
   adToolAccess,
   type AdToolAuthResult,
   type AdToolCaller,
   type AdToolGateInput,
   authorizeGateCaller,
+  checksTargets,
 } from "./caller.ts";
 import {
   type AdScope,
@@ -16,7 +17,7 @@ import {
 /** Whose Meta token a call runs with; see fbTokenSource. */
 export type FbTokenSource = { tenantId: string; clientId: string | null };
 
-/** carmen-fb-tools: caller, then (for a user) client_id and the Meta object. */
+/** carmen-fb-tools: caller, then (user or approved action) client_id and the Meta object. */
 export async function authorizeFbToolRequest(
   input: AdToolGateInput & {
     /** Ad account of a Meta campaign / ad set / ad, read with that token;
@@ -30,7 +31,7 @@ export async function authorizeFbToolRequest(
   const action = String(input.body.action ?? "");
   const access = adToolAccess("carmen-fb-tools", action);
   const auth = await authorizeGateCaller(input, access);
-  if (!auth.ok || auth.caller.kind !== "user") {
+  if (!auth.ok || !checksTargets(auth.caller)) {
     return auth;
   }
   const caller = auth.caller;
