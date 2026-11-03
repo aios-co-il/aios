@@ -1,8 +1,8 @@
 import type { z } from "zod";
 import type { imageCost } from "./creativeAssetPayload";
-export type ImageQuality = "low" | "medium" | "high";
-export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
-export type ImageCostSource = "api" | "official_table" | "inferred";
+export type ImageQuality = ImageGenerationCost["quality"];
+export type ImageSize = ImageGenerationCost["size"];
+export type ImageCostSource = ImageGenerationCost["source"];
 
 export type ImageGenerationCost = z.output<typeof imageCost>;
 
