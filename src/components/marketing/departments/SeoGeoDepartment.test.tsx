@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import { SeoGeoDepartment } from "./SeoGeoDepartment";
 
@@ -163,4 +163,25 @@ test("a project's existing program shows the site it publishes to", async () => 
   await waitFor(() =>
     expect(screen.getByRole("combobox")).toHaveTextContent("הבלוג של לקוח 1"),
   );
+});
+
+describe("validated SEO strategy rendering", () => {
+  test("renders only named strategy fields when stored metadata contains an object", async () => {
+    db.tables.marketing_work_items[0].payload = {
+      department: "seo",
+      seo_plan: {
+        strategy: { objective: "Known objective", provider: { model: "x" } },
+        contentPlan: [{ title: "Article" }],
+      },
+    };
+    renderScreen();
+    const strategy = await screen.findByRole("tab", {
+      name: "אסטרטגיה",
+    });
+    fireEvent.mouseDown(strategy, { button: 0, ctrlKey: false });
+    const tab = await screen.findByRole("tab", { name: "אסטרטגיה ו-GEO" });
+    fireEvent.mouseDown(tab, { button: 0, ctrlKey: false });
+    expect(await screen.findByText("Known objective")).toBeInTheDocument();
+    expect(screen.queryByText("provider")).not.toBeInTheDocument();
+  });
 });

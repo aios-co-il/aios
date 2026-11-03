@@ -1,3 +1,10 @@
+import { jsonObject } from "@functions/_shared/pulse/json";
+import {
+  readSeoPayload,
+  SEO_STRATEGY_FIELDS,
+  type SeoPayload,
+  type SeoPlan,
+} from "../seo-geo/seoPayload";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,52 +61,12 @@ interface SeoItem {
   title: string | null;
   status: string;
   client_id: string | null;
-  payload: Record<string, unknown> | null;
+  payload: SeoPayload | null;
   current_stage_id: string | null;
   updated_at: string;
 }
-interface Cluster {
-  name?: string;
-  intent?: string;
-  pillarKeyword?: string;
-  supportingKeywords?: string[];
-  priority?: string;
-  evidence?: string;
-}
-interface ContentItem {
-  title?: string;
-  contentType?: string;
-  primaryKeyword?: string;
-  cluster?: string;
-  intent?: string;
-  angle?: string;
-  geoQuestions?: string[];
-  priority?: string;
-  status?: string;
-}
-interface SeoPlan {
-  strategy?: Record<string, string>;
-  clusters?: Cluster[];
-  contentPlan?: ContentItem[];
-  geo?: {
-    entities?: string[];
-    questions?: string[];
-    citationTargets?: string[];
-    schemaRecommendations?: string[];
-  };
-  technicalPriorities?: Array<{
-    issue?: string;
-    impact?: string;
-    action?: string;
-    priority?: string;
-  }>;
-  dataNotes?: string[];
-}
-
 const message = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
-const asPlan = (value: unknown): SeoPlan | null =>
-  value && typeof value === "object" ? (value as SeoPlan) : null;
 const priorityClass = (priority?: string) =>
   priority === "high"
     ? "border-red-300 bg-red-50 text-red-700"
@@ -152,12 +119,17 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
       if (error) throw error;
       // public.workshop_assign_client repeats this rule to land an assigned project where this
       // screen lists it (20261026103411): change both together.
-      return ((data ?? []) as SeoItem[]).filter(
-        (item) =>
+      return (data ?? []).flatMap((item) => {
+        const raw = jsonObject(item.payload);
+        if (!(
           item.current_stage_id === context?.seoStage?.id ||
-          item.payload?.department === "seo" ||
-          !!item.payload?.seo_plan,
-      );
+          raw?.department === "seo" ||
+          raw?.seo_plan
+        )) {
+          return [];
+        }
+        return [{ ...item, payload: readSeoPayload(item.payload) }];
+      });
     },
   });
   const { data: signals } = useQuery({
@@ -200,27 +172,16 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
       setSelectedId(items[0]?.id ?? null);
   }, [items, selectedId]);
   const selected = items.find((item) => item.id === selectedId) ?? null;
-  const plan = useMemo(
-    () => asPlan(selected?.payload?.seo_plan),
-    [selected?.payload],
-  );
-  const intakeResearch = useMemo(() => {
-    const raw = selected?.payload?.seo_research;
-    if (!raw || typeof raw !== "object") return null;
-    const r = raw as Record<string, unknown>;
-    return {
-      competitors: Array.isArray(r.competitors)
-        ? (r.competitors as string[])
-        : [],
-      keywordSeeds: Array.isArray(r.keyword_seeds)
-        ? (r.keyword_seeds as string[])
-        : [],
-      notes: Array.isArray(r.ai_visibility_notes)
-        ? (r.ai_visibility_notes as string[])
-        : [],
-      gaps: Array.isArray(r.data_gaps) ? (r.data_gaps as string[]) : [],
-    };
-  }, [selected?.payload]);
+  const plan = useMemo(() => selected?.payload?.seo_plan, [selected?.payload]);
+  const research = selected?.payload?.seo_research;
+  const intakeResearch = research
+    ? {
+        competitors: research.competitors ?? [],
+        keywordSeeds: research.keyword_seeds ?? [],
+        notes: research.ai_visibility_notes ?? [],
+        gaps: research.data_gaps ?? [],
+      }
+    : null;
   const refresh = async () =>
     queryClient.invalidateQueries({
       queryKey: ["seo-department-items", clientFilter, tenantId],
@@ -307,8 +268,8 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
                       {item.title || "ללא כותרת"}
                     </div>
                     <div className="mt-1 text-[10px] text-muted-foreground">
-                      {asPlan(item.payload?.seo_plan)?.contentPlan?.length ?? 0}{" "}
-                      פריטי תוכן
+                      {item.payload?.seo_plan?.contentPlan?.length ?? 0} פריטי
+                      תוכן
                     </div>
                   </button>
                 ))
@@ -533,13 +494,15 @@ function SeoPlanView({ plan }: { plan: SeoPlan }) {
             value="strategy"
             className="mt-0 grid gap-3 md:grid-cols-2"
           >
-            {Object.entries(plan.strategy ?? {}).map(([key, value]) => (
+            {SEO_STRATEGY_FIELDS.filter(
+              (key) => plan.strategy?.[key] !== undefined,
+            ).map((key) => (
               <Card key={key} className="p-4">
                 <div className="text-[10px] font-semibold uppercase text-emerald-600">
                   {key}
                 </div>
                 <div className="mt-2 text-sm leading-relaxed">
-                  {value || "—"}
+                  {plan.strategy?.[key] || "—"}
                 </div>
               </Card>
             ))}
@@ -727,7 +690,7 @@ function SeoAIDialog({
         .from("marketing_work_items")
         .update({
           payload: {
-            ...(item.payload as object),
+            ...(item.payload ?? {}),
             seo_horizon_months: Number(months),
           },
         })
