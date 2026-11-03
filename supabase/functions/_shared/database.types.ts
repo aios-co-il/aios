@@ -220,7 +220,22 @@ export type Database = {
           tool_calls?: number | null;
           user_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_action_log_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_action_log_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_approval_queue: {
         Row: {
@@ -292,6 +307,13 @@ export type Database = {
             columns: ["agent_id"];
             isOneToOne: false;
             referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_approval_queue_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
         ];
@@ -662,7 +684,22 @@ export type Database = {
           tenant_id?: string;
           total_cases?: number;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_eval_runs_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_eval_runs_eval_id_fkey";
+            columns: ["eval_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_evals";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_evals: {
         Row: {
@@ -698,7 +735,15 @@ export type Database = {
           tenant_id?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_evals_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_goals: {
         Row: {
@@ -740,7 +785,15 @@ export type Database = {
           title?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_goals_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_knowledge_folders: {
         Row: {
@@ -773,7 +826,22 @@ export type Database = {
           position?: number;
           tenant_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_knowledge_folders_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_knowledge_folders_parent_folder_id_fkey";
+            columns: ["parent_folder_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_knowledge_folders";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_knowledge_items: {
         Row: {
@@ -818,7 +886,22 @@ export type Database = {
           updated_at?: string;
           url?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_knowledge_items_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_knowledge_items_folder_id_fkey";
+            columns: ["folder_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_knowledge_folders";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_mcp_connections: {
         Row: {
@@ -869,7 +952,15 @@ export type Database = {
           updated_at?: string;
           url?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_mcp_connections_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_memory: {
         Row: {
@@ -938,7 +1029,15 @@ export type Database = {
           updated_at?: string;
           valid_until?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_memory_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_runs: {
         Row: {
@@ -1025,7 +1124,29 @@ export type Database = {
           updated_at?: string;
           user_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_delegated_to_agent_id_fkey";
+            columns: ["delegated_to_agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_runs_parent_run_id_fkey";
+            columns: ["parent_run_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "agent_runs_replay_of_run_id_fkey";
+            columns: ["replay_of_run_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_runs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       agent_supervisors: {
         Row: {
@@ -1190,6 +1311,13 @@ export type Database = {
             referencedRelation: "goals";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "agent_tasks_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
         ];
       };
       agent_tool_embeddings: {
@@ -1298,7 +1426,15 @@ export type Database = {
           tenant_id?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "agent_user_profiles_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       ahrefs_reports: {
         Row: {
@@ -1343,7 +1479,29 @@ export type Database = {
           report_type?: string;
           tenant_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "ahrefs_reports_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ahrefs_reports_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ahrefs_reports_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       ai_agents: {
         Row: {
@@ -1962,7 +2120,15 @@ export type Database = {
           user_id?: string | null;
           version?: number;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "ai_skills_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       ai_usage_log: {
         Row: {
@@ -2313,7 +2479,22 @@ export type Database = {
           shared_by?: string | null;
           tenant_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "automation_shared_tenants_automation_id_fkey";
+            columns: ["automation_id"];
+            isOneToOne: false;
+            referencedRelation: "automations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "automation_shared_tenants_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       automations: {
         Row: {
@@ -4521,7 +4702,15 @@ export type Database = {
           status?: string | null;
           tenant_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "carmen_whatsapp_sessions_automation_id_fkey";
+            columns: ["automation_id"];
+            isOneToOne: false;
+            referencedRelation: "automations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       chat_contact_tags: {
         Row: {
@@ -5510,7 +5699,22 @@ export type Database = {
           tenant_id?: string;
           updated_by?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "communication_logs_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "communication_logs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       crm_dashboards: {
         Row: {
@@ -7600,6 +7804,20 @@ export type Database = {
             referencedRelation: "ai_agents";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "goals_parent_goal_id_fkey";
+            columns: ["parent_goal_id"];
+            isOneToOne: false;
+            referencedRelation: "goals";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "goals_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
         ];
       };
       grok_dispatches: {
@@ -7759,7 +7977,22 @@ export type Database = {
           tenant_id?: string;
           triggered_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "heartbeat_logs_agent_id_fkey";
+            columns: ["agent_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_agents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "heartbeat_logs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       hidden_chats: {
         Row: {
@@ -8196,7 +8429,43 @@ export type Database = {
           vat_amount?: number | null;
           vendor_name?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "invoice_uploads_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invoice_uploads_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invoice_uploads_finance_id_fkey";
+            columns: ["finance_id"];
+            isOneToOne: false;
+            referencedRelation: "finance";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invoice_uploads_supplier_id_fkey";
+            columns: ["supplier_id"];
+            isOneToOne: false;
+            referencedRelation: "suppliers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invoice_uploads_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       job_queue: {
         Row: {
@@ -8962,7 +9231,29 @@ export type Database = {
           tenant_id?: string;
           work_item_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "marketing_ab_variants_stage_id_fkey";
+            columns: ["stage_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_pipeline_stages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_ab_variants_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "marketing_ab_variants_work_item_id_fkey";
+            columns: ["work_item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       marketing_assets: {
         Row: {
@@ -9037,7 +9328,15 @@ export type Database = {
           trigger_type?: string;
           triggered_by?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "marketing_item_transitions_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       marketing_media_library: {
         Row: {
@@ -9163,6 +9462,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "marketing_pipeline_stages_parent_stage_id_fkey";
+            columns: ["parent_stage_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_pipeline_stages";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "marketing_pipeline_stages_pipeline_fk";
             columns: ["pipeline_id"];
             isOneToOne: false;
@@ -9202,7 +9508,15 @@ export type Database = {
           track?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "marketing_pipelines_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       marketing_runs: {
         Row: {
@@ -9569,6 +9883,13 @@ export type Database = {
             referencedRelation: "marketing_pipeline_stages";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "marketing_work_items_pipeline_id_fkey";
+            columns: ["pipeline_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_pipelines";
+            referencedColumns: ["id"];
+          },
         ];
       };
       maskyoo_manual_overrides: {
@@ -9650,7 +9971,15 @@ export type Database = {
           tenant_id?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "maskyoo_numbers_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       maskyoo_settings: {
         Row: {
@@ -11867,7 +12196,22 @@ export type Database = {
           updated_by?: string | null;
           work?: Json;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "seo_monthly_updates_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "seo_monthly_updates_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       seo_share_response_cache: {
         Row: {
@@ -12859,6 +13203,20 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "social_media_wordpress_sites_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "social_media_wordpress_sites_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "social_media_wordpress_sites_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
@@ -13012,7 +13370,15 @@ export type Database = {
           tenant_id?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "social_publications_page_id_fkey";
+            columns: ["page_id"];
+            isOneToOne: false;
+            referencedRelation: "social_pages";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       supplier_invoices: {
         Row: {
@@ -14297,7 +14663,22 @@ export type Database = {
           update_offset?: number;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "telegram_bot_state_shared_from_state_id_fkey";
+            columns: ["shared_from_state_id"];
+            isOneToOne: false;
+            referencedRelation: "telegram_bot_state";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telegram_bot_state_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       telegram_messages: {
         Row: {
@@ -14342,7 +14723,29 @@ export type Database = {
           text?: string | null;
           update_id?: number | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "telegram_messages_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telegram_messages_lead_id_fkey";
+            columns: ["lead_id"];
+            isOneToOne: false;
+            referencedRelation: "leads";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telegram_messages_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       telephony_settings: {
         Row: {
@@ -14446,7 +14849,15 @@ export type Database = {
           tenant_id?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "tenant_heartbeat_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tenant_integrations: {
         Row: {
@@ -15559,7 +15970,22 @@ export type Database = {
           username?: string | null;
           woo_customer_id?: number;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "woocommerce_customers_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "social_media_wordpress_sites";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "woocommerce_customers_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       woocommerce_orders: {
         Row: {
@@ -15661,7 +16087,22 @@ export type Database = {
           updated_at?: string | null;
           woo_order_id?: number;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "woocommerce_orders_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "social_media_wordpress_sites";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "woocommerce_orders_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       woocommerce_products: {
         Row: {
@@ -15733,7 +16174,22 @@ export type Database = {
           updated_at?: string | null;
           woo_product_id?: number;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "woocommerce_products_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "social_media_wordpress_sites";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "woocommerce_products_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       woocommerce_sync_log: {
         Row: {
@@ -15778,7 +16234,22 @@ export type Database = {
           sync_type?: string;
           tenant_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "woocommerce_sync_log_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "social_media_wordpress_sites";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "woocommerce_sync_log_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       wordpress_sites_shared_tenants: {
         Row: {
