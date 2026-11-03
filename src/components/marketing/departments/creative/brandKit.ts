@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeFileName } from "../../../../lib/sanitizeFileName.ts";
 
-export type BrandBook = {
+export interface BrandBook {
   name?: string;
   colors: string[];
   fonts?: string[];
@@ -10,12 +10,12 @@ export type BrandBook = {
   source: "upload" | "auto" | "manual";
   fileUrl?: string;
   fileName?: string;
-};
+}
 
-export type StyleReference = {
+export interface StyleReference {
   url: string;
   name?: string;
-};
+}
 
 export interface CreativeBrandKit {
   logoUrl?: string;
@@ -24,12 +24,12 @@ export interface CreativeBrandKit {
   styleReferences: StyleReference[];
 }
 
-export type ClientAttachment = {
+export interface ClientAttachment {
   name: string;
   path?: string;
   size?: number;
   type?: string;
-};
+}
 
 const asString = (value: unknown) =>
   typeof value === "string" ? value : undefined;

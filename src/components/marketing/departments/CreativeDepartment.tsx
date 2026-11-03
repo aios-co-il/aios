@@ -1,4 +1,3 @@
-import { jsonObject, type JsonObject } from "@functions/_shared/pulse/json";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -509,14 +508,18 @@ export function CreativeDepartment({
   }, [selected]);
   const copyBlocks = useMemo(() => {
     try {
-      return copyBlocksForGeneration(selected?.payload ?? null);
+      return copyBlocksForGeneration(
+        (selected?.payload ?? null) as Record<string, unknown> | null,
+      );
     } catch {
       return [];
     }
   }, [selected]);
   const copyJobs = useMemo(() => {
     try {
-      return conceptCopyJobsForGeneration(selected?.payload ?? null);
+      return conceptCopyJobsForGeneration(
+        (selected?.payload ?? null) as Record<string, unknown> | null,
+      );
     } catch {
       return [];
     }
@@ -1713,15 +1716,9 @@ export function CreativeDepartment({
         .eq("tenant_id", tenantId)
         .maybeSingle();
       if (readError) throw readError;
-      const latestPayload = jsonObject(
-        latestRow?.payload ?? selected.payload ?? {},
-      );
-      if (!latestPayload) {
-        console.error("Invalid creative project payload", {
-          itemId: selected.id,
-        });
-        throw new Error("לא ניתן לשמור: נתוני הפרויקט אינם אובייקט תקין");
-      }
+      const latestPayload = (latestRow?.payload ??
+        selected.payload ??
+        {}) as Record<string, unknown>;
       const nextIds = new Set(nextVariations.map((row) => row.id));
       const dropIds = variations
         .map((row) => row.id)
@@ -4526,7 +4523,7 @@ function ManualCreativeDialog({
       }
       const linkedCopy = mode === "from_copy" ? selectedCopyItem : null;
       const at = new Date().toISOString();
-      let payload: JsonObject = {
+      let payload: Record<string, unknown> = {
         brief_text: brief.trim() || undefined,
         copy_text: copyText.trim() || undefined,
         format,

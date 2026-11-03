@@ -1,4 +1,3 @@
-import type { JsonObject } from "@functions/_shared/pulse/json";
 import {
   approvedCopyConcepts,
   formatCopyConceptsForCreative,
@@ -18,7 +17,7 @@ import { isCreativeDepartmentItem } from "./departmentFilters.ts";
 export type HandoffWorkItem = {
   id: string;
   title: string | null;
-  payload: JsonObject | null;
+  payload: Record<string, unknown> | null;
   client_id: string | null;
   status?: string | null;
   current_stage_id?: string | null;
@@ -114,13 +113,13 @@ export function overlayCopyHandoffPayload({
   approved,
   at,
 }: {
-  existingPayload: JsonObject | null | undefined;
-  copyPayload: JsonObject | null | undefined;
+  existingPayload: Record<string, unknown> | null | undefined;
+  copyPayload: Record<string, unknown> | null | undefined;
   copyItem: { id: string; title: string | null };
   concepts: CopyConcept[];
   approved: CopyConcept[];
   at: string;
-}): JsonObject {
+}): Record<string, unknown> {
   const existing = existingPayload ?? {};
   const copy = copyPayload ?? {};
   const copyVariations = hydrateCopyVariations(
@@ -196,7 +195,9 @@ export function overlayCopyHandoffPayload({
 }
 
 /** Copy items that still have text or concepts worth attaching to a creative project. */
-export function copyPullSummary(payload: JsonObject | null | undefined) {
+export function copyPullSummary(
+  payload: Record<string, unknown> | null | undefined,
+) {
   const concepts = parseCopyConceptsFromPayload(payload);
   const approved = approvedCopyConcepts(concepts);
   const copyText = asText(payload?.copy_text);
@@ -214,10 +215,10 @@ export function copyPullSummary(payload: JsonObject | null | undefined) {
 }
 
 export function stampCopyPayloadAfterHandoff(
-  copyPayload: JsonObject | null | undefined,
+  copyPayload: Record<string, unknown> | null | undefined,
   creativeItemId: string,
   at: string,
-): JsonObject {
+): Record<string, unknown> {
   return {
     ...(copyPayload ?? {}),
     department: "copy",

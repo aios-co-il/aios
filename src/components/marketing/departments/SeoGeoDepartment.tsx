@@ -1,4 +1,3 @@
-import type { JsonObject } from "@functions/_shared/pulse/json";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,7 +54,7 @@ interface SeoItem {
   title: string | null;
   status: string;
   client_id: string | null;
-  payload: JsonObject | null;
+  payload: Record<string, unknown> | null;
   current_stage_id: string | null;
   updated_at: string;
 }

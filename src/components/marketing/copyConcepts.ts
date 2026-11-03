@@ -1,4 +1,4 @@
-export type CopyConcept = {
+export interface CopyConcept {
   id: string;
   name: string;
   bigIdea: string;
@@ -13,7 +13,7 @@ export type CopyConcept = {
   copyKey: string;
   approved: boolean;
   approvedAt: string | null;
-};
+}
 
 const FIELD_ALIASES: Record<
   keyof Omit<
