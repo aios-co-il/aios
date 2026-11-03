@@ -51,21 +51,28 @@
 --   idx_carmen_sessions_automation, idx_woo_customers_tenant,
 --   idx_woo_products_tenant and idx_woo_sync_log_tenant.
 --
--- Data change, the only one: rows whose client no longer exists (Production,
--- read-only, 2026-11-03; Staging has none). Most of those clients were
--- duplicates; past clients are made inactive, not deleted. Each row is first
--- copied, as jsonb, to archive.orphan_rows, a new table in a new schema that is
--- not exposed to the API. Then:
+-- Data change, the only one: the rows whose client no longer existed on
+-- Production (read-only, 2026-11-03), pinned by id in the archive step below;
+-- Staging has none, so the ids match nothing there. Most of those clients were
+-- duplicates; past clients are made inactive, not deleted. Each row whose client
+-- still does not exist is first copied, as jsonb, to archive.orphan_rows, a new
+-- table in a new schema that is not exposed to the API. Then:
 --   communication_logs   116 of 1,124 rows  deleted (client_id is NOT NULL)
 --   seo_monthly_updates   55 of 427         deleted (client_id is NOT NULL)
 --   ahrefs_reports         3 of 219         client_id cleared, report kept
 --   maskyoo_numbers        3 of 71          client_id cleared, number kept
--- after which their 4 client keys validate. A re-run archives and changes
--- nothing. No other foreign key has an orphan, no check fails on any row and no
--- unique key has a duplicate, and Staging breaks none of them. If validation
--- still fails anywhere, the constraint stays NOT VALID and a WARNING names it
--- with its count of rows, so the deploy does not fail; it still checks every
--- new row and changed key. A unique key with duplicates is skipped the same way.
+-- after which their 4 client keys validate. The clears fire
+-- maskyoo_numbers_updated_at, which sets updated_at; the deletes fire no trigger
+-- and no table references these rows. The run stops if the rows archived and the
+-- rows changed differ, and a re-run archives and changes nothing. A row that
+-- loses its client after 2026-11-03 is not touched: its key stays NOT VALID with
+-- the WARNING below, and a follow-up migration, after review, handles it.
+--
+-- No other foreign key has an orphan, no check fails on any row and no unique
+-- key has a duplicate, and Staging breaks none of them. If validation still
+-- fails anywhere, the constraint stays NOT VALID and a WARNING names it with its
+-- count of rows, so the deploy does not fail; it still checks every new row and
+-- changed key. A unique key with duplicates is skipped the same way.
 --
 -- Deletes: with the keys back, deleting a tenant or an agent again removes or
 -- clears these child rows; an agent's action log and approval requests stay,
@@ -298,23 +305,90 @@ begin
     ) as t (table_name, constraint_name, kind, columns, ref_table, ref_columns, definition)
   ) as s;
 
-  -- The only data change: rows whose client no longer exists. Each is copied to
-  -- archive.orphan_rows, then deleted where client_id cannot be null, or its client_id
-  -- cleared where it can. One statement per table, so exactly the archived rows change.
-  -- A re-run finds none.
+  -- The only data change: the rows that pointed at a deleted client on Production
+  -- (read-only, 2026-11-03), pinned by id. Each one whose client still does not exist is
+  -- copied to archive.orphan_rows, then deleted where client_id cannot be null, or its
+  -- client_id cleared where it can. One statement per table, so exactly the archived rows
+  -- change, and the run stops if the two counts differ. Other orphans are left alone: their
+  -- key stays NOT VALID with a WARNING below. A re-run finds none of these rows.
   for r in
     select * from (values
-      ('communication_logs', 'delete'),
-      ('seo_monthly_updates', 'delete'),
-      ('ahrefs_reports', 'clear'),
-      ('maskyoo_numbers', 'clear')
-    ) as o (table_name, action)
+      ('communication_logs', 'delete', array[
+        '00f78116-91ef-4555-9f72-4f7dd0a88491', '02bf8bf8-7483-41ba-8831-8b4f31b63109', '0406a542-8cda-4a90-81b1-d5dd48c2ec3f',
+        '04bc1bd6-83f2-42ea-9b86-65dfb112c72d', '0a5e6add-ed4b-432b-b96c-2e40ec264d0c', '0d54cb48-3f9a-4d3f-b6be-45ad049b6faa',
+        '0e8f2fb3-1eed-49fe-9738-1ce9e6a23c0c', '0fafd291-6216-4667-8fec-3dc0c3940d0b', '10c18dd1-11dd-4184-9dcc-a15980e1f48e',
+        '11b0c9a0-cabf-4357-9697-5163fe0a930b', '1774026b-ebf7-4719-a3d0-cff12bd679ec', '1843cddb-cd01-4ce2-a552-6fb2abc9391f',
+        '187f7ca8-ad10-45a4-86bb-ee169778e2ac', '19068cf9-2c40-4c00-aebc-fe76a869acb6', '1ca1b5fb-d01d-4e1b-9b68-d50d526e28ad',
+        '1fa15187-a94a-4e18-b66b-be69baa46237', '2048b89d-c59b-4a82-9e5c-f70b270c9390', '20e09dde-e690-451b-bac2-08eeb2ec68fc',
+        '21ca9324-06f3-4513-be61-0cf642c26c34', '26231938-589b-4fb1-bf38-01d223736963', '293a891f-c080-4598-aa14-ce8b0b20a9a1',
+        '2e6ae4c3-ac20-4035-98e4-55b0aaf76e3c', '2f0be620-8511-4587-95ad-4981d725d7a0', '3237520b-05b9-4ab7-a8e7-bf4f8f5b8e4b',
+        '35b0029f-808f-422f-9fc2-9df2962ed45d', '37d36ecc-2b74-4c33-81e4-a8ddbb033ba9', '38247faf-8ea1-48bf-b11f-08b84a7d5543',
+        '41f0a55a-e445-42e7-9dd8-282f74ce1873', '48180169-cbc1-47d4-bc84-7d6a56f3dfc7', '4b3a3895-e92c-43be-ab76-7e4957dbea1e',
+        '4e27df42-3992-4c61-9abc-51759aca9af2', '4ed3b84e-60a1-48f7-94fd-af23c28addc9', '4effecf0-2ab8-4c50-8a69-6b877e621e12',
+        '505620a8-77c2-42c7-b67f-9aecb1547410', '521f2d6d-6903-4346-aa9b-06cded513f2f', '5500839d-37a2-40a9-8093-0efb6e956526',
+        '5518bd3a-aba4-4d78-80ce-36a35ca724bd', '55a022b4-4771-4073-85d3-cf956803fe22', '592e8bdc-b0b4-4502-a232-8bbc5702501c',
+        '593be90a-6aa7-4345-ae70-2ade43611174', '5aecf6af-756e-405e-8634-4796cc90a7d5', '5b2fbe8d-f93f-4281-948d-8213c8185a21',
+        '5b46bc94-9408-452c-9eec-5e2225c1b924', '5c6b3dd4-d1de-42f5-ab8e-6e49cc69e59d', '5d2fc273-8471-4210-9cbe-2e8585e6ec50',
+        '5e11b1a2-29ae-4392-9ccb-0f388a1b7e69', '5e91c551-51c4-4f58-9ac5-d597c3bd08c4', '5f80d648-c73f-44dc-9372-e17054a504ed',
+        '603a2bbd-6bcf-48bc-9cae-0872fd21eb44', '6141ee1f-8049-4e0c-8067-39491616c67a', '61bffff7-cb58-4e63-adfe-06e217dfa6cf',
+        '650e05e3-5029-4417-bfbb-63590ce1103b', '66f5745a-55a3-465d-8df3-a79479226104', '67b20001-0522-485d-9186-ab5634180415',
+        '6d37044c-ab7b-4e04-95d0-4a9e9c1513c9', '7493d65e-3d1c-44ba-b930-0c37d42d5de8', '74afde9c-382b-4201-b09a-35516e176aa9',
+        '758d5d9c-1686-4f0a-8427-ba947f15b3b8', '7aa3de47-236f-4102-868e-c526dbbbc618', '7ac89c28-36bd-4f0f-bd22-45994b275a4b',
+        '88181610-3ceb-43ee-926f-001dcd31ae1b', '88790c34-9022-45d5-91c6-aaf3242d2331', '8aa00e42-37c2-4a61-a2ea-66c258a62a85',
+        '8cbc8b11-ad11-4cee-8348-9931d5a81f59', '8d0afd04-6ce1-4126-8066-7e2cbce1a7f5', '900e2da7-53b5-4878-b967-5b66869a99c9',
+        '9406d8ae-d19a-4fc4-9e28-ef27781751dc', '9950e944-5ba1-4691-b07b-f7237ae9ce89', 'a492f265-2bb1-487b-93ce-f851d3d14da4',
+        'a858bc08-40fd-4347-bf7b-abf3cefd16b3', 'a8fd942b-ef69-40f5-a763-75efdc5f5b2f', 'aa2fc400-a629-4e30-95cf-bf934f1810fd',
+        'ada9802a-e597-4541-8db5-5f4f3f8191e8', 'b0fd5470-9541-4d34-ab6c-88802174c9fe', 'b345bd09-d348-4191-8735-368cea48a9f5',
+        'b6807e79-da0a-4277-af6c-5104a46faab5', 'b6dac23e-7572-4e9b-9836-4893d52a19dd', 'b8ca2ea4-ee83-4325-88b8-84c4e6495b79',
+        'bcea03f4-00dd-49ab-aa2d-409aa72e42cb', 'bda97755-cc37-422f-befb-3a7169e6bdbf', 'c00c8dc4-2ffe-49a9-b196-43ee2ee8218d',
+        'c38413e3-bc87-41ba-b4ae-a8c023076861', 'c9f8117d-d328-44e3-a327-fa6f20d3c4a7', 'cbbc1903-e31b-4389-a3bf-78787cd10667',
+        'cc5be348-98ec-43a1-a677-204c132e4b31', 'ccdcf052-d379-4ca3-985d-e1226fbd512c', 'cf1266a3-e575-44ea-ab59-2e5bb30ea656',
+        'd66875ce-f25e-484a-83b6-3bc9f8399826', 'd7769e3a-bf97-4d7d-977b-7ddc91bd5877', 'd7cfe056-deda-43f5-a445-000dbeccc931',
+        'd863c725-cf05-478f-95ad-684add7344ad', 'd8b82c42-f164-48ce-ba8f-a5c5665e192b', 'dcf14b4e-a5c5-44cd-9378-638fe081f59b',
+        'de1e5f7e-b3b1-4dab-b51f-5d6ebb948f00', 'de2c4218-c5e8-4707-8c58-0e7ee2dd3539', 'df244385-a1c5-470d-8de9-dbdecc715147',
+        'e115817c-0db8-4af4-99ac-713cc258a33f', 'e16f1e90-9395-4ccd-a202-9432a573bc56', 'e1f75ca4-7c81-4171-9d64-6bbeef6ff929',
+        'e2c083b7-8be7-42f1-87c3-06794738c002', 'e689d63b-3339-4398-aabd-efb292f28e67', 'e6e9e166-e22d-4c19-8c08-5338c9e960d8',
+        'eb4eedd0-2f80-41e9-9a03-307febeee303', 'ee1f665b-a14f-48ea-bd51-a5142b97f9f8', 'ef697f91-09ed-4331-8abb-a63cf4aa9a00',
+        'f1aac024-fab5-4de9-8726-d06a4a24121b', 'f1ae11db-46fd-4717-87ed-b16f968915cf', 'f40079c3-9e75-4c72-810c-8df86a6bdfd2',
+        'f46e9363-aac6-4d29-83a3-ab8c5dc71fb1', 'f5adbd2b-cea7-4dd6-9a92-d5e44c5f7041', 'f966e7e9-28db-40d3-8a57-0c1e7b90ad72',
+        'fa524a64-6f51-49d0-9f32-cfe7202e8fbd', 'fa5655de-70c6-4906-8cbc-6c18667f49f2', 'fc47885c-9399-4dbf-908e-bdd724e3ade7',
+        'fe702a61-9e60-46ab-a46d-2f4c6c0a2431', 'ffb19945-3a5e-4aef-ab4a-8daeb5f72be6'
+      ]::uuid[]),
+      ('seo_monthly_updates', 'delete', array[
+        '02c0a6e6-51b6-4c77-8c06-e78b716f9430', '0a0ef6fd-a1de-4dca-89ad-fa9100eab98b', '17500b5b-b07b-40b2-a4c4-6bf27b898ce6',
+        '1955c11e-54fa-403a-ba4e-654dc260f90d', '1a36a705-80c9-469d-87ad-38fd73b3fd89', '1c7fef9b-b78c-4776-bbf8-ebb1021563a8',
+        '27adfa82-0fc1-46b4-9c7b-2aa380b2f5dc', '3268c157-0496-4f6a-9dd3-eda9d3762d5a', '33ef5d22-d3de-420c-9375-8b5653f35f45',
+        '357083c8-aa6f-4c1d-a122-a2e210cc6f0e', '36fe0add-fa1b-48aa-889e-d5b0b41cca53', '43961947-85e5-4702-a8da-ae3cf00c0953',
+        '466bbab5-00b2-4fe6-90e1-4eba0d0664a7', '512423df-502b-453b-82be-485d8e4b9b4e', '53b83137-4f86-4566-97db-9ebd2ada3127',
+        '56d4e0cd-112d-4e70-b1c5-49e71e4018fd', '5891cfe5-ed8c-4a15-a66b-07f662fb2e3d', '59af0f21-4ef4-45d9-9be1-e27658fcfa01',
+        '5ce9b7f4-7417-4052-9207-03966ab00056', '60ff88e5-fd4b-4093-be9a-dc2d0408bc65', '6f172588-2fcc-4652-bb23-06cac25d70ce',
+        '75f6056e-211a-418f-8a17-4a477b196a8d', '7efe1997-815c-4d3d-bdc9-8f85ca60ad9d', '803eb1c4-78da-440a-befb-fb89012d65e6',
+        '82cf11cf-6f10-4c45-86ac-b9f95d724bfb', '8b255710-12e6-4b1c-99fb-5c20dbc9e2c1', '9575a96d-ede4-4f34-a35a-6a539a5c4d16',
+        '982870cc-a2c0-4a9e-aaf5-aca0b692a221', '9b3931ef-643c-4dda-acbb-edad22a1ff34', 'a3be82a9-521c-4a5d-b886-3922aa8103b7',
+        'a6539e80-9538-44b0-82d4-791bc36edae5', 'acac0aa9-6bfc-478e-9be4-9cabaf4603ac', 'b0f0bc1d-09fc-4faa-b214-52d4a4d548a2',
+        'b321497e-6cfd-476c-a194-48a91bcf8f42', 'b50d8861-ff4f-4aa9-b08a-56f2cf8708bc', 'b52c8841-2de8-4821-ae13-f318d9977baa',
+        'b8d06a13-956d-40ff-8ee6-af9877b9df92', 'bccc41c9-791c-4104-a019-b5973522a365', 'bcffd3f8-b063-45b5-aabc-57699df1f716',
+        'c1b41860-4078-43bb-b5ed-3b8274ea4f02', 'c1f5cada-b53f-402f-9f33-22451a82e72a', 'c54bf798-41bb-4076-a71e-8a311cb8377d',
+        'cbb406e4-783f-482b-bd90-1e32c1bf2216', 'd68d8a58-2c72-4828-932e-91d86699a256', 'd995cfb5-6de1-4565-a9bf-7453d83f40d6',
+        'dfc73869-931a-4a7f-bbfb-77bba3b86a95', 'e515b552-e0c3-4380-805c-42dfc0019535', 'e6feb6f0-53ef-42e9-93f2-9010d8d2e5c0',
+        'e7664509-ffda-4699-86c4-98307bd8ec2f', 'ec031477-a688-4a6c-a6ae-51a29bc18b43', 'eebc9a1b-6716-4383-8307-3daeb33f17e8',
+        'fc6e27f3-a20d-4d06-9e85-5e9f9258d718', 'fce28559-dcdc-467b-ad99-ffd11a8ec468', 'fe5c8add-5d07-4751-9f99-c7c7a9773e92',
+        'ff8c3050-2fda-47b0-8aad-b52b412dde4e'
+      ]::uuid[]),
+      ('ahrefs_reports', 'clear', array[
+        '1314fbfd-9a9c-47e7-bedf-36ef156e6475', 'f4015e28-132a-4fe9-8d98-03bbff2c9b43', 'f9954b77-ab5e-4232-9e2d-324acbb2aa02'
+      ]::uuid[]),
+      ('maskyoo_numbers', 'clear', array[
+        '1d51b94d-aa3b-4705-a74d-4e5d5e23969b', '229eb67c-856d-4e50-9b1f-eaf06f814698', '27afbb31-0dcb-44d5-b528-a3d13d45366f'
+      ]::uuid[])
+    ) as o (table_name, action, ids)
   loop
     v_rel := to_regclass(format('public.%I', r.table_name));
     if v_rel is null or not exists (
       select 1 from pg_attribute as a
       where a.attrelid = v_rel and a.attname = 'client_id' and a.attnum > 0 and not a.attisdropped
     ) then
+      raise notice 'restore lost constraints: archive step for public.% skipped, no client_id column', r.table_name;
       continue;
     end if;
     if r.action = 'delete' then
@@ -322,7 +396,8 @@ begin
         $sql$
         with orphan as (
           delete from %1$s as t
-          where t.client_id is not null
+          where t.id = any ($1)
+            and t.client_id is not null
             and not exists (select 1 from public.clients as c where c.id = t.client_id)
           returning t.*
         ), archived as (
@@ -334,14 +409,15 @@ begin
         select (select count(*) from orphan), (select count(*) from archived)
         $sql$,
         v_rel, r.table_name, 'client_id pointed at a deleted client; row deleted by 20261103100000'
-      ) into v_count, v_archived;
+      ) into v_count, v_archived using r.ids;
     else
       execute format(
         $sql$
         with orphan as (
           select t.id, to_jsonb(t) as row
           from %1$s as t
-          where t.client_id is not null
+          where t.id = any ($1)
+            and t.client_id is not null
             and not exists (select 1 from public.clients as c where c.id = t.client_id)
           for update of t
         ), archived as (
@@ -358,11 +434,15 @@ begin
         select (select count(*) from cleared), (select count(*) from archived)
         $sql$,
         v_rel, r.table_name, 'client_id pointed at a deleted client; client_id cleared by 20261103100000'
-      ) into v_count, v_archived;
+      ) into v_count, v_archived using r.ids;
+    end if;
+    if v_archived <> v_count then
+      raise exception 'restore lost constraints: % rows of public.% %, but % archived',
+        v_count, r.table_name, case r.action when 'delete' then 'deleted' else 'cleared' end, v_archived;
     end if;
     if v_count > 0 then
-      raise notice 'restore lost constraints: % rows of public.% archived (%) and %',
-        v_count, r.table_name, v_archived, case r.action when 'delete' then 'deleted' else 'cleared' end;
+      raise notice 'restore lost constraints: % rows of public.% archived and %',
+        v_count, r.table_name, case r.action when 'delete' then 'deleted' else 'cleared' end;
     end if;
   end loop;
 

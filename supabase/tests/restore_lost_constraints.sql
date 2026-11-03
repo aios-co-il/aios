@@ -2,8 +2,9 @@
 -- each foreign key, check, unique key and index exists, and the two keys left
 -- out on purpose do not; the changed and new foreign keys have their ON DELETE
 -- action; the 4 client keys whose orphans the migration archived are
--- validated; archive.orphan_rows exists and anon and authenticated cannot
--- reach it; a sample of the foreign keys, with every new tenant key, refuses a
+-- validated; archive.orphan_rows exists, anon and authenticated cannot reach
+-- it, and each archived row was deleted or, if only its link was cleared, kept;
+-- a sample of the foreign keys, with every new tenant key, refuses a
 -- row whose parent does not exist; every check refuses a value outside it; five
 -- unique keys refuse a duplicate; check_rate_limit(uuid, text, integer) finds
 -- its ON CONFLICT target. Then the deletes: an agent delete keeps its action
@@ -230,6 +231,25 @@ BEGIN
      OR has_table_privilege('anon', 'archive.orphan_rows', 'SELECT')
      OR has_table_privilege('authenticated', 'archive.orphan_rows', 'SELECT') THEN
     RAISE EXCEPTION 'archive: anon or authenticated can reach archive.orphan_rows';
+  END IF;
+
+  -- Archive closure: every row the migration archived is gone if it was deleted, still there if
+  -- only its client_id was cleared, and its archived client_id names no client. (The archive step
+  -- itself cannot run here, because the keys are valid; the scratch simulation in the PR covers it.)
+  SELECT count(*) INTO v_count
+  FROM archive.orphan_rows AS a
+  WHERE a.reason LIKE '%by 20261103100000'
+    AND (
+      EXISTS (SELECT 1 FROM public.clients AS c WHERE c.id = (a.row ->> 'client_id')::uuid)
+      OR (a.reason LIKE '%row deleted%' AND (
+        (a.source_table = 'communication_logs' AND EXISTS (SELECT 1 FROM public.communication_logs AS t WHERE t.id = a.row_id))
+        OR (a.source_table = 'seo_monthly_updates' AND EXISTS (SELECT 1 FROM public.seo_monthly_updates AS t WHERE t.id = a.row_id))))
+      OR (a.reason LIKE '%client_id cleared%' AND NOT (
+        (a.source_table = 'ahrefs_reports' AND EXISTS (SELECT 1 FROM public.ahrefs_reports AS t WHERE t.id = a.row_id))
+        OR (a.source_table = 'maskyoo_numbers' AND EXISTS (SELECT 1 FROM public.maskyoo_numbers AS t WHERE t.id = a.row_id))))
+    );
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'archive: % archived rows do not match what the migration did to them', v_count;
   END IF;
 
   -- Fixture: one tenant with an agency, a client, two agents and a user.
