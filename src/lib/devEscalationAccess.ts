@@ -17,6 +17,12 @@ const BUGFIX = {
   phone_suffixes: ["545612156"],
 } as const;
 
+type Allowlist = {
+  readonly user_ids: readonly string[];
+  readonly campaigner_ids: readonly string[];
+  readonly phone_suffixes: readonly string[];
+};
+
 function normalizePhoneSuffix(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const digits = phone.replace(/[^0-9]/g, "");
@@ -30,17 +36,17 @@ function matches(
     campaignerId?: string | null;
     phone?: string | null;
   },
-  allowlist: typeof FULL,
+  allowlist: Allowlist,
 ): boolean {
-  if (identity.userId && allowlist.user_ids.includes(identity.userId as never))
+  if (identity.userId && allowlist.user_ids.includes(identity.userId))
     return true;
   if (
     identity.campaignerId &&
-    allowlist.campaigner_ids.includes(identity.campaignerId as never)
+    allowlist.campaigner_ids.includes(identity.campaignerId)
   )
     return true;
   const suffix = normalizePhoneSuffix(identity.phone);
-  if (suffix && allowlist.phone_suffixes.includes(suffix as never)) return true;
+  if (suffix && allowlist.phone_suffixes.includes(suffix)) return true;
   return false;
 }
 
