@@ -1,6 +1,7 @@
 import { jsonObject } from "@functions/_shared/pulse/json";
 import {
   readSeoPayload,
+  SeoPayloadValidationError,
   SEO_STRATEGY_FIELDS,
   type SeoPayload,
   type SeoPlan,
@@ -106,7 +107,11 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
     },
     enabled: !!clientFilter && clientFilter !== ALL_CLIENTS_FILTER,
   });
-  const { data: items = [], isLoading } = useQuery({
+  const {
+    data: result,
+    isLoading,
+    error: itemsError,
+  } = useQuery({
     queryKey: ["seo-department-items", clientFilter, tenantId],
     queryFn: async () => {
       let query = supabase
@@ -119,7 +124,8 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
       if (error) throw error;
       // public.workshop_assign_client repeats this rule to land an assigned project where this
       // screen lists it (20261026103411): change both together.
-      return (data ?? []).flatMap((item) => {
+      const invalidItems: Array<string> = [];
+      const items = (data ?? []).flatMap((item) => {
         const raw = jsonObject(item.payload);
         if (!(
           item.current_stage_id === context?.seoStage?.id ||
@@ -128,10 +134,22 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
         )) {
           return [];
         }
-        return [{ ...item, payload: readSeoPayload(item.payload) }];
+        try {
+          return [{ ...item, payload: readSeoPayload(item.payload) }];
+        } catch (error) {
+          if (!(error instanceof SeoPayloadValidationError)) {
+            throw error;
+          }
+          console.error("Invalid SEO project", item.id, error);
+          invalidItems.push(`${item.title ?? "ללא כותרת"} (${item.id})`);
+          return [];
+        }
       });
+      return { items, invalidItems };
     },
   });
+  const items = useMemo(() => result?.items ?? [], [result]);
+  const invalidItems = result?.invalidItems ?? [];
   const { data: signals } = useQuery({
     queryKey: ["seo-department-signals", clientFilter, tenantId],
     queryFn: async () => {
@@ -243,11 +261,20 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+          {(itemsError || invalidItems.length > 0) && (
+            <p role="alert" className="p-3 text-xs text-destructive">
+              {itemsError
+                ? message(itemsError, "טעינת תוכניות SEO נכשלה")
+                : `לא ניתן לטעון תוכניות SEO עם נתונים לא תקינים: ${invalidItems.join(", ")}`}
+            </p>
+          )}
           <ScrollArea className="max-h-44 xl:max-h-none xl:flex-1">
             <div className="flex gap-2 p-2 xl:flex-col xl:space-y-2">
               {isLoading ? (
                 <Loader2 className="mx-auto mt-4 h-5 w-5 animate-spin xl:mt-8" />
-              ) : items.length === 0 ? (
+              ) : items.length === 0 &&
+                !itemsError &&
+                invalidItems.length === 0 ? (
                 <div className="w-full px-4 py-6 text-center text-xs text-muted-foreground xl:py-10">
                   <FilePlus2 className="mx-auto mb-2 h-8 w-8 opacity-30" />
                   אין תוכניות עדיין

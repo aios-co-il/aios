@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import { SeoGeoDepartment } from "./SeoGeoDepartment";
+import { ALL_CLIENTS_FILTER } from "../clientFilter";
 
 type Row = Record<string, unknown>;
 
@@ -166,6 +167,50 @@ test("a project's existing program shows the site it publishes to", async () => 
 });
 
 describe("validated SEO strategy rendering", () => {
+  test.each([false, true])(
+    "isolates malformed rows in all-clients queries (all invalid: %s)",
+    async (allInvalid) => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      db.tables.marketing_work_items.push({
+        id: "broken-item",
+        tenant_id: "tenant-1",
+        client_id: "client-2",
+        title: "Broken project",
+        status: "active",
+        current_stage_id: null,
+        payload: {
+          department: "seo",
+          seo_plan: { strategy: { objective: 7 } },
+        },
+      });
+      if (allInvalid) {
+        db.tables.marketing_work_items.shift();
+      }
+      render(
+        <SeoGeoDepartment
+          clientFilter={ALL_CLIENTS_FILTER}
+          tenantId="tenant-1"
+        />,
+        { wrapper: withTestQuery().wrapper },
+      );
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Broken project");
+      expect(alert).toHaveTextContent("broken-item");
+      expect(screen.queryByText("אין תוכניות עדיין")).not.toBeInTheDocument();
+      if (!allInvalid) {
+        expect(
+          await screen.findByRole("button", { name: /קידום האתר/ }),
+        ).toBeInTheDocument();
+      }
+      expect(log).toHaveBeenCalledWith(
+        "Invalid SEO project",
+        "broken-item",
+        expect.any(Error),
+      );
+      log.mockRestore();
+    },
+  );
+
   test("renders only named strategy fields when stored metadata contains an object", async () => {
     db.tables.marketing_work_items[0].payload = {
       department: "seo",

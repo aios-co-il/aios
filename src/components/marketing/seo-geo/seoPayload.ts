@@ -12,18 +12,34 @@ export function readSeoPayload(value: Json): SeoPayload | null {
       "Invalid SEO project payload",
       result.error.issues.map((issue) => issue.path.join(".")),
     );
-    throw new Error("נתוני תוכנית SEO אינם תקינים");
+    throw new SeoPayloadValidationError();
   }
   return result.data;
+}
+
+/** An expected storage-validation failure that callers may isolate per project. */
+export class SeoPayloadValidationError extends Error {
+  constructor() {
+    super("נתוני תוכנית SEO אינם תקינים");
+    this.name = "SeoPayloadValidationError";
+  }
 }
 
 export type ContentPlanItem = z.infer<typeof contentPlanItemSchema>;
 export type SeoPlan = z.infer<typeof seoPlanSchema>;
 export type SeoPayload = z.infer<typeof seoPayloadSchema>;
 
-const text = z.string().optional();
-const texts = z.array(z.string()).optional();
-const priority = z.enum(["high", "medium", "low"]).optional();
+/** The SEO producer emits null for unavailable data; consumers use missing values. */
+function optionalDatum<Schema extends z.ZodType>(schema: Schema) {
+  return z.preprocess(
+    (value) => (value === null ? undefined : value),
+    schema.optional(),
+  );
+}
+
+const text = optionalDatum(z.string());
+const texts = optionalDatum(z.array(z.string()));
+const priority = optionalDatum(z.enum(["high", "medium", "low"]));
 const strategySchema = z.object({
   objective: text,
   audience: text,
@@ -71,11 +87,11 @@ const researchSchema = z.object({
   data_gaps: texts,
 });
 const seoPlanSchema = z.object({
-  strategy: strategySchema.optional(),
-  clusters: z.array(clusterSchema).optional(),
-  contentPlan: z.array(contentPlanItemSchema).optional(),
-  geo: geoSchema.optional(),
-  technicalPriorities: z.array(technicalPrioritySchema).optional(),
+  strategy: optionalDatum(strategySchema),
+  clusters: optionalDatum(z.array(clusterSchema)),
+  contentPlan: optionalDatum(z.array(contentPlanItemSchema)),
+  geo: optionalDatum(geoSchema),
+  technicalPriorities: optionalDatum(z.array(technicalPrioritySchema)),
   dataNotes: texts,
 });
 const seoPayloadSchema = z.object({
@@ -84,7 +100,7 @@ const seoPayloadSchema = z.object({
   brief: text,
   copy_text: text,
   seo_plan: seoPlanSchema.nullish(),
-  seo_research: researchSchema.optional(),
+  seo_research: optionalDatum(researchSchema),
   seo_plan_status: z.enum(["pending", "approved"]).optional(),
   seo_plan_feedback: text,
   seo_horizon_months: z.number().optional(),
@@ -93,18 +109,18 @@ const seoPayloadSchema = z.object({
 // The application sees the closed contracts above; passthrough data stays opaque to it.
 const storedPlanSchema = seoPlanSchema
   .extend({
-    strategy: strategySchema.passthrough().optional(),
-    clusters: z.array(clusterSchema.passthrough()).optional(),
-    contentPlan: z.array(contentPlanItemSchema.passthrough()).optional(),
-    geo: geoSchema.passthrough().optional(),
-    technicalPriorities: z
-      .array(technicalPrioritySchema.passthrough())
-      .optional(),
+    strategy: optionalDatum(strategySchema.passthrough()),
+    clusters: optionalDatum(z.array(clusterSchema.passthrough())),
+    contentPlan: optionalDatum(z.array(contentPlanItemSchema.passthrough())),
+    geo: optionalDatum(geoSchema.passthrough()),
+    technicalPriorities: optionalDatum(
+      z.array(technicalPrioritySchema.passthrough()),
+    ),
   })
   .passthrough();
 const storedPayloadSchema = seoPayloadSchema
   .extend({
     seo_plan: storedPlanSchema.nullish(),
-    seo_research: researchSchema.passthrough().optional(),
+    seo_research: optionalDatum(researchSchema.passthrough()),
   })
   .passthrough();

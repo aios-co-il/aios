@@ -26,6 +26,45 @@ describe("validated SEO payload reads", () => {
     expect(readSeoPayload({ seo_plan: null })).toEqual({ seo_plan: null });
   });
 
+  test("normalizes unavailable data emitted by marketing-seo-plan", () => {
+    expect(
+      readSeoPayload({
+        seo_plan: {
+          strategy: { currentState: null, objective: "Grow" },
+          clusters: [
+            { evidence: null, supportingKeywords: null, priority: null },
+          ],
+          contentPlan: [{ title: "Article", geoQuestions: null }],
+          geo: null,
+          technicalPriorities: null,
+          dataNotes: null,
+        },
+      }),
+    ).toEqual({
+      seo_plan: {
+        strategy: { currentState: undefined, objective: "Grow" },
+        clusters: [
+          {
+            evidence: undefined,
+            supportingKeywords: undefined,
+            priority: undefined,
+          },
+        ],
+        contentPlan: [{ title: "Article", geoQuestions: undefined }],
+        geo: undefined,
+        technicalPriorities: undefined,
+        dataNotes: undefined,
+      },
+    });
+  });
+
+  test("accepts the empty-copy null sentinel preserved when a work item becomes SEO", () => {
+    expect(readSeoPayload({ department: "seo", copy_text: null })).toEqual({
+      department: "seo",
+      copy_text: undefined,
+    });
+  });
+
   test("validates known fields without deleting opaque stored metadata", () => {
     const stored = {
       future: { flag: true },
