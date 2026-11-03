@@ -1,3 +1,13 @@
+import {
+  readCopyDepartmentItems,
+  readCreativeHandoffItems,
+  filesFromAttachments,
+  readCopyPayload,
+  readCopyWorkItem,
+  type CopyPayload,
+  type ChatTurn,
+  type BriefFile,
+} from "../copyPayload";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateBlockNote } from "@blocknote/react";
@@ -11,7 +21,6 @@ import {
   ALL_CLIENTS_FILTER,
   type MarketingClientFilter,
 } from "@/components/marketing/clientFilter";
-import { isCopyDepartmentItem } from "@/components/marketing/departmentFilters";
 import {
   appendCopyConcepts,
   approvedCopyConcepts,
@@ -115,32 +124,16 @@ interface Props {
   onClientChange: (id: string | null) => void;
 }
 
-type JsonValue =
-  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
 interface CopyItem {
   id: string;
   title: string | null;
   status: string;
-  payload: Record<string, JsonValue> | null;
+  payload: CopyPayload | null;
   current_stage_id: string | null;
   target_channel: string | null;
   client_id: string | null;
   created_at: string;
   updated_at: string;
-}
-
-interface ChatTurn {
-  role: "user" | "assistant";
-  content: string;
-  at: string;
-}
-
-interface BriefFile {
-  name: string;
-  path?: string;
-  size?: number;
-  type?: string;
 }
 
 interface ClientRow {
@@ -178,7 +171,7 @@ const isAbortError = (error: unknown) =>
 const CONCEPTS_GENERATE_TIMEOUT_MS = 120_000;
 const COPY_GENERATE_TIMEOUT_MS = CONCEPTS_GENERATE_TIMEOUT_MS;
 
-const asText = (value: JsonValue | undefined) =>
+const asText = (value: string | null | undefined) =>
   typeof value === "string" ? value : "";
 
 const CONTENT_TYPES = [
@@ -209,23 +202,13 @@ const timeAgo = (iso: string) => {
   return `${Math.floor(hours / 24)}י׳`;
 };
 
-const readChat = (payload: Record<string, JsonValue> | null): ChatTurn[] => {
-  const raw = payload?.copy_chat;
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-    const role =
-      value.role === "user" || value.role === "assistant" ? value.role : null;
-    if (!role) return [];
-    return [
-      {
-        role,
-        content: asText(value.content),
-        at: asText(value.at) || new Date().toISOString(),
-      },
-    ];
-  });
-};
+const readChat = (payload: CopyPayload | null): Array<ChatTurn> =>
+  (payload?.copy_chat ?? []).map((turn) => ({
+    ...turn,
+    role: turn.role,
+    content: asText(turn.content),
+    at: asText(turn.at) || new Date().toISOString(),
+  }));
 
 const sanitizeFileName = (name: string) => {
   const ext =
@@ -236,24 +219,6 @@ const sanitizeFileName = (name: string) => {
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .slice(0, 50)}${ext.toLowerCase()}`;
-};
-
-const filesFromAttachments = (attachments: unknown): BriefFile[] => {
-  if (!Array.isArray(attachments)) return [];
-  return attachments.flatMap((file) => {
-    if (!file || typeof file !== "object") return [];
-    const rec = file as Record<string, unknown>;
-    const name = typeof rec.name === "string" ? rec.name : "";
-    if (!name) return [];
-    return [
-      {
-        name,
-        path: typeof rec.path === "string" ? rec.path : undefined,
-        size: typeof rec.size === "number" ? rec.size : undefined,
-        type: typeof rec.type === "string" ? rec.type : undefined,
-      },
-    ];
-  });
 };
 
 const recordingHasText = (recording: RecordingRow) =>
@@ -379,13 +344,7 @@ export function CopyDepartment({
       if (error) throw error;
       if (stageError) throw stageError;
       const copyStageIds = new Set((copyStages ?? []).map((stage) => stage.id));
-      return ((data ?? []) as CopyItem[]).filter((item) => {
-        const copyStageId =
-          item.current_stage_id && copyStageIds.has(item.current_stage_id)
-            ? item.current_stage_id
-            : undefined;
-        return isCopyDepartmentItem(item, copyStageId);
-      });
+      return readCopyDepartmentItems(data ?? [], copyStageIds);
     },
   });
 
@@ -439,9 +398,7 @@ export function CopyDepartment({
     try {
       return hydrateCopyVariations(
         copyText,
-        parseCopyVariationsFromPayload(
-          selected?.payload as Record<string, unknown> | null,
-        ),
+        parseCopyVariationsFromPayload(selected?.payload),
       );
     } catch {
       return [];
@@ -463,10 +420,7 @@ export function CopyDepartment({
     [copyText, copyVariations, selected?.payload?.brief_text, selected?.title],
   );
   const concepts = useMemo(
-    () =>
-      parseCopyConceptsFromPayload(
-        selected?.payload as Record<string, unknown> | null,
-      ),
+    () => parseCopyConceptsFromPayload(selected?.payload),
     [selected?.payload],
   );
   const approvedConcepts = useMemo(
@@ -586,9 +540,7 @@ export function CopyDepartment({
       ].slice(-40);
       const nextVariations = hydrateCopyVariations(
         copyDocument,
-        parseCopyVariationsFromPayload(
-          selected.payload as Record<string, unknown>,
-        ),
+        parseCopyVariationsFromPayload(selected.payload),
       );
       const nextConcepts = existing
         ? concepts
@@ -597,10 +549,8 @@ export function CopyDepartment({
         ...(selected.payload ?? {}),
         department: "copy",
         copy_text: copyDocument,
-        copy_variations: JSON.parse(
-          JSON.stringify(nextVariations),
-        ) as JsonValue,
-        copy_concepts: JSON.parse(JSON.stringify(nextConcepts)) as JsonValue,
+        copy_variations: nextVariations,
+        copy_concepts: nextConcepts,
         copy_chat: nextChat,
         copy_prompt: prompt,
         last_skin_slug: "copywriter",
@@ -608,7 +558,7 @@ export function CopyDepartment({
       };
       const { error: saveError } = await supabase
         .from("marketing_work_items")
-        .update({ payload: nextPayload, status: "draft" })
+        .update({ payload: readCopyPayload(nextPayload), status: "draft" })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
       if (saveError) throw saveError;
@@ -631,7 +581,7 @@ export function CopyDepartment({
     }
   };
 
-  const persistPayload = async (patch: Record<string, JsonValue>) => {
+  const persistPayload = async (patch: CopyPayload) => {
     if (!selected) return;
     const nextPayload = {
       ...(selected.payload ?? {}),
@@ -640,7 +590,7 @@ export function CopyDepartment({
     };
     const { error } = await supabase
       .from("marketing_work_items")
-      .update({ payload: nextPayload, status: "draft" })
+      .update({ payload: readCopyPayload(nextPayload), status: "draft" })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
     if (error) throw error;
@@ -650,13 +600,13 @@ export function CopyDepartment({
     nextConcepts: ReturnType<typeof parseCopyConceptsFromPayload>,
   ) => {
     await persistPayload({
-      copy_concepts: JSON.parse(JSON.stringify(nextConcepts)) as JsonValue,
+      copy_concepts: nextConcepts,
     });
   };
 
   const saveCopyVariations = async (nextVariations: StoredCopyVariation[]) => {
     await persistPayload({
-      copy_variations: JSON.parse(JSON.stringify(nextVariations)) as JsonValue,
+      copy_variations: nextVariations,
       copy_text: joinCopyVariations(nextVariations),
     });
   };
@@ -684,9 +634,7 @@ export function CopyDepartment({
       );
       const nextText = joinCopyVariations(nextVariations);
       await persistPayload({
-        copy_variations: JSON.parse(
-          JSON.stringify(nextVariations),
-        ) as JsonValue,
+        copy_variations: nextVariations,
         copy_text: nextText,
       });
       await supabase.from("marketing_assets").insert({
@@ -821,10 +769,8 @@ export function CopyDepartment({
       if (nextConcepts.length === concepts.length)
         throw new Error("כרמן הציעה קונספטים שכבר יש. נסו שוב.");
       await persistPayload({
-        copy_concepts: JSON.parse(JSON.stringify(nextConcepts)) as JsonValue,
-        copy_variations: JSON.parse(
-          JSON.stringify(copyVariations),
-        ) as JsonValue,
+        copy_concepts: nextConcepts,
+        copy_variations: copyVariations,
       });
       await supabase.from("marketing_assets").insert({
         tenant_id: tenantId,
@@ -989,11 +935,9 @@ export function CopyDepartment({
       );
       const nextText = joinCopyVariations(nextVariations);
       await persistPayload({
-        copy_variations: JSON.parse(
-          JSON.stringify(nextVariations),
-        ) as JsonValue,
+        copy_variations: nextVariations,
         copy_text: nextText,
-        copy_concepts: JSON.parse(JSON.stringify(nextConcepts)) as JsonValue,
+        copy_concepts: nextConcepts,
       });
       await supabase.from("marketing_assets").insert({
         tenant_id: tenantId,
@@ -1097,11 +1041,9 @@ export function CopyDepartment({
     );
     try {
       await persistPayload({
-        copy_variations: JSON.parse(
-          JSON.stringify(nextVariations),
-        ) as JsonValue,
+        copy_variations: nextVariations,
         copy_text: joinCopyVariations(nextVariations),
-        copy_concepts: JSON.parse(JSON.stringify(nextConcepts)) as JsonValue,
+        copy_concepts: nextConcepts,
       });
       toast.success("וריאציית הקופי נמחקה");
       await refresh();
@@ -1151,9 +1093,7 @@ export function CopyDepartment({
       );
       if (!creativeStage) throw new Error("שלב קריאייטיב לא נמצא");
       const readyConcepts = approvedCopyConcepts(
-        parseCopyConceptsFromPayload(
-          selected.payload as Record<string, unknown>,
-        ),
+        parseCopyConceptsFromPayload(selected.payload),
       );
       if (readyConcepts.length === 0) {
         throw new Error("אשרו לפחות קונספט אחד לפני ההעברה לקריאייטיב");
@@ -1161,9 +1101,7 @@ export function CopyDepartment({
       const readyCopies = approvedCopyVariations(
         hydrateCopyVariations(
           asText(selected.payload?.copy_text),
-          parseCopyVariationsFromPayload(
-            selected.payload as Record<string, unknown>,
-          ),
+          parseCopyVariationsFromPayload(selected.payload),
         ),
       );
       if (copyVariations.length > 0 && readyCopies.length === 0) {
@@ -1182,14 +1120,11 @@ export function CopyDepartment({
           .maybeSingle();
         if (targetError) throw targetError;
         if (!target) throw new Error("פרויקט הקריאייטיב שנבחר לא נמצא");
-        existing = target as HandoffWorkItem;
+        existing = readCopyWorkItem(target);
       }
       const nextCreativePayload = overlayCopyHandoffPayload({
-        existingPayload: (existing?.payload ?? null) as Record<
-          string,
-          unknown
-        > | null,
-        copyPayload: (selected.payload ?? {}) as Record<string, unknown>,
+        existingPayload: existing?.payload ?? null,
+        copyPayload: selected.payload ?? {},
         copyItem: { id: selected.id, title: selected.title },
         concepts,
         approved: readyConcepts,
@@ -1231,7 +1166,7 @@ export function CopyDepartment({
         .from("marketing_work_items")
         .update({
           payload: stampCopyPayloadAfterHandoff(
-            (selected.payload ?? {}) as Record<string, unknown>,
+            selected.payload ?? {},
             creativeId,
             at,
           ),
@@ -1283,7 +1218,7 @@ export function CopyDepartment({
       const copyItem: HandoffWorkItem = {
         id: selected.id,
         title: selected.title,
-        payload: (selected.payload ?? {}) as Record<string, unknown>,
+        payload: selected.payload ?? {},
         client_id: selected.client_id,
         status: selected.status,
         current_stage_id: selected.current_stage_id,
@@ -1311,7 +1246,10 @@ export function CopyDepartment({
       if (stageError) throw stageError;
       const open = listOpenCreativeProjects(
         copyItem,
-        (siblings ?? []) as HandoffWorkItem[],
+        readCreativeHandoffItems(
+          siblings ?? [],
+          new Set((creativeStages ?? []).map((stage) => stage.id)),
+        ),
         (creativeStages ?? []).map((stage) => stage.id),
       );
       if (open.length === 0) {
@@ -1936,19 +1874,17 @@ function CopyEditor({
       const markdown = editor.blocksToMarkdownLossy(editor.document);
       const copyVariations = hydrateCopyVariations(
         markdown,
-        parseCopyVariationsFromPayload(
-          item.payload as Record<string, unknown> | null,
-        ),
+        parseCopyVariationsFromPayload(item.payload),
       );
       const nextPayload = {
         ...(item.payload ?? {}),
         copy_text: markdown,
-        copy_variations: JSON.parse(JSON.stringify(copyVariations)),
+        copy_variations: copyVariations,
         department: "copy",
       };
       const { error: itemError } = await supabase
         .from("marketing_work_items")
-        .update({ payload: nextPayload })
+        .update({ payload: readCopyPayload(nextPayload) })
         .eq("id", item.id)
         .eq("tenant_id", tenantId);
       if (itemError) throw itemError;
@@ -2189,7 +2125,7 @@ function ProjectSettings({
 
   const applyClientContext = async (
     nextClientId: string | null,
-    extra: Record<string, JsonValue> = {},
+    extra: CopyPayload = {},
   ) => {
     let pipelineId: string | null = null;
     let stageId: string | null = null;
@@ -2237,7 +2173,7 @@ function ProjectSettings({
             ? item.current_stage_id
             : stageId
           : null,
-        payload: nextPayload,
+        payload: readCopyPayload(nextPayload),
       })
       .eq("id", item.id)
       .eq("tenant_id", tenantId);
