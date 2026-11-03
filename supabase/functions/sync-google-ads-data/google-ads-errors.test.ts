@@ -103,6 +103,7 @@ describe("googleAdsErrorBody", () => {
     assertMatch(body.message, /456-878-7244/);
     assertMatch(body.message, /חשבון ניהול \(MCC\)/);
     assertMatch(body.message, /לבחור את חשבון הפרסום עצמו/);
+    assertEquals(body.details, body.message);
   });
 
   it("carries Google's wording for any other failure", () => {

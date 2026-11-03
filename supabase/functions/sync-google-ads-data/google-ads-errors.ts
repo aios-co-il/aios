@@ -4,9 +4,11 @@
  */
 export function googleAdsErrorBody(error: unknown, customerId: string) {
   if (isManagerAccountError(error)) {
+    const message = managerAccountMessage(customerId);
     return {
       error: "manager_account_selected",
-      message: managerAccountMessage(customerId),
+      message,
+      details: message,
       customer_id: customerId,
     };
   }
@@ -38,6 +40,9 @@ export function detectGoogleAdsError(
     : null;
 }
 
+/** Google's error code for metrics requested from a manager (MCC) account. */
+const MANAGER_METRICS_CODE = "REQUESTED_METRICS_FOR_MANAGER";
+
 /**
  * True when the report points at a manager (MCC) account. Google never returns
  * metrics for one, so retrying through other `login-customer-id`s cannot help:
@@ -57,8 +62,6 @@ export function googleAdsErrorText(error: unknown): string {
   const base = detailMessage || outerMessage || "שגיאה לא מזוהה מ-Google Ads";
   return code ? `${base} (${code})` : base;
 }
-
-const MANAGER_METRICS_CODE = "REQUESTED_METRICS_FOR_MANAGER";
 
 interface GoogleAdsErrorInfo {
   outerMessage: string;
@@ -102,6 +105,7 @@ function managerAccountMessage(customerId: string): string {
   );
 }
 
+/** Type guard: a non-null object whose fields can be read by key. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

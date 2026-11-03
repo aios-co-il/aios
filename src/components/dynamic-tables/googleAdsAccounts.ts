@@ -25,14 +25,21 @@ export const MANAGER_ACCOUNT_REFUSAL =
 
 /**
  * The `manager_id` setting for a newly chosen account, so the sync logs in
- * through that account's MCC. A listed account without one is reached directly,
- * so the previous account's MCC is cleared; an id typed by hand that is not in
- * the list leaves the setting as it was.
+ * through that account's MCC. Saving the account the table already has leaves
+ * the setting as it was, so a `manager_id` the sync discovered is kept. A listed
+ * account without one is reached directly, so the previous account's MCC is
+ * cleared; an id typed by hand that is not in the list leaves the setting as it
+ * was.
  */
-export function managerIdSetting(account: GoogleAdsAccount | undefined): {
+export function managerIdSetting(
+  account: GoogleAdsAccount | undefined,
+  savedCustomerId: string | null | undefined,
+): {
   manager_id?: string | null;
 } {
-  if (!account) {
+  const unchanged =
+    !!account && account.id === (savedCustomerId ?? "").replace(/\D/g, "");
+  if (!account || unchanged) {
     return {};
   }
   return { manager_id: account.manager_id ?? null };

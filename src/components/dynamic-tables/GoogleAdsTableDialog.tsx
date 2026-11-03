@@ -47,13 +47,13 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { ADS_TABLE_CREATE_DATE_RANGE_OPTIONS } from "@/lib/dashboardDateFilters";
-import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import {
   type GoogleAdsAccount,
   MANAGER_ACCOUNT_HINT,
   MANAGER_ACCOUNT_OPTION_NOTE,
   MANAGER_ACCOUNT_REFUSAL,
 } from "./googleAdsAccounts";
+import { runInitialGoogleAdsSync } from "./initialGoogleAdsSync";
 
 interface GoogleAdsTableDialogProps {
   open: boolean;
@@ -204,24 +204,15 @@ export function GoogleAdsTableDialog({
       queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
       toast.success("טבלת Google Ads נוצרה בהצלחה");
 
-      // Trigger initial sync (direct API)
-      try {
-        toast.info("מסנכרן נתונים מ-Google Ads...");
-        const { error: syncError } = await supabase.functions.invoke(
-          "sync-google-ads-data",
-          { method: "POST", body: { table_id: data.id } },
-        );
-        if (syncError) {
-          throw syncError;
-        }
-        toast.success("הנתונים סונכרנו בהצלחה");
-      } catch (err) {
-        console.error("Initial sync failed:", err);
-        const reason = await edgeFunctionErrorMessage(err, "נסה לסנכרן ידנית");
-        toast.error("הטבלה נוצרה אך הסנכרון נכשל: " + reason, {
-          duration: 12000,
-        });
-      }
+      toast.info("מסנכרן נתונים מ-Google Ads...");
+      await runInitialGoogleAdsSync(
+        () =>
+          supabase.functions.invoke("sync-google-ads-data", {
+            method: "POST",
+            body: { table_id: data.id },
+          }),
+        toast,
+      );
 
       handleClose();
       navigate(buildPath(`/table/${data.slug}`));

@@ -2954,7 +2954,10 @@ export default function DynamicTableView({
                         customer_id: cleanId,
                         date_range: selectedSyncDateRange,
                         currency,
-                        ...managerIdSetting(chosenAccount),
+                        ...managerIdSetting(
+                          chosenAccount,
+                          table.integration_settings?.customer_id,
+                        ),
                       };
                       try {
                         // Merge-only patch so sync metadata (last_sync_at, manager_id, diag)
