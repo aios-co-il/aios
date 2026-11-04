@@ -151,7 +151,7 @@ const choiceLine = (concepts: Array<FilmConcept>) =>
     .slice(-4)
     .join(" | ")}]]`;
 
-const AFTER_CHOICE = `כשהמשתמש בחר (בכפתור או במילים, למשל "השני"), קראי שוב ל-workshop_storyboard עם concept (שם הקונספט, או הקונספט שתיאר במילים שלו) וכתבי את הסצנות לפי הקונספט הזה: המסר, שורות הקריינות והמהלך שלו. רק כשהמשתמש נתן תסריט מלא משלו או ביקש במפורש בלי קונספטים: skip_concepts=true.`;
+const AFTER_CHOICE = `כשהמשתמש בחר (בכפתור או במילים, למשל "השני"), קראי שוב ל-workshop_storyboard עם concept (שם הקונספט, או הקונספט שתיאר במילים שלו). הצעד הבא הוא תסריט לפי הקונספט הזה (המסר, הקריינות והמהלך שלו), והכלי יגיד איך. רק כשהמשתמש נתן תסריט מלא משלו או ביקש במפורש בלי קונספטים: skip_concepts=true.`;
 
 /** Asks the user to choose among the board's concepts, or tells Carmen to write them first. */
 function conceptGate(concepts: Array<FilmConcept>): ConceptGate {

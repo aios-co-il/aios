@@ -112,6 +112,8 @@ export const videoProject = (over: Record<string, unknown> = {}) => ({
       video: { voice_id: "d4eLZ8u5dfBCsjp4YPyz" },
       // The user already chose the film's concept (film-concept.ts asks before any scene).
       workshop_brief: { asked: true, answers: { קונספט: "יום אחד" } },
+      // ...and settled the script (script-step.ts); script tests set their own.
+      workshop_script: { skipped: true },
 
       workshop_look: {
         film: "cinematic, calm, female narrator",

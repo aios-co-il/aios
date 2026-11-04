@@ -2,6 +2,7 @@ import { EDIT_TOOL } from "./edit-tool.ts";
 import { CREATIVE_TOOLS } from "./tool-definitions-creative.ts";
 import { PRODUCE_VIDEO_TOOL } from "./tool-definitions-produce.ts";
 import { PROJECT_TOOLS } from "./tool-definitions-project.ts";
+import { SAVE_SCRIPT_TOOL } from "./tool-definitions-script.ts";
 import { UPDATE_SCENE_TOOL } from "./tool-definitions-scene.ts";
 import { MAKE_STILLS_TOOL } from "./tool-definitions-stills.ts";
 import { STORYBOARD_TOOL } from "./tool-definitions-storyboard.ts";
@@ -14,6 +15,7 @@ export const WORKSHOP_TOOLS = [
   VOICE_TOOL,
   ...PROJECT_TOOLS,
   ...CREATIVE_TOOLS,
+  SAVE_SCRIPT_TOOL,
   STORYBOARD_TOOL,
   UPDATE_SCENE_TOOL,
   MAKE_STILLS_TOOL,

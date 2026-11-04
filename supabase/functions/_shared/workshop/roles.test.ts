@@ -331,3 +331,42 @@ Deno.test("a video ask is read from the user's own words", () => {
   assertStrictEquals(asksForVideo("תעשי מזה סרט קצר"), true);
   assertStrictEquals(asksForVideo("תמונה חדשה לפיד"), false);
 });
+
+Deno.test(
+  "a film still being written goes to the copywriter until its script is approved",
+  () => {
+    const writing = { video: true, edit: false, writing: true };
+    for (const message of ["השני", "תמשיכי", "תכתבי תסריט לסרטון", "כן"]) {
+      assertStrictEquals(
+        workshopRole(message, "video_director", writing),
+        "copywriter",
+        message,
+      );
+    }
+    // Past the script, the same film is the producer's again, even from the copywriter's skin.
+    const filmed = { video: true, edit: false };
+    assertStrictEquals(
+      workshopRole("תמשיכי", "copywriter", filmed),
+      "producer",
+    );
+    assertStrictEquals(workshopRole("סרטון", null, filmed), "producer");
+    // A film cut from the user's materials is never the copywriter's.
+    assertStrictEquals(
+      workshopRole("תמשיכי", null, { ...writing, edit: true }),
+      "editor",
+    );
+    // A new post from a film being written is still the designer's.
+    assertStrictEquals(
+      workshopRole("תכיני גם פוסט לאינסטגרם", null, writing),
+      "designer",
+    );
+  },
+);
+
+Deno.test(
+  "the copywriter's skin carries on only while a film is written",
+  () => {
+    assertStrictEquals(roleOfPersona("copywriter"), "copywriter");
+    assertStrictEquals(workshopRole("תודה", "copywriter", null), "producer");
+  },
+);

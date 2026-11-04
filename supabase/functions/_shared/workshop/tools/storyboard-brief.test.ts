@@ -177,7 +177,7 @@ Deno.test(
       second,
       "tenant-1",
       "workshop_storyboard",
-      { ...storyboard, concept: "יום אחד" },
+      { ...storyboard, concept: "יום אחד", skip_script: true },
       async () => {},
       null,
       {

@@ -12,6 +12,7 @@ import {
   withBriefAnswers,
 } from "./brief-answers.ts";
 import { CTA_MAX_CHARS } from "./cta.ts";
+import { scriptLines, withTappedScriptApproval } from "./film-script.ts";
 import { syncBriefPage } from "./project-brief.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { asksForVideo } from "./roles.ts";
@@ -109,7 +110,11 @@ export async function workshopTurnNote(
     const approved = approveFromMessage(payload, userText);
     // Every tapped answer goes into the brief, so Carmen can come back to it later.
     const tapped = tappedAnswers(lastAssistant, userText);
-    const next = withBriefAnswers(approved?.payload ?? payload, tapped);
+    // A tap on the script question approves the script, whatever Carmen calls next.
+    const next = withTappedScriptApproval(
+      withBriefAnswers(approved?.payload ?? payload, tapped),
+      { lastAssistant, userText },
+    );
     if (next !== payload) {
       const { error } = await supabase
         .from("marketing_work_items")
@@ -187,6 +192,7 @@ export async function workshopTurnNote(
       lines.push(
         `סטוריבורד: ${state.scenes} סצנות, ${state.withStill} עם תמונה. קול לקריינות: ${state.voiceChosen ? "נבחר" : "עוד לא"}.`,
       );
+      lines.push(...scriptLines(payload, state.scenes));
       if (state.scenes > 0)
         lines.push(
           "יש כבר סטוריבורד: אל תכתבי אותו מחדש אלא אם המשתמש ביקש לשנות אותו. שינוי בסצנה אחת: workshop_update_scene.",

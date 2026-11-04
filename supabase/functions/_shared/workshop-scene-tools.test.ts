@@ -1367,6 +1367,8 @@ const writeFilm = (
     {
       item_id: "item-1",
       scenes: [{ visual_prompt: "a bakery at dawn", voiceover_text: "בוקר" }],
+      // The script step after the concept has its own tests (tools/script-step.test.ts).
+      skip_script: true,
       ...args,
     },
     async () => {},

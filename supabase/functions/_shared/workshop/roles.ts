@@ -1,7 +1,7 @@
 /**
- * Who works on a workshop request. Static creative goes to the designer, film concepts and
- * generated films to the producer, and a film cut from the user's own materials to the video
- * editor. The server decides before Carmen acts and pins that role's skin, so the right
+ * Who works on a workshop request. Static creative goes to the designer, a film's concepts and
+ * script to the copywriter (until the user approves the script), generated films to the producer,
+ * and a film cut from the user's own materials to the video editor. The server decides before Carmen acts and pins that role's skin, so the right
  * specialist answers. Every role gets every workshop tool (workshopToolOffered, blocked-tools.ts).
  */
 import { isExplicitDevTaskApproval } from "../dev-task-approval-words.ts";
@@ -10,17 +10,24 @@ import {
   isExplicitRejectionPhrase,
 } from "../wa-approval-flow.ts";
 
-export type WorkshopRole = "designer" | "producer" | "editor";
+export type WorkshopRole = "designer" | "copywriter" | "producer" | "editor";
 
 /**
- * The open project: a film or not, whether it is cut from the user's materials, and whether the
- * user picked one of its scenes on the board (the workshop context names its scene_id).
+ * The open project: a film or not, whether it is cut from the user's materials, whether the user
+ * picked one of its scenes on the board (the workshop context names its scene_id), and whether
+ * the film is still being written (no scenes and no approved script: role-project.ts).
  */
-export type ProjectKind = { video: boolean; edit: boolean; scene?: boolean };
+export type ProjectKind = {
+  video: boolean;
+  edit: boolean;
+  scene?: boolean;
+  writing?: boolean;
+};
 
 /** The ai_skills row with the role's instructions. */
 export const ROLE_SKILL: Record<WorkshopRole, string> = {
   designer: "workshop_designer",
+  copywriter: "workshop_copywriter",
   producer: "workshop_producer",
   editor: "workshop_editor",
 };
@@ -28,6 +35,7 @@ export const ROLE_SKILL: Record<WorkshopRole, string> = {
 /** The public persona (skin-roles.ts) whose portrait and name the chat shows. */
 export const ROLE_PERSONA: Record<WorkshopRole, string> = {
   designer: "creative_direct",
+  copywriter: "copywriter",
   producer: "video_director",
   editor: "video_editor",
 };
@@ -126,6 +134,29 @@ function bareReply(text: string) {
   );
 }
 
+/**
+ * Who works on a film: the video editor for one cut from the user's materials, the copywriter
+ * while its concepts and script are written, then the producer.
+ */
+function filmRole(project: ProjectKind | null): WorkshopRole {
+  if (project?.edit) {
+    return "editor";
+  }
+  return project?.writing ? "copywriter" : "producer";
+}
+
+/**
+ * The current skin's role, carried on. The copywriter works only on a film being written; past
+ * that stage (or with no film open) her chat continues with the producer.
+ */
+function currentRole(
+  current: string | null | undefined,
+  project: ProjectKind | null,
+) {
+  const role = roleOfPersona(current);
+  return role === "copywriter" && !project?.writing ? "producer" : role;
+}
+
 /** The role a persona slug (the chat's current skin) stands for, if any. */
 export function roleOfPersona(slug: string | null | undefined) {
   const entry = Object.entries(ROLE_PERSONA).find(
@@ -150,22 +181,30 @@ export function workshopRole(
   project: ProjectKind | null = null,
 ): WorkshopRole | null {
   const text = String(message ?? "");
-  if (aboutCarmen(text)) return roleOfPersona(current);
+  if (aboutCarmen(text)) {
+    return currentRole(current, project);
+  }
   if (EDITOR.test(text)) return "editor";
-  if (VIDEO.test(text)) return project?.edit ? "editor" : "producer";
-  if (project?.video && project.scene && !asksForStatic(text))
-    return project.edit ? "editor" : "producer";
+  if (VIDEO.test(text)) {
+    return filmRole(project);
+  }
+  if (project?.video && project.scene && !asksForStatic(text)) {
+    return filmRole(project);
+  }
   // "סרט לסטורי" is a film, "פוסט על הסרט" a post: the word that comes first is the deliverable.
   const film = text.search(FILM_NOUN);
   const still = text.search(STATIC_DELIVERABLE);
-  if (film >= 0 && (still < 0 || film < still))
-    return project?.edit ? "editor" : "producer";
+  if (film >= 0 && (still < 0 || film < still)) {
+    return filmRole(project);
+  }
   if (still >= 0) return "designer";
-  if (project?.video) return project.edit ? "editor" : "producer";
+  if (project?.video) {
+    return filmRole(project);
+  }
   if (project && STATIC_HINT.test(text)) return "designer";
   if (STATIC_HINT.test(text) && !roleOfPersona(current)) return "designer";
   // With no project and no specialist yet, a bare yes or no answers the workshop's own persona
   // (say, a dev task she offered after a question about herself), not a designer's brief.
   if (!project && !roleOfPersona(current) && bareReply(text)) return null;
-  return roleOfPersona(current) ?? "designer";
+  return currentRole(current, project) ?? "designer";
 }
