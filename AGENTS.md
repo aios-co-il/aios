@@ -30,7 +30,7 @@ This is the canonical instruction file for all coding agents; `CLAUDE.md` is a r
 
 ## Read before the relevant task
 
-- **Codebase questions, architecture, implementation, or `/graphify`:** read `docs/agents/discovery.md` before exploring; it defines graph lookup, fallback, and update procedures.
+- **Discovery:** use direct file searches for routine codebase questions and focused changes. For broad architecture or dependency analysis, or `/graphify`, read `docs/agents/discovery.md`; graph tools are optional unless explicitly requested.
 - **Environment setup or deployment configuration:** read `docs/ENVIRONMENTS.md`, the environment source of truth, before changing configuration.
 - **Migrations or edge functions:** read `docs/agents/db-deploys.md` for the Supabase Branching deploy flow.
 - **Running the app, changing code or permissions, verifying a change, or capturing visuals:** read `docs/agents/development.md` before execution for environment checks, permission guards, and focused verification.
