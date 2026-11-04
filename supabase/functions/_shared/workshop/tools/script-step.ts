@@ -16,9 +16,10 @@ import {
   withTappedScriptApproval,
   type FilmScript,
 } from "../film-script.ts";
+import { briefAnswersOf } from "../brief-answers.ts";
 import { savePayload } from "../project-io.ts";
 import type { ToolContext } from "../tool-context.ts";
-import type { FilmConcept } from "./film-concept.ts";
+import { CONCEPT_LABEL, NO_CONCEPT, type FilmConcept } from "./film-concept.ts";
 
 export interface ScriptGate {
   needs_input: true;
@@ -31,7 +32,8 @@ export interface ScriptGate {
 /**
  * The approved script the scenes follow (null when the step does not apply), or `stop`: the gate
  * that asks for one first. The approval comes from a tap on the script question in this turn or
- * from script_approved (the user approved in words); skip_script records the user's skip. A film
+ * from script_approved (the user approved in words); skip_script (or skip_concepts) records the
+ * user's skip. A film
  * that already has scenes, and one cut from the user's own materials, are past this step.
  */
 export async function scriptStep(
@@ -68,7 +70,12 @@ function settledThisTurn(
   ctx: Pick<ToolContext, "args" | "deps">,
   payload: Record<string, unknown>,
 ) {
-  if (ctx.args.skip_script === true) {
+  // Skipping the concepts means the user gave a full script of their own (or asked to go
+  // straight to scenes), so there is no script to write and approve either.
+  const conceptSkipped =
+    ctx.args.skip_concepts === true ||
+    briefAnswersOf(payload)[CONCEPT_LABEL] === NO_CONCEPT;
+  if (ctx.args.skip_script === true || conceptSkipped) {
     return withScriptSkipped(payload);
   }
   if (ctx.args.script_approved === true) {
@@ -112,4 +119,4 @@ function approvalGate(script: FilmScript): ScriptGate {
 }
 
 const AFTER_APPROVAL =
-  "אחרי האישור: workshop_storyboard עם סצנה אחת לכל שורה בתסריט, לפי הסדר. הקריינות, הטקסט על המסך והאורך של כל סצנה נלקחים מהשורה שלה כמו שאושרו; את כותבת לכל סצנה את visual_prompt ואת motion_prompt לפי ה-visual שלה. רק כשהמשתמש נתן תסריט מלא משלו או ביקש במפורש בלי תסריט: skip_script=true.";
+  "אחרי האישור: workshop_storyboard עם סצנה אחת לכל שורה בתסריט, לפי הסדר. הקריינות, הטקסט על המסך והאורך של כל סצנה נלקחים מהשורה שלה כמו שאושרו; את כותבת לכל סצנה את visual_prompt ואת motion_prompt לפי ה-visual שלה. רק כשהמשתמש ביקש במפורש בלי תסריט: skip_script=true (תסריט מלא משלו: skip_concepts=true מדלג על שניהם).";

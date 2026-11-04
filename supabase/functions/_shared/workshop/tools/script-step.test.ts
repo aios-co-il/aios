@@ -195,3 +195,13 @@ Deno.test(
     assertStrictEquals(written.success, true, JSON.stringify(written));
   },
 );
+
+Deno.test(
+  "skipping the concepts (the user's own full script) skips the script step too",
+  async () => {
+    const db = fakeDb(film());
+    const written = await storyboard(db, { skip_concepts: true });
+    assertStrictEquals(written.success, true, JSON.stringify(written));
+    assertEquals(savedScript(db), { skipped: true });
+  },
+);
