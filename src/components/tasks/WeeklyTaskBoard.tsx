@@ -1,3 +1,5 @@
+import { requireTenantId } from "@/lib/requireTenantId";
+import type { TaskRelations } from "./taskRelations";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { markLinkedTaskDoneForCalendarEvent } from "@/lib/taskCalendarSync";
@@ -129,7 +131,7 @@ import {
   startCalendarOAuth,
 } from "@/lib/calendarApi";
 
-interface Task {
+interface Task extends TaskRelations {
   id: string;
   title: string;
   notes: string | null;
@@ -149,7 +151,7 @@ interface Task {
   updated_at?: string | null;
   sort_order?: number;
   target_date?: string | null;
-  duration_minutes?: number;
+  duration_minutes?: number | null;
   google_calendar_event_id?: string | null;
   recurrence_frequency?: "daily" | "weekly" | "monthly" | null;
   recurrence_interval?: number;
@@ -159,8 +161,6 @@ interface Task {
   recurrence_previous_task_id?: string | null;
   clients?: { name: string; agency_id?: string | null } | null;
   leads?: { company_name?: string | null; contact_name?: string | null } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
 }
 
 interface CalendarEvent {
@@ -308,8 +308,6 @@ export function WeeklyTaskBoard() {
   type FullTask = Task & {
     clients?: { name: string; agency_id?: string | null } | null;
     campaigners?: { full_name: string } | null;
-    task_updates?: { id: string }[];
-    task_collaborators?: { id?: string; campaigner_id?: string }[];
   };
 
   const linkedTaskId = searchParams.get("task");
@@ -946,7 +944,7 @@ export function WeeklyTaskBoard() {
       const { data } = await supabase
         .from("agencies")
         .select("id")
-        .eq("tenant_id", tenantId)
+        .eq("tenant_id", requireTenantId(tenantId))
         .limit(1)
         .single();
       return data;

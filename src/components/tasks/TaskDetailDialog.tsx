@@ -1,3 +1,4 @@
+import { requireTenantId } from "@/lib/requireTenantId";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,8 +101,9 @@ import {
 const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
 const FRAME = "rounded-xl border border-border/60 bg-card shadow-sm text-right";
 
+/** Reject missing or invalid dates before formatting them. */
 function isUsableDate(value: Date | undefined): value is Date {
-  return Boolean(value) && !Number.isNaN(value.getTime());
+  return value !== undefined && !Number.isNaN(value.getTime());
 }
 
 function parseOptionalDate(value: string | null | undefined): Date | undefined {
@@ -136,7 +138,7 @@ interface Task {
   campaigner_id: string | null;
   tenant_id: string | null;
   created_by?: string | null;
-  created_at?: string;
+  created_at?: string | null;
   creator_name?: string | null;
   self_reminder_at?: string | null;
   google_calendar_event_id?: string | null;
@@ -314,7 +316,7 @@ export function TaskDetailDialog({
           `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
         );
       } else {
-        query = query.eq("tenant_id", tenantId);
+        query = query.eq("tenant_id", requireTenantId(tenantId));
       }
       const { data } = await query.order("name");
       return data || [];
@@ -329,7 +331,7 @@ export function TaskDetailDialog({
       const { data } = await supabase
         .from("leads")
         .select("id, company_name")
-        .eq("tenant_id", tenantId)
+        .eq("tenant_id", requireTenantId(tenantId))
         .order("company_name");
       return data || [];
     },

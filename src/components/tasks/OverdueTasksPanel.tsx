@@ -1,3 +1,4 @@
+import type { TaskRelations } from "./taskRelations";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -36,7 +37,7 @@ import { useState } from "react";
 import { QuickTaskInput, QuickTaskPayload } from "./QuickTaskInput";
 import { isTaskOverdue } from "@/lib/taskDeadline";
 
-interface Task {
+interface Task extends TaskRelations {
   id: string;
   title: string;
   notes: string | null;
@@ -50,13 +51,11 @@ interface Task {
   agency_id: string | null;
   campaigner_id: string | null;
   tenant_id: string | null;
-  created_at?: string;
+  created_at?: string | null;
   created_by?: string | null;
   creator_name?: string | null;
   clients?: { name: string } | null;
   campaigners?: { full_name: string } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
 }
 
 interface TaskBacklogPanelProps {

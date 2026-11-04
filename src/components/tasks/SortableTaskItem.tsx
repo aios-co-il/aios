@@ -1,3 +1,4 @@
+import type { TaskRelations } from "./taskRelations";
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -30,19 +31,17 @@ import { embedCount } from "@/lib/embedCount";
 import { format } from "date-fns";
 
 interface SortableTaskItemProps {
-  task: {
+  task: TaskRelations & {
     id: string;
     title: string;
     status: string;
     client_id: string | null;
     campaigner_id?: string | null;
-    created_at?: string;
+    created_at?: string | null;
     due_date?: string | null;
-    duration_minutes?: number;
+    duration_minutes?: number | null;
     clients?: { name: string } | null;
     campaigners?: { full_name: string } | null;
-    task_updates?: { id: string }[];
-    task_collaborators?: { id?: string; campaigner_id?: string }[];
   };
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onClick: () => void;

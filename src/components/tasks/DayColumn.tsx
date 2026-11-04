@@ -1,3 +1,4 @@
+import type { TaskRelations } from "./taskRelations";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -13,7 +14,7 @@ import {
   workdaySlotIndex,
 } from "@/lib/taskWorkdayHours";
 
-interface Task {
+interface Task extends TaskRelations {
   id: string;
   title: string;
   notes: string | null;
@@ -27,10 +28,8 @@ interface Task {
   campaigner_id: string | null;
   tenant_id: string | null;
   sort_order?: number;
-  duration_minutes?: number;
+  duration_minutes?: number | null;
   clients?: { name: string } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
 }
 
 interface CalendarEvent {

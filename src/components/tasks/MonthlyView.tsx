@@ -1,3 +1,4 @@
+import type { TaskRelations } from "./taskRelations";
 import {
   format,
   startOfMonth,
@@ -13,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-interface Task {
+interface Task extends TaskRelations {
   id: string;
   title: string;
   notes: string | null;
@@ -27,8 +28,6 @@ interface Task {
   campaigner_id: string | null;
   tenant_id: string | null;
   clients?: { name: string } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
 }
 
 interface MonthlyViewProps {

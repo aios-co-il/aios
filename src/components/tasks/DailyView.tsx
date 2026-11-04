@@ -1,3 +1,4 @@
+import type { TaskRelations } from "./taskRelations";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useDroppable } from "@dnd-kit/core";
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { embedCount } from "@/lib/embedCount";
 import { generateWorkdayTimeSlots } from "@/lib/taskWorkdayHours";
 
-interface Task {
+interface Task extends TaskRelations {
   id: string;
   title: string;
   notes: string | null;
@@ -25,8 +26,6 @@ interface Task {
   campaigner_id: string | null;
   tenant_id: string | null;
   clients?: { name: string } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
 }
 
 interface DailyViewProps {

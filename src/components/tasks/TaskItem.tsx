@@ -1,3 +1,4 @@
+import type { TaskRelations } from "./taskRelations";
 import { useDraggable } from "@dnd-kit/core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 interface TaskItemProps {
-  task: {
+  task: TaskRelations & {
     id: string;
     title: string;
     status: string;
@@ -33,12 +34,10 @@ interface TaskItemProps {
     assigned_agent?: string | null;
     cursor_session_url?: string | null;
     cursor_session_id?: string | null;
-    created_at?: string;
+    created_at?: string | null;
     due_date?: string | null;
     clients?: { name: string } | null;
     campaigners?: { full_name: string } | null;
-    task_updates?: { id: string }[];
-    task_collaborators?: { id?: string; campaigner_id?: string }[];
   };
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onClick: () => void;
