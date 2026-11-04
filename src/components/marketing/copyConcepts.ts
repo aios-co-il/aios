@@ -73,6 +73,7 @@ export function parseCopyConceptsFromPayload(
     if (!name && !bigIdea) return [];
     return [
       {
+        ...rec,
         id: text(rec.id) || crypto.randomUUID(),
         name: name || "קונספט",
         bigIdea,
