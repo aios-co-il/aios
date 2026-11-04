@@ -5,8 +5,8 @@ import {
   project,
   scene,
   bareProject,
-  READ_NOTHING,
 } from "./test-fakes.ts";
+import { afterReading } from "./test-briefing.ts";
 
 Deno.test(
   "without a defined style Carmen gets questions instead of pictures, storyboard included",
@@ -22,22 +22,16 @@ Deno.test(
       ["workshop_make_stills", {}],
       ["workshop_storyboard", { scenes: [{ visual_prompt: "a woman" }] }],
     ] as const) {
-      const db = fakeDb({
-        ...bareProject(),
-        "marketing_video_scenes:select": [scene("s-1")],
-      });
-      const result = (await executeApprovedWorkshopTool(
-        db,
-        "tenant-1",
+      const { reading, db, result } = await afterReading(
+        { ...bareProject(), "marketing_video_scenes:select": [scene("s-1")] },
         name,
-        { item_id: "item-1", confirmed: true, ...READ_NOTHING, ...extra },
-        async () => {},
-        null,
+        { item_id: "item-1", confirmed: true, ...extra },
         deps,
-      )) as Record<string, any>;
+      );
+      assertStrictEquals(reading.say_to_user, "", name);
       assertStrictEquals(result.needs_input, true, name);
       assertEquals(result.missing, ["style", "film"]);
-      assertStrictEquals(result.say_to_user.match(/\[\[בחירה:/g).length, 7);
+      assertStrictEquals(result.say_to_user.match(/\[\[בחירה:/g)?.length, 7);
       assertStrictEquals("message" in result, false);
       // Nothing is made; the project only remembers that the questions were shown.
       assertStrictEquals(
@@ -139,16 +133,16 @@ Deno.test(
       item_id: "item-1",
       scenes: [{ visual_prompt: "a woman at a laptop" }],
     };
-    const first = fakeDb(bareProject());
-    const asked = (await executeApprovedWorkshopTool(
-      first,
-      "tenant-1",
-      "workshop_storyboard",
-      { ...storyboard, ...READ_NOTHING },
-      async () => {},
-      null,
-      { userText: tapped, lastAssistant: carmenAsked },
-    )) as Record<string, any>;
+    const {
+      reading,
+      db: first,
+      result: asked,
+    } = await afterReading(bareProject(), "workshop_storyboard", storyboard, {
+      userText: tapped,
+      lastAssistant: carmenAsked,
+    });
+    // The taps are not a reading of the request: Carmen reads it first.
+    assertStrictEquals(reading.reading, true);
     assertStrictEquals(asked.needs_input, true);
     const labels = [
       ...asked.say_to_user.matchAll(/\[\[בחירה: ([^|]+?) \|/g),
@@ -189,5 +183,41 @@ Deno.test(
     assertStrictEquals(written.needs_input, undefined);
     assertStrictEquals(written.success, true);
     assert(second.calls.some((c) => c.table === "rpc:save_video_storyboard"));
+  },
+);
+
+Deno.test(
+  "a first call carrying only tapped answers still reads the request, so its look is not asked",
+  async () => {
+    // Staging, 4 Nov: the concept and ending taps counted as reading the request, so the
+    // "מושן גרפיקס" the request named was never recorded and the look was asked again.
+    const { reading, result } = await afterReading(
+      bareProject(),
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        scenes: [{ visual_prompt: "kinetic type" }],
+        brief_answers: { קונספט: "תחלופה", סגיר: "קחו את כרמן לשיווק שלכם" },
+      },
+      { userText: "סרטון מושן גרפיקס מגניב וזריז עם קריינות" },
+      {
+        brief_answers: {
+          קונספט: "תחלופה",
+          סגיר: "קחו את כרמן לשיווק שלכם",
+          מראה: "מושן גרפיקס",
+        },
+      },
+    );
+    assertStrictEquals(reading.reading, true);
+    assertStrictEquals(reading.say_to_user, "");
+    assertStrictEquals(result.needs_input, true);
+    const labels = [
+      ...result.say_to_user.matchAll(/\[\[בחירה: ([^|]+?) \|/g),
+    ].map((match) => match[1]);
+    assert(labels.length > 0);
+    assertEquals(
+      labels.filter((label) => ["מראה", "סיום", "סגיר"].includes(label)),
+      [],
+    );
   },
 );
