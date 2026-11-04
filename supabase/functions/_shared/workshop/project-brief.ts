@@ -30,9 +30,9 @@ export function projectBrief(payload: Record<string, unknown>): string {
   const request = String(payload.brief_text ?? "")
     .trim()
     .slice(0, MAX_REQUEST);
-  const lines = Object.entries(latestByTopic(briefAnswersOf(payload))).map(
-    ([label, answer]) => `${label}: ${answer}`,
-  );
+  const lines = Object.entries(latestByTopic(briefAnswersOf(payload)))
+    .filter(([label]) => !isConfirmation(label))
+    .map(([label, answer]) => `${label}: ${answer}`);
   if (lines.length === 0) {
     return request;
   }
@@ -46,6 +46,14 @@ export function projectBrief(payload: Record<string, unknown>): string {
     brief += `\n${line}`;
   }
   return brief;
+}
+
+/**
+ * A tapped yes-or-no question ("לאשר תקציב של $6 לפרויקט?", "סטוריבורד חדש במקום הקיים?") is a
+ * decision about the work, not something about the project, so it stays out of the brief.
+ */
+function isConfirmation(label: string) {
+  return /[?؟]\s*$/.test(label);
 }
 
 interface BriefPage {

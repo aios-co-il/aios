@@ -109,3 +109,17 @@ Deno.test(
     assertEquals(unchanged.updates, []);
   },
 );
+
+Deno.test("a tapped yes-or-no question stays out of the brief", () => {
+  const brief = projectBrief({
+    brief_text: "סרטון למבצע",
+    workshop_brief: {
+      answers: {
+        "לאשר תקציב של $6 לפרויקט?": "מאשר תקציב $6 · 0DBB",
+        "סטוריבורד חדש במקום הקיים?": "כן",
+        קצב: "מהיר",
+      },
+    },
+  });
+  assertEquals(brief, "סרטון למבצע\n\nפרטים שנוספו לבריף:\nקצב: מהיר");
+});
