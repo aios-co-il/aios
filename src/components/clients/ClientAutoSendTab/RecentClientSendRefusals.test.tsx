@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { backend, refusalRow, resetBackend } from "./fakeAutoSendBackend";
 import { RecentClientSendRefusals } from "./RecentClientSendRefusals";
 
@@ -10,7 +10,7 @@ vi.mock("@/integrations/supabase/client", async () => ({
 
 /** The refusal list of client-1, with a fresh query client. */
 function renderList() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return render(<RecentClientSendRefusals clientId="client-1" />, { wrapper });
 }
 

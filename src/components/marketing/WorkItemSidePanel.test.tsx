@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { WorkItemSidePanel } from "./WorkItemSidePanel";
 
 const db = vi.hoisted(() => ({ updates: vi.fn() }));
@@ -69,7 +69,7 @@ vi.mock("@/integrations/supabase/client", () => {
 describe("WorkItemSidePanel final approval", () => {
   test("completes the run and saves the item with the database approved status", async () => {
     render(<WorkItemSidePanel itemId="item-1" onClose={vi.fn()} />, {
-      wrapper: withTestQuery().wrapper,
+      wrapper: createTestQueryHarness().wrapper,
     });
     fireEvent.click(await screen.findByRole("button", { name: "אשר וסיים" }));
     await waitFor(() =>

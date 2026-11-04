@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { ClientAutoSendTab } from "./ClientAutoSendTab";
 import { resetBackend } from "./fakeAutoSendBackend";
 
@@ -10,7 +10,7 @@ vi.mock("@/integrations/supabase/client", async () => ({
 
 /** The tab for client-1, with a fresh query client. */
 function renderTab() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return render(<ClientAutoSendTab clientId="client-1" />, { wrapper });
 }
 

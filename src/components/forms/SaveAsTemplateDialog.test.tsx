@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 
 describe("SaveAsTemplateDialog authentication", () => {
@@ -14,7 +14,7 @@ describe("SaveAsTemplateDialog authentication", () => {
         onOpenChange={vi.fn()}
         tenant={{ id: "tenant-1", name: "Test" }}
       />,
-      { wrapper: withTestQuery().wrapper },
+      { wrapper: createTestQueryHarness().wrapper },
     );
     await userEvent.click(screen.getByRole("button", { name: "שמור טמפלייט" }));
     await waitFor(() =>
@@ -37,7 +37,7 @@ describe("SaveAsTemplateDialog authentication", () => {
         onOpenChange={onOpenChange}
         tenant={{ id: "tenant-1", name: "Test" }}
       />,
-      { wrapper: withTestQuery().wrapper },
+      { wrapper: createTestQueryHarness().wrapper },
     );
     await userEvent.click(screen.getByRole("button", { name: "שמור טמפלייט" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));

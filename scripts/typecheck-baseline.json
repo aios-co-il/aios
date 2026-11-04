@@ -4,34 +4,6 @@
   "config": "tsconfig.app.json",
   "diagnostics": [
     {
-      "file": "src/components/accounting/CashFlowTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 6
-    },
-    {
-      "file": "src/components/accounting/CashFlowTab.tsx",
-      "code": 7006,
-      "message": "Parameter 'id' implicitly has an 'any' type.",
-      "source": "id",
-      "count": 2
-    },
-    {
-      "file": "src/components/accounting/CashFlowTab.tsx",
-      "code": 7006,
-      "message": "Parameter 'p' implicitly has an 'any' type.",
-      "source": "p",
-      "count": 2
-    },
-    {
-      "file": "src/components/accounting/InvoiceIntakeTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 3
-    },
-    {
       "file": "src/components/agents/SystemCronJobsPanel.tsx",
       "code": 2322,
       "message": "Type 'null' is not assignable to type 'string | undefined'.",

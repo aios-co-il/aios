@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { CarmenReportRecipientsSection } from "./CarmenReportRecipientsSection";
 
 type Row = {
@@ -89,7 +89,7 @@ const NOPHONE: StaffRow = {
 };
 
 function mount() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return render(<CarmenReportRecipientsSection />, { wrapper });
 }
 

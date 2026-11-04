@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { EditClientDialog } from "./EditClientDialog";
 
 describe("EditClientDialog finance fields", () => {
@@ -153,7 +153,7 @@ function setPersona(
 
 function renderDialog() {
   const onOpenChange = vi.fn();
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   render(
     <EditClientDialog client={client} open onOpenChange={onOpenChange} />,
     { wrapper },

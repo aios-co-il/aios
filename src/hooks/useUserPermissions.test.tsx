@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { useUserPermissions } from "./useUserPermissions";
 
 describe("useUserPermissions finance access", () => {
@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 function renderPermissions() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return renderHook(() => useUserPermissions(), { wrapper });
 }
 
