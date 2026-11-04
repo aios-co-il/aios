@@ -7,6 +7,7 @@
 import { type AssetView } from "./assets.ts";
 import { pickMaterials, planEditScenes } from "./edit-plan.ts";
 import { PRODUCTION_LOCKED, productionLockError } from "./production.ts";
+import { briefAnswersField } from "./project-brief.ts";
 import { publicUrlOf } from "./project-io.ts";
 import { asRecord } from "./record.ts";
 import { motionField } from "./motion-text.ts";
@@ -90,7 +91,7 @@ export const EDIT_TOOL = {
         description: "כמה שניות כל תמונה על המסך (ברירת מחדל 3).",
       },
       film_brief: { type: "string" },
-      brief_answers: { type: "object" },
+      brief_answers: briefAnswersField,
       replace: {
         type: "boolean",
         description: "true מחליף סטוריבורד קיים.",

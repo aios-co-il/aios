@@ -11,6 +11,7 @@ import {
 } from "./film-look.ts";
 import { motionField } from "./motion-text.ts";
 import { pictureField } from "./picture-text.ts";
+import { briefAnswersField } from "./project-brief.ts";
 import { SCENE_OVERLAYS, SCENE_OVERLAY_HELP } from "./scene-overlays.ts";
 import { spokenField } from "./spoken-text.ts";
 import { TITLE_EMPHASES, TITLE_EMPHASIS_HELP } from "./title-emphasis.ts";
@@ -185,11 +186,7 @@ export const WORKSHOP_TOOLS = [
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
         },
-        brief_answers: {
-          type: "object",
-          description:
-            'תשובות שהמשתמש נתן לשאלות הבריף במילים חופשיות, נושא → תשובה (למשל {"קצב": "רגוע"}). נשמרות לבריף של הפרויקט.',
-        },
+        brief_answers: briefAnswersField,
         style_approved: {
           type: "boolean",
           description:
@@ -288,11 +285,7 @@ export const WORKSHOP_TOOLS = [
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
         },
-        brief_answers: {
-          type: "object",
-          description:
-            'תשובות שהמשתמש נתן לשאלות הבריף במילים חופשיות, נושא → תשובה (למשל {"קצב": "רגוע"}). נשמרות לבריף של הפרויקט.',
-        },
+        brief_answers: briefAnswersField,
         style_approved: {
           type: "boolean",
           description:
@@ -306,7 +299,7 @@ export const WORKSHOP_TOOLS = [
         film_brief: {
           type: "string",
           description:
-            "בעברית, משפט לכל נושא: סגנון הסרט, קצב ואווירה, קריינות או דמות שמדברת למצלמה, מוזיקה, וסגיר (לוגו וקריאה לפעולה). רק אחרי שהמשתמש ענה או אישר. נשמר לפרויקט.",
+            "בעברית, משפט לכל נושא: סגנון הסרט, קצב ואווירה, קריינות או דמות שמדברת למצלמה, מוזיקה, וסגיר (לוגו וקריאה לפעולה). רק אחרי שהמשתמש ענה או אישר. נשמר לפרויקט כהערות שלך, לא בבריף: מה שהמשתמש אמר עובר גם ב-brief_answers.",
         },
         scenes: {
           type: "array",
@@ -493,11 +486,7 @@ export const WORKSHOP_TOOLS = [
           description:
             "קישורי https של תמונות רפרנס שהמשתמש צירף או נתן (עד 4). חובה להעביר אותם כשיש: כל התמונות נוצרות לפיהן. נשמרים לפרויקט.",
         },
-        brief_answers: {
-          type: "object",
-          description:
-            'תשובות שהמשתמש נתן לשאלות הבריף במילים חופשיות, נושא → תשובה (למשל {"קצב": "רגוע"}). נשמרות לבריף של הפרויקט.',
-        },
+        brief_answers: briefAnswersField,
         style_approved: {
           type: "boolean",
           description:
@@ -511,7 +500,7 @@ export const WORKSHOP_TOOLS = [
         film_brief: {
           type: "string",
           description:
-            "בעברית, משפט לכל נושא: סגנון הסרט, קצב ואווירה, קריינות או דמות שמדברת למצלמה, מוזיקה, וסגיר (לוגו וקריאה לפעולה). רק אחרי שהמשתמש ענה או אישר. נשמר לפרויקט.",
+            "בעברית, משפט לכל נושא: סגנון הסרט, קצב ואווירה, קריינות או דמות שמדברת למצלמה, מוזיקה, וסגיר (לוגו וקריאה לפעולה). רק אחרי שהמשתמש ענה או אישר. נשמר לפרויקט כהערות שלך, לא בבריף: מה שהמשתמש אמר עובר גם ב-brief_answers.",
         },
       },
       required: ["item_id"],
