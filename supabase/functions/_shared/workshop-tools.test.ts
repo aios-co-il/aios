@@ -4011,6 +4011,8 @@ Deno.test(
         ...storyboard,
         style_bible: "fast kinetic motion graphics, bold teal and white",
         style_approved: true,
+        // The film's concept is settled too, so the scenes can be written in this call.
+        brief_answers: { קונספט: "קליפ מהיר לפי הרפרנס" },
       },
       async () => {},
       null,
