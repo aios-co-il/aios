@@ -1440,6 +1440,29 @@ Deno.test(
 );
 
 Deno.test(
+  "a concept saved again under its title is chosen in its newest version",
+  async () => {
+    const db = briefedFilm([
+      conceptPage("לילה", "גרסה ישנה", 1),
+      conceptPage("לילה", "המאפייה לפני הזריחה", 2),
+    ]);
+    const written = await writeFilm(
+      db,
+      {},
+      {
+        lastAssistant: "איזה כיוון?\n[[בחירה: קונספט | לילה]]",
+        userText: "לילה",
+      },
+    );
+    assertStrictEquals(written.success, true, JSON.stringify(written));
+    assertEquals(storyboardPage(db)?.meta.concept, {
+      title: "לילה",
+      text: "המאפייה לפני הזריחה",
+    });
+  },
+);
+
+Deno.test(
   "a concept chosen in words reaches the tool as concept and is saved",
   async () => {
     const db = briefedFilm([conceptPage("יום אחד", "מסע של יום עבודה", 1)]);

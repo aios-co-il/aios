@@ -58,6 +58,8 @@ export async function filmConcept(
   }
   const board = await boardConcepts(ctx.supabase, ctx.tenantId, itemId);
   if ("error" in board) {
+    // The answers and the choice given so far are kept, as on the gate path below.
+    await savePayload(ctx.supabase, ctx.tenantId, itemId, next);
     return { stop: board };
   }
   if (!choice) {
@@ -103,9 +105,7 @@ async function boardConcepts(
   if (error) {
     return { error: error.message };
   }
-  const rows = (Array.isArray(data) ? data : []) as Array<
-    Record<string, unknown>
-  >;
+  const rows: Array<ConceptRow> = Array.isArray(data) ? data : [];
   return {
     concepts: rows
       .map((row) => ({
@@ -114,6 +114,11 @@ async function boardConcepts(
       }))
       .filter((concept) => concept.title),
   };
+}
+
+interface ConceptRow {
+  title: string | null;
+  meta: unknown;
 }
 
 /** A title as a tap button carries it: no "|" or brackets, which would break the question line. */
@@ -129,9 +134,12 @@ function resolveConcept(
   concepts: Array<FilmConcept>,
 ): FilmConcept {
   const wanted = plain(choice);
+  // Newest first: the question offers the latest pages, and a concept saved again under the same
+  // title replaces the older one.
+  const newest = [...concepts].reverse();
   const page =
-    concepts.find((concept) => plain(concept.title) === wanted) ??
-    concepts.find((concept) => wanted.includes(plain(concept.title)));
+    newest.find((concept) => plain(concept.title) === wanted) ??
+    newest.find((concept) => wanted.includes(plain(concept.title)));
   return page ?? { title: wanted.slice(0, 80), text: wanted };
 }
 
