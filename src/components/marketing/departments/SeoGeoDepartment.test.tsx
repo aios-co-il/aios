@@ -191,7 +191,7 @@ describe("validated SEO strategy rendering", () => {
           clientFilter={ALL_CLIENTS_FILTER}
           tenantId="tenant-1"
         />,
-        { wrapper: withTestQuery().wrapper },
+        { wrapper: createTestQueryHarness().wrapper },
       );
       const alert = await screen.findByRole("alert");
       expect(alert).toHaveTextContent("Broken project");
