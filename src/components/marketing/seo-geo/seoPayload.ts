@@ -26,7 +26,9 @@ export class SeoPayloadValidationError extends Error {
 }
 
 export type ContentPlanItem = z.infer<typeof contentPlanItemSchema>;
+
 export type SeoPlan = z.infer<typeof seoPlanSchema>;
+
 export type SeoPayload = z.infer<typeof seoPayloadSchema>;
 
 /** The SEO producer emits null for unavailable data; consumers use missing values. */
@@ -38,8 +40,11 @@ function optionalDatum<Schema extends z.ZodType>(schema: Schema) {
 }
 
 const text = optionalDatum(z.string());
+
 const texts = optionalDatum(z.array(z.string()));
+
 const priority = optionalDatum(z.enum(["high", "medium", "low"]));
+
 const strategySchema = z.object({
   objective: text,
   audience: text,
@@ -47,6 +52,7 @@ const strategySchema = z.object({
   currentState: text,
   opportunity: text,
 });
+
 export const SEO_STRATEGY_FIELDS = strategySchema.keyof().options;
 
 const clusterSchema = z.object({
@@ -57,6 +63,7 @@ const clusterSchema = z.object({
   priority,
   evidence: text,
 });
+
 const contentPlanItemSchema = z.object({
   title: text,
   contentType: text,
@@ -68,24 +75,28 @@ const contentPlanItemSchema = z.object({
   priority,
   status: text,
 });
+
 const geoSchema = z.object({
   entities: texts,
   questions: texts,
   citationTargets: texts,
   schemaRecommendations: texts,
 });
+
 const technicalPrioritySchema = z.object({
   issue: text,
   impact: text,
   action: text,
   priority,
 });
+
 const researchSchema = z.object({
   competitors: texts,
   keyword_seeds: texts,
   ai_visibility_notes: texts,
   data_gaps: texts,
 });
+
 const seoPlanSchema = z.object({
   strategy: optionalDatum(strategySchema),
   clusters: optionalDatum(z.array(clusterSchema)),
@@ -94,6 +105,7 @@ const seoPlanSchema = z.object({
   technicalPriorities: optionalDatum(z.array(technicalPrioritySchema)),
   dataNotes: texts,
 });
+
 const seoPayloadSchema = z.object({
   department: text,
   brief_text: text,
@@ -118,6 +130,7 @@ const storedPlanSchema = seoPlanSchema
     ),
   })
   .passthrough();
+
 const storedPayloadSchema = seoPayloadSchema
   .extend({
     seo_plan: storedPlanSchema.nullish(),
