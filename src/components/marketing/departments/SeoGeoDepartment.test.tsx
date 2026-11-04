@@ -10,6 +10,7 @@ type Row = Record<string, unknown>;
 // so a screen that leaves a column out of its select does not get it.
 const db = vi.hoisted(() => {
   const tables: Record<string, Record<string, unknown>[]> = {};
+  const errors: Partial<Record<string, Error>> = {};
   const from = (table: string) => {
     const filters: Array<(row: Record<string, unknown>) => boolean> = [];
     let columns: string[] | null = null;
@@ -17,6 +18,9 @@ const db = vi.hoisted(() => {
     let insert: Record<string, unknown> | null = null;
     let patch: Record<string, unknown> | null = null;
     const run = () => {
+      if (errors[table]) {
+        return { data: null, count: null, error: errors[table] };
+      }
       const rows = (tables[table] ??= []);
       if (insert) rows.push({ id: `${table}-${rows.length + 1}`, ...insert });
       const hits = insert
@@ -70,7 +74,7 @@ const db = vi.hoisted(() => {
     };
     return query;
   };
-  return { tables, from };
+  return { tables, errors, from };
 });
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -85,6 +89,9 @@ beforeEach(() => {
   HTMLElement.prototype.hasPointerCapture = () => false;
   HTMLElement.prototype.scrollIntoView = () => {};
   for (const table of Object.keys(db.tables)) delete db.tables[table];
+  for (const table of Object.keys(db.errors)) {
+    delete db.errors[table];
+  }
   Object.assign(db.tables, {
     marketing_pipeline_stages: [
       {
@@ -167,6 +174,19 @@ test("a project's existing program shows the site it publishes to", async () => 
 });
 
 describe("validated SEO strategy rendering", () => {
+  test("shows an items-query failure instead of the empty state", async () => {
+    db.errors.marketing_work_items = new Error("Items query unavailable");
+    renderScreen();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Items query unavailable",
+    );
+    expect(screen.queryByText("אין תוכניות עדיין")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /קידום האתר/ }),
+    ).not.toBeInTheDocument();
+  });
+
   test.each([false, true])(
     "isolates malformed rows in all-clients queries (all invalid: %s)",
     async (allInvalid) => {
