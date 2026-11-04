@@ -66,7 +66,7 @@ export function SeoGeoWorkflowStudio({
 }: {
   workItem: WorkItem;
   tenantId: string;
-  clientId: string;
+  clientId: string | null;
   onPlanRefresh: () => void;
   strategyPanel?: React.ReactNode;
 }) {
