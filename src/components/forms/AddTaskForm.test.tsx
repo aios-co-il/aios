@@ -191,7 +191,8 @@ interface BackendQuery {
   then(resolve: (value: BackendResult) => unknown): Promise<unknown>;
 }
 
-const clients: ReturnType<typeof createTestQueryHarness>["queryClient"][] = [];
+const clients: Array<ReturnType<typeof createTestQueryHarness>["queryClient"]> =
+  [];
 const fixtures = vi.hoisted(() => ({
   campaigners: [
     { id: "campaigner-1", full_name: "קמפיינר ראשון" },
