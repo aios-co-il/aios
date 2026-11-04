@@ -4,6 +4,8 @@ export type GoogleAdsCampaignSummaryRow = {
   name: string;
   campaign_id: string;
   goal: GoogleCampaignGoal;
+  /** Paused, removed or its report switched off; shown only when it spent. */
+  off: boolean;
   impressions: number;
   clicks: number;
   spend: number;
@@ -13,7 +15,7 @@ export type GoogleAdsCampaignSummaryRow = {
 
 export type GoogleAdsTotals = Omit<
   GoogleAdsCampaignSummaryRow,
-  "name" | "campaign_id" | "goal"
+  "name" | "campaign_id" | "goal" | "off"
 >;
 
 export type GoogleAdsCampaignSummary = {

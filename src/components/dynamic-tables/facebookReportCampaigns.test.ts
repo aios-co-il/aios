@@ -56,4 +56,31 @@ describe("groupFacebookReportCampaigns", () => {
     expect(groups.leads.map(([key]) => key)).toStrictEqual(["Shop"]);
     expect(groups.traffic.map(([key]) => key)).toStrictEqual(["Traffic"]);
   });
+
+  it("keeps a paused campaign that spent, marked off, and drops one that did not", () => {
+    const groups = groupFacebookReportCampaigns(
+      [
+        row("Spent", { campaign_type: "lead", spend: 60, leads: 2 }),
+        row("Spent", {
+          campaign_type: "lead",
+          date: "2026-10-02",
+          effective_status: "PAUSED",
+        }),
+        row("Idle", {
+          campaign_type: "lead",
+          spend: 0,
+          effective_status: "PAUSED",
+        }),
+        row("Live", { campaign_type: "lead", spend: 0 }),
+      ],
+      "campaign",
+      { leadsOnly: false },
+    );
+    expect(
+      groups.leads.map(([key, campaign]) => [key, campaign.off]),
+    ).toStrictEqual([
+      ["Spent", true],
+      ["Live", false],
+    ]);
+  });
 });

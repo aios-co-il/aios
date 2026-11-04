@@ -1,7 +1,9 @@
 import {
   aggregateFacebookRecordsAtLevel,
+  getEntityDisplayName,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
+import { applyCampaignOffRule, campaignOffKeys } from "@/lib/campaignOffState";
 import type { FacebookCampaignRow } from "@/lib/adsMetrics";
 import {
   REPORT_CAMPAIGN_GOALS,
@@ -30,7 +32,12 @@ export type SharedCampaignRow = {
   addToCart: number;
   /** Facebook only; traffic tables show it. */
   followers?: FacebookFollowerTotals;
+  /** Paused or removed on the platform; shown only when it spent. */
+  off: boolean;
 };
+
+/** A row as the aggregators build it, before its on/off state is known. */
+type AggregatedRow = Omit<SharedCampaignRow, "off">;
 
 /** The shared report's campaign tables, one per goal, at one entity level. */
 export type SharedCampaignTables = Record<
@@ -57,9 +64,10 @@ export function sharedCampaignTables(
   facebookGroups: Record<ReportCampaignGoal, FacebookCampaignRow[]> | null,
 ): SharedCampaignTables {
   const { integrationType, level, tableGoals, tableMode } = options;
-  const label = ENTITY_COLUMN_LABELS[level];
+  const finish = (byGoal: Record<ReportCampaignGoal, AggregatedRow[]>) =>
+    campaignTables(ENTITY_COLUMN_LABELS[level], byGoal, records, level);
   if (facebookGroups) {
-    return campaignTables(label, {
+    return finish({
       ecommerce: facebookGroups.ecommerce.map(sharedFacebookRow),
       leads: facebookGroups.leads.map(sharedFacebookRow),
       traffic: facebookGroups.traffic.map(sharedFacebookRow),
@@ -68,7 +76,7 @@ export function sharedCampaignTables(
   if (integrationType === "facebook_ecommerce") {
     // A Facebook Ecommerce table is a sales report by definition.
     const rows = aggregateFacebookRecordsAtLevel(records, level);
-    return campaignTables(label, {
+    return finish({
       ecommerce: rows.map(sharedFacebookRow),
       leads: [],
       traffic: [],
@@ -80,22 +88,42 @@ export function sharedCampaignTables(
       level,
       tableGoals.goalOf ?? (() => tableMode),
     );
-    return campaignTables(label, { ecommerce, leads, traffic: [] });
+    return finish({ ecommerce, leads, traffic: [] });
   }
-  return campaignTables(label, { ecommerce: [], leads: [], traffic: [] });
+  return finish({ ecommerce: [], leads: [], traffic: [] });
 }
 
-/** The tables by goal, plus every row in report order. */
+/**
+ * The tables by goal, plus every row in report order. Rows are keyed by the
+ * name the table shows, and off rows that spent nothing are left out. Public
+ * shares carry no report switch, so only the platform status counts here.
+ */
 function campaignTables(
   entityColumnLabel: string,
-  byGoal: Record<ReportCampaignGoal, SharedCampaignRow[]>,
+  byGoal: Record<ReportCampaignGoal, AggregatedRow[]>,
+  records: SharedReportRecord[],
+  level: AdsEntityLevel,
 ): SharedCampaignTables {
-  const all = REPORT_CAMPAIGN_GOALS.flatMap((goal) => byGoal[goal]);
-  return { ...byGoal, all, entityColumnLabel };
+  const offNames = campaignOffKeys(records, (data) =>
+    getEntityDisplayName(data, level),
+  );
+  const mark = (rows: AggregatedRow[]) =>
+    applyCampaignOffRule(rows, {
+      keyOf: (row) => row.name,
+      spendOf: (row) => row.spend,
+      offKeys: offNames,
+    });
+  const marked = {
+    ecommerce: mark(byGoal.ecommerce),
+    leads: mark(byGoal.leads),
+    traffic: mark(byGoal.traffic),
+  };
+  const all = REPORT_CAMPAIGN_GOALS.flatMap((goal) => marked[goal]);
+  return { ...marked, all, entityColumnLabel };
 }
 
 /** A Facebook campaign row with the columns the shared tables show. */
-function sharedFacebookRow(row: FacebookCampaignRow): SharedCampaignRow {
+function sharedFacebookRow(row: FacebookCampaignRow): AggregatedRow {
   return {
     name: row.name,
     spend: row.spend,
