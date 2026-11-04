@@ -6,10 +6,8 @@
  * its own request so a film's pictures do not use up the chat request's CPU time.
  */
 import { imageProvidersFor } from "../workshop/capabilities.ts";
-import {
-  loadReferences,
-  type ImageProvider,
-} from "../workshop/image-providers.ts";
+import { loadReferences } from "../workshop/image-bytes.ts";
+import { type ImageProvider } from "../workshop/image-providers.ts";
 import { tenantImageKeys } from "./tenant-image-keys.ts";
 import { publicFetchAsFetch } from "../public-fetch.ts";
 import { tenantOpenRouterKey } from "./openrouterImage.ts";

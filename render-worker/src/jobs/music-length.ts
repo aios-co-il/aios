@@ -8,11 +8,11 @@
  * and the render loops a bed that still comes out short.
  */
 import { sceneSeconds } from "../compose/timeline.ts";
+import { WORKSHOP_FPS } from "../compose/manifest-media.ts";
 import {
-  WORKSHOP_FPS,
   narratedSceneFrames,
   sceneMinFrames,
-} from "../compose/workshop-manifest.ts";
+} from "../compose/manifest-scene-frames.ts";
 import { narrationLine } from "../narration.ts";
 import { endCardS, readFilm } from "./music-film.ts";
 

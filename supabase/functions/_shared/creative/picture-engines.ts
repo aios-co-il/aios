@@ -3,8 +3,8 @@
  * reference pictures), then the connected image engines, and OpenRouter again from the prompt
  * alone before giving up.
  */
+import { fromBase64 } from "../workshop/image-bytes.ts";
 import {
-  fromBase64,
   generateStill,
   type ImageKeys,
   type ImageProvider,

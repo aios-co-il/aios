@@ -4,7 +4,7 @@
  * editor. The server decides before Carmen acts and pins that role's skin, so the right
  * specialist answers. Every role gets every workshop tool (workshopToolOffered, blocked-tools.ts).
  */
-import { isExplicitDevTaskApproval } from "../dev-task-approval.ts";
+import { isExplicitDevTaskApproval } from "../dev-task-approval-words.ts";
 import {
   isExplicitApprovalPhrase,
   isExplicitRejectionPhrase,

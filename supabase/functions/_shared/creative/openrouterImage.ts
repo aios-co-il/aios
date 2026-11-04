@@ -4,7 +4,7 @@
  */
 import type { SecretClient } from "../carmen/brain-connections/overrides.ts";
 import { connectionSecret } from "../carmen/brain-connections/overrides.ts";
-import { toBase64 } from "../workshop/image-providers.ts";
+import { toBase64 } from "../workshop/image-bytes.ts";
 
 export const OPENROUTER_IMAGE_MODEL = "google/gemini-3.1-flash-image";
 const IMAGES_URL = "https://openrouter.ai/api/v1/images";
