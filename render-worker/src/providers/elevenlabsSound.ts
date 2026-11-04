@@ -36,6 +36,7 @@ const headers = (apiKey: string | null | undefined) => {
   return { "xi-api-key": apiKey, "Content-Type": "application/json" };
 };
 
+/** ELEVENLABS_VOICE_ID, else the account's first premade voice, for a run that names none. */
 export async function defaultVoiceId(
   apiKey: string | null | undefined,
   fetchImpl: FetchImpl = fetch,

@@ -1,5 +1,6 @@
 // Minimal Supabase client over fetch (PostgREST + Storage) so the worker has no dependencies.
 
+/** A service-role client for one project: PostgREST reads and writes, and Storage files. */
 export function createSupabaseRest({
   url,
   serviceRoleKey,

@@ -44,7 +44,7 @@ The Staging mirror only adds or updates rows from Production and its preflight o
 ## Phase 3 reference video
 
 - The "סרטון רפרנס" button in the storyboard toolbar uploads a video (up to 200 MB) to `creative-video/<tenant>/<client>/<item>/reference/`. It records a `reference_video` asset and queues a `marketing_runs` row with `kind = 'reference_analysis'`. The screen polls the run every 4 s while it is queued or running.
-- `render-worker/` is a dependency-free Node 22 + ffmpeg service for the DigitalOcean Droplet; see its README for the steps. It claims runs with `claim_video_run` (service role only, `FOR UPDATE SKIP LOCKED`) and processes them as follows:
+- `render-worker/` is a dependency-free Node 22.18+ + ffmpeg service for the DigitalOcean Droplet; see its README for the steps. It claims runs with `claim_video_run` (service role only, `FOR UPDATE SKIP LOCKED`) and processes them as follows:
   1. finds shots with ffmpeg scene cuts and saves a keyframe per shot;
   2. transcribes with ElevenLabs Scribe (Whisper as fallback);
   3. describes the shots in one vision call;

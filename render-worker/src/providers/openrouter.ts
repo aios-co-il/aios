@@ -92,6 +92,7 @@ export function openRouterClipBody({
 const beforeSubmit = (message: string, status?: number) =>
   Object.assign(new Error(message), { submitted: false, status });
 
+/** The OpenRouter video engine on the tenant's OpenRouter key; Veo for a talking scene. */
 export function openRouterProvider({
   apiKey,
   model,

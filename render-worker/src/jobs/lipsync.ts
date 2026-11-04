@@ -187,7 +187,7 @@ export async function generateLipsync({
           if (
             !isPaidPlanError(error) &&
             !/\b40[13]\b|invalid credentials|model_access_denied/i.test(
-              String(error instanceof Error ? error.message : undefined),
+              String(messageOf(error)),
             )
           )
             throw error;
@@ -374,4 +374,11 @@ async function finishLipsync({
     credits: cost.credits,
     provider: provider.name,
   };
+}
+
+/** `error.message` when `error` is an object, as `error?.message` read it; else undefined. */
+function messageOf(error: unknown): unknown {
+  return typeof error === "object" && error !== null
+    ? Reflect.get(error, "message")
+    : undefined;
 }

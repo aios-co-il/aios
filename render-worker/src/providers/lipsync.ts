@@ -86,6 +86,7 @@ export function elevenLabsLipsyncBody({ imageBytes, audioBytes }: MediaInput) {
   };
 }
 
+/** Creatify Aurora lip sync on the tenant's ElevenLabs key: the still and the voice line. */
 export function elevenLabsLipsyncProvider({
   apiKey,
   fetchImpl = fetch,
@@ -257,6 +258,7 @@ export function heygenLipsyncBody({
   };
 }
 
+/** HeyGen Avatar IV lip sync, run through OpenRouter's video jobs on the tenant's key. */
 export function heygenLipsyncProvider({
   apiKey,
   fetchImpl = fetch,

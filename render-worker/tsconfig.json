@@ -10,6 +10,9 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "strict": true,
+    // Off for this first step: turning them on adds about 590 (untyped parameters) and 240
+    // (null checks) errors across code converted as is from .mjs. Follow-up: section 11 of
+    // docs/carmen-workshop-plan.md, which also adds render-worker/test to this check.
     "noImplicitAny": false,
     "strictNullChecks": false,
     "skipLibCheck": true

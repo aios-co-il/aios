@@ -80,6 +80,7 @@ export function klingAuth(keys: KlingKeyPair) {
   };
 }
 
+/** The Kling image-to-video engine, signed with klingKeys. */
 export function klingProvider(keys: KlingKeyPair = {}): VideoProvider {
   const auth = klingAuth(keys);
   return {

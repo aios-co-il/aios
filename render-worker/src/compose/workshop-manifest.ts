@@ -110,6 +110,7 @@ export function narratedSceneFrames(
   );
 }
 
+/** The brand for the end card, its logo staged in `files`; null when nothing of it is set. */
 function brandOf(brand, files): ManifestBrand | null {
   if (!brand) return null;
   let logo = null;

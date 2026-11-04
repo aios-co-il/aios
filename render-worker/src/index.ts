@@ -235,6 +235,7 @@ async function advanceProduction(db: SupabaseRest, run: VideoRun) {
   }
 }
 
+/** Records how the run ended, with the time it finished. */
 async function finish(db: SupabaseRest, run: VideoRun, patch: object) {
   await db.update("marketing_runs", `id=eq.${run.id}`, {
     finished_at: new Date().toISOString(),
@@ -242,6 +243,7 @@ async function finish(db: SupabaseRest, run: VideoRun, patch: object) {
   });
 }
 
+/** Claims one run and runs it; false when the queue had nothing to claim. */
 async function processOne(db: SupabaseRest, workerId: string) {
   const claimed = await inFlight.claim(
     db.rpc("claim_video_run", {

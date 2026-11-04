@@ -70,6 +70,7 @@ export async function kenBurnsClip(
   }
 }
 
+/** The free preview engine: a Ken Burns clip made locally, so nothing is paid. */
 export function mockProvider(): VideoProvider {
   const jobs = new Map<string, Promise<Uint8Array>>();
   return {

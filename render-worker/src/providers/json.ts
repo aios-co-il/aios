@@ -15,7 +15,10 @@ export async function responseJson<T extends object>(
   return objectOf<T>(await response.json());
 }
 
-/** `body` when it is a JSON object (not null, not an array), else {}. */
+/**
+ * `body` when it is a JSON object (not null, not an array), else {}. The guard checks only the
+ * top-level shape; the field types are not checked, so callers test each field they read.
+ */
 function objectOf<T extends object>(body: unknown): Partial<T> {
   return typeof body === "object" && body !== null && !Array.isArray(body)
     ? (body as Partial<T>)

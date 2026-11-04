@@ -50,6 +50,7 @@ export function higgsfieldClipBody({
 const TALKING_MODEL = () =>
   process.env.HIGGSFIELD_TALKING_MODEL || "bytedance/seedance-2.5";
 
+/** The Seedance 2.5 request for a talking scene: native audio, 4 to 30 s. */
 export function higgsfieldTalkingBody({
   prompt,
   imageUrl,

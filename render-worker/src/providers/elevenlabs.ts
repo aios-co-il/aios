@@ -64,6 +64,7 @@ export function elevenLabsVideoBody({
   return body;
 }
 
+/** The ElevenLabs scene engine (Veo 3.1 Fast through Flows), on the tenant's key. */
 export function elevenLabsProvider({
   apiKey,
   fetchImpl = fetch,
