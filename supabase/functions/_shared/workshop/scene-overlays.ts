@@ -1,6 +1,6 @@
 /**
  * Animated graphics drawn over a scene's picture, under its text. The render worker
- * (scene-overlay.mjs) and the film (Remotion workshop-overlays.ts) know the same names; a scene's
+ * (scene-overlay.ts) and the film (Remotion workshop-overlays.ts) know the same names; a scene's
  * own choice (meta.scene_overlay) wins over the film's (payload.video.scene_overlay), and "none"
  * on a scene turns the film's off there.
  */

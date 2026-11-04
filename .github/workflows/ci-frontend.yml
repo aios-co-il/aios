@@ -169,6 +169,9 @@ jobs:
       - name: Lint repository sources
         run: pnpm lint
 
+      - name: Type-check the render worker
+        run: pnpm typecheck:worker
+
       - name: TypeScript gate regression tests
         run: pnpm test:typecheck
 

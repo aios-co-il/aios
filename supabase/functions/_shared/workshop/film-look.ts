@@ -1,6 +1,6 @@
 /**
  * How a Workshop film moves from scene to scene and how it closes. The render worker
- * (film-look.mjs) and the film (Remotion workshop-transitions.ts, workshop-end-card.tsx) know
+ * (film-look.ts) and the film (Remotion workshop-transitions.ts, workshop-end-card.tsx) know
  * the same names; a scene's own transition (meta.transition) wins over the film's cycle, and
  * the closing card's design, what plays behind it and whether it sits on glass are the film's
  * (payload.video.end_card_style, end_card_background, end_card_glass).

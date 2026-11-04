@@ -186,7 +186,7 @@ export async function buildEditScenes(
   }
   const failed: string[] = [];
   // The upload's own address in the private bucket, as the assets tab keeps it: it never expires.
-  // The worker reads it with its own key (render-worker/src/guard.mjs readMedia) and the board
+  // The worker reads it with its own key (render-worker/src/guard.ts readMedia) and the board
   // signs it to show it.
   const addressOf = publicUrlOf(supabase);
   for (const scene of plan) {

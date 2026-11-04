@@ -28,7 +28,7 @@ Each rule applies to the lines your change adds or edits. Rules for one area liv
 ### Lint and language
 
 5. **ESLint warnings are requests.** Fix every warning on the lines you add or edit, and split a new file that passes `max-lines` by topic (limits in `eslint.config.js`).
-6. **New code is TypeScript**, including new modules in `scripts/`, `.github/scripts/` and `render-worker/`. Existing `.mjs` files stay until a PR converts them; a conversion is its own PR (One concern per PR).
+6. **New code is TypeScript**, including new modules in `scripts/` and `.github/scripts/`. Existing `.mjs` files stay until a PR converts them; a conversion is its own PR (One concern per PR). `render-worker/` is TypeScript that Node runs without a build: `render-worker/tsconfig.json` limits it to syntax Node can strip, and `pnpm typecheck:worker` passes.
 
 ### Errors
 

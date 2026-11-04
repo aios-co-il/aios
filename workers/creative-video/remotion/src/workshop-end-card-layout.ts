@@ -5,7 +5,7 @@
  */
 import type { WorkshopBrand } from "./manifest";
 
-/** The designs, in the order Carmen's tools list them (render-worker film-look.mjs). */
+/** The designs, in the order Carmen's tools list them (render-worker film-look.ts). */
 export const END_CARD_STYLES = ["classic", "bold", "minimal", "split"] as const;
 
 export type EndCardStyle = (typeof END_CARD_STYLES)[number];
@@ -25,7 +25,7 @@ export type EndCardProps = {
   glass: boolean;
 };
 
-/** Width of a bold Hebrew glyph in ems, on average (render-worker compose/end-card.mjs). */
+/** Width of a bold Hebrew glyph in ems, on average (render-worker compose/end-card.ts). */
 const GLYPH_EM = 0.56;
 
 /** The call to action's lines: wrapped by the render worker, else the text on one line. */
@@ -39,7 +39,7 @@ export const ctaLinesOf = (brand: WorkshopBrand): string[] =>
 /**
  * The call to action's size: `maxPx` for a short line, smaller as its longest line grows, so a
  * whole sentence still fits its (up to three) lines across `boxWidth` px (ctaFontPx in
- * end-card.mjs).
+ * end-card.ts).
  */
 export const ctaFontSize = (
   lines: string[],

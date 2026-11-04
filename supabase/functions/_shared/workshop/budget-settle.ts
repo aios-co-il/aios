@@ -1,6 +1,6 @@
 import { settleProduction } from "./budget.ts";
 
-// A production's render pays for the trailer sound effects (render-worker jobs/render.mjs
+// A production's render pays for the trailer sound effects (render-worker jobs/render.ts
 // costUsd); every other render records 0.
 const WORKER_KINDS = ["clip", "voice", "music", "lipsync", "render"];
 const IN_FLIGHT = new Set(["queued", "running"]);

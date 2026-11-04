@@ -1,0 +1,158 @@
+// ElevenLabs sound: per-scene voiceover with word timestamps, and one music bed.
+import { providerJson } from "./json.ts";
+import type {
+  ElevenLabsSpeechResponse,
+  ElevenLabsVoicesResponse,
+} from "./responses.ts";
+import type { FetchImpl } from "./types.ts";
+
+const BASE = () =>
+  (process.env.ELEVENLABS_API_BASE || "https://api.elevenlabs.io").replace(
+    /\/$/,
+    "",
+  );
+export const SPEECH_MODEL = () =>
+  process.env.ELEVENLABS_TTS_MODEL || "eleven_v4";
+export const MUSIC_MODEL = () =>
+  process.env.ELEVENLABS_MUSIC_MODEL || "music_v2_5";
+
+export const speechBody = (text: string, model = SPEECH_MODEL()) => ({
+  text,
+  model_id: model,
+});
+
+export const musicBody = ({
+  prompt,
+  musicLengthMs,
+  model = MUSIC_MODEL(),
+}: MusicRequest) => ({
+  prompt,
+  music_length_ms: musicLengthMs,
+  model_id: model,
+});
+
+const headers = (apiKey: string | null | undefined) => {
+  if (!apiKey) throw new Error("ELEVENLABS_API_KEY is required");
+  return { "xi-api-key": apiKey, "Content-Type": "application/json" };
+};
+
+export async function defaultVoiceId(
+  apiKey: string | null | undefined,
+  fetchImpl: FetchImpl = fetch,
+): Promise<string> {
+  if (process.env.ELEVENLABS_VOICE_ID) return process.env.ELEVENLABS_VOICE_ID;
+  const response = await fetchImpl(`${BASE()}/v1/voices`, {
+    headers: headers(apiKey),
+  });
+  const data = await providerJson<ElevenLabsVoicesResponse>(response);
+  if (!response.ok) throw new Error(`elevenlabs voices ${response.status}`);
+  const voice =
+    data.voices?.find((item) => item.category === "premade") ??
+    data.voices?.[0];
+  if (!voice?.voice_id) throw new Error("ElevenLabs returned no voice");
+  return voice.voice_id;
+}
+
+export async function synthesizeSpeech({
+  apiKey,
+  voiceId,
+  text,
+  fetchImpl = fetch,
+}: Keyed & { voiceId?: string | null; text: string }) {
+  const id = voiceId || (await defaultVoiceId(apiKey, fetchImpl));
+  const response = await fetchImpl(
+    `${BASE()}/v1/text-to-speech/${encodeURIComponent(id)}/with-timestamps`,
+    {
+      method: "POST",
+      headers: { ...headers(apiKey), Accept: "application/json" },
+      body: JSON.stringify(speechBody(text)),
+    },
+  );
+  const data = await providerJson<ElevenLabsSpeechResponse>(response);
+  if (!response.ok || !data.audio_base64)
+    throw new Error(
+      `elevenlabs speech ${response.status}: ${JSON.stringify(data).slice(0, 300)}`,
+    );
+  return {
+    voiceId: id,
+    bytes: Buffer.from(data.audio_base64, "base64"),
+    alignment: data.alignment ?? null,
+  };
+}
+
+export async function composeMusic({
+  apiKey,
+  prompt,
+  musicLengthMs,
+  fetchImpl = fetch,
+}: Keyed & MusicRequest): Promise<Uint8Array> {
+  const response = await fetchImpl(`${BASE()}/v1/music`, {
+    method: "POST",
+    headers: headers(apiKey),
+    body: JSON.stringify(musicBody({ prompt, musicLengthMs })),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `elevenlabs music ${response.status}: ${detail.slice(0, 300)}`,
+    );
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+export const SOUND_EFFECT_MODEL = () =>
+  process.env.ELEVENLABS_SFX_MODEL || "eleven_text_to_sound_v2";
+
+/** POST /v1/sound-generation body (ElevenLabs text to sound effects). */
+export const soundEffectBody = ({
+  text,
+  durationS,
+  promptInfluence = 0.5,
+  model = SOUND_EFFECT_MODEL(),
+}: SoundEffectRequest) => ({
+  text,
+  duration_seconds: Math.min(30, Math.max(0.5, Number(durationS) || 1)),
+  prompt_influence: promptInfluence,
+  model_id: model,
+});
+
+/** One sound effect as MP3 bytes. Billed per second of the requested duration. */
+export async function generateSoundEffect({
+  apiKey,
+  text,
+  durationS,
+  promptInfluence,
+  fetchImpl = fetch,
+}: Keyed & SoundEffectRequest): Promise<Uint8Array> {
+  const response = await fetchImpl(
+    `${BASE()}/v1/sound-generation?output_format=mp3_44100_128`,
+    {
+      method: "POST",
+      headers: { ...headers(apiKey), Accept: "audio/mpeg" },
+      body: JSON.stringify(
+        soundEffectBody({ text, durationS, promptInfluence }),
+      ),
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `elevenlabs sound effect ${response.status}: ${detail.slice(0, 300)}`,
+    );
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length === 0) throw new Error("elevenlabs sound effect: empty");
+  return bytes;
+}
+
+/** The tenant's ElevenLabs key, and the fetch to call ElevenLabs with. */
+type Keyed = { apiKey: string | null | undefined; fetchImpl?: FetchImpl };
+
+type MusicRequest = { prompt: string; musicLengthMs: number; model?: string };
+
+type SoundEffectRequest = {
+  text: string;
+  durationS: unknown;
+  promptInfluence?: number;
+  model?: string;
+};

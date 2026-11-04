@@ -3,7 +3,7 @@
  * Carmen can choose. Pure numbers per frame, so every style is tested without rendering.
  */
 
-/** The styles, in the order Carmen's tools list them (render-worker title-style.mjs). */
+/** The styles, in the order Carmen's tools list them (render-worker title-style.ts). */
 export const TITLE_STYLES = [
   "float",
   "pop",
