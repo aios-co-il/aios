@@ -41,6 +41,9 @@ export function SaveAsTemplateDialog({
 
   const saveTemplateMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      if (!userId) {
+        throw new Error("נדרשת התחברות לשמירת טמפלייט");
+      }
       const { data: result, error } = await supabase
         .from("tenant_templates")
         .insert({
@@ -69,6 +72,7 @@ export function SaveAsTemplateDialog({
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      console.error("Template save failed:", error.message);
       toast.error("שגיאה בשמירת הטמפלייט: " + error.message);
     },
   });

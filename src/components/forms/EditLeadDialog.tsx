@@ -200,7 +200,7 @@ export function EditLeadDialog({
   const { activeStages: pipelineStages } = useLeadPipelineStages();
   const { tenantId } = useCurrentTenant();
 
-  const meetingScheduler = useMeetingScheduler(tenantId);
+  const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
   const {
     data: teamMembers = [],
@@ -1281,7 +1281,10 @@ export function EditLeadDialog({
 
           {/* Tab: Digital signature documents */}
           <TabsContent value="docs" className="space-y-6 mt-0">
-            <SendSignatureFromLeadPanel lead={lead} tenantId={tenantId} />
+            <SendSignatureFromLeadPanel
+              lead={lead}
+              tenantId={tenantId ?? undefined}
+            />
           </TabsContent>
 
           {/* Tab 2: Proposals & Pricing */}
