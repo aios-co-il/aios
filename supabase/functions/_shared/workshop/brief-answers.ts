@@ -11,7 +11,8 @@ import {
 } from "./briefing-choices.ts";
 
 const KEY = "workshop_brief";
-const MAX_ANSWER = 200;
+/** The longest answer kept in the brief; the chat caps a typed answer to the same. */
+export const MAX_ANSWER = 200;
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
