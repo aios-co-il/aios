@@ -1,10 +1,9 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  declineOfferedDevTask,
-  findOfferedDevTask,
   isExplicitDevTaskDecline,
   offersDevTask,
-} from "./dev-task-approval.ts";
+} from "./dev-task-approval-words.ts";
+import { declineOfferedDevTask, findOfferedDevTask } from "./dev-task-offer.ts";
 
 const TURN = "2026-10-27T10:00:00.000Z";
 const CHAT = "conv-1";

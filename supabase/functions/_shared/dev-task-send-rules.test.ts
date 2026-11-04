@@ -3,7 +3,7 @@ import {
   devTaskSendRule,
   directDevSendRefusal,
   workshopDevTaskRule,
-} from "./dev-task-approval.ts";
+} from "./dev-task-send-rules.ts";
 
 const OFFER =
   "פתחתי משימה ל-Cursor לתקן את הכפתור. [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]";

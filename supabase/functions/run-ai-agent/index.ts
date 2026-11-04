@@ -122,7 +122,6 @@ import {
   isGroupChat,
 } from "./finding-draft/reply.ts";
 import {
-  WORKSHOP_SKIN,
   WORKSHOP_TOOLS,
   executeWorkshopTool,
   isWorkshopTool,
@@ -134,24 +133,19 @@ import {
   workshopToolRefusal,
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
-import {
-  ROLE_PERSONA,
-  ROLE_SKILL,
-  workshopRole,
-} from "../_shared/workshop/roles.ts";
-import {
-  workshopArtifactIdFrom,
-  workshopItemIdFrom,
-  workshopProjectKind,
-  workshopSceneIdFrom,
-} from "../_shared/workshop/role-project.ts";
+import { ROLE_PERSONA, ROLE_SKILL } from "../_shared/workshop/roles.ts";
+import { workshopItemIdFrom } from "../_shared/workshop/role-project.ts";
 import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
-import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+import {
+  isWorkshopTurn,
+  workshopTurnSetup,
+  workshopTurnTools,
+} from "../_shared/workshop/turn-setup.ts";
 import { addressByNameLine, callerProfileName } from "./address-by-name.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
-import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
 import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import {
@@ -297,17 +291,21 @@ import {
   findDuplicateDevTasks,
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
+import { devTaskApprovalDecision } from "../_shared/dev-task-approval.ts";
 import {
-  declineOfferedDevTask,
-  devTaskSendRule,
-  directDevSendRefusal,
-  findOfferedDevTask,
   isExplicitDevTaskApproval,
   isExplicitDevTaskDecline,
   offersDevTask,
-  devTaskApprovalDecision,
+} from "../_shared/dev-task-approval-words.ts";
+import {
+  declineOfferedDevTask,
+  findOfferedDevTask,
+} from "../_shared/dev-task-offer.ts";
+import {
+  devTaskSendRule,
+  directDevSendRefusal,
   workshopDevTaskRule,
-} from "../_shared/dev-task-approval.ts";
+} from "../_shared/dev-task-send-rules.ts";
 import {
   appOrigin,
   carmenSkinEntries,
@@ -13797,10 +13795,7 @@ async function handleRunAgent(
       conversation_id,
       wa_notify,
     } = bodyJson;
-    const inWorkshopRequest =
-      surface !== "whatsapp" &&
-      Array.isArray(requestedTaskSkills) &&
-      requestedTaskSkills.includes(WORKSHOP_SKIN);
+    const inWorkshopRequest = isWorkshopTurn(surface, requestedTaskSkills);
     let task_skills = requestedTaskSkills;
     // Per-task engine override (agent_tasks.engine_model). Only internal
     // service calls may set it — stripped from user requests in Deno.serve.
@@ -13823,31 +13818,16 @@ async function handleRunAgent(
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // In the workshop the server picks the specialist for this message (designer, producer or
-    // video editor) from the message and the open project, and pins her skin; see roles.ts.
-    // Approves a waiting budget from the user's code and states the project's next step.
-    const workshopNote = inWorkshopRequest
-      ? await workshopTurnNote(
+    // The workshop's note and specialist for this message (turn-setup.ts).
+    const { workshopNote, workshopRoleForRun } = inWorkshopRequest
+      ? await workshopTurnSetup(
           supabase,
+          bodyJson,
           tenant_id,
-          workshopItemIdFrom(bodyJson),
-          String(command_text ?? ""),
-          lastAssistantText(conversation_history),
-          workshopArtifactIdFrom(bodyJson),
+          command_text,
+          conversation_history,
         )
-      : null;
-    const workshopRoleForRun = inWorkshopRequest
-      ? workshopRole(
-          String(command_text ?? ""),
-          parseActiveSkin(bodyJson.active_skin),
-          await workshopProjectKind(
-            supabase,
-            tenant_id,
-            workshopItemIdFrom(bodyJson),
-            workshopSceneIdFrom(bodyJson),
-          ),
-        )
-      : null;
+      : { workshopNote: null, workshopRoleForRun: null };
     if (workshopRoleForRun) {
       task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
       if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
@@ -15117,22 +15097,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       callerCampaignerId,
       callerUserId,
     });
-    // Workshop tools write to the board of the open project; outside the workshop skin
-    // (WhatsApp, other chats) Carmen has no board to show them on.
-    const inWorkshop =
-      surface !== "whatsapp" &&
-      Array.isArray(task_skills) &&
-      task_skills.includes(WORKSHOP_SKIN);
-    if (!inWorkshop) {
-      filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
-    } else {
-      // A workshop "מאשר" answers the workshop: the approval queue (WhatsApp, Meta) is not
-      // reachable from here, so a tap can never run an unrelated pending approval. Tools that
-      // publish, message people, change ads or act later are not offered here either.
-      filteredTools = filteredTools.filter(
-        (t) => !isBlockedInWorkshop(t.name, true),
-      );
-    }
+    // Workshop tools only in the workshop skin, without the tools it never offers (turn-setup.ts).
+    const inWorkshop = isWorkshopTurn(surface, task_skills);
+    filteredTools = workshopTurnTools(filteredTools, inWorkshop);
     // A skin's tools may be added below, under the same rule.
     const workshopToolAllowed = (name: string) =>
       workshopToolOffered(name, inWorkshop);

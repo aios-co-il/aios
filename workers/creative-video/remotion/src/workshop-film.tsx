@@ -1,211 +1,28 @@
 import React from "react";
 import {
   AbsoluteFill,
-  Audio,
-  Easing,
   Sequence,
-  interpolate,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import {
-  WORKSHOP_ACCENT,
-  type WorkshopFilmProps,
-  type WorkshopMove,
-  type WorkshopMusicLoop,
-  type WorkshopScene,
-  type WorkshopTransition,
-} from "./manifest";
-import { KaraokeCaptions, SceneCaption } from "./workshop-captions";
-import { EndCard } from "./workshop-end-card";
-import { Kicker } from "./workshop-kicker";
-import { MotionCaptions } from "./workshop-motion-captions";
-import { MotionTitle } from "./workshop-motion-title";
+import { WORKSHOP_ACCENT, type WorkshopFilmProps } from "./manifest";
+import { KaraokeCaptions } from "./workshop-captions";
+import { FilmEndCard } from "./workshop-film-end";
+import { FilmSound } from "./workshop-film-sound";
 import { filmFontFamily, fontFaces } from "./workshop-fonts";
-import { SceneOverlayView } from "./workshop-overlay";
-import { SceneMedia } from "./workshop-scene-media";
+import { MotionCaptions } from "./workshop-motion-captions";
+import { Picture, type TitleMode } from "./workshop-picture";
 import { sceneHeadline } from "./workshop-scene-text";
-import { SkinFlash, SkinSweep } from "./workshop-skin";
-import { TitleCard } from "./workshop-title-card";
-import { edgeFade, skinEnter, skinExit } from "./workshop-transition";
-import { transitionLook } from "./workshop-transitions";
-import { TransitionFilter } from "./workshop-transition-filter";
+import { SkinFlash } from "./workshop-skin";
+import { endCardTiming, sceneTiming } from "./workshop-film-timing";
+import { edgeFade } from "./workshop-transition";
 
 export type {
   WorkshopFilmProps,
   WorkshopMove,
   WorkshopScene,
 } from "./manifest";
-
-const clamp = {
-  extrapolateLeft: "clamp",
-  extrapolateRight: "clamp",
-} as const;
-
-const camera = (move: WorkshopMove, progress: number) => {
-  const drift = interpolate(progress, [0, 1], [-3.2, 3.2]);
-  if (move === "static") return { scale: 1, x: 0, y: 0 };
-  if (move === "drift-left") return { scale: 1.12, x: -drift, y: 0 };
-  if (move === "drift-right") return { scale: 1.12, x: drift, y: 0 };
-  if (move === "rise")
-    return { scale: 1.14, x: 0, y: interpolate(progress, [0, 1], [3.2, -3.2]) };
-  if (move === "pull")
-    return { scale: interpolate(progress, [0, 1], [1.12, 1.02]), x: 0, y: 0 };
-  return { scale: interpolate(progress, [0, 1], [1.02, 1.12]), x: 0, y: 0 };
-};
-
-type TitleMode = "none" | "kicker" | "card";
-
-const Picture: React.FC<{
-  scene: WorkshopScene;
-  enter: number;
-  /** Frames of the next scene's transition over this scene's end, and that transition. */
-  exitFrames: number;
-  exitType?: WorkshopTransition;
-  accent: string;
-  /** The scene's on-screen text to draw ("" for none), at the bottom or at the top. */
-  caption: string;
-  /** "top" over spoken captions; "motion": motion graphics where captions would sit. */
-  captionAt: "top" | "bottom" | "motion";
-  title: TitleMode;
-}> = (props) => {
-  const { scene, enter, exitFrames, accent, caption, captionAt, title } = props;
-  const frame = useCurrentFrame();
-  const { durationInFrames, fps, width } = useVideoConfig();
-  const progress = interpolate(
-    frame,
-    [0, Math.max(1, durationInFrames - 1)],
-    [0, 1],
-    { ...clamp, easing: Easing.inOut(Easing.cubic) },
-  );
-  const { scale, x, y } = camera(scene.move || "push", progress);
-  const sheen = interpolate(progress, [0, 1], [-40, 140]);
-  const kicker = title !== "none" ? (scene.kicker || "").trim() : "";
-  const skin =
-    scene.transition === "skin" && enter > 0
-      ? skinEnter(frame, enter, fps)
-      : null;
-  const skinOut = props.exitType === "skin" ? exitFrames : 0;
-  const out = skinExit(frame, durationInFrames, skinOut);
-  // Every other transition, in and out (whip, ripple and glitch through an SVG filter).
-  const fxId = `fx-${scene.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-  const look = transitionLook({
-    type: scene.transition || "crossfade",
-    enter,
-    exitType: props.exitType,
-    exitFrames,
-    frame,
-    total: durationInFrames,
-    width,
-    id: fxId,
-  });
-  const punch = (skin?.scale ?? 1) * out.scale;
-  const blur = Math.max(skin?.blur ?? 0, out.blur);
-  const filters = [
-    out.brightness !== 1 ? `brightness(${out.brightness.toFixed(3)})` : "",
-    blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : "",
-  ].filter(Boolean);
-  return (
-    <AbsoluteFill>
-      {look.fx ? <TransitionFilter id={fxId} fx={look.fx} /> : null}
-      <AbsoluteFill
-        style={{
-          background: "#07111c",
-          ...look.style,
-          ...(skin ? { opacity: skin.shown ? 1 : 0 } : {}),
-        }}
-      >
-        <AbsoluteFill
-          style={{
-            overflow: "hidden",
-            ...(punch !== 1 ? { transform: `scale(${punch.toFixed(4)})` } : {}),
-            ...(filters.length ? { filter: filters.join(" ") } : {}),
-          }}
-        >
-          <AbsoluteFill
-            style={{ transform: `scale(${scale}) translate(${x}%, ${y}%)` }}
-          >
-            <SceneMedia scene={scene} />
-          </AbsoluteFill>
-          {scene.lipsync ? null : (
-            <AbsoluteFill
-              style={{
-                background: `linear-gradient(115deg, transparent ${sheen - 18}%, rgba(255,255,255,0.18) ${sheen}%, transparent ${sheen + 18}%)`,
-                mixBlendMode: "soft-light",
-              }}
-            />
-          )}
-          <AbsoluteFill
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0.15) 58%, rgba(0,0,0,0.78) 100%)",
-            }}
-          />
-          {skin?.sweep != null ? <SkinSweep at={skin.sweep} /> : null}
-        </AbsoluteFill>
-        {scene.overlay && scene.overlay !== "none" ? (
-          <SceneOverlayView
-            overlay={scene.overlay}
-            sceneId={scene.id}
-            enter={enter}
-            accent={accent}
-            hasText={Boolean(caption) || captionAt === "top"}
-          />
-        ) : null}
-        {!caption ? null : captionAt === "motion" ? (
-          <MotionTitle
-            text={caption}
-            enter={enter}
-            accent={accent}
-            style={scene.titleStyle ?? "float"}
-            size={scene.titleSize ?? "medium"}
-            emphasis={scene.titleEmphasis ?? "none"}
-          />
-        ) : (
-          <SceneCaption
-            text={caption}
-            enter={enter}
-            accent={accent}
-            at={captionAt}
-          />
-        )}
-        {kicker && title === "kicker" ? (
-          <Kicker text={kicker} enter={enter} accent={accent} />
-        ) : null}
-        {kicker && title === "card" ? (
-          <TitleCard text={kicker} enter={enter} accent={accent} />
-        ) : null}
-      </AbsoluteFill>
-      {scene.voice ? (
-        <Sequence from={enter} layout="none">
-          <Audio src={staticFile(scene.voice)} />
-        </Sequence>
-      ) : null}
-    </AbsoluteFill>
-  );
-};
-
-const END_TRANSITION = 12;
-
-/** One music copy's own fade (equal power) at frame f of the copy. */
-const loopGain = (loop: WorkshopMusicLoop, f: number) => {
-  const part = (value: number) => Math.min(1, Math.max(0, value));
-  const fadeIn =
-    loop.fadeInFrames > 0
-      ? Math.sin((Math.PI / 2) * part(f / loop.fadeInFrames))
-      : 1;
-  const fadeOut =
-    loop.fadeOutFrames > 0
-      ? Math.cos(
-          (Math.PI / 2) *
-            part(
-              (f - (loop.frameCount - loop.fadeOutFrames)) / loop.fadeOutFrames,
-            ),
-        )
-      : 1;
-  return fadeIn * fadeOut;
-};
 
 export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   scenes,
@@ -232,33 +49,7 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
   // Motion graphics when the manifest asks for them; karaoke lines for older films.
   const motion = captionStyle === "motion";
   const title: TitleMode = !spoken.length ? "none" : motion ? "card" : "kicker";
-  const musicVolume = (f: number) => {
-    const fade = Math.min(
-      interpolate(f, [0, 18], [0, 1], clamp),
-      interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], clamp),
-    );
-    const env = musicEnvelope;
-    const level =
-      env && env.frames.length > 1
-        ? interpolate(f, env.frames, env.volumes, clamp)
-        : 0.16;
-    return level * fade;
-  };
-  /** An effect's level at film frame f: under the voice it dips like the music bed. */
-  const effectVolume = (f: number) => {
-    const env = effectsEnvelope;
-    return env && env.frames.length > 1
-      ? interpolate(f, env.frames, env.volumes, clamp)
-      : 0.5;
-  };
-  const starts: number[] = [];
-  let cursor = 0;
-  for (const scene of scenes) {
-    starts.push(cursor);
-    cursor += scene.durationFrames;
-  }
-  const enterOf = (index: number) =>
-    Math.max(0, Math.min(starts[index], scenes[index].transitionFrames ?? 0));
+  const { starts, cursor, enterOf } = sceneTiming(scenes);
   const pictures = scenes.map((scene, index) => {
     const start = starts[index];
     const enter = enterOf(index);
@@ -294,11 +85,7 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
     );
   });
   const endFrames = endCardFrames && brand ? endCardFrames : 0;
-  const endEnter = Math.min(END_TRANSITION, Math.floor(endFrames / 3));
-  // The frame of the last scene's own clock the end card starts at: it plays on behind it.
-  const last = scenes.length - 1;
-  const lastSceneFrom =
-    last < 0 ? 0 : cursor - endEnter - starts[last] + enterOf(last);
+  const { endEnter, lastSceneFrom } = endCardTiming(scenes, endFrames);
   return (
     <AbsoluteFill
       style={{ background: "#07111c", fontFamily, fontSynthesis: "none" }}
@@ -333,32 +120,19 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
         );
       })}
       {endFrames && brand ? (
-        <Sequence
-          from={cursor - endEnter}
-          durationInFrames={endFrames + endEnter}
-        >
-          <AbsoluteFill
-            style={{
-              opacity: interpolate(
-                frame - cursor + endEnter,
-                [0, endEnter],
-                [0, 1],
-                clamp,
-              ),
-            }}
-          >
-            <EndCard
-              brand={brand}
-              accent={accent}
-              fontFamily={fontFamily}
-              design={endCardStyle}
-              background={endCardBackground}
-              glass={endCardGlass}
-              lastScene={scenes.at(-1)}
-              lastSceneFrom={lastSceneFrom}
-            />
-          </AbsoluteFill>
-        </Sequence>
+        <FilmEndCard
+          brand={brand}
+          endCardStyle={endCardStyle}
+          endCardBackground={endCardBackground}
+          endCardGlass={endCardGlass}
+          accent={accent}
+          fontFamily={fontFamily}
+          lastScene={scenes.at(-1)}
+          lastSceneFrom={lastSceneFrom}
+          cursor={cursor}
+          endFrames={endFrames}
+          endEnter={endEnter}
+        />
       ) : null}
       <AbsoluteFill
         style={{
@@ -367,41 +141,14 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
           pointerEvents: "none",
         }}
       />
-      {narration ? <Audio src={staticFile(narration)} /> : null}
-      {music && musicLoops?.length ? (
-        // Copies of the track cover the film (a render cannot rely on `loop`, which needs the
-        // browser to have read the track's length first).
-        musicLoops.map((loop, index) => (
-          <Sequence
-            key={`music-${index}`}
-            from={loop.startFrame}
-            durationInFrames={loop.frameCount}
-            layout="none"
-          >
-            <Audio
-              src={staticFile(music)}
-              volume={(f) =>
-                musicVolume(loop.startFrame + f) * loopGain(loop, f)
-              }
-            />
-          </Sequence>
-        ))
-      ) : music ? (
-        <Audio src={staticFile(music)} loop volume={musicVolume} />
-      ) : null}
-      {(effects ?? []).map((cue, index) => (
-        <Sequence
-          key={`fx-${index}`}
-          from={cue.startFrame}
-          durationInFrames={cue.frameCount}
-          layout="none"
-        >
-          <Audio
-            src={staticFile(cue.file)}
-            volume={(f) => effectVolume(cue.startFrame + f)}
-          />
-        </Sequence>
-      ))}
+      <FilmSound
+        narration={narration}
+        music={music}
+        musicLoops={musicLoops}
+        musicEnvelope={musicEnvelope}
+        effects={effects}
+        effectsEnvelope={effectsEnvelope}
+      />
     </AbsoluteFill>
   );
 };

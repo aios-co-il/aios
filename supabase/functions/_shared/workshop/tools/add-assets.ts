@@ -1,7 +1,7 @@
 import { hostLabel, isHttpUrl } from "../assets.ts";
 import { type Db } from "../db.ts";
 import { type WorkshopDeps } from "../gate.ts";
-import { sniffMime } from "../image-providers.ts";
+import { sniffMime } from "../image-bytes.ts";
 import { loadAssets, loadProject, savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
