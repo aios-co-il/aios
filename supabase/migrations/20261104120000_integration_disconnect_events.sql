@@ -5,7 +5,8 @@
 --    anon key), so the event never arrived here. It now reads `project_url`
 --    and `service_role_key` from Vault, like the Carmen crons
 --    (20261103092000_carmen_crons_after_vault.sql), and skips the call with a
---    WARNING when either is missing. A failed call never blocks the update.
+--    WARNING when either is missing. Nothing in it can fail the update: the
+--    stamp, the Vault reads and the call sit in one exception block.
 --    No Production automation uses the integration_disconnected trigger today,
 --    so this call starts no send.
 -- 2. integration_disconnect_events records each disconnect: a connection that
@@ -85,22 +86,24 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  last_trigger_at := (NEW.settings ->> 'last_disconnect_trigger_at')::timestamptz;
-  IF last_trigger_at IS NOT NULL AND last_trigger_at > now() - interval '24 hours' THEN
-    RAISE NOTICE 'integration_disconnected: integration % already reported in the last 24h', NEW.id;
-    RETURN NEW;
-  END IF;
+  -- Nothing in this block may fail the update: an unreadable stamp, a Vault
+  -- read or a pg_net error only skips the call, with a WARNING.
+  BEGIN
+    last_trigger_at := (NEW.settings ->> 'last_disconnect_trigger_at')::timestamptz;
+    IF last_trigger_at IS NOT NULL AND last_trigger_at > now() - interval '24 hours' THEN
+      RAISE NOTICE 'integration_disconnected: integration % already reported in the last 24h', NEW.id;
+      RETURN NEW;
+    END IF;
 
-  SELECT decrypted_secret INTO v_project_url
-  FROM vault.decrypted_secrets WHERE name = 'project_url';
-  SELECT decrypted_secret INTO v_service_key
-  FROM vault.decrypted_secrets WHERE name = 'service_role_key';
+    SELECT decrypted_secret INTO v_project_url
+    FROM vault.decrypted_secrets WHERE name = 'project_url';
+    SELECT decrypted_secret INTO v_service_key
+    FROM vault.decrypted_secrets WHERE name = 'service_role_key';
 
-  IF v_project_url IS NULL OR v_service_key IS NULL THEN
-    RAISE WARNING 'integration_disconnected: vault secrets project_url / service_role_key missing, trigger-automation not called (tenant=%, integration=%)',
-      NEW.tenant_id, NEW.id;
-  ELSE
-    BEGIN
+    IF v_project_url IS NULL OR v_service_key IS NULL THEN
+      RAISE WARNING 'integration_disconnected: vault secrets project_url / service_role_key missing, trigger-automation not called (tenant=%, integration=%)',
+        NEW.tenant_id, NEW.id;
+    ELSE
       PERFORM net.http_post(
         url := rtrim(v_project_url, '/') || '/functions/v1/trigger-automation',
         headers := jsonb_build_object(
@@ -120,11 +123,11 @@ BEGIN
           )
         )
       );
-    EXCEPTION WHEN OTHERS THEN
-      RAISE WARNING 'integration_disconnected: trigger-automation call failed (integration=%): %',
-        NEW.id, SQLERRM;
-    END;
-  END IF;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'integration_disconnected: trigger-automation not called (integration=%): %',
+      NEW.id, SQLERRM;
+  END;
 
   NEW.settings := COALESCE(NEW.settings, '{}'::jsonb)
     || jsonb_build_object('last_disconnect_trigger_at', now());
@@ -189,8 +192,9 @@ BEGIN
       (NEW.tenant_id, NEW.id, NEW.integration_type, NEW.settings ->> 'last_auth_error')
     ON CONFLICT (tenant_id, integration_id) WHERE reconnected_at IS NULL DO NOTHING;
   ELSIF is_connected AND NOT was_connected THEN
+    -- A disconnect committed after this transaction began is later than now().
     UPDATE public.integration_disconnect_events
-    SET reconnected_at = now()
+    SET reconnected_at = greatest(now(), disconnected_at)
     WHERE tenant_id = NEW.tenant_id
       AND integration_id = NEW.id
       AND reconnected_at IS NULL;

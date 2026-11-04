@@ -12,7 +12,7 @@ DECLARE
   v_key text;
   t_owner uuid; t_shared uuid; t_unrelated uuid;
   v_agency uuid;
-  v_conn uuid; v_old uuid; v_manual uuid;
+  v_conn uuid; v_old uuid; v_manual uuid; v_race uuid; v_stamp uuid;
   calls_before integer;
   calls_after integer;
   v_row record;
@@ -141,6 +141,39 @@ BEGIN
      OR (SELECT count(*) FROM public.integration_disconnect_events
          WHERE integration_id = v_conn AND reconnected_at IS NULL) <> 1 THEN
     RAISE EXCEPTION 'reconnect: a new loss after a reconnect must open a second event';
+  END IF;
+
+  -- A disconnect committed after the reconnecting transaction began is later
+  -- than its now(): the reconnect still closes it instead of failing.
+  INSERT INTO public.tenant_integrations (tenant_id, integration_type, is_active, settings)
+  VALUES (t_owner, 'facebook', true, '{}') RETURNING id INTO v_race;
+  UPDATE public.tenant_integrations SET settings = '{"needs_reauth": true}' WHERE id = v_race;
+  UPDATE public.integration_disconnect_events
+  SET disconnected_at = now() + interval '1 minute'
+  WHERE integration_id = v_race;
+  BEGIN
+    UPDATE public.tenant_integrations SET settings = '{}' WHERE id = v_race;
+  EXCEPTION WHEN check_violation THEN
+    RAISE EXCEPTION 'race: a reconnect must not fail on a later disconnect (%)', SQLERRM;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM public.integration_disconnect_events
+                 WHERE integration_id = v_race AND reconnected_at = disconnected_at) THEN
+    RAISE EXCEPTION 'race: the reconnect must close the later disconnect at its own time';
+  END IF;
+
+  -- Nothing in the trigger fails the update: an unreadable stamp only skips
+  -- the call, and the disconnect is still recorded.
+  INSERT INTO public.tenant_integrations (tenant_id, integration_type, is_active, settings)
+  VALUES (t_owner, 'gmail', true, '{"last_disconnect_trigger_at": "not a date"}') RETURNING id INTO v_stamp;
+  BEGIN
+    UPDATE public.tenant_integrations
+    SET settings = settings || '{"needs_reauth": true}'
+    WHERE id = v_stamp;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'update: the disconnect trigger must never fail the update (%)', SQLERRM;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM public.integration_disconnect_events WHERE integration_id = v_stamp) THEN
+    RAISE EXCEPTION 'update: the disconnect must still be recorded';
   END IF;
 
   -- Server only.
