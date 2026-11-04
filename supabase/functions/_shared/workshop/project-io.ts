@@ -18,6 +18,7 @@ import { type Db } from "./db.ts";
 import { type WorkshopDeps } from "./gate.ts";
 import { type ImageProvider, normalizeEngine } from "./image-providers.ts";
 import { lookOf, withLook } from "./look.ts";
+import { syncBriefPage } from "./project-brief.ts";
 import { asRecord, recordArtifact } from "./record.ts";
 
 export function voiceHelpers(
@@ -93,6 +94,13 @@ export async function savePayload(
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
   if (error) throw new Error(error.message);
+  await syncBriefPage(
+    supabase,
+    tenantId,
+    itemId,
+    asRecord(current?.data?.payload),
+    next,
+  );
 }
 
 /**

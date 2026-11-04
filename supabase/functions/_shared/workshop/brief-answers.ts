@@ -11,7 +11,8 @@ import {
 } from "./briefing-choices.ts";
 
 const KEY = "workshop_brief";
-const MAX_ANSWER = 200;
+/** The longest answer kept in the brief; the chat caps a typed answer to the same. */
+export const MAX_ANSWER = 200;
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -107,6 +108,20 @@ export function answersFromArgs(value: unknown): BriefAnswers {
   );
 }
 
+/**
+ * One answer per question: a later answer to the same topic, under any of its names, replaces the
+ * earlier one in its place, so a correction never leaves the old answer beside it.
+ */
+export function latestByTopic(...sets: Array<BriefAnswers>): BriefAnswers {
+  const merged = new Map<string, [string, string]>();
+  for (const set of sets) {
+    for (const [label, answer] of Object.entries(set)) {
+      merged.set(topicOf(label), [label, answer]);
+    }
+  }
+  return Object.fromEntries(merged.values());
+}
+
 export function withBriefAnswers(
   payload: Record<string, unknown>,
   answers: BriefAnswers,
@@ -116,7 +131,7 @@ export function withBriefAnswers(
     ...payload,
     [KEY]: {
       ...asRecord(payload[KEY]),
-      answers: { ...briefAnswersOf(payload), ...answers },
+      answers: latestByTopic(briefAnswersOf(payload), answers),
     },
   };
 }

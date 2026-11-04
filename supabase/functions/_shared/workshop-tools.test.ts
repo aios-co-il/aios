@@ -3272,6 +3272,74 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "a tapped answer and the user's own additions enter the brief Carmen reads and the board shows",
+  async () => {
+    // Staging: Carmen said "נרשם לבריף" but the brief stayed the first request.
+    const request = "סרטון לכרמן שמציג את הסקינים שלה";
+    const first = fakeDb({
+      ...bareProject(),
+      "marketing_work_items:select": {
+        id: "item-1",
+        title: "",
+        client_id: "client-1",
+        current_stage_id: "stage-1",
+        payload: { format: "9:16", project_type: "video", brief_text: request },
+      },
+      "workshop_artifacts:select": [
+        { id: "brief-page", meta: { summary: "סרט 9:16", brief: request } },
+      ],
+    });
+    await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        scenes: [{ visual_prompt: "a woman" }],
+        brief_answers: {
+          סגנון: "מושן גרפיקס",
+          פונט: "Heebo, טקסט גדול",
+        },
+      },
+      async () => {},
+      null,
+      {
+        lastAssistant: "[[בחירה: קצב | רגוע | מהיר]]",
+        userText: "מהיר",
+      },
+    );
+    const saved = (
+      first.calls
+        .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+        .pop()?.value as { payload: Record<string, unknown> }
+    ).payload;
+    const page = first.calls.find(
+      (c) => c.table === "workshop_artifacts" && c.op === "update",
+    )?.value as { meta: Record<string, unknown> };
+    const second = fakeDb({
+      ...project,
+      "marketing_work_items:select": { id: "item-1", payload: saved },
+    });
+    const state = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_get_state",
+      { item_id: "item-1" },
+    )) as { brief: string };
+    assertStrictEquals(saved.brief_text, request);
+    assert(state.brief.startsWith(`${request}\n\nפרטים שנוספו לבריף:`));
+    for (const line of [
+      "קצב: מהיר",
+      "סגנון: מושן גרפיקס",
+      "פונט: Heebo, טקסט גדול",
+    ]) {
+      assert(state.brief.includes(line), line);
+    }
+    assertEquals(page.meta, { summary: "סרט 9:16", brief: state.brief });
+  },
+);
+
 Deno.test("narration waits for a voice the user heard and chose", async () => {
   const samples: string[] = [];
   const db = fakeDb({
@@ -3776,5 +3844,12 @@ Deno.test(
     assertEquals(inserted.payload.workshop_brief.answers, {
       סגיר: "לוגו בלבד",
     });
+    const page = db.calls.find(
+      (c) => c.table === "workshop_artifacts" && c.op === "insert",
+    )?.value as { meta: { brief: string } };
+    assertStrictEquals(
+      page.meta.brief,
+      "סרטון לכרמן\n\nפרטים שנוספו לבריף:\nסגיר: לוגו בלבד",
+    );
   },
 );
