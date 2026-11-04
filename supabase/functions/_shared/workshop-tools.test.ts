@@ -11,7 +11,7 @@ import {
   isWorkshopTool,
   WORKSHOP_TOOLS,
 } from "./workshop-tools.ts";
-import { shouldNudgeSilentTurn } from "./workshop/reply.ts";
+import { fallbackReply, shouldNudgeSilentTurn } from "./workshop/reply.ts";
 import { importWebImage } from "./workshop/tools/add-assets.ts";
 
 type RunArgs = Parameters<typeof runWorkshopTool>;
@@ -2829,6 +2829,40 @@ Deno.test(
       "https://garden.example.com/hero.jpg",
       "https://garden.example.com/broken.jpg",
     ]);
+  },
+);
+
+Deno.test(
+  "when no picture could be copied, the failure is an error the turn reports instead of retrying",
+  async () => {
+    const reason = "peer closed connection without sending TLS close_notify";
+    const result = (await executeWorkshopTool(
+      fakeDb(project),
+      "tenant-1",
+      "workshop_add_assets",
+      {
+        item_id: "item-1",
+        assets: [
+          { kind: "image", url: "https://app.example.com/skins/a.webp" },
+          { kind: "image", url: "https://app.example.com/skins/b.webp" },
+        ],
+      },
+      async () => {},
+      null,
+      { importImage: async () => ({ error: reason }) },
+    )) as { added: Array<unknown>; error?: string };
+    assertStrictEquals(result.added.length, 0);
+    assertStrictEquals(result.error, `לא נוסף שום נכס: ${reason}`);
+    assertStrictEquals(
+      shouldNudgeSilentTurn([{ tool: "workshop_add_assets", result }]),
+      false,
+    );
+    assertStrictEquals(
+      fallbackReply([{ tool: "workshop_add_assets", result }], {
+        outOfSteps: true,
+      }),
+      `לא הצלחתי להשלים: לא נוסף שום נכס: ${reason}`,
+    );
   },
 );
 

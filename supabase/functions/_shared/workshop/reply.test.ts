@@ -128,3 +128,18 @@ Deno.test(
     assertStrictEquals(reply, "לאשר תקציב?");
   },
 );
+
+Deno.test(
+  "a turn the step limit cut off says so, without assuming the user's gender",
+  () => {
+    const looked = [{ tool: "workshop_get_state", result: { item: {} } }];
+    const cut = fallbackReply(looked, { outOfSteps: true }) ?? "";
+    assertMatch(cut, /מספר הצעדים המרבי/);
+    assertMatch(cut, /'תמשיכי'/);
+    const quiet = fallbackReply(looked) ?? "";
+    for (const reply of [cut, quiet]) {
+      assertMatch(reply, /אפשר לכתוב לי/);
+      assertStrictEquals(/כתבי לי/.test(reply), false);
+    }
+  },
+);

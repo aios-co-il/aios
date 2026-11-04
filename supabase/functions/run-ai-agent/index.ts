@@ -16003,7 +16003,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       lastAssistantText: lastAssistantText(conversation_history),
     };
     let silentNudges = 0;
+    let roundsRun = 0;
     for (let round = 0; round < maxRounds; round++) {
+      roundsRun = round + 1;
       // Provider failover: try the active provider; on a quota/credit error, advance
       // to the next provider in the chain and retry THIS round (no round consumed).
       let res!: Response;
@@ -16367,7 +16369,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     if (!String(finalOutput || "").trim()) {
-      const fallback = fallbackReply(toolLog);
+      // The last round ran tools the model never saw back: the step limit stopped the work.
+      const fallback = fallbackReply(toolLog, {
+        outOfSteps:
+          roundsRun === maxRounds &&
+          messages[messages.length - 1]?.role === "tool",
+      });
       if (fallback) {
         finalOutput = fallback;
         if (emit) emit({ type: "token", content: fallback });

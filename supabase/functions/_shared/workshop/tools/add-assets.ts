@@ -183,8 +183,16 @@ export async function workshopAddAssets(ctx: ToolContext) {
       logoUrl = null;
     }
   }
+  // Nothing kept is a failure the model and the turn's fallback reply must see as one: without
+  // `error` Carmen retried the same import until the turn ran out of steps (Staging, 3 Nov).
+  const nothingKept = added.length === 0 && !logoUrl && failed.length > 0;
   return {
     success: failed.length < requested.length,
+    ...(nothingKept
+      ? {
+          error: `לא נוסף שום נכס: ${[...new Set(failed.map((f) => f.reason))].join("; ")}`,
+        }
+      : {}),
     added,
     failed,
     ...(logoUrl ? { logo_url: logoUrl } : {}),
