@@ -474,6 +474,7 @@ Deno.serve(async (req) => {
           const current = new Date(startDate);
           const end = new Date(endDate);
           let dayCount = 0;
+          const failedDays: Array<{ date: string; reason: string }> = [];
 
           while (current <= end) {
             const dayStr = current.toISOString().slice(0, 10);
@@ -499,20 +500,20 @@ Deno.serve(async (req) => {
                 `Backfill error ${table.name} ${dayStr}:`,
                 err instanceof Error ? err.message : err,
               );
-              results.push({
-                table: table.name,
+              failedDays.push({
                 date: dayStr,
-                status: "error",
                 reason: err instanceof Error ? err.message : String(err),
               });
             }
             current.setDate(current.getDate() + 1);
           }
-          // A backfill whose every day failed synced nothing (AIO-342).
+          // One row per table, so the counts are tables, not days; a backfill
+          // whose every day failed synced nothing (AIO-342).
           results.push({
             table: table.name,
             status: dayCount > 0 ? "backfilled" : "error",
             days: dayCount,
+            failed_days: failedDays,
           });
         } else {
           // Daily sync: single date
