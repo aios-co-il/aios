@@ -21,17 +21,19 @@ DECLARE
   v_agent_b uuid := gen_random_uuid();
   v_global_tool uuid := gen_random_uuid();
   -- One minimal row per table: $1 tenant, $2 an agent of that tenant, $3 a unique text, $4 the row id.
+  -- An eval run belongs to an eval of the tenant, and a supervisor link names a child agent of the
+  -- tenant it does not link yet (20261103110000 restores those keys).
   v_insert jsonb := jsonb_build_object(
     'agent_evals', 'insert into public.agent_evals (id, tenant_id, agent_id, name) values ($4, $1, $2, $3)',
-    'agent_eval_runs', 'insert into public.agent_eval_runs (id, tenant_id, eval_id, agent_id) values ($4, $1, gen_random_uuid(), $2)',
-    'agent_supervisors', 'insert into public.agent_supervisors (id, tenant_id, supervisor_agent_id, child_agent_id) values ($4, $1, $2, $2)',
+    'agent_eval_runs', 'insert into public.agent_eval_runs (id, tenant_id, eval_id, agent_id) values ($4, $1, (select e.id from public.agent_evals as e where e.tenant_id = $1 order by e.id limit 1), $2)',
+    'agent_supervisors', 'insert into public.agent_supervisors (id, tenant_id, supervisor_agent_id, child_agent_id) values ($4, $1, $2, (select a.id from public.ai_agents as a where a.tenant_id = $1 and not exists (select 1 from public.agent_supervisors as s where s.supervisor_agent_id = $2 and s.child_agent_id = a.id) order by a.id limit 1))',
     'agent_goals', 'insert into public.agent_goals (id, tenant_id, agent_id, title) values ($4, $1, $2, $3)',
     'agent_knowledge_folders', 'insert into public.agent_knowledge_folders (id, tenant_id, agent_id, name) values ($4, $1, $2, $3)',
     'agent_knowledge_items', 'insert into public.agent_knowledge_items (id, tenant_id, agent_id, title) values ($4, $1, $2, $3)',
     'agent_memory', 'insert into public.agent_memory (id, tenant_id, agent_id, title) values ($4, $1, $2, $3)',
     'agent_user_profiles', 'insert into public.agent_user_profiles (id, tenant_id, contact_phone) values ($4, $1, $3)',
     'agent_runs', 'insert into public.agent_runs (id, tenant_id, agent_id, goal) values ($4, $1, $2, $3)',
-    'social_publications', 'insert into public.social_publications (id, tenant_id, platform, post_type) values ($4, $1, ''qa'', $3)',
+    'social_publications', 'insert into public.social_publications (id, tenant_id, platform, post_type) values ($4, $1, ''qa'', ''post'')',
     'manus_tasks', 'insert into public.manus_tasks (id, tenant_id, task_id, prompt) values ($4, $1, $3, $3)',
     'agent_tools', 'insert into public.agent_tools (id, tenant_id, name, display_name) values ($4, $1, $3, $3)'
   );
@@ -64,7 +66,8 @@ BEGIN
   INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
     (v_owner, v_a), (v_member, v_a), (v_outsider, v_b), (v_admin, v_a);
   INSERT INTO public.ai_agents (id, tenant_id, name) VALUES
-    (v_agent_a, v_a, 'QA agent A'), (v_agent_b, v_b, 'QA agent B');
+    (v_agent_a, v_a, 'QA agent A'), (v_agent_b, v_b, 'QA agent B'),
+    (gen_random_uuid(), v_a, 'QA agent A2'), (gen_random_uuid(), v_b, 'QA agent B2');
   FOREACH v_t IN ARRAY v_tables LOOP
     v_row_a := v_row_a || jsonb_build_object(v_t, gen_random_uuid());
     EXECUTE v_insert ->> v_t USING v_a, v_agent_a, 'qa-a-' || v_tag, (v_row_a ->> v_t)::uuid;
