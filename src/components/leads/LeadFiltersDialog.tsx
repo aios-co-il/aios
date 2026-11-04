@@ -82,7 +82,8 @@ interface LeadFiltersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentFilters: FilterState;
-  onApply: (filters: FilterState) => void;
+  /** `presetId` is the preset the filters were just saved as; none means no preset. */
+  onApply: (filters: FilterState, presetId?: string) => void;
   salesPeople: Array<{ id: string; full_name: string }>;
   pipelineStages: Array<{
     id: string;

@@ -15,9 +15,13 @@ const filters: FilterState = {
   followUpToday: false,
 };
 
-/** Records the inserted row and resolves the insert with the given error. */
+/** Records the inserted row and answers it as preset-new, or with the given error. */
 function fakeDb(error: { message: string } | null) {
-  const insert = vi.fn(() => Promise.resolve({ error }));
+  const single = () =>
+    Promise.resolve(
+      error ? { data: null, error } : { data: { id: "preset-new" }, error },
+    );
+  const insert = vi.fn(() => ({ select: () => ({ single }) }));
   const from = vi.fn(() => ({ insert }));
   return { db: { from } as never, from, insert };
 }
@@ -39,7 +43,7 @@ const preset = {
 };
 
 describe("saveLeadFilterPreset", () => {
-  test("after saving, applies the filters and closes the dialog", async () => {
+  test("after saving, applies the filters as the new preset, so its tab is selected", async () => {
     const { db, from, insert } = fakeDb(null);
     const cb = callbacks();
 
@@ -58,7 +62,7 @@ describe("saveLeadFilterPreset", () => {
       }),
     );
     expect(cb.onSaved).toHaveBeenCalledOnce();
-    expect(cb.onApply).toHaveBeenCalledWith(filters);
+    expect(cb.onApply).toHaveBeenCalledWith(filters, "preset-new");
     expect(cb.onOpenChange).toHaveBeenCalledWith(false);
     expect(cb.onError).not.toHaveBeenCalled();
   });
