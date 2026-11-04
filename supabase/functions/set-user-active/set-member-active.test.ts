@@ -1,11 +1,14 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { MemberAdminError } from "../_shared/user-admin/member-admin.ts";
 import {
+  ADMIN,
+  CO_OWNER,
   fakeStore,
   type FakeWorld,
   MEMBER,
   OWNER,
   TENANT_A,
+  TENANT_B,
   world,
 } from "../_shared/user-admin/member-admin-fake.ts";
 import { setMemberActive } from "./set-member-active.ts";
@@ -77,7 +80,6 @@ Deno.test("setMemberActive", async (t) => {
     async () => {
       const w = world();
       w.memberships[`${TENANT_A}:${MEMBER}`] = "inactive";
-      w.activeTenants[MEMBER] = 0;
       const { store, writes } = fakeStore(w);
       const result = await setMemberActive(store, asOwner, deactivate);
       assertEquals(writes, [`sign-in blocked ${MEMBER}`]);
@@ -90,8 +92,14 @@ Deno.test("setMemberActive", async (t) => {
     async () => {
       const w = world();
       w.memberships[`${TENANT_A}:${MEMBER}`] = "inactive";
+      w.memberships[`${TENANT_B}:${MEMBER}`] = "active";
       const { store, writes } = fakeStore(w);
-      const result = await setMemberActive(store, asOwner, deactivate);
+      // Only the super admin ranks above them in B too.
+      const result = await setMemberActive(
+        store,
+        "Bearer admin-token",
+        deactivate,
+      );
       assertEquals(writes, []);
       assertEquals(result, { active: false, signInBlocked: false });
     },
@@ -146,6 +154,73 @@ Deno.test("setMemberActive", async (t) => {
       );
       assertEquals(error.status, 502);
       assertEquals(error.message.includes("sign-in was not blocked"), true);
+    },
+  );
+});
+
+Deno.test("setMemberActive ranks", async (t) => {
+  await t.step("an owner cannot deactivate a co-owner", async () => {
+    const writes = await refuses(403, { ...deactivate, userId: CO_OWNER });
+    assertEquals(writes, []);
+  });
+
+  await t.step(
+    "a super admin acting in the tenant deactivates an owner",
+    async () => {
+      const w = world();
+      w.memberships[`${TENANT_A}:${OWNER}`] = "active";
+      const { store, writes } = fakeStore(w);
+      const result = await setMemberActive(store, "Bearer admin-token", {
+        ...deactivate,
+        userId: CO_OWNER,
+      });
+      assertEquals(writes, [
+        `offboard ${TENANT_A} ${CO_OWNER} by ${ADMIN} inactive`,
+        `sign-in blocked ${CO_OWNER}`,
+      ]);
+      assertEquals(result.active, false);
+    },
+  );
+
+  await t.step("an owner cannot reactivate an inactive co-owner", async () => {
+    const writes = await refuses(
+      403,
+      { ...reactivate, userId: CO_OWNER },
+      (w) => {
+        w.memberships[`${TENANT_A}:${CO_OWNER}`] = "inactive";
+        w.roles[CO_OWNER] = [];
+        w.formerRoles[`${TENANT_A}:${CO_OWNER}`] = ["owner", "owner"];
+      },
+    );
+    assertEquals(writes, []);
+  });
+
+  await t.step(
+    "the owner of a parent organization reactivates an owner of A",
+    async () => {
+      const w = world();
+      w.memberships[`${TENANT_A}:${CO_OWNER}`] = "inactive";
+      w.roles[CO_OWNER] = [];
+      w.formerRoles[`${TENANT_A}:${CO_OWNER}`] = ["owner", "owner"];
+      const { store, writes } = fakeStore(w);
+      await setMemberActive(store, "Bearer parent-owner-token", {
+        ...reactivate,
+        userId: CO_OWNER,
+      });
+      assertEquals(
+        writes[0].startsWith(`reactivate ${TENANT_A} ${CO_OWNER}`),
+        true,
+      );
+    },
+  );
+
+  await t.step(
+    "an owner of A cannot deactivate a member who also works in B",
+    async () => {
+      const writes = await refuses(403, deactivate, (w) => {
+        w.memberships[`${TENANT_B}:${MEMBER}`] = "active";
+      });
+      assertEquals(writes, []);
     },
   );
 });

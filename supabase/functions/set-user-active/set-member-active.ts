@@ -1,5 +1,5 @@
+import { authorizeMemberChange } from "../_shared/user-admin/authorize-member.ts";
 import {
-  authorizeMemberChange,
   MemberAdminError,
   type MemberAdminStore,
   type MemberTarget,

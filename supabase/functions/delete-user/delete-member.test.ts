@@ -5,6 +5,7 @@ import {
   MEMBER,
   OWNER,
   TENANT_A,
+  TENANT_B,
   world,
 } from "../_shared/user-admin/member-admin-fake.ts";
 import { deleteMember } from "./delete-member.ts";
@@ -94,6 +95,27 @@ Deno.test("deleteMember", async (t) => {
       const { store, writes } = fakeStore(w);
       await deleteMember(store, asOwner, body);
       assertEquals(writes.at(-1), `login soft-deleted ${MEMBER}`);
+    },
+  );
+});
+
+Deno.test("deleteMember ranks", async (t) => {
+  await t.step(
+    "an owner of A cannot delete someone who is an owner in B",
+    async () => {
+      const w = world();
+      w.memberships[`${TENANT_B}:${MEMBER}`] = "active";
+      w.roles[MEMBER] = [
+        { role: "campaigner", tenant_id: TENANT_A },
+        { role: "owner", tenant_id: TENANT_B },
+      ];
+      const { store, writes } = fakeStore(w);
+      const error = await assertRejects(
+        () => deleteMember(store, asOwner, body),
+        MemberAdminError,
+      );
+      assertEquals(error.status, 403);
+      assertEquals(writes, []);
     },
   );
 });

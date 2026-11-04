@@ -16270,6 +16270,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      actor_may_manage_member: {
+        Args: { p_actor: string; p_target: string; p_tenant_id: string };
+        Returns: boolean;
+      };
       advance_video_production: {
         Args: { p_item_id: string };
         Returns: string;
@@ -17505,6 +17509,10 @@ export type Database = {
           tool_name: string;
         }[];
       };
+      member_outranks: {
+        Args: { p_actor: string; p_target: string; p_tenant_id: string };
+        Returns: boolean;
+      };
       merge_assigned_campaigner_duplicate: {
         Args: { p_canonical: string; p_duplicate: string };
         Returns: string;
@@ -17921,6 +17929,7 @@ export type Database = {
         Args: { _state_id: string };
         Returns: string;
       };
+      tenant_ancestors: { Args: { p_tenant_id: string }; Returns: string[] };
       tenant_can_use_integration: {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;

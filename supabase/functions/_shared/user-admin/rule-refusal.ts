@@ -3,7 +3,7 @@ import { MemberAdminError } from "./member-admin.ts";
 /** HTTP status per SQLSTATE that offboard/reactivate_tenant_member raise for a rule. */
 const RULE_STATUS: Record<string, number> = {
   "23514": 409, // the last owner
-  "42501": 409, // the actor themself, or a super admin
+  "42501": 403, // the actor themself, a super admin, or someone not below the actor
   "22023": 409, // a deleted member
   P0002: 404, // not a member, or not inactive
 };

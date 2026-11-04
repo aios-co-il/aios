@@ -15,8 +15,12 @@
 --    keeps their name in history; sessions end when no organization is left.
 --    Reactivating restores membership (original created_at), member roles and
 --    card, never super_admin.
--- 4. Refusals: self, a super admin, the last owner, a non-member, a deleted
---    member; clients cannot call the functions.
+-- 4. Ranks: a super admin acting in the organization acts on anyone but a
+--    super admin; an owner of a parent organization on everyone in it; an
+--    owner on everyone in it but another owner; and only on someone the actor
+--    ranks above in every organization they belong to. Refusals: self, a super
+--    admin, the last owner, a non-member, a deleted member; clients cannot
+--    call the functions.
 -- 5. tenant_inactive_members: members read it; no client writes it, so an
 --    owner can neither plant a row (to read a stranger's profile) nor rewrite
 --    the roles a reactivation restores.
@@ -29,13 +33,14 @@
 BEGIN;
 DO $test$
 DECLARE
-  t_a uuid; t_b uuid; agency_a uuid; client_a uuid; client_b uuid; task_w uuid; task_h uuid;
+  t_a uuid; t_b uuid; t_p uuid; agency_a uuid; client_a uuid; client_b uuid; task_w uuid; task_h uuid;
   owner_a uuid := gen_random_uuid(); owner_b uuid := gen_random_uuid();
   viewer uuid := gen_random_uuid(); writer uuid := gen_random_uuid();
   nameless uuid := gen_random_uuid(); hard uuid := gen_random_uuid();
   solo uuid := gen_random_uuid(); mover uuid := gen_random_uuid();
   extra uuid := gen_random_uuid(); admin uuid := gen_random_uuid();
   outsider uuid := gen_random_uuid(); rejoiner uuid := gen_random_uuid();
+  owner2_a uuid := gen_random_uuid(); dual uuid := gen_random_uuid(); owner_p uuid := gen_random_uuid();
   rejoiner2 uuid := gen_random_uuid(); late uuid := gen_random_uuid();
   rejoin_email text := 'qa-rejoin-' || gen_random_uuid() || '@example.invalid';
   late_email text := 'qa-late-' || gen_random_uuid() || '@example.invalid';
@@ -52,22 +57,28 @@ BEGIN
   FROM (VALUES (owner_a, 'QA Owner A'), (owner_b, 'QA Owner B'), (viewer, 'QA Viewer'),
                (writer, 'QA Writer'), (nameless, ''), (hard, 'QA Hard'), (solo, 'QA Solo'),
                (mover, 'QA Mover'), (extra, 'QA Extra'), (admin, 'QA Admin'),
-               (outsider, 'QA Outsider')) AS u(id, name);
+               (outsider, 'QA Outsider'), (owner2_a, 'QA Co-owner A'), (dual, 'QA Dual'),
+               (owner_p, 'QA Owner P')) AS u(id, name);
   UPDATE public.profiles SET phone = '+972500000123' WHERE id IN (solo, outsider);
   INSERT INTO public.tenants (name, slug)
-  VALUES ('QA ROLLBACK A', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_a;
+  VALUES ('QA ROLLBACK P', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_p;
+  INSERT INTO public.tenants (name, slug, parent_tenant_id)
+  VALUES ('QA ROLLBACK A', 'qa-rollback-' || gen_random_uuid(), t_p) RETURNING id INTO t_a;
   INSERT INTO public.tenants (name, slug)
   VALUES ('QA ROLLBACK B', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_b;
   INSERT INTO public.tenant_users (tenant_id, user_id, role, created_at) VALUES
     (t_a, owner_a, 'owner', now()), (t_a, viewer, 'member', now()), (t_a, writer, 'member', now()),
     (t_a, nameless, 'member', now()), (t_a, hard, 'member', now()),
     (t_a, solo, 'member', '2025-01-01 10:00+00'), (t_a, mover, 'member', now()),
-    (t_a, extra, 'member', now()), (t_b, owner_b, 'owner', now()), (t_b, mover, 'member', now());
+    (t_a, extra, 'member', now()), (t_b, owner_b, 'owner', now()), (t_b, mover, 'member', now()),
+    (t_a, owner2_a, 'owner', now()), (t_a, dual, 'member', now()), (t_b, dual, 'owner', now()),
+    (t_p, owner_p, 'owner', now());
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
     (owner_a, 'owner', t_a), (owner_b, 'owner', t_b), (viewer, 'campaigner', t_a),
     (writer, 'campaigner', t_a), (nameless, 'campaigner', t_a), (hard, 'campaigner', t_a),
     (solo, 'campaigner', t_a), (mover, 'campaigner', t_a), (mover, 'campaigner', t_b),
-    (admin, 'super_admin', NULL);
+    (admin, 'super_admin', NULL), (owner2_a, 'owner', t_a), (dual, 'campaigner', t_a),
+    (dual, 'owner', t_b), (owner_p, 'owner', t_p);
   INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
     (owner_a, t_a), (owner_b, t_b), (viewer, t_a), (writer, t_a), (solo, t_a),
     (mover, t_a), (admin, t_a)
@@ -224,7 +235,12 @@ BEGIN
   RESET ROLE;
 
   SET LOCAL ROLE service_role;
-  SELECT * INTO r FROM public.offboard_tenant_member(t_a, mover, owner_a, 'inactive');
+  BEGIN
+    PERFORM public.offboard_tenant_member(t_a, mover, owner_a, 'inactive');
+    RAISE EXCEPTION 'rank: an owner of A deactivated a member of B';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  SELECT * INTO r FROM public.offboard_tenant_member(t_a, mover, admin, 'inactive');
   RESET ROLE;
   IF r.remaining_tenants <> 1 OR r.account_deleted OR public.get_user_tenant_id(mover) <> t_b
     OR NOT EXISTS (SELECT 1 FROM auth.sessions WHERE id = mover_session) THEN
@@ -265,14 +281,56 @@ BEGIN
   END IF;
   RAISE NOTICE 'reactivate: membership (original created_at), campaigner role and card restored, never super_admin';
 
-  -- 4. Refusals, before anything changes.
+  -- 4. Ranks.
+  SET LOCAL ROLE service_role;
+  BEGIN
+    PERFORM public.offboard_tenant_member(t_a, owner2_a, owner_a, 'inactive');
+    RAISE EXCEPTION 'rank: an owner deactivated a co-owner';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.offboard_tenant_member(t_a, dual, owner_a, 'deleted');
+    RAISE EXCEPTION 'rank: an owner of A deleted an owner of B';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.offboard_tenant_member(t_a, dual, owner_a, 'inactive');
+    RAISE EXCEPTION 'rank: an owner of A deactivated an owner of B';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  -- The super admin acting in A deactivates a co-owner; another owner remains.
+  SELECT * INTO r FROM public.offboard_tenant_member(t_a, owner2_a, admin, 'inactive');
+  BEGIN
+    PERFORM public.reactivate_tenant_member(t_a, owner2_a, owner_a);
+    RAISE EXCEPTION 'rank: an owner reactivated an inactive co-owner';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  -- An owner of the parent organization ranks above A's owners.
+  PERFORM public.reactivate_tenant_member(t_a, owner2_a, owner_p);
+  RESET ROLE;
+  IF NOT public.tenant_member_is_owner(t_a, owner2_a)
+    OR EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = dual AND tenant_id = t_a) IS NOT TRUE THEN
+    RAISE EXCEPTION 'rank: the co-owner is not an owner again, or the dual member left A';
+  END IF;
+  IF public.actor_may_manage_member(owner_b, mover, t_a) OR public.actor_may_manage_member(owner_a, owner_p, t_p)
+    OR NOT public.actor_may_manage_member(owner_p, owner_a, t_a) THEN
+    RAISE EXCEPTION 'rank: actor_may_manage_member disagrees with the rules';
+  END IF;
+  -- The parent owner deactivates the co-owner again, so owner_a is the last owner below.
+  SET LOCAL ROLE service_role;
+  PERFORM public.offboard_tenant_member(t_a, owner2_a, owner_p, 'inactive');
+  RESET ROLE;
+  RAISE NOTICE 'ranks: co-owner and owner of another organization refused; super admin and parent owner allowed';
+
+  -- Refusals, before anything changes.
   SET LOCAL ROLE service_role;
   FOR r IN
     SELECT * FROM (VALUES
       ('the last owner', owner_a, admin, 'inactive', '23514'),
       ('the actor', owner_a, owner_a, 'deleted', '42501'),
       ('a super admin', admin, owner_a, 'inactive', '42501'),
-      ('a non-member', owner_b, owner_a, 'inactive', 'P0002'),
+      ('a non-member', outsider, owner_a, 'inactive', 'P0002'),
+      ('a user of another organization', owner_b, owner_a, 'inactive', '42501'),
       ('a deleted member', writer, owner_a, 'inactive', '22023')
     ) AS c(label, target, actor, status, code)
   LOOP

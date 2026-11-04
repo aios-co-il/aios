@@ -28,23 +28,3 @@ export function canGrantRole(
     (r) => r.tenant_id === tenantId && adminRoles.includes(r.role),
   );
 }
-
-/**
- * Whether the caller may deactivate, reactivate or delete members of
- * `tenantId`: an owner row for that tenant, or a super admin acting in it
- * (`activeTenantId`). Never wider than caller_owns_tenant: it does not count
- * a global owner row plus an owner membership, which that SQL check also
- * accepts (Production has no global owner rows).
- */
-export function canManageMembers(
-  roles: ReadonlyArray<CallerRole>,
-  tenantId: string,
-  activeTenantId: string | null,
-): boolean {
-  const ownsTenant = roles.some(
-    (r) => r.tenant_id === tenantId && r.role === "owner",
-  );
-  return (
-    ownsTenant || (isGlobalSuperAdmin(roles) && activeTenantId === tenantId)
-  );
-}
