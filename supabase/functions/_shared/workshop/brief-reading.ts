@@ -5,6 +5,7 @@
 import {
   briefAnswersGiven,
   briefReadTurn,
+  MAX_ANSWER,
   REFERENCE,
 } from "./brief-answers.ts";
 import type { Choice } from "./briefing-choices.ts";
@@ -85,8 +86,6 @@ export function readFirst(choices: Array<Choice>): string {
 /** The turn the reading mark belongs to; calls without a turn id share one mark. */
 export const turnKey = (deps: WorkshopDeps) => deps.turnId ?? "no-turn";
 
-/** Brief answers are capped at this length (brief-answers.ts). */
-const MAX_ANSWER = 200;
 /** commandCenterAttachments.ts writes an attached image as "- תמונה: name → url". */
 const ATTACHED_IMAGE = /^-\s*תמונה:\s*(.*?)\s*→\s*(https?:\/\/\S+)/m;
 const IMAGE_LINK =
