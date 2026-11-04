@@ -165,6 +165,7 @@ import {
   SILENT_TURN_NUDGE,
   fallbackReply,
   shouldNudgeSilentTurn,
+  stoppedAtStepLimit,
 } from "../_shared/workshop/reply.ts";
 import { connectionsStanding } from "../_shared/workshop/connections-standing.ts";
 import {
@@ -16369,11 +16370,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     if (!String(finalOutput || "").trim()) {
-      // The last round ran tools the model never saw back: the step limit stopped the work.
       const fallback = fallbackReply(toolLog, {
-        outOfSteps:
-          roundsRun === maxRounds &&
-          messages[messages.length - 1]?.role === "tool",
+        outOfSteps: stoppedAtStepLimit(
+          roundsRun,
+          maxRounds,
+          messages[messages.length - 1]?.role,
+        ),
       });
       if (fallback) {
         finalOutput = fallback;

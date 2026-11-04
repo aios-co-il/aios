@@ -2836,23 +2836,32 @@ Deno.test(
   "when no picture could be copied, the failure is an error the turn reports instead of retrying",
   async () => {
     const reason = "peer closed connection without sending TLS close_notify";
-    const result = (await executeWorkshopTool(
-      fakeDb(project),
-      "tenant-1",
-      "workshop_add_assets",
-      {
-        item_id: "item-1",
-        assets: [
-          { kind: "image", url: "https://app.example.com/skins/a.webp" },
-          { kind: "image", url: "https://app.example.com/skins/b.webp" },
-        ],
-      },
-      async () => {},
-      null,
-      { importImage: async () => ({ error: reason }) },
-    )) as { added: Array<unknown>; error?: string };
-    assertStrictEquals(result.added.length, 0);
-    assertStrictEquals(result.error, `לא נוסף שום נכס: ${reason}`);
+    const addAssets = async (assets: Array<Record<string, unknown>>) =>
+      (await executeWorkshopTool(
+        fakeDb(project),
+        "tenant-1",
+        "workshop_add_assets",
+        { item_id: "item-1", assets },
+        async () => {},
+        null,
+        { importImage: async () => ({ error: reason }) },
+      )) as {
+        success: boolean;
+        added: Array<unknown>;
+        failed: Array<{ reason: string }>;
+        error?: string;
+      };
+    const result = await addAssets([
+      { kind: "image", url: "https://app.example.com/skins/a.webp" },
+      { kind: "image", url: "https://app.example.com/skins/b.webp" },
+    ]);
+    assertStrictEquals(result.success, false);
+    // The user hears a short line; Carmen keeps the raw reasons.
+    assertStrictEquals(result.error, "הורדת התמונות לפרויקט נכשלה");
+    assertEquals(
+      result.failed.map((f) => f.reason),
+      [reason, reason],
+    );
     assertStrictEquals(
       shouldNudgeSilentTurn([{ tool: "workshop_add_assets", result }]),
       false,
@@ -2861,8 +2870,16 @@ Deno.test(
       fallbackReply([{ tool: "workshop_add_assets", result }], {
         outOfSteps: true,
       }),
-      `לא הצלחתי להשלים: לא נוסף שום נכס: ${reason}`,
+      "לא הצלחתי להשלים: הורדת התמונות לפרויקט נכשלה",
     );
+
+    // Something kept is not an error, even beside a picture that failed.
+    const partly = await addAssets([
+      { kind: "link", url: "https://docs.google.com/d/1", title: "בריף" },
+      { kind: "image", url: "https://app.example.com/skins/a.webp" },
+    ]);
+    assertStrictEquals(partly.success, true);
+    assertStrictEquals(partly.error, undefined);
   },
 );
 

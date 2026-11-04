@@ -1,5 +1,21 @@
 import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import { fallbackReply, shouldNudgeSilentTurn } from "./reply.ts";
+import {
+  fallbackReply,
+  shouldNudgeSilentTurn,
+  stoppedAtStepLimit,
+} from "./reply.ts";
+
+Deno.test(
+  "only a turn that used every round and ended on tool results hit the step limit",
+  () => {
+    assertStrictEquals(stoppedAtStepLimit(6, 6, "tool"), true);
+    // Rounds were left: the model stopped on its own.
+    assertStrictEquals(stoppedAtStepLimit(3, 6, "tool"), false);
+    // The last round was the model's own (empty) answer.
+    assertStrictEquals(stoppedAtStepLimit(6, 6, "assistant"), false);
+    assertStrictEquals(stoppedAtStepLimit(6, 6, undefined), false);
+  },
+);
 
 Deno.test("no workshop tool means no fallback and no nudge", () => {
   assertStrictEquals(fallbackReply([]), null);

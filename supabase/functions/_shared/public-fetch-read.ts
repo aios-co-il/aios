@@ -13,17 +13,23 @@ export interface Readable {
  * past `cap` bytes. A server that drops the connection without a TLS close_notify has still sent
  * everything; rustls reports that as UnexpectedEof, which ends the read like a plain close (the
  * web app's host did this on Staging, 3 Nov, so Carmen could not use her own skin portraits).
- * A body cut short is caught after this by `bodyProblem` (Content-Length, chunked end).
+ * `cleanClose` is false then: `bodyProblem` accepts such a body only when Content-Length or the
+ * chunked end shows it whole, since an unframed body could have been cut at any point.
  */
 export async function readUntilClosed(
   conn: Readable,
   cap: number,
-): Promise<{ raw: Uint8Array; capped: boolean }> {
+): Promise<{ raw: Uint8Array; capped: boolean; cleanClose: boolean }> {
   const chunks: Array<Uint8Array> = [];
   let total = 0;
+  let cleanClose = true;
   const buffer = new Uint8Array(16_384);
   while (total <= cap) {
     const n = await readOrEnd(conn, buffer);
+    if (n === "no_close_notify") {
+      cleanClose = false;
+      break;
+    }
     if (n === null) {
       break;
     }
@@ -36,19 +42,19 @@ export async function readUntilClosed(
     raw.set(chunk, at);
     at += chunk.length;
   }
-  return { raw, capped: total > cap };
+  return { raw, capped: total > cap, cleanClose };
 }
 
-/** One read; a close without TLS close_notify counts as the end of the stream. */
+/** One read; a close without TLS close_notify ends the stream and is reported as such. */
 async function readOrEnd(
   conn: Readable,
   buffer: Uint8Array,
-): Promise<number | null> {
+): Promise<number | null | "no_close_notify"> {
   try {
     return await conn.read(buffer);
   } catch (error) {
     if (error instanceof Deno.errors.UnexpectedEof) {
-      return null;
+      return "no_close_notify";
     }
     throw error;
   }

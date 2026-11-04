@@ -45,6 +45,18 @@ const READ_ONLY = new Set(["workshop_get_state", "workshop_check_connections"]);
 const textOf = (value: unknown) =>
   typeof value === "string" && value ? value : null;
 
+/**
+ * The round limit stopped the turn mid-work: every round ran and the last one ended on tool
+ * results the model never saw back.
+ */
+export function stoppedAtStepLimit(
+  roundsRun: number,
+  maxRounds: number,
+  lastRole: string | undefined,
+): boolean {
+  return roundsRun >= maxRounds && lastRole === "tool";
+}
+
 /** Why the turn ended without text: `outOfSteps` when the round limit stopped it mid-work. */
 export interface FallbackContext {
   outOfSteps?: boolean;

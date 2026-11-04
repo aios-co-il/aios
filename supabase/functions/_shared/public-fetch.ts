@@ -120,12 +120,12 @@ async function pinnedGet(
       ),
       limit.expired,
     ]);
-    const { raw, capped } = await Promise.race([
+    const { raw, capped, cleanClose } = await Promise.race([
       readUntilClosed(conn, options.maxBytes + HEADER_ALLOWANCE),
       limit.expired,
     ]);
     const response = parseHttpResponse(raw);
-    return response ? { ...response, capped } : null;
+    return response ? { ...response, capped, cleanClose } : null;
   } finally {
     limit.clear();
     closeQuietly(conn);
@@ -162,7 +162,11 @@ export async function fetchPublic(
       }
       const ok = response.status >= 200 && response.status < 300;
       const incomplete = ok
-        ? bodyProblem(response, { maxBytes, capped: response.capped })
+        ? bodyProblem(response, {
+            maxBytes,
+            capped: response.capped,
+            cleanClose: response.cleanClose,
+          })
         : null;
       if (incomplete) return fail(incomplete, target.url.href);
       return {

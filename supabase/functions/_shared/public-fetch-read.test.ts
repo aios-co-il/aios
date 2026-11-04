@@ -4,6 +4,7 @@ import {
   assertRejects,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
+import { describe, it } from "jsr:@std/testing@1/bdd";
 import { readUntilClosed, type Readable } from "./public-fetch-read.ts";
 import { bodyProblem, parseHttpResponse } from "./workshop/public-url.ts";
 
@@ -36,60 +37,85 @@ const noCloseNotify = () =>
   );
 
 const portrait = encode("RIFF-webp-bytes");
-const response = (body: Uint8Array, length = body.length) => [
+
+/** A picture response; `length` null sends no Content-Length (a close-delimited body). */
+const pictureReply = (
+  body: Uint8Array,
+  length: number | null = body.length,
+) => [
   encode(
-    `HTTP/1.1 200 OK\r\nContent-Type: image/webp\r\nContent-Length: ${length}\r\nConnection: close\r\n\r\n`,
+    `HTTP/1.1 200 OK\r\nContent-Type: image/webp\r\n${
+      length === null ? "" : `Content-Length: ${length}\r\n`
+    }Connection: close\r\n\r\n`,
   ),
   body,
 ];
 
 /** The parsed response; a test fails here when the bytes are not one. */
 function parsed(raw: Uint8Array) {
-  const response = parseHttpResponse(raw);
-  assertExists(response);
-  return response;
+  const reply = parseHttpResponse(raw);
+  assertExists(reply);
+  return reply;
 }
 
-Deno.test(
-  "a server that closes without TLS close_notify still delivers the whole picture",
-  async () => {
-    const { raw, capped } = await readUntilClosed(
-      connection(response(portrait), noCloseNotify),
+/** Reads `parts` to the end the way `end` closes, and says what bodyProblem makes of it. */
+async function problemOf(parts: Array<Uint8Array>, end: () => Promise<null>) {
+  const { raw, capped, cleanClose } = await readUntilClosed(
+    connection(parts, end),
+    1_000_000,
+  );
+  return bodyProblem(parsed(raw), { maxBytes: 1_000_000, capped, cleanClose });
+}
+
+describe("readUntilClosed", () => {
+  it("delivers the whole picture when the server closes without TLS close_notify", async () => {
+    const { raw, cleanClose } = await readUntilClosed(
+      connection(pictureReply(portrait), noCloseNotify),
       1_000_000,
     );
     const picture = parsed(raw);
     assertStrictEquals(picture.status, 200);
     assertEquals(picture.body, portrait);
+    assertStrictEquals(cleanClose, false);
     assertStrictEquals(
-      bodyProblem(picture, { maxBytes: 1_000_000, capped }),
+      await problemOf(pictureReply(portrait), noCloseNotify),
       null,
     );
-  },
-);
+  });
 
-Deno.test(
-  "a body cut short before the missing close_notify is still reported as cut",
-  async () => {
-    const { raw, capped } = await readUntilClosed(
-      connection(response(portrait, portrait.length + 50), noCloseNotify),
-      1_000_000,
-    );
+  it("still reports a body shorter than its Content-Length as cut", async () => {
     assertStrictEquals(
-      bodyProblem(parsed(raw), { maxBytes: 1_000_000, capped }),
+      await problemOf(
+        pictureReply(portrait, portrait.length + 50),
+        noCloseNotify,
+      ),
       "ההורדה נקטעה באמצע",
     );
-  },
-);
+  });
 
-Deno.test("any other read failure is still an error", async () => {
-  await assertRejects(
-    () =>
-      readUntilClosed(
-        connection([], () =>
-          Promise.reject(new Deno.errors.ConnectionReset("reset")),
-        ),
-        1_000,
+  it("refuses an unframed body that ends without close_notify, accepts it on a clean close", async () => {
+    assertStrictEquals(
+      await problemOf(pictureReply(portrait, null), noCloseNotify),
+      "ההורדה נקטעה באמצע",
+    );
+    assertStrictEquals(
+      await problemOf(pictureReply(portrait, null), () =>
+        Promise.resolve(null),
       ),
-    Deno.errors.ConnectionReset,
-  );
+      null,
+    );
+  });
+
+  it("throws any other read failure", async () => {
+    await assertRejects(
+      () =>
+        readUntilClosed(
+          connection([], () =>
+            Promise.reject(new Deno.errors.ConnectionReset("reset")),
+          ),
+          1_000,
+        ),
+      Deno.errors.ConnectionReset,
+    );
+  });
 });

@@ -183,16 +183,13 @@ export async function workshopAddAssets(ctx: ToolContext) {
       logoUrl = null;
     }
   }
-  // Nothing kept is a failure the model and the turn's fallback reply must see as one: without
-  // `error` Carmen retried the same import until the turn ran out of steps (Staging, 3 Nov).
-  const nothingKept = added.length === 0 && !logoUrl && failed.length > 0;
+  // Every entry failing is an error the model and the turn's fallback reply must see: without
+  // it Carmen retried the same import until the turn ran out of steps (Staging, 3 Nov). The
+  // error is a short line for the user; the raw reasons stay in `failed` for Carmen.
+  const success = failed.length < requested.length;
   return {
-    success: failed.length < requested.length,
-    ...(nothingKept
-      ? {
-          error: `לא נוסף שום נכס: ${[...new Set(failed.map((f) => f.reason))].join("; ")}`,
-        }
-      : {}),
+    success,
+    ...(success ? {} : { error: allFailedSummary(requested) }),
     added,
     failed,
     ...(logoUrl ? { logo_url: logoUrl } : {}),
@@ -205,4 +202,10 @@ export async function workshopAddAssets(ctx: ToolContext) {
     }${logoUrl ? " הלוגו נשמר לפרויקט ויופיע בסגיר הסרט." : ""}`.trim(),
     workshop: { event: "artifacts", item_id: itemId },
   };
+}
+
+/** What the user hears when nothing was added: pictures that could not be fetched, or else. */
+function allFailedSummary(requested: Array<unknown>): string {
+  const images = requested.some((entry) => asRecord(entry).kind === "image");
+  return images ? "הורדת התמונות לפרויקט נכשלה" : "הנכסים לא נוספו לפרויקט";
 }
