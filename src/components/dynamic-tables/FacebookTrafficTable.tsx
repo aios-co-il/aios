@@ -1,3 +1,4 @@
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import { Card } from "@/components/ui/card";
 import {
   costPerFollower,
@@ -54,7 +55,10 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
                 key={`traffic-${groupKey}`}
                 className="border-b hover:bg-muted/30"
               >
-                <td className="p-2 text-right font-medium">{campaign.name}</td>
+                <td className="p-2 text-right font-medium">
+                  <CampaignOffBadge off={campaign.off} />
+                  {campaign.name}
+                </td>
                 <TrafficCells
                   campaigns={[campaign]}
                   currency={currency}

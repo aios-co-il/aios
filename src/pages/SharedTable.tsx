@@ -73,6 +73,7 @@ import {
   sharedIntegrationReport,
 } from "@/components/SharedTable/sharedIntegrationReport";
 import { SharedTrafficTable } from "@/components/SharedTable/SharedTrafficTable";
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { useQueryClient } from "@tanstack/react-query";
@@ -881,6 +882,7 @@ export default function SharedTable() {
                         return (
                           <TableRow key={c.name}>
                             <TableCell className="font-medium max-w-[200px] truncate">
+                              <CampaignOffBadge off={c.off} />
                               {c.name}
                             </TableCell>
                             <TableCell>{formatCurrency(c.spend)}</TableCell>
@@ -1018,6 +1020,7 @@ export default function SharedTable() {
                         return (
                           <TableRow key={c.name}>
                             <TableCell className="font-medium max-w-[200px] truncate">
+                              <CampaignOffBadge off={c.off} />
                               {c.name}
                             </TableCell>
                             <TableCell>{formatCurrency(c.spend)}</TableCell>

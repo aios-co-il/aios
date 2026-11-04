@@ -8,6 +8,7 @@ import {
   type WeeklyCampaignSection,
   type WeeklySourceModes,
 } from "@/lib/weeklyAdsComparison";
+import { reportOffLookup } from "@/lib/campaignOffState";
 import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
 import { AllGoalsSpendRow } from "./AllGoalsSpendRow";
 import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
@@ -41,6 +42,7 @@ export function WeeklyCampaignComparison({
     sourceModes,
     googleCampaignGoals,
     maxWeeks: 53,
+    isReportOff: reportOffLookup(tables),
   });
   const sources = new Set(
     weeks.flatMap((week) => week.rows.map((row) => row.source)),

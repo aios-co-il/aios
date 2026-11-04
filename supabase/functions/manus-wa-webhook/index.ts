@@ -38,6 +38,7 @@ import {
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
 import { recordManusFallbackReply } from "./fallback-reply.ts";
+import { isUnresolvedGroupAuthor } from "./group-author.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,27 +49,6 @@ const corsHeaders = {
 // Last 9 digits — matches existing lead/client matching policy
 function normalizePhone(p: string): string {
   return (p || "").replace(/\D/g, "").slice(-9);
-}
-
-function isIsraeliMobileTail(digits: string): boolean {
-  const tail = String(digits || "")
-    .replace(/\D/g, "")
-    .slice(-9);
-  return /^[5-9]\d{8}$/.test(tail);
-}
-
-/** True when Manus did not give us a usable participant phone for identity checks. */
-function isUnresolvedGroupAuthor(
-  authorPhone: string,
-  authorRaw: string,
-  groupChatId: string,
-): boolean {
-  const groupDigits = groupChatId.split("@")[0].replace(/\D/g, "");
-  if (!authorPhone) return true;
-  if (authorPhone === groupDigits) return true;
-  // A @lid author already resolved to a real phone needs no Green API pairing wait.
-  if (/@lid/i.test(authorRaw) && !looksLikeRealPhone(authorPhone)) return true;
-  return !isIsraeliMobileTail(authorPhone);
 }
 
 /** Inspect a JSON object without assuming the provider's envelope shape. */
@@ -1549,7 +1529,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       // the group id (or LID digits) into the authorization layer. Prefer provider
       // message id; fall back to the same body within a short window for gateways
       // that use different ids. Wait briefly — Green API often arrives after Manus.
-      if (isUnresolvedGroupAuthor(authorPhone, authorRaw, groupChatId)) {
+      if (isUnresolvedGroupAuthor(authorPhone, groupChatId)) {
         await new Promise((resolve) => setTimeout(resolve, 2600));
         try {
           const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
@@ -1597,7 +1577,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             if (
               participant &&
               participant !== groupDigits &&
-              isIsraeliMobileTail(participant)
+              looksLikeRealPhone(participant)
             ) {
               if (
                 isUsableLidKey(lidDigitsForMap) &&

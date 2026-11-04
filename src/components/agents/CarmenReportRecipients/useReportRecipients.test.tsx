@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { useReportRecipients } from "./useReportRecipients";
 
 const state = vi.hoisted(() => ({
@@ -22,7 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 function mountHook() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return renderHook(() => useReportRecipients("tenant-a"), { wrapper });
 }
 

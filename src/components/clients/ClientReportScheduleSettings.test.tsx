@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ClientReportScheduleSettings } from "./ClientReportScheduleSettings";
 
@@ -65,7 +65,7 @@ const office = reportSender("office", { display_name: "משרד" });
 
 /** The schedule form of one table report, over the mocked backend. */
 function renderSettings() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return render(
     <ClientReportScheduleSettings
       clientId="client-1"

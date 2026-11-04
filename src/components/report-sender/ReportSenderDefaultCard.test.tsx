@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ReportSenderDefaultCard } from "./ReportSenderDefaultCard";
 import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
@@ -60,7 +60,7 @@ const david = (extra: Partial<ReportSender> = {}) =>
 
 /** The card of tenant t1, over the mocked backend. */
 function renderCard() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return render(<ReportSenderDefaultCard tenantId="t1" />, { wrapper });
 }
 

@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { auth, crmTables } from "./pulseTargetSaveFake";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { TABLE_NOT_UPDATED } from "./pulseTargetSave";
 import { useSavePulseTarget } from "./useSavePulseTarget";
 
@@ -14,7 +14,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 /** The hook for a tenant saving a CPL target on table t1; returns its query client. */
 function saveCplOnT1(tenantId: string | null = "tenant-1") {
-  const { queryClient, wrapper } = withTestQuery();
+  const { queryClient, wrapper } = createTestQueryHarness();
   vi.spyOn(queryClient, "invalidateQueries");
   const { result } = renderHook(() => useSavePulseTarget(tenantId), {
     wrapper,

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { SeoGeoDepartment } from "./SeoGeoDepartment";
 
 type Row = Record<string, unknown>;
@@ -126,7 +126,7 @@ beforeEach(() => {
 
 const renderScreen = () =>
   render(<SeoGeoDepartment clientFilter="client-1" tenantId="tenant-1" />, {
-    wrapper: withTestQuery().wrapper,
+    wrapper: createTestQueryHarness().wrapper,
   });
 
 test("a project of the open client gets its program settings and its client's sites", async () => {
