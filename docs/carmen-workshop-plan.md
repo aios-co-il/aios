@@ -214,6 +214,7 @@ RLS לפי `tenant_id`. Realtime מופעל על הטבלה. אין מיגרצי
 5. **מיגרציות:** מאחדים את הגופים החוזרים של `produce_video`, `queue_video_sound`, `video_narration_ready` ו-`workshop_mirror_asset`. ל-`produce_video` עוברים לארגומנט `jsonb` אחד של אפשרויות. מוסיפים ל-`workshop_creative_stage` בדיקת דייר מפורשת.
 6. **בדיקות SQL ב-CI:** אף job לא מריץ את `supabase/tests/*.sql`. מוסיפים job שמריץ אותן.
 7. **render-worker: טיפוסים מלאים:** מדליקים את `noImplicitAny` ואת `strictNullChecks` ב-`render-worker/tsconfig.json`, ובודקים גם את `render-worker/test` ב-`pnpm typecheck:worker`.
+8. **להסיר את העטיפה הישנה של `produce_video`:** אחרי חלון פריסה אחד, כשאף קורא לא שולח את 11 הארגומנטים הישנים, מיגרציה חדשה מסירה את העטיפה ונותנת ל-`p_options` ברירת מחדל `'{}'`.
 
 ## 12. אחרי סבב הסרטים (2–3 בנובמבר)
 

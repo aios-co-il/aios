@@ -598,7 +598,9 @@ grant execute on function public.produce_video(uuid, jsonb) to authenticated, se
 -- The old signature, kept for one deploy window: passes every argument on as an option, so an
 -- explicit null still means null. p_options has no default above, so produce_video(item) alone
 -- still resolves here. Drop this wrapper (and give p_options its '{}' default) once no deployed
--- caller sends the old arguments.
+-- caller sends the old arguments (docs/carmen-workshop-plan.md, section 11, item 8). Until then a
+-- plain SQL caller must cast the options: produce_video(id, '{...}'::jsonb), since an untyped
+-- literal resolves to this wrapper as p_aspect.
 create or replace function public.produce_video(
   p_item_id uuid,
   p_aspect text default '9:16',
