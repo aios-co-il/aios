@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import AddTaskForm from "./AddTaskForm";
 
 describe("AddTaskForm team-member assignment", () => {
@@ -156,7 +156,7 @@ describe("AddTaskForm team-member assignment", () => {
 });
 
 function mountForm(form: ReactElement) {
-  const { queryClient, wrapper } = withTestQuery();
+  const { queryClient, wrapper } = createTestQueryHarness();
   clients.push(queryClient);
   return render(form, { wrapper });
 }
@@ -191,7 +191,8 @@ interface BackendQuery {
   then(resolve: (value: BackendResult) => unknown): Promise<unknown>;
 }
 
-const clients: ReturnType<typeof withTestQuery>["queryClient"][] = [];
+const clients: Array<ReturnType<typeof createTestQueryHarness>["queryClient"]> =
+  [];
 const fixtures = vi.hoisted(() => ({
   campaigners: [
     { id: "campaigner-1", full_name: "קמפיינר ראשון" },

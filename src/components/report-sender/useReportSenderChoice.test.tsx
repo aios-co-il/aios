@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { useReportSenderChoice } from "./useReportSenderChoice";
 
@@ -53,7 +53,7 @@ const shared = reportSender("shared", {
 
 /** The resolved line id for a tenant, once loaded. */
 async function resolvedFor(tenantId: string) {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   const hook = renderHook(() => useReportSenderChoice(tenantId), { wrapper });
   await waitFor(() =>
     expect(hook.result.current.pick).not.toEqual({ error: "loading" }),
