@@ -1,6 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
 import {
+  countCronTables,
+  cronRunResponse,
+} from "../_shared/sync-cron/run-body.ts";
+import {
   jerusalemToday,
   planScheduledSyncWindows,
 } from "../_shared/report-sync-window.ts";
@@ -374,17 +378,10 @@ Deno.serve(async (req) => {
     if (offset !== 0 || operational_only) {
       if (!hasMore && !table_ids && !isBackfill) {
         if (operational_only) {
-          return new Response(
-            JSON.stringify({
-              success: true,
-              operational_only: true,
-              batch_offset: offset,
-              results,
-            }),
-            {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            },
-          );
+          return runResponse(results, {
+            operational_only: true,
+            batch_offset: offset,
+          });
         }
         const pulseResponse = await fetch(
           `${supabaseUrl}/functions/v1/campaign-pulse-snapshot`,
@@ -404,12 +401,7 @@ Deno.serve(async (req) => {
           );
         }
       }
-      return new Response(
-        JSON.stringify({ success: true, batch_offset: offset, results }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return runResponse(results, { batch_offset: offset });
     }
 
     // Group by tenant
@@ -679,9 +671,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return runResponse(results);
   } catch (error) {
     console.error("Cron sync error:", error);
     return new Response(
@@ -695,3 +685,23 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+/**
+ * This invocation's answer: tables synced (or a Make scenario started) and
+ * failed, never a plain success when every table failed (AIO-342).
+ */
+function runResponse(
+  results: Array<{ status: string }>,
+  extra: Record<string, unknown> = {},
+): Response {
+  const counts = countCronTables(results, {
+    synced: ["synced", "triggered", "backfilled"],
+    failed: ["error"],
+  });
+  return cronRunResponse(
+    "cron-google-ads",
+    counts,
+    { ...extra, results },
+    corsHeaders,
+  );
+}
