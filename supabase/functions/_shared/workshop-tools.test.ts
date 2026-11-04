@@ -504,7 +504,8 @@ const videoProject = (over: Record<string, unknown> = {}) => ({
       format: "9:16",
       project_type: "video",
       video: { voice_id: "d4eLZ8u5dfBCsjp4YPyz" },
-      workshop_brief: { asked: true },
+      // The user already chose the film's concept (film-concept.ts asks before any scene).
+      workshop_brief: { asked: true, answers: { קונספט: "יום אחד" } },
 
       workshop_look: {
         film: "cinematic, calm, female narrator",
@@ -1616,7 +1617,7 @@ Deno.test(
         payload: {
           format: "1:1",
           project_type: "static",
-          workshop_brief: { asked: true },
+          workshop_brief: { asked: true, answers: { קונספט: "ריקוד" } },
           workshop_look: { film: "cinematic", bible: "warm look" },
         },
       }),
@@ -3723,7 +3724,7 @@ Deno.test(
       סגיר: "לוגו וקריאה לפעולה",
     });
 
-    // He answers the rest; every topic is answered now, so the storyboard is written.
+    // He answers the rest and has chosen a concept, so the storyboard is written.
     const second = fakeDb({
       ...bareProject(),
       "marketing_work_items:select": {
@@ -3738,7 +3739,7 @@ Deno.test(
       second,
       "tenant-1",
       "workshop_storyboard",
-      storyboard,
+      { ...storyboard, concept: "יום אחד" },
       async () => {},
       null,
       {
