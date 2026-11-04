@@ -9,6 +9,10 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
+import {
+  googleAdsTableAccount,
+  normalizeGoogleAdsCustomerId,
+} from "../_shared/ads-sync/google-customer-id.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
 import {
   resolveAdsSyncWindow,
@@ -223,7 +227,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const customerId = settings.customer_id;
+    // Dashes typed with the id make Google answer INVALID_CUSTOMER_ID (AIO-342).
+    const account = googleAdsTableAccount(settings);
+    const customerId = account.customerId;
     const dateRange = settings.date_range || "last_30_days";
 
     if (!customerId) {
@@ -689,7 +695,7 @@ Deno.serve(async (req) => {
     `;
 
     // Use manager_id (MCC) as login-customer-id if available, otherwise use customerId
-    let loginCustomerId = settings.manager_id || customerId;
+    let loginCustomerId = account.loginCustomerId ?? customerId;
 
     if (operational_only) {
       // David's status rules cover an active report of a client only.
@@ -897,9 +903,10 @@ Deno.serve(async (req) => {
       const tenantMccs = Array.from(
         new Set(
           (tenantTables || [])
-            .map((t: any) => t.integration_settings?.manager_id)
-            .filter(Boolean)
-            .map(String),
+            .map((t: { integration_settings: { manager_id?: unknown } }) =>
+              normalizeGoogleAdsCustomerId(t.integration_settings?.manager_id),
+            )
+            .filter((id): id is string => id !== null),
         ),
       );
 
