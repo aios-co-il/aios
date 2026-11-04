@@ -13,6 +13,7 @@ import {
   googleAdsTableAccount,
   normalizeGoogleAdsCustomerId,
 } from "../_shared/ads-sync/google-customer-id.ts";
+import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
 import {
   resolveAdsSyncWindow,
@@ -353,10 +354,7 @@ Deno.serve(async (req) => {
       if (!refreshResp.ok || !refreshData.access_token) {
         const err = refreshData?.error || "refresh_failed";
         const errDesc = refreshData?.error_description || "";
-        const isPermanent =
-          err === "invalid_grant" ||
-          err === "unauthorized_client" ||
-          err === "invalid_client";
+        const isPermanent = isPermanentGoogleOAuthError(err);
         // Mark needs_reauth on permanent failures so the UI can prompt reconnection
         await supabaseAdmin
           .from("tenant_integrations")
