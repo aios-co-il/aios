@@ -5,6 +5,7 @@ DO $test$
 DECLARE
   v_tenant uuid;
   v_other uuid;
+  v_foreign_tenant uuid;
   v_client uuid;
   v_table uuid;
   v_own uuid;
@@ -33,9 +34,22 @@ BEGIN
   HAVING count(*) >= 2
   ORDER BY tu.tenant_id
   LIMIT 1;
-  SELECT id INTO v_other FROM public.tenants WHERE id <> v_tenant ORDER BY id LIMIT 1;
+  -- Two synthetic tenants, each with room for one organization-level line
+  -- (tenant_integrations_org_level_unique): one shares its line, one does not.
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK report sender shared', 'qa-report-sender-shared-' || gen_random_uuid())
+  RETURNING id INTO v_other;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK report sender foreign', 'qa-report-sender-foreign-' || gen_random_uuid())
+  RETURNING id INTO v_foreign_tenant;
   SELECT id INTO v_client FROM public.clients ORDER BY id LIMIT 1;
   SELECT id INTO v_table FROM public.crm_tables ORDER BY id LIMIT 1;
+  -- The dev seed has no CRM table, so a scratch database gets a synthetic one.
+  IF v_table IS NULL AND v_tenant IS NOT NULL THEN
+    INSERT INTO public.crm_tables (tenant_id, name, slug)
+    VALUES (v_tenant, 'QA ROLLBACK report sender', 'qa-report-sender-' || gen_random_uuid())
+    RETURNING id INTO v_table;
+  END IF;
   SELECT user_id INTO v_member
   FROM public.tenant_users
   WHERE tenant_id = v_tenant AND NOT public.is_super_admin(user_id)
@@ -104,7 +118,7 @@ BEGIN
   VALUES (v_other, 'green_api', true, 'qa-key', '{"instance_id": "qa-shared"}')
   RETURNING id INTO v_shared;
   INSERT INTO public.tenant_integrations (tenant_id, integration_type, is_active, api_key, settings)
-  VALUES (v_other, 'green_api', true, 'qa-key', '{"instance_id": "qa-foreign"}')
+  VALUES (v_foreign_tenant, 'green_api', true, 'qa-key', '{"instance_id": "qa-foreign"}')
   RETURNING id INTO v_foreign;
   INSERT INTO public.tenant_integrations (tenant_id, integration_type, is_active, api_key, settings)
   VALUES (v_tenant, 'meta_whatsapp', true, 'qa-key', '{"phone_number_id": "qa-meta"}')

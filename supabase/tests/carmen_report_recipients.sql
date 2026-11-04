@@ -156,29 +156,16 @@ BEGIN
 
   -- Signed-in users (synthetic roles): an owner of this organization, its team
   -- manager, and an owner of another organization.
-  SELECT id INTO v_other_tenant FROM public.tenants WHERE id <> v_tenant LIMIT 1;
-  SELECT p.id INTO v_owner FROM public.profiles p
-  WHERE NOT EXISTS (SELECT 1 FROM public.user_roles ur WHERE ur.user_id = p.id AND ur.tenant_id = v_tenant)
-    AND NOT EXISTS (SELECT 1 FROM public.tenant_users tu WHERE tu.user_id = p.id AND tu.tenant_id = v_tenant)
-    AND p.status IS DISTINCT FROM 'inactive'
-  ORDER BY p.id LIMIT 1;
-  SELECT p.id INTO v_manager FROM public.profiles p
-  WHERE NOT EXISTS (SELECT 1 FROM public.user_roles ur WHERE ur.user_id = p.id AND ur.tenant_id = v_tenant)
-    AND NOT EXISTS (SELECT 1 FROM public.tenant_users tu WHERE tu.user_id = p.id AND tu.tenant_id = v_tenant)
-    AND p.status IS DISTINCT FROM 'inactive'
-    AND p.id <> v_owner
-  ORDER BY p.id LIMIT 1;
-  -- A super admin reads every list, so the other owner must not be one.
-  SELECT p.id INTO v_other_owner FROM public.profiles p
-  WHERE NOT EXISTS (SELECT 1 FROM public.user_roles ur WHERE ur.user_id = p.id AND ur.tenant_id = v_tenant)
-    AND NOT EXISTS (SELECT 1 FROM public.tenant_users tu WHERE tu.user_id = p.id AND tu.tenant_id = v_tenant)
-    AND NOT public.is_super_admin(p.id)
-    AND p.id NOT IN (v_owner, v_manager)
-  ORDER BY p.id LIMIT 1;
-  IF v_other_tenant IS NULL OR v_other_owner IS NULL THEN
-    RAISE EXCEPTION 'Requires a second tenant and three profiles outside the first';
-  END IF;
-  -- The other owner may already own that tenant.
+  -- Synthetic users (handle_new_user creates their profiles) and tenant.
+  v_owner := gen_random_uuid();
+  v_manager := gen_random_uuid();
+  v_other_owner := gen_random_uuid();
+  INSERT INTO auth.users (id, email)
+  SELECT u, 'qa-report-recipients-' || u || '@example.invalid'
+  FROM unnest(array[v_owner, v_manager, v_other_owner]) AS u;
+  INSERT INTO public.tenants (name, slug)
+  VALUES ('QA ROLLBACK report recipients', 'qa-report-recipients-' || gen_random_uuid())
+  RETURNING id INTO v_other_tenant;
   INSERT INTO public.user_roles (user_id, tenant_id, role) VALUES
     (v_owner, v_tenant, 'owner'),
     (v_manager, v_tenant, 'team_manager'),
