@@ -4,8 +4,11 @@
  *   [[בחירה: סגנון | ריאליסטי | קולנועי | איור]]
  *
  * One group per question. The markers never show as text; the chat turns each group into a row
- * of buttons, and a tap is sent as the user's answer.
+ * of buttons, and a tap is sent as the user's answer. Every group also offers "אחר…", a short
+ * answer in the user's own words, unless Carmen already wrote an "other" option herself.
  */
+
+import { MAX_ANSWER } from "@functions/_shared/workshop/brief-answers.ts";
 
 export interface QuickReplyGroup {
   label: string;
@@ -16,6 +19,8 @@ const GROUP = /\[\[\s*(?:בחירה|choice)\s*:([^\]]*)\]\]/gi;
 const PARTIAL_TAIL = /\[\[[^\]]*$/;
 const MAX_OPTIONS = 6;
 const MAX_OPTION_CHARS = 60;
+export const OTHER_OPTION = "אחר…";
+const OTHER = /^\s*(?:אחר|אחרת|other)(?:[\s.…:()-]|$)/i;
 
 export function parseQuickReplies(content: string): {
   text: string;
@@ -40,12 +45,33 @@ export function parseQuickReplies(content: string): {
 export const hidePartialQuickReplies = (content: string) =>
   parseQuickReplies(content).text.replace(PARTIAL_TAIL, "").trimEnd();
 
-/** What one tap, or a set of taps, says on the user's behalf. */
+/** Whether the group gets an "אחר…" button: not when one of Carmen's options already is one. */
+export const offersOther = (group: QuickReplyGroup) =>
+  !group.options.some((option) => OTHER.test(option));
+
+/**
+ * The user's own answer, ready to stand in for a tap: one line, so it cannot break the
+ * "label: answer" lines several groups send, and no longer than the server keeps.
+ */
+export const freeAnswer = (text: string) =>
+  text.replace(/\s+/g, " ").trim().slice(0, MAX_ANSWER).trim();
+
+/**
+ * What one tap, or a set of taps, says on the user's behalf. A lone tap goes as the option
+ * itself; an answer in the user's own words always names its question ("קצב: …"), because the
+ * server only saves a bare answer to the brief when it is one of the options.
+ */
 export function quickReplyAnswer(
   groups: QuickReplyGroup[],
   picked: Record<string, string>,
 ): string {
-  if (groups.length === 1) return picked[groups[0].label] ?? "";
+  if (groups.length === 1) {
+    const [group] = groups;
+    const answer = picked[group.label] ?? "";
+    return !answer || group.options.includes(answer)
+      ? answer
+      : `${group.label}: ${answer}`;
+  }
   return groups
     .filter((group) => picked[group.label])
     .map((group) => `${group.label}: ${picked[group.label]}`)

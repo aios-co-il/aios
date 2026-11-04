@@ -8744,6 +8744,35 @@ export type Database = {
           },
         ];
       };
+      lead_list_defaults: {
+        Row: {
+          stage_scope: string;
+          tenant_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          stage_scope: string;
+          tenant_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          stage_scope?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "lead_list_defaults_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       lead_notification_events: {
         Row: {
           client_id: string | null;
