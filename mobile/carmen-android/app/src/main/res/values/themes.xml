@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="carmen_primary">#7C3AED</color>
+    <color name="carmen_background">#0F0B1A</color>
+    <style name="Theme.Carmen" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/carmen_primary</item>
+        <item name="colorAccent">@color/carmen_primary</item>
+    </style>
+</resources>

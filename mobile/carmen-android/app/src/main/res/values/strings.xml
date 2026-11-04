@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Carmen</string>
+    <string name="title">כרמן — בדיקת \"היי כרמן\"</string>
+    <string name="start_listening">הפעל האזנה</string>
+    <string name="stop_listening">עצור האזנה</string>
+    <string name="status_stopped">ההאזנה כבויה</string>
+    <string name="status_starting">טוענת מודל דיבור…</string>
+    <string name="status_armed">מאזינה ל\"היי כרמן\"</string>
+    <string name="status_active">כרמן פעילה</string>
+    <string name="counters">זיהויים: %1$d · הפעלות שווא שסומנו: %2$d · זיהויים שנחסמו (כפולים): %3$d\nהתראה במסך מלא מותרת: %4$s</string>
+    <string name="yes">כן</string>
+    <string name="no">לא — יש לאשר בהגדרות</string>
+    <string name="battery_settings">הגדרות חיסכון בסוללה</string>
+    <string name="full_screen_settings">אישור הצגה על מסך נעול</string>
+    <string name="full_screen_not_needed">לא נדרש בגרסת Android זו</string>
+    <string name="export_log">שיתוף יומן בדיקות</string>
+    <string name="export_subject">Carmen wake word test log</string>
+    <string name="clear_log">ניקוי יומן</string>
+    <string name="mic_permission_needed">נדרשת הרשאת מיקרופון כדי להאזין ל\"היי כרמן\"</string>
+    <string name="privacy_note">הזיהוי מתבצע בטלפון בלבד. אודיו אינו נשלח לענן.</string>
+    <string name="listening_title">כרמן מאזינה</string>
+    <string name="listening_text">אמרו \"היי כרמן\"</string>
+    <string name="carmen_listening">כן, אני מקשיבה</string>
+    <string name="close">סגור</string>
+    <string name="false_activation">זו הפעלת שווא</string>
+    <string name="false_activation_recorded">הפעלת השווא נרשמה ביומן</string>
+    <string name="resume_title">ההאזנה לכרמן הופסקה</string>
+    <string name="resume_text">הקישו כדי להמשיך להאזין ל\"היי כרמן\"</string>
+</resources>

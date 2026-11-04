@@ -1,0 +1,41 @@
+# Builds the Carmen Mobile Android app (wake word phase): runs its unit tests and uploads a
+# privately installable APK as a workflow artifact. It touches no environment or secret.
+name: Carmen Android
+
+on:
+  pull_request:
+    paths:
+      - "mobile/carmen-android/**"
+      - ".github/workflows/carmen-android.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "mobile/carmen-android/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile/carmen-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+      - name: Build APK
+        run: ./gradlew --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carmen-wakeword-apk
+          path: mobile/carmen-android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

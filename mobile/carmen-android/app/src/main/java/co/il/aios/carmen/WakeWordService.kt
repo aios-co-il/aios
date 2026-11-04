@@ -1,0 +1,175 @@
+package co.il.aios.carmen
+
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.PowerManager
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
+
+/**
+ * Microphone foreground service: keeps the wake word engine running with the app in the
+ * background or the screen locked, and activates Carmen when the phrase is heard.
+ */
+class WakeWordService : Service(), WakeWordEngine.Listener {
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val gate = ActivationGate()
+    private lateinit var log: EventLog
+    private lateinit var voice: CarmenVoice
+    private var engine: WakeWordEngine? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    private val endSessionOnTimeout = Runnable { endSession("timeout") }
+    private val sampleBattery = object : Runnable {
+        override fun run() {
+            log.record(EventLog.Event.BATTERY_SAMPLE)
+            renewWakeLock()
+            handler.postDelayed(this, BATTERY_SAMPLE_MS)
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        log = EventLog(this)
+        voice = CarmenVoice(this, log)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_STOP -> stopListening()
+            ACTION_SESSION_ENDED -> endSession("closed")
+            else -> startListening()
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun startListening() {
+        if (engine != null) return
+        try {
+            ServiceCompat.startForeground(
+                this, Notifications.LISTENING_ID, Notifications.listening(this),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+            )
+        } catch (e: RuntimeException) {
+            // Android refuses a microphone service started from the background; ask for a tap.
+            log.record(EventLog.Event.ERROR, "Foreground start refused: ${e.message}")
+            getSystemService(NotificationManager::class.java)
+                .notify(Notifications.RESUME_ID, Notifications.resume(this))
+            stopSelf()
+            return
+        }
+        ListeningPrefs.setEnabled(this, true)
+        acquireWakeLock()
+        status = Status.STARTING
+        engine = VoskWakeWordEngine(this).also { it.start(this) }
+    }
+
+    override fun onReady() {
+        gate.arm()
+        status = Status.ARMED
+        log.record(EventLog.Event.LISTENING_STARTED)
+        handler.post(sampleBattery)
+    }
+
+    override fun onWakeWord(words: List<RecognizedWord>) {
+        val detail = words.joinToString(" ") { "${it.word}:${"%.2f".format(it.confidence)}" }
+        if (!gate.tryActivate(System.currentTimeMillis())) {
+            log.record(EventLog.Event.WAKE_IGNORED, detail)
+            return
+        }
+        engine?.setPaused(true)
+        status = Status.ACTIVE
+        log.record(EventLog.Event.WAKE_DETECTED, detail)
+        showCarmen()
+        voice.acknowledge(
+            onStart = { ms -> log.record(EventLog.Event.VOICE_STARTED, "latency_ms=$ms") },
+            onDone = {},
+        )
+        handler.postDelayed(endSessionOnTimeout, ActivationGate.DEFAULT_MAX_SESSION_MS)
+    }
+
+    private fun showCarmen() {
+        getSystemService(NotificationManager::class.java)
+            .notify(Notifications.WAKE_ID, Notifications.wake(this))
+        // Opens directly when the app is visible; otherwise the full-screen notification does.
+        startActivity(Intent(this, CarmenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    private fun endSession(reason: String) {
+        if (gate.state != ActivationGate.State.ACTIVE) return
+        handler.removeCallbacks(endSessionOnTimeout)
+        getSystemService(NotificationManager::class.java).cancel(Notifications.WAKE_ID)
+        gate.endSession()
+        engine?.setPaused(false)
+        status = Status.ARMED
+        log.record(EventLog.Event.SESSION_ENDED, reason)
+    }
+
+    override fun onError(message: String, error: Throwable?) {
+        log.record(EventLog.Event.ERROR, "$message: ${error?.message.orEmpty()}")
+        stopListening()
+    }
+
+    private fun stopListening() {
+        ListeningPrefs.setEnabled(this, false)
+        stopSelf()
+    }
+
+    private fun acquireWakeLock() {
+        // Keeps the CPU processing microphone audio while the screen is off.
+        wakeLock = getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "carmen:wakeword")
+            .apply { setReferenceCounted(false) }
+        renewWakeLock()
+    }
+
+    /** Re-acquired on each battery sample, so a lost service cannot hold the CPU for long. */
+    private fun renewWakeLock() {
+        wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        engine?.stop()
+        if (engine != null) log.record(EventLog.Event.LISTENING_STOPPED)
+        engine = null
+        gate.disarm()
+        voice.shutdown()
+        wakeLock?.takeIf { it.isHeld }?.release()
+        status = Status.STOPPED
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    enum class Status { STOPPED, STARTING, ARMED, ACTIVE }
+
+    companion object {
+        const val ACTION_START = "co.il.aios.carmen.START"
+        const val ACTION_STOP = "co.il.aios.carmen.STOP"
+        const val ACTION_SESSION_ENDED = "co.il.aios.carmen.SESSION_ENDED"
+        private const val BATTERY_SAMPLE_MS = 15 * 60 * 1000L
+        private const val WAKE_LOCK_TIMEOUT_MS = BATTERY_SAMPLE_MS + 5 * 60 * 1000L
+
+        @Volatile
+        var status: Status = Status.STOPPED
+            private set
+
+        fun intent(context: Context, action: String): Intent =
+            Intent(context, WakeWordService::class.java).setAction(action)
+
+        fun start(context: Context) {
+            ContextCompat.startForegroundService(context, intent(context, ACTION_START))
+        }
+
+        fun send(context: Context, action: String) {
+            if (status != Status.STOPPED) context.startService(intent(context, action))
+        }
+    }
+}
