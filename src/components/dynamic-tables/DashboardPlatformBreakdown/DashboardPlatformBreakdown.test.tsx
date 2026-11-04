@@ -33,6 +33,7 @@ const googleCampaign = (
   name,
   campaign_id: name,
   goal,
+  off: false,
   impressions: 500,
   clicks: 25,
   spend: 0,

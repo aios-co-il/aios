@@ -1,6 +1,12 @@
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
 import {
+  campaignOffKeys,
+  reportOffLookup,
+  showCampaignRow,
+} from "@/lib/campaignOffState";
+import {
   googleCampaignGoalOf,
+  type GoogleAdsRowData,
   type GoogleReportRecord,
   type GoogleReportTable,
 } from "@/lib/googleCampaignGoals";
@@ -31,17 +37,22 @@ export function summarizeGoogleAdsCampaigns(
   const fallbackGoal = googleReportFallbackGoal(tables);
   const { goalOf } = googleCampaignGoalOf(records, tables, fallbackGoal);
 
+  const offKeys = campaignOffKeys(
+    records,
+    (data) => campaignKey(data),
+    reportOffLookup(tables),
+  );
   const map = new Map<string, GoogleAdsCampaignSummaryRow>();
   for (const record of records) {
     const data = record.data || {};
-    const name = data.campaign_name || data.campaign || "ללא שם";
-    const key = String(data.campaign_id || name);
+    const key = campaignKey(data);
     let row = map.get(key);
     if (!row) {
       row = {
-        name,
+        name: campaignName(data),
         campaign_id: String(data.campaign_id || ""),
         goal: goalOf(data),
+        off: offKeys.has(key),
         ...emptyTotals(),
       };
       map.set(key, row);
@@ -53,7 +64,9 @@ export function summarizeGoogleAdsCampaigns(
     row.conversions_value += Number(data.conversions_value) || 0;
   }
 
-  const campaigns = [...map.values()].sort((a, b) => b.spend - a.spend);
+  const campaigns = [...map.values()]
+    .filter(showCampaignRow)
+    .sort((a, b) => b.spend - a.spend);
   const totals = emptyTotals();
   const ecommerce = emptyTotals();
   const leads = emptyTotals();
@@ -66,6 +79,16 @@ export function summarizeGoogleAdsCampaigns(
     fallbackGoal,
   );
   return { campaigns, totals, ecommerce, leads, ...presence };
+}
+
+/** A record's campaign name, as the table shows it. */
+function campaignName(data: GoogleAdsRowData): string {
+  return data.campaign_name || data.campaign || "ללא שם";
+}
+
+/** One campaign's row key: its id, or its name when the id is missing. */
+function campaignKey(data: GoogleAdsRowData): string {
+  return String(data.campaign_id || campaignName(data));
 }
 
 /** Zeroed metric totals. */

@@ -12,7 +12,7 @@ import type {
 
 export type WeeklyGoalTotals = Omit<
   WeeklyCampaignRow,
-  "key" | "source" | "campaignId" | "campaign" | "kind"
+  "key" | "source" | "campaignId" | "campaign" | "kind" | "off"
 >;
 
 /** One goal's campaigns in a week, with totals of that goal only. */
