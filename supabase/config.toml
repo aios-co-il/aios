@@ -25,6 +25,15 @@ secret = "env(GOOGLE_CLIENT_SECRET)"
 skip_nonce_check = true                                  # Required for local sign-in with Google auth
 redirect_uri = "http://localhost:54321/auth/v1/callback"
 
+# Sign in with Microsoft: the same Entra ID app as microsoft-auth, on the common
+# authority so work/school and personal accounts both work.
+[auth.external.azure]
+enabled = true
+client_id = "env(MICROSOFT_CLIENT_ID)"
+secret = "env(MICROSOFT_CLIENT_SECRET)"
+url = "https://login.microsoftonline.com/common"
+redirect_uri = "http://localhost:54321/auth/v1/callback"
+
 # Values come from supabase/.env.preview on branches (APP_ENV=preview keeps the outbound guard on)
 # and from supabase/.env.production on Production.
 # Secrets are encrypted in those files; the private keys (supabase/.env.keys) are never committed.
@@ -62,6 +71,9 @@ otp_length = 8
 
 [remotes.production.auth.external.google]
 skip_nonce_check = false
+redirect_uri = "https://zvoijyneresvkadpprel.supabase.co/auth/v1/callback"
+
+[remotes.production.auth.external.azure]
 redirect_uri = "https://zvoijyneresvkadpprel.supabase.co/auth/v1/callback"
 
 

@@ -126,6 +126,10 @@ Supabase Staging already allows `https://*.vercel.app/**` as redirect URLs. Goog
 
 **Workaround:** email + password on Staging works if Google is not configured yet.
 
+### Microsoft login
+
+Sign in with Microsoft uses Supabase Auth's Azure provider (`[auth.external.azure]` in `supabase/config.toml`) with the same Entra ID app as `microsoft-auth`. `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET` must be in `supabase/.env.preview` and `supabase/.env.production`. In Azure → App registrations → the AIOS app → **Authentication → Redirect URIs**, add each environment's Supabase callback (`https://<project-ref>.supabase.co/auth/v1/callback`) next to the `microsoft-auth` callback.
+
 Branch protection on `main` / `develop` is a GitHub settings change; the freshness and shared-agency guards must be required. Local checkouts still need Staging variables before running the frontend.
 
 ## Video render workers
