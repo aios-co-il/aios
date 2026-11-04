@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { useLeadStageScopeDefault } from "./useLeadStageScopeDefault";
 
 type Failure = { message: string } | null;
@@ -49,7 +49,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 /** The hook once its read has settled. */
 async function settledHook() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   const hook = renderHook(() => useLeadStageScopeDefault(), { wrapper });
   await waitFor(() => expect(hook.result.current.isSettled).toBe(true));
   return hook;
