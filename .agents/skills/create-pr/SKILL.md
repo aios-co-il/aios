@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a pull request with a commitlint-compliant title, a 1-2 line description, and manual verification steps. Use when the user asks to open, create, or raise a PR.
+description: Create a pull request with the issue-linked title from docs/git-conventions.md, a 1-2 line description, and manual verification steps. Use when the user asks to open, create, or raise a PR.
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git push:*), Bash(gh pr create:*), github__create_pull_request, github__get_pull_request
 ---
 
@@ -10,13 +10,7 @@ Create a pull request for the current branch. Produce all three parts below. Do 
 
 ## 1. Title — required
 
-Format: `<type>(<scope>): <subject>`
-
-- **Type**: one of `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `ci`, `chore`, `revert`.
-- **Scope**: the module/feature affected (e.g., `groups`, `voting`, `auth`, `filters`, `components`). Include it.
-- **Subject**: lowercase, imperative mood, no period.
-
-Reject the title if it lacks a valid type, lacks a scope, or exceeds ~50 characters. Example: `feat(groups): add invite notifications`.
+Read `docs/git-conventions.md` and validate the title against its PR title format, including the Linear issue suffix and length guidance. Example: `feat(groups): add invite notifications [AIO-123]`.
 
 ## 2. Description — required, keep it short
 
