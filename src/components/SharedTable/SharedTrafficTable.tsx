@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -23,7 +24,8 @@ import type { SharedCampaignRow } from "./sharedCampaignTables";
 type TrafficRow = Pick<
   SharedCampaignRow,
   "name" | "spend" | "impressions" | "clicks" | "followers"
->;
+> &
+  Partial<Pick<SharedCampaignRow, "off">>;
 
 type Props = {
   rows: TrafficRow[];
@@ -109,6 +111,7 @@ export function SharedTrafficTable({
               {rows.map((row) => (
                 <TableRow key={row.name}>
                   <TableCell className="font-medium max-w-[200px] truncate">
+                    <CampaignOffBadge off={row.off === true} />
                     {row.name}
                   </TableCell>
                   {cells(trafficMetrics([row]))}

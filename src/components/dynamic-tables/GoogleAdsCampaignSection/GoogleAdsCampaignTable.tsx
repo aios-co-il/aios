@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -87,6 +88,7 @@ export function GoogleAdsCampaignTable({
                 return (
                   <TableRow key={`${c.campaign_id || c.name}-${i}`}>
                     <TableCell className="font-medium max-w-[300px]">
+                      <CampaignOffBadge off={c.off} />
                       {c.name}
                     </TableCell>
                     <TableCell>{formatNumber(c.impressions)}</TableCell>

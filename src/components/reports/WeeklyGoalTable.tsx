@@ -1,3 +1,4 @@
+import { CampaignOffBadge } from "./CampaignOffBadge";
 import {
   CAMPAIGN_GOAL_TITLES,
   CAMPAIGN_GOAL_TOTAL_LABELS,
@@ -59,7 +60,10 @@ export function WeeklyGoalTable({
                 {showPlatform && (
                   <td className="p-2 text-right">{sourceLabel[row.source]}</td>
                 )}
-                <td className="p-2 text-right font-medium">{row.campaign}</td>
+                <td className="p-2 text-right font-medium">
+                  <CampaignOffBadge off={row.off} />
+                  {row.campaign}
+                </td>
                 <MetricCells
                   metrics={row}
                   columns={columns}

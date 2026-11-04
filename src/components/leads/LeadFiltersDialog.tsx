@@ -4,7 +4,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,14 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Calendar as CalendarIcon,
-  Save,
-  RotateCcw,
-  X,
-  Search,
-  Check,
-} from "lucide-react";
+import { Calendar as CalendarIcon, X, Search, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -33,8 +25,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { Badge } from "@/components/ui/badge";
+import { LeadFiltersFooter } from "./LeadFiltersFooter";
+import { saveLeadFilterPreset, toPresetFilters } from "./saveLeadFilterPreset";
 import {
-  leadStagePresetFields,
   normalizeLeadValueFilterMode,
   type LeadValueFilterMode,
 } from "@/lib/leadStageFilter";
@@ -121,8 +114,6 @@ export function LeadFiltersDialog({
   const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState<FilterState>(currentFilters);
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [presetName, setPresetName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -222,10 +213,10 @@ export function LeadFiltersDialog({
     onOpenChange(false);
   };
 
-  const handleSavePreset = async () => {
-    if (!presetName.trim() || !tenantId || !userId) {
+  const handleSavePreset = async (presetName: string) => {
+    if (!tenantId || !userId) {
       toast({
-        title: "נא להזין שם לפריסט",
+        title: "לא זוהה משתמש או ארגון — רענן את העמוד ונסה שוב",
         variant: "destructive",
       });
       return;
@@ -233,43 +224,26 @@ export function LeadFiltersDialog({
 
     setIsSaving(true);
     try {
-      const filtersToSave = {
-        searchQuery: filters.searchQuery || null,
-        salesPersonIds: filters.salesPersonIds,
-        ...leadStagePresetFields(filters.stageIds),
-        stageFilterMode: filters.stageFilterMode,
-        responseStatus: filters.responseStatus,
-        responseStatusFilterMode: filters.responseStatusFilterMode,
-        tagIds: filters.tagIds,
-        startDate: filters.startDate?.toISOString() || null,
-        endDate: filters.endDate?.toISOString() || null,
-        followUpToday: filters.followUpToday,
-      };
-
-      const { error } = await supabase.from("lead_filter_presets").insert({
-        tenant_id: tenantId,
-        user_id: userId,
-        name: presetName.trim(),
-        filters: filtersToSave,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "פריסט נשמר בהצלחה",
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["lead-filter-presets", tenantId],
-      });
-      setSaveDialogOpen(false);
-      setPresetName("");
-    } catch (error: any) {
-      toast({
-        title: "שגיאה בשמירת פריסט",
-        description: error.message,
-        variant: "destructive",
-      });
+      await saveLeadFilterPreset(
+        supabase,
+        { tenantId, userId, name: presetName, filters },
+        {
+          onSaved: () => {
+            toast({ title: "פריסט נשמר בהצלחה" });
+            queryClient.invalidateQueries({
+              queryKey: ["lead-filter-presets", tenantId],
+            });
+          },
+          onError: (message) =>
+            toast({
+              title: "שגיאה בשמירת פריסט",
+              description: message,
+              variant: "destructive",
+            }),
+          onApply,
+          onOpenChange,
+        },
+      );
     } finally {
       setIsSaving(false);
     }
@@ -281,18 +255,7 @@ export function LeadFiltersDialog({
 
     setIsUpdating(true);
     try {
-      const filtersToSave = {
-        searchQuery: filters.searchQuery || null,
-        salesPersonIds: filters.salesPersonIds,
-        ...leadStagePresetFields(filters.stageIds),
-        stageFilterMode: filters.stageFilterMode,
-        responseStatus: filters.responseStatus,
-        responseStatusFilterMode: filters.responseStatusFilterMode,
-        tagIds: filters.tagIds,
-        startDate: filters.startDate?.toISOString() || null,
-        endDate: filters.endDate?.toISOString() || null,
-        followUpToday: filters.followUpToday,
-      };
+      const filtersToSave = toPresetFilters(filters);
 
       const { error } = await supabase
         .from("lead_filter_presets")
@@ -449,8 +412,8 @@ export function LeadFiltersDialog({
     filters.stageIds.length > 0 ||
     filters.responseStatus.length > 0 ||
     filters.tagIds.length > 0 ||
-    filters.startDate ||
-    filters.endDate ||
+    !!filters.startDate ||
+    !!filters.endDate ||
     filters.followUpToday;
 
   return (
@@ -946,64 +909,16 @@ export function LeadFiltersDialog({
             </div>
           </div>
 
-          <DialogFooter className="flex gap-2 sm:gap-2">
-            <Button variant="outline" onClick={handleReset} className="gap-2">
-              <RotateCcw className="h-4 w-4" />
-              איפוס
-            </Button>
-            {editingPreset ? (
-              <Button
-                onClick={handleUpdatePreset}
-                disabled={isUpdating}
-                className="gap-2"
-              >
-                <Save className="h-4 w-4" />
-                {isUpdating ? "מעדכן..." : "עדכן פריסט"}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setSaveDialogOpen(true)}
-                  disabled={!hasActiveFilters}
-                  className="gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  שמור כפריסט
-                </Button>
-                <Button onClick={handleApply} className="gap-2">
-                  החל פילטרים
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Save Preset Dialog */}
-      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]" dir="rtl">
-          <DialogHeader>
-            <DialogTitle>שמירת פריסט פילטרים</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="preset-name">שם הפריסט</Label>
-            <Input
-              id="preset-name"
-              value={presetName}
-              onChange={(e) => setPresetName(e.target.value)}
-              placeholder="לדוגמה: לידים חמים"
-              className="mt-2"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
-              ביטול
-            </Button>
-            <Button onClick={handleSavePreset} disabled={isSaving}>
-              {isSaving ? "שומר..." : "שמור"}
-            </Button>
-          </DialogFooter>
+          <LeadFiltersFooter
+            isEditingPreset={!!editingPreset}
+            hasActiveFilters={hasActiveFilters}
+            isSaving={isSaving}
+            isUpdating={isUpdating}
+            onReset={handleReset}
+            onApply={handleApply}
+            onUpdatePreset={handleUpdatePreset}
+            onSavePreset={handleSavePreset}
+          />
         </DialogContent>
       </Dialog>
     </>

@@ -28,6 +28,8 @@ Only the channel's admin, acting in the channel's tenant, links a WhatsApp group
 
 Approved phones stay on `carmen_whatsapp_identities` / `carmen_access_policies.private_phones`. Approved groups stay on `allowed_group_ids` (Manus only) and take their client and agency from `carmen_client_group_access`. Carmen introduces herself as the digital marketing manager of that agency. Group verification reuses `wa_pending_activations.group_chat_id`: the code is sent privately and typed in the group. `relationship_note` is tone only and does not grant access.
 
+A group is opted in by a `specific_group` scope or by open-member-groups mode on Carmen's own line (`_shared/carmen/group-scope.ts`); any other group gets no reply, checked before the sender's identity. A WhatsApp LID counts as a phone only through `wa_lid_map`, never by its last nine digits, and a failed lookup is logged and leaves the author unresolved (`_shared/carmen/identity-phone.ts`).
+
 ## Chat tools scope (get_chat_history, search_conversation_history, get_recent_inbound_messages)
 
 - `run-ai-agent` reads `chat_messages` with the service role and scopes it itself (`run-ai-agent/chat-scope/`), from the verified caller and the WhatsApp chat of the turn, never from tool args.
