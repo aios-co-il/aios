@@ -14,6 +14,7 @@ import { asRecord, recordArtifact } from "../record.ts";
 import { loadScenes, paidReplaceRefusal } from "../scene-helpers.ts";
 import { storyboardText } from "../storyboard-text.ts";
 import { forgetKeptDesign } from "./keep-design.ts";
+import { filmConcept } from "./film-concept.ts";
 import { storyboardSource, withSourcePicture } from "./storyboard-source.ts";
 import { type ToolContext } from "../tool-context.ts";
 
@@ -40,7 +41,13 @@ export async function workshopStoryboard(ctx: ToolContext) {
   });
   if ("gate" in brief) return brief.gate;
   await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
-  project.payload = brief.payload;
+  const old = await loadScenes(supabase, tenantId, itemId);
+  // Briefing first (it shapes the concepts), then the concept the user chose, then the scenes.
+  const chosen = await filmConcept(ctx, itemId, brief.payload, old.length > 0);
+  if ("stop" in chosen) {
+    return chosen.stop;
+  }
+  project.payload = chosen.payload;
   const input = (Array.isArray(args.scenes) ? args.scenes : [])
     .map((scene) => asRecord(scene))
     .filter((scene) => String(scene.visual_prompt ?? "").trim())
@@ -62,7 +69,6 @@ export async function workshopStoryboard(ctx: ToolContext) {
   if ("error" in source) {
     return source;
   }
-  const old = await loadScenes(supabase, tenantId, itemId);
   if (old.length > 0 && args.replace !== true)
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
   const keepsPaid = await paidReplaceRefusal(supabase, tenantId, old, deps);
@@ -131,12 +137,14 @@ export async function workshopStoryboard(ctx: ToolContext) {
       total_s: total,
       scenes: rows,
       text: storyboardText(rows, false),
+      ...(chosen.concept ? { concept: chosen.concept } : {}),
     },
   });
   const ownReferences = rows.filter((scene) => scene.reference_url).length;
   return {
     success: true,
     scenes: rows.length,
+    ...(chosen.concept ? { concept: chosen.concept.title } : {}),
     ...(ownReferences > 0 ? { scenes_with_own_reference: ownReferences } : {}),
     total_s: total,
     artifact,

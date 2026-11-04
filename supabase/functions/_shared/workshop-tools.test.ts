@@ -11,7 +11,7 @@ import {
   isWorkshopTool,
   WORKSHOP_TOOLS,
 } from "./workshop-tools.ts";
-import { shouldNudgeSilentTurn } from "./workshop/reply.ts";
+import { fallbackReply, shouldNudgeSilentTurn } from "./workshop/reply.ts";
 import { importWebImage } from "./workshop/tools/add-assets.ts";
 
 type RunArgs = Parameters<typeof runWorkshopTool>;
@@ -504,7 +504,8 @@ const videoProject = (over: Record<string, unknown> = {}) => ({
       format: "9:16",
       project_type: "video",
       video: { voice_id: "d4eLZ8u5dfBCsjp4YPyz" },
-      workshop_brief: { asked: true },
+      // The user already chose the film's concept (film-concept.ts asks before any scene).
+      workshop_brief: { asked: true, answers: { קונספט: "יום אחד" } },
 
       workshop_look: {
         film: "cinematic, calm, female narrator",
@@ -1616,7 +1617,7 @@ Deno.test(
         payload: {
           format: "1:1",
           project_type: "static",
-          workshop_brief: { asked: true },
+          workshop_brief: { asked: true, answers: { קונספט: "ריקוד" } },
           workshop_look: { film: "cinematic", bible: "warm look" },
         },
       }),
@@ -1948,6 +1949,9 @@ Deno.test(
 const bareProject = () =>
   videoProject({ payload: { format: "9:16", project_type: "video" } });
 
+/** Carmen read the request and it settles none of the briefing questions. */
+const READ_NOTHING = { brief_answers: { none: "none" } };
+
 Deno.test(
   "without a defined style Carmen gets questions instead of pictures, storyboard included",
   async () => {
@@ -1970,7 +1974,7 @@ Deno.test(
         db,
         "tenant-1",
         name,
-        { item_id: "item-1", confirmed: true, ...extra },
+        { item_id: "item-1", confirmed: true, ...READ_NOTHING, ...extra },
         async () => {},
         null,
         deps,
@@ -2010,7 +2014,7 @@ Deno.test(
       }),
       "tenant-1",
       "workshop_make_stills",
-      proposal,
+      { ...proposal, ...READ_NOTHING },
       async () => {},
       null,
       { generateImage: async () => ({ image_url: "https://x/1.png" }) },
@@ -2829,6 +2833,57 @@ Deno.test(
       "https://garden.example.com/hero.jpg",
       "https://garden.example.com/broken.jpg",
     ]);
+  },
+);
+
+Deno.test(
+  "when no picture could be copied, the failure is an error the turn reports instead of retrying",
+  async () => {
+    const reason = "peer closed connection without sending TLS close_notify";
+    const addAssets = async (assets: Array<Record<string, unknown>>) =>
+      (await executeWorkshopTool(
+        fakeDb(project),
+        "tenant-1",
+        "workshop_add_assets",
+        { item_id: "item-1", assets },
+        async () => {},
+        null,
+        { importImage: async () => ({ error: reason }) },
+      )) as {
+        success: boolean;
+        added: Array<unknown>;
+        failed: Array<{ reason: string }>;
+        error?: string;
+      };
+    const result = await addAssets([
+      { kind: "image", url: "https://app.example.com/skins/a.webp" },
+      { kind: "image", url: "https://app.example.com/skins/b.webp" },
+    ]);
+    assertStrictEquals(result.success, false);
+    // The user hears a short line; Carmen keeps the raw reasons.
+    assertStrictEquals(result.error, "הורדת התמונות לפרויקט נכשלה");
+    assertEquals(
+      result.failed.map((f) => f.reason),
+      [reason, reason],
+    );
+    assertStrictEquals(
+      shouldNudgeSilentTurn([{ tool: "workshop_add_assets", result }]),
+      false,
+    );
+    assertStrictEquals(
+      fallbackReply([{ tool: "workshop_add_assets", result }], {
+        outOfSteps: true,
+      }),
+      "לא הצלחתי להשלים: הורדת התמונות לפרויקט נכשלה",
+    );
+
+    // Something kept is not an error, even beside a picture that failed.
+    const partly = await addAssets([
+      { kind: "link", url: "https://docs.google.com/d/1", title: "בריף" },
+      { kind: "image", url: "https://app.example.com/skins/a.webp" },
+    ]);
+    assertStrictEquals(partly.success, true);
+    assertStrictEquals(partly.error, undefined);
   },
 );
 
@@ -3773,7 +3828,7 @@ Deno.test(
       first,
       "tenant-1",
       "workshop_storyboard",
-      storyboard,
+      { ...storyboard, ...READ_NOTHING },
       async () => {},
       null,
       { userText: tapped, lastAssistant: carmenAsked },
@@ -3791,7 +3846,7 @@ Deno.test(
       סגיר: "לוגו וקריאה לפעולה",
     });
 
-    // He answers the rest; every topic is answered now, so the storyboard is written.
+    // He answers the rest and has chosen a concept, so the storyboard is written.
     const second = fakeDb({
       ...bareProject(),
       "marketing_work_items:select": {
@@ -3806,7 +3861,7 @@ Deno.test(
       second,
       "tenant-1",
       "workshop_storyboard",
-      storyboard,
+      { ...storyboard, concept: "יום אחד" },
       async () => {},
       null,
       {
@@ -3818,6 +3873,273 @@ Deno.test(
     assertStrictEquals(written.needs_input, undefined);
     assertStrictEquals(written.success, true);
     assert(second.calls.some((c) => c.table === "rpc:save_video_storyboard"));
+  },
+);
+
+interface GateReply {
+  needs_input?: boolean;
+  missing?: Array<string>;
+  say_to_user: string;
+  carmen_next: string;
+  success?: boolean;
+}
+
+interface SavedBrief {
+  payload: {
+    workshop_brief: { answers: Record<string, string>; asked?: boolean };
+    workshop_look?: { references?: Array<string> };
+  };
+}
+
+/** The project as the last call saved it, to load in the next call. */
+const projectSavedBy = (db: ReturnType<typeof fakeDb>) => {
+  const saved = db.calls.filter((c) => c.op === "update").at(-1)
+    ?.value as SavedBrief;
+  return {
+    ...bareProject(),
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "",
+      client_id: "client-1",
+      current_stage_id: "stage-1",
+      payload: saved.payload,
+    },
+  };
+};
+
+const questionLabels = (say: string) =>
+  [...say.matchAll(/\[\[בחירה: ([^|]+?) \|/g)].map((m) => m[1]);
+
+Deno.test(
+  "what the request already says is never asked: Carmen reads it before the first questions",
+  async () => {
+    // David on Staging: he asked for motion graphics with narration and was still asked the look.
+    const deps = {
+      turnId: "turn-1",
+      userText: "בואי נעשה סרטון מושן גרפיקס מגניב עם קריינות על המוצר",
+    };
+    const storyboard = {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a phone on a desk" }],
+    };
+    const first = fakeDb(bareProject());
+    const reading = (await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    // Nothing reaches the user yet: Carmen is asked what the request settles.
+    assertStrictEquals(reading.needs_input, true);
+    assertStrictEquals(reading.say_to_user, "");
+    assertMatch(reading.carmen_next, /brief_answers/);
+    assertMatch(reading.carmen_next, /מראה/);
+
+    const second = fakeDb(projectSavedBy(first));
+    const asked = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_storyboard",
+      { ...storyboard, brief_answers: { מראה: "מושן גרפיקס" } },
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    // "עם קריינות" does not say who narrates, so the voice stays open; the look is never asked.
+    assertEquals(questionLabels(asked.say_to_user), [
+      "דמות",
+      "צבעים",
+      "קצב",
+      "קול",
+      "מוזיקה",
+      "סיום",
+    ]);
+    assertNotMatch(asked.say_to_user, /מושן גרפיקס/);
+  },
+);
+
+Deno.test(
+  "a reference given in the message skips the style questions and the offer to attach one",
+  async () => {
+    const deps = {
+      turnId: "turn-1",
+      userText:
+        "תעשי סרטון כמו המודעה הזו\n\n📎 קבצים מצורפים (1):\n- תמונה: ad.png → https://files.example.com/ad.png",
+    };
+    const storyboard = {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a phone on a desk" }],
+    };
+    const first = fakeDb(bareProject());
+    const reading = (await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertEquals(reading.missing, ["film"]);
+    assertStrictEquals(reading.say_to_user, "");
+
+    // Carmen calls again without brief_answers: the flow does not loop, it asks what is open.
+    const second = fakeDb(projectSavedBy(first));
+    const asked = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertEquals(questionLabels(asked.say_to_user), [
+      "קצב",
+      "קול",
+      "מוזיקה",
+      "סיום",
+    ]);
+    assertNotMatch(asked.say_to_user, /רפרנס/);
+    const saved = second.calls.filter((c) => c.op === "update").at(-1)
+      ?.value as SavedBrief;
+    assertStrictEquals(
+      saved.payload.workshop_brief.answers["רפרנס"],
+      "תמונה שצורפה: ad.png",
+    );
+    assertStrictEquals(saved.payload.workshop_brief.asked, true);
+    // The picture is the look: it is kept with the project's reference pictures.
+    assertEquals(saved.payload.workshop_look?.references, [
+      "https://files.example.com/ad.png",
+    ]);
+  },
+);
+
+Deno.test(
+  "an image attached in the message is a reference picture the stills are made from",
+  async () => {
+    const db = fakeDb({
+      ...videoProject({
+        payload: {
+          format: "9:16",
+          project_type: "video",
+          workshop_look: { film: "קצב: רגוע" },
+          workshop_brief: { asked: true },
+        },
+      }),
+      "marketing_video_scenes:select": [scene("s-1")],
+    });
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      { item_id: "item-1" },
+      async () => {},
+      null,
+      {
+        turnId: "turn-1",
+        userText:
+          "תמשיכי לפי זה\n\n📎 קבצים מצורפים (1):\n- תמונה: ad.png → https://files.example.com/ad.png",
+        generateImage: async () => ({ image_url: "https://x/1.png" }),
+      },
+    )) as Record<string, unknown>;
+    assertStrictEquals(result.needs_input, undefined);
+    const saved = db.calls.find(
+      (c) => c.table === "marketing_work_items" && c.op === "update",
+    )?.value as SavedBrief;
+    assertEquals(saved.payload.workshop_look?.references, [
+      "https://files.example.com/ad.png",
+    ]);
+  },
+);
+
+Deno.test(
+  "a site link in the message is not a look: the style questions stay open",
+  async () => {
+    const reading = (await executeWorkshopTool(
+      fakeDb(bareProject()),
+      "tenant-1",
+      "workshop_storyboard",
+      { item_id: "item-1", scenes: [{ visual_prompt: "a phone on a desk" }] },
+      async () => {},
+      null,
+      { turnId: "turn-1", userText: "סרטון לעסק שלי https://shop.example.com" },
+    )) as GateReply;
+    assertEquals(reading.missing, ["style", "film"]);
+  },
+);
+
+Deno.test(
+  "a reference video asks the user nothing about the style: Carmen writes the bible from it",
+  async () => {
+    const deps = {
+      turnId: "turn-1",
+      userText: "סרטון בסגנון הזה https://cdn.example.com/ref.mp4",
+    };
+    const storyboard = {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a phone on a desk" }],
+    };
+    const first = fakeDb(bareProject());
+    const reading = (await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertStrictEquals(reading.say_to_user, "");
+    assertNotMatch(reading.carmen_next, /מראה \(/);
+
+    // Her reading of the video settles the film; the style is hers to write, not a question.
+    const filmAnswers = {
+      קצב: "אנרגטי ומהיר",
+      קול: "קריינית",
+      מוזיקה: "אלקטרונית קצבית",
+      סיום: "לוגו בלבד",
+    };
+    const second = fakeDb(projectSavedBy(first));
+    const toWrite = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_storyboard",
+      { ...storyboard, brief_answers: filmAnswers },
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertEquals(toWrite.missing, ["style"]);
+    assertStrictEquals(toWrite.say_to_user, "");
+    assertMatch(toWrite.carmen_next, /style_bible/);
+    assertMatch(toWrite.carmen_next, /ref\.mp4/);
+    const saved = second.calls.filter((c) => c.op === "update").at(-1)
+      ?.value as SavedBrief;
+    // A video is not a picture reference: the stills cannot be made from it.
+    assertEquals(saved.payload.workshop_look?.references ?? [], []);
+
+    const third = fakeDb(projectSavedBy(second));
+    const written = (await executeWorkshopTool(
+      third,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        ...storyboard,
+        style_bible: "fast kinetic motion graphics, bold teal and white",
+        style_approved: true,
+        // The film's concept is settled too, so the scenes can be written in this call.
+        brief_answers: { קונספט: "קליפ מהיר לפי הרפרנס" },
+      },
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertStrictEquals(written.needs_input, undefined);
+    assertStrictEquals(written.success, true);
   },
 );
 
