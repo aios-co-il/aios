@@ -16,6 +16,11 @@ import {
 } from "../_shared/report-sync-window.ts";
 import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
+import {
+  detectGoogleAdsError,
+  googleAdsErrorBody,
+  isManagerAccountError,
+} from "./google-ads-errors.ts";
 
 const SOURCE = "sync-google-ads-data";
 
@@ -550,14 +555,6 @@ Deno.serve(async (req) => {
     const startIso = syncWindow.startDate;
     const endIso = syncWindow.endDate;
 
-    const detectGAError = (data: any): any | null => {
-      if (!data) return null;
-      if (data.error) return data.error;
-      if (Array.isArray(data) && data.length > 0 && data[0]?.error)
-        return data[0].error;
-      return null;
-    };
-
     const gaqlMetrics = `
         metrics.impressions,
         metrics.clicks,
@@ -642,7 +639,7 @@ Deno.serve(async (req) => {
       } catch {
         data = null;
       }
-      const err = detectGAError(data);
+      const err = detectGoogleAdsError(data);
       if (err) throw err;
       return Array.isArray(data) ? data : data?.results ? [data] : [];
     };
@@ -824,6 +821,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    /** Records the run as failed and answers with the reason the user can act on. */
+    const googleAdsFailure = async (error: Record<string, unknown>) => {
+      console.error("Google Ads API error:", error);
+      const body = googleAdsErrorBody(error, customerId);
+      await recordFailure?.(`Google Ads API error: ${body.message}`);
+      return new Response(JSON.stringify(body), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    };
+
     // Helper: try a list of candidate MCCs and return the first that works
     const tryMccCandidates = async (
       candidates: string[],
@@ -843,19 +851,25 @@ Deno.serve(async (req) => {
           },
         );
         const retryData = await retryResponse.json().catch(() => null);
-        if (retryData && !detectGAError(retryData)) {
+        if (retryData && !detectGoogleAdsError(retryData)) {
           console.log(`[sync-google-ads] Found working MCC: ${mcc}`);
           return { data: retryData, mcc };
         }
         console.log(
           `[sync-google-ads] MCC ${mcc} failed:`,
-          JSON.stringify(detectGAError(retryData)).slice(0, 200),
+          JSON.stringify(detectGoogleAdsError(retryData)).slice(0, 200),
         );
       }
       return null;
     };
 
-    let initialError = detectGAError(searchData);
+    let initialError = detectGoogleAdsError(searchData);
+
+    // A manager account never returns metrics, so skip MCC discovery, which
+    // cannot change the outcome, and tell the user which account to pick.
+    if (initialError && isManagerAccountError(initialError)) {
+      return await googleAdsFailure(initialError);
+    }
 
     // If failed and no manager_id was set, try to discover the MCC
     if (initialError && !settings.manager_id) {
@@ -932,22 +946,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    const finalError = detectGAError(searchData);
+    const finalError = detectGoogleAdsError(searchData);
     if (finalError) {
-      console.error("Google Ads API error:", finalError);
-      await recordFailure?.(
-        `Google Ads API error: ${finalError.message || JSON.stringify(finalError)}`,
-      );
-      return new Response(
-        JSON.stringify({
-          error: "Google Ads API error",
-          details: finalError.message || JSON.stringify(finalError),
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return await googleAdsFailure(finalError);
     }
 
     // Process results — campaign + ad group + ad levels (like Ads Manager tabs)

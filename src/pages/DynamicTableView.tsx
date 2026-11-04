@@ -103,6 +103,14 @@ import {
 } from "@/lib/currency";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { LinkTableToClientDialog } from "@/components/dynamic-tables/LinkTableToClientDialog";
+import {
+  type GoogleAdsAccount,
+  MANAGER_ACCOUNT_HINT,
+  MANAGER_ACCOUNT_OPTION_NOTE,
+  MANAGER_ACCOUNT_REFUSAL,
+  managerIdSetting,
+} from "@/components/dynamic-tables/googleAdsAccounts";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
 import { FacebookTrafficTable } from "@/components/dynamic-tables/FacebookTrafficTable";
@@ -1190,7 +1198,11 @@ export default function DynamicTableView({
         method: "POST",
         body: { table_id: table.id },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw new Error(
+          await edgeFunctionErrorMessage(response.error, "הסנכרון נכשל"),
+        );
+      }
       return response.data;
     },
     onSuccess: (data) => {
@@ -1206,7 +1218,9 @@ export default function DynamicTableView({
         syncMakeGoogleAdsMutation.mutate();
         return;
       }
-      toast.error("שגיאה בסנכרון מ-Google Ads: " + error.message);
+      toast.error("שגיאה בסנכרון מ-Google Ads: " + error.message, {
+        duration: 12000,
+      });
     },
   });
 
@@ -1537,7 +1551,7 @@ export default function DynamicTableView({
 
   // Fetch Google Ads accounts for settings dialog
   const { data: googleAdsAccounts, isLoading: googleAccountsLoading } =
-    useQuery({
+    useQuery<GoogleAdsAccount[]>({
       queryKey: ["google-ads-accounts"],
       queryFn: async () => {
         const {
@@ -2853,17 +2867,24 @@ export default function DynamicTableView({
                           {(Array.isArray(googleAdsAccounts)
                             ? googleAdsAccounts
                             : []
-                          ).map((account: any) => (
+                          ).map((account) => (
                             <SelectItem
                               key={account.id}
-                              value={String(account.id)}
+                              value={account.id}
+                              disabled={account.manager}
                             >
                               {account.name} ({account.id})
+                              {account.manager
+                                ? MANAGER_ACCOUNT_OPTION_NOTE
+                                : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {MANAGER_ACCOUNT_HINT}
+                    </p>
                   </div>
                   <div>
                     <Label>טווח סנכרון</Label>
@@ -2922,6 +2943,22 @@ export default function DynamicTableView({
                       if (!table?.id || !selectedGoogleAccount) return;
                       const cleanId = selectedGoogleAccount.replace(/\D/g, "");
                       const currency = normalizeCurrencyCode(selectedCurrency);
+                      const chosenAccount = googleAdsAccounts?.find(
+                        (account) => account.id === cleanId,
+                      );
+                      if (chosenAccount?.manager) {
+                        toast.error(MANAGER_ACCOUNT_REFUSAL);
+                        return;
+                      }
+                      const accountSettings = {
+                        customer_id: cleanId,
+                        date_range: selectedSyncDateRange,
+                        currency,
+                        ...managerIdSetting(
+                          chosenAccount,
+                          table.integration_settings?.customer_id,
+                        ),
+                      };
                       try {
                         // Merge-only patch so sync metadata (last_sync_at, manager_id, diag)
                         // is not wiped by a stale full settings blob from the UI.
@@ -2930,11 +2967,7 @@ export default function DynamicTableView({
                             method: "PATCH",
                             body: {
                               table_id: table.id,
-                              integration_settings: {
-                                customer_id: cleanId,
-                                date_range: selectedSyncDateRange,
-                                currency,
-                              },
+                              integration_settings: accountSettings,
                             },
                           });
                         if (tableError) throw tableError;
@@ -2968,9 +3001,7 @@ export default function DynamicTableView({
                               ...old,
                               integration_settings: {
                                 ...(old.integration_settings || {}),
-                                customer_id: cleanId,
-                                date_range: selectedSyncDateRange,
-                                currency,
+                                ...accountSettings,
                               },
                             };
                           },
