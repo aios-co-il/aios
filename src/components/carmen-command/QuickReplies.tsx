@@ -4,11 +4,8 @@ import {
   quickReplyAnswer,
   type QuickReplyGroup,
 } from "@/lib/quickReplies";
-import {
-  QUICK_REPLY_OPTION,
-  QUICK_REPLY_PICKED,
-  QuickReplyOther,
-} from "./QuickReplyOther";
+import { QuickReplyOther } from "./QuickReplyOther";
+import { QUICK_REPLY_OPTION, QUICK_REPLY_PICKED } from "./quickReplyStyles";
 
 /**
  * Tap-to-answer buttons under Carmen's question. One question answers on the tap; several

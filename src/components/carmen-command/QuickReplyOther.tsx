@@ -1,13 +1,7 @@
 import { useId, useState, type KeyboardEvent } from "react";
-import {
-  MAX_FREE_ANSWER_CHARS,
-  OTHER_OPTION,
-  freeAnswer,
-} from "@/lib/quickReplies";
-
-export const QUICK_REPLY_OPTION =
-  "rounded-full border border-teal-300/40 bg-teal-300/10 px-3 py-1 text-xs font-medium text-teal-50 transition hover:bg-teal-300/25 disabled:cursor-default disabled:opacity-60";
-export const QUICK_REPLY_PICKED = "!border-teal-200 !bg-teal-300/40";
+import { MAX_ANSWER } from "@functions/_shared/workshop/brief-answers.ts";
+import { OTHER_OPTION, freeAnswer } from "@/lib/quickReplies";
+import { QUICK_REPLY_OPTION, QUICK_REPLY_PICKED } from "./quickReplyStyles";
 
 /**
  * The "אחר…" button of one group and, once tapped, a one-line field for an answer in the user's
@@ -81,7 +75,7 @@ export function QuickReplyOther({
             dir="rtl"
             autoFocus
             value={draft}
-            maxLength={MAX_FREE_ANSWER_CHARS}
+            maxLength={MAX_ANSWER}
             aria-label={`תשובה משלך: ${label}`}
             placeholder="כתבי תשובה משלך"
             className="min-w-0 flex-1 rounded-full border border-teal-300/40 bg-black/20 px-3 py-1 text-xs text-teal-50 placeholder:text-teal-50/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-teal-200"

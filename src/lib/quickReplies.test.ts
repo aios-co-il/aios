@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { answersFromMessage } from "@functions/_shared/workshop/brief-answers.ts";
 import {
-  MAX_FREE_ANSWER_CHARS,
+  MAX_ANSWER,
+  answersFromMessage,
+} from "@functions/_shared/workshop/brief-answers.ts";
+import {
   answerableIndex,
   freeAnswer,
   hidePartialQuickReplies,
@@ -86,7 +88,7 @@ describe("an answer in the user's own words", () => {
   test("it is one trimmed line, capped at the server's answer length", () => {
     expect(freeAnswer("  קצב\n  איטי  ")).toBe("קצב איטי");
     expect(freeAnswer("   ")).toBe("");
-    expect(freeAnswer("א".repeat(300)).length).toBe(MAX_FREE_ANSWER_CHARS);
+    expect(freeAnswer("א".repeat(300)).length).toBe(MAX_ANSWER);
   });
 
   test("alone it still names its question, so the server saves it to the brief", () => {
