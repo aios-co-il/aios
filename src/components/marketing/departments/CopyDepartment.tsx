@@ -2010,7 +2010,7 @@ function NewProjectDialog({
   open: boolean;
   onClose: () => void;
   tenantId: string;
-  defaultClientId?: string;
+  defaultClientId?: string | null;
   onCreated: (id: string) => void;
 }) {
   const [title, setTitle] = useState("");

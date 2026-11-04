@@ -288,7 +288,11 @@ export function AddAutomationForm() {
       // Fetch owner names for all integrations
       if (allIntegrations.length > 0) {
         const userIds = [
-          ...new Set(allIntegrations.map((i) => i.user_id).filter(Boolean)),
+          ...new Set(
+            allIntegrations
+              .map((i) => i.user_id)
+              .filter((id): id is string => Boolean(id)),
+          ),
         ];
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
@@ -301,7 +305,7 @@ export function AddAutomationForm() {
           );
           allIntegrations = allIntegrations.map((i) => ({
             ...i,
-            owner_name: profileMap.get(i.user_id) || null,
+            owner_name: i.user_id ? profileMap.get(i.user_id) || null : null,
           }));
         }
       }
