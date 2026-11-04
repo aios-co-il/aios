@@ -5,6 +5,7 @@ export {
   phonesMatch,
   isPhoneInAllowedList,
   looksLikeRealPhone,
+  MAX_PHONE_DIGITS,
   isUsableLidKey,
   pickInboundLidDigits,
   pickPayloadRealPhone,
