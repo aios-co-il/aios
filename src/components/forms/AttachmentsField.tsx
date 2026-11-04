@@ -133,6 +133,12 @@ export function AttachmentsField({
   const handleDelete = async (index: number) => {
     const attachment = attachments[index];
 
+    if (!attachment.path) {
+      console.error("Delete attachment rejected: missing storage path");
+      toast.error("אין נתיב קובץ למחיקה");
+      return;
+    }
+
     try {
       const { error } = await supabase.storage
         .from("entity-attachments")
