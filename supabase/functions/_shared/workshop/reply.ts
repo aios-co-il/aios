@@ -46,7 +46,44 @@ const READ_ONLY = new Set(["workshop_get_state", "workshop_check_connections"]);
 const textOf = (value: unknown) =>
   typeof value === "string" && value ? value : null;
 
-export function fallbackReply(log: ToolLogEntry[]): string | null {
+/**
+ * A workshop turn's tool rounds. A film step can look at the project, add references, write or
+ * fix the storyboard and make pictures in one turn; on Staging 6 rounds ran out while Carmen was
+ * still recovering from a failed download, so David set the floor at 15.
+ */
+export const WORKSHOP_MIN_TOOL_ROUNDS = 15;
+
+/** The agent's own round limit, raised to the workshop floor for a workshop turn. */
+export function workshopToolRounds(agentRounds: number | null | undefined) {
+  return Math.max(agentRounds || 25, WORKSHOP_MIN_TOOL_ROUNDS);
+}
+
+/**
+ * The round limit stopped the turn mid-work: every round ran and the last one ended on tool
+ * results the model never saw back.
+ */
+export function stoppedAtStepLimit(
+  roundsRun: number,
+  maxRounds: number,
+  lastRole: string | undefined,
+): boolean {
+  return roundsRun >= maxRounds && lastRole === "tool";
+}
+
+/** Why the turn ended without text: `outOfSteps` when the round limit stopped it mid-work. */
+export interface FallbackContext {
+  outOfSteps?: boolean;
+}
+
+/**
+ * The user's reply when the model said nothing: the outcome the last workshop tool reported,
+ * else a plain note that says whether the step limit stopped the work. The server cannot tell
+ * the user's gender, so the note addresses them in neutral Hebrew ("אפשר לכתוב").
+ */
+export function fallbackReply(
+  log: Array<ToolLogEntry>,
+  context: FallbackContext = {},
+): string | null {
   const workshop = log.filter((entry) => entry.tool.startsWith("workshop_"));
   if (workshop.length === 0) return null;
   // The latest tool that did something; a status check after it says nothing new.
@@ -64,5 +101,7 @@ export function fallbackReply(log: ToolLogEntry[]): string | null {
     const text = textOf(result.user_message) ?? textOf(result.message);
     if (text) return text;
   }
-  return "לא הצלחתי להתקדם בבקשה הזו. כתבי לי 'תמשיכי' ואני אמשיך משם.";
+  return context.outOfSteps
+    ? "עצרתי באמצע: הגעתי למספר הצעדים המרבי לתור אחד. אפשר לכתוב לי 'תמשיכי' ואמשיך מאותה נקודה."
+    : "לא הצלחתי להתקדם בבקשה הזו. אפשר לכתוב לי 'תמשיכי' ואמשיך משם.";
 }
