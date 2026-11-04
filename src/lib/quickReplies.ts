@@ -4,7 +4,8 @@
  *   [[בחירה: סגנון | ריאליסטי | קולנועי | איור]]
  *
  * One group per question. The markers never show as text; the chat turns each group into a row
- * of buttons, and a tap is sent as the user's answer.
+ * of buttons, and a tap is sent as the user's answer. Every group also offers "אחר…", a short
+ * answer in the user's own words, unless Carmen already wrote an "other" option herself.
  */
 
 export interface QuickReplyGroup {
@@ -16,6 +17,10 @@ const GROUP = /\[\[\s*(?:בחירה|choice)\s*:([^\]]*)\]\]/gi;
 const PARTIAL_TAIL = /\[\[[^\]]*$/;
 const MAX_OPTIONS = 6;
 const MAX_OPTION_CHARS = 60;
+/** The server keeps an answer up to this length (MAX_ANSWER in workshop/brief-answers.ts). */
+export const MAX_FREE_ANSWER_CHARS = 200;
+export const OTHER_OPTION = "אחר…";
+const OTHER = /^\s*(?:אחר|אחרת|other)(?:[\s.…:()-]|$)/i;
 
 export function parseQuickReplies(content: string): {
   text: string;
@@ -39,6 +44,17 @@ export function parseQuickReplies(content: string): {
 /** While a reply is still arriving, a half-written marker must not flash on screen. */
 export const hidePartialQuickReplies = (content: string) =>
   parseQuickReplies(content).text.replace(PARTIAL_TAIL, "").trimEnd();
+
+/** Whether the group gets an "אחר…" button: not when one of Carmen's options already is one. */
+export const offersOther = (group: QuickReplyGroup) =>
+  !group.options.some((option) => OTHER.test(option));
+
+/**
+ * The user's own answer, ready to stand in for a tap: one line, so it cannot break the
+ * "label: answer" lines several groups send, and no longer than the server keeps.
+ */
+export const freeAnswer = (text: string) =>
+  text.replace(/\s+/g, " ").trim().slice(0, MAX_FREE_ANSWER_CHARS).trim();
 
 /** What one tap, or a set of taps, says on the user's behalf. */
 export function quickReplyAnswer(

@@ -1,12 +1,19 @@
 import { useState } from "react";
-import { quickReplyAnswer, type QuickReplyGroup } from "@/lib/quickReplies";
-
-const OPTION =
-  "rounded-full border border-teal-300/40 bg-teal-300/10 px-3 py-1 text-xs font-medium text-teal-50 transition hover:bg-teal-300/25 disabled:cursor-default disabled:opacity-60";
+import {
+  offersOther,
+  quickReplyAnswer,
+  type QuickReplyGroup,
+} from "@/lib/quickReplies";
+import {
+  QUICK_REPLY_OPTION,
+  QUICK_REPLY_PICKED,
+  QuickReplyOther,
+} from "./QuickReplyOther";
 
 /**
  * Tap-to-answer buttons under Carmen's question. One question answers on the tap; several
- * collect a choice each and send together.
+ * collect a choice each and send together. "אחר…" takes the user's own words as the group's
+ * choice.
  */
 export function QuickReplies({
   groups,
@@ -18,6 +25,7 @@ export function QuickReplies({
 }) {
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [sent, setSent] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const single = groups.length === 1;
   const disabled = !onAnswer || sent;
 
@@ -26,6 +34,14 @@ export function QuickReplies({
     if (!answer || !onAnswer) return;
     setSent(true);
     onAnswer(answer);
+  };
+  const choose = (label: string, answer: string) => {
+    const next = { ...picked, [label]: answer };
+    setPicked(next);
+    setEditing(null);
+    if (single) {
+      send(next);
+    }
   };
 
   return (
@@ -44,20 +60,30 @@ export function QuickReplies({
                 type="button"
                 disabled={disabled}
                 aria-pressed={picked[group.label] === option}
-                className={`${OPTION} ${
-                  picked[group.label] === option
-                    ? "!border-teal-200 !bg-teal-300/40"
-                    : ""
+                className={`${QUICK_REPLY_OPTION} ${
+                  picked[group.label] === option ? QUICK_REPLY_PICKED : ""
                 }`}
-                onClick={() => {
-                  const next = { ...picked, [group.label]: option };
-                  setPicked(next);
-                  if (single) send(next);
-                }}
+                onClick={() => choose(group.label, option)}
               >
                 {option}
               </button>
             ))}
+            {offersOther(group) ? (
+              <QuickReplyOther
+                label={group.label}
+                answer={
+                  group.options.includes(picked[group.label])
+                    ? undefined
+                    : picked[group.label]
+                }
+                open={editing === group.label}
+                single={single}
+                disabled={disabled}
+                onOpen={() => setEditing(group.label)}
+                onCancel={() => setEditing(null)}
+                onSubmit={(answer) => choose(group.label, answer)}
+              />
+            ) : null}
           </div>
         </div>
       ))}
@@ -65,7 +91,7 @@ export function QuickReplies({
         <button
           type="button"
           disabled={disabled || Object.keys(picked).length === 0}
-          className={`${OPTION} !bg-teal-300/30`}
+          className={`${QUICK_REPLY_OPTION} !bg-teal-300/30`}
           onClick={() => send(picked)}
         >
           שלחי תשובות
