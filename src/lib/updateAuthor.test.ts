@@ -44,6 +44,48 @@ describe("fetchTenantMemberNames", () => {
     expect(names.size).toBe(0);
   });
 
+  test("adds members who left, with their mark", async () => {
+    const rpc = vi.fn((fn: string) =>
+      Promise.resolve(
+        fn === "tenant_departed_members"
+          ? {
+              data: [
+                {
+                  tenant_id: "tenant-1",
+                  user_id: "u3",
+                  full_name: "דנה",
+                  status: "deleted",
+                },
+                {
+                  tenant_id: "tenant-1",
+                  user_id: "u4",
+                  full_name: "Noa",
+                  status: "inactive",
+                },
+                {
+                  tenant_id: "tenant-1",
+                  user_id: "u5",
+                  full_name: null,
+                  status: "deleted",
+                },
+              ],
+              error: null,
+            }
+          : { data: [{ user_id: "u1", full_name: "Anna Relin" }], error: null },
+      ),
+    );
+
+    const names = await fetchTenantMemberNames({ rpc } as never, "tenant-1");
+
+    expect(rpc).toHaveBeenCalledWith("tenant_departed_members", {
+      p_tenant_ids: ["tenant-1"],
+    });
+    expect(names.get("u1")).toBe("Anna Relin");
+    expect(names.get("u3")).toBe("דנה (נמחק)");
+    expect(names.get("u4")).toBe("Noa (לא פעיל)");
+    expect(names.get("u5")).toBe("משתמש שנמחק");
+  });
+
   test("a refused call is an error", async () => {
     const refusal = { message: "only members of this organization" };
     const { db } = fakeDb({ data: null, error: refusal });

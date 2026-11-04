@@ -4,6 +4,7 @@
 // automatically.
 
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { formatMemberName } from "../_shared/user-admin/member-name.ts";
 import {
   CLIENT_CARD_SOURCES,
   clientCardSourceCanCountAsContact,
@@ -60,7 +61,7 @@ export async function listClientCardEntries(
   const { data, error } = await supabase
     .from("client_updates")
     .select(
-      "id, content, created_at, update_type, source, counts_as_contact, user_id, profiles:user_id (full_name, email)",
+      "id, content, created_at, update_type, source, counts_as_contact, user_id, profiles:user_id (full_name, email, deleted_at)",
     )
     .eq("client_id", input.clientId)
     .order("created_at", { ascending: false })
@@ -123,6 +124,7 @@ async function callerCanReadClientCard(
 interface AuthorProfile {
   full_name?: string | null;
   email?: string | null;
+  deleted_at?: string | null;
 }
 
 interface ClientCardRow {
@@ -138,7 +140,14 @@ interface ClientCardRow {
 /** Shape one client_updates row, with its author's profile, for Carmen. */
 export function mapClientCardRow(row: ClientCardRow): ClientCardListRow {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-  const author = profile?.full_name?.trim() || profile?.email?.trim() || null;
+  // A deleted author keeps their name, marked; their anonymized email never shows.
+  const author = profile
+    ? formatMemberName(
+        profile,
+        profile.deleted_at ? "deleted" : undefined,
+        "",
+      ) || null
+    : null;
   const source = row.source || "human";
   return {
     id: row.id,

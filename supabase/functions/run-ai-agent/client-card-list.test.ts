@@ -99,6 +99,25 @@ Deno.test("mapClientCardRow", async (t) => {
     assertStrictEquals(legacy.update_type, null);
     assertStrictEquals(legacy.counts_as_contact, null);
   });
+
+  await t.step(
+    "marks a deleted author and never shows their anonymized email",
+    () => {
+      const row = (full_name: string) =>
+        mapClientCardRow({
+          id: "u3",
+          content: "שיחה",
+          created_at: "2026-11-01T08:00:00Z",
+          profiles: {
+            full_name,
+            email: "deleted-1@deleted.invalid",
+            deleted_at: "2026-11-02T08:00:00Z",
+          },
+        });
+      assertStrictEquals(row("דנה").author, "דנה (נמחק)");
+      assertStrictEquals(row("").author, "משתמש שנמחק");
+    },
+  );
 });
 
 Deno.test("listClientCardEntries", async (t) => {
