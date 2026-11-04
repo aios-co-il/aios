@@ -18,14 +18,18 @@ const optionalNumber = z.number().finite().optional();
 
 const optionalFlag = z.boolean().optional();
 
+export const imageQuality = z.enum(["low", "medium", "high"]);
+
+export const imageSize = z.enum(["1024x1024", "1024x1536", "1536x1024"]);
+
 export const imageCost = storedObject({
   model: z.enum([
     "gpt-image-1",
     "gpt-image-2.5-sunburst",
     "gemini-3-pro-image",
   ]),
-  quality: z.enum(["low", "medium", "high"]),
-  size: z.enum(["1024x1024", "1024x1536", "1536x1024"]),
+  quality: imageQuality,
+  size: imageSize,
   textTokens: z.number().finite(),
   imageInTokens: z.number().finite(),
   outputTokens: z.number().finite(),

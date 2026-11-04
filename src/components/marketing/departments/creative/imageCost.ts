@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { imageCost } from "./creativeAssetPayload";
+import { imageCost, imageQuality, imageSize } from "./creativeAssetPayload";
 
 export type ImageGenerationCost = z.output<typeof imageCost>;
 
@@ -58,26 +58,14 @@ export const estimateTextTokens = (text: string): number => {
 };
 
 export const isImageQuality = (value: unknown): value is ImageQuality =>
-  value === "low" || value === "medium" || value === "high";
+  imageQuality.safeParse(value).success;
 
 export const isImageSize = (value: unknown): value is ImageSize =>
-  value === "1024x1024" || value === "1024x1536" || value === "1536x1024";
+  imageSize.safeParse(value).success;
 
 export const isImageGenerationCost = (
   value: unknown,
-): value is ImageGenerationCost => {
-  if (!value || typeof value !== "object") return false;
-  const cost = value as ImageGenerationCost;
-  return (
-    (cost.model === "gpt-image-1" ||
-      cost.model === "gpt-image-2.5-sunburst" ||
-      cost.model === "gemini-3-pro-image") &&
-    isImageQuality(cost.quality) &&
-    isImageSize(cost.size) &&
-    typeof cost.totalTokens === "number" &&
-    typeof cost.costUsd === "number"
-  );
-};
+): value is ImageGenerationCost => imageCost.safeParse(value).success;
 
 const makeCost = (
   quality: ImageQuality,
@@ -204,7 +192,7 @@ export const costSourceLabel = (totals: CostTotals) => {
 };
 
 export interface StoredImageCost {
-  generationCost?: ImageGenerationCost | null;
+  generationCost?: unknown;
   imageUrl?: string;
   source?: string;
   format?: string;
