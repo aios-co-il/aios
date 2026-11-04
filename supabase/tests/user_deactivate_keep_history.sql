@@ -120,10 +120,10 @@ BEGIN
   VALUES (task_w, writer, 'task note by writer') RETURNING id INTO tu_writer;
   INSERT INTO public.task_updates (task_id, user_id, content)
   VALUES (task_h, hard, 'task note by hard') RETURNING id INTO tu_hard;
-  INSERT INTO auth.sessions (user_id) VALUES (solo) RETURNING id INTO solo_session;
+  INSERT INTO auth.sessions (id, user_id) VALUES (gen_random_uuid(), solo) RETURNING id INTO solo_session;
   INSERT INTO auth.refresh_tokens (token, user_id, session_id) VALUES ('qa', solo::text, solo_session);
-  INSERT INTO auth.sessions (user_id) VALUES (mover) RETURNING id INTO mover_session;
-  INSERT INTO auth.sessions (user_id) VALUES (writer);
+  INSERT INTO auth.sessions (id, user_id) VALUES (gen_random_uuid(), mover) RETURNING id INTO mover_session;
+  INSERT INTO auth.sessions (id, user_id) VALUES (gen_random_uuid(), writer);
 
   -- 1. Delete keeps the profile, the name and the history.
   SET LOCAL ROLE service_role;
