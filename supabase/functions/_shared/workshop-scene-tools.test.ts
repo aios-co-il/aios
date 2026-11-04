@@ -903,7 +903,7 @@ Deno.test(
       )) as Row;
       assertStrictEquals(produced.success, true, JSON.stringify(produced));
       const rpc = db.rpcs.find((call) => call.name === "produce_video")!;
-      assertStrictEquals(rpc.args.p_aspect, format);
+      assertStrictEquals(rpc.args.p_options.aspect, format);
     }
   },
 );

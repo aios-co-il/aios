@@ -803,10 +803,10 @@ Deno.test(
     );
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as Record<string, any>;
-    assertStrictEquals(rpc.p_provider, "elevenlabs");
-    assertStrictEquals(rpc.p_aspect, "9:16");
-    assertStrictEquals(rpc.p_stage_id, "stage-1");
-    assertStrictEquals(rpc.p_with_voice, true);
+    assertStrictEquals(rpc.p_options.provider, "elevenlabs");
+    assertStrictEquals(rpc.p_options.aspect, "9:16");
+    assertStrictEquals(rpc.p_options.stage_id, "stage-1");
+    assertStrictEquals(rpc.p_options.with_voice, true);
     const film = db.calls.find((c) => c.table === "workshop_artifacts")
       ?.value as Record<string, any>;
     assertStrictEquals(film.kind, "film");
@@ -859,17 +859,20 @@ Deno.test(
     );
     // The whole sentence reaches the end card, which wraps it into lines.
     assertStrictEquals(trailer.payload.cta_text, waitlist);
-    assertMatch(trailer.rpc.p_music_prompt, /^Restrained cinematic trailer/);
+    assertMatch(
+      trailer.rpc.p_options.music_prompt,
+      /^Restrained cinematic trailer/,
+    );
     assertStrictEquals(trailer.saved.sound_design, true);
     assertStrictEquals(trailer.result.sound_design, true);
     // The effects are made in this production's render, so its quote includes them.
-    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.09);
+    assertStrictEquals(trailer.rpc.p_options.estimate.sound_effects.usd, 0.09);
 
     const calm = await run("קצב: רגוע ורגשי. מוזיקה: אקוסטית חמה.");
-    assertMatch(calm.rpc.p_music_prompt, /warm acoustic/);
+    assertMatch(calm.rpc.p_options.music_prompt, /warm acoustic/);
     assertStrictEquals(calm.saved.sound_design, false);
     assertStrictEquals(calm.result.sound_design, undefined);
-    assertStrictEquals(calm.rpc.p_estimate.sound_effects.usd, 0);
+    assertStrictEquals(calm.rpc.p_options.estimate.sound_effects.usd, 0);
 
     const asked = await run("קצב: רגוע", { sound_design: true });
     assertStrictEquals(asked.saved.sound_design, true);
@@ -894,9 +897,9 @@ Deno.test(
       { defaultEngine: async () => "openrouter" as const },
     )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
-      ?.value as { p_provider: string };
+      ?.value as { p_options: { provider: string } };
     // Not a video model, which redraws the picture and garbles its text.
-    assertStrictEquals(rpc.p_provider, "mock");
+    assertStrictEquals(rpc.p_options.provider, "mock");
     // Asked for in this call: nothing to point out.
     assertStrictEquals(result.kept_design_note, undefined);
     const saved = db.calls
@@ -1106,8 +1109,8 @@ Deno.test(
       { defaultEngine: async () => "openrouter" as const },
     )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
-      ?.value as { p_provider: string };
-    assertStrictEquals(rpc.p_provider, "mock");
+      ?.value as { p_options: { provider: string } };
+    assertStrictEquals(rpc.p_options.provider, "mock");
     // Staging, 2 Nov: Carmen did not know the film still kept its design when the user asked for
     // real animation, so she is told how to undo it.
     assertMatch(String(result.kept_design_note), /keep_design=false/);
@@ -3538,7 +3541,7 @@ Deno.test(
           string,
           any
         >
-      ).p_estimate;
+      ).p_options.estimate;
     };
     const again = await produce();
     // Scene 2's 3 s become a 4 s ElevenLabs clip at $0.15 a second.
