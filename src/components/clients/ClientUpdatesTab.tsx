@@ -41,7 +41,8 @@ import { EntityTaskCard } from "@/components/tasks/EntityTaskCard";
 import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useMemberName } from "@/hooks/useMemberName";
+import { resolveUpdateAuthorName } from "@/lib/updateAuthor";
+import { useTenantMemberNames } from "@/hooks/useTenantMemberNames";
 import { resolveClientUpdateType } from "@/lib/clientUpdateType";
 import {
   canModifyClientUpdate,
@@ -120,8 +121,8 @@ export function ClientUpdatesTab({
   const [seoUpdateOpen, setSeoUpdateOpen] = useState(false);
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
+  const { data: memberNames } = useTenantMemberNames(tenantId);
   const { user } = useCurrentUser();
-  const memberName = useMemberName();
   // With canModifyClientUpdate, mirrors user_can_manage_client_card_entries
   // (row tenant) to hide buttons RLS would refuse; the role hook keeps
   // "view as" showing the viewed user's rights.
@@ -245,12 +246,7 @@ export function ClientUpdatesTab({
     queryFn: async () => {
       let query = supabase
         .from("client_updates")
-        .select(
-          `
-          *,
-          profiles:user_id (full_name, email)
-        `,
-        )
+        .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
 
@@ -785,9 +781,9 @@ export function ClientUpdatesTab({
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                                   <User className="h-3 w-3 shrink-0" />
                                   <span>
-                                    {memberName(
+                                    {resolveUpdateAuthorName(
+                                      memberNames,
                                       update.user_id,
-                                      update.profiles,
                                     )}
                                   </span>
                                   <span>•</span>

@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { DeleteMemberResult } from "@functions/_shared/user-admin/member-results.ts";
-import { MEMBER_STATUSES_KEY } from "@/hooks/useMemberName";
+import { MEMBER_LIST_KEYS } from "@/components/UsersPage/useMemberActivation";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionInvoke";
 import { cn } from "@/lib/utils";
 import {
@@ -956,7 +956,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       toast.success(
         result.removedFromTenantOnly ? "המשתמש הוסר מהארגון" : "המשתמש נמחק",
       );
-      void queryClient.invalidateQueries({ queryKey: [MEMBER_STATUSES_KEY] });
+      for (const queryKey of MEMBER_LIST_KEYS) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
       setDeleteConfirmUser(null);
       queryClient.invalidateQueries({ queryKey: membersQueryKey });
     } catch (err: any) {

@@ -1,4 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import {
   formatMemberName,
   type MemberStatus,
@@ -16,12 +17,13 @@ export type DepartedMember = {
 
 /** Inactive and deleted members of the given organizations that the caller belongs to (tenant_departed_members). */
 export async function fetchDepartedMembers(
+  db: Pick<SupabaseClient<Database>, "rpc">,
   tenantIds: ReadonlyArray<string>,
 ): Promise<Array<DepartedMember>> {
   if (tenantIds.length === 0) {
     return [];
   }
-  const { data, error } = await supabase.rpc("tenant_departed_members", {
+  const { data, error } = await db.rpc("tenant_departed_members", {
     p_tenant_ids: [...tenantIds],
   });
   if (error) {

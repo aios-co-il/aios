@@ -32,7 +32,8 @@ import { EntityTaskCard } from "@/components/tasks/EntityTaskCard";
 import { withTaskCreatorNames } from "@/lib/taskCreators";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useMemberName } from "@/hooks/useMemberName";
+import { resolveUpdateAuthorName } from "@/lib/updateAuthor";
+import { useTenantMemberNames } from "@/hooks/useTenantMemberNames";
 import { ensureLeadHomeAgency } from "@/lib/resolveTenantAgencyDb";
 
 interface LeadUpdatesTabProps {
@@ -48,8 +49,8 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
   const [newUpdate, setNewUpdate] = useState("");
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
+  const { data: memberNames } = useTenantMemberNames(tenantId);
   const { user } = useCurrentUser();
-  const memberName = useMemberName();
 
   // Fetch tasks for this lead
   const { data: tasks, isLoading: tasksLoading } = useQuery({
@@ -93,12 +94,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
     queryFn: async () => {
       let query = supabase
         .from("lead_updates")
-        .select(
-          `
-          *,
-          profiles:user_id (full_name, email)
-        `,
-        )
+        .select("*")
         .eq("lead_id", leadId)
         .order("created_at", { ascending: false });
 
@@ -379,7 +375,10 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
                           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                             <User className="h-3 w-3 shrink-0" />
                             <span>
-                              {memberName(update.user_id, update.profiles)}
+                              {resolveUpdateAuthorName(
+                                memberNames,
+                                update.user_id,
+                              )}
                             </span>
                             <span>•</span>
                             <Calendar className="h-3 w-3 shrink-0" />

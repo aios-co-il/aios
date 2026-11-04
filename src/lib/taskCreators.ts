@@ -30,7 +30,7 @@ export async function withTaskCreatorNames<
   );
   const [{ data: creators }, departed] = await Promise.all([
     supabase.from("profiles").select("id, full_name").in("id", creatorIds),
-    fetchDepartedMembers(tenantIds).catch(
+    fetchDepartedMembers(supabase, tenantIds).catch(
       (error: unknown): Array<DepartedMember> => {
         console.error("Task creators: departed members lookup failed", error);
         return [];

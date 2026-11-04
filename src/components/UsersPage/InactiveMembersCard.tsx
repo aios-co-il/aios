@@ -2,7 +2,7 @@ import { UserCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useDepartedMembers } from "@/hooks/useMemberName";
+import { useDepartedMembers } from "@/hooks/useDepartedMembers";
 import { formatMemberName } from "@/lib/memberName";
 import { useMemberActivation } from "./useMemberActivation";
 
