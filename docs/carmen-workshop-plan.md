@@ -213,6 +213,7 @@ RLS לפי `tenant_id`. Realtime מופעל על הטבלה. אין מיגרצי
 4. **מחירי קליפים במקום אחד (כלל 7):** היום הם ב-`videoEngines.ts`, ב-`video-cost.ts` וב-render-worker.
 5. **מיגרציות:** מאחדים את הגופים החוזרים של `produce_video`, `queue_video_sound`, `video_narration_ready` ו-`workshop_mirror_asset`. ל-`produce_video` עוברים לארגומנט `jsonb` אחד של אפשרויות. מוסיפים ל-`workshop_creative_stage` בדיקת דייר מפורשת.
 6. **בדיקות SQL ב-CI:** אף job לא מריץ את `supabase/tests/*.sql`. מוסיפים job שמריץ אותן.
+7. **render-worker: טיפוסים מלאים:** מדליקים את `noImplicitAny` ואת `strictNullChecks` ב-`render-worker/tsconfig.json`, ובודקים גם את `render-worker/test` ב-`pnpm typecheck:worker`.
 
 ## 12. אחרי סבב הסרטים (2–3 בנובמבר)
 

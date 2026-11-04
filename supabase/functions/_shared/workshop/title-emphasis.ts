@@ -1,6 +1,6 @@
 /**
  * How the key words of a scene's on-screen text (numbers: a price, a percent, a date) are
- * emphasised once they are in, in a film without narration. The render worker (title-style.mjs)
+ * emphasised once they are in, in a film without narration. The render worker (title-style.ts)
  * and the film (Remotion workshop-title-emphasis.ts) know the same names; a scene's own choice
  * (meta.title_emphasis) wins over the film's (payload.video.title_emphasis).
  */

@@ -31,7 +31,7 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: [
-            "render-worker/test/**/*.test.mjs",
+            "render-worker/test/**/*.test.ts",
             "scripts/**/*.test.mjs",
             "scripts/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",

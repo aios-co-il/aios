@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "typecheck": "node scripts/typecheck.mjs",
     "typecheck:update": "node scripts/typecheck.mjs --update",
+    "typecheck:worker": "tsc -p render-worker/tsconfig.json",
     "test:typecheck": "vitest run --project node scripts/typecheck.test.mjs",
     "preview": "vite preview",
     "test:guards": "node scripts/check-shared-agency-dashboards.mjs && node scripts/check-permission-personas.mjs && node scripts/check-edge-function-syntax.mjs && node scripts/check-migration-versions.mjs && node scripts/check-filename-case-collisions.ts && node scripts/sync-cursor-rules.ts --check && node scripts/check-cron-catalog.ts",

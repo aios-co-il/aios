@@ -95,13 +95,13 @@ export function costSceneOf(scene: {
  * Lip sync, planning price per second of talking video until the first paid run. ElevenLabs
  * Creatify Aurora, Kling lip-sync, HeyGen Avatar IV (on OpenRouter) and Higgsfield
  * Seedance 2.5 all bill by length; the worker picks the first one the tenant has a key for
- * (render-worker/src/providers/lipsync.mjs).
+ * (render-worker/src/providers/lipsync.ts).
  */
 export const LIPSYNC_USD_PER_SECOND = 0.1;
 
 /**
  * Trailer sound design: the whole set, made once per film with ElevenLabs sound effects in the
- * production's own render (render-worker jobs/sound-effects-catalog.mjs): six gentle transition
+ * production's own render (render-worker jobs/sound-effects-catalog.ts): six gentle transition
  * sounds (5.5 s together, a different one at each cut) and one soft impact (2 s). 7.5 s at 40
  * credits a second at $0.0003 a credit is $0.09. A render outside a production never pays.
  */
@@ -288,7 +288,7 @@ export function productionEstimate(
 
 /**
  * A talking scene on an engine that cannot speak goes through the worker's lip-sync chain, which
- * ends at OpenRouter Veo when the tenant has it (render-worker providers/lipsync.mjs): quote that.
+ * ends at OpenRouter Veo when the tenant has it (render-worker providers/lipsync.ts): quote that.
  */
 function withLipsyncFallback(
   estimate: ReturnType<typeof productionEstimate>,
@@ -355,7 +355,7 @@ export function relipEstimate(
  * they are that only need a new voice line and lip sync (relipEstimate). The narration and music
  * it makes are priced for `options.film` when given (the workshop passes the whole storyboard).
  * The worker moves a clip that a paid engine refuses to OpenRouter when the tenant has it
- * (render-worker/src/clip-fallback.mjs), so the quote covers the dearer one.
+ * (render-worker/src/clip-fallback.ts), so the quote covers the dearer one.
  */
 export function quotedProductionEstimate(
   engine: SceneEngine,

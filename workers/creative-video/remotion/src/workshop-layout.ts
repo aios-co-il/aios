@@ -6,7 +6,7 @@
  * top band; without spoken captions, it sits where the captions would.
  */
 
-/** A key word is drawn this much larger (render-worker motion-captions.mjs KEY_WIDTH). */
+/** A key word is drawn this much larger (render-worker motion-captions.ts KEY_WIDTH). */
 export const KEY_SCALE = 1.3;
 /** Width of a bold Hebrew glyph in ems, on average (Heebo Bold). */
 export const GLYPH_EM = 0.58;
