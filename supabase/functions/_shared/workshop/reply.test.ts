@@ -3,6 +3,7 @@ import {
   fallbackReply,
   shouldNudgeSilentTurn,
   stoppedAtStepLimit,
+  workshopToolRounds,
 } from "./reply.ts";
 
 Deno.test(
@@ -159,3 +160,9 @@ Deno.test(
     }
   },
 );
+
+Deno.test("a workshop turn gets at least 15 tool rounds", () => {
+  assertStrictEquals(workshopToolRounds(5), 15);
+  assertStrictEquals(workshopToolRounds(null), 25);
+  assertStrictEquals(workshopToolRounds(30), 30);
+});

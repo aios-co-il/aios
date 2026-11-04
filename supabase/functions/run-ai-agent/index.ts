@@ -166,6 +166,7 @@ import {
   fallbackReply,
   shouldNudgeSilentTurn,
   stoppedAtStepLimit,
+  workshopToolRounds,
 } from "../_shared/workshop/reply.ts";
 import { connectionsStanding } from "../_shared/workshop/connections-standing.ts";
 import {
@@ -15416,10 +15417,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const model = resolveModel(
       modelOverride || agent.engine || "gemini-3-flash",
     );
-    // A workshop step needs a look at the project, the tool, and a reply: give it room for that
+    // A workshop step needs a look at the project, the tools, and a reply: give it room for that
     // even when the agent is tuned to very few rounds.
     const maxRounds = workshopRoleForRun
-      ? Math.max(agent.max_tool_rounds || 25, 6)
+      ? workshopToolRounds(agent.max_tool_rounds)
       : agent.max_tool_rounds || 25;
     const safeTemp =
       typeof temperature === "number"

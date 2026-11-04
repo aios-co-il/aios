@@ -46,6 +46,18 @@ const textOf = (value: unknown) =>
   typeof value === "string" && value ? value : null;
 
 /**
+ * A workshop turn's tool rounds. A film step can look at the project, add references, write or
+ * fix the storyboard and make pictures in one turn; on Staging 6 rounds ran out while Carmen was
+ * still recovering from a failed download, so David set the floor at 15.
+ */
+export const WORKSHOP_MIN_TOOL_ROUNDS = 15;
+
+/** The agent's own round limit, raised to the workshop floor for a workshop turn. */
+export function workshopToolRounds(agentRounds: number | null | undefined) {
+  return Math.max(agentRounds || 25, WORKSHOP_MIN_TOOL_ROUNDS);
+}
+
+/**
  * The round limit stopped the turn mid-work: every round ran and the last one ended on tool
  * results the model never saw back.
  */
