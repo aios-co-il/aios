@@ -19,6 +19,7 @@ import {
   unanswered,
   type BriefAnswers,
 } from "./brief-answers.ts";
+import { readFirst } from "./brief-reading.ts";
 
 export const ENGINE_NOTES: Record<ImageProvider, string> = {
   google:
@@ -77,10 +78,11 @@ export interface BriefingGate {
 /** Returns what is still missing, or null when Carmen can go ahead. */
 export function briefingGate(input: BriefingInput): BriefingGate | null {
   const answers = input.answers ?? {};
-  // A reference answers the style: a project reference picture, or one the brief names (a link or
-  // attachment the user gave, a board picture, a site or video Carmen read: project-io.ts).
-  const hasReferences =
-    input.look.references.length > 0 || Boolean(answerFor(answers, REFERENCE));
+  // Reference pictures are the look itself: every picture is generated from them.
+  const hasReferences = input.look.references.length > 0;
+  // Any other reference the brief names (a board picture, a video, a site): the user is not asked
+  // about the style, Carmen writes the style bible from it (brief-reading.ts).
+  const namedReference = answerFor(answers, REFERENCE);
   const hasBible = input.look.bible.trim().length > 0;
   const answered = (choices: Choice[]) =>
     choices.some((choice) => Boolean(answerFor(answers, choice.label)));
@@ -88,7 +90,9 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   const styleOk =
     input.needsStyle === false ||
     hasReferences ||
-    (hasBible && input.styleApproved && (userStyle || input.asked === true));
+    (hasBible &&
+      input.styleApproved &&
+      (userStyle || input.asked === true || Boolean(namedReference)));
   // A film brief counts once the user answered the film questions or saw them once.
   const filmOk =
     input.kind !== "video" ||
@@ -104,7 +108,9 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
 
   const choices: Choice[] = unanswered(
     [
-      ...(missing.includes("style") ? STYLE_CHOICES[input.kind] : []),
+      ...(missing.includes("style") && !namedReference
+        ? STYLE_CHOICES[input.kind]
+        : []),
       ...(missing.includes("film") ? FILM_CHOICES : []),
       ...(missing.includes("engine") && input.connected
         ? [
@@ -123,7 +129,10 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   const fromAnswers =
     "התשובות נשמרו בבריף של הפרויקט" +
     (answeredLines ? ` (${answeredLines})` : "") +
-    ". כתבי מהן style_bible באנגלית שמתאר את המראה (דמות, מקום, צבעים, תאורה, סגנון רינדור), וקראי שוב לכלי עם style_bible ו-style_approved=true, ו-engine אם נבחר.";
+    (namedReference && missing.includes("style")
+      ? `. את הסגנון לא שואלים את המשתמש: יש רפרנס (${namedReference}). כתבי ממנו`
+      : ". כתבי מהן") +
+    " style_bible באנגלית שמתאר את המראה (דמות, מקום, צבעים, תאורה, סגנון רינדור), וקראי שוב לכלי עם style_bible ו-style_approved=true, ו-engine אם נבחר.";
   if (choices.length === 0)
     return {
       needs_input: true,
@@ -144,9 +153,10 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
     input.kind === "video"
       ? "לפני שאני כותבת את הסרט, כמה בחירות קצרות כדי שייצא בדיוק כמו שצריך:"
       : "לפני שאני מעצבת, כמה בחירות קצרות:";
-  const reference = missing.includes("style")
-    ? "\nיש תמונה או מודעה שאהבת? אפשר לצרף אותה כרפרנס."
-    : "";
+  const reference =
+    missing.includes("style") && !namedReference
+      ? "\nיש תמונה או מודעה שאהבת? אפשר לצרף אותה כרפרנס."
+      : "";
   return {
     needs_input: true,
     missing,
@@ -158,21 +168,4 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
       ? { engines: engineOptions(input.connected) }
       : {}),
   };
-}
-
-/**
- * Before the first questions: Carmen passes what the request (and any reference) already settles,
- * so only the open questions reach the user. She is asked once per turn (project-io.ts).
- */
-function readFirst(choices: Array<Choice>): string {
-  const open = choices
-    .map((choice) => `${choice.label} (${choice.options.join(" / ")})`)
-    .join("; ");
-  return [
-    "עוד לא לשלוח כלום למשתמש. קודם קראי שוב לאותו כלי, עם אותם ארגומנטים ועם brief_answers (נושא → תשובה) לכל שאלה שהבקשה של המשתמש או הרפרנס שלו כבר עונים עליה, כדי שלא יישאל עליה.",
-    `השאלות הפתוחות: ${open}.`,
-    'רק מה שנאמר במפורש או נראה ברפרנס: "מושן גרפיק" → {"מראה": "מושן גרפיקס"}. "עם קריינות" לבד לא קובע אם קריין או קריינית, אז קול נשאר פתוח.',
-    `אם המשתמש צירף, סימן או הפנה לרפרנס (תמונה, מודעה, עמוד בלוח, אתר, סרטון), העבירי ב-brief_answers {"${REFERENCE}": "מה הרפרנס ואיפה"}: עם רפרנס לא שואלים על הסגנון. קישור לתמונה עובר גם ב-reference_urls. סרטון רפרנס יכול לענות גם על קצב, קול, מוזיקה וסיום.`,
-    'אם הבקשה לא עונה על אף שאלה: brief_answers={"none": "none"}.',
-  ].join(" ");
 }

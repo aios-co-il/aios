@@ -183,6 +183,7 @@ export const briefAnswersGiven = (value: unknown) =>
 export const briefReadTurn = (payload: Record<string, unknown>) =>
   asRecord(payload[KEY]).read_turn;
 
+/** Marks that the gate asked Carmen, in this turn, to read the request (brief-reading.ts). */
 export const withBriefReadTurn = (
   payload: Record<string, unknown>,
   turn: string,

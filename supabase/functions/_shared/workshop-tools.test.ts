@@ -3767,6 +3767,7 @@ interface GateReply {
 interface SavedBrief {
   payload: {
     workshop_brief: { answers: Record<string, string>; asked?: boolean };
+    workshop_look?: { references?: Array<string> };
   };
 }
 
@@ -3887,9 +3888,51 @@ Deno.test(
       ?.value as SavedBrief;
     assertStrictEquals(
       saved.payload.workshop_brief.answers["רפרנס"],
-      "https://files.example.com/ad.png",
+      "תמונה שצורפה: ad.png",
     );
     assertStrictEquals(saved.payload.workshop_brief.asked, true);
+    // The picture is the look: it is kept with the project's reference pictures.
+    assertEquals(saved.payload.workshop_look?.references, [
+      "https://files.example.com/ad.png",
+    ]);
+  },
+);
+
+Deno.test(
+  "an image attached in the message is a reference picture the stills are made from",
+  async () => {
+    const db = fakeDb({
+      ...videoProject({
+        payload: {
+          format: "9:16",
+          project_type: "video",
+          workshop_look: { film: "קצב: רגוע" },
+          workshop_brief: { asked: true },
+        },
+      }),
+      "marketing_video_scenes:select": [scene("s-1")],
+    });
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_make_stills",
+      { item_id: "item-1" },
+      async () => {},
+      null,
+      {
+        turnId: "turn-1",
+        userText:
+          "תמשיכי לפי זה\n\n📎 קבצים מצורפים (1):\n- תמונה: ad.png → https://files.example.com/ad.png",
+        generateImage: async () => ({ image_url: "https://x/1.png" }),
+      },
+    )) as Record<string, unknown>;
+    assertStrictEquals(result.needs_input, undefined);
+    const saved = db.calls.find(
+      (c) => c.table === "marketing_work_items" && c.op === "update",
+    )?.value as SavedBrief;
+    assertEquals(saved.payload.workshop_look?.references, [
+      "https://files.example.com/ad.png",
+    ]);
   },
 );
 
@@ -3910,24 +3953,64 @@ Deno.test(
 );
 
 Deno.test(
-  "a request that settles every question goes straight to the storyboard after Carmen's reading",
+  "a reference video asks the user nothing about the style: Carmen writes the bible from it",
   async () => {
-    const deps = { turnId: "turn-1", userText: "סרטון לפי הרפרנס" };
+    const deps = {
+      turnId: "turn-1",
+      userText: "סרטון בסגנון הזה https://cdn.example.com/ref.mp4",
+    };
+    const storyboard = {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a phone on a desk" }],
+    };
     const first = fakeDb(bareProject());
-    const written = (await executeWorkshopTool(
+    const reading = (await executeWorkshopTool(
       first,
       "tenant-1",
       "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertStrictEquals(reading.say_to_user, "");
+    assertNotMatch(reading.carmen_next, /מראה \(/);
+
+    // Her reading of the video settles the film; the style is hers to write, not a question.
+    const filmAnswers = {
+      קצב: "אנרגטי ומהיר",
+      קול: "קריינית",
+      מוזיקה: "אלקטרונית קצבית",
+      סיום: "לוגו בלבד",
+    };
+    const second = fakeDb(projectSavedBy(first));
+    const toWrite = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_storyboard",
+      { ...storyboard, brief_answers: filmAnswers },
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertEquals(toWrite.missing, ["style"]);
+    assertStrictEquals(toWrite.say_to_user, "");
+    assertMatch(toWrite.carmen_next, /style_bible/);
+    assertMatch(toWrite.carmen_next, /ref\.mp4/);
+    const saved = second.calls.filter((c) => c.op === "update").at(-1)
+      ?.value as SavedBrief;
+    // A video is not a picture reference: the stills cannot be made from it.
+    assertEquals(saved.payload.workshop_look?.references ?? [], []);
+
+    const third = fakeDb(projectSavedBy(second));
+    const written = (await executeWorkshopTool(
+      third,
+      "tenant-1",
+      "workshop_storyboard",
       {
-        item_id: "item-1",
-        scenes: [{ visual_prompt: "a phone on a desk" }],
-        brief_answers: {
-          רפרנס: "סרטון רפרנס שהמשתמש שלח",
-          קצב: "אנרגטי ומהיר",
-          קול: "קריינית",
-          מוזיקה: "אלקטרונית קצבית",
-          סיום: "לוגו בלבד",
-        },
+        ...storyboard,
+        style_bible: "fast kinetic motion graphics, bold teal and white",
+        style_approved: true,
       },
       async () => {},
       null,

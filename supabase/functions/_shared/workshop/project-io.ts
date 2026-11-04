@@ -3,10 +3,8 @@ import {
   answerFor,
   answersFromArgs,
   answersFromMessage,
-  briefAnswersGiven,
   briefAnswersOf,
   briefAsked,
-  briefReadTurn,
   filmFromAnswers,
   REFERENCE,
   styleFromAnswers,
@@ -15,6 +13,7 @@ import {
   withBriefAsked,
   withBriefReadTurn,
 } from "./brief-answers.ts";
+import { readRequest, referenceThisTurn, turnKey } from "./brief-reading.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
 import { briefingGate } from "./briefing.ts";
@@ -156,8 +155,14 @@ export async function briefProject(
   };
   const reference = referenceThisTurn(args, deps.userText ?? "");
   if (reference && !answerFor(fresh, REFERENCE)) {
-    fresh[REFERENCE] = reference;
+    fresh[REFERENCE] = reference.answer;
   }
+  // A picture given in the message joins the look like the reference_urls Carmen passes, so the
+  // pictures follow it; kept on the project even when the tool stops to ask.
+  const referenceUrls = [
+    ...(Array.isArray(args.reference_urls) ? args.reference_urls : []),
+    ...(reference?.picture ? [reference.picture] : []),
+  ];
   const briefed = withBriefAnswers(payload, fresh);
   const answers = briefAnswersOf(briefed);
   const writtenFilm =
@@ -172,7 +177,12 @@ export async function briefProject(
     ...(writtenFilm && !args.film_brief ? { film_brief: writtenFilm } : {}),
     ...(writtenStyle ? { style_bible: writtenStyle } : {}),
   };
-  const folded = withLook(briefed, { ...args, engine: asked, ...written });
+  const folded = withLook(briefed, {
+    ...args,
+    reference_urls: referenceUrls,
+    engine: asked,
+    ...written,
+  });
   const look = lookOf(folded.payload);
   const gate = briefingGate({
     look,
@@ -198,9 +208,13 @@ export async function briefProject(
         writtenFilm ||
         writtenStyle ||
         asking ||
-        gate.reading)
+        gate.reading ||
+        referenceUrls.length > 0)
     ) {
-      let kept = withLook(briefed, written).payload;
+      let kept = withLook(briefed, {
+        ...written,
+        reference_urls: referenceUrls,
+      }).payload;
       if (asking) {
         kept = withBriefAsked(kept);
       }
@@ -216,53 +230,6 @@ export async function briefProject(
     engine: chosen ?? (connected?.length === 1 ? connected[0] : null),
   };
 }
-
-/**
- * A picture or video the user gave in this turn: an attached image (commandCenterAttachments.ts
- * writes "- תמונה: name → url"), or a link to an image or video file. A site or document link is
- * not a look by itself; Carmen passes it as a "רפרנס" answer when the user meant it as one.
- */
-const ATTACHED_IMAGE = /^-\s*תמונה:.*→\s*(https?:\/\/\S+)/m;
-const MEDIA_LINK =
-  /https?:\/\/[^\s)\]]+\.(?:png|jpe?g|gif|webp|avif|mp4|mov|webm)(?:\?[^\s)\]]*)?/i;
-
-/** A reference the user gave in this turn: a board picture the film is built from, or media. */
-function referenceThisTurn(
-  args: Record<string, unknown>,
-  userText: string,
-): string | null {
-  const fromArtifact =
-    typeof args.from_artifact_id === "string" && args.from_artifact_id.trim();
-  if (fromArtifact) {
-    return `תמונה מהלוח (artifact_id=${fromArtifact})`;
-  }
-  return (
-    userText.match(ATTACHED_IMAGE)?.[1] ??
-    userText.match(MEDIA_LINK)?.[0] ??
-    null
-  );
-}
-
-/**
- * Whether Carmen read the request before the first questions: she passed brief_answers, or the
- * gate already asked her to in this turn. Asked once per turn, so the flow cannot loop; a tool
- * that cannot keep that mark (no save) never asks.
- */
-function readRequest(
-  payload: Record<string, unknown>,
-  args: Record<string, unknown>,
-  deps: WorkshopDeps,
-  canSave: boolean,
-): boolean {
-  return (
-    !canSave ||
-    briefAnswersGiven(args.brief_answers) ||
-    briefReadTurn(payload) === turnKey(deps)
-  );
-}
-
-/** The turn the reading mark belongs to; calls without a turn id share one mark. */
-const turnKey = (deps: WorkshopDeps) => deps.turnId ?? "no-turn";
 
 export async function loadProject(
   supabase: Db,
