@@ -13,32 +13,38 @@ export interface NewLeadFilterPreset {
 export interface SavePresetCallbacks {
   onSaved: () => void;
   onError: (message: string) => void;
-  onApply: (filters: FilterState) => void;
+  /** Receives the new preset's id, so the page selects its tab. */
+  onApply: (filters: FilterState, presetId: string) => void;
   onOpenChange: (open: boolean) => void;
 }
 
 /**
- * Saves the dialog's filters as a new preset, then applies them and closes the dialog, so
- * saving never leaves the list showing the previous filters. On an insert error the dialog
- * stays open with the error, and the user can retry without re-entering the filters.
+ * Saves the dialog's filters as a new preset, then applies them as that preset and closes
+ * the dialog, so saving never leaves the list showing the previous filters or tab. On an
+ * insert error the dialog stays open with the error, and the user can retry without
+ * re-entering the filters.
  */
 export async function saveLeadFilterPreset(
   db: Pick<SupabaseClient<Database>, "from">,
   preset: NewLeadFilterPreset,
   callbacks: SavePresetCallbacks,
 ): Promise<void> {
-  const { error } = await db.from("lead_filter_presets").insert({
-    tenant_id: preset.tenantId,
-    user_id: preset.userId,
-    name: preset.name,
-    filters: toPresetFilters(preset.filters),
-  });
+  const { data, error } = await db
+    .from("lead_filter_presets")
+    .insert({
+      tenant_id: preset.tenantId,
+      user_id: preset.userId,
+      name: preset.name,
+      filters: toPresetFilters(preset.filters),
+    })
+    .select("id")
+    .single();
   if (error) {
     callbacks.onError(error.message);
     return;
   }
   callbacks.onSaved();
-  callbacks.onApply(preset.filters);
+  callbacks.onApply(preset.filters, data.id);
   callbacks.onOpenChange(false);
 }
 

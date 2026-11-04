@@ -2689,8 +2689,8 @@ export default function Leads() {
     ],
   );
 
-  // Handle applying filters from dialog
-  const handleApplyFilters = (filters: FilterState) => {
+  // Handle applying filters from dialog; a just-saved preset's tab becomes active
+  const handleApplyFilters = (filters: FilterState, presetId?: string) => {
     setSearchQuery(filters.searchQuery);
     setFilterSalesPersonIds(filters.salesPersonIds);
     setFilterStageIds(filters.stageIds);
@@ -2703,7 +2703,7 @@ export default function Leads() {
     setStartDate(filters.startDate);
     setEndDate(filters.endDate);
     setFilterFollowUpToday(filters.followUpToday);
-    setActivePresetId(null); // Clear preset when manually applying
+    setActivePresetId(presetId ?? null); // Manual apply clears the preset
   };
 
   // Handle preset selection
