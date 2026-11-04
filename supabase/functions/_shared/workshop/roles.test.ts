@@ -367,6 +367,14 @@ Deno.test(
   "the copywriter's skin carries on only while a film is written",
   () => {
     assertStrictEquals(roleOfPersona("copywriter"), "copywriter");
-    assertStrictEquals(workshopRole("תודה", "copywriter", null), "producer");
+    // Outside a film her skin is not carried on: the message is routed afresh.
+    assertStrictEquals(workshopRole("תודה", "copywriter", null), "designer");
+    assertStrictEquals(
+      workshopRole("תעשי את זה יותר חם", "copywriter", {
+        video: false,
+        edit: false,
+      }),
+      "designer",
+    );
   },
 );

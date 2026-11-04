@@ -6,17 +6,27 @@
  * the same state; a new script starts unapproved, so an approval never carries over to new text.
  */
 
-import { isExplicitApprovalPhrase } from "../wa-approval-flow.ts";
-import { answerFor, briefAnswersOf } from "./brief-answers.ts";
+import {
+  answerFor,
+  briefAnswersOf,
+  type BriefAnswers,
+} from "./brief-answers.ts";
+import { inferFilmSeconds } from "./defaults.ts";
 import { asRecord } from "./record.ts";
-import { tappedAnswers } from "./tapped-answers.ts";
 
 const KEY = "workshop_script";
-export const SCRIPT_LABEL = "התסריט";
-export const APPROVE_SCRIPT = "התסריט מאושר";
-export const CHANGE_SCRIPT = "לתקן";
-/** The tap question that ends every script Carmen shows (save-script.ts sends it). */
-export const SCRIPT_CHOICE = `[[בחירה: ${SCRIPT_LABEL} | ${APPROVE_SCRIPT} | ${CHANGE_SCRIPT}]]`;
+
+/** The film's concept question (tools/film-concept.ts); its answer is the script's concept. */
+export const CONCEPT_LABEL = "קונספט";
+
+/** The concept answer under the label Carmen asked with ("קונספט", "הקונספט לסרט"…). */
+export function conceptAnswer(answers: BriefAnswers): string {
+  const match = Object.entries(answers).find(
+    ([label, answer]) => label.includes(CONCEPT_LABEL) && answer.trim(),
+  );
+  return match?.[1].trim() ?? "";
+}
+
 /** Hebrew voice-over pace: narration longer than this runs past its beat. */
 export const WORDS_PER_SECOND = 2.5;
 
@@ -37,12 +47,19 @@ export interface FilmScript {
   title: string;
   total_s: number;
   beats: Array<ScriptBeat>;
+  /** The concept answer the script was written for; another concept needs a new script. */
+  concept: string;
+  /** The turn it was saved in: an approval in words counts only in a later turn. */
+  saved_turn: string | null;
   approved: boolean;
 }
 
 export type ScriptState = FilmScript | { skipped: true } | null;
 
-/** The project's script as stored: a script, the user's explicit skip, or nothing yet. */
+/**
+ * The project's script as stored: a script, the user's explicit skip, or nothing yet. A script
+ * written for a concept other than the one chosen now counts as none.
+ */
 export function filmScriptOf(payload: Record<string, unknown>): ScriptState {
   const stored = asRecord(payload[KEY]);
   if (stored.skipped === true) {
@@ -60,7 +77,12 @@ export function filmScriptOf(payload: Record<string, unknown>): ScriptState {
       };
     },
   );
-  if (typeof stored.artifact_id !== "string" || beats.length === 0) {
+  const concept = String(stored.concept ?? "");
+  if (
+    typeof stored.artifact_id !== "string" ||
+    beats.length === 0 ||
+    concept !== conceptAnswer(briefAnswersOf(payload))
+  ) {
     return null;
   }
   return {
@@ -68,15 +90,21 @@ export function filmScriptOf(payload: Record<string, unknown>): ScriptState {
     title: String(stored.title ?? ""),
     total_s: Number(stored.total_s) || 0,
     beats,
+    concept,
+    saved_turn:
+      typeof stored.saved_turn === "string" ? stored.saved_turn : null,
     approved: stored.approved === true,
   };
 }
 
-/** A new script on the project: unapproved until the user says so. */
-export const withScript = (
+/** A new script on the project, for the concept chosen now: unapproved until the user says so. */
+export function withScript(
   payload: Record<string, unknown>,
-  script: Omit<FilmScript, "approved">,
-) => ({ ...payload, [KEY]: { ...script, approved: false } });
+  script: Omit<FilmScript, "approved" | "concept">,
+) {
+  const concept = conceptAnswer(briefAnswersOf(payload));
+  return { ...payload, [KEY]: { ...script, concept, approved: false } };
+}
 
 /** The user skipped the script step (their own full script, or asked to go straight to scenes). */
 export const withScriptSkipped = (payload: Record<string, unknown>) => ({
@@ -102,30 +130,14 @@ export function scriptSettled(payload: Record<string, unknown>) {
   return script !== null && ("skipped" in script || script.approved);
 }
 
-/** The user tapped approval on Carmen's script question in this turn ("לתקן" is not one). */
-export function scriptApprovedByTap(lastAssistant: string, userText: string) {
-  return Object.entries(tappedAnswers(lastAssistant, userText)).some(
-    ([label, answer]) => label.includes("תסריט") && approves(answer),
-  );
-}
-
-const approves = (answer: string) =>
-  answer.trim() === APPROVE_SCRIPT ||
-  /^(מאשר|מאשרת|מאשרים|מאושר)/.test(answer.trim()) ||
-  isExplicitApprovalPhrase(answer);
-
 /**
- * The film's length in seconds: the brief's length answer ("15 שניות"), else the length the
- * project was planned with; null when neither is known.
+ * The film's length in seconds: the brief's length answer ("15 שניות", "חצי דקה"), read like the
+ * request was when the project started, else the length it was planned with; null when neither.
  */
 export function filmSeconds(payload: Record<string, unknown>): number | null {
   const answer = answerFor(briefAnswersOf(payload), "אורך");
-  if (/(?<![א-ת])דקה(?![א-ת])/.test(answer)) {
-    return 60;
-  }
-  const said = answer.match(/(\d+(?:\.\d+)?)\s*(?:שנ|ש׳|ש'|sec|s\b)/i);
-  if (said) {
-    return Number(said[1]);
+  if (answer) {
+    return inferFilmSeconds(answer);
   }
   const planned = Number(
     asRecord(asRecord(payload.workshop).film).totalSeconds,
@@ -156,16 +168,6 @@ export function scriptText(script: Pick<FilmScript, "title" | "beats">) {
       .join("\n"),
   );
   return [`תסריט · ${script.title}`, ...beats].join("\n\n");
-}
-
-/** The payload with the stored script approved when the user tapped approval in this turn. */
-export function withTappedScriptApproval(
-  payload: Record<string, unknown>,
-  turn: { lastAssistant: string; userText: string },
-) {
-  return scriptApprovedByTap(turn.lastAssistant, turn.userText)
-    ? withScriptApproved(payload)
-    : payload;
 }
 
 /** Where the film's script stands, for the turn note of a film with no scenes yet. */

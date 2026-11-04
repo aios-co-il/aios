@@ -7,14 +7,15 @@
 import {
   filmSeconds,
   maxWords,
-  SCRIPT_CHOICE,
   scriptText,
   spokenWords,
   withScript,
   type ScriptBeat,
 } from "../film-script.ts";
+import type { Db } from "../db.ts";
 import { loadProject, savePayload } from "../project-io.ts";
 import { asRecord, recordArtifact } from "../record.ts";
+import { SCRIPT_CHOICE } from "../script-approval.ts";
 import { type ToolContext } from "../tool-context.ts";
 
 const MAX_BEATS = 20;
@@ -23,7 +24,7 @@ const LENGTH_SLACK_S = 0.5;
 
 /** Saves the script, shows it to the user as text and asks for approval with one tap question. */
 export async function workshopSaveScript(ctx: ToolContext) {
-  const { supabase, tenantId, args, assertClientAccess } = ctx;
+  const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
   if (!itemId) {
     return { error: "item_id נדרש" };
@@ -53,17 +54,22 @@ export async function workshopSaveScript(ctx: ToolContext) {
     title: `תסריט · ${title}`,
     meta: { text, beats, total_s: total },
   });
-  await savePayload(
-    supabase,
-    tenantId,
-    itemId,
-    withScript(payload, {
-      artifact_id: artifact.id,
-      title,
-      total_s: total,
-      beats,
-    }),
-  );
+  const script = withScript(payload, {
+    artifact_id: artifact.id,
+    title,
+    total_s: total,
+    beats,
+    saved_turn: deps.turnId ?? null,
+  });
+  try {
+    await savePayload(supabase, tenantId, itemId, script);
+  } catch (error) {
+    // A page whose script the project does not hold would show a script nobody can approve.
+    await removePage(supabase, tenantId, artifact.id);
+    return {
+      error: error instanceof Error ? error.message : "שמירת התסריט נכשלה",
+    };
+  }
   return {
     success: true,
     total_s: total,
@@ -76,6 +82,18 @@ export async function workshopSaveScript(ctx: ToolContext) {
       "התסריט הוצג למשתמש עם כפתורי אישור. עצרי. אחרי אישור: workshop_storyboard. ביקש שינוי: כתבי מחדש ושמרי שוב.",
     workshop: { event: "artifacts", item_id: itemId, artifact_id: artifact.id },
   };
+}
+
+/** Removes a script page saved before its project write failed; a failure here is logged. */
+async function removePage(supabase: Db, tenantId: string, artifactId: string) {
+  const { error } = await supabase
+    .from("workshop_artifacts")
+    .delete()
+    .eq("tenant_id", tenantId)
+    .eq("id", artifactId);
+  if (error) {
+    console.error("[workshop] orphan script page", artifactId, error.message);
+  }
 }
 
 /** The beats Carmen wrote, with their time ranges laid end to end from 0. */
@@ -104,7 +122,8 @@ function beatsRefusal(beats: Array<ScriptBeat>, film: number | null) {
     return "beats ריק: כל שורה בתסריט צריכה duration_s, narration או on_screen, ו-visual";
   }
   for (const [index, beat] of beats.entries()) {
-    const length = beat.end_s - beat.start_s;
+    // Rounded like the times, so 0.1-second steps don't leave 2.9999 behind.
+    const length = Math.round((beat.end_s - beat.start_s) * 10) / 10;
     if (length < 0.5) {
       return `שורה ${index + 1}: duration_s חייב להיות לפחות 0.5 שניות.`;
     }
@@ -118,7 +137,7 @@ function beatsRefusal(beats: Array<ScriptBeat>, film: number | null) {
   }
   const total = beats[beats.length - 1].end_s;
   if (film && Math.abs(total - film) > LENGTH_SLACK_S) {
-    return `סכום השורות ${total} שניות, והסרט ${film} שניות. התאימי את duration_s כך שהסכום יהיה ${film}.`;
+    return `סכום השורות ${total} שניות, והסרט ${film} שניות. התאימי את duration_s כך שהסכום יהיה ${film}. אם המשתמש שינה את אורך הסרט, עדכני אותו קודם ב-workshop_storyboard עם brief_answers {"אורך": "<האורך החדש>"}.`;
   }
   return null;
 }

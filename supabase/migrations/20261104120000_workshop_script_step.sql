@@ -3,12 +3,14 @@
 -- approves it and the storyboard is built from it. The server routes a film still being written
 -- to the copywriter skin (_shared/workshop/roles.ts). Safe to re-run.
 
--- The script page.
+-- The script page. Added NOT VALID and validated after, so the table is not locked for writes
+-- while the existing rows are checked.
 ALTER TABLE public.workshop_artifacts DROP CONSTRAINT IF EXISTS workshop_artifacts_kind_check;
 ALTER TABLE public.workshop_artifacts ADD CONSTRAINT workshop_artifacts_kind_check CHECK (kind IN (
   'brief', 'concept', 'copy', 'script', 'image', 'variation', 'storyboard', 'scene_still',
   'clip', 'narration', 'music', 'film', 'reference', 'article'
-));
+)) NOT VALID;
+ALTER TABLE public.workshop_artifacts VALIDATE CONSTRAINT workshop_artifacts_kind_check;
 
 -- The copywriter specialist.
 INSERT INTO public.ai_skills

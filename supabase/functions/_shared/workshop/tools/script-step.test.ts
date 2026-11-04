@@ -7,7 +7,7 @@ import {
   APPROVE_SCRIPT,
   CHANGE_SCRIPT,
   SCRIPT_CHOICE,
-} from "../film-script.ts";
+} from "../script-approval.ts";
 import {
   executeApprovedWorkshopTool,
   fakeDb,
@@ -50,7 +50,15 @@ function film(script?: Record<string, unknown>, over = {}) {
   };
 }
 
-const waiting = { artifact_id: "script-1", title: "תחלופה", total_s: 5, beats };
+/** A script saved last turn for the chosen concept, not yet approved. */
+const waiting = {
+  artifact_id: "script-1",
+  title: "תחלופה",
+  total_s: 5,
+  beats,
+  concept: "יום אחד",
+  saved_turn: "turn-1",
+};
 
 const scenes = [
   { visual_prompt: "faces swapping fast", voiceover_text: "משהו אחר" },
@@ -155,13 +163,71 @@ Deno.test("a change request does not approve the script", async () => {
   assertStrictEquals(savedScript(db)?.approved === true, false);
 });
 
+/** The project as workshop_save_script left it, saving these beats in `turnId`. */
+async function savedBy(turnId: string) {
+  const db = fakeDb(film());
+  await executeApprovedWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_save_script",
+    {
+      item_id: "item-1",
+      title: "תחלופה",
+      beats: beats.map((beat) => ({
+        ...beat,
+        duration_s: beat.end_s - beat.start_s,
+      })),
+    },
+    async () => {},
+    null,
+    { turnId },
+  );
+  return savedScript(db);
+}
+
 Deno.test(
-  "an approval in words reaches the tool as script_approved",
+  "an approval in words counts only in a later turn than the script was saved",
   async () => {
-    const db = fakeDb(film(waiting));
-    const written = await storyboard(db, { script_approved: true });
+    const script = await savedBy("turn-1");
+    // Carmen saves a script and approves it herself in the same turn: the user never saw it.
+    const sameTurn = fakeDb(film(script));
+    const gate = await storyboard(
+      sameTurn,
+      { script_approved: true },
+      { turnId: "turn-1" },
+    );
+    assertEquals(gate.missing, ["script"]);
+    assertStrictEquals(savedScenes(sameTurn), undefined);
+    const nextTurn = fakeDb(film(script));
+    const written = await storyboard(
+      nextTurn,
+      { script_approved: true },
+      { turnId: "turn-2" },
+    );
     assertStrictEquals(written.success, true, JSON.stringify(written));
-    assertStrictEquals(savedScenes(db)?.[0].voiceover_text, beats[0].narration);
+    assertStrictEquals(
+      savedScenes(nextTurn)?.[0].voiceover_text,
+      beats[0].narration,
+    );
+  },
+);
+
+Deno.test("a script written for another concept is written again", async () => {
+  const db = fakeDb(film({ ...waiting, concept: "לילה", approved: true }));
+  const gate = await storyboard(db);
+  assertEquals(gate.missing, ["script"]);
+  assertMatch(gate.carmen_next, /workshop_save_script/);
+  assertStrictEquals(gate.script, undefined);
+});
+
+Deno.test(
+  "with a script, a scene without a picture is refused, not dropped",
+  async () => {
+    const db = fakeDb(film({ ...waiting, approved: true }));
+    const refused = await storyboard(db, {
+      scenes: [{ voiceover_text: "x" }, ...scenes],
+    });
+    assertMatch(refused.error, /סצנה 1: חסר visual_prompt/);
   },
 );
 

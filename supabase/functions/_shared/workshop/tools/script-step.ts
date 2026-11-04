@@ -4,22 +4,22 @@
  * Carmen wrote scenes and script at once and David saw the script only as a storyboard table.
  */
 
+import { briefAnswersOf } from "../brief-answers.ts";
 import {
+  conceptAnswer,
   filmScriptOf,
   filmSeconds,
   maxWords,
-  SCRIPT_CHOICE,
   SCRIPT_GUIDE,
   scriptText,
   withScriptApproved,
   withScriptSkipped,
-  withTappedScriptApproval,
   type FilmScript,
 } from "../film-script.ts";
-import { briefAnswersOf } from "../brief-answers.ts";
 import { savePayload } from "../project-io.ts";
+import { SCRIPT_CHOICE, withTappedScriptApproval } from "../script-approval.ts";
 import type { ToolContext } from "../tool-context.ts";
-import { CONCEPT_LABEL, NO_CONCEPT, type FilmConcept } from "./film-concept.ts";
+import { NO_CONCEPT, type FilmConcept } from "./film-concept.ts";
 
 export interface ScriptGate {
   needs_input: true;
@@ -32,9 +32,9 @@ export interface ScriptGate {
 /**
  * The approved script the scenes follow (null when the step does not apply), or `stop`: the gate
  * that asks for one first. The approval comes from a tap on the script question in this turn or
- * from script_approved (the user approved in words); skip_script (or skip_concepts) records the
- * user's skip. A film
- * that already has scenes, and one cut from the user's own materials, are past this step.
+ * from script_approved (the user approved in words, in a later turn than the script was saved);
+ * skip_script (or skip_concepts) records the user's skip. A film that already has scenes, and one
+ * cut from the user's own materials, are past this step.
  */
 export async function scriptStep(
   ctx: Pick<ToolContext, "supabase" | "tenantId" | "args" | "deps">,
@@ -74,17 +74,33 @@ function settledThisTurn(
   // straight to scenes), so there is no script to write and approve either.
   const conceptSkipped =
     ctx.args.skip_concepts === true ||
-    briefAnswersOf(payload)[CONCEPT_LABEL] === NO_CONCEPT;
+    conceptAnswer(briefAnswersOf(payload)) === NO_CONCEPT;
   if (ctx.args.skip_script === true || conceptSkipped) {
     return withScriptSkipped(payload);
   }
-  if (ctx.args.script_approved === true) {
+  if (ctx.args.script_approved === true && userCouldApprove(ctx, payload)) {
     return withScriptApproved(payload);
   }
   return withTappedScriptApproval(payload, {
     lastAssistant: ctx.deps.lastAssistant ?? "",
     userText: ctx.deps.userText ?? "",
   });
+}
+
+/**
+ * An approval in words is the user's answer to a script they saw: it comes in a later turn than
+ * the one the script was saved in (as budget.ts refuses an approval in the request's own turn),
+ * so Carmen cannot save a script and approve it herself in one turn.
+ */
+function userCouldApprove(
+  ctx: Pick<ToolContext, "deps">,
+  payload: Record<string, unknown>,
+) {
+  const script = filmScriptOf(payload);
+  const turn = ctx.deps.turnId;
+  return Boolean(
+    turn && script && !("skipped" in script) && script.saved_turn !== turn,
+  );
 }
 
 /** No script yet: Carmen writes it from the chosen concept and shows it with the save tool. */

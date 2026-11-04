@@ -4,7 +4,7 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { SCRIPT_CHOICE } from "../film-script.ts";
+import { SCRIPT_CHOICE } from "../script-approval.ts";
 import {
   executeApprovedWorkshopTool,
   fakeDb,
@@ -48,16 +48,22 @@ interface Reply {
 
 interface SavedScript {
   approved: boolean;
+  saved_turn: string;
+  concept: string;
   artifact_id: string;
   beats: Array<{ start_s: number; end_s: number }>;
 }
 
 const save = (db: ReturnType<typeof fakeDb>, beats: Array<unknown>) =>
-  executeApprovedWorkshopTool(db, "tenant-1", "workshop_save_script", {
-    item_id: "item-1",
-    title: "תחלופה",
-    beats,
-  }) as Promise<Reply>;
+  executeApprovedWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_save_script",
+    { item_id: "item-1", title: "תחלופה", beats },
+    async () => {},
+    null,
+    { turnId: "turn-1" },
+  ) as Promise<Reply>;
 
 Deno.test(
   "a script is saved as a page, unapproved, and shown with the approval tap",
@@ -82,6 +88,9 @@ Deno.test(
       }
     ).payload.workshop_script;
     assertStrictEquals(script.approved, false);
+    // The turn it was saved in: an approval in words counts only after it (script-step.ts).
+    assertStrictEquals(script.saved_turn, "turn-1");
+    assertStrictEquals(script.concept, "תחלופה");
     assertStrictEquals(script.artifact_id, "workshop_artifacts-1");
     assertEquals(
       script.beats.map((b) => [b.start_s, b.end_s]),

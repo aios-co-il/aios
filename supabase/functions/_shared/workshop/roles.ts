@@ -147,14 +147,17 @@ function filmRole(project: ProjectKind | null): WorkshopRole {
 
 /**
  * The current skin's role, carried on. The copywriter works only on a film being written; past
- * that stage (or with no film open) her chat continues with the producer.
+ * that stage her film continues with the producer, and work outside a film is routed afresh.
  */
 function currentRole(
   current: string | null | undefined,
   project: ProjectKind | null,
 ) {
   const role = roleOfPersona(current);
-  return role === "copywriter" && !project?.writing ? "producer" : role;
+  if (role === "copywriter" && !project?.writing) {
+    return project?.video ? "producer" : null;
+  }
+  return role;
 }
 
 /** The role a persona slug (the chat's current skin) stands for, if any. */

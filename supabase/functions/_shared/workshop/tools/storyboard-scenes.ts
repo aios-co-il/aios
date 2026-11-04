@@ -31,8 +31,15 @@ export function storyboardInput(
   raw: unknown,
   script: FilmScript | null,
 ): { scenes: Array<Record<string, unknown>> } | { error: string } {
-  const scenes = (Array.isArray(raw) ? raw : [])
-    .map((scene) => asRecord(scene))
+  const given = (Array.isArray(raw) ? raw : []).map((scene) => asRecord(scene));
+  const blank = given.findIndex(
+    (scene) => !String(scene.visual_prompt ?? "").trim(),
+  );
+  // With a script, scene N is beat N: dropping a blank scene would shift every line after it.
+  if (script && blank >= 0) {
+    return { error: `סצנה ${blank + 1}: חסר visual_prompt.` };
+  }
+  const scenes = given
     .filter((scene) => String(scene.visual_prompt ?? "").trim())
     .slice(0, MAX_SCENES)
     .map((scene, index) => scriptedScene(scene, script, index));

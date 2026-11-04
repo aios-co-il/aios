@@ -6,17 +6,13 @@
  * is saved like every other briefing answer.
  */
 
-import {
-  briefAnswersOf,
-  withBriefAnswers,
-  type BriefAnswers,
-} from "../brief-answers.ts";
+import { briefAnswersOf, withBriefAnswers } from "../brief-answers.ts";
+import { CONCEPT_LABEL, conceptAnswer } from "../film-script.ts";
 import type { Db } from "../db.ts";
 import { savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import type { ToolContext } from "../tool-context.ts";
 
-export const CONCEPT_LABEL = "קונספט";
 /** The stored answer when the user gave their own script or asked to go straight to scenes. */
 export const NO_CONCEPT = "בלי קונספט, ישר לסצנות";
 const MAX_CONCEPT = 600;
@@ -79,14 +75,6 @@ function conceptFromArgs(args: Record<string, unknown>): string {
   }
   const raw = typeof args.concept === "string" ? args.concept : "";
   return raw.trim().slice(0, MAX_CONCEPT);
-}
-
-/** The concept answer under the label Carmen asked with ("קונספט", "הקונספט לסרט"…). */
-function conceptAnswer(answers: BriefAnswers): string {
-  const match = Object.entries(answers).find(
-    ([label, answer]) => label.includes(CONCEPT_LABEL) && answer.trim(),
-  );
-  return match?.[1].trim() ?? "";
 }
 
 /** The concept pages workshop_save_concepts put on the project's board, oldest first. */

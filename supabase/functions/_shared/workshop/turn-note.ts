@@ -12,7 +12,8 @@ import {
   withBriefAnswers,
 } from "./brief-answers.ts";
 import { CTA_MAX_CHARS } from "./cta.ts";
-import { scriptLines, withTappedScriptApproval } from "./film-script.ts";
+import { scriptLines } from "./film-script.ts";
+import { withTappedScriptApproval } from "./script-approval.ts";
 import { syncBriefPage } from "./project-brief.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { asksForVideo } from "./roles.ts";

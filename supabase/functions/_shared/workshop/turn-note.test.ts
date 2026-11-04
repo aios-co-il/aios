@@ -6,6 +6,7 @@ import {
 } from "jsr:@std/assert@1";
 import { approveFromMessage } from "./budget-approve.ts";
 import { budgetOf, requestBudget } from "./budget.ts";
+import { APPROVE_SCRIPT, SCRIPT_CHOICE } from "./script-approval.ts";
 import {
   ANY_KIND,
   DO_THE_STEP,
@@ -287,7 +288,6 @@ Deno.test(
 Deno.test(
   "a tap on the script question approves the script whatever Carmen calls next",
   async () => {
-    const { SCRIPT_CHOICE, APPROVE_SCRIPT } = await import("./film-script.ts");
     const payload = {
       project_type: "video",
       workshop_script: {
