@@ -1,6 +1,5 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { PropsWithChildren } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { withTestQuery } from "@/test/withTestQuery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useUserIntegrations } from "./useUserIntegrations";
 import { useResolvedGscIntegration } from "./useResolvedGscIntegration";
@@ -86,24 +85,11 @@ describe("useUserIntegrations identity boundary", () => {
   it.each(["google_search_console", "meta_whatsapp"])(
     "rejects invalid IDs before exposing %s rows to any consumer",
     async (type) => {
-      const client = new QueryClient({
-        defaultOptions: { queries: { retry: false, gcTime: 0 } },
-      });
-      /** Give the hook an isolated cache without replacing its query function. */
-      function Wrapper({ children }: PropsWithChildren) {
-        return (
-          <QueryClientProvider client={client}>{children}</QueryClientProvider>
-        );
-      }
-      const { result } = renderHook(
-        () => useUserIntegrations("tenant-1", type),
-        { wrapper: Wrapper },
-      );
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data?.map((row) => row.id)).toEqual(
-        type === "google_search_console"
-          ? ["valid"]
-          : ["valid", "shared-valid"],
+      render(withTestQuery(<IntegrationList type={type} />));
+      await waitFor(() =>
+        expect(screen.getByLabelText("integration IDs").textContent).toBe(
+          type === "google_search_console" ? "valid" : "valid,shared-valid",
+        ),
       );
       expect(console.error).toHaveBeenCalledTimes(
         type === "google_search_console" ? 1 : 2,
@@ -111,32 +97,13 @@ describe("useUserIntegrations identity boundary", () => {
       expect(console.error).toHaveBeenCalledWith(
         "Ignoring integration with an invalid id",
       );
-      client.clear();
     },
   );
 
   it("keeps the tenant fallback available when a malformed personal ID has a matching site", async () => {
     mocks.own = [{ ...fixture, id: 42 }];
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
-    });
-    /** Exercise the real integration and fallback hooks in one cache. */
-    function Wrapper({ children }: PropsWithChildren) {
-      return (
-        <QueryClientProvider client={client}>{children}</QueryClientProvider>
-      );
-    }
-    const { result } = renderHook(
-      () =>
-        useResolvedGscIntegration({
-          clientId: "client-1",
-          tenantIds: ["tenant-1"],
-          expectedDomain: "example.com",
-        }),
-      { wrapper: Wrapper },
-    );
-    await waitFor(() => expect(result.current.integrationId).toBe("fallback"));
-    expect(result.current.isFallback).toBe(true);
+    render(withTestQuery(<ResolvedIntegration />));
+    expect(await screen.findByText("fallback:true")).toBeInTheDocument();
     expect(mocks.invoke).toHaveBeenCalledWith(
       "resolve-seo-gsc-integration",
       expect.objectContaining({
@@ -146,6 +113,25 @@ describe("useUserIntegrations identity boundary", () => {
         }),
       }),
     );
-    client.clear();
   });
 });
+
+/** Render the real query result through the shared provider. */
+function IntegrationList({ type }: { type: string }) {
+  const { data, isSuccess } = useUserIntegrations("tenant-1", type);
+  return (
+    <output aria-label="integration IDs">
+      {isSuccess ? data.map((row) => row.id).join(",") : "loading"}
+    </output>
+  );
+}
+
+/** Keep the fallback observable while its real queries settle. */
+function ResolvedIntegration() {
+  const { integrationId, isFallback } = useResolvedGscIntegration({
+    clientId: "client-1",
+    tenantIds: ["tenant-1"],
+    expectedDomain: "example.com",
+  });
+  return <output>{`${integrationId}:${isFallback}`}</output>;
+}
