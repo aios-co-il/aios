@@ -12,6 +12,7 @@ import {
   withBriefAnswers,
 } from "./brief-answers.ts";
 import { CTA_MAX_CHARS } from "./cta.ts";
+import { syncBriefPage } from "./project-brief.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { asksForVideo } from "./roles.ts";
 import {
@@ -115,7 +116,14 @@ export async function workshopTurnNote(
         .update({ payload: next })
         .eq("id", itemId)
         .eq("tenant_id", tenantId);
-      if (!error) {
+      if (error) {
+        console.error(
+          "[workshop] turn answers not saved",
+          itemId,
+          error.message,
+        );
+      } else {
+        await syncBriefPage(supabase, tenantId, itemId, payload, next);
         payload = next;
         if (approved)
           lines.push(
