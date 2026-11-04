@@ -112,10 +112,11 @@ export function isSameInstantAlertFinding(
 }
 
 /**
- * Up to 50 log rows of this client + rule (+ campaign) that `tenantIds` sent
- * inside the rule's throttle window, newest first, so a flap back to an
- * earlier finding still matches. The one window query for this org's dedupe
- * and the cross-org one (cross-tenant-recipients.ts).
+ * Up to 50 log rows of this client (none, for a lost connection) + rule
+ * (+ campaign) that `tenantIds` sent inside the rule's throttle window,
+ * newest first, so a flap back to an earlier finding still matches. The one
+ * window query for this org's dedupe and the cross-org one
+ * (cross-tenant-recipients.ts).
  */
 export async function recentAlertDeliveries(
   supabase: Pick<DbClient, "from">,
@@ -127,11 +128,16 @@ export async function recentAlertDeliveries(
   const since = new Date(
     now.getTime() - throttleHours * 60 * 60 * 1000,
   ).toISOString();
-  let query = supabase
+  const rows = supabase
     .from("pulse_instant_alert_log")
     .select("recipient_phone, fingerprint, severity_score")
-    .in("tenant_id", tenantIds)
-    .eq("client_id", candidate.client_id)
+    .in("tenant_id", tenantIds);
+  // A lost connection is the org's, not a client's (client_id null).
+  let query = (
+    candidate.client_id === null
+      ? rows.is("client_id", null)
+      : rows.eq("client_id", candidate.client_id)
+  )
     .eq("rule_type", candidate.rule_type)
     .gte("sent_at", since)
     .order("sent_at", { ascending: false })
