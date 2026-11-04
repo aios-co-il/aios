@@ -98,7 +98,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   useState,
   ReactNode,
-  useRef,
+  useCallback,
   useEffect,
   useMemo,
   createContext,
@@ -148,6 +148,9 @@ import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
 import { useLeadsViewMode } from "@/hooks/useLeadsViewMode";
+import { useLeadStageScopeDefault } from "@/components/leads/useLeadStageScopeDefault";
+import { useOpeningStageFilter } from "@/components/leads/useOpeningStageFilter";
+import { type LeadStageScope } from "@/components/leads/leadStageScope";
 import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
@@ -998,7 +1001,6 @@ export default function Leads() {
     id: string;
     name: string;
   } | null>(null);
-  const skipChatStageDefault = useRef(false);
 
   // Convert dynamic pipeline stages to format compatible with existing code
   const PIPELINE_STAGES = useMemo(() => {
@@ -1075,6 +1077,11 @@ export default function Leads() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const { viewMode, setViewMode, defaultView, setDefaultView } =
     useLeadsViewMode(userId);
+  const {
+    savedScope: savedStageScope,
+    isSettled: stageScopeSettled,
+    saveScope: saveStageScope,
+  } = useLeadStageScopeDefault();
   const [tableLayout, setTableLayoutState] = useState<LeadTableLayout>(() => {
     if (typeof window === "undefined") return "by_date";
     return parseLeadTableLayout(
@@ -1132,17 +1139,20 @@ export default function Leads() {
     if (isKanbanView) setPage(1);
   }, [isKanbanView]);
 
-  useEffect(() => {
-    if (viewMode !== "chat") {
-      skipChatStageDefault.current = false;
-      return;
-    }
-    if (skipChatStageDefault.current || activePresetId) return;
-    if (filterStageIds.length > 0) return;
-    if (!pipelineStagesData?.length) return;
+  // Open on new leads per the saved default (else chat only), once per view.
+  const applyOpeningStage = useCallback((stageKey: string) => {
     setStageFilterMode("show");
-    setFilterStageIds([pipelineStagesData[0].stage_key]);
-  }, [viewMode, pipelineStagesData, activePresetId, filterStageIds]);
+    setFilterStageIds([stageKey]);
+  }, []);
+  const { markUserChoice } = useOpeningStageFilter({
+    tenantId,
+    viewMode,
+    savedScope: savedStageScope,
+    isSettled: stageScopeSettled,
+    hasFilterOrPreset: Boolean(activePresetId) || filterStageIds.length > 0,
+    firstStageKey: pipelineStagesData?.[0]?.stage_key,
+    applyStage: applyOpeningStage,
+  });
 
   // Reset page to 1 and clear accumulated leads when filters change
   useEffect(() => {
@@ -2712,7 +2722,7 @@ export default function Leads() {
       setSearchQuery("");
       setActivePresetId(null);
     } else {
-      skipChatStageDefault.current = true;
+      markUserChoice();
       // Apply preset filters - handle both old (string) and new (array) format
       const f = preset.filters as Record<string, any>;
       // Handle legacy salesPersonId (string) format and new salesPersonIds (array) format
@@ -3149,10 +3159,21 @@ export default function Leads() {
   };
 
   const handleStageSelect = (stageId: string) => {
-    skipChatStageDefault.current = true;
+    markUserChoice();
     setStageFilterMode("show");
     setFilterStageIds(stageId === "all" ? [] : [stageId]);
     setActivePresetId(null);
+  };
+
+  /** Saves the opening scope and shows it right away. */
+  const handleDefaultStageScope = (scope: LeadStageScope) => {
+    saveStageScope(scope);
+    const newStageKey = pipelineStagesData?.[0]?.stage_key;
+    if (scope === "all") {
+      handleStageSelect("all");
+    } else if (newStageKey) {
+      handleStageSelect(newStageKey);
+    }
   };
 
   const stagePresetCounts = useMemo(() => {
@@ -3320,6 +3341,8 @@ export default function Leads() {
                   stageFilterMode={stageFilterMode}
                   onStageSelect={handleStageSelect}
                   stageCounts={stagePresetCounts}
+                  defaultStageScope={savedStageScope}
+                  onDefaultStageScopeChange={handleDefaultStageScope}
                 />
                 {viewMode === "table" && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -3507,6 +3530,8 @@ export default function Leads() {
               stageFilterMode={stageFilterMode}
               onStageSelect={handleStageSelect}
               stageCounts={stagePresetCounts}
+              defaultStageScope={savedStageScope}
+              onDefaultStageScopeChange={handleDefaultStageScope}
             />
 
             <div className="flex shrink-0 items-center gap-2">
