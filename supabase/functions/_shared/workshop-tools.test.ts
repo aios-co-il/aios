@@ -3894,6 +3894,22 @@ Deno.test(
 );
 
 Deno.test(
+  "a site link in the message is not a look: the style questions stay open",
+  async () => {
+    const reading = (await executeWorkshopTool(
+      fakeDb(bareProject()),
+      "tenant-1",
+      "workshop_storyboard",
+      { item_id: "item-1", scenes: [{ visual_prompt: "a phone on a desk" }] },
+      async () => {},
+      null,
+      { turnId: "turn-1", userText: "סרטון לעסק שלי https://shop.example.com" },
+    )) as GateReply;
+    assertEquals(reading.missing, ["style", "film"]);
+  },
+);
+
+Deno.test(
   "a request that settles every question goes straight to the storyboard after Carmen's reading",
   async () => {
     const deps = { turnId: "turn-1", userText: "סרטון לפי הרפרנס" };

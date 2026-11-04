@@ -218,9 +218,15 @@ export async function briefProject(
 }
 
 /**
- * A reference the user gave in this turn: a picture from the board the film is built from, or a
- * link in their message (an attached file arrives as a link too: commandCenterAttachments.ts).
+ * A picture or video the user gave in this turn: an attached image (commandCenterAttachments.ts
+ * writes "- תמונה: name → url"), or a link to an image or video file. A site or document link is
+ * not a look by itself; Carmen passes it as a "רפרנס" answer when the user meant it as one.
  */
+const ATTACHED_IMAGE = /^-\s*תמונה:.*→\s*(https?:\/\/\S+)/m;
+const MEDIA_LINK =
+  /https?:\/\/[^\s)\]]+\.(?:png|jpe?g|gif|webp|avif|mp4|mov|webm)(?:\?[^\s)\]]*)?/i;
+
+/** A reference the user gave in this turn: a board picture the film is built from, or media. */
 function referenceThisTurn(
   args: Record<string, unknown>,
   userText: string,
@@ -230,7 +236,11 @@ function referenceThisTurn(
   if (fromArtifact) {
     return `תמונה מהלוח (artifact_id=${fromArtifact})`;
   }
-  return userText.match(/https?:\/\/[^\s)\]]+/i)?.[0] ?? null;
+  return (
+    userText.match(ATTACHED_IMAGE)?.[1] ??
+    userText.match(MEDIA_LINK)?.[0] ??
+    null
+  );
 }
 
 /**
