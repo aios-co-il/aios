@@ -508,9 +508,10 @@ Deno.serve(async (req) => {
             }
             current.setDate(current.getDate() + 1);
           }
+          // A backfill whose every day failed synced nothing (AIO-342).
           results.push({
             table: table.name,
-            status: "backfilled",
+            status: dayCount > 0 ? "backfilled" : "error",
             days: dayCount,
           });
         } else {
