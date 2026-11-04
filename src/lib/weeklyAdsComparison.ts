@@ -6,6 +6,11 @@ import {
   type FacebookGoalInputs,
 } from "@/lib/facebookCampaignGoal";
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
+import {
+  applyCampaignOffRule,
+  campaignOffKeys,
+  type CampaignOffRecord,
+} from "@/lib/campaignOffState";
 import { earnsRevenue } from "@/lib/weeklyAdsRevenue";
 import {
   addFacebookFollowers,
@@ -21,7 +26,7 @@ import {
 export type WeeklyAdsSource =
   "facebook_insights" | "facebook_ecommerce" | "google_ads";
 
-export type WeeklyAdsRecord = {
+export type WeeklyAdsRecord = CampaignOffRecord & {
   data?: Record<string, unknown>;
   _source?: string;
 };
@@ -43,6 +48,8 @@ export type WeeklyCampaignRow = {
   /** Facebook only; traffic tables show it. */
   followers: FacebookFollowerTotals;
   costPerFollower: number | null;
+  /** Paused, removed or its report switched off; shown in a week only when it spent. */
+  off: boolean;
 };
 
 export type WeeklyCampaignSection = {
@@ -176,6 +183,8 @@ export function buildWeeklyCampaignSections(
     sourceModes?: WeeklySourceModes;
     /** Goal per Google campaign id (name when missing), from the report's rules. */
     googleCampaignGoals?: Map<string, GoogleCampaignGoal>;
+    /** Whether a record's report is switched off (`reportOffLookup`). */
+    isReportOff?: (record: WeeklyAdsRecord) => boolean;
   } = {},
 ): WeeklyCampaignSection[] {
   const now = options.now ?? new Date();
@@ -194,10 +203,7 @@ export function buildWeeklyCampaignSections(
     const data = record.data ?? {};
     if (!shouldIncludeCampaignRow(data)) continue;
 
-    const campaign = String(
-      data.campaign_name || data.campaign || "ללא שם קמפיין",
-    );
-    const campaignId = String(data.campaign_id || campaign);
+    const { campaign, campaignId } = weeklyCampaignIdentity(data);
     const rowKey = `${source}:${campaignId}`;
     if (source === "facebook_insights") {
       facebookGoalInputs.set(
@@ -277,6 +283,13 @@ export function buildWeeklyCampaignSections(
     }
   }
 
+  const offKeys = campaignOffKeys(
+    records,
+    (data, record) =>
+      `${record._source ?? options.defaultSource}:${weeklyCampaignIdentity(data).campaignId}`,
+    options.isReportOff,
+  );
+
   return [...weeks.entries()]
     .sort(([a], [b]) => a - b)
     .map(([index, campaigns]) => {
@@ -285,41 +298,44 @@ export function buildWeeklyCampaignSections(
       const end = new Date(start);
       end.setUTCDate(end.getUTCDate() + 6);
 
-      const rows = [...campaigns.entries()]
-        .map(([key, campaign]) => {
-          const kind = campaignKind(
-            campaign,
-            sourceModes,
-            options.googleCampaignGoals?.get(campaign.campaignId),
-          );
-          const revenue = earnsRevenue(campaign.source, kind)
-            ? campaign.revenue
-            : 0;
-          const results =
-            kind === "ecommerce"
-              ? campaign.purchases
-              : kind === "traffic"
-                ? campaign.clicks
-                : campaign.leads;
-          return {
-            key,
-            source: campaign.source,
-            campaignId: campaign.campaignId,
-            campaign: campaign.campaign,
-            kind,
-            impressions: campaign.impressions,
-            clicks: campaign.clicks,
-            results,
-            spend: campaign.spend,
-            costPerResult: results > 0 ? campaign.spend / results : 0,
-            revenue,
-            addToCart: campaign.addToCart,
-            roas: campaign.spend > 0 ? revenue / campaign.spend : 0,
-            followers: campaign.followers,
-            costPerFollower: costPerFollower([campaign]),
-          };
-        })
-        .sort((a, b) => b.spend - a.spend);
+      const weekRows = [...campaigns.entries()].map(([key, campaign]) => {
+        const kind = campaignKind(
+          campaign,
+          sourceModes,
+          options.googleCampaignGoals?.get(campaign.campaignId),
+        );
+        const revenue = earnsRevenue(campaign.source, kind)
+          ? campaign.revenue
+          : 0;
+        const results =
+          kind === "ecommerce"
+            ? campaign.purchases
+            : kind === "traffic"
+              ? campaign.clicks
+              : campaign.leads;
+        return {
+          key,
+          source: campaign.source,
+          campaignId: campaign.campaignId,
+          campaign: campaign.campaign,
+          kind,
+          impressions: campaign.impressions,
+          clicks: campaign.clicks,
+          results,
+          spend: campaign.spend,
+          costPerResult: results > 0 ? campaign.spend / results : 0,
+          revenue,
+          addToCart: campaign.addToCart,
+          roas: campaign.spend > 0 ? revenue / campaign.spend : 0,
+          followers: campaign.followers,
+          costPerFollower: costPerFollower([campaign]),
+        };
+      });
+      const rows: WeeklyCampaignRow[] = applyCampaignOffRule(weekRows, {
+        keyOf: (row) => row.key,
+        spendOf: (row) => row.spend,
+        offKeys,
+      }).sort((a, b) => b.spend - a.spend);
 
       const groups = groupWeeklyRowsByGoal(rows);
       const totals = rows.reduce(
@@ -341,7 +357,19 @@ export function buildWeeklyCampaignSections(
         groups,
         totals,
       };
-    });
+    })
+    .filter((week) => week.rows.length > 0);
+}
+
+/** A record's campaign name and id; the name stands in for a missing id. */
+function weeklyCampaignIdentity(data: Record<string, unknown>): {
+  campaign: string;
+  campaignId: string;
+} {
+  const campaign = String(
+    data.campaign_name || data.campaign || "ללא שם קמפיין",
+  );
+  return { campaign, campaignId: String(data.campaign_id || campaign) };
 }
 
 export function formatWeeklyRange(startDate: string, endDate: string): string {
