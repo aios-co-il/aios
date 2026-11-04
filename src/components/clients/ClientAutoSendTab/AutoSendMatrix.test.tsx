@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { AutoSendMatrix } from "./AutoSendMatrix";
 import { backend, resetBackend } from "./fakeAutoSendBackend";
 
@@ -19,7 +19,7 @@ const AUTOMATION_BY_EMAIL = "אוטומציות אחרות של הארגון: א
 
 /** The switches of client-1, with a fresh query client. */
 function renderMatrix() {
-  const { wrapper } = withTestQuery();
+  const { wrapper } = createTestQueryHarness();
   return render(<AutoSendMatrix clientId="client-1" />, { wrapper });
 }
 

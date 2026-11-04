@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import {
   useRecordReportDelivery,
   type ReportDeliveryInput,
@@ -38,7 +38,7 @@ const reportSend: ReportDeliveryInput = {
 
 /** Mounts the hook; `record` runs one mutation to completion. */
 function renderRecorder() {
-  const { queryClient, wrapper } = withTestQuery();
+  const { queryClient, wrapper } = createTestQueryHarness();
   const invalidate = vi.spyOn(queryClient, "invalidateQueries");
   const { result } = renderHook(() => useRecordReportDelivery(), { wrapper });
   const record = async (input: ReportDeliveryInput) => {

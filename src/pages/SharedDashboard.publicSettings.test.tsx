@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { stubResizeObserver } from "@/test/stubResizeObserver";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { toPublicTableSettings } from "../../supabase/functions/_shared/share-links/public-table-settings.ts";
 import SharedDashboard from "./SharedDashboard";
 
@@ -113,7 +113,7 @@ describe("SharedDashboard with share-link settings", () => {
     );
     vi.spyOn(console, "log").mockImplementation(() => {});
 
-    const { wrapper: Wrapper } = withTestQuery();
+    const { wrapper: Wrapper } = createTestQueryHarness();
     render(
       <Wrapper>
         <MemoryRouter initialEntries={["/shared/dashboard/share-token"]}>
