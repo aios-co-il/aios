@@ -27,11 +27,15 @@
 -- 4. offboard_tenant_member / reactivate_tenant_member (service role only) are
 --    the data side of delete-user and set-user-active, each one transaction.
 --    They refuse the actor themself, a super admin, the organization's last
---    owner, and anyone the actor does not rank above in every organization
---    they belong to (actor_may_manage_member: a super admin acting in the
---    organization ranks above everyone but a super admin; an owner of a parent
---    organization above everyone in it; an owner above everyone in it but
---    another owner), before changing anything. Offboarding turns off the member's
+--    owner, and anyone the actor does not rank above in that organization
+--    (actor_may_manage_member: a super admin acting in the organization ranks
+--    above everyone but a super admin; an owner of a parent organization above
+--    everyone in it; an owner above everyone in it but another owner), before
+--    changing anything. Each call changes one organization only, and touches
+--    the account (sign-in, sessions, deletion) only when it was the user's
+--    last organization, so the rank there is enough. Account-wide actions
+--    (a password reset) need the rank in every organization the user
+--    belongs to. Offboarding turns off the member's
 --    campaigner and sales person cards in that organization (assignee pickers
 --    and Carmen's team read active cards; the card triggers revoke the card's
 --    Carmen WhatsApp identity and queue a Carmen knowledge refresh), closes
@@ -345,9 +349,10 @@ grant execute on function public.member_outranks(uuid, uuid, uuid) to service_ro
 
 -- Whether p_actor may deactivate, reactivate or delete p_target in
 -- p_tenant_id: p_actor owns the organization or a parent of it, or is a super
--- admin acting in it, and outranks p_target there and in every organization
--- p_target belongs to. The edge twin is mayManageMember
--- (supabase/functions/_shared/user-admin/member-rank.ts); keep them aligned.
+-- admin acting in it, and outranks p_target there. The other organizations
+-- p_target belongs to are not touched, so they are not checked. The edge twin
+-- is mayManageMember (supabase/functions/_shared/user-admin/member-rank.ts);
+-- keep them aligned.
 create or replace function public.actor_may_manage_member(p_actor uuid, p_target uuid, p_tenant_id uuid)
 returns boolean
 language sql
@@ -364,12 +369,7 @@ as $$
         where public.tenant_member_is_owner(a, p_actor)
       )
     )
-    and public.member_outranks(p_actor, p_target, p_tenant_id)
-    and not exists (
-      select 1 from public.tenant_users tu
-      where tu.user_id = p_target
-        and not public.member_outranks(p_actor, p_target, tu.tenant_id)
-    );
+    and public.member_outranks(p_actor, p_target, p_tenant_id);
 $$;
 
 revoke all on function public.actor_may_manage_member(uuid, uuid, uuid) from public, anon, authenticated;
@@ -413,7 +413,7 @@ begin
       using errcode = '42501';
   end if;
   if not public.actor_may_manage_member(p_actor, p_user_id, p_tenant_id) then
-    raise exception 'offboard_tenant_member: user % does not rank above user % in every organization they belong to', p_actor, p_user_id
+    raise exception 'offboard_tenant_member: user % does not rank above user % in tenant %', p_actor, p_user_id, p_tenant_id
       using errcode = '42501';
   end if;
 
@@ -559,7 +559,7 @@ begin
       using errcode = '42501';
   end if;
   if not public.actor_may_manage_member(p_actor, p_user_id, p_tenant_id) then
-    raise exception 'reactivate_tenant_member: user % does not rank above user % in every organization they belong to', p_actor, p_user_id
+    raise exception 'reactivate_tenant_member: user % does not rank above user % in tenant %', p_actor, p_user_id, p_tenant_id
       using errcode = '42501';
   end if;
 

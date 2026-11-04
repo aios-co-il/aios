@@ -17,7 +17,7 @@ import { isGlobalSuperAdmin } from "./role-grant.ts";
  * organization's members (member-rank.ts), and only then that the target is
  * someone else, no super admin, a current or former member whose login exists
  * (so nobody else learns whether an email has an account), and below the
- * caller in every organization they belong to. offboard_tenant_member
+ * caller in this organization. offboard_tenant_member
  * repeats the target rules and adds the last-owner rule in the transaction
  * that makes the change.
  */
@@ -75,7 +75,7 @@ export async function authorizeMemberChange(
   if (!allowed) {
     throw new MemberAdminError(
       403,
-      "You can change only users below you in every organization they belong to",
+      "You can change only users below you in this organization",
     );
   }
   if (!(await store.authUserExists(targetId))) {

@@ -1,6 +1,7 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { MemberAdminError } from "../_shared/user-admin/member-admin.ts";
 import {
+  CO_OWNER,
   fakeStore,
   MEMBER,
   OWNER,
@@ -101,7 +102,7 @@ Deno.test("deleteMember", async (t) => {
 
 Deno.test("deleteMember ranks", async (t) => {
   await t.step(
-    "an owner of A cannot delete someone who is an owner in B",
+    "an owner of A deletes, from A only, someone who is an owner in B",
     async () => {
       const w = world();
       w.memberships[`${TENANT_B}:${MEMBER}`] = "active";
@@ -109,13 +110,24 @@ Deno.test("deleteMember ranks", async (t) => {
         { role: "campaigner", tenant_id: TENANT_A },
         { role: "owner", tenant_id: TENANT_B },
       ];
+      w.offboard = { remainingTenants: 1, accountDeleted: false };
       const { store, writes } = fakeStore(w);
-      const error = await assertRejects(
-        () => deleteMember(store, asOwner, body),
-        MemberAdminError,
-      );
-      assertEquals(error.status, 403);
-      assertEquals(writes, []);
+      const result = await deleteMember(store, asOwner, body);
+      assertEquals(writes, [
+        `offboard ${TENANT_A} ${MEMBER} by ${OWNER} deleted`,
+      ]);
+      assertEquals(result.accountDeleted, false);
     },
   );
+
+  await t.step("an owner cannot delete a co-owner", async () => {
+    const { store, writes } = fakeStore(world());
+    const error = await assertRejects(
+      () =>
+        deleteMember(store, asOwner, { userId: CO_OWNER, tenantId: TENANT_A }),
+      MemberAdminError,
+    );
+    assertEquals(error.status, 403);
+    assertEquals(writes, []);
+  });
 });

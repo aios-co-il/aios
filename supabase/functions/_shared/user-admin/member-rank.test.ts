@@ -108,13 +108,14 @@ Deno.test("outranksIn", async (t) => {
 });
 
 Deno.test("mayManageMember", async (t) => {
-  await t.step("an owner manages a member of its own organization only", () => {
+  await t.step("an owner manages its members, also ones who work in B", () => {
     assertEquals(may(ownerOf(A), memberOf(A)), true);
-    assertEquals(may(ownerOf(A), memberOf(A, B)), false);
+    assertEquals(may(ownerOf(A), memberOf(A, B)), true);
+    assertEquals(may(ownerOf(A), memberOf(B), B, A), false);
   });
 
   await t.step(
-    "an owner of A cannot touch someone who is an owner in B",
+    "an owner of A manages, in A, someone who is an owner in B",
     () => {
       const ownerInB: RankedUser = {
         roles: [
@@ -126,9 +127,20 @@ Deno.test("mayManageMember", async (t) => {
           { tenant_id: B, role: "owner" },
         ],
       };
-      assertEquals(may(ownerOf(A), ownerInB), false);
+      assertEquals(may(ownerOf(A), ownerInB), true);
+      // An account-wide action needs the rank in every organization.
+      assertEquals(
+        ownerInB.memberships.every((m) =>
+          outranksIn(ownerOf(A), ownerInB, m.tenant_id, parents),
+        ),
+        false,
+      );
     },
   );
+
+  await t.step("an owner cannot touch a co-owner", () => {
+    assertEquals(may(ownerOf(A), ownerOf(A)), false);
+  });
 
   await t.step(
     "a super admin acting in A manages A's owner, also one in B",

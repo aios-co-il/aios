@@ -15,12 +15,11 @@
 --    keeps their name in history; sessions end when no organization is left.
 --    Reactivating restores membership (original created_at), member roles and
 --    card, never super_admin.
--- 4. Ranks: a super admin acting in the organization acts on anyone but a
---    super admin; an owner of a parent organization on everyone in it; an
---    owner on everyone in it but another owner; and only on someone the actor
---    ranks above in every organization they belong to. Refusals: self, a super
---    admin, the last owner, a non-member, a deleted member; clients cannot
---    call the functions.
+-- 4. Ranks, in the organization acted on: a super admin acting in it acts on
+--    anyone but a super admin; an owner of a parent organization on everyone
+--    in it; an owner on everyone in it but another owner. A member's other
+--    organizations are not touched. Refusals: self, a super admin, the last
+--    owner, a non-member, a deleted member; clients cannot call the functions.
 -- 5. tenant_inactive_members: members read it; no client writes it, so an
 --    owner can neither plant a row (to read a stranger's profile) nor rewrite
 --    the roles a reactivation restores.
@@ -235,13 +234,13 @@ BEGIN
   RESET ROLE;
 
   SET LOCAL ROLE service_role;
-  BEGIN
-    PERFORM public.offboard_tenant_member(t_a, mover, owner_a, 'inactive');
-    RAISE EXCEPTION 'rank: an owner of A deactivated a member of B';
-  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
-  END;
-  SELECT * INTO r FROM public.offboard_tenant_member(t_a, mover, admin, 'inactive');
+  -- The owner of A deactivates, in A only, a member who also works in B.
+  SELECT * INTO r FROM public.offboard_tenant_member(t_a, mover, owner_a, 'inactive');
   RESET ROLE;
+  IF NOT EXISTS (SELECT 1 FROM public.tenant_users WHERE tenant_id = t_b AND user_id = mover)
+    OR NOT EXISTS (SELECT 1 FROM public.user_roles WHERE tenant_id = t_b AND user_id = mover AND role = 'campaigner') THEN
+    RAISE EXCEPTION 'deactivate: the member''s B membership or role changed';
+  END IF;
   IF r.remaining_tenants <> 1 OR r.account_deleted OR public.get_user_tenant_id(mover) <> t_b
     OR NOT EXISTS (SELECT 1 FROM auth.sessions WHERE id = mover_session) THEN
     RAISE EXCEPTION 'deactivate: a member of two organizations should keep B and their session, got (%, %)',
@@ -288,16 +287,15 @@ BEGIN
     RAISE EXCEPTION 'rank: an owner deactivated a co-owner';
   EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
   END;
-  BEGIN
-    PERFORM public.offboard_tenant_member(t_a, dual, owner_a, 'deleted');
-    RAISE EXCEPTION 'rank: an owner of A deleted an owner of B';
-  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
-  END;
-  BEGIN
-    PERFORM public.offboard_tenant_member(t_a, dual, owner_a, 'inactive');
-    RAISE EXCEPTION 'rank: an owner of A deactivated an owner of B';
-  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
-  END;
+  -- The owner of A deactivates, then deletes, in A only, someone who is an owner in B.
+  SELECT * INTO r FROM public.offboard_tenant_member(t_a, dual, owner_a, 'inactive');
+  IF r.remaining_tenants <> 1 OR r.account_deleted THEN
+    RAISE EXCEPTION 'rank: deactivating in A reached beyond A, got (%, %)', r.remaining_tenants, r.account_deleted;
+  END IF;
+  SELECT * INTO r FROM public.offboard_tenant_member(t_a, dual, owner_a, 'deleted');
+  IF r.remaining_tenants <> 1 OR r.account_deleted THEN
+    RAISE EXCEPTION 'rank: deleting from A deleted the account of an owner of B';
+  END IF;
   -- The super admin acting in A deactivates a co-owner; another owner remains.
   SELECT * INTO r FROM public.offboard_tenant_member(t_a, owner2_a, admin, 'inactive');
   BEGIN
@@ -309,8 +307,10 @@ BEGIN
   PERFORM public.reactivate_tenant_member(t_a, owner2_a, owner_p);
   RESET ROLE;
   IF NOT public.tenant_member_is_owner(t_a, owner2_a)
-    OR EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = dual AND tenant_id = t_a) IS NOT TRUE THEN
-    RAISE EXCEPTION 'rank: the co-owner is not an owner again, or the dual member left A';
+    OR EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = dual AND tenant_id = t_a)
+    OR NOT public.tenant_member_is_owner(t_b, dual)
+    OR (SELECT deleted_at FROM public.profiles WHERE id = dual) IS NOT NULL THEN
+    RAISE EXCEPTION 'rank: the co-owner is not an owner again, or the owner of B was touched outside A';
   END IF;
   IF public.actor_may_manage_member(owner_b, mover, t_a) OR public.actor_may_manage_member(owner_a, owner_p, t_p)
     OR NOT public.actor_may_manage_member(owner_p, owner_a, t_a) THEN
@@ -320,7 +320,7 @@ BEGIN
   SET LOCAL ROLE service_role;
   PERFORM public.offboard_tenant_member(t_a, owner2_a, owner_p, 'inactive');
   RESET ROLE;
-  RAISE NOTICE 'ranks: co-owner and owner of another organization refused; super admin and parent owner allowed';
+  RAISE NOTICE 'ranks: co-owner refused; members and owners of B handled in A only; super admin and parent owner allowed';
 
   -- Refusals, before anything changes.
   SET LOCAL ROLE service_role;
@@ -330,7 +330,6 @@ BEGIN
       ('the actor', owner_a, owner_a, 'deleted', '42501'),
       ('a super admin', admin, owner_a, 'inactive', '42501'),
       ('a non-member', outsider, owner_a, 'inactive', 'P0002'),
-      ('a user of another organization', owner_b, owner_a, 'inactive', '42501'),
       ('a deleted member', writer, owner_a, 'inactive', '22023')
     ) AS c(label, target, actor, status, code)
   LOOP

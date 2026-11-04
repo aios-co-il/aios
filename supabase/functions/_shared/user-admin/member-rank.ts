@@ -1,9 +1,13 @@
-// Who may deactivate, reactivate or delete whom (David's hierarchy, AIO-321):
-// a super admin acting in an organization ranks above everyone but a super
-// admin; an owner of a parent organization above everyone in its
-// sub-organizations; an owner above everyone in their organization but
-// another owner. An action needs the actor to rank above the target in every
-// organization the target belongs to. The SQL twin is actor_may_manage_member
+// Who ranks above whom (David's hierarchy, AIO-321): a super admin acting in
+// an organization ranks above everyone but a super admin; an owner of a parent
+// organization above everyone in its sub-organizations; an owner above
+// everyone in their organization but another owner.
+//
+// Deactivate, reactivate and delete act on one organization and touch the
+// account only when it was the user's last one, so they need the rank in that
+// organization only (mayManageMember). An account-wide action, such as a
+// password reset, needs it in every organization the user belongs to: check
+// outranksIn for each. The SQL twin is actor_may_manage_member / member_outranks
 // (20261104100000_user_deactivate_keep_history.sql); keep the two aligned.
 import { type CallerRole, isGlobalSuperAdmin } from "./role-grant.ts";
 
@@ -56,8 +60,10 @@ export function canManageMembers(
 }
 
 /**
- * Whether the actor ranks above the target in one organization (member_outranks).
- * `targetWasOwner`: the target is inactive there and their kept roles hold owner.
+ * Whether the actor ranks above the target in one organization
+ * (member_outranks). `targetWasOwner`: the target is inactive there and their
+ * kept roles hold owner. For an account-wide action, require it for every
+ * organization the target belongs to.
  */
 export function outranksIn(
   actor: RankedUser,
@@ -82,7 +88,12 @@ export function outranksIn(
   );
 }
 
-/** Whether the actor may deactivate, reactivate or delete the target in the organization (actor_may_manage_member). */
+/**
+ * Whether the actor may deactivate, reactivate or delete the target in one
+ * organization (actor_may_manage_member): the actor may manage that
+ * organization and ranks above the target there. The target's other
+ * organizations are not touched, so they are not checked.
+ */
 export function mayManageMember(input: {
   actorId: string;
   actor: RankedUser;
@@ -97,9 +108,6 @@ export function mayManageMember(input: {
   return (
     input.actorId !== input.targetId &&
     canManageMembers(actor, tenantId, input.actorActiveTenantId, parents) &&
-    outranksIn(actor, target, tenantId, parents, input.targetWasOwner) &&
-    target.memberships.every((m) =>
-      outranksIn(actor, target, m.tenant_id, parents),
-    )
+    outranksIn(actor, target, tenantId, parents, input.targetWasOwner)
   );
 }

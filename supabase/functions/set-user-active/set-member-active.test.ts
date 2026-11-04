@@ -215,12 +215,36 @@ Deno.test("setMemberActive ranks", async (t) => {
   );
 
   await t.step(
-    "an owner of A cannot deactivate a member who also works in B",
+    "an owner of A deactivates, in A only, a member who also works in B",
     async () => {
-      const writes = await refuses(403, deactivate, (w) => {
-        w.memberships[`${TENANT_B}:${MEMBER}`] = "active";
-      });
-      assertEquals(writes, []);
+      const w = world();
+      w.memberships[`${TENANT_B}:${MEMBER}`] = "active";
+      w.offboard = { remainingTenants: 1, accountDeleted: false };
+      const { store, writes } = fakeStore(w);
+      const result = await setMemberActive(store, asOwner, deactivate);
+      assertEquals(writes, [
+        `offboard ${TENANT_A} ${MEMBER} by ${OWNER} inactive`,
+      ]);
+      assertEquals(result, { active: false, signInBlocked: false });
+      assertEquals(w.memberships[`${TENANT_B}:${MEMBER}`], "active");
+    },
+  );
+
+  await t.step(
+    "an owner of A deactivates, in A only, someone who is an owner in B",
+    async () => {
+      const w = world();
+      w.memberships[`${TENANT_B}:${MEMBER}`] = "active";
+      w.roles[MEMBER] = [
+        { role: "campaigner", tenant_id: TENANT_A },
+        { role: "owner", tenant_id: TENANT_B },
+      ];
+      w.offboard = { remainingTenants: 1, accountDeleted: false };
+      const { store, writes } = fakeStore(w);
+      await setMemberActive(store, asOwner, deactivate);
+      assertEquals(writes, [
+        `offboard ${TENANT_A} ${MEMBER} by ${OWNER} inactive`,
+      ]);
     },
   );
 });
