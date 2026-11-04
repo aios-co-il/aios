@@ -7,7 +7,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -24,7 +24,7 @@ Deno.test(
       style_bible: "flat vector, teal",
       film_brief: "איור מונפש, קליל, קריינית, מוזיקה אקוסטית, סגיר עם לוגו",
     };
-    const unapproved = (await executeWorkshopTool(
+    const unapproved = (await executeApprovedWorkshopTool(
       fakeDb({
         ...bareProject(),
         "marketing_video_scenes:select": [scene("s-1")],
@@ -51,7 +51,7 @@ Deno.test(
       ...asked,
       "marketing_video_scenes:select": [scene("s-1")],
     });
-    const approved = (await executeWorkshopTool(
+    const approved = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -93,7 +93,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1")],
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     };
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       fakeDb(script),
       "tenant-1",
       "workshop_make_stills",
@@ -107,7 +107,7 @@ Deno.test(
 
     // An engine that is not connected is ignored with a note, never an error to retry on.
     for (const engine of ["openai", "openrouter", "dall-e-9"]) {
-      const unknown = (await executeWorkshopTool(
+      const unknown = (await executeApprovedWorkshopTool(
         fakeDb(script),
         "tenant-1",
         "workshop_make_stills",
@@ -123,7 +123,7 @@ Deno.test(
     }
 
     const db = fakeDb(script);
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -154,7 +154,7 @@ Deno.test(
       }),
       "marketing_video_scenes:select": [scene("s-1")],
     });
-    const again = (await executeWorkshopTool(
+    const again = (await executeApprovedWorkshopTool(
       remembered,
       "tenant-1",
       "workshop_make_stills",
@@ -169,7 +169,7 @@ Deno.test(
 
 Deno.test("a single connected engine is used without asking", async () => {
   const seen: (string | undefined)[] = [];
-  await executeWorkshopTool(
+  await executeApprovedWorkshopTool(
     fakeDb({
       ...videoProject(),
       "marketing_video_scenes:select": [scene("s-1")],
@@ -195,7 +195,7 @@ Deno.test(
   "the whole-film budget asked with the stills covers an OpenRouter fallback",
   async () => {
     const ask = async (openrouter: boolean) =>
-      (await executeWorkshopTool(
+      (await executeApprovedWorkshopTool(
         fakeDb({
           ...videoProject(),
           "marketing_video_scenes:select": silentFilm(),

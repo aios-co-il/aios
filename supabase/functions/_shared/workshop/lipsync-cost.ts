@@ -19,56 +19,6 @@ import {
 } from "./scene-engine.ts";
 import { talkingLine } from "./talking.ts";
 
-/** Veo 3.1 for a talking scene. */
-export const OPENROUTER_TALKING_USD_PER_SECOND = 0.4;
-
-/** Veo 3.1 renders 4, 6 or 8 s; OpenRouter makes a talking scene on it. */
-export const veoSeconds = (duration: number) => {
-  const seconds = Number(duration) || 5;
-  return seconds <= 4 ? 4 : seconds <= 6 ? 6 : 8;
-};
-
-/**
- * Lip sync, planning price per second of talking video until the first paid run. ElevenLabs
- * Creatify Aurora, Kling lip-sync, HeyGen Avatar IV (on OpenRouter) and Higgsfield
- * Seedance 2.5 all bill by length; the worker picks the first one the tenant has a key for
- * (render-worker/src/providers/lipsync.ts).
- */
-export const LIPSYNC_USD_PER_SECOND = 0.1;
-
-export const sceneTalkingLine = (scene: CostScene) =>
-  talkingLine(
-    { lipsync: scene.lipsync === true, dialogue: scene.dialogue },
-    scene.voiceover_text,
-  );
-
-/**
- * Talking scenes that go through the worker's lip-sync pass on this engine: every scene in the
- * chosen voice, and all of them on an engine that cannot speak.
- */
-export const lipsyncPassScenes = (engine: SceneEngine, scenes: CostScene[]) =>
-  scenes.filter(
-    (scene) =>
-      sceneTalkingLine(scene) &&
-      (scene.chosen_voice === true || !speaksNatively(engine)),
-  );
-
-/** A lip-sync pass: the scene's own voice line plus the lip sync, priced by length. */
-export function lipsyncPassUsd(scenes: CostScene[]) {
-  if (scenes.length === 0) return 0;
-  const seconds = scenes.reduce(
-    (sum, scene) => sum + Math.max(1, Math.ceil(Number(scene.duration_s) || 5)),
-    0,
-  );
-  const voice = voiceEstimate(
-    scenes.map((scene) => ({
-      ...scene,
-      voiceover_text: sceneTalkingLine(scene),
-    })),
-  );
-  return roundUsd(seconds * LIPSYNC_USD_PER_SECOND + voice.usd);
-}
-
 /**
  * Talking scenes. On an engine that speaks, the clip already carries the line (no extra), unless
  * the line is in the chosen voice. Otherwise each talking scene pays for its own voice line plus
@@ -134,3 +84,53 @@ export function relipEstimate(
     credits: 0,
   };
 }
+
+/** A lip-sync pass: the scene's own voice line plus the lip sync, priced by length. */
+export function lipsyncPassUsd(scenes: CostScene[]) {
+  if (scenes.length === 0) return 0;
+  const seconds = scenes.reduce(
+    (sum, scene) => sum + Math.max(1, Math.ceil(Number(scene.duration_s) || 5)),
+    0,
+  );
+  const voice = voiceEstimate(
+    scenes.map((scene) => ({
+      ...scene,
+      voiceover_text: sceneTalkingLine(scene),
+    })),
+  );
+  return roundUsd(seconds * LIPSYNC_USD_PER_SECOND + voice.usd);
+}
+
+/** Veo 3.1 for a talking scene. */
+export const OPENROUTER_TALKING_USD_PER_SECOND = 0.4;
+
+/** Veo 3.1 renders 4, 6 or 8 s; OpenRouter makes a talking scene on it. */
+export const veoSeconds = (duration: number) => {
+  const seconds = Number(duration) || 5;
+  return seconds <= 4 ? 4 : seconds <= 6 ? 6 : 8;
+};
+
+/**
+ * Lip sync, planning price per second of talking video until the first paid run. ElevenLabs
+ * Creatify Aurora, Kling lip-sync, HeyGen Avatar IV (on OpenRouter) and Higgsfield
+ * Seedance 2.5 all bill by length; the worker picks the first one the tenant has a key for
+ * (render-worker/src/providers/lipsync.ts).
+ */
+export const LIPSYNC_USD_PER_SECOND = 0.1;
+
+export const sceneTalkingLine = (scene: CostScene) =>
+  talkingLine(
+    { lipsync: scene.lipsync === true, dialogue: scene.dialogue },
+    scene.voiceover_text,
+  );
+
+/**
+ * Talking scenes that go through the worker's lip-sync pass on this engine: every scene in the
+ * chosen voice, and all of them on an engine that cannot speak.
+ */
+export const lipsyncPassScenes = (engine: SceneEngine, scenes: CostScene[]) =>
+  scenes.filter(
+    (scene) =>
+      sceneTalkingLine(scene) &&
+      (scene.chosen_voice === true || !speaksNatively(engine)),
+  );

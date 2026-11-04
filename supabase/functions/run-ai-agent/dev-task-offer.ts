@@ -1,6 +1,6 @@
 /** The dev task Carmen offered in this conversation: find it, or cancel it on the user's no. */
-import { DEV_TASK_OFFER_TTL_MS } from "./dev-task-approval.ts";
-import { logDevTaskEvent } from "./dev-tasks.ts";
+import { DEV_TASK_OFFER_TTL_MS } from "../_shared/dev-task-approval.ts";
+import { logDevTaskEvent } from "../_shared/dev-tasks.ts";
 
 type Db = { from: (table: string) => any };
 

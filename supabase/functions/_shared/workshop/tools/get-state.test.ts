@@ -4,7 +4,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   project,
   videoProject,
@@ -18,7 +18,7 @@ Deno.test(
       any
     >;
     const started = new Date(Date.now() - 10 * 60_000).toISOString();
-    const state = (await executeWorkshopTool(
+    const state = (await executeApprovedWorkshopTool(
       fakeDb({
         "marketing_work_items:select": {
           ...base,
@@ -80,7 +80,7 @@ Deno.test(
         },
       ],
     });
-    const state = (await executeWorkshopTool(
+    const state = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_get_state",
@@ -109,7 +109,7 @@ Deno.test("project state tells Carmen why a page failed", async () => {
       { id: "b", kind: "image", status: "ready", meta: { prompt: "x" } },
     ],
   });
-  const state = (await executeWorkshopTool(
+  const state = (await executeApprovedWorkshopTool(
     db,
     "tenant-1",
     "workshop_get_state",

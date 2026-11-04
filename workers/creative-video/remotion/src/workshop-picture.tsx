@@ -22,23 +22,6 @@ import { skinEnter, skinExit } from "./workshop-transition";
 import { transitionLook } from "./workshop-transitions";
 import { TransitionFilter } from "./workshop-transition-filter";
 
-const clamp = {
-  extrapolateLeft: "clamp",
-  extrapolateRight: "clamp",
-} as const;
-
-const camera = (move: WorkshopMove, progress: number) => {
-  const drift = interpolate(progress, [0, 1], [-3.2, 3.2]);
-  if (move === "static") return { scale: 1, x: 0, y: 0 };
-  if (move === "drift-left") return { scale: 1.12, x: -drift, y: 0 };
-  if (move === "drift-right") return { scale: 1.12, x: drift, y: 0 };
-  if (move === "rise")
-    return { scale: 1.14, x: 0, y: interpolate(progress, [0, 1], [3.2, -3.2]) };
-  if (move === "pull")
-    return { scale: interpolate(progress, [0, 1], [1.12, 1.02]), x: 0, y: 0 };
-  return { scale: interpolate(progress, [0, 1], [1.02, 1.12]), x: 0, y: 0 };
-};
-
 export type TitleMode = "none" | "kicker" | "card";
 
 export const Picture: React.FC<{
@@ -145,4 +128,21 @@ export const Picture: React.FC<{
       ) : null}
     </AbsoluteFill>
   );
+};
+
+const clamp = {
+  extrapolateLeft: "clamp",
+  extrapolateRight: "clamp",
+} as const;
+
+const camera = (move: WorkshopMove, progress: number) => {
+  const drift = interpolate(progress, [0, 1], [-3.2, 3.2]);
+  if (move === "static") return { scale: 1, x: 0, y: 0 };
+  if (move === "drift-left") return { scale: 1.12, x: -drift, y: 0 };
+  if (move === "drift-right") return { scale: 1.12, x: drift, y: 0 };
+  if (move === "rise")
+    return { scale: 1.14, x: 0, y: interpolate(progress, [0, 1], [3.2, -3.2]) };
+  if (move === "pull")
+    return { scale: interpolate(progress, [0, 1], [1.12, 1.02]), x: 0, y: 0 };
+  return { scale: interpolate(progress, [0, 1], [1.02, 1.12]), x: 0, y: 0 };
 };

@@ -141,7 +141,7 @@ import {
   isWorkshopTurn,
   workshopTurnSetup,
   workshopTurnTools,
-} from "../_shared/workshop/turn-setup.ts";
+} from "./workshop-turn-setup.ts";
 import { addressByNameLine, callerProfileName } from "./address-by-name.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
@@ -297,15 +297,12 @@ import {
   isExplicitDevTaskDecline,
   offersDevTask,
 } from "../_shared/dev-task-approval-words.ts";
-import {
-  declineOfferedDevTask,
-  findOfferedDevTask,
-} from "../_shared/dev-task-offer.ts";
+import { declineOfferedDevTask, findOfferedDevTask } from "./dev-task-offer.ts";
 import {
   devTaskSendRule,
   directDevSendRefusal,
   workshopDevTaskRule,
-} from "../_shared/dev-task-send-rules.ts";
+} from "./dev-task-send-rules.ts";
 import {
   appOrigin,
   carmenSkinEntries,
@@ -13818,7 +13815,7 @@ async function handleRunAgent(
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // The workshop's note and specialist for this message (turn-setup.ts).
+    // The workshop's note and specialist for this message (workshop-turn-setup.ts).
     const { workshopNote, workshopRoleForRun } = inWorkshopRequest
       ? await workshopTurnSetup(
           supabase,
@@ -15097,7 +15094,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       callerCampaignerId,
       callerUserId,
     });
-    // Workshop tools only in the workshop skin, without the tools it never offers (turn-setup.ts).
+    // Workshop tools only in the workshop skin, without the tools it never offers (workshop-turn-setup.ts).
     const inWorkshop = isWorkshopTurn(surface, task_skills);
     filteredTools = workshopTurnTools(filteredTools, inWorkshop);
     // A skin's tools may be added below, under the same rule.

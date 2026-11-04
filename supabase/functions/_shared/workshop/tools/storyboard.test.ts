@@ -4,9 +4,9 @@ import {
   assertNotMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { executeWorkshopTool as runWorkshopTool } from "../../workshop-tools.ts";
+import { executeWorkshopTool } from "../../workshop-tools.ts";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -28,7 +28,7 @@ Deno.test(
       ...videoProject(),
       "marketing_video_scenes:select": [scene("old-1")],
     });
-    const refused = (await executeWorkshopTool(
+    const refused = (await executeApprovedWorkshopTool(
       guarded,
       "tenant-1",
       "workshop_storyboard",
@@ -47,7 +47,7 @@ Deno.test(
       ...videoProject(),
       "marketing_video_scenes:select": [scene("old-1")],
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_storyboard",
@@ -89,7 +89,7 @@ Deno.test(
         },
       },
     });
-    await executeWorkshopTool(db, "tenant-1", "workshop_storyboard", {
+    await executeApprovedWorkshopTool(db, "tenant-1", "workshop_storyboard", {
       item_id: "item-1",
       scenes: [{ visual_prompt: "divers over a reef", duration_s: 4 }],
     });
@@ -115,7 +115,7 @@ Deno.test(
       ...bareProject(),
       "marketing_video_scenes:select": [scene("s-1")],
     });
-    const result = (await runWorkshopTool(
+    const result = (await executeWorkshopTool(
       db,
       "tenant-1",
       "workshop_storyboard",
@@ -153,7 +153,7 @@ Deno.test(
       replace: true,
       scenes: [{ visual_prompt: "a bakery at dawn" }],
     };
-    const refused = (await executeWorkshopTool(
+    const refused = (await executeApprovedWorkshopTool(
       fakeDb(filmed),
       "tenant-1",
       "workshop_storyboard",
@@ -163,7 +163,7 @@ Deno.test(
       { userText: "תחליפי את הקריינות לקול של נמרוד ותפיקי שוב" },
     )) as Record<string, any>;
     assertMatch(String(refused.error), /סיפור חדש/);
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       fakeDb(filmed),
       "tenant-1",
       "workshop_storyboard",

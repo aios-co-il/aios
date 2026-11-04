@@ -1,5 +1,5 @@
 import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb, project } from "./test-fakes.ts";
+import { executeApprovedWorkshopTool, fakeDb, project } from "./test-fakes.ts";
 
 Deno.test(
   "approving without repeating the prompt reuses the remembered one",
@@ -21,7 +21,7 @@ Deno.test(
       },
     });
     const prompts: string[] = [];
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
@@ -59,7 +59,7 @@ Deno.test(
       },
     });
     const prompts: string[] = [];
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
@@ -86,7 +86,7 @@ Deno.test(
       ...project,
       "workshop_artifacts:select": [{ id: "pending-1" }],
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
@@ -127,7 +127,7 @@ Deno.test(
         { id: "s1", position: 1, still_asset_id: null },
       ],
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",

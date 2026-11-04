@@ -3,7 +3,12 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb, project, encode } from "./test-fakes.ts";
+import {
+  executeApprovedWorkshopTool,
+  fakeDb,
+  project,
+  encode,
+} from "./test-fakes.ts";
 
 const SITE_HTML = `<html lang="he"><head><title>קפה הגינה</title>
 <meta name="description" content="בית קפה">
@@ -34,7 +39,7 @@ Deno.test(
         },
       ],
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_inspect_site",
@@ -91,7 +96,7 @@ async function brandFromSite(copy: { url?: string; error?: string }) {
     },
   });
   const imported: string[] = [];
-  const result = (await executeWorkshopTool(
+  const result = (await executeApprovedWorkshopTool(
     db,
     "tenant-1",
     "workshop_inspect_site",
@@ -147,7 +152,7 @@ Deno.test(
   "a site that cannot be read says so, and a missing address is asked for",
   async () => {
     const db = fakeDb(project);
-    const refused = (await executeWorkshopTool(
+    const refused = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_inspect_site",
@@ -166,7 +171,7 @@ Deno.test(
     )) as Record<string, any>;
     assertMatch(refused.error, /לא הצלחתי לקרוא את האתר/);
 
-    const none = (await executeWorkshopTool(
+    const none = (await executeApprovedWorkshopTool(
       fakeDb(project),
       "tenant-1",
       "workshop_inspect_site",

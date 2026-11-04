@@ -4,7 +4,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -14,7 +14,7 @@ Deno.test(
   "when the first picture fails nothing else is generated without its anchor",
   async () => {
     let calls = 0;
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": [scene("s-1"), scene("s-2")],
@@ -59,7 +59,7 @@ Deno.test(
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
     const seen: (string[] | undefined)[] = [];
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -111,7 +111,7 @@ Deno.test(
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
     let made = 0;
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -149,7 +149,7 @@ Deno.test(
       "marketing_video_scenes:select": scenes,
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
-    const rest = (await executeWorkshopTool(
+    const rest = (await executeApprovedWorkshopTool(
       next,
       "tenant-1",
       "workshop_make_stills",

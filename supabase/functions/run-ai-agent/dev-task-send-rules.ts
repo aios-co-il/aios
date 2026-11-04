@@ -3,12 +3,12 @@ import {
   AGENT_SPELLINGS,
   type DevAgent,
   namedDevAgent,
-} from "./dev-task-agents.ts";
-import { NOT_APP_CHAT } from "./dev-task-approval.ts";
+} from "../_shared/dev-task-agents.ts";
+import { NOT_APP_CHAT } from "../_shared/dev-task-approval.ts";
 import {
   isExplicitDevTaskApproval,
   offersDevTask,
-} from "./dev-task-approval-words.ts";
+} from "../_shared/dev-task-approval-words.ts";
 
 /**
  * Why a tool call that starts a coding agent (mcp_Cursor__request_dev_task, mcp_Grok__ask_grok,

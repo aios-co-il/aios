@@ -17,12 +17,6 @@ import {
 import { type SceneEngine, sceneClipSeconds } from "./scene-engine.ts";
 import { talkingMeta } from "./talking.ts";
 
-export const roundUsd = (value: number) => Math.round(value * 100) / 100;
-
-/** OpenRouter charges a Kling clip for 5 s at least (a 3 s clip cost $0.42, not $0.25). */
-export const openRouterBilledSeconds = (seconds: number) =>
-  Math.max(5, seconds);
-
 export interface CostScene {
   duration_s: number;
   voiceover_text: string;
@@ -57,6 +51,7 @@ export interface Estimate {
   credits: number;
 }
 
+/** The clips' price on this engine, and the seconds they render. */
 export function clipEstimate(engine: SceneEngine, scenes: CostScene[]) {
   const seconds = scenes.reduce(
     (sum, scene) => sum + sceneClipSeconds(engine, scene.duration_s),
@@ -92,6 +87,7 @@ export function clipEstimate(engine: SceneEngine, scenes: CostScene[]) {
   return { usd: roundUsd(seconds * rate), credits: 0, seconds };
 }
 
+/** The narration's price, by the characters it speaks. */
 export function voiceEstimate(scenes: CostScene[]): Estimate {
   const characters = scenes.reduce(
     (sum, scene) => sum + scene.voiceover_text.trim().length,
@@ -110,3 +106,9 @@ export function musicEstimate(scenes: CostScene[]): Estimate {
   );
   return { usd: roundUsd((seconds / 60) * MUSIC_USD_PER_MINUTE), credits: 0 };
 }
+
+export const roundUsd = (value: number) => Math.round(value * 100) / 100;
+
+/** OpenRouter charges a Kling clip for 5 s at least (a 3 s clip cost $0.42, not $0.25). */
+export const openRouterBilledSeconds = (seconds: number) =>
+  Math.max(5, seconds);

@@ -1,6 +1,6 @@
 import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -14,7 +14,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -59,7 +59,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "running", clips: 1 },
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -87,7 +87,7 @@ async function produceKeptDesign(clip: Record<string, unknown>) {
     "marketing_assets:select": [{ id: "c-1", meta: clip }],
     "rpc:produce_video": { status: "running", clips: 1 },
   });
-  await executeWorkshopTool(
+  await executeApprovedWorkshopTool(
     db,
     "tenant-1",
     "workshop_produce_video",

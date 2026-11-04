@@ -3,13 +3,13 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb } from "./test-fakes.ts";
+import { executeApprovedWorkshopTool, fakeDb } from "./test-fakes.ts";
 
 Deno.test(
   "a project open on the board is continued, not replaced by a new one",
   async () => {
     const db = fakeDb();
-    const refused = (await executeWorkshopTool(
+    const refused = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_start_project",
@@ -24,7 +24,7 @@ Deno.test(
       false,
     );
 
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_start_project",
@@ -41,7 +41,7 @@ Deno.test(
   "starting a project from one sentence decides everything and records the brief page",
   async () => {
     const db = fakeDb();
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_start_project",
@@ -76,7 +76,7 @@ Deno.test(
   "a client the caller cannot reach stops the project before anything is written",
   async () => {
     const db = fakeDb();
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_start_project",
@@ -100,7 +100,7 @@ Deno.test(
       },
     });
     const checked: string[] = [];
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_start_project",
@@ -126,7 +126,7 @@ Deno.test(
   "a client in view the caller cannot reach starts the project without a client",
   async () => {
     const db = fakeDb();
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_start_project",
@@ -154,7 +154,7 @@ Deno.test(
   "a client Carmen names is checked instead of the one in view",
   async () => {
     const checked: string[] = [];
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       fakeDb(),
       "tenant-1",
       "workshop_start_project",
@@ -172,7 +172,7 @@ Deno.test(
 );
 
 Deno.test("an empty brief is refused", async () => {
-  const result = (await executeWorkshopTool(
+  const result = (await executeApprovedWorkshopTool(
     fakeDb(),
     "tenant-1",
     "workshop_start_project",
@@ -185,7 +185,7 @@ Deno.test(
   "taps on questions asked before the project existed start its brief",
   async () => {
     const db = fakeDb();
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_start_project",

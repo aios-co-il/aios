@@ -1,6 +1,6 @@
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -14,7 +14,7 @@ Deno.test(
       "marketing_video_scenes:select": [scene("s-1", { still_asset_id: "a" })],
       "rpc:produce_video": { status: "failed", error: "narration missing" },
     });
-    const failed = (await executeWorkshopTool(
+    const failed = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -74,7 +74,7 @@ Deno.test(
         spent_usd: 1,
         unit_usd: {},
       };
-      await executeWorkshopTool(
+      await executeApprovedWorkshopTool(
         savingDb(script),
         "tenant-1",
         "workshop_produce_video",

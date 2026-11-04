@@ -12,6 +12,7 @@ import {
   type MadeImage,
 } from "./image-providers.ts";
 
+/** One still from Gemini on the tenant's Google key. */
 export async function viaGoogle(
   key: string,
   prompt: string,

@@ -1,5 +1,5 @@
 import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import { executeWorkshopTool as runWorkshopTool } from "../../workshop-tools.ts";
+import { executeWorkshopTool } from "../../workshop-tools.ts";
 import { fakeDb, project } from "./test-fakes.ts";
 
 Deno.test(
@@ -21,7 +21,7 @@ Deno.test(
       turn: string,
       userText?: string,
     ) =>
-      runWorkshopTool(
+      executeWorkshopTool(
         db,
         "tenant-1",
         "workshop_make_creative",
@@ -100,7 +100,7 @@ Deno.test(
       generateImage: async () => ({ image_url: "https://x/a.png" }),
     });
     const call = (db: ReturnType<typeof fakeDb>, turn: string) =>
-      runWorkshopTool(
+      executeWorkshopTool(
         db,
         "tenant-1",
         "workshop_make_creative",

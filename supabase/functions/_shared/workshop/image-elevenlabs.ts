@@ -11,6 +11,7 @@ import {
   type MadeImage,
 } from "./image-providers.ts";
 
+/** Submits the picture to ElevenLabs flows and waits for it; a job it accepted is never retried elsewhere. */
 export async function viaElevenLabs(
   key: string,
   prompt: string,
@@ -80,6 +81,7 @@ function endedJob(message: string) {
   return error;
 }
 
+/** Polls an ElevenLabs image job until it completes, fails or runs out of polls, then downloads it. */
 async function awaitElevenLabs(
   id: string,
   base: string,

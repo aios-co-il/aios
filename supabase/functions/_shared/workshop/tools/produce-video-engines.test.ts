@@ -1,6 +1,6 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -10,7 +10,7 @@ import {
 Deno.test(
   "with no paid keys the film is produced on the free preview engine",
   async () => {
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": [
@@ -34,7 +34,7 @@ Deno.test(
   "a paid engine that can fall back to OpenRouter is quoted at the OpenRouter price",
   async () => {
     const ask = async (openrouter: boolean) =>
-      (await executeWorkshopTool(
+      (await executeApprovedWorkshopTool(
         fakeDb({
           ...videoProject(),
           "marketing_video_scenes:select": silentFilm({ still_asset_id: "a" }),
@@ -68,7 +68,7 @@ Deno.test(
       engine: "openrouter" | "mock",
       extra: Record<string, unknown> = {},
     ) =>
-      (await executeWorkshopTool(
+      (await executeApprovedWorkshopTool(
         fakeDb({
           ...videoProject(),
           "marketing_video_scenes:select": scenes,
@@ -113,7 +113,7 @@ Deno.test(
     });
     assertStrictEquals(free.needs_budget, undefined);
     // Trailer effects are paid for even on the free preview, so they are quoted.
-    const effects = (await executeWorkshopTool(
+    const effects = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": [clip("s-1")],

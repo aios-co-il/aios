@@ -3,19 +3,22 @@
  * note and specialist, and the tools the turn may offer.
  */
 
-import { parseActiveSkin } from "../carmen/active-skin.ts";
-import { isBlockedInWorkshop } from "./blocked-tools.ts";
-import { type Db } from "./db.ts";
+import { parseActiveSkin } from "../_shared/carmen/active-skin.ts";
+import { isBlockedInWorkshop } from "../_shared/workshop/blocked-tools.ts";
+import { type Db } from "../_shared/workshop/db.ts";
 import {
   workshopArtifactIdFrom,
   workshopItemIdFrom,
   workshopProjectKind,
   workshopSceneIdFrom,
-} from "./role-project.ts";
-import { workshopRole } from "./roles.ts";
-import { lastAssistantText } from "./tapped-answers.ts";
-import { isWorkshopTool, WORKSHOP_SKIN } from "./tool-definitions.ts";
-import { workshopTurnNote } from "./turn-note.ts";
+} from "../_shared/workshop/role-project.ts";
+import { workshopRole } from "../_shared/workshop/roles.ts";
+import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
+import {
+  isWorkshopTool,
+  WORKSHOP_SKIN,
+} from "../_shared/workshop/tool-definitions.ts";
+import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 
 /**
  * In the workshop the server picks the specialist for this message (designer, producer or

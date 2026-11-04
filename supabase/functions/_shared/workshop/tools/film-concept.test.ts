@@ -1,11 +1,15 @@
 import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb, videoProject } from "./test-fakes.ts";
+import {
+  executeApprovedWorkshopTool,
+  fakeDb,
+  videoProject,
+} from "./test-fakes.ts";
 
 Deno.test(
   "concepts become one page each and need nothing from the user",
   async () => {
     const db = fakeDb(videoProject());
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_save_concepts",

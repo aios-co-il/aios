@@ -5,14 +5,19 @@ import {
 } from "jsr:@std/assert@1";
 import { fallbackReply, shouldNudgeSilentTurn } from "../reply.ts";
 import { importWebImage } from "./add-assets.ts";
-import { executeWorkshopTool, fakeDb, project, encode } from "./test-fakes.ts";
+import {
+  executeApprovedWorkshopTool,
+  fakeDb,
+  project,
+  encode,
+} from "./test-fakes.ts";
 
 Deno.test(
   "Carmen adds a site picture as a stored reference, a link and a brief; a bad picture is reported",
   async () => {
     const imported: string[] = [];
     const db = fakeDb(project);
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_add_assets",
@@ -69,7 +74,7 @@ Deno.test(
   async () => {
     const reason = "peer closed connection without sending TLS close_notify";
     const addAssets = async (assets: Array<Record<string, unknown>>) =>
-      (await executeWorkshopTool(
+      (await executeApprovedWorkshopTool(
         fakeDb(project),
         "tenant-1",
         "workshop_add_assets",
@@ -201,7 +206,7 @@ Deno.test(
         },
       ],
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_add_assets",

@@ -1,12 +1,12 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb, project } from "./test-fakes.ts";
+import { executeApprovedWorkshopTool, fakeDb, project } from "./test-fakes.ts";
 
 Deno.test(
   "creating images first asks for approval with the cost and spends nothing",
   async () => {
     let generated = 0;
     const db = fakeDb(project);
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
@@ -35,7 +35,7 @@ Deno.test(
   "after approval each format becomes a page and a failure is reported, not hidden",
   async () => {
     const db = fakeDb(project);
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
@@ -79,7 +79,7 @@ Deno.test(
         status: "ready",
       },
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
@@ -132,7 +132,7 @@ Deno.test(
       ...project,
       "workshop_assets:select": [{ id: "a", url: "https://x/old.png" }],
     });
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",
@@ -163,7 +163,7 @@ Deno.test(
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
     const background: Promise<unknown>[] = [];
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_creative",

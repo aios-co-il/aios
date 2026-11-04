@@ -64,6 +64,7 @@ export async function viaHiggsfield(
   }
 }
 
+/** Polls a Higgsfield request until it completes or fails, then downloads the first picture. */
 async function awaitHiggsfield(
   requestId: string,
   base: string,

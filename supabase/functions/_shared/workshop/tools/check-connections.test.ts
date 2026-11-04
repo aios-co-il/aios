@@ -1,5 +1,5 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb } from "./test-fakes.ts";
+import { executeApprovedWorkshopTool, fakeDb } from "./test-fakes.ts";
 
 Deno.test(
   "the connections check reports what is connected and never the key values",
@@ -12,7 +12,7 @@ Deno.test(
         },
       },
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_check_connections",
@@ -25,7 +25,7 @@ Deno.test(
     assertStrictEquals(result.can.video, true);
     assertStrictEquals(JSON.stringify(result).includes("secret"), false);
 
-    const bare = (await executeWorkshopTool(
+    const bare = (await executeApprovedWorkshopTool(
       fakeDb(),
       "tenant-1",
       "workshop_check_connections",

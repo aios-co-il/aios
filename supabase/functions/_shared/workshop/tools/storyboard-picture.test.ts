@@ -1,5 +1,9 @@
 import { assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb, videoProject } from "./test-fakes.ts";
+import {
+  executeApprovedWorkshopTool,
+  fakeDb,
+  videoProject,
+} from "./test-fakes.ts";
 
 Deno.test(
   "a picture project asked for a film still gets the film's brief first",
@@ -9,7 +13,7 @@ Deno.test(
         payload: { format: "1:1", project_type: "static" },
       }),
     );
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_storyboard",
@@ -49,7 +53,7 @@ Deno.test(
         thumb_url: null,
       },
     });
-    const saved = (await executeWorkshopTool(
+    const saved = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_storyboard",
@@ -84,7 +88,7 @@ Deno.test(
   "a source picture that is not in the project is refused before any scene is saved",
   async () => {
     const db = fakeDb(videoProject());
-    const refused = (await executeWorkshopTool(
+    const refused = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_storyboard",
@@ -116,7 +120,7 @@ Deno.test(
         thumb_url: null,
       },
     });
-    const refused = (await executeWorkshopTool(
+    const refused = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_storyboard",
@@ -134,7 +138,7 @@ Deno.test(
   "the storyboard keeps each scene's own picture and refuses one it cannot fetch",
   async () => {
     const db = fakeDb(videoProject());
-    const saved = (await executeWorkshopTool(
+    const saved = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_storyboard",
@@ -165,7 +169,7 @@ Deno.test(
     );
 
     const bad = fakeDb(videoProject());
-    const refused = (await executeWorkshopTool(
+    const refused = (await executeApprovedWorkshopTool(
       bad,
       "tenant-1",
       "workshop_storyboard",

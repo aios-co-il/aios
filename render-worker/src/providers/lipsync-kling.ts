@@ -33,6 +33,7 @@ export function klingLipsyncBody({ videoUrl, audioUrl }: MediaInput) {
   };
 }
 
+/** Kling lip-sync on the tenant's Kling key pair: re-times the scene clip's mouth to the line. */
 export function klingLipsyncProvider({
   accessKey,
   secretKey,

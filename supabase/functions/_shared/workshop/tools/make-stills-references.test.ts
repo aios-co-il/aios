@@ -5,7 +5,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -24,7 +24,7 @@ Deno.test(
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
     const seen: { prompt: string; references?: string[] }[] = [];
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -87,7 +87,7 @@ Deno.test(
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
     const seen: { prompt: string; references?: string[] }[] = [];
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -158,7 +158,7 @@ Deno.test(
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
     const seen: (string[] | undefined)[] = [];
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -197,7 +197,7 @@ Deno.test(
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
     const seen: (string[] | undefined)[] = [];
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",

@@ -5,7 +5,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   bareProject,
   type SavedBrief,
@@ -51,7 +51,7 @@ Deno.test(
       scenes: [{ visual_prompt: "a phone on a desk" }],
     };
     const first = fakeDb(bareProject());
-    const reading = (await executeWorkshopTool(
+    const reading = (await executeApprovedWorkshopTool(
       first,
       "tenant-1",
       "workshop_storyboard",
@@ -67,7 +67,7 @@ Deno.test(
     assertMatch(reading.carmen_next, /מראה/);
 
     const second = fakeDb(projectSavedBy(first));
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       second,
       "tenant-1",
       "workshop_storyboard",
@@ -102,7 +102,7 @@ Deno.test(
       scenes: [{ visual_prompt: "a phone on a desk" }],
     };
     const first = fakeDb(bareProject());
-    const reading = (await executeWorkshopTool(
+    const reading = (await executeApprovedWorkshopTool(
       first,
       "tenant-1",
       "workshop_storyboard",
@@ -116,7 +116,7 @@ Deno.test(
 
     // Carmen calls again without brief_answers: the flow does not loop, it asks what is open.
     const second = fakeDb(projectSavedBy(first));
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       second,
       "tenant-1",
       "workshop_storyboard",
@@ -149,7 +149,7 @@ Deno.test(
 Deno.test(
   "a site link in the message is not a look: the style questions stay open",
   async () => {
-    const reading = (await executeWorkshopTool(
+    const reading = (await executeApprovedWorkshopTool(
       fakeDb(bareProject()),
       "tenant-1",
       "workshop_storyboard",
@@ -174,7 +174,7 @@ Deno.test(
       scenes: [{ visual_prompt: "a phone on a desk" }],
     };
     const first = fakeDb(bareProject());
-    const reading = (await executeWorkshopTool(
+    const reading = (await executeApprovedWorkshopTool(
       first,
       "tenant-1",
       "workshop_storyboard",
@@ -194,7 +194,7 @@ Deno.test(
       סיום: "לוגו בלבד",
     };
     const second = fakeDb(projectSavedBy(first));
-    const toWrite = (await executeWorkshopTool(
+    const toWrite = (await executeApprovedWorkshopTool(
       second,
       "tenant-1",
       "workshop_storyboard",
@@ -213,7 +213,7 @@ Deno.test(
     assertEquals(saved.payload.workshop_look?.references ?? [], []);
 
     const third = fakeDb(projectSavedBy(second));
-    const written = (await executeWorkshopTool(
+    const written = (await executeApprovedWorkshopTool(
       third,
       "tenant-1",
       "workshop_storyboard",

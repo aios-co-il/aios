@@ -10,6 +10,7 @@ import { type ImageReference, type MadeImage } from "./image-providers.ts";
 /** gpt-image-1 was shut down on 2026-10-23; Sunburst is the replacement OpenAI names for edits and generation. */
 export const OPENAI_IMAGE_MODEL = "gpt-image-2.5-sunburst";
 
+/** One still from OpenAI: an edit of the references when there are any, else a generation. */
 export async function viaOpenAi(
   key: string,
   prompt: string,

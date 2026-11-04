@@ -5,7 +5,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -30,7 +30,7 @@ Deno.test(
         return { image_url: `https://x/${generated}.png` };
       },
     };
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       fakeDb(script),
       "tenant-1",
       "workshop_make_stills",
@@ -47,7 +47,7 @@ Deno.test(
       ...script,
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -89,7 +89,7 @@ Deno.test(
       "rpc:attach_video_scene_asset": { id: "asset-1" },
       "workshop_artifacts:select": { id: "page-1" },
     });
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -114,7 +114,7 @@ Deno.test(
   "a second stills request while pictures are being made does not pay twice",
   async () => {
     let made = 0;
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": [scene("s-1")],
@@ -144,7 +144,7 @@ Deno.test(
       ...videoProject(),
       "marketing_video_scenes:select": [scene("s-1")],
     });
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -185,7 +185,7 @@ Deno.test(
       ],
       "rpc:attach_video_scene_asset": { id: "asset-new" },
     });
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",
@@ -224,7 +224,7 @@ Deno.test(
       }),
       "marketing_video_scenes:select": [scene("s-1")],
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_make_stills",

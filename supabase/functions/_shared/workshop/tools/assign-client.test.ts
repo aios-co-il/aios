@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import { executeWorkshopTool, fakeDb, project } from "./test-fakes.ts";
+import { executeApprovedWorkshopTool, fakeDb, project } from "./test-fakes.ts";
 
 Deno.test(
   "a project can be assigned to a client later, or released back to no client",
@@ -14,7 +14,7 @@ Deno.test(
       },
     };
     const db = fakeDb(project);
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_assign_client",
@@ -28,9 +28,14 @@ Deno.test(
     });
 
     const released = fakeDb(project);
-    await executeWorkshopTool(released, "tenant-1", "workshop_assign_client", {
-      item_id: "item-1",
-    });
+    await executeApprovedWorkshopTool(
+      released,
+      "tenant-1",
+      "workshop_assign_client",
+      {
+        item_id: "item-1",
+      },
+    );
     const releaseCall = released.calls.find(
       (c) => c.table === "rpc:workshop_assign_client",
     );
@@ -40,7 +45,7 @@ Deno.test(
     );
 
     const refused = fakeDb(project);
-    const denied = (await executeWorkshopTool(
+    const denied = (await executeApprovedWorkshopTool(
       refused,
       "tenant-1",
       "workshop_assign_client",
@@ -75,7 +80,7 @@ Deno.test(
       ...seo,
       "rpc:workshop_assign_client:error": locked,
     });
-    const denied = (await executeWorkshopTool(
+    const denied = (await executeApprovedWorkshopTool(
       refused,
       "tenant-1",
       "workshop_assign_client",
@@ -91,7 +96,7 @@ Deno.test(
         payload: { department: "copy" },
       },
     });
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_assign_client",
@@ -124,7 +129,7 @@ Deno.test(
         notes: "טון חם",
       },
     });
-    const done = (await executeWorkshopTool(
+    const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_assign_client",
@@ -147,7 +152,7 @@ Deno.test(
     );
 
     const released = fakeDb(project);
-    const away = (await executeWorkshopTool(
+    const away = (await executeApprovedWorkshopTool(
       released,
       "tenant-1",
       "workshop_assign_client",

@@ -20,6 +20,7 @@ export const isSceneEngine = (value: unknown): value is SceneEngine =>
   value === "higgsfield" ||
   value === "openrouter";
 
+/** The clip length the engine renders for a scene planned at `duration` seconds. */
 export function sceneClipSeconds(engine: SceneEngine, duration: number) {
   if (engine === "elevenlabs") {
     const seconds = Number(duration) || 5;

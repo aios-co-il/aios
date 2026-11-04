@@ -11,6 +11,7 @@ const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Polls the provider's job to its end, stores the lip-synced clip and attaches it to the scene. */
 export async function finishLipsync({
   db,
   run,

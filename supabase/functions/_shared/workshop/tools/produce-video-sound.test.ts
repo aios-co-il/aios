@@ -3,9 +3,9 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import { executeWorkshopTool as runWorkshopTool } from "../../workshop-tools.ts";
+import { executeWorkshopTool } from "../../workshop-tools.ts";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -30,7 +30,7 @@ Deno.test(
         ],
         "rpc:produce_video": { status: "running", clips: 1 },
       });
-      const result = (await executeWorkshopTool(
+      const result = (await executeApprovedWorkshopTool(
         db,
         "tenant-1",
         "workshop_produce_video",
@@ -90,7 +90,7 @@ Deno.test("narration waits for a voice the user heard and chose", async () => {
       scene("s-1", { still_asset_id: "a", voiceover_text: "שלום" }),
     ],
   });
-  const asked = (await runWorkshopTool(
+  const asked = (await executeWorkshopTool(
     db,
     "tenant-1",
     "workshop_produce_video",
@@ -109,7 +109,7 @@ Deno.test("narration waits for a voice the user heard and chose", async () => {
   assertStrictEquals(samples.length, 8);
 
   const chosenDb = fakeDb(videoProject());
-  const chosen = (await runWorkshopTool(
+  const chosen = (await executeWorkshopTool(
     chosenDb,
     "tenant-1",
     "workshop_choose_voice",
@@ -132,7 +132,7 @@ Deno.test(
       scene("s-1", { clip_asset_id: "own-video-1", status: "clip_ready" }),
       scene("s-2", { still_asset_id: "own-photo" }),
     ];
-    const produced = (await executeWorkshopTool(
+    const produced = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": ownClips,
@@ -143,7 +143,7 @@ Deno.test(
     )) as Record<string, any>;
     assertStrictEquals(produced.missing_stills, undefined);
 
-    const stills = (await executeWorkshopTool(
+    const stills = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": ownClips,
@@ -165,7 +165,7 @@ Deno.test(
   async () => {
     // Nothing is animated, but produce_video narrates the whole script and makes a music bed.
     const line = "א".repeat(500);
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": [
@@ -203,7 +203,7 @@ Deno.test(
         ],
         "rpc:produce_video": { status: "working", clips: 1 },
       });
-      await executeWorkshopTool(
+      await executeApprovedWorkshopTool(
         db,
         "tenant-1",
         "workshop_produce_video",

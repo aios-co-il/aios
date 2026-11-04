@@ -1,7 +1,7 @@
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import { shouldNudgeSilentTurn } from "../reply.ts";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   videoProject,
   scene,
@@ -16,7 +16,7 @@ Deno.test(
       scene("s-2", { still_asset_id: "b", voiceover_text: "" }),
     ];
 
-    const missing = (await executeWorkshopTool(
+    const missing = (await executeApprovedWorkshopTool(
       fakeDb({
         ...videoProject(),
         "marketing_video_scenes:select": [scene("s-1")],
@@ -34,7 +34,7 @@ Deno.test(
         { pipeline_id: "pipe-general", stage_id: "stage-general" },
       ],
     });
-    const noClient = (await executeWorkshopTool(
+    const noClient = (await executeApprovedWorkshopTool(
       noClientDb,
       "tenant-1",
       "workshop_produce_video",
@@ -61,7 +61,7 @@ Deno.test(
       "marketing_video_scenes:select": allStilled,
     };
     const deps = { defaultEngine: async () => "elevenlabs" as const };
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       fakeDb(script),
       "tenant-1",
       "workshop_produce_video",
@@ -79,7 +79,7 @@ Deno.test(
       ...script,
       "rpc:produce_video": { status: "running", clips: 2 },
     });
-    const started = (await executeWorkshopTool(
+    const started = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -125,7 +125,7 @@ Deno.test(
         status: "pending",
       },
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",
@@ -174,7 +174,7 @@ Deno.test(
       "marketing_video_scenes:select": silentFilm({ still_asset_id: "a" }),
       "workshop_artifacts:select": { id: "film-1", kind: "film" },
     });
-    const result = (await executeWorkshopTool(
+    const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
       "workshop_produce_video",

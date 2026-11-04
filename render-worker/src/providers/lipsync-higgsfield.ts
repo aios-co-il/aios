@@ -43,6 +43,7 @@ export function higgsfieldLipsyncBody({
   };
 }
 
+/** Higgsfield Seedance 2.5 lip sync on the tenant's Higgsfield key pair. */
 export function higgsfieldLipsyncProvider({
   keyId,
   keySecret,

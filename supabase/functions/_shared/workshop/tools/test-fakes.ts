@@ -1,16 +1,16 @@
 /** Fakes and fixtures the workshop tool tests share: a scripted Supabase client, projects, scenes. */
-import { executeWorkshopTool as runWorkshopTool } from "../../workshop-tools.ts";
+import { executeWorkshopTool } from "../../workshop-tools.ts";
 
-export type RunArgs = Parameters<typeof runWorkshopTool>;
+export type RunArgs = Parameters<typeof executeWorkshopTool>;
 
 /**
  * Most workshop tool tests start after the user approved. A bare confirmed=true here stands for that
  * approval (as if David approved it in the queue); the token flow has its own tests.
  */
-export function executeWorkshopTool(...call: RunArgs) {
+export function executeApprovedWorkshopTool(...call: RunArgs) {
   const [db, tenantId, name, args, access, userId, deps] = call;
   const approved = args.confirmed === true && args.approval_token === undefined;
-  return runWorkshopTool(db, tenantId, name, args, access, userId, {
+  return executeWorkshopTool(db, tenantId, name, args, access, userId, {
     ...(deps ?? {}),
     ...(approved ? { approvedOutOfBand: true } : {}),
   });

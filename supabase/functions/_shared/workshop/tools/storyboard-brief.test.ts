@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  executeWorkshopTool,
+  executeApprovedWorkshopTool,
   fakeDb,
   project,
   scene,
@@ -26,7 +26,7 @@ Deno.test(
         ...bareProject(),
         "marketing_video_scenes:select": [scene("s-1")],
       });
-      const result = (await executeWorkshopTool(
+      const result = (await executeApprovedWorkshopTool(
         db,
         "tenant-1",
         name,
@@ -73,7 +73,7 @@ Deno.test(
         { id: "brief-page", meta: { summary: "סרט 9:16", brief: request } },
       ],
     });
-    await executeWorkshopTool(
+    await executeApprovedWorkshopTool(
       first,
       "tenant-1",
       "workshop_storyboard",
@@ -104,7 +104,7 @@ Deno.test(
       ...project,
       "marketing_work_items:select": { id: "item-1", payload: saved },
     });
-    const state = (await executeWorkshopTool(
+    const state = (await executeApprovedWorkshopTool(
       second,
       "tenant-1",
       "workshop_get_state",
@@ -140,7 +140,7 @@ Deno.test(
       scenes: [{ visual_prompt: "a woman at a laptop" }],
     };
     const first = fakeDb(bareProject());
-    const asked = (await executeWorkshopTool(
+    const asked = (await executeApprovedWorkshopTool(
       first,
       "tenant-1",
       "workshop_storyboard",
@@ -173,7 +173,7 @@ Deno.test(
         payload: saved.payload,
       },
     });
-    const written = (await executeWorkshopTool(
+    const written = (await executeApprovedWorkshopTool(
       second,
       "tenant-1",
       "workshop_storyboard",
