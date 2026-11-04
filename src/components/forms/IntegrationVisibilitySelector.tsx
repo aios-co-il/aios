@@ -195,7 +195,6 @@ export function IntegrationVisibilitySelector({
         integrationId={integrationId}
         integrationName={integrationName}
         integrationOwnerId={ownerId || ""}
-        tenantId={tenantId}
       />
     </div>
   );

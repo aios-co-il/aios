@@ -117,7 +117,7 @@ export function EditClientDialog({
     filesCount,
   } = useFolderLinksAndAttachments(client);
 
-  const meetingScheduler = useMeetingScheduler(tenantId);
+  const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
   const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<string[]>(
     [],
   );

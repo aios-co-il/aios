@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,13 +93,8 @@ import {
 import { isSeoTaggedClient } from "@/lib/seoClients";
 import { CLIENT_LIST_SELECT } from "@/lib/clientListSelect";
 
-// Session-scoped: owners and SEO viewers get organization-wide starting view on first
-// visit to Clients. Must NOT re-run on every remount — that was wiping the global
-// agency filter whenever anyone navigated back to this module.
-let clientsAgencyDefaultApplied = false;
-
 export default function Clients() {
-  const { selectedAgency, setSelectedAgency } = useAgency();
+  const { selectedAgency } = useAgency();
   const { userAgencyIds } = useUserAgencies();
   const { canViewFinance, financeAccessReady } = useUserPermissions();
   const {
@@ -120,15 +115,6 @@ export default function Clients() {
     !isTeamManager &&
     !isOwner &&
     !isSuperAdmin;
-  useEffect(() => {
-    if (
-      (isOwner || isSuperAdmin || isSeoOnlyViewer) &&
-      !clientsAgencyDefaultApplied
-    ) {
-      clientsAgencyDefaultApplied = true;
-      setSelectedAgency("all");
-    }
-  }, [isOwner, isSuperAdmin, isSeoOnlyViewer, setSelectedAgency]);
   // Deep-link support: ?clientId=xxx&tab=updates (from DMMDashboard navigation)
   const [searchParams] = useSearchParams();
   const deepLinkClientId = searchParams.get("clientId") ?? undefined;
