@@ -315,10 +315,11 @@ $$;
 revoke all on function public.tenant_ancestors(uuid) from public, anon, authenticated;
 grant execute on function public.tenant_ancestors(uuid) to service_role;
 
--- Whether p_actor ranks above p_target in p_tenant_id: a super admin above
--- anyone but a super admin; an owner of a parent organization above everyone
--- there; an owner above everyone there but another owner (an inactive one
--- counts by the roles kept for them).
+-- Whether p_actor ranks above p_target in p_tenant_id: a super admin acting
+-- in p_tenant_id above anyone but a super admin (acting elsewhere, they hold
+-- only their ordinary role there); an owner of a parent organization above
+-- everyone there; an owner above everyone there but another owner (an
+-- inactive one counts by the roles kept for them).
 create or replace function public.member_outranks(p_actor uuid, p_target uuid, p_tenant_id uuid)
 returns boolean
 language sql
@@ -328,7 +329,8 @@ set search_path = ''
 as $$
   select case
     when public.is_super_admin(p_target) then false
-    when public.is_super_admin(p_actor) then true
+    when public.is_super_admin(p_actor)
+      and public.get_user_tenant_id(p_actor) = p_tenant_id then true
     when exists (
       select 1 from public.tenant_ancestors(p_tenant_id) a
       where public.tenant_member_is_owner(a, p_actor)

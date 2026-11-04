@@ -1,5 +1,6 @@
 // Who ranks above whom (David's hierarchy, AIO-321): a super admin acting in
-// an organization ranks above everyone but a super admin; an owner of a parent
+// an organization ranks above everyone there but a super admin (acting
+// elsewhere, only their ordinary role there counts); an owner of a parent
 // organization above everyone in its sub-organizations; an owner above
 // everyone in their organization but another owner.
 //
@@ -61,8 +62,10 @@ export function canManageMembers(
 
 /**
  * Whether the actor ranks above the target in one organization
- * (member_outranks). `targetWasOwner`: the target is inactive there and their
- * kept roles hold owner. For an account-wide action, require it for every
+ * (member_outranks). A super admin's rank counts only in the organization
+ * they act in (`actorActiveTenantId`); elsewhere they hold their ordinary
+ * role there. `targetWasOwner`: the target is inactive there and their kept
+ * roles hold owner. For an account-wide action, require it for every
  * organization the target belongs to.
  */
 export function outranksIn(
@@ -70,12 +73,13 @@ export function outranksIn(
   target: RankedUser,
   tenantId: string,
   parents: TenantParents,
+  actorActiveTenantId: string | null,
   targetWasOwner = false,
 ): boolean {
   if (isGlobalSuperAdmin(target.roles)) {
     return false;
   }
-  if (isGlobalSuperAdmin(actor.roles)) {
+  if (isGlobalSuperAdmin(actor.roles) && actorActiveTenantId === tenantId) {
     return true;
   }
   if (ancestorsOf(tenantId, parents).some((id) => ownsTenant(actor, id))) {
@@ -108,6 +112,13 @@ export function mayManageMember(input: {
   return (
     input.actorId !== input.targetId &&
     canManageMembers(actor, tenantId, input.actorActiveTenantId, parents) &&
-    outranksIn(actor, target, tenantId, parents, input.targetWasOwner)
+    outranksIn(
+      actor,
+      target,
+      tenantId,
+      parents,
+      input.actorActiveTenantId,
+      input.targetWasOwner,
+    )
   );
 }

@@ -3,6 +3,7 @@ import { authorizeMemberChange } from "./authorize-member.ts";
 import { MemberAdminError, type MemberRequest } from "./member-admin.ts";
 import {
   ADMIN,
+  CO_OWNER,
   fakeStore,
   MEMBER,
   OTHER_OWNER,
@@ -140,5 +141,51 @@ Deno.test("authorizeMemberChange", async (t) => {
   await t.step("a non-member or a missing login is 404", async () => {
     await refuses(404, asOwner, { userId: OTHER_OWNER, tenantId: TENANT_A });
     await refuses(404, asOwner, memberOfA, (w) => w.logins.delete(MEMBER));
+  });
+});
+
+Deno.test("a super admin who also owns the organization", async (t) => {
+  /** The super admin also holds an owner role in A and acts in `active`. */
+  const owningAdmin = (active: string) =>
+    fakeStore({
+      ...world(),
+      roles: {
+        ...world().roles,
+        [ADMIN]: [
+          { role: "super_admin", tenant_id: null },
+          { role: "owner", tenant_id: TENANT_A },
+        ],
+      },
+      memberships: {
+        ...world().memberships,
+        [`${TENANT_A}:${ADMIN}`]: "active",
+      },
+      activeTenant: { ...world().activeTenant, [ADMIN]: active },
+    }).store;
+  const coOwner = { userId: CO_OWNER, tenantId: TENANT_A };
+
+  await t.step(
+    "acting in B, is only an owner of A: a co-owner is refused",
+    async () => {
+      const error = await assertRejects(
+        () =>
+          authorizeMemberChange(
+            owningAdmin(TENANT_B),
+            "Bearer admin-token",
+            coOwner,
+          ),
+        MemberAdminError,
+      );
+      assertEquals(error.status, 403);
+    },
+  );
+
+  await t.step("acting in A, may change the co-owner", async () => {
+    const target = await authorizeMemberChange(
+      owningAdmin(TENANT_A),
+      "Bearer admin-token",
+      coOwner,
+    );
+    assertEquals(target.targetId, CO_OWNER);
   });
 });

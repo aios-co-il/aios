@@ -85,24 +85,27 @@ Deno.test("canManageMembers", async (t) => {
 
 Deno.test("outranksIn", async (t) => {
   await t.step("an owner ranks above a member but not a co-owner", () => {
-    assertEquals(outranksIn(ownerOf(A), memberOf(A), A, parents), true);
-    assertEquals(outranksIn(ownerOf(A), ownerOf(A), A, parents), false);
-    assertEquals(outranksIn(ownerOf(A), memberOf(A), A, parents, true), false);
+    assertEquals(outranksIn(ownerOf(A), memberOf(A), A, parents, A), true);
+    assertEquals(outranksIn(ownerOf(A), ownerOf(A), A, parents, A), false);
+    assertEquals(
+      outranksIn(ownerOf(A), memberOf(A), A, parents, A, true),
+      false,
+    );
   });
 
   await t.step(
     "a parent's owner ranks above the sub-organization's owner",
     () => {
-      assertEquals(outranksIn(ownerOf(P), ownerOf(A), A, parents), true);
+      assertEquals(outranksIn(ownerOf(P), ownerOf(A), A, parents, P), true);
     },
   );
 
   await t.step(
     "nobody ranks above a super admin; a super admin above everyone else",
     () => {
-      assertEquals(outranksIn(ownerOf(A), superAdmin, A, parents), false);
-      assertEquals(outranksIn(superAdmin, superAdmin, A, parents), false);
-      assertEquals(outranksIn(superAdmin, ownerOf(B), B, parents), true);
+      assertEquals(outranksIn(ownerOf(A), superAdmin, A, parents, A), false);
+      assertEquals(outranksIn(superAdmin, superAdmin, A, parents, A), false);
+      assertEquals(outranksIn(superAdmin, ownerOf(B), B, parents, B), true);
     },
   );
 });
@@ -131,7 +134,7 @@ Deno.test("mayManageMember", async (t) => {
       // An account-wide action needs the rank in every organization.
       assertEquals(
         ownerInB.memberships.every((m) =>
-          outranksIn(ownerOf(A), ownerInB, m.tenant_id, parents),
+          outranksIn(ownerOf(A), ownerInB, m.tenant_id, parents, A),
         ),
         false,
       );
@@ -165,5 +168,36 @@ Deno.test("mayManageMember", async (t) => {
       }),
       false,
     );
+  });
+});
+
+Deno.test("a super admin who also owns an organization", async (t) => {
+  const C = "44444444-4444-4444-8444-444444444444";
+  const superAdminOwnerOfC: RankedUser = {
+    roles: [
+      { role: "super_admin", tenant_id: null },
+      { role: "owner", tenant_id: C },
+    ],
+    memberships: [{ tenant_id: C, role: "owner" }],
+  };
+
+  await t.step(
+    "acting elsewhere, is only an owner of C: a co-owner is refused",
+    () => {
+      assertEquals(
+        outranksIn(superAdminOwnerOfC, ownerOf(C), C, parents, A),
+        false,
+      );
+      assertEquals(may(superAdminOwnerOfC, ownerOf(C), C, A), false);
+      assertEquals(may(superAdminOwnerOfC, memberOf(C), C, A), true);
+    },
+  );
+
+  await t.step("acting in C, ranks above C's co-owner", () => {
+    assertEquals(
+      outranksIn(superAdminOwnerOfC, ownerOf(C), C, parents, C),
+      true,
+    );
+    assertEquals(may(superAdminOwnerOfC, ownerOf(C), C, C), true);
   });
 });
