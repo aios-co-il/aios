@@ -6,8 +6,9 @@ name: CI — SQL tests
 on:
   pull_request:
     branches: [main, develop]
+  # develop is covered by pull_request and its merge queue, which test the same content.
   push:
-    branches: [main, develop]
+    branches: [main]
   # develop's merge queue: each queued PR is checked on top of the PRs ahead of it.
   merge_group:
 

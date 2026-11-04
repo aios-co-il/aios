@@ -44,7 +44,7 @@ compiler inputs, not imported as checker code. The trusted checker runs with
 `--project PATH`, which permits checking only, never updating the candidate
 baseline. Compiler upgrades need the trusted tooling upgraded first.
 
-The `baseline-review` job retains its existing check name and validates the PR's
+The `typescript` job's baseline step validates the PR's
 baseline schema using the base's dependency-free `typecheck-policy.mjs`. It reads
 the baseline through GitHub's API at the exact head revision and never checks out
 or executes PR code. It does not request reviews or compare baseline additions
@@ -62,8 +62,7 @@ Once the tools land on `develop`, remove the temporary bootstrap secret and CI
 uses the base automatically. Missing trusted tooling never falls back to PR code.
 
 To verify the rollout, open a small follow-up PR against `develop` without changing
-the checker, baseline, or compiler settings. Confirm that both `typescript` and
-`baseline-review` pass, and that the full frontend TypeScript gate step runs rather
+the checker, baseline, or compiler settings. Confirm that `typescript` (including its baseline step) passes, and that the full frontend TypeScript gate step runs rather
 than being skipped. With the bootstrap secret removed, the trusted checkout should
 use that PR's base commit.
 
