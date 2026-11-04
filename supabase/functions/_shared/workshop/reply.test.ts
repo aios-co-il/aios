@@ -39,6 +39,21 @@ Deno.test(
 );
 
 Deno.test(
+  "a turn that stopped at the briefing's reading step is nudged to call again",
+  () => {
+    assertStrictEquals(
+      shouldNudgeSilentTurn([
+        {
+          tool: "workshop_storyboard",
+          result: { needs_input: true, say_to_user: "", reading: true },
+        },
+      ]),
+      true,
+    );
+  },
+);
+
+Deno.test(
   "the fallback never passes a connections check off as the answer",
   () => {
     assertStrictEquals(

@@ -13,7 +13,13 @@ import {
   STYLE_CHOICES,
   type Choice,
 } from "./briefing-choices.ts";
-import { answerFor, unanswered, type BriefAnswers } from "./brief-answers.ts";
+import {
+  answerFor,
+  REFERENCE,
+  unanswered,
+  type BriefAnswers,
+} from "./brief-answers.ts";
+import { readFirst } from "./brief-reading.ts";
 
 export const ENGINE_NOTES: Record<ImageProvider, string> = {
   google:
@@ -49,6 +55,12 @@ export interface BriefingInput {
    * Carmen wrote herself does not count: the user is asked first (only their answers count).
    */
   asked?: boolean;
+  /**
+   * Carmen already read the request for what it answers (she passed brief_answers, or was asked
+   * to in this turn). Until then the first questions are not shown: say_to_user goes out as is,
+   * so she cannot leave out a question the user already answered.
+   */
+  read?: boolean;
 }
 
 export interface BriefingGate {
@@ -59,20 +71,28 @@ export interface BriefingGate {
   /** For Carmen only: what to do with the answers. Never shown to the user. */
   carmen_next: string;
   engines?: ReturnType<typeof engineOptions>;
+  /** Asks Carmen to read the request first; the questions come on her next call. */
+  reading?: true;
 }
 
 /** Returns what is still missing, or null when Carmen can go ahead. */
 export function briefingGate(input: BriefingInput): BriefingGate | null {
-  const hasReferences = input.look.references.length > 0;
-  const hasBible = input.look.bible.trim().length > 0;
   const answers = input.answers ?? {};
+  // Reference pictures are the look itself: every picture is generated from them.
+  const hasReferences = input.look.references.length > 0;
+  // Any other reference the brief names (a board picture, a video, a site): the user is not asked
+  // about the style, Carmen writes the style bible from it (brief-reading.ts).
+  const namedReference = answerFor(answers, REFERENCE);
+  const hasBible = input.look.bible.trim().length > 0;
   const answered = (choices: Choice[]) =>
     choices.some((choice) => Boolean(answerFor(answers, choice.label)));
   const userStyle = answered(STYLE_CHOICES[input.kind]);
   const styleOk =
     input.needsStyle === false ||
     hasReferences ||
-    (hasBible && input.styleApproved && (userStyle || input.asked === true));
+    (hasBible &&
+      input.styleApproved &&
+      (userStyle || input.asked === true || Boolean(namedReference)));
   // A film brief counts once the user answered the film questions or saw them once.
   const filmOk =
     input.kind !== "video" ||
@@ -88,7 +108,9 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
 
   const choices: Choice[] = unanswered(
     [
-      ...(missing.includes("style") ? STYLE_CHOICES[input.kind] : []),
+      ...(missing.includes("style") && !namedReference
+        ? STYLE_CHOICES[input.kind]
+        : []),
       ...(missing.includes("film") ? FILM_CHOICES : []),
       ...(missing.includes("engine") && input.connected
         ? [
@@ -107,7 +129,10 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   const fromAnswers =
     "התשובות נשמרו בבריף של הפרויקט" +
     (answeredLines ? ` (${answeredLines})` : "") +
-    ". כתבי מהן style_bible באנגלית שמתאר את המראה (דמות, מקום, צבעים, תאורה, סגנון רינדור), וקראי שוב לכלי עם style_bible ו-style_approved=true, ו-engine אם נבחר.";
+    (namedReference && missing.includes("style")
+      ? `. את הסגנון לא שואלים את המשתמש: יש רפרנס (${namedReference}). כתבי ממנו`
+      : ". כתבי מהן") +
+    " style_bible באנגלית שמתאר את המראה (דמות, מקום, צבעים, תאורה, סגנון רינדור), וקראי שוב לכלי עם style_bible ו-style_approved=true, ו-engine אם נבחר.";
   if (choices.length === 0)
     return {
       needs_input: true,
@@ -115,19 +140,29 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
       say_to_user: "",
       carmen_next: fromAnswers,
     };
+  if (input.asked !== true && input.read !== true) {
+    return {
+      needs_input: true,
+      missing,
+      say_to_user: "",
+      carmen_next: readFirst(choices),
+      reading: true,
+    };
+  }
   const intro =
     input.kind === "video"
       ? "לפני שאני כותבת את הסרט, כמה בחירות קצרות כדי שייצא בדיוק כמו שצריך:"
       : "לפני שאני מעצבת, כמה בחירות קצרות:";
-  const reference = missing.includes("style")
-    ? "\nיש תמונה או מודעה שאהבת? אפשר לצרף אותה כרפרנס."
-    : "";
+  const reference =
+    missing.includes("style") && !namedReference
+      ? "\nיש תמונה או מודעה שאהבת? אפשר לצרף אותה כרפרנס."
+      : "";
   return {
     needs_input: true,
     missing,
     say_to_user: [intro + reference, ...choices.map(choiceLine)].join("\n"),
     carmen_next:
-      "שלחי למשתמש את say_to_user כמו שהוא, בלי להוסיף ובלי להסביר, ועצרי. אם המשתמש כבר ענה על חלק מהבחירות בבקשה שלו, השמיטי את השורות האלה. התשובות שלו נשמרות לבריף של הפרויקט לבד. אם הוא ענה במילים חופשיות, העבירי אותן ב-brief_answers (נושא → תשובה). " +
+      "שלחי למשתמש את say_to_user כמו שהוא, בלי להוסיף ובלי להסביר, ועצרי. התשובות שלו נשמרות לבריף של הפרויקט לבד. אם הוא ענה במילים חופשיות, העבירי אותן ב-brief_answers (נושא → תשובה). " +
       fromAnswers,
     ...(missing.includes("engine") && input.connected
       ? { engines: engineOptions(input.connected) }
