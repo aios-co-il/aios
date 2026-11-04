@@ -287,3 +287,43 @@ test("a Facebook campaign keeps one goal in every week", () => {
     "ecommerce",
   ]);
 });
+
+describe("buildWeeklyCampaignSections – campaigns that are off", () => {
+  const paused = (date: string, campaign: string, spend: number) => {
+    const row = record(date, campaign, spend, 0);
+    return { ...row, data: { ...row.data, effective_status: "PAUSED" } };
+  };
+
+  test("an off campaign shows, marked, only in the weeks it spent", () => {
+    const sections = buildWeeklyCampaignSections(
+      [
+        record("2026-09-13", "Live", 0, 0),
+        paused("2026-09-06", "Stopped", 70),
+        paused("2026-09-14", "Stopped", 0),
+      ],
+      { now: new Date("2026-09-18T12:00:00Z") },
+    );
+
+    expect(
+      sections.map((week) => [
+        week.startDate,
+        week.rows.map((row) => [row.campaign, row.off]),
+      ]),
+    ).toStrictEqual([
+      ["2026-09-13", [["Live", false]]],
+      ["2026-09-06", [["Stopped", true]]],
+    ]);
+  });
+
+  test("a switched-off report marks its campaigns off", () => {
+    const sections = buildWeeklyCampaignSections(
+      [record("2026-09-13", "Google", 30, 1, "google_ads")],
+      {
+        now: new Date("2026-09-18T12:00:00Z"),
+        isReportOff: () => true,
+      },
+    );
+
+    expect(sections[0].rows.map((row) => row.off)).toStrictEqual([true]);
+  });
+});

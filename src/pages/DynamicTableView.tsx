@@ -142,6 +142,12 @@ import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { AllGoalsSpendRow } from "@/components/reports/AllGoalsSpendRow";
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
+import {
+  applyCampaignOffRule,
+  campaignOffKeys,
+  reportOffLookup,
+} from "@/lib/campaignOffState";
 import { formatReportNumber } from "@/lib/reportNumber";
 import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
 import {
@@ -172,6 +178,7 @@ interface CrmTable {
   integration_settings: any;
   secondary_integration_type?: string | null;
   secondary_integration_settings?: any;
+  campaign_active?: boolean | null;
 }
 
 interface CrmField {
@@ -3182,6 +3189,7 @@ export default function DynamicTableView({
                   leadsOnly: isFacebookLeadsOnlyTable(
                     table?.integration_settings,
                   ),
+                  isReportOff: reportOffLookup(table ? [table] : []),
                 },
               );
 
@@ -3346,6 +3354,7 @@ export default function DynamicTableView({
                                       className="border-b hover:bg-muted/30"
                                     >
                                       <td className="p-2 text-right font-medium">
+                                        <CampaignOffBadge off={data.off} />
                                         {data.name}
                                       </td>
                                       <td className="p-2 text-center">
@@ -3597,6 +3606,7 @@ export default function DynamicTableView({
                                   className="border-b hover:bg-muted/30"
                                 >
                                   <td className="p-2 text-right font-medium">
+                                    <CampaignOffBadge off={data.off} />
                                     {data.name}
                                   </td>
                                   <td className="p-2 text-center">
@@ -3802,17 +3812,33 @@ export default function DynamicTableView({
                             const currency = getCurrencySymbol(
                               table.integration_settings?.currency,
                             );
-                            return Object.values(campaignGroups).map((data) => {
+                            const offKeys = campaignOffKeys(
+                              filteredRecords,
+                              (data) => getEntityGroupKey(data, adsEntityLevel),
+                              reportOffLookup(table ? [table] : []),
+                            );
+                            const rows = applyCampaignOffRule(
+                              Object.entries(campaignGroups).map(
+                                ([key, group]) => ({ key, ...group }),
+                              ),
+                              {
+                                keyOf: (row) => row.key,
+                                spendOf: (row) => row.spend,
+                                offKeys,
+                              },
+                            );
+                            return rows.map((data) => {
                               const roas =
                                 data.spend > 0
                                   ? data.purchase_value / data.spend
                                   : 0;
                               return (
                                 <tr
-                                  key={data.name}
+                                  key={data.key}
                                   className="border-b hover:bg-muted/30"
                                 >
                                   <td className="p-2 text-right font-medium">
+                                    <CampaignOffBadge off={data.off} />
                                     {data.name}
                                   </td>
                                   <td className="p-2 text-center">
@@ -4031,8 +4057,20 @@ export default function DynamicTableView({
                     },
                   );
 
-                  const groupList = Object.entries(campaignGroups).map(
-                    ([key, group]) => ({ key, ...group }),
+                  const groupList = applyCampaignOffRule(
+                    Object.entries(campaignGroups).map(([key, group]) => ({
+                      key,
+                      ...group,
+                    })),
+                    {
+                      keyOf: (row) => row.key,
+                      spendOf: (row) => row.cost,
+                      offKeys: campaignOffKeys(
+                        filteredRecords,
+                        (data) => getEntityGroupKey(data, adsEntityLevel),
+                        reportOffLookup(table ? [table] : []),
+                      ),
+                    },
                   );
                   // Mixed: one table per goal, each with its own columns and totals.
                   const {

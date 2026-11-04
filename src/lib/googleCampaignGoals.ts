@@ -41,6 +41,8 @@ export type GoogleReportTable = {
   integration_type?: string | null;
   integration_settings?: Record<string, unknown> | null;
   category?: string | null;
+  /** The report's on/off switch; off marks its campaigns "כבוי". */
+  campaign_active?: boolean | null;
 };
 
 export type GoogleCampaignGoalLookup = GoogleGoalPresence & {

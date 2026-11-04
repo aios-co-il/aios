@@ -5,6 +5,11 @@ import {
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
+import {
+  campaignOffKeys,
+  showCampaignRow,
+  type CampaignOffRecord,
+} from "@/lib/campaignOffState";
 import { facebookCampaignGoals } from "@/lib/facebookCampaignGoal";
 import {
   addFacebookFollowers,
@@ -30,6 +35,8 @@ export type FacebookReportCampaign = {
   conversations: number;
   result: FacebookResultTotals;
   followers: FacebookFollowerTotals;
+  /** Paused, removed or its report switched off; shown only when it spent. */
+  off: boolean;
 };
 
 /** A row with its entity key, in the order the entity first appears. */
@@ -38,15 +45,29 @@ export type FacebookReportEntry = [string, FacebookReportCampaign];
 /**
  * The report's Facebook rows at this level, split into sales, lead and traffic
  * tables by the goal classifier the shared report and weekly tab also use.
+ * Off campaigns that spent nothing in the period are left out.
  */
 export function groupFacebookReportCampaigns(
-  records: Array<{ data?: Record<string, unknown> | null }>,
+  records: CampaignOffRecord[],
   level: AdsEntityLevel,
-  options: { leadsOnly: boolean },
+  options: {
+    leadsOnly: boolean;
+    isReportOff?: (record: CampaignOffRecord) => boolean;
+  },
 ): Record<ReportCampaignGoal, FacebookReportEntry[]> {
+  const offKeys = campaignOffKeys(
+    records,
+    (data) => getEntityGroupKey(data, level),
+    options.isReportOff,
+  );
   const entries = Object.entries(
     aggregateFacebookReportCampaigns(records, level),
-  );
+  )
+    .map(([key, campaign]): FacebookReportEntry => [
+      key,
+      { ...campaign, off: offKeys.has(key) },
+    ])
+    .filter(([, campaign]) => showCampaignRow(campaign));
   const goals = facebookCampaignGoals(
     records,
     (data) => getEntityGroupKey(data, level),
@@ -63,7 +84,7 @@ export function groupFacebookReportCampaigns(
 
 /** Sums each entity's delivery, results, Meta result and followers over its records. */
 function aggregateFacebookReportCampaigns(
-  records: Array<{ data?: Record<string, unknown> | null }>,
+  records: CampaignOffRecord[],
   level: AdsEntityLevel,
 ): Record<string, FacebookReportCampaign> {
   const groups: Record<string, FacebookReportCampaign> = {};
@@ -82,6 +103,7 @@ function aggregateFacebookReportCampaigns(
       conversations: 0,
       result: emptyFacebookResultTotals(),
       followers: emptyFacebookFollowers(),
+      off: false,
     });
     group.impressions += Number(data.impressions) || 0;
     group.clicks += Number(data.clicks) || 0;
