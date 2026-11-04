@@ -37,7 +37,7 @@ interface SortableTaskItemProps {
     status: string;
     client_id: string | null;
     campaigner_id?: string | null;
-    created_at?: string | null;
+    created_at?: string;
     due_date?: string | null;
     duration_minutes?: number | null;
     clients?: { name: string } | null;

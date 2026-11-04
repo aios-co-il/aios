@@ -138,7 +138,7 @@ interface Task {
   campaigner_id: string | null;
   tenant_id: string | null;
   created_by?: string | null;
-  created_at?: string | null;
+  created_at?: string;
   creator_name?: string | null;
   self_reminder_at?: string | null;
   google_calendar_event_id?: string | null;

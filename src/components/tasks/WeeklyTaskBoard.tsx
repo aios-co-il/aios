@@ -147,7 +147,7 @@ interface Task extends TaskRelations {
   tenant_id: string | null;
   created_by?: string | null;
   creator_name?: string | null;
-  created_at?: string | null;
+  created_at?: string;
   updated_at?: string | null;
   sort_order?: number;
   target_date?: string | null;
@@ -1293,7 +1293,7 @@ export function WeeklyTaskBoard() {
       newTime?: string | null;
       title?: string;
       googleCalendarEventId?: string | null;
-      durationMinutes?: number;
+      durationMinutes?: number | null;
     }) => {
       const updateData: {
         due_date: string | null;

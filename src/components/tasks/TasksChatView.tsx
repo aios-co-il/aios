@@ -66,7 +66,7 @@ export type ChatTask = TaskRelations & {
   agency_id: string | null;
   campaigner_id: string | null;
   tenant_id: string | null;
-  created_at?: string | null;
+  created_at?: string;
   created_by?: string | null;
   creator_name?: string | null;
   google_calendar_event_id?: string | null;

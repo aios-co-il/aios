@@ -34,7 +34,7 @@ interface TaskItemProps {
     assigned_agent?: string | null;
     cursor_session_url?: string | null;
     cursor_session_id?: string | null;
-    created_at?: string | null;
+    created_at?: string;
     due_date?: string | null;
     clients?: { name: string } | null;
     campaigners?: { full_name: string } | null;
