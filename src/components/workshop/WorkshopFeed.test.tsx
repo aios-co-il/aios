@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { WorkshopFeed } from "./WorkshopFeed";
 
 vi.mock("./useWorkshopAssets", () => ({
@@ -10,6 +10,12 @@ const BRIEF =
   "סרטון לכרמן\n\nפרטים שנוספו לבריף:\nקצב: מהיר\nפונט: Heebo, טקסט גדול";
 
 describe("WorkshopFeed brief page", () => {
+  // jsdom has no scrollIntoView: the feed scrolls to its end, so the test lends one and takes it back.
+  const scrollIntoView = Element.prototype.scrollIntoView;
+  afterEach(() => {
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
   test("shows the whole brief, one answer per line", () => {
     Element.prototype.scrollIntoView = vi.fn();
     render(

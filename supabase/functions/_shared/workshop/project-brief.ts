@@ -31,7 +31,7 @@ export function projectBrief(payload: Record<string, unknown>): string {
     .trim()
     .slice(0, MAX_REQUEST);
   const lines = Object.entries(latestByTopic(briefAnswersOf(payload)))
-    .filter(([label]) => !isConfirmation(label))
+    .filter(([label, answer]) => !isConfirmation(label, answer))
     .map(([label, answer]) => `${label}: ${answer}`);
   if (lines.length === 0) {
     return request;
@@ -41,19 +41,28 @@ export function projectBrief(payload: Record<string, unknown>): string {
     : BRIEF_ADDED_HEADING;
   for (const line of lines) {
     if (brief.length + line.length + 1 > MAX_BRIEF) {
-      break;
+      continue;
     }
     brief += `\n${line}`;
   }
   return brief;
 }
 
+/** Carmen's approval questions ("אישור | מאשר | רוצה לשנות") and the plain answers to a yes or no. */
+const CONFIRMATION_LABEL = /^\s*(?:אישור|לאשר)/;
+const YES_OR_NO = /^\s*(?:כן|לא|מאשר|מאשרת|מאושר|רוצה לשנות)\s*[.!]?\s*$/;
+
 /**
- * A tapped yes-or-no question ("לאשר תקציב של $6 לפרויקט?", "סטוריבורד חדש במקום הקיים?") is a
- * decision about the work, not something about the project, so it stays out of the brief.
+ * A tapped yes-or-no question ("לאשר תקציב של $6 לפרויקט?", "סטוריבורד חדש במקום הקיים?",
+ * "אישור: מאשר") is a decision about the work, not something about the project, so it stays
+ * out of the brief.
  */
-function isConfirmation(label: string) {
-  return /[?؟]\s*$/.test(label);
+function isConfirmation(label: string, answer: string) {
+  return (
+    /[?؟]\s*$/.test(label) ||
+    CONFIRMATION_LABEL.test(label) ||
+    YES_OR_NO.test(answer)
+  );
 }
 
 interface BriefPage {
