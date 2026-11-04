@@ -2,6 +2,12 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  Constants,
+  type Enums,
+  type TablesInsert,
+  type TablesUpdate,
+} from "@/integrations/supabase/types";
+import {
   format,
   startOfMonth,
   endOfMonth,
@@ -153,7 +159,7 @@ const statusConfig: Record<
     icon: <Loader2 className="h-3 w-3 animate-spin" />,
     dot: "bg-blue-500",
   },
-  review: {
+  waiting_approval: {
     label: "לאישור",
     color: "text-amber-700",
     bg: "bg-amber-50 border-amber-200",
@@ -377,10 +383,11 @@ function PostDetailDialog({
   item: WorkItem | null;
   open: boolean;
   onClose: () => void;
-  onUpdate: (id: string, patch: Partial<WorkItem>) => void;
+  onUpdate: (id: string, patch: TablesUpdate<"marketing_work_items">) => void;
 }) {
   const [editDate, setEditDate] = useState("");
-  const [editStatus, setEditStatus] = useState("");
+  const [editStatus, setEditStatus] =
+    useState<Enums<"marketing_item_status">>();
 
   if (!item) return null;
 
@@ -434,7 +441,17 @@ function PostDetailDialog({
               </label>
               <Select
                 value={editStatus || item.status}
-                onValueChange={(v) => setEditStatus(v)}
+                onValueChange={(value) => {
+                  const status =
+                    Constants.public.Enums.marketing_item_status.find(
+                      (candidate) => candidate === value,
+                    );
+                  if (status) {
+                    setEditStatus(status);
+                  } else {
+                    console.error("Invalid marketing item status");
+                  }
+                }}
               >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
@@ -484,7 +501,7 @@ function PostDetailDialog({
             size="sm"
             className="w-full"
             onClick={() => {
-              const patch: Partial<WorkItem> = {};
+              const patch: TablesUpdate<"marketing_work_items"> = {};
               if (editStatus) patch.status = editStatus;
               if (editDate) patch.scheduled_date = editDate;
               if (Object.keys(patch).length > 0) {
@@ -545,24 +562,26 @@ function NewItemDialog({
         .maybeSingle();
 
       // Create one item per selected platform
-      const inserts = channels.map((ch) => ({
-        pipeline_id: pipelineId,
-        tenant_id: tenantId,
-        client_id: clientId,
-        current_stage_id: stage?.id ?? null,
-        title:
-          channels.length > 1
-            ? `${title.trim()} – ${channelConfig[ch]?.label ?? ch}`
-            : title.trim(),
-        status: "draft",
-        scheduled_date: date || null,
-        target_channel: ch,
-        payload: {
-          channel: ch,
-          copy_text: copy.trim() || null,
-          auto_run: autoRun,
-        },
-      }));
+      const inserts: Array<TablesInsert<"marketing_work_items">> = channels.map(
+        (ch) => ({
+          pipeline_id: pipelineId,
+          tenant_id: tenantId,
+          client_id: clientId,
+          current_stage_id: stage?.id ?? null,
+          title:
+            channels.length > 1
+              ? `${title.trim()} – ${channelConfig[ch]?.label ?? ch}`
+              : title.trim(),
+          status: "draft",
+          scheduled_date: date || null,
+          target_channel: ch,
+          payload: {
+            channel: ch,
+            copy_text: copy.trim() || null,
+            auto_run: autoRun,
+          },
+        }),
+      );
 
       const { error } = await supabase
         .from("marketing_work_items")
@@ -715,7 +734,7 @@ function ListItemRow({
   selected: boolean;
   onSelect: () => void;
   onClick: () => void;
-  onUpdate: (id: string, patch: Partial<WorkItem>) => void;
+  onUpdate: (id: string, patch: TablesUpdate<"marketing_work_items">) => void;
   onPublish: (id: string) => void;
 }) {
   const [editingCopy, setEditingCopy] = useState(false);
@@ -1010,7 +1029,7 @@ export function SocialContentGantt({
       patch,
     }: {
       id: string;
-      patch: Partial<WorkItem>;
+      patch: TablesUpdate<"marketing_work_items">;
     }) => {
       const { error } = await supabase
         .from("marketing_work_items")
