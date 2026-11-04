@@ -1948,6 +1948,9 @@ Deno.test(
 const bareProject = () =>
   videoProject({ payload: { format: "9:16", project_type: "video" } });
 
+/** Carmen read the request and it settles none of the briefing questions. */
+const READ_NOTHING = { brief_answers: { none: "none" } };
+
 Deno.test(
   "without a defined style Carmen gets questions instead of pictures, storyboard included",
   async () => {
@@ -1970,7 +1973,7 @@ Deno.test(
         db,
         "tenant-1",
         name,
-        { item_id: "item-1", confirmed: true, ...extra },
+        { item_id: "item-1", confirmed: true, ...READ_NOTHING, ...extra },
         async () => {},
         null,
         deps,
@@ -2010,7 +2013,7 @@ Deno.test(
       }),
       "tenant-1",
       "workshop_make_stills",
-      proposal,
+      { ...proposal, ...READ_NOTHING },
       async () => {},
       null,
       { generateImage: async () => ({ image_url: "https://x/1.png" }) },
@@ -3705,7 +3708,7 @@ Deno.test(
       first,
       "tenant-1",
       "workshop_storyboard",
-      storyboard,
+      { ...storyboard, ...READ_NOTHING },
       async () => {},
       null,
       { userText: tapped, lastAssistant: carmenAsked },
@@ -3750,6 +3753,172 @@ Deno.test(
     assertStrictEquals(written.needs_input, undefined);
     assertStrictEquals(written.success, true);
     assert(second.calls.some((c) => c.table === "rpc:save_video_storyboard"));
+  },
+);
+
+interface GateReply {
+  needs_input?: boolean;
+  missing?: Array<string>;
+  say_to_user: string;
+  carmen_next: string;
+  success?: boolean;
+}
+
+interface SavedBrief {
+  payload: {
+    workshop_brief: { answers: Record<string, string>; asked?: boolean };
+  };
+}
+
+/** The project as the last call saved it, to load in the next call. */
+const projectSavedBy = (db: ReturnType<typeof fakeDb>) => {
+  const saved = db.calls.filter((c) => c.op === "update").at(-1)
+    ?.value as SavedBrief;
+  return {
+    ...bareProject(),
+    "marketing_work_items:select": {
+      id: "item-1",
+      title: "",
+      client_id: "client-1",
+      current_stage_id: "stage-1",
+      payload: saved.payload,
+    },
+  };
+};
+
+const questionLabels = (say: string) =>
+  [...say.matchAll(/\[\[בחירה: ([^|]+?) \|/g)].map((m) => m[1]);
+
+Deno.test(
+  "what the request already says is never asked: Carmen reads it before the first questions",
+  async () => {
+    // David on Staging: he asked for motion graphics with narration and was still asked the look.
+    const deps = {
+      turnId: "turn-1",
+      userText: "בואי נעשה סרטון מושן גרפיקס מגניב עם קריינות על המוצר",
+    };
+    const storyboard = {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a phone on a desk" }],
+    };
+    const first = fakeDb(bareProject());
+    const reading = (await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    // Nothing reaches the user yet: Carmen is asked what the request settles.
+    assertStrictEquals(reading.needs_input, true);
+    assertStrictEquals(reading.say_to_user, "");
+    assertMatch(reading.carmen_next, /brief_answers/);
+    assertMatch(reading.carmen_next, /מראה/);
+
+    const second = fakeDb(projectSavedBy(first));
+    const asked = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_storyboard",
+      { ...storyboard, brief_answers: { מראה: "מושן גרפיקס" } },
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    // "עם קריינות" does not say who narrates, so the voice stays open; the look is never asked.
+    assertEquals(questionLabels(asked.say_to_user), [
+      "דמות",
+      "צבעים",
+      "קצב",
+      "קול",
+      "מוזיקה",
+      "סיום",
+    ]);
+    assertNotMatch(asked.say_to_user, /מושן גרפיקס/);
+  },
+);
+
+Deno.test(
+  "a reference given in the message skips the style questions and the offer to attach one",
+  async () => {
+    const deps = {
+      turnId: "turn-1",
+      userText:
+        "תעשי סרטון כמו המודעה הזו\n\n📎 קבצים מצורפים (1):\n- תמונה: ad.png → https://files.example.com/ad.png",
+    };
+    const storyboard = {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a phone on a desk" }],
+    };
+    const first = fakeDb(bareProject());
+    const reading = (await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertEquals(reading.missing, ["film"]);
+    assertStrictEquals(reading.say_to_user, "");
+
+    // Carmen calls again without brief_answers: the flow does not loop, it asks what is open.
+    const second = fakeDb(projectSavedBy(first));
+    const asked = (await executeWorkshopTool(
+      second,
+      "tenant-1",
+      "workshop_storyboard",
+      storyboard,
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertEquals(questionLabels(asked.say_to_user), [
+      "קצב",
+      "קול",
+      "מוזיקה",
+      "סיום",
+    ]);
+    assertNotMatch(asked.say_to_user, /רפרנס/);
+    const saved = second.calls.filter((c) => c.op === "update").at(-1)
+      ?.value as SavedBrief;
+    assertStrictEquals(
+      saved.payload.workshop_brief.answers["רפרנס"],
+      "https://files.example.com/ad.png",
+    );
+    assertStrictEquals(saved.payload.workshop_brief.asked, true);
+  },
+);
+
+Deno.test(
+  "a request that settles every question goes straight to the storyboard after Carmen's reading",
+  async () => {
+    const deps = { turnId: "turn-1", userText: "סרטון לפי הרפרנס" };
+    const first = fakeDb(bareProject());
+    const written = (await executeWorkshopTool(
+      first,
+      "tenant-1",
+      "workshop_storyboard",
+      {
+        item_id: "item-1",
+        scenes: [{ visual_prompt: "a phone on a desk" }],
+        brief_answers: {
+          רפרנס: "סרטון רפרנס שהמשתמש שלח",
+          קצב: "אנרגטי ומהיר",
+          קול: "קריינית",
+          מוזיקה: "אלקטרונית קצבית",
+          סיום: "לוגו בלבד",
+        },
+      },
+      async () => {},
+      null,
+      deps,
+    )) as GateReply;
+    assertStrictEquals(written.needs_input, undefined);
+    assertStrictEquals(written.success, true);
   },
 );
 

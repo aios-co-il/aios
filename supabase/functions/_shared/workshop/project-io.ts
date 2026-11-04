@@ -1,14 +1,19 @@
 import { ASSET_BUCKET, type AssetView, isHttpUrl } from "./assets.ts";
 import {
+  answerFor,
   answersFromArgs,
   answersFromMessage,
+  briefAnswersGiven,
   briefAnswersOf,
   briefAsked,
+  briefReadTurn,
   filmFromAnswers,
+  REFERENCE,
   styleFromAnswers,
   unanswered,
   withBriefAnswers,
   withBriefAsked,
+  withBriefReadTurn,
 } from "./brief-answers.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
@@ -149,6 +154,10 @@ export async function briefProject(
     ),
     ...answersFromArgs(args.brief_answers),
   };
+  const reference = referenceThisTurn(args, deps.userText ?? "");
+  if (reference && !answerFor(fresh, REFERENCE)) {
+    fresh[REFERENCE] = reference;
+  }
   const briefed = withBriefAnswers(payload, fresh);
   const answers = briefAnswersOf(briefed);
   const writtenFilm =
@@ -178,16 +187,27 @@ export async function briefProject(
     needsStyle: options.needsStyle,
     answers,
     asked: briefAsked(payload),
+    read: readRequest(payload, args, deps, Boolean(options.save)),
   });
   if (gate) {
     // Shown to the user now: from the next turn Carmen may fill in what they leave open.
     const asking = typeof gate.say_to_user === "string" && gate.say_to_user;
     if (
       options.save &&
-      (Object.keys(fresh).length > 0 || writtenFilm || writtenStyle || asking)
+      (Object.keys(fresh).length > 0 ||
+        writtenFilm ||
+        writtenStyle ||
+        asking ||
+        gate.reading)
     ) {
-      const kept = withLook(briefed, written).payload;
-      await options.save(asking ? withBriefAsked(kept) : kept);
+      let kept = withLook(briefed, written).payload;
+      if (asking) {
+        kept = withBriefAsked(kept);
+      }
+      if (gate.reading) {
+        kept = withBriefReadTurn(kept, turnKey(deps));
+      }
+      await options.save(kept);
     }
     return { gate: gate as unknown as Record<string, unknown> };
   }
@@ -196,6 +216,43 @@ export async function briefProject(
     engine: chosen ?? (connected?.length === 1 ? connected[0] : null),
   };
 }
+
+/**
+ * A reference the user gave in this turn: a picture from the board the film is built from, or a
+ * link in their message (an attached file arrives as a link too: commandCenterAttachments.ts).
+ */
+function referenceThisTurn(
+  args: Record<string, unknown>,
+  userText: string,
+): string | null {
+  const fromArtifact =
+    typeof args.from_artifact_id === "string" && args.from_artifact_id.trim();
+  if (fromArtifact) {
+    return `תמונה מהלוח (artifact_id=${fromArtifact})`;
+  }
+  return userText.match(/https?:\/\/[^\s)\]]+/i)?.[0] ?? null;
+}
+
+/**
+ * Whether Carmen read the request before the first questions: she passed brief_answers, or the
+ * gate already asked her to in this turn. Asked once per turn, so the flow cannot loop; a tool
+ * that cannot keep that mark (no save) never asks.
+ */
+function readRequest(
+  payload: Record<string, unknown>,
+  args: Record<string, unknown>,
+  deps: WorkshopDeps,
+  canSave: boolean,
+): boolean {
+  return (
+    !canSave ||
+    briefAnswersGiven(args.brief_answers) ||
+    briefReadTurn(payload) === turnKey(deps)
+  );
+}
+
+/** The turn the reading mark belongs to; calls without a turn id share one mark. */
+const turnKey = (deps: WorkshopDeps) => deps.turnId ?? "no-turn";
 
 export async function loadProject(
   supabase: Db,

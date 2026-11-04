@@ -13,7 +13,12 @@ import {
   STYLE_CHOICES,
   type Choice,
 } from "./briefing-choices.ts";
-import { answerFor, unanswered, type BriefAnswers } from "./brief-answers.ts";
+import {
+  answerFor,
+  REFERENCE,
+  unanswered,
+  type BriefAnswers,
+} from "./brief-answers.ts";
 
 export const ENGINE_NOTES: Record<ImageProvider, string> = {
   google:
@@ -49,6 +54,12 @@ export interface BriefingInput {
    * Carmen wrote herself does not count: the user is asked first (only their answers count).
    */
   asked?: boolean;
+  /**
+   * Carmen already read the request for what it answers (she passed brief_answers, or was asked
+   * to in this turn). Until then the first questions are not shown: say_to_user goes out as is,
+   * so she cannot leave out a question the user already answered.
+   */
+  read?: boolean;
 }
 
 export interface BriefingGate {
@@ -59,13 +70,18 @@ export interface BriefingGate {
   /** For Carmen only: what to do with the answers. Never shown to the user. */
   carmen_next: string;
   engines?: ReturnType<typeof engineOptions>;
+  /** Asks Carmen to read the request first; the questions come on her next call. */
+  reading?: true;
 }
 
 /** Returns what is still missing, or null when Carmen can go ahead. */
 export function briefingGate(input: BriefingInput): BriefingGate | null {
-  const hasReferences = input.look.references.length > 0;
-  const hasBible = input.look.bible.trim().length > 0;
   const answers = input.answers ?? {};
+  // A reference answers the style: a project reference picture, or one the brief names (a link or
+  // attachment the user gave, a board picture, a site or video Carmen read: project-io.ts).
+  const hasReferences =
+    input.look.references.length > 0 || Boolean(answerFor(answers, REFERENCE));
+  const hasBible = input.look.bible.trim().length > 0;
   const answered = (choices: Choice[]) =>
     choices.some((choice) => Boolean(answerFor(answers, choice.label)));
   const userStyle = answered(STYLE_CHOICES[input.kind]);
@@ -115,6 +131,15 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
       say_to_user: "",
       carmen_next: fromAnswers,
     };
+  if (input.asked !== true && input.read !== true) {
+    return {
+      needs_input: true,
+      missing,
+      say_to_user: "",
+      carmen_next: readFirst(choices),
+      reading: true,
+    };
+  }
   const intro =
     input.kind === "video"
       ? "לפני שאני כותבת את הסרט, כמה בחירות קצרות כדי שייצא בדיוק כמו שצריך:"
@@ -127,10 +152,27 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
     missing,
     say_to_user: [intro + reference, ...choices.map(choiceLine)].join("\n"),
     carmen_next:
-      "שלחי למשתמש את say_to_user כמו שהוא, בלי להוסיף ובלי להסביר, ועצרי. אם המשתמש כבר ענה על חלק מהבחירות בבקשה שלו, השמיטי את השורות האלה. התשובות שלו נשמרות לבריף של הפרויקט לבד. אם הוא ענה במילים חופשיות, העבירי אותן ב-brief_answers (נושא → תשובה). " +
+      "שלחי למשתמש את say_to_user כמו שהוא, בלי להוסיף ובלי להסביר, ועצרי. התשובות שלו נשמרות לבריף של הפרויקט לבד. אם הוא ענה במילים חופשיות, העבירי אותן ב-brief_answers (נושא → תשובה). " +
       fromAnswers,
     ...(missing.includes("engine") && input.connected
       ? { engines: engineOptions(input.connected) }
       : {}),
   };
+}
+
+/**
+ * Before the first questions: Carmen passes what the request (and any reference) already settles,
+ * so only the open questions reach the user. She is asked once per turn (project-io.ts).
+ */
+function readFirst(choices: Array<Choice>): string {
+  const open = choices
+    .map((choice) => `${choice.label} (${choice.options.join(" / ")})`)
+    .join("; ");
+  return [
+    "עוד לא לשלוח כלום למשתמש. קודם קראי שוב לאותו כלי, עם אותם ארגומנטים ועם brief_answers (נושא → תשובה) לכל שאלה שהבקשה של המשתמש או הרפרנס שלו כבר עונים עליה, כדי שלא יישאל עליה.",
+    `השאלות הפתוחות: ${open}.`,
+    'רק מה שנאמר במפורש או נראה ברפרנס: "מושן גרפיק" → {"מראה": "מושן גרפיקס"}. "עם קריינות" לבד לא קובע אם קריין או קריינית, אז קול נשאר פתוח.',
+    `אם המשתמש צירף, סימן או הפנה לרפרנס (תמונה, מודעה, עמוד בלוח, אתר, סרטון), העבירי ב-brief_answers {"${REFERENCE}": "מה הרפרנס ואיפה"}: עם רפרנס לא שואלים על הסגנון. קישור לתמונה עובר גם ב-reference_urls. סרטון רפרנס יכול לענות גם על קצב, קול, מוזיקה וסיום.`,
+    'אם הבקשה לא עונה על אף שאלה: brief_answers={"none": "none"}.',
+  ].join(" ");
 }

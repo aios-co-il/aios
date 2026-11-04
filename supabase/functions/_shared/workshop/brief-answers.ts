@@ -13,6 +13,11 @@ import {
 const KEY = "workshop_brief";
 const MAX_ANSWER = 200;
 
+/** The brief's reference: a picture, ad, board page, site or video the user gave or pointed to. */
+export const REFERENCE = "רפרנס";
+/** Carmen's reading of a request that settles none of the questions: brief_answers {"none": …}. */
+const NOTHING_SETTLED = "none";
+
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -35,6 +40,7 @@ const TOPICS: Record<string, string[]> = {
   דמות: ["דמות", "דמויות"],
   צבעים: ["צבעים", "צבע", "פלטת צבעים"],
   קצב: ["קצב", "טמפו"],
+  [REFERENCE]: [REFERENCE, "רפרנסים", "reference", "השראה"],
 };
 const normal = (label: string) =>
   label
@@ -98,7 +104,12 @@ export function answersFromMessage(text: string, open: Choice[]): BriefAnswers {
 export function answersFromArgs(value: unknown): BriefAnswers {
   return Object.fromEntries(
     Object.entries(asRecord(value))
-      .filter(([label, answer]) => label.trim() && typeof answer === "string")
+      .filter(
+        ([label, answer]) =>
+          label.trim() &&
+          normal(label) !== NOTHING_SETTLED &&
+          typeof answer === "string",
+      )
       .map(([label, answer]) => [
         label.trim().slice(0, 40),
         String(answer).trim().slice(0, MAX_ANSWER),
@@ -156,4 +167,26 @@ export const briefAsked = (payload: Record<string, unknown>) =>
 export const withBriefAsked = (payload: Record<string, unknown>) => ({
   ...payload,
   [KEY]: { ...asRecord(payload[KEY]), asked: true },
+});
+
+/**
+ * Carmen read the request for what it already answers: she passed brief_answers (even only the
+ * "none" marker), so the questions she sends next leave out what the user already said.
+ */
+export const briefAnswersGiven = (value: unknown) =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * The turn in which Carmen was asked to read the request before the first questions: asked once
+ * per turn, so a second call in that turn shows the questions whatever she passes.
+ */
+export const briefReadTurn = (payload: Record<string, unknown>) =>
+  asRecord(payload[KEY]).read_turn;
+
+export const withBriefReadTurn = (
+  payload: Record<string, unknown>,
+  turn: string,
+) => ({
+  ...payload,
+  [KEY]: { ...asRecord(payload[KEY]), read_turn: turn },
 });

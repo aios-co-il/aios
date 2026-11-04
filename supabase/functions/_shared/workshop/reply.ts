@@ -27,7 +27,8 @@ export function shouldNudgeSilentTurn(log: ToolLogEntry[]): boolean {
       result.started === true ||
       result.already_running === true ||
       result.needs_budget === true ||
-      result.needs_input === true ||
+      // A briefing gate that only asks Carmen to read the request first is hers to continue.
+      (result.needs_input === true && result.reading !== true) ||
       (typeof result.error === "string" && !!result.error)
     );
   });
