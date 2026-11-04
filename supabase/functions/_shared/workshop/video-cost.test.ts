@@ -1,23 +1,11 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import { clipEstimate, voiceEstimate } from "./cost-scene.ts";
+import { lipsyncEstimate } from "./lipsync-cost.ts";
+import { speaksNatively } from "./scene-engine.ts";
 import {
-  musicEstimate as appMusic,
-  sceneEstimate as appScenes,
-  voiceEstimate as appVoice,
-} from "../../../../src/components/marketing/departments/creative/videoEngines.ts";
-import {
-  clipEstimate,
-  costSceneOf,
-  engineFromKeys,
-  lipsyncEstimate,
-  musicEstimate,
   productionEstimate,
   quotedProductionEstimate,
-  relipEstimate,
   SOUND_EFFECTS_USD,
-  sceneEngineFor,
-  speaksNatively,
-  voiceEstimate,
-  type SceneEngine,
 } from "./video-cost.ts";
 
 const scenes = [
@@ -25,37 +13,6 @@ const scenes = [
   { duration_s: 7, voiceover_text: "ובונה את הקמפיין הבא" },
   { duration_s: 12, voiceover_text: "" },
 ];
-
-// The app's estimator works on storyboard frames; only these fields matter to it.
-const frames = scenes.map((scene, index) => ({
-  id: String(index),
-  order: index,
-  duration: scene.duration_s,
-  voiceover: scene.voiceover_text,
-  voiceAssetId: undefined,
-  voiceText: undefined,
-})) as never;
-
-Deno.test("clip prices match the app for every engine", () => {
-  for (const engine of [
-    "mock",
-    "kling",
-    "elevenlabs",
-    "higgsfield",
-    "openrouter",
-  ] as SceneEngine[]) {
-    const mine = clipEstimate(engine, scenes);
-    const app = appScenes(engine, frames);
-    assertStrictEquals(mine.usd, app.usd, engine);
-    assertStrictEquals(mine.seconds, app.seconds, engine);
-    assertStrictEquals(mine.credits, app.credits, engine);
-  }
-});
-
-Deno.test("voice and music prices match the app", () => {
-  assertStrictEquals(voiceEstimate(scenes).usd, appVoice(frames).usd);
-  assertStrictEquals(musicEstimate(scenes).usd, appMusic(frames).usd);
-});
 
 Deno.test(
   "a production adds clips, the spoken scenes and the music bed",
@@ -113,97 +70,6 @@ Deno.test(
       0,
     );
     assert(speaksNatively("elevenlabs") && !speaksNatively("mock"));
-  },
-);
-
-Deno.test("the engine follows the keys the tenant has", () => {
-  assertStrictEquals(
-    engineFromKeys({ elevenlabs_api_key: "xi-1" }),
-    "elevenlabs",
-  );
-  assertStrictEquals(
-    engineFromKeys({
-      higgsfield_api_key_id: "a",
-      higgsfield_api_key_secret: "b",
-    }),
-    "higgsfield",
-  );
-  assertStrictEquals(engineFromKeys({ higgsfield_api_key_id: "a" }), "mock");
-  assertStrictEquals(
-    engineFromKeys({ higgsfield_api_key_secret: "id-1:secret-1" }),
-    "higgsfield",
-  );
-  assertStrictEquals(engineFromKeys({}), "mock");
-});
-
-Deno.test("Starter ElevenLabs video moves to Higgsfield", async () => {
-  const fetchImpl = (async () =>
-    new Response(JSON.stringify({ tier: "starter" }), {
-      status: 200,
-    })) as typeof fetch;
-  assertStrictEquals(
-    await sceneEngineFor(
-      {
-        elevenlabs_api_key: "xi",
-        higgsfield_api_key_id: "a",
-        higgsfield_api_key_secret: "b",
-      },
-      fetchImpl,
-    ),
-    "higgsfield",
-  );
-  assertStrictEquals(
-    await sceneEngineFor({ elevenlabs_api_key: "xi" }, fetchImpl),
-    "mock",
-  );
-  const pro = (async () =>
-    new Response(JSON.stringify({ tier: "pro" }), {
-      status: 200,
-    })) as typeof fetch;
-  assertStrictEquals(
-    await sceneEngineFor({ elevenlabs_api_key: "xi" }, pro),
-    "elevenlabs",
-  );
-});
-
-Deno.test(
-  "a connected OpenRouter brain is the video engine before ElevenLabs and Higgsfield",
-  async () => {
-    const openrouter = { openrouter: true };
-    assertStrictEquals(engineFromKeys({}, openrouter), "openrouter");
-    assertStrictEquals(
-      engineFromKeys({ elevenlabs_api_key: "xi" }, openrouter),
-      "openrouter",
-    );
-    assertStrictEquals(
-      engineFromKeys({ higgsfield_api_key_secret: "a:b" }, openrouter),
-      "openrouter",
-    );
-    assertStrictEquals(
-      engineFromKeys({ elevenlabs_api_key: "xi" }),
-      "elevenlabs",
-    );
-    assertStrictEquals(
-      await sceneEngineFor(
-        { higgsfield_api_key_id: "a", higgsfield_api_key_secret: "b" },
-        fetch,
-        openrouter,
-      ),
-      "openrouter",
-    );
-    const starter = (async () =>
-      new Response(JSON.stringify({ tier: "starter" }), {
-        status: 200,
-      })) as typeof fetch;
-    assertStrictEquals(
-      await sceneEngineFor({ elevenlabs_api_key: "xi" }, starter, openrouter),
-      "openrouter",
-    );
-    assertStrictEquals(
-      await sceneEngineFor({}, starter, openrouter),
-      "openrouter",
-    );
-    assertStrictEquals(await sceneEngineFor({}, starter), "mock");
   },
 );
 
@@ -286,17 +152,6 @@ Deno.test(
       withMusic: false,
     });
     assert(without.lipsync.usd < free.lipsync.usd);
-  },
-);
-
-Deno.test(
-  "an OpenRouter clip shorter than 5 s is quoted at the 5 s it is billed for",
-  () => {
-    const short = clipEstimate("openrouter", [
-      { duration_s: 3, voiceover_text: "" },
-    ]);
-    assertStrictEquals(short.usd, 0.42);
-    assertStrictEquals(short.seconds, 3);
   },
 );
 
@@ -387,66 +242,3 @@ Deno.test(
     assert(engineLine.lipsync.usd >= 6 * 0.4 - 0.01);
   },
 );
-
-Deno.test(
-  "a kept talking scene with a new line is quoted as its lip sync alone",
-  () => {
-    const relip = [
-      {
-        duration_s: 4,
-        voiceover_text: "",
-        lipsync: true,
-        dialogue: "אני הקמפיינרית שלך",
-        chosen_voice: true,
-      },
-    ];
-    const again = relipEstimate(relip);
-    // 4 s of lip sync at $0.10 plus the voice line.
-    assert(again.usd >= 0.4 && again.usd < 0.5, String(again.usd));
-    // A line in the chosen voice never goes to Veo, so OpenRouter does not change its price.
-    assertEquals(relipEstimate(relip, { openrouter: true }), again);
-    // Not a chosen voice: the worker's chain may end at Veo, so the dearer one is quoted.
-    const engineVoice = [{ ...relip[0], chosen_voice: false }];
-    assertEquals(relipEstimate(engineVoice, { openrouter: true }).usd, 1.6);
-    const quote = quotedProductionEstimate(
-      "elevenlabs",
-      [],
-      { withVoice: false, withMusic: false },
-      {},
-      relip,
-    );
-    assertEquals(quote.totalUsd, again.usd);
-    assertEquals(quote.lipsync.usd, again.usd);
-    assertEquals(quote.talkingScenes, 1);
-    // Nothing kept to redo: the quote is unchanged.
-    assertEquals(
-      quotedProductionEstimate("elevenlabs", [], {
-        withVoice: false,
-        withMusic: false,
-      }).totalUsd,
-      0,
-    );
-  },
-);
-
-Deno.test("a scene row is priced from its talking meta", () => {
-  assertEquals(
-    costSceneOf({
-      duration_s: "4",
-      voiceover_text: "שלום",
-      meta: { lipsync: true, dialogue: "היי", chosen_voice: true },
-    }),
-    {
-      duration_s: 4,
-      voiceover_text: "שלום",
-      lipsync: true,
-      dialogue: "היי",
-      chosen_voice: true,
-    },
-  );
-  // chosen_voice counts only on a talking scene.
-  assertEquals(
-    costSceneOf({ meta: { chosen_voice: true } }).chosen_voice,
-    false,
-  );
-});

@@ -27,7 +27,8 @@ import {
   stringList,
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
-import { costSceneOf, quotedProductionEstimate } from "../video-cost.ts";
+import { costSceneOf } from "../cost-scene.ts";
+import { quotedProductionEstimate } from "../video-cost.ts";
 import { wantsSoundDesign } from "../sound-design.ts";
 
 /** The scene's own character picture (saved by workshop_storyboard), if it has one. */

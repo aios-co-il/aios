@@ -6,12 +6,12 @@
 
 import type { WorkshopDeps } from "./gate.ts";
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
-import { normalizeEngine } from "./image-providers.ts";
+import { normalizeEngine } from "./image-engine-name.ts";
 import {
   isSceneEngine,
   type SceneEngine,
   type VideoConnections,
-} from "./video-cost.ts";
+} from "./scene-engine.ts";
 
 const IMAGE_ENGINE_TOOLS = new Set([
   "workshop_storyboard",

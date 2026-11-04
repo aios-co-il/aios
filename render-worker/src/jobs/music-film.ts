@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { brandFromPayload } from "../compose/brand.ts";
 import { wordsFromAlignment } from "../compose/captions.ts";
 import { ctaLines, endCardSeconds, hasEndCard } from "../compose/end-card.ts";
-import { lastEnd } from "../compose/workshop-manifest.ts";
+import { lastEnd } from "../compose/manifest-media.ts";
 import { probe } from "../ffmpeg.ts";
 import { assertTenantPath } from "../guard.ts";
 import {

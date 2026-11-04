@@ -1,7 +1,8 @@
 import { expect, test } from "vitest";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
 import { generateClip } from "../src/jobs/clip.ts";
-import { generateLipsync, NO_LIPSYNC_PROVIDER } from "../src/jobs/lipsync.ts";
+import { generateLipsync } from "../src/jobs/lipsync.ts";
+import { NO_LIPSYNC_PROVIDER } from "../src/jobs/lipsync-submit.ts";
 import { loadFilmSources } from "../src/jobs/render.ts";
 import {
   isTalkingScene,
@@ -14,13 +15,10 @@ import {
   talkingPrompt,
 } from "../src/providers/index.ts";
 import { higgsfieldTalkingBody } from "../src/providers/higgsfield.ts";
-import {
-  audioMime,
-  elevenLabsLipsyncBody,
-  higgsfieldLipsyncBody,
-  klingLipsyncProvider,
-  lipsyncCandidates,
-} from "../src/providers/lipsync.ts";
+import { audioMime, lipsyncCandidates } from "../src/providers/lipsync.ts";
+import { elevenLabsLipsyncBody } from "../src/providers/lipsync-elevenlabs.ts";
+import { higgsfieldLipsyncBody } from "../src/providers/lipsync-higgsfield.ts";
+import { klingLipsyncProvider } from "../src/providers/lipsync-kling.ts";
 
 const LINE = "שלום, אני כרמן";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
@@ -859,7 +857,7 @@ function fakeOpenRouterFetch(cost, posted = []) {
 
 test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voice line", async () => {
   const { heygenLipsyncBody, heygenLipsyncProvider } =
-    await import("../src/providers/lipsync.ts");
+    await import("../src/providers/lipsync-heygen.ts");
   const body = heygenLipsyncBody({
     imageUrl: "https://p.supabase.co/sign/still.png",
     audioUrl: "https://p.supabase.co/sign/voice.mp3",
@@ -931,8 +929,10 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
 });
 
 test("HeyGen comes before the Veo fallback, and a refused plan moves the line on to it", async () => {
-  const { elevenLabsLipsyncProvider, heygenLipsyncProvider } =
-    await import("../src/providers/lipsync.ts");
+  const { elevenLabsLipsyncProvider } =
+    await import("../src/providers/lipsync-elevenlabs.ts");
+  const { heygenLipsyncProvider } =
+    await import("../src/providers/lipsync-heygen.ts");
   expect(
     lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}),
   ).toStrictEqual(["elevenlabs", "heygen", "openrouter"]);

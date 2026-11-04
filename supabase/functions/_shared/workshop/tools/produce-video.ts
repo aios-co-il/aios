@@ -13,13 +13,13 @@ import {
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { clipSaysLine, talkingLine } from "../talking.ts";
+import { costSceneOf } from "../cost-scene.ts";
 import {
   ENGINE_LABEL,
   type SceneEngine,
-  costSceneOf,
   isSceneEngine,
-  quotedProductionEstimate,
-} from "../video-cost.ts";
+} from "../scene-engine.ts";
+import { quotedProductionEstimate } from "../video-cost.ts";
 import { isSceneOverlay } from "../scene-overlays.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { CTA_MAX_CHARS } from "../cta.ts";

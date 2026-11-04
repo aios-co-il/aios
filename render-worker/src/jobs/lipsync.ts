@@ -1,16 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { probe } from "../ffmpeg.ts";
-import {
-  assertTenantPath,
-  finalError,
-  loadRunItem,
-  loadRunScene,
-  readMedia,
-  safeSegment,
-  storedObject,
-} from "../guard.ts";
+import { finalError, loadRunItem, loadRunScene } from "../guard.ts";
 import {
   isTalkingScene,
   speaksInChosenVoice,
@@ -21,76 +9,8 @@ import {
   lipsyncProviderNames,
   speaksInOwnVoice,
 } from "../providers/index.ts";
-import { audioMime } from "../providers/lipsync.ts";
-import { isPaidPlanError } from "../providers/plan.ts";
-import { publicStill } from "./still-image.ts";
-import type { MediaInput } from "../providers/types.ts";
-
-const BUCKET = "creative-video";
-const POLL_EVERY_MS = () => Number(process.env.CLIP_POLL_MS) || 10_000;
-const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export const NO_LIPSYNC_PROVIDER =
-  "lipsync run: no lip-sync provider is connected (is required): connect an ElevenLabs key (paid plan), a Kling key pair, an OpenRouter key or a Higgsfield key to the tenant";
-
-/** <item folder>/<scene>/lipsync-v<n>.mp4, n = the next lip-synced clip of the scene. */
-export async function lipsyncPath(db, run, folder) {
-  const rows = await db.select(
-    "marketing_assets",
-    `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&type=eq.video_clip&meta->>scene_id=eq.${run.scene_id}&meta->>lipsync=eq.true&select=id`,
-  );
-  return assertTenantPath(
-    run.tenant_id,
-    `${folder}/${safeSegment(run.scene_id)}/lipsync-v${(rows?.length ?? 0) + 1}.mp4`,
-  );
-}
-
-const asset = async (db, run, id, type) => {
-  if (!id) return null;
-  const [row] =
-    (await db.select(
-      "marketing_assets",
-      `id=eq.${encodeURIComponent(id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&type=eq.${type}&select=id,url,meta`,
-    )) ?? [];
-  return row?.url ? row : null;
-};
-
-/**
- * The scene's animated clip, which carries its own movement (motion_prompt): the current clip, or
- * the one an earlier lip sync of the scene was made over, so a new line keeps the movement. A clip
- * that talks (a one-shot talking clip, or a lip sync with no clip behind it) has none to keep.
- */
-export async function motionClipOf(db, run, clip) {
-  if (!clip) return null;
-  if (clip.meta?.lipsync !== true) return clip;
-  const id =
-    clip.meta?.motion_clip_asset_id ||
-    (clip.meta?.source_kind === "clip" ? clip.meta?.source_asset_id : null);
-  const earlier = await asset(db, run, id, "video_clip");
-  return earlier && earlier.meta?.lipsync !== true ? earlier : null;
-}
-
-/** Length of the stored MP4, so the film gives the whole line its time. null without ffprobe. */
-async function videoSeconds(bytes) {
-  const dir = await mkdtemp(join(tmpdir(), "lipsync-"));
-  try {
-    const file = join(dir, "clip.mp4");
-    await writeFile(file, bytes);
-    const { duration } = await probe(file);
-    return duration > 0 ? Math.round(duration * 100) / 100 : null;
-  } catch {
-    return null;
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
-const submitted = (error: unknown) => {
-  const tagged = error instanceof Error ? error : new Error(String(error));
-  return Object.assign(tagged, { submitted: true });
-};
+import { finishLipsync } from "./lipsync-finish.ts";
+import { NO_LIPSYNC_PROVIDER, submitLipsync } from "./lipsync-submit.ts";
 
 /**
  * Makes a talking scene's character mouth its own voice line. Reads the scene, its voice
@@ -152,65 +72,23 @@ export async function generateLipsync({
     log(`[lipsync] ${run.id} resumes ${provider.name} job ${jobId}`);
   } else {
     await submitting(async () => {
-      let lastError = null;
-      for (const name of names) {
-        const candidate = providerFor(name, keys);
-        // A clip-based lip sync re-times the mouth of the clip with the movement in it.
-        const picture = candidate.needs === "video" ? (motion ?? clip) : still;
-        if (!picture) {
-          lastError = new Error(
-            `${name} lip sync needs the scene ${candidate.needs === "video" ? "clip" : "still"}`,
-          );
-          continue;
-        }
-        try {
-          const input = await providerInput(db, run, item, candidate, {
-            picture,
-            voice,
-            line,
-            speaker: String(scene.meta?.speaker ?? "").trim() || null,
-            motionPrompt: scene.motion_prompt,
-            durationS,
-            aspect,
-          });
-          ({ jobId } = await candidate.submit(input));
-          provider = candidate;
-          source = {
-            kind: candidate.needs === "video" ? "clip" : "still",
-            asset_id: picture.id,
-          };
-          break;
-        } catch (error) {
-          lastError = error;
-          // Only a plan that cannot make video, or a rejected key, moves on to the next provider;
-          // nothing was accepted, so nothing was charged.
-          if (
-            !isPaidPlanError(error) &&
-            !/\b40[13]\b|invalid credentials|model_access_denied/i.test(
-              String(messageOf(error)),
-            )
-          )
-            throw error;
-          log(
-            `[lipsync] ${run.id} ${name} unavailable: ${error instanceof Error ? error.message : error}`,
-          );
-        }
-      }
-      if (!provider)
-        throw finalError(
-          `lipsync run: ${lastError?.message ?? NO_LIPSYNC_PROVIDER}`,
-        );
-      try {
-        await db.update("marketing_runs", `id=eq.${run.id}`, {
-          provider: provider.name,
-          provider_job_id: jobId,
-          output: { ...(run.output ?? {}), lipsync_source: source },
-        });
-      } catch (error) {
-        throw finalError(
-          `${provider.name} lip-sync job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
-        );
-      }
+      ({ provider, jobId, source } = await submitLipsync({
+        db,
+        run,
+        item,
+        names,
+        providerFor,
+        keys,
+        scene,
+        still,
+        clip,
+        motion,
+        voice,
+        line,
+        durationS,
+        aspect,
+        log,
+      }));
     });
     log(`[lipsync] ${run.id} submitted ${provider.name} job ${jobId}`);
   }
@@ -241,144 +119,32 @@ export async function generateLipsync({
   }
 }
 
-/** What the provider is sent: inline bytes, or short-lived signed links of tenant-folder copies. */
-async function providerInput(
-  db,
-  run,
-  item,
-  provider,
-  { picture, voice, line, speaker, motionPrompt, durationS, aspect },
-) {
-  const audioBytes = await readMedia(db, run.tenant_id, voice.url, BUCKET);
-  const input: MediaInput = {
-    prompt: `${speaker || "The character"} speaks this exact audio line to the camera with natural lip sync: "${line}". No text, no letters, no logos.`,
-    line,
-    motionPrompt,
-    durationS,
-    aspect,
-    audioBytes,
-  };
-  if (provider.needs === "image")
-    input.imageBytes = await readMedia(db, run.tenant_id, picture.url, BUCKET);
-  if (provider.needsPublicMedia) {
-    // Stored files are private: hand the provider fresh signed links of copies in the tenant folder.
-    const base = `${item.folder}/${safeSegment(run.scene_id)}`;
-    // Named by its real type: a provider may read the format from the link.
-    const audioType = audioMime(audioBytes);
-    const audioPath = assertTenantPath(
-      run.tenant_id,
-      `${base}/lipsync-audio-${safeSegment(run.id)}.${audioType === "audio/wav" ? "wav" : "mp3"}`,
-    );
-    await db.upload(BUCKET, audioPath, audioBytes, audioType);
-    input.audioUrl = await db.sign(BUCKET, audioPath, 3600);
-    if (provider.needs === "video") {
-      // A clip in the tenant folder, or the user's own video in the private bucket it was kept in.
-      const clip = storedObject(picture.url, BUCKET) ?? {
-        bucket: BUCKET,
-        path: picture.url,
-      };
-      input.videoUrl = await db.sign(
-        clip.bucket,
-        assertTenantPath(run.tenant_id, clip.path),
-        3600,
-      );
-    } else {
-      const copy = await publicStill(input.imageBytes);
-      const imagePath = assertTenantPath(
-        run.tenant_id,
-        `${base}/lipsync-still-${safeSegment(run.id)}.${copy.ext}`,
-      );
-      await db.upload(BUCKET, imagePath, copy.bytes, copy.contentType);
-      input.imageUrl = await db.sign(BUCKET, imagePath, 3600);
-    }
-  }
-  return input;
+const asset = async (db, run, id, type) => {
+  if (!id) return null;
+  const [row] =
+    (await db.select(
+      "marketing_assets",
+      `id=eq.${encodeURIComponent(id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&type=eq.${type}&select=id,url,meta`,
+    )) ?? [];
+  return row?.url ? row : null;
+};
+
+/**
+ * The scene's animated clip, which carries its own movement (motion_prompt): the current clip, or
+ * the one an earlier lip sync of the scene was made over, so a new line keeps the movement. A clip
+ * that talks (a one-shot talking clip, or a lip sync with no clip behind it) has none to keep.
+ */
+export async function motionClipOf(db, run, clip) {
+  if (!clip) return null;
+  if (clip.meta?.lipsync !== true) return clip;
+  const id =
+    clip.meta?.motion_clip_asset_id ||
+    (clip.meta?.source_kind === "clip" ? clip.meta?.source_asset_id : null);
+  const earlier = await asset(db, run, id, "video_clip");
+  return earlier && earlier.meta?.lipsync !== true ? earlier : null;
 }
 
-async function finishLipsync({
-  db,
-  run,
-  item,
-  provider,
-  jobId,
-  line,
-  scene,
-  voice,
-  source,
-  motionClipId = null,
-  durationS,
-  aspect,
-  log,
-}) {
-  const deadline = Date.now() + TIMEOUT_MS();
-  let result = await provider.poll(jobId);
-  while (result.status === "pending") {
-    if (Date.now() > deadline)
-      throw new Error(`${provider.name} lip-sync job ${jobId} timed out`);
-    await sleep(POLL_EVERY_MS());
-    result = await provider.poll(jobId);
-  }
-  if (result.status !== "succeeded")
-    throw finalError(
-      result.error || `${provider.name} lip-sync job ${jobId} failed`,
-    );
-  let bytes = result.bytes;
-  if (!bytes) {
-    const response = await fetch(result.url);
-    if (!response.ok)
-      throw new Error(
-        `lipsync download ${response.status} (job ${jobId} kept for retry)`,
-      );
-    bytes = new Uint8Array(await response.arrayBuffer());
-  }
-  const seconds = (await videoSeconds(bytes)) ?? durationS;
-  // What the provider charged when it says (OpenRouter), else the planning price.
-  const cost = Number.isFinite(result.costUsd)
-    ? { usd: result.costUsd, credits: 0 }
-    : provider.estimate({ durationS: seconds });
-  const path = await lipsyncPath(db, run, item.folder);
-  await db.upload(BUCKET, path, bytes, "video/mp4");
-  await db.rpc("attach_video_scene_asset", {
-    p_scene_id: run.scene_id,
-    p_kind: "clip",
-    p_url: path,
-    p_meta: {
-      bucket: BUCKET,
-      path,
-      lipsync: true,
-      provider: provider.name,
-      model: provider.model,
-      provider_job_id: jobId,
-      dialogue: line,
-      speaker: String(scene.meta?.speaker ?? "").trim() || null,
-      voice_asset_id: voice.id,
-      source_kind: source?.kind ?? null,
-      source_asset_id: source?.asset_id ?? null,
-      ...(motionClipId ? { motion_clip_asset_id: motionClipId } : {}),
-      duration_s: seconds,
-      aspect,
-      generation_cost: { usd: cost.usd, credits: cost.credits },
-    },
-    p_run_id: run.id,
-  });
-  log(`[lipsync] ${run.id} stored ${path}`);
-  return {
-    output: {
-      path,
-      provider: provider.name,
-      model: provider.model,
-      job_id: jobId,
-      lipsync: true,
-    },
-    costUsd: cost.usd,
-    credits: cost.credits,
-    provider: provider.name,
-  };
-}
-
-/** `error.message` when `error` is an object, as `error?.message` read it; else undefined. */
-function messageOf(error: unknown): unknown {
-  return typeof error === "object" && error !== null
-    ? Reflect.get(error, "message")
-    : undefined;
-}
+const submitted = (error: unknown) => {
+  const tagged = error instanceof Error ? error : new Error(String(error));
+  return Object.assign(tagged, { submitted: true });
+};
