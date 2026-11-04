@@ -56,12 +56,22 @@ export const offersOther = (group: QuickReplyGroup) =>
 export const freeAnswer = (text: string) =>
   text.replace(/\s+/g, " ").trim().slice(0, MAX_FREE_ANSWER_CHARS).trim();
 
-/** What one tap, or a set of taps, says on the user's behalf. */
+/**
+ * What one tap, or a set of taps, says on the user's behalf. A lone tap goes as the option
+ * itself; an answer in the user's own words always names its question ("קצב: …"), because the
+ * server only saves a bare answer to the brief when it is one of the options.
+ */
 export function quickReplyAnswer(
   groups: QuickReplyGroup[],
   picked: Record<string, string>,
 ): string {
-  if (groups.length === 1) return picked[groups[0].label] ?? "";
+  if (groups.length === 1) {
+    const [group] = groups;
+    const answer = picked[group.label] ?? "";
+    return !answer || group.options.includes(answer)
+      ? answer
+      : `${group.label}: ${answer}`;
+  }
   return groups
     .filter((group) => picked[group.label])
     .map((group) => `${group.label}: ${picked[group.label]}`)

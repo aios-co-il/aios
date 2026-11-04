@@ -89,6 +89,17 @@ describe("an answer in the user's own words", () => {
     expect(freeAnswer("א".repeat(300)).length).toBe(MAX_FREE_ANSWER_CHARS);
   });
 
+  test("alone it still names its question, so the server saves it to the brief", () => {
+    const groups = [{ label: "קצב", options: ["אנרגטי ומהיר", "רגוע ורגשי"] }];
+    const message = quickReplyAnswer(groups, {
+      קצב: freeAnswer("איטי ומהפנט"),
+    });
+    expect(message).toBe("קצב: איטי ומהפנט");
+    expect(answersFromMessage(message, groups)).toStrictEqual({
+      קצב: "איטי ומהפנט",
+    });
+  });
+
   test("among several groups it reaches the server as that question's answer", () => {
     const groups = [
       { label: "קצב", options: ["אנרגטי ומהיר", "רגוע ורגשי"] },

@@ -7,7 +7,7 @@ const PACE = { label: "קצב", options: ["אנרגטי ומהיר", "רגוע �
 const ENDING = { label: "סיום", options: ["קריאה לפעולה", "לוגו"] };
 
 describe("QuickReplies: אחר…", () => {
-  test("one question sends the user's own words on Enter", async () => {
+  test("one question sends the user's own words, named, on Enter", async () => {
     const onAnswer = vi.fn();
     render(<QuickReplies groups={[PACE]} onAnswer={onAnswer} />);
     await userEvent.click(screen.getByRole("button", { name: "אחר…" }));
@@ -18,7 +18,7 @@ describe("QuickReplies: אחר…", () => {
     await userEvent.type(field, "   {Enter}");
     expect(onAnswer).not.toHaveBeenCalled();
     await userEvent.type(field, " איטי ומהפנט {Enter}");
-    expect(onAnswer).toHaveBeenCalledExactlyOnceWith("איטי ומהפנט");
+    expect(onAnswer).toHaveBeenCalledExactlyOnceWith("קצב: איטי ומהפנט");
     expect(screen.getByRole("button", { name: /אחר…/ })).toBeDisabled();
   });
 
