@@ -7,11 +7,15 @@ import {
 import { storedObject } from "./storedPayload";
 
 export const creativeFormat = z.enum(["9:16", "1:1", "4:5", "16:9"]);
+
 export const visualStyle = z.custom<CreativeVisualStyleId>((value) =>
   CREATIVE_VISUAL_STYLES.some((style) => style.id === value),
 );
+
 const optionalText = z.string().optional();
+
 const optionalNumber = z.number().finite().optional();
+
 const optionalFlag = z.boolean().optional();
 
 export const imageCost = storedObject({
@@ -31,11 +35,13 @@ export const imageCost = storedObject({
   createdAt: z.string(),
   referenceCount: optionalNumber,
 });
+
 export const creativeComment = storedObject({
   id: z.string(),
   text: z.string(),
   createdAt: z.string(),
 });
+
 export const creativeLayer = storedObject({
   id: z.string(),
   type: z.enum(["background", "text", "shape", "image"]),
@@ -81,6 +87,7 @@ export const creativeLayer = storedObject({
   shadowBlur: optionalNumber,
   locked: optionalFlag,
 });
+
 export const creativeVariation = storedObject({
   id: z.string(),
   imageUrl: z.string(),
@@ -108,6 +115,7 @@ export const creativeVariation = storedObject({
   styleSourceId: optionalText,
   liveTextLayers: optionalFlag,
 });
+
 export const storyboardFrame = storedObject({
   id: z.string(),
   order: z.number().finite(),

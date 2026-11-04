@@ -1,10 +1,11 @@
 import type { z } from "zod";
 import type { imageCost } from "./creativeAssetPayload";
+
+export type ImageGenerationCost = z.output<typeof imageCost>;
+
 export type ImageQuality = ImageGenerationCost["quality"];
 export type ImageSize = ImageGenerationCost["size"];
 export type ImageCostSource = ImageGenerationCost["source"];
-
-export type ImageGenerationCost = z.output<typeof imageCost>;
 
 /** Official gpt-image-1 rates (USD per 1M tokens). */
 export const GPT_IMAGE1_USD_PER_M = {
