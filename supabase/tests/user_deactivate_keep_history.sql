@@ -1,33 +1,47 @@
 -- Deactivating and deleting users keeps their history
--- (20261103110000_user_deactivate_keep_history.sql). Synthetic tenants, users
+-- (20261104100000_user_deactivate_keep_history.sql). Synthetic tenants, users
 -- and rows; full rollback. Runs on a scratch database, a Preview branch or
 -- Staging.
 --
 -- 1. Delete: offboard_tenant_member(..., 'deleted') keeps the profile and the
---    name, anonymizes the email, removes memberships and roles, and members
---    still read the writer's name on their card entries and tasks.
+--    name, anonymizes the email, removes memberships, roles and sessions;
+--    members read the writer's name and status through
+--    tenant_departed_members, never the rest of the profile.
 -- 2. Hard delete (dashboard or SQL): the auth.users delete succeeds and the
---    history rows stay with no author (before: tasks_created_by_fkey refused
---    it, and the profile delete took the card entries with it).
--- 3. Deactivate: the member loses the organization, leaves the assignee
---    pickers (active cards) and Carmen's staff, and keeps their name in
---    history; reactivating restores membership, roles and card.
+--    history rows stay with no author.
+-- 3. Deactivate: the member loses the organization (also the clients and
+--    agencies their campaigner card there gave them while another
+--    organization stays), leaves the assignee pickers and Carmen's staff,
+--    keeps their name in history; sessions end when no organization is left.
+--    Reactivating restores membership (original created_at), member roles and
+--    card, never super_admin.
 -- 4. Refusals: self, a super admin, the last owner, a non-member, a deleted
 --    member; clients cannot call the functions.
--- 5. RLS on tenant_inactive_members: members read; the owner or a super admin
---    acting in the organization writes, never their own row.
--- 6. client_updates_keep_owner still refuses a person changing user_id.
+-- 5. tenant_inactive_members: members read it; no client writes it, so an
+--    owner can neither plant a row (to read a stranger's profile) nor rewrite
+--    the roles a reactivation restores.
+-- 6. handle_new_user links only an open invitation: a deleted user who signs
+--    up again gets nothing back; a new invitation still links (AIO-326).
+-- 7. A user cannot change their own deleted_at, status or email.
+-- 8. The pulse "last call by" line names a departed caller and never shows a
+--    deleted user's anonymized email.
+-- 9. client_updates_keep_owner still refuses a person changing user_id.
 BEGIN;
 DO $test$
 DECLARE
-  t_a uuid; t_b uuid; agency_a uuid; client_a uuid; task_w uuid; task_h uuid;
+  t_a uuid; t_b uuid; agency_a uuid; client_a uuid; client_b uuid; task_w uuid; task_h uuid;
   owner_a uuid := gen_random_uuid(); owner_b uuid := gen_random_uuid();
   viewer uuid := gen_random_uuid(); writer uuid := gen_random_uuid();
-  hard uuid := gen_random_uuid(); solo uuid := gen_random_uuid();
-  mover uuid := gen_random_uuid(); extra uuid := gen_random_uuid();
-  admin uuid := gen_random_uuid();
-  card_writer uuid; card_solo uuid;
+  nameless uuid := gen_random_uuid(); hard uuid := gen_random_uuid();
+  solo uuid := gen_random_uuid(); mover uuid := gen_random_uuid();
+  extra uuid := gen_random_uuid(); admin uuid := gen_random_uuid();
+  outsider uuid := gen_random_uuid(); rejoiner uuid := gen_random_uuid();
+  rejoiner2 uuid := gen_random_uuid(); late uuid := gen_random_uuid();
+  rejoin_email text := 'qa-rejoin-' || gen_random_uuid() || '@example.invalid';
+  late_email text := 'qa-late-' || gen_random_uuid() || '@example.invalid';
+  card_writer uuid; card_solo uuid; card_mover uuid; solo_session uuid; mover_session uuid;
   cu_writer uuid; cu_hard uuid; cu_viewer uuid; tu_writer uuid; tu_hard uuid;
+  solo_since timestamptz;
   r record;
   v_name text;
   v_count integer;
@@ -36,20 +50,24 @@ BEGIN
   INSERT INTO auth.users (id, email, raw_user_meta_data)
   SELECT u.id, 'qa-deact-' || u.id || '@example.invalid', jsonb_build_object('full_name', u.name)
   FROM (VALUES (owner_a, 'QA Owner A'), (owner_b, 'QA Owner B'), (viewer, 'QA Viewer'),
-               (writer, 'QA Writer'), (hard, 'QA Hard'), (solo, 'QA Solo'),
-               (mover, 'QA Mover'), (extra, 'QA Extra'), (admin, 'QA Admin')) AS u(id, name);
+               (writer, 'QA Writer'), (nameless, ''), (hard, 'QA Hard'), (solo, 'QA Solo'),
+               (mover, 'QA Mover'), (extra, 'QA Extra'), (admin, 'QA Admin'),
+               (outsider, 'QA Outsider')) AS u(id, name);
+  UPDATE public.profiles SET phone = '+972500000123' WHERE id IN (solo, outsider);
   INSERT INTO public.tenants (name, slug)
   VALUES ('QA ROLLBACK A', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_a;
   INSERT INTO public.tenants (name, slug)
   VALUES ('QA ROLLBACK B', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_b;
-  INSERT INTO public.tenant_users (tenant_id, user_id, role) VALUES
-    (t_a, owner_a, 'owner'), (t_a, viewer, 'member'), (t_a, writer, 'member'),
-    (t_a, hard, 'member'), (t_a, solo, 'member'), (t_a, mover, 'member'),
-    (t_a, extra, 'member'), (t_b, owner_b, 'owner'), (t_b, mover, 'member');
+  INSERT INTO public.tenant_users (tenant_id, user_id, role, created_at) VALUES
+    (t_a, owner_a, 'owner', now()), (t_a, viewer, 'member', now()), (t_a, writer, 'member', now()),
+    (t_a, nameless, 'member', now()), (t_a, hard, 'member', now()),
+    (t_a, solo, 'member', '2025-01-01 10:00+00'), (t_a, mover, 'member', now()),
+    (t_a, extra, 'member', now()), (t_b, owner_b, 'owner', now()), (t_b, mover, 'member', now());
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
     (owner_a, 'owner', t_a), (owner_b, 'owner', t_b), (viewer, 'campaigner', t_a),
-    (writer, 'campaigner', t_a), (hard, 'campaigner', t_a), (solo, 'campaigner', t_a),
-    (mover, 'campaigner', t_a), (mover, 'campaigner', t_b), (admin, 'super_admin', NULL);
+    (writer, 'campaigner', t_a), (nameless, 'campaigner', t_a), (hard, 'campaigner', t_a),
+    (solo, 'campaigner', t_a), (mover, 'campaigner', t_a), (mover, 'campaigner', t_b),
+    (admin, 'super_admin', NULL);
   INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES
     (owner_a, t_a), (owner_b, t_b), (viewer, t_a), (writer, t_a), (solo, t_a),
     (mover, t_a), (admin, t_a)
@@ -58,11 +76,18 @@ BEGIN
   VALUES ('QA Writer card', t_a, true) RETURNING id INTO card_writer;
   INSERT INTO public.campaigners (full_name, tenant_id, active)
   VALUES ('QA Solo card', t_a, true) RETURNING id INTO card_solo;
+  INSERT INTO public.campaigners (full_name, tenant_id, active)
+  VALUES ('QA Mover card', t_a, true) RETURNING id INTO card_mover;
   UPDATE public.profiles SET campaigner_id = card_writer WHERE id = writer;
   UPDATE public.profiles SET campaigner_id = card_solo WHERE id = solo;
+  UPDATE public.profiles SET campaigner_id = card_mover WHERE id = mover;
   INSERT INTO public.agencies (name, tenant_id) VALUES ('QA agency', t_a) RETURNING id INTO agency_a;
   INSERT INTO public.clients (name, agency_id, tenant_id) VALUES ('QA client', agency_a, t_a)
   RETURNING id INTO client_a;
+  INSERT INTO public.clients (name, agency_id, tenant_id) VALUES ('QA client 2', agency_a, t_a)
+  RETURNING id INTO client_b;
+  INSERT INTO public.campaigner_agencies (campaigner_id, agency_id) VALUES (card_mover, agency_a);
+  INSERT INTO public.client_team (client_id, campaigner_id) VALUES (client_a, card_mover);
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content)
   VALUES (client_a, t_a, writer, 'written by the writer') RETURNING id INTO cu_writer;
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content)
@@ -71,6 +96,9 @@ BEGIN
   VALUES (client_a, t_a, viewer, 'written by the viewer') RETURNING id INTO cu_viewer;
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content)
   VALUES (client_a, t_a, solo, 'written by solo');
+  INSERT INTO public.client_updates (client_id, tenant_id, user_id, content, update_type, counts_as_contact, created_at)
+  VALUES (client_a, t_a, nameless, 'called them', 'call', true, now()),
+         (client_b, t_a, writer, 'called them', 'call', true, now());
   INSERT INTO public.tasks (title, agency_id, tenant_id, created_by)
   VALUES ('QA task by writer', agency_a, t_a, writer) RETURNING id INTO task_w;
   INSERT INTO public.tasks (title, agency_id, tenant_id, created_by)
@@ -79,6 +107,10 @@ BEGIN
   VALUES (task_w, writer, 'task note by writer') RETURNING id INTO tu_writer;
   INSERT INTO public.task_updates (task_id, user_id, content)
   VALUES (task_h, hard, 'task note by hard') RETURNING id INTO tu_hard;
+  INSERT INTO auth.sessions (user_id) VALUES (solo) RETURNING id INTO solo_session;
+  INSERT INTO auth.refresh_tokens (token, user_id, session_id) VALUES ('qa', solo::text, solo_session);
+  INSERT INTO auth.sessions (user_id) VALUES (mover) RETURNING id INTO mover_session;
+  INSERT INTO auth.sessions (user_id) VALUES (writer);
 
   -- 1. Delete keeps the profile, the name and the history.
   SET LOCAL ROLE service_role;
@@ -96,8 +128,9 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = writer)
     OR EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = writer)
-    OR EXISTS (SELECT 1 FROM public.user_active_tenant WHERE user_id = writer) THEN
-    RAISE EXCEPTION 'delete: memberships, roles or the active tenant are left';
+    OR EXISTS (SELECT 1 FROM public.user_active_tenant WHERE user_id = writer)
+    OR EXISTS (SELECT 1 FROM auth.sessions WHERE user_id = writer) THEN
+    RAISE EXCEPTION 'delete: memberships, roles, the active tenant or a session are left';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.client_updates WHERE id = cu_writer AND user_id = writer)
     OR NOT EXISTS (SELECT 1 FROM public.tasks WHERE id = task_w AND created_by = writer)
@@ -110,28 +143,25 @@ BEGIN
   END IF;
   -- GoTrue's soft delete only updates auth.users, so nothing cascades.
   UPDATE auth.users SET email = NULL, deleted_at = now() WHERE id = writer;
+  SET LOCAL ROLE service_role;
+  PERFORM public.offboard_tenant_member(t_a, nameless, owner_a, 'deleted');
+  RESET ROLE;
 
   PERFORM set_config('request.jwt.claim.sub', viewer::text, true);
   SET LOCAL ROLE authenticated;
-  SELECT p.full_name INTO v_name
-  FROM public.client_updates u JOIN public.profiles p ON p.id = u.user_id
+  SELECT d.full_name || ' ' || d.status INTO v_name
+  FROM public.client_updates u
+  JOIN public.tenant_departed_members(ARRAY[t_a]) d ON d.user_id = u.user_id
   WHERE u.id = cu_writer;
-  IF v_name IS DISTINCT FROM 'QA Writer' THEN
-    RAISE EXCEPTION 'delete: a member reads % as the card entry''s writer, not QA Writer', v_name;
+  IF v_name IS DISTINCT FROM 'QA Writer deleted' THEN
+    RAISE EXCEPTION 'delete: a member reads % as the card entry''s writer, not QA Writer deleted', v_name;
   END IF;
-  -- Campaigners see only their own tasks; the owner reads this one.
-  PERFORM set_config('request.jwt.claim.sub', owner_a::text, true);
-  SELECT p.full_name INTO v_name
-  FROM public.tasks t JOIN public.profiles p ON p.id = t.created_by
-  WHERE t.id = task_w;
-  IF v_name IS DISTINCT FROM 'QA Writer' THEN
-    RAISE EXCEPTION 'delete: a member reads % as the task''s creator, not QA Writer', v_name;
-  END IF;
-  IF (SELECT status FROM public.tenant_inactive_members WHERE user_id = writer) IS DISTINCT FROM 'deleted' THEN
-    RAISE EXCEPTION 'delete: a member cannot read that the writer was deleted';
+  SELECT count(*) INTO v_count FROM public.profiles WHERE id = writer;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'delete: a member reads the deleted writer''s whole profile';
   END IF;
   RESET ROLE;
-  RAISE NOTICE 'delete: profile and name kept, email anonymized, history readable as QA Writer (deleted)';
+  RAISE NOTICE 'delete: profile and name kept, email anonymized, sessions ended; members read only name and status';
 
   -- 2. A hard delete keeps the history rows with no author.
   DELETE FROM auth.users WHERE id = hard;
@@ -144,6 +174,7 @@ BEGIN
   RAISE NOTICE 'hard delete: auth.users delete succeeds; card entry, task and task note stay with no author';
 
   -- 3. Deactivate hides the member from pickers and staff, history keeps the name.
+  SELECT created_at INTO solo_since FROM public.tenant_users WHERE tenant_id = t_a AND user_id = solo;
   SET LOCAL ROLE service_role;
   SELECT * INTO r FROM public.offboard_tenant_member(t_a, solo, owner_a, 'inactive');
   RESET ROLE;
@@ -156,10 +187,15 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.carmen_report_staff_rows(t_a) AS s WHERE s.user_id = solo) THEN
     RAISE EXCEPTION 'deactivate: the member is still Carmen staff';
   END IF;
+  IF EXISTS (SELECT 1 FROM auth.sessions WHERE user_id = solo)
+    OR EXISTS (SELECT 1 FROM auth.refresh_tokens WHERE user_id = solo::text) THEN
+    RAISE EXCEPTION 'deactivate: a member with no organization left keeps a session';
+  END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.tenant_inactive_members
     WHERE tenant_id = t_a AND user_id = solo AND status = 'inactive' AND member_role = 'member'
       AND roles = ARRAY['campaigner']::public.app_role[] AND campaigner_was_active
+      AND member_since = solo_since
   ) OR EXISTS (SELECT 1 FROM public.tenant_users WHERE tenant_id = t_a AND user_id = solo)
     OR (SELECT deleted_at FROM public.profiles WHERE id = solo) IS NOT NULL THEN
     RAISE EXCEPTION 'deactivate: the membership was not moved aside, or the profile was deleted';
@@ -167,14 +203,19 @@ BEGIN
 
   PERFORM set_config('request.jwt.claim.sub', viewer::text, true);
   SET LOCAL ROLE authenticated;
-  SELECT p.full_name INTO v_name
-  FROM public.client_updates u JOIN public.profiles p ON p.id = u.user_id
-  WHERE u.client_id = client_a AND u.content = 'written by solo';
-  IF v_name IS DISTINCT FROM 'QA Solo' THEN
-    RAISE EXCEPTION 'deactivate: a member reads % as the writer, not QA Solo', v_name;
+  SELECT d.full_name || ' ' || d.status INTO v_name
+  FROM public.tenant_departed_members(ARRAY[t_a, t_b]) d WHERE d.user_id = solo;
+  IF v_name IS DISTINCT FROM 'QA Solo inactive' THEN
+    RAISE EXCEPTION 'deactivate: a member reads % for solo, not QA Solo inactive', v_name;
   END IF;
-  IF (SELECT status FROM public.tenant_inactive_members WHERE user_id = solo) IS DISTINCT FROM 'inactive' THEN
-    RAISE EXCEPTION 'deactivate: a member cannot read that solo is inactive';
+  SELECT count(*) INTO v_count FROM public.profiles WHERE id = solo AND phone IS NOT NULL;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'deactivate: a member reads the inactive member''s phone';
+  END IF;
+  PERFORM set_config('request.jwt.claim.sub', owner_b::text, true);
+  SELECT count(*) INTO v_count FROM public.tenant_departed_members(ARRAY[t_a]);
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'deactivate: another organization''s owner reads A''s departed members';
   END IF;
   PERFORM set_config('request.jwt.claim.sub', solo::text, true);
   IF public.user_is_tenant_member(t_a) OR public.get_user_tenant_id(solo) IS NOT NULL THEN
@@ -185,27 +226,44 @@ BEGIN
   SET LOCAL ROLE service_role;
   SELECT * INTO r FROM public.offboard_tenant_member(t_a, mover, owner_a, 'inactive');
   RESET ROLE;
-  IF r.remaining_tenants <> 1 OR r.account_deleted OR public.get_user_tenant_id(mover) <> t_b THEN
-    RAISE EXCEPTION 'deactivate: a member of two organizations should keep B, got (%, %)',
+  IF r.remaining_tenants <> 1 OR r.account_deleted OR public.get_user_tenant_id(mover) <> t_b
+    OR NOT EXISTS (SELECT 1 FROM auth.sessions WHERE id = mover_session) THEN
+    RAISE EXCEPTION 'deactivate: a member of two organizations should keep B and their session, got (%, %)',
       r.remaining_tenants, r.account_deleted;
   END IF;
-  RAISE NOTICE 'deactivate: out of the organization, the pickers and Carmen staff; history reads QA Solo (inactive)';
+  PERFORM set_config('request.jwt.claim.sub', mover::text, true);
+  SET LOCAL ROLE authenticated;
+  IF EXISTS (SELECT 1 FROM public.clients WHERE tenant_id = t_a)
+    OR EXISTS (SELECT 1 FROM public.agencies WHERE tenant_id = t_a)
+    OR cardinality(coalesce(public.get_user_client_ids(mover), '{}')) <> 0
+    OR public.get_user_agency_ids(mover) IS NOT NULL THEN
+    RAISE EXCEPTION 'deactivate: a member still active in B reads A''s clients or agencies through their card';
+  END IF;
+  RESET ROLE;
+  RAISE NOTICE 'deactivate: out of the organization, its clients, the pickers and Carmen staff; history reads QA Solo (inactive)';
 
+  -- A row that somehow holds super_admin still restores only member roles.
+  UPDATE public.tenant_inactive_members SET roles = '{super_admin,campaigner}'
+  WHERE tenant_id = t_a AND user_id = solo;
   SET LOCAL ROLE service_role;
   PERFORM public.reactivate_tenant_member(t_a, solo, owner_a);
   RESET ROLE;
-  IF NOT EXISTS (SELECT 1 FROM public.tenant_users WHERE tenant_id = t_a AND user_id = solo AND role = 'member')
+  IF NOT EXISTS (
+    SELECT 1 FROM public.tenant_users
+    WHERE tenant_id = t_a AND user_id = solo AND role = 'member' AND created_at = solo_since
+  )
     OR NOT EXISTS (SELECT 1 FROM public.user_roles WHERE tenant_id = t_a AND user_id = solo AND role = 'campaigner')
+    OR EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = solo AND role = 'super_admin')
     OR NOT (SELECT active FROM public.campaigners WHERE id = card_solo)
     OR EXISTS (SELECT 1 FROM public.tenant_inactive_members WHERE tenant_id = t_a AND user_id = solo) THEN
-    RAISE EXCEPTION 'reactivate: membership, role or card not restored';
+    RAISE EXCEPTION 'reactivate: membership, created_at, role or card not restored, or super_admin restored';
   END IF;
   -- Joining again (an invitation) makes a member active again.
   INSERT INTO public.tenant_users (tenant_id, user_id, role) VALUES (t_a, mover, 'member');
   IF EXISTS (SELECT 1 FROM public.tenant_inactive_members WHERE tenant_id = t_a AND user_id = mover) THEN
     RAISE EXCEPTION 'rejoin: the inactive record outlived a new membership';
   END IF;
-  RAISE NOTICE 'reactivate: membership, campaigner role and active card restored; rejoining clears the record';
+  RAISE NOTICE 'reactivate: membership (original created_at), campaigner role and card restored, never super_admin';
 
   -- 4. Refusals, before anything changes.
   SET LOCAL ROLE service_role;
@@ -232,6 +290,11 @@ BEGIN
     RAISE EXCEPTION 'refusal: a deleted member was reactivated';
   EXCEPTION WHEN SQLSTATE 'P0002' THEN NULL;
   END;
+  BEGIN
+    PERFORM public.reactivate_tenant_member(t_a, admin, owner_a);
+    RAISE EXCEPTION 'refusal: a super admin was reactivated';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
   RESET ROLE;
   IF NOT EXISTS (SELECT 1 FROM public.tenant_users WHERE tenant_id = t_a AND user_id = owner_a) THEN
     RAISE EXCEPTION 'refusal: the last owner was removed';
@@ -252,70 +315,126 @@ BEGIN
   RESET ROLE;
   RAISE NOTICE 'refusals: self, super admin, last owner, non-member, deleted member; server only';
 
-  -- 5. RLS on tenant_inactive_members.
+  -- 5. No client writes tenant_inactive_members.
+  SET LOCAL ROLE service_role;
+  PERFORM public.offboard_tenant_member(t_a, extra, owner_a, 'inactive');
+  RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub', owner_a::text, true);
   SET LOCAL ROLE authenticated;
-  INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_a, extra, 'inactive');
-  UPDATE public.tenant_inactive_members SET status = 'deleted' WHERE tenant_id = t_a AND user_id = extra;
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  IF v_count <> 1 THEN RAISE EXCEPTION 'rls: the owner cannot update its organization''s row'; END IF;
-  DELETE FROM public.tenant_inactive_members WHERE tenant_id = t_a AND user_id = extra;
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  IF v_count <> 1 THEN RAISE EXCEPTION 'rls: the owner cannot delete its organization''s row'; END IF;
   BEGIN
-    INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_a, owner_a, 'inactive');
-    RAISE EXCEPTION 'rls: the owner wrote its own row';
+    -- Attack 1: a row for a stranger would open their profile to the owner.
+    INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_a, outsider, 'inactive');
+    RAISE EXCEPTION 'rls: an owner planted a row for a stranger';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE id = outsider) THEN
+    RAISE EXCEPTION 'rls: an owner reads a stranger''s profile';
+  END IF;
+  BEGIN
+    -- Attack 2: rewriting the roles a reactivation restores.
+    UPDATE public.tenant_inactive_members SET roles = '{super_admin,owner}' WHERE tenant_id = t_a AND user_id = extra;
+    RAISE EXCEPTION 'rls: an owner rewrote the stored roles';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_b, mover, 'inactive');
-    RAISE EXCEPTION 'rls: an owner of A wrote a row of B';
+    DELETE FROM public.tenant_inactive_members WHERE tenant_id = t_a;
+    RAISE EXCEPTION 'rls: an owner deleted rows';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
 
   PERFORM set_config('request.jwt.claim.sub', viewer::text, true);
   SELECT count(*) INTO v_count FROM public.tenant_inactive_members WHERE tenant_id = t_a;
   IF v_count = 0 THEN RAISE EXCEPTION 'rls: a member cannot read its organization''s rows'; END IF;
-  BEGIN
-    INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_a, extra, 'inactive');
-    RAISE EXCEPTION 'rls: a member who is not the owner wrote a row';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
-  UPDATE public.tenant_inactive_members SET status = 'inactive' WHERE tenant_id = t_a;
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  IF v_count <> 0 THEN RAISE EXCEPTION 'rls: a member who is not the owner updated rows'; END IF;
-  DELETE FROM public.tenant_inactive_members WHERE tenant_id = t_a;
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  IF v_count <> 0 THEN RAISE EXCEPTION 'rls: a member who is not the owner deleted rows'; END IF;
-
   PERFORM set_config('request.jwt.claim.sub', owner_b::text, true);
   SELECT count(*) INTO v_count FROM public.tenant_inactive_members WHERE tenant_id = t_a;
   IF v_count <> 0 THEN RAISE EXCEPTION 'rls: another organization''s owner reads A''s rows'; END IF;
-  SELECT count(*) INTO v_count FROM public.profiles WHERE id = writer;
-  IF v_count <> 0 THEN RAISE EXCEPTION 'rls: another organization''s owner reads A''s deleted profile'; END IF;
-  BEGIN
-    INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_a, extra, 'inactive');
-    RAISE EXCEPTION 'rls: another organization''s owner wrote a row of A';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
-
-  PERFORM set_config('request.jwt.claim.sub', admin::text, true);
-  INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_a, extra, 'inactive');
-  DELETE FROM public.tenant_inactive_members WHERE tenant_id = t_a AND user_id = extra;
   RESET ROLE;
   UPDATE public.user_active_tenant SET tenant_id = t_b WHERE user_id = admin;
+  PERFORM set_config('request.jwt.claim.sub', admin::text, true);
   SET LOCAL ROLE authenticated;
   SELECT count(*) INTO v_count FROM public.tenant_inactive_members WHERE tenant_id = t_a;
   IF v_count = 0 THEN RAISE EXCEPTION 'rls: a super admin cannot read every organization'; END IF;
   BEGIN
-    INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_a, extra, 'inactive');
-    RAISE EXCEPTION 'rls: a super admin acting in B wrote a row of A';
+    INSERT INTO public.tenant_inactive_members (tenant_id, user_id, status) VALUES (t_b, outsider, 'inactive');
+    RAISE EXCEPTION 'rls: a super admin wrote a row';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   RESET ROLE;
-  RAISE NOTICE 'rls: members read; the owner or a super admin acting in the organization writes, never its own row';
+  SET LOCAL ROLE service_role;
+  PERFORM public.reactivate_tenant_member(t_a, extra, owner_a);
+  RESET ROLE;
+  IF EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = extra AND role IN ('super_admin', 'owner')) THEN
+    RAISE EXCEPTION 'rls: a reactivation restored roles the member never held';
+  END IF;
+  RAISE NOTICE 'tenant_inactive_members: members read; no client writes; planted rows and rewritten roles refused';
 
-  -- 6. A person still cannot change who wrote a card entry.
+  -- 6. handle_new_user links only an open invitation.
+  INSERT INTO public.invitation_tokens (token, tenant_id, created_by, email, metadata, expires_at)
+  VALUES (gen_random_uuid()::text, t_a, owner_a, rejoin_email,
+          '{"role": "team_manager", "modulePermissions": ["finance"]}', now() + interval '7 days');
+  INSERT INTO auth.users (id, email, raw_user_meta_data)
+  VALUES (rejoiner, rejoin_email, '{"full_name": "QA Rejoiner"}');
+  IF NOT EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = rejoiner AND tenant_id = t_a AND role = 'team_manager')
+    OR NOT EXISTS (SELECT 1 FROM public.user_permissions WHERE user_id = rejoiner AND module = 'finance') THEN
+    RAISE EXCEPTION 'invitation: an open invitation no longer links a new account';
+  END IF;
+  UPDATE public.invitation_tokens SET used = true, used_by = rejoiner, used_at = now() WHERE email = rejoin_email;
+  SET LOCAL ROLE service_role;
+  PERFORM public.offboard_tenant_member(t_a, rejoiner, owner_a, 'deleted');
+  RESET ROLE;
+  UPDATE auth.users SET email = 'obfuscated-' || id, deleted_at = now() WHERE id = rejoiner;
+  INSERT INTO auth.users (id, email, raw_user_meta_data)
+  VALUES (rejoiner2, rejoin_email, '{"full_name": "QA Rejoiner again"}');
+  IF EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = rejoiner2)
+    OR EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = rejoiner2)
+    OR EXISTS (SELECT 1 FROM public.user_permissions WHERE user_id = rejoiner2) THEN
+    RAISE EXCEPTION 'invitation: a deleted user signing up again got the old organization back';
+  END IF;
+  INSERT INTO public.invitation_tokens (token, tenant_id, created_by, email, metadata, expires_at)
+  VALUES (gen_random_uuid()::text, t_a, owner_a, late_email, '{"role": "campaigner"}', now() - interval '1 day');
+  INSERT INTO auth.users (id, email) VALUES (late, late_email);
+  IF EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = late) THEN
+    RAISE EXCEPTION 'invitation: an expired invitation linked a new account';
+  END IF;
+  RAISE NOTICE 'invitations: an open one links; a used or expired one never does';
+
+  -- 7. A user cannot change their own deleted_at, status or email.
+  PERFORM set_config('request.jwt.claim.sub', solo::text, true);
+  SET LOCAL ROLE authenticated;
+  FOR r IN
+    SELECT * FROM (VALUES
+      ('deleted_at', 'now()'), ('status', '''pending'''), ('email', '''x@example.invalid''')
+    ) AS c(col, val)
+  LOOP
+    v_failed := false;
+    BEGIN
+      EXECUTE format('update public.profiles set %I = %s where id = %L', r.col, r.val, solo);
+    EXCEPTION WHEN insufficient_privilege THEN v_failed := true;
+    END;
+    IF NOT v_failed THEN RAISE EXCEPTION 'profiles: a user changed their own %', r.col; END IF;
+  END LOOP;
+  UPDATE public.profiles SET full_name = 'QA Solo renamed' WHERE id = solo;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'profiles: a user cannot change their own name'; END IF;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+  SET LOCAL ROLE service_role;
+  UPDATE public.profiles SET status = 'active' WHERE id = solo;
+  RESET ROLE;
+  RAISE NOTICE 'profiles: deleted_at, status and email are not the user''s own to change';
+
+  -- 8. The pulse "last call by" line (campaign-pulse-snapshot, service role).
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+  SET LOCAL ROLE service_role;
+  SELECT string_agg(l.last_client_call_by, ' | ' ORDER BY l.client_id = client_a) INTO v_name
+  FROM public.get_latest_client_call_updates(ARRAY[client_a, client_b]) l;
+  IF v_name IS DISTINCT FROM 'QA Writer | משתמש שנמחק' THEN
+    RAISE EXCEPTION 'last call: expected the departed writer''s name and a deleted user without a name, got %', v_name;
+  END IF;
+  RESET ROLE;
+  RAISE NOTICE 'last call: a departed caller keeps their name; an anonymized email never shows';
+
+  -- 9. A person still cannot change who wrote a card entry.
   PERFORM set_config('request.jwt.claim.sub', viewer::text, true);
   SET LOCAL ROLE authenticated;
   v_failed := false;
@@ -334,5 +453,5 @@ BEGIN
   RAISE NOTICE 'keep owner: user_id changes only through the key''s SET NULL';
 END;
 $test$;
-SELECT 'Deactivate and delete keep history and names; pickers, staff and access follow the membership' AS result;
+SELECT 'Deactivate and delete keep history and names; access, pickers, staff and invitations follow the membership' AS result;
 ROLLBACK;

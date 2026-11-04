@@ -4,14 +4,12 @@ import type { SetMemberActiveResult } from "@functions/_shared/user-admin/member
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { MEMBER_STATUSES_KEY } from "@/hooks/useMemberName";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionInvoke";
-import { INACTIVE_MEMBERS_KEY } from "./useInactiveMembers";
 
 /** The member lists a deactivation, reactivation or delete changes. */
 export const MEMBER_LIST_KEYS = [
   ["users-with-roles"],
   ["team-members-manage"],
   [MEMBER_STATUSES_KEY],
-  [INACTIVE_MEMBERS_KEY],
 ] as const;
 
 /** Deactivates (active: false) or reactivates a member of the current organization through set-user-active. */

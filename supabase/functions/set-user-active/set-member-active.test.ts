@@ -72,21 +72,50 @@ Deno.test("setMemberActive", async (t) => {
     assertEquals(await refuses(400, { ...deactivate, active: "no" }), []);
   });
 
-  await t.step("only an active member is deactivated", async () => {
-    const writes = await refuses(409, deactivate, (w) => {
+  await t.step(
+    "a retry on an inactive member with no organization left blocks sign-in again",
+    async () => {
+      const w = world();
       w.memberships[`${TENANT_A}:${MEMBER}`] = "inactive";
-    });
-    assertEquals(writes, []);
-  });
+      w.activeTenants[MEMBER] = 0;
+      const { store, writes } = fakeStore(w);
+      const result = await setMemberActive(store, asOwner, deactivate);
+      assertEquals(writes, [`sign-in blocked ${MEMBER}`]);
+      assertEquals(result, { active: false, signInBlocked: true });
+    },
+  );
 
   await t.step(
-    "only an inactive member is reactivated, never a deleted one",
+    "a retry on an inactive member of another organization changes nothing",
     async () => {
-      assertEquals(await refuses(409, reactivate), []);
-      const writes = await refuses(409, reactivate, (w) => {
-        w.memberships[`${TENANT_A}:${MEMBER}`] = "deleted";
-      });
+      const w = world();
+      w.memberships[`${TENANT_A}:${MEMBER}`] = "inactive";
+      const { store, writes } = fakeStore(w);
+      const result = await setMemberActive(store, asOwner, deactivate);
       assertEquals(writes, []);
+      assertEquals(result, { active: false, signInBlocked: false });
+    },
+  );
+
+  await t.step(
+    "a retry on an active member lifts the block again",
+    async () => {
+      const { store, writes } = fakeStore(world());
+      const result = await setMemberActive(store, asOwner, reactivate);
+      assertEquals(writes, [`sign-in allowed ${MEMBER}`]);
+      assertEquals(result, { active: true, signInBlocked: false });
+    },
+  );
+
+  await t.step(
+    "a deleted member is neither deactivated nor reactivated",
+    async () => {
+      for (const body of [deactivate, reactivate]) {
+        const writes = await refuses(409, body, (w) => {
+          w.memberships[`${TENANT_A}:${MEMBER}`] = "deleted";
+        });
+        assertEquals(writes, []);
+      }
     },
   );
 

@@ -31,8 +31,10 @@ export function canGrantRole(
 
 /**
  * Whether the caller may deactivate, reactivate or delete members of
- * `tenantId`: an owner there, or a super admin acting in it
- * (`activeTenantId`), the edge twin of caller_manages_tenant_members.
+ * `tenantId`: an owner row for that tenant, or a super admin acting in it
+ * (`activeTenantId`). Never wider than caller_owns_tenant: it does not count
+ * a global owner row plus an owner membership, which that SQL check also
+ * accepts (Production has no global owner rows).
  */
 export function canManageMembers(
   roles: ReadonlyArray<CallerRole>,

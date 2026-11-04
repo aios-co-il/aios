@@ -22,6 +22,8 @@ export type FakeWorld = {
   emails: Record<string, string>;
   memberships: Record<string, Membership>;
   logins: Set<string>;
+  /** tenant_users rows per user, as activeTenantCount reads them. */
+  activeTenants: Record<string, number>;
   offboard: OffboardResult | Error;
   failSignIn?: Error;
   failSoftDelete?: Error;
@@ -55,6 +57,7 @@ export function world(): FakeWorld {
       [`${TENANT_B}:${OTHER_OWNER}`]: "active",
     },
     logins: new Set([OWNER, MEMBER, ADMIN, OTHER_OWNER]),
+    activeTenants: { [OWNER]: 1, [MEMBER]: 1, [OTHER_OWNER]: 1 },
     offboard: { remainingTenants: 0, accountDeleted: false },
   };
 }
@@ -73,6 +76,7 @@ export function fakeStore(w: FakeWorld): {
     membershipOf: async (tenantId, userId) =>
       w.memberships[`${tenantId}:${userId}`] ?? "none",
     authUserExists: async (userId) => w.logins.has(userId),
+    activeTenantCount: async (userId) => w.activeTenants[userId] ?? 0,
     async offboard(tenantId, userId, actorId, status) {
       writes.push(`offboard ${tenantId} ${userId} by ${actorId} ${status}`);
       if (w.offboard instanceof Error) {

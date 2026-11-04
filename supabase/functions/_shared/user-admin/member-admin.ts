@@ -32,6 +32,7 @@ export interface MemberAdminStore {
   activeTenantOf(userId: string): Promise<string | null>;
   userIdByEmail(email: string): Promise<string | null>;
   membershipOf(tenantId: string, userId: string): Promise<Membership>;
+  activeTenantCount(userId: string): Promise<number>;
   authUserExists(userId: string): Promise<boolean>;
   offboard(
     tenantId: string,
@@ -72,8 +73,9 @@ export type MemberTarget = {
 
 /**
  * Checks, before anything changes, that the caller is the organization's
- * owner or a super admin acting in it, and that the target is someone else,
- * no super admin, and a current or former member whose login exists.
+ * owner or a super admin acting in it, and only then that the target is
+ * someone else, no super admin, and a current or former member whose login
+ * exists (so nobody else learns whether an email has an account).
  * offboard_tenant_member repeats the target rules and adds the last-owner
  * rule in the transaction that makes the change.
  */
@@ -87,11 +89,6 @@ export async function authorizeMemberChange(
   if (!tenantId) {
     throw new MemberAdminError(400, "tenantId is required");
   }
-  const targetId = await targetOf(store, body);
-  if (targetId === callerId) {
-    throw new MemberAdminError(409, "You cannot change your own membership");
-  }
-
   const [callerRoles, activeTenantId] = await Promise.all([
     store.rolesOf(callerId),
     store.activeTenantOf(callerId),
@@ -102,6 +99,11 @@ export async function authorizeMemberChange(
       "Only the organization's owner, or a super admin acting in it, can manage its members",
     );
   }
+
+  const targetId = await targetOf(store, body);
+  if (targetId === callerId) {
+    throw new MemberAdminError(409, "You cannot change your own membership");
+  }
   if (isGlobalSuperAdmin(await store.rolesOf(targetId))) {
     throw new MemberAdminError(
       409,
@@ -111,10 +113,7 @@ export async function authorizeMemberChange(
 
   const membership = await store.membershipOf(tenantId, targetId);
   if (membership === "none") {
-    throw new MemberAdminError(
-      404,
-      "The user is not a member of this organization",
-    );
+    throw notAMember();
   }
   if (!(await store.authUserExists(targetId))) {
     throw new MemberAdminError(404, "The user's login was not found");
@@ -153,7 +152,15 @@ async function targetOf(
   }
   const found = await store.userIdByEmail(email);
   if (!found) {
-    throw new MemberAdminError(404, `No user with email ${email}`);
+    throw notAMember();
   }
   return found;
+}
+
+/** One answer for an unknown email and a non-member, so neither reveals the other. */
+function notAMember(): MemberAdminError {
+  return new MemberAdminError(
+    404,
+    "The user is not a member of this organization",
+  );
 }

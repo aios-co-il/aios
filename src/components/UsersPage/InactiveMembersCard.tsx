@@ -2,14 +2,17 @@ import { UserCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useDepartedMembers } from "@/hooks/useMemberName";
 import { formatMemberName } from "@/lib/memberName";
-import { useInactiveMembers } from "./useInactiveMembers";
 import { useMemberActivation } from "./useMemberActivation";
 
 /** The current organization's inactive members, each with a reactivate button; nothing when there are none. */
 export function InactiveMembersCard() {
-  const { data: members = [], error } = useInactiveMembers();
+  const { data: departed, error } = useDepartedMembers();
   const activation = useMemberActivation();
+  const members = [...(departed?.values() ?? [])]
+    .filter((member) => member.status === "inactive")
+    .sort((a, b) => (a.fullName ?? "").localeCompare(b.fullName ?? "", "he"));
 
   if (error) {
     return (
@@ -28,18 +31,11 @@ export function InactiveMembersCard() {
       <div className="space-y-2">
         {members.map((member) => (
           <div
-            key={member.user_id}
+            key={member.userId}
             className="flex items-center justify-between gap-2"
           >
-            <div className="min-w-0">
-              <div className="font-medium truncate">
-                {formatMemberName(member.profiles)}
-              </div>
-              {member.profiles?.email && (
-                <div className="text-sm text-muted-foreground truncate">
-                  {member.profiles.email}
-                </div>
-              )}
+            <div className="font-medium truncate min-w-0">
+              {formatMemberName({ full_name: member.fullName })}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Badge variant="outline">לא פעיל</Badge>
@@ -47,7 +43,7 @@ export function InactiveMembersCard() {
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  activation.mutate({ userId: member.user_id, active: true })
+                  activation.mutate({ userId: member.userId, active: true })
                 }
                 disabled={activation.isPending}
               >

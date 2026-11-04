@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatMemberName, memberStatusOf } from "./memberName";
+import {
+  DELETED_MEMBER_NAME,
+  formatMemberName,
+  memberStatusOf,
+} from "./memberName";
 
 describe("formatMemberName", () => {
   const dana = { full_name: "Dana Levi", email: "dana@example.invalid" };
@@ -26,7 +30,8 @@ describe("formatMemberName", () => {
 
   it("never shows a deleted member's anonymized email", () => {
     const deleted = { full_name: null, email: "deleted-1@deleted.invalid" };
-    expect(formatMemberName(deleted, "deleted")).toBe("משתמש (נמחק)");
+    expect(formatMemberName(deleted, "deleted")).toBe(DELETED_MEMBER_NAME);
+    expect(DELETED_MEMBER_NAME).toBe("משתמש שנמחק");
   });
 
   it("marks a writer whose profile is no longer readable", () => {
@@ -39,5 +44,6 @@ describe("memberStatusOf", () => {
     expect(memberStatusOf("inactive")).toBe("inactive");
     expect(memberStatusOf("deleted")).toBe("deleted");
     expect(memberStatusOf("active")).toBeUndefined();
+    expect(memberStatusOf(null)).toBeUndefined();
   });
 });

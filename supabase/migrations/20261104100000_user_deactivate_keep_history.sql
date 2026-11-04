@@ -1,31 +1,50 @@
 -- AIO-321: every user can be made inactive in an organization or deleted, and
--- their updates stay in history under their name.
+-- their updates stay in history under their name. AIO-326: a deleted user who
+-- signs up again does not get their old organization back.
 --
 -- 1. profiles.deleted_at marks a deleted account. delete-user keeps the
 --    profile row (name kept, email anonymized, status inactive) and
 --    soft-deletes the auth user (GoTrue keeps the auth.users row, clears its
 --    email, password, identities and sessions), so profiles_id_fkey (ON DELETE
---    CASCADE) never fires and every history row still reaches the writer's
---    name.
+--    CASCADE) never fires and history keeps pointing at the writer. A signed-in
+--    user cannot change their own deleted_at, status or email
+--    (profiles_keep_admin_fields); the service role can.
 -- 2. tenant_inactive_members: people who were members of an organization and
 --    are no longer active there, 'inactive' (can be reactivated) or 'deleted'.
 --    Access to an organization comes from the tenant_users row itself (110
 --    policies and 38 functions read it directly), so a flag on that row would
 --    leave an inactive member their access. Deactivating moves the membership
 --    here instead: the tenant_users row and the organization's user_roles rows
---    are removed, and kept here so reactivating restores them. Members of the
---    organization and super admins read it; the organization's owner, or a
---    super admin acting in it, writes it (never their own row).
--- 3. Members of an organization read the profiles of its inactive and deleted
---    members, so history keeps showing their names.
+--    are removed and kept here, so reactivating restores them. Members of the
+--    organization and super admins read it; only offboard_tenant_member writes
+--    it (service role), so no client can plant a row or the roles it restores.
+-- 3. tenant_departed_members(tenant ids) gives callers who belong to those
+--    organizations the name and status of their inactive and deleted members,
+--    and nothing else of their profile, so history keeps showing the writer.
+--    get_latest_client_call_updates (the pulse "last call by" line) names a
+--    departed writer the same way and never shows a deleted user's
+--    anonymized email.
 -- 4. offboard_tenant_member / reactivate_tenant_member (service role only) are
 --    the data side of delete-user and set-user-active, each one transaction.
 --    They refuse the actor themself, a super admin and the organization's last
---    owner before changing anything. Offboarding also turns off the member's
+--    owner before changing anything. Offboarding turns off the member's
 --    campaigner and sales person cards in that organization (assignee pickers
---    and Carmen's team read active cards) and closes their open invitations
---    there; reactivating turns back on the cards that were on.
--- 5. Foreign keys: each key from a public table to auth.users or profiles that
+--    and Carmen's team read active cards; the card triggers revoke the card's
+--    Carmen WhatsApp identity and queue a Carmen knowledge refresh), closes
+--    their open invitations there, and signs them out (auth.sessions and
+--    auth.refresh_tokens) once no organization is left. Reactivating restores
+--    the membership with its original created_at, the roles a member may hold
+--    (never super_admin), and the cards that were on.
+-- 5. handle_new_user links a new account only to an unused, unexpired
+--    invitation (it took the newest one, used or not, so a deleted user who
+--    signed up again got the old organization, role and permissions back).
+-- 6. get_user_client_ids / get_user_agency_ids count a campaigner card only in
+--    an organization the user is still a member of, so a member deactivated in
+--    one organization and active in another stops reading the first one's
+--    clients and agencies through their card there. Read-only check on
+--    2026-11-03: no Production or Staging user has a card outside their
+--    memberships, so nobody else loses access.
+-- 7. Foreign keys: each key from a public table to auth.users or profiles that
 --    would block deleting the user (no ON DELETE action) or delete history
 --    with them becomes ON DELETE SET NULL, for a hard delete from the dashboard
 --    or SQL. client_updates, lead_updates and task_updates.user_id (CASCADE,
@@ -43,8 +62,11 @@
 -- the deploy after 5 seconds instead of queueing behind a long transaction.
 --
 -- No row changes, and nothing is sent. Safe to re-run: a key already ON
--- DELETE SET NULL is left alone, and each object is created or replaced. The
--- closing guard requires that no key to auth.users or profiles blocks a
+-- DELETE SET NULL is left alone, and each object is created or replaced. An
+-- earlier draft of this migration (version 20261103110000, applied only on
+-- this PR's Preview branch) let owners write tenant_inactive_members and read
+-- departed members' whole profiles; its policies and helper are dropped here.
+-- The closing guard requires that no key to auth.users or profiles blocks a
 -- delete, that the history keys are SET NULL on nullable columns, and that
 -- only the reviewed keys cascade.
 
@@ -57,6 +79,36 @@ alter table public.profiles add column if not exists deleted_at timestamptz;
 comment on column public.profiles.deleted_at is
   'Set when the account was deleted (AIO-321): the row and name stay for history, the email is anonymized and the login is gone.';
 
+-- A signed-in user cannot change their own deleted_at, status or email; the service role and admins can.
+create or replace function public.profiles_keep_admin_fields()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if TG_OP = 'UPDATE'
+    and auth.uid() is not null
+    and auth.uid() = old.id
+    and (
+      new.deleted_at is distinct from old.deleted_at
+      or new.status is distinct from old.status
+      or new.email is distinct from old.email
+    ) then
+    raise exception 'profiles: deleted_at, status and email are not yours to change'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.profiles_keep_admin_fields() from public, anon, authenticated;
+
+drop trigger if exists profiles_keep_admin_fields on public.profiles;
+create trigger profiles_keep_admin_fields
+before update of deleted_at, status, email on public.profiles
+for each row
+execute function public.profiles_keep_admin_fields();
+
 -- 2. Inactive and deleted members of an organization.
 
 create table if not exists public.tenant_inactive_members (
@@ -67,46 +119,32 @@ create table if not exists public.tenant_inactive_members (
   roles public.app_role[] not null default '{}',
   campaigner_was_active boolean,
   sales_person_was_active boolean,
+  member_since timestamptz,
   changed_at timestamptz not null default now(),
   changed_by uuid references auth.users (id) on delete set null,
   primary key (tenant_id, user_id),
   constraint tenant_inactive_members_status_check check (status in ('inactive', 'deleted'))
 );
 
+alter table public.tenant_inactive_members add column if not exists member_since timestamptz;
+
 create index if not exists tenant_inactive_members_user_idx
   on public.tenant_inactive_members (user_id);
 
 comment on table public.tenant_inactive_members is
-  'Members no longer active in an organization (AIO-321): inactive (their tenant_users role and user_roles roles are kept here for reactivation) or deleted. History reads it to mark their names.';
+  'Members no longer active in an organization (AIO-321): inactive (their tenant_users row and user_roles roles are kept here for reactivation) or deleted. Written only by offboard_tenant_member and reactivate_tenant_member.';
 
 alter table public.tenant_inactive_members enable row level security;
 
-revoke all on table public.tenant_inactive_members from public, anon;
-grant select, insert, update, delete on table public.tenant_inactive_members to authenticated;
+revoke all on table public.tenant_inactive_members from public, anon, authenticated;
+grant select on table public.tenant_inactive_members to authenticated;
 grant all on table public.tenant_inactive_members to service_role;
-
--- Caller is the organization's owner, or a super admin acting in it.
-create or replace function public.caller_manages_tenant_members(_tenant_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select public.caller_owns_tenant(_tenant_id)
-    or (
-      public.is_super_admin(auth.uid())
-      and _tenant_id = public.get_user_tenant_id(auth.uid())
-    );
-$$;
-
-revoke all on function public.caller_manages_tenant_members(uuid) from public, anon, authenticated;
-grant execute on function public.caller_manages_tenant_members(uuid) to authenticated, service_role;
 
 drop policy if exists tenant_inactive_members_select on public.tenant_inactive_members;
 drop policy if exists tenant_inactive_members_insert on public.tenant_inactive_members;
 drop policy if exists tenant_inactive_members_update on public.tenant_inactive_members;
 drop policy if exists tenant_inactive_members_delete on public.tenant_inactive_members;
+drop function if exists public.caller_manages_tenant_members(uuid);
 
 -- Members of the organization read who is inactive or deleted there; super admins read every organization.
 create policy tenant_inactive_members_select
@@ -116,40 +154,6 @@ to authenticated
 using (
   public.user_is_tenant_member(tenant_id)
   or public.is_super_admin(auth.uid())
-);
-
--- The owner, or a super admin acting in the organization, records another member.
-create policy tenant_inactive_members_insert
-on public.tenant_inactive_members
-for insert
-to authenticated
-with check (
-  user_id <> auth.uid()
-  and public.caller_manages_tenant_members(tenant_id)
-);
-
--- The same rule before and after, so a row never moves to another organization or to the caller.
-create policy tenant_inactive_members_update
-on public.tenant_inactive_members
-for update
-to authenticated
-using (
-  user_id <> auth.uid()
-  and public.caller_manages_tenant_members(tenant_id)
-)
-with check (
-  user_id <> auth.uid()
-  and public.caller_manages_tenant_members(tenant_id)
-);
-
--- The owner, or a super admin acting in the organization, removes another member's row.
-create policy tenant_inactive_members_delete
-on public.tenant_inactive_members
-for delete
-to authenticated
-using (
-  user_id <> auth.uid()
-  and public.caller_manages_tenant_members(tenant_id)
 );
 
 -- A member who joins the organization again (an invitation, a role grant) is active there.
@@ -177,23 +181,80 @@ after insert on public.tenant_users
 for each row
 execute function public.tenant_users_clear_inactive_member();
 
--- 3. Members read the profiles of the organization's inactive and deleted members.
+-- 3. Names of departed members, and nothing else of their profile.
 
 drop policy if exists "Members view profiles of inactive members" on public.profiles;
 
--- A profile is readable by members of an organization it is inactive or deleted in.
-create policy "Members view profiles of inactive members"
-on public.profiles
-for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.tenant_inactive_members m
-    where m.user_id = profiles.id
-      and public.user_is_tenant_member(m.tenant_id)
+-- Name (profile, else campaigner card) and status of the inactive and deleted members of the given organizations the caller belongs to; every one for the server.
+create or replace function public.tenant_departed_members(p_tenant_ids uuid[])
+returns table (tenant_id uuid, user_id uuid, full_name text, status text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.tenant_id,
+         m.user_id,
+         coalesce(nullif(btrim(p.full_name), ''), nullif(btrim(c.full_name), '')),
+         m.status
+  from public.tenant_inactive_members m
+  join public.profiles p on p.id = m.user_id
+  left join public.campaigners c on c.id = p.campaigner_id
+  where m.tenant_id = any (p_tenant_ids)
+    and (
+      auth.uid() is null
+      or public.user_is_tenant_member(m.tenant_id)
+      or public.is_super_admin(auth.uid())
+    );
+$$;
+
+revoke all on function public.tenant_departed_members(uuid[]) from public, anon, authenticated;
+grant execute on function public.tenant_departed_members(uuid[]) to authenticated, service_role;
+
+-- Latest client call per client and who made it; a departed caller keeps their name, a deleted one without a name reads as a deleted user.
+create or replace function public.get_latest_client_call_updates(p_client_ids uuid[])
+returns table (client_id uuid, last_client_call_at timestamptz, last_client_call_by text)
+language sql
+stable
+set search_path to 'public'
+as $$
+  with latest as (
+    select distinct on (updates.client_id)
+      updates.client_id,
+      updates.created_at,
+      updates.user_id,
+      updates.tenant_id
+    from public.client_updates as updates
+    where updates.client_id = any (p_client_ids)
+      and updates.source in ('human', 'carmen_confirmed')
+      and (
+        updates.counts_as_contact is true
+        or updates.update_type = 'call'
+        or (
+          updates.update_type = 'weekly_update'
+          and public.client_update_documents_phone_call(updates.content)
+        )
+      )
+    order by updates.client_id, updates.created_at desc
   )
-);
+  select latest.client_id,
+         latest.created_at,
+         coalesce(
+           nullif(btrim(profiles.full_name), ''),
+           departed.full_name,
+           case
+             when departed.status = 'deleted' or profiles.deleted_at is not null then 'משתמש שנמחק'
+             else profiles.email
+           end
+         )
+  from latest
+  left join public.profiles as profiles on profiles.id = latest.user_id
+  left join lateral (
+    select d.full_name, d.status
+    from public.tenant_departed_members(array[latest.tenant_id]) as d
+    where d.user_id = latest.user_id
+  ) as departed on true;
+$$;
 
 -- 4. Offboarding and reactivating.
 
@@ -222,10 +283,11 @@ $$;
 revoke all on function public.tenant_member_is_owner(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.tenant_member_is_owner(uuid, uuid) to service_role;
 
--- Moves a member out of the organization ('inactive' or 'deleted'), and
--- deletes the account (keeping the profile and name) when 'deleted' leaves
--- them no organization. The caller (delete-user, set-user-active) has checked
--- that p_actor manages the organization's members.
+-- Moves a member out of the organization ('inactive' or 'deleted'), signs
+-- them out once no organization is left, and deletes the account (keeping
+-- the profile and name) when 'deleted' leaves them none. The caller
+-- (delete-user, set-user-active) has checked that p_actor manages the
+-- organization's members.
 create or replace function public.offboard_tenant_member(
   p_tenant_id uuid,
   p_user_id uuid,
@@ -296,7 +358,9 @@ begin
 
     select coalesce(array_agg(ur.role order by ur.role), '{}') into v_roles
     from public.user_roles ur
-    where ur.user_id = p_user_id and ur.tenant_id = p_tenant_id;
+    where ur.user_id = p_user_id
+      and ur.tenant_id = p_tenant_id
+      and ur.role <> 'super_admin'::public.app_role;
     select c.active into v_campaigner_active
     from public.campaigners c
     where c.id = v_profile.campaigner_id and c.tenant_id = p_tenant_id;
@@ -305,11 +369,11 @@ begin
     where s.id = v_profile.sales_person_id and s.tenant_id = p_tenant_id;
 
     insert into public.tenant_inactive_members as m (
-      tenant_id, user_id, status, member_role, roles,
-      campaigner_was_active, sales_person_was_active, changed_at, changed_by
+      tenant_id, user_id, status, member_role, roles, campaigner_was_active,
+      sales_person_was_active, member_since, changed_at, changed_by
     ) values (
-      p_tenant_id, p_user_id, p_status, v_member.role, v_roles,
-      v_campaigner_active, v_sales_person_active, now(), p_actor
+      p_tenant_id, p_user_id, p_status, v_member.role, v_roles, v_campaigner_active,
+      v_sales_person_active, v_member.created_at, now(), p_actor
     )
     on conflict (tenant_id, user_id) do update
       set status = excluded.status,
@@ -317,6 +381,7 @@ begin
           roles = excluded.roles,
           campaigner_was_active = excluded.campaigner_was_active,
           sales_person_was_active = excluded.sales_person_was_active,
+          member_since = excluded.member_since,
           changed_at = excluded.changed_at,
           changed_by = excluded.changed_by;
 
@@ -340,6 +405,12 @@ begin
 
   select count(*)::integer into v_remaining
   from public.tenant_users where user_id = p_user_id;
+
+  if v_remaining = 0 then
+    -- No organization left: end every session now (refresh tokens go with them).
+    delete from auth.refresh_tokens where user_id = p_user_id::text;
+    delete from auth.sessions where user_id = p_user_id;
+  end if;
 
   if p_status = 'deleted' and v_remaining = 0 then
     delete from public.user_permissions where user_id = p_user_id;
@@ -366,7 +437,9 @@ $$;
 revoke all on function public.offboard_tenant_member(uuid, uuid, uuid, text) from public, anon, authenticated;
 grant execute on function public.offboard_tenant_member(uuid, uuid, uuid, text) to service_role;
 
--- Gives an inactive member back their membership, roles and active cards in the organization.
+-- Gives an inactive member back their membership (original created_at),
+-- the roles a member may hold there (never super_admin) and the cards that
+-- were on. Refuses a super admin and a deleted account.
 create or replace function public.reactivate_tenant_member(
   p_tenant_id uuid,
   p_user_id uuid,
@@ -385,6 +458,10 @@ begin
     raise exception 'reactivate_tenant_member: a user cannot reactivate themselves'
       using errcode = '42501';
   end if;
+  if public.is_super_admin(p_user_id) then
+    raise exception 'reactivate_tenant_member: user % is a super admin', p_user_id
+      using errcode = '42501';
+  end if;
 
   perform pg_advisory_xact_lock(hashtextextended('tenant_members:' || p_tenant_id::text, 0));
 
@@ -401,12 +478,13 @@ begin
       using errcode = '22023';
   end if;
 
-  insert into public.tenant_users (tenant_id, user_id, role)
-  values (p_tenant_id, p_user_id, v_prior.member_role)
+  insert into public.tenant_users (tenant_id, user_id, role, created_at)
+  values (p_tenant_id, p_user_id, v_prior.member_role, coalesce(v_prior.member_since, now()))
   on conflict (tenant_id, user_id) do nothing;
   insert into public.user_roles (user_id, role, tenant_id)
   select p_user_id, r.role, p_tenant_id
   from unnest(v_prior.roles) as r(role)
+  where r.role <> 'super_admin'::public.app_role
   on conflict (user_id, role, tenant_id) do nothing;
 
   update public.campaigners
@@ -426,7 +504,166 @@ $$;
 revoke all on function public.reactivate_tenant_member(uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.reactivate_tenant_member(uuid, uuid, uuid) to service_role;
 
--- 5. Foreign keys keep history when a user is deleted.
+-- 5. A new account links only to an unused, unexpired invitation (AIO-326).
+
+-- Creates the profile of a new auth user, merges a pre-provisioned orphan profile, and applies the newest open invitation for the email.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+DECLARE
+  v_inv    public.invitation_tokens%ROWTYPE;
+  v_meta   jsonb;
+  v_role   text;
+  v_tenant uuid;
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, status)
+  VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'full_name', ''), 'active')
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Merge any pre-provisioned orphan profile with the same email.
+  BEGIN
+    PERFORM public.merge_orphan_profile_by_email(NEW.id, NEW.email);
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user orphan merge failed for %: %', NEW.email, SQLERRM;
+  END;
+
+  BEGIN
+    -- Only an invitation still open: a used or expired one (for example the
+    -- one a deleted user once accepted) never links a new account.
+    SELECT * INTO v_inv
+    FROM public.invitation_tokens
+    WHERE lower(email) = lower(NEW.email)
+      AND NOT used
+      AND expires_at > now()
+    ORDER BY created_at DESC
+    LIMIT 1;
+
+    IF v_inv.id IS NOT NULL AND v_inv.tenant_id IS NOT NULL THEN
+      v_meta   := COALESCE(v_inv.metadata, '{}'::jsonb);
+      v_role   := NULLIF(v_meta->>'role', '');
+      v_tenant := v_inv.tenant_id;
+
+      INSERT INTO public.tenant_users (user_id, tenant_id, role)
+      SELECT NEW.id, v_tenant, COALESCE(v_role, 'member')
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.tenant_users
+        WHERE user_id = NEW.id AND tenant_id = v_tenant
+      );
+
+      INSERT INTO public.user_active_tenant (user_id, tenant_id)
+      SELECT NEW.id, v_tenant
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.user_active_tenant WHERE user_id = NEW.id
+      );
+
+      IF v_role IS NOT NULL THEN
+        BEGIN
+          INSERT INTO public.user_roles (user_id, role, tenant_id)
+          VALUES (NEW.id, v_role::public.app_role, v_tenant)
+          ON CONFLICT (user_id, role, tenant_id) DO NOTHING;
+        EXCEPTION WHEN OTHERS THEN
+          RAISE WARNING 'handle_new_user: bad role % for %: %', v_role, NEW.email, SQLERRM;
+        END;
+      END IF;
+
+      IF jsonb_typeof(v_meta->'modulePermissions') = 'array' THEN
+        INSERT INTO public.user_permissions (user_id, module, can_access)
+        SELECT NEW.id, m.value, true
+        FROM jsonb_array_elements_text(v_meta->'modulePermissions') AS m(value)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM public.user_permissions up
+          WHERE up.user_id = NEW.id AND up.module = m.value
+        );
+      END IF;
+
+      IF NULLIF(v_meta->>'campaignerId', '') IS NOT NULL THEN
+        UPDATE public.profiles SET campaigner_id = (v_meta->>'campaignerId')::uuid WHERE id = NEW.id;
+      END IF;
+      IF NULLIF(v_meta->>'salesPersonId', '') IS NOT NULL THEN
+        UPDATE public.profiles SET sales_person_id = (v_meta->>'salesPersonId')::uuid WHERE id = NEW.id;
+      END IF;
+    ELSE
+      RAISE NOTICE 'handle_new_user: no open invitation for %', NEW.email;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user auto-link failed for %: %', NEW.email, SQLERRM;
+  END;
+
+  RETURN NEW;
+END;
+$function$;
+
+-- 6. A campaigner card counts only in an organization the user is still a member of.
+
+-- Clients the user works on: through their campaigner card in an organization they belong to, plus SEO-scope clients.
+create or replace function public.get_user_client_ids(_user_id uuid)
+returns uuid[]
+language sql
+stable
+security definer
+set search_path to 'public'
+as $function$
+  WITH campaigner_clients AS (
+    SELECT ct.client_id
+    FROM public.profiles p
+    JOIN public.campaigners c ON c.id = p.campaigner_id
+    JOIN public.client_team ct ON ct.campaigner_id = p.campaigner_id
+    WHERE p.id = _user_id
+      AND public.has_role(_user_id, 'campaigner'::app_role)
+      AND EXISTS (
+        SELECT 1 FROM public.tenant_users tu
+        WHERE tu.user_id = _user_id
+          AND tu.tenant_id = c.tenant_id
+      )
+  ),
+  seo_clients AS (
+    SELECT c.id AS client_id
+    FROM public.clients c
+    WHERE public.user_has_seo_scope(_user_id)
+      AND (
+        c.is_seo_client = true
+        OR c.services @> '["seo"]'::jsonb
+      )
+      AND (
+        c.tenant_id = public.get_user_tenant_id(_user_id)
+        OR public.user_has_cross_tenant_agency_access(_user_id, c.agency_id)
+      )
+  )
+  SELECT COALESCE(
+    ARRAY_AGG(DISTINCT client_id),
+    ARRAY[]::uuid[]
+  )
+  FROM (
+    SELECT client_id FROM campaigner_clients
+    UNION ALL
+    SELECT client_id FROM seo_clients
+  ) combined
+$function$;
+
+-- Agencies of the user's campaigner card, when the card is in an organization they belong to.
+create or replace function public.get_user_agency_ids(_user_id uuid)
+returns uuid[]
+language sql
+stable
+security definer
+set search_path to 'public'
+as $function$
+  SELECT ARRAY_AGG(ca.agency_id)
+  FROM public.profiles p
+  JOIN public.campaigners c ON c.id = p.campaigner_id
+  JOIN public.campaigner_agencies ca ON ca.campaigner_id = p.campaigner_id
+  WHERE p.id = _user_id
+    AND EXISTS (
+      SELECT 1 FROM public.tenant_users tu
+      WHERE tu.user_id = _user_id
+        AND tu.tenant_id = c.tenant_id
+    )
+$function$;
+
+-- 7. Foreign keys keep history when a user is deleted.
 
 -- client_updates_keep_owner (20261030093000) refused every user_id change, so
 -- it would refuse client_updates_user_id_fkey's SET NULL too and fail the

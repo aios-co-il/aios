@@ -81,12 +81,35 @@ Deno.test("authorizeMemberChange", async (t) => {
     await refuses(400, asOwner, { tenantId: TENANT_A });
   });
 
-  await t.step("an unknown email is 404", async () => {
+  await t.step("an unknown email is the same 404 as a non-member", async () => {
     await refuses(404, asOwner, {
       email: "nobody@example.invalid",
       tenantId: TENANT_A,
     });
   });
+
+  await t.step(
+    "an unauthorised caller learns nothing about an email",
+    async () => {
+      const w = world();
+      let looked = false;
+      const { store } = fakeStore(w);
+      store.userIdByEmail = async () => {
+        looked = true;
+        return MEMBER;
+      };
+      const error = await assertRejects(
+        () =>
+          authorizeMemberChange(store, "Bearer other-owner-token", {
+            email: "member@example.invalid",
+            tenantId: TENANT_A,
+          }),
+        MemberAdminError,
+      );
+      assertEquals(error.status, 403);
+      assertEquals(looked, false);
+    },
+  );
 
   await t.step("the caller themself is 409", async () => {
     await refuses(409, asOwner, { userId: OWNER, tenantId: TENANT_A });

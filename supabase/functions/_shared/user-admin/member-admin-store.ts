@@ -51,6 +51,16 @@ export function memberAdminStore(db: DbClient): MemberAdminStore {
       return data?.[0]?.id ?? null;
     },
     membershipOf: (tenantId, userId) => membershipOf(db, tenantId, userId),
+    async activeTenantCount(userId) {
+      const { count, error } = await db
+        .from("tenant_users")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId);
+      if (error) {
+        throw error;
+      }
+      return count ?? 0;
+    },
     async authUserExists(userId) {
       const { data, error } = await db.auth.admin.getUserById(userId);
       if (error?.status === 404) {

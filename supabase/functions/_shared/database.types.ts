@@ -14557,6 +14557,7 @@ export type Database = {
           changed_at: string;
           changed_by: string | null;
           member_role: string;
+          member_since: string | null;
           roles: Database["public"]["Enums"]["app_role"][];
           sales_person_was_active: boolean | null;
           status: string;
@@ -14568,6 +14569,7 @@ export type Database = {
           changed_at?: string;
           changed_by?: string | null;
           member_role?: string;
+          member_since?: string | null;
           roles?: Database["public"]["Enums"]["app_role"][];
           sales_person_was_active?: boolean | null;
           status: string;
@@ -14579,6 +14581,7 @@ export type Database = {
           changed_at?: string;
           changed_by?: string | null;
           member_role?: string;
+          member_since?: string | null;
           roles?: Database["public"]["Enums"]["app_role"][];
           sales_person_was_active?: boolean | null;
           status?: string;
@@ -16437,10 +16440,6 @@ export type Database = {
         Args: { p_slugs: string[]; p_tenant_id: string };
         Returns: undefined;
       };
-      caller_manages_tenant_members: {
-        Args: { _tenant_id: string };
-        Returns: boolean;
-      };
       can_access_agency: {
         Args: { _agency_id: string; _user_id: string };
         Returns: boolean;
@@ -17929,6 +17928,15 @@ export type Database = {
       tenant_can_write_client: {
         Args: { p_client: string; p_tenant: string };
         Returns: boolean;
+      };
+      tenant_departed_members: {
+        Args: { p_tenant_ids: string[] };
+        Returns: {
+          full_name: string;
+          status: string;
+          tenant_id: string;
+          user_id: string;
+        }[];
       };
       tenant_holds_agency: {
         Args: { _agency_id: string; _need_write: boolean; _tenant_id: string };

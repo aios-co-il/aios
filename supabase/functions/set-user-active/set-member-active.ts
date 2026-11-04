@@ -32,23 +32,32 @@ export async function setMemberActive(
     : await deactivate(store, target);
 }
 
-/** Moves an active member aside, then blocks sign-in when they have no organization left. */
+/**
+ * Moves an active member aside, then blocks sign-in when they have no
+ * organization left. A retry on an inactive member re-applies the block, so a
+ * call whose sign-in step failed can be finished.
+ */
 async function deactivate(
   store: MemberAdminStore,
   target: MemberTarget,
 ): Promise<SetMemberActiveResult> {
-  if (target.membership !== "active") {
+  if (target.membership === "deleted") {
     throw new MemberAdminError(
       409,
-      "The user is not active in this organization",
+      "The user was deleted from this organization",
     );
   }
-  const { remainingTenants } = await store.offboard(
-    target.tenantId,
-    target.targetId,
-    target.callerId,
-    "inactive",
-  );
+  const remainingTenants =
+    target.membership === "inactive"
+      ? await store.activeTenantCount(target.targetId)
+      : (
+          await store.offboard(
+            target.tenantId,
+            target.targetId,
+            target.callerId,
+            "inactive",
+          )
+        ).remainingTenants;
   const signInBlocked = remainingTenants === 0;
   if (signInBlocked) {
     await signIn(store, target.targetId, false, "deactivated");
@@ -56,18 +65,24 @@ async function deactivate(
   return { active: false, signInBlocked };
 }
 
-/** Restores an inactive member, then lets them sign in again. */
+/**
+ * Restores an inactive member, then lets them sign in again. A retry on an
+ * active member lifts the block again, so a call whose sign-in step failed
+ * can be finished.
+ */
 async function reactivate(
   store: MemberAdminStore,
   target: MemberTarget,
 ): Promise<SetMemberActiveResult> {
-  if (target.membership !== "inactive") {
+  if (target.membership === "deleted") {
     throw new MemberAdminError(
       409,
-      "The user is not inactive in this organization",
+      "The user was deleted from this organization",
     );
   }
-  await store.reactivate(target.tenantId, target.targetId, target.callerId);
+  if (target.membership === "inactive") {
+    await store.reactivate(target.tenantId, target.targetId, target.callerId);
+  }
   await signIn(store, target.targetId, true, "reactivated");
   return { active: true, signInBlocked: false };
 }
