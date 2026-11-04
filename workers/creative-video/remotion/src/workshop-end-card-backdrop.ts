@@ -6,7 +6,7 @@
  */
 import { clamp01 } from "./workshop-transition-fx";
 
-/** The backgrounds, in the order Carmen's tools list them (render-worker film-look.mjs). */
+/** The backgrounds, in the order Carmen's tools list them (render-worker film-look.ts). */
 export const END_CARD_BACKGROUNDS = [
   "last-scene",
   "gradient",

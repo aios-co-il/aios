@@ -155,23 +155,13 @@ DECLARE
 BEGIN
   -- ─── Personas ─────────────────────────────────────────────────────────────
 
-  SELECT array_agg(u.id ORDER BY u.id) INTO v_users
-  FROM (
-    SELECT p.id
-    FROM public.profiles AS p
-    JOIN auth.users AS au ON au.id = p.id
-    WHERE NOT public.is_super_admin(p.id)
-    ORDER BY p.id
-    LIMIT 5
-  ) AS u;
-  SELECT ur.user_id INTO v_super
-  FROM public.user_roles AS ur
-  WHERE ur.role = 'super_admin'::public.app_role
-    AND ur.tenant_id IS NULL
-  LIMIT 1;
-  IF cardinality(v_users) IS DISTINCT FROM 5 OR v_super IS NULL THEN
-    RAISE EXCEPTION 'Requires five users with profiles who are not super admins, and a super admin';
-  END IF;
+  -- Synthetic users; handle_new_user creates their profiles.
+  v_users := array[gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid()];
+  v_super := gen_random_uuid();
+  INSERT INTO auth.users (id, email)
+  SELECT u, 'qa-send-guard-' || u || '@example.invalid'
+  FROM unnest(v_users || v_super) AS u;
+  INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (v_super, 'super_admin', NULL);
   v_owner := v_users[1];
   v_manager := v_users[2];
   v_campaigner_user := v_users[3];

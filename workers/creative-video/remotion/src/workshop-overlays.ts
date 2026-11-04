@@ -8,7 +8,7 @@
 import { channels } from "./workshop-layout";
 import { clamp01, random, seedOf, wrap } from "./workshop-overlay-pieces";
 
-/** The overlays, in the order Carmen's tools list them (render-worker scene-overlay.mjs). */
+/** The overlays, in the order Carmen's tools list them (render-worker scene-overlay.ts). */
 export const SCENE_OVERLAYS = [
   "none",
   "bubbles",

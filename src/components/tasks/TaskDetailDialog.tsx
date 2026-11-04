@@ -63,6 +63,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useTenantMemberNames } from "@/hooks/useTenantMemberNames";
+import { resolveUpdateAuthorName } from "@/lib/updateAuthor";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
@@ -167,6 +169,7 @@ export function TaskDetailDialog({
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
+  const { data: memberNames } = useTenantMemberNames(tenantId);
   const { user } = useCurrentUser();
   const { campaignerId: userCampaignerId } = useUserRole();
 
@@ -1194,11 +1197,11 @@ export function TaskDetailDialog({
                             <div className="flex items-center gap-1.5 min-w-0">
                               {typeIcon}
                               <span className="text-xs font-medium truncate">
-                                {(
-                                  update.profiles as {
-                                    full_name?: string;
-                                  } | null
-                                )?.full_name || "משתמש"}
+                                {resolveUpdateAuthorName(
+                                  memberNames,
+                                  update.user_id,
+                                  update.profiles?.full_name,
+                                )}
                               </span>
                               <Badge
                                 variant="outline"

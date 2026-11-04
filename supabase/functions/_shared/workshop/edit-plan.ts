@@ -5,7 +5,7 @@
  * A picture can also be a talking scene: the character in it says a line to the camera in the
  * project's chosen voice, lip-synced (meta lipsync, speaker, dialogue, chosen_voice). A cut
  * into a picture of the same character in another look (Carmen's skins) can be a skin switch
- * (meta skin_switch): the Remotion film flashes there (render-worker compose/skin-switch.mjs).
+ * (meta skin_switch): the Remotion film flashes there (render-worker compose/skin-switch.ts).
  */
 
 import type { AssetView } from "./assets.ts";

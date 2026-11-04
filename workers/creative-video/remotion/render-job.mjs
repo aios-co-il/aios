@@ -166,7 +166,7 @@ const envelopeOf = (env) => {
 
 /**
  * Copies of the music track that cover the film: each inside it, fades within its length. At
- * most 50 (render-worker music-bed.mjs MAX_MUSIC_LOOPS).
+ * most 50 (render-worker music-bed.ts MAX_MUSIC_LOOPS).
  */
 const musicLoopsOf = (list) => {
   if (list === undefined || list === null) return null;
@@ -374,7 +374,7 @@ if (manifest.schemaVersion === 1) {
     effectsEnvelope:
       v3 && effects.length ? envelopeOf(manifest.effectsEnvelope) : null,
     captions: v3 ? captionsOf(manifest.captions) : [],
-    // Motion-graphic captions (render-worker motion-captions.mjs); karaoke lines otherwise.
+    // Motion-graphic captions (render-worker motion-captions.ts); karaoke lines otherwise.
     captionStyle:
       v3 && manifest.captionStyle === "motion" ? "motion" : "karaoke",
     font: FONTS.includes(manifest.font) ? manifest.font : null,
@@ -391,7 +391,7 @@ if (manifest.schemaVersion === 1) {
       id: scene.id,
       durationFrames: scene.frameCount,
       still: scene.still || null,
-      // A finished design is shown whole (render-worker workshop-manifest.mjs, keep_design).
+      // A finished design is shown whole (render-worker workshop-manifest.ts, keep_design).
       ...(scene.still && scene.fit === "contain" ? { fit: "contain" } : {}),
       // How the scene's text enters and how large it is (workshop-title-styles.ts).
       ...(TITLE_STYLES.includes(scene.titleStyle)
@@ -411,7 +411,7 @@ if (manifest.schemaVersion === 1) {
         ? {
             voice: scene.voice || null,
             // The scene's short title over the captions: at most 32 characters
-            // (render-worker kicker.mjs KICKER_MAX_CHARS).
+            // (render-worker kicker.ts KICKER_MAX_CHARS).
             kicker: scene.kicker ? text(scene.kicker, 32) : null,
             transition: scene.transition || "crossfade",
             transitionFrames: scene.transitionFrames ?? 0,

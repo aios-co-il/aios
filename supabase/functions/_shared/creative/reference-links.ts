@@ -43,7 +43,7 @@ export async function readableReferenceUrls(
       if (!path) {
         return url;
       }
-      // A ".." segment could climb out of the tenant's folder, as render-worker guard.mjs refuses.
+      // A ".." segment could climb out of the tenant's folder, as render-worker guard.ts refuses.
       if (!path.startsWith(`${tenantId}/`) || path.split("/").includes("..")) {
         console.error("[ad-image] reference outside the tenant's files", path);
         return null;

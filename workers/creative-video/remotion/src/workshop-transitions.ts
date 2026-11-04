@@ -14,7 +14,7 @@ import {
 
 /**
  * Every transition into a scene (manifest.ts WorkshopScene.transition). Carmen chooses all but
- * "skin", which the render worker picks for a skin switch (skin-switch.mjs); whip, ripple and
+ * "skin", which the render worker picks for a skin switch (skin-switch.ts); whip, ripple and
  * glitch are drawn through an SVG filter (workshop-transition-fx.ts).
  */
 export const WORKSHOP_TRANSITIONS = [

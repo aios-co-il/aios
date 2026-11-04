@@ -6,7 +6,7 @@
  */
 import { TITLE_EXIT } from "./workshop-title-timing";
 
-/** The effects, in the order Carmen's tools list them (render-worker title-style.mjs). */
+/** The effects, in the order Carmen's tools list them (render-worker title-style.ts). */
 export const TITLE_EMPHASES = [
   "none",
   "count",

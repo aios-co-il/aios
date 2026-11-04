@@ -1,6 +1,6 @@
 /**
  * How a scene's on-screen text enters and how large it is, in a film without narration. The
- * render worker (title-style.mjs) and the film (Remotion workshop-title-styles.ts) know the same
+ * render worker (title-style.ts) and the film (Remotion workshop-title-styles.ts) know the same
  * names; a scene's own choice (meta.title_style, meta.title_size) wins over the film's
  * (payload.video.title_style, title_size). The film's font (payload.video.font) is one of the
  * Hebrew fonts the film carries (Remotion workshop-fonts.ts).

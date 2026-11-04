@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  departedMemberName,
+  fetchDepartedMembers,
+} from "@/lib/departedMembers";
 
 /**
  * Author line of the update feeds (client card, lead card, pulse call dialog).
@@ -15,14 +19,19 @@ export type MemberNames = ReadonlyMap<string, string>;
 
 export const UNKNOWN_UPDATE_AUTHOR = "משתמש";
 
-/** Display names of the tenant's members, by user id; members without a name are left out. */
+/**
+ * Display names of the tenant's members, by user id; members without a name
+ * are left out. Members who left (tenant_departed_members, AIO-321) keep
+ * their name, marked "(לא פעיל)" or "(נמחק)".
+ */
 export async function fetchTenantMemberNames(
   db: Pick<SupabaseClient<Database>, "rpc">,
   tenantId: string,
 ): Promise<Map<string, string>> {
-  const { data, error } = await db.rpc("tenant_member_names", {
-    p_tenant_id: tenantId,
-  });
+  const [{ data, error }, departed] = await Promise.all([
+    db.rpc("tenant_member_names", { p_tenant_id: tenantId }),
+    fetchDepartedMembers(db, [tenantId]),
+  ]);
   if (error) {
     throw error;
   }
@@ -32,6 +41,9 @@ export async function fetchTenantMemberNames(
     if (name) {
       names.set(row.user_id, name);
     }
+  }
+  for (const member of departed) {
+    names.set(member.userId, departedMemberName(member));
   }
   return names;
 }
