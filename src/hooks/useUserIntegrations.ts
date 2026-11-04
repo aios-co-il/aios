@@ -1,3 +1,4 @@
+import { hasIntegrationId } from "@/lib/integrationIdentity";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -85,15 +86,17 @@ export function useUserIntegrations(
           }
         }
 
-        return (ownIntegrations || []).map((i) =>
-          toClientIntegration(i, {
-            _isOwn: i.user_id === userId,
-            _sharedByName:
-              i.user_id && i.user_id !== userId
-                ? ownerProfiles[i.user_id] || null
-                : null,
-          }),
-        );
+        return (ownIntegrations || [])
+          .map((i) =>
+            toClientIntegration(i, {
+              _isOwn: i.user_id === userId,
+              _sharedByName:
+                i.user_id && i.user_id !== userId
+                  ? ownerProfiles[i.user_id] || null
+                  : null,
+            }),
+          )
+          .filter(hasIntegrationId);
       }
 
       // 2. Fetch shared integrations via permissions (for user-scoped types)
@@ -159,7 +162,7 @@ export function useUserIntegrations(
           ),
       ];
 
-      return combined;
+      return combined.filter(hasIntegrationId);
     },
     enabled,
   });

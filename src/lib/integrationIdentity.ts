@@ -6,7 +6,7 @@ type IntegrationIdentity = Pick<
   "id"
 >;
 
-/** Keep integration selectors on the database's string-id contract. */
+/** Keep integration consumers on the database's string-id contract. */
 export function hasIntegrationId(
   integration: ClientIntegration,
 ): integration is ClientIntegration & IntegrationIdentity {

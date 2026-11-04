@@ -1,4 +1,4 @@
-import { hasIntegrationId } from "./integrationIdentity";
+import { hasIntegrationId } from "@/lib/integrationIdentity";
 import { useState, useMemo } from "react";
 import {
   Dialog,
