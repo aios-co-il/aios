@@ -1,5 +1,5 @@
 -- Client card system-send log (20261030093000_client_card_system_send_log):
--- Staging only. Synthetic chat_messages and report_deliveries rows on
+-- Staging or the dev seed. Synthetic chat_messages and report_deliveries rows on
 -- existing clients inside one transaction that is rolled back. Nothing is
 -- sent to anyone: the rows only exercise the triggers that write client card
 -- entries.
@@ -96,12 +96,10 @@ BEGIN
     AND NOT public.is_super_admin(tu.user_id)
   LIMIT 1;
 
-  SELECT ur.user_id INTO v_super
-  FROM public.user_roles AS ur
-  JOIN public.profiles AS p ON p.id = ur.user_id
-  WHERE ur.role = 'super_admin'::public.app_role
-    AND ur.tenant_id IS NULL
-  LIMIT 1;
+  -- A synthetic super admin; handle_new_user creates the profile.
+  v_super := gen_random_uuid();
+  INSERT INTO auth.users (id, email) VALUES (v_super, 'qa-card-log-' || v_super || '@example.invalid');
+  INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (v_super, 'super_admin', NULL);
 
   -- A second tenant, with an owner (not a super admin) at home in it, and no
   -- agency access to or from the first one.
