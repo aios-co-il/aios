@@ -392,7 +392,7 @@ export default function AddTaskForm({
       forcedClient &&
       !options.some((option) => option.id === forcedClient.id)
     ) {
-      options.unshift({ id: forcedClient.id, name: forcedClient.name });
+      options.unshift({ id: forcedClient.id, name: forcedClient.name ?? "" });
     }
     return options;
   }, [assignableClients, forcedClient]);
@@ -443,6 +443,9 @@ export default function AddTaskForm({
         finalAgencyId = resolved.agencyId;
         entityName = resolved.clientName;
       } else if (values.task_category === "lead") {
+        if (!values.lead_id) {
+          throw new Error("נא לבחור ליד");
+        }
         // Get lead from DB (avoid stale UI state) to ensure FK exists
         const { data: leadRow, error: leadError } = await supabase
           .from("leads")
@@ -646,6 +649,7 @@ export default function AddTaskForm({
       setOpen(false);
     },
     onError: (error: Error) => {
+      console.error("Task creation failed:", error.message);
       toast.error(`שגיאה בהוספת משימה: ${error.message}`);
     },
   });
