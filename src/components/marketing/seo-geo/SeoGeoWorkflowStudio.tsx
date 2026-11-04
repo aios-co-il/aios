@@ -1,3 +1,4 @@
+import type { SeoPayload } from "./seoPayload";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -53,7 +54,7 @@ import { SeoGeoArticlePreviewDialog } from "./SeoGeoArticlePreviewDialog";
 type WorkItem = {
   id: string;
   title: string | null;
-  payload: Record<string, unknown> | null;
+  payload: SeoPayload | null;
   client_id: string | null;
 };
 
