@@ -1,6 +1,7 @@
 import { syncClientAssets } from "../assets.ts";
 import { withBriefAnswers } from "../brief-answers.ts";
 import { type StartProjectPlan, planProject } from "../defaults.ts";
+import { projectBrief } from "../project-brief.ts";
 import { publicUrlOf } from "../project-io.ts";
 import { openProjectRefusal } from "./open-project.ts";
 import { creativeStageFor, recordArtifact } from "../record.ts";
@@ -61,6 +62,12 @@ export async function workshopStartProject(ctx: ToolContext) {
       };
     }
   }
+  // Taps on questions Carmen asked before the project existed start its brief, so the
+  // briefing does not ask them again.
+  const payload = withBriefAnswers(
+    briefPayload(plan, brief),
+    tappedAnswers(deps.lastAssistant ?? "", deps.userText ?? ""),
+  );
   const created = await supabase
     .from("marketing_work_items")
     .insert({
@@ -71,12 +78,7 @@ export async function workshopStartProject(ctx: ToolContext) {
       title: plan.title,
       status: "draft",
       target_channel: plan.projectType === "video" ? "video" : "creative",
-      // Taps on questions Carmen asked before the project existed start its brief, so the
-      // briefing does not ask them again.
-      payload: withBriefAnswers(
-        briefPayload(plan, brief),
-        tappedAnswers(deps.lastAssistant ?? "", deps.userText ?? ""),
-      ),
+      payload,
       created_by: userId,
     })
     .select("id")
@@ -88,7 +90,7 @@ export async function workshopStartProject(ctx: ToolContext) {
     itemId,
     kind: "brief",
     title: plan.title,
-    meta: { summary: plan.summary, brief, plan },
+    meta: { summary: plan.summary, brief: projectBrief(payload), plan },
   });
   let clientAssets = 0;
   if (clientId) {
