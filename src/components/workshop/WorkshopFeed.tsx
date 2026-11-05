@@ -5,18 +5,20 @@ import {
   Loader2,
   Paperclip,
   Sparkles,
-  TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MagicShimmer } from "./MagicShimmer";
+import { prefillComposer } from "@/lib/workshopBridge";
 import { AssetsPanel } from "./AssetsPanel";
+import { PageActions } from "./PageActions";
+import { PageBody } from "./PageBody";
+import { PageEditForm } from "./PageEditForm";
+import { approveConceptLine, draftOf, type PageDraft } from "./pageEdit";
 import { StoryboardGrid, type StoryboardGridProps } from "./StoryboardGrid";
+import { useEditPage } from "./useEditPage";
 import { useWorkshopAssets } from "./useWorkshopAssets";
 import {
   SCENES_FOLDER,
-  artifactText,
-  fallbackNote,
   folderTabs,
   pagesIn,
   pageTypeFor,
@@ -31,95 +33,7 @@ const IDEAS = [
   "קמפיין לפתיחת סניף חדש",
 ];
 
-const WAIT_NOTE_MIN = 5;
 const ASSETS_TAB = "__assets__";
-
-const waitedMinutes = (artifact: WorkshopArtifact) =>
-  (Date.now() - Date.parse(artifact.created_at)) / 60_000;
-
-function PageBody({
-  artifact,
-  format,
-}: {
-  artifact: WorkshopArtifact;
-  format: string;
-}) {
-  const type = pageTypeFor(artifact);
-  if (artifact.status === "pending")
-    return (
-      <MagicShimmer
-        format={artifact.kind === "film" ? "9:16" : format}
-        label={
-          artifact.kind === "film" && waitedMinutes(artifact) >= WAIT_NOTE_MIN
-            ? "ההפקה ממתינה כבר זמן רב. אם זה לא זז, שרת ההפקה כנראה לא מחובר לסביבה הזו"
-            : "כרמן עובדת על זה"
-        }
-        className="rounded-none"
-      />
-    );
-  if (artifact.status === "failed")
-    return (
-      <div className="flex h-40 items-center justify-center gap-2 px-4 text-center text-sm text-destructive">
-        <TriangleAlert className="h-4 w-4 shrink-0" />
-        {artifactText(artifact) || "היצירה נכשלה"}
-      </div>
-    );
-  if (type === "image" && artifact.url)
-    return (
-      <img
-        src={artifact.url}
-        alt={artifact.title}
-        className="mx-auto max-h-[72vh] w-auto max-w-full object-contain"
-      />
-    );
-  if (type === "video" && artifact.url) {
-    const note = fallbackNote(artifact);
-    return (
-      <>
-        <video
-          src={artifact.url}
-          controls
-          playsInline
-          className="mx-auto max-h-[72vh] w-full bg-black"
-        />
-        {note ? (
-          <p className="flex items-center gap-1.5 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
-            <TriangleAlert className="h-3 w-3 shrink-0" />
-            {note}
-          </p>
-        ) : null}
-      </>
-    );
-  }
-  if (type === "audio" && artifact.url)
-    return (
-      <div className="p-4">
-        <audio src={artifact.url} controls className="w-full" />
-      </div>
-    );
-  if (type === "brief") {
-    const summary = String(artifact.meta.summary ?? "");
-    const brief = String(artifact.meta.brief ?? "");
-    return (
-      <div className="space-y-2 p-5">
-        {summary ? (
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-pink-500/10 px-3 py-1 text-xs font-medium text-pink-700 dark:text-pink-300">
-            <Sparkles className="h-3 w-3" />
-            {summary}
-          </p>
-        ) : null}
-        {brief ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{brief}</p>
-        ) : null}
-      </div>
-    );
-  }
-  return (
-    <p className="whitespace-pre-wrap p-5 text-sm leading-relaxed">
-      {artifactText(artifact) || artifact.title}
-    </p>
-  );
-}
 
 /**
  * The board: every page Carmen produced for the project, one under the other, newest at the
@@ -135,6 +49,7 @@ export function WorkshopFeed({
   projectId,
   clientName,
   storyboard,
+  openChat,
 }: {
   artifacts: WorkshopArtifact[];
   loading: boolean;
@@ -146,8 +61,15 @@ export function WorkshopFeed({
   onSelect: (id: string | null) => void;
   /** The project's storyboard scenes; the scenes tab shows them as a grid of cards. */
   storyboard?: StoryboardGridProps;
+  /** Opens Carmen's chat, where a concept approved on its page is sent. */
+  openChat?: () => void;
 }) {
   const [folder, setFolder] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{
+    id: string;
+    draft: PageDraft;
+  } | null>(null);
+  const editPage = useEditPage(tenantId, projectId ?? null);
   const [following, setFollowing] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -288,10 +210,37 @@ export function WorkshopFeed({
                     : "hover:shadow-md",
                 )}
               >
-                <PageBody artifact={artifact} format={project} />
+                {editing?.id === artifact.id ? (
+                  <PageEditForm
+                    initial={editing.draft}
+                    saving={editPage.isPending}
+                    onCancel={() => setEditing(null)}
+                    onSave={(draft) =>
+                      editPage.mutate(
+                        { artifact, draft },
+                        { onSuccess: () => setEditing(null) },
+                      )
+                    }
+                  />
+                ) : (
+                  <PageBody artifact={artifact} format={project} />
+                )}
                 {artifact.title && pageTypeFor(artifact) !== "brief" ? (
                   <footer className="flex items-center justify-between gap-2 border-t px-4 py-2 text-xs text-muted-foreground">
                     <span className="min-w-0 truncate">{artifact.title}</span>
+                    <PageActions
+                      artifact={artifact}
+                      onEdit={() => {
+                        const draft = draftOf(artifact);
+                        if (draft) {
+                          setEditing({ id: artifact.id, draft });
+                        }
+                      }}
+                      onApproveConcept={() => {
+                        openChat?.();
+                        prefillComposer(`${approveConceptLine(artifact)}\n`);
+                      }}
+                    />
                     {artifact.id === latestStoryboard && sceneCount > 0 ? (
                       <Button
                         type="button"

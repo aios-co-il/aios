@@ -1498,7 +1498,8 @@ export default function Automations() {
                 {logs?.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell className="text-xs">
-                      {new Date(log.triggered_at).toLocaleString("he-IL")}
+                      {/* Preserve null-to-epoch coercion; missing-date UX: AIO-482. */}
+                      {new Date(log.triggered_at ?? 0).toLocaleString("he-IL")}
                     </TableCell>
                     <TableCell>
                       <Badge variant={log.success ? "default" : "destructive"}>

@@ -8,8 +8,10 @@ import {
   clipEstimate,
   costSceneOf,
   musicEstimate,
+  roundUsd,
   voiceEstimate,
 } from "./cost-scene.ts";
+import { VOICE_USD_PER_1000_CHARS, voiceCharacters } from "./clip-prices.ts";
 import { type SceneEngine } from "./scene-engine.ts";
 
 const scenes = [
@@ -48,6 +50,27 @@ Deno.test("voice and music prices match the app", () => {
   assertStrictEquals(voiceEstimate(scenes).usd, appVoice(frames).usd);
   assertStrictEquals(musicEstimate(scenes).usd, appMusic(frames).usd);
 });
+
+Deno.test(
+  "a line is quoted at its length without nikud: ElevenLabs does not bill the points",
+  () => {
+    // Staging, 5 Nov: this 96-character script was sent with nikud and billed 66 characters.
+    const line =
+      "קמפיין הוא מהלך אחד. ולעסק יש חמישה. קופי, מדיה, מכירות. ודאטה, שמחברת הכול. כרמן מנהלת את הכול.";
+    assertStrictEquals(voiceCharacters(line), 96);
+    // A pointed line costs what its plain letters cost; maqaf is punctuation and counts.
+    assertStrictEquals(
+      voiceCharacters("הַקָּפֶה שֶׁלָּנוּ"),
+      "הקפה שלנו".length,
+    );
+    assertStrictEquals(voiceCharacters("א־ב־ג־ד"), 7);
+    assertStrictEquals(voiceCharacters(" Fresh coffee "), 12);
+    assertStrictEquals(
+      voiceEstimate([{ duration_s: 5, voiceover_text: line }]).usd,
+      roundUsd((96 / 1000) * VOICE_USD_PER_1000_CHARS),
+    );
+  },
+);
 
 Deno.test(
   "an OpenRouter clip shorter than 5 s is quoted at the 5 s it is billed for",

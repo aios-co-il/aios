@@ -7,16 +7,12 @@
 
 import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { CTA_MAX_CHARS } from "./cta.ts";
-import { scriptLines } from "./film-script.ts";
-import { asksForVideo } from "./roles.ts";
-import {
-  loadSelectedArtifact,
-  markedPictureFilmLine,
-  selectedArtifactLine,
-} from "./selected-artifact.ts";
+import { scriptLines } from "./script-lines.ts";
+import { loadSelectedArtifact, markedPageLines } from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
 import { talkingLine } from "./talking.ts";
 import { saveTurnAnswers } from "./turn-answers.ts";
+import { MODE_NOTE, workshopModeOf } from "./workshop-mode.ts";
 
 export { failStalePictures };
 
@@ -110,6 +106,7 @@ export async function workshopTurnNote(
     const lines: Array<string> = [
       "=== מצב הפרויקט (מהשרת) ===",
       DO_THE_STEP,
+      MODE_NOTE[workshopModeOf(payload)],
       ...answered.lines,
     ];
     const selected = await loadSelectedArtifact(
@@ -118,14 +115,7 @@ export async function workshopTurnNote(
       itemId,
       turn.selectedArtifactId ?? null,
     );
-    const marked = selectedArtifactLine(selected);
-    if (marked) {
-      lines.push(marked);
-    }
-    const film = markedPictureFilmLine(selected, asksForVideo(userText));
-    if (film) {
-      lines.push(film);
-    }
+    lines.push(...markedPageLines(selected, userText));
     const answers = Object.entries(briefAnswersOf(payload));
     if (answers.length > 0)
       lines.push(

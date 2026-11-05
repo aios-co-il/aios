@@ -3,8 +3,10 @@ import {
   assertEquals,
   assertMatch,
   assertStrictEquals,
+  assertStringIncludes,
 } from "jsr:@std/assert@1";
 import { SCRIPT_CHOICE } from "../script-approval.ts";
+import { PACE_GUIDE } from "../script-pace.ts";
 import {
   executeApprovedWorkshopTool,
   fakeDb,
@@ -71,8 +73,8 @@ Deno.test(
     const db = fakeDb(film());
     const saved = await save(db, [
       beat(2, "עברתם שבעה קמפיינרים?", "7 קמפיינרים"),
-      beat(5, "קמפיין הוא רק מהלך אחד מתוך חמישה.", "1 מתוך 5"),
-      beat(5, "כרמן רואה את כל התמונה.", "כל התמונה"),
+      beat(5, "קמפיין הוא רק מהלך אחד מתוך חמישה שהעסק צריך.", "1 מתוך 5"),
+      beat(5, "כרמן רואה את כל התמונה ומחברת את כל החלקים.", "כל התמונה"),
       beat(3, "קחו את כרמן לשיווק שלכם.", "קחו את כרמן"),
     ]);
     assertStrictEquals(saved.success, true, JSON.stringify(saved));
@@ -123,5 +125,75 @@ Deno.test("narration that cannot be said in its beat is refused", async () => {
     beat(2, "זה משפט ארוך מדי בשביל שתי שניות בלבד"),
     beat(13, "סוף"),
   ]);
-  assertMatch(refused.error, /שורה 1: 8 מילים .* \(עד 5\)/);
+  // Eight words and the line's end in a 2-second beat: (2 - 0.3) x 2 words fit.
+  assertMatch(
+    refused.error,
+    /^הקריינות ארוכה מהזמן של השורה: שורה 1: 8 מילים נאמרות בכ-4.3 שניות, וב-2 שניות נכנסות עד 3\. /,
+  );
+});
+
+// The Staging film of 5 Nov: six 2.5-second beats that passed at 2.5 words a second, and a
+// take that ran 17.7 seconds, so the 15-second film rendered at 18.3.
+Deno.test("lines the voice cannot say in 2.5 seconds are refused", async () => {
+  const lines = [
+    "עברתם 7 קמפיינרים?",
+    "הקמפיינר ה-8 לא ישנה את התמונה.",
+    "קמפיין הוא מהלך אחד.",
+    "ולכל עסק יש לפחות 5 מהלכים.",
+    "שיווק, מכירות, לידים, תוכן, SEO.",
+    "כרמן רואה את כולם.",
+  ];
+  const db = fakeDb(film());
+  const refused = await save(
+    db,
+    lines.map((line) => beat(2.5, line)),
+  );
+  // Every line that does not fit, at once, with the most words its beat can say.
+  assertMatch(
+    refused.error,
+    /: שורה 2: 6 מילים נאמרות בכ-3.3 שניות, וב-2.5 שניות נכנסות עד 4; שורה 4: 6 מילים נאמרות בכ-3.3 שניות, וב-2.5 שניות נכנסות עד 4; שורה 5: 5 מילים נאמרות בכ-4.2 שניות, וב-2.5 שניות נכנסות עד 1\. /,
+  );
+  const list = await save(fakeDb(film()), [
+    beat(2.5, "קמפיין הוא מהלך אחד."),
+    beat(2.5, "שיווק, מכירות, לידים, תוכן, SEO."),
+    beat(10, "כרמן רואה את כולם."),
+  ]);
+  assertMatch(list.error, /: שורה 2: 5 מילים נאמרות בכ-4.2 שניות/);
+  // The refusal states the same limit Carmen was told before writing (SCRIPT_GUIDE).
+  assertStringIncludes(list.error, PACE_GUIDE);
+});
+
+Deno.test(
+  "a narration well short of the film is refused with the beats that can say more",
+  async () => {
+    // Staging, 5 Nov: this script spoke about 11 of its 15 seconds and the film came out 13.2.
+    const db = fakeDb(film());
+    const saved = await save(db, [
+      beat(3, "קמפיין הוא מהלך אחד."),
+      beat(3, "ולעסק יש חמישה."),
+      beat(3, "קופי, מדיה, מכירות."),
+      beat(3, "ודאטה, שמחברת הכול."),
+      beat(3, "כרמן מנהלת את הכול."),
+    ]);
+    assertStringIncludes(saved.error, "הקריינות קצרה מדי");
+    assertStringIncludes(saved.error, "שורה 2: 3 מילים, ונכנסות עד 5");
+    // A beat one word short of its most is listed too: every word that fits counts.
+    assertStringIncludes(saved.error, "שורה 1: 4 מילים, ונכנסות עד 5");
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "workshop_artifacts"),
+      false,
+    );
+  },
+);
+
+Deno.test("beats filled to within a word of their most are saved", async () => {
+  const db = fakeDb(film());
+  const saved = await save(db, [
+    beat(3, "קמפיין הוא רק מהלך אחד."),
+    beat(3, "ולעסק שלכם יש חמישה תחומים."),
+    beat(3, "קופי, מדיה, מכירות ודאטה."),
+    beat(3, "שמחברת את הכול יחד."),
+    beat(3, "כרמן מנהלת את הכול."),
+  ]);
+  assertStrictEquals(saved.success, true, JSON.stringify(saved));
 });

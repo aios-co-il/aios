@@ -14,6 +14,7 @@ import {
   withBriefReadTurn,
 } from "./brief-answers.ts";
 import { readRequest, referenceThisTurn, turnKey } from "./brief-reading.ts";
+import { withoutUnpickedConcept } from "./concept-choice.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
 import { briefingGate } from "./briefing.ts";
@@ -25,6 +26,7 @@ import { type ImageProvider } from "./image-providers.ts";
 import { lookOf, withLook } from "./look.ts";
 import { syncBriefPage } from "./project-brief.ts";
 import { asRecord, recordArtifact } from "./record.ts";
+import { isAutoMode, WORKSHOP_MODE_KEY } from "./workshop-mode.ts";
 
 export function voiceHelpers(
   supabase: Db,
@@ -36,6 +38,7 @@ export function voiceHelpers(
   return {
     voiceSample: deps.voiceSample,
     userText: deps.userText ?? null,
+    auto: isAutoMode(payload),
     addSamplePage: async (title: string, path: string, voiceId: string) => {
       // One sample page per voice in a project, however often the menu is shown.
       const { data: existing } = await supabase
@@ -81,18 +84,28 @@ export async function savePayload(
   itemId: string,
   payload: Record<string, unknown>,
 ) {
-  // asset_references belongs to the assets trigger: keep what the database holds right now, so a
-  // save from an older copy of the project never wipes the pictures the user just marked.
+  // asset_references belongs to the assets trigger and workshop_mode to the toggle
+  // (workshop_set_mode): keep what the database holds right now, so a save from the copy a tool
+  // loaded at its start never wipes the pictures the user just marked or undoes a mode switch.
+  // The workshop_keep_mode trigger enforces the mode in the same statement as well.
   const current = await supabase
     .from("marketing_work_items")
     .select("payload")
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  const held = asRecord(current?.data?.payload).asset_references;
+  const held = asRecord(current?.data?.payload);
   const next = { ...payload };
-  if (Array.isArray(held)) next.asset_references = held;
-  else delete next.asset_references;
+  if (Array.isArray(held.asset_references)) {
+    next.asset_references = held.asset_references;
+  } else {
+    delete next.asset_references;
+  }
+  if (WORKSHOP_MODE_KEY in held) {
+    next[WORKSHOP_MODE_KEY] = held[WORKSHOP_MODE_KEY];
+  } else {
+    delete next[WORKSHOP_MODE_KEY];
+  }
   const { error } = await supabase
     .from("marketing_work_items")
     .update({ payload: next })
@@ -160,7 +173,11 @@ export async function briefProject(
       deps.userText ?? "",
       unanswered(questions, briefAnswersOf(payload)),
     ),
-    ...answersFromArgs(args.brief_answers),
+    // A concept Carmen names counts only when the user picked it (concept-choice.ts).
+    ...withoutUnpickedConcept(answersFromArgs(args.brief_answers), {
+      userText: deps.userText ?? "",
+      lastAssistant: deps.lastAssistant ?? "",
+    }),
   };
   const reference = referenceThisTurn(args, deps.userText ?? "");
   if (reference && !answerFor(fresh, REFERENCE)) {
@@ -207,6 +224,7 @@ export async function briefProject(
     answers,
     asked: briefAsked(payload),
     read: readRequest(payload, args, deps, Boolean(options.save)),
+    auto: isAutoMode(payload),
   });
   if (gate) {
     // Shown to the user now: from the next turn Carmen may fill in what they leave open.

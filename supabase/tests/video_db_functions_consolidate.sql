@@ -53,7 +53,8 @@ BEGIN
   SELECT * INTO r FROM public.queue_video_sound(v_item, 'voice', v_ids, 'elevenlabs', '{"usd":1}', NULL, NULL, ' v1 ');
   IF r.id IS NULL OR r.scene_id IS NOT NULL OR r.input->>'voiceover_text' <> 'שלום עולם'
      OR r.input->'scene_ids' <> to_jsonb(v_ids[1:2]) OR r.input->>'voice_id' <> 'v1'
-     OR NOT (r.input->>'continuous')::boolean OR r.input->'estimate' <> '{"usd":1}' THEN
+     OR NOT (r.input->>'continuous')::boolean OR (r.input->'estimate'->>'usd')::numeric <> 1
+     OR (r.input->'estimate'->>'per_run')::boolean IS NOT TRUE THEN
     RAISE EXCEPTION 'voice: one continuous take of the narrated scenes in order (%)', r.input;
   END IF;
   SELECT count(*) INTO v_count FROM public.queue_video_sound(v_item, 'voice', v_ids);
@@ -217,7 +218,7 @@ BEGIN
   END IF;
   IF (SELECT payload->'video'->'production' @> '{"aspect":"16:9","provider":"kling","with_voice":false}'
         FROM public.marketing_work_items WHERE id = v_item) IS NOT TRUE
-     OR (SELECT input->'estimate' FROM public.marketing_runs WHERE item_id = v_item AND kind = 'clip') <> '{"usd":2}'
+     OR (SELECT (input->'estimate'->>'usd')::numeric FROM public.marketing_runs WHERE item_id = v_item AND kind = 'clip') <> 2
      OR (SELECT input->>'aspect' FROM public.marketing_runs WHERE item_id = v_item AND kind = 'clip') <> '16:9' THEN
     RAISE EXCEPTION 'produce: options reach the production and its clip';
   END IF;

@@ -24,3 +24,18 @@ export const MUSIC_EXTRA_S = 8.5;
 /** Seconds of music a storyboard of `plannedS` seconds is quoted for. */
 export const musicQuoteSeconds = (plannedS: number) =>
   plannedS > 0 ? plannedS * (1 + MUSIC_HEADROOM) + MUSIC_EXTRA_S : 0;
+
+/**
+ * The characters the voice engine is billed for a line: its length without nikud. The render
+ * worker sends a Hebrew line with nikud (render-worker src/jobs/vocalize.ts), but ElevenLabs does
+ * not bill the vowel points (Staging, 5 Nov: a 96-character script sent pointed was billed 66), so
+ * the plain length is the upper bound. The worker records what was billed (its character-cost
+ * header) on the run.
+ */
+export function voiceCharacters(line: string): number {
+  return line.replace(POINTS, "").trim().length;
+}
+
+// The render worker's nikud classes (render-worker/src/jobs/nikud.ts POINTS): a vowel, dagesh,
+// shin/sin dot or cantillation; maqaf (U+05BE), paseq (U+05C0) and sof pasuq (U+05C3) stay.
+const POINTS = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g;

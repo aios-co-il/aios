@@ -121,13 +121,16 @@ export function answersFromArgs(value: unknown): BriefAnswers {
 
 /**
  * One answer per question: a later answer to the same topic, under any of its names, replaces the
- * earlier one in its place, so a correction never leaves the old answer beside it.
+ * earlier one, so a correction never leaves the old answer beside it. It moves to the end, so the
+ * latest answer is last (conceptAnswer reads the newest concept answer from the end).
  */
 export function latestByTopic(...sets: Array<BriefAnswers>): BriefAnswers {
   const merged = new Map<string, [string, string]>();
   for (const set of sets) {
     for (const [label, answer] of Object.entries(set)) {
-      merged.set(topicOf(label), [label, answer]);
+      const topic = topicOf(label);
+      merged.delete(topic);
+      merged.set(topic, [label, answer]);
     }
   }
   return Object.fromEntries(merged.values());

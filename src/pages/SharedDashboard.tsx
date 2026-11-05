@@ -1,7 +1,15 @@
+import { CampaignContinentsTab } from "@/components/dynamic-tables/CampaignContinents/CampaignContinentsTab";
+import {
+  googleCampaignNames,
+  namesCampaignsByDestination,
+} from "@/components/dynamic-tables/CampaignContinents/continentSections";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
+import { DashboardGoalOverview } from "@/components/dynamic-tables/DashboardGoalOverview/DashboardGoalOverview";
+import { FacebookSalesCampaignsCard } from "@/components/dynamic-tables/FacebookSalesCampaigns/FacebookSalesCampaignsCard";
+import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
@@ -33,6 +41,7 @@ import {
 import {
   Facebook,
   FileSpreadsheet,
+  Globe,
   TrendingUp,
   BarChart3,
   RefreshCw,
@@ -50,20 +59,18 @@ import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignCom
 import { FacebookDashboardTrafficCard } from "@/components/dynamic-tables/FacebookDashboardTrafficCard";
 import {
   getAddToCartFromData,
-  getAdsPurchasesFromData,
-  getLeadsFromData,
   getPurchasesFromData,
   getRevenueFromData,
   getSessionsFromData,
   getSpendFromData,
   getUsersFromData,
-  hasAddToCartMetric,
-  aggregateFacebookCampaignsFromRecords,
-  groupFacebookCampaigns,
-  facebookTableUsesMixedRows,
-  facebookObjectiveKind,
-  isFacebookLeadsOnlyTable,
 } from "@/lib/adsMetrics";
+import {
+  dashboardFacebookCampaigns,
+  dashboardRecordGoalOf,
+  dashboardRecordLeads,
+} from "@/lib/dashboardCampaignGoals";
+import { weeklySourceModesForTables } from "@/lib/weeklyCampaignGoals";
 import {
   formatCurrency as formatCurrencyAmount,
   formatUnitCost as formatUnitCostAmount,
@@ -96,10 +103,6 @@ import {
   sumWooRevenue,
 } from "@/lib/wooOrderRevenue";
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
-import {
-  facebookRecordGoalOf,
-  groupFacebookRowsByGoal,
-} from "@/lib/facebookGoalGroups";
 
 const DATE_FILTERS = SHARED_COMBINED_DASHBOARD_DATE_FILTERS;
 
@@ -115,10 +118,10 @@ type PlatformFilter =
   | "weekly"
   | "facebook"
   | "google_ads"
+  | "continents"
   | "google_analytics"
   | "woocommerce"
   | "seo";
-type CampaignType = "leads" | "ecommerce";
 
 const hasMeaningfulAnalyticsMetrics = (data: any) =>
   getSessionsFromData(data) > 0 ||
@@ -144,13 +147,6 @@ const matchesPlatformFilter = (
   if (filter === "google_analytics")
     return isAnalyticsPlatform(integrationType);
   return true;
-};
-
-const getCampaignType = (type?: string, settings?: any): CampaignType => {
-  if (type === "facebook_ecommerce") return "ecommerce";
-  if (type === "google_ads")
-    return settings?.campaign_type === "ecommerce" ? "ecommerce" : "leads";
-  return "leads";
 };
 
 const formatNumber = (num: number) => {
@@ -497,6 +493,18 @@ export default function SharedDashboard({
     return platforms;
   }, [tables, hasWooCommerce, hasSeo, hasVisibleAnalyticsData]);
 
+  // Travel accounts name each campaign by its destination; they get a tab per continent.
+  const hasContinentsTab = useMemo(
+    () => namesCampaignsByDestination(googleCampaignNames(records)),
+    [records],
+  );
+  // A period whose campaigns stop naming destinations drops the tab; leave it too.
+  useEffect(() => {
+    if (platformFilter === "continents" && !hasContinentsTab) {
+      setPlatformFilter("google_ads");
+    }
+  }, [platformFilter, hasContinentsTab]);
+
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
     if (
@@ -522,6 +530,13 @@ export default function SharedDashboard({
         label: "Google Ads",
         iconNode: getIntegrationIcon("google_ads"),
       });
+      if (hasContinentsTab) {
+        items.push({
+          value: "continents",
+          label: "לפי יבשות",
+          iconNode: <Globe className="h-4 w-4 text-sky-600" />,
+        });
+      }
     }
     if (availablePlatforms.includes("google_analytics")) {
       items.push({
@@ -545,7 +560,7 @@ export default function SharedDashboard({
       });
     }
     return items;
-  }, [availablePlatforms]);
+  }, [availablePlatforms, hasContinentsTab]);
 
   const seoTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [
@@ -598,77 +613,16 @@ export default function SharedDashboard({
       .map((r: any) => ({ id: r.id, data: r.data }));
   }, [records, hasVisibleAnalyticsData]);
 
-  const campaignTypeByPlatform: Record<string, CampaignType> = useMemo(() => {
-    const map: Record<string, CampaignType> = {};
-    const explicitlySet = new Set<string>();
-    tables.forEach((t: any) => {
-      const key = t?.integration_type || "unknown";
-      const explicitType = t?.integration_settings?.campaign_type;
-      if (explicitType === "leads" || explicitType === "ecommerce") {
-        map[key] = explicitType;
-        explicitlySet.add(key);
-        return;
-      }
-      const ct = getCampaignType(t?.integration_type, t?.integration_settings);
-      if (ct === "ecommerce") map[key] = "ecommerce";
-    });
-    // Lock google_ads to leads when unset — noisy pixel events must not flip GA ecommerce tables.
-    // facebook_insights stays unlocked unless integration_settings.campaign_type is explicit;
-    // mixed FB accounts classify each campaign (see groupFacebookRowsByGoal).
-    ["google_ads"].forEach((key) => {
-      if (!map[key] && tables.some((t: any) => t.integration_type === key)) {
-        map[key] = "leads";
-        explicitlySet.add(key);
-      }
-    });
-    // Scan data for ecommerce signals — only for platforms NOT locked above
-    records.forEach((record: any) => {
-      const source = record._source || "unknown";
-      if (explicitlySet.has(source)) return;
-      if (map[source] === "ecommerce") return;
-      const d = record.data || {};
-      // As on the internal dashboard: the Meta setup decides when known, so
-      // pixel noise on a lead or traffic campaign does not flip the platform.
-      const byObjective = isFacebookPlatform(source)
-        ? facebookObjectiveKind(d)
-        : null;
-      if (byObjective === "lead" || byObjective === "traffic") return;
-      if (
-        byObjective === "ecommerce" ||
-        Number(d.purchases) > 0 ||
-        Number(d.purchase_value) > 0 ||
-        Number(d.add_to_cart) > 0 ||
-        String(d.campaign_type || "").toLowerCase() === "ecommerce"
-      ) {
-        map[source] = "ecommerce";
-      }
-    });
-    tables.forEach((t: any) => {
-      const key = t?.integration_type || "unknown";
-      if (!map[key]) map[key] = "leads";
-    });
-    return map;
-  }, [tables, records]);
-
-  const facebookMixedMode = useMemo(
-    () =>
-      tables.some((t: any) =>
-        facebookTableUsesMixedRows(t.integration_type, t.integration_settings),
-      ),
-    [tables],
+  // Each ads campaign's goal as its report shows it (_shared/campaign-goal/).
+  const recordGoalOf = useMemo(
+    () => dashboardRecordGoalOf(records, tables),
+    [records, tables],
   );
 
+  // Delivery and spend by platform, and Analytics results. Ads results are
+  // counted per goal in dashboardGoals, as the reports count them.
   const summaryByPlatform = useMemo(() => {
     const platforms: Record<string, any> = {};
-    // Mixed Facebook KPIs classify whole campaigns, as the campaign tables do:
-    // one campaign's days can look like different goals on their own.
-    const facebookGoalOf = facebookRecordGoalOf(
-      filteredRecords.filter((record: { _source?: string }) =>
-        isFacebookPlatform(record._source || ""),
-      ),
-      "campaign",
-      { leadsOnly: false },
-    );
     filteredRecords.forEach((record: any) => {
       const rawSource = record._source || "unknown";
       const source = normalizePlatformKey(rawSource);
@@ -680,13 +634,8 @@ export default function SharedDashboard({
           sessions: 0,
           users: 0,
           results: 0,
-          leads: 0,
-          purchases: 0,
           revenue: 0,
           addToCart: 0,
-          addToCartTracked: false,
-          roas: 0,
-          cpl: 0,
         };
       }
       const d = record.data || {};
@@ -696,70 +645,14 @@ export default function SharedDashboard({
         platforms[source].results += getPurchasesFromData(d);
         platforms[source].revenue += getRevenueFromData(d);
         platforms[source].addToCart += getAddToCartFromData(d);
-        platforms[source].addToCartTracked ||= hasAddToCartMetric(d);
       } else {
         platforms[source].spend += getSpendFromData(d);
         platforms[source].impressions += Number(d.impressions) || 0;
         platforms[source].clicks += Number(d.clicks) || 0;
-        const ct =
-          campaignTypeByPlatform[rawSource] ||
-          campaignTypeByPlatform[source] ||
-          "leads";
-        const useMixedFacebook =
-          isFacebookPlatform(rawSource) &&
-          facebookTableUsesMixedRows(rawSource, record._integrationSettings);
-
-        if (useMixedFacebook) {
-          const kind = facebookGoalOf(d);
-          if (kind === "traffic") return;
-          platforms[source].leads += getLeadsFromData(d);
-          if (kind === "ecommerce") {
-            const purchases = getAdsPurchasesFromData(d);
-            platforms[source].purchases += purchases;
-            platforms[source].results += purchases;
-            platforms[source].revenue += getRevenueFromData(d);
-            platforms[source].addToCart += getAddToCartFromData(d);
-            platforms[source].addToCartTracked ||= hasAddToCartMetric(d);
-          } else {
-            const leads = getLeadsFromData(d);
-            platforms[source].results += leads;
-          }
-        } else if (ct === "ecommerce") {
-          platforms[source].results += getAdsPurchasesFromData(d);
-          platforms[source].purchases += getAdsPurchasesFromData(d);
-          platforms[source].revenue += getRevenueFromData(d);
-          platforms[source].addToCart += getAddToCartFromData(d);
-          platforms[source].addToCartTracked ||= hasAddToCartMetric(d);
-        } else {
-          const leads = getLeadsFromData(d);
-          platforms[source].leads += leads;
-          platforms[source].results += leads;
-        }
-      }
-    });
-    Object.keys(platforms).forEach((key) => {
-      if (isAnalyticsPlatform(key)) return;
-      // For merged Facebook platform, check if any Facebook type was ecommerce
-      const ct = isFacebookPlatform(key)
-        ? campaignTypeByPlatform["facebook_insights"] === "ecommerce" ||
-          campaignTypeByPlatform["facebook_ecommerce"] === "ecommerce"
-          ? "ecommerce"
-          : "leads"
-        : campaignTypeByPlatform[key] || "leads";
-      if (ct === "ecommerce") {
-        platforms[key].roas =
-          platforms[key].spend > 0
-            ? platforms[key].revenue / platforms[key].spend
-            : 0;
-      } else {
-        platforms[key].cpl =
-          platforms[key].results > 0
-            ? platforms[key].spend / platforms[key].results
-            : 0;
       }
     });
     return platforms;
-  }, [filteredRecords, campaignTypeByPlatform]);
+  }, [filteredRecords]);
 
   // Global ads metrics (regardless of platform filter) for Analytics tab ROAS
   const globalAdsMetrics = useMemo(() => {
@@ -781,12 +674,8 @@ export default function SharedDashboard({
   const totalSummary = useMemo(() => {
     let totalSpend = 0,
       totalImpressions = 0,
-      totalClicks = 0,
-      totalResults = 0,
-      totalLeads = 0;
-    let adsSpend = 0,
-      adsPurchases = 0,
-      adsRevenue = 0;
+      totalClicks = 0;
+    let adsSpend = 0;
     let analyticsRevenue = 0,
       analyticsPurchases = 0,
       analyticsAddToCart = 0,
@@ -804,10 +693,6 @@ export default function SharedDashboard({
           totalSpend += d.spend;
           totalImpressions += d.impressions;
           totalClicks += d.clicks;
-          totalResults += d.results;
-          totalLeads += d.leads || 0;
-          adsPurchases += d.purchases || 0;
-          adsRevenue += d.revenue || 0;
           adsSpend += d.spend;
         }
       },
@@ -820,10 +705,6 @@ export default function SharedDashboard({
       spend: effectiveSpend,
       impressions: effectiveImpressions,
       clicks: totalClicks,
-      results: totalResults,
-      leads: totalLeads,
-      adsPurchases,
-      adsRevenue,
       revenue: analyticsRevenue,
       roas_spend: effectiveAdsSpend,
       roas_value: analyticsRevenue,
@@ -1015,7 +896,7 @@ export default function SharedDashboard({
         byDate[date].spend += getSpendFromData(data);
         byDate[date].clicks += Number(data.clicks) || 0;
         byDate[date].impressions += Number(data.impressions) || 0;
-        byDate[date].leads += getLeadsFromData(data);
+        byDate[date].leads += dashboardRecordLeads(record, recordGoalOf);
       }
     });
     return Object.values(byDate)
@@ -1031,45 +912,13 @@ export default function SharedDashboard({
         }),
         roas: d.spend > 0 ? d.revenue / d.spend : 0,
       }));
-  }, [filteredRecords]);
+  }, [filteredRecords, recordGoalOf]);
 
-  // Facebook campaign summary — split ecom / leads / traffic when table is mixed (like DynamicTableView).
-  const facebookCampaignGroups = useMemo(() => {
-    const empty = {
-      ecommerce: [] as ReturnType<typeof aggregateFacebookCampaignsFromRecords>,
-      leads: [] as ReturnType<typeof aggregateFacebookCampaignsFromRecords>,
-      traffic: [] as ReturnType<typeof aggregateFacebookCampaignsFromRecords>,
-      all: [] as ReturnType<typeof aggregateFacebookCampaignsFromRecords>,
-    };
-    const fbRecords = filteredRecords.filter((r: any) =>
-      isFacebookPlatform(r._source || ""),
-    );
-    const all = aggregateFacebookCampaignsFromRecords(fbRecords);
-
-    const fbTables = (tables || []).filter((t: any) =>
-      isFacebookPlatform(t.integration_type),
-    );
-    const forceLeadsOnly = fbTables.some((t: any) =>
-      isFacebookLeadsOnlyTable(t.integration_settings),
-    );
-
-    if (!facebookMixedMode) {
-      const isEcom =
-        campaignTypeByPlatform["facebook_ecommerce"] === "ecommerce" ||
-        campaignTypeByPlatform["facebook_insights"] === "ecommerce";
-      const grouped = groupFacebookCampaigns(all, {
-        singleTableMode: isEcom ? "ecommerce" : "leads",
-      });
-      return { ...grouped, all };
-    }
-
-    const { ecommerce, leads, traffic } = groupFacebookRowsByGoal(
-      fbRecords,
-      "campaign",
-      { leadsOnly: forceLeadsOnly },
-    );
-    return { ecommerce, leads, traffic, all };
-  }, [filteredRecords, tables, facebookMixedMode, campaignTypeByPlatform]);
+  // Facebook campaign tables: each campaign under its report's goal.
+  const facebookCampaignGroups = useMemo(
+    () => dashboardFacebookCampaigns(filteredRecords, recordGoalOf),
+    [filteredRecords, recordGoalOf],
+  );
 
   // The "All" tab's goals, store and combined figures, decided as on the
   // other dashboard page.
@@ -1268,17 +1117,20 @@ export default function SharedDashboard({
       )}
 
       {/* Analytics Tab → Full GoogleAnalyticsDashboard */}
-      {platformFilter === "weekly" ? (
+      {platformFilter === "continents" ? (
+        <CampaignContinentsTab
+          campaigns={googleAdsSummary.campaigns}
+          formatCurrency={formatCurrency}
+          formatNumber={formatNumber}
+          formatUnitCost={formatUnitCost}
+        />
+      ) : platformFilter === "weekly" ? (
         <WeeklyCampaignComparison
           records={weeklyRecords}
           currency={getCurrencySymbol(dashboardCurrency)}
           isLoading={weeklyPending}
           tables={tables}
-          sourceModes={{
-            facebook_insights: campaignTypeByPlatform.facebook_insights,
-            facebook_ecommerce: campaignTypeByPlatform.facebook_ecommerce,
-            google_ads: campaignTypeByPlatform.google_ads,
-          }}
+          sourceModes={weeklySourceModesForTables(tables)}
         />
       ) : platformFilter === "google_analytics" ? (
         <GoogleAnalyticsDashboard
@@ -1358,7 +1210,20 @@ export default function SharedDashboard({
       ) : (
         <>
           {/* Summary Cards - "All" tab: 7 KPI cards like DashboardView */}
-          {platformFilter === "all" && (
+          {platformFilter === "all" && hasSeveralGoals(dashboardGoals) && (
+            <DashboardGoalOverview
+              summary={dashboardGoals}
+              sales={combinedSales}
+              leads={combinedLeads}
+              delivery={totalSummary}
+              platformLabel={(platform) => ({
+                ...PLATFORM_CONFIG[platform],
+                icon: getIntegrationIcon(platform),
+              })}
+              format={{ formatCurrency, formatNumber, formatUnitCost }}
+            />
+          )}
+          {platformFilter === "all" && !hasSeveralGoals(dashboardGoals) && (
             <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 auto-rows-fr">
               {(showAdsCards || showAnalyticsCards) && (
                 <Card className="h-full bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
@@ -1475,7 +1340,10 @@ export default function SharedDashboard({
                   {(platformFilter === "all" ||
                     platformFilter === "google_analytics" ||
                     platformFilter === "woocommerce") && (
-                    <CombinedRoasCard roas={combinedSales.roas} />
+                    <CombinedRoasCard
+                      sales={combinedSales}
+                      formatCurrency={formatCurrency}
+                    />
                   )}
                 </>
               ) : (
@@ -1534,108 +1402,11 @@ export default function SharedDashboard({
             facebookCampaignGroups.all.length > 0 && (
               <div className="space-y-4">
                 {facebookCampaignGroups.ecommerce.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Facebook className="h-5 w-5 text-blue-600" />
-                        קמפיינים איקומרס - Facebook
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-right">
-                                קמפיין
-                              </TableHead>
-                              <TableHead className="text-right">
-                                חשיפות
-                              </TableHead>
-                              <TableHead className="text-right">
-                                קליקים
-                              </TableHead>
-                              <TableHead className="text-right">
-                                הוצאה
-                              </TableHead>
-                              <TableHead className="text-right">
-                                הוספות לעגלה
-                              </TableHead>
-                              <TableHead className="text-right">
-                                רכישות
-                              </TableHead>
-                              <TableHead className="text-right">
-                                ערך רכישות
-                              </TableHead>
-                              <TableHead className="text-right">ROAS</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {facebookCampaignGroups.ecommerce.map((c) => {
-                              const roas =
-                                c.spend > 0 ? c.purchase_value / c.spend : 0;
-                              return (
-                                <TableRow key={`ecom-${c.name}`}>
-                                  <TableCell className="font-medium max-w-[300px]">
-                                    {c.name}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatNumber(c.impressions)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatNumber(c.clicks)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatCurrency(c.spend)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.add_to_cart > 0
-                                        ? "text-orange-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatNumber(c.add_to_cart)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.purchases > 0
-                                        ? "text-green-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatNumber(c.purchases)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.purchase_value > 0
-                                        ? "text-green-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatCurrency(c.purchase_value)}
-                                  </TableCell>
-                                  <TableCell>
-                                    <span
-                                      className={
-                                        roas >= 1
-                                          ? "text-green-600 font-semibold"
-                                          : roas > 0
-                                            ? "text-red-600"
-                                            : ""
-                                      }
-                                    >
-                                      {roas > 0 ? roas.toFixed(2) + "x" : "0x"}
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <FacebookSalesCampaignsCard
+                    campaigns={facebookCampaignGroups.ecommerce}
+                    formatCurrency={formatCurrency}
+                    formatNumber={formatNumber}
+                  />
                 )}
                 {facebookCampaignGroups.leads.length > 0 && (
                   <Card>

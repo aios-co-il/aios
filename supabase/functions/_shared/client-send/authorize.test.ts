@@ -135,12 +135,15 @@ Deno.test("authorizeClientSend applies the staff rule", async (t) => {
     },
   );
 
-  await t.step("the sender's own staff get no other kind", async () => {
-    const { decision } = await decide(
-      systemSend({ sendKind: "dashboard_share" }),
-      resolved("client_contact", [CLIENT], { sender_staff: true }),
-    );
-    assertEquals(decision.allowed ? null : decision.reason, "person_only_kind");
+  await t.step("the sender's own staff get every other kind", async () => {
+    for (const sendKind of ["dashboard_share", "carmen", "chat"] as const) {
+      const { decision, refusals } = await decide(
+        systemSend({ sendKind }),
+        resolved("client_contact", [CLIENT], { sender_staff: true }),
+      );
+      assertEquals(decision.allowed, true, sendKind);
+      assertEquals(refusals, [], sendKind);
+    }
   });
 });
 
@@ -252,3 +255,17 @@ Deno.test("clientSendRequest reads a sender's body fields", async (t) => {
     assertEquals([request.origin, request.sendKind], ["person", "chat"]);
   });
 });
+
+Deno.test(
+  "authorizeClientSend lets Carmen reach the sender's staff who are a client elsewhere",
+  async () => {
+    // A member's own phone is also on another tenant's client card; Carmen
+    // sends them the reminder they asked for, with no chat proof.
+    const { decision, refusals } = await decide(
+      systemSend({ sendKind: "carmen" }),
+      resolved("client", [CLIENT], { sender_staff: true }),
+    );
+    assertEquals(decision.allowed, true);
+    assertEquals(refusals, []);
+  },
+);

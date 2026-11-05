@@ -13,6 +13,7 @@ import {
   OPENROUTER_USD_PER_SECOND,
   VOICE_USD_PER_1000_CHARS,
   musicQuoteSeconds,
+  voiceCharacters,
 } from "./clip-prices.ts";
 import { type SceneEngine, sceneClipSeconds } from "./scene-engine.ts";
 import { talkingMeta } from "./talking.ts";
@@ -87,10 +88,10 @@ export function clipEstimate(engine: SceneEngine, scenes: CostScene[]) {
   return { usd: roundUsd(seconds * rate), credits: 0, seconds };
 }
 
-/** The narration's price, by the characters it speaks. */
+/** The narration's price, by the characters the engine is billed for (voiceCharacters). */
 export function voiceEstimate(scenes: CostScene[]): Estimate {
   const characters = scenes.reduce(
-    (sum, scene) => sum + scene.voiceover_text.trim().length,
+    (sum, scene) => sum + voiceCharacters(scene.voiceover_text),
     0,
   );
   return {

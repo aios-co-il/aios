@@ -29,7 +29,7 @@ import { he } from "date-fns/locale";
 
 interface ClientMeetingTabProps {
   client: any;
-  tenantId?: string;
+  tenantId?: string | null;
 }
 
 export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {

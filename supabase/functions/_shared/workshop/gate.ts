@@ -61,6 +61,8 @@ export interface WorkshopDeps {
   userText?: string | null;
   /** Carmen's previous message: its tap-to-answer questions are what userText answers. */
   lastAssistant?: string | null;
+  /** The board page the user marked with this message (workshop_artifact_id). */
+  markedArtifactId?: string | null;
   /** Makes (or finds) a short sample of a narration voice; returns its creative-video path. */
   voiceSample?: (voiceId: string) => Promise<{ path?: string; error?: string }>;
   /** David approved this exact call in the approvals queue. */

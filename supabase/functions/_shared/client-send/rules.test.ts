@@ -48,6 +48,16 @@ Deno.test("only client-side recipients meet the rules", () => {
   assertEquals(sides, ["client", "client_contact", "client_group"]);
 });
 
+Deno.test("the sending tenant's staff never meet the client rules", () => {
+  for (const kind of RECIPIENT_KINDS) {
+    assertEquals(
+      isClientSide({ ...recipient(kind), senderStaff: true }),
+      false,
+      kind,
+    );
+  }
+});
+
 Deno.test("an automation's trigger picks its card switch", () => {
   for (const trigger of [
     "lead_created",

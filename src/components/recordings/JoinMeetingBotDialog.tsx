@@ -42,7 +42,7 @@ interface AgencyOption {
 interface JoinMeetingBotDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  tenantId?: string;
+  tenantId?: string | null;
   clients: ClientOption[];
   campaigners: CampaignerOption[];
   agencies: AgencyOption[];

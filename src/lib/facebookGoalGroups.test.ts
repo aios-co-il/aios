@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { summarizeSharedTableRecords } from "@/components/SharedTable/sharedTableSummary";
-import { groupFacebookRowsByGoal } from "./facebookGoalGroups";
+import {
+  facebookRowsByGoal,
+  groupFacebookRowsByGoal,
+} from "./facebookGoalGroups";
 
 const fb = (campaign: string, data: Record<string, unknown>) => ({
   data: {
@@ -210,5 +213,24 @@ describe("groupFacebookRowsByGoal", () => {
         { newFollowers: null, followerSpend: 0, profileTraffic: false },
       ]);
     }
+  });
+});
+
+describe("facebookRowsByGoal", () => {
+  it("sums each goal's records by campaign and leaves out records without a goal", () => {
+    const goals: Record<string, "ecommerce" | "leads" | null> = {
+      Shop: "ecommerce",
+      Leads: "leads",
+      Traffic: null,
+    };
+    const groups = facebookRowsByGoal(
+      mixedFacebook,
+      "campaign",
+      (record) => goals[String(record.data.campaign_name)],
+    );
+    expect(names(groups.ecommerce)).toStrictEqual(["Shop"]);
+    expect(names(groups.leads)).toStrictEqual(["Leads"]);
+    expect(groups.traffic).toStrictEqual([]);
+    expect(groups.leads[0].leads).toBe(10);
   });
 });

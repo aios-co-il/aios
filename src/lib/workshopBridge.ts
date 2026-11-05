@@ -33,11 +33,21 @@ let context: WorkshopContext | null = null;
 /** A composer line the board asked for before any composer listened (prefillComposer). */
 let pendingPrefill: string | null = null;
 const eventListeners = new Set<(event: WorkshopEvent) => void>();
+const contextListeners = new Set<() => void>();
 
 export const getWorkshopContext = () => context;
 
+/** Calls `listener` whenever the board changes the context (useOpenWorkshopProject reads it). */
+export function subscribeWorkshopContext(listener: () => void) {
+  contextListeners.add(listener);
+  return () => {
+    contextListeners.delete(listener);
+  };
+}
+
 export function setWorkshopContext(next: WorkshopContext | null) {
   context = next;
+  contextListeners.forEach((listener) => listener());
   // The workshop closed: a composer line it asked for must not fill a later, unrelated chat,
   // and a role skin it switched Carmen to must not answer the next page's questions.
   if (next === null) {

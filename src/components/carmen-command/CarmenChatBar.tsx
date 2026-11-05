@@ -51,6 +51,7 @@ import { answerableIndex, hidePartialQuickReplies } from "@/lib/quickReplies";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
+import { useSavePronunciation } from "./useSavePronunciation";
 import { replyShownThisTurn } from "./chatDedupe";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { scrollToAnswerStart } from "./chatScroll";
@@ -151,6 +152,8 @@ interface CarmenChatBarProps {
   composerAccessory?: ReactNode;
   /** Open on a new conversation instead of restoring the last one; past chats stay in history. */
   startFresh?: boolean;
+  /** Full-width page: the voice controls sit beside the input even in sidecar mode. */
+  wide?: boolean;
 }
 
 const CARMEN_VOICES = [
@@ -168,6 +171,7 @@ const CARMEN_VOICES = [
 
 type CarmenVoice = (typeof CARMEN_VOICES)[number]["id"];
 const VOICE_STORAGE_KEY = "aios:carmen-voice";
+const DEFAULT_VOICE_LABEL = "קול ברירת מחדל של כרמן";
 
 /**
  * The "talk to Carmen" bar: typed text stays text; the mic opens OpenAI Realtime.
@@ -191,15 +195,12 @@ export const CarmenChatBar = forwardRef<
     sidecarPlaceholder,
     composerAccessory,
     startFresh = false,
+    wide = false,
   },
   ref,
 ) {
   const identity = useCarmenIdentity();
   const isSidecar = mode === "sidecar";
-  useEffect(() => {
-    if (!isSidecar) return;
-    setMicCaptureMode("transcribe_only");
-  }, [isSidecar]);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<CommandCenterAttachment[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
@@ -221,12 +222,10 @@ export const CarmenChatBar = forwardRef<
   const [isMuted, setIsMuted] = useState(false);
   const [isOutputMuted, setIsOutputMuted] = useState(false);
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<CarmenVoice>(() => {
-    const saved = localStorage.getItem(VOICE_STORAGE_KEY);
-    return CARMEN_VOICES.some((voice) => voice.id === saved)
-      ? (saved as CarmenVoice)
-      : "marin";
-  });
+  // null = no pick saved: live voice speaks Carmen's configured voice (ai_agents.voice).
+  const [selectedVoice, setSelectedVoice] = useState<CarmenVoice | null>(() =>
+    toCarmenVoice(localStorage.getItem(VOICE_STORAGE_KEY)),
+  );
   const [showHistory, setShowHistory] = useState(false);
   const historyVisible = historyOpen ?? showHistory;
   const setHistory = (open: boolean) => {
@@ -308,7 +307,7 @@ export const CarmenChatBar = forwardRef<
               "Content-Type": "application/json",
               Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ text, voice: selectedVoice }),
+            body: JSON.stringify({ text, voice: selectedVoice ?? undefined }),
           },
         );
         return res.ok ? await res.blob() : null;
@@ -883,6 +882,8 @@ export const CarmenChatBar = forwardRef<
    * Streams (SSE) so long tool runs keep the connection alive — a non-streaming
    * call hits the edge gateway's ~150s cutoff and kills the live conversation.
    */
+  const savePronunciation = useSavePronunciation(tenantId);
+
   const askCarmenBrain = useCallback(
     async (question: string): Promise<string> => {
       if (!question.trim() || !tenantId) return "לא התקבלה שאלה.";
@@ -1046,7 +1047,7 @@ export const CarmenChatBar = forwardRef<
 
   /** Try to open an OpenAI Realtime session. Returns false on failure — caller must NOT fall back to transcribe-voice. */
   const beginRealtime = useCallback(
-    async (voice: CarmenVoice = selectedVoice): Promise<boolean> => {
+    async (voice: CarmenVoice | null = selectedVoice): Promise<boolean> => {
       try {
         const {
           data: { session },
@@ -1063,7 +1064,11 @@ export const CarmenChatBar = forwardRef<
               "Content-Type": "application/json",
               Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ voice }),
+            // Without an explicit pick, the server uses Carmen's configured voice.
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              ...(voice ? { voice } : {}),
+            }),
           },
         );
         if (!res.ok) {
@@ -1106,6 +1111,7 @@ export const CarmenChatBar = forwardRef<
             revealAnswer();
           },
           onToolCall: askCarmenBrain,
+          onSavePronunciation: savePronunciation,
           onStateChange: (state) => {
             if (convModeRef.current) onFaceState(state);
           },
@@ -1127,7 +1133,9 @@ export const CarmenChatBar = forwardRef<
       audioLevelRef,
       onFaceState,
       reportRealtimeError,
+      savePronunciation,
       selectedVoice,
+      tenantId,
     ],
   );
 
@@ -1655,9 +1663,13 @@ export const CarmenChatBar = forwardRef<
   }, [stopSpeech]);
 
   const selectVoice = useCallback(
-    async (voice: CarmenVoice) => {
+    async (voice: CarmenVoice | null) => {
       setSelectedVoice(voice);
-      localStorage.setItem(VOICE_STORAGE_KEY, voice);
+      if (voice) {
+        localStorage.setItem(VOICE_STORAGE_KEY, voice);
+      } else {
+        localStorage.removeItem(VOICE_STORAGE_KEY);
+      }
       if (!convModeRef.current || !realtimeRef.current) return;
 
       realtimeRef.current.stop();
@@ -1761,6 +1773,10 @@ export const CarmenChatBar = forwardRef<
     isConvMode ||
     uploadingAttachments;
 
+  // The side column is narrow: there the microphone mode and voice live in the "+" menu.
+  const narrowColumn = isSidecar && !wide;
+  const inlineVoiceSelects = narrowColumn ? "hidden" : "hidden sm:flex";
+  const optionsMenuVisibility = narrowColumn ? "" : "sm:hidden";
   const composerPlaceholder = isSidecar
     ? (sidecarPlaceholder ?? "תיאור תיקון / בקשה למסך הנוכחי…")
     : isTranscribing
@@ -1918,7 +1934,7 @@ export const CarmenChatBar = forwardRef<
               type="button"
               title="עוד אפשרויות"
               disabled={composerBusy && !isSidecar}
-              className="order-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--cc-line)] text-[var(--cc-text-dim)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40 sm:hidden"
+              className={`order-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--cc-line)] text-[var(--cc-text-dim)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40 ${optionsMenuVisibility}`}
             >
               <Plus className="h-5 w-5" />
             </button>
@@ -1926,25 +1942,25 @@ export const CarmenChatBar = forwardRef<
           <DropdownMenuContent
             align="start"
             side="top"
-            dir="rtl"
             className="cc-root z-[120] w-[min(18rem,calc(100vw-1.5rem))] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] p-3 text-[var(--cc-text)]"
           >
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={
-                composerBusy || attachments.length >= COMMAND_CENTER_MAX_FILES
-              }
-              className="flex w-full items-center gap-2 rounded-md border border-[var(--cc-line)] px-3 py-2 text-sm text-[var(--cc-text)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40"
-            >
-              {uploadingAttachments ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Paperclip className="h-4 w-4 shrink-0" />
-              )}
-              צרף קובץ או תמונה
-            </button>
-            {!isSidecar && (
+            {/* The menu renders in a portal outside the page's rtl root. */}
+            <div dir="rtl">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={
+                  composerBusy || attachments.length >= COMMAND_CENTER_MAX_FILES
+                }
+                className="flex w-full items-center gap-2 rounded-md border border-[var(--cc-line)] px-3 py-2 text-sm text-[var(--cc-text)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40"
+              >
+                {uploadingAttachments ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Paperclip className="h-4 w-4 shrink-0" />
+                )}
+                צרף קובץ או תמונה
+              </button>
               <>
                 <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
                   מצב מיקרופון
@@ -1974,11 +1990,12 @@ export const CarmenChatBar = forwardRef<
                 <div className="mt-1 flex items-center gap-2">
                   <Headphones className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
                   <select
-                    value={selectedVoice}
-                    onChange={(e) => selectVoice(e.target.value as CarmenVoice)}
+                    value={selectedVoice ?? ""}
+                    onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
                     title="קול"
                     className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
                   >
+                    <option value="">{DEFAULT_VOICE_LABEL}</option>
                     {CARMEN_VOICES.map((voice) => (
                       <option key={voice.id} value={voice.id}>
                         {voice.label}
@@ -2000,7 +2017,7 @@ export const CarmenChatBar = forwardRef<
                   </button>
                 </div>
               </>
-            )}
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
         <button
@@ -2018,139 +2035,119 @@ export const CarmenChatBar = forwardRef<
             <Paperclip className="h-4 w-4" />
           )}
         </button>
-        {isSidecar ? (
-          <button
-            onClick={handleMicClick}
-            disabled={isTranscribing}
-            title={isTranscribeRecording ? "עצור הקלטה" : "מיקרופון לתמלול"}
-            className={`cc-mic order-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-              isTranscribeRecording
-                ? "border-[var(--cc-crit)] bg-[rgba(248,113,113,0.15)] text-[var(--cc-crit)]"
-                : isTranscribing
-                  ? "border-[var(--cc-line)] opacity-60"
-                  : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(76,195,255,0.15)]"
-            }`}
+        <div
+          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 ${inlineVoiceSelects}`}
+        >
+          <select
+            value={micCaptureMode}
+            onChange={(e) =>
+              selectMicCaptureMode(e.target.value as MicCaptureMode)
+            }
+            title="מצב מיקרופון"
+            className="max-w-[120px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
+            disabled={isConvMode || isTranscribeRecording || isTranscribing}
           >
-            {isTranscribing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : isTranscribeRecording ? (
-              <Square className="h-4 w-4" />
+            {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
+              (mode) => (
+                <option key={mode} value={mode}>
+                  {MIC_CAPTURE_MODE_LABELS[mode]}
+                </option>
+              ),
+            )}
+          </select>
+        </div>
+        <div
+          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 ${inlineVoiceSelects}`}
+        >
+          <Headphones className="h-4 w-4 text-[var(--cc-accent)]" />
+          <select
+            value={selectedVoice ?? ""}
+            onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
+            title="קול"
+            className="max-w-[130px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
+          >
+            <option value="">{DEFAULT_VOICE_LABEL}</option>
+            {CARMEN_VOICES.map((voice) => (
+              <option key={voice.id} value={voice.id}>
+                {voice.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={previewVoice}
+            disabled={isPreviewingVoice}
+            title="דוגמה"
+            className="text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
+          >
+            {isPreviewingVoice ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <AudioLines className="h-5 w-5" />
+              <Play className="h-3.5 w-3.5" />
             )}
           </button>
-        ) : (
+        </div>
+        <button
+          onClick={handleMicClick}
+          disabled={isTranscribing}
+          title={
+            micCaptureMode === "transcribe_only"
+              ? isTranscribeRecording
+                ? "עצור הקלטה"
+                : "מיקרופון לתמלול בלבד"
+              : isConvMode
+                ? "סיים שיחה חיה"
+                : "שיחה חיה"
+          }
+          className={`cc-mic order-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
+            isConvMode || isTranscribeRecording
+              ? "border-[var(--cc-crit)] bg-[rgba(248,113,113,0.15)] text-[var(--cc-crit)]"
+              : isTranscribing
+                ? "border-[var(--cc-line)] opacity-60"
+                : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(76,195,255,0.15)]"
+          }`}
+        >
+          {isTranscribing ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : isConvMode || isTranscribeRecording ? (
+            <Square className="h-4 w-4" />
+          ) : micCaptureMode === "transcribe_only" ? (
+            <AudioLines className="h-5 w-5" />
+          ) : (
+            <Mic className="h-5 w-5" />
+          )}
+        </button>
+        {isConvMode && (
           <>
-            <div className="hidden h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 sm:flex">
-              <select
-                value={micCaptureMode}
-                onChange={(e) =>
-                  selectMicCaptureMode(e.target.value as MicCaptureMode)
-                }
-                title="מצב מיקרופון"
-                className="max-w-[120px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
-                disabled={isConvMode || isTranscribeRecording || isTranscribing}
-              >
-                {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
-                  (mode) => (
-                    <option key={mode} value={mode}>
-                      {MIC_CAPTURE_MODE_LABELS[mode]}
-                    </option>
-                  ),
-                )}
-              </select>
-            </div>
-            <div className="hidden h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 sm:flex">
-              <Headphones className="h-4 w-4 text-[var(--cc-accent)]" />
-              <select
-                value={selectedVoice}
-                onChange={(e) => selectVoice(e.target.value as CarmenVoice)}
-                title="קול"
-                className="max-w-[130px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
-              >
-                {CARMEN_VOICES.map((voice) => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={previewVoice}
-                disabled={isPreviewingVoice}
-                title="דוגמה"
-                className="text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
-              >
-                {isPreviewingVoice ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
             <button
-              onClick={handleMicClick}
-              disabled={isTranscribing}
-              title={
-                micCaptureMode === "transcribe_only"
-                  ? isTranscribeRecording
-                    ? "עצור הקלטה"
-                    : "מיקרופון לתמלול בלבד"
-                  : isConvMode
-                    ? "סיים שיחה חיה"
-                    : "שיחה חיה"
-              }
-              className={`cc-mic order-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-                isConvMode || isTranscribeRecording
-                  ? "border-[var(--cc-crit)] bg-[rgba(248,113,113,0.15)] text-[var(--cc-crit)]"
-                  : isTranscribing
-                    ? "border-[var(--cc-line)] opacity-60"
-                    : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(76,195,255,0.15)]"
+              onClick={toggleMute}
+              title={isMuted ? "מיקרופון" : "השתק מיקרופון"}
+              className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
+                isMuted
+                  ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
+                  : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
               }`}
             >
-              {isTranscribing ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : isConvMode || isTranscribeRecording ? (
-                <Square className="h-4 w-4" />
-              ) : micCaptureMode === "transcribe_only" ? (
-                <AudioLines className="h-5 w-5" />
+              {isMuted ? (
+                <MicOff className="h-4 w-4" />
               ) : (
-                <Mic className="h-5 w-5" />
+                <Mic className="h-4 w-4" />
               )}
             </button>
-            {isConvMode && (
-              <>
-                <button
-                  onClick={toggleMute}
-                  title={isMuted ? "מיקרופון" : "השתק מיקרופון"}
-                  className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-                    isMuted
-                      ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
-                      : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
-                  }`}
-                >
-                  {isMuted ? (
-                    <MicOff className="h-4 w-4" />
-                  ) : (
-                    <Mic className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  onClick={toggleOutputMute}
-                  title={isOutputMuted ? "השמע" : "השתק כרמן"}
-                  className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-                    isOutputMuted
-                      ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
-                      : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
-                  }`}
-                >
-                  {isOutputMuted ? (
-                    <VolumeX className="h-4 w-4" />
-                  ) : (
-                    <Volume2 className="h-4 w-4" />
-                  )}
-                </button>
-              </>
-            )}
+            <button
+              onClick={toggleOutputMute}
+              title={isOutputMuted ? "השמע" : "השתק כרמן"}
+              className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
+                isOutputMuted
+                  ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
+                  : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
+              }`}
+            >
+              {isOutputMuted ? (
+                <VolumeX className="h-4 w-4" />
+              ) : (
+                <Volume2 className="h-4 w-4" />
+              )}
+            </button>
           </>
         )}
         <input
@@ -2164,7 +2161,8 @@ export const CarmenChatBar = forwardRef<
           disabled={
             isTranscribeRecording ||
             isTranscribing ||
-            (!isSidecar && isConvMode)
+            // A live call owns the conversation: typing would start a parallel brain request.
+            isConvMode
           }
           className="order-2 h-11 min-w-0 flex-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-3 text-sm outline-none placeholder:text-[var(--cc-text-dim)] focus:border-[var(--cc-line-strong)] sm:order-none"
         />
@@ -2184,3 +2182,8 @@ export const CarmenChatBar = forwardRef<
     </div>
   );
 });
+
+/** The picked or saved value as a voice, or null for Carmen's default voice. */
+function toCarmenVoice(value: string | null): CarmenVoice | null {
+  return CARMEN_VOICES.find((voice) => voice.id === value)?.id ?? null;
+}

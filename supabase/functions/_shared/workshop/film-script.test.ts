@@ -1,13 +1,9 @@
+import { assertStrictEquals } from "jsr:@std/assert@1";
+import { briefAnswersOf, withBriefAnswers } from "./brief-answers.ts";
 import {
-  assertEquals,
-  assertMatch,
-  assertStrictEquals,
-} from "jsr:@std/assert@1";
-import {
+  conceptAnswer,
   filmScriptOf,
   filmSeconds,
-  maxWords,
-  scriptLines,
   scriptSettled,
   withScript,
 } from "./film-script.ts";
@@ -35,12 +31,6 @@ Deno.test("the film's length comes from the brief, then the plan", () => {
   assertStrictEquals(filmSeconds({}), null);
 });
 
-Deno.test("a beat says at most 2.5 words a second", () => {
-  assertStrictEquals(maxWords(2), 5);
-  assertStrictEquals(maxWords(3), 7);
-  assertStrictEquals(maxWords(0.2), 1);
-});
-
 Deno.test("a script belongs to the concept it was written for", () => {
   const saved = withScript(withConcept("יום אחד"), {
     artifact_id: "script-1",
@@ -65,19 +55,16 @@ Deno.test("a script belongs to the concept it was written for", () => {
   assertStrictEquals(scriptSettled(moved), false);
 });
 
-Deno.test("the turn note says where the script stands", () => {
-  assertMatch(scriptLines(withConcept("יום אחד"), 0)[0], /עוד אין/);
-  const waiting = withScript(withConcept("יום אחד"), {
-    artifact_id: "s",
-    title: "",
-    total_s: 3,
-    beats,
-    saved_turn: null,
-  });
-  assertMatch(scriptLines(waiting, 0)[0], /ממתין לאישור/);
-  assertEquals(scriptLines(waiting, 2), []);
-  assertEquals(
-    scriptLines({ ...waiting, workshop_script: { skipped: true } }, 0),
-    [],
-  );
-});
+Deno.test(
+  "a concept chosen again under the first label is the concept, not an older one",
+  () => {
+    // Review of 5 Nov: the corrected answer stayed in its old place, and the newest-first read
+    // found the concept answered under another label in between.
+    const first = withBriefAnswers(
+      {},
+      { קונספט: "יום אחד", "בחירת קונספט": "לילה" },
+    );
+    const corrected = withBriefAnswers(first, { קונספט: "כוכבים" });
+    assertStrictEquals(conceptAnswer(briefAnswersOf(corrected)), "כוכבים");
+  },
+);

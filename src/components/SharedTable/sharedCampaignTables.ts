@@ -11,7 +11,7 @@ import {
 } from "@/lib/campaignGoals";
 import type { FacebookFollowerTotals } from "@/lib/facebookFollowers";
 import type { GoogleAdsRowData } from "@/lib/googleCampaignGoals";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { googleCampaignRowsByGoal } from "./googleCampaignRowsByGoal";
 import type { SharedTableGoals } from "./useSharedTableGoals";
 

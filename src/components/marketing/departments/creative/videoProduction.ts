@@ -1,3 +1,8 @@
+import type { z } from "zod";
+import {
+  readCreativeVideoProduction,
+  type creativeVideoProduction,
+} from "./creativeProjectSettings";
 import { NANO_BANANA_PRO_IMAGE_USD } from "./imageCost.ts";
 import type { StoryboardFrame } from "./types";
 import {
@@ -12,28 +17,14 @@ import {
 import type { StillModel } from "./videoStill";
 
 /** payload.video.production, written by produce_video / advance_video_production. */
-export interface VideoProduction {
-  status: "running" | "done" | "failed";
-  started_at?: string;
-  finished_at?: string | null;
-  render_run_id?: string | null;
-  error?: string | null;
+export interface VideoProduction extends z.output<
+  typeof creativeVideoProduction
+> {
+  status: z.output<typeof creativeVideoProduction>["status"];
 }
 
-export const getProduction = (
-  payload: Record<string, unknown> | null | undefined,
-): VideoProduction | null => {
-  const video = payload?.video;
-  const production =
-    video && typeof video === "object"
-      ? (video as Record<string, unknown>).production
-      : null;
-  if (!production || typeof production !== "object") return null;
-  const status = (production as Record<string, unknown>).status;
-  return status === "running" || status === "done" || status === "failed"
-    ? (production as VideoProduction)
-    : null;
-};
+export const getProduction = (payload: unknown): VideoProduction | null =>
+  readCreativeVideoProduction(payload);
 
 /** gpt-image-1, high quality portrait: about 6,240 output tokens at $40 / M. */
 const GPT_IMAGE_STILL_USD = 0.25;
