@@ -18,7 +18,7 @@ export const CARMEN_ROLES = [
     slug: "copywriter",
     name: "קופירייטרית",
     portrait: "copywriter",
-    members: ["copywriter", "content_writer"],
+    members: ["copywriter", "content_writer", "workshop_copywriter"],
   },
   {
     slug: "video_director",

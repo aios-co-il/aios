@@ -98,7 +98,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   useState,
   ReactNode,
-  useRef,
+  useCallback,
   useEffect,
   useMemo,
   createContext,
@@ -148,6 +148,9 @@ import { LeadsChatView } from "@/components/leads/LeadsChatView";
 import { LeadTableColumnsDialog } from "@/components/leads/LeadTableColumnsDialog";
 import { LeadViewModeToggle } from "@/components/leads/LeadViewModeToggle";
 import { useLeadsViewMode } from "@/hooks/useLeadsViewMode";
+import { useLeadStageScopeDefault } from "@/components/leads/useLeadStageScopeDefault";
+import { useOpeningStageFilter } from "@/components/leads/useOpeningStageFilter";
+import { type LeadStageScope } from "@/components/leads/leadStageScope";
 import { leadOpenSurface } from "@/lib/leadViewMode";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
@@ -218,6 +221,7 @@ import {
   type StoredCallRecording,
   type StoredFileRecording,
 } from "@/lib/leadRecordings";
+import { buildLeadSalesPersonAssignments } from "@/components/LeadsPage/leadSalesPersonAssignments";
 
 // Kanban opens the chat view. The CRM table opens the same record as a popup.
 const LeadEditContext = createContext<((leadId: string) => void) | null>(null);
@@ -1034,7 +1038,6 @@ export default function Leads() {
     id: string;
     name: string;
   } | null>(null);
-  const skipChatStageDefault = useRef(false);
 
   // Convert dynamic pipeline stages to format compatible with existing code
   const PIPELINE_STAGES = useMemo(() => {
@@ -1111,6 +1114,11 @@ export default function Leads() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const { viewMode, setViewMode, defaultView, setDefaultView } =
     useLeadsViewMode(userId);
+  const {
+    savedScope: savedStageScope,
+    isSettled: stageScopeSettled,
+    saveScope: saveStageScope,
+  } = useLeadStageScopeDefault();
   const [tableLayout, setTableLayoutState] = useState<LeadTableLayout>(() => {
     if (typeof window === "undefined") return "by_date";
     return parseLeadTableLayout(
@@ -1168,17 +1176,20 @@ export default function Leads() {
     if (isKanbanView) setPage(1);
   }, [isKanbanView]);
 
-  useEffect(() => {
-    if (viewMode !== "chat") {
-      skipChatStageDefault.current = false;
-      return;
-    }
-    if (skipChatStageDefault.current || activePresetId) return;
-    if (filterStageIds.length > 0) return;
-    if (!pipelineStagesData?.length) return;
+  // Open on new leads per the saved default (else chat only), once per view.
+  const applyOpeningStage = useCallback((stageKey: string) => {
     setStageFilterMode("show");
-    setFilterStageIds([pipelineStagesData[0].stage_key]);
-  }, [viewMode, pipelineStagesData, activePresetId, filterStageIds]);
+    setFilterStageIds([stageKey]);
+  }, []);
+  const { markUserChoice } = useOpeningStageFilter({
+    tenantId,
+    viewMode,
+    savedScope: savedStageScope,
+    isSettled: stageScopeSettled,
+    hasFilterOrPreset: Boolean(activePresetId) || filterStageIds.length > 0,
+    firstStageKey: pipelineStagesData?.[0]?.stage_key,
+    applyStage: applyOpeningStage,
+  });
 
   // Reset page to 1 and clear accumulated leads when filters change
   useEffect(() => {
@@ -1325,7 +1336,7 @@ export default function Leads() {
         const agencyIds =
           selectedAgency && selectedAgency !== "all"
             ? [selectedAgency]
-            : agencies?.map((a) => a.id) || null;
+            : agencies?.map((a) => a.id) || undefined;
 
         const { data, error } = await supabase.rpc("count_leads_by_tags", {
           p_tenant_id: tenantId,
@@ -1449,7 +1460,7 @@ export default function Leads() {
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
           ? [selectedAgency]
-          : agencies?.map((a) => a.id) || null;
+          : agencies?.map((a) => a.id) || undefined;
 
       const stageIds = stagesForKanbanQuery(
         filterStageIds,
@@ -1463,7 +1474,7 @@ export default function Leads() {
 
       // Build sales person filter - support multi-select
       // When viewing as a sales person, override the filter
-      let salesPersonFilter: string[] | null = null;
+      let salesPersonFilter: Array<string> | undefined;
       if (isViewingAs && viewAsSalesPersonId) {
         // Force filter to the viewed-as sales person
         salesPersonFilter = [viewAsSalesPersonId];
@@ -1481,19 +1492,20 @@ export default function Leads() {
         p_limit_per_stage: responseNeedsClient
           ? Math.min(leadsPerStageLimit * 3, 200)
           : leadsPerStageLimit,
-        p_search_query: searchQuery.trim() || null,
+        p_search_query: searchQuery.trim() || undefined,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses: kanbanResponseStatuses(
-          filterResponseStatus,
-          responseStatusFilterMode,
-        ),
+        p_response_statuses:
+          kanbanResponseStatuses(
+            filterResponseStatus,
+            responseStatusFilterMode,
+          ) ?? undefined,
         p_follow_up_today: filterFollowUpToday,
-        p_start_date: startDate?.toISOString() || null,
-        p_end_date: endDate ? endOfDayIso(endDate) : null,
+        p_start_date: startDate?.toISOString(),
+        p_end_date: endDate ? endOfDayIso(endDate) : undefined,
         p_tag_ids:
           filterTagIds.length > 0 && !filterTagIds.includes("none")
             ? filterTagIds
-            : null,
+            : undefined,
       });
 
       if (error) throw error;
@@ -1567,9 +1579,9 @@ export default function Leads() {
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
           ? [selectedAgency]
-          : agencies?.map((a) => a.id) || null;
+          : agencies?.map((a) => a.id) || undefined;
 
-      let salesPersonFilter: string[] | null = null;
+      let salesPersonFilter: Array<string> | undefined;
       if (isViewingAs && viewAsSalesPersonId) {
         salesPersonFilter = [viewAsSalesPersonId];
       } else if (
@@ -1584,19 +1596,20 @@ export default function Leads() {
         p_agency_ids: agencyIds,
         p_stages: PIPELINE_STAGES.map((s) => s.id),
         p_limit_per_stage: 0,
-        p_search_query: searchQuery.trim() || null,
+        p_search_query: searchQuery.trim() || undefined,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses: kanbanResponseStatuses(
-          filterResponseStatus,
-          responseStatusFilterMode,
-        ),
+        p_response_statuses:
+          kanbanResponseStatuses(
+            filterResponseStatus,
+            responseStatusFilterMode,
+          ) ?? undefined,
         p_follow_up_today: filterFollowUpToday,
-        p_start_date: startDate?.toISOString() || null,
-        p_end_date: endDate ? endOfDayIso(endDate) : null,
+        p_start_date: startDate?.toISOString(),
+        p_end_date: endDate ? endOfDayIso(endDate) : undefined,
         p_tag_ids:
           filterTagIds.length > 0 && !filterTagIds.includes("none")
             ? filterTagIds
-            : null,
+            : undefined,
       });
       if (error) throw error;
 
@@ -1650,7 +1663,7 @@ export default function Leads() {
         const agencyIds =
           selectedAgency && selectedAgency !== "all"
             ? [selectedAgency]
-            : agencies?.map((a) => a.id) || null;
+            : agencies?.map((a) => a.id) || undefined;
 
         const { data: rpcLeads, error: rpcError } = await supabase.rpc(
           "get_leads_by_tags",
@@ -2607,8 +2620,8 @@ export default function Leads() {
     ],
   );
 
-  // Handle applying filters from dialog
-  const handleApplyFilters = (filters: FilterState) => {
+  // Handle applying filters from dialog; a just-saved preset's tab becomes active
+  const handleApplyFilters = (filters: FilterState, presetId?: string) => {
     setSearchQuery(filters.searchQuery);
     setFilterSalesPersonIds(filters.salesPersonIds);
     setFilterStageIds(filters.stageIds);
@@ -2621,7 +2634,7 @@ export default function Leads() {
     setStartDate(filters.startDate);
     setEndDate(filters.endDate);
     setFilterFollowUpToday(filters.followUpToday);
-    setActivePresetId(null); // Clear preset when manually applying
+    setActivePresetId(presetId ?? null); // Manual apply clears the preset
   };
 
   // Handle preset selection
@@ -2640,7 +2653,7 @@ export default function Leads() {
       setSearchQuery("");
       setActivePresetId(null);
     } else {
-      skipChatStageDefault.current = true;
+      markUserChoice();
       // Apply preset filters - handle both old (string) and new (array) format
       const f = preset.filters;
       // Handle legacy salesPersonId (string) format and new salesPersonIds (array) format
@@ -2783,10 +2796,10 @@ export default function Leads() {
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
           ? [selectedAgency]
-          : agencies?.map((a) => a.id) || null;
+          : agencies?.map((a) => a.id) || undefined;
 
       // Keep filters aligned with the initial Kanban fetch (incl. View-As override)
-      let salesPersonFilter: string[] | null = null;
+      let salesPersonFilter: Array<string> | undefined;
       if (isViewingAs && viewAsSalesPersonId) {
         salesPersonFilter = [viewAsSalesPersonId];
       } else if (
@@ -2807,19 +2820,20 @@ export default function Leads() {
           ? Math.min(leadsPerStageLimit * 3, 200)
           : leadsPerStageLimit,
         p_offset_per_stage: newOffset,
-        p_search_query: searchQuery.trim() || null,
+        p_search_query: searchQuery.trim() || undefined,
         p_sales_person_ids: salesPersonFilter,
-        p_response_statuses: kanbanResponseStatuses(
-          filterResponseStatus,
-          responseStatusFilterMode,
-        ),
+        p_response_statuses:
+          kanbanResponseStatuses(
+            filterResponseStatus,
+            responseStatusFilterMode,
+          ) ?? undefined,
         p_follow_up_today: filterFollowUpToday,
-        p_start_date: startDate?.toISOString() || null,
-        p_end_date: endDate ? endOfDayIso(endDate) : null,
+        p_start_date: startDate?.toISOString(),
+        p_end_date: endDate ? endOfDayIso(endDate) : undefined,
         p_tag_ids:
           filterTagIds.length > 0 && !filterTagIds.includes("none")
             ? filterTagIds
-            : null,
+            : undefined,
       });
 
       if (error) throw error;
@@ -3049,10 +3063,21 @@ export default function Leads() {
   };
 
   const handleStageSelect = (stageId: string) => {
-    skipChatStageDefault.current = true;
+    markUserChoice();
     setStageFilterMode("show");
     setFilterStageIds(stageId === "all" ? [] : [stageId]);
     setActivePresetId(null);
+  };
+
+  /** Saves the opening scope and shows it right away. */
+  const handleDefaultStageScope = (scope: LeadStageScope) => {
+    saveStageScope(scope);
+    const newStageKey = pipelineStagesData?.[0]?.stage_key;
+    if (scope === "all") {
+      handleStageSelect("all");
+    } else if (newStageKey) {
+      handleStageSelect(newStageKey);
+    }
   };
 
   const stagePresetCounts = useMemo(() => {
@@ -3220,6 +3245,8 @@ export default function Leads() {
                   stageFilterMode={stageFilterMode}
                   onStageSelect={handleStageSelect}
                   stageCounts={stagePresetCounts}
+                  defaultStageScope={savedStageScope}
+                  onDefaultStageScopeChange={handleDefaultStageScope}
                 />
                 {viewMode === "table" && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -3407,6 +3434,8 @@ export default function Leads() {
               stageFilterMode={stageFilterMode}
               onStageSelect={handleStageSelect}
               stageCounts={stagePresetCounts}
+              defaultStageScope={savedStageScope}
+              onDefaultStageScopeChange={handleDefaultStageScope}
             />
 
             <div className="flex shrink-0 items-center gap-2">
@@ -4526,21 +4555,10 @@ function TableWithStickyScroll({
       if (!leadsData || leadsData.length === 0)
         throw new Error("לא נמצאו לידים");
 
-      // Create junction table entries for ALL combinations of leads × salespeople
-      const assignments: {
-        lead_id: string;
-        sales_person_id: string;
-        tenant_id: string;
-      }[] = [];
-      for (const lead of leadsData) {
-        for (const salesPersonId of salesPersonIds) {
-          assignments.push({
-            lead_id: lead.id,
-            sales_person_id: salesPersonId,
-            tenant_id: lead.tenant_id,
-          });
-        }
-      }
+      const assignments = buildLeadSalesPersonAssignments(
+        leadsData,
+        salesPersonIds,
+      );
 
       // Insert into junction table (upsert to avoid duplicates)
       const { error: insertError } = await supabase
@@ -4581,6 +4599,7 @@ function TableWithStickyScroll({
       });
     },
     onError: (error) => {
+      console.error("Bulk lead assignment failed:", errorMessageOf(error));
       toast({
         title: "שגיאה בשיוך לידים",
         description: error.message,

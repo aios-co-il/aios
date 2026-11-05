@@ -1,9 +1,9 @@
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
   leadPhoneVariants,
   pickDuplicateLead,
 } from "./lead-duplicate-match.ts";
 import type { Tables } from "../_shared/database.types.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
 
 type LeadRow = Tables<"leads">;
 type IdRow = { id: string };
@@ -87,8 +87,6 @@ export async function getExistingLead<Lead extends InboundContact>(
   const { data: leadsByPhone } = await leads.byPhones(tenantId, phoneVariants);
   const match = pickDuplicateLead(leadsByPhone, incoming);
   if (match) return match;
-
-  // Stored phones may use other spellings; scan recent leads as a fallback
   const { data: recentLeads } = await leads.recentWithPhone(tenantId);
   return pickDuplicateLead(recentLeads, incoming);
 }

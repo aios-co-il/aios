@@ -6,7 +6,7 @@
 
 import type { SecretClient } from "../carmen/brain-connections/overrides.ts";
 import { tenantOpenRouterConnectionId } from "../creative/openrouterImage.ts";
-import type { VideoConnections } from "./video-cost.ts";
+import type { VideoConnections } from "./scene-engine.ts";
 
 export async function videoConnectionsFor(
   supabase: SecretClient,

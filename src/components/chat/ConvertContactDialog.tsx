@@ -45,7 +45,10 @@ interface ConvertContactDialogProps {
   senderPhone: string;
   senderName?: string | null;
   type: "client" | "lead" | "group";
-  onSuccess: (id: string, type: "client" | "lead" | "group") => void;
+  onSuccess: (
+    id: string | undefined,
+    type: "client" | "lead" | "group",
+  ) => void;
 }
 
 export function ConvertContactDialog({
@@ -153,9 +156,9 @@ export function ConvertContactDialog({
             p_tenant_id: tenantId,
             p_agency_id: clientData.agency_id,
             p_name: clientData.name,
-            p_phone: clientData.phone || null,
-            p_email: clientData.email || null,
-            p_notes: clientData.notes || null,
+            p_phone: clientData.phone || undefined,
+            p_email: clientData.email || undefined,
+            p_notes: clientData.notes || undefined,
           },
         );
         if (error) throw error;
@@ -239,7 +242,9 @@ export function ConvertContactDialog({
     },
   });
 
-  const onSubmit = (values: ClientFormValues | LeadFormValues) => {
+  const onSubmit = (
+    values: ClientFormValues | LeadFormValues | GroupFormValues,
+  ) => {
     createMutation.mutate(values);
   };
 

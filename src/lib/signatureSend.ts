@@ -91,7 +91,7 @@ export async function prepareSigningLinks(
 }
 
 export async function sendSignatureDocument(
-  opts: SendSignatureOptions & { tenantId?: string },
+  opts: SendSignatureOptions & { tenantId?: string | null },
 ): Promise<SendSignatureResult> {
   const {
     documentId,

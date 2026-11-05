@@ -30,7 +30,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 interface ClientMeetingTabProps {
   client: Pick<Tables<"clients">, "id" | "name" | "email" | "contact_name">;
-  tenantId?: string;
+  tenantId?: string | null;
 }
 
 export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {

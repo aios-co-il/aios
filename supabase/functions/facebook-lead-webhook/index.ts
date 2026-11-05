@@ -13,7 +13,7 @@ import {
 import { unarchiveExistingLead } from "../_shared/unarchive-lead.ts";
 import {
   applyRepeatInboundReopen,
-  updateLeadWithRepeatReopen,
+  reopenRepeatLead,
 } from "../_shared/lead-repeat-reopen.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 import {
@@ -833,12 +833,15 @@ serve(async (req) => {
                 if (hasUpdates) {
                   updates.updated_at = new Date().toISOString();
 
-                  const { error: updateError } =
-                    await updateLeadWithRepeatReopen(
-                      supabase,
-                      existingLead.id,
-                      updates,
-                    );
+                  const { error: updateError } = await reopenRepeatLead(
+                    supabase,
+                    existingLead,
+                    updates,
+                    {
+                      source: leadRecord.source || "paid_ads",
+                      campaignName: leadRecord.campaign_name,
+                    },
+                  );
 
                   if (updateError) {
                     console.error(

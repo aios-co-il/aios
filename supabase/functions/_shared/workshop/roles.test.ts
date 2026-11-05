@@ -6,9 +6,8 @@ import {
 import {
   aboutCarmen,
   roleOfPersona,
-  ROLE_TOOLS,
-  toolsForRole,
   workshopRole,
+  asksForVideo,
 } from "./roles.ts";
 
 Deno.test("static creative goes to the designer", () => {
@@ -47,31 +46,6 @@ Deno.test("a reply with no signal stays with the current role", () => {
   assertStrictEquals(workshopRole("תמשיכי", null), "designer");
   assertStrictEquals(roleOfPersona("workshop_editor"), "editor");
 });
-
-Deno.test(
-  "each role is offered only its own workshop tools, other tools stay",
-  () => {
-    const tools = [
-      { name: "workshop_make_creative" },
-      { name: "workshop_produce_video" },
-      { name: "workshop_edit_from_assets" },
-      { name: "kb_search" },
-    ];
-    const isWorkshop = (name: string) => name.startsWith("workshop_");
-    assertEquals(
-      toolsForRole(tools, "designer", isWorkshop).map((t) => t.name),
-      ["workshop_make_creative", "kb_search"],
-    );
-    assertEquals(
-      toolsForRole(tools, "editor", isWorkshop).map((t) => t.name),
-      ["workshop_produce_video", "workshop_edit_from_assets", "kb_search"],
-    );
-    assertStrictEquals(
-      ROLE_TOOLS.producer.includes("workshop_make_creative"),
-      false,
-    );
-  },
-);
 
 Deno.test(
   "the open project keeps short replies and picture edits with its specialist",
@@ -345,6 +319,62 @@ Deno.test(
     assertStrictEquals(
       workshopRole("מה את יודעת לעשות?", "video_editor", edit),
       "editor",
+    );
+  },
+);
+
+Deno.test("a video ask is read from the user's own words", () => {
+  assertStrictEquals(
+    asksForVideo("צרי לי סרטון של הדמות בתמונה רוקדת אגדודו"),
+    true,
+  );
+  assertStrictEquals(asksForVideo("תעשי מזה סרט קצר"), true);
+  assertStrictEquals(asksForVideo("תמונה חדשה לפיד"), false);
+});
+
+Deno.test(
+  "a film still being written goes to the copywriter until its script is approved",
+  () => {
+    const writing = { video: true, edit: false, writing: true };
+    for (const message of ["השני", "תמשיכי", "תכתבי תסריט לסרטון", "כן"]) {
+      assertStrictEquals(
+        workshopRole(message, "video_director", writing),
+        "copywriter",
+        message,
+      );
+    }
+    // Past the script, the same film is the producer's again, even from the copywriter's skin.
+    const filmed = { video: true, edit: false };
+    assertStrictEquals(
+      workshopRole("תמשיכי", "copywriter", filmed),
+      "producer",
+    );
+    assertStrictEquals(workshopRole("סרטון", null, filmed), "producer");
+    // A film cut from the user's materials is never the copywriter's.
+    assertStrictEquals(
+      workshopRole("תמשיכי", null, { ...writing, edit: true }),
+      "editor",
+    );
+    // A new post from a film being written is still the designer's.
+    assertStrictEquals(
+      workshopRole("תכיני גם פוסט לאינסטגרם", null, writing),
+      "designer",
+    );
+  },
+);
+
+Deno.test(
+  "the copywriter's skin carries on only while a film is written",
+  () => {
+    assertStrictEquals(roleOfPersona("copywriter"), "copywriter");
+    // Outside a film her skin is not carried on: the message is routed afresh.
+    assertStrictEquals(workshopRole("תודה", "copywriter", null), "designer");
+    assertStrictEquals(
+      workshopRole("תעשי את זה יותר חם", "copywriter", {
+        video: false,
+        edit: false,
+      }),
+      "designer",
     );
   },
 );

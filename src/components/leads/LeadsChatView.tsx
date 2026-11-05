@@ -69,6 +69,7 @@ import {
   LeadCreatedAtLines,
   LeadSourceLines,
 } from "@/components/leads/LeadOriginLines";
+import { LeadSourceHistory } from "@/components/leads/LeadSourceHistory";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
 import { errorMessageOf } from "@/lib/errorMessage";
 import type { LeadsPageLead } from "@/types/leadsPage";
@@ -111,9 +112,10 @@ interface LeadsChatViewProps {
   loadedCount?: number;
 }
 
+/** Read the configured color from this view's status options. */
 function getStatusColor(
   statusKey: string | null,
-  statuses: Array<{ status_key: string; color: string; label?: string }>,
+  statuses: LeadsChatViewProps["leadStatuses"],
 ) {
   return findLeadStatus(statusKey, statuses)?.color;
 }
@@ -1007,6 +1009,7 @@ export function LeadsChatView({
                         <div className="space-y-2 text-sm">
                           <LeadCreatedAtLines lead={selectedLead} />
                           <LeadSourceLines lead={selectedLead} />
+                          <LeadSourceHistory leadId={selectedLead.id} />
                           <div className="flex items-center justify-end gap-2">
                             <span className="font-medium">
                               {selectedLead.campaign_name || "—"}

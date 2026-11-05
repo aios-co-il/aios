@@ -20,7 +20,7 @@ import { type Format } from "./defaults.ts";
 import { type ImageProvider } from "./image-providers.ts";
 import { savePayload } from "./project-io.ts";
 import { asRecord } from "./record.ts";
-import { type SceneEngine, type VideoConnections } from "./video-cost.ts";
+import { type SceneEngine, type VideoConnections } from "./scene-engine.ts";
 
 export interface WorkshopDeps {
   generateImage?: (
@@ -61,12 +61,16 @@ export interface WorkshopDeps {
   userText?: string | null;
   /** Carmen's previous message: its tap-to-answer questions are what userText answers. */
   lastAssistant?: string | null;
+  /** The board page the user marked with this message (workshop_artifact_id). */
+  markedArtifactId?: string | null;
   /** Makes (or finds) a short sample of a narration voice; returns its creative-video path. */
   voiceSample?: (voiceId: string) => Promise<{ path?: string; error?: string }>;
   /** David approved this exact call in the approvals queue. */
   approvedOutOfBand?: boolean;
   /** The client open in the workshop view; a new project starts for it when none is named. */
   viewClientId?: string | null;
+  /** The project open on the board; a new project needs the user to ask for one (start-project.ts). */
+  openItemId?: string | null;
   newToken?: () => string;
 }
 

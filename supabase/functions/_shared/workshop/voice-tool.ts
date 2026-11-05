@@ -40,6 +40,8 @@ export interface VoiceHelpers {
   saveVoice: (voiceId: string, name: string) => Promise<void>;
   /** The user's message this turn: a gender filter applies only when the user asked for one. */
   userText?: string | null;
+  /** Automatic mode (workshop-mode.ts): Carmen picks the voice herself, without samples. */
+  auto?: boolean;
 }
 
 /** Did the user ask for a woman's or a man's voice? */
@@ -58,6 +60,9 @@ export async function chooseVoice(
       voice: picked.name,
       message: `הקול נשמר: ${picked.name}. הקריינות של הסרט תהיה בקול הזה.`,
     };
+  }
+  if (helpers.auto) {
+    return autoVoiceGate();
   }
   const asked =
     helpers.userText === undefined ||
@@ -98,5 +103,26 @@ export async function chooseVoice(
       (missing.length > 0
         ? " לחלק מהקולות לא נוצרה דוגמה (חסר מפתח ElevenLabs או שהקול לא זמין): אמרי את זה במשפט אחד."
         : ""),
+  };
+}
+
+/**
+ * Automatic mode: no samples and no question; Carmen picks the voice that fits the film from the
+ * list and calls the tool again with it.
+ */
+function autoVoiceGate() {
+  return {
+    needs_input: true,
+    missing: ["voice"],
+    say_to_user: "",
+    carmen_continues: true,
+    voices: HEBREW_VOICES.map((voice) => ({
+      name: voice.name,
+      gender: voice.gender,
+      character: voice.character,
+      fits: voice.fits,
+    })),
+    carmen_next:
+      "מצב אוטומטי: בחרי בעצמך את הקול שמתאים לסרט מתוך voices, קראי ל-workshop_choose_voice עם voice (השם) והמשיכי להפקה. בסוף ספרי למשתמש איזה קול בחרת.",
   };
 }
