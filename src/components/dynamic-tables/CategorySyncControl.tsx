@@ -341,7 +341,9 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
   );
   if (error) throw error;
   const data = readAhrefsSnapshotResponse(body);
-  if (data.error) throw new Error(data.error);
+  if (data.error) {
+    throw new Error(data.error);
+  }
 
   // Persist project id on the table so future syncs (full + tracked) reuse it.
   const persistedProjectId = data?.projectId;

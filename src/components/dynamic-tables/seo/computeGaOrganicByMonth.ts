@@ -48,7 +48,9 @@ export function computeGaOrganicByMonth(
     for (const d of monthlyChannelRows) {
       const cg = String(d.channel_group || "");
       if (isPaidChannel(cg)) continue;
-      if (!d.month) continue;
+      if (!d.month) {
+        continue;
+      }
       const month = String(d.month);
       const sessions = Number(d.sessions) || 0;
       monthMap.set(month, (monthMap.get(month) || 0) + sessions);

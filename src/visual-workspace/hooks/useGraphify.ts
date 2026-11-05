@@ -78,7 +78,9 @@ export function useGraphifyCommunity(groupKey: string | null) {
       nodes: GraphifyNode[];
       edges: GraphifyEdge[];
     }> => {
-      if (!groupKey) return { nodes: [], edges: [] };
+      if (!groupKey) {
+        return { nodes: [], edges: [] };
+      }
       const { data, error } = await supabase.rpc("graphify_group_subgraph", {
         p_group: groupKey,
         p_limit: 400,

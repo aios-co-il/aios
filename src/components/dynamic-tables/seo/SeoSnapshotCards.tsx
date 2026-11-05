@@ -4,6 +4,14 @@ import { keywordTop20Rank } from "@/lib/gscPosition";
 import type { JsonObject } from "@/lib/jsonReaders";
 import { getVal, type SnapshotValue } from "./snapshotValues";
 
+type SnapshotMetric = {
+  keys: string[];
+  label: string;
+  icon: string;
+  isOrganic: boolean;
+  override?: SnapshotValue;
+};
+
 /** A tracked/organic keyword row; only the rank-related fields are read here. */
 interface SnapshotKeyword {
   keyword?: unknown;
@@ -119,20 +127,18 @@ export function SeoSnapshotCards({
       ? liveList.length
       : snapTotal;
 
-  const metrics = [
+  const metricDefinitions: SnapshotMetric[] = [
     {
       keys: ["domain_rating", "dr"],
       label: "דירוג דומיין (DR)",
       icon: "🏆",
       isOrganic: false,
-      override: undefined as SnapshotValue,
     },
     {
       keys: ["org_traffic"],
       label: "תנועה אורגנית",
       icon: "📈",
       isOrganic: true,
-      override: undefined as SnapshotValue,
     },
 
     {
@@ -161,23 +167,22 @@ export function SeoSnapshotCards({
       label: "דומיינים מפנים",
       icon: "🔗",
       isOrganic: false,
-      override: undefined as SnapshotValue,
     },
     {
       keys: ["backlinks_live"],
       label: "קישורים נכנסים (פעילים)",
       icon: "🌐",
       isOrganic: false,
-      override: undefined as SnapshotValue,
     },
     {
       keys: ["backlinks_all_time"],
       label: "קישורים נכנסים (כולל)",
       icon: "📊",
       isOrganic: false,
-      override: undefined as SnapshotValue,
     },
-  ]
+  ];
+
+  const metrics = metricDefinitions
     .map((m) => {
       if (m.isOrganic && gaOrganicSessions != null) {
         return {

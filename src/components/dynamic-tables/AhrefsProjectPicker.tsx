@@ -45,7 +45,9 @@ export function AhrefsProjectPicker({
       );
       if (error) throw error;
       const data = readAhrefsProjectList(body);
-      if (data?.error) throw new Error(data.error);
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data?.projects;
     },
     enabled: open,
@@ -80,7 +82,9 @@ export function AhrefsProjectPicker({
       );
       if (error) throw error;
       const data = readAhrefsSnapshotResponse(body);
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        throw new Error(data.error);
+      }
       const organic = data?.keywords_count ?? 0;
       const tracked = data?.tracked_count ?? 0;
       toast.success(

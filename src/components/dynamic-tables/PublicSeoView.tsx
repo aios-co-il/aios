@@ -217,10 +217,14 @@ export function PublicSeoView({
     }
 
     const api = api3 || apiY;
-    if (n.volume == null && api?.volume != null) n.volume = api.volume;
+    if (n.volume == null && api?.volume != null) {
+      n.volume = api.volume;
+    }
     if (n.kd == null && api?.keyword_difficulty != null)
       n.kd = api.keyword_difficulty;
-    if (n.cpc == null && api?.cpc != null) n.cpc = api.cpc;
+    if (n.cpc == null && api?.cpc != null) {
+      n.cpc = api.cpc;
+    }
 
     return {
       ...n,

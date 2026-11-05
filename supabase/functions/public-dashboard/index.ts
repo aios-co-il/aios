@@ -284,7 +284,9 @@ Deno.serve(async (req) => {
         const rawDate =
           jsonField(r.data, "date") || jsonField(r.data, "date_start");
         // Keep aggregated / summary rows (no date) — needed for GA channel rolls etc.
-        if (!rawDate) return true;
+        if (!rawDate) {
+          return true;
+        }
         const recordDate = String(rawDate);
         if (startDate && endDate)
           return recordDate >= startDate && recordDate <= endDate;
@@ -763,7 +765,7 @@ Deno.serve(async (req) => {
           const fetchPeriod = async (
             startOffset: number,
             endOffset: number,
-          ) => {
+          ): Promise<GscPeriodRow[]> => {
             const resp = await fetch(gscApiUrl, {
               method: "POST",
               headers: {
@@ -784,7 +786,7 @@ Deno.serve(async (req) => {
                 resp.status,
                 await resp.text(),
               );
-              return [] as GscPeriodRow[];
+              return [];
             }
             const json: Json = await resp.json();
             const rows = jsonField(json, "rows");

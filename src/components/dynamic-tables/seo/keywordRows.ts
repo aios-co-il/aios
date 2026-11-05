@@ -68,10 +68,14 @@ function fillBlankField<K extends keyof SeoKeywordRow>(
 function compareVariants(a: SeoKeywordRow, b: SeoKeywordRow): number {
   const ap = a.position ?? Number.POSITIVE_INFINITY;
   const bp = b.position ?? Number.POSITIVE_INFINITY;
-  if (ap !== bp) return Number(ap) - Number(bp);
+  if (ap !== bp) {
+    return Number(ap) - Number(bp);
+  }
   const at = Number(a.traffic ?? 0),
     bt = Number(b.traffic ?? 0);
-  if (at !== bt) return bt - at;
+  if (at !== bt) {
+    return bt - at;
+  }
   return Number(b.volume ?? 0) - Number(a.volume ?? 0);
 }
 
@@ -82,7 +86,9 @@ export function dedupeKeywordRows(rows: SeoKeywordRow[]): SeoKeywordRow[] {
     const key = String(r?.keyword || "")
       .trim()
       .toLowerCase();
-    if (!key) continue;
+    if (!key) {
+      continue;
+    }
     groups.set(key, [...(groups.get(key) ?? []), r]);
   }
   return [...groups.values()].map((variants) => {

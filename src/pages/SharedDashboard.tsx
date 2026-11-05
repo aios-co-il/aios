@@ -1022,7 +1022,9 @@ export default function SharedDashboard({
     const byDate: Record<string, DailyChartPoint> = {};
     filteredRecords.forEach((record) => {
       const rawDate = record.data?.date;
-      if (!rawDate) return;
+      if (!rawDate) {
+        return;
+      }
       const date = String(rawDate);
       const source = record._source || "unknown";
       const data = record.data || {};

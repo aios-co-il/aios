@@ -493,7 +493,9 @@ function calculateMetrics(
 
   const filtered = records.filter((r) => {
     const date = recordDate(r);
-    if (!date) return false;
+    if (!date) {
+      return false;
+    }
     // Use >= startStr and < endStr to avoid overlap between periods
     return date >= startStr && date < endStr;
   });

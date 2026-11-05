@@ -87,7 +87,9 @@ function gaPropertyOption(p: Json): { id: string; name: string } {
 }
 
 function localeText(value: Json | undefined): string | undefined {
-  if (value == null) return undefined;
+  if (value == null) {
+    return undefined;
+  }
   return typeof value === "number" ? value.toLocaleString() : String(value);
 }
 

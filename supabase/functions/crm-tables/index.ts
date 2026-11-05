@@ -586,7 +586,9 @@ serve(async (req) => {
             updateData.client_id = settingsClientId;
           }
         }
-        if (nextSettings) updateData.integration_settings = nextSettings;
+        if (nextSettings) {
+          updateData.integration_settings = nextSettings;
+        }
 
         const { data: table, error } = await supabase
           .from("crm_tables")

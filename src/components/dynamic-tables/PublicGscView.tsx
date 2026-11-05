@@ -66,7 +66,9 @@ export function PublicGscView({ records }: PublicGscViewProps) {
     for (const r of records) {
       const d = r.data || {};
       const date = d.date || d.day || d.report_date;
-      if (cutoff && typeof date === "string" && date && date < cutoff) continue;
+      if (cutoff && typeof date === "string" && date && date < cutoff) {
+        continue;
+      }
       samples.push({
         query: String(d.query || d.keyword || "").trim(),
         clicks: d.clicks,

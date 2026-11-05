@@ -50,6 +50,21 @@ type MonthlyShareSlice = Pick<
 >;
 type GscRecord =
   RecordSlice | ReturnType<typeof mapGscRowsToCrmRecords>[number];
+
+type MaskyooBundle = {
+  snapshots: MaskyooSnapshotSlice[];
+  period: { start: string; end: string } | null;
+};
+
+type GscBundle = {
+  gscRecords: GscRecord[];
+  gscMultiPeriod: {
+    prevMonth: GscKeywordRow[];
+    threeMonth: GscKeywordRow[];
+    yearly: GscKeywordRow[];
+  } | null;
+  gscSyncedAt: string | null;
+};
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
 import { toPublicCachedShareBody } from "./cached-share-body.ts";
 
@@ -355,7 +370,9 @@ function withTimeout<T>(
 function trimAhrefsReportsForPublic(reports: AhrefsReportSlice[]) {
   return (reports || []).map((report, index) => {
     const reportData = report?.report_data;
-    if (!reportData || typeof reportData !== "object") return report;
+    if (!reportData || typeof reportData !== "object") {
+      return report;
+    }
     const rd = asJsonObject(reportData);
     const trimmedRd: JsonObject = {};
     for (const key of [
@@ -740,14 +757,8 @@ Deno.serve(async (req) => {
 
       const maskyooPromise =
         seoPart === "gsc"
-          ? Promise.resolve({
-              snapshots: [] as MaskyooSnapshotSlice[],
-              period: null,
-            })
-          : (async (): Promise<{
-              snapshots: MaskyooSnapshotSlice[];
-              period: { start: string; end: string } | null;
-            }> => {
+          ? Promise.resolve<MaskyooBundle>({ snapshots: [], period: null })
+          : (async (): Promise<MaskyooBundle> => {
               await clientContextPromise;
               if (!targetClientId) return { snapshots: [], period: null };
               try {
@@ -905,21 +916,17 @@ Deno.serve(async (req) => {
           ? Promise.resolve<RecordSlice[]>([])
           : fetchGaRecordsForSeoChart(supabase, gaTable.id);
 
-      const gscBundlePromise = (async () => {
+      const gscBundlePromise = (async (): Promise<GscBundle> => {
         if (seoPart === "core") {
           return {
-            gscRecords: [] as GscRecord[],
+            gscRecords: [],
             gscMultiPeriod: null,
             gscSyncedAt: null,
           };
         }
 
         let gscRecords: GscRecord[] = [];
-        let gscMultiPeriod: {
-          prevMonth: GscKeywordRow[];
-          threeMonth: GscKeywordRow[];
-          yearly: GscKeywordRow[];
-        } | null = null;
+        let gscMultiPeriod: GscBundle["gscMultiPeriod"] = null;
         let gscSyncedAt: string | null = null;
         if (!effectiveGscSiteUrl)
           return { gscRecords, gscMultiPeriod, gscSyncedAt };
@@ -1144,7 +1151,10 @@ Deno.serve(async (req) => {
       ? allRecords
       : allRecords.filter((r) => {
           const rawDate = jsonField(r.data, "date");
-          if (!rawDate) return true; // keep non-dated records (matches internal)
+          // Keep non-dated records, as the internal report does.
+          if (!rawDate) {
+            return true;
+          }
           const recordDate = String(rawDate);
           if (endDate) return recordDate >= startDate && recordDate <= endDate;
           return recordDate >= startDate;

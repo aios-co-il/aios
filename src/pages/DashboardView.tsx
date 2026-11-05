@@ -524,7 +524,9 @@ export default function DashboardView() {
       ]);
 
       const tablesToFetch = tables.filter((t) => {
-        if (!DASHBOARD_RECORD_TYPES.has(t.integration_type ?? "")) return false;
+        if (!DASHBOARD_RECORD_TYPES.has(t.integration_type ?? "")) {
+          return false;
+        }
         if (skipFbInsights && t.integration_type === "facebook_insights")
           return false;
         return true;
@@ -1225,7 +1227,9 @@ export default function DashboardView() {
 
     filteredRecords.forEach((record) => {
       const data = asJsonObject(record.data);
-      if (!data.date) return;
+      if (!data.date) {
+        return;
+      }
       const date = String(data.date);
       const source = record._source || "unknown";
 

@@ -180,7 +180,9 @@ export function EditTableDialog({
   const { data: clients = [] } = useAgencyClients(agencyId || null);
 
   const handleSave = async () => {
-    if (!table) return;
+    if (!table) {
+      return;
+    }
     if (!name.trim()) {
       toast.error("נא למלא שם טבלה");
       return;

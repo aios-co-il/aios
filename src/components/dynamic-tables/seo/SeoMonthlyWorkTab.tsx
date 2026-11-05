@@ -688,7 +688,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
                 value={status}
                 onValueChange={(v) => {
                   const next = seoMonthlyStatusSchema.safeParse(v);
-                  if (!next.success) return;
+                  if (!next.success) {
+                    return;
+                  }
                   setStatus(next.data);
                   setDirty(true);
                 }}

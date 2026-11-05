@@ -1334,7 +1334,9 @@ export default function DynamicTableView({
           });
         if (fetchError) throw fetchError;
         const ahrefsFetchError = readField(fetchData, "error");
-        if (ahrefsFetchError) throw new Error(String(ahrefsFetchError));
+        if (ahrefsFetchError) {
+          throw new Error(String(ahrefsFetchError));
+        }
 
         // Step 2: pull ALL reports for this client (all months) and rebuild
         const { data: reports, error } = await supabase

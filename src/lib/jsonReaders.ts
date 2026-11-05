@@ -3,8 +3,26 @@ import type { Json } from "@/integrations/supabase/types";
 
 export type JsonObject = { [key: string]: Json | undefined };
 
+const plainObjectSchema = z.record(z.unknown());
+
+const numberSchema = z.union([z.number(), z.nan()]);
+
+const stringOrNumberSchema = z.union([z.string(), numberSchema]);
+
+const messageSchema = z.object({ message: z.unknown() });
+
+const codeSchema = z.object({ code: z.unknown() });
+
+function parsedOrUndefined<T>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  value: unknown,
+): T | undefined {
+  const parsed = schema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
 export function isJsonObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return plainObjectSchema.safeParse(value).success;
 }
 
 /** The object form of a JSON value; null, primitives and arrays read as `{}`. */
@@ -52,30 +70,24 @@ export function readField(obj: unknown, key: string): Json | undefined {
 }
 
 export function readString(obj: unknown, key: string): string | undefined {
-  const value = readField(obj, key);
-  return typeof value === "string" ? value : undefined;
+  return parsedOrUndefined(z.string(), readField(obj, key));
 }
 
 export function readNumber(obj: unknown, key: string): number | undefined {
-  const value = readField(obj, key);
-  return typeof value === "number" ? value : undefined;
+  return parsedOrUndefined(numberSchema, readField(obj, key));
 }
 
 /** Strings as-is and numbers stringified; anything else is undefined. */
 export function readText(obj: unknown, key: string): string | undefined {
-  const value = readField(obj, key);
-  if (typeof value === "string") return value;
-  return typeof value === "number" ? String(value) : undefined;
+  const value = parsedOrUndefined(stringOrNumberSchema, readField(obj, key));
+  return value === undefined ? undefined : String(value);
 }
 
 export function readDateInput(
   obj: unknown,
   key: string,
 ): string | number | undefined {
-  const value = readField(obj, key);
-  return typeof value === "string" || typeof value === "number"
-    ? value
-    : undefined;
+  return parsedOrUndefined(stringOrNumberSchema, readField(obj, key));
 }
 
 /** `parseFloat` on a JSON value, with the same implicit string coercion. */
@@ -87,23 +99,15 @@ export function readFloat(obj: unknown, key: string): number {
 }
 
 export function errorMessage(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null || !("message" in error)) {
-    return undefined;
-  }
-  const { message } = error;
-  return typeof message === "string" ? message : undefined;
+  return parsedOrUndefined(z.string(), thrownMessage(error));
 }
 
 /** `err?.message` for any thrown value (Error, PostgrestError, plain objects). */
 export function thrownMessage(err: unknown): unknown {
-  return typeof err === "object" && err !== null && "message" in err
-    ? err.message
-    : undefined;
+  return parsedOrUndefined(messageSchema, err)?.message;
 }
 
 /** `err?.code` for any thrown value (PostgrestError / FunctionsError). */
 export function thrownCode(err: unknown): unknown {
-  return typeof err === "object" && err !== null && "code" in err
-    ? err.code
-    : undefined;
+  return parsedOrUndefined(codeSchema, err)?.code;
 }

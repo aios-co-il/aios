@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -23,8 +22,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Link2, Loader2, Search } from "lucide-react";
 import { invalidateClientCrmTablesQueries } from "@/lib/reportQueryCache";
-
-const errorDetailSchema = z.object({ error: z.unknown() });
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 
 interface LinkTableToClientDialogProps {
   tableId: string;
@@ -108,24 +106,7 @@ export function LinkTableToClientDialog({
         body: { table_id: tableId, client_id: clientId },
       });
       if (error) {
-        let message = error.message;
-        try {
-          const context: unknown = error.context;
-          const details: unknown =
-            typeof context === "object" &&
-            context !== null &&
-            "json" in context &&
-            typeof context.json === "function"
-              ? await context.json()
-              : undefined;
-          const detail = errorDetailSchema.safeParse(details);
-          if (detail.success && detail.data.error) {
-            message = String(detail.data.error);
-          }
-        } catch {
-          /* keep generic message */
-        }
-        throw new Error(message);
+        throw new Error(await edgeFunctionErrorMessage(error, error.message));
       }
     },
     onSuccess: (_data, clientId) => {

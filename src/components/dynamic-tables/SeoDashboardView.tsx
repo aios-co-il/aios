@@ -145,7 +145,9 @@ export function SeoDashboardView({
       );
       if (error) throw error;
       const data = readAhrefsSnapshotResponse(body);
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        throw new Error(data.error);
+      }
       const tracked = data?.tracked_count ?? 0;
       const organic = data?.keywords_count ?? 0;
       toast.success(
@@ -426,7 +428,9 @@ export function SeoDashboardView({
   function buildPrevMonthMap(
     report: { report_data?: unknown } | null,
   ): Map<string, Json> {
-    if (!report?.report_data) return new Map();
+    if (!report?.report_data) {
+      return new Map();
+    }
     const rd = asJsonObject(report.report_data);
     const map = new Map<string, Json>();
     const organic = asJsonArray(rd.organic_keywords);
@@ -788,7 +792,9 @@ export function SeoDashboardView({
       );
       if (error) throw error;
       const data = readAhrefsSnapshotResponse(body);
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        throw new Error(data.error);
+      }
       toast.success(
         `הדוח סונכרן (${data?.keywords_count ?? 0} אורגניים, ${data?.tracked_count ?? 0} במעקב)`,
       );
