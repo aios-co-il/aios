@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import {
   Loader2,
@@ -143,27 +143,33 @@ export function AddIntegrationDialog({
   // Fetch user integrations for the selected platform
   const { data: integration, isLoading: integrationLoading } = useQuery({
     queryKey: ["platform-integration", selectedPlatform, activeTenantId],
-    queryFn: async () => {
-      if (!selectedPlatform) return null;
-      const platform = PLATFORMS.find((p) => p.type === selectedPlatform);
-      if (!platform) return null;
+    queryFn:
+      selectedPlatform && activeTenantId
+        ? async () => {
+            const platform = PLATFORMS.find((p) => p.type === selectedPlatform);
+            if (!platform) {
+              return null;
+            }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+            if (!user) {
+              return null;
+            }
 
-      const { data } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", activeTenantId)
-        .eq("integration_type", platform.integrationType)
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+            const { data } = await supabase
+              .from("tenant_integrations")
+              .select("*")
+              .eq("tenant_id", activeTenantId)
+              .eq("integration_type", platform.integrationType)
+              .eq("user_id", user.id)
+              .eq("is_active", true)
+              .maybeSingle();
 
-      return data;
-    },
+            return data;
+          }
+        : skipToken,
     enabled: !!selectedPlatform && !!activeTenantId,
   });
 

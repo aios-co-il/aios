@@ -2,7 +2,7 @@
  * Talking scenes (scene meta.lipsync): the meta keys a talking scene carries and the line it says,
  * read in one place. Plain TypeScript with no imports, so the board (src/components/workshop)
  * reads scenes the same way. The line is kept in step with public.video_talking_line
- * (supabase/migrations/20261026102300_video_lipsync.sql) and render-worker/src/narration.mjs.
+ * (supabase/migrations/20261026102300_video_lipsync.sql) and render-worker/src/narration.ts.
  */
 
 const record = (value: unknown): Record<string, unknown> =>

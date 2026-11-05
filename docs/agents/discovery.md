@@ -1,15 +1,15 @@
 # Codebase discovery and Graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+The central system graph is rebuilt in CI after merges to `main` by `.github/workflows/sync-system-graph.yml`. A local graph may also be available at `graphify-out/` with community structure and cross-file relationships.
 
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
 Rules:
 
-- Before architecture or implementation work, use the shared `aios-system-graph` MCP tools (`query_system_graph` and `graph_status`) when available to locate existing components, dependencies, database objects, Edge Functions, Carmen skins, tools, and memory paths. Confirm the central graph matches a recent `main` commit; reuse existing functionality and inspect affected dependencies again before opening a PR.
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the local graph current (AST-only, no API cost); the central graph is rebuilt after merges to `main`.
+- Use `rg` and focused file reads for routine questions, small fixes, and known code paths. Ordinary chat and shell commands do not require graph checks.
+- For broad architecture or dependency analysis, optionally use the shared `aios-system-graph` MCP tools (`query_system_graph` and `graph_status`) when available. Check freshness when relying on graph results, and confirm relevant relationships in source before changing code.
+- If a local graph exists and would help, use `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"`. The local wiki can help with broad navigation; reserve `GRAPH_REPORT.md` for broad reviews or insufficient query results.
+- Graph tools are optional unless the user explicitly requests them. If tools or graph data are unavailable or stale, continue with direct searches; do not install, rebuild, or repair Graphify as a prerequisite to unrelated work.
+- Local graph updates are opt-in. Run `graphify update .` only when graph maintenance is part of the requested task; routine edits do not require it. CI maintains the central graph.
+- Reuse existing functionality and inspect affected dependencies before opening a PR, using source files or graph results as appropriate.
 - Keep Graphify output, generated reports, summaries, reflections, and work-memory files out of commits. Keep changes to Carmen and other critical monolithic functions small and additive.

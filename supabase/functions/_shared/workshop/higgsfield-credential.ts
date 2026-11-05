@@ -2,7 +2,7 @@
  * Higgsfield's console copies one string, `key id:key secret`.
  * Settings still store two fields. A field that already contains ":" is that
  * whole string and is sent alone. Two separate parts are joined.
- * Keep this in step with render-worker/src/providers/higgsfield-credential.mjs.
+ * Keep this in step with render-worker/src/providers/higgsfield-credential.ts.
  */
 export function higgsfieldCredential(
   keyId: unknown,

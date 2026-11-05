@@ -241,6 +241,31 @@ test("the board opens the newest workshop project, never another marketing item"
   expect(screen.queryByText("קופי לדף נחיתה")).toBeNull();
 });
 
+const COPY_ID = "c0ffee00-0000-4000-8000-000000000001";
+
+test("a project of any department opens on the board with Carmen, not in its department screen", async () => {
+  state.items = [
+    {
+      id: COPY_ID,
+      tenant_id: "t-1",
+      status: "draft",
+      title: "קופי לדף נחיתה",
+      client_id: null,
+      payload: { department: "copy" },
+    },
+    workshopProject,
+  ];
+  renderPage(`/?project=${COPY_ID}`);
+  await waitFor(() =>
+    expect(getWorkshopContext()).toMatchObject({
+      projectId: COPY_ID,
+      title: "קופי לדף נחיתה",
+    }),
+  );
+  expect(screen.queryByText("פתח במסך המחלקה")).toBeNull();
+  expect(screen.queryByText(/אין לוח בסדנה/)).toBeNull();
+});
+
 const CLIENT = "c0000000-0000-4000-8000-000000000001";
 test.each([
   ["an active client of the tenant", "t-1", "active", CLIENT, "פיצה"],

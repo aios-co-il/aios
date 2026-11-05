@@ -21,6 +21,7 @@ import {
 } from "../_shared/json-narrow.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import { buildFlowStepRows, flowStepSpecs } from "./flow-steps.ts";
+import { handlePulseTargetApproval } from "./pulse-target-approval.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { authorizeApprovalActor } from "../_shared/carmen/approvals/approver.ts";
 import {
@@ -242,6 +243,18 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ success: !schedErr, result, approval_id }),
         { status: schedErr ? 400 : 200, headers: corsHeaders },
+      );
+    }
+
+    // Reached from Carmen's "כן" and from the approvals page, after the approver
+    // gate and claimForRun (set_pulse_target is in CARMEN_EXECUTOR_TOOLS).
+    if (row.tool_name === "set_pulse_target") {
+      return await handlePulseTargetApproval(
+        supabase,
+        row,
+        approval_id,
+        approved_by || null,
+        corsHeaders,
       );
     }
 
@@ -520,6 +533,7 @@ Deno.serve(async (req) => {
         confirmed: true,
         entity_id,
         client_id: inp.client_id,
+        approval_id,
       });
       await supabase
         .from("agent_approval_queue")
@@ -874,11 +888,14 @@ Deno.serve(async (req) => {
         ? { ...rawInput, entity_id: rawInput.entity_id || rawInput.campaign_id }
         : rawInput;
 
+    // The approval row names the tenant and the action, never the model's
+    // tool_input; approval_id makes the tools check its targets (AIO-307).
     const payload = {
+      ...normalizedInput,
       tenant_id: row.tenant_id,
       action: route.action,
       confirmed: true,
-      ...normalizedInput,
+      approval_id,
     };
 
     const r = await invokeEdgeFn(route.fn, payload);

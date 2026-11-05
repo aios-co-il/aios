@@ -1,3 +1,4 @@
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -161,7 +162,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
 
   if (!itemId) return null;
 
-  const save = async (patch: Partial<any>) => {
+  const save = async (patch: TablesUpdate<"marketing_work_items">) => {
     setSaving(true);
     const { error } = await supabase
       .from("marketing_work_items")
@@ -270,8 +271,8 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
         setTimeout(() => runStage(nextStage.id), 500);
       }
     } else {
-      // Last stage approved — mark item as completed
-      await save({ status: "completed" });
+      // The item enum uses approved; completed belongs to marketing_runs.
+      await save({ status: "approved" });
     }
     refetchRuns();
     toast({ title: "✓ אושר" });

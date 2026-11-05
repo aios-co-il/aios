@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,85 +95,109 @@ export function CashFlowTab() {
   // --- Data fetches ---
   const { data: agencies } = useQuery({
     queryKey: ["cf-agencies", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("agencies")
-        .select("id, name")
-        .eq("tenant_id", tenantId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("agencies")
+            .select("id, name")
+            .eq("tenant_id", tenantId);
+          if (error) {
+            throw error;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: clients } = useQuery({
     queryKey: ["cf-clients", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, name, agency_id, retainer, monthly_fixed_expense, status")
-        .eq("tenant_id", tenantId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("clients")
+            .select(
+              "id, name, agency_id, retainer, monthly_fixed_expense, status",
+            )
+            .eq("tenant_id", tenantId);
+          if (error) {
+            throw error;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: suppliers } = useQuery({
     queryKey: ["cf-suppliers", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select(
-          "id, name, payment_1, agency_id_1, payment_2, agency_id_2, payment_3, agency_id_3",
-        )
-        .eq("tenant_id", tenantId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("suppliers")
+            .select(
+              "id, name, payment_1, agency_id_1, payment_2, agency_id_2, payment_3, agency_id_3",
+            )
+            .eq("tenant_id", tenantId);
+          if (error) {
+            throw error;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: oneTimeIncomes } = useQuery({
     queryKey: ["cf-one-time", tenantId, monthsToFetch],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("one_time_incomes")
-        .select("id, client_id, product_name, amount, payment_month, is_paid")
-        .eq("tenant_id", tenantId)
-        .in("payment_month", monthsToFetch);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("one_time_incomes")
+            .select(
+              "id, client_id, product_name, amount, payment_month, is_paid",
+            )
+            .eq("tenant_id", tenantId)
+            .in("payment_month", monthsToFetch);
+          if (error) {
+            throw error;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: incomePayments } = useQuery({
     queryKey: ["cf-income-payments", tenantId, selectedMonth],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("income_payments")
-        .select("id, client_id, amount, payment_month, received_at")
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", selectedMonth);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("income_payments")
+            .select("id, client_id, amount, payment_month, received_at")
+            .eq("tenant_id", tenantId)
+            .eq("payment_month", selectedMonth);
+          if (error) {
+            throw error;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const { data: expensePayments } = useQuery({
     queryKey: ["cf-expense-payments", tenantId, selectedMonth],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("expense_payments")
-        .select("id, expense_type, expense_id, amount, payment_month, paid_at")
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", selectedMonth);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data, error } = await supabase
+            .from("expense_payments")
+            .select(
+              "id, expense_type, expense_id, amount, payment_month, paid_at",
+            )
+            .eq("tenant_id", tenantId)
+            .eq("payment_month", selectedMonth);
+          if (error) {
+            throw error;
+          }
+          return data || [];
+        }
+      : skipToken,
   });
 
   const isLoading =
@@ -953,10 +982,10 @@ export function CashFlowTab() {
               oneTimeIncomes={oneTimeIncomes || []}
               incomePayments={incomePayments || []}
               expensePayments={expensePayments || []}
-              onMarkIncome={(p) => markIncome.mutate(p)}
-              onUnmarkIncome={(id) => unmarkIncome.mutate(id)}
-              onMarkExpense={(p) => markExpense.mutate(p)}
-              onUnmarkExpense={(id) => unmarkExpense.mutate(id)}
+              onMarkIncome={markIncome.mutate}
+              onUnmarkIncome={unmarkIncome.mutate}
+              onMarkExpense={markExpense.mutate}
+              onUnmarkExpense={unmarkExpense.mutate}
             />
           )}
         </DialogContent>

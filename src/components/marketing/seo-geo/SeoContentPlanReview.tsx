@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,27 +16,13 @@ import {
   Trash2,
 } from "lucide-react";
 
-export type ContentPlanItem = {
-  title?: string;
-  contentType?: string;
-  primaryKeyword?: string;
-  cluster?: string;
-  intent?: string;
-  angle?: string;
-  geoQuestions?: string[];
-  priority?: string;
-  status?: string;
-};
+import type { ContentPlanItem, SeoPayload } from "./seoPayload";
 
-type SeoPlan = {
-  contentPlan?: ContentPlanItem[];
-  clusters?: unknown[];
-  strategy?: Record<string, string>;
-};
+export type { ContentPlanItem } from "./seoPayload";
 
 interface Props {
   workItemId: string;
-  payload: Record<string, unknown> | null;
+  payload: SeoPayload | null;
   onUpdated: () => void;
   onApproved?: () => void;
 }
@@ -47,7 +33,7 @@ export function SeoContentPlanReview({
   onUpdated,
   onApproved,
 }: Props) {
-  const plan = (payload?.seo_plan ?? null) as SeoPlan | null;
+  const plan = payload?.seo_plan;
   const planStatus = String(payload?.seo_plan_status ?? "pending");
   const [items, setItems] = useState<ContentPlanItem[]>([]);
   const [feedback, setFeedback] = useState("");
@@ -62,7 +48,7 @@ export function SeoContentPlanReview({
 
   const savePlan = async (
     nextItems: ContentPlanItem[],
-    extraPayload?: Record<string, unknown>,
+    extraPayload?: Pick<SeoPayload, "seo_plan_status">,
   ) => {
     setSaving(true);
     try {
@@ -130,19 +116,12 @@ export function SeoContentPlanReview({
     }
   };
 
-  const research = useMemo(() => {
-    const r = payload?.seo_research;
-    if (!r || typeof r !== "object") return null;
-    const o = r as Record<string, unknown>;
-    return {
-      seeds: Array.isArray(o.keyword_seeds)
-        ? (o.keyword_seeds as string[])
-        : [],
-      competitors: Array.isArray(o.competitors)
-        ? (o.competitors as string[])
-        : [],
-    };
-  }, [payload]);
+  const research = payload?.seo_research
+    ? {
+        seeds: payload.seo_research.keyword_seeds ?? [],
+        competitors: payload.seo_research.competitors ?? [],
+      }
+    : null;
 
   if (!plan?.contentPlan?.length) {
     return (

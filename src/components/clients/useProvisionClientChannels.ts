@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CLIENT_CHANNELS, type ChannelFieldKey } from "@/config/clientChannels";
 import { resolveDashboardHomeTenant } from "@/lib/crmDashboards";
 import { normalizeSeoDomain } from "@/lib/seoDomain";
+import { normalizeGoogleAdsCustomerId } from "@functions/_shared/ads-sync/google-customer-id.ts";
 import {
   isSeoClient,
   pickGaPropertyForDomain,
@@ -36,8 +37,9 @@ const TABLE_META: Record<
     label: "Google Ads",
     category: "Google Ads",
     needsIntegrationId: false,
+    // The client field shows ids as Google Ads does ("123-456-7890").
     build: (v) => ({
-      customer_id: v,
+      customer_id: normalizeGoogleAdsCustomerId(v),
       date_range: "last_30_days",
       sync_frequency: "daily",
       data_source: "direct_api",

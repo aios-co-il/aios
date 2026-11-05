@@ -224,10 +224,12 @@ export function parseHttpResponse(raw: Uint8Array): {
  * Why a fetched body cannot be used, or null when it is whole: larger than allowed, cut off by
  * the read limit, or shorter than the Content-Length the server announced (the connection
  * dropped). A partial picture or page is refused rather than passed on as if it were complete.
+ * `cleanClose: false` (the server hung up without a TLS close_notify) leaves only the framing to
+ * prove the body whole, so a body with neither Content-Length nor chunked encoding is refused.
  */
 export function bodyProblem(
   response: { headers: Headers; body: Uint8Array; complete?: boolean },
-  options: { maxBytes: number; capped: boolean },
+  options: { maxBytes: number; capped: boolean; cleanClose?: boolean },
 ): string | null {
   const chunked = /chunked/i.test(
     response.headers.get("transfer-encoding") ?? "",
@@ -244,9 +246,11 @@ export function bodyProblem(
     (hasLength && announced > options.maxBytes)
   )
     return "הקובץ גדול מדי";
+  const unframed = !chunked && !hasLength;
   if (
     response.complete === false ||
-    (hasLength && response.body.length < announced)
+    (hasLength && response.body.length < announced) ||
+    (options.cleanClose === false && unframed)
   )
     return "ההורדה נקטעה באמצע";
   return null;
