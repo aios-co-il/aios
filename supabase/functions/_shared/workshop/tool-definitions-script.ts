@@ -1,10 +1,10 @@
 /** workshop_save_script: the film's script, written after the concept and approved before scenes. */
 
-import { SCRIPT_GUIDE, WORDS_PER_SECOND } from "./film-script.ts";
+import { SCRIPT_GUIDE } from "./film-script.ts";
 
 export const SAVE_SCRIPT_TOOL = {
   name: "workshop_save_script",
-  description: `שומרת את התסריט של הסרט כעמוד בלוח ומציגה אותו למשתמש עם כפתורי אישור. הסדר בסרט חדש: בריף, קונספטים, בחירת קונספט, תסריט (הכלי הזה), אישור התסריט, סטוריבורד, תמונות, הפקה. כותבים רק אחרי שהמשתמש בחר קונספט, לפיו (בלי קונספט שנבחר הכלי מסרב; המשתמש נתן תסריט מלא משלו או ביקש בלי קונספטים: workshop_storyboard עם skip_concepts=true). ${SCRIPT_GUIDE} השרת מחשב את הזמנים, בודק שהסכום שווה לאורך הסרט ושכל שורה נאמרת בזמן שלה (${WORDS_PER_SECOND} מילים לשנייה). say_to_user נשלח למשתמש כמו שהוא; עצרי אחריו. בקשת שינוי: כתבי מחדש ושמרי שוב. אחרי שהמשתמש אישר לא שומרים שוב: ממשיכים ל-workshop_storyboard. לא עולה כסף.`,
+  description: `שומרת את התסריט של הסרט כעמוד בלוח ומציגה אותו למשתמש עם כפתורי אישור. הסדר בסרט חדש: בריף, קונספטים, בחירת קונספט, תסריט (הכלי הזה), אישור התסריט, סטוריבורד, תמונות, הפקה. כותבים רק אחרי שהמשתמש בחר קונספט, לפיו (בלי קונספט שנבחר הכלי מסרב; המשתמש נתן תסריט מלא משלו או ביקש בלי קונספטים: workshop_storyboard עם skip_concepts=true). ${SCRIPT_GUIDE} השרת מחשב את הזמנים, בודק שהסכום שווה לאורך הסרט ושכל שורה נאמרת בזמן שלה, לפי אותו קצב. say_to_user נשלח למשתמש כמו שהוא; עצרי אחריו. בקשת שינוי: כתבי מחדש ושמרי שוב. אחרי שהמשתמש אישר לא שומרים שוב: ממשיכים ל-workshop_storyboard. לא עולה כסף.`,
   parameters: {
     type: "object",
     properties: {

@@ -9,7 +9,6 @@ import {
   conceptAnswer,
   filmScriptOf,
   filmSeconds,
-  maxWords,
   SCRIPT_GUIDE,
   scriptText,
   withScriptApproved,
@@ -133,7 +132,7 @@ function writeGate(
   auto: boolean,
 ): ScriptGate {
   const length = seconds
-    ? `הסרט ${seconds} שניות: סכום duration_s של השורות שווה ${seconds}, והקריינות בכולו עד ${maxWords(seconds)} מילים.`
+    ? `הסרט ${seconds} שניות: סכום duration_s של השורות שווה ${seconds}, וכל שורה נאמרת בזמן שלה לפי הקצב שלמטה.`
     : "סכום duration_s של השורות הוא אורך הסרט.";
   const from = concept
     ? `לפי הקונספט שנבחר, "${concept.title}": ${concept.text}`

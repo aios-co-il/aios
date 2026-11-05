@@ -1,11 +1,13 @@
 import {
   CONCEPT_LABEL,
-  maxWords,
   scriptText,
-  spokenWords,
   tapTitle,
   type ScriptBeat,
 } from "@functions/_shared/workshop/film-script.ts";
+import {
+  maxWords,
+  spokenWords,
+} from "@functions/_shared/workshop/script-pace.ts";
 import type { Database } from "@/integrations/supabase/types";
 import { artifactText, type WorkshopArtifact } from "./workshopFeedModel";
 
@@ -86,10 +88,10 @@ export function overlongBeats(beats: Array<ScriptBeat>): Map<number, string> {
   beats.forEach((beat, index) => {
     const seconds = beat.end_s - beat.start_s;
     const words = spokenWords(beat.narration);
-    if (words > maxWords(seconds)) {
+    if (words > maxWords(seconds, beat.narration)) {
       overlong.set(
         index,
-        `${words} מילים לא נכנסות ב-${seconds} שניות (עד ${maxWords(seconds)}). כדאי לקצר.`,
+        `${words} מילים לא נכנסות ב-${seconds} שניות (עד ${maxWords(seconds, beat.narration)}). כדאי לקצר.`,
       );
     }
   });

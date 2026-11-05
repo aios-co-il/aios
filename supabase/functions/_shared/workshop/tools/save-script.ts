@@ -6,13 +6,17 @@
 
 import {
   filmSeconds,
-  maxWords,
   scriptText,
-  spokenWords,
   withScript,
   withScriptApproved,
   type ScriptBeat,
 } from "../film-script.ts";
+import {
+  PACE_GUIDE,
+  maxWords,
+  spokenSeconds,
+  spokenWords,
+} from "../script-pace.ts";
 import type { Db } from "../db.ts";
 import { loadProject, savePayload } from "../project-io.ts";
 import { asRecord, recordArtifact } from "../record.ts";
@@ -158,14 +162,38 @@ function beatsRefusal(beats: Array<ScriptBeat>, film: number | null) {
     if (!beat.narration && !beat.on_screen) {
       return `שורה ${index + 1}: חסרים narration ו-on_screen.`;
     }
-    const words = spokenWords(beat.narration);
-    if (words > maxWords(length)) {
-      return `שורה ${index + 1}: ${words} מילים בקריינות לא נכנסות ב-${length} שניות (עד ${maxWords(length)}). קצרי את השורה או הוסיפי לה זמן.`;
-    }
+  }
+  const tooLong = paceRefusal(beats);
+  if (tooLong) {
+    return tooLong;
   }
   const total = beats[beats.length - 1].end_s;
   if (film && Math.abs(total - film) > LENGTH_SLACK_S) {
     return `סכום השורות ${total} שניות, והסרט ${film} שניות. התאימי את duration_s כך שהסכום יהיה ${film}. אם המשתמש שינה את אורך הסרט, עדכני אותו קודם ב-workshop_storyboard עם brief_answers {"אורך": "<האורך החדש>"}.`;
   }
   return null;
+}
+
+/**
+ * Every line the voice cannot say in its beat, with the most words that fit it, so Carmen fixes
+ * them in one go; null when all fit. Uses maxWords, the limit PACE_GUIDE states to her: a longer
+ * line stretches the film past its length (the render never cuts speech).
+ */
+function paceRefusal(beats: Array<ScriptBeat>) {
+  const lines = beats.flatMap((beat, index) => {
+    const length = Math.round((beat.end_s - beat.start_s) * 10) / 10;
+    const words = spokenWords(beat.narration);
+    const fits = maxWords(length, beat.narration);
+    if (words <= fits) {
+      return [];
+    }
+    const said = Math.round(spokenSeconds(beat.narration) * 10) / 10;
+    return [
+      `שורה ${index + 1}: ${words} מילים נאמרות בכ-${said} שניות, וב-${length} שניות נכנסות עד ${fits}`,
+    ];
+  });
+  if (lines.length === 0) {
+    return null;
+  }
+  return `הקריינות ארוכה מהזמן של השורה: ${lines.join("; ")}. ${PACE_GUIDE} קצרי כל שורה כזו עד מספר המילים שלה או הוסיפי לה זמן, אחרת הסרט יוצא ארוך מהמתוכנן.`;
 }

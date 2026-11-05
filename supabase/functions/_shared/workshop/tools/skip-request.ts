@@ -5,7 +5,7 @@
  * when the user's message asks for it in words, or is itself a full script.
  */
 
-import { maxWords, spokenWords } from "../film-script.ts";
+import { maxWords, spokenWords } from "../script-pace.ts";
 
 /** The step Carmen asks to skip. */
 export type SkippedStep = "concepts" | "script";

@@ -4,7 +4,6 @@ import {
   conceptAnswer,
   filmScriptOf,
   filmSeconds,
-  maxWords,
   scriptSettled,
   withScript,
 } from "./film-script.ts";
@@ -30,12 +29,6 @@ Deno.test("the film's length comes from the brief, then the plan", () => {
     20,
   );
   assertStrictEquals(filmSeconds({}), null);
-});
-
-Deno.test("a beat says at most 2.5 words a second", () => {
-  assertStrictEquals(maxWords(2), 5);
-  assertStrictEquals(maxWords(3), 7);
-  assertStrictEquals(maxWords(0.2), 1);
 });
 
 Deno.test("a script belongs to the concept it was written for", () => {
