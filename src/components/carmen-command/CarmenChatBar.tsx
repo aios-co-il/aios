@@ -1938,78 +1938,82 @@ export const CarmenChatBar = forwardRef<
           <DropdownMenuContent
             align="start"
             side="top"
-            dir="rtl"
             className="cc-root z-[120] w-[min(18rem,calc(100vw-1.5rem))] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] p-3 text-[var(--cc-text)]"
           >
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={
-                composerBusy || attachments.length >= COMMAND_CENTER_MAX_FILES
-              }
-              className="flex w-full items-center gap-2 rounded-md border border-[var(--cc-line)] px-3 py-2 text-sm text-[var(--cc-text)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40"
-            >
-              {uploadingAttachments ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Paperclip className="h-4 w-4 shrink-0" />
-              )}
-              צרף קובץ או תמונה
-            </button>
-            <>
-              <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
-                מצב מיקרופון
-              </label>
-              <select
-                value={micCaptureMode}
-                onChange={(e) =>
-                  selectMicCaptureMode(e.target.value as MicCaptureMode)
+            {/* The menu renders in a portal outside the page's rtl root. */}
+            <div dir="rtl">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={
+                  composerBusy || attachments.length >= COMMAND_CENTER_MAX_FILES
                 }
-                title="מצב מיקרופון"
-                className="mt-1 h-10 w-full rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
-                disabled={isConvMode || isTranscribeRecording || isTranscribing}
+                className="flex w-full items-center gap-2 rounded-md border border-[var(--cc-line)] px-3 py-2 text-sm text-[var(--cc-text)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40"
               >
-                {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
-                  (mode) => (
+                {uploadingAttachments ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Paperclip className="h-4 w-4 shrink-0" />
+                )}
+                צרף קובץ או תמונה
+              </button>
+              <>
+                <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
+                  מצב מיקרופון
+                </label>
+                <select
+                  value={micCaptureMode}
+                  onChange={(e) =>
+                    selectMicCaptureMode(e.target.value as MicCaptureMode)
+                  }
+                  title="מצב מיקרופון"
+                  className="mt-1 h-10 w-full rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
+                  disabled={
+                    isConvMode || isTranscribeRecording || isTranscribing
+                  }
+                >
+                  {(
+                    Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]
+                  ).map((mode) => (
                     <option key={mode} value={mode}>
                       {MIC_CAPTURE_MODE_LABELS[mode]}
                     </option>
-                  ),
-                )}
-              </select>
-              <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
-                קול כרמן
-              </label>
-              <div className="mt-1 flex items-center gap-2">
-                <Headphones className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
-                <select
-                  value={selectedVoice ?? ""}
-                  onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
-                  title="קול"
-                  className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
-                >
-                  <option value="">{DEFAULT_VOICE_LABEL}</option>
-                  {CARMEN_VOICES.map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.label}
-                    </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  onClick={previewVoice}
-                  disabled={isPreviewingVoice}
-                  title="דוגמה"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
-                >
-                  {isPreviewingVoice ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </>
+                <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
+                  קול כרמן
+                </label>
+                <div className="mt-1 flex items-center gap-2">
+                  <Headphones className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
+                  <select
+                    value={selectedVoice ?? ""}
+                    onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
+                    title="קול"
+                    className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
+                  >
+                    <option value="">{DEFAULT_VOICE_LABEL}</option>
+                    {CARMEN_VOICES.map((voice) => (
+                      <option key={voice.id} value={voice.id}>
+                        {voice.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={previewVoice}
+                    disabled={isPreviewingVoice}
+                    title="דוגמה"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
+                  >
+                    {isPreviewingVoice ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
         <button
