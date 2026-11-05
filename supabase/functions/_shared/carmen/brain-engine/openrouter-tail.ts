@@ -52,7 +52,8 @@ export function lazyBrainTail<T extends { connectionId?: string }>(
 
 /**
  * A provider answer that moves Carmen's loop to the next link: a connected brain's failure,
- * a rate limit or exhausted balance, or a key the provider refused (401/402/403).
+ * a rate limit or exhausted balance, a key the provider refused (401/402/403), or a model this
+ * endpoint cannot serve (for example a Responses-only OpenAI model on Chat Completions).
  */
 export function movesToNextLink(
   status: number,
@@ -62,8 +63,33 @@ export function movesToNextLink(
   if (connected) return true;
   if (status === 401 || status === 402 || status === 403 || status === 429)
     return true;
-  return /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
-    body,
+  return (
+    isModelUnavailable(status, body) ||
+    /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
+      body,
+    )
+  );
+}
+
+/** The Hebrew reason Carmen records when a provider answer moves her loop to the next link. */
+export function failoverReason(status: number, body: string): string {
+  if (status === 429) {
+    return "מגבלת קצב/קרדיט";
+  }
+  if (status === 401 || status === 403) {
+    return "המפתח נדחה";
+  }
+  if (isModelUnavailable(status, body)) {
+    return "המודל לא זמין";
+  }
+  return "קרדיט נגמר";
+}
+
+/** OpenAI cannot run this model on Chat Completions: it is unknown, or not a chat model. */
+export function isModelUnavailable(status: number, body: string): boolean {
+  return (
+    (status === 400 || status === 404) &&
+    /not a chat model|model_not_found/i.test(body)
   );
 }
 
