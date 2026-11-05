@@ -16,7 +16,6 @@ import {
   type FilmScript,
 } from "../film-script.ts";
 import { savePayload } from "../project-io.ts";
-import { maxWords } from "../script-pace.ts";
 import { SCRIPT_CHOICE, withTappedScriptApproval } from "../script-approval.ts";
 import type { ToolContext } from "../tool-context.ts";
 import { NO_CONCEPT, type FilmConcept } from "./film-concept.ts";
@@ -110,7 +109,7 @@ function writeGate(
   seconds: number | null,
 ): ScriptGate {
   const length = seconds
-    ? `הסרט ${seconds} שניות: סכום duration_s של השורות שווה ${seconds}, והקריינות בכולו עד ${maxWords(seconds)} מילים.`
+    ? `הסרט ${seconds} שניות: סכום duration_s של השורות שווה ${seconds}, וכל שורה נאמרת בזמן שלה לפי הקצב שלמטה.`
     : "סכום duration_s של השורות הוא אורך הסרט.";
   const from = concept
     ? `לפי הקונספט שנבחר, "${concept.title}": ${concept.text}`

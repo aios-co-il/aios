@@ -6,12 +6,10 @@ import {
   useVideoConfig,
 } from "remotion";
 import { captionLayout } from "./workshop-layout";
-import { titleCardWipe } from "./workshop-title-card-wipe";
+import { easeInOut, titleCardWipe } from "./workshop-title-card-wipe";
 
 const ramp = (x: number, frames: number) =>
   Math.min(1, Math.max(0, x / frames));
-const easeInOut = (p: number) =>
-  p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
 const pct = (share: number) => `${(share * 100).toFixed(2)}%`;
 const easeOut = (p: number) => 1 - (1 - p) ** 3;
 

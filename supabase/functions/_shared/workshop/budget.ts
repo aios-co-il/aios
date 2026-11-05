@@ -6,7 +6,7 @@
  * in the approvals queue does not draw on the budget check. A quote is only an estimate: the
  * render worker's claim (claim_video_run, 20261105140000) hands out a paid job only while what the
  * project really spent, the quotes of its jobs in flight and the job's own quote fit the approved
- * budget; each clip run carries its own share of the film's quote.
+ * budget; each clip, talking-scene voice and lip-sync run carries its scene's share of the quote.
  */
 
 import type {

@@ -20,7 +20,8 @@ export type TitleCardWipe = {
 };
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
-const easeInOut = (p: number) =>
+/** Cubic ease in and out; the title card's exit (workshop-title-card.tsx) uses it too. */
+export const easeInOut = (p: number) =>
   p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
 
 /** The wipe `t` frames into the card: the title is uncovered up to the wiper's leading edge. */
