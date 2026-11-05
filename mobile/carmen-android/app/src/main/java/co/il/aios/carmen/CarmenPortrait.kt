@@ -5,12 +5,16 @@ import android.view.View
 import kotlin.math.sin
 
 /**
- * Carmen's approved character (`src/assets/carmenCharacterImage.ts`, the marketing-manager
- * skin's portrait) on the phone: a slow breathing scale, and a glow behind her that pulses while
- * she listens or thinks and follows her voice while she speaks (smoothed, so it reacts to
- * "is she speaking" rather than every syllable).
+ * Animates Carmen's picture and the glow around it. Home: a slow breathing scale and a glow that
+ * pulses and grows with her state. Call screen ([fixedFrame]): nothing moves or resizes; the
+ * frame stays put and only its glow beats with her speech, rising at once on each syllable and
+ * fading softly between them, steady while she listens.
  */
-class CarmenPortrait(private val portrait: View, private val glow: View) : Choreographer.FrameCallback {
+class CarmenPortrait(
+    private val portrait: View,
+    private val glow: View,
+    private val fixedFrame: Boolean = false,
+) : Choreographer.FrameCallback {
 
     var state = CarmenSession.State.ACKNOWLEDGING
     private var running = false
@@ -31,6 +35,11 @@ class CarmenPortrait(private val portrait: View, private val glow: View) : Chore
         if (!running) return
         val seconds = frameTimeNanos / 1_000_000_000.0
         val target = if (state == CarmenSession.State.SPEAKING) CarmenSession.voiceLevel else 0f
+        if (fixedFrame) {
+            beatFrame(target, seconds)
+            Choreographer.getInstance().postFrameCallback(this)
+            return
+        }
         speech += (target - speech) * SMOOTHING
         val breath = 1f + 0.012f * sin(seconds * 1.6).toFloat()
         portrait.scaleX = breath + speech * 0.03f
@@ -47,7 +56,20 @@ class CarmenPortrait(private val portrait: View, private val glow: View) : Chore
         Choreographer.getInstance().postFrameCallback(this)
     }
 
+    /** Fast attack, soft release: the glow follows the beat of her words, not a slow average. */
+    private fun beatFrame(target: Float, seconds: Double) {
+        speech += (target - speech) * if (target > speech) ATTACK else RELEASE
+        glow.alpha = when (state) {
+            CarmenSession.State.SPEAKING -> 0.3f + speech * 0.7f
+            CarmenSession.State.THINKING, CarmenSession.State.CONNECTING -> 0.3f + 0.15f * sin(seconds * 4).toFloat()
+            CarmenSession.State.ENDED -> 0.1f
+            else -> 0.3f
+        }.coerceIn(0f, 1f)
+    }
+
     private companion object {
         const val SMOOTHING = 0.15f
+        const val ATTACK = 0.6f
+        const val RELEASE = 0.12f
     }
 }
