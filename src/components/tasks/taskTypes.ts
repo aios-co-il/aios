@@ -19,7 +19,7 @@ export interface Task extends TaskRelations {
   creator_name?: string | null;
   created_at?: string;
   updated_at?: string | null;
-  sort_order?: number;
+  sort_order?: number | null;
   target_date?: string | null;
   duration_minutes?: number | null;
   google_calendar_event_id?: string | null;
