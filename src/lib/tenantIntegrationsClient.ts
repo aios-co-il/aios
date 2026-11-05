@@ -29,7 +29,8 @@ const SENSITIVE_SETTINGS_KEYS = [
 export const CLIENT_INTEGRATION_COLUMNS =
   "id, tenant_id, user_id, integration_type, is_active, settings, display_name, connection_visibility, shared_from_integration_id, auto_sync_enabled, last_sync_at, created_at, updated_at, instance_id, company_id, api_token_last_4";
 
-export const CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY = `${CLIENT_INTEGRATION_COLUMNS}, api_key`;
+export const CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY =
+  `${CLIENT_INTEGRATION_COLUMNS}, api_key` as const;
 
 export type TenantIntegrationRow = {
   id: string;

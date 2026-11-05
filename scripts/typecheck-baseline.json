@@ -452,27 +452,6 @@
       "count": 1
     },
     {
-      "file": "src/hooks/useUserIntegrations.ts",
-      "code": 2339,
-      "message": "Property 'id' does not exist on type 'GenericStringError'.",
-      "source": "id",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useUserIntegrations.ts",
-      "code": 2339,
-      "message": "Property 'user_id' does not exist on type 'GenericStringError'.",
-      "source": "user_id",
-      "count": 5
-    },
-    {
-      "file": "src/hooks/useUserIntegrations.ts",
-      "code": 2345,
-      "message": "Argument of type 'GenericStringError' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Type '{ error: true; } & String' is missing the following properties from type 'TenantIntegrationRow': id, tenant_id, integration_type",
-      "source": "i",
-      "count": 2
-    },
-    {
       "file": "src/hooks/useUserRole.ts",
       "code": 2345,
       "message": "Argument of type '\"agency_owner\"' is not assignable to parameter of type 'UserRole'.",
@@ -631,13 +610,6 @@
       "code": 2322,
       "message": "Type 'string | null' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
       "source": "tenantId",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GoogleAdsSettings.tsx",
-      "code": 2345,
-      "message": "Argument of type '{ id: string; tenant_id: string; user_id: string | null; integration_type: string; is_active: boolean; settings: Json; display_name: string | null; connection_visibility: string; ... 7 more ...; api_token_last_4: string | null; }' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Types of property 'settings' are incompatible.\n    Type 'Json' is not assignable to type 'Record<string, unknown> | null | undefined'.\n      Type 'string' is not assignable to type 'Record<string, unknown>'.",
-      "source": "data",
       "count": 1
     },
     {
