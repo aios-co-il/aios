@@ -22,6 +22,8 @@ export type ActionContext = {
   agentId: string | null;
   userId: string;
   body: Record<string, unknown>;
+  /** A super admin acting in this tenant (auth.ts); false for owners. */
+  superAdminActing: boolean;
 };
 
 /** A trimmed string field of the body, or "" when absent. */

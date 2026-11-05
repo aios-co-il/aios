@@ -77,6 +77,7 @@ export type BrainConnectionsState = {
   routes: BrainRouteSummary[];
   builtins: BuiltinBrainState[];
   /** Tenants the caller may share built-in brains with: every other tenant
-   * for a super admin, else the other tenants they belong to (AIO-354). */
+   * for a super admin acting in a home tenant, else the other tenants they
+   * belong to (AIO-354). */
   share_targets: TenantRef[];
 };

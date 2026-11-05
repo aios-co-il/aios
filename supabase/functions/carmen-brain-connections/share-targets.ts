@@ -1,16 +1,17 @@
 /**
- * Who a manager may share a built-in brain with (AIO-354): a super admin any
- * other organization, so the home organization can share the project keys
- * with every organization; anyone else the other organizations they belong to.
+ * Who a manager may share a built-in brain with (AIO-354): a super admin
+ * acting in a home tenant, any other organization, so the home organization
+ * can share the project keys with every organization; everyone else, owners
+ * and a super admin acting in a tenant that is not home, the other
+ * organizations they belong to.
  */
-import { isSuperAdminUser } from "../_shared/auth/tenant-access.ts";
 import { type ActionContext, check, HttpError, text } from "./request.ts";
 
 /** Ids of the organizations the caller may share this tenant's brains with. */
 export async function shareTargetIds(
   ctx: ActionContext,
 ): Promise<Array<string>> {
-  if (await isSuperAdminUser(ctx.sb, ctx.userId)) {
+  if (ctx.superAdminActing && (await isHomeTenant(ctx))) {
     const { data, error } = await ctx.sb
       .from("tenants")
       .select("id")
@@ -40,4 +41,15 @@ export async function requireShareTarget(ctx: ActionContext): Promise<string> {
     throw new HttpError(403, "You cannot share with this organization");
   }
   return target;
+}
+
+/** Whether this tenant runs built-in brains on the project keys. */
+async function isHomeTenant(ctx: ActionContext): Promise<boolean> {
+  const { data, error } = await ctx.sb
+    .from("carmen_brain_home_tenants")
+    .select("tenant_id")
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  check(error, "Loading home tenants");
+  return data !== null;
 }

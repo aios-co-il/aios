@@ -1,5 +1,6 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { BUILTIN_BRAIN_KEYS } from "./builtin-keys.ts";
+import { fakeDb } from "./fake-db.ts";
 import {
   brainEnvFrom,
   type BuiltinKeys,
@@ -207,8 +208,8 @@ Deno.test("key-source", async (t) => {
       const full = Object.fromEntries(
         BUILTIN_BRAIN_KEYS.flatMap((b) => b.envNames.map((n) => [n, `p-${n}`])),
       );
-      const sb = fakeClient(
-        {
+      const sb = fakeDb({
+        tables: {
           carmen_brain_home_tenants: [{ tenant_id: HOME }],
           carmen_brain_key_shares: slugs.map((slug) => ({
             source_tenant_id: HOME,
@@ -216,8 +217,7 @@ Deno.test("key-source", async (t) => {
             builtin_slug: slug,
           })),
         },
-        {},
-      );
+      });
       const [home, dmm, other] = await Promise.all(
         [HOME, "dmm", CLIENT].map((t) => resolveBuiltinKeys(sb, t, full)),
       );

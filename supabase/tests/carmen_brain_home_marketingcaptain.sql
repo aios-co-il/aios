@@ -1,8 +1,8 @@
 -- Carmen brain home (20261105120000_carmen_brain_home_marketingcaptain,
 -- AIO-354): runs the migration file itself (\ir) with MarketingCaptain and
--- DMM seeded, without them, and with only MarketingCaptain. Every case is a
--- transaction that is rolled back; the QA tenants have fixed ids so later
--- blocks can name them.
+-- DMM seeded, with shares DMM made while it was home, without them, and with
+-- only MarketingCaptain. Every case is a transaction that is rolled back; the
+-- QA tenants have fixed ids so later blocks can name them.
 
 -- Home tenants and shares as text, to compare before and after a run.
 CREATE OR REPLACE FUNCTION pg_temp.qa_brain_rows()
@@ -80,6 +80,44 @@ BEGIN
      OR EXISTS (SELECT r FROM pg_temp.qa_brain_rows() EXCEPT SELECT r FROM qa_after_first) THEN
     RAISE EXCEPTION 'both: a second run must change nothing';
   END IF;
+END
+$test$;
+ROLLBACK;
+
+-- 1b. Shares DMM made while it was home (a release before this migration):
+--     the one passing on the project keys (Cursor to Y) is removed, so
+--     MarketingCaptain can share Cursor with Y; the one passing on DMM's own
+--     Grok key stays.
+BEGIN;
+INSERT INTO public.tenants (id, name, slug) VALUES
+  ('2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019', 'QA ROLLBACK MarketingCaptain', 'qa-rollback-' || gen_random_uuid()),
+  ('6ad8f321-25db-4a04-8e44-e57a7c8961b2', 'QA ROLLBACK DMM', 'qa-rollback-' || gen_random_uuid()),
+  ('0a5e0000-0000-4000-8000-0000000000a2', 'QA ROLLBACK Y', 'qa-rollback-' || gen_random_uuid());
+INSERT INTO public.carmen_brain_home_tenants (tenant_id) VALUES ('6ad8f321-25db-4a04-8e44-e57a7c8961b2');
+INSERT INTO public.carmen_brain_connections (tenant_id, slug, name, kind, secret_id)
+VALUES ('6ad8f321-25db-4a04-8e44-e57a7c8961b2', 'grok', 'Grok Bot', 'builtin', gen_random_uuid());
+INSERT INTO public.carmen_brain_key_shares (source_tenant_id, target_tenant_id, builtin_slug) VALUES
+  ('6ad8f321-25db-4a04-8e44-e57a7c8961b2', '0a5e0000-0000-4000-8000-0000000000a2', 'cursor'),
+  ('6ad8f321-25db-4a04-8e44-e57a7c8961b2', '0a5e0000-0000-4000-8000-0000000000a2', 'grok');
+
+\ir ../migrations/20261105120000_carmen_brain_home_marketingcaptain.sql
+
+DO $test$
+DECLARE
+  v_mc constant uuid := '2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019';
+  v_dmm constant uuid := '6ad8f321-25db-4a04-8e44-e57a7c8961b2';
+  v_y constant uuid := '0a5e0000-0000-4000-8000-0000000000a2';
+BEGIN
+  IF (
+    SELECT array_agg(builtin_slug ORDER BY builtin_slug)
+    FROM public.carmen_brain_key_shares
+    WHERE source_tenant_id = v_dmm
+  ) IS DISTINCT FROM ARRAY['grok'] THEN
+    RAISE EXCEPTION 'dmm shares: only the share of DMM''s own Grok key must stay';
+  END IF;
+  -- MarketingCaptain can now share Cursor with Y (one source per brain).
+  INSERT INTO public.carmen_brain_key_shares (source_tenant_id, target_tenant_id, builtin_slug)
+  VALUES (v_mc, v_y, 'cursor');
 END
 $test$;
 ROLLBACK;
