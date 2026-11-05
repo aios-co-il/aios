@@ -39,34 +39,6 @@
       "count": 1
     },
     {
-      "file": "src/components/analytics/AnalyticsDashboard.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 4
-    },
-    {
-      "file": "src/components/analytics/DateRangeFilter.tsx",
-      "code": 2322,
-      "message": "Type '(date: Date) => boolean | undefined' is not assignable to type 'Matcher | Matcher[] | undefined'.\n  Type '(date: Date) => boolean | undefined' is not assignable to type '(date: Date) => boolean'.\n    Type 'boolean | undefined' is not assignable to type 'boolean'.\n      Type 'undefined' is not assignable to type 'boolean'.",
-      "source": "{(date) => date > new Date() || (customEnd && date > customEnd) }",
-      "count": 1
-    },
-    {
-      "file": "src/components/analytics/DateRangeFilter.tsx",
-      "code": 2322,
-      "message": "Type '(date: Date) => boolean | undefined' is not assignable to type 'Matcher | Matcher[] | undefined'.\n  Type '(date: Date) => boolean | undefined' is not assignable to type '(date: Date) => boolean'.\n    Type 'boolean | undefined' is not assignable to type 'boolean'.\n      Type 'undefined' is not assignable to type 'boolean'.",
-      "source": "{(date) => date > new Date() || (customStart && date < customStart) }",
-      "count": 1
-    },
-    {
-      "file": "src/components/analytics/ImportAnalyticsDialog.tsx",
-      "code": 2454,
-      "message": "Variable 'parsedDate' is used before being assigned.",
-      "source": "parsedDate",
-      "count": 1
-    },
-    {
       "file": "src/components/broadcast/BroadcastWizard.tsx",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",

@@ -229,7 +229,8 @@ export function DateRangeFilter({
                         selected={customStart}
                         onSelect={setCustomStart}
                         disabled={(date) =>
-                          date > new Date() || (customEnd && date > customEnd)
+                          date > new Date() ||
+                          Boolean(customEnd && date > customEnd)
                         }
                         initialFocus
                         className={cn("p-3 pointer-events-auto")}
@@ -243,7 +244,7 @@ export function DateRangeFilter({
                         onSelect={setCustomEnd}
                         disabled={(date) =>
                           date > new Date() ||
-                          (customStart && date < customStart)
+                          Boolean(customStart && date < customStart)
                         }
                         className={cn("p-3 pointer-events-auto")}
                       />

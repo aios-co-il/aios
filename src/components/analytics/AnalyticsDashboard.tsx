@@ -110,7 +110,7 @@ export function AnalyticsDashboard({
           landing_page
         `,
         )
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .gte("started_at", dateRange.start.toISOString())
         .lte("started_at", dateRange.end.toISOString())
         .order("started_at", { ascending: false });
@@ -144,7 +144,7 @@ export function AnalyticsDashboard({
       let query = supabase
         .from("site_sessions")
         .select(`id, duration_seconds, page_count, is_bounce`)
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .gte("started_at", comparisonRange.start.toISOString())
         .lte("started_at", comparisonRange.end.toISOString());
 
@@ -175,7 +175,7 @@ export function AnalyticsDashboard({
       let query = supabase
         .from("site_pageviews")
         .select("page_path, page_title")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .gte("viewed_at", dateRange.start.toISOString())
         .lte("viewed_at", dateRange.end.toISOString());
 
@@ -228,7 +228,7 @@ export function AnalyticsDashboard({
       let query = supabase
         .from("site_events")
         .select("event_name, event_category, event_value, event_data")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .gte("occurred_at", dateRange.start.toISOString())
         .lte("occurred_at", dateRange.end.toISOString());
 
