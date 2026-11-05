@@ -1,6 +1,7 @@
 package co.il.aios.carmen
 
 import okhttp3.OkHttpClient
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -13,8 +14,11 @@ class CarmenBrain(private val account: AiosAccount) {
 
     private var conversationId: String? = null
 
-    /** Blocking: streams the brain's answer and returns it as text for the voice model. */
-    fun ask(question: String): String {
+    /**
+     * Blocking: streams the brain's answer and returns it as text. [history] is the earlier
+     * typed conversation (role to text), sent like the web chat sends it.
+     */
+    fun ask(question: String, history: List<Pair<String, String>> = emptyList()): String {
         if (question.isBlank()) return "לא התקבלה שאלה."
         val session = runCatching { account.session() }.getOrElse { return "שגיאת התחברות למערכת." }
         val body = JSONObject()
@@ -23,6 +27,10 @@ class CarmenBrain(private val account: AiosAccount) {
             .put("surface", "internal_chat")
             .put("stream", true)
             .put("conversation_id", conversationId ?: JSONObject.NULL)
+            .put(
+                "conversation_history",
+                JSONArray(history.takeLast(MAX_HISTORY).map { (role, content) -> JSONObject().put("role", role).put("content", content) }),
+            )
         return runCatching {
             account.callFunction("run-ai-agent", body, streamingHttp).use { response ->
                 val source = response.body?.source()
@@ -36,6 +44,8 @@ class CarmenBrain(private val account: AiosAccount) {
     }
 
     private companion object {
+        const val MAX_HISTORY = 24
+
         // Long tool runs stream for minutes; the SSE stream keeps the connection alive.
         val streamingHttp: OkHttpClient = OkHttpClient.Builder()
             .readTimeout(120, TimeUnit.SECONDS)

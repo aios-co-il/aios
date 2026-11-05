@@ -57,6 +57,9 @@ class MainActivity : AppCompatActivity() {
             withMic { WakeWordService.talk(this) }
         }
         listenSwitch.setOnClickListener { toggleListening(listenSwitch.isChecked) }
+        findViewById<Button>(R.id.chat_button).setOnClickListener {
+            startActivity(Intent(this, ChatActivity::class.java))
+        }
         findViewById<Button>(R.id.command_center_button).setOnClickListener {
             startActivity(Intent(this, CommandCenterActivity::class.java))
         }

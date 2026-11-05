@@ -108,10 +108,9 @@ class RealtimeConversation(
                 listener.onState(CarmenSession.State.SPEAKING)
                 audio.play(Base64.decode(event.getString("delta"), Base64.DEFAULT))
             }
-            "conversation.item.input_audio_transcription.completed" ->
-                event.optString("transcript").trim().takeIf { it.isNotEmpty() }?.let { listener.onTranscript("את/ה: $it") }
             "response.output_audio_transcript.done", "response.audio_transcript.done" ->
-                event.optString("transcript").trim().takeIf { it.isNotEmpty() }?.let { listener.onTranscript("כרמן: $it") }
+                // Only Carmen's words are shown; the user's own speech is not transcribed on screen.
+                event.optString("transcript").trim().takeIf { it.isNotEmpty() }?.let { listener.onTranscript(it) }
             "response.output_item.done" -> event.optJSONObject("item")?.let(::maybeCallTool)
             "response.done" -> {
                 if (responses.onDone()) send(JSONObject().put("type", "response.create"))

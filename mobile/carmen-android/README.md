@@ -60,6 +60,7 @@ Stop listening from the app or from the notification's **עצור האזנה** a
 | Carmen's brain (`run-ai-agent` stream)                             | `CarmenBrain.kt`                               |
 | Carmen screen state and transcript                                 | `CarmenSession.kt`, `CarmenActivity.kt`        |
 | Home screen: portrait, talk button, listening switch               | `MainActivity.kt`                              |
+| Typed chat with Carmen (same brain as the system chat)             | `ChatActivity.kt`                              |
 | Command Center web view, one sign-in for both                      | `CommandCenterActivity.kt`                     |
 | Carmen portrait animation                                          | `CarmenPortrait.kt`                            |
 | Settings and test screen                                           | `SettingsActivity.kt`                          |
