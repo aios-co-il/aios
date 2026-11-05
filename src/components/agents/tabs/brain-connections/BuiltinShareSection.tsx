@@ -8,7 +8,8 @@ import type { useBrainConnections } from "./useBrainConnections";
 
 /**
  * Shares this tenant's keys for one built-in brain with other organizations
- * the user belongs to, like a shared Facebook connection (AIO-303).
+ * (any of them for a super admin, else the ones the user belongs to), like a
+ * shared Facebook connection (AIO-303, AIO-354).
  */
 export function BuiltinShareSection({
   builtin,
