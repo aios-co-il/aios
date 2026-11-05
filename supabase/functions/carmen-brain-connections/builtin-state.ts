@@ -1,5 +1,8 @@
 /** Built-in brains on the settings screen: key source and shares (AIO-303). */
-import { resolveBuiltinKeys } from "../_shared/carmen/brain-connections/key-source.ts";
+import {
+  type Env,
+  resolveBuiltinKeys,
+} from "../_shared/carmen/brain-connections/key-source.ts";
 import { settingString } from "../_shared/carmen/brain-connections/overrides.ts";
 import { BUILTIN_BRAIN_KEYS } from "../_shared/carmen/brain-connections/builtin-keys.ts";
 import type {
@@ -8,6 +11,7 @@ import type {
 } from "../_shared/carmen/brain-connections/types.ts";
 import { projectEnv } from "../_shared/agent-channel/brain-env.ts";
 import { type ActionContext, check } from "./request.ts";
+import { shareTargetIds } from "./share-targets.ts";
 
 type OwnRow = {
   kind: string;
@@ -20,23 +24,18 @@ type OwnRow = {
 export async function builtinState(
   ctx: ActionContext,
   rows: OwnRow[],
+  project: Env = projectEnv(),
 ): Promise<{ builtins: BuiltinBrainState[]; share_targets: TenantRef[] }> {
-  const [keys, sharesOut, memberships] = await Promise.all([
-    resolveBuiltinKeys(ctx.sb, ctx.tenantId, projectEnv()),
+  const [keys, sharesOut, targetIds] = await Promise.all([
+    resolveBuiltinKeys(ctx.sb, ctx.tenantId, project),
     ctx.sb
       .from("carmen_brain_key_shares")
       .select("target_tenant_id, builtin_slug")
       .eq("source_tenant_id", ctx.tenantId),
-    ctx.sb
-      .from("tenant_users")
-      .select("tenant_id")
-      .eq("user_id", ctx.userId)
-      .neq("tenant_id", ctx.tenantId),
+    shareTargetIds(ctx),
   ]);
   check(sharesOut.error, "Loading brain shares");
-  check(memberships.error, "Loading your organizations");
 
-  const targetIds = (memberships.data ?? []).map((m) => m.tenant_id);
   const names = await tenantNames(ctx, [
     ...targetIds,
     ...(sharesOut.data ?? []).map((s) => s.target_tenant_id),
@@ -63,7 +62,10 @@ export async function builtinState(
       can_share: source?.kind === "own" || source?.kind === "project",
     };
   });
-  return { builtins, share_targets: targetIds.map(ref) };
+  const shareTargets = targetIds
+    .map(ref)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { builtins, share_targets: shareTargets };
 }
 
 /** Names of the given tenants, by id. */

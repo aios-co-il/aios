@@ -6,7 +6,7 @@ import type {
   GoogleAdsRowData,
   GoogleReportRecord,
 } from "@/lib/googleCampaignGoals";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 
 /**
  * A shared Google Ads table's rows at one level (campaign, ad set or ad), split

@@ -655,7 +655,7 @@ export function CampaignPulseDashboard({
     }
 
     return filteredByRole
-      .filter((client: { id: string; name: string; services?: string[] }) => {
+      .filter((client) => {
         if (!byClient.has(client.id)) return false;
         if (search && !client.name.toLowerCase().includes(search.toLowerCase()))
           return false;

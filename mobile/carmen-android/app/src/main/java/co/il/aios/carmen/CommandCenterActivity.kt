@@ -41,6 +41,7 @@ class CommandCenterActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_command_center)
+        keepClearOfSystemBars()
         Notifications.createChannels(this)
         account = AiosAccount(this)
         web = findViewById(R.id.carmen_web)

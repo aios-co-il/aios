@@ -20,6 +20,7 @@ import {
   type BriefAnswers,
 } from "./brief-answers.ts";
 import { readFirst } from "./brief-reading.ts";
+import { autoBriefingGate } from "./briefing-auto.ts";
 
 export const ENGINE_NOTES: Record<ImageProvider, string> = {
   google:
@@ -61,6 +62,8 @@ export interface BriefingInput {
    * so she cannot leave out a question the user already answered.
    */
   read?: boolean;
+  /** Automatic mode (workshop-mode.ts): Carmen writes the style and film brief, nobody is asked. */
+  auto?: boolean;
 }
 
 export interface BriefingGate {
@@ -73,11 +76,15 @@ export interface BriefingGate {
   engines?: ReturnType<typeof engineOptions>;
   /** Asks Carmen to read the request first; the questions come on her next call. */
   reading?: true;
+  /** Automatic mode: the gate is Carmen's to answer, with no question for the user. */
+  carmen_continues?: true;
 }
 
 /** Returns what is still missing, or null when Carmen can go ahead. */
 export function briefingGate(input: BriefingInput): BriefingGate | null {
   const answers = input.answers ?? {};
+  // In automatic mode what Carmen writes counts as if the user had seen the questions.
+  const asked = input.asked === true || input.auto === true;
   // Reference pictures are the look itself: every picture is generated from them.
   const hasReferences = input.look.references.length > 0;
   // Any other reference the brief names (a board picture, a video, a site): the user is not asked
@@ -92,12 +99,11 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
     hasReferences ||
     (hasBible &&
       input.styleApproved &&
-      (userStyle || input.asked === true || Boolean(namedReference)));
+      (userStyle || asked || Boolean(namedReference)));
   // A film brief counts once the user answered the film questions or saw them once.
   const filmOk =
     input.kind !== "video" ||
-    (input.look.film.trim().length > 0 &&
-      (answered(FILM_CHOICES) || input.asked === true));
+    (input.look.film.trim().length > 0 && (answered(FILM_CHOICES) || asked));
   // The engine is never a question for the user: the best connected one is used.
   const askEngine = false;
   const missing: BriefingGate["missing"] = [];
@@ -133,6 +139,9 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
       ? `. את הסגנון לא שואלים את המשתמש: יש רפרנס (${namedReference}). כתבי ממנו`
       : ". כתבי מהן") +
     " style_bible באנגלית שמתאר את המראה (דמות, מקום, צבעים, תאורה, סגנון רינדור), וקראי שוב לכלי עם style_bible ו-style_approved=true, ו-engine אם נבחר.";
+  if (input.auto) {
+    return autoBriefingGate(missing, fromAnswers);
+  }
   if (choices.length === 0)
     return {
       needs_input: true,

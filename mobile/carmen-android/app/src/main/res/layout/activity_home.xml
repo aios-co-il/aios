@@ -29,13 +29,17 @@
             android:layout_height="match_parent"
             android:background="@drawable/portrait_glow" />
 
+        <!-- Carmen at her desk with her gamer headset, the same scene as the call screen. -->
         <ImageView
             android:id="@+id/home_portrait"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:adjustViewBounds="true"
+            android:background="@drawable/rounded_tile"
             android:contentDescription="@string/app_name"
             android:scaleType="fitCenter"
-            android:src="@drawable/carmen_portrait" />
+            android:src="@drawable/carmen_call" />
     </FrameLayout>
 
     <TextView

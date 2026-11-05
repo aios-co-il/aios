@@ -43,6 +43,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+        keepClearOfSystemBars()
         Notifications.createChannels(this)
         log = EventLog(this)
         statusText = findViewById(R.id.status_text)

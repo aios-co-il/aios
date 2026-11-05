@@ -23,7 +23,7 @@ export type BaselineGuard = { outcomes: number | null; days: number };
  * (unscaled) outcomes and the number of days that actually spent.
  */
 export function measureBaselineGuard<Row extends { data: { date?: unknown } }>(
-  rows: Row[],
+  rows: Array<Row>,
   outcomes: number | null,
   spendOf: (row: Row) => number,
 ): BaselineGuard {
@@ -59,8 +59,8 @@ export function targetStatusReasons(
 /**
  * Spend with no result at all in the last 3 days has no cost per result, and is
  * worse than any rise, so it counts past every threshold (the 7-day window,
- * minimum spend and baseline guards still decide). A day with 0 leads reads as
- * "no value" (pulseCampaignOutcome), so 3 such days aggregate to null, not 0.
+ * minimum spend and baseline guards still decide). Days with 0 results add up
+ * to 0, as the report counts them (goalResultCount).
  */
 export function noResultsIn3Days(
   current3: { spend: number; outcomes: number | null },

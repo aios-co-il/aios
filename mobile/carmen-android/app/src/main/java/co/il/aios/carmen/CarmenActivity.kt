@@ -41,21 +41,34 @@ class CarmenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
         setContentView(R.layout.activity_carmen)
+        keepClearOfSystemBars()
         stateText = findViewById(R.id.state_text)
-        face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow))
+        // Rounded tile corners (the XML attribute needs API 31; minSdk is 30).
+        findViewById<View>(R.id.call_tile).clipToOutline = true
+        face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow), fixedFrame = true)
         findViewById<Chronometer>(R.id.call_timer).apply {
             base = SystemClock.elapsedRealtime()
             start()
         }
         startVideo()
         CarmenSession.observe(render)
-        findViewById<ImageButton>(R.id.close_button).setOnClickListener { finish() }
+        findViewById<ImageButton>(R.id.close_button).setOnClickListener { endCall() }
         findViewById<ImageButton>(R.id.mute_button).setOnClickListener { toggleMute(it as ImageButton) }
         findViewById<TextView>(R.id.false_activation_button).setOnClickListener {
             EventLog(this).record(EventLog.Event.FALSE_ACTIVATION)
             Toast.makeText(this, R.string.false_activation_recorded, Toast.LENGTH_SHORT).show()
-            finish()
+            endCall()
         }
+    }
+
+    /**
+     * Ends the conversation now, then closes the screen. Waiting for onDestroy is not enough:
+     * Android can run it seconds after finish() (while the home screen animates), and the
+     * call went on talking until then.
+     */
+    private fun endCall() {
+        WakeWordService.send(this, WakeWordService.ACTION_SESSION_ENDED)
+        finish()
     }
 
     /** Loops the silent clip of Carmen listening; it must never take audio focus from the call. */

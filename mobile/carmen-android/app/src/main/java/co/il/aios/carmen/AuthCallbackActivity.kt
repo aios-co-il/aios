@@ -7,7 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
 
 /**
- * Receives `carmen-aios://auth/app|web?code=…` from Supabase after Google sign-in. After the
+ * Receives `<AUTH_SCHEME>://auth/app|web?code=…` (per variant) from Supabase after Google sign-in. After the
  * app's session it starts the second round for the in-app web screen, then opens Carmen's home.
  */
 class AuthCallbackActivity : AppCompatActivity() {
@@ -39,8 +39,17 @@ class AuthCallbackActivity : AppCompatActivity() {
     }
 
     private fun fail(reason: String) {
-        Toast.makeText(this, getString(R.string.google_failed, reason), Toast.LENGTH_LONG).show()
-        // The app may already be signed in (only the web round failed): home handles both cases.
-        SignInActivity.openHome(this)
+        if (AiosAccount(this).isReady) {
+            // Only the web screen's round failed: the app itself is signed in.
+            Toast.makeText(this, getString(R.string.google_failed, reason), Toast.LENGTH_LONG).show()
+            SignInActivity.openHome(this)
+            return
+        }
+        startActivity(
+            Intent(this, SignInActivity::class.java)
+                .putExtra(SignInActivity.EXTRA_ERROR, getString(R.string.google_failed, reason))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        finish()
     }
 }

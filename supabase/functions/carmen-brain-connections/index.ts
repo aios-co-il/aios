@@ -20,7 +20,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { resolveCarmenAgent } from "../_shared/agent-channel/store.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
-import { isTenantManager } from "./auth.ts";
+import { requireManager } from "./auth.ts";
 import { resetBuiltin, setBuiltin } from "./builtin-actions.ts";
 import { createModel, deleteModel, updateModel } from "./model-actions.ts";
 import { type ActionContext, HttpError } from "./request.ts";
@@ -75,8 +75,7 @@ async function actionContext(req: Request): Promise<ActionContext> {
   if (!tenantId) throw new HttpError(400, "tenant_id is required");
 
   const sb = serviceClient();
-  if (!(await isTenantManager(sb, auth.userId, tenantId)))
-    throw new HttpError(403, "Only tenant owners can manage Carmen's brains");
+  const { superAdminActing } = await requireManager(sb, auth.userId, tenantId);
   const carmen = await resolveCarmenAgent(sb, tenantId);
   return {
     sb,
@@ -84,6 +83,7 @@ async function actionContext(req: Request): Promise<ActionContext> {
     agentId: carmen?.id ?? null,
     userId: auth.userId,
     body,
+    superAdminActing,
   };
 }
 

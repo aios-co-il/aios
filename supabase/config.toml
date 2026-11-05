@@ -16,8 +16,8 @@ additional_redirect_urls = [
   "http://localhost:*/**",
   "http://127.0.0.1:*/**",
   "https://*.vercel.app/**",
-  # Carmen Android app: Google sign-in returns here (mobile/carmen-android, AIO-352).
-  "carmen-aios://auth/**",
+  # Carmen Android app, Staging variant: Google sign-in returns here (mobile/carmen-android).
+  "carmen-aios-staging://auth/**",
 ]
 
 [auth.external.google]
@@ -51,7 +51,8 @@ project_id = "zvoijyneresvkadpprel"
 
 [remotes.production.auth]
 site_url = "https://aios.co.il"
-additional_redirect_urls = ["https://aios.co.il", "https://*.aios.co.il"]
+# carmen-aios://: the Carmen Android app (Production variant) returns here after Google sign-in.
+additional_redirect_urls = ["https://aios.co.il", "https://*.aios.co.il", "carmen-aios://auth/**"]
 
 [remotes.production.auth.mfa.totp]
 enroll_enabled = true

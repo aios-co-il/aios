@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import {
-  aggregateFacebookCampaignsFromRecords,
-  groupFacebookCampaigns,
-  type FacebookCampaignRow,
-} from "@/lib/adsMetrics";
+import type { FacebookCampaignRow } from "@/lib/adsMetrics";
 import { formatCurrency, formatUnitCost } from "@/lib/currency";
+import {
+  dashboardFacebookCampaigns,
+  dashboardRecordGoalOf,
+} from "@/lib/dashboardCampaignGoals";
 import { groupFacebookRowsByGoal } from "@/lib/facebookGoalGroups";
 import { FacebookDashboardTrafficCard } from "./FacebookDashboardTrafficCard";
 
@@ -24,13 +24,30 @@ const day = (campaign: string, data: Record<string, unknown>) => ({
 
 type StoredRecords = Array<{ data: Record<string, unknown> }>;
 
-/** The dashboards' two ways to build Facebook traffic rows from stored rows. */
+/** A dashboard's Facebook traffic rows from one Facebook Insights table. */
+const dashboardTraffic =
+  (settings: Record<string, unknown>) => (records: StoredRecords) => {
+    const rows = records.map((record) => ({
+      ...record,
+      _source: "facebook_insights",
+      _tableId: "fb",
+    }));
+    const tables = [
+      {
+        id: "fb",
+        integration_type: "facebook_insights",
+        integration_settings: settings,
+      },
+    ];
+    return dashboardFacebookCampaigns(rows, dashboardRecordGoalOf(rows, tables))
+      .traffic;
+  };
+
+/** The traffic rows the dashboards and the shared report build from stored rows. */
 const DASHBOARD_TRAFFIC_ROWS = {
-  "single-goal": (records: StoredRecords) =>
-    groupFacebookCampaigns(aggregateFacebookCampaignsFromRecords(records), {
-      singleTableMode: "leads",
-    }).traffic,
-  mixed: (records: StoredRecords) =>
+  "leads-only dashboard": dashboardTraffic({ campaign_type: "leads" }),
+  "mixed dashboard": dashboardTraffic({}),
+  "shared report": (records: StoredRecords) =>
     groupFacebookRowsByGoal(records, "campaign", { leadsOnly: false }).traffic,
 };
 

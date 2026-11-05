@@ -135,7 +135,7 @@ describe("WorkshopFeed", () => {
     await user.clear(narration);
     await user.type(narration, "שלום לכולם וברוכים הבאים לחג השנה");
     expect(within(form).getByRole("alert").textContent).toMatch(
-      /6 מילים לא נכנסות ב-2 שניות \(עד 5\)/,
+      /6 מילים לא נכנסות ב-2 שניות \(עד 3\)/,
     );
     expect(within(form).getByRole("button", { name: /שמירה/ })).toBeDisabled();
     await user.type(narration, "{Control>}{Enter}{/Control}");

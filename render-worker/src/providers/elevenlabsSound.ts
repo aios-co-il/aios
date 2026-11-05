@@ -78,7 +78,15 @@ export async function synthesizeSpeech({
     voiceId: id,
     bytes: Buffer.from(data.audio_base64, "base64"),
     alignment: data.alignment ?? null,
+    characterCost: characterCost(response),
   };
+}
+
+/** The characters ElevenLabs billed the request for (its character-cost header), or null. */
+function characterCost(response: Response): number | null {
+  const header = response.headers?.get?.("character-cost");
+  const cost = header == null || header.trim() === "" ? NaN : Number(header);
+  return Number.isFinite(cost) && cost >= 0 ? cost : null;
 }
 
 export async function composeMusic({

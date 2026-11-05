@@ -181,3 +181,29 @@ Deno.test("a workshop turn gets at least 15 tool rounds", () => {
   assertStrictEquals(workshopToolRounds(null), 25);
   assertStrictEquals(workshopToolRounds(30), 30);
 });
+
+Deno.test("an automatic-mode turn gets at least 30 tool rounds", () => {
+  assertStrictEquals(workshopToolRounds(5, "auto"), 30);
+  assertStrictEquals(workshopToolRounds(null, "auto"), 30);
+  assertStrictEquals(workshopToolRounds(40, "auto"), 40);
+  assertStrictEquals(workshopToolRounds(5, "semi"), 15);
+});
+
+Deno.test(
+  "a turn that stopped on a gate Carmen answers herself is nudged on",
+  () => {
+    assertStrictEquals(
+      shouldNudgeSilentTurn([
+        {
+          tool: "workshop_storyboard",
+          result: {
+            needs_input: true,
+            say_to_user: "",
+            carmen_continues: true,
+          },
+        },
+      ]),
+      true,
+    );
+  },
+);

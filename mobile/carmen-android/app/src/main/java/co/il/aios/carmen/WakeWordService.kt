@@ -164,9 +164,10 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     }
 
     private fun endSession(reason: String) {
+        // A running conversation always stops, even if the session state already moved on.
+        conversation?.also { conversation = null }?.stop(reason)
         if (gate.state != ActivationGate.State.ACTIVE) return
         handler.removeCallbacks(endSessionOnTimeout)
-        conversation?.also { conversation = null }?.stop(reason)
         CarmenSession.setState(CarmenSession.State.ENDED)
         getSystemService(NotificationManager::class.java).cancel(Notifications.WAKE_ID)
         gate.endSession()

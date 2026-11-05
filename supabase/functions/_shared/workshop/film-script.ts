@@ -13,6 +13,7 @@ import {
 } from "./brief-answers.ts";
 import { inferFilmSeconds } from "./defaults.ts";
 import { asRecord } from "./record.ts";
+import { PACE_GUIDE } from "./script-pace.ts";
 
 const KEY = "workshop_script";
 
@@ -37,12 +38,8 @@ export function conceptAnswer(answers: BriefAnswers): string {
   return match?.[1].trim() ?? "";
 }
 
-/** Hebrew voice-over pace: narration longer than this runs past its beat. */
-export const WORDS_PER_SECOND = 2.5;
-
 /** How the copywriter writes a film script; the save tool and the script gate both say it. */
-export const SCRIPT_GUIDE =
-  "איך כותבים: הוק ב-1 עד 2 השניות הראשונות. רעיון אחד בכל שורה. משפטים קצרים שנשמעים טבעי בקול. הטקסט על המסך קצר (עד 5 מילים) ולא חוזר על הקריינות. מהלך ברור: בעיה, תובנה, פתרון, ובסוף קריאה לפעולה אחת לפי הסגיר שנבחר. בקול של המותג, בלי קלישאות ובלי מילות מילוי. האורך מדויק: סכום השניות שווה לאורך הסרט, ובכל שורה עד 2.5 מילים לשנייה. פנייה לצופים ולמשתמש בלשון ניטרלית או ברבים (״אפשר לבחור״, ״קחו״), לא ״תבחרי״ או ״תבחר״.";
+export const SCRIPT_GUIDE = `איך כותבים: הוק ב-1 עד 2 השניות הראשונות. רעיון אחד בכל שורה. משפטים קצרים שנשמעים טבעי בקול. הטקסט על המסך קצר (עד 5 מילים) ולא חוזר על הקריינות. מהלך ברור: בעיה, תובנה, פתרון, ובסוף קריאה לפעולה אחת לפי הסגיר שנבחר. בקול של המותג, בלי קלישאות ובלי מילות מילוי. האורך מדויק: סכום השניות שווה לאורך הסרט. ${PACE_GUIDE} פנייה לצופים ולמשתמש בלשון ניטרלית או ברבים (״אפשר לבחור״, ״קחו״), לא ״תבחרי״ או ״תבחר״.`;
 
 export interface ScriptBeat {
   start_s: number;
@@ -169,14 +166,6 @@ export function filmSeconds(payload: Record<string, unknown>): number | null {
   );
   return planned > 0 ? planned : null;
 }
-
-/** Words in a spoken line (punctuation alone is not a word). */
-export const spokenWords = (text: string) =>
-  text.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
-
-/** The most words a beat of this length can say. */
-export const maxWords = (seconds: number) =>
-  Math.max(1, Math.floor(seconds * WORDS_PER_SECOND));
 
 const seconds = (value: number) => `${Math.round(value * 10) / 10}`;
 

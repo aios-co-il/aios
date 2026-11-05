@@ -85,7 +85,7 @@ export function useBroadcasts() {
       const { data, error } = await supabase
         .from("broadcasts")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as Broadcast[];

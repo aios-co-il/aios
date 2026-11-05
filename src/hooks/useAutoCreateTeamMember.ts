@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { pickExistingTeamMember } from "@functions/_shared/team-member-match.ts";
 import { useCurrentTenant } from "./useCurrentTenant";
 
+type TeamMemberResult = { id: string; reused: boolean };
+
 interface CreateCampaignerParams {
   userId: string;
   fullName: string;
@@ -61,11 +63,17 @@ export function useAutoCreateTeamMember() {
             fullName: params.fullName,
           });
 
-      let campaigner = existing
-        ? { id: existing.id, reused: true as const }
-        : null;
+      let campaigner: TeamMemberResult;
 
-      if (!campaigner) {
+      if (existing) {
+        campaigner = { id: existing.id, reused: true };
+        if (!(existing.email || "").trim() && params.email) {
+          await supabase
+            .from("campaigners")
+            .update({ email: params.email })
+            .eq("id", existing.id);
+        }
+      } else {
         const { data: created, error: campaignerError } = await supabase
           .from("campaigners")
           .insert({
@@ -81,12 +89,7 @@ export function useAutoCreateTeamMember() {
           .single();
 
         if (campaignerError) throw campaignerError;
-        campaigner = { id: created.id, reused: false as const };
-      } else if (!(existing?.email || "").trim() && params.email) {
-        await supabase
-          .from("campaigners")
-          .update({ email: params.email })
-          .eq("id", existing.id);
+        campaigner = { id: created.id, reused: false };
       }
 
       // 2. קישור לסוכנויות
@@ -168,11 +171,17 @@ export function useAutoCreateTeamMember() {
             fullName: params.fullName,
           });
 
-      let salesPerson = existing
-        ? { id: existing.id, reused: true as const }
-        : null;
+      let salesPerson: TeamMemberResult;
 
-      if (!salesPerson) {
+      if (existing) {
+        salesPerson = { id: existing.id, reused: true };
+        if (!(existing.email || "").trim() && params.email) {
+          await supabase
+            .from("sales_people")
+            .update({ email: params.email })
+            .eq("id", existing.id);
+        }
+      } else {
         const { data: created, error: salesPersonError } = await supabase
           .from("sales_people")
           .insert({
@@ -188,12 +197,7 @@ export function useAutoCreateTeamMember() {
           .single();
 
         if (salesPersonError) throw salesPersonError;
-        salesPerson = { id: created.id, reused: false as const };
-      } else if (!(existing?.email || "").trim() && params.email) {
-        await supabase
-          .from("sales_people")
-          .update({ email: params.email })
-          .eq("id", existing.id);
+        salesPerson = { id: created.id, reused: false };
       }
 
       // 2. קישור איש המכירות למשתמש

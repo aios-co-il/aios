@@ -10,8 +10,8 @@ import {
   countStoppedCampaignsByClient,
   computeGoalMetricsFromRecords,
   detectCampaignGoalMode,
-  integrationTypeToGoal,
   isPulseDeliveryExcludedPhone,
+  reportTableGoal,
   selectPulseCriticalAlerts,
   tableMatchesServices,
   worstPulseStatus,
@@ -42,10 +42,8 @@ import {
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
 import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
 import { loadOpenIntegrationDisconnects } from "../_shared/pulse/connection-disconnects.ts";
-import {
-  buildPulseCampaignRows,
-  classifyPulseCampaignGoal,
-} from "../_shared/pulse-campaign-goals.mjs";
+import { buildPulseCampaignRows } from "../_shared/pulse-campaign-goals.mjs";
+import { reportCampaignGoalOf } from "../_shared/campaign-goal/campaign-goals.ts";
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
@@ -504,20 +502,10 @@ Deno.serve(async (req) => {
           tableIds,
           sinceYmd: windows.queryStart,
         });
-        const tableById = new Map(
-          activeTables.map((table: any) => [table.id, table]),
-        );
+        // Each record counts toward its campaign's goal, as the reports show it.
+        const verdictOf = reportCampaignGoalOf(records, activeTables);
         const recordsForGoal = (goal: "leads" | "ecommerce") =>
-          records.filter((row: any) => {
-            const table = tableById.get(row.table_id);
-            return (
-              classifyPulseCampaignGoal(row.data || {}, {
-                integration_type: table?.integration_type,
-                integration_settings: table?.integration_settings || {},
-                category: table?.category,
-              }).goal === goal
-            );
-          });
+          records.filter((row: any) => verdictOf(row)?.goal === goal);
         const leadRecords = recordsForGoal("leads");
         const ecommerceRecords = recordsForGoal("ecommerce");
         const campaignBreakdown = buildPulseCampaignRows({
@@ -574,19 +562,15 @@ Deno.serve(async (req) => {
         );
         const stoppedCount = stoppedByClient.get(client.id) || 0;
         const leadTables = activeTables.filter(
-          (table: any) =>
-            integrationTypeToGoal(table.integration_type, table) === "leads",
+          (table: any) => reportTableGoal(table) === "leads",
         );
         const ecommerceTables = activeTables.filter(
-          (table: any) =>
-            integrationTypeToGoal(table.integration_type, table) ===
-            "ecommerce",
+          (table: any) => reportTableGoal(table) === "ecommerce",
         );
         const leadClassification = classifyCampaignPulseStatus({
           activeTables: leadTables,
           hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) =>
-              integrationTypeToGoal(table.integration_type, table) === "leads",
+            (table: any) => reportTableGoal(table) === "leads",
           ),
           recentRecordCount: leadRecords.filter(
             (row: any) =>
@@ -604,9 +588,7 @@ Deno.serve(async (req) => {
         const ecommerceClassification = classifyCampaignPulseStatus({
           activeTables: ecommerceTables,
           hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) =>
-              integrationTypeToGoal(table.integration_type, table) ===
-              "ecommerce",
+            (table: any) => reportTableGoal(table) === "ecommerce",
           ),
           recentRecordCount: ecommerceRecords.filter(
             (row: any) =>

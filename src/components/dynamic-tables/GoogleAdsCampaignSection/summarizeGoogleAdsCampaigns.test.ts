@@ -81,6 +81,31 @@ describe("summarizeGoogleAdsCampaigns", () => {
     ).toStrictEqual([["Spent", true]]);
   });
 
+  it("marks a campaign paused in Google Ads off while the report stays on", () => {
+    const summary = summarizeGoogleAdsCampaigns(
+      [
+        row({ campaign_id: "paused", campaign_name: "Paused", cost: 25 }),
+        row({ campaign_id: "live", campaign_name: "Live", cost: 30 }),
+      ],
+      [
+        {
+          ...table,
+          campaign_active: true,
+          integration_settings: {
+            ...table.integration_settings,
+            operational_campaign_states: { paused: { status: "PAUSED" } },
+          },
+        },
+      ],
+    );
+    expect(
+      summary.campaigns.map((campaign) => [campaign.name, campaign.off]),
+    ).toStrictEqual([
+      ["Live", false],
+      ["Paused", true],
+    ]);
+  });
+
   it("counts a campaign once, not again for its ad group and ad rows", () => {
     const levelRow = (entity_level: string) => ({
       _tableId: "g",

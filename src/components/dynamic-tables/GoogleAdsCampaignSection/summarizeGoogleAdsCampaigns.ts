@@ -14,10 +14,10 @@ import {
   googleGoalPresence,
   googleReportFallbackGoal,
 } from "@/lib/googleGoalPresence";
+import { addTotals, emptyTotals } from "./googleAdsTotals";
 import type {
   GoogleAdsCampaignSummary,
   GoogleAdsCampaignSummaryRow,
-  GoogleAdsTotals,
 } from "./types";
 
 /**
@@ -89,24 +89,4 @@ function campaignName(data: GoogleAdsRowData): string {
 /** One campaign's row key: its id, or its name when the id is missing. */
 function campaignKey(data: GoogleAdsRowData): string {
   return String(data.campaign_id || campaignName(data));
-}
-
-/** Zeroed metric totals. */
-function emptyTotals(): GoogleAdsTotals {
-  return {
-    impressions: 0,
-    clicks: 0,
-    spend: 0,
-    conversions: 0,
-    conversions_value: 0,
-  };
-}
-
-/** Add one campaign's metrics into a running total. */
-function addTotals(target: GoogleAdsTotals, row: GoogleAdsTotals) {
-  target.impressions += row.impressions;
-  target.clicks += row.clicks;
-  target.spend += row.spend;
-  target.conversions += row.conversions;
-  target.conversions_value += row.conversions_value;
 }

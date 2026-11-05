@@ -67,7 +67,9 @@ Deno.test(
     );
     assertStrictEquals((attached[0].value as any).p_kind, "still");
     assertMatch(done.message, /מופיעות בלוח/);
-    assertMatch(done.message, /הפקת הסרט/);
+    // Semi-automatic: the last picture asks the user to approve the pictures (stills-approval.ts).
+    assertMatch(done.message, /אישור התמונות/);
+    assertMatch(done.say_to_user, /התמונות מאושרות/);
     const pages = db.calls.filter(
       (c) =>
         c.table === "workshop_artifacts" &&

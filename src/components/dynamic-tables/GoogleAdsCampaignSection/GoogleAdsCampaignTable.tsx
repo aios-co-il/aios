@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { GoogleAdsCampaignTotalsRow } from "./GoogleAdsCampaignTotalsRow";
 import { ratio } from "@/lib/reportNumber";
 import type {
@@ -26,6 +26,8 @@ type Props = GoogleAdsFormatters & {
   store: GoogleStoreTotals;
   mixed: boolean;
   icon: ReactNode;
+  /** Replaces the goal title, as the continents tab names each table by its continent. */
+  title?: string;
 };
 
 /** Per-campaign table of one goal: sales columns for ecommerce campaigns, conversion columns for lead campaigns. */
@@ -36,15 +38,18 @@ export function GoogleAdsCampaignTable({
   store,
   mixed,
   icon,
+  title: titleOverride,
   ...formats
 }: Props) {
   const { formatCurrency, formatNumber, formatUnitCost } = formats;
   const isEcommerce = goal === "ecommerce";
-  const title = !mixed
-    ? "סיכום קמפיינים - Google Ads"
-    : isEcommerce
-      ? "קמפייני מכירות - Google Ads"
-      : "קמפייני לידים - Google Ads";
+  const title =
+    titleOverride ??
+    (!mixed
+      ? "סיכום קמפיינים - Google Ads"
+      : isEcommerce
+        ? "קמפייני מכירות - Google Ads"
+        : "קמפייני לידים - Google Ads");
   return (
     <Card>
       <CardHeader>

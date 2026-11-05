@@ -15,24 +15,27 @@ Marketing OS look of the web app's `/auth`. Test report and Go/No-Go:
   uploads `carmen-wakeword-apk` as an artifact.
 - Or build locally with JDK 17+ and the Android SDK (platform 35):
   `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
-- The AIOS backend comes from `local.properties` (`carmen.supabaseUrl`, `carmen.supabaseKey`,
-  `carmen.appEnv`, optional `carmen.webUrl`) or, in CI, the repository variables
-  `CARMEN_ANDROID_SUPABASE_URL` and `CARMEN_ANDROID_SUPABASE_KEY` (Staging project URL and its
-  publishable key). The CI build fails when they are missing; the app cannot sign in without them.
-  `carmen.webUrl` defaults to the Staging alias, which Vercel protects with a login; a public
-  Staging domain and the Production build are tracked in AIO-356.
+- Two variants (see `docs/ENVIRONMENTS.md` § Carmen Android app):
+  - **Staging** (`./gradlew assembleStagingRelease`, "Carmen Staging"): backend from
+    `local.properties` (`carmen.supabaseUrl`, `carmen.supabaseKey`, optional `carmen.webUrl`) or,
+    in CI, the repository variables `CARMEN_ANDROID_SUPABASE_URL` / `CARMEN_ANDROID_SUPABASE_KEY`.
+    Debug-signed. Its Command Center is the Staging alias, which Vercel protects with a login.
+  - **Production** (`./gradlew assembleProductionRelease`, "Carmen"): backend from the repo's
+    tracked `.env`, Command Center at `https://aios.co.il`. Needs the release key
+    (`carmen.release.*` in `local.properties`, or `CARMEN_RELEASE_*` env vars); without it the build
+    fails. CI builds it only from `main`.
 - The APK is about 5 MB (64-bit phones, code shrinking on); the offline speech model (~40 MB)
   downloads once, the first time listening starts.
 
-The APK is signed with the debug key for private installs (a release key is AIO-356). Installing
-a build from another machine over an existing one fails with a signature error: uninstall first.
+The two variants install side by side. Moving from an older build signed with another key to
+the Production app needs one uninstall first.
 
 ## Install and set up the phone
 
 1. Allow installing from your browser or file manager, open the APK, install.
-2. Open **Carmen** and sign in with your AIOS (Staging) email and password, or with Google.
-   Google returns to the app through `carmen-aios://auth/…`, which must be in the Supabase Auth
-   redirect list (`supabase/config.toml`; Production is AIO-356).
+2. Open **Carmen** (or **Carmen Staging**) and sign in with your AIOS email and password, or with
+   Google. Google returns to the app through `carmen-aios://auth/…` (Staging:
+   `carmen-aios-staging://`), which must be in the Supabase Auth redirect list (`supabase/config.toml`).
 3. The home screen is Carmen. Allow microphone and notifications; "היי כרמן" listening turns on
    the first time, and the **האזנה ל"היי כרמן"** switch turns it on or off.
 4. In **הגדרות**, tap **הגדרות חיסכון בסוללה** and set Carmen to _Unrestricted_, and on Android

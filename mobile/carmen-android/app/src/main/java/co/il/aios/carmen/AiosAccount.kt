@@ -30,6 +30,9 @@ class AiosAccount(context: Context) {
     val email: String? get() = prefs.getString(KEY_EMAIL, null)
     val isSignedIn: Boolean get() = prefs.getString(KEY_REFRESH, null) != null
 
+    /** Signed in with a tenant, the only state in which Carmen can work. */
+    val isReady: Boolean get() = isSignedIn && prefs.getString(KEY_TENANT, null) != null
+
     /**
      * Signs in with an AIOS email and password and resolves the user's active tenant. It also
      * opens a second, independent session for the in-app web screen, so one sign-in covers both
@@ -71,15 +74,19 @@ class AiosAccount(context: Context) {
     }
 
     enum class GoogleTarget(val redirect: String) {
-        APP("carmen-aios://auth/app"),
-        WEB("carmen-aios://auth/web"),
+        APP("${BuildConfig.AUTH_SCHEME}://auth/app"),
+        WEB("${BuildConfig.AUTH_SCHEME}://auth/web"),
     }
 
     /** Stores the app's session and resolves the tenant whose Command Center the app opens. */
     private fun completeSignIn(session: JSONObject) {
         saveTokens(session, session.optJSONObject("user")?.optString("email").orEmpty())
         val tenantId = resolveActiveTenant()
-            ?: throw IOException("למשתמש אין טננט פעיל ב-AIOS")
+        if (tenantId == null) {
+            // A session without a tenant cannot talk to Carmen: never leave the app signed in that way.
+            signOut()
+            throw IOException(NO_TENANT_MESSAGE)
+        }
         prefs.edit {
             putString(KEY_TENANT, tenantId)
             putString(KEY_TENANT_SLUG, tenantSlug(tenantId))
@@ -137,6 +144,25 @@ class AiosAccount(context: Context) {
             .post(body.toString().toRequestBody(JSON))
             .build()
         return client.newCall(request).execute()
+    }
+
+    /**
+     * Writes rows through the REST API as the signed-in user, so row-level security applies,
+     * and returns the written rows. [method] is POST (insert) or PATCH (update).
+     */
+    fun restWrite(method: String, query: String, body: JSONObject, prefer: String = "return=representation"): JSONArray {
+        val request = Request.Builder()
+            .url("${BuildConfig.SUPABASE_URL}/rest/v1/$query")
+            .header("apikey", BuildConfig.SUPABASE_KEY)
+            .header("Authorization", "Bearer ${session().accessToken}")
+            .header("Prefer", prefer)
+            .method(method, body.toString().toRequestBody(JSON))
+            .build()
+        http.newCall(request).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw IOException("$method $query: ${response.code} ${text.take(200)}")
+            return JSONArray(text.ifEmpty { "[]" })
+        }
     }
 
     private fun authRequest(grantType: String, body: JSONObject): JSONObject {
@@ -203,6 +229,7 @@ class AiosAccount(context: Context) {
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()
         private const val REFRESH_MARGIN_MS = 60_000L
+        const val NO_TENANT_MESSAGE = "החשבון הזה לא שייך לאף ארגון ב-AIOS. התחברו עם חשבון של הארגון, או בקשו הזמנה ממנהל הארגון."
         private val REFRESH_LOCK = Any()
         private const val PREFS = "aios_account"
         private const val KEY_ACCESS = "access_token"

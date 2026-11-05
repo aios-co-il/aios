@@ -69,6 +69,9 @@ class ConversationAudio(context: Context, private val onMicChunk: (ByteArray) ->
         if (running) playQueue.offer(pcm)
     }
 
+    /** True when nothing of Carmen's speech is waiting to play. */
+    fun isIdle(): Boolean = playQueue.isEmpty()
+
     /** The user started talking over Carmen: drop what she has not said yet. */
     fun interrupt() {
         playQueue.clear()

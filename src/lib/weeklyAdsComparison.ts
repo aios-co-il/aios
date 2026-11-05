@@ -1,4 +1,4 @@
-import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import {
   addFacebookGoalRecord,
   emptyFacebookGoalInputs,

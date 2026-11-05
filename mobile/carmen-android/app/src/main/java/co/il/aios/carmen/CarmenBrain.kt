@@ -12,7 +12,9 @@ import java.util.concurrent.TimeUnit
  */
 class CarmenBrain(private val account: AiosAccount) {
 
-    private var conversationId: String? = null
+    /** The server conversation this session's questions went to, once the first answer arrives. */
+    @Volatile var conversationId: String? = null
+        private set
 
     /**
      * Blocking: streams the brain's answer and returns it as text. [history] is the earlier

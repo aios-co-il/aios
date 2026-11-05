@@ -29,16 +29,32 @@ export function groupFacebookRowsByGoal(
   goalOf: FacebookRecordGoalOf;
 } {
   const goalOf = facebookRecordGoalOf(records, level, options);
+  return {
+    ...facebookRowsByGoal(records, level, (record) =>
+      goalOf(record.data ?? {}),
+    ),
+    goalOf,
+  };
+}
+
+/**
+ * Facebook rows summed at this level within each goal's table, by a goal the
+ * caller decides per record. A record without a goal is in no table.
+ */
+export function facebookRowsByGoal<T extends { data?: RecordData | null }>(
+  records: Array<T>,
+  level: AdsEntityLevel,
+  goalOf: (record: T) => ReportCampaignGoal | null,
+): Record<ReportCampaignGoal, Array<FacebookCampaignRow>> {
   const rowsOf = (goal: ReportCampaignGoal) =>
     aggregateFacebookRecordsAtLevel(
-      records.filter((record) => goalOf(record.data ?? {}) === goal),
+      records.filter((record) => goalOf(record) === goal),
       level,
     );
   return {
     ecommerce: rowsOf("ecommerce"),
     leads: rowsOf("leads"),
     traffic: rowsOf("traffic"),
-    goalOf,
   };
 }
 

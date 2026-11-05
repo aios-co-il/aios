@@ -12,6 +12,7 @@ import { loadSelectedArtifact, markedPageLines } from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
 import { talkingLine } from "./talking.ts";
 import { saveTurnAnswers } from "./turn-answers.ts";
+import { MODE_NOTE, workshopModeOf } from "./workshop-mode.ts";
 
 export { failStalePictures };
 
@@ -105,6 +106,7 @@ export async function workshopTurnNote(
     const lines: Array<string> = [
       "=== מצב הפרויקט (מהשרת) ===",
       DO_THE_STEP,
+      MODE_NOTE[workshopModeOf(payload)],
       ...answered.lines,
     ];
     const selected = await loadSelectedArtifact(
