@@ -35,26 +35,9 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveUpdateAuthorName } from "@/lib/updateAuthor";
 import { useTenantMemberNames } from "@/hooks/useTenantMemberNames";
 import { ensureLeadHomeAgency } from "@/lib/resolveTenantAgencyDb";
-import type { RecurrenceFrequency } from "@/lib/taskRecurrence";
+import { toTaskDetail } from "@/lib/taskDetail";
 
 type DialogTask = ComponentProps<typeof TaskDetailDialog>["task"];
-
-const RECURRENCE_FREQUENCIES: readonly RecurrenceFrequency[] = [
-  "daily",
-  "weekly",
-  "monthly",
-];
-
-function toDialogTask<T extends { recurrence_frequency: string | null }>(
-  task: T,
-): T & { recurrence_frequency: RecurrenceFrequency | null } {
-  return {
-    ...task,
-    recurrence_frequency:
-      RECURRENCE_FREQUENCIES.find((f) => f === task.recurrence_frequency) ??
-      null,
-  };
-}
 
 interface LeadUpdatesTabProps {
   leadId: string;
@@ -476,7 +459,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
                   isCompleted={false}
                   compact
                   tintByPriority
-                  onEdit={() => setEditingTask(toDialogTask(task))}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,
@@ -517,7 +500,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
                   isCompleted
                   compact
                   tintByPriority
-                  onEdit={() => setEditingTask(toDialogTask(task))}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,

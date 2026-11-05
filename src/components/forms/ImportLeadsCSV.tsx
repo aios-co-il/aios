@@ -390,7 +390,11 @@ export function ImportLeadsCSV() {
         if (lead.id) {
           const byId = existingLeads?.find((e) => e.id === lead.id);
           if (byId) {
-            updates.push({ ...lead, id: byId.id });
+            updates.push({
+              company_name: byId.company_name,
+              ...lead,
+              id: byId.id,
+            });
             continue;
           } else {
             inserts.push(lead);
@@ -411,7 +415,11 @@ export function ImportLeadsCSV() {
         );
 
         if (existing) {
-          updates.push({ ...lead, id: existing.id });
+          updates.push({
+            company_name: existing.company_name,
+            ...lead,
+            id: existing.id,
+          });
         } else {
           inserts.push(lead);
         }
