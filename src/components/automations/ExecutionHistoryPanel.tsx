@@ -38,10 +38,29 @@ import {
 
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
-import { cfgObject, cfgText, errorMessage } from "./automationStepConfig";
-import { parseFlowStepResults } from "./automationRunResults";
+import { z } from "zod";
+import {
+  cfgText,
+  errorMessage,
+  optionalTextSchema,
+} from "./automationStepConfig";
+import { parseFlowRunResponse } from "./automationRunResults";
 import { formatDateTime } from "@/lib/formatDateTime";
 import { MAILING_ACTION_ICONS, MAILING_ACTION_LABELS } from "./mailingActions";
+
+/** The payload fields a run summary shows. */
+const runPayloadSchema = z.object({
+  contact_name: optionalTextSchema,
+  company_name: optionalTextSchema,
+  phone: optionalTextSchema,
+  lead_id: z.unknown(),
+  test: z.unknown(),
+});
+
+function parseRunPayload(value: unknown) {
+  const result = runPayloadSchema.safeParse(value);
+  return result.success ? result.data : undefined;
+}
 
 interface ExecutionHistoryPanelProps {
   open: boolean;
@@ -258,11 +277,11 @@ export function ExecutionHistoryPanel({
               {logs.map((log) => {
                 const isExpanded = expandedLogId === log.id;
                 const response = log.response;
-                const responseObject = cfgObject(response);
-                const payload = cfgObject(log.payload);
-                const flowSteps = parseFlowStepResults(responseObject?.steps);
-                const isFlow = responseObject?.flow === true;
-                const agentOutput = cfgText(responseObject?.agent_output);
+                const runResponse = parseFlowRunResponse(response);
+                const payload = parseRunPayload(log.payload);
+                const flowSteps = runResponse?.steps ?? [];
+                const isFlow = runResponse?.flow === true;
+                const agentOutput = runResponse?.agent_output;
                 const triggeredAt = formatDateTime(log.triggered_at) || "—";
 
                 return (
@@ -353,32 +372,32 @@ export function ExecutionHistoryPanel({
                               נתונים שנשלחו:
                             </p>
                             <div className="flex flex-wrap gap-1">
-                              {cfgText(payload.contact_name) && (
+                              {payload.contact_name && (
                                 <Badge
                                   variant="outline"
                                   className="text-[10px]"
                                 >
-                                  {cfgText(payload.contact_name)}
+                                  {payload.contact_name}
                                 </Badge>
                               )}
-                              {cfgText(payload.company_name) && (
+                              {payload.company_name && (
                                 <Badge
                                   variant="outline"
                                   className="text-[10px]"
                                 >
-                                  {cfgText(payload.company_name)}
+                                  {payload.company_name}
                                 </Badge>
                               )}
-                              {cfgText(payload.phone) && (
+                              {payload.phone && (
                                 <Badge
                                   variant="outline"
                                   className="text-[10px]"
                                   dir="ltr"
                                 >
-                                  {cfgText(payload.phone)}
+                                  {payload.phone}
                                 </Badge>
                               )}
-                              {payload.lead_id && (
+                              {!!payload.lead_id && (
                                 <Badge
                                   variant="secondary"
                                   className="text-[10px]"
@@ -386,7 +405,7 @@ export function ExecutionHistoryPanel({
                                   ליד
                                 </Badge>
                               )}
-                              {payload.test && (
+                              {!!payload.test && (
                                 <Badge
                                   variant="secondary"
                                   className="text-[10px]"

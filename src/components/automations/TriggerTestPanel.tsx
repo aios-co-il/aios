@@ -46,7 +46,6 @@ import { NodeIconDisplay } from "./nodeIcons";
 import { ACTION_TYPE_LABELS } from "./FlowNode";
 import { cn } from "@/lib/utils";
 import {
-  cfgObject,
   errorMessage,
   jsonObjectTextSchema,
   listOf,
@@ -69,6 +68,7 @@ interface TriggerTestPanelProps {
 }
 
 interface TestResult {
+  success?: unknown;
   error?: string;
   steps: FlowStepResult[];
   agent_output?: string;
@@ -99,6 +99,7 @@ function toPickerEntities(
 
 const testResponseSchema = z
   .object({
+    success: z.unknown(),
     error: optionalTextSchema,
     steps: z.unknown().transform(parseFlowStepResults),
     agent_output: optionalTextSchema,
@@ -733,8 +734,7 @@ export function TriggerTestPanel({
       const result = toTestResult(data);
       setTestResult(result);
 
-      const dataObject = cfgObject(data);
-      const success = dataObject?.success !== false && !dataObject?.error;
+      const success = result.success !== false && !result.error;
       toast({
         title: success ? "הטריגר הופעל בהצלחה" : "הטריגר נכשל",
         description: success

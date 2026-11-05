@@ -43,18 +43,50 @@ import {
 import { cn } from "@/lib/utils";
 import { startOfDay, subDays, format } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
+import { z } from "zod";
 import {
   cfgObject,
-  cfgObjectArray,
   cfgText,
   errorMessage,
-  type JsonObject,
+  type StepConfig,
 } from "./automationStepConfig";
+import { parseFacebookFormFields } from "./facebookFormFields";
 import {
   parseFacebookPreviewLeads,
   parseFlowStepResults,
   type FacebookPreviewLead,
 } from "./automationRunResults";
+
+type FacebookFieldKey = `fb_${string}`;
+type FacebookTestField =
+  "fb_phone" | "fb_full_name" | "fb_email" | "fb_company_name";
+
+/** Manual test data; Facebook triggers also get fb_ form fields like real leads. */
+type ManualTestData = {
+  test: true;
+  manual: true;
+  contact_name: string;
+  company_name: string;
+  phone: string;
+  email: string;
+  source: string;
+  notes: string;
+  timestamp: string;
+  [field: FacebookFieldKey]: string;
+};
+
+const facebookPreviewResponseSchema = z.object({
+  error: z.unknown(),
+  leads: z.unknown(),
+});
+
+const runResponseSchema = z.object({ results: z.array(z.unknown()) });
+
+/** Per-step results of a trigger-automation response, if it has a results list. */
+function runResults(data: unknown) {
+  const parsed = runResponseSchema.safeParse(data);
+  return parsed.success ? parseFlowStepResults(parsed.data.results) : undefined;
+}
 
 interface TestFlowWithLeadDialogProps {
   open: boolean;
@@ -268,7 +300,7 @@ export function TestFlowWithLeadDialog({
     automation?.trigger_type === "whatsapp_message_received" ||
     triggerStep?.action_type === "whatsapp_message_received";
 
-  const triggerConfig: JsonObject =
+  const triggerConfig: StepConfig =
     cfgObject(triggerStep?.configuration || automation?.configuration) || {};
 
   const dateFilter = getDateFilter(dateRange, customFrom, customTo);
@@ -311,11 +343,13 @@ export function TestFlowWithLeadDialog({
         },
       );
       if (error) throw error;
-      const body = cfgObject(data);
-      if (body?.error) throw new Error(String(body.error));
-      const pulled = parseFacebookPreviewLeads(body?.leads).map(
-        facebookLeadToTestLead,
-      );
+      const body = facebookPreviewResponseSchema.safeParse(data);
+      if (body.success && body.data.error) {
+        throw new Error(String(body.data.error));
+      }
+      const pulled = parseFacebookPreviewLeads(
+        body.success ? body.data.leads : undefined,
+      ).map(facebookLeadToTestLead);
       const to = dateFilter.to ? new Date(dateFilter.to).getTime() : Infinity;
       const inRange = pulled.filter(
         (l) => new Date(l.created_at).getTime() < to,
@@ -525,7 +559,7 @@ export function TestFlowWithLeadDialog({
           triggerStep?.action_type === "inbound_webhook_lead" ||
           triggerStep?.action_type === "lead_created";
 
-        const testData: JsonObject = {
+        const testData: ManualTestData = {
           test: true,
           manual: true,
           contact_name: manualData.contact_name || manualData.company_name,
@@ -540,12 +574,12 @@ export function TestFlowWithLeadDialog({
         // If trigger is Facebook/webhook, add fb_ prefixed fields to mimic real FB lead data
         if (isFacebookTrigger) {
           // Read actual form field names from trigger configuration
-          const formFields = cfgObjectArray(
+          const formFields = parseFacebookFormFields(
             triggerConfig?.facebook_form_fields,
           );
 
           // Build a mapping from generic type to actual fb_ field key
-          const fieldMap: Record<string, string> = {
+          const fieldMap: Record<FacebookTestField, FacebookFieldKey> = {
             fb_phone: "fb_phone",
             fb_full_name: "fb_full_name",
             fb_email: "fb_email",
@@ -554,8 +588,8 @@ export function TestFlowWithLeadDialog({
 
           if (formFields && formFields.length > 0) {
             for (const field of formFields) {
-              const fbKey = `fb_${cfgText(field.label) || cfgText(field.key)}`;
-              const fieldType = (cfgText(field.type) || "").toUpperCase();
+              const fbKey: FacebookFieldKey = `fb_${field.label || field.key}`;
+              const fieldType = (field.type || "").toUpperCase();
               if (fieldType === "PHONE" || fieldType.includes("PHONE")) {
                 fieldMap.fb_phone = fbKey;
               } else if (
@@ -1286,11 +1320,9 @@ export function TestFlowWithLeadDialog({
                               {result.error}
                             </p>
                           )}
-                          {Array.isArray(cfgObject(result.data)?.results) && (
+                          {runResults(result.data) && (
                             <div className="space-y-1 mt-1">
-                              {parseFlowStepResults(
-                                cfgObject(result.data)?.results,
-                              ).map((step, si) => (
+                              {runResults(result.data)?.map((step, si) => (
                                 <div
                                   key={si}
                                   className="text-xs flex items-center gap-1"

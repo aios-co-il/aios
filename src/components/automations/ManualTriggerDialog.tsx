@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Dialog,
@@ -14,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Bot, User } from "lucide-react";
-import { cfgObject, cfgText, errorMessage } from "./automationStepConfig";
-import { parseFlowStepResults } from "./automationRunResults";
+import { errorMessage } from "./automationStepConfig";
+import { firstFlowRunResponse } from "./automationRunResults";
 
 interface ManualTriggerDialogProps {
   open: boolean;
@@ -42,26 +41,6 @@ export function ManualTriggerDialog({
   const { toast } = useToast();
   const { tenantId } = useCurrentTenant();
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Fetch flow steps to find agent step
-  const { data: flowSteps } = useQuery({
-    queryKey: ["automation-flow-steps-agent", automationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("automation_flow_steps")
-        .select("*")
-        .eq("automation_id", automationId);
-      if (error) throw error;
-      return data;
-    },
-    enabled: open && !!automationId,
-  });
-
-  // Find agent step and its agent_id
-  const agentStep = flowSteps?.find(
-    (s) => s.step_type === "agent" || s.action_type === "agent",
-  );
-  const agentId = cfgObject(agentStep?.configuration)?.agent_id;
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -112,13 +91,9 @@ export function ManualTriggerDialog({
       if (error) throw error;
 
       // Extract agent output from flow results
-      const results = cfgObject(data)?.results;
-      const result = Array.isArray(results) ? cfgObject(results[0]) : undefined;
-      const flowResponse = cfgObject(result?.response) || result;
-      const agentOutput = cfgText(flowResponse?.agent_output);
-      const flowSteps = Array.isArray(flowResponse?.steps)
-        ? parseFlowStepResults(flowResponse.steps)
-        : undefined;
+      const flowResponse = firstFlowRunResponse(data);
+      const agentOutput = flowResponse?.agent_output;
+      const flowSteps = flowResponse?.steps;
 
       if (flowResponse?.flow && agentOutput) {
         // Flow with agent - show agent output
@@ -170,8 +145,7 @@ export function ManualTriggerDialog({
           ...prev,
           {
             role: "agent",
-            content:
-              cfgText(flowResponse?.output) || "האוטומציה הופעלה בהצלחה.",
+            content: flowResponse?.output || "האוטומציה הופעלה בהצלחה.",
             timestamp: new Date(),
           },
         ]);

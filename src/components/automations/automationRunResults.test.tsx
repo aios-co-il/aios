@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  firstFlowRunResponse,
   parseFacebookPreviewLeads,
+  parseFlowRunResponse,
   parseFlowStepResults,
 } from "./automationRunResults";
 
@@ -67,5 +69,41 @@ describe("parseFacebookPreviewLeads", () => {
 
   it("returns an empty list for non-array input", () => {
     expect(parseFacebookPreviewLeads({ leads: [] })).toEqual([]);
+  });
+});
+
+describe("parseFlowRunResponse", () => {
+  it("reads flow, agent output and steps; steps stay unset when not a list", () => {
+    expect(
+      parseFlowRunResponse({
+        flow: true,
+        agent_output: "done",
+        steps: [{ action_type: "agent", success: true }],
+      }),
+    ).toMatchObject({
+      flow: true,
+      agent_output: "done",
+      steps: [{ action_type: "agent", success: true }],
+    });
+    expect(parseFlowRunResponse({ output: 3, steps: "x" })).toMatchObject({
+      output: "3",
+      steps: undefined,
+    });
+    expect(parseFlowRunResponse("nope")).toBeUndefined();
+  });
+});
+
+describe("firstFlowRunResponse", () => {
+  it("unwraps results[0].response, else uses results[0] itself", () => {
+    expect(
+      firstFlowRunResponse({
+        results: [{ response: { flow: true, agent_output: "a" } }],
+      }),
+    ).toMatchObject({ flow: true, agent_output: "a" });
+    expect(
+      firstFlowRunResponse({ results: [{ output: "plain" }] }),
+    ).toMatchObject({ output: "plain" });
+    expect(firstFlowRunResponse({ results: "x" })).toBeUndefined();
+    expect(firstFlowRunResponse(null)).toBeUndefined();
   });
 });

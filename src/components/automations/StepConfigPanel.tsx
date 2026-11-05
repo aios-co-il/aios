@@ -72,6 +72,7 @@ import {
   type StepConfigChange,
   type StepConfigValue,
 } from "./automationStepConfig";
+import { parseFacebookFormFields } from "./facebookFormFields";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useToast } from "@/hooks/use-toast";
@@ -362,16 +363,18 @@ function getAvailableFields(
     triggerType === "lead_created" &&
     triggerConfig?.lead_source === "facebook_form"
   ) {
-    const fbFields = cfgObjectArray(triggerConfig?.facebook_form_fields);
+    const fbFields = parseFacebookFormFields(
+      triggerConfig?.facebook_form_fields,
+    );
     if (fbFields) {
       const existingKeys = new Set(fields.map((f) => f.key));
       for (const fbField of fbFields) {
-        const key = cfgText(fbField.key);
+        const key = fbField.key;
         const fieldKey = `fb_${key}`;
         if (!existingKeys.has(fieldKey)) {
           fields.push({
             key: fieldKey,
-            label: `📋 ${cfgText(fbField.label) || key}`,
+            label: `📋 ${fbField.label || key}`,
           });
         }
       }
@@ -4425,8 +4428,8 @@ function LeadSourceConfig({
   const pulledLead =
     pulledLeads.length > 0 ? pulledLeads[pulledLeadIndex]?.fields : null;
   const formFieldKeys = (
-    cfgObjectArray(configuration?.facebook_form_fields) ?? []
-  ).map((field) => cfgText(field.key));
+    parseFacebookFormFields(configuration?.facebook_form_fields) ?? []
+  ).map((field) => field.key);
 
   const handlePullLead = async () => {
     if (

@@ -54,12 +54,54 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
+import { z } from "zod";
 import {
-  cfgObject,
-  cfgText,
-  isJsonObject,
-  type JsonObject,
+  listOf,
+  optionalTextSchema,
 } from "@/components/automations/automationStepConfig";
+import { triggerFilterSource } from "@/lib/automationFormHelpers";
+
+const testRunItemSchema = z.object({
+  automation_name: optionalTextSchema,
+  error: optionalTextSchema,
+  success: z.unknown(),
+});
+
+const testRunResponseSchema = z.object({
+  error: optionalTextSchema,
+  automations_found: optionalTextSchema,
+  results: z
+    .unknown()
+    .transform((value) => listOf(testRunItemSchema, value) ?? []),
+});
+
+type TestRunResponse = z.infer<typeof testRunResponseSchema>;
+
+/** The lead, client or task data trigger-automation runs the test with. */
+type TestRunData = {
+  test: true;
+  automation_name: string;
+  timestamp: string;
+  id?: string;
+  lead_id?: string;
+  client_id?: string;
+  task_id?: string;
+  contact_name?: string | null;
+  company_name?: string | null;
+  phone?: string | null;
+  old_status?: string;
+  status?: string;
+  new_status?: string;
+  status_kind?: string;
+  task_title?: string;
+  task_status?: string;
+  priority?: number | null;
+  client_name?: string | null;
+  campaigner_name?: string | null;
+  meeting_date?: string;
+  meeting_time?: string;
+  meeting_location?: string;
+};
 
 interface TestAutomationDialogProps {
   automation: Tables<"automations">;
@@ -97,7 +139,7 @@ export function TestAutomationDialog({
   const [meetingTime, setMeetingTime] = useState("10:00");
   const [meetingLocation, setMeetingLocation] = useState("משרד ראשי");
 
-  const [testResult, setTestResult] = useState<JsonObject | null>(null);
+  const [testResult, setTestResult] = useState<TestRunResponse | null>(null);
 
   // Fetch leads
   const { data: leads = [] } = useQuery({
@@ -164,7 +206,7 @@ export function TestAutomationDialog({
   // Test mutation
   const testMutation = useMutation({
     mutationFn: async () => {
-      const testData: JsonObject = {
+      const testData: TestRunData = {
         test: true,
         automation_name: automation.name,
         timestamp: new Date().toISOString(),
@@ -193,7 +235,7 @@ export function TestAutomationDialog({
 
         // For lead_status_changed automations, include the new_status from conditions
         // so the automation's conditions will be met during test
-        const conditions = cfgObject(automation.conditions);
+        const conditions = triggerFilterSource(automation.conditions);
         if (
           automation.trigger_type === "lead_status_changed" &&
           conditions?.new_status
@@ -266,14 +308,15 @@ export function TestAutomationDialog({
       return response.data;
     },
     onSuccess: (data: unknown) => {
-      setTestResult(isJsonObject(data) ? data : null);
+      const parsed = testRunResponseSchema.safeParse(data);
+      setTestResult(parsed.success ? parsed.data : null);
       toast({
         title: "בדיקה הושלמה",
         description: "בדוק את התוצאות למטה",
       });
     },
     onError: (error: Error) => {
-      setTestResult({ error: error.message });
+      setTestResult({ error: error.message, results: [] });
       toast({
         title: "שגיאה בבדיקה",
         description: error.message,
@@ -296,12 +339,7 @@ export function TestAutomationDialog({
   const selectedClient = clients.find((c) => c.id === selectedClientId);
   const selectedTask = tasks.find((t) => t.id === selectedTaskId);
   const isMeetingTrigger = automation?.trigger_type === "meeting_created";
-  const rawResults = Array.isArray(testResult?.results)
-    ? testResult.results
-    : [];
-  const resultItems = rawResults
-    .filter((result) => result !== null)
-    .map((result) => cfgObject(result));
+  const resultItems = testResult?.results ?? [];
 
   const canRunTest = () => {
     if (testMode === "contact") {
@@ -683,23 +721,21 @@ export function TestAutomationDialog({
                 {testResult.error ? (
                   <div className="flex items-center gap-2 text-destructive">
                     <XCircle className="h-4 w-4" />
-                    <span>{cfgText(testResult.error)}</span>
+                    <span>{testResult.error}</span>
                   </div>
                 ) : (
                   <>
                     {resultItems.map((result, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        {result?.success ? (
+                        {result.success ? (
                           <CheckCircle className="h-4 w-4 text-green-500" />
                         ) : (
                           <XCircle className="h-4 w-4 text-destructive" />
                         )}
-                        <span>
-                          {cfgText(result?.automation_name) || "אוטומציה"}
-                        </span>
-                        {result?.error && (
+                        <span>{result.automation_name || "אוטומציה"}</span>
+                        {result.error && (
                           <span className="text-xs text-destructive">
-                            ({cfgText(result.error)})
+                            ({result.error})
                           </span>
                         )}
                       </div>
@@ -708,13 +744,12 @@ export function TestAutomationDialog({
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <AlertCircle className="h-4 w-4" />
                         <span>
-                          נמצאו {cfgText(testResult.automations_found)}{" "}
-                          אוטומציות מתאימות
+                          נמצאו {testResult.automations_found} אוטומציות מתאימות
                         </span>
                       </div>
                     )}
-                    {rawResults.length > 0 &&
-                      resultItems.every((r) => r?.success) && (
+                    {resultItems.length > 0 &&
+                      resultItems.every((r) => r.success) && (
                         <div className="flex items-center gap-2 text-green-600 font-medium pt-2 border-t">
                           <CheckCircle className="h-5 w-5" />
                           <span>האוטומציה הופעלה בהצלחה!</span>

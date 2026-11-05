@@ -38,7 +38,6 @@ import {
   Zap,
 } from "lucide-react";
 import { FlowNodeRF, FlowNodeData, type RFNodeData } from "./FlowNode";
-import { isJsonObject } from "./automationStepConfig";
 import { flowStepRowToNodeData } from "./flowStepRow";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { AddStepMenu } from "./AddStepMenu";
@@ -980,10 +979,8 @@ export default function FlowEditor({
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           <Controls />
-          <MiniMap
+          <MiniMap<FlowEditorNode>
             nodeColor={(n) => {
-              const nd = n.data?.nodeData;
-              if (!isJsonObject(nd)) return "#888";
               const colors: Record<string, string> = {
                 trigger: "#f59e0b",
                 action: "#3b82f6",
@@ -997,10 +994,7 @@ export default function FlowEditor({
                 error_branch: "#ef4444",
                 whatsapp_session: "#16a34a",
               };
-              return (
-                (typeof nd.step_type === "string" && colors[nd.step_type]) ||
-                "#888"
-              );
+              return colors[n.data.nodeData.step_type] || "#888";
             }}
           />
         </ReactFlow>

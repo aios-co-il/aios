@@ -6,13 +6,27 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Copy, Loader2, Webhook, RefreshCw, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import {
-  cfgObject,
-  cfgString,
-  errorMessage,
-  isJsonObject,
-  type JsonObject,
-} from "./automationStepConfig";
+import { z } from "zod";
+import { cfgObject, errorMessage } from "./automationStepConfig";
+
+const pageSubscriptionSchema = z.object({
+  status: z.string().optional().catch(undefined),
+  subscribed_at: z.string().optional().catch(undefined),
+});
+
+type PageSubscription = z.infer<typeof pageSubscriptionSchema>;
+
+const deliverySettingsSchema = z
+  .object({
+    delivery_mode: z.unknown(),
+    page_subscriptions: z
+      .record(pageSubscriptionSchema.catch({}))
+      .optional()
+      .catch(undefined),
+  })
+  .catch({ delivery_mode: undefined, page_subscriptions: undefined });
+
+const subscribeResponseSchema = z.object({ error: z.unknown() });
 
 interface Props {
   integrationId?: string;
@@ -30,7 +44,9 @@ export function FacebookDeliveryModeSection({
 }: Props) {
   const { toast } = useToast();
   const [mode, setMode] = useState<"pull" | "webhook">("pull");
-  const [pageSubs, setPageSubs] = useState<JsonObject>({});
+  const [pageSubs, setPageSubs] = useState<Record<string, PageSubscription>>(
+    {},
+  );
   const [loading, setLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
@@ -42,9 +58,9 @@ export function FacebookDeliveryModeSection({
       .select("settings")
       .eq("id", integrationId)
       .maybeSingle();
-    const s = cfgObject(data?.settings) ?? {};
-    setMode(s.delivery_mode === "webhook" ? "webhook" : "pull");
-    setPageSubs(cfgObject(s.page_subscriptions) ?? {});
+    const settings = deliverySettingsSchema.parse(data?.settings);
+    setMode(settings.delivery_mode === "webhook" ? "webhook" : "pull");
+    setPageSubs(settings.page_subscriptions ?? {});
     setLoading(false);
   };
 
@@ -86,7 +102,10 @@ export function FacebookDeliveryModeSection({
         },
       );
       if (error) throw error;
-      if (isJsonObject(data) && data.error) throw new Error(String(data.error));
+      const response = subscribeResponseSchema.safeParse(data);
+      if (response.success && response.data.error) {
+        throw new Error(String(response.data.error));
+      }
       toast({ title: "העמוד נרשם ל-Webhook" });
       await loadSettings();
     } catch (e) {
@@ -106,8 +125,8 @@ export function FacebookDeliveryModeSection({
     toast({ title: "הועתק!", description: label });
   };
 
-  const pageStatus = pageId ? cfgObject(pageSubs[pageId]) : null;
-  const subscribedAt = cfgString(pageStatus?.subscribed_at);
+  const pageStatus = pageId ? pageSubs[pageId] : undefined;
+  const subscribedAt = pageStatus?.subscribed_at;
 
   return (
     <div className="rounded-lg border bg-card p-3 space-y-3">

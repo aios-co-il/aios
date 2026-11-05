@@ -59,13 +59,13 @@ import {
   type MessagingIntegrationOption,
 } from "@/lib/automationFormHelpers";
 import {
-  applyStatusActionFields,
   applyTriggerStatusFilters,
   encodeStoredActionStatus,
   encodeStoredTriggerFilters,
   readTriggerTypes,
   scopesForTriggers,
 } from "../../../supabase/functions/_shared/automation-status.ts";
+import { actionConfiguration } from "./automationActionConfiguration";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { WaProviderConnectionPicker } from "./WaProviderConnectionPicker";
 
@@ -348,74 +348,11 @@ export function EditAutomationDialog({
 
       applyTriggerStatusFilters(conditions, values.trigger_status_values);
 
-      let configuration: JsonObject = {};
-      if (values.action_type === "webhook") {
-        configuration = {
-          url: values.webhook_url,
-          method: values.webhook_method || "POST",
-          headers: { "Content-Type": "application/json" },
-          body_template: values.body_template || "",
-        };
-      } else if (values.action_type === "update_status") {
-        const cfg: JsonObject = {
-          entity: values.status_entity,
-        };
-        applyStatusActionFields(cfg, values.status_value);
-        if (values.update_field_name && values.update_field_name !== "none") {
-          cfg.update_field = values.update_field_name;
-          cfg.update_field_value = values.update_field_value || "today";
-        }
-        configuration = cfg;
-      } else if (values.action_type === "send_whatsapp") {
-        configuration = {
-          manychat_tag_id: values.manychat_tag_id,
-          field_mapping: {
-            date: values.field_mapping_date,
-            time: values.field_mapping_time,
-            location: values.field_mapping_location,
-            contact: values.field_mapping_contact,
-          },
-        };
-      } else if (values.action_type === "create_manychat_subscriber") {
-        configuration = {
-          manychat_tag_id: values.manychat_tag_id || null,
-        };
-      } else if (values.action_type === "send_greenapi_message") {
-        configuration = {
-          message_template: values.message_template || "",
-          integration_id: values.green_api_integration_id || null,
-          send_to_type: values.greenapi_send_to_type || "contact",
-          manual_phone: values.greenapi_manual_phone || null,
-          manual_group_id: values.greenapi_manual_group_id || null,
-        };
-      } else if (values.action_type === "send_greenapi_to_campaigner") {
-        configuration = {
-          message_template: values.message_template || "",
-          send_target: values.campaigner_send_target || "phone",
-          integration_id: values.green_api_integration_id || null,
-        };
-      } else if (
-        values.action_type === "add_lead_update" ||
-        values.action_type === "add_client_update"
-      ) {
-        configuration = {
-          update_template: values.update_template || "",
-        };
-      } else if (values.action_type === "create_task") {
-        configuration = {
-          task_title_template:
-            values.task_title_template || "{{company_name}} - משימה חדשה",
-          task_notes_template: values.task_notes_template || "",
-          task_priority: values.task_priority || 5,
-          task_due_days: values.task_due_days || 0,
-        };
-      }
-
       const selectedTriggers = values.trigger_types?.length
         ? values.trigger_types
         : [values.trigger_type];
-      configuration = {
-        ...(configuration || {}),
+      const configuration = {
+        ...actionConfiguration(values),
         trigger_types: selectedTriggers,
       };
       const scopeTenantId = tenantId || automation.tenant_id;
