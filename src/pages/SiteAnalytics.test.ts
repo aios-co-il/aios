@@ -5,9 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 describe("SiteAnalytics tenant filter request equivalence", () => {
   for (const tenantId of ["tenant-1", null]) {
     it(`preserves the existing request for tenant ${tenantId}`, async () => {
-      const fetch = vi.fn(
-        async (_input: RequestInfo | URL, _init?: RequestInit) =>
-          new Response("[]"),
+      const fetch = vi.fn<typeof globalThis.fetch>(
+        async () => new Response("[]"),
       );
       const client = createClient<Database>(
         "https://analytics.test",
