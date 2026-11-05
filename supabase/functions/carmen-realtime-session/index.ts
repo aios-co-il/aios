@@ -13,6 +13,11 @@ import { serviceClient } from "../_shared/supabase-clients.ts";
 import { loadVoiceAgent } from "./agent-profile.ts";
 import { chooseRealtimeVoice } from "./voice-choice.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
+import {
+  loadPronunciations,
+  pronunciationInstructions,
+  SAVE_PRONUNCIATION_TOOL,
+} from "./pronunciations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,7 +124,11 @@ Deno.serve(async (req) => {
     const { voice, tenant_id } = await req
       .json()
       .catch(() => ({}) as Record<string, unknown>);
-    const agent = await loadVoiceAgent(serviceClient(), caller.id, tenant_id);
+    const db = serviceClient();
+    const agent = await loadVoiceAgent(db, caller.id, tenant_id);
+    const pronunciations = agent
+      ? await loadPronunciations(db, agent.tenantId)
+      : [];
     const selectedVoice = chooseRealtimeVoice(voice, agent?.voice ?? null);
 
     const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -133,10 +142,10 @@ Deno.serve(async (req) => {
         session: {
           type: "realtime",
           model: REALTIME_MODEL,
-          instructions: buildVoiceInstructions(
-            agent?.profile ?? null,
-            callerName,
-          ),
+          instructions: [
+            buildVoiceInstructions(agent?.profile ?? null, callerName),
+            pronunciationInstructions(pronunciations),
+          ].join("\n"),
           audio: {
             input: {
               transcription: {
@@ -167,6 +176,7 @@ Deno.serve(async (req) => {
                 required: ["question"],
               },
             },
+            SAVE_PRONUNCIATION_TOOL,
           ],
           tool_choice: "auto",
         },

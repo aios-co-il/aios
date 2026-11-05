@@ -37,6 +37,7 @@ class RealtimeConversation(
 
     private val brain = CarmenBrain(account)
     private val memory = VoiceMemory(account, log)
+    private val pronunciations = Pronunciations(account)
     private val transcript = VoiceTranscript()
     private val phone = PhoneTools(context)
     private val worker = Executors.newSingleThreadScheduledExecutor()
@@ -167,6 +168,10 @@ class RealtimeConversation(
             runPhoneTool(item, name)
             return
         }
+        if (name == Pronunciations.TOOL) {
+            savePronunciation(item)
+            return
+        }
         if (name != "ask_carmen") return
         val question = runCatching { JSONObject(item.optString("arguments")).optString("question") }.getOrDefault("")
         listener.onState(CarmenSession.State.THINKING)
@@ -178,6 +183,16 @@ class RealtimeConversation(
             toolRunning = false
             if (ended) return@execute
             answerTool(item.optString("call_id"), answer)
+        }
+    }
+
+    private fun savePronunciation(item: JSONObject) {
+        val args = runCatching { JSONObject(item.optString("arguments")) }.getOrDefault(JSONObject())
+        log.record(EventLog.Event.PHONE_TOOL, Pronunciations.TOOL)
+        tools.execute {
+            val result = pronunciations.save(args.optString("term"), args.optString("spoken"))
+            if (ended) return@execute
+            answerTool(item.optString("call_id"), result)
         }
     }
 

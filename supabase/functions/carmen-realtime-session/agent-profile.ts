@@ -7,7 +7,12 @@ import { asUuidOrNull } from "../_shared/uuid.ts";
 import type { VoiceAgentProfile } from "./voice-instructions.ts";
 
 /** Carmen's settings for the voice session: how she speaks, and her configured voice. */
-export type VoiceAgent = { profile: VoiceAgentProfile; voice: string | null };
+export type VoiceAgent = {
+  /** The tenant the session speaks for: the body's, when the caller may use it, else the active one. */
+  tenantId: string;
+  profile: VoiceAgentProfile;
+  voice: string | null;
+};
 
 const LOG = "[carmen-realtime-session]";
 
@@ -49,6 +54,7 @@ async function readVoiceAgent(
   }
   const metadata = agent.metadata;
   return {
+    tenantId,
     profile: {
       systemPrompt: agent.system_prompt,
       useV2Prompt: shouldUseV2Prompt({
