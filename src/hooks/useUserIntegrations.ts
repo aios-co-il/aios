@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
+  CLIENT_INTEGRATION_COLUMNS,
+  CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY,
   getClientIntegrationSelect,
   toClientIntegration,
   type ClientIntegration,
@@ -49,7 +51,12 @@ export function useUserIntegrations(
       // Report OAuth connections are tenant-scoped (see reportIntegrationTypes).
       const isTenantScoped = isReportTenantScopedIntegration(integrationType);
 
-      const selectColumns = getClientIntegrationSelect(integrationType);
+      // Literal projections let Supabase infer rows without changing credential visibility.
+      const selectColumns =
+        getClientIntegrationSelect(integrationType) ===
+        CLIENT_INTEGRATION_COLUMNS
+          ? CLIENT_INTEGRATION_COLUMNS
+          : CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY;
 
       // 1. Fetch user's own integrations (or all tenant integrations for tenant-scoped types)
       let ownQuery = supabase

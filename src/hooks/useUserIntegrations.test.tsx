@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { getClientIntegrationSelect } from "@/lib/tenantIntegrationsClient";
 import { withTestQuery } from "@/test/withTestQuery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useUserIntegrations } from "./useUserIntegrations";
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   own: [] as Array<IntegrationFixture>,
   shared: [] as Array<IntegrationFixture>,
   invoke: vi.fn(),
+  select: vi.fn(),
 }));
 
 vi.mock("./useCurrentUser", () => ({
@@ -31,7 +33,10 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (table: string) => {
       let shared = false;
       const query = {
-        select: () => query,
+        select: (columns: string) => {
+          mocks.select(columns);
+          return query;
+        },
         eq: () => query,
         in: (column: string) => {
           shared ||= column === "id";
@@ -90,6 +95,9 @@ describe("useUserIntegrations identity boundary", () => {
         expect(screen.getByLabelText("integration IDs").textContent).toBe(
           type === "google_search_console" ? "valid" : "valid,shared-valid",
         ),
+      );
+      expect(mocks.select).toHaveBeenCalledWith(
+        getClientIntegrationSelect(type),
       );
       expect(console.error).toHaveBeenCalledTimes(
         type === "google_search_console" ? 1 : 2,
