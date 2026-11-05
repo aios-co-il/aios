@@ -1,7 +1,7 @@
 /**
  * Lost connections in the pulse check (AIO-342). Each open disconnect of one
  * of the tenant's own connections (pulse_open_integration_disconnects,
- * migration 20261104120000) becomes a connection_lost alert in the run
+ * migration 20261105113000) becomes a connection_lost alert in the run
  * message, under the pulse's own switches, recipients, dedupe and Shabbat
  * rule. Its fingerprint names the disconnect event and its dedupe window
  * reaches back to the disconnect (open_since), so each disconnect is sent

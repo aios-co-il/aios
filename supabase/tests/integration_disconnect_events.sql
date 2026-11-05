@@ -1,4 +1,4 @@
--- Integration disconnects (20261104120000_integration_disconnect_events,
+-- Integration disconnects (20261105113000_integration_disconnect_events,
 -- AIO-342): the trigger calls this project's trigger-automation from Vault,
 -- one event per disconnect, none for a connection already disconnected, and
 -- what the pulse reads. Staging only: the test's own tenants, agency,
