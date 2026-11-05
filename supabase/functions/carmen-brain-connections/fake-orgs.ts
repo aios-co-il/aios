@@ -1,6 +1,6 @@
 /**
  * The organizations of the carmen-brain-connections tests, as
- * 20261105120000_carmen_brain_home_marketingcaptain leaves them (AIO-354):
+ * 20261105160000_carmen_brain_home_marketingcaptain leaves them (AIO-354):
  * MarketingCaptain is the home tenant and shares every built-in brain with
  * DMM; Client has its own Claude key; Other has nothing. Each tenant has an
  * owner. The super admin owns MarketingCaptain and DMM, belongs to neither

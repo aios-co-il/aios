@@ -1,4 +1,4 @@
--- Carmen brain home (20261105120000_carmen_brain_home_marketingcaptain,
+-- Carmen brain home (20261105160000_carmen_brain_home_marketingcaptain,
 -- AIO-354): runs the migration file itself (\ir) with MarketingCaptain and
 -- DMM seeded, with shares DMM made while it was home, without them, and with
 -- only MarketingCaptain. Every case is a transaction that is rolled back; the
@@ -41,9 +41,9 @@ INSERT INTO public.carmen_brain_home_tenants (tenant_id) VALUES
 INSERT INTO public.carmen_brain_key_shares (source_tenant_id, target_tenant_id, builtin_slug)
 VALUES ('0a5e0000-0000-4000-8000-0000000000a1', '0a5e0000-0000-4000-8000-0000000000a2', 'cursor');
 
-\ir ../migrations/20261105120000_carmen_brain_home_marketingcaptain.sql
+\ir ../migrations/20261105160000_carmen_brain_home_marketingcaptain.sql
 CREATE TEMP TABLE qa_after_first ON COMMIT DROP AS SELECT r FROM pg_temp.qa_brain_rows();
-\ir ../migrations/20261105120000_carmen_brain_home_marketingcaptain.sql
+\ir ../migrations/20261105160000_carmen_brain_home_marketingcaptain.sql
 
 DO $test$
 DECLARE
@@ -100,7 +100,7 @@ INSERT INTO public.carmen_brain_key_shares (source_tenant_id, target_tenant_id, 
   ('6ad8f321-25db-4a04-8e44-e57a7c8961b2', '0a5e0000-0000-4000-8000-0000000000a2', 'cursor'),
   ('6ad8f321-25db-4a04-8e44-e57a7c8961b2', '0a5e0000-0000-4000-8000-0000000000a2', 'grok');
 
-\ir ../migrations/20261105120000_carmen_brain_home_marketingcaptain.sql
+\ir ../migrations/20261105160000_carmen_brain_home_marketingcaptain.sql
 
 DO $test$
 DECLARE
@@ -132,7 +132,7 @@ INSERT INTO public.carmen_brain_key_shares (source_tenant_id, target_tenant_id, 
 VALUES ('0a5e0000-0000-4000-8000-0000000000a1', '0a5e0000-0000-4000-8000-0000000000a2', 'claude');
 CREATE TEMP TABLE qa_before ON COMMIT DROP AS SELECT r FROM pg_temp.qa_brain_rows();
 
-\ir ../migrations/20261105120000_carmen_brain_home_marketingcaptain.sql
+\ir ../migrations/20261105160000_carmen_brain_home_marketingcaptain.sql
 
 DO $test$
 BEGIN
@@ -151,7 +151,7 @@ INSERT INTO public.tenants (id, name, slug)
 VALUES ('2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019', 'QA ROLLBACK MarketingCaptain', 'qa-rollback-' || gen_random_uuid());
 CREATE TEMP TABLE qa_before ON COMMIT DROP AS SELECT r FROM pg_temp.qa_brain_rows();
 
-\ir ../migrations/20261105120000_carmen_brain_home_marketingcaptain.sql
+\ir ../migrations/20261105160000_carmen_brain_home_marketingcaptain.sql
 
 DO $test$
 BEGIN
@@ -176,7 +176,7 @@ VALUES ('0a5e0000-0000-4000-8000-0000000000a1', '6ad8f321-25db-4a04-8e44-e57a7c8
 SAVEPOINT qa_guard;
 \echo 'Case 4 expects the migration to fail with its closing guard:'
 \set ON_ERROR_STOP 0
-\ir ../migrations/20261105120000_carmen_brain_home_marketingcaptain.sql
+\ir ../migrations/20261105160000_carmen_brain_home_marketingcaptain.sql
 \set ON_ERROR_STOP 1
 ROLLBACK TO SAVEPOINT qa_guard;
 SELECT set_config('qa.last_error', :'LAST_ERROR_MESSAGE', true) AS qa_last_error \gset
