@@ -19,11 +19,18 @@ object CarmenSession {
     @Volatile
     var voiceLevel = 0f
 
+    /** The user muted their microphone on the call screen; nothing is sent while true. */
+    @Volatile
+    var micMuted = false
+
     @Volatile
     var snapshot = Snapshot(State.ENDED, emptyList(), null)
         private set
 
-    fun begin() = publish(Snapshot(State.ACKNOWLEDGING, emptyList(), null))
+    fun begin() {
+        micMuted = false
+        publish(Snapshot(State.ACKNOWLEDGING, emptyList(), null))
+    }
 
     fun setState(state: State) {
         if (snapshot.state != state) publish(snapshot.copy(state = state))

@@ -163,6 +163,7 @@ class RealtimeConversation(
     }
 
     private fun sendAudio(pcm: ByteArray) {
+        if (CarmenSession.micMuted) return
         send(
             JSONObject().put("type", "input_audio_buffer.append")
                 .put("audio", Base64.encodeToString(pcm, Base64.NO_WRAP)),
