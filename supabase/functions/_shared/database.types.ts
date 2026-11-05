@@ -10831,6 +10831,7 @@ export type Database = {
           deleted_at: string | null;
           email: string;
           full_name: string | null;
+          gender: string | null;
           id: string;
           leads_default_view: string | null;
           notification_group_link: string | null;
@@ -10848,6 +10849,7 @@ export type Database = {
           deleted_at?: string | null;
           email: string;
           full_name?: string | null;
+          gender?: string | null;
           id: string;
           leads_default_view?: string | null;
           notification_group_link?: string | null;
@@ -10865,6 +10867,7 @@ export type Database = {
           deleted_at?: string | null;
           email?: string;
           full_name?: string | null;
+          gender?: string | null;
           id?: string;
           leads_default_view?: string | null;
           notification_group_link?: string | null;

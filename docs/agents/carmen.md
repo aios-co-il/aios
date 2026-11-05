@@ -72,6 +72,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 - `ai_agents` has a swappable `mood` column: `fun|focused|tired|angry|random|NULL` (tone-only; never overrides hard rules). Edited in the agent Profile tab; read by `run-ai-agent`.
 - `ai_agents.voice` holds Carmen's TTS voice (default `shimmer`); set in Profile → VoiceCard.
+- `profiles.gender` (`male`|`female`|NULL, set by the user in אזור אישי) decides how Carmen addresses the caller in Hebrew; NULL means the plural, never the feminine (`run-ai-agent/user-address.ts`). User-facing tool text (`say_to_user`, buttons' questions) uses the plural.
 
 ## Per-user Carmen permissions (Carmen settings → הרשאות)
 

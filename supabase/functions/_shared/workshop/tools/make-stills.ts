@@ -138,8 +138,8 @@ export async function workshopMakeStills(ctx: ToolContext) {
       estimated_usd: whole.usd,
       message:
         pending.length > batch.length
-          ? `${pending.length} תמונות לסצנות יעלו עד כ-$${whole.usd} (${batch.length} בקריאה הזו, כ-$${estimate.usd}). אשר/י והתחל.`
-          : `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. אשר/י והתחל.`,
+          ? `${pending.length} תמונות לסצנות יעלו עד כ-$${whole.usd} (${batch.length} בקריאה הזו, כ-$${estimate.usd}). מאשרים ומתחילים?`
+          : `${batch.length} תמונות לסצנות יעלו עד כ-$${estimate.usd}. מאשרים ומתחילים?`,
     },
   );
   if ("stop" in gate) return gate.stop;

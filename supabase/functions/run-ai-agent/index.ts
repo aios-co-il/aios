@@ -146,7 +146,7 @@ import {
   workshopTurnSetup,
   workshopTurnTools,
 } from "./workshop-turn-setup.ts";
-import { addressByNameLine, callerProfileName } from "./address-by-name.ts";
+import { callerProfile, userAddressLine } from "./user-address.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
@@ -14792,7 +14792,7 @@ async function handleRunAgent(
         .toISOString()
         .split("T")[0];
       const todayISO = now.toISOString().split("T")[0];
-      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
+      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצים לרענן עכשיו, אפשר לבקש".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
       systemPrompt += `\n\n=== הקשר ארגוני ===\n${tenantContext}`;
 
       // Inject memory context — instructions get top priority and a strict directive
@@ -14946,11 +14946,13 @@ async function handleRunAgent(
       }
       if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
-    // Hebrew verbs carry gender: Carmen addresses the caller by the gender their name shows.
-    systemPrompt +=
-      addressByNameLine(
-        callerName ?? (await callerProfileName(supabase, callerUserId)),
-      ) ?? "";
+    // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
+    // The profile name wins over user_name, which some screens set to a department label.
+    const caller = await callerProfile(supabase, callerUserId);
+    systemPrompt += userAddressLine(
+      caller.fullName ?? callerName,
+      caller.gender,
+    );
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
