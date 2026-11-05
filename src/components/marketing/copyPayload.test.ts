@@ -7,6 +7,7 @@ import {
 } from "./departments/creative/copyVariations";
 import {
   filesFromAttachments,
+  copyClientContext,
   readCopyDepartmentItems,
   readCreativeHandoffItems,
   readCopyPayload,
@@ -21,6 +22,34 @@ function row(id: string, payload: unknown) {
 }
 
 describe("copy payload read and normalization boundary", () => {
+  it("preserves attachment metadata in the client-context write projection", () => {
+    const files = filesFromAttachments([
+      {
+        name: "brief.pdf",
+        path: "private/brief.pdf",
+        size: 123,
+        type: "application/pdf",
+        checksum: "keep",
+      },
+      { name: "legacy.pdf" },
+    ]);
+    expect(
+      readCopyPayload(copyClientContext("https://client.example", files)),
+    ).toEqual({
+      client_website: "https://client.example",
+      client_files: [
+        {
+          name: "brief.pdf",
+          path: "private/brief.pdf",
+          size: 123,
+          type: "application/pdf",
+          checksum: "keep",
+        },
+        { name: "legacy.pdf", path: null, size: undefined, type: undefined },
+      ],
+    });
+  });
+
   it("exposes closed root and nested contracts", () => {
     expectTypeOf<string>().not.toMatchTypeOf<keyof CopyPayload>();
     expectTypeOf<string>().not.toMatchTypeOf<

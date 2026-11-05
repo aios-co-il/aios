@@ -1,11 +1,14 @@
 /**
  * What the user's workshop message settles before Carmen acts (turn-note.ts): a budget approved by
- * its code, the answers tapped to her questions and a tapped script approval.
+ * its code, the answers tapped to her questions, a concept approved on the board and a tapped
+ * script approval.
  */
 
 import { approveFromMessage } from "./budget-approve.ts";
 import { withBriefAnswers } from "./brief-answers.ts";
+import { conceptFromMessage } from "./concept-choice.ts";
 import type { Db } from "./db.ts";
+import { CONCEPT_LABEL } from "./film-script.ts";
 import { syncBriefPage } from "./project-brief.ts";
 import { withTappedScriptApproval } from "./script-approval.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
@@ -24,8 +27,13 @@ export async function saveTurnAnswers(
   turn: { userText: string; lastAssistant: string; turnId: string | null },
 ): Promise<{ payload: Record<string, unknown>; lines: Array<string> }> {
   const approved = approveFromMessage(payload, turn.userText);
-  // Every tapped answer goes into the brief, so Carmen can come back to it later.
-  const tapped = tappedAnswers(turn.lastAssistant, turn.userText);
+  // Every tapped answer goes into the brief, so Carmen can come back to it later. The board's
+  // approve button sends "קונספט: <name>" in the user's own message, asked or not.
+  const concept = conceptFromMessage(turn.userText);
+  const tapped = {
+    ...tappedAnswers(turn.lastAssistant, turn.userText),
+    ...(concept ? { [CONCEPT_LABEL]: concept } : {}),
+  };
   const briefed = withBriefAnswers(approved?.payload ?? payload, tapped);
   const next = withTappedScriptApproval(briefed, turn);
   if (next === payload) {
@@ -42,6 +50,9 @@ export async function saveTurnAnswers(
   }
   await syncBriefPage(supabase, tenantId, itemId, payload, next);
   const lines = next === briefed ? [] : [SCRIPT_APPROVED_NOW];
+  if (concept) {
+    lines.push(conceptApprovedNow(concept));
+  }
   if (approved) {
     lines.push(
       `המשתמש אישר עכשיו תקציב של $${approved.capUsd} לפרויקט. אל תבקשי אישור שוב. המשיכי מיד ל${approved.tool ? TOOL_STEP[approved.tool] : "שלב שחיכה לאישור"}.`,
@@ -56,6 +67,10 @@ const TOOL_STEP: Record<string, string> = {
   workshop_make_stills: "יצירת התמונות לסצנות (workshop_make_stills)",
   workshop_produce_video: "הפקת הסרט (workshop_produce_video)",
 };
+
+/** The user approved a concept in this message: the script is written from it next. */
+const conceptApprovedNow = (concept: string) =>
+  `המשתמש אישר עכשיו את הקונספט "${concept}" (נשמר בבריף). הצעד הבא: התסריט לפיו. קראי ל-workshop_storyboard בלי concept, והכלי יגיד איך.`;
 
 /** The user tapped approval on the script in this message. */
 const SCRIPT_APPROVED_NOW =
