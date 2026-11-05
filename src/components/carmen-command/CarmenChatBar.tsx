@@ -51,6 +51,7 @@ import { answerableIndex, hidePartialQuickReplies } from "@/lib/quickReplies";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
 import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
+import { useSavePronunciation } from "./useSavePronunciation";
 import { replyShownThisTurn } from "./chatDedupe";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { scrollToAnswerStart } from "./chatScroll";
@@ -882,6 +883,8 @@ export const CarmenChatBar = forwardRef<
    * Streams (SSE) so long tool runs keep the connection alive — a non-streaming
    * call hits the edge gateway's ~150s cutoff and kills the live conversation.
    */
+  const savePronunciation = useSavePronunciation(tenantId);
+
   const askCarmenBrain = useCallback(
     async (question: string): Promise<string> => {
       if (!question.trim() || !tenantId) return "לא התקבלה שאלה.";
@@ -1109,6 +1112,7 @@ export const CarmenChatBar = forwardRef<
             revealAnswer();
           },
           onToolCall: askCarmenBrain,
+          onSavePronunciation: savePronunciation,
           onStateChange: (state) => {
             if (convModeRef.current) onFaceState(state);
           },
@@ -1130,6 +1134,7 @@ export const CarmenChatBar = forwardRef<
       audioLevelRef,
       onFaceState,
       reportRealtimeError,
+      savePronunciation,
       selectedVoice,
       tenantId,
     ],
