@@ -330,6 +330,9 @@ export function CreativeDepartment({
   onClientChange,
 }: Props) {
   const queryClient = useQueryClient();
+  const saveVariationMutation = useMutation({
+    mutationFn: saveCreativeVariation,
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedVariationId, setSelectedVariationId] = useState<string | null>(
     null,
@@ -1744,11 +1747,11 @@ export function CreativeDepartment({
           ) || latestPayload.visual_prompt,
       };
 
-      await saveCreativeVariation({
+      await saveVariationMutation.mutateAsync({
         itemId: selected.id,
         tenantId,
         stageId: context?.creativeStage?.id ?? selected.current_stage_id,
-        payload: JSON.parse(JSON.stringify(nextPayload)),
+        payload: nextPayload,
         active,
       });
 
