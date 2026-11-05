@@ -460,6 +460,7 @@ export default function CarmenWorkshop() {
               projectId={boardId}
               clientName={board?.client_name ?? null}
               storyboard={sceneBoard.storyboard}
+              openChat={() => setOpen(true)}
             />
           )}
         </main>

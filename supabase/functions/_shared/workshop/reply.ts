@@ -4,6 +4,8 @@
  * still says nothing, the user hears what the last tool actually reported.
  */
 
+import type { WorkshopMode } from "./workshop-mode.ts";
+
 export interface ToolLogEntry {
   tool: string;
   result?: unknown;
@@ -27,8 +29,11 @@ export function shouldNudgeSilentTurn(log: ToolLogEntry[]): boolean {
       result.started === true ||
       result.already_running === true ||
       result.needs_budget === true ||
-      // A briefing gate that only asks Carmen to read the request first is hers to continue.
-      (result.needs_input === true && result.reading !== true) ||
+      // A briefing gate that only asks Carmen to read the request first, and a gate she answers
+      // herself in automatic mode (workshop-mode.ts), are hers to continue.
+      (result.needs_input === true &&
+        result.reading !== true &&
+        result.carmen_continues !== true) ||
       (typeof result.error === "string" && !!result.error)
     );
   });
@@ -53,9 +58,20 @@ const textOf = (value: unknown) =>
  */
 export const WORKSHOP_MIN_TOOL_ROUNDS = 15;
 
-/** The agent's own round limit, raised to the workshop floor for a workshop turn. */
-export function workshopToolRounds(agentRounds: number | null | undefined) {
-  return Math.max(agentRounds || 25, WORKSHOP_MIN_TOOL_ROUNDS);
+/**
+ * In automatic mode one turn runs the whole film: brief, concept, script, storyboard, pictures,
+ * voice and production, so its floor is higher (workshop-mode.ts).
+ */
+export const WORKSHOP_AUTO_MIN_TOOL_ROUNDS = 30;
+
+/** The agent's own round limit, raised to the workshop floor (higher in automatic mode). */
+export function workshopToolRounds(
+  agentRounds: number | null | undefined,
+  mode: WorkshopMode = "semi",
+) {
+  const floor =
+    mode === "auto" ? WORKSHOP_AUTO_MIN_TOOL_ROUNDS : WORKSHOP_MIN_TOOL_ROUNDS;
+  return Math.max(agentRounds || 25, floor);
 }
 
 /**

@@ -22,6 +22,7 @@ import {
 } from "../_shared/carmen/brain-engine/load.ts";
 import { resolveWorkshopAwareEngine } from "../_shared/carmen/brain-engine/workshop-brain.ts";
 import {
+  failoverReason,
   movesToNextLink,
   openRouterTail,
   lazyBrainTail,
@@ -134,7 +135,10 @@ import {
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import { ROLE_PERSONA, ROLE_SKILL } from "../_shared/workshop/roles.ts";
-import { workshopItemIdFrom } from "../_shared/workshop/role-project.ts";
+import {
+  workshopArtifactIdFrom,
+  workshopItemIdFrom,
+} from "../_shared/workshop/role-project.ts";
 import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import {
@@ -171,8 +175,11 @@ import {
 } from "../_shared/agent-memory.ts";
 import {
   buildCarmenV2SystemPrompt,
+  buildV1Identity,
   shouldUseV2Prompt,
 } from "../_shared/carmen-prompt-v2.ts";
+import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
+import { CARMEN_NAME_FILTER } from "../_shared/carmen/brain-access.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
 import {
   PULSE_TARGET_TOOLS,
@@ -5877,6 +5884,8 @@ async function executeTool(
     userText?: string | null;
     /** Carmen's previous message; the workshop reads the taps that answer it. */
     lastAssistant?: string | null;
+    /** The board page marked with this message (workshop_artifact_id). */
+    markedArtifactId?: string | null;
     outOfBand?: boolean;
     /** The client open in the workshop view (workshop_client_id). */
     viewClientId?: string | null;
@@ -5956,6 +5965,7 @@ async function executeTool(
         turnId: approval.turnId ?? null,
         userText: approval.userText ?? null,
         lastAssistant: approval.lastAssistant ?? null,
+        markedArtifactId: approval.markedArtifactId ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         viewClientId: approval.viewClientId ?? null,
         openItemId: approval.openItemId ?? null,
@@ -13819,7 +13829,7 @@ async function handleRunAgent(
     // a script approved in this turn may not be replaced in it (workshop-turn-setup.ts).
     const turnId = crypto.randomUUID();
     // The workshop's note and specialist for this message (workshop-turn-setup.ts).
-    const { workshopNote, workshopRoleForRun } = inWorkshopRequest
+    const { workshopNote, workshopRoleForRun, workshopMode } = inWorkshopRequest
       ? await workshopTurnSetup(
           supabase,
           bodyJson,
@@ -13828,7 +13838,11 @@ async function handleRunAgent(
           conversation_history,
           turnId,
         )
-      : { workshopNote: null, workshopRoleForRun: null };
+      : {
+          workshopNote: null,
+          workshopRoleForRun: null,
+          workshopMode: undefined,
+        };
     if (workshopRoleForRun) {
       task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
       if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
@@ -13856,7 +13870,7 @@ async function handleRunAgent(
         .from("ai_agents")
         .select("*")
         .eq("tenant_id", tenant_id)
-        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .or(CARMEN_NAME_FILTER)
         .eq("active", true)
         .order("created_at", { ascending: true })
         .limit(1)
@@ -14422,7 +14436,7 @@ async function handleRunAgent(
       if (!systemPrompt) {
         const parts = isCarmen
           ? [
-              `את כרמן, מנהלת השיווק של Marketing Captain ומנהלת ${tenantName}. את לא עוזרת אישית. AIOS היא מערכת שיווק ומכירות אוטונומית שפועלת בפיקוח ובשיתוף פעולה של אנשי המקצוע (קמפיינרים, אנשי מכירות, קופירייטרים, מעצבים). חשבי ופעלי כמנהלת שיווק: התחילי מהיעד העסקי (לידים, מכירות, ROAS, CPL), בדקי את המשפך והנתונים, החליטי על הצעד הבא, האצילי לאיש מקצוע או לסוכן עם תוצאה ודדליין, ובדקי שהשינוי עבד. מול דוד דווחי כמנהלת שיווק לבעלים: מה עובד, מה לא, החלטה מומלצת ומה דורש את אישורו. שמרי על כל מנגנוני ההרשאה והאישור הקיימים.`,
+              buildV1Identity(tenantName),
               "יש לך גישה מלאה לכל מודולי המערכת: לידים, לקוחות, משימות, קמפיינרים, אנשי מכירות, סוכנויות, ספקים, מוצרים, אוטומציות, ועוד.",
               "את יכולה לבצע כל פעולה שמשתמש יכול לבצע ידנית במערכת.",
               "חשוב מאוד: לפני יצירת משימה חדשה, תמיד חפשי קודם עם search_tasks כדי לוודא שהמשימה לא קיימת כבר. אם היא קיימת - עדכני אותה במקום ליצור חדשה.",
@@ -15021,32 +15035,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // ─── Mood / persona modulation (swappable tone layer) ───
-    // ai_agents.mood ∈ {'fun','focused','tired','angry','random'} | null.
-    // Colours TONE ONLY — it never overrides the hard rules (accuracy, anti-bluff,
-    // privacy/scope, no-loop) or the duty to actually complete the task.
-    // 'random' rotates deterministically every 3 days, seeded by the agent id so
-    // different agents land on different moods.
     {
-      const MOODS: Record<string, string> = {
-        fun: "😄 **מצב רוח: כיפי ומצחיק.** דברי באנרגיה גבוהה, עם הומור קליל, בדיחות ופאנצ׳ים ואימוג׳ים במידה. תהיי משעשעת וקלילה — בלי לפגוע בדיוק, בקיצור או בביצוע בפועל.",
-        focused:
-          "🎯 **מצב רוח: רציני ויעיל.** ישר לעניין, בלי הומור ובלי קישוטים. משפטים קצרים וממוקדי-תוצאה. קודם מבצעת, אחר כך מאשרת בקצרה מה נעשה.",
-        tired:
-          "😴 **מצב רוח: עייפה.** אנרגיה נמוכה, משפטים קצרים וחסכוניים, בלי התלהבות מיותרת (מותרת אנחה קלה). עדיין מבצעת את המשימה במלואה ובדייקנות — פשוט בלי דרמה.",
-        angry:
-          "😤 **מצב רוח: עצבני.** טון בוטה, חסר-סבלנות וישיר מאוד, בלי נימוסים מיותרים. דוחפת קדימה בלי לרכך — אבל אסור להעליב את המשתמש, לסרב לעבודה או לרדת ברמת הדיוק. הכעס מתועל לאסרטיביות ולביצוע מהיר.",
-      };
-      const ROT = ["fun", "focused", "tired", "angry"];
-      let moodKey = ((agent as any).mood as string | null | undefined) || "";
-      if (moodKey === "random") {
-        const seed = (agent.id || "")
-          .split("")
-          .reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
-        const windowIdx = Math.floor(Date.now() / (86400000 * 3)); // new mood every 3 days
-        moodKey = ROT[(windowIdx + seed) % ROT.length];
-      }
-      if (moodKey && MOODS[moodKey]) {
-        systemPrompt += `\n\n${MOODS[moodKey]}`;
+      const moodPrompt = agentMoodPrompt(agent.mood, agent.id);
+      if (moodPrompt) {
+        systemPrompt += `\n\n${moodPrompt}`;
       }
     }
 
@@ -15386,7 +15378,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // A workshop step needs a look at the project, the tools, and a reply: give it room for that
     // even when the agent is tuned to very few rounds.
     const maxRounds = workshopRoleForRun
-      ? workshopToolRounds(agent.max_tool_rounds)
+      ? workshopToolRounds(agent.max_tool_rounds, workshopMode)
       : agent.max_tool_rounds || 25;
     const safeTemp =
       typeof temperature === "number"
@@ -16048,9 +16040,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
-        // triggers failover. A connected brain may also fail on size, model or auth; any
-        // failure moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403), a body signalling exhausted balance/quota or a
+        // model the endpoint cannot serve (not a chat model / model_not_found) triggers
+        // failover. A connected brain may also fail on size, model or auth; any failure moves
+        // on, and the chain holds only what this brain plan allowed.
         if (
           movesToNextLink(res.status, err, !!llm.connectionId) &&
           (activeIdx < llmChain.length - 1 || (await extendChain()))
@@ -16058,18 +16051,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason =
-            res.status === 429
-              ? "מגבלת קצב/קרדיט"
-              : res.status === 401 || res.status === 403
-                ? "המפתח נדחה"
-                : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
             from,
             llm.label,
-            reason,
+            failoverReason(res.status, err),
           ).catch(() => {});
           continue; // retry the same round on the next provider
         }
@@ -16224,6 +16211,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? workshopClientIdFrom(bodyJson)
                   : null,
                 openItemId: inWorkshop ? workshopItemIdFrom(bodyJson) : null,
+                markedArtifactId: inWorkshop
+                  ? workshopArtifactIdFrom(bodyJson)
+                  : null,
                 // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
                 devTaskTurn: {
                   turnStartedAt,

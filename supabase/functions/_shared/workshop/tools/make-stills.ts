@@ -30,6 +30,7 @@ import { type ToolContext } from "../tool-context.ts";
 import { costSceneOf } from "../cost-scene.ts";
 import { quotedProductionEstimate } from "../video-cost.ts";
 import { wantsSoundDesign } from "../sound-design.ts";
+import { allStillsMade } from "./stills-approval.ts";
 
 /** The scene's own character picture (saved by workshop_storyboard), if it has one. */
 const ownReference = (scene: Record<string, any>) =>
@@ -276,7 +277,10 @@ export async function workshopMakeStills(ctx: ToolContext) {
     created,
   );
   if (leftToRedo.length === 0) delete settled[REDO_KEY];
-  await savePayload(supabase, tenantId, itemId, settled);
+  // The last picture: semi-automatic mode asks the user to approve them (stills-approval.ts).
+  const done =
+    remaining === 0 ? await allStillsMade(ctx, itemId, settled) : null;
+  await savePayload(supabase, tenantId, itemId, done?.payload ?? settled);
   return {
     success: created > 0,
     created,
@@ -301,8 +305,9 @@ export async function workshopMakeStills(ctx: ToolContext) {
           }${
             remaining > 0
               ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills להמשך, בלי redo. כל עוד זה בתקציב זה ירוץ בלי לשאול.`
-              : "לכל הסצנות יש תמונה: הציעי להמשיך להפקת הסרט."
+              : done?.note
           }`,
+    ...done?.ask,
     workshop: { event: "artifacts", item_id: itemId },
   };
 }

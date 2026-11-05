@@ -7,6 +7,7 @@ import {
   scenePrefix,
   setWorkshopContext,
   subscribeComposerPrefill,
+  subscribeWorkshopContext,
   subscribeWorkshopEvents,
   workshopEventFrom,
   workshopToolLabel,
@@ -208,4 +209,23 @@ test("workshop tools get a Hebrew line in the chat, others keep their name", () 
   expect(workshopToolLabel("workshop_make_creative")).toBe("יוצרת תמונות");
   expect(workshopToolLabel("create_lead")).toBe("create_lead");
   expect(workshopToolLabel(undefined)).toBe(undefined);
+});
+
+test("the chat hears every change of the board's context until it unsubscribes", () => {
+  const seen: Array<string | null> = [];
+  const stop = subscribeWorkshopContext(() =>
+    seen.push(getWorkshopContext()?.projectId ?? null),
+  );
+  setWorkshopContext({
+    projectId: "p",
+    title: null,
+    selectedArtifactId: null,
+    selectedSceneId: null,
+    selectedSceneNumber: null,
+    clientId: null,
+  });
+  setWorkshopContext(null);
+  stop();
+  setWorkshopContext(null);
+  expect(seen).toEqual(["p", null]);
 });

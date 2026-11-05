@@ -1,3 +1,7 @@
+import { serializeCreativeAssetMeta } from "./creative/creativeAssetMeta";
+import type { CreativeVideoSettings } from "./creative/creativeProjectSettings";
+import type { StoredCreativePayload } from "./creative/storedCreativePayload";
+import { serializeCreativeVideoSettingsPatch } from "./creative/creativeVideoSettingsPatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +75,7 @@ import type {
   CreativeComment,
   CreativeItem,
   CreativeProjectDraft,
+  ManualCreativePayload,
   CreativeProjectType,
   CreativeVariation,
   StoryboardFrame,
@@ -1214,16 +1219,12 @@ export function CreativeDepartment({
     }
   };
 
-  const updateVideoSettings = async (patch: Record<string, unknown>) => {
+  const updateVideoSettings = async (patch: Partial<CreativeVideoSettings>) => {
     if (!selected) return;
-    const current = (selected.payload?.video ?? {}) as Record<string, unknown>;
     const { error } = await supabase
       .from("marketing_work_items")
       .update({
-        payload: {
-          ...(selected.payload ?? {}),
-          video: { ...current, ...patch },
-        } as never,
+        payload: serializeCreativeVideoSettingsPatch(selected.payload, patch),
       })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
@@ -1718,7 +1719,7 @@ export function CreativeDepartment({
       if (readError) throw readError;
       const latestPayload = (latestRow?.payload ??
         selected.payload ??
-        {}) as Record<string, unknown>;
+        {}) as StoredCreativePayload;
       const nextIds = new Set(nextVariations.map((row) => row.id));
       const dropIds = variations
         .map((row) => row.id)
@@ -1765,15 +1766,7 @@ export function CreativeDepartment({
               layers: active.layers,
               format: active.format,
             }),
-            meta: {
-              source: "manual_edit",
-              skin_slug: "social_media",
-              variation_id: active.id,
-              variation_name: active.name,
-              comments: active.comments,
-              layers: active.layers,
-              format: active.format,
-            },
+            meta: serializeCreativeAssetMeta(active),
           });
         if (assetError) throw assetError;
       }
@@ -4523,7 +4516,7 @@ function ManualCreativeDialog({
       }
       const linkedCopy = mode === "from_copy" ? selectedCopyItem : null;
       const at = new Date().toISOString();
-      let payload: Record<string, unknown> = {
+      let payload: ManualCreativePayload = {
         brief_text: brief.trim() || undefined,
         copy_text: copyText.trim() || undefined,
         format,

@@ -6,18 +6,18 @@ import {
   useVideoConfig,
 } from "remotion";
 import { captionLayout } from "./workshop-layout";
+import { easeInOut, titleCardWipe } from "./workshop-title-card-wipe";
 
 const ramp = (x: number, frames: number) =>
   Math.min(1, Math.max(0, x / frames));
-const easeInOut = (p: number) =>
-  p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
+const pct = (share: number) => `${(share * 100).toFixed(2)}%`;
 const easeOut = (p: number) => 1 - (1 - p) ** 3;
 
 /**
- * The scene's title over motion captions, as a title card on the scene's first frames: an
- * accent bar sweeps in from the right and pulls back to the left, uncovering the title, which
- * settles from slightly larger, gets its underline and a pass of light, and stays right above
- * the captions until it drops away before the next scene.
+ * The scene's title over motion captions, as a title card on the scene's first frames: a short
+ * accent wiper crosses it from the right and uncovers the title behind it
+ * (workshop-title-card-wipe.ts), which settles from slightly larger, gets its underline and a
+ * pass of light, and stays right above the captions until it drops away before the next scene.
  */
 export const TitleCard: React.FC<{
   text: string;
@@ -35,10 +35,9 @@ export const TitleCard: React.FC<{
       (width * 0.8) / (Math.max(1, [...text].length) * 0.6 + 1),
     ),
   );
-  const grow = easeInOut(ramp(t, 7));
-  const reveal = easeInOut(ramp(t - 7, 9));
+  const wipe = titleCardWipe(t);
   const settle = spring({
-    frame: t - 7,
+    frame: t,
     fps,
     config: { damping: 15, mass: 0.6 },
   });
@@ -70,7 +69,7 @@ export const TitleCard: React.FC<{
             overflow: "hidden",
             padding: `${Math.round(fontSize * 0.12)}px ${Math.round(fontSize * 0.5)}px`,
             // Uncovered from the right, behind the retreating bar (Hebrew reads right to left).
-            clipPath: `inset(0 0 0 ${((1 - reveal) * 100).toFixed(2)}%)`,
+            clipPath: `inset(0 0 0 ${pct(1 - wipe.shown)})`,
           }}
         >
           <div
@@ -125,17 +124,15 @@ export const TitleCard: React.FC<{
             transformOrigin: "right",
           }}
         />
-        {reveal < 1 ? (
+        {wipe.barTo > wipe.barFrom ? (
           <div
             style={{
               position: "absolute",
               top: 0,
-              left: 0,
-              right: 0,
               bottom: line,
+              right: pct(wipe.barFrom),
+              width: pct(wipe.barTo - wipe.barFrom),
               background: accent,
-              transform: `scaleX(${(reveal > 0 ? 1 - reveal : grow).toFixed(3)})`,
-              transformOrigin: reveal > 0 ? "left" : "right",
             }}
           />
         ) : null}

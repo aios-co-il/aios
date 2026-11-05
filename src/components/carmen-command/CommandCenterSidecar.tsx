@@ -11,6 +11,8 @@ import type { CarmenFaceState } from "./CarmenFace";
 import { CommandCenterSidecarHeader } from "./CommandCenterSidecarHeader";
 import { CarmenSessionVideoCard } from "./CarmenSessionVideoCard";
 import { useSidecarSessionDefaults } from "./useSidecarSessionDefaults";
+import { WorkshopModeToggle } from "@/components/workshop/WorkshopModeToggle";
+import { useOpenWorkshopProject } from "@/components/workshop/useOpenWorkshopProject";
 import "@/components/carmen-command/command-center.css";
 
 interface CommandCenterSidecarProps {
@@ -36,6 +38,8 @@ export function CommandCenterSidecar({
   const contextMetadata = useSystemFixContext();
   const tenantId = contextMetadata.tenant_id ?? null;
   const brain = useBrainChannel(tenantId);
+  // The workshop board's open project: the chat shows its automatic / semi-automatic switch.
+  const workshopProjectId = useOpenWorkshopProject();
   const chatRef = useRef<CarmenChatBarHandle>(null);
   const [faceState, setFaceState] = useState<CarmenFaceState>("idle");
   const audioLevelRef = useRef(0);
@@ -87,18 +91,28 @@ export function CommandCenterSidecar({
           startFresh={session}
           contextMetadata={contextMetadata}
           composerAccessory={
-            session ? (
-              <div className="grid w-full grid-cols-2 gap-2">
-                <BrainRouteSelector
-                  routes={brain.routes}
-                  value={brain.selected.id}
-                  status={brain.status}
-                  externalUrl={brain.externalUrl}
-                  onChange={(route) => brain.selectRoute(route, null)}
-                  compact
-                  className="min-w-0"
-                />
-                <CarmenSkinSwitcher className="h-9 w-full min-w-0" />
+            session || workshopProjectId ? (
+              <div className="flex w-full flex-col gap-2">
+                {session ? (
+                  <div className="grid w-full grid-cols-2 gap-2">
+                    <BrainRouteSelector
+                      routes={brain.routes}
+                      value={brain.selected.id}
+                      status={brain.status}
+                      externalUrl={brain.externalUrl}
+                      onChange={(route) => brain.selectRoute(route, null)}
+                      compact
+                      className="min-w-0"
+                    />
+                    <CarmenSkinSwitcher className="h-9 w-full min-w-0" />
+                  </div>
+                ) : null}
+                {workshopProjectId ? (
+                  <WorkshopModeToggle
+                    tenantId={tenantId}
+                    projectId={workshopProjectId}
+                  />
+                ) : null}
               </div>
             ) : undefined
           }

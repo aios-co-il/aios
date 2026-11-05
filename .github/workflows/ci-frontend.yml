@@ -212,7 +212,9 @@ jobs:
         run: |
           set -euo pipefail
           # Pushes and reusable calls always run; only PRs and merge-queue runs are narrowed.
-          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^scripts/(staging_mirror/|sync-staging-data\.py|sync-agent-credentials\.py|verify-staging-containment\.py|staging-data-manifest\.json|test_staging_mirror)|^supabase/ops/install_staging_data_mirror\.sql$'; then
+          # grep reads the whole list (no -q): under pipefail an early exit gives git diff SIGPIPE (141),
+          # and a large PR would then skip the mirror tests (AIO-410).
+          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -E '^scripts/(staging_mirror/|sync-staging-data\.py|sync-agent-credentials\.py|verify-staging-containment\.py|staging-data-manifest\.json|test_staging_mirror)|^supabase/ops/install_staging_data_mirror\.sql$' >/dev/null; then
             echo "mirror=true" >> "$GITHUB_OUTPUT"
           else
             echo "mirror=false" >> "$GITHUB_OUTPUT"

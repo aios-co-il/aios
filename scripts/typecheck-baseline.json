@@ -4,13 +4,6 @@
   "config": "tsconfig.app.json",
   "diagnostics": [
     {
-      "file": "src/components/agents/SystemCronJobsPanel.tsx",
-      "code": 2322,
-      "message": "Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "p_schedule",
-      "count": 1
-    },
-    {
       "file": "src/components/agents/tabs/AgentLearningTab.tsx",
       "code": 2339,
       "message": "Property 'subcategory' does not exist on type '{ name: string; count: number; }'.",
@@ -25,32 +18,11 @@
       "count": 1
     },
     {
-      "file": "src/components/agents/tabs/McpConnectionsTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 1
-    },
-    {
       "file": "src/components/agents/tabs/ProfileTab.tsx",
       "code": 2304,
       "message": "Cannot find name 'tenantId'.",
       "source": "tenantId",
       "count": 2
-    },
-    {
-      "file": "src/components/agents/tabs/RunsTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "selectedRunId",
-      "count": 1
-    },
-    {
-      "file": "src/components/agents/tabs/SupervisorTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 1
     },
     {
       "file": "src/components/agents/tabs/SupervisorTab.tsx",
@@ -270,101 +242,10 @@
       "count": 1
     },
     {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ brief_files: BriefFile[]; department: string; }' is not assignable to type 'Json | undefined'.\n  Types of property 'brief_files' are incompatible.\n    Type 'BriefFile[]' is not assignable to type 'Json | undefined'.\n      Type 'BriefFile[]' is not assignable to type 'Json[]'.\n        Type 'BriefFile' is not assignable to type 'Json'.\n          Type 'BriefFile' is not assignable to type '{ [key: string]: Json | undefined; }'.\n            Index signature for type 'string' is missing in type 'BriefFile'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ department: string; copy_text: string; copy_variations: JsonValue; copy_concepts: JsonValue; copy_chat: ChatTurn[]; copy_prompt: string; last_skin_slug: string; copy_conversation_id: any; }' is not assignable to type 'Json | undefined'.\n  Type '{ department: string; copy_text: string; copy_variations: JsonValue; copy_concepts: JsonValue; copy_chat: ChatTurn[]; copy_prompt: string; last_skin_slug: string; copy_conversation_id: any; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'copy_chat' is incompatible with index signature.\n      Type 'ChatTurn[]' is not assignable to type 'Json | undefined'.\n        Type 'ChatTurn[]' is not assignable to type 'Json[]'.\n          Type 'ChatTurn' is not assignable to type 'Json'.\n            Type 'ChatTurn' is not assignable to type '{ [key: string]: Json | undefined; }'.\n              Index signature for type 'string' is missing in type 'ChatTurn'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2322,
-      "message": "Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n  Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.",
-      "source": "payload",
-      "count": 2
-    },
-    {
-      "file": "src/components/marketing/departments/CopyDepartment.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n      Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ brief_text: string; copy_text: string | undefined; instructions: string | undefined; format: CreativeFormat; project_type: CreativeProjectType; ... 5 more ...; department: string; }' is not assignable to type 'Json | undefined'.\n  Type '{ brief_text: string; copy_text: string | undefined; instructions: string | undefined; format: CreativeFormat; project_type: CreativeProjectType; ... 5 more ...; department: string; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'brand_book' is incompatible with index signature.\n      Type 'BrandBook | null' is not assignable to type 'Json | undefined'.\n        Type 'BrandBook' is not assignable to type 'Json | undefined'.\n          Type 'BrandBook' is not assignable to type '{ [key: string]: Json | undefined; }'.\n            Index signature for type 'string' is missing in type 'BrandBook'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ brief_text: string; copy_text: string | undefined; instructions: string | undefined; format: CreativeFormat; project_type: CreativeProjectType; ... 6 more ...; department: string; }' is not assignable to type 'Json | undefined'.\n  Type '{ brief_text: string; copy_text: string | undefined; instructions: string | undefined; format: CreativeFormat; project_type: CreativeProjectType; ... 6 more ...; department: string; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'brand_book' is incompatible with index signature.\n      Type 'BrandBook' is not assignable to type 'Json | undefined'.\n        Type 'BrandBook' is not assignable to type '{ [key: string]: Json | undefined; }'.\n          Index signature for type 'string' is missing in type 'BrandBook'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ notes: string; visual_style: CreativeVisualStyleId; department: string; visual_prompt: unknown; approved_concepts: unknown; }' is not assignable to type 'Json | undefined'.\n  Types of property 'visual_prompt' are incompatible.\n    Type 'unknown' is not assignable to type 'Json | undefined'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ variations: CreativeVariation[]; creative_approved: true; department: string; }' is not assignable to type 'Json | undefined'.\n  Types of property 'variations' are incompatible.\n    Type 'CreativeVariation[]' is not assignable to type 'Json | undefined'.\n      Type 'CreativeVariation[]' is not assignable to type 'Json[]'.\n        Type 'CreativeVariation' is not assignable to type 'Json'.\n          Type 'CreativeVariation' is not assignable to type '{ [key: string]: Json | undefined; }'.\n            Index signature for type 'string' is missing in type 'CreativeVariation'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type '{ variations: CreativeVariation[]; department: string; image_url: string; visual_prompt: unknown; }' is not assignable to type 'Json | undefined'.\n  Type '{ variations: CreativeVariation[]; department: string; image_url: string; visual_prompt: unknown; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'variations' is incompatible with index signature.\n      Type 'CreativeVariation[]' is not assignable to type 'Json | undefined'.\n        Type 'CreativeVariation[]' is not assignable to type 'Json[]'.\n          Type 'CreativeVariation' is not assignable to type 'Json'.\n            Type 'CreativeVariation' is not assignable to type '{ [key: string]: Json | undefined; }'.\n              Index signature for type 'string' is missing in type 'CreativeVariation'.",
-      "source": "payload",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2322,
-      "message": "Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n  Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.",
-      "source": "payload",
-      "count": 3
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.\n      Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ content?: string | null | undefined; created_at?: string | undefined; id?: string | undefined; item_id: string; meta?: Json | undefined; run_id?: string | null | undefined; stage_id?: string | ... 1 more ... | undefined; tenant_id: string; type: string; url?: string | ... 1 more ... | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type '{ source: string; skin_slug: string; variation_id: string; variation_name: string; comments: CreativeComment[]; layers: CreativeLayer[]; format: CreativeFormat; }' is not assignable to type 'Json | undefined'.\n      Types of property 'comments' are incompatible.\n        Type 'CreativeComment[]' is not assignable to type 'Json | undefined'.\n          Type 'CreativeComment[]' is not assignable to type 'Json[]'.\n            Type 'CreativeComment' is not assignable to type 'Json'.\n              Type 'CreativeComment' is not assignable to type '{ [key: string]: Json | undefined; }'.\n                Index signature for type 'string' is missing in type 'CreativeComment'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ content?: string | null | undefined; created_at?: string | undefined; id?: string | undefined; item_id: string; meta?: Json | undefined; run_id?: string | null | undefined; stage_id?: string | ... 1 more ... | undefined; tenant_id: string; type: string; url?: string | ... 1 more ... | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ content?: string | null | undefined; created_at?: string | undefined; id?: string | undefined; item_id: string; meta?: Json | undefined; run_id?: string | null | undefined; stage_id?: string | ... 1 more ... | undefined; tenant_id: string; type: string; url?: string | ... 1 more ... | undefi...'.",
-      "source": "insert",
-      "count": 1
-    },
-    {
       "file": "src/components/marketing/SocialContentGantt.tsx",
       "code": 2345,
       "message": "Argument of type 'Partial<WorkItem>' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n  Type 'Partial<WorkItem>' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n    Types of property 'status' are incompatible.\n      Type 'string | undefined' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.\n        Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",
       "source": "patch",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/SocialContentGantt.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n      Property 'tenant_id' is missing in type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }[]' but required in type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.\n      Type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }' is not assignable to type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n        Type '{ pipeline_id: string; tenant_id: string; client_id: string; current_stage_id: string | null; title: string; status: string; scheduled_date: string | null; target_channel: string; payload: { ...; }; }' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n          Types of property 'status' are incompatible.\n            Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",
-      "source": "inserts",
       "count": 1
     },
     {
@@ -477,34 +358,6 @@
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
       "source": "style[\"--slider-color\" as any]",
-      "count": 2
-    },
-    {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 18047,
-      "message": "'campaigner' is possibly 'null'.",
-      "source": "campaigner",
-      "count": 3
-    },
-    {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 18047,
-      "message": "'existing' is possibly 'null'.",
-      "source": "existing",
-      "count": 2
-    },
-    {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 18047,
-      "message": "'salesPerson' is possibly 'null'.",
-      "source": "salesPerson",
-      "count": 2
-    },
-    {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 2322,
-      "message": "Type 'false' is not assignable to type 'true'.",
-      "source": "reused",
       "count": 2
     },
     {
