@@ -13,7 +13,7 @@ import { useBroadcastLists } from "./useBroadcastLists";
 const context = vi.hoisted((): { tenantId: string | null } => ({
   tenantId: "tenant-1",
 }));
-const requests: Request[] = [];
+const requests: Array<Request> = [];
 const client = createClient("https://example.com", "test-key", {
   auth: { persistSession: false, autoRefreshToken: false },
   global: {
@@ -78,7 +78,9 @@ describe("broadcast list query request equivalence", () => {
           if (table !== "broadcast_list_rules") {
             filtered.order("created_at", { ascending: false });
           }
-          if (table === "broadcast_list_members") filtered.limit(1000);
+          if (table === "broadcast_list_members") {
+            filtered.limit(1000);
+          }
           const { error } = await filtered;
           expect(error).toBeNull();
         }
