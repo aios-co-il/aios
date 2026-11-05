@@ -22,8 +22,18 @@ export function scriptApprovedByTap(lastAssistant: string, userText: string) {
   return Object.values(answersTo(asked, userText)).some(approvesScript);
 }
 
+/**
+ * The user's message is a clean script approval: the answer under the script question (a tap on
+ * several questions arrives as "התסריט: התסריט מאושר"), else the whole message.
+ */
+export function cleanScriptApproval(lastAssistant: string, userText: string) {
+  return (
+    scriptApprovedByTap(lastAssistant, userText) || approvesScript(userText)
+  );
+}
+
 /** The approve button itself, or a bare approval word with nothing after it. */
-export function approvesScript(answer: string) {
+function approvesScript(answer: string) {
   const text = answer.trim();
   return (
     text === APPROVE_SCRIPT ||

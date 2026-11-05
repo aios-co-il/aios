@@ -5,17 +5,9 @@
  * something else first (seen in end-to-end runs on the preview).
  */
 
-import { approveFromMessage } from "./budget-approve.ts";
-import {
-  answerFor,
-  briefAnswersOf,
-  withBriefAnswers,
-} from "./brief-answers.ts";
+import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { CTA_MAX_CHARS } from "./cta.ts";
 import { scriptLines } from "./film-script.ts";
-import { withTappedScriptApproval } from "./script-approval.ts";
-import { syncBriefPage } from "./project-brief.ts";
-import { tappedAnswers } from "./tapped-answers.ts";
 import { asksForVideo } from "./roles.ts";
 import {
   loadSelectedArtifact,
@@ -24,6 +16,7 @@ import {
 } from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
 import { talkingLine } from "./talking.ts";
+import { saveTurnAnswers } from "./turn-answers.ts";
 
 export { failStalePictures };
 
@@ -34,12 +27,6 @@ const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-
-const TOOL_STEP: Record<string, string> = {
-  workshop_make_creative: "יצירת התמונות (workshop_make_creative)",
-  workshop_make_stills: "יצירת התמונות לסצנות (workshop_make_stills)",
-  workshop_produce_video: "הפקת הסרט (workshop_produce_video)",
-};
 
 /**
  * On Staging Carmen answered "תעשי מה שצריך" with the step she was missing (a storyboard, a scene)
@@ -52,9 +39,11 @@ export const DO_THE_STEP =
 export const ANY_KIND =
   "הפרויקט לא נעול לסוג אחד: הוא יכול לעבור בין קופי, תמונות וסרטון. סרטון מתמונה שכבר בפרויקט: workshop_storyboard עם from_artifact_id של התמונה.";
 
-/** The user tapped approval on the script in this message. */
-const SCRIPT_APPROVED_NOW =
-  "המשתמש אישר עכשיו את התסריט. אל תשמרי אותו שוב ב-workshop_save_script; המשיכי מיד ל-workshop_storyboard, סצנה אחת לכל שורה.";
+/** The run's ids for this message: the artifact the user marked and the turn. */
+export interface TurnRefs {
+  selectedArtifactId?: string | null;
+  turnId?: string | null;
+}
 
 export interface FilmState {
   scenes: number;
@@ -98,8 +87,7 @@ export async function workshopTurnNote(
   itemId: string | null,
   userText: string,
   lastAssistant = "",
-  selectedArtifactId: string | null = null,
-  turnId: string | null = null,
+  turn: TurnRefs = {},
 ): Promise<string | null> {
   if (!itemId || typeof tenantId !== "string" || !tenantId) return null;
   try {
@@ -111,48 +99,24 @@ export async function workshopTurnNote(
       .maybeSingle();
     if (!data) return null;
     await failStalePictures(supabase, tenantId, itemId).catch(() => {});
-    let payload = asRecord(data.payload);
-    const lines: string[] = ["=== מצב הפרויקט (מהשרת) ===", DO_THE_STEP];
-    const approved = approveFromMessage(payload, userText);
-    // Every tapped answer goes into the brief, so Carmen can come back to it later.
-    const tapped = tappedAnswers(lastAssistant, userText);
-    // A tap on the script question approves the script, whatever Carmen calls next; the turn is
-    // kept so she cannot replace the approved script in this turn (save-script-guards.ts).
-    const briefed = withBriefAnswers(approved?.payload ?? payload, tapped);
-    const next = withTappedScriptApproval(briefed, {
-      lastAssistant,
-      userText,
-      turnId,
-    });
-    if (next !== payload) {
-      const { error } = await supabase
-        .from("marketing_work_items")
-        .update({ payload: next })
-        .eq("id", itemId)
-        .eq("tenant_id", tenantId);
-      if (error) {
-        console.error(
-          "[workshop] turn answers not saved",
-          itemId,
-          error.message,
-        );
-      } else {
-        await syncBriefPage(supabase, tenantId, itemId, payload, next);
-        payload = next;
-        if (next !== briefed) {
-          lines.push(SCRIPT_APPROVED_NOW);
-        }
-        if (approved)
-          lines.push(
-            `המשתמש אישר עכשיו תקציב של $${approved.capUsd} לפרויקט. אל תבקשי אישור שוב. המשיכי מיד ל${approved.tool ? TOOL_STEP[approved.tool] : "שלב שחיכה לאישור"}.`,
-          );
-      }
-    }
+    const answered = await saveTurnAnswers(
+      supabase,
+      tenantId,
+      itemId,
+      asRecord(data.payload),
+      { userText, lastAssistant, turnId: turn.turnId ?? null },
+    );
+    const payload = answered.payload;
+    const lines: Array<string> = [
+      "=== מצב הפרויקט (מהשרת) ===",
+      DO_THE_STEP,
+      ...answered.lines,
+    ];
     const selected = await loadSelectedArtifact(
       supabase,
       tenantId,
       itemId,
-      selectedArtifactId,
+      turn.selectedArtifactId ?? null,
     );
     const marked = selectedArtifactLine(selected);
     if (marked) {

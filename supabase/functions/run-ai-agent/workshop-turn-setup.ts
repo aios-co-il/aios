@@ -40,8 +40,7 @@ export async function workshopTurnSetup(
     workshopItemIdFrom(bodyJson),
     String(commandText ?? ""),
     lastAssistantText(conversationHistory),
-    workshopArtifactIdFrom(bodyJson),
-    turnId,
+    { selectedArtifactId: workshopArtifactIdFrom(bodyJson), turnId },
   );
   const workshopRoleForRun = workshopRole(
     String(commandText ?? ""),

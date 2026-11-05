@@ -6,14 +6,14 @@
 
 import { briefAnswersOf } from "../brief-answers.ts";
 import {
-  CONCEPT_LABEL,
   conceptAnswer,
   filmScriptOf,
   scriptText,
+  type FilmScript,
   type ScriptBeat,
 } from "../film-script.ts";
-import { approvesScript } from "../script-approval.ts";
 import type { WorkshopDeps } from "../gate.ts";
+import { cleanScriptApproval, SCRIPT_CHOICE } from "../script-approval.ts";
 
 /**
  * The reply that stands in for saving, or null when the script may be saved: no concept chosen
@@ -22,7 +22,7 @@ import type { WorkshopDeps } from "../gate.ts";
 export function scriptSaveStop(
   payload: Record<string, unknown>,
   beats: Array<ScriptBeat>,
-  deps: Pick<WorkshopDeps, "turnId" | "userText">,
+  deps: Pick<WorkshopDeps, "turnId" | "userText" | "lastAssistant">,
 ) {
   // The NO_CONCEPT answer (film-concept.ts) is the user's explicit skip, and counts as chosen.
   if (!conceptAnswer(briefAnswersOf(payload))) {
@@ -33,18 +33,22 @@ export function scriptSaveStop(
     return null;
   }
   if (sameBeats(stored.beats, beats)) {
-    return stored.approved ? ALREADY_APPROVED : alreadyWaiting(stored);
+    return stored.approved
+      ? ALREADY_APPROVED
+      : alreadyWaiting(stored, deps.turnId ?? null);
   }
   const approvedNow = Boolean(
     deps.turnId && stored.approved && stored.approved_turn === deps.turnId,
   );
   // A clean approval is all the user said; a message that also asks for changes may be written.
-  return approvedNow && approvesScript(deps.userText ?? "")
-    ? APPROVED_THIS_TURN
-    : null;
+  const clean = cleanScriptApproval(
+    deps.lastAssistant ?? "",
+    deps.userText ?? "",
+  );
+  return approvedNow && clean ? APPROVED_THIS_TURN : null;
 }
 
-/** Same lines, on-screen text and timing: saving again would only drop the user's approval. */
+/** The same beats as stored: saving them again would only drop the user's approval. */
 function sameBeats(stored: Array<ScriptBeat>, beats: Array<ScriptBeat>) {
   return (
     stored.length === beats.length &&
@@ -53,17 +57,20 @@ function sameBeats(stored: Array<ScriptBeat>, beats: Array<ScriptBeat>) {
         beat.start_s === beats[index].start_s &&
         beat.end_s === beats[index].end_s &&
         beat.narration === beats[index].narration &&
-        beat.on_screen === beats[index].on_screen,
+        beat.on_screen === beats[index].on_screen &&
+        beat.visual === beats[index].visual,
     )
   );
 }
 
-// say_to_user stays empty: a non-empty one ends the turn before Carmen can write the concepts.
+// The concept step lives in workshop_storyboard (film-concept.ts): it reads a choice in words,
+// the user's skip, or asks for concepts. say_to_user stays empty so Carmen can call it now.
 const CONCEPT_FIRST = {
   needs_input: true,
   missing: ["concept"],
   say_to_user: "",
-  carmen_next: `עוד לא כותבים תסריט: קודם קונספט שהמשתמש בחר. כתבי 2 עד 3 קונספטים לפי הבריף ושמרי ב-workshop_save_concepts (מה שכבר בלוח לא שומרים שוב), הציגי אותם בקצרה וסיימי בשורה [[בחירה: ${CONCEPT_LABEL} | <שם 1> | <שם 2> | <שם 3>]]. ואז עצרי עד שהמשתמש בוחר.`,
+  carmen_next:
+    "עוד לא כותבים תסריט: קודם קונספט שהמשתמש בחר. קראי ל-workshop_storyboard: המשתמש בחר במילים → concept=<הבחירה>; נתן תסריט מלא משלו או ביקש בלי קונספטים → skip_concepts=true; אחרת בלי פרמטרים, והכלי יבקש קונספטים.",
 };
 
 const ALREADY_APPROVED = {
@@ -80,15 +87,21 @@ const APPROVED_THIS_TURN = {
     "המשתמש אישר את התסריט בהודעה הזו, ולא כותבים אותו מחדש באותו תור. המשיכי ל-workshop_storyboard, סצנה אחת לכל שורה בתסריט שאושר.",
 };
 
-/** The same script is already on the board, waiting for the user; nothing new is saved. */
-function alreadyWaiting(stored: { title: string; beats: Array<ScriptBeat> }) {
+/**
+ * The same script is already on the board, waiting for the user; nothing new is saved. Saved in
+ * an earlier turn, it is shown again with the approval buttons; in this turn it already was.
+ */
+function alreadyWaiting(stored: FilmScript, turnId: string | null) {
+  const text = scriptText(stored);
+  const shownEarlier = stored.saved_turn !== turnId;
   return {
     success: true,
     already_saved: true,
     approved: false,
-    say_to_user: "",
-    script: scriptText(stored),
-    carmen_next:
-      "התסריט הזה כבר שמור ומחכה לאישור המשתמש; לא שומרים אותו שוב. אישר במילים בהודעה הזו: workshop_storyboard עם script_approved=true. אחרת עצרי וחכי לתשובה שלו.",
+    say_to_user: shownEarlier ? `${text}\n\n${SCRIPT_CHOICE}` : "",
+    script: text,
+    carmen_next: shownEarlier
+      ? "התסריט הזה כבר שמור; הוא הוצג שוב למשתמש עם כפתורי האישור. עצרי."
+      : "התסריט הזה כבר שמור ומחכה לאישור המשתמש; לא שומרים אותו שוב. עצרי וחכי לתשובה שלו.",
   };
 }
