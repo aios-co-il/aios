@@ -74,7 +74,7 @@ export function useBroadcastLists() {
       const { data, error } = await supabase
         .from("broadcast_lists")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as BroadcastList[];
@@ -138,7 +138,7 @@ export function useBroadcastLists() {
         const { data, error } = await supabase
           .from("broadcast_list_members")
           .select("*")
-          .eq("list_id", listId)
+          .filter("list_id", "eq", listId)
           .order("created_at", { ascending: false })
           .limit(1000);
         if (error) throw error;
@@ -268,7 +268,7 @@ export function useBroadcastLists() {
         const { data, error } = await supabase
           .from("broadcast_list_rules")
           .select("*")
-          .eq("list_id", listId);
+          .filter("list_id", "eq", listId);
         if (error) throw error;
         return (data || []) as unknown as ListRule[];
       },
