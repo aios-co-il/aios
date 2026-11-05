@@ -50,6 +50,7 @@ interface ChatViewProps {
   contactName?: string;
   telegramChatId?: string;
   activeChatProvider?: string | null;
+  onContactConverted: (id: string, type: "client" | "lead" | "group") => void;
   onBack?: () => void;
 }
 
@@ -60,6 +61,7 @@ export default function ChatView({
   contactName,
   telegramChatId,
   activeChatProvider,
+  onContactConverted,
   onBack,
 }: ChatViewProps) {
   const queryClient = useQueryClient();
@@ -1218,7 +1220,7 @@ export default function ChatView({
               queryClient.invalidateQueries({
                 queryKey: ["unknown-contacts", tenantId],
               });
-              if (onBack) onBack();
+              onContactConverted(id, type);
             }}
           />
           <LinkContactDialog
