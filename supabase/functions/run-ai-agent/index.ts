@@ -13829,7 +13829,7 @@ async function handleRunAgent(
     // a script approved in this turn may not be replaced in it (workshop-turn-setup.ts).
     const turnId = crypto.randomUUID();
     // The workshop's note and specialist for this message (workshop-turn-setup.ts).
-    const { workshopNote, workshopRoleForRun } = inWorkshopRequest
+    const { workshopNote, workshopRoleForRun, workshopMode } = inWorkshopRequest
       ? await workshopTurnSetup(
           supabase,
           bodyJson,
@@ -13838,7 +13838,11 @@ async function handleRunAgent(
           conversation_history,
           turnId,
         )
-      : { workshopNote: null, workshopRoleForRun: null };
+      : {
+          workshopNote: null,
+          workshopRoleForRun: null,
+          workshopMode: undefined,
+        };
     if (workshopRoleForRun) {
       task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
       if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
@@ -15374,7 +15378,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // A workshop step needs a look at the project, the tools, and a reply: give it room for that
     // even when the agent is tuned to very few rounds.
     const maxRounds = workshopRoleForRun
-      ? workshopToolRounds(agent.max_tool_rounds)
+      ? workshopToolRounds(agent.max_tool_rounds, workshopMode)
       : agent.max_tool_rounds || 25;
     const safeTemp =
       typeof temperature === "number"

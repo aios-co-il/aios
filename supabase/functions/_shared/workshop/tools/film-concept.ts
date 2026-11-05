@@ -14,11 +14,16 @@ import {
   filmSeconds,
   tapTitle,
 } from "../film-script.ts";
-import type { Db } from "../db.ts";
 import { savePayload } from "../project-io.ts";
-import { asRecord } from "../record.ts";
 import type { ToolContext } from "../tool-context.ts";
-import { type ConceptGate, conceptGate } from "./concept-gate.ts";
+import { isAutoMode } from "../workshop-mode.ts";
+import {
+  type AutoConceptGate,
+  autoConceptGate,
+  type ConceptGate,
+  conceptGate,
+} from "./concept-gate.ts";
+import { type BoardConcept, boardConcepts } from "./board-concepts.ts";
 import { skipAskedByUser } from "./skip-request.ts";
 
 /** The stored answer when the user gave their own script or asked to go straight to scenes. */
@@ -28,11 +33,6 @@ const MAX_CONCEPT = 600;
 export interface FilmConcept {
   title: string;
   text: string;
-}
-
-/** A concept page on the board, with its id (the page the user may have marked). */
-interface BoardConcept extends FilmConcept {
-  id: string;
 }
 
 /**
@@ -49,7 +49,7 @@ export async function filmConcept(
   payload: Record<string, unknown>,
   hasScenes: boolean,
 ): Promise<
-  | { stop: ConceptGate | { error: string } }
+  | { stop: ConceptGate | AutoConceptGate | { error: string } }
   | { payload: Record<string, unknown>; concept: FilmConcept | null }
 > {
   const userText = ctx.deps.userText ?? "";
@@ -64,7 +64,9 @@ export async function filmConcept(
     return { payload, concept: null };
   }
   const board = await boardConcepts(ctx.supabase, ctx.tenantId, itemId);
-  const given = userPicked(ctx, passed, board) ? passed : "";
+  // In automatic mode the concept is Carmen's to choose (workshop-mode.ts).
+  const auto = isAutoMode(payload);
+  const given = auto || userPicked(ctx, passed, board) ? passed : "";
   const next = given
     ? withBriefAnswers(payload, { [CONCEPT_LABEL]: given })
     : payload;
@@ -80,10 +82,12 @@ export async function filmConcept(
   if (!choice) {
     await savePayload(ctx.supabase, ctx.tenantId, itemId, payload);
     return {
-      stop: conceptGate(board.concepts, {
-        concept: passed,
-        skip: skip === "refused",
-      }),
+      stop: auto
+        ? autoConceptGate(board.concepts)
+        : conceptGate(board.concepts, {
+            concept: passed,
+            skip: skip === "refused",
+          }),
     };
   }
   return { payload: next, concept: resolveConcept(choice, board.concepts) };
@@ -135,40 +139,6 @@ function userPicked(
       ),
     )
   );
-}
-
-/** The concept pages workshop_save_concepts put on the project's board, oldest first. */
-async function boardConcepts(
-  supabase: Db,
-  tenantId: string,
-  itemId: string,
-): Promise<{ concepts: Array<BoardConcept> } | { error: string }> {
-  const { data, error } = await supabase
-    .from("workshop_artifacts")
-    .select("id, title, meta")
-    .eq("tenant_id", tenantId)
-    .eq("item_id", itemId)
-    .eq("kind", "concept")
-    .order("created_at");
-  if (error) {
-    return { error: error.message };
-  }
-  const rows: Array<ConceptRow> = Array.isArray(data) ? data : [];
-  return {
-    concepts: rows
-      .map((row) => ({
-        id: String(row.id ?? ""),
-        title: String(row.title ?? "").trim(),
-        text: String(asRecord(row.meta).text ?? "").trim(),
-      }))
-      .filter((concept) => concept.title),
-  };
-}
-
-interface ConceptRow {
-  id: string | null;
-  title: string | null;
-  meta: unknown;
 }
 
 /** The chosen concept page, or the user's own words when they described a concept of their own. */

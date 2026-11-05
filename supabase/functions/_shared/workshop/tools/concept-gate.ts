@@ -46,6 +46,29 @@ export function conceptGate(
   };
 }
 
+export interface AutoConceptGate extends Omit<ConceptGate, "say_to_user"> {
+  say_to_user: "";
+  carmen_continues: true;
+}
+
+/**
+ * Automatic mode (workshop-mode.ts): nobody is asked. Carmen picks the best concept on the board,
+ * or writes a few and picks one, and calls the storyboard again with it in this turn.
+ */
+export function autoConceptGate(concepts: Array<FilmConcept>): AutoConceptGate {
+  const from =
+    concepts.length > 0
+      ? `בחרי בעצמך את הקונספט הכי טוב מאלה שבלוח (${[...new Set(concepts.map((concept) => tapTitle(concept.title)))].slice(-4).join(" / ")})`
+      : "כתבי 2 עד 3 קונספטים שונים לפי הבריף, שמרי אותם ב-workshop_save_concepts ובחרי בעצמך את הכי טוב";
+  return {
+    needs_input: true,
+    missing: ["concept"],
+    say_to_user: "",
+    carmen_continues: true,
+    carmen_next: `מצב אוטומטי: לא שואלים את המשתמש. ${from}, וקראי מיד שוב ל-workshop_storyboard עם concept=<שם הקונספט שבחרת>. הצעד הבא הוא התסריט, והכלי יגיד איך. בסוף ספרי למשתמש איזה קונספט בחרת ולמה, במשפט.`,
+  };
+}
+
 /** The tap-to-answer question for the latest concepts on the board. */
 const choiceLine = (concepts: Array<FilmConcept>) =>
   `[[בחירה: ${CONCEPT_LABEL} | ${[

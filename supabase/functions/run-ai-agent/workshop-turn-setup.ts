@@ -6,6 +6,7 @@
 import { parseActiveSkin } from "../_shared/carmen/active-skin.ts";
 import { isBlockedInWorkshop } from "../_shared/workshop/blocked-tools.ts";
 import { type Db } from "../_shared/workshop/db.ts";
+import { asRecord } from "../_shared/workshop/record.ts";
 import {
   workshopArtifactIdFrom,
   workshopItemIdFrom,
@@ -19,12 +20,18 @@ import {
   WORKSHOP_SKIN,
 } from "../_shared/workshop/tool-definitions.ts";
 import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+import {
+  DEFAULT_WORKSHOP_MODE,
+  type WorkshopMode,
+  workshopModeOf,
+} from "../_shared/workshop/workshop-mode.ts";
 
 /**
  * In the workshop the server picks the specialist for this message (designer, producer or
  * video editor) from the message and the open project, and pins her skin; see roles.ts.
  * Approves a waiting budget from the user's code and states the project's next step; `turnId`
  * is the run's turn, so a script approved by a tap now is known as approved in this turn.
+ * `workshopMode` is the open project's mode (workshop-mode.ts): it sets the turn's tool rounds.
  */
 export async function workshopTurnSetup(
   supabase: Db,
@@ -52,7 +59,37 @@ export async function workshopTurnSetup(
       workshopSceneIdFrom(bodyJson),
     ),
   );
-  return { workshopNote, workshopRoleForRun };
+  const workshopMode = await loadWorkshopMode(
+    supabase,
+    tenantId,
+    workshopItemIdFrom(bodyJson),
+  );
+  return { workshopNote, workshopRoleForRun, workshopMode };
+}
+
+/**
+ * The open project's mode, read after the turn note so a change made from the toggle counts from
+ * this turn; no project, or a read that fails, is the default (the user approves every stage).
+ */
+export async function loadWorkshopMode(
+  supabase: Db,
+  tenantId: unknown,
+  itemId: string | null,
+): Promise<WorkshopMode> {
+  if (!itemId || typeof tenantId !== "string" || !tenantId) {
+    return DEFAULT_WORKSHOP_MODE;
+  }
+  const { data, error } = await supabase
+    .from("marketing_work_items")
+    .select("payload")
+    .eq("id", itemId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) {
+    console.error("[workshop] mode not read", itemId, error.message);
+    return DEFAULT_WORKSHOP_MODE;
+  }
+  return workshopModeOf(asRecord(data?.payload));
 }
 
 /** A turn in the workshop skin, outside WhatsApp. */
