@@ -1,4 +1,4 @@
-import type { TaskRelations } from "./taskRelations";
+import type { Task } from "./taskTypes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -52,32 +52,7 @@ function priorityClass(priority: number) {
   return "text-muted-foreground";
 }
 
-export type ChatTask = TaskRelations & {
-  id: string;
-  title: string;
-  notes: string | null;
-  status: string;
-  priority: number;
-  due_date: string | null;
-  due_time: string | null;
-  target_date?: string | null;
-  client_id: string | null;
-  lead_id: string | null;
-  agency_id: string | null;
-  campaigner_id: string | null;
-  tenant_id: string | null;
-  created_at?: string;
-  created_by?: string | null;
-  creator_name?: string | null;
-  google_calendar_event_id?: string | null;
-  duration_minutes?: number | null;
-  recurrence_frequency?: "daily" | "weekly" | "monthly" | null;
-  recurrence_weekday?: number | null;
-  recurrence_monthday?: number | null;
-  clients?: { name: string; agency_id?: string | null } | null;
-  leads?: { company_name?: string | null; contact_name?: string | null } | null;
-  campaigners?: { full_name: string } | null;
-};
+export type ChatTask = Task;
 
 const OPEN_CLOSED_TABS: {
   value: OpenClosedFilter;

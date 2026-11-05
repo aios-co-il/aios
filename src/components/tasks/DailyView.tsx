@@ -1,4 +1,4 @@
-import type { TaskRelations } from "./taskRelations";
+import type { Task } from "./taskTypes";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useDroppable } from "@dnd-kit/core";
@@ -11,22 +11,6 @@ import { MessageSquare, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { embedCount } from "@/lib/embedCount";
 import { generateWorkdayTimeSlots } from "@/lib/taskWorkdayHours";
-
-interface Task extends TaskRelations {
-  id: string;
-  title: string;
-  notes: string | null;
-  status: string;
-  priority: number;
-  due_date: string | null;
-  due_time: string | null;
-  client_id: string | null;
-  lead_id: string | null;
-  agency_id: string | null;
-  campaigner_id: string | null;
-  tenant_id: string | null;
-  clients?: { name: string } | null;
-}
 
 interface DailyViewProps {
   date: Date;

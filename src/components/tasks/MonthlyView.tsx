@@ -1,4 +1,4 @@
-import type { TaskRelations } from "./taskRelations";
+import type { Task } from "./taskTypes";
 import {
   format,
   startOfMonth,
@@ -13,22 +13,6 @@ import { useDroppable } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-
-interface Task extends TaskRelations {
-  id: string;
-  title: string;
-  notes: string | null;
-  status: string;
-  priority: number;
-  due_date: string | null;
-  due_time: string | null;
-  client_id: string | null;
-  lead_id: string | null;
-  agency_id: string | null;
-  campaigner_id: string | null;
-  tenant_id: string | null;
-  clients?: { name: string } | null;
-}
 
 interface MonthlyViewProps {
   currentDate: Date;

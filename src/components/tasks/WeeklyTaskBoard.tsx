@@ -1,5 +1,9 @@
-import { requireTenantId } from "@/lib/requireTenantId";
-import type { TaskRelations } from "./taskRelations";
+import {
+  fetchTaskClients,
+  fetchTaskLeads,
+  fetchFirstTaskAgency,
+} from "./taskSelectorQueries";
+import type { Task } from "./taskTypes";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { markLinkedTaskDoneForCalendarEvent } from "@/lib/taskCalendarSync";
@@ -131,38 +135,6 @@ import {
   startCalendarOAuth,
 } from "@/lib/calendarApi";
 
-interface Task extends TaskRelations {
-  id: string;
-  title: string;
-  notes: string | null;
-  status: string;
-  priority: number;
-  due_date: string | null;
-  due_time: string | null;
-  client_id: string | null;
-  lead_id: string | null;
-  agency_id: string | null;
-  campaigner_id: string | null;
-  sales_person_id?: string | null;
-  tenant_id: string | null;
-  created_by?: string | null;
-  creator_name?: string | null;
-  created_at?: string;
-  updated_at?: string | null;
-  sort_order?: number;
-  target_date?: string | null;
-  duration_minutes?: number | null;
-  google_calendar_event_id?: string | null;
-  recurrence_frequency?: "daily" | "weekly" | "monthly" | null;
-  recurrence_interval?: number;
-  recurrence_weekday?: number | null;
-  recurrence_monthday?: number | null;
-  recurrence_series_id?: string | null;
-  recurrence_previous_task_id?: string | null;
-  clients?: { name: string; agency_id?: string | null } | null;
-  leads?: { company_name?: string | null; contact_name?: string | null } | null;
-}
-
 interface CalendarEvent {
   id: string;
   title: string;
@@ -222,41 +194,13 @@ export function WeeklyTaskBoard() {
 
   const { data: clientsList = [] } = useQuery({
     queryKey: ["clients-for-task-selector", tenantId, crossTenantAgencyIds],
-    queryFn: async () => {
-      let query = supabase.from("clients").select("id, name, agency_id");
-      if (crossTenantAgencyIds.length > 0) {
-        query = query.or(
-          `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
-        );
-      } else {
-        query = query.eq("tenant_id", tenantId!);
-      }
-      const { data, error } = await query.order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchTaskClients(tenantId, crossTenantAgencyIds),
     enabled: !!tenantId,
   });
 
   const { data: leadsList = [] } = useQuery({
     queryKey: ["leads-for-task-filter", tenantId, crossTenantAgencyIds],
-    queryFn: async () => {
-      let query = supabase
-        .from("leads")
-        .select("id, company_name, contact_name, created_at");
-      if (crossTenantAgencyIds.length > 0) {
-        query = query.or(
-          `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
-        );
-      } else {
-        query = query.eq("tenant_id", tenantId!);
-      }
-      const { data, error } = await query
-        .order("created_at", { ascending: false })
-        .limit(400);
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => fetchTaskLeads(tenantId, crossTenantAgencyIds, true),
     enabled: !!tenantId,
   });
 
@@ -940,15 +884,7 @@ export function WeeklyTaskBoard() {
 
   const { data: firstAgency } = useQuery({
     queryKey: ["first-agency", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("agencies")
-        .select("id")
-        .eq("tenant_id", requireTenantId(tenantId))
-        .limit(1)
-        .single();
-      return data;
-    },
+    queryFn: () => fetchFirstTaskAgency(tenantId),
     enabled: !!tenantId,
   });
 

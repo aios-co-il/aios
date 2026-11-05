@@ -1,4 +1,4 @@
-import { requireTenantId } from "@/lib/requireTenantId";
+import { fetchTaskClients, fetchTaskLeads } from "./taskSelectorQueries";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -309,32 +309,14 @@ export function TaskDetailDialog({
   // Fetch clients
   const { data: clients } = useQuery({
     queryKey: ["clients-for-tasks", tenantId, crossTenantAgencyIds],
-    queryFn: async () => {
-      let query = supabase.from("clients").select("id, name");
-      if (crossTenantAgencyIds.length > 0) {
-        query = query.or(
-          `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
-        );
-      } else {
-        query = query.eq("tenant_id", requireTenantId(tenantId));
-      }
-      const { data } = await query.order("name");
-      return data || [];
-    },
+    queryFn: () => fetchTaskClients(tenantId, crossTenantAgencyIds),
     enabled: !!tenantId && isActive,
   });
 
   // Fetch leads
   const { data: leads } = useQuery({
     queryKey: ["leads-for-tasks", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("leads")
-        .select("id, company_name")
-        .eq("tenant_id", requireTenantId(tenantId))
-        .order("company_name");
-      return data || [];
-    },
+    queryFn: () => fetchTaskLeads(tenantId),
     enabled: !!tenantId && isActive,
   });
 
