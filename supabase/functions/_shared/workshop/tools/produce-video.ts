@@ -25,6 +25,7 @@ import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { autoChoices } from "./auto-choices.ts";
+import { narrationStep } from "./narration-review.ts";
 import { stillsStep } from "./stills-approval.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
@@ -279,12 +280,8 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
   // Narration and music are made for the whole film, also when no scene is animated (a film cut
   // from the user's own videos, or one line changed).
-  const due = await soundDue(
-    supabase,
-    tenantId,
-    itemId,
-    voiceId !== narrationVoiceId(undefined, video.voice_id),
-  );
+  const newVoice = voiceId !== narrationVoiceId(undefined, video.voice_id);
+  const due = await soundDue(supabase, tenantId, itemId, newVoice);
   const estimate = quotedProductionEstimate(
     engine,
     costScenes,
@@ -303,6 +300,21 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       {},
       voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
     );
+  // Semi-automatic: the user hears the narration before anything is animated (narration-review.ts).
+  const review = await narrationStep(ctx, itemId, project.payload, {
+    narrated: withVoice,
+    newVoice,
+    voiceId: voiceId ?? "",
+    stageId,
+    engine,
+    scenes,
+    filmUsd: estimate.totalUsd - estimate.voice.usd,
+    units: costScenes.length + relip.length,
+  });
+  if ("stop" in review) {
+    return review.stop;
+  }
+  project.payload = review.payload;
   const gate = await gatePaid(
     supabase,
     tenantId,

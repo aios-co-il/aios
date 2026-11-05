@@ -137,6 +137,11 @@ export function stillPrompt(input: {
    * gave for it): it replaces the project's references and anchor frame for this picture.
    */
   sceneReference?: boolean;
+  /**
+   * A scene still carries no text at all (picture-text.ts): quoted words in its description are
+   * not drawn either, so the rule to write them is left out.
+   */
+  noText?: boolean;
 }): string {
   const parts: string[] = [];
   if (input.look.bible.trim())
@@ -161,7 +166,7 @@ export function stillPrompt(input: {
     rules.push(
       "Keep one consistent character, wardrobe and visual style across the whole project.",
     );
-  if (QUOTED.test(input.visual))
+  if (!input.noText && QUOTED.test(input.visual))
     rules.push(
       "Write each quoted text exactly once, spelled exactly as given (Hebrew reads right to left), and no other words or letters anywhere in the picture.",
     );

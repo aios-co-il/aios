@@ -9,8 +9,8 @@
 import { savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import { loadScenes, stringList } from "../scene-helpers.ts";
-import { CHANGE_SCRIPT, isBareApproval } from "../script-approval.ts";
-import { answersTo, askedChoices, STILLS_LABEL } from "../tapped-answers.ts";
+import { approvalAnswer, CHANGE_SCRIPT } from "../script-approval.ts";
+import { STILLS_LABEL } from "../tapped-answers.ts";
 import type { ToolContext } from "../tool-context.ts";
 import { isAutoMode } from "../workshop-mode.ts";
 
@@ -113,22 +113,45 @@ export function stillsApprovedNow(
   video: Record<string, unknown>,
   stills: Array<string>,
 ) {
-  const userText = (ctx.deps.userText ?? "").trim();
-  const asked = askedChoices(ctx.deps.lastAssistant ?? "").filter(
-    (choice) => choice.label === STILLS_LABEL,
+  const answer = approvalAnswer(
+    ctx.deps.lastAssistant ?? "",
+    ctx.deps.userText ?? "",
+    STILLS_LABEL,
+    APPROVE_STILLS,
   );
-  if (asked.length === 0 || !userText || !shownEarlier(ctx, video, stills)) {
+  if (!answer.asked || answer.change || !shownEarlier(ctx, video, stills)) {
     return false;
   }
-  const answers = Object.values(answersTo(asked, userText));
-  if (answers.some((answer) => answer.trim() === CHANGE_SCRIPT)) {
-    return false;
-  }
-  return (
-    ctx.args.stills_approved === true ||
-    answers.some(approvesStills) ||
-    approvesStills(userText)
+  return ctx.args.stills_approved === true || answer.approved;
+}
+
+/**
+ * The payload with the pictures the question showed approved, when the user's message in this
+ * turn approves them (a tap or a bare approval word). Saved before Carmen acts (turn-answers.ts),
+ * so a production call in a later turn honors it even when she called another tool first.
+ */
+export function withTappedStillsApproval(
+  payload: Record<string, unknown>,
+  turn: { lastAssistant: string; userText: string; turnId: string | null },
+) {
+  const video = asRecord(payload.video);
+  const shown = stringList(video[ASKED_KEY]);
+  const answer = approvalAnswer(
+    turn.lastAssistant,
+    turn.userText,
+    STILLS_LABEL,
+    APPROVE_STILLS,
   );
+  if (
+    !answer.asked ||
+    answer.change ||
+    !answer.approved ||
+    shown.length === 0 ||
+    !shownEarlier({ deps: { turnId: turn.turnId } }, video, shown)
+  ) {
+    return payload;
+  }
+  return { ...payload, video: { ...video, [APPROVED_KEY]: shown } };
 }
 
 /** Every waiting picture was shown by a pictures question asked in an earlier, known turn. */
@@ -166,7 +189,3 @@ function stillsToApprove(scenes: Array<Record<string, unknown>>) {
     .map((scene) => scene.still_asset_id)
     .filter((id): id is string => typeof id === "string" && id !== "");
 }
-
-/** The approve button itself, or a bare approval word. */
-const approvesStills = (answer: string) =>
-  answer.trim() === APPROVE_STILLS || isBareApproval(answer);

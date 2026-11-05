@@ -16,8 +16,17 @@ const LINE_END_PAUSE_S = 0.3;
  */
 const PAUSE = /[,;:—–]|[.!?…]+(?=\s)|\s-(?=\s)/gu;
 
-/** How the pace is stated to Carmen: the same rule maxWords checks (the save tool refuses past it). */
-export const PACE_GUIDE = `בכל שורה עד (השניות פחות ${LINE_END_PAUSE_S}) כפול ${WORDS_PER_SECOND} מילים, וכל פסיק, נקודה, סימן שאלה או מקף בתוך השורה מוריד עוד ${BREAK_PAUSE_S} שניות (שורה של 2.5 שניות: עד ${maxWords(2.5)} מילים; 3 שניות: עד ${maxWords(3)}; 5 שניות: עד ${maxWords(5)}). רשימה של מילים עם פסיקים ארוכה בקול ממה שנראה.`;
+/**
+ * The least of its time the narration must fill. The edit cuts the scenes to the take, so a short
+ * narration makes a short film: a 15-second brief scripted at 11 seconds of speech came out 13.2
+ * (Staging, 5 Nov). The save tool refuses a script whose narration says less (tools/script-fill.ts).
+ */
+export const MIN_FILL = 0.85;
+/** Words a beat may stay under its maxWords (PACE_GUIDE asks for each beat to come this close). */
+export const FILL_SLACK_WORDS = 1;
+
+/** How the pace is stated to Carmen: the same rules maxWords and MIN_FILL check (the save tool refuses past them). */
+export const PACE_GUIDE = `בכל שורה עד (השניות פחות ${LINE_END_PAUSE_S}) כפול ${WORDS_PER_SECOND} מילים, וכל פסיק, נקודה, סימן שאלה או מקף בתוך השורה מוריד עוד ${BREAK_PAUSE_S} שניות (שורה של 2.5 שניות: עד ${maxWords(2.5)} מילים; 3 שניות: עד ${maxWords(3)}; 5 שניות: עד ${maxWords(5)}). רשימה של מילים עם פסיקים ארוכה בקול ממה שנראה. ומלאי כל שורה כמעט עד המקסימום שלה (לכל היותר מילה אחת פחות): הסרט נחתך לפי הקריינות, וקריינות קצרה יוצרת סרט קצר מהמתוכנן. קריינות שנאמרת בפחות מ-${Math.round(MIN_FILL * 100)}% מזמן השורות שלה לא תישמר.`;
 
 /** Words in a spoken line (punctuation alone is not a word). */
 export const spokenWords = (text: string) =>

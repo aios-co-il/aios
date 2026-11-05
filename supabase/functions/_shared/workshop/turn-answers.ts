@@ -1,7 +1,7 @@
 /**
  * What the user's workshop message settles before Carmen acts (turn-note.ts): a budget approved by
  * its code, the answers tapped to her questions, a concept approved on the board and a tapped
- * script approval.
+ * approval of the script, the scene pictures or the narration.
  */
 
 import { approveFromMessage } from "./budget-approve.ts";
@@ -12,11 +12,15 @@ import { CONCEPT_LABEL } from "./film-script.ts";
 import { syncBriefPage } from "./project-brief.ts";
 import { withTappedScriptApproval } from "./script-approval.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
+import { withTappedNarrationApproval } from "./tools/narration-approval.ts";
+import { withTappedStillsApproval } from "./tools/stills-approval.ts";
 
 /**
  * Saves what the user's message settles before Carmen acts: a budget approved by its code, the
- * tapped brief answers and a tapped script approval (kept with the turn, so Carmen cannot replace
- * the script in it; save-script-guards.ts). Returns the payload and the lines that say so; on a
+ * tapped brief answers, a tapped script approval (kept with the turn, so Carmen cannot replace
+ * the script in it; save-script-guards.ts) and a tapped approval of the scene pictures or the
+ * narration (so a production call in a later turn honors it even when Carmen called another tool
+ * in this one). Returns the payload and the lines that say so; on a
  * failed write the stored payload stays and nothing is said.
  */
 export async function saveTurnAnswers(
@@ -35,7 +39,9 @@ export async function saveTurnAnswers(
     ...(concept ? { [CONCEPT_LABEL]: concept } : {}),
   };
   const briefed = withBriefAnswers(approved?.payload ?? payload, tapped);
-  const next = withTappedScriptApproval(briefed, turn);
+  const scripted = withTappedScriptApproval(briefed, turn);
+  const pictured = withTappedStillsApproval(scripted, turn);
+  const next = withTappedNarrationApproval(pictured, turn);
   if (next === payload) {
     return { payload, lines: [] };
   }
@@ -49,7 +55,11 @@ export async function saveTurnAnswers(
     return { payload, lines: [] };
   }
   await syncBriefPage(supabase, tenantId, itemId, payload, next);
-  const lines = next === briefed ? [] : [SCRIPT_APPROVED_NOW];
+  const lines = [
+    ...(scripted === briefed ? [] : [SCRIPT_APPROVED_NOW]),
+    ...(pictured === scripted ? [] : [STILLS_APPROVED_NOW]),
+    ...(next === pictured ? [] : [NARRATION_APPROVED_NOW]),
+  ];
   if (concept) {
     lines.push(conceptApprovedNow(concept));
   }
@@ -75,3 +85,11 @@ const conceptApprovedNow = (concept: string) =>
 /** The user tapped approval on the script in this message. */
 const SCRIPT_APPROVED_NOW =
   "המשתמש אישר עכשיו את התסריט. אל תשמרי אותו שוב ב-workshop_save_script; המשיכי מיד ל-workshop_storyboard, סצנה אחת לכל שורה.";
+
+/** The user tapped approval on the scene pictures in this message (saved on the project). */
+const STILLS_APPROVED_NOW =
+  "המשתמש אישר עכשיו את תמונות הסצנות (האישור נשמר). המשיכי לשלב הבא: בחירת קול אם עוד לא נבחר (workshop_choose_voice), אחרת workshop_produce_video.";
+
+/** The user tapped approval on the narration in this message (saved on the project). */
+const NARRATION_APPROVED_NOW =
+  "המשתמש אישר עכשיו את הקריינות (האישור נשמר). המשיכי מיד ל-workshop_produce_video.";

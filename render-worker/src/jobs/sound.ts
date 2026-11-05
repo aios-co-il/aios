@@ -25,6 +25,7 @@ import {
   musicLengthMs,
   quotedMusicMs,
 } from "./music-length.ts";
+import { applyPronunciations, loadPronunciations } from "./pronunciations.ts";
 import { speakScript } from "./speak-script.ts";
 import { vocalizeForSpeech } from "./vocalize.ts";
 
@@ -164,6 +165,8 @@ export async function generateVoice({
         // The whole script, so a later produce does not pay for the same narration again.
         text,
         lines: spoken.lines,
+        // The tenant pronunciations this take used (workshop_narration_take compares them).
+        pronunciations: meta.pronunciations ?? {},
       },
       p_run_id: run.id,
       p_lines: spoken.lines,
@@ -215,8 +218,9 @@ export async function generateVoice({
 }
 
 /**
- * Makes and stores a new take of the script. The nikud call is not paid, so it runs before the
- * submit guard, which holds only the paid engine call and the save of its file.
+ * Makes and stores a new take of the script. The pronunciation read and the nikud call are not
+ * paid, so they run before the submit guard, which holds only the paid engine call and the save of
+ * its file.
  */
 async function newTake({
   db,
@@ -228,13 +232,22 @@ async function newTake({
   engines,
   log,
 }) {
-  const voiced = await vocalize(script, { log });
+  // The tenant's pronunciations come first; the nikud step keeps the words they point.
+  const said = applyPronunciations(
+    script,
+    await loadPronunciations(db, run.tenant_id, log),
+  );
+  const voiced = await vocalize(said.text, { log });
   return generateOnce({
     db,
     run,
     path,
     submitting,
-    generate: () => speakScript({ run, script, voiced, ...engines, log }),
+    generate: async () => {
+      const take = await speakScript({ run, script, voiced, ...engines, log });
+      // Kept with the take: the narration review re-records when one of them changes.
+      return { ...take, meta: { ...take.meta, pronunciations: said.used } };
+    },
   });
 }
 

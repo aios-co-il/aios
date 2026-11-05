@@ -27,10 +27,14 @@ export const isScriptLabel = (label: string) => label.includes("תסריט");
 /** The scene pictures' approval question (tools/stills-approval.ts); the brief does not keep it. */
 export const STILLS_LABEL = "תמונות הסצנות";
 
+/** The narration's approval question (tools/narration-review.ts); the brief does not keep it. */
+export const NARRATION_LABEL = "הקריינות";
+
 /**
  * The answers to Carmen's questions in her last message, for the brief. The budget question is
- * answered by its code (budget-approve.ts), the script question by script-approval.ts and the
- * pictures question by tools/stills-approval.ts; none is kept in the brief.
+ * answered by its code (budget-approve.ts), the script question by script-approval.ts, the
+ * pictures question by tools/stills-approval.ts and the narration question by
+ * tools/narration-review.ts; none is kept in the brief.
  */
 export function tappedAnswers(
   lastAssistant: string,
@@ -40,7 +44,8 @@ export function tappedAnswers(
     (choice) =>
       !/תקציב/.test(choice.label) &&
       !isScriptLabel(choice.label) &&
-      choice.label !== STILLS_LABEL,
+      choice.label !== STILLS_LABEL &&
+      choice.label !== NARRATION_LABEL,
   );
   return answersTo(asked, userText);
 }

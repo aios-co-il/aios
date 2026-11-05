@@ -2,7 +2,7 @@ import { spendBudget } from "../budget.ts";
 import { estimateImages, imageFormatsFrom } from "../defaults.ts";
 import { gatePaid } from "../gate.ts";
 import { lookOf, sceneReferenceUrl, stillPrompt, withLook } from "../look.ts";
-import { STILL_NO_TEXT } from "../picture-text.ts";
+import { stillNoText } from "../picture-text.ts";
 import {
   ensureStillPage,
   failedPatch,
@@ -182,7 +182,8 @@ export async function workshopMakeStills(ctx: ToolContext) {
           userReferences: own ? 0 : look.references.length,
           hasAnchor: !own && Boolean(anchorUrl),
           sceneReference: Boolean(own),
-          suffix: STILL_NO_TEXT,
+          suffix: stillNoText(scene.visual_prompt),
+          noText: true,
         }),
         format,
         references,

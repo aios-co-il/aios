@@ -23,6 +23,7 @@ import { asRecord, recordArtifact } from "../record.ts";
 import { SCRIPT_CHOICE } from "../script-approval.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { isAutoMode } from "../workshop-mode.ts";
+import { fillRefusal } from "./script-fill.ts";
 import { scriptSaveStop } from "./save-script-guards.ts";
 
 const MAX_BEATS = 20;
@@ -171,7 +172,7 @@ function beatsRefusal(beats: Array<ScriptBeat>, film: number | null) {
   if (film && Math.abs(total - film) > LENGTH_SLACK_S) {
     return `סכום השורות ${total} שניות, והסרט ${film} שניות. התאימי את duration_s כך שהסכום יהיה ${film}. אם המשתמש שינה את אורך הסרט, עדכני אותו קודם ב-workshop_storyboard עם brief_answers {"אורך": "<האורך החדש>"}.`;
   }
-  return null;
+  return fillRefusal(beats);
 }
 
 /**
