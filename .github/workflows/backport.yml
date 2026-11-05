@@ -1,0 +1,132 @@
+# Opens a develop backport PR when a hotfix merges into main (AIO-145).
+#
+# Feature and hotfix history stays linear, so a main hotfix must be cherry-picked onto
+# develop. This ports every main commit that has no patch-equivalent on develop
+# (scripts/main-missing-from.sh), oldest first, and opens a PR to develop. The `Check
+# develop has main` run stays red until a human queues and merges that PR.
+#
+# A develop -> main release PR does not trigger it. On a cherry-pick conflict the
+# workflow opens no PR and comments on the hotfix PR with a prompt for a coding agent.
+
+name: Backport hotfix to develop
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: backport-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backport:
+    name: Cherry-pick onto develop
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref != 'develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      BRANCH: backport/pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Require the backport app
+        env:
+          APP_ID: ${{ secrets.RELEASE_APP_ID }}
+          APP_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::error title=Backport app missing::Secrets RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY are not set, so no backport PR can be opened. Port $PR_URL by hand."
+            exit 1
+          fi
+
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Skip when develop already has every main change
+        id: missing
+        run: |
+          if scripts/main-missing-from.sh origin/develop > missing.txt; then
+            echo "todo=false" >> "$GITHUB_OUTPUT"
+            echo "develop already has every main change"
+          else
+            echo "todo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip when a backport PR is already open
+        id: existing
+        if: steps.missing.outputs.todo == 'true'
+        run: |
+          open=$(gh pr list --base develop --head "$BRANCH" --state open --json number --jq 'length')
+          echo "open=$open" >> "$GITHUB_OUTPUT"
+
+      - name: Cherry-pick the missing main commits onto develop
+        id: pick
+        if: steps.missing.outputs.todo == 'true' && steps.existing.outputs.open == '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH" origin/develop
+          # git cherry lists oldest first; merge commits are skipped, they carry no patch.
+          shas=$(git cherry origin/develop origin/main | awk '$1 == "+" {print $2}')
+          for sha in $shas; do
+            if ! git cherry-pick -x "$sha"; then
+              git diff --name-only --diff-filter=U > conflicts.txt
+              git cherry-pick --abort
+              echo "result=conflict" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "result=clean" >> "$GITHUB_OUTPUT"
+
+      - name: Open the backport PR
+        if: steps.pick.outputs.result == 'clean'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          git push origin "$BRANCH"
+          printf 'Backport of %s to develop, made by `git cherry-pick -x`.\n\nA human queues this PR. `Check develop has main` stays red until it merges, and the next release is blocked until then.\n' "$PR_URL" > body.md
+          gh pr create --base develop --head "$BRANCH" --title "$PR_TITLE" --body-file body.md
+
+      - name: Comment on the hotfix PR when the cherry-pick conflicts
+        if: steps.pick.outputs.result == 'conflict'
+        run: |
+          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --slurpfile commits <(
+            jq -R -s '[split("\n")[] | select(startswith("  ")) | ltrimstr("  ")
+              | {sha: (split(" ")[0]), subject: (split(" ")[1:] | join(" "))}]' missing.txt
+          ) '{
+              kind: "backport-conflict",
+              repo: $repo,
+              hotfixPr: $pr,
+              commits: $commits[0],
+              conflictingFiles: [split("\n")[] | select(. != "")]
+            }' conflicts.txt > prompt-input.json
+          node .github/scripts/print-agent-prompt.ts prompt-input.json > prompt.txt
+          {
+            echo "The automatic backport to \`develop\` stopped on a merge conflict, so no backport PR was opened. The next release is blocked until the hotfix is ported."
+            echo
+            echo "Give this prompt to your coding agent:"
+            echo
+            echo '```text'
+            cat prompt.txt
+            echo
+            echo '```'
+          } > comment.md
+          gh pr comment "$PR" --body-file comment.md
+          echo "::error title=Backport conflict::Cherry-pick of $PR_URL conflicts with develop. A prompt for your coding agent is in a comment on the hotfix PR."
+          exit 1
