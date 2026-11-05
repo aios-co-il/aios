@@ -130,25 +130,9 @@ export const MODEL_CATALOG: ModelDef[] = [
     capabilities: ["text", "tools"],
   },
   {
-    id: "openai/gpt-5.4-pro",
-    alias: "gpt-5.4-pro",
-    label: "GPT-5.4 Pro",
-    family: "openai",
-    isLatest: true,
-    capabilities: ["text", "vision", "tools"],
-  },
-  {
     id: "openai/gpt-5.5",
     alias: "gpt-5.5",
     label: "GPT-5.5",
-    family: "openai",
-    isLatest: true,
-    capabilities: ["text", "vision", "tools"],
-  },
-  {
-    id: "openai/gpt-5.5-pro",
-    alias: "gpt-5.5-pro",
-    label: "GPT-5.5 Pro",
     family: "openai",
     isLatest: true,
     capabilities: ["text", "vision", "tools"],
@@ -216,6 +200,12 @@ export function resolveModelId(engine: string | null | undefined): string {
     "manus-1.6-max": "google/gemini-2.5-pro",
     "manus-1.6-lite": "google/gemini-2.5-flash-lite",
     "claude-sonnet": "anthropic/claude-sonnet-4-6",
+    // OpenAI serves its "pro" models only on the Responses API, and Carmen's loop uses Chat
+    // Completions: an agent still set to one runs on its chat sibling.
+    "gpt-5.4-pro": "openai/gpt-5.4",
+    "openai/gpt-5.4-pro": "openai/gpt-5.4",
+    "gpt-5.5-pro": "openai/gpt-5.5",
+    "openai/gpt-5.5-pro": "openai/gpt-5.5",
   };
   return legacy[engine] || "google/gemini-3-flash-preview";
 }

@@ -52,7 +52,8 @@ export function lazyBrainTail<T extends { connectionId?: string }>(
 
 /**
  * A provider answer that moves Carmen's loop to the next link: a connected brain's failure,
- * a rate limit or exhausted balance, or a key the provider refused (401/402/403).
+ * a rate limit or exhausted balance, a key the provider refused (401/402/403), or a model this
+ * endpoint cannot serve (for example a Responses-only OpenAI model on Chat Completions).
  */
 export function movesToNextLink(
   status: number,
@@ -62,7 +63,20 @@ export function movesToNextLink(
   if (connected) return true;
   if (status === 401 || status === 402 || status === 403 || status === 429)
     return true;
+  if (isModelUnavailable(status, body)) {
+    return true;
+  }
   return /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
+    body,
+  );
+}
+
+/** The provider cannot run this model here: it does not exist, or is not a chat model. */
+export function isModelUnavailable(status: number, body: string): boolean {
+  if (status !== 400 && status !== 404) {
+    return false;
+  }
+  return /not a chat model|model_not_found|does not exist|unsupported model/i.test(
     body,
   );
 }

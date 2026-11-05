@@ -22,6 +22,7 @@ import {
 } from "../_shared/carmen/brain-engine/load.ts";
 import { resolveWorkshopAwareEngine } from "../_shared/carmen/brain-engine/workshop-brain.ts";
 import {
+  isModelUnavailable,
   movesToNextLink,
   openRouterTail,
   lazyBrainTail,
@@ -16061,7 +16062,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               ? "מגבלת קצב/קרדיט"
               : res.status === 401 || res.status === 403
                 ? "המפתח נדחה"
-                : "קרדיט נגמר";
+                : isModelUnavailable(res.status, err)
+                  ? "המודל לא זמין"
+                  : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,

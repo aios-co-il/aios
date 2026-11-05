@@ -1,5 +1,6 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  isModelUnavailable,
   lazyBrainTail,
   movesToNextLink,
   openRouterTail,
@@ -290,3 +291,15 @@ Deno.test(
     assertStrictEquals(movesToNextLink(500, "boom", true), true);
   },
 );
+
+Deno.test("a model the endpoint cannot serve moves to the next link", () => {
+  const notChat =
+    '{"error":{"message":"This is not a chat model and thus not supported in the v1/chat/completions endpoint."}}';
+  assertStrictEquals(movesToNextLink(404, notChat, false), true);
+  assertStrictEquals(
+    movesToNextLink(404, '{"error":{"code":"model_not_found"}}', false),
+    true,
+  );
+  assertStrictEquals(isModelUnavailable(500, notChat), false);
+  assertStrictEquals(movesToNextLink(400, "bad request", false), false);
+});
