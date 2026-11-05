@@ -1,22 +1,26 @@
 -- A film never spends past the budget the user approved (Staging, 5 Nov). Safe to re-run.
 --
--- 1. Each paid run carries its own share of the quote. Callers pass one estimate for all the
+-- 1. Each paid run shows its own share of the quote. Callers pass one estimate for all the
 --    scenes they queue (workshop_produce_video and the Video Studio price the whole set), and
 --    every run stored all of it: six OpenRouter clips quoted $2.52 together showed $2.52 each,
---    $15.12 across the film, while each really cost $0.42. Clips, a talking film's per-scene
---    voices and lip syncs now store the scene's share, weighted by its length (duration_s over
---    the seconds of the scenes the estimate covers; equal shares when there are none). Credits
---    take the same share, rounded to 0.01 (they are informational; the budget counts usd).
+--    $15.12 across the film, while each really cost $0.42. Clips and lip syncs now store the
+--    scene's share weighted by its length (duration_s over the seconds of the scenes the estimate
+--    covers), a talking film's per-scene voices their line's share of the characters; equal
+--    shares when there are none. Credits take the same share, rounded to 0.01 (informational).
 --    Every estimate a run stores is marked per_run: true, meaning "this run's own quote".
 --
 -- 2. The claim reserves what a paid job may cost before handing it out. claim_video_run stopped
 --    a paid job only once the recorded spend had reached the budget, so the jobs already running
 --    could together pass it. A paid job no provider has taken yet is now refused when the
---    project's pictures, what its finished runs cost and what its jobs in flight are quoted at
---    (each run's estimate, or its cost when larger), with this job's own quote, would pass the
---    approved budget. Only per_run estimates are reserved: a run queued before this migration
---    still carries the whole film's estimate, which would count N times, so it counts at its
---    recorded cost only, as before (those runs drain within the deploy's first production).
+--    project's pictures, what its runs cost and what is left of the quote for the parts still in
+--    flight would pass the approved budget. Within a running production the room comes from the
+--    quote produce_video stored (payload.video.production.estimate), per part: clips and lip sync
+--    together (a talking scene's voice and Veo price are in the lip-sync quote), narration, music;
+--    each keeps its quote minus what its runs in this production cost. Per-run shares are not
+--    summed: providers bill minimums (a 2 s OpenRouter clip as 5 s), so a short scene that
+--    finished first would leave its share too small and a long one's too big. A run outside a
+--    production's quote counts at its per_run estimate while in flight; one queued before this
+--    migration (whole-film estimate, no per_run) at its recorded cost only.
 --    One claim runs at a time (a transaction advisory lock); a claim that finds the lock taken
 --    returns no run and the worker polls again, so two workers never both count the same room.
 --    Unchanged: free preview clips, a job a provider already took, the render, and projects
@@ -31,8 +35,8 @@
 -- workshop_budget_short(run), service role only.
 
 -- ── 0. Shares ───────────────────────────────────────────────────────────────
--- A scene's share of an estimate covering several: its seconds over theirs, or an equal share
--- when the seconds are unknown.
+-- A scene's share of an estimate covering several: its seconds (or characters) over theirs, or
+-- an equal share when they are unknown.
 create or replace function public.video_scene_share(p_seconds numeric, p_total_seconds numeric, p_scenes bigint)
 returns numeric
 language sql
@@ -48,7 +52,7 @@ as $$
 $$;
 
 -- The estimate one run stores: p_share of usd and credits, marked per_run (its own quote, which
--- workshop_budget_short reserves). Anything that is not an object stores as an empty estimate.
+-- workshop_budget_short reserves for a run outside a running production's quote). Anything that is not an object stores as an empty estimate.
 create or replace function public.video_run_estimate(p_estimate jsonb, p_share numeric)
 returns jsonb
 language sql
@@ -177,7 +181,7 @@ grant execute on function public.queue_video_clips(uuid, uuid[], text, jsonb, uu
 
 -- ── 1b. Talking film: each scene's voice stores its share ────────────────────
 -- Queues the music bed, or the narration: one continuous take, or with a talking scene one
--- voice per narrated scene whose take is not current, each with its scene's share of the quote.
+-- voice per narrated scene whose take is not current, each with its line's share of the quote.
 create or replace function public.queue_video_sound(
   p_item_id uuid,
   p_kind text,
@@ -197,6 +201,7 @@ declare
   v_item public.marketing_work_items;
   v_stage uuid;
   v_seconds numeric;
+  v_chars numeric;
   v_ids uuid[];
   v_script text;
   v_voice_id text := nullif(btrim(coalesce(p_voice_id, '')), '');
@@ -263,11 +268,11 @@ begin
   -- With a talking scene each narrated scene gets its own voice, played inside that scene, so
   -- no narration runs over the character's line. A take in another voice is made again.
   if public.video_film_talks(p_item_id) then
-    -- share: the voice estimate covers every narrated scene asked for, so each run stores its
-    -- scene's part, as queue_video_clips does.
-    select coalesce(sum(scene.duration_s), 0) into v_seconds
-      from public.marketing_video_scenes as scene
-     where scene.id = any(v_ids);
+    -- share: the voice estimate covers every narrated scene asked for and is priced by
+    -- characters (voiceEstimate), so each run stores its line's share of them.
+    select coalesce(sum(char_length(n.line)), 0) into v_chars
+      from public.video_narrated_scenes(p_item_id) as n
+     where n.scene_id = any(v_ids);
     return query
     insert into public.marketing_runs (tenant_id, item_id, stage_id, kind, scene_id, status, provider, input)
     select
@@ -284,10 +289,9 @@ begin
         'voiceover_text', n.line,
         'voice_id', v_voice_id,
         'estimate', public.video_run_estimate(
-          p_estimate, public.video_scene_share(scene.duration_s, v_seconds, cardinality(v_ids)))
+          p_estimate, public.video_scene_share(char_length(n.line), v_chars, cardinality(v_ids)))
       )
     from public.video_narrated_scenes(p_item_id) as n
-    join public.marketing_video_scenes as scene on scene.id = n.scene_id
     left join public.marketing_assets as voice on voice.id = n.voice_asset_id
     where n.scene_id = any(v_ids)
       and not (
@@ -451,6 +455,8 @@ begin
         'voiceover_text', talk.line,
         'lipsync', true,
         'voice_id', v_voice_id,
+        -- reserve: lipsyncPassUsd prices this voice inside the lip-sync quote, which
+        -- workshop_budget_short reserves for it ('lipsync': true).
         'estimate', '{}'::jsonb
       )
     from talk
@@ -514,9 +520,9 @@ grant execute on function public.queue_video_lipsync(uuid, uuid[], jsonb, uuid, 
 
 -- ── 2. Claim: a paid job is handed out only while its quote fits the budget ──
 -- Whether handing out this run could take its project past the budget the user approved: the
--- recorded spend has reached it, or the pictures, the runs' costs, the per_run quotes of the jobs
--- in flight and this run's own quote together pass it. Never raises: a value that is not a number
--- counts as none, so one odd payload cannot stop the claim.
+-- recorded spend has reached it, or the pictures, the runs' costs and what is left of the quotes
+-- of the parts still in flight together pass it. Never raises on a value that is not a number:
+-- it counts as none, so one odd payload cannot stop the claim.
 create or replace function public.workshop_budget_short(p_run_id uuid)
 returns boolean
 language sql
@@ -534,36 +540,79 @@ as $$
         then (b->'quoted_usd'->>'workshop_make_creative')::numeric else 0 end
       + case when jsonb_typeof(b->'quoted_usd'->'workshop_make_stills') = 'number'
         then (b->'quoted_usd'->>'workshop_make_stills')::numeric else 0 end as pictures,
+      -- reserve: the running production's quote (produce_video stores it by part).
+      case when prod->>'status' = 'running'
+            and jsonb_typeof(prod->'started_at') = 'string'
+            and jsonb_typeof(prod->'estimate') = 'object'
+        then (prod->>'started_at')::timestamptz end as started,
+      prod->'estimate' as quote,
       item.id as item_id
       from target
       join public.marketing_work_items as item on item.id = target.item_id
-      cross join lateral (select item.payload->'workshop_budget' as b) as budget
+      cross join lateral (
+        select item.payload->'workshop_budget' as b, item.payload->'video'->'production' as prod
+      ) as budget
+  ),
+  -- reserve: the parts of the quote, pooled the way video-cost.ts prices them. Clips and lip sync
+  -- share one pool: a talking clip's Veo price and a talking scene's own voice are in the lip-sync
+  -- quote (lipsyncPassUsd), and a quote priced on the OpenRouter fallback splits the two its way.
+  quoted as (
+    select part.key, part.pool, (amounts.quote->part.key->>'usd')::numeric as usd
+      from amounts
+      cross join lateral (
+        values ('clips', 'picture'), ('lipsync', 'picture'), ('voice', 'voice'), ('music', 'music')
+      ) as part(key, pool)
+     where amounts.started is not null
+       and jsonb_typeof(amounts.quote->part.key->'usd') = 'number'
   ),
   runs as (
-    select
-      coalesce(sum(run.cost_usd), 0) as spent,
-      -- reserve: a job in flight (running, taken by a provider, or this one) counts at its own
-      -- quote until it reports a larger cost. A run queued before 20261105140000 holds the whole
-      -- film's estimate (no per_run), so it counts at its cost only.
-      coalesce(sum(
-        case
-          when run.status in ('queued', 'running')
-           and (run.id = p_run_id or run.status = 'running' or run.provider_job_id is not null)
-           and run.input->'estimate'->'per_run' = 'true'::jsonb
-           and jsonb_typeof(run.input->'estimate'->'usd') = 'number'
-            then greatest(run.cost_usd, (run.input->'estimate'->>'usd')::numeric)
-          else run.cost_usd
-        end
-      ), 0) as projected
+    select run.status, run.cost_usd, quoted.pool,
+           -- a run outside the production's quote counts at its own per_run quote while in flight
+           -- (running, taken by a provider, or this one), or at its cost when larger. A run
+           -- queued before 20261105140000 holds the whole film's estimate (no per_run), so it
+           -- counts at its cost only.
+           case
+             when run.status in ('queued', 'running')
+              and (run.id = p_run_id or run.status = 'running' or run.provider_job_id is not null)
+              and run.input->'estimate'->'per_run' = 'true'::jsonb
+              and jsonb_typeof(run.input->'estimate'->'usd') = 'number'
+               then greatest(run.cost_usd, (run.input->'estimate'->>'usd')::numeric)
+             else run.cost_usd
+           end as own
       from amounts
       join public.marketing_runs as run on run.item_id = amounts.item_id
+      cross join lateral (
+        select case
+          when run.kind = 'clip' then 'clips'
+          when run.kind = 'voice' and run.input->>'lipsync' = 'true' then 'lipsync'
+          else run.kind
+        end as key
+      ) as part
+      left join quoted on quoted.key = part.key and run.created_at >= amounts.started
      where run.kind in ('clip', 'voice', 'music', 'lipsync', 'render')
+  ),
+  -- reserve: each pool with a job queued or running keeps what is left of its quote after what
+  -- its runs in this production cost, so jobs finishing cheap or dear move the room to the rest.
+  pools as (
+    select greatest(0, (select sum(quoted.usd) from quoted where quoted.pool = runs.pool)
+                       - sum(runs.cost_usd)) as room
+      from runs
+     where runs.pool is not null
+     group by runs.pool
+    having bool_or(runs.status in ('queued', 'running'))
+  ),
+  totals as (
+    select coalesce(sum(runs.cost_usd), 0) as spent,
+           coalesce(sum(runs.cost_usd), 0)
+           + coalesce(sum(runs.own - runs.cost_usd) filter (where runs.pool is null), 0)
+           + coalesce((select sum(pools.room) from pools), 0) as projected
+      from runs
   )
   select coalesce((
     select amounts.cap > 0
-       and (amounts.pictures + runs.spent >= amounts.cap
-            or amounts.pictures + runs.projected > amounts.cap + 0.005)
-      from amounts, runs
+       and (amounts.pictures + totals.spent >= amounts.cap
+            or amounts.pictures + totals.projected > amounts.cap + 0.005)
+      from amounts, totals
   ), false);
 $$;
 

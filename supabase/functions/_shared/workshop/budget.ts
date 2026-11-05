@@ -5,8 +5,8 @@
  * asking; a step that would go over stops and asks to raise the budget. A run David approved
  * in the approvals queue does not draw on the budget check. A quote is only an estimate: the
  * render worker's claim (claim_video_run, 20261105140000) hands out a paid job only while what the
- * project really spent, the quotes of its jobs in flight and the job's own quote fit the approved
- * budget; each clip, talking-scene voice and lip-sync run carries its scene's share of the quote.
+ * project really spent and what is left of the production quote for the parts still in flight
+ * (clips with lip sync, narration, music) fit the approved budget.
  */
 
 import type {
