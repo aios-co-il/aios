@@ -14,6 +14,10 @@ import {
   PREVIEW_PROVIDER,
   talkingPrompt,
 } from "../providers/index.ts";
+import {
+  clipNegativePrompt,
+  showsPerson,
+} from "../providers/composed-motion.ts";
 import { publicStill } from "./still-image.ts";
 
 const BUCKET = "creative-video";
@@ -134,6 +138,9 @@ export async function generateClip({
         prompt: talking
           ? talkingPrompt(input.motion_prompt, talking)
           : clipPrompt(input.motion_prompt),
+        negativePrompt: clipNegativePrompt(
+          showsPerson(input.motion_prompt, Boolean(talking)),
+        ),
         durationS,
         aspect,
         generateAudio: Boolean(talking) || input.generate_audio === true,

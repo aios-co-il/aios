@@ -1,7 +1,7 @@
 /** workshop_update_scene: a change to one scene of the storyboard. */
 
 import { SCENE_TRANSITIONS, TRANSITION_HELP } from "./film-look.ts";
-import { motionField } from "./motion-text.ts";
+import { directedMotionField } from "./motion-direction.ts";
 import { pictureField } from "./picture-text.ts";
 import { SCENE_OVERLAYS, SCENE_OVERLAY_HELP } from "./scene-overlays.ts";
 import { spokenField } from "./spoken-text.ts";
@@ -60,7 +60,7 @@ export const UPDATE_SCENE_TOOL = {
       },
       motion_prompt: {
         type: "string",
-        description: motionField("איך הסצנה זזה, באנגלית."),
+        description: directedMotionField("איך הסצנה זזה, באנגלית."),
       },
       visual_prompt: {
         type: "string",

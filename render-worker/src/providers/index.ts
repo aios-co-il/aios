@@ -8,6 +8,7 @@ import { elevenLabsProvider } from "./elevenlabs.ts";
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
 import { higgsfieldProvider } from "./higgsfield.ts";
 import { klingProvider } from "./kling.ts";
+import { PERSON_LOCK, showsPerson } from "./composed-motion.ts";
 import { textlessMotion } from "./textless-motion.ts";
 import { openRouterLipsyncProvider, lipsyncCandidates } from "./lipsync.ts";
 import { elevenLabsLipsyncProvider } from "./lipsync-elevenlabs.ts";
@@ -81,7 +82,8 @@ export function lipsyncProviderNames(
 
 /**
  * Prompt for a scene whose character speaks: the line is quoted so a speech-capable model
- * (Veo 3.1, Seedance 2.5) says it with matching lips. Always ends with the no-text rule.
+ * (Veo 3.1, Seedance 2.5) says it with matching lips. The speaker stays composed
+ * (composed-motion.ts). Always ends with the no-text rule.
  */
 export const talkingPrompt = (
   motionPrompt: string | null | undefined,
@@ -91,6 +93,7 @@ export const talkingPrompt = (
     textlessMotion(motionPrompt) ||
       "Subtle natural motion, gentle camera push-in.",
     `${String(speaker ?? "").trim() || "The character"} looks at the camera and says in Hebrew, with natural lip movement matching every word: "${String(line ?? "").trim()}".`,
+    PERSON_LOCK,
     "Only this line is spoken. No subtitles. No text, no letters, no logos.",
   ].join(" ");
 
@@ -159,11 +162,14 @@ export function getVideoProvider(
 
 /**
  * Every clip prompt ends with the no-text rule, and its motion never asks for text
- * (textless-motion.ts): image models garble Hebrew.
+ * (textless-motion.ts): image models garble Hebrew. A clip with a person keeps her composed
+ * (composed-motion.ts), also on engines without a negative prompt.
  */
-export const clipPrompt = (motionPrompt: string | null | undefined) =>
-  [
-    textlessMotion(motionPrompt) ||
-      "Subtle natural motion, gentle camera push-in.",
+export const clipPrompt = (motionPrompt: string | null | undefined) => {
+  const motion = textlessMotion(motionPrompt);
+  return [
+    motion || "Subtle natural motion, gentle camera push-in.",
+    ...(showsPerson(motion) ? [PERSON_LOCK] : []),
     "No text, no letters, no logos.",
   ].join(" ");
+};
