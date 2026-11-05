@@ -19,6 +19,7 @@ class SignInActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_sign_in)
+        keepClearOfSystemBars()
         account = AiosAccount(this)
         status = findViewById(R.id.sign_in_status)
         findViewById<View>(R.id.sign_in_portrait).clipToOutline = true
@@ -27,11 +28,12 @@ class SignInActivity : AppCompatActivity() {
         signInButton.setOnClickListener { signInWithPassword() }
         findViewById<Button>(R.id.google_button).setOnClickListener { signInWithGoogle() }
         if (!account.isConfigured) showStatus(getString(R.string.not_configured))
+        intent.getStringExtra(EXTRA_ERROR)?.let(::showStatus)
     }
 
     override fun onResume() {
         super.onResume()
-        if (account.isSignedIn) openHome(this)
+        if (account.isReady) openHome(this)
     }
 
     private fun signInWithPassword() {
@@ -64,6 +66,9 @@ class SignInActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Shown on the sign-in screen after a failed sign-in, such as an account with no tenant. */
+        const val EXTRA_ERROR = "sign_in_error"
+
         /** Opens Carmen's home screen as the only screen in the task. */
         fun openHome(from: AppCompatActivity) {
             from.startActivity(

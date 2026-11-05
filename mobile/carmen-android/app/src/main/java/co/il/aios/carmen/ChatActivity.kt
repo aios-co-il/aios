@@ -22,6 +22,7 @@ class ChatActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
+        keepClearOfSystemBars(withKeyboard = true)
         list = findViewById(R.id.chat_list)
         scroll = findViewById(R.id.chat_scroll)
         input = findViewById(R.id.chat_input)

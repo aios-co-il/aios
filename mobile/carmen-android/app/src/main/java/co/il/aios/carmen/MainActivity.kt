@@ -42,12 +42,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!AiosAccount(this).isSignedIn) {
+        val account = AiosAccount(this)
+        if (!account.isReady) {
+            // Signed in without a tenant (an older build allowed it): start over from sign-in.
+            if (account.isSignedIn) account.signOut()
             startActivity(Intent(this, SignInActivity::class.java))
             finish()
             return
         }
         setContentView(R.layout.activity_home)
+        keepClearOfSystemBars()
         Notifications.createChannels(this)
         status = findViewById(R.id.home_status)
         listenSwitch = findViewById(R.id.listen_switch)
