@@ -2,32 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { CreativeVariation } from "./types";
 import { serializeCreativeAssetMeta } from "./creativeAssetMeta";
 
-/** The original insert projection, serialized by Supabase's JSON transport. */
-function originalMetadataJson(active: CreativeVariation) {
-  return JSON.stringify({
-    source: "manual_edit",
-    skin_slug: "social_media",
-    variation_id: active.id,
-    variation_name: active.name,
-    comments: active.comments,
-    layers: active.layers,
-    format: active.format,
-  });
-}
-
-/** A complete editor variation without invoking a schema or applying defaults. */
-function variation(): CreativeVariation {
-  return {
-    id: "variation",
-    imageUrl: "image",
-    name: "Name",
-    layers: [],
-    comments: [],
-    format: "1:1",
-    createdAt: "now",
-  };
-}
-
 describe("creative metadata transport parity", () => {
   it("keeps the exact seven fields and nested opaque metadata", () => {
     const active = variation();
@@ -104,3 +78,29 @@ describe("creative metadata transport parity", () => {
     expect(() => serializeCreativeAssetMeta(active)).toThrow(TypeError);
   });
 });
+
+/** The original insert projection, serialized by Supabase's JSON transport. */
+function originalMetadataJson(active: CreativeVariation) {
+  return JSON.stringify({
+    source: "manual_edit",
+    skin_slug: "social_media",
+    variation_id: active.id,
+    variation_name: active.name,
+    comments: active.comments,
+    layers: active.layers,
+    format: active.format,
+  });
+}
+
+/** A complete editor variation without invoking a schema or applying defaults. */
+function variation(): CreativeVariation {
+  return {
+    id: "variation",
+    imageUrl: "image",
+    name: "Name",
+    layers: [],
+    comments: [],
+    format: "1:1",
+    createdAt: "now",
+  };
+}
