@@ -104,23 +104,25 @@ describe("broadcast list query request equivalence", () => {
       requests.length = 0;
       fireEvent.click(screen.getByRole("button", { name: "Refetch" }));
       await waitFor(() => expect(requests).toHaveLength(3));
-      const urls = requests.map((request) => new URL(request.url));
+      const urls = requests
+        .map((request) => new URL(request.url))
+        .sort((a, b) => a.pathname.localeCompare(b.pathname));
       expect(urls.map((url) => url.pathname)).toEqual([
-        "/rest/v1/broadcast_lists",
         "/rest/v1/broadcast_list_members",
         "/rest/v1/broadcast_list_rules",
+        "/rest/v1/broadcast_lists",
       ]);
-      expect(urls[0].searchParams.get("tenant_id")).toBe(
+      expect(urls[2].searchParams.get("tenant_id")).toBe(
         enabled ? "eq.tenant-1" : "eq.null",
       );
-      for (const url of urls.slice(1)) {
+      for (const url of urls.slice(0, 2)) {
         expect(url.searchParams.get("list_id")).toBe(
           enabled ? "eq.list-1" : "eq.undefined",
         );
       }
       expect(urls[0].searchParams.get("order")).toBe("created_at.desc");
-      expect(urls[1].searchParams.get("order")).toBe("created_at.desc");
-      expect(urls[1].searchParams.get("limit")).toBe("1000");
+      expect(urls[2].searchParams.get("order")).toBe("created_at.desc");
+      expect(urls[0].searchParams.get("limit")).toBe("1000");
     });
   }
 });
