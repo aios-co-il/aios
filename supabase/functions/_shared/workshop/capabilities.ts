@@ -4,11 +4,8 @@
  */
 
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
-import {
-  engineFromKeys,
-  ENGINE_LABEL,
-  type VideoConnections,
-} from "./video-cost.ts";
+import { ENGINE_LABEL, type VideoConnections } from "./scene-engine.ts";
+import { engineFromKeys } from "./scene-engine-for.ts";
 
 export type Provider =
   "openai" | "google" | "anthropic" | "elevenlabs" | "higgsfield";

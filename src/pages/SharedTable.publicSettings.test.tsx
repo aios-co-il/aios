@@ -4,7 +4,7 @@ import { format, subDays } from "date-fns";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { stubResizeObserver } from "@/test/stubResizeObserver";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { toPublicTableSettings } from "../../supabase/functions/_shared/share-links/public-table-settings.ts";
 import SharedTable from "./SharedTable";
 
@@ -39,7 +39,7 @@ function respondWith(body: unknown) {
 
 /** Renders SharedTable at /shared/table/share-token inside the test query client. */
 function mountShare() {
-  const { wrapper: Wrapper } = withTestQuery();
+  const { wrapper: Wrapper } = createTestQueryHarness();
   return render(
     <Wrapper>
       <MemoryRouter initialEntries={["/shared/table/share-token"]}>

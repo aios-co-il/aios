@@ -1,5 +1,6 @@
 import {
   assertEquals,
+  assertMatch,
   assertObjectMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
@@ -21,13 +22,16 @@ const line = (id: string, integration_type: string) => ({
   created_at: "2026-01-01",
 });
 
-/** The staff tool over a fake DB holding these lines; REQUESTER is a member of TENANT. */
-async function runTool(integrations: Record<string, unknown>[]) {
+/** The staff tool over a fake DB holding these lines and a fake send-manus-wa-message giving these responses; REQUESTER is a member of TENANT. */
+async function runTool(
+  integrations: Record<string, unknown>[],
+  responses?: { status?: number; body?: unknown }[],
+) {
   const sb = fakeSupabase({
     tenant_integrations: integrations,
     tenant_users: [{ tenant_id: TENANT, user_id: REQUESTER }],
   });
-  const fetch = fakeFetch();
+  const fetch = fakeFetch(responses);
   const result = await sendStaffWhatsappMessage({
     supabase: sb,
     supabaseUrl: "https://this-project.supabase.co",
@@ -78,9 +82,41 @@ Deno.test("sendStaffWhatsappMessage", async (t) => {
       ]);
       assertStrictEquals(fetch.calls.length, 0);
       assertStrictEquals(result.status, "no_line");
+      assertMatch(result.error ?? "", /Manus/);
       const [logged] =
         sb.inserts.find((i) => i.table === "agent_action_log")?.rows ?? [];
       assertObjectMatch(logged, { status: "error" });
     },
   );
+
+  await t.step(
+    "a 202 from Manus succeeds with a do-not-resend warning",
+    async () => {
+      const { result, fetch } = await runTool(
+        [line("manus-1", "manus_wa")],
+        [{ status: 202, body: { success: false, delivered: "unknown" } }],
+      );
+      assertStrictEquals(fetch.calls.length, 1);
+      assertStrictEquals(result.status, "delivery_unknown");
+      assertStrictEquals(result.success, true);
+      assertMatch(result.warning ?? "", /אל תשלחי/);
+    },
+  );
+
+  await t.step("a Staging guard block is an error naming Staging", async () => {
+    const { result } = await runTool(
+      [line("manus-1", "manus_wa")],
+      [
+        {
+          status: 403,
+          body: {
+            error: "blocked_by_staging_safe_mode",
+            reason: "empty_allowlist",
+          },
+        },
+      ],
+    );
+    assertStrictEquals(result.status, "blocked_staging");
+    assertMatch(result.error ?? "", /Staging/);
+  });
 });

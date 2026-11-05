@@ -172,11 +172,13 @@ serve(async (req) => {
     }
 
     if (action === "status") {
-      const { data: tokenData } = await anonClient
-        .from("gmail_tokens")
-        .select("google_email")
-        .eq("user_id", user.id)
-        .single();
+      // gmail_tokens has no user read policy (it holds the OAuth tokens); this returns the address only.
+      const { data: tokenData, error: statusError } = await anonClient
+        .rpc("get_user_gmail_connection")
+        .maybeSingle<{ google_email: string | null }>();
+      if (statusError) {
+        throw statusError;
+      }
 
       return new Response(
         JSON.stringify({

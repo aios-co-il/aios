@@ -103,7 +103,7 @@ export function RunsTab({ agent }: { agent: any }) {
       const { data } = await supabase
         .from("agent_action_log")
         .select("*")
-        .eq("run_id", selectedRunId)
+        .filter("run_id", "eq", selectedRunId)
         .order("step_index", { ascending: true });
       return data ?? [];
     },

@@ -9,7 +9,7 @@ import {
   storagePathsIn,
   withSignedUrls,
   type WorkshopArtifact,
-} from "./workshopFeed";
+} from "./workshopFeedModel";
 
 const cleared = new Set<string>();
 

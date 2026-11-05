@@ -1,4 +1,6 @@
 import { Facebook } from "lucide-react";
+import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
+import { isCampaignOff } from "@/lib/campaignOffState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -193,6 +195,9 @@ function CampaignGoalTable({
                     row.delivery_status || "unknown",
                   )}
                 </Badge>
+                <CampaignOffBadge
+                  off={isCampaignOff({ deliveryStatus: row.delivery_status })}
+                />
               </TableCell>
               <TableCell className="tabular-nums">
                 {formatPulseMoney(row.spend_7d)}

@@ -7,6 +7,7 @@ import {
   scenePrefix,
   setWorkshopContext,
   subscribeComposerPrefill,
+  subscribeWorkshopContext,
   subscribeWorkshopEvents,
   workshopEventFrom,
   workshopToolLabel,
@@ -31,6 +32,7 @@ test("an open project goes to Carmen with its id, a new board tells her to start
   expect(open!.promptAddon).toMatch(/artifact_id=a-9/);
   expect(open!.promptAddon).not.toMatch(/client_id=/);
   expect(open?.workshopItemId).toBe("p-1");
+  expect(open?.workshopArtifactId).toBe("a-9");
   expect(open?.workshopClientId).toBe(null);
 
   const blank = workshopRequestParts({
@@ -207,4 +209,23 @@ test("workshop tools get a Hebrew line in the chat, others keep their name", () 
   expect(workshopToolLabel("workshop_make_creative")).toBe("יוצרת תמונות");
   expect(workshopToolLabel("create_lead")).toBe("create_lead");
   expect(workshopToolLabel(undefined)).toBe(undefined);
+});
+
+test("the chat hears every change of the board's context until it unsubscribes", () => {
+  const seen: Array<string | null> = [];
+  const stop = subscribeWorkshopContext(() =>
+    seen.push(getWorkshopContext()?.projectId ?? null),
+  );
+  setWorkshopContext({
+    projectId: "p",
+    title: null,
+    selectedArtifactId: null,
+    selectedSceneId: null,
+    selectedSceneNumber: null,
+    clientId: null,
+  });
+  setWorkshopContext(null);
+  stop();
+  setWorkshopContext(null);
+  expect(seen).toEqual(["p", null]);
 });

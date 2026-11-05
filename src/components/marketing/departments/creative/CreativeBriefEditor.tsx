@@ -127,7 +127,9 @@ export function CreativeBriefEditor({
     if (!files?.length) return;
     setUploading(kind);
     try {
-      const uploaded = [];
+      const uploaded: Array<
+        Awaited<ReturnType<typeof uploadCreativeAsset>> & { file: File }
+      > = [];
       let logoColors: string[] = [];
       for (const file of Array.from(files)) {
         const asset = await uploadCreativeAsset({

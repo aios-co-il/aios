@@ -214,7 +214,7 @@ export const getVariations = (
         (frame): frame is Record<string, unknown> =>
           !!frame && typeof frame === "object",
       )
-      .map((frame, index) => {
+      .map((frame, index): CreativeVariation | null => {
         const imageUrl =
           typeof frame.imageUrl === "string" ? frame.imageUrl : "";
         if (!imageUrl) return null;

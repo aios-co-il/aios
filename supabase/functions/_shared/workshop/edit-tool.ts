@@ -7,8 +7,10 @@
 import { type AssetView } from "./assets.ts";
 import { pickMaterials, planEditScenes } from "./edit-plan.ts";
 import { PRODUCTION_LOCKED, productionLockError } from "./production.ts";
+import { briefAnswersField } from "./project-brief.ts";
 import { publicUrlOf } from "./project-io.ts";
 import { asRecord } from "./record.ts";
+import { summaryMotionField } from "./motion-direction.ts";
 import { spokenField } from "./spoken-text.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -17,7 +19,7 @@ type Db = any;
 export const EDIT_TOOL = {
   name: "workshop_edit_from_assets",
   description:
-    "עורכת סרט מהחומרים של המשתמש: כל סרטון או תמונה שהועלו ללשונית הנכסים של הפרויקט הופכים לסצנה, לפי הסדר. סרטון נכנס כמו שהוא, ותמונה מקבלת תנועה בסרט (motion) או הנפשה במנוע בתשלום בהפקה. אפשר לתת לכל סצנה כותרת, כיתוב, קריינות, תנועה ואורך. סצנה מדברת: כשהמשתמש מבקש שהדמות בתמונה תדבר למצלמה (למשל כל סקין מציגה את עצמה), מעבירים לסצנה lipsync=true ו-dialogue עם המשפט שלה, ו-speaker. הדמות בתמונה של המשתמש עצמה אומרת את המשפט בליפ סינק, בקול שנבחר לפרויקט (workshop_choose_voice), ולא בקול של המנוע. כשכל תמונה היא לוק אחר של אותה דמות (הסקינים של כרמן), skin_switch=true בכל סצנה שעוברת ללוק אחר. התמונות הן תמיד התמונות האמיתיות שהמשתמש העלה, אף פעם לא תמונה שהומצאה. כל המערכים לפי סדר הסצנות. הפורמט נשאר של הפרויקט (סרט לרילס הוא 9:16), ותמונה בגודל אחר ממלאת את המסך בחיתוך, בלי מתיחה. לא עולה כסף. כשהמשתמש ביקש לאשר את התסריט לפני: הציגי לו את הסצנות והמשפטים ועצרי עד שהוא מאשר, ורק אז workshop_produce_video מרכיב את הסרט.",
+    "רק לחומרים שהמשתמש העלה ללשונית הנכסים. סרטון מתמונה שכרמן יצרה בפרויקט (או מתמונה שהמשתמש סימן בלוח) עושים עם workshop_storyboard ו-from_artifact_id, לא כאן. עורכת סרט מהחומרים של המשתמש: כל סרטון או תמונה שהועלו ללשונית הנכסים של הפרויקט הופכים לסצנה, לפי הסדר. סרטון נכנס כמו שהוא, ותמונה מקבלת תנועה בסרט (motion) או הנפשה במנוע בתשלום בהפקה. אפשר לתת לכל סצנה כותרת, כיתוב, קריינות, תנועה ואורך. סצנה מדברת: כשהמשתמש מבקש שהדמות בתמונה תדבר למצלמה (למשל כל סקין מציגה את עצמה), מעבירים לסצנה lipsync=true ו-dialogue עם המשפט שלה, ו-speaker. הדמות בתמונה של המשתמש עצמה אומרת את המשפט בליפ סינק, בקול שנבחר לפרויקט (workshop_choose_voice), ולא בקול של המנוע. כשכל תמונה היא לוק אחר של אותה דמות (הסקינים של כרמן), skin_switch=true בכל סצנה שעוברת ללוק אחר. התמונות הן תמיד התמונות האמיתיות שהמשתמש העלה, אף פעם לא תמונה שהומצאה. כל המערכים לפי סדר הסצנות. הפורמט נשאר של הפרויקט (סרט לרילס הוא 9:16), ותמונה בגודל אחר ממלאת את המסך בחיתוך, בלי מתיחה. כשהתמונה היא עיצוב מוכן עם טקסט (מודעה, פוסטר, באנר), בהפקה מעבירים keep_design=true: היא נשארת שלמה וכמו שהיא, והסרט מזיז עליה מצלמה. לא עולה כסף. כשהמשתמש מבקש שהתמונות יונפשו באמת (דמויות שזזות), מעבירים keep_design=false. כשהמשתמש ביקש לאשר את התסריט לפני: הציגי לו את הסצנות והמשפטים ועצרי עד שהוא מאשר, ורק אז workshop_produce_video מרכיב את הסרט.",
   parameters: {
     type: "object",
     properties: {
@@ -49,8 +51,9 @@ export const EDIT_TOOL = {
       motion: {
         type: "array",
         items: { type: "string" },
-        description:
-          "איך כל תמונה זזה, באנגלית, לפי הסדר (למשל slow push-in on her face, she turns to the camera and smiles). לתת לכל סקין תנועה אחרת.",
+        description: summaryMotionField(
+          "איך כל תמונה זזה, באנגלית, לפי הסדר (למשל Slow push-in. The chef lifts the pan and holds it toward the lens. Ends with the pan still, steam rising.). לכל תמונה פעולה אחת שמתאימה למה שרואים בה.",
+        ),
       },
       lipsync: {
         type: "array",
@@ -88,7 +91,7 @@ export const EDIT_TOOL = {
         description: "כמה שניות כל תמונה על המסך (ברירת מחדל 3).",
       },
       film_brief: { type: "string" },
-      brief_answers: { type: "object" },
+      brief_answers: briefAnswersField,
       replace: {
         type: "boolean",
         description: "true מחליף סטוריבורד קיים.",
@@ -183,7 +186,7 @@ export async function buildEditScenes(
   }
   const failed: string[] = [];
   // The upload's own address in the private bucket, as the assets tab keeps it: it never expires.
-  // The worker reads it with its own key (render-worker/src/guard.mjs readMedia) and the board
+  // The worker reads it with its own key (render-worker/src/guard.ts readMedia) and the board
   // signs it to show it.
   const addressOf = publicUrlOf(supabase);
   for (const scene of plan) {

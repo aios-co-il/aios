@@ -63,6 +63,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useTenantMemberNames } from "@/hooks/useTenantMemberNames";
+import { resolveUpdateAuthorName } from "@/lib/updateAuthor";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
@@ -98,8 +100,9 @@ import {
 const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
 const FRAME = "rounded-xl border border-border/60 bg-card shadow-sm text-right";
 
+/** Identify valid dates while preserving the existing boolean result. */
 function isUsableDate(value: Date | undefined): value is Date {
-  return Boolean(value) && !Number.isNaN(value.getTime());
+  return Boolean(value && !Number.isNaN(value.getTime()));
 }
 
 function parseOptionalDate(value: string | null | undefined): Date | undefined {
@@ -167,6 +170,7 @@ export function TaskDetailDialog({
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
+  const { data: memberNames } = useTenantMemberNames(tenantId);
   const { user } = useCurrentUser();
   const { campaignerId: userCampaignerId } = useUserRole();
 
@@ -311,7 +315,7 @@ export function TaskDetailDialog({
           `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
         );
       } else {
-        query = query.eq("tenant_id", tenantId);
+        query = query.filter("tenant_id", "eq", tenantId);
       }
       const { data } = await query.order("name");
       return data || [];
@@ -326,7 +330,7 @@ export function TaskDetailDialog({
       const { data } = await supabase
         .from("leads")
         .select("id, company_name")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .order("company_name");
       return data || [];
     },
@@ -1194,11 +1198,11 @@ export function TaskDetailDialog({
                             <div className="flex items-center gap-1.5 min-w-0">
                               {typeIcon}
                               <span className="text-xs font-medium truncate">
-                                {(
-                                  update.profiles as {
-                                    full_name?: string;
-                                  } | null
-                                )?.full_name || "משתמש"}
+                                {resolveUpdateAuthorName(
+                                  memberNames,
+                                  update.user_id,
+                                  update.profiles?.full_name,
+                                )}
                               </span>
                               <Badge
                                 variant="outline"
