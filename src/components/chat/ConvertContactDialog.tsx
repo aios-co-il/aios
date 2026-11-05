@@ -44,7 +44,10 @@ interface ConvertContactDialogProps {
   senderPhone: string;
   senderName?: string | null;
   type: "client" | "lead" | "group";
-  onSuccess: (id: string, type: "client" | "lead" | "group") => void;
+  onSuccess: (
+    id: string | undefined,
+    type: "client" | "lead" | "group",
+  ) => void;
 }
 
 export function ConvertContactDialog({
