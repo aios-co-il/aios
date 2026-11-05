@@ -66,6 +66,13 @@ function tenantDb(scope: Row, extra: Record<string, Array<Row>> = {}) {
         automation_id: "auto-1",
         configuration: { agent_id: "agent-1", ...scope },
       },
+      {
+        tenant_id: TENANT,
+        step_type: "action",
+        action_type: "send_manus_message",
+        automation_id: "auto-1",
+        configuration: { integration_id: "integration-1" },
+      },
     ],
     automations: [{ id: "auto-1", active: true, configuration: {} }],
     whatsapp_groups: [
@@ -80,12 +87,38 @@ function tenantDb(scope: Row, extra: Record<string, Array<Row>> = {}) {
   });
 }
 
+/** A request body the handler posted to a send function. */
+type PostedSend = { fn: string; body: Record<string, unknown> };
+
+/**
+ * Runs `turn` with fetch answering every send function, and returns the
+ * sends it posted: the only way out for a Carmen reply.
+ */
+async function capturingSends<T>(
+  turn: () => Promise<T>,
+): Promise<{ result: T; posted: Array<PostedSend> }> {
+  const posted: Array<PostedSend> = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input instanceof Request ? input.url : input);
+    posted.push({
+      fn: url.split("/functions/v1/")[1] ?? url,
+      body: JSON.parse(String(init?.body ?? "{}")),
+    });
+    return Promise.resolve(new Response("{}", { status: 200 }));
+  };
+  try {
+    return { result: await turn(), posted };
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
 function groupTurn(
   supabase: unknown,
   phoneNumber: string,
   sourceChannel: CarmenContext["sourceChannel"] = "own_instance",
 ) {
-  const sent: Array<string> = [];
   const ctx: CarmenContext = {
     supabase,
     tenantId: TENANT,
@@ -99,36 +132,34 @@ function groupTurn(
     isGroup: true,
     chatId: GROUP_CHAT,
     sourceChannel,
-    sendMessage: (_chatId, message) => {
-      sent.push(message);
-      return Promise.resolve(true);
-    },
   };
-  return { ctx, sent };
+  return { ctx };
 }
 
 Deno.test(
   "handleCarmenMessage in a group that was never opted in",
   async (t) => {
     await t.step("stays silent before the identity check", async () => {
-      const { ctx, sent } = groupTurn(
+      const { ctx } = groupTurn(
         tenantDb({ carmen_scope_mode: "all" }),
         STRANGER,
       );
 
-      const result = await handleCarmenMessage(ctx);
+      const { result, posted } = await capturingSends(() =>
+        handleCarmenMessage(ctx),
+      );
 
       assertEquals(result, {
         handled: false,
         reason: "group_requires_explicit_scope",
       });
-      assertEquals(sent, []);
+      assertEquals(posted, []);
     });
 
     await t.step(
       "stays silent on the operator mirror in open-member-groups mode",
       async () => {
-        const { ctx, sent } = groupTurn(
+        const { ctx } = groupTurn(
           tenantDb({
             carmen_scope_mode: "all",
             carmen_open_member_groups: true,
@@ -137,13 +168,15 @@ Deno.test(
           "operator_mirror",
         );
 
-        const result = await handleCarmenMessage(ctx);
+        const { result, posted } = await capturingSends(() =>
+          handleCarmenMessage(ctx),
+        );
 
         assertEquals(result, {
           handled: false,
           reason: "group_requires_explicit_scope",
         });
-        assertEquals(sent, []);
+        assertEquals(posted, []);
       },
     );
   },
@@ -155,7 +188,7 @@ Deno.test(
     await t.step(
       "does not match the LID's tail to an approved phone",
       async () => {
-        const { ctx, sent } = groupTurn(
+        const { ctx } = groupTurn(
           tenantDb(
             {
               carmen_scope_mode: "specific_group",
@@ -175,11 +208,69 @@ Deno.test(
           LID,
         );
 
-        const result = await handleCarmenMessage(ctx);
+        const { result, posted } = await capturingSends(() =>
+          handleCarmenMessage(ctx),
+        );
 
         assertEquals(result, { handled: true, outcome: "active" });
-        assertEquals(sent.length, 1);
-        assertStringIncludes(sent[0], "אני לא מזהה אותך");
+        assertEquals(posted.length, 1);
+        assertEquals(posted[0].fn, "send-manus-wa-message");
+        assertStringIncludes(
+          String(posted[0].body.message),
+          "אני לא מזהה אותך",
+        );
+      },
+    );
+  },
+);
+
+Deno.test(
+  "handleCarmenMessage sends a reply only through the guarded route",
+  async (t) => {
+    /** A LID author in an opted-in group, so Carmen answers with a refusal. */
+    const optedInTurn = (extraSteps: Array<Row> = []) =>
+      groupTurn(
+        tenantDb(
+          {
+            carmen_scope_mode: "specific_group",
+            carmen_allowed_group_ids: [GROUP_CHAT],
+          },
+          extraSteps.length ? { automation_flow_steps: extraSteps } : {},
+        ),
+        LID,
+      );
+
+    await t.step(
+      "stamps the reply as Carmen's, with the author as its proof",
+      async () => {
+        const { posted } = await capturingSends(() =>
+          handleCarmenMessage(optedInTurn().ctx),
+        );
+        assertEquals(posted[0].body.sendKind, "carmen");
+        assertEquals(posted[0].body.sendRef, LID);
+        assertEquals(posted[0].body.groupId, "group-1");
+      },
+    );
+
+    await t.step(
+      "sends nothing when the automation has no send step",
+      async () => {
+        const triggerOnly = {
+          tenant_id: TENANT,
+          step_type: "trigger",
+          action_type: "carmen_whatsapp_session",
+          automation_id: "auto-1",
+          configuration: {
+            agent_id: "agent-1",
+            carmen_scope_mode: "specific_group",
+            carmen_allowed_group_ids: [GROUP_CHAT],
+          },
+        };
+        const { result, posted } = await capturingSends(() =>
+          handleCarmenMessage(optedInTurn([triggerOnly]).ctx),
+        );
+        assertEquals(result, { handled: true, outcome: "active" });
+        assertEquals(posted, [], "no direct-to-provider fallback");
       },
     );
   },

@@ -7,6 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { isRecord } from "../client-card/is-record.ts";
 import type { Database } from "../database.types.ts";
 import type { DbClient } from "../supabase-clients.ts";
+import { selectRows } from "./fake-rows.ts";
 import type { RecipientKind } from "./types.ts";
 
 export const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -56,17 +57,21 @@ export const optInKey = (client: string, kind: string, target: string) =>
   `${client}:${kind}:${target}`;
 
 /**
- * A fake database. resolve_send_recipient answers `recipient` (unknown by
- * default; null answers no row), client_auto_send_allowed is true for the
- * `optIns` keys, broadcast_lists_recipient finds `broadcast_recipients` rows
- * by broadcast, tenant and `address` or `group_id`. A table or RPC named in
- * `failing` answers a database error; `offline` fails every request.
+ * A fake database. resolve_send_recipient answers the `recipients` row of its
+ * address, else `recipient` (unknown by default; null answers no row),
+ * client_auto_send_allowed is true for the `optIns` keys,
+ * broadcast_lists_recipient finds `broadcast_recipients` rows by broadcast,
+ * tenant and `address` or `group_id`; `rpcs` answers any other RPC. A table
+ * or RPC named in `failing` answers a database error; `offline` fails every
+ * request.
  */
 export function guardDb(
   input: {
     recipient?: Row | null;
+    recipients?: Record<string, Row>;
     optIns?: string[];
     tables?: Record<string, Row[]>;
+    rpcs?: Record<string, (args: Row) => unknown>;
     failing?: string[];
     offline?: boolean;
   } = {},
@@ -74,8 +79,16 @@ export function guardDb(
   const writes: FakeWrite[] = [];
   const rpcCalls: FakeRpcCall[] = [];
   const rpcs: Record<string, (args: Row) => unknown> = {
-    resolve_send_recipient: () =>
-      input.recipient === null ? [] : [input.recipient ?? resolved("unknown")],
+    ...input.rpcs,
+    resolve_send_recipient: (args) => {
+      const byAddress = input.recipients?.[String(args.p_address)];
+      if (byAddress) {
+        return [byAddress];
+      }
+      return input.recipient === null
+        ? []
+        : [input.recipient ?? resolved("unknown")];
+    },
     client_auto_send_allowed: (args) =>
       (input.optIns ?? []).includes(
         optInKey(
@@ -138,24 +151,6 @@ export function refusalRows(writes: FakeWrite[]): Row[] {
     .filter((write) => write.table === "client_send_refusals")
     .map((write) => write.values)
     .filter(isRecord);
-}
-
-/** The rows that pass every `column=eq.value` filter, ordered and limited. */
-function selectRows(rows: Row[], params: URLSearchParams): Row[] {
-  const filters = [...params].filter(([, value]) => value.startsWith("eq."));
-  let selected = rows.filter((row) =>
-    filters.every(([column, value]) => String(row[column]) === value.slice(3)),
-  );
-  const order = params.get("order");
-  if (order) {
-    const [column, direction] = order.split(".");
-    const sign = direction === "desc" ? -1 : 1;
-    selected = [...selected].sort(
-      (a, b) => String(a[column]).localeCompare(String(b[column])) * sign,
-    );
-  }
-  const limit = params.get("limit");
-  return limit ? selected.slice(0, Number(limit)) : selected;
 }
 
 /**

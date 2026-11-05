@@ -88,21 +88,6 @@ export async function recordAutomationClientSend(
 }
 
 /**
- * Carmen's reply that went straight to the provider (the webhook fallback).
- * Recorded like a reply through her automation's send step: only in a group
- * that belongs to one client, and only while the tenant has logging on.
- */
-export function recordCarmenFallbackGroupReply(
-  db: Pick<DbClient, "from" | "rpc">,
-  send: Omit<AutomationClientSend, "findClientRecipient" | "sendKind">,
-): Promise<AutomationClientSendOutcome> {
-  if (!isGroupChatId(send.chatId)) {
-    return Promise.resolve("not_client");
-  }
-  return recordAutomationClientSend(db, { ...send, sendKind: "carmen" });
-}
-
-/**
  * The whatsapp_groups id of a group chat in the tenant when the group belongs
  * to exactly one client (resolve_whatsapp_group_client); null otherwise.
  */

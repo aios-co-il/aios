@@ -18,8 +18,9 @@ type AutomationTrigger = Database["public"]["Enums"]["automation_trigger"];
  * `never`: refused whatever it carries. `sender_staff`: refused unless the
  * address is also the sending tenant's own staff (types.ts senderStaff).
  * `report_schedule`, `broadcast_sending` and `automation`: the send_ref must
- * prove what asked for it (proofs.ts). `opt_in`: the client card's switch
- * for that kind and target.
+ * prove what asked for it (proofs.ts). `carmen_staff_request`: the tenant's
+ * staff asked Carmen in that same chat moments ago (carmen-proof.ts).
+ * `opt_in`: the client card's switch for that kind and target.
  */
 export type ClientRule =
   | { proof: "never"; refusal: ClientSendRefusal }
@@ -27,6 +28,7 @@ export type ClientRule =
   | { proof: "report_schedule" }
   | { proof: "broadcast_sending" }
   | { proof: "automation" }
+  | { proof: "carmen_staff_request"; refusal: ClientSendRefusal }
   | { proof: "opt_in"; kind: ClientAutoSendKind };
 
 export const CLIENT_RULES: Record<SendKind, ClientRule> = {
@@ -39,9 +41,9 @@ export const CLIENT_RULES: Record<SendKind, ClientRule> = {
   report: { proof: "report_schedule" },
   broadcast: { proof: "broadcast_sending" },
   automation: { proof: "automation" },
-  // AIO-248 replaces this with Carmen's proofs: the inbound message she
-  // answers, a person's approval, an approved identity.
-  carmen: { proof: "never", refusal: "carmen_unverified" },
+  // A client sees Carmen only when staff asked her in that chat (AIO-349).
+  // An approved send from the queue is AIO-350.
+  carmen: { proof: "carmen_staff_request", refusal: "carmen_unverified" },
 };
 
 /** The rule of a service-role send that names no kind. */
@@ -63,7 +65,6 @@ export const OBSERVED_REFUSALS: Readonly<
   automation_without_ref: "AIO-267 passes the automation id as send_ref",
   automation_broadcast_unverified:
     "AIO-267 enforces the automation rule on its template streams",
-  carmen_unverified: "AIO-248 adds Carmen's proofs",
   unresolvable_address:
     "AIO-261(b) decides whether an address nothing can match fails closed",
 };

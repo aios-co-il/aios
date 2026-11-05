@@ -1,0 +1,177 @@
+import { assertEquals } from "jsr:@std/assert@1";
+import { authorizeClientSend } from "./authorize.ts";
+import { carmenStaffAskedInChat } from "./carmen-proof.ts";
+import {
+  CLIENT,
+  guardDb,
+  OTHER_TENANT,
+  refusalRows,
+  resolved,
+  TENANT,
+} from "./fake-guard-db.ts";
+import type { ClientSendRequest } from "./types.ts";
+
+const NOW = new Date("2026-11-05T10:00:00.000Z");
+const GROUP_ROW = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const GROUP_CHAT = "120363410431767319@g.us";
+const STAFF_PHONE = "972545612156";
+const CLIENT_PHONE = "972521112233";
+
+/** Minutes before NOW, as the ISO timestamp chat_messages stores. */
+const minutesAgo = (minutes: number) =>
+  new Date(NOW.getTime() - minutes * 60_000).toISOString();
+
+/** A stored message of the tenant's client group. */
+const groupMessage = (fields: Record<string, unknown>) => ({
+  tenant_id: TENANT,
+  group_id: GROUP_ROW,
+  sender_phone: STAFF_PHONE,
+  send_kind: null,
+  created_at: minutesAgo(2),
+  ...fields,
+});
+
+/** Carmen's reply into the client group, answering STAFF_PHONE. */
+const carmenReply = (
+  fields: Partial<ClientSendRequest> = {},
+): ClientSendRequest => ({
+  functionName: "send-manus-wa-message",
+  tenantId: TENANT,
+  channel: "whatsapp",
+  address: GROUP_CHAT,
+  groupId: GROUP_ROW,
+  origin: "system",
+  sendKind: "carmen",
+  sendRef: STAFF_PHONE,
+  subjectClientId: null,
+  ...fields,
+});
+
+const staff = resolved("staff", [], { sender_staff: true });
+const clientGroup = resolved("client_group", [CLIENT], {
+  group_id: GROUP_ROW,
+});
+
+/** The proof over these stored messages, with STAFF_PHONE staff or not. */
+async function proves(
+  request: ClientSendRequest,
+  messages: Array<Record<string, unknown>>,
+  staffPhone = staff,
+) {
+  const { db } = guardDb({
+    recipients: { "972545612156": staffPhone },
+    tables: { chat_messages: messages },
+  });
+  return await carmenStaffAskedInChat(db, request, NOW);
+}
+
+Deno.test("carmenStaffAskedInChat", async (t) => {
+  await t.step("staff wrote in this group moments ago", async () => {
+    assertEquals(await proves(carmenReply(), [groupMessage({})]), true);
+  });
+
+  await t.step("no send_ref proves nothing", async () => {
+    assertEquals(
+      await proves(carmenReply({ sendRef: null }), [groupMessage({})]),
+      false,
+    );
+  });
+
+  await t.step("the staff message is older than the window", async () => {
+    assertEquals(
+      await proves(carmenReply(), [
+        groupMessage({ created_at: minutesAgo(16) }),
+      ]),
+      false,
+    );
+  });
+
+  await t.step("the message was in another group or tenant", async () => {
+    assertEquals(
+      await proves(carmenReply(), [
+        groupMessage({ group_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }),
+        groupMessage({ tenant_id: OTHER_TENANT }),
+      ]),
+      false,
+    );
+  });
+
+  await t.step("a system send in the group is no request", async () => {
+    assertEquals(
+      await proves(carmenReply(), [groupMessage({ send_kind: "carmen" })]),
+      false,
+    );
+  });
+
+  await t.step("the phone in send_ref is not the tenant's staff", async () => {
+    assertEquals(
+      await proves(
+        carmenReply(),
+        [groupMessage({})],
+        resolved("client", [CLIENT]),
+      ),
+      false,
+    );
+  });
+
+  await t.step(
+    "a private reply goes back to that same staff phone",
+    async () => {
+      const privateMessage = groupMessage({ group_id: null });
+      assertEquals(
+        await proves(carmenReply({ address: STAFF_PHONE, groupId: null }), [
+          privateMessage,
+        ]),
+        true,
+      );
+      assertEquals(
+        await proves(carmenReply({ address: CLIENT_PHONE, groupId: null }), [
+          privateMessage,
+        ]),
+        false,
+        "a staff message never proves a private send to someone else",
+      );
+    },
+  );
+});
+
+Deno.test(
+  "the guard refuses an unproven Carmen send to a client",
+  async (t) => {
+    /** The guard's decision and refusal rows over these messages. */
+    async function decide(
+      request: ClientSendRequest,
+      messages: Array<Record<string, unknown>>,
+    ) {
+      const { db, writes } = guardDb({
+        recipients: { [GROUP_CHAT]: clientGroup, "972545612156": staff },
+        tables: { chat_messages: messages },
+      });
+      const decision = await authorizeClientSend(db, request);
+      return { decision, refusals: refusalRows(writes) };
+    }
+
+    await t.step("enforced, not only logged", async () => {
+      const { decision, refusals } = await decide(
+        carmenReply({ sendRef: null }),
+        [],
+      );
+      assertEquals(decision.allowed, false);
+      assertEquals(
+        decision.allowed ? null : decision.reason,
+        "carmen_unverified",
+      );
+      assertEquals(refusals[0].enforced, true);
+    });
+
+    await t.step("staff asked in the group: the reply goes out", async () => {
+      const { decision, refusals } = await decide(carmenReply(), [
+        groupMessage({
+          created_at: new Date(Date.now() - 60_000).toISOString(),
+        }),
+      ]);
+      assertEquals(decision.allowed, true);
+      assertEquals(refusals, []);
+    });
+  },
+);
