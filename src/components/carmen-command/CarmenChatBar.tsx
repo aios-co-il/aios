@@ -1063,7 +1063,10 @@ export const CarmenChatBar = forwardRef<
               "Content-Type": "application/json",
               Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ voice }),
+            // Without an explicit pick, the server uses Carmen's configured voice.
+            body: JSON.stringify(
+              localStorage.getItem(VOICE_STORAGE_KEY) ? { voice } : {},
+            ),
           },
         );
         if (!res.ok) {
