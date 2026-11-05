@@ -1349,9 +1349,14 @@ const conceptPage = (title: string, text: string, index: number) => ({
 });
 
 /** A new film whose briefing is done; `pages` are concepts already on the board. */
+/** A briefed film; the script step after the concept has its own tests (tools/script-step.test.ts). */
 const briefedFilm = (pages: Array<Row> = []) =>
   memoryDb({
-    marketing_work_items: [project()],
+    marketing_work_items: [
+      project({
+        payload: { ...payload(), workshop_script: { skipped: true } },
+      }),
+    ],
     workshop_artifacts: pages,
   });
 
@@ -1367,8 +1372,6 @@ const writeFilm = (
     {
       item_id: "item-1",
       scenes: [{ visual_prompt: "a bakery at dawn", voiceover_text: "בוקר" }],
-      // The script step after the concept has its own tests (tools/script-step.test.ts).
-      skip_script: true,
       ...args,
     },
     async () => {},
@@ -1491,10 +1494,14 @@ Deno.test(
 );
 
 Deno.test(
-  "the user's own script skips the concepts only when Carmen says so",
+  "the user's skip of the concepts goes straight to the scenes when they asked for it",
   async () => {
     const db = briefedFilm();
-    const written = await writeFilm(db, { skip_concepts: true });
+    const written = await writeFilm(
+      db,
+      { skip_concepts: true },
+      { userText: "בלי קונספט, ישר לסצנות" },
+    );
     assertStrictEquals(written.success, true, JSON.stringify(written));
     assertStrictEquals(written.concept, undefined);
     assertStrictEquals(storyboardPage(db)?.meta.concept, undefined);

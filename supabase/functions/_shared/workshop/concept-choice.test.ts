@@ -40,6 +40,83 @@ describe("conceptPickedByUser", () => {
     );
   });
 
+  it("refuses an option when the user turned down every option", () => {
+    assertStrictEquals(
+      conceptPickedByUser("יום אחד", {
+        userText: "לא אוהבת אף אחד, תכתבי חדשים",
+        lastAssistant: asked,
+      }),
+      false,
+    );
+  });
+
+  it("refuses an option with words the user never offered added to it", () => {
+    assertStrictEquals(
+      conceptPickedByUser("יום אחד ועוד טוויסט שהמצאתי", {
+        userText: "יום אחד",
+        lastAssistant: asked,
+      }),
+      false,
+    );
+  });
+
+  it("takes the option the user tapped or named, and only that one", () => {
+    const turn = (userText: string) => ({ userText, lastAssistant: asked });
+    assertStrictEquals(conceptPickedByUser("יום אחד", turn("יום אחד")), true);
+    assertStrictEquals(
+      conceptPickedByUser("יום אחד", turn("הולכת על היום אחד")),
+      true,
+    );
+    assertStrictEquals(
+      conceptPickedByUser("יום אחד", turn("לא יום אחד, משהו אחר")),
+      false,
+    );
+    assertStrictEquals(conceptPickedByUser("יום אחד", turn("השני")), false);
+  });
+
+  it("maps an ordinal to the option in its place", () => {
+    const turn = (userText: string) => ({ userText, lastAssistant: asked });
+    assertStrictEquals(conceptPickedByUser("יום אחד", turn("הראשון")), true);
+    assertStrictEquals(conceptPickedByUser("יום אחד", turn("1")), true);
+    assertStrictEquals(
+      conceptPickedByUser("לילה של כוכבים", turn("האחרון בבקשה")),
+      true,
+    );
+    assertStrictEquals(
+      conceptPickedByUser("יום אחד", turn("לא הראשון, השני")),
+      false,
+    );
+  });
+
+  it("refuses a title echoed from the request, which names no concept", () => {
+    // Review of 5 Nov: three of the four words of Carmen's title were in the request.
+    assertStrictEquals(
+      conceptPickedByUser("פסח של חיסכון", {
+        userText: "סרטון לפסח על מבצע חיסכון למשפחות",
+        lastAssistant: "",
+      }),
+      false,
+    );
+  });
+
+  it("takes a concept the user describes after a concept cue", () => {
+    assertStrictEquals(
+      conceptPickedByUser("כלב רץ בפארק", {
+        userText: "סרטון לפסח. הרעיון: כלב רץ בפארק",
+        lastAssistant: "",
+      }),
+      true,
+    );
+    // The concept's words come from the part after the cue, not from the request before it.
+    assertStrictEquals(
+      conceptPickedByUser("פסח של חיסכון", {
+        userText: "סרטון לפסח על מבצע חיסכון. הרעיון: משפחה בטיול",
+        lastAssistant: "",
+      }),
+      false,
+    );
+  });
+
   it("takes a concept in the user's own words", () => {
     assertStrictEquals(
       conceptPickedByUser("כלב רץ בפארק", {
@@ -59,6 +136,16 @@ describe("withoutUnpickedConcept", () => {
         { userText: "מהיר", lastAssistant: "" },
       ),
       { קצב: "מהיר" },
+    );
+  });
+
+  it("drops an offered concept when the user turned the options down", () => {
+    assertEquals(
+      withoutUnpickedConcept(
+        { קונספט: "יום אחד" },
+        { userText: "לא אוהבת אף אחד, תכתבי חדשים", lastAssistant: asked },
+      ),
+      {},
     );
   });
 });

@@ -134,7 +134,10 @@ import {
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
 import { ROLE_PERSONA, ROLE_SKILL } from "../_shared/workshop/roles.ts";
-import { workshopItemIdFrom } from "../_shared/workshop/role-project.ts";
+import {
+  workshopArtifactIdFrom,
+  workshopItemIdFrom,
+} from "../_shared/workshop/role-project.ts";
 import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 import {
@@ -5877,6 +5880,8 @@ async function executeTool(
     userText?: string | null;
     /** Carmen's previous message; the workshop reads the taps that answer it. */
     lastAssistant?: string | null;
+    /** The board page marked with this message (workshop_artifact_id). */
+    markedArtifactId?: string | null;
     outOfBand?: boolean;
     /** The client open in the workshop view (workshop_client_id). */
     viewClientId?: string | null;
@@ -5956,6 +5961,7 @@ async function executeTool(
         turnId: approval.turnId ?? null,
         userText: approval.userText ?? null,
         lastAssistant: approval.lastAssistant ?? null,
+        markedArtifactId: approval.markedArtifactId ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         viewClientId: approval.viewClientId ?? null,
         openItemId: approval.openItemId ?? null,
@@ -16224,6 +16230,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                   ? workshopClientIdFrom(bodyJson)
                   : null,
                 openItemId: inWorkshop ? workshopItemIdFrom(bodyJson) : null,
+                markedArtifactId: inWorkshop
+                  ? workshopArtifactIdFrom(bodyJson)
+                  : null,
                 // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
                 devTaskTurn: {
                   turnStartedAt,

@@ -51,7 +51,9 @@ interface ProjectWrite {
 }
 
 /** A briefed film with no concept chosen yet; `concepts` are the concept pages on its board. */
-function unchosen(concepts: Array<{ title: string; meta: unknown }> = []) {
+function unchosen(
+  concepts: Array<{ id?: string; title: string; meta: unknown }> = [],
+) {
   const item = videoProject()["marketing_work_items:select"];
   const payload: Record<string, unknown> = {
     ...item.payload,
@@ -68,7 +70,7 @@ function unchosen(concepts: Array<{ title: string; meta: unknown }> = []) {
 const storyboardCall = (
   db: Db,
   args: Record<string, unknown>,
-  deps: { userText: string; lastAssistant: string },
+  deps: { userText: string; lastAssistant: string; markedArtifactId?: string },
 ) =>
   executeApprovedWorkshopTool(
     db,
@@ -159,7 +161,7 @@ Deno.test(
       db,
       { concept: "כלב שרץ בפארק ומוצא את המוצר" },
       {
-        userText: "בואי נעשה כלב שרץ בפארק ומוצא את המוצר שלנו",
+        userText: "הרעיון שלי: כלב שרץ בפארק ומוצא את המוצר שלנו",
         lastAssistant: "",
       },
     );
@@ -167,3 +169,73 @@ Deno.test(
     assertEquals(savedAnswers(db).קונספט, "כלב שרץ בפארק ומוצא את המוצר");
   },
 );
+
+Deno.test(
+  "a skip_concepts the user did not ask for is refused with the next step",
+  async () => {
+    // Review of 5 Nov: skip_concepts became the "no concept" answer on any message.
+    const db = fakeDb(unchosen());
+    const result = await storyboardCall(
+      db,
+      { skip_concepts: true },
+      { userText: "סרטון לפסח על מבצע חיסכון למשפחות", lastAssistant: "" },
+    );
+    assertEquals(result.missing, ["concept"]);
+    assertMatch(result.carmen_next, /skip_concepts לא נשמר/);
+    assertMatch(result.carmen_next, /בלי קונספט, ישר לסצנות/);
+    assertEquals(savedAnswers(db).קונספט, undefined);
+  },
+);
+
+Deno.test("a skip_concepts the user asked for is saved", async () => {
+  const db = fakeDb(unchosen());
+  const result = await storyboardCall(
+    db,
+    { skip_concepts: true, skip_script: true },
+    { userText: "בלי קונספטים ובלי תסריט, ישר לסצנות", lastAssistant: "" },
+  );
+  assertStrictEquals(result.needs_input, undefined, JSON.stringify(result));
+  assertMatch(savedAnswers(db).קונספט ?? "", /בלי קונספט/);
+});
+
+Deno.test(
+  "the marked concept page's title is the user's approval of it",
+  async () => {
+    // The marked-page note tells Carmen to pass concept=<name> when the user approves it, with
+    // no concept question in her last message.
+    const db = fakeDb(
+      unchosen([
+        {
+          id: "concept-1",
+          title: "יום אחד",
+          meta: { text: "מסע של יום עבודה" },
+        },
+        { id: "concept-2", title: "לילה", meta: { text: "משמרת לילה" } },
+      ]),
+    );
+    const approved = await storyboardCall(
+      db,
+      { concept: "יום אחד" },
+      { userText: "מאשרת", lastAssistant: "", markedArtifactId: "concept-1" },
+    );
+    assertEquals(approved.missing, ["script"]);
+    assertEquals(savedAnswers(db).קונספט, "יום אחד");
+  },
+);
+
+Deno.test("another concept than the marked page is still refused", async () => {
+  const db = fakeDb(
+    unchosen([
+      { id: "concept-1", title: "יום אחד", meta: { text: "" } },
+      { id: "concept-2", title: "לילה", meta: { text: "" } },
+    ]),
+  );
+  const refused = await storyboardCall(
+    db,
+    { concept: "לילה" },
+    { userText: "מאשרת", lastAssistant: "", markedArtifactId: "concept-1" },
+  );
+  assertEquals(refused.missing, ["concept"]);
+  assertMatch(refused.carmen_next, /המילים שלו בדיוק/);
+  assertEquals(savedAnswers(db).קונספט, undefined);
+});

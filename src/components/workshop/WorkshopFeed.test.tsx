@@ -113,4 +113,32 @@ describe("WorkshopFeed", () => {
       expect(screen.queryByRole("form", { name: "עריכת העמוד" })).toBeNull(),
     );
   });
+
+  test("narration too long for its beat is flagged and not saved", async () => {
+    mocks.rpc.mockClear();
+    const user = userEvent.setup();
+    const beats = [
+      { start_s: 0, end_s: 2, narration: "שלום", on_screen: "", visual: "" },
+    ];
+    render(
+      feed([
+        page({
+          kind: "script",
+          title: "תסריט · חג",
+          meta: { text: "תסריט · חג", beats },
+        }),
+      ]),
+    );
+    await user.click(screen.getByRole("button", { name: /עריכה/ }));
+    const form = screen.getByRole("form", { name: "עריכת העמוד" });
+    const narration = within(form).getByLabelText("קריינות");
+    await user.clear(narration);
+    await user.type(narration, "שלום לכולם וברוכים הבאים לחג השנה");
+    expect(within(form).getByRole("alert").textContent).toMatch(
+      /6 מילים לא נכנסות ב-2 שניות \(עד 5\)/,
+    );
+    expect(within(form).getByRole("button", { name: /שמירה/ })).toBeDisabled();
+    await user.type(narration, "{Control>}{Enter}{/Control}");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 });

@@ -1,5 +1,7 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
+import { briefAnswersOf, withBriefAnswers } from "./brief-answers.ts";
 import {
+  conceptAnswer,
   filmScriptOf,
   filmSeconds,
   maxWords,
@@ -59,3 +61,17 @@ Deno.test("a script belongs to the concept it was written for", () => {
   assertStrictEquals(filmScriptOf(moved), null);
   assertStrictEquals(scriptSettled(moved), false);
 });
+
+Deno.test(
+  "a concept chosen again under the first label is the concept, not an older one",
+  () => {
+    // Review of 5 Nov: the corrected answer stayed in its old place, and the newest-first read
+    // found the concept answered under another label in between.
+    const first = withBriefAnswers(
+      {},
+      { קונספט: "יום אחד", "בחירת קונספט": "לילה" },
+    );
+    const corrected = withBriefAnswers(first, { קונספט: "כוכבים" });
+    assertStrictEquals(conceptAnswer(briefAnswersOf(corrected)), "כוכבים");
+  },
+);

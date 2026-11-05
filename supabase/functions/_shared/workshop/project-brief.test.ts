@@ -30,7 +30,7 @@ Deno.test(
 );
 
 Deno.test(
-  "an answer to the same question under another name replaces the old one in place",
+  "an answer to the same question under another name replaces the old one, last",
   () => {
     const first = withBriefAnswers(
       { brief_text: REQUEST },
@@ -41,7 +41,7 @@ Deno.test(
     });
     assertStrictEquals(
       projectBrief(corrected),
-      `${REQUEST}\n\n${BRIEF_ADDED_HEADING}\nקריאה לפעולה: לוגו וקריאה לפעולה\nקצב: רגוע`,
+      `${REQUEST}\n\n${BRIEF_ADDED_HEADING}\nקצב: רגוע\nקריאה לפעולה: לוגו וקריאה לפעולה`,
     );
     // Answers stored twice by older code show once, the later one.
     assertStrictEquals(

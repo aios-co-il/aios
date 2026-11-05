@@ -19,6 +19,13 @@ const KEY = "workshop_script";
 /** The film's concept question (tools/film-concept.ts); its answer is the script's concept. */
 export const CONCEPT_LABEL = "קונספט";
 
+/** A concept title as a tap button carries it: no "|" or brackets, which would break the line. */
+export const tapTitle = (text: string) =>
+  text
+    .replace(/[|[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 /**
  * The concept answer under the label Carmen asked with ("קונספט", "הקונספט לסרט"…): the latest
  * one, since a choice under another label is added after the earlier answer.

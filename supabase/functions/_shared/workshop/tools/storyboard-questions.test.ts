@@ -227,8 +227,8 @@ Deno.test(
       },
       async () => {},
       null,
-      // The user named that concept in their own words (concept-choice.ts).
-      { ...deps, userText: "קליפ מהיר לפי הרפרנס" },
+      // The user named that concept in their own words (concept-choice.ts) and skipped the script.
+      { ...deps, userText: "הרעיון: קליפ מהיר לפי הרפרנס. בלי תסריט" },
     )) as GateReply;
     assertStrictEquals(written.needs_input, undefined);
     assertStrictEquals(written.success, true);

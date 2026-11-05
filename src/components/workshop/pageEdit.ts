@@ -1,6 +1,9 @@
 import {
   CONCEPT_LABEL,
+  maxWords,
   scriptText,
+  spokenWords,
+  tapTitle,
   type ScriptBeat,
 } from "@functions/_shared/workshop/film-script.ts";
 import type { Database } from "@/integrations/supabase/types";
@@ -32,10 +35,7 @@ export function draftOf(artifact: WorkshopArtifact): PageDraft | null {
 /** The script page's beats as save-script.ts stored them. */
 function beatsOf(value: unknown): Array<ScriptBeat> {
   return (Array.isArray(value) ? value : []).map((entry) => {
-    const beat =
-      entry && typeof entry === "object"
-        ? (entry as Record<string, unknown>)
-        : {};
+    const beat = isRecord(entry) ? entry : {};
     const text = (key: string) => {
       const value = beat[key];
       return typeof value === "string" ? value : "";
@@ -75,7 +75,28 @@ export function editArgs(
 
 /** The chat line the board's approve button sends; the server saves it as the brief's concept. */
 export const approveConceptLine = (artifact: WorkshopArtifact) =>
-  `${CONCEPT_LABEL}: ${artifact.title
-    .replace(/[|[\]]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()}`;
+  `${CONCEPT_LABEL}: ${tapTitle(artifact.title)}`;
+
+/**
+ * Beats whose narration runs past their time at the voice-over pace the save tool checks
+ * (save-script.ts), as the message the form shows under each; an empty map when all fit.
+ */
+export function overlongBeats(beats: Array<ScriptBeat>): Map<number, string> {
+  const overlong = new Map<number, string>();
+  beats.forEach((beat, index) => {
+    const seconds = beat.end_s - beat.start_s;
+    const words = spokenWords(beat.narration);
+    if (words > maxWords(seconds)) {
+      overlong.set(
+        index,
+        `${words} מילים לא נכנסות ב-${seconds} שניות (עד ${maxWords(seconds)}). כדאי לקצר.`,
+      );
+    }
+  });
+  return overlong;
+}
+
+/** A stored beat is a JSON object (meta.beats comes from the database untyped). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

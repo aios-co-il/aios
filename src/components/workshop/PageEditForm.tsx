@@ -2,7 +2,7 @@ import { useId, useState, type KeyboardEvent } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { PageDraft } from "./pageEdit";
+import { overlongBeats, type PageDraft } from "./pageEdit";
 
 type Beat = Extract<PageDraft, { kind: "script" }>["beats"][number];
 type BeatText = "narration" | "on_screen" | "visual";
@@ -31,6 +31,14 @@ export function PageEditForm({
 }) {
   const [draft, setDraft] = useState(initial);
   const id = useId();
+  // Narration longer than its beat runs past it in the film; the save tool refuses it too.
+  const overlong =
+    draft.kind === "script" ? overlongBeats(draft.beats) : new Map();
+  const save = () => {
+    if (overlong.size === 0) {
+      onSave(draft);
+    }
+  };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape") {
       // Handled here, so the board (unselect) and the chat column (close) leave it alone.
@@ -38,7 +46,7 @@ export function PageEditForm({
       onCancel();
     } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      onSave(draft);
+      save();
     }
   };
   const setBeat = (index: number, key: BeatText, value: string) => {
@@ -59,7 +67,7 @@ export function PageEditForm({
       onClick={(event) => event.stopPropagation()}
       onSubmit={(event) => {
         event.preventDefault();
-        onSave(draft);
+        save();
       }}
     >
       {draft.kind === "concept" ? (
@@ -80,6 +88,7 @@ export function PageEditForm({
             key={index}
             id={`${id}-${index}`}
             beat={beat}
+            warning={overlong.get(index)}
             onChange={(key, value) => setBeat(index, key, value)}
             onKeyDown={onKeyDown}
           />
@@ -91,7 +100,12 @@ export function PageEditForm({
         </p>
       ) : null}
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" className="h-8 gap-1" disabled={saving}>
+        <Button
+          type="submit"
+          size="sm"
+          className="h-8 gap-1"
+          disabled={saving || overlong.size > 0}
+        >
           <Check className="h-3.5 w-3.5" />
           שמירה
         </Button>
@@ -109,15 +123,17 @@ export function PageEditForm({
   );
 }
 
-/** One beat of the script: its time, and the three texts the user may change. */
+/** One beat of the script: its time, the three texts the user may change, and a pace warning. */
 function BeatFields({
   id,
   beat,
+  warning,
   onChange,
   onKeyDown,
 }: {
   id: string;
   beat: Beat;
+  warning?: string;
   onChange: (key: BeatText, value: string) => void;
   onKeyDown: (event: KeyboardEvent) => void;
 }) {
@@ -142,6 +158,11 @@ function BeatFields({
           />
         </div>
       ))}
+      {warning ? (
+        <p role="alert" className="text-xs text-destructive">
+          {warning}
+        </p>
+      ) : null}
     </fieldset>
   );
 }

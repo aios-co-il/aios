@@ -7,9 +7,11 @@
 -- the edited script like any new one (_shared/workshop/film-script.ts). Once the storyboard is
 -- written from the script, its scenes are edited instead (workshop_edit_scene_text).
 --
--- Security invoker, like workshop_edit_scene_text: RLS of workshop_artifacts and
--- marketing_work_items applies, and the page is looked up for a member of its own tenant only,
--- so anyone else (a super admin included) gets "not found".
+-- Security definer with an explicit membership check: the page is looked up for a member of its
+-- own tenant only, so anyone else (a super admin included) gets "not found", and every write is
+-- kept to the page's tenant. Not security invoker: the marketing_work_items select policy covers
+-- only the user's active tenant (get_user_tenant_id), so for a member editing another of their
+-- tenants the page changed while the project's script kept its approval.
 
 create or replace function public.workshop_edit_page(
   p_artifact_id uuid,
@@ -18,7 +20,7 @@ create or replace function public.workshop_edit_page(
 )
 returns public.workshop_artifacts
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 declare

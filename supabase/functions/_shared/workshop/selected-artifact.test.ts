@@ -6,6 +6,7 @@ import {
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
   type SelectedArtifact,
+  markedPageLines,
   markedPictureFilmLine,
   markedTextPageLine,
   selectedArtifactLine,
@@ -110,5 +111,23 @@ describe("markedTextPageLine", () => {
   it("says nothing for a picture or when nothing is marked", () => {
     assertStrictEquals(markedTextPageLine(image), null);
     assertStrictEquals(markedTextPageLine(null), null);
+  });
+});
+
+describe("markedPageLines", () => {
+  it("gives a marked concept's name and text, and nothing when nothing is marked", () => {
+    const lines = markedPageLines(
+      { ...image, kind: "concept", meta: { text: "המשפחה מגלה את המבצע" } },
+      "יותר מצחיק",
+    );
+    assertStrictEquals(lines.length, 2);
+    assertMatch(lines[0], /הקונספט "ריקוד"/);
+    assertMatch(lines[1], /המשפחה מגלה את המבצע/);
+    assertEquals(markedPageLines(null, "סרטון מזה"), []);
+  });
+
+  it("adds the film call when a video is asked of a marked picture", () => {
+    const lines = markedPageLines(image, "תעשי מזה סרטון");
+    assertMatch(lines.at(-1) ?? "", /from_artifact_id=a-1/);
   });
 });

@@ -4,6 +4,7 @@ import {
   draftOf,
   editArgs,
   isEditablePage,
+  overlongBeats,
 } from "./pageEdit";
 import type { WorkshopArtifact } from "./workshopFeedModel";
 
@@ -51,6 +52,24 @@ describe("pageEdit", () => {
       { narration: "שלום לכולם", on_screen: "היי", visual: "פנים" },
     ]);
     expect(args.p_text).toMatch(/^תסריט · חג\n\n0–2 שנ׳\nקריינות: שלום לכולם/);
+  });
+
+  it("reads stored beats that are not objects as empty ones", () => {
+    expect(
+      draftOf(page({ kind: "script", meta: { beats: ["x", null] } })),
+    ).toEqual({
+      kind: "script",
+      beats: [
+        { start_s: 0, end_s: 0, narration: "", on_screen: "", visual: "" },
+        { start_s: 0, end_s: 0, narration: "", on_screen: "", visual: "" },
+      ],
+    });
+  });
+
+  it("flags narration longer than its beat at the save tool's pace", () => {
+    expect(overlongBeats(beats).size).toBe(0);
+    const long = [{ ...beats[0], narration: "אחת שתיים שלוש ארבע חמש שש" }];
+    expect(overlongBeats(long).get(0)).toMatch(/6 מילים לא נכנסות ב-2 שניות/);
   });
 
   it("approves a concept with the line the server reads", () => {

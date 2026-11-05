@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database } from "../database.types.ts";
+import { asksForVideo } from "./roles.ts";
 
 type ArtifactRow = Database["public"]["Tables"]["workshop_artifacts"]["Row"];
 
@@ -32,6 +33,21 @@ export async function loadSelectedArtifact(
     return null;
   }
   return data;
+}
+
+/**
+ * The turn-note lines for the page the user marked: what it is, its text when it is a concept or
+ * a script, and the call for a film asked of a marked picture. None when nothing is marked.
+ */
+export function markedPageLines(
+  selected: SelectedArtifact | null,
+  userText: string,
+): Array<string> {
+  return [
+    selectedArtifactLine(selected),
+    markedTextPageLine(selected),
+    markedPictureFilmLine(selected, asksForVideo(userText)),
+  ].filter((line): line is string => Boolean(line));
 }
 
 /** The marked page is read only inside this tenant's open project. */
