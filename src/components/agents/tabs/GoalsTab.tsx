@@ -213,7 +213,9 @@ function GoalDialog({
             <Select
               value={priority}
               onValueChange={(v) => {
-                if (isOneOf(PRIORITIES, v)) setPriority(v);
+                if (isOneOf(PRIORITIES, v)) {
+                  setPriority(v);
+                }
               }}
             >
               <SelectTrigger>

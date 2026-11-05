@@ -320,8 +320,9 @@ export function ToolRegistryTab() {
                   <Select
                     value={editing.handler_kind}
                     onValueChange={(v) => {
-                      if (isOneOf(HANDLER_KINDS, v))
+                      if (isOneOf(HANDLER_KINDS, v)) {
                         setEditing({ ...editing, handler_kind: v });
+                      }
                     }}
                   >
                     <SelectTrigger>

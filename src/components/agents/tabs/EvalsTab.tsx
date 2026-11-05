@@ -86,7 +86,9 @@ export function EvalsTab({
         throw new Error("JSON לא תקין");
       }
       const cases = parseJsonArray(dataset);
-      if (!cases) throw new Error("ה-dataset חייב להיות מערך");
+      if (!cases) {
+        throw new Error("ה-dataset חייב להיות מערך");
+      }
       const { error } = await supabase.from("agent_evals").insert({
         tenant_id: tenantId,
         agent_id: agent.id,

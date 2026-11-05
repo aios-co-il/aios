@@ -442,7 +442,9 @@ function NewTaskDialog({
           <Select
             value={scheduleType}
             onValueChange={(v) => {
-              if (isOneOf(SCHEDULE_TYPES, v)) setScheduleType(v);
+              if (isOneOf(SCHEDULE_TYPES, v)) {
+                setScheduleType(v);
+              }
             }}
           >
             <SelectTrigger>

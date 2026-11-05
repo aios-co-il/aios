@@ -9,7 +9,12 @@ const text = z
 const chatSupportResponseSchema = z.object({
   response: text,
   action_needed: text,
-  requires_approval: z.unknown().transform(Boolean),
+  requires_approval: z
+    .union([
+      z.boolean(),
+      z.enum(["true", "false"]).transform((value) => value === "true"),
+    ])
+    .catch(false),
   severity: text,
 });
 

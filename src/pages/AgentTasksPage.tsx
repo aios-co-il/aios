@@ -297,9 +297,12 @@ function TaskResultDisplay({ result }: { result: Json }) {
     const log = asJsonObject(entry);
     const logResult = asJsonObject(log?.result);
     const imageUrl = jsonString(logResult, "image_url");
-    if (log?.tool === "generate_ad_image" && imageUrl) images.push(imageUrl);
-    if (log?.tool === "create_social_post" && logResult?.success)
+    if (log?.tool === "generate_ad_image" && imageUrl) {
+      images.push(imageUrl);
+    }
+    if (log?.tool === "create_social_post" && logResult?.success) {
       socialPosts.push(logResult);
+    }
   }
   const hasVisualContent = images.length > 0 || socialPosts.length > 0;
   return (

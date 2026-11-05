@@ -16,6 +16,7 @@ const jsonValueSchema: z.ZodType<Json> = z.lazy(() =>
 
 const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
 
+/** The value as a JSON object, or null when it is not a plain object. */
 export function asJsonObject(
   value: Json | undefined | null,
 ): JsonObject | null {
@@ -25,6 +26,7 @@ export function asJsonObject(
 
 const jsonArraySchema = z.array(jsonValueSchema);
 
+/** The value as a JSON array, or an empty array when it is not one. */
 export function asJsonArray(value: Json | undefined | null): Json[] {
   return parseJsonArray(value) ?? [];
 }
@@ -40,12 +42,15 @@ const thrownSchema = z.object({ message: z.unknown() });
 /** The `message` of a thrown value as a string, or undefined when it has none. */
 export function thrownMessage(e: unknown): string | undefined {
   const parsed = thrownSchema.safeParse(e);
-  if (!parsed.success || parsed.data.message == null) return undefined;
+  if (!parsed.success || parsed.data.message == null) {
+    return undefined;
+  }
   return String(parsed.data.message);
 }
 
 const stringSchema = z.string().optional().catch(undefined);
 
+/** The string at `key` of a JSON object, or undefined when it is missing or not a string. */
 export function jsonString(
   value: Json | undefined | null,
   key: string,
@@ -53,6 +58,7 @@ export function jsonString(
   return stringSchema.parse(asJsonObject(value)?.[key]);
 }
 
+/** Whether `value` is one of `values`, narrowing it to their union. */
 export function isOneOf<T extends string>(
   values: readonly T[],
   value: string,
