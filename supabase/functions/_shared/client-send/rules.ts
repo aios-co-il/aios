@@ -75,8 +75,16 @@ export function isObservedRefusal(reason: ClientSendRefusal): boolean {
   return Object.hasOwn(OBSERVED_REFUSALS, reason);
 }
 
-/** Whether the guard's client rules apply to this recipient. */
+/**
+ * Whether the guard's client rules apply to this recipient. The sending
+ * tenant's own staff never meet them, even when their phone or email is also
+ * on a client card of another tenant: staff get every send staff get, such
+ * as a reminder Carmen sends them.
+ */
 export function isClientSide(recipient: SendRecipient): boolean {
+  if (recipient.senderStaff) {
+    return false;
+  }
   return (
     recipient.kind === "client" ||
     recipient.kind === "client_contact" ||
