@@ -21,6 +21,7 @@ class SignInActivity : AppCompatActivity() {
         setContentView(R.layout.activity_sign_in)
         account = AiosAccount(this)
         status = findViewById(R.id.sign_in_status)
+        findViewById<View>(R.id.sign_in_portrait).clipToOutline = true
         signInButton = findViewById(R.id.sign_in_button)
         findViewById<TextView>(R.id.sign_in_env).text = getString(R.string.env_label, BuildConfig.APP_ENV)
         signInButton.setOnClickListener { signInWithPassword() }

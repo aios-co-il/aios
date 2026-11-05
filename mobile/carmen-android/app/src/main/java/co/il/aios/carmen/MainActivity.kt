@@ -51,7 +51,10 @@ class MainActivity : AppCompatActivity() {
         Notifications.createChannels(this)
         status = findViewById(R.id.home_status)
         listenSwitch = findViewById(R.id.listen_switch)
-        portrait = CarmenPortrait(findViewById(R.id.home_portrait), findViewById(R.id.home_glow))
+        val portraitView = findViewById<android.view.View>(R.id.home_portrait)
+        // Rounded corners (the XML attribute needs API 31; minSdk is 30).
+        portraitView.clipToOutline = true
+        portrait = CarmenPortrait(portraitView, findViewById(R.id.home_glow))
         findViewById<Button>(R.id.talk_button).setOnClickListener { withMic { WakeWordService.talk(this) } }
         findViewById<android.view.View>(R.id.home_portrait_frame).setOnClickListener {
             withMic { WakeWordService.talk(this) }

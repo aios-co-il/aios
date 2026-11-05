@@ -21,8 +21,8 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.8.0-phone-tools"
+        versionCode = 13
+        versionName = "0.8.1-headset-home"
         // 64-bit phones only: keeps the APK small enough to download reliably to a phone.
         ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "SUPABASE_URL", "\"${backendSetting("carmen.supabaseUrl", "CARMEN_SUPABASE_URL")}\"")
