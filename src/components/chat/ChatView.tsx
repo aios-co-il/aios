@@ -1177,7 +1177,7 @@ export default function ChatView({
           isLoading={isLoadingMessages}
           contactId={contactId}
           contactType={contactType}
-          agencyId={contact?.agency_id}
+          agencyId={contact?.agency_id ?? undefined}
           anchorMessageId={anchorMessageId}
           currentPeriod={messagePeriod}
           onLoadMore={(period) => setMessagePeriod(period)}

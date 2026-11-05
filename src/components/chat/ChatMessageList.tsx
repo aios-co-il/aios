@@ -36,7 +36,7 @@ interface Message {
   raw_provider_data?: any;
   profiles?: {
     full_name: string;
-  };
+  } | null;
 }
 
 interface ChatMessageListProps {
