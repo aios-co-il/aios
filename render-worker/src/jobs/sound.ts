@@ -29,6 +29,8 @@ import {
   musicLengthMs,
   quotedMusicMs,
 } from "./music-length.ts";
+import { spokenAlignment } from "./nikud.ts";
+import { vocalizeForSpeech } from "./vocalize.ts";
 
 const BUCKET = "creative-video";
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
@@ -113,6 +115,7 @@ export async function generateVoice({
   apiKey,
   googleKey = null,
   resolveOpenRouterKey = async () => null,
+  vocalize = vocalizeForSpeech,
   log = console.log,
   submitting,
 }) {
@@ -142,12 +145,14 @@ export async function generateVoice({
     path,
     submitting,
     generate: async () => {
+      // Only the engine hears the nikud; the stored script and its captions stay without it.
+      const voiced = await vocalize(text, { log });
       if (apiKey) {
         try {
           const speech = await synthesizeSpeech({
             apiKey,
             voiceId: run.input?.voice_id || null,
-            text,
+            text: voiced.text,
           });
           return {
             bytes: speech.bytes,
@@ -156,7 +161,8 @@ export async function generateVoice({
               provider: "elevenlabs",
               model: SPEECH_MODEL(),
               voice_id: speech.voiceId,
-              alignment: speech.alignment,
+              alignment: spokenAlignment(speech.alignment, voiced.text, text),
+              nikud: voiced.nikud,
             },
           };
         } catch (error) {
@@ -174,7 +180,7 @@ export async function generateVoice({
           const speech = await synthesizeOpenRouterSpeech({
             apiKey: openRouterKey,
             voiceId: run.input?.voice_id || null,
-            text,
+            text: voiced.text,
           });
           return {
             bytes: speech.bytes,
@@ -186,6 +192,7 @@ export async function generateVoice({
               cost_usd: speech.costUsd,
               cost_reported: speech.costReported,
               generation_id: speech.generationId ?? null,
+              nikud: voiced.nikud,
             },
           };
         } catch (error) {
@@ -205,7 +212,10 @@ export async function generateVoice({
             : "אין מפתח לקריינות: חברו ElevenLabs, מוח OpenRouter או Google",
         );
       }
-      const speech = await synthesizeGeminiSpeech({ apiKey: googleKey, text });
+      const speech = await synthesizeGeminiSpeech({
+        apiKey: googleKey,
+        text: voiced.text,
+      });
       return {
         bytes: speech.bytes,
         contentType: speech.contentType,
@@ -214,6 +224,7 @@ export async function generateVoice({
           model: speech.model,
           voice_id: speech.voice,
           cost_usd: speech.costUsd,
+          nikud: voiced.nikud,
         },
       };
     },

@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { generateMusic, generateVoice } from "../src/jobs/sound.ts";
 import {
   openRouterSpeechBody,
@@ -9,7 +9,12 @@ const TENANT = "t1";
 const ITEM = "item1";
 const VOICE = "d4eLZ8u5dfBCsjp4YPyz";
 
-afterEach(() => vi.unstubAllGlobals());
+// These tests count provider calls, so the nikud step (vocalize.test.ts) is off here.
+beforeEach(() => vi.stubEnv("NIKUD_DICTA_URL", "off"));
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 function fakeDb(run) {
   const calls = [];
