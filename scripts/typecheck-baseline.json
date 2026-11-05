@@ -361,34 +361,6 @@
       "count": 2
     },
     {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 18047,
-      "message": "'campaigner' is possibly 'null'.",
-      "source": "campaigner",
-      "count": 3
-    },
-    {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 18047,
-      "message": "'existing' is possibly 'null'.",
-      "source": "existing",
-      "count": 2
-    },
-    {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 18047,
-      "message": "'salesPerson' is possibly 'null'.",
-      "source": "salesPerson",
-      "count": 2
-    },
-    {
-      "file": "src/hooks/useAutoCreateTeamMember.ts",
-      "code": 2322,
-      "message": "Type 'false' is not assignable to type 'true'.",
-      "source": "reused",
-      "count": 2
-    },
-    {
       "file": "src/hooks/useBroadcastDomains.ts",
       "code": 2345,
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",

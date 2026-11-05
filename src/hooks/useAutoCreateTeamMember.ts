@@ -72,7 +72,9 @@ export function useAutoCreateTeamMember() {
             .from("campaigners")
             .update({ email: params.email })
             .eq("id", existing.id);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
         }
       } else {
         const { data: created, error: campaignerError } = await supabase
@@ -181,7 +183,9 @@ export function useAutoCreateTeamMember() {
             .from("sales_people")
             .update({ email: params.email })
             .eq("id", existing.id);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
         }
       } else {
         const { data: created, error: salesPersonError } = await supabase

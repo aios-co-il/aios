@@ -71,7 +71,9 @@ describe.each<MemberKind>(["campaigner", "salesPerson"])(
         .mockReturnValueOnce(queryReply(null))
         .mockReturnValueOnce(queryReply([]))
         .mockReturnValueOnce(insert);
-      if (kind === "campaigner") from.mockReturnValueOnce(queryReply(null));
+      if (kind === "campaigner") {
+        from.mockReturnValueOnce(queryReply(null));
+      }
       from.mockReturnValueOnce(profileWrite);
       render(withTestQuery(<CreateMember kind={kind} />));
       fireEvent.click(screen.getByRole("button"));
@@ -94,7 +96,9 @@ describe.each<MemberKind>(["campaigner", "salesPerson"])(
           queryReply([{ id: "existing-member", email: null }]),
         )
         .mockReturnValueOnce(emailWrite);
-      if (kind === "campaigner") from.mockReturnValueOnce(queryReply(null));
+      if (kind === "campaigner") {
+        from.mockReturnValueOnce(queryReply(null));
+      }
       from.mockReturnValueOnce(profileWrite);
       render(withTestQuery(<CreateMember kind={kind} />));
       fireEvent.click(screen.getByRole("button"));
