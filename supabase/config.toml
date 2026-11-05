@@ -16,6 +16,8 @@ additional_redirect_urls = [
   "http://localhost:*/**",
   "http://127.0.0.1:*/**",
   "https://*.vercel.app/**",
+  # Carmen Android app: Google sign-in returns here (mobile/carmen-android, AIO-352).
+  "carmen-aios://auth/**",
 ]
 
 [auth.external.google]

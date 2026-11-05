@@ -1,0 +1,55 @@
+# Builds the Carmen Mobile Android app: runs its unit tests and uploads a
+# privately installable APK as a workflow artifact. It reads only public repository variables.
+name: Carmen Android
+
+on:
+  pull_request:
+    paths:
+      - "mobile/carmen-android/**"
+      - ".github/workflows/carmen-android.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "mobile/carmen-android/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile/carmen-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+      - name: Check backend variables
+        env:
+          CARMEN_SUPABASE_URL: ${{ vars.CARMEN_ANDROID_SUPABASE_URL }}
+          CARMEN_SUPABASE_KEY: ${{ vars.CARMEN_ANDROID_SUPABASE_KEY }}
+        run: |
+          if [ -z "$CARMEN_SUPABASE_URL" ] || [ -z "$CARMEN_SUPABASE_KEY" ]; then
+            echo "::error::Set repository variables CARMEN_ANDROID_SUPABASE_URL and CARMEN_ANDROID_SUPABASE_KEY (Staging URL and publishable key); without them the APK cannot sign in."
+            exit 1
+          fi
+      - name: Build APK
+        # Staging backend for sign-in and the live conversation (public URL and publishable key).
+        env:
+          CARMEN_SUPABASE_URL: ${{ vars.CARMEN_ANDROID_SUPABASE_URL }}
+          CARMEN_SUPABASE_KEY: ${{ vars.CARMEN_ANDROID_SUPABASE_KEY }}
+          CARMEN_APP_ENV: staging
+        run: ./gradlew --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carmen-wakeword-apk
+          path: mobile/carmen-android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

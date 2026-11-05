@@ -169,6 +169,12 @@ How we keep them working:
 3. **Health probe.** Command Center calls `agent-channel-send` `action=channel_health`. If the key is rejected, the HUD shows a banner. After a copy, hashes of the allowlist should match Production; no function redeploy is required.
 4. **After a copy:** from Preview → Command Center, send a one-word ping on Cursor Direct or the table. Expect `agent_channel_sessions.external_url` and no 401.
 
+## Carmen Android app (Staging only)
+
+- `mobile/carmen-android` builds against AIOS Staging: repository variables `CARMEN_ANDROID_SUPABASE_URL` and `CARMEN_ANDROID_SUPABASE_KEY` (Staging URL and publishable key; the **Carmen Android** workflow fails without them), and the Staging alias as the in-app Command Center.
+- Google sign-in returns through `carmen-aios://auth/**`, allowed in the base `[auth]` redirect list of `supabase/config.toml`, which `develop` uses.
+- A Production build (release key, Production redirect and URLs) is AIO-356.
+
 ## Report loading
 
 Lazy snapshot renderers keep full report/export code out of the client-card entry path. Rollup derives shared chunks from imports to avoid chart/export entry cycles. Table and combined reports share per-table/date query entries; explicit refresh invalidates those entries and failed requests are not cached as empty successful reports. Empty permission-related lists revalidate on mount, and shared-agency access still uses `fetchAccessibleDashboards`.
