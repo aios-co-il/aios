@@ -11,7 +11,7 @@ import type { Db } from "../db.ts";
 import { PRODUCTION_LOCKED, productionRunning } from "../production.ts";
 import { loadProject, savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
-import { isSceneEngine } from "../video-cost.ts";
+import { isSceneEngine } from "../scene-engine.ts";
 import {
   REDO_KEY,
   SCENE_COLUMNS,

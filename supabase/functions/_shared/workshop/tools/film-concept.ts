@@ -6,17 +6,13 @@
  * is saved like every other briefing answer.
  */
 
-import {
-  briefAnswersOf,
-  withBriefAnswers,
-  type BriefAnswers,
-} from "../brief-answers.ts";
+import { briefAnswersOf, withBriefAnswers } from "../brief-answers.ts";
+import { CONCEPT_LABEL, conceptAnswer } from "../film-script.ts";
 import type { Db } from "../db.ts";
 import { savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import type { ToolContext } from "../tool-context.ts";
 
-export const CONCEPT_LABEL = "קונספט";
 /** The stored answer when the user gave their own script or asked to go straight to scenes. */
 export const NO_CONCEPT = "בלי קונספט, ישר לסצנות";
 const MAX_CONCEPT = 600;
@@ -81,14 +77,6 @@ function conceptFromArgs(args: Record<string, unknown>): string {
   return raw.trim().slice(0, MAX_CONCEPT);
 }
 
-/** The concept answer under the label Carmen asked with ("קונספט", "הקונספט לסרט"…). */
-function conceptAnswer(answers: BriefAnswers): string {
-  const match = Object.entries(answers).find(
-    ([label, answer]) => label.includes(CONCEPT_LABEL) && answer.trim(),
-  );
-  return match?.[1].trim() ?? "";
-}
-
 /** The concept pages workshop_save_concepts put on the project's board, oldest first. */
 async function boardConcepts(
   supabase: Db,
@@ -151,7 +139,7 @@ const choiceLine = (concepts: Array<FilmConcept>) =>
     .slice(-4)
     .join(" | ")}]]`;
 
-const AFTER_CHOICE = `כשהמשתמש בחר (בכפתור או במילים, למשל "השני"), קראי שוב ל-workshop_storyboard עם concept (שם הקונספט, או הקונספט שתיאר במילים שלו) וכתבי את הסצנות לפי הקונספט הזה: המסר, שורות הקריינות והמהלך שלו. רק כשהמשתמש נתן תסריט מלא משלו או ביקש במפורש בלי קונספטים: skip_concepts=true.`;
+const AFTER_CHOICE = `כשהמשתמש בחר (בכפתור או במילים, למשל "השני"), קראי שוב ל-workshop_storyboard עם concept (שם הקונספט, או הקונספט שתיאר במילים שלו). הצעד הבא הוא תסריט לפי הקונספט הזה (המסר, הקריינות והמהלך שלו), והכלי יגיד איך. רק כשהמשתמש נתן תסריט מלא משלו או ביקש במפורש בלי קונספטים: skip_concepts=true.`;
 
 /** Asks the user to choose among the board's concepts, or tells Carmen to write them first. */
 function conceptGate(concepts: Array<FilmConcept>): ConceptGate {

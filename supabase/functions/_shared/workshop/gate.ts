@@ -20,7 +20,7 @@ import { type Format } from "./defaults.ts";
 import { type ImageProvider } from "./image-providers.ts";
 import { savePayload } from "./project-io.ts";
 import { asRecord } from "./record.ts";
-import { type SceneEngine, type VideoConnections } from "./video-cost.ts";
+import { type SceneEngine, type VideoConnections } from "./scene-engine.ts";
 
 export interface WorkshopDeps {
   generateImage?: (

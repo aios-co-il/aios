@@ -3,13 +3,13 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
+import { namedDevAgent } from "./dev-task-agents.ts";
 import {
   DEV_TASK_OFFER_TTL_MS,
   devTaskApprovalDecision,
   type DevTaskApprovalInput,
-  isExplicitDevTaskApproval,
-  namedDevAgent,
 } from "./dev-task-approval.ts";
+import { isExplicitDevTaskApproval } from "./dev-task-approval-words.ts";
 
 const TURN = "2026-10-27T10:00:00.000Z";
 const EARLIER = "2026-10-27T09:58:00.000Z";

@@ -142,15 +142,15 @@ SEO, כתבות וסושיאל נכנסים בשלב ה' כאותו סט כוו�
 
 מיגרציה אחת: `workshop_artifacts`
 
-| עמודה                               | תיאור                                                                                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `id`, `tenant_id`, `item_id`        | זהות והשיוך לפרויקט                                                                                                                |
-| `kind`                              | `concept`, `copy`, `image`, `variation`, `storyboard`, `scene_still`, `clip`, `narration`, `music`, `film`, `reference`, `article` |
-| `folder`                            | נתיב לוגי: `copy`, `images`, `video/scenes`, `video/film`, `video/narration`, `video/music`, `references`                          |
-| `ref_table`, `ref_id`               | הקישור לנכס, לווריאציה או לסצנה הקיימים (לא מעתיקים נתונים)                                                                        |
-| `title`, `url`, `thumb_url`, `meta` | תצוגה                                                                                                                              |
-| `status`                            | `pending`, `ready`, `failed`, `approved`                                                                                           |
-| `position`, `created_at`            | סדר בפיד                                                                                                                           |
+| עמודה                               | תיאור                                                                                                                                        |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `tenant_id`, `item_id`        | זהות והשיוך לפרויקט                                                                                                                          |
+| `kind`                              | `concept`, `copy`, `script`, `image`, `variation`, `storyboard`, `scene_still`, `clip`, `narration`, `music`, `film`, `reference`, `article` |
+| `folder`                            | נתיב לוגי: `copy`, `images`, `video/scenes`, `video/film`, `video/narration`, `video/music`, `references`                                    |
+| `ref_table`, `ref_id`               | הקישור לנכס, לווריאציה או לסצנה הקיימים (לא מעתיקים נתונים)                                                                                  |
+| `title`, `url`, `thumb_url`, `meta` | תצוגה                                                                                                                                        |
+| `status`                            | `pending`, `ready`, `failed`, `approved`                                                                                                     |
+| `position`, `created_at`            | סדר בפיד                                                                                                                                     |
 
 RLS לפי `tenant_id`. Realtime מופעל על הטבלה. אין מיגרציה של נתונים ישנים: פרויקטים קיימים מקבלים תצוגה נגזרת מ־`payload` עד שנוצר בהם תוצר חדש.
 
@@ -214,6 +214,7 @@ RLS לפי `tenant_id`. Realtime מופעל על הטבלה. אין מיגרצי
 5. **מיגרציות:** מאחדים את הגופים החוזרים של `produce_video`, `queue_video_sound`, `video_narration_ready` ו-`workshop_mirror_asset`. ל-`produce_video` עוברים לארגומנט `jsonb` אחד של אפשרויות. מוסיפים ל-`workshop_creative_stage` בדיקת דייר מפורשת.
 6. **בדיקות SQL ב-CI:** אף job לא מריץ את `supabase/tests/*.sql`. מוסיפים job שמריץ אותן.
 7. **render-worker: טיפוסים מלאים:** מדליקים את `noImplicitAny` ואת `strictNullChecks` ב-`render-worker/tsconfig.json`, ובודקים גם את `render-worker/test` ב-`pnpm typecheck:worker`.
+8. **להסיר את העטיפה הישנה של `produce_video`:** אחרי חלון פריסה אחד, כשאף קורא לא שולח את 11 הארגומנטים הישנים, מיגרציה חדשה מסירה את העטיפה ונותנת ל-`p_options` ברירת מחדל `'{}'`.
 
 ## 12. אחרי סבב הסרטים (2–3 בנובמבר)
 

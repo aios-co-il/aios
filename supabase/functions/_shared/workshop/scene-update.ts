@@ -23,7 +23,7 @@ import { talkingLine } from "./talking.ts";
 import { isTitleEmphasis } from "./title-emphasis.ts";
 import { isSceneTransition } from "./film-look.ts";
 import { isTitleSize, isTitleStyle } from "./title-styles.ts";
-import { type SceneEngine, speaksNatively } from "./video-cost.ts";
+import { type SceneEngine, speaksNatively } from "./scene-engine.ts";
 
 export interface SceneRow {
   id: string;

@@ -4,7 +4,7 @@
  * instead of promising the film or trying again.
  */
 
-import { ENGINE_LABEL, isSceneEngine } from "./video-cost.ts";
+import { ENGINE_LABEL, isSceneEngine } from "./scene-engine.ts";
 
 export interface RunRow {
   kind: string;

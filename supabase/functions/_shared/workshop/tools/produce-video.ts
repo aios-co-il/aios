@@ -13,13 +13,13 @@ import {
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { clipSaysLine, talkingLine } from "../talking.ts";
+import { costSceneOf } from "../cost-scene.ts";
 import {
   ENGINE_LABEL,
   type SceneEngine,
-  costSceneOf,
   isSceneEngine,
-  quotedProductionEstimate,
-} from "../video-cost.ts";
+} from "../scene-engine.ts";
+import { quotedProductionEstimate } from "../video-cost.ts";
 import { isSceneOverlay } from "../scene-overlays.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { CTA_MAX_CHARS } from "../cta.ts";
@@ -419,23 +419,25 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   }
   const produced = await supabase.rpc("produce_video", {
     p_item_id: itemId,
-    p_aspect: format,
-    p_provider: engine,
-    // Free-preview clips are priced in costScenes, so the paid engine may redo them.
-    p_redo_preview: true,
-    p_estimate: {
-      clips: estimate.clips,
-      voice: estimate.voice,
-      music: estimate.music,
-      lipsync: estimate.lipsync,
-      sound_effects: estimate.soundEffects,
+    p_options: {
+      aspect: format,
+      provider: engine,
+      // Free-preview clips are priced in costScenes, so the paid engine may redo them.
+      redo_preview: true,
+      estimate: {
+        clips: estimate.clips,
+        voice: estimate.voice,
+        music: estimate.music,
+        lipsync: estimate.lipsync,
+        sound_effects: estimate.soundEffects,
+      },
+      stage_id: stageId,
+      with_voice: withVoice,
+      with_music: withMusic,
+      voice_id: voiceId,
+      music_prompt: musicPrompt,
+      generate_audio: false,
     },
-    p_stage_id: stageId,
-    p_with_voice: withVoice,
-    p_with_music: withMusic,
-    p_voice_id: voiceId,
-    p_music_prompt: musicPrompt,
-    p_generate_audio: false,
   });
   if (produced.error) {
     await refund();

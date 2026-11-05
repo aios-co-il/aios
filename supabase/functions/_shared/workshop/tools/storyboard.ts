@@ -1,4 +1,4 @@
-import { sceneReferenceUrl, withLook } from "../look.ts";
+import { withLook } from "../look.ts";
 import {
   PRODUCTION_LOCKED,
   productionLockError,
@@ -15,7 +15,9 @@ import { loadScenes, paidReplaceRefusal } from "../scene-helpers.ts";
 import { storyboardText } from "../storyboard-text.ts";
 import { forgetKeptDesign } from "./keep-design.ts";
 import { filmConcept } from "./film-concept.ts";
-import { storyboardSource, withSourcePicture } from "./storyboard-source.ts";
+import { scriptStep } from "./script-step.ts";
+import { sceneRows, storyboardInput } from "./storyboard-scenes.ts";
+import { storyboardSource } from "./storyboard-source.ts";
 import { type ToolContext } from "../tool-context.ts";
 
 export async function workshopStoryboard(ctx: ToolContext) {
@@ -47,24 +49,19 @@ export async function workshopStoryboard(ctx: ToolContext) {
   if ("stop" in chosen) {
     return chosen.stop;
   }
-  project.payload = chosen.payload;
-  const input = (Array.isArray(args.scenes) ? args.scenes : [])
-    .map((scene) => asRecord(scene))
-    .filter((scene) => String(scene.visual_prompt ?? "").trim())
-    .slice(0, 20);
-  if (input.length === 0)
-    return { error: "scenes ריק: כל סצנה צריכה visual_prompt" };
-  // A scene's own picture (the skin the character wears in it) must be one the stills can fetch:
-  // a wrong address is refused here rather than silently falling back to the project's look.
-  const badReference = input.findIndex(
-    (scene) =>
-      String(scene.reference_url ?? "").trim() !== "" &&
-      !sceneReferenceUrl(scene.reference_url),
-  );
-  if (badReference >= 0)
-    return {
-      error: `סצנה ${badReference + 1}: reference_url חייב להיות קישור https ציבורי לתמונה (נכס מהפרויקט או קישור שהמשתמש נתן).`,
-    };
+  // Then the script the user approved: the scenes are its beats.
+  const scripted = await scriptStep(ctx, itemId, chosen.payload, {
+    hasScenes: old.length > 0,
+    concept: chosen.concept,
+  });
+  if ("stop" in scripted) {
+    return scripted.stop;
+  }
+  project.payload = scripted.payload;
+  const input = storyboardInput(args.scenes, scripted.script);
+  if ("error" in input) {
+    return input;
+  }
   const source = await storyboardSource(ctx, itemId);
   if ("error" in source) {
     return source;
@@ -73,35 +70,7 @@ export async function workshopStoryboard(ctx: ToolContext) {
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
   const keepsPaid = await paidReplaceRefusal(supabase, tenantId, old, deps);
   if (keepsPaid) return keepsPaid;
-  const rows = input.map((scene, index) =>
-    withSourcePicture(
-      {
-        id: crypto.randomUUID(),
-        position: index + 1,
-        title: String(scene.title ?? "").trim() || `סצנה ${index + 1}`,
-        shot: String(scene.shot ?? "").trim() || "Medium shot",
-        visual_prompt: String(scene.visual_prompt).trim(),
-        motion_prompt: String(scene.motion_prompt ?? "").trim(),
-        overlay_text: String(scene.overlay_text ?? "").trim(),
-        voiceover_text: String(scene.voiceover_text ?? "").trim(),
-        duration_s: Math.min(Math.max(Number(scene.duration_s) || 3, 0.5), 120),
-        // The scene's own character picture: saved to meta by save_video_storyboard, and its
-        // still is made from it instead of the project's anchor frame.
-        ...(sceneReferenceUrl(scene.reference_url)
-          ? { reference_url: sceneReferenceUrl(scene.reference_url) }
-          : {}),
-        // Talking scene: saved to meta by save_video_storyboard.
-        ...(scene.lipsync === true
-          ? {
-              lipsync: true,
-              speaker: String(scene.speaker ?? "").trim(),
-              dialogue: String(scene.dialogue ?? "").trim(),
-            }
-          : {}),
-      },
-      source.url,
-    ),
-  );
+  const rows = sceneRows(input.scenes, source.url);
   const saved = await supabase.rpc("save_video_storyboard", {
     p_item_id: itemId,
     p_scenes: rows,
@@ -138,6 +107,9 @@ export async function workshopStoryboard(ctx: ToolContext) {
       scenes: rows,
       text: storyboardText(rows, false),
       ...(chosen.concept ? { concept: chosen.concept } : {}),
+      ...(scripted.script
+        ? { script: { artifact_id: scripted.script.artifact_id } }
+        : {}),
     },
   });
   const ownReferences = rows.filter((scene) => scene.reference_url).length;
@@ -145,6 +117,7 @@ export async function workshopStoryboard(ctx: ToolContext) {
     success: true,
     scenes: rows.length,
     ...(chosen.concept ? { concept: chosen.concept.title } : {}),
+    ...(scripted.script ? { script: scripted.script.title } : {}),
     ...(ownReferences > 0 ? { scenes_with_own_reference: ownReferences } : {}),
     total_s: total,
     artifact,

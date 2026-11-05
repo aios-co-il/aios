@@ -903,7 +903,7 @@ Deno.test(
       )) as Row;
       assertStrictEquals(produced.success, true, JSON.stringify(produced));
       const rpc = db.rpcs.find((call) => call.name === "produce_video")!;
-      assertStrictEquals(rpc.args.p_aspect, format);
+      assertStrictEquals(rpc.args.p_options.aspect, format);
     }
   },
 );
@@ -1367,6 +1367,8 @@ const writeFilm = (
     {
       item_id: "item-1",
       scenes: [{ visual_prompt: "a bakery at dawn", voiceover_text: "בוקר" }],
+      // The script step after the concept has its own tests (tools/script-step.test.ts).
+      skip_script: true,
       ...args,
     },
     async () => {},

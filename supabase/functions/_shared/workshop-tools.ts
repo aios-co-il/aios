@@ -26,6 +26,7 @@ import { workshopMakeCreative } from "./workshop/tools/make-creative.ts";
 import { workshopMakeStills } from "./workshop/tools/make-stills.ts";
 import { workshopProduceVideo } from "./workshop/tools/produce-video.ts";
 import { workshopSaveCopy } from "./workshop/tools/save-copy.ts";
+import { workshopSaveScript } from "./workshop/tools/save-script.ts";
 import { workshopStartProject } from "./workshop/tools/start-project.ts";
 import { workshopStoryboard } from "./workshop/tools/storyboard.ts";
 import { workshopUpdateScene } from "./workshop/tools/update-scene.ts";
@@ -48,6 +49,7 @@ const HANDLERS: Record<string, (ctx: ToolContext) => Promise<unknown>> = {
   workshop_make_creative: workshopMakeCreative,
   workshop_save_concepts: workshopSaveCopy,
   workshop_save_copy: workshopSaveCopy,
+  workshop_save_script: workshopSaveScript,
   workshop_choose_voice: workshopChooseVoice,
   workshop_edit_from_assets: workshopEditFromAssets,
   workshop_storyboard: workshopStoryboard,

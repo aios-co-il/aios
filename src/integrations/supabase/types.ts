@@ -18180,22 +18180,24 @@ export type Database = {
         Returns: number;
       };
       phone_match_key: { Args: { p_phone: string }; Returns: string };
-      produce_video: {
-        Args: {
-          p_aspect?: string;
-          p_estimate?: Json;
-          p_generate_audio?: boolean;
-          p_item_id: string;
-          p_music_prompt?: string;
-          p_provider?: string;
-          p_redo_preview?: boolean;
-          p_stage_id?: string;
-          p_voice_id?: string;
-          p_with_music?: boolean;
-          p_with_voice?: boolean;
-        };
-        Returns: Json;
-      };
+      produce_video:
+        | {
+            Args: {
+              p_aspect?: string;
+              p_estimate?: Json;
+              p_generate_audio?: boolean;
+              p_item_id: string;
+              p_music_prompt?: string;
+              p_provider?: string;
+              p_redo_preview?: boolean;
+              p_stage_id?: string;
+              p_voice_id?: string;
+              p_with_music?: boolean;
+              p_with_voice?: boolean;
+            };
+            Returns: Json;
+          }
+        | { Args: { p_item_id: string; p_options: Json }; Returns: Json };
       pulse_open_integration_disconnects: {
         Args: { p_tenant_id: string };
         Returns: {
@@ -18694,11 +18696,27 @@ export type Database = {
         Args: { p_data: Json; p_table_id: string };
         Returns: boolean;
       };
+      video_film_talks: { Args: { p_item_id: string }; Returns: boolean };
+      video_narrated_scenes: {
+        Args: { p_item_id: string };
+        Returns: {
+          line: string;
+          scene_id: string;
+          scene_position: number;
+          tenant_id: string;
+          voice_asset_id: string;
+        }[];
+      };
       video_narration_line: {
         Args: { p_meta: Json; p_voiceover: string };
         Returns: string;
       };
       video_narration_ready: { Args: { p_item_id: string }; Returns: boolean };
+      video_project_voice: { Args: { p_payload: Json }; Returns: string };
+      video_take_current: {
+        Args: { p_line: string; p_meta: Json; p_voice: string };
+        Returns: boolean;
+      };
       video_talking_line: {
         Args: { p_meta: Json; p_voiceover: string };
         Returns: string;
@@ -18798,6 +18816,26 @@ export type Database = {
           updated_at: string;
           workshop_edit: boolean;
         }[];
+      };
+      workshop_pending_artifact: {
+        Args: {
+          p_item_id: string;
+          p_kind: string;
+          p_scene_id?: string;
+          p_tenant_id: string;
+        };
+        Returns: string;
+      };
+      workshop_settle_pending_artifact: {
+        Args: {
+          p_add_meta: Json;
+          p_artifact_id: string;
+          p_asset_id: string;
+          p_drop_meta: string[];
+          p_thumb_url: string;
+          p_url: string;
+        };
+        Returns: undefined;
       };
     };
     Enums: {

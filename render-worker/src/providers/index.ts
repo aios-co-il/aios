@@ -9,14 +9,11 @@ import { higgsfieldCredential } from "./higgsfield-credential.ts";
 import { higgsfieldProvider } from "./higgsfield.ts";
 import { klingProvider } from "./kling.ts";
 import { textlessMotion } from "./textless-motion.ts";
-import {
-  elevenLabsLipsyncProvider,
-  heygenLipsyncProvider,
-  higgsfieldLipsyncProvider,
-  klingLipsyncProvider,
-  openRouterLipsyncProvider,
-  lipsyncCandidates,
-} from "./lipsync.ts";
+import { openRouterLipsyncProvider, lipsyncCandidates } from "./lipsync.ts";
+import { elevenLabsLipsyncProvider } from "./lipsync-elevenlabs.ts";
+import { heygenLipsyncProvider } from "./lipsync-heygen.ts";
+import { higgsfieldLipsyncProvider } from "./lipsync-higgsfield.ts";
+import { klingLipsyncProvider } from "./lipsync-kling.ts";
 import { mockProvider } from "./mock.ts";
 import { openRouterProvider } from "./openrouter.ts";
 import type { LipsyncProvider, ProviderKeys, VideoProvider } from "./types.ts";
