@@ -21,7 +21,8 @@ Marketing OS look of the web app's `/auth`. Test report and Go/No-Go:
   the app still builds, and only the wake word works. `carmen.webUrl` / `CARMEN_WEB_URL` sets the
   web app shown on the home screen (default: the Staging alias, which Vercel protects with a login
   until Staging has a public domain).
-  The first build downloads the offline speech model (~40 MB) into `app/src/main/assets/`.
+  The APK is about 5 MB (64-bit phones, code shrinking on); the offline speech model (~40 MB)
+  downloads once, the first time listening starts.
 
 The APK is signed with the debug key for private installs. Installing a build from another
 machine over an existing one fails with a signature error: uninstall first.
@@ -64,7 +65,7 @@ Stop listening from the app or from the notification's **עצור האזנה** a
 | Settings and test screen                                           | `SettingsActivity.kt`                          |
 | Sign-in screen and Google sign-in callback                         | `SignInActivity.kt`, `AuthCallbackActivity.kt` |
 
-The wake word runs on the phone only. Audio goes to OpenAI only during a conversation after the
+The wake word runs on the phone only (`SpeechModelStore.kt` downloads its model once). Audio goes to OpenAI only during a conversation after the
 wake word, using a short-lived key from `carmen-realtime-session`; the OpenAI key never reaches the
 phone. Carmen answers with the signed-in user's permissions, enforced by `run-ai-agent`.
 

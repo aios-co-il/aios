@@ -14,7 +14,6 @@ extension/bun.lock
 .env
 .env.*
 
-# Carmen Android build output and the downloaded speech model (see mobile/carmen-android/.gitignore)
+# Carmen Android build output (see mobile/carmen-android/.gitignore)
 mobile/carmen-android/**/build/
 mobile/carmen-android/.gradle/
-mobile/carmen-android/app/src/main/assets/

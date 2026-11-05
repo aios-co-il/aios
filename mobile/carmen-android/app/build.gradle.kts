@@ -1,7 +1,4 @@
-import java.net.URI
 import java.util.Properties
-import java.util.UUID
-import java.util.zip.ZipInputStream
 
 plugins {
     id("com.android.application")
@@ -24,10 +21,10 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0-home"
-        // Phones only; drops the emulator (x86) copies of the native speech libraries.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        versionCode = 6
+        versionName = "0.5.1-small"
+        // 64-bit phones only: keeps the APK small enough to download reliably to a phone.
+        ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "SUPABASE_URL", "\"${backendSetting("carmen.supabaseUrl", "CARMEN_SUPABASE_URL")}\"")
         buildConfigField("String", "SUPABASE_KEY", "\"${backendSetting("carmen.supabaseKey", "CARMEN_SUPABASE_KEY")}\"")
         buildConfigField(
@@ -39,7 +36,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Shrinks the code and unused resources so the APK downloads reliably to a phone.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Private install only: sign release with the debug key until distribution (phase 6).
             signingConfig = signingConfigs.getByName("debug")
         }
@@ -51,6 +51,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { buildConfig = true }
+    // Compress the native speech library inside the APK (~10 MB stored, a few MB compressed).
+    packaging { jniLibs { useLegacyPackaging = true } }
 }
 
 dependencies {
@@ -64,32 +66,3 @@ dependencies {
     // Real org.json for JVM unit tests (android.jar only has stubs).
     testImplementation("org.json:json:20240303")
 }
-
-// The offline speech model is ~40 MB, so it is downloaded at build time instead of committed.
-val modelName = "vosk-model-small-en-us-0.15"
-val modelDir = layout.projectDirectory.dir("src/main/assets/model-en-us")
-
-val fetchWakeWordModel by tasks.registering {
-    description = "Downloads the offline Vosk model used for wake word detection."
-    outputs.dir(modelDir)
-    onlyIf { !modelDir.file("uuid").asFile.exists() }
-    doLast {
-        val target = modelDir.asFile
-        target.deleteRecursively()
-        target.mkdirs()
-        val url = URI("https://alphacephei.com/vosk/models/$modelName.zip").toURL()
-        ZipInputStream(url.openStream()).use { zip ->
-            generateSequence { zip.nextEntry }.forEach { entry ->
-                val relative = entry.name.removePrefix("$modelName/")
-                if (relative.isEmpty() || entry.isDirectory) return@forEach
-                val out = target.resolve(relative)
-                out.parentFile.mkdirs()
-                out.outputStream().use { zip.copyTo(it) }
-            }
-        }
-        // Vosk's StorageService re-unpacks the asset folder only when this id changes.
-        target.resolve("uuid").writeText(UUID.randomUUID().toString())
-    }
-}
-
-tasks.named("preBuild") { dependsOn(fetchWakeWordModel) }

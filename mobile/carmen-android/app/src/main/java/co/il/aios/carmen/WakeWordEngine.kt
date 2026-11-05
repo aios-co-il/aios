@@ -6,8 +6,10 @@ import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
-import org.vosk.android.StorageService
+import android.os.Handler
+import android.os.Looper
 import java.io.IOException
+import kotlin.concurrent.thread
 
 /** On-device wake word detector. Audio never leaves the phone. */
 interface WakeWordEngine {
@@ -35,23 +37,28 @@ class VoskWakeWordEngine(
     private var speechService: SpeechService? = null
     private var recognizer: Recognizer? = null
     private var listener: WakeWordEngine.Listener? = null
-    private var stopped = false
+    @Volatile private var stopped = false
+    private val main = Handler(Looper.getMainLooper())
 
     override fun start(listener: WakeWordEngine.Listener) {
         this.listener = listener
-        StorageService.unpack(
-            context, ASSET_MODEL_DIR, UNPACKED_MODEL_DIR,
-            { loaded ->
+        thread(name = "carmen-model") {
+            val loaded = try {
+                Model(SpeechModelStore(context).ensureModel().absolutePath)
+            } catch (e: IOException) {
+                main.post { listener.onError("Could not load the speech model", e) }
+                return@thread
+            }
+            main.post {
                 // Listening may have been stopped while the model was still loading.
                 if (stopped) {
                     loaded.close()
-                    return@unpack
+                    return@post
                 }
                 model = loaded
                 if (startRecognizer(loaded, listener)) listener.onReady()
-            },
-            { error: IOException -> listener.onError("Could not unpack speech model", error) },
-        )
+            }
+        }
     }
 
     private fun startRecognizer(loaded: Model, listener: WakeWordEngine.Listener): Boolean = try {
@@ -115,7 +122,5 @@ class VoskWakeWordEngine(
 
     private companion object {
         const val SAMPLE_RATE = 16_000f
-        const val ASSET_MODEL_DIR = "model-en-us"
-        const val UNPACKED_MODEL_DIR = "model"
     }
 }

@@ -2,5 +2,3 @@
 build/
 local.properties
 *.apk
-# Downloaded at build time by the fetchWakeWordModel task
-app/src/main/assets/model-en-us/
