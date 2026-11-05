@@ -28,7 +28,7 @@ interface ContactOption extends SignatureContactDetails {
 }
 
 interface SignatureContactPickerProps {
-  tenantId: string | undefined;
+  tenantId: string | null | undefined;
   onSelect: (contact: SignatureContactDetails) => void;
 }
 
