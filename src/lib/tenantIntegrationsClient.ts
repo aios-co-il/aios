@@ -63,6 +63,7 @@ export type ClientIntegration = Omit<
   _sharedByName?: string | null;
 };
 
+/** Keep projection literals so Supabase can infer the selected row. */
 export function getClientIntegrationSelect(integrationType: string) {
   return GOOGLE_INTEGRATION_TYPES.has(integrationType)
     ? CLIENT_INTEGRATION_COLUMNS
