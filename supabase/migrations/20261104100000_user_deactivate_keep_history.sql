@@ -815,21 +815,32 @@ revoke all on function public.client_updates_keep_owner() from public, anon, aut
 -- crm_tables.created_by 21, chat_messages.sent_by_user_id 1. No other key to
 -- auth.users or profiles had an orphan. These references become NULL, which
 -- is what the new ON DELETE SET NULL keys do when a user is deleted; each row
--- is copied to archive.orphan_rows first. The update triggers that would
--- re-validate a CRM record or move updated_at are off for these updates only;
--- no other trigger on these tables fires for these columns, and nothing is
--- sent. Where the user's references are gone (Staging, fresh databases) this
--- changes nothing.
-do $$
+-- is copied to archive.orphan_rows first. Nothing is sent. Where the user's
+-- references are gone (Staging, fresh databases) this changes nothing.
+-- The work is a function so supabase/tests/clear_deleted_user_references.sql
+-- can plant such references and check it; only the migration and the service
+-- role run it.
+
+-- Clears one missing user's references in the six columns above, each row
+-- archived first; a user who still exists is left alone. Returns the number of
+-- references cleared. The update triggers that would re-validate a CRM record
+-- or move updated_at are off for these updates only (only one that is on now
+-- is switched off, and only that one back on); no other trigger on these
+-- tables fires for these columns.
+create or replace function archive.clear_deleted_user_references(p_user uuid)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
 declare
-  v_user constant uuid := 'bcd21d1c-3b39-4a7c-9dbf-4c89679110b9';
   r record;
   v_count integer;
+  v_total integer := 0;
   v_quiet boolean;
 begin
-  if exists (select 1 from auth.users where id = v_user) then
-    raise notice 'user % exists; no leftover references to clear', v_user;
-    return;
+  if p_user is null or exists (select 1 from auth.users where id = p_user) then
+    raise notice 'user % exists or is null; no leftover references to clear', p_user;
+    return 0;
   end if;
 
   for r in
@@ -843,9 +854,9 @@ begin
     ) as t(tbl, col, quiet_trigger)
   loop
     execute format('select count(*) from public.%I where %I = $1', r.tbl, r.col)
-      into v_count using v_user;
+      into v_count using p_user;
     if v_count = 0 then
-      raise notice 'no references to user % in %.%', v_user, r.tbl, r.col;
+      raise notice 'no references to user % in %.%', p_user, r.tbl, r.col;
       continue;
     end if;
 
@@ -857,12 +868,11 @@ begin
       r.col || ' pointed at a deleted user; cleared by 20261104100000',
       r.tbl,
       r.col
-    ) using v_user;
+    ) using p_user;
 
-    -- Only a trigger that is on now is switched off, and only that one is switched back on.
     v_quiet := r.quiet_trigger is not null and exists (
       select 1
-      from pg_trigger
+      from pg_catalog.pg_trigger
       where tgrelid = format('public.%I', r.tbl)::regclass
         and tgname = r.quiet_trigger
         and tgenabled = 'O'
@@ -873,15 +883,22 @@ begin
     end if;
 
     execute format('update public.%I set %I = null where %I = $1', r.tbl, r.col, r.col)
-      using v_user;
+      using p_user;
     get diagnostics v_count = row_count;
 
     if v_quiet then
       execute format('alter table public.%I enable trigger %I', r.tbl, r.quiet_trigger);
     end if;
-    raise notice 'cleared % reference(s) to deleted user % in %.%', v_count, v_user, r.tbl, r.col;
+    v_total := v_total + v_count;
+    raise notice 'cleared % reference(s) to deleted user % in %.%', v_count, p_user, r.tbl, r.col;
   end loop;
-end $$;
+  return v_total;
+end;
+$$;
+
+revoke all on function archive.clear_deleted_user_references(uuid) from public, anon, authenticated;
+
+select archive.clear_deleted_user_references('bcd21d1c-3b39-4a7c-9dbf-4c89679110b9');
 
 comment on table archive.orphan_rows is
   'Rows a migration deleted or changed, as they were before. 20261103110000_restore_lost_constraints: rows whose client was deleted. 20261103110500_archive_deleted_clients (reason client_deleted): every deleted client, with its communication_logs and seo_monthly_updates rows, copied before the delete cascades. 20261104100000_user_deactivate_keep_history: rows whose user column pointed at a deleted user, before it was cleared.';
