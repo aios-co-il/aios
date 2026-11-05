@@ -386,6 +386,10 @@ verify_jwt = false
 [functions.gmail-api]
 verify_jwt = true
 
+# Microsoft redirects the OAuth callback here without a Supabase JWT.
+[functions.microsoft-auth]
+verify_jwt = false
+
 [functions.process-job-queue]
 verify_jwt = false
 

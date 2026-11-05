@@ -10541,6 +10541,62 @@ export type Database = {
           },
         ];
       };
+      microsoft_tokens: {
+        Row: {
+          access_token: string;
+          account_type: string;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          last_refresh_error: string | null;
+          microsoft_email: string | null;
+          ms_tenant_id: string | null;
+          refresh_token: string;
+          scopes: string;
+          tenant_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          access_token: string;
+          account_type: string;
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          last_refresh_error?: string | null;
+          microsoft_email?: string | null;
+          ms_tenant_id?: string | null;
+          refresh_token: string;
+          scopes?: string;
+          tenant_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          access_token?: string;
+          account_type?: string;
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          last_refresh_error?: string | null;
+          microsoft_email?: string | null;
+          ms_tenant_id?: string | null;
+          refresh_token?: string;
+          scopes?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "microsoft_tokens_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       one_time_incomes: {
         Row: {
           amount: number;
@@ -17900,6 +17956,14 @@ export type Database = {
         Args: never;
         Returns: {
           google_email: string;
+        }[];
+      };
+      get_user_microsoft_connection: {
+        Args: never;
+        Returns: {
+          account_type: string;
+          microsoft_email: string;
+          needs_reconnect: boolean;
         }[];
       };
       get_user_sales_person_agency_ids: {
