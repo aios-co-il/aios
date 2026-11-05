@@ -22,6 +22,10 @@ import {
   cplSpikeFingerprint,
   noContactFingerprint,
 } from "./pulse/instant-alert-fingerprint.ts";
+import {
+  disconnectAlertCandidates,
+  type OpenIntegrationDisconnect,
+} from "./pulse/connection-disconnects.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
 import { sendRunMessages } from "./pulse/instant-alert-send.ts";
 import { resolveInstantAlertRecipients } from "./pulse/instant-alert-recipients.ts";
@@ -49,7 +53,8 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
 };
 
 export type PulseInstantAlertCandidate = {
-  client_id: string;
+  /** The client the finding is about; null for the org's lost connection. */
+  client_id: string | null;
   client_name: string;
   rule_type: PulseAlertRuleType;
   /** The alert's line in its section of the run message, built by code. */
@@ -60,6 +65,11 @@ export type PulseInstantAlertCandidate = {
   evidence?: { [key: string]: Json | undefined };
   /** connection_lost only: may go out on Shabbat (see isRealConnectionLoss). */
   shabbat_critical?: boolean;
+  /**
+   * A lost connection only: when the disconnect began. Its dedupe reaches
+   * back to then, so it is sent once however long it lasts.
+   */
+  open_since?: string | null;
 };
 
 export type PulseSnapshotAlertInput = {
@@ -137,11 +147,14 @@ export function evaluatePulseInstantAlerts(
   criticalIssues: CriticalIssueLike[],
   rulesInput: unknown,
   nowMs = Date.now(),
+  disconnects: Array<OpenIntegrationDisconnect> = [],
 ): PulseInstantAlertCandidate[] {
   const rules = parsePulseAlertRules(rulesInput);
   if (!rules.instant_wa_enabled) return [];
 
-  const candidates: PulseInstantAlertCandidate[] = [];
+  // The org's lost connections lead the connection section (AIO-342).
+  const candidates: Array<PulseInstantAlertCandidate> =
+    rules.disconnected_enabled ? disconnectAlertCandidates(disconnects) : [];
   const criticalByClient = new Map<string, CriticalIssueLike[]>();
   for (const issue of criticalIssues) {
     const list = criticalByClient.get(issue.clientId) || [];
@@ -302,6 +315,8 @@ export type InstantPulseAlertsInput = {
   reportRecipients: CarmenReportRecipient[];
   snapshots: PulseSnapshotAlertInput[];
   criticalIssues: CriticalIssueLike[];
+  /** The org's own open connection disconnects (loadOpenIntegrationDisconnects). */
+  disconnects?: Array<OpenIntegrationDisconnect>;
   rules: unknown;
   queueWhatsApp: QueueWhatsApp;
   /** Clock override for tests. */
@@ -330,6 +345,7 @@ export async function deliverInstantPulseAlerts(
     input.criticalIssues,
     input.rules,
     now.getTime(),
+    input.disconnects,
   );
   const candidates = evaluated.filter(
     (candidate) => !isPulseAlertHeldForShabbat(candidate, now),

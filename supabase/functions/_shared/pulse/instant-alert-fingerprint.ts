@@ -28,3 +28,14 @@ export function cplSpikeFingerprint(clientId: string): string {
 export function connectionLostFingerprint(clientId: string): string {
   return `connection_lost:${clientId}:open`;
 }
+
+/**
+ * A lost connection (AIO-342): one finding per disconnect event, so a
+ * reconnect followed by a new loss is a new finding.
+ */
+export function connectionDisconnectFingerprint(
+  integrationId: string,
+  eventId: string,
+): string {
+  return `connection_lost:integration:${integrationId}:${eventId}`;
+}

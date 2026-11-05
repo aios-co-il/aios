@@ -32,6 +32,21 @@ Deno.test("campaign-pulse-snapshot wiring", async (t) => {
   );
 
   await t.step(
+    "the org's own lost connections reach the instant alerts, even with no client",
+    () => {
+      assertMatch(
+        source,
+        /loadOpenIntegrationDisconnects\(\s*supabase,\s*tenantId,?\s*\)/,
+      );
+      assertMatch(
+        source,
+        /if \(snapshots\.length \|\| openDisconnects\.disconnects\.length\) \{/,
+      );
+      assertMatch(source, /disconnects: openDisconnects\.disconnects,/);
+    },
+  );
+
+  await t.step(
     "warns about an unreachable list only on a run that reports",
     () => {
       assertMatch(

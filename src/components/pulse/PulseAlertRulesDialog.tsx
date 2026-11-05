@@ -150,7 +150,8 @@ export function PulseAlertRulesDialog({
             <div>
               <Label className="text-sm">ניתוק / חשבון לא פעיל</Label>
               <p className="text-xs text-muted-foreground">
-                דוח מנותק, סנכרון ישן, קמפיין שנעצר או מודעה חסומה
+                חיבור שנותק (Google וכו׳), דוח מנותק, סנכרון ישן, קמפיין שנעצר
+                או מודעה חסומה
               </p>
             </div>
             <Switch
