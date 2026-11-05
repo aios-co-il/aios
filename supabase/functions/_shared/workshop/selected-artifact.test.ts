@@ -7,6 +7,7 @@ import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
   type SelectedArtifact,
   markedPictureFilmLine,
+  markedTextPageLine,
   selectedArtifactLine,
   selectedArtifactScope,
 } from "./selected-artifact.ts";
@@ -18,6 +19,7 @@ const image: SelectedArtifact = {
   status: "ready",
   url: "https://example.supabase.co/storage/v1/object/public/x/a.png",
   thumb_url: null,
+  meta: {},
 };
 
 describe("selectedArtifactLine", () => {
@@ -74,5 +76,39 @@ describe("markedPictureFilmLine", () => {
       markedPictureFilmLine({ ...image, kind: "copy" }, true),
       null,
     );
+  });
+});
+
+describe("markedTextPageLine", () => {
+  it("hands Carmen a marked concept's text and how to revise it", () => {
+    const line =
+      markedTextPageLine({
+        ...image,
+        kind: "concept",
+        title: "חג של חיסכון",
+        meta: { text: "המשפחה מגלה את המבצע" },
+      }) ?? "";
+    assertMatch(line, /המשפחה מגלה את המבצע/);
+    assertMatch(line, /workshop_save_concepts באותו שם/);
+  });
+
+  it("revises a marked script with the save tool, which resets its approval", () => {
+    const line =
+      markedTextPageLine({ ...image, kind: "script", meta: null }) ?? "";
+    assertMatch(line, /workshop_save_script/);
+    assertMatch(line, /האישור הקודם מתבטל/);
+  });
+
+  it("names a marked script by its kind", () => {
+    assertMatch(
+      selectedArtifactLine({ ...image, kind: "script", title: "תסריט · חג" }) ??
+        "",
+      /התסריט "תסריט · חג"/,
+    );
+  });
+
+  it("says nothing for a picture or when nothing is marked", () => {
+    assertStrictEquals(markedTextPageLine(image), null);
+    assertStrictEquals(markedTextPageLine(null), null);
   });
 });

@@ -1,13 +1,8 @@
-import {
-  assertEquals,
-  assertMatch,
-  assertStrictEquals,
-} from "jsr:@std/assert@1";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import {
   filmScriptOf,
   filmSeconds,
   maxWords,
-  scriptLines,
   scriptSettled,
   withScript,
 } from "./film-script.ts";
@@ -63,21 +58,4 @@ Deno.test("a script belongs to the concept it was written for", () => {
   };
   assertStrictEquals(filmScriptOf(moved), null);
   assertStrictEquals(scriptSettled(moved), false);
-});
-
-Deno.test("the turn note says where the script stands", () => {
-  assertMatch(scriptLines(withConcept("יום אחד"), 0)[0], /עוד אין/);
-  const waiting = withScript(withConcept("יום אחד"), {
-    artifact_id: "s",
-    title: "",
-    total_s: 3,
-    beats,
-    saved_turn: null,
-  });
-  assertMatch(scriptLines(waiting, 0)[0], /ממתין לאישור/);
-  assertEquals(scriptLines(waiting, 2), []);
-  assertEquals(
-    scriptLines({ ...waiting, workshop_script: { skipped: true } }, 0),
-    [],
-  );
 });

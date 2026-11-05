@@ -14,6 +14,7 @@ import {
   withBriefReadTurn,
 } from "./brief-answers.ts";
 import { readRequest, referenceThisTurn, turnKey } from "./brief-reading.ts";
+import { withoutUnpickedConcept } from "./concept-choice.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
 import { briefingGate } from "./briefing.ts";
@@ -160,7 +161,11 @@ export async function briefProject(
       deps.userText ?? "",
       unanswered(questions, briefAnswersOf(payload)),
     ),
-    ...answersFromArgs(args.brief_answers),
+    // A concept Carmen names counts only when the user picked it (concept-choice.ts).
+    ...withoutUnpickedConcept(answersFromArgs(args.brief_answers), {
+      userText: deps.userText ?? "",
+      lastAssistant: deps.lastAssistant ?? "",
+    }),
   };
   const reference = referenceThisTurn(args, deps.userText ?? "");
   if (reference && !answerFor(fresh, REFERENCE)) {

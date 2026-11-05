@@ -6,7 +6,7 @@ type ArtifactRow = Database["public"]["Tables"]["workshop_artifacts"]["Row"];
 /** The page the user marked on the board, as Carmen needs it to act on it. */
 export type SelectedArtifact = Pick<
   ArtifactRow,
-  "id" | "kind" | "title" | "status" | "url" | "thumb_url"
+  "id" | "kind" | "title" | "status" | "url" | "thumb_url" | "meta"
 >;
 
 /**
@@ -24,7 +24,7 @@ export async function loadSelectedArtifact(
   }
   const { data, error } = await db
     .from("workshop_artifacts")
-    .select("id, kind, title, status, url, thumb_url")
+    .select("id, kind, title, status, url, thumb_url, meta")
     .match(selectedArtifactScope(tenantId, itemId, artifactId))
     .maybeSingle();
   if (error) {
@@ -70,8 +70,35 @@ const KIND_LABEL: Record<string, string> = {
   film: "סרט",
   copy: "טקסט",
   concept: "קונספט",
+  script: "תסריט",
   reference: "רפרנס",
   article: "כתבה",
+};
+
+/** The longest page text the turn note carries. */
+const MAX_PAGE_TEXT = 2500;
+
+/**
+ * A marked concept or script: its text, and what to do with the user's notes on it or their
+ * approval, so a "make it funnier" revises that page instead of starting over.
+ */
+export function markedTextPageLine(artifact: SelectedArtifact | null) {
+  const steps = artifact ? TEXT_PAGE_STEPS[artifact.kind] : undefined;
+  if (!artifact || !steps) {
+    return null;
+  }
+  const meta = artifact.meta;
+  const stored =
+    meta && typeof meta === "object" && !Array.isArray(meta) ? meta.text : "";
+  const text = typeof stored === "string" ? stored.slice(0, MAX_PAGE_TEXT) : "";
+  return text ? `הטקסט שלו עכשיו:\n${text}\n${steps}` : steps;
+}
+
+const TEXT_PAGE_STEPS: Record<string, string> = {
+  concept:
+    'הערות או בקשת שינוי על הקונספט המסומן ("יותר מצחיק"): כתבי רק אותו מחדש לפי ההערות ושמרי ב-workshop_save_concepts באותו שם, עמוד אחד; הוא מחליף את הקודם. אחר כך הציגי אותו ושאלי אם לאשר: [[בחירה: קונספט | <השם>]]. אישור שלו: הצעד הבא הוא התסריט (workshop_storyboard עם concept=<השם>).',
+  script:
+    "הערות או בקשת שינוי על התסריט המסומן: כתבי אותו מחדש לפי ההערות ושמרי ב-workshop_save_script. הכלי מציג אותו עם כפתור האישור היחיד, והאישור הקודם מתבטל. לא כותבים תסריט בתשובה עצמה.",
 };
 
 const webLink = (value: string | null) =>

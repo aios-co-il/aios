@@ -7,11 +7,12 @@
 
 import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { CTA_MAX_CHARS } from "./cta.ts";
-import { scriptLines } from "./film-script.ts";
+import { scriptLines } from "./script-lines.ts";
 import { asksForVideo } from "./roles.ts";
 import {
   loadSelectedArtifact,
   markedPictureFilmLine,
+  markedTextPageLine,
   selectedArtifactLine,
 } from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
@@ -118,13 +119,15 @@ export async function workshopTurnNote(
       itemId,
       turn.selectedArtifactId ?? null,
     );
-    const marked = selectedArtifactLine(selected);
-    if (marked) {
-      lines.push(marked);
-    }
-    const film = markedPictureFilmLine(selected, asksForVideo(userText));
-    if (film) {
-      lines.push(film);
+    // What the user marked, its text when it is a concept or script, and a film asked of it.
+    for (const line of [
+      selectedArtifactLine(selected),
+      markedTextPageLine(selected),
+      markedPictureFilmLine(selected, asksForVideo(userText)),
+    ]) {
+      if (line) {
+        lines.push(line);
+      }
     }
     const answers = Object.entries(briefAnswersOf(payload));
     if (answers.length > 0)

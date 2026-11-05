@@ -19,11 +19,14 @@ const KEY = "workshop_script";
 /** The film's concept question (tools/film-concept.ts); its answer is the script's concept. */
 export const CONCEPT_LABEL = "קונספט";
 
-/** The concept answer under the label Carmen asked with ("קונספט", "הקונספט לסרט"…). */
+/**
+ * The concept answer under the label Carmen asked with ("קונספט", "הקונספט לסרט"…): the latest
+ * one, since a choice under another label is added after the earlier answer.
+ */
 export function conceptAnswer(answers: BriefAnswers): string {
-  const match = Object.entries(answers).find(
-    ([label, answer]) => label.includes(CONCEPT_LABEL) && answer.trim(),
-  );
+  const match = Object.entries(answers)
+    .reverse()
+    .find(([label, answer]) => label.includes(CONCEPT_LABEL) && answer.trim());
   return match?.[1].trim() ?? "";
 }
 
@@ -54,6 +57,8 @@ export interface FilmScript {
   approved: boolean;
   /** The turn the user approved it in, when known: Carmen may not replace it in that turn. */
   approved_turn: string | null;
+  /** The user changed its text on the board (workshop_edit_page); it waits for approval again. */
+  edited_by_user: boolean;
 }
 
 export type ScriptState = FilmScript | { skipped: true } | null;
@@ -96,6 +101,7 @@ export function filmScriptOf(payload: Record<string, unknown>): ScriptState {
     saved_turn: turnOf(stored.saved_turn),
     approved: stored.approved === true,
     approved_turn: turnOf(stored.approved_turn),
+    edited_by_user: stored.edited_by_user === true,
   };
 }
 
@@ -105,7 +111,10 @@ const turnOf = (value: unknown) => (typeof value === "string" ? value : null);
 /** A new script on the project, for the concept chosen now: unapproved until the user says so. */
 export function withScript(
   payload: Record<string, unknown>,
-  script: Omit<FilmScript, "approved" | "approved_turn" | "concept">,
+  script: Omit<
+    FilmScript,
+    "approved" | "approved_turn" | "concept" | "edited_by_user"
+  >,
 ) {
   const concept = conceptAnswer(briefAnswersOf(payload));
   return { ...payload, [KEY]: { ...script, concept, approved: false } };
@@ -177,28 +186,4 @@ export function scriptText(script: Pick<FilmScript, "title" | "beats">) {
       .join("\n"),
   );
   return [`תסריט · ${script.title}`, ...beats].join("\n\n");
-}
-
-/** Where the film's script stands, for the turn note of a film with no scenes yet. */
-export function scriptLines(
-  payload: Record<string, unknown>,
-  scenes: number,
-): Array<string> {
-  if (scenes > 0 || payload.workshop_edit === true) {
-    return [];
-  }
-  const script = filmScriptOf(payload);
-  if (!script) {
-    return [
-      "תסריט: עוד אין. אחרי בחירת הקונספט כותבים תסריט (workshop_save_script), והמשתמש מאשר אותו לפני הסטוריבורד.",
-    ];
-  }
-  if ("skipped" in script) {
-    return [];
-  }
-  return [
-    script.approved
-      ? "תסריט: אושר. לא שומרים אותו שוב: הצעד הבא workshop_storyboard, סצנה אחת לכל שורה."
-      : "תסריט: ממתין לאישור המשתמש. אין סצנות עד שהוא מאשר; בקשת שינוי: כתבי מחדש ושמרי שוב ב-workshop_save_script.",
-  ];
 }

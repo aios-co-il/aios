@@ -1468,7 +1468,16 @@ Deno.test(
   "a concept chosen in words reaches the tool as concept and is saved",
   async () => {
     const db = briefedFilm([conceptPage("יום אחד", "מסע של יום עבודה", 1)]);
-    const written = await writeFilm(db, { concept: "יום אחד" });
+    // The user answered the concept question in words; a concept nobody offered is refused
+    // (tools/film-concept.test.ts).
+    const written = await writeFilm(
+      db,
+      { concept: "יום אחד" },
+      {
+        lastAssistant: "איזה כיוון?\n[[בחירה: קונספט | יום אחד]]",
+        userText: "את הראשון",
+      },
+    );
     assertStrictEquals(written.success, true, JSON.stringify(written));
     assertStrictEquals(briefOf(db).answers.קונספט, "יום אחד");
     assertStrictEquals(
