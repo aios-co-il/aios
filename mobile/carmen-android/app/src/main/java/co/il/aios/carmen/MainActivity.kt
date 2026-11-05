@@ -1,143 +1,158 @@
 package co.il.aios.carmen
 
 import android.Manifest
-import android.app.NotificationManager
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
+import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.ImageButton
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.webkit.ScriptHandler
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import org.json.JSONObject
 
-/** Minimal test screen: listening on/off, setup shortcuts, counters and log export. */
+/**
+ * Carmen's home on the phone: the system's own Command Center (her hologram face, chat and
+ * live conversation) in a web view, so the phone shows exactly the design of the web app.
+ * The wake word, which must work with the screen off, stays native.
+ */
 class MainActivity : AppCompatActivity() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private lateinit var log: EventLog
-    private lateinit var statusText: TextView
-    private lateinit var countersText: TextView
-    private lateinit var toggleButton: Button
+    private lateinit var web: WebView
+    private lateinit var account: AiosAccount
+    private var sessionScript: ScriptHandler? = null
+    private var pendingFiles: ValueCallback<Array<Uri>>? = null
 
-    private val refresh = object : Runnable {
-        override fun run() {
-            render()
-            handler.postDelayed(this, REFRESH_MS)
-        }
+    private val pickFiles = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        pendingFiles?.onReceiveValue(uris.toTypedArray())
+        pendingFiles = null
     }
 
-    private val permissionRequest =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-            if (hasMicPermission()) WakeWordService.start(this)
-            else Toast.makeText(this, R.string.mic_permission_needed, Toast.LENGTH_LONG).show()
-        }
-
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         Notifications.createChannels(this)
-        log = EventLog(this)
-        statusText = findViewById(R.id.status_text)
-        countersText = findViewById(R.id.counters_text)
-        toggleButton = findViewById(R.id.toggle_button)
-        toggleButton.setOnClickListener { toggleListening() }
-        findViewById<Button>(R.id.battery_button).setOnClickListener {
-            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        account = AiosAccount(this)
+        web = findViewById(R.id.carmen_web)
+        web.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
         }
-        findViewById<Button>(R.id.full_screen_button).setOnClickListener { openFullScreenSetting() }
-        findViewById<Button>(R.id.export_button).setOnClickListener { exportLog() }
-        AccountSection(this)
-        findViewById<Button>(R.id.clear_button).setOnClickListener {
-            log.clear()
-            render()
+        web.webViewClient = navigation
+        web.webChromeClient = chrome
+        findViewById<ImageButton>(R.id.settings_button).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (web.canGoBack()) web.goBack() else finish()
+            }
+        })
+        if (!account.isSignedIn) startActivity(Intent(this, SettingsActivity::class.java))
+        if (savedInstanceState == null) loadHome() else web.restoreState(savedInstanceState)
     }
 
     override fun onResume() {
         super.onResume()
-        // Resumes listening after a reboot or a refused background start, once the app is visible.
-        if (ListeningPrefs.isEnabled(this) && WakeWordService.status == WakeWordService.Status.STOPPED &&
-            hasMicPermission()
-        ) {
-            WakeWordService.start(this)
-        }
-        handler.post(refresh)
+        WakeWordService.resumeIfEnabled(this)
+        // A fresh sign-in in Settings hands the web screen its own session.
+        if (handOverWebSession()) loadHome()
     }
 
     override fun onPause() {
-        handler.removeCallbacks(refresh)
+        WakeWordService.send(this, WakeWordService.ACTION_APP_MIC_DONE)
         super.onPause()
     }
 
-    private fun toggleListening() {
-        if (WakeWordService.status != WakeWordService.Status.STOPPED) {
-            WakeWordService.send(this, WakeWordService.ACTION_STOP)
-            return
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        web.saveState(outState)
+    }
+
+    private fun loadHome() {
+        handOverWebSession()
+        web.loadUrl(account.webStartUrl())
+    }
+
+    /**
+     * Writes the session into the web app's localStorage before its scripts run, so the user
+     * is signed in there without typing the password again. Returns true when one was handed over.
+     */
+    private fun handOverWebSession(): Boolean {
+        val session = account.takeWebSession() ?: return false
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return false
+        val script = "localStorage.setItem(${JSONObject.quote(account.webStorageKey())}, ${JSONObject.quote(session)});"
+        clearSessionScript()
+        sessionScript = WebViewCompat.addDocumentStartJavaScript(web, script, setOf(webOrigin()))
+        return true
+    }
+
+    private fun clearSessionScript() {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) sessionScript?.remove()
+        sessionScript = null
+    }
+
+    private fun webOrigin(): String = BuildConfig.WEB_URL.toUri().let { "${it.scheme}://${it.host}" }
+
+    private val navigation = object : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val host = request.url.host.orEmpty()
+            if (host in inAppHosts()) return false
+            // Other sites (reports, ad managers, WhatsApp links) open in their own app.
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, request.url)) }
+            return true
         }
-        val needed = buildList {
-            add(Manifest.permission.RECORD_AUDIO)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
-        }.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
-        if (needed.isEmpty()) WakeWordService.start(this) else permissionRequest.launch(needed.toTypedArray())
-    }
 
-    private fun hasMicPermission() =
-        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
-    private fun openFullScreenSetting() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startActivity(
-                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, "package:$packageName".toUri()),
-            )
-        } else {
-            Toast.makeText(this, R.string.full_screen_not_needed, Toast.LENGTH_SHORT).show()
+        override fun onPageFinished(view: WebView, url: String) {
+            // The handed-over session is in localStorage now; later loads must not overwrite it.
+            if (url.startsWith(BuildConfig.WEB_URL)) clearSessionScript()
         }
     }
 
-    private fun exportLog() {
-        val send = Intent(Intent.ACTION_SEND)
-            .setType("text/plain")
-            .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.export_subject))
-            .putExtra(Intent.EXTRA_TEXT, log.export())
-        startActivity(Intent.createChooser(send, getString(R.string.export_log)))
+    /** The web app, its sign-in providers, and Vercel's login in front of Staging. */
+    private fun inAppHosts(): Set<String> = setOf(
+        BuildConfig.WEB_URL.toUri().host.orEmpty(),
+        BuildConfig.SUPABASE_URL.toUri().host.orEmpty(),
+        "vercel.com",
+    )
+
+    private val chrome = object : WebChromeClient() {
+        override fun onPermissionRequest(request: PermissionRequest) {
+            val fromApp = request.origin.host == BuildConfig.WEB_URL.toUri().host
+            val wantsMic = PermissionRequest.RESOURCE_AUDIO_CAPTURE in request.resources
+            if (!fromApp || !wantsMic || !micGranted()) {
+                request.deny()
+                return
+            }
+            WakeWordService.send(this@MainActivity, WakeWordService.ACTION_APP_MIC)
+            request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+        }
+
+        override fun onShowFileChooser(
+            webView: WebView,
+            callback: ValueCallback<Array<Uri>>,
+            params: FileChooserParams,
+        ): Boolean {
+            pendingFiles?.onReceiveValue(null)
+            pendingFiles = callback
+            pickFiles.launch(params.acceptTypes.firstOrNull { it.isNotBlank() } ?: "*/*")
+            return true
+        }
     }
 
-    private fun render() {
-        val status = WakeWordService.status
-        statusText.text = getString(
-            when (status) {
-                WakeWordService.Status.STOPPED -> R.string.status_stopped
-                WakeWordService.Status.STARTING -> R.string.status_starting
-                WakeWordService.Status.ARMED -> R.string.status_armed
-                WakeWordService.Status.ACTIVE -> R.string.status_active
-            },
-        )
-        toggleButton.setText(
-            if (status == WakeWordService.Status.STOPPED) R.string.start_listening else R.string.stop_listening,
-        )
-        countersText.text = getString(
-            R.string.counters,
-            log.count(EventLog.Event.WAKE_DETECTED),
-            log.count(EventLog.Event.FALSE_ACTIVATION),
-            log.count(EventLog.Event.WAKE_IGNORED),
-            fullScreenAllowedLabel(),
-        )
-    }
-
-    private fun fullScreenAllowedLabel(): String {
-        val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
-            getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
-        return getString(if (allowed) R.string.yes else R.string.no)
-    }
-
-    private companion object {
-        const val REFRESH_MS = 1_000L
-    }
+    private fun micGranted() =
+        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 }

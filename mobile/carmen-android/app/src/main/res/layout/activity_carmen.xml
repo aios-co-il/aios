@@ -2,34 +2,48 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/carmen_background"
-    android:gravity="center"
+    android:background="@drawable/carmen_screen_bg"
+    android:gravity="center_horizontal"
     android:layoutDirection="rtl"
     android:orientation="vertical"
-    android:padding="32dp">
+    android:padding="24dp">
 
-    <View
-        android:id="@+id/listening_indicator"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
-        android:background="@drawable/listening_dot" />
+    <FrameLayout
+        android:layout_width="280dp"
+        android:layout_height="280dp"
+        android:layout_marginTop="24dp">
+
+        <View
+            android:id="@+id/hologram_glow"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/hologram_glow" />
+
+        <ImageView
+            android:id="@+id/hologram"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/app_name"
+            android:src="@drawable/carmen_hologram" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/state_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="8dp"
+        android:letterSpacing="0.05"
         android:text="@string/carmen_listening"
-        android:textColor="#FFFFFF"
-        android:textSize="28sp" />
+        android:textColor="@color/carmen_accent"
+        android:textSize="24sp" />
 
     <TextView
         android:id="@+id/notice_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:gravity="center"
-        android:textColor="#FCA5A5"
+        android:textColor="@color/carmen_alert"
         android:visibility="gone" />
 
     <ScrollView
@@ -44,20 +58,35 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:lineSpacingExtra="6dp"
-            android:textColor="#E5E7EB"
+            android:textColor="#DCEBFF"
             android:textSize="16sp" />
     </ScrollView>
 
-    <Button
-        android:id="@+id/close_button"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/close" />
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
 
-    <Button
-        android:id="@+id/false_activation_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/false_activation" />
+        <Button
+            android:id="@+id/close_button"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/carmen_button"
+            android:paddingHorizontal="24dp"
+            android:text="@string/close"
+            android:textColor="@color/carmen_accent" />
+
+        <Button
+            android:id="@+id/false_activation_button"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/carmen_button"
+            android:paddingHorizontal="24dp"
+            android:text="@string/false_activation"
+            android:textColor="#99DCEBFF" />
+    </LinearLayout>
 </LinearLayout>

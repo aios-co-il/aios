@@ -25,14 +25,37 @@ class AiosAccount(context: Context) {
     val email: String? get() = prefs.getString(KEY_EMAIL, null)
     val isSignedIn: Boolean get() = prefs.getString(KEY_REFRESH, null) != null
 
-    /** Signs in with an AIOS email and password and resolves the user's active tenant. */
+    /**
+     * Signs in with an AIOS email and password and resolves the user's active tenant. It also
+     * opens a second, independent session for the in-app web screen, so one sign-in covers both
+     * without the two clients sharing (and racing to rotate) one refresh token.
+     */
     fun signIn(email: String, password: String) {
         val body = JSONObject().put("email", email).put("password", password)
         saveTokens(authRequest("password", body), email)
         val tenantId = resolveActiveTenant()
             ?: throw IOException("למשתמש אין טננט פעיל ב-AIOS")
-        prefs.edit { putString(KEY_TENANT, tenantId) }
+        val webSession = authRequest("password", body)
+        prefs.edit {
+            putString(KEY_TENANT, tenantId)
+            putString(KEY_TENANT_SLUG, tenantSlug(tenantId))
+            putString(KEY_WEB_SESSION, webSession.toString())
+        }
     }
+
+    /** The Command Center page for the user's tenant, or the web app's home before sign-in. */
+    fun webStartUrl(): String {
+        val slug = prefs.getString(KEY_TENANT_SLUG, null) ?: return BuildConfig.WEB_URL
+        return "${BuildConfig.WEB_URL}/t/$slug/command-center"
+    }
+
+    /** The web session waiting to be handed to the in-app web screen, consumed once. */
+    fun takeWebSession(): String? =
+        prefs.getString(KEY_WEB_SESSION, null)?.also { prefs.edit { remove(KEY_WEB_SESSION) } }
+
+    /** supabase-js keeps its session in localStorage under `sb-<project ref>-auth-token`. */
+    fun webStorageKey(): String =
+        "sb-${BuildConfig.SUPABASE_URL.substringAfter("://").substringBefore('.')}-auth-token"
 
     fun signOut() {
         prefs.edit { clear() }
@@ -96,7 +119,16 @@ class AiosAccount(context: Context) {
             ?: firstTenant("tenant_users?user_id=eq.$userId&select=tenant_id&limit=1")
     }
 
+    private fun tenantSlug(tenantId: String): String? = runCatching {
+        restGet("tenants?id=eq.$tenantId&select=slug").optJSONObject(0)?.optString("slug")?.ifEmpty { null }
+    }.getOrNull()
+
     private fun firstTenant(query: String): String? {
+        val rows = restGet(query)
+        return if (rows.length() == 0) null else rows.getJSONObject(0).optString("tenant_id").ifEmpty { null }
+    }
+
+    private fun restGet(query: String): JSONArray {
         val request = Request.Builder()
             .url("${BuildConfig.SUPABASE_URL}/rest/v1/$query")
             .header("apikey", BuildConfig.SUPABASE_KEY)
@@ -104,8 +136,7 @@ class AiosAccount(context: Context) {
             .build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("טעינת הטננט נכשלה (${response.code})")
-            val rows = JSONArray(response.body?.string() ?: "[]")
-            return if (rows.length() == 0) null else rows.getJSONObject(0).optString("tenant_id").ifEmpty { null }
+            return JSONArray(response.body?.string() ?: "[]")
         }
     }
 
@@ -126,5 +157,7 @@ class AiosAccount(context: Context) {
         private const val KEY_USER = "user_id"
         private const val KEY_EMAIL = "email"
         private const val KEY_TENANT = "tenant_id"
+        private const val KEY_TENANT_SLUG = "tenant_slug"
+        private const val KEY_WEB_SESSION = "web_session"
     }
 }

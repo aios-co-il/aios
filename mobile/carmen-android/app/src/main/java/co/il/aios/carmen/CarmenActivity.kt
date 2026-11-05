@@ -2,8 +2,6 @@ package co.il.aios.carmen
 
 import android.os.Bundle
 import android.view.WindowManager
-import android.view.animation.AlphaAnimation
-import android.view.animation.Animation
 import android.view.View
 import android.widget.Button
 import android.widget.ScrollView
@@ -14,7 +12,10 @@ import androidx.appcompat.app.AppCompatActivity
 /** Carmen screen shown on activation, over the lock screen when needed: state and live transcript. */
 class CarmenActivity : AppCompatActivity() {
 
+    private var face: HologramFace? = null
+
     private val render: (CarmenSession.Snapshot) -> Unit = { snapshot ->
+        face?.state = snapshot.state
         findViewById<TextView>(R.id.state_text).setText(stateLabel(snapshot.state))
         findViewById<TextView>(R.id.notice_text).apply {
             text = snapshot.notice
@@ -30,7 +31,7 @@ class CarmenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
         setContentView(R.layout.activity_carmen)
-        findViewById<View>(R.id.listening_indicator).startAnimation(pulse())
+        face = HologramFace(findViewById(R.id.hologram), findViewById(R.id.hologram_glow))
         CarmenSession.observe(render)
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
         findViewById<Button>(R.id.false_activation_button).setOnClickListener {
@@ -46,12 +47,6 @@ class CarmenActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    private fun pulse() = AlphaAnimation(1f, 0.3f).apply {
-        duration = 700
-        repeatMode = Animation.REVERSE
-        repeatCount = Animation.INFINITE
-    }
-
     private fun stateLabel(state: CarmenSession.State) = when (state) {
         CarmenSession.State.ACKNOWLEDGING -> R.string.state_acknowledging
         CarmenSession.State.CONNECTING -> R.string.state_connecting
@@ -59,6 +54,16 @@ class CarmenActivity : AppCompatActivity() {
         CarmenSession.State.THINKING -> R.string.state_thinking
         CarmenSession.State.SPEAKING -> R.string.state_speaking
         CarmenSession.State.ENDED -> R.string.state_ended
+    }
+
+    override fun onResume() {
+        super.onResume()
+        face?.start()
+    }
+
+    override fun onPause() {
+        face?.stop()
+        super.onPause()
     }
 
     override fun onDestroy() {

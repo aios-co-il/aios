@@ -104,8 +104,23 @@ class ConversationAudio(context: Context, private val onMicChunk: (ByteArray) ->
     private fun playbackLoop() {
         while (running) {
             val pcm = playQueue.take()
-            if (pcm.isNotEmpty()) track?.write(pcm, 0, pcm.size)
+            if (pcm.isEmpty()) continue
+            CarmenSession.voiceLevel = level(pcm)
+            track?.write(pcm, 0, pcm.size)
+            if (playQueue.isEmpty()) CarmenSession.voiceLevel = 0f
         }
+    }
+
+    /** Loudness of a 16-bit little-endian chunk, scaled to 0..1 like the web face. */
+    private fun level(pcm: ByteArray): Float {
+        var sum = 0.0
+        val samples = pcm.size / 2
+        for (i in 0 until samples) {
+            val sample = (pcm[i * 2].toInt() and 0xFF) or (pcm[i * 2 + 1].toInt() shl 8)
+            val value = sample.toShort() / 32768.0
+            sum += value * value
+        }
+        return if (samples == 0) 0f else minOf(1.0, kotlin.math.sqrt(sum / samples) * 4).toFloat()
     }
 
     private fun routeOutput() {

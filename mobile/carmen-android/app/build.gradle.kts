@@ -24,12 +24,16 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0-realtime"
+        versionCode = 3
+        versionName = "0.3.0-carmen-face"
         // Phones only; drops the emulator (x86) copies of the native speech libraries.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "SUPABASE_URL", "\"${backendSetting("carmen.supabaseUrl", "CARMEN_SUPABASE_URL")}\"")
         buildConfigField("String", "SUPABASE_KEY", "\"${backendSetting("carmen.supabaseKey", "CARMEN_SUPABASE_KEY")}\"")
+        buildConfigField(
+            "String", "WEB_URL",
+            "\"${backendSetting("carmen.webUrl", "CARMEN_WEB_URL", "https://after-lead-git-develop-aios-crm.vercel.app")}\"",
+        )
         buildConfigField("String", "APP_ENV", "\"${backendSetting("carmen.appEnv", "CARMEN_APP_ENV", "staging")}\"")
     }
 
@@ -55,6 +59,7 @@ dependencies {
     implementation("com.alphacephei:vosk-android:0.3.75@aar")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.webkit:webkit:1.12.1")
     testImplementation("junit:junit:4.13.2")
     // Real org.json for JVM unit tests (android.jar only has stubs).
     testImplementation("org.json:json:20240303")

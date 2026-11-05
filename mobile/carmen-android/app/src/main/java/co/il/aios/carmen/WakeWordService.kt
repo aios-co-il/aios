@@ -3,7 +3,9 @@ package co.il.aios.carmen
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Handler
 import android.os.IBinder
@@ -47,6 +49,8 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         when (intent?.action) {
             ACTION_STOP -> stopListening()
             ACTION_SESSION_ENDED -> endSession("closed")
+            ACTION_APP_MIC -> lendMicrophoneToApp(true)
+            ACTION_APP_MIC_DONE -> lendMicrophoneToApp(false)
             else -> startListening()
         }
         return START_NOT_STICKY
@@ -141,6 +145,22 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         log.record(EventLog.Event.SESSION_ENDED, reason)
     }
 
+    /**
+     * The in-app Command Center's live voice needs the microphone: the wake word steps aside
+     * while the app screen holds it and listens again when the user leaves that screen.
+     */
+    private fun lendMicrophoneToApp(lend: Boolean) {
+        if (gate.state == ActivationGate.State.ACTIVE) return
+        if (lend && gate.state == ActivationGate.State.ARMED) {
+            gate.disarm()
+            engine?.setPaused(true)
+            log.record(EventLog.Event.MIC_LENT_TO_APP)
+        } else if (!lend && gate.state == ActivationGate.State.IDLE && engine != null) {
+            engine?.setPaused(false)
+            gate.arm()
+        }
+    }
+
     override fun onError(message: String, error: Throwable?) {
         log.record(EventLog.Event.ERROR, "$message: ${error?.message.orEmpty()}")
         stopListening()
@@ -185,6 +205,8 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         const val ACTION_START = "co.il.aios.carmen.START"
         const val ACTION_STOP = "co.il.aios.carmen.STOP"
         const val ACTION_SESSION_ENDED = "co.il.aios.carmen.SESSION_ENDED"
+        const val ACTION_APP_MIC = "co.il.aios.carmen.APP_MIC"
+        const val ACTION_APP_MIC_DONE = "co.il.aios.carmen.APP_MIC_DONE"
         private const val BATTERY_SAMPLE_MS = 15 * 60 * 1000L
         private const val SIGNED_OUT_SESSION_MS = 8_000L
         private const val WAKE_LOCK_TIMEOUT_MS = BATTERY_SAMPLE_MS + 5 * 60 * 1000L
@@ -198,6 +220,13 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, intent(context, ACTION_START))
+        }
+
+        /** Resumes listening after a reboot or a refused background start, once the app is visible. */
+        fun resumeIfEnabled(context: Context) {
+            val micGranted = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+            if (ListeningPrefs.isEnabled(context) && status == Status.STOPPED && micGranted) start(context)
         }
 
         fun send(context: Context, action: String) {

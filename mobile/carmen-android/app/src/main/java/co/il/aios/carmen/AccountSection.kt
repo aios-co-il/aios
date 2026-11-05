@@ -2,6 +2,7 @@ package co.il.aios.carmen
 
 import android.app.Activity
 import android.view.View
+import android.webkit.WebStorage
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -43,6 +44,8 @@ class AccountSection(private val activity: Activity) {
 
     private fun signOut() {
         account.signOut()
+        // Signs the in-app web screen out too (supabase-js keeps its session in localStorage).
+        WebStorage.getInstance().deleteAllData()
         render()
     }
 
