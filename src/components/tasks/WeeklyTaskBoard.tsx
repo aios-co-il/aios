@@ -905,7 +905,7 @@ export function WeeklyTaskBoard() {
       const { data } = await supabase
         .from("agencies")
         .select("id")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .limit(1)
         .single();
       return data;
