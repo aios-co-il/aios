@@ -5,6 +5,7 @@
 
 import type { FilmScript } from "../film-script.ts";
 import { sceneReferenceUrl } from "../look.ts";
+import { directedMotionRefusal } from "../motion-direction.ts";
 import { asRecord } from "../record.ts";
 import { withSourcePicture } from "./storyboard-source.ts";
 
@@ -62,6 +63,11 @@ export function storyboardInput(
     return {
       error: `סצנה ${badReference + 1}: reference_url חייב להיות קישור https ציבורי לתמונה (נכס מהפרויקט או קישור שהמשתמש נתן).`,
     };
+  }
+  // Carmen acts as a marketing manager, not a model: posing motion is sent back to be rewritten.
+  const posing = directedMotionRefusal(scenes);
+  if (posing) {
+    return posing;
   }
   return { scenes };
 }

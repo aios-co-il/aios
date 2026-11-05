@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { TEXT_NEGATIVE } from "./composed-motion.ts";
 import { providerJson } from "./json.ts";
 import type { KlingTaskResponse } from "./responses.ts";
 import type {
@@ -110,8 +111,7 @@ export function klingProvider(keys: KlingKeyPair = {}): VideoProvider {
             ? Buffer.from(imageBytes).toString("base64")
             : imageUrl,
           prompt,
-          negative_prompt:
-            negativePrompt || "text, letters, captions, logo, watermark",
+          negative_prompt: negativePrompt || TEXT_NEGATIVE,
           duration: klingDuration(durationS),
           cfg_scale: 0.5,
         }),

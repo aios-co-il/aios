@@ -1,14 +1,16 @@
 /** workshop_storyboard: the film's scenes as Carmen writes them. */
 
-import { motionField } from "./motion-text.ts";
+import {
+  directedMotionField,
+  MOTION_DIRECTION_SUMMARY,
+} from "./motion-direction.ts";
 import { pictureField } from "./picture-text.ts";
 import { briefAnswersField } from "./project-brief.ts";
 import { spokenField } from "./spoken-text.ts";
 
 export const STORYBOARD_TOOL = {
   name: "workshop_storyboard",
-  description:
-    "שומרת סטוריבורד שכתבת לסרטון. הסדר בסרט חדש: בריף, 2 עד 3 קונספטים (workshop_save_concepts), בחירת קונספט, תסריט (workshop_save_script), אישור התסריט, סטוריבורד, תמונות (workshop_make_stills), הפקה. בלי קונספט שנבחר ותסריט שאושר הכלי לא שומר סצנות ומחזיר מה לעשות קודם. עם תסריט מאושר: סצנה אחת לכל שורה לפי הסדר, והקריינות, הטקסט על המסך והאורך נלקחים מהתסריט כמו שאושר. סצנות עם תיאור ויזואלי, תנועה, טקסט על המסך וקריינות. כל סצנה כ-3 שניות, אלא אם יש סיבה. כשהמשתמש נתן תמונה אחרת לכל סצנה (למשל הסקין של כל יכולת), כל תמונה עוברת ב-reference_url של הסצנה שלה, לא ב-reference_urls של הפרויקט. כשהמשתמש העלה את התמונות האמיתיות לסצנות ורוצה סרט מהן, workshop_edit_from_assets ולא סטוריבורד. אם כבר יש סטוריבורד, replace=true מחליף אותו; שינוי בסצנה אחת: workshop_update_scene. לא עולה כסף.",
+  description: `שומרת סטוריבורד שכתבת לסרטון. הסדר בסרט חדש: בריף, 2 עד 3 קונספטים (workshop_save_concepts), בחירת קונספט, תסריט (workshop_save_script), אישור התסריט, סטוריבורד, תמונות (workshop_make_stills), הפקה. בלי קונספט שנבחר ותסריט שאושר הכלי לא שומר סצנות ומחזיר מה לעשות קודם. עם תסריט מאושר: סצנה אחת לכל שורה לפי הסדר, והקריינות, הטקסט על המסך והאורך נלקחים מהתסריט כמו שאושר. סצנות עם תיאור ויזואלי, תנועה, טקסט על המסך וקריינות. כל סצנה כ-3 שניות, אלא אם יש סיבה. כשהמשתמש נתן תמונה אחרת לכל סצנה (למשל הסקין של כל יכולת), כל תמונה עוברת ב-reference_url של הסצנה שלה, לא ב-reference_urls של הפרויקט. כשהמשתמש העלה את התמונות האמיתיות לסצנות ורוצה סרט מהן, workshop_edit_from_assets ולא סטוריבורד. אם כבר יש סטוריבורד, replace=true מחליף אותו; שינוי בסצנה אחת: workshop_update_scene. לא עולה כסף. ${MOTION_DIRECTION_SUMMARY}`,
   parameters: {
     type: "object",
     properties: {
@@ -83,7 +85,7 @@ export const STORYBOARD_TOOL = {
             },
             motion_prompt: {
               type: "string",
-              description: motionField("איך הפריים זז, באנגלית."),
+              description: directedMotionField("איך הפריים זז, באנגלית."),
             },
             overlay_text: { type: "string" },
             voiceover_text: {
