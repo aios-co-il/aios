@@ -452,27 +452,6 @@
       "count": 1
     },
     {
-      "file": "src/hooks/useUserIntegrations.ts",
-      "code": 2339,
-      "message": "Property 'id' does not exist on type 'GenericStringError'.",
-      "source": "id",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useUserIntegrations.ts",
-      "code": 2339,
-      "message": "Property 'user_id' does not exist on type 'GenericStringError'.",
-      "source": "user_id",
-      "count": 5
-    },
-    {
-      "file": "src/hooks/useUserIntegrations.ts",
-      "code": 2345,
-      "message": "Argument of type 'GenericStringError' is not assignable to parameter of type 'TenantIntegrationRow'.\n  Type '{ error: true; } & String' is missing the following properties from type 'TenantIntegrationRow': id, tenant_id, integration_type",
-      "source": "i",
-      "count": 2
-    },
-    {
       "file": "src/hooks/useUserRole.ts",
       "code": 2345,
       "message": "Argument of type '\"agency_owner\"' is not assignable to parameter of type 'UserRole'.",
