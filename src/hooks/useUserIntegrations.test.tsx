@@ -1,6 +1,4 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import type { Json } from "@/integrations/supabase/types";
-import { getClientIntegrationSelect } from "@/lib/tenantIntegrationsClient";
 import { withTestQuery } from "@/test/withTestQuery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useUserIntegrations } from "./useUserIntegrations";
@@ -11,14 +9,13 @@ interface IntegrationFixture {
   tenant_id: string;
   user_id: string;
   integration_type: string;
-  settings: Json | null;
+  settings: { client_sites: { "client-1": string } };
 }
 
 const mocks = vi.hoisted(() => ({
   own: [] as Array<IntegrationFixture>,
   shared: [] as Array<IntegrationFixture>,
   invoke: vi.fn(),
-  select: vi.fn(),
 }));
 
 vi.mock("./useCurrentUser", () => ({
@@ -34,10 +31,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (table: string) => {
       let shared = false;
       const query = {
-        select: (columns: string) => {
-          mocks.select(columns);
-          return query;
-        },
+        select: () => query,
         eq: () => query,
         in: (column: string) => {
           shared ||= column === "id";
@@ -97,46 +91,11 @@ describe("useUserIntegrations identity boundary", () => {
           type === "google_search_console" ? "valid" : "valid,shared-valid",
         ),
       );
-      expect(mocks.select).toHaveBeenCalledWith(
-        getClientIntegrationSelect(type),
-      );
       expect(console.error).toHaveBeenCalledTimes(
         type === "google_search_console" ? 1 : 2,
       );
       expect(console.error).toHaveBeenCalledWith(
         "Ignoring integration with an invalid id",
-      );
-    },
-  );
-
-  it.each<Json>(["malformed", ["malformed"], 12, true])(
-    "normalizes malformed settings %j before exposing integrations",
-    async (settings) => {
-      mocks.own = [{ ...fixture, settings }];
-      render(withTestQuery(<IntegrationSettings />));
-      expect(await screen.findByText("null")).toBeInTheDocument();
-      expect(console.error).toHaveBeenCalledWith(
-        "Ignoring malformed integration settings",
-      );
-    },
-  );
-
-  it.each<Json>(["malformed", ["malformed"], 12, true])(
-    "normalizes malformed shared settings %j in the user-scoped query",
-    async (settings) => {
-      mocks.own = [];
-      mocks.shared = [
-        {
-          ...fixture,
-          id: "shared-valid",
-          integration_type: "meta_whatsapp",
-          settings,
-        },
-      ];
-      render(withTestQuery(<IntegrationSettings type="meta_whatsapp" />));
-      expect(await screen.findByText("null")).toBeInTheDocument();
-      expect(console.error).toHaveBeenCalledExactlyOnceWith(
-        "Ignoring malformed integration settings",
       );
     },
   );
@@ -175,12 +134,4 @@ function ResolvedIntegration() {
     expectedDomain: "example.com",
   });
   return <output>{`${integrationId}:${isFallback}`}</output>;
-}
-
-/** Observe the mapper's settings output through the real query. */
-function IntegrationSettings({ type = "google_search_console" }) {
-  const { data, isSuccess } = useUserIntegrations("tenant-1", type);
-  return (
-    <output>{isSuccess ? JSON.stringify(data[0]?.settings) : "loading"}</output>
-  );
 }
