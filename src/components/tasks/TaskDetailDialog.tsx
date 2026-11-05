@@ -1,4 +1,3 @@
-import { fetchTaskClients, fetchTaskLeads } from "./taskSelectorQueries";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,9 +100,8 @@ import {
 const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
 const FRAME = "rounded-xl border border-border/60 bg-card shadow-sm text-right";
 
-/** Reject missing or invalid dates before formatting them. */
 function isUsableDate(value: Date | undefined): value is Date {
-  return value !== undefined && !Number.isNaN(value.getTime());
+  return Boolean(value) && !Number.isNaN(value.getTime());
 }
 
 function parseOptionalDate(value: string | null | undefined): Date | undefined {
@@ -309,14 +307,32 @@ export function TaskDetailDialog({
   // Fetch clients
   const { data: clients } = useQuery({
     queryKey: ["clients-for-tasks", tenantId, crossTenantAgencyIds],
-    queryFn: () => fetchTaskClients(tenantId, crossTenantAgencyIds),
+    queryFn: async () => {
+      let query = supabase.from("clients").select("id, name");
+      if (crossTenantAgencyIds.length > 0) {
+        query = query.or(
+          `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
+        );
+      } else {
+        query = query.eq("tenant_id", tenantId);
+      }
+      const { data } = await query.order("name");
+      return data || [];
+    },
     enabled: !!tenantId && isActive,
   });
 
   // Fetch leads
   const { data: leads } = useQuery({
     queryKey: ["leads-for-tasks", tenantId],
-    queryFn: () => fetchTaskLeads(tenantId),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leads")
+        .select("id, company_name")
+        .eq("tenant_id", tenantId)
+        .order("company_name");
+      return data || [];
+    },
     enabled: !!tenantId && isActive,
   });
 

@@ -13,7 +13,6 @@ import {
   Bot,
   ExternalLink,
 } from "lucide-react";
-import { embedCount } from "@/lib/embedCount";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useState, useMemo } from "react";
@@ -95,8 +94,8 @@ export function TaskItem({
     : undefined;
 
   const isCompleted = task.status === "done";
-  const updatesCount = embedCount(task.task_updates);
-  const collaboratorsCount = embedCount(task.task_collaborators);
+  const updatesCount = task.task_updates?.length || 0;
+  const collaboratorsCount = task.task_collaborators?.length || 0;
 
   const createdDate = task.created_at
     ? format(new Date(task.created_at), "dd/MM/yy")

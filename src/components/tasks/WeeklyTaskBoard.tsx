@@ -1,8 +1,3 @@
-import {
-  fetchTaskClients,
-  fetchTaskLeads,
-  fetchFirstTaskAgency,
-} from "./taskSelectorQueries";
 import type { Task } from "./taskTypes";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -194,13 +189,41 @@ export function WeeklyTaskBoard() {
 
   const { data: clientsList = [] } = useQuery({
     queryKey: ["clients-for-task-selector", tenantId, crossTenantAgencyIds],
-    queryFn: () => fetchTaskClients(tenantId, crossTenantAgencyIds),
+    queryFn: async () => {
+      let query = supabase.from("clients").select("id, name, agency_id");
+      if (crossTenantAgencyIds.length > 0) {
+        query = query.or(
+          `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
+        );
+      } else {
+        query = query.eq("tenant_id", tenantId!);
+      }
+      const { data, error } = await query.order("name");
+      if (error) throw error;
+      return data;
+    },
     enabled: !!tenantId,
   });
 
   const { data: leadsList = [] } = useQuery({
     queryKey: ["leads-for-task-filter", tenantId, crossTenantAgencyIds],
-    queryFn: () => fetchTaskLeads(tenantId, crossTenantAgencyIds, true),
+    queryFn: async () => {
+      let query = supabase
+        .from("leads")
+        .select("id, company_name, contact_name, created_at");
+      if (crossTenantAgencyIds.length > 0) {
+        query = query.or(
+          `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
+        );
+      } else {
+        query = query.eq("tenant_id", tenantId!);
+      }
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .limit(400);
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!tenantId,
   });
 
@@ -878,7 +901,15 @@ export function WeeklyTaskBoard() {
 
   const { data: firstAgency } = useQuery({
     queryKey: ["first-agency", tenantId],
-    queryFn: () => fetchFirstTaskAgency(tenantId),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("agencies")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .limit(1)
+        .single();
+      return data;
+    },
     enabled: !!tenantId,
   });
 
