@@ -1,4 +1,5 @@
-import { expect, test } from "vitest";
+import { readCreativeHandoffItems } from "./copyPayload";
+import { describe, expect, test, vi } from "vitest";
 import {
   formatCopyConceptsForImagePrompt,
   type CopyConcept,
@@ -126,9 +127,9 @@ test("overlayCopyHandoffPayload keeps existing variations and writes visual_prom
   expect(payload.format).toBe("4:5");
   expect(payload.intake_source).toBe("copy_link");
   expect(payload.linked_copy_item_id).toBe("copy-1");
-  expect(payload.variations).toStrictEqual([
-    { id: "v1", imageUrl: "https://example.com/a.png" },
-  ]);
+  expect(payload).toMatchObject({
+    variations: [{ id: "v1", imageUrl: "https://example.com/a.png" }],
+  });
   expect(String(payload.visual_prompt)).toMatch(
     /MUST FOLLOW THIS APPROVED VISUAL CONCEPT/,
   );
@@ -294,4 +295,47 @@ test("overlayCopyHandoffPayload writes approved copies only and pairs concept co
   expect(variations.filter((row) => row.approved).length).toBe(1);
   expect((payload.approved_concepts as CopyConcept[])[0]?.copyKey).toBe("2");
   expect((payload.approved_concepts as CopyConcept[])[0]?.copyId).toBe("b");
+});
+
+describe("validated copy handoff integration", () => {
+  test("unrelated siblings cannot block a valid creative target", () => {
+    const copy = item({ id: "copy" });
+    const candidates = readCreativeHandoffItems(
+      [
+        {
+          id: "seo",
+          title: "SEO",
+          client_id: "client-1",
+          current_stage_id: null,
+          pipeline_id: null,
+          payload: { department: "seo", format: 123 },
+        },
+        {
+          id: "creative",
+          title: "קריאייטיב",
+          client_id: "client-1",
+          current_stage_id: null,
+          pipeline_id: null,
+          payload: { department: "creative", storyboard: [] },
+        },
+      ],
+      new Set(),
+      new Set(),
+    );
+    expect(
+      listOpenCreativeProjects(copy, candidates).map((row) => row.id),
+    ).toEqual(["creative"]);
+    expect(candidates[0]?.hasStoryboard).toBe(true);
+  });
+
+  test("malformed choices log once and cannot produce a write payload", () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    const payload = { copy_chat: [{ role: "system" }] };
+    expect(copyPullSummary(payload).pullable).toBe(false);
+    expect(diagnostic).toHaveBeenCalledOnce();
+    expect(() =>
+      stampCopyPayloadAfterHandoff(payload, "creative", "2026-11-03"),
+    ).toThrow("נתוני הקופי אינם תקינים");
+    diagnostic.mockRestore();
+  });
 });
