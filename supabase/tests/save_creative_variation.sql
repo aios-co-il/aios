@@ -35,7 +35,9 @@ begin
   insert into auth.users (id, email) values (v_actor, v_actor || '@example.invalid');
   insert into public.tenants (name, slug) values ('QA creative', 'qa-creative-' || v_actor) returning id into v_tenant;
   insert into public.tenants (name, slug) values ('QA other', 'qa-other-' || v_actor) returning id into v_other;
-  insert into public.tenant_users (tenant_id, user_id, role) values (v_tenant, v_actor, 'member');
+  insert into public.tenant_users (tenant_id, user_id, role) values
+    (v_tenant, v_actor, 'member'), (v_other, v_actor, 'member');
+  insert into public.user_active_tenant (user_id, tenant_id) values (v_actor, v_tenant);
   insert into public.marketing_work_items (tenant_id, title, payload) values (v_tenant, 'QA creative', '{}') returning id into v_item;
   insert into public.marketing_work_items (tenant_id, title, payload) values (v_other, 'QA other', '{}') returning id into v_other_item;
   perform set_config('request.jwt.claim.sub', v_actor::text, true);
@@ -69,6 +71,14 @@ begin
   exception when no_data_found then v_failed := true;
   end;
   if not v_failed then raise exception 'Mismatched item and tenant must reject'; end if;
+  -- UPDATE predicates require SELECT RLS too: even a member cannot rewrite their inactive tenant.
+  begin
+    perform public.save_creative_variation(v_other_item, v_other, '{"changed":true}');
+    v_failed := false;
+  exception when no_data_found then v_failed := true;
+  end;
+  if not v_failed then raise exception 'Inactive tenant project-only save must reject despite membership'; end if;
+
   begin
     perform public.save_creative_variation(v_other_item, v_other, '{}', null, 'other-tenant', '{}', v_meta);
     v_failed := false;
