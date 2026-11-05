@@ -121,6 +121,26 @@ describe("useUserIntegrations identity boundary", () => {
     },
   );
 
+  it.each<Json>(["malformed", ["malformed"], 12, true])(
+    "normalizes malformed shared settings %j in the user-scoped query",
+    async (settings) => {
+      mocks.own = [];
+      mocks.shared = [
+        {
+          ...fixture,
+          id: "shared-valid",
+          integration_type: "meta_whatsapp",
+          settings,
+        },
+      ];
+      render(withTestQuery(<IntegrationSettings type="meta_whatsapp" />));
+      expect(await screen.findByText("null")).toBeInTheDocument();
+      expect(console.error).toHaveBeenCalledExactlyOnceWith(
+        "Ignoring malformed integration settings",
+      );
+    },
+  );
+
   it("keeps the tenant fallback available when a malformed personal ID has a matching site", async () => {
     mocks.own = [{ ...fixture, id: 42 }];
     render(withTestQuery(<ResolvedIntegration />));
@@ -157,12 +177,9 @@ function ResolvedIntegration() {
   return <output>{`${integrationId}:${isFallback}`}</output>;
 }
 
-/** Observe the mapper's settings output through the real tenant-scoped query. */
-function IntegrationSettings() {
-  const { data, isSuccess } = useUserIntegrations(
-    "tenant-1",
-    "google_search_console",
-  );
+/** Observe the mapper's settings output through the real query. */
+function IntegrationSettings({ type = "google_search_console" }) {
+  const { data, isSuccess } = useUserIntegrations("tenant-1", type);
   return (
     <output>{isSuccess ? JSON.stringify(data[0]?.settings) : "loading"}</output>
   );
