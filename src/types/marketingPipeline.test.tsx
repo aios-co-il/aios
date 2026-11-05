@@ -49,4 +49,19 @@ describe("marketing pipeline helpers", () => {
       target: {},
     });
   });
+
+  it("keeps the fields of a partial stage configuration", () => {
+    expect(parseStageConfiguration({ instructions: "keep me" })).toEqual({
+      instructions: "keep me",
+      tools: [],
+      target: {},
+    });
+    expect(
+      parseStageConfiguration({ target: { website: "https://x" } }),
+    ).toEqual({
+      instructions: "",
+      tools: [],
+      target: { website: "https://x" },
+    });
+  });
 });

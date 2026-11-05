@@ -35,10 +35,8 @@ function fakeDb(tables: Record<string, unknown[]>) {
     };
     const q: CreativeStudioQuery & CreativeStudioTable = {
       select: () => q,
-      match: (filter) => {
-        for (const [key, value] of Object.entries(filter)) {
-          call.filters.push(`${key}=${value}`);
-        }
+      eq: (column, value) => {
+        call.filters.push(`${column}=${value}`);
         return q;
       },
       order: () => q,
