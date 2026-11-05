@@ -16,17 +16,19 @@ import { isAutoMode } from "../workshop-mode.ts";
 import {
   APPROVED_RUN,
   ASKED_RUN,
+  ASKED_SHOWN,
   ASKED_TURN,
   NARRATION_COMING,
   NARRATION_QUESTION,
   narrationApprovedNow,
 } from "./narration-approval.ts";
 import {
-  loadTake,
+  RECORDED_SCRIPT,
+  narrationScript,
   recordNarration,
   type NarrationPlan,
-  type NarrationTake,
 } from "./narration-take.ts";
+import { loadTake, type NarrationTake } from "./narration-take-state.ts";
 
 const CARMEN_NEXT =
   'הקריינות מחכה לאישור המשתמש (מצב חצי אוטומטי). say_to_user נשלח למשתמש כמו שהוא; עצרי. אישר (בכפתור, או במילים כמו "מאשר"): קראי שוב ל-workshop_produce_video, ובאישור במילים עם narration_approved=true. מילה נשמעת לא נכון: workshop_save_pronunciation ואז workshop_produce_video, שמקליט מחדש. ביקש הקלטה חדשה בלי תיקון: workshop_produce_video עם redo_narration=true.';
@@ -40,8 +42,8 @@ type ReviewContext = Pick<
  * Before produce_video quotes the film: the payload when the narration is approved (or needs no
  * review), else `stop` with what Carmen tells the user: the take is being recorded, the question
  * about a take on the board, or why the last recording failed. Automatic mode, a film with no
- * narration and a talking film (narrated scene by scene, nothing on the board to hear) pass, and so
- * does a project whose take cannot be read (logged): the review never blocks production by itself.
+ * narration and a talking film (narrated scene by scene, nothing on the board to hear) pass. A
+ * take that cannot be read stops with the error: production never goes on with an unheard take.
  */
 export async function narrationStep(
   ctx: ReviewContext,
@@ -54,7 +56,11 @@ export async function narrationStep(
   if (isAutoMode(payload) || !plan.narrated) {
     return { payload };
   }
-  const take = await loadTake(ctx.supabase, itemId);
+  const loaded = await loadTake(ctx.supabase, itemId);
+  if ("error" in loaded) {
+    return { stop: { error: loaded.error } };
+  }
+  const take = loaded.take;
   if (!take || take.talking) {
     return { payload };
   }
@@ -71,7 +77,11 @@ export async function narrationStep(
   if (isFresh(take, ctx.args) && !plan.newVoice) {
     return await reviewTake(ctx, itemId, payload, take.run_id);
   }
-  if (lastRecordingFailed(take, video) && ctx.args.redo_narration !== true) {
+  if (
+    lastRecordingFailed(take, video) &&
+    !changedSinceRecording(take, video, plan) &&
+    ctx.args.redo_narration !== true
+  ) {
     return { stop: failedStop(take.last_run_error) };
   }
   const recorded = await recordNarration(ctx, itemId, payload, plan);
@@ -124,6 +134,7 @@ async function askAbout(
       ...video,
       [ASKED_RUN]: runId,
       [ASKED_TURN]: ctx.deps.turnId ?? null,
+      [ASKED_SHOWN]: question === NARRATION_QUESTION,
     },
   });
   return {
@@ -152,6 +163,19 @@ const lastRecordingFailed = (
   take: NarrationTake,
   video: Record<string, unknown>,
 ) => take.last_run_status === "failed" && take.last_run_id === video[ASKED_RUN];
+
+/**
+ * The voice, the script or a pronunciation changed since the newest recording was queued: a new
+ * recording would read something else, so a failure of the old one is no reason to stop.
+ */
+const changedSinceRecording = (
+  take: NarrationTake,
+  video: Record<string, unknown>,
+  plan: NarrationPlan,
+) =>
+  plan.newVoice ||
+  take.pronunciations_since_last_run ||
+  video[RECORDED_SCRIPT] !== narrationScript(plan.scenes);
 
 /** What produce_video answers when the narration recording failed: say why, record again only on request. */
 const failedStop = (error: string | null) => ({

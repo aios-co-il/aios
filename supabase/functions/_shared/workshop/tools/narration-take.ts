@@ -1,6 +1,6 @@
 /**
- * The narration review's reads and its one paid step (narration-review.ts): the project's take as
- * workshop_narration_take reports it, and a new recording of the narration alone.
+ * The narration review's one paid step (narration-review.ts): a new recording of the narration
+ * alone. The take it makes is read by narration-take-state.ts.
  */
 
 import { withBudget, budgetOf, spendBudget } from "../budget.ts";
@@ -13,18 +13,8 @@ import { asRecord } from "../record.ts";
 import type { ToolContext } from "../tool-context.ts";
 
 const TOOL = "workshop_produce_video";
-
-/** workshop_narration_take's answer (migration 20261105170000_workshop_narration_review). */
-export interface NarrationTake {
-  ready: boolean;
-  talking: boolean;
-  run_id: string | null;
-  pronunciations_changed: boolean;
-  in_flight: boolean;
-  last_run_id: string | null;
-  last_run_status: string | null;
-  last_run_error: string | null;
-}
+/** payload.video: the narration script of the newest recording queued (narrationScript). */
+export const RECORDED_SCRIPT = "recorded_narration_script";
 
 /** What produce_video knows when the narration is reviewed: the voice, the stage and the film's quote. */
 export interface NarrationPlan {
@@ -40,36 +30,6 @@ export interface NarrationPlan {
   filmUsd: number;
   /** The paid units the rest of the film is quoted in. */
   units: number;
-}
-
-/** The project's take, or null when it cannot be read (logged; the review then lets production go on). */
-export async function loadTake(
-  supabase: Db,
-  itemId: string,
-): Promise<NarrationTake | null> {
-  const { data, error } = await supabase.rpc("workshop_narration_take", {
-    p_item_id: itemId,
-  });
-  if (error) {
-    console.error("[workshop] narration take not read", itemId, error.message);
-    return null;
-  }
-  if (!data || typeof data !== "object") {
-    return null;
-  }
-  const take = asRecord(data);
-  const text = (value: unknown) => (typeof value === "string" ? value : null);
-  const status = text(take.last_run_status);
-  return {
-    ready: take.ready === true,
-    talking: take.talking === true,
-    run_id: text(take.run_id),
-    pronunciations_changed: take.pronunciations_changed === true,
-    in_flight: status === "queued" || status === "running",
-    last_run_id: text(take.last_run_id),
-    last_run_status: status,
-    last_run_error: text(take.last_run_error),
-  };
 }
 
 /**
@@ -113,10 +73,15 @@ export async function recordNarration(
   if ("stop" in gate) {
     return gate;
   }
-  // The voice is saved with the charge: video_narration_ready checks the take against it.
+  // The voice is saved with the charge: video_narration_ready checks the take against it. The
+  // script it reads tells the review whether a failed recording is still the current one.
   const charged = {
     ...spendBudget(pricedAt(gate.payload, voiceUsd), TOOL, 1),
-    video: { ...asRecord(gate.payload.video), voice_id: plan.voiceId },
+    video: {
+      ...asRecord(gate.payload.video),
+      voice_id: plan.voiceId,
+      [RECORDED_SCRIPT]: narrationScript(plan.scenes),
+    },
   };
   try {
     await savePayload(supabase, tenantId, itemId, charged);
@@ -161,6 +126,14 @@ async function queueNarration(
   }
   return run.id;
 }
+
+/** The film's narration as one text, to tell whether the script changed since a recording. */
+export const narrationScript = (scenes: Array<Record<string, unknown>>) =>
+  scenes
+    .map((scene) =>
+      typeof scene.voiceover_text === "string" ? scene.voiceover_text : "",
+    )
+    .join("\n");
 
 /** The narration's quote: the film's narrated lines, as produce_video prices them. */
 function narrationUsd(scenes: Array<Record<string, unknown>>) {

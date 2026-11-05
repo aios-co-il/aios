@@ -28,6 +28,7 @@ export const TAKE = {
   last_run_id: "voice-run-1",
   last_run_status: "completed",
   last_run_error: null,
+  pronunciations_since_last_run: false,
 };
 export const NO_TAKE = {
   ...TAKE,
@@ -106,10 +107,14 @@ export const savedVideos = (db: Db) =>
           ?.video ?? {}) as Record<string, unknown>,
     );
 
+/** The narration of film()'s scenes, as recordNarration saves it with a recording. */
+export const SCRIPT = "קופי, מדיה, מכירות.\nכרמן מנהלת את הכול.";
+
 /** The user tapped approval in turn-2 on the question asked about voice-run-1 in turn-1. */
 export const ASKED = {
   asked_narration_run: "voice-run-1",
   asked_narration_turn: "turn-1",
+  asked_narration_shown: true,
 };
 export const TAPPED = {
   lastAssistant: NARRATION_QUESTION,

@@ -4,7 +4,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { executeWorkshopTool } from "../../workshop-tools.ts";
-import { plainWord } from "./save-pronunciation.ts";
+import { PRONUNCIATION_TOOL, plainWord } from "./save-pronunciation.ts";
 import { fakeDb } from "./test-fakes.ts";
 
 type Db = ReturnType<typeof fakeDb>;
@@ -19,7 +19,6 @@ interface Reply {
 
 const save = (db: Db, pronunciations: unknown) =>
   executeWorkshopTool(db, "tenant-1", "workshop_save_pronunciation", {
-    item_id: "item-1",
     pronunciations,
   }) as Promise<Reply>;
 
@@ -71,3 +70,12 @@ Deno.test("plainWord drops nikud and the punctuation around the word", () => {
   assertStrictEquals(plainWord(" ״מְכִירוֹת״. "), "מכירות");
   assertStrictEquals(plainWord("ה-8"), "ה-8");
 });
+
+Deno.test(
+  "the tool asks for the words only: pronunciations are the tenant's, not a project's",
+  () => {
+    assertEquals(Object.keys(PRONUNCIATION_TOOL.parameters.properties), [
+      "pronunciations",
+    ]);
+  },
+);

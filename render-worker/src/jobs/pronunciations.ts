@@ -5,7 +5,13 @@
 // over Dicta's. The stored script, its captions and the word timings keep the script's spelling.
 import { stripNikud } from "./nikud.ts";
 
-/** Hebrew prefix letters a script word may carry before the named word (ו, ה, ב, כ, ל, מ, ש). */
+/**
+ * Hebrew prefix letters a script word may carry before the named word (ו, ה, ב, כ, ל, מ, ש).
+ * Change together with plainWord and EDGE below: the edge's plainWord in
+ * supabase/functions/_shared/workshop/tools/save-pronunciation.ts stores the words this matches,
+ * and workshop_narration_take (migration 20261105170000_workshop_narration_review) finds them in
+ * a take's script with the same prefix and edge rule.
+ */
 const PREFIXES = new Set(["ו", "ה", "ב", "כ", "ל", "מ", "ש"]);
 const MAX_PREFIX = 2;
 /** Punctuation around a word, kept as written. Maqaf, geresh and gershayim stay inside the word. */
@@ -93,7 +99,10 @@ function sayWord(core: string, pronunciations: Pronunciations) {
   return null;
 }
 
-/** A word as pronunciations are keyed: NFC, without nikud and without the punctuation around it. */
+/**
+ * A word as pronunciations are keyed: NFC, without nikud and without the punctuation around it.
+ * Change together with save-pronunciation.ts's plainWord and workshop_narration_take (see PREFIXES).
+ */
 export const plainWord = (text: string) => {
   const bare = stripNikud(text.normalize("NFC")).trim();
   return (bare.match(EDGE)?.[2] ?? bare).trim();

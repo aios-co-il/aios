@@ -8,6 +8,7 @@ import { briefAnswersOf } from "./brief-answers.ts";
 import type { Db } from "./db.ts";
 import {
   APPROVE_NARRATION,
+  NARRATION_COMING,
   NARRATION_QUESTION,
 } from "./tools/narration-approval.ts";
 import { APPROVE_STILLS, STILLS_QUESTION } from "./tools/stills-approval.ts";
@@ -73,6 +74,7 @@ describe("saveTurnAnswers: tapped approvals of the pictures and the narration", 
       asked_stills_turn: "turn-1",
       asked_narration_run: "voice-run-1",
       asked_narration_turn: "turn-1",
+      asked_narration_shown: true,
     },
   };
   const save = (lastAssistant: string, userText: string, turnId = "turn-2") =>
@@ -109,6 +111,26 @@ describe("saveTurnAnswers: tapped approvals of the pictures and the narration", 
       await save("הנה הקול.", APPROVE_NARRATION),
     ]) {
       assertStrictEquals(video(saved.payload).approved_stills, undefined);
+      assertStrictEquals(
+        video(saved.payload).approved_narration_run,
+        undefined,
+      );
+    }
+  });
+
+  it("keeps no narration approval tapped while the take was still recording", async () => {
+    const recording = {
+      ...asked,
+      video: { ...asked.video, asked_narration_shown: false },
+    };
+    for (const lastAssistant of [NARRATION_COMING, NARRATION_QUESTION]) {
+      const saved = await saveTurnAnswers(
+        recordingDb().db,
+        "tenant-1",
+        "item-1",
+        recording,
+        { userText: APPROVE_NARRATION, lastAssistant, turnId: "turn-2" },
+      );
       assertStrictEquals(
         video(saved.payload).approved_narration_run,
         undefined,

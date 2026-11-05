@@ -23,7 +23,6 @@ export const PRONUNCIATION_TOOL = {
   parameters: {
     type: "object",
     properties: {
-      item_id: { type: "string" },
       pronunciations: {
         type: "array",
         description: "עד 10 מילים.",
@@ -107,6 +106,11 @@ function parseEntries(
   return { entries: [...byWord.values()] };
 }
 
-/** The word as the worker matches it: without nikud or the punctuation around it. */
+/**
+ * The word as the worker matches it: without nikud or the punctuation around it. Change together
+ * with render-worker/src/jobs/pronunciations.ts (plainWord, PREFIXES, EDGE) and
+ * workshop_narration_take (migration 20261105170000_workshop_narration_review), which match the
+ * stored word in a script the same way.
+ */
 export const plainWord = (text: string) =>
   text.normalize("NFC").replace(POINTS, "").trim().replace(EDGES, "");

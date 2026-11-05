@@ -1,72 +1,6 @@
-import { assert, assertMatch, assertStrictEquals } from "jsr:@std/assert@1";
-import { NARRATION_COMING } from "./narration-approval.ts";
-import { NO_TAKE, TAKE, film, produce, rpc } from "./test-narration.ts";
-import { fakeDb } from "./test-fakes.ts";
-
-Deno.test(
-  "a changed pronunciation, a new voice or redo_narration records the narration again",
-  async () => {
-    const changed = fakeDb(
-      film(
-        { ...TAKE, pronunciations_changed: true },
-        { approved_narration_run: "voice-run-1" },
-      ),
-    );
-    assertStrictEquals((await produce(changed)).say_to_user, NARRATION_COMING);
-    const voiced = fakeDb(
-      film(TAKE, { approved_narration_run: "voice-run-1" }),
-    );
-    await produce(voiced, {}, { voice_id: "p7J75VowGmxi3K0it9lN" });
-    const redo = fakeDb(film(TAKE));
-    await produce(redo, {}, { redo_narration: true });
-    for (const db of [changed, voiced, redo]) {
-      assertStrictEquals(rpc(db, "queue_video_sound").length, 1);
-      assertStrictEquals(rpc(db, "produce_video").length, 0);
-    }
-    assertStrictEquals(
-      (rpc(voiced, "queue_video_sound")[0].value as { p_voice_id: string })
-        .p_voice_id,
-      "p7J75VowGmxi3K0it9lN",
-    );
-  },
-);
-
-Deno.test(
-  "a failed recording says why and records again only when asked",
-  async () => {
-    const failed = {
-      ...NO_TAKE,
-      last_run_id: "voice-run-2",
-      last_run_status: "failed",
-      last_run_error: "אין מפתח לקריינות",
-    };
-    const db = fakeDb(film(failed, { asked_narration_run: "voice-run-2" }));
-    const reply = await produce(db);
-    assertStrictEquals(reply.narration, "failed");
-    assertMatch(String(reply.error), /אין מפתח/);
-    assertStrictEquals(rpc(db, "queue_video_sound").length, 0);
-    const again = fakeDb(film(failed, { asked_narration_run: "voice-run-2" }));
-    await produce(again, {}, { redo_narration: true });
-    assertStrictEquals(rpc(again, "queue_video_sound").length, 1);
-  },
-);
-
-Deno.test(
-  "automatic mode, a talking film and an unreadable take skip the review",
-  async () => {
-    const auto = fakeDb(film(NO_TAKE, {}, "auto"));
-    const talking = fakeDb(film({ ...NO_TAKE, talking: true }));
-    const unread = fakeDb({
-      ...film(null),
-      "rpc:workshop_narration_take:error": "function does not exist",
-    });
-    for (const db of [auto, talking, unread]) {
-      const reply = await produce(db);
-      assertStrictEquals(reply.started, true, JSON.stringify(reply));
-      assertStrictEquals(rpc(db, "queue_video_sound").length, 0);
-    }
-  },
-);
+import { assert, assertStrictEquals } from "jsr:@std/assert@1";
+import { NO_TAKE, film, produce, rpc } from "./test-narration.ts";
+import { fakeDb, scene } from "./test-fakes.ts";
 
 Deno.test(
   "without a budget nothing is recorded and the budget covers the whole film",
@@ -79,3 +13,31 @@ Deno.test(
     assert(Number((reply as { estimated_usd?: number }).estimated_usd) >= 1.2);
   },
 );
+
+Deno.test("only the narration is charged for its recording", async () => {
+  const line = "א".repeat(500);
+  const db = fakeDb({
+    ...film(NO_TAKE),
+    "marketing_video_scenes:select": [
+      scene("s-1", { still_asset_id: "a", voiceover_text: line }),
+      scene("s-2", { still_asset_id: "b", voiceover_text: line }),
+    ],
+  });
+  await produce(db);
+  const budgets = db.calls
+    .filter((c) => c.table === "marketing_work_items" && c.op === "update")
+    .map(
+      (c) =>
+        (c.value as { payload: { workshop_budget?: { spent_usd: number } } })
+          .payload.workshop_budget,
+    )
+    .filter(Boolean);
+  // 1000 characters at $0.12 per 1000, not the film's clips ($1.20) or music.
+  assertStrictEquals(budgets.at(-1)?.spent_usd, 0.12);
+  const estimate = (
+    rpc(db, "queue_video_sound")[0].value as {
+      p_estimate: { usd: number };
+    }
+  ).p_estimate;
+  assertStrictEquals(estimate.usd, 0.12);
+});

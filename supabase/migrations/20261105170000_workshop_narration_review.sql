@@ -63,8 +63,14 @@ create or replace trigger workshop_pronunciations_updated_at
 -- ── 2. workshop_narration_take ──────────────────────────────────────────────
 -- The project's narration as the review sees it, or null for an unknown project: ready
 -- (video_narration_ready), talking (video_film_talks), the newest continuous take (its run and
--- asset), whether a tenant pronunciation changed since that take (a newer entry for a word in its
--- script, or an entry it used that changed or is gone), and the newest continuous voice run.
+-- asset), whether a tenant pronunciation changed since that take (an entry for a word in its
+-- script saved after its voice run started and not used by it as it is now, or an entry it used
+-- that changed or is gone), the newest continuous voice run, and whether a pronunciation was saved
+-- after that run was queued (so a failed run is not the current recording any more).
+-- A script word matches an entry as the render worker matches it (pronunciations.ts sayWord): the
+-- whole word between spaces and edge punctuation, after up to two of the prefix letters ו ה ב כ ל
+-- מ ש. Change together: render-worker/src/jobs/pronunciations.ts (plainWord, PREFIXES, EDGE) and
+-- supabase/functions/_shared/workshop/tools/save-pronunciation.ts (plainWord).
 -- Runs as the caller, so the caller's RLS decides what exists.
 create or replace function public.workshop_narration_take(p_item_id uuid)
 returns jsonb
@@ -79,7 +85,10 @@ as $$
      where work.id = p_item_id
   ),
   take as (
-    select asset.id, asset.run_id, asset.created_at,
+    select asset.id, asset.run_id,
+           -- When the take's voice run started (the worker reads the pronunciations then), not
+           -- when its file was saved.
+           coalesce(run.started_at, run.created_at, asset.created_at) as made_at,
            -- The script it read, without nikud, as the pronunciations' words are stored.
            regexp_replace(coalesce(asset.meta->>'text', ''),
              '[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]', '', 'g') as script,
@@ -87,12 +96,14 @@ as $$
              then asset.meta->'pronunciations' else '{}'::jsonb end as used
       from public.marketing_assets as asset
       join item on item.id = asset.item_id and item.tenant_id = asset.tenant_id
+      left join public.marketing_runs as run
+        on run.id = asset.run_id and run.tenant_id = asset.tenant_id
      where asset.type = 'narration' and asset.url is not null
      order by asset.created_at desc
      limit 1
   ),
   last_run as (
-    select run.id, run.status, run.error
+    select run.id, run.status, run.error, run.created_at
       from public.marketing_runs as run
       join item on item.id = run.item_id and item.tenant_id = run.tenant_id
      where run.kind = 'voice' and run.scene_id is null
@@ -109,7 +120,15 @@ as $$
                select 1 from public.workshop_pronunciations as entry
                 where entry.tenant_id = item.tenant_id
                   and (
-                    (entry.updated_at > take.created_at and strpos(take.script, entry.word) > 0)
+                    (entry.updated_at > take.made_at
+                      and take.script ~ (
+                        -- Space or start, edge punctuation, up to two prefix letters, the word
+                        -- (every other character escaped), edge punctuation, space or end.
+                        '(^|\s)[^[:alnum:]\u05D0-\u05EA\u0591-\u05C7\u05F3'']*[ובכלמשה]{0,2}'
+                        || regexp_replace(entry.word, '([^[:alnum:]\u05D0-\u05EA])', '\\\1', 'g')
+                        || '[^[:alnum:]\u05D0-\u05EA\u0591-\u05C7\u05F3'']*(\s|$)'
+                      )
+                      and (take.used->>entry.word) is distinct from entry.spoken)
                     or (take.used ? entry.word and take.used->>entry.word <> entry.spoken)
                   )
              )
@@ -124,7 +143,15 @@ as $$
     ), false),
     'last_run_id', (select last_run.id from last_run),
     'last_run_status', (select last_run.status from last_run),
-    'last_run_error', (select last_run.error from last_run)
+    'last_run_error', (select last_run.error from last_run),
+    'pronunciations_since_last_run', coalesce((
+      select exists (
+               select 1 from public.workshop_pronunciations as entry
+                where entry.tenant_id = item.tenant_id
+                  and entry.updated_at > last_run.created_at
+             )
+        from last_run
+    ), false)
   )
   from item;
 $$;
