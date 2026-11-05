@@ -120,7 +120,11 @@ export default function GreenAPISettings({
 
       // Get owner profiles
       const ownerIds = [
-        ...new Set(integrations.map((i) => i.user_id).filter(Boolean)),
+        ...new Set(
+          integrations
+            .map((i) => i.user_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
       ];
       if (ownerIds.length === 0)
         return integrations.map((i) => ({ ...i, owner_name: "משתמש לא ידוע" }));
