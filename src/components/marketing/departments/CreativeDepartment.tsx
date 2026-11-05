@@ -1,5 +1,6 @@
 import { serializeCreativeAssetMeta } from "./creative/creativeAssetMeta";
 import type { CreativeVideoSettings } from "./creative/creativeProjectSettings";
+import type { StoredCreativePayload } from "./creative/storedCreativePayload";
 import { serializeCreativeVideoSettingsPatch } from "./creative/creativeVideoSettingsPatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1718,7 +1719,7 @@ export function CreativeDepartment({
       if (readError) throw readError;
       const latestPayload = (latestRow?.payload ??
         selected.payload ??
-        {}) as Record<string, unknown>;
+        {}) as StoredCreativePayload;
       const nextIds = new Set(nextVariations.map((row) => row.id));
       const dropIds = variations
         .map((row) => row.id)

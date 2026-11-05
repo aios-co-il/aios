@@ -12,6 +12,7 @@ export type CreativeFormat = Extract<z.output<typeof creativeFormat>, string>;
 import type { BrandBook, StyleReference } from "./brandKit";
 import type { CreativeVisualStyleId } from "./visualStyles";
 import type { CopyPayload } from "../../copyPayload";
+import type { StoredCreativePayload } from "./storedCreativePayload";
 
 export type CreativeProjectType = "static" | "video";
 
@@ -54,7 +55,7 @@ export interface CreativeItem {
   title: string | null;
   status: string;
   client_id: string | null;
-  payload: Record<string, unknown> | null;
+  payload: StoredCreativePayload | null;
   current_stage_id: string | null;
   target_channel: string | null;
   created_at: string;
