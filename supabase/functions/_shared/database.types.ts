@@ -17543,15 +17543,15 @@ export type Database = {
         Args: {
           p_agency_id: string;
           p_contact_name?: string;
-          p_email?: string;
+          p_email?: string | null;
           p_folder_link?: string;
           p_google_ads_account_id?: string;
           p_is_seo_client?: boolean;
           p_meta_ads_account_id?: string;
           p_monthly_budget?: number;
           p_name: string;
-          p_notes?: string;
-          p_phone?: string;
+          p_notes?: string | null;
+          p_phone?: string | null;
           p_retainer?: number;
           p_services?: string[];
           p_tenant_id: string;
