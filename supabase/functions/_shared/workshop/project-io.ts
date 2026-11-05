@@ -26,7 +26,7 @@ import { type ImageProvider } from "./image-providers.ts";
 import { lookOf, withLook } from "./look.ts";
 import { syncBriefPage } from "./project-brief.ts";
 import { asRecord, recordArtifact } from "./record.ts";
-import { isAutoMode } from "./workshop-mode.ts";
+import { isAutoMode, WORKSHOP_MODE_KEY } from "./workshop-mode.ts";
 
 export function voiceHelpers(
   supabase: Db,
@@ -84,18 +84,27 @@ export async function savePayload(
   itemId: string,
   payload: Record<string, unknown>,
 ) {
-  // asset_references belongs to the assets trigger: keep what the database holds right now, so a
-  // save from an older copy of the project never wipes the pictures the user just marked.
+  // asset_references belongs to the assets trigger and workshop_mode to the toggle
+  // (workshop_set_mode): keep what the database holds right now, so a save from the copy a tool
+  // loaded at its start never wipes the pictures the user just marked or undoes a mode switch.
   const current = await supabase
     .from("marketing_work_items")
     .select("payload")
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  const held = asRecord(current?.data?.payload).asset_references;
+  const held = asRecord(current?.data?.payload);
   const next = { ...payload };
-  if (Array.isArray(held)) next.asset_references = held;
-  else delete next.asset_references;
+  if (Array.isArray(held.asset_references)) {
+    next.asset_references = held.asset_references;
+  } else {
+    delete next.asset_references;
+  }
+  if (WORKSHOP_MODE_KEY in held) {
+    next[WORKSHOP_MODE_KEY] = held[WORKSHOP_MODE_KEY];
+  } else {
+    delete next[WORKSHOP_MODE_KEY];
+  }
   const { error } = await supabase
     .from("marketing_work_items")
     .update({ payload: next })

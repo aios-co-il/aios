@@ -24,7 +24,7 @@ export function WorkshopModeToggle({
   tenantId,
   projectId,
 }: WorkshopModeToggleProps) {
-  const { mode, loading, saving, setMode } = useWorkshopMode(
+  const { mode, loading, failed, saving, setMode } = useWorkshopMode(
     tenantId,
     projectId,
   );
@@ -41,15 +41,15 @@ export function WorkshopModeToggle({
             key={option}
             type="button"
             title={MODE_HINT[option]}
-            aria-pressed={mode === option}
-            disabled={loading || saving}
+            aria-pressed={!failed && mode === option}
+            disabled={loading || saving || failed}
             onClick={() => {
               if (option !== mode) {
                 setMode(option);
               }
             }}
             className={`h-7 rounded-md px-2 transition-colors disabled:opacity-60 ${
-              mode === option
+              !failed && mode === option
                 ? "bg-[rgba(76,195,255,0.18)] font-medium text-[var(--cc-accent)]"
                 : "text-[var(--cc-text-dim)] hover:text-[var(--cc-text)]"
             }`}
@@ -58,6 +58,11 @@ export function WorkshopModeToggle({
           </button>
         ))}
       </div>
+      {failed && (
+        <span role="alert" className="shrink-0 text-[var(--cc-crit)]">
+          לא הצלחנו לטעון את המצב
+        </span>
+      )}
     </div>
   );
 }

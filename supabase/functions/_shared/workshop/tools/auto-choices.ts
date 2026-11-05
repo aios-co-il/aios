@@ -1,6 +1,7 @@
 /**
- * Automatic mode: when the film goes to production, what Carmen chose on her own (the concept,
- * the script, the voice), so her closing line tells the user and they can ask to redo any of it.
+ * The user's line when the film goes to production. In automatic mode it also names what Carmen
+ * chose on her own (the concept, the script, the voice), so the user hears it even when her own
+ * closing line says nothing, and they can ask to redo any of it.
  */
 
 import { briefAnswersOf } from "../brief-answers.ts";
@@ -14,22 +15,38 @@ export interface AutoChoices {
   voice?: string;
 }
 
-/** The choices to report in automatic mode; nothing in semi-automatic mode, where the user chose. */
+const STARTED = "ההפקה התחילה ורצה ברקע. הסרט יופיע בלוח כשיהיה מוכן.";
+
+/** The production's user_message, plus Carmen's choices in automatic mode (the user chose in semi). */
 export function autoChoices(
   payload: Record<string, unknown>,
   voiceId: string | null | undefined,
-): { auto_choices?: AutoChoices; carmen_next?: string } {
+): { user_message: string; auto_choices?: AutoChoices; carmen_next?: string } {
   if (!isAutoMode(payload)) {
-    return {};
+    return { user_message: STARTED };
   }
   const script = filmScriptOf(payload);
+  const choices: AutoChoices = {
+    concept: conceptAnswer(briefAnswersOf(payload)) || undefined,
+    script: script && !("skipped" in script) ? script.title : undefined,
+    voice: findVoice(voiceId)?.name,
+  };
   return {
-    auto_choices: {
-      concept: conceptAnswer(briefAnswersOf(payload)) || undefined,
-      script: script && !("skipped" in script) ? script.title : undefined,
-      voice: findVoice(voiceId)?.name,
-    },
+    user_message: `${STARTED}${choicesLine(choices)}`,
+    auto_choices: choices,
     carmen_next:
       "מצב אוטומטי: בתשובה שלך ספרי למשתמש בקצרה מה בחרת בעצמך (auto_choices: קונספט, תסריט, קול), ושאפשר לבקש לשנות כל אחד מהם.",
   };
+}
+
+/** "בחרתי: קונספט …; תסריט …; קול …" for the choices made, or nothing when none is known. */
+function choicesLine(choices: AutoChoices) {
+  const parts = [
+    choices.concept ? `קונספט "${choices.concept}"` : null,
+    choices.script ? `תסריט "${choices.script}"` : null,
+    choices.voice ? `קול ${choices.voice}` : null,
+  ].filter(Boolean);
+  return parts.length > 0
+    ? `\nבחרתי לבד: ${parts.join("; ")}. אפשר לבקש לשנות כל אחד מהם.`
+    : "";
 }

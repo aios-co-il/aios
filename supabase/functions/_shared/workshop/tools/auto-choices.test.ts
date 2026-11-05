@@ -29,6 +29,22 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "automatic mode tells the user her choices even if Carmen says nothing",
+  () => {
+    const report = autoChoices(
+      { ...chosen, workshop_mode: "auto" },
+      "ZiofZHcEBTn5sRySe5h8",
+    );
+    assertMatch(report.user_message, /ההפקה התחילה/);
+    assertMatch(report.user_message, /קונספט "יום אחד"/);
+    assertMatch(report.user_message, /תסריט "בוקר"/);
+    assertMatch(report.user_message, /קול נמרוד/);
+  },
+);
+
 Deno.test("semi-automatic mode has nothing to report: the user chose", () => {
-  assertEquals(autoChoices(chosen, "ZiofZHcEBTn5sRySe5h8"), {});
+  assertEquals(autoChoices(chosen, "ZiofZHcEBTn5sRySe5h8"), {
+    user_message: "ההפקה התחילה ורצה ברקע. הסרט יופיע בלוח כשיהיה מוכן.",
+  });
 });

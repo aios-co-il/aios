@@ -62,10 +62,14 @@ export function useWorkshopMode(
       console.error("[workshop] mode not saved", error);
       toast.error("לא הצלחנו לשנות את מצב העבודה");
     },
+    // The toggle shows what the project holds, whatever the save answered.
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
   return {
     mode: workshopModeFrom(mode.data),
     loading: mode.isLoading,
+    /** The stored mode could not be read: the toggle shows no mode rather than a guessed one. */
+    failed: mode.isError,
     saving: setMode.isPending,
     setMode: (next: WorkshopMode) => setMode.mutate(next),
   };

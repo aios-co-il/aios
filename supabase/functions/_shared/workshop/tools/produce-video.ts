@@ -199,7 +199,9 @@ export async function workshopProduceVideo(ctx: ToolContext) {
 
   // Semi-automatic: the user approves the pictures before they are animated (stills-approval.ts).
   const approval = await stillsStep(ctx, itemId, project.payload, scenes);
-  if ("stop" in approval) return approval.stop;
+  if ("stop" in approval) {
+    return approval.stop;
+  }
   project.payload = approval.payload;
 
   let engine: SceneEngine | null = isSceneEngine(args.engine)
@@ -490,7 +492,6 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   return {
     success: true,
     started: true,
-    user_message: "ההפקה התחילה ורצה ברקע. הסרט יופיע בלוח כשיהיה מוכן.",
     status: state.status ?? "running",
     engine: ENGINE_LABEL[engine],
     client_id: clientId,
@@ -499,7 +500,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     ...(keepDesign && typeof args.keep_design !== "boolean"
       ? { kept_design_note: KEPT_DESIGN_NOTE }
       : {}),
-    // Automatic mode: what Carmen chose on her own, for her closing line (auto-choices.ts).
+    // The user's line, with what Carmen chose on her own in automatic mode (auto-choices.ts).
     ...autoChoices(gate.payload, voiceId),
     message:
       "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",

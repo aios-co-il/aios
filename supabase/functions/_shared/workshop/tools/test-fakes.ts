@@ -1,6 +1,6 @@
 /** Fakes and fixtures the workshop tool tests share: a scripted Supabase client, projects, scenes. */
 import { executeWorkshopTool } from "../../workshop-tools.ts";
-import { STILLS_QUESTION } from "./stills-approval.ts";
+import { withStillsApproved } from "./test-stills-asked.ts";
 
 export type RunArgs = Parameters<typeof executeWorkshopTool>;
 
@@ -12,11 +12,9 @@ export function executeApprovedWorkshopTool(...call: RunArgs) {
   const [db, tenantId, name, args, access, userId, deps] = call;
   const approved = args.confirmed === true && args.approval_token === undefined;
   // Production tests start after the user approved the scene pictures too (stills-approval.ts).
-  const stills = name === "workshop_produce_video" && !deps?.lastAssistant;
-  const run = stills ? { stills_approved: true, ...args } : args;
-  return executeWorkshopTool(db, tenantId, name, run, access, userId, {
-    ...(stills ? { lastAssistant: STILLS_QUESTION } : {}),
-    ...(deps ?? {}),
+  const stills = withStillsApproved(db, name, args, deps);
+  return executeWorkshopTool(db, tenantId, name, stills.args, access, userId, {
+    ...stills.deps,
     ...(approved ? { approvedOutOfBand: true } : {}),
   });
 }
@@ -28,6 +26,7 @@ export function fakeDb(script: Record<string, unknown> = {}) {
   const calls: Call[] = [];
   const db = {
     calls,
+    script,
     rpc(name: string, value: unknown) {
       calls.push({ table: `rpc:${name}`, op: "rpc", value });
       const key = `rpc:${name}`;

@@ -23,8 +23,17 @@ interface Reply {
 }
 
 interface SavedVideo {
-  payload?: { video?: { approved_stills?: Array<string> } };
+  payload?: {
+    video?: {
+      approved_stills?: Array<string>;
+      asked_stills?: Array<string>;
+      asked_stills_turn?: string | null;
+    };
+  };
 }
+
+/** The pictures question showed stills a and b in an earlier turn than the one under test. */
+const ASKED = { asked_stills: ["a", "b"], asked_stills_turn: "turn-1" };
 
 /** A film with two pictured scenes, in `mode`; `video` adds to payload.video. */
 function film(mode: "auto" | "semi", video: Record<string, unknown> = {}) {
@@ -48,7 +57,7 @@ function film(mode: "auto" | "semi", video: Record<string, unknown> = {}) {
 /** produce_video with what the user said and what Carmen last asked. */
 const produce = (
   db: Db,
-  deps: { userText?: string; lastAssistant?: string } = {},
+  deps: { userText?: string; lastAssistant?: string; turnId?: string } = {},
   args: Record<string, unknown> = {},
 ) =>
   executeWorkshopTool(
@@ -58,13 +67,18 @@ const produce = (
     { item_id: "item-1", ...args },
     async () => {},
     null,
-    { userText: "תפיקי", lastAssistant: "", ...deps },
+    { userText: "תפיקי", lastAssistant: "", turnId: "turn-2", ...deps },
   ) as Promise<Reply>;
 
-const approvedStills = (db: Db) =>
+/** The payload.video saves produce_video made. */
+const savedVideos = (db: Db) =>
   db.calls
     .filter((c) => c.table === "marketing_work_items" && c.op === "update")
-    .map((c) => (c.value as SavedVideo).payload?.video?.approved_stills)
+    .map((c) => (c.value as SavedVideo).payload?.video ?? {});
+
+const approvedStills = (db: Db) =>
+  savedVideos(db)
+    .map((video) => video.approved_stills)
     .find(Boolean);
 
 Deno.test(
@@ -82,7 +96,7 @@ Deno.test(
 Deno.test(
   "semi-automatic: a tap on the pictures question approves them",
   async () => {
-    const db = fakeDb(film("semi"));
+    const db = fakeDb(film("semi", ASKED));
     const reply = await produce(db, {
       lastAssistant: STILLS_QUESTION,
       userText: APPROVE_STILLS,
@@ -102,7 +116,7 @@ Deno.test(
     );
     assertEquals(asked.missing, ["stills"]);
     const answered = await produce(
-      fakeDb(film("semi")),
+      fakeDb(film("semi", ASKED)),
       {
         lastAssistant: `תמונות מוכנות\n${STILLS_CHOICE}`,
         userText: "יאללה תפיקי",
@@ -110,7 +124,7 @@ Deno.test(
       { stills_approved: true },
     );
     assertStrictEquals(answered.needs_budget, true);
-    const fix = await produce(fakeDb(film("semi")), {
+    const fix = await produce(fakeDb(film("semi", ASKED)), {
       lastAssistant: STILLS_QUESTION,
       userText: "לתקן",
     });
@@ -130,6 +144,86 @@ Deno.test(
       fakeDb(film("semi", { approved_stills: ["a", "old"] })),
     );
     assertEquals(redone.missing, ["stills"]);
+  },
+);
+
+Deno.test(
+  "semi-automatic: the question records the pictures it shows and its turn",
+  async () => {
+    const db = fakeDb(film("semi"));
+    await produce(db);
+    const asked = savedVideos(db).find((video) => video.asked_stills);
+    assertEquals(asked?.asked_stills, ["a", "b"]);
+    assertStrictEquals(asked?.asked_stills_turn, "turn-2");
+  },
+);
+
+Deno.test(
+  "semi-automatic: Carmen cannot approve when the user tapped לתקן",
+  async () => {
+    const db = fakeDb(film("semi", ASKED));
+    const reply = await produce(
+      db,
+      { lastAssistant: STILLS_QUESTION, userText: "לתקן" },
+      { stills_approved: true },
+    );
+    assertEquals(reply.missing, ["stills"]);
+    assertStrictEquals(approvedStills(db), undefined);
+    // A tap on several questions arrives as "label: answer" lines.
+    const lines = await produce(
+      fakeDb(film("semi", ASKED)),
+      {
+        lastAssistant: STILLS_QUESTION,
+        userText: "תמונות הסצנות: לתקן",
+      },
+      { stills_approved: true },
+    );
+    assertEquals(lines.missing, ["stills"]);
+  },
+);
+
+Deno.test(
+  "semi-automatic: a picture the question did not show is asked about again",
+  async () => {
+    // b was remade after the question showed the old picture.
+    const remade = await produce(
+      fakeDb(
+        film("semi", {
+          asked_stills: ["a", "old"],
+          asked_stills_turn: "turn-1",
+        }),
+      ),
+      { lastAssistant: STILLS_QUESTION, userText: APPROVE_STILLS },
+      { stills_approved: true },
+    );
+    assertEquals(remade.missing, ["stills"]);
+    // Asked again in this very turn (make_stills remade a picture after the user approved).
+    const sameTurn = await produce(
+      fakeDb(
+        film("semi", { asked_stills: ["a", "b"], asked_stills_turn: "turn-2" }),
+      ),
+      { lastAssistant: STILLS_QUESTION, userText: APPROVE_STILLS },
+      { stills_approved: true },
+    );
+    assertEquals(sameTurn.missing, ["stills"]);
+  },
+);
+
+Deno.test(
+  "semi-automatic: words count only as the user's own text this turn",
+  async () => {
+    const silent = await produce(
+      fakeDb(film("semi", ASKED)),
+      { lastAssistant: STILLS_QUESTION, userText: "" },
+      { stills_approved: true },
+    );
+    assertEquals(silent.missing, ["stills"]);
+    const unknownTurn = await produce(
+      fakeDb(film("semi", ASKED)),
+      { lastAssistant: STILLS_QUESTION, userText: "מאשר", turnId: "" },
+      { stills_approved: true },
+    );
+    assertEquals(unknownTurn.missing, ["stills"]);
   },
 );
 
