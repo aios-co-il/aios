@@ -4,6 +4,7 @@
  * then stays with the specialist of that project, and so does a comment on the picked scene.
  */
 
+import { scriptSettled } from "./film-script.ts";
 import type { ProjectKind } from "./roles.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -57,6 +58,10 @@ export function workshopSceneIdFrom(body: Record<string, unknown>) {
   return addon.match(SCENE)?.[1] ?? null;
 }
 
+/**
+ * The open project as routing sees it. A generated film with no scenes and no approved (or
+ * skipped) script is still being written, so its turns go to the copywriter.
+ */
 export async function workshopProjectKind(
   supabase: Db,
   tenantId: unknown,
@@ -73,12 +78,39 @@ export async function workshopProjectKind(
       .maybeSingle();
     const payload = (data?.payload ?? {}) as Record<string, unknown>;
     if (payload.project_type !== "video") return { video: false, edit: false };
+    const edit = payload.workshop_edit === true;
+    const writing =
+      !edit &&
+      !sceneId &&
+      !scriptSettled(payload) &&
+      !(await hasScenes(supabase, tenantId, itemId));
     return {
       video: true,
-      edit: payload.workshop_edit === true,
+      edit,
       ...(sceneId ? { scene: true } : {}),
+      ...(writing ? { writing: true } : {}),
     };
   } catch {
     return null;
   }
+}
+
+/** Whether the film has any scene yet (a film written before the script step has scenes, no script). */
+async function hasScenes(supabase: Db, tenantId: string, itemId: string) {
+  const { data, error } = await supabase
+    .from("marketing_video_scenes")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("item_id", itemId)
+    .limit(1);
+  if (error) {
+    // Unknown: keep the producer, who works on a film at any stage.
+    console.error(
+      "[workshop] scenes not read for routing",
+      itemId,
+      error.message,
+    );
+    return true;
+  }
+  return Array.isArray(data) && data.length > 0;
 }

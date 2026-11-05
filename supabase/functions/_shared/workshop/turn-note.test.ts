@@ -6,6 +6,7 @@ import {
 } from "jsr:@std/assert@1";
 import { approveFromMessage } from "./budget-approve.ts";
 import { budgetOf, requestBudget } from "./budget.ts";
+import { APPROVE_SCRIPT, SCRIPT_CHOICE } from "./script-approval.ts";
 import {
   ANY_KIND,
   DO_THE_STEP,
@@ -281,5 +282,49 @@ Deno.test(
       String(cta?.description),
       new RegExp(`עד ${CTA_MAX_CHARS} תווים`),
     );
+  },
+);
+
+Deno.test(
+  "a tap on the script question approves the script whatever Carmen calls next",
+  async () => {
+    const payload = {
+      project_type: "video",
+      workshop_script: {
+        artifact_id: "script-1",
+        title: "תחלופה",
+        total_s: 3,
+        beats: [{ start_s: 0, end_s: 3, narration: "שלום" }],
+        approved: false,
+      },
+    };
+    type Update = { payload?: typeof payload };
+    const updates: Array<Update> = [];
+    const query = () => {
+      const chain: Record<string, unknown> = {};
+      for (const name of ["select", "eq", "in", "lt", "order", "limit"]) {
+        chain[name] = () => chain;
+      }
+      chain.update = (value: Update) => {
+        updates.push(value);
+        return chain;
+      };
+      chain.maybeSingle = async () => ({ data: { payload } });
+      chain.then = (resolve: (value: unknown) => void) =>
+        resolve({ data: [], error: null });
+      return chain;
+    };
+    const note = await workshopTurnNote(
+      { from: query },
+      "t1",
+      "item-1",
+      APPROVE_SCRIPT,
+      `תסריט · תחלופה\n\n${SCRIPT_CHOICE}`,
+    );
+    assertStrictEquals(
+      updates.find((u) => u.payload)?.payload?.workshop_script.approved,
+      true,
+    );
+    assertMatch(note ?? "", /תסריט: אושר/);
   },
 );

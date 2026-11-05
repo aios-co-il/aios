@@ -41,6 +41,7 @@ Deno.test(
           format: "1:1",
           project_type: "static",
           workshop_brief: { asked: true, answers: { קונספט: "ריקוד" } },
+          workshop_script: { skipped: true },
           workshop_look: { film: "cinematic", bible: "warm look" },
         },
       }),

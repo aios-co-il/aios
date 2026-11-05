@@ -2,11 +2,7 @@
  * What the briefing reads from the turn before it asks anything: the reference the user gave now,
  * and whether Carmen already read the request for what it answers (briefing.ts, project-io.ts).
  */
-import {
-  briefAnswersGiven,
-  briefReadTurn,
-  REFERENCE,
-} from "./brief-answers.ts";
+import { briefReadTurn, REFERENCE } from "./brief-answers.ts";
 import type { Choice } from "./briefing-choices.ts";
 import type { WorkshopDeps } from "./gate.ts";
 
@@ -47,8 +43,8 @@ export function referenceThisTurn(
 }
 
 /**
- * Whether Carmen read the request before the first questions: she passed brief_answers, or the
- * gate already asked her to in this turn. Asked once per turn, so the flow cannot loop; a tool
+ * Whether Carmen read the request before the first questions: the gate already asked her to in
+ * this turn. Asked once per turn, so the flow cannot loop; a tool
  * that cannot keep that mark (no save) never asks.
  */
 export function readRequest(
@@ -57,11 +53,9 @@ export function readRequest(
   deps: WorkshopDeps,
   canSave: boolean,
 ): boolean {
-  return (
-    !canSave ||
-    briefAnswersGiven(args.brief_answers) ||
-    briefReadTurn(payload) === turnKey(deps)
-  );
+  // Answers Carmen sends on her own (a tapped concept, the ending) don't mean she read the
+  // request: on Staging she passed those and the look the request named was asked again.
+  return !canSave || briefReadTurn(payload) === turnKey(deps);
 }
 
 /**

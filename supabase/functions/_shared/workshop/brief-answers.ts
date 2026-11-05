@@ -185,13 +185,6 @@ export const withBriefAsked = (payload: Record<string, unknown>) => ({
 });
 
 /**
- * Carmen read the request for what it already answers: she passed brief_answers (even only the
- * "none" marker), so the questions she sends next leave out what the user already said.
- */
-export const briefAnswersGiven = (value: unknown) =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-/**
  * The turn in which Carmen was asked to read the request before the first questions: asked once
  * per turn, so a second call in that turn shows the questions whatever she passes.
  */

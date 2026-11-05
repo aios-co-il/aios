@@ -12,9 +12,9 @@ import {
   videoProject,
   scene,
   bareProject,
-  READ_NOTHING,
   silentFilm,
 } from "./test-fakes.ts";
+import { afterReading } from "./test-briefing.ts";
 
 Deno.test(
   "a proposed style counts only once the user approved it, then it is remembered",
@@ -24,18 +24,15 @@ Deno.test(
       style_bible: "flat vector, teal",
       film_brief: "איור מונפש, קליל, קריינית, מוזיקה אקוסטית, סגיר עם לוגו",
     };
-    const unapproved = (await executeApprovedWorkshopTool(
-      fakeDb({
-        ...bareProject(),
-        "marketing_video_scenes:select": [scene("s-1")],
-      }),
-      "tenant-1",
+    const { reading, result: unapproved } = await afterReading(
+      { ...bareProject(), "marketing_video_scenes:select": [scene("s-1")] },
       "workshop_make_stills",
-      { ...proposal, ...READ_NOTHING },
-      async () => {},
-      null,
+      proposal,
       { generateImage: async () => ({ image_url: "https://x/1.png" }) },
-    )) as Record<string, any>;
+    );
+    // Carmen reads the request first; nothing reaches the user yet.
+    assertStrictEquals(reading.reading, true);
+    assertStrictEquals(reading.say_to_user, "");
     // Carmen's own style and film brief do not skip the user's questions the first time.
     assertStrictEquals(unapproved.needs_input, true);
     assertEquals(unapproved.missing, ["style", "film"]);
