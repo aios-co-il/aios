@@ -2,6 +2,7 @@ import { spendBudget } from "../budget.ts";
 import { estimateImages, imageFormatsFrom } from "../defaults.ts";
 import { gatePaid } from "../gate.ts";
 import { lookOf, sceneReferenceUrl, stillPrompt, withLook } from "../look.ts";
+import { STILL_NO_TEXT } from "../picture-text.ts";
 import {
   ensureStillPage,
   failedPatch,
@@ -26,7 +27,8 @@ import {
   stringList,
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
-import { costSceneOf, quotedProductionEstimate } from "../video-cost.ts";
+import { costSceneOf } from "../cost-scene.ts";
+import { quotedProductionEstimate } from "../video-cost.ts";
 import { wantsSoundDesign } from "../sound-design.ts";
 
 /** The scene's own character picture (saved by workshop_storyboard), if it has one. */
@@ -179,8 +181,7 @@ export async function workshopMakeStills(ctx: ToolContext) {
           userReferences: own ? 0 : look.references.length,
           hasAnchor: !own && Boolean(anchorUrl),
           sceneReference: Boolean(own),
-          suffix:
-            "Cinematic still frame for a video storyboard. No text on the image.",
+          suffix: STILL_NO_TEXT,
         }),
         format,
         references,

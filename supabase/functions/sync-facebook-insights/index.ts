@@ -13,6 +13,10 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
+  buildDestinationTypeMaps,
+  fetchAdsets,
+} from "../_shared/fb-insights/adsets.ts";
+import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
@@ -351,24 +355,18 @@ Deno.serve(async (req) => {
     // Fetch ad sets' promoted_object so we know the EXACT event each campaign is
     // optimized for (its "Result" in Ads Manager) — e.g. the custom pixel event
     // "NewLead" rather than the broad fb_pixel_lead — keeping leads from inflating.
-    const adsets: any[] = [];
-    {
-      let next: string | null =
-        `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
-      while (next) {
-        const r = await fetch(next);
-        const d: any = await r.json();
-        if (d.error) break;
-        if (Array.isArray(d.data)) adsets.push(...d.data);
-        next = d.paging?.next || null;
-      }
-    }
+    const adsets = await fetchAdsets(
+      adAccountId,
+      accessToken,
+      "sync-facebook-insights",
+    );
     const campaignObjectives: Record<string, string | null | undefined> = {};
     for (const c of Object.values(campaignStatuses))
       campaignObjectives[c.id] = c.objective;
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
     const resultMetrics = buildResultMetricMaps(adsets);
+    const destinationTypes = buildDestinationTypeMaps(adsets);
 
     // Also fetch ad account status
     const accountUrl = `https://graph.facebook.com/v21.0/${adAccountId}?fields=account_status,disable_reason,name&access_token=${accessToken}`;
@@ -410,6 +408,7 @@ Deno.serve(async (req) => {
       resultLeadTypes,
       optimizationGoals,
       resultMetrics,
+      destinationTypes,
     );
 
     console.log(

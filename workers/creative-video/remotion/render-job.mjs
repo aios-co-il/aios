@@ -72,7 +72,74 @@ assert(
 );
 
 const MOVES = ["push", "drift-left", "drift-right", "rise", "pull", "static"];
-const TRANSITIONS = ["cut", "crossfade", "slide", "wipe", "zoom", "skin"];
+// The transitions of src/workshop-transitions.ts, the end-card designs of
+// src/workshop-end-card-layout.ts and its backgrounds of src/workshop-end-card-backdrop.ts.
+const TRANSITIONS = [
+  "cut",
+  "crossfade",
+  "slide",
+  "wipe",
+  "zoom",
+  "skin",
+  "whip",
+  "ripple",
+  "glitch",
+];
+const END_CARD_STYLES = ["classic", "bold", "minimal", "split"];
+const END_CARD_BACKGROUNDS = [
+  "last-scene",
+  "gradient",
+  "pattern",
+  "particles",
+  "light-rays",
+  "plain",
+];
+// The title styles and sizes of workshop-title-styles.ts.
+const TITLE_STYLES = [
+  "float",
+  "pop",
+  "typewriter",
+  "slide",
+  "reveal",
+  "punch",
+  "blur",
+];
+const TITLE_SIZES = ["small", "medium", "large", "huge"];
+// The key-word emphases of src/workshop-title-emphasis.ts.
+const TITLE_EMPHASES = [
+  "none",
+  "count",
+  "underline",
+  "circle",
+  "stamp",
+  "marker",
+  "shake",
+];
+// The graphics over a scene's picture (src/workshop-overlays.ts), "none" left out.
+const OVERLAYS = [
+  "bubbles",
+  "particles",
+  "confetti",
+  "light-leak",
+  "lower-third",
+];
+// The film fonts of src/workshop-fonts.ts: their keys and files.
+const FONTS = [
+  "heebo",
+  "rubik",
+  "assistant",
+  "secular-one",
+  "suez-one",
+  "frank-ruhl-libre",
+];
+const FONT_FILES = [
+  "Heebo-Bold.ttf",
+  "Rubik.ttf",
+  "Assistant.ttf",
+  "SecularOne-Regular.ttf",
+  "SuezOne-Regular.ttf",
+  "FrankRuhlLibre.ttf",
+];
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FONT = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 const frameNo = (n) => Number.isInteger(n) && n >= 0 && n <= totalFrames;
@@ -99,7 +166,7 @@ const envelopeOf = (env) => {
 
 /**
  * Copies of the music track that cover the film: each inside it, fades within its length. At
- * most 50 (render-worker music-bed.mjs MAX_MUSIC_LOOPS).
+ * most 50 (render-worker music-bed.ts MAX_MUSIC_LOOPS).
  */
 const musicLoopsOf = (list) => {
   if (list === undefined || list === null) return null;
@@ -202,8 +269,13 @@ if (manifest.schemaVersion === 1) {
   const root = await realpath(dirname(resolve(manifestPath)));
   const publicDir = join(root, "public");
   await mkdir(join(publicDir, "fonts"), { recursive: true });
-  const fontSource = resolve("public/fonts/Heebo-Bold.ttf");
-  await copyFile(fontSource, join(publicDir, "fonts/Heebo-Bold.ttf"));
+  // Every film font (src/workshop-fonts.ts), so the composition can set any of them.
+  for (const file of FONT_FILES) {
+    await copyFile(
+      resolve(`public/fonts/${file}`),
+      join(publicDir, `fonts/${file}`),
+    );
+  }
   const v3 = manifest.schemaVersion === 3;
   for (const scene of sorted) {
     const still = scene.still || null;
@@ -302,15 +374,36 @@ if (manifest.schemaVersion === 1) {
     effectsEnvelope:
       v3 && effects.length ? envelopeOf(manifest.effectsEnvelope) : null,
     captions: v3 ? captionsOf(manifest.captions) : [],
-    // Motion-graphic captions (render-worker motion-captions.mjs); karaoke lines otherwise.
+    // Motion-graphic captions (render-worker motion-captions.ts); karaoke lines otherwise.
     captionStyle:
       v3 && manifest.captionStyle === "motion" ? "motion" : "karaoke",
+    font: FONTS.includes(manifest.font) ? manifest.font : null,
+    endCardStyle: END_CARD_STYLES.includes(manifest.endCardStyle)
+      ? manifest.endCardStyle
+      : null,
+    endCardBackground: END_CARD_BACKGROUNDS.includes(manifest.endCardBackground)
+      ? manifest.endCardBackground
+      : null,
+    endCardGlass: manifest.endCardGlass === true,
     brand,
     endCardFrames,
     scenes: sorted.map((scene) => ({
       id: scene.id,
       durationFrames: scene.frameCount,
       still: scene.still || null,
+      // A finished design is shown whole (render-worker workshop-manifest.ts, keep_design).
+      ...(scene.still && scene.fit === "contain" ? { fit: "contain" } : {}),
+      // How the scene's text enters and how large it is (workshop-title-styles.ts).
+      ...(TITLE_STYLES.includes(scene.titleStyle)
+        ? { titleStyle: scene.titleStyle }
+        : {}),
+      ...(TITLE_SIZES.includes(scene.titleSize)
+        ? { titleSize: scene.titleSize }
+        : {}),
+      ...(TITLE_EMPHASES.includes(scene.titleEmphasis)
+        ? { titleEmphasis: scene.titleEmphasis }
+        : {}),
+      ...(OVERLAYS.includes(scene.overlay) ? { overlay: scene.overlay } : {}),
       clip: scene.clip || null,
       caption: text(scene.caption, 180),
       move: scene.move,
@@ -318,7 +411,7 @@ if (manifest.schemaVersion === 1) {
         ? {
             voice: scene.voice || null,
             // The scene's short title over the captions: at most 32 characters
-            // (render-worker kicker.mjs KICKER_MAX_CHARS).
+            // (render-worker kicker.ts KICKER_MAX_CHARS).
             kicker: scene.kicker ? text(scene.kicker, 32) : null,
             transition: scene.transition || "crossfade",
             transitionFrames: scene.transitionFrames ?? 0,

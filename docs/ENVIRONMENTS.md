@@ -28,11 +28,13 @@ When a task finishes, **always send David the development environment link**: th
 
 ## Canonical URLs
 
-| Environment                  | Git                           | Frontend URL                                                                                                            | When it updates          |
-| ---------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **Production**               | `main`                        | `https://aios.co.il`                                                                                                    | merge to `main`          |
-| **Staging (persistent dev)** | `develop`                     | `https://after-lead-git-develop-aios-crm.vercel.app` (custom domain `https://staging.aios.co.il` requires verification) | merge to `develop`       |
-| **Feature Preview**          | `feature/*`, `cursor/*`, etc. | `https://after-lead-git-{branch}-aios-crm.vercel.app`                                                                   | push to that branch only |
+Work branches follow [Git conventions](git-conventions.md#branch-naming); each receives its own Vercel Preview.
+
+| Environment                  | Git         | Frontend URL                                                                                                            | When it updates          |
+| ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Production**               | `main`      | `https://aios.co.il`                                                                                                    | merge to `main`          |
+| **Staging (persistent dev)** | `develop`   | `https://after-lead-git-develop-aios-crm.vercel.app` (custom domain `https://staging.aios.co.il` requires verification) | merge to `develop`       |
+| **Feature Preview**          | Work branch | `https://after-lead-git-{branch}-aios-crm.vercel.app`                                                                   | push to that branch only |
 
 ### Staging domain
 
@@ -47,7 +49,7 @@ The in-app amber frame (subtle yellow border glow) marks Staging/Preview — no 
 ## Flow (staging-first)
 
 ```
-feature/* or fix/*
+Work branch (named per docs/git-conventions.md)
     → Vercel Preview (optional — quick check on this branch)
     → merge to develop
     → Staging (after-lead-git-develop / staging.aios.co.il) — verify full picture
@@ -64,7 +66,7 @@ feature/* or fix/*
 | Git         | Deploy             | Data                                                      |
 | ----------- | ------------------ | --------------------------------------------------------- |
 | local       | `pnpm dev`         | [Local development](#local-development) uses AIOS Staging |
-| `feature/*` | Vercel Preview     | AIOS Staging (every Preview deploy)                       |
+| Work branch | Vercel Preview     | AIOS Staging (every Preview deploy)                       |
 | `develop`   | Persistent Staging | AIOS Staging Supabase                                     |
 | `main`      | Production         | Production Supabase                                       |
 
@@ -166,6 +168,12 @@ How we keep them working:
 2. **Copy from Production, do not re-type.** The gated function `copy-edge-secrets-to-staging` runs on Production, reads allowlisted agent secrets from `Deno.env`, and writes them to Staging. WhatsApp / Meta / project keys stay out. David is not asked to paste keys.
 3. **Health probe.** Command Center calls `agent-channel-send` `action=channel_health`. If the key is rejected, the HUD shows a banner. After a copy, hashes of the allowlist should match Production; no function redeploy is required.
 4. **After a copy:** from Preview → Command Center, send a one-word ping on Cursor Direct or the table. Expect `agent_channel_sessions.external_url` and no 401.
+
+## Carmen Android app (Staging only)
+
+- `mobile/carmen-android` builds against AIOS Staging: repository variables `CARMEN_ANDROID_SUPABASE_URL` and `CARMEN_ANDROID_SUPABASE_KEY` (Staging URL and publishable key; the **Carmen Android** workflow fails without them), and the Staging alias as the in-app Command Center.
+- Google sign-in returns through `carmen-aios://auth/**`, allowed in the base `[auth]` redirect list of `supabase/config.toml`, which `develop` uses.
+- A Production build (release key, Production redirect and URLs) is AIO-356.
 
 ## Report loading
 

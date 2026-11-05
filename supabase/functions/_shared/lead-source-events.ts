@@ -1,0 +1,47 @@
+/** Lead arrival-source history: one dated row per arrival that names a source. */
+
+/** Arrival source exactly as sent; "other" or empty means none was given. */
+export function givenLeadSource(raw: unknown): string | null {
+  const source = raw == null ? "" : String(raw).trim();
+  return source && source.toLowerCase() !== "other" ? source : null;
+}
+
+/**
+ * Add a dated row to the lead's arrival-source history, under the lead's own
+ * tenant (pass the lead row's tenant_id). New leads get their first row from a
+ * database trigger; call this for repeat arrivals.
+ */
+export async function recordLeadSourceEvent(
+  supabase: {
+    from: (table: string) => {
+      insert: (
+        row: Record<string, unknown>,
+      ) => PromiseLike<{ error: { message?: string } | null }>;
+    };
+  },
+  args: {
+    leadId: string;
+    tenantId: string | null;
+    source: unknown;
+    campaignName?: string | null;
+  },
+): Promise<void> {
+  const source = givenLeadSource(args.source);
+  if (!source) return;
+  if (!args.tenantId) {
+    console.error(
+      "⚠️ Lead source event skipped: lead has no tenant",
+      args.leadId,
+    );
+    return;
+  }
+  const { error } = await supabase.from("lead_source_events").insert({
+    lead_id: args.leadId,
+    tenant_id: args.tenantId,
+    source,
+    campaign_name: args.campaignName?.trim() || null,
+  });
+  if (error) {
+    console.error("⚠️ Failed to record lead source event:", error.message);
+  }
+}

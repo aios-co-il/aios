@@ -48,7 +48,7 @@ Deno.test("claude-notify ping", async (t) => {
               reason: "inactive",
             },
           ],
-          recipient_source: "campaign_pulse_phone",
+          recipient_source: "report_recipient",
           sender_resolved: true,
           reason: "manus_integration_inactive",
         },

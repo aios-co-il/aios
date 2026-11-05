@@ -1,4 +1,7 @@
-import type { StaffAlertResult, StaffAlertStatus } from "./staff-alert.ts";
+import type {
+  StaffAlertResult,
+  StaffAlertStatus,
+} from "../_shared/staff-alert/send.ts";
 
 export type StaffAlertToolResult = {
   status: StaffAlertStatus;

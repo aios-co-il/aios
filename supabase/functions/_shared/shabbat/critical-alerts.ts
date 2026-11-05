@@ -1,6 +1,7 @@
 /**
- * Which alerts may interrupt Shabbat (AIO-226). Pulse instant alerts and
- * fb-campaign-monitor consult this list; add a new critical source name here.
+ * Which alerts may interrupt Shabbat (AIO-226). Pulse instant alerts and the
+ * campaign status alerts (Meta monitor, Google check) consult this list; add a
+ * new critical source name here.
  */
 import { isJerusalemShabbat } from "./quiet-window.ts";
 

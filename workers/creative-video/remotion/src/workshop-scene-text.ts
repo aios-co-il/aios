@@ -2,7 +2,7 @@ import type { WorkshopCaption, WorkshopScene } from "./manifest";
 
 /**
  * Words for comparing on-screen text with what is said: no niqqud, punctuation or case
- * (plainWords in render-worker compose/kicker.mjs).
+ * (plainWords in render-worker compose/kicker.ts).
  */
 const plainWords = (text: string) =>
   text

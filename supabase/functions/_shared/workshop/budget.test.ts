@@ -1,7 +1,13 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   approvalCode,
+  approvesRequest,
   budgetOf,
+  budgetPrompt,
   checkBudget,
   refundBudget,
   requestBudget,
@@ -159,6 +165,8 @@ Deno.test(
       "מאשרת תקציב 2026!",
       // Several questions answered at once: one line per question (src/lib/quickReplies.ts).
       "קצב: רגוע\nלאשר תקציב של $10 לפרויקט?: מאשר תקציב 2026",
+      // The button, which names the amount it approves.
+      "מאשר תקציב $10 · 2026",
     ])
       assertStrictEquals(answer(userText), true, userText);
   },
@@ -267,3 +275,14 @@ Deno.test("approving a budget keeps what was already settled", () => {
   assertStrictEquals(budget.spent_usd, 4.2);
   assertStrictEquals(budget.production_usd, 4.2);
 });
+
+Deno.test(
+  "the approval button names the amount it approves and carries the code",
+  () => {
+    const prompt = budgetPrompt(3, "9AF1");
+    assertMatch(prompt, /\| מאשר תקציב \$3 · 9AF1 \|/);
+    const tap = "מאשר תקציב $3 · 9AF1";
+    assertStrictEquals(approvesRequest(tap, "9AF1"), true);
+    assertStrictEquals(approvesRequest("מאשר תקציב $3 · 9AF2", "9AF1"), false);
+  },
+);

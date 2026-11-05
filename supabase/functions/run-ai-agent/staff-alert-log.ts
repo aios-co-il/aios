@@ -1,6 +1,6 @@
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
-import type { StaffAlertResult } from "./staff-alert.ts";
+import type { StaffAlertResult } from "../_shared/staff-alert/send.ts";
 
 /** Records the outcome of a staff alert in agent_action_log. Never throws: a failed write is logged and the tool result still returns. */
 export async function logStaffAlertOutcome(

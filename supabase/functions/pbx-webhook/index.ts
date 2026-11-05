@@ -77,7 +77,15 @@ async function handle(req: Request): Promise<Response> {
   existing ??= await findOpenCall(sb, tenantId, owner, event, bringsRecording);
 
   const saved = existing
-    ? await updateCall(sb, existing, event, owner, recording)
+    ? await updateCall(
+        sb,
+        tenantId,
+        existing,
+        event,
+        owner,
+        recording,
+        settings,
+      )
     : await insertCall(sb, tenantId, settings, event, owner, recording);
   return json({
     ok: true,

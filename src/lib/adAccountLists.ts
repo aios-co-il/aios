@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { GoogleAdsAccount } from "@/components/dynamic-tables/googleAdsAccounts";
 import { listOf } from "@/lib/jsonReaders";
 
 const optionalString = z.string().optional().catch(undefined);
@@ -9,13 +10,22 @@ const facebookAdAccountSchema = z.object({
   currency: optionalString,
 });
 
-const googleAdsAccountSchema = z.object({
-  id: z.union([z.string(), z.number()]),
-  name: optionalString,
+const googleAdsAccountSchema: z.ZodType<
+  GoogleAdsAccount,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  id: z.union([z.string(), z.number().transform(String)]),
+  name: z.string().catch(""),
+  currency: z.string().catch(""),
+  manager: z.boolean().catch(false),
+  manager_id: optionalString,
+  integration_id: optionalString,
+  integration_user_id: optionalString,
+  integration_email: z.string().nullable().optional().catch(undefined),
 });
 
 export type FacebookAdAccount = z.infer<typeof facebookAdAccountSchema>;
-export type GoogleAdsAccount = z.infer<typeof googleAdsAccountSchema>;
 
 const facebookAccountsBody = z
   .object({ ad_accounts: listOf(facebookAdAccountSchema) })

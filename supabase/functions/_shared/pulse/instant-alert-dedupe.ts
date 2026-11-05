@@ -2,22 +2,26 @@
 import type { Tables } from "../database.types.ts";
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
 import type { DbClient } from "../supabase-clients.ts";
+import { splitRecipientPhones } from "./instant-alert-send.ts";
 
-type InstantAlertLogRow = Partial<
-  Pick<Tables<"pulse_instant_alert_log">, "fingerprint" | "severity_score">
+export type InstantAlertLogRow = Partial<
+  Pick<
+    Tables<"pulse_instant_alert_log">,
+    "fingerprint" | "severity_score" | "recipient_phone"
+  >
 >;
 
 /**
- * True when this candidate must not go out: a matching log row inside the
- * rule's throttle window, or a failed lookup. A failed dedupe lookup must not
- * turn into a resend.
+ * This org's log rows of the candidate's finding inside the rule's throttle
+ * window, newest first, or null when the lookup failed: a failed dedupe
+ * lookup must not turn into a resend.
  */
-export async function isInstantAlertSuppressed(
+export async function ownRecentDeliveries(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   candidate: PulseInstantAlertCandidate,
   throttleHours: number,
   now: Date,
-): Promise<boolean> {
+): Promise<InstantAlertLogRow[] | null> {
   const { data, error } = await recentAlertDeliveries(
     input.supabase,
     [input.tenantId],
@@ -27,9 +31,39 @@ export async function isInstantAlertSuppressed(
   );
   if (error) {
     console.warn("[pulse-instant-alerts] dedupe lookup failed", error.message);
-    return true;
+    return null;
   }
-  return !decideInstantAlertDelivery(candidate, data).send;
+  return data;
+}
+
+/**
+ * The phones the candidate is still due for (AIO-290): for each phone,
+ * decideInstantAlertDelivery runs on the rows that reached it, so a phone
+ * whose message failed gets the alert next run while the phones it reached
+ * keep their throttle window. A row that lists no phone (older rows may not)
+ * counts for every phone. `rows` are newest first.
+ */
+export function phonesStillDue(
+  candidate: Pick<
+    PulseInstantAlertCandidate,
+    "rule_type" | "fingerprint" | "severity_score"
+  >,
+  phones: string[],
+  rows: InstantAlertLogRow[],
+): string[] {
+  return phones.filter(
+    (phone) =>
+      decideInstantAlertDelivery(
+        candidate,
+        rows.filter((row) => rowReachedPhone(row, phone)),
+      ).send,
+  );
+}
+
+/** True when the row lists `phone`, or lists no phone at all. */
+function rowReachedPhone(row: InstantAlertLogRow, phone: string): boolean {
+  const listed = splitRecipientPhones(row.recipient_phone ?? null);
+  return !listed.length || listed.includes(phone);
 }
 
 /**
@@ -78,10 +112,11 @@ export function isSameInstantAlertFinding(
 }
 
 /**
- * Up to 50 log rows of this client + rule (+ campaign) that `tenantIds` sent
- * inside the rule's throttle window, newest first, so a flap back to an
- * earlier finding still matches. The one window query for this org's dedupe
- * and the cross-org one (cross-tenant-recipients.ts).
+ * Up to 50 log rows of this client (none, for a lost connection) + rule
+ * (+ campaign) that `tenantIds` sent inside the rule's throttle window,
+ * newest first, so a flap back to an earlier finding still matches. The one
+ * window query for this org's dedupe and the cross-org one
+ * (cross-tenant-recipients.ts).
  */
 export async function recentAlertDeliveries(
   supabase: Pick<DbClient, "from">,
@@ -93,11 +128,16 @@ export async function recentAlertDeliveries(
   const since = new Date(
     now.getTime() - throttleHours * 60 * 60 * 1000,
   ).toISOString();
-  let query = supabase
+  const rows = supabase
     .from("pulse_instant_alert_log")
     .select("recipient_phone, fingerprint, severity_score")
-    .in("tenant_id", tenantIds)
-    .eq("client_id", candidate.client_id)
+    .in("tenant_id", tenantIds);
+  // A lost connection is the org's, not a client's (client_id null).
+  let query = (
+    candidate.client_id === null
+      ? rows.is("client_id", null)
+      : rows.eq("client_id", candidate.client_id)
+  )
     .eq("rule_type", candidate.rule_type)
     .gte("sent_at", since)
     .order("sent_at", { ascending: false })

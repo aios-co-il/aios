@@ -1,15 +1,20 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { normalizeNotifyPhone } from "../carmen-notify-target.ts";
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
 import { withoutPhonesAlertedElsewhere } from "./cross-tenant-recipients.ts";
-import { fakeSupabase, healthy, run, WEDNESDAY } from "./fake-alert-log.ts";
+import {
+  fakeSupabase,
+  healthy,
+  OWNER_RECIPIENT,
+  run,
+  WEDNESDAY,
+} from "./fake-alert-log.ts";
 import {
   connectionLostFingerprint,
   noContactFingerprint,
 } from "./instant-alert-fingerprint.ts";
 
-/** The pulse phone run() alerts, as the log stores it. */
-const PULSE_PHONE = normalizeNotifyPhone("0501234567");
+/** The phone run() alerts, as the log stores it. */
+const PULSE_PHONE = OWNER_RECIPIENT.phone;
 
 /** t2 shares agency a1 with t1 (run()'s tenant). */
 const GRANT = {
@@ -72,7 +77,9 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
       const supabase = fakeSupabase([], { grants: [GRANT] });
       await run(supabase, WEDNESDAY, [SHARED], {
         tenantId: "t2",
-        pulsePhone: "0529999999",
+        reportRecipients: [
+          { name: "Other", phone: "972529999999", source: "configured" },
+        ],
       });
 
       const second = await run(supabase, WEDNESDAY, [SHARED]);
@@ -141,15 +148,13 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
         ],
         { grants: [GRANT] },
       );
-      const { sends } = await run(supabase, WEDNESDAY, [CAMPAIGN], {
-        analyzeException: async () => ({ confirmed: true }),
-      });
+      const { sends } = await run(supabase, WEDNESDAY, [CAMPAIGN]);
       assertEquals(phones(sends), [PULSE_PHONE]);
     },
   );
 
   await t.step(
-    "a campaign exception everyone already got elsewhere makes no AI call",
+    "a campaign exception everyone already got elsewhere is not sent",
     async () => {
       const supabase = fakeSupabase(
         [
@@ -162,16 +167,9 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
         ],
         { grants: [GRANT] },
       );
-      let aiCalls = 0;
-      const { result, sends } = await run(supabase, WEDNESDAY, [CAMPAIGN], {
-        analyzeException: async () => {
-          aiCalls += 1;
-          return { confirmed: true };
-        },
-      });
+      const { result, sends } = await run(supabase, WEDNESDAY, [CAMPAIGN]);
       assertEquals(sends, []);
-      assertEquals(aiCalls, 0);
-      assertEquals(result.analyzed, 0);
+      assertEquals(result.sent, 0);
     },
   );
 
@@ -183,7 +181,7 @@ Deno.test("withoutPhonesAlertedElsewhere", async (t) => {
       });
       const recipients = await withoutPhonesAlertedElsewhere(
         { supabase, tenantId: "t1" },
-        { client_id: "c1", client_name: "Acme", message: "", ...LOST },
+        { client_id: "c1", client_name: "Acme", line: "", ...LOST },
         "a1",
         [{ phone: PULSE_PHONE }],
         24,

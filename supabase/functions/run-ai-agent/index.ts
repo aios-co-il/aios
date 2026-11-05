@@ -19,9 +19,10 @@ import {
 import {
   type BrainEngine,
   type BrainEngineTarget,
-  resolveBrainEngine,
 } from "../_shared/carmen/brain-engine/load.ts";
+import { resolveWorkshopAwareEngine } from "../_shared/carmen/brain-engine/workshop-brain.ts";
 import {
+  failoverReason,
   movesToNextLink,
   openRouterTail,
   lazyBrainTail,
@@ -30,18 +31,43 @@ import { makeAdImage } from "../_shared/creative/ad-image.ts";
 import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
+  createReplyRecorder,
+  parseReplyKey,
+  saveCarmenReply,
+} from "../_shared/carmen/background-reply.ts";
+import {
   activeSkinBlock,
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
 import { isCachedPulseRequest } from "../_shared/pulse-request.mjs";
+import { REFRESH_PULSE_TOOL_NAME } from "../_shared/carmen/pulse-tools.ts";
+import { CALLER_ROLE_PRIORITY } from "./caller-roles.ts";
+import { buildPulseRefreshDigestReply } from "./pulse-refresh/note.ts";
+import {
+  decidePulseRefreshRouting,
+  pulseRefreshToolChoice,
+} from "./pulse-refresh/routing.ts";
+import {
+  appendCarmenPulseRules,
+  carmenPulseRulesVersion,
+} from "./pulse-refresh/rules-block.ts";
+import {
+  executeRefreshCampaignPulse,
+  REFRESH_CAMPAIGN_PULSE_TOOL,
+} from "./pulse-refresh/tool.ts";
+import {
+  keepCarmenPulseTools,
+  skinToolDenylist,
+} from "./pulse-refresh/tool-pool.ts";
+import { missingEnabledTools } from "./missing-enabled-tools.ts";
 import {
   classifyDirectTool,
   directToolPool,
 } from "../_shared/carmen-direct-tools.mjs";
-import {
-  compareReportToMeta,
-  facebookReportType,
-} from "../_shared/report-meta-verify.mjs";
+import { listVerifyTables } from "./verify-tables.ts";
+import { verifyReportVsMeta } from "./verify-report-vs-meta.ts";
+import { reconciliationStatusTool } from "./status-tool.ts";
+import { MANAGER_ROLES } from "./manager-roles.ts";
 import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
@@ -56,18 +82,47 @@ import { readScopedChatRows } from "./chat-scope/rows.ts";
 import { scopedChatRead } from "./chat-scope/scoped-read.ts";
 import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import {
+  CARMEN_CLIENT_UPDATE_TYPES,
+  CLIENT_CARD_SOURCES,
+} from "../_shared/client-card/sources.ts";
+import {
+  addClientUpdateFromCarmen,
+  HEALTH_CARD_ENTRY_ERROR_HINT,
+  recordHealthCardEntryAfterUpdate,
+} from "./carmen-client-card-tools.ts";
+import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
+import { setClientMoodStatus } from "./client-health-status.ts";
+import { listUpdates } from "./list-updates.ts";
 import {
   VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
   isVideoDirectorTool,
 } from "../_shared/video-director-tools.ts";
 import {
+  CARD_DRAFT_TOOLS,
+  executeCardDraftTool,
+  isCardDraftTool,
+  promoteCardDraftTool,
+} from "./card-draft-approval/tool.ts";
+import {
   CREATIVE_STUDIO_TOOLS,
   executeCreativeStudioTool,
   isCreativeStudioTool,
 } from "../_shared/creative-studio-tools.ts";
 import {
-  WORKSHOP_SKIN,
+  executeFindingDraftTool,
+  FINDING_DRAFT_TOOLS,
+  isFindingDraftTool,
+  promoteFindingDraftTool,
+} from "./finding-draft/tool.ts";
+import {
+  type FindingDraftReply,
+  findingDraftReplyOf,
+  isGroupChat,
+} from "./finding-draft/reply.ts";
+import {
   WORKSHOP_TOOLS,
   executeWorkshopTool,
   isWorkshopTool,
@@ -75,27 +130,26 @@ import {
 import {
   isBlockedInWorkshop,
   stripServerOnlyPayloadKeys,
+  workshopToolOffered,
   workshopToolRefusal,
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
+import { ROLE_PERSONA, ROLE_SKILL } from "../_shared/workshop/roles.ts";
 import {
-  ROLE_PERSONA,
-  ROLE_SKILL,
-  ROLE_TOOLS,
-  toolsForRole,
-  workshopRole,
-} from "../_shared/workshop/roles.ts";
-import {
+  workshopArtifactIdFrom,
   workshopItemIdFrom,
-  workshopProjectKind,
-  workshopSceneIdFrom,
 } from "../_shared/workshop/role-project.ts";
 import { workshopClientIdFrom } from "../_shared/workshop/view-client.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
-import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
+import {
+  isWorkshopTurn,
+  workshopTurnSetup,
+  workshopTurnTools,
+} from "./workshop-turn-setup.ts";
+import { addressByNameLine, callerProfileName } from "./address-by-name.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
-import { sceneEngineFor } from "../_shared/workshop/video-cost.ts";
+import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
 import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
 import { videoConnectionsFor } from "../_shared/workshop/video-connections.ts";
 import {
@@ -109,6 +163,8 @@ import {
   SILENT_TURN_NUDGE,
   fallbackReply,
   shouldNudgeSilentTurn,
+  stoppedAtStepLimit,
+  workshopToolRounds,
 } from "../_shared/workshop/reply.ts";
 import { connectionsStanding } from "../_shared/workshop/connections-standing.ts";
 import {
@@ -122,6 +178,12 @@ import {
   shouldUseV2Prompt,
 } from "../_shared/carmen-prompt-v2.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
+import {
+  PULSE_TARGET_TOOLS,
+  PULSE_TARGET_TOOL_NAMES,
+  isPulseTargetTool,
+} from "../_shared/carmen/pulse-targets/tool-defs.ts";
+import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
 import {
   spawnSubagent,
   getSubagentResult,
@@ -233,17 +295,18 @@ import {
   findDuplicateDevTasks,
   logDevTaskEvent,
 } from "../_shared/dev-tasks.ts";
+import { devTaskApprovalDecision } from "../_shared/dev-task-approval.ts";
 import {
-  declineOfferedDevTask,
-  devTaskSendRule,
-  directDevSendRefusal,
-  findOfferedDevTask,
   isExplicitDevTaskApproval,
   isExplicitDevTaskDecline,
   offersDevTask,
-  devTaskApprovalDecision,
+} from "../_shared/dev-task-approval-words.ts";
+import { declineOfferedDevTask, findOfferedDevTask } from "./dev-task-offer.ts";
+import {
+  devTaskSendRule,
+  directDevSendRefusal,
   workshopDevTaskRule,
-} from "../_shared/dev-task-approval.ts";
+} from "./dev-task-send-rules.ts";
 import {
   appOrigin,
   carmenSkinEntries,
@@ -790,6 +853,8 @@ const PRIORITY_TOOLS = new Set([
   "list_sales_people",
   "get_openai_billing_status",
   "connect_client_meta_ad_account",
+  REFRESH_PULSE_TOOL_NAME,
+  ...PULSE_TARGET_TOOL_NAMES,
   // Questions about Carmen herself: her personas and their portraits, on every surface.
   "get_carmen_skins",
   ...NATIVE_DEV_TASK_TOOLS,
@@ -1240,7 +1305,7 @@ const ALL_TOOLS = [
   {
     name: "recall_recent_action",
     description:
-      "בדיקה אם כרמן כבר ביצעה פעולה כבדה לאחרונה (pulse_check, campaign_analysis, lead_review וכד׳). חובה לקרוא לכלי הזה לפני הרצה של pulse_check / סקירת קמפיינים / סקירת לידים — כדי לא לעבוד פעמיים. מחזיר את הסיכום של הריצה האחרונה אם נמצאה בחלון הזמן. אם נמצא תוצאה: ענה על הסיכום הקיים וציין את הזמן (בשעון ישראל), ושאל את המשתמש אם לרענן.",
+      "בדיקה אם כרמן כבר ביצעה פעולה כבדה לאחרונה (pulse_check, campaign_analysis, lead_review וכד׳). חובה לקרוא לכלי הזה לפני סקירת קמפיינים / סקירת לידים — כדי לא לעבוד פעמיים. בדיקת דופק לא צריכה את זה: get_latest_campaign_pulse מחזיר את הבדיקה השמורה, ו-refresh_campaign_pulse מרענן אותה. מחזיר את הסיכום של הריצה האחרונה אם נמצאה בחלון הזמן. אם נמצא תוצאה: ענה על הסיכום הקיים וציין את הזמן (בשעון ישראל), ושאל את המשתמש אם לרענן.",
     parameters: {
       type: "object",
       properties: {
@@ -1260,7 +1325,7 @@ const ALL_TOOLS = [
   {
     name: "record_action_episode",
     description:
-      "שמירת תוצאה של פעולה כבדה ב-long-term memory של כרמן (carmen_memory_episodes). חובה לקרוא בסיום של pulse_check / סקירת קמפיינים / סקירת לידים — כדי שבפעם הבאה recall_recent_action ימצא את התוצאה. כתוב summary תמציתי של מה שמצאת.",
+      "שמירת תוצאה של פעולה כבדה ב-long-term memory של כרמן (carmen_memory_episodes). חובה לקרוא בסיום של סקירת קמפיינים / סקירת לידים — כדי שבפעם הבאה recall_recent_action ימצא את התוצאה. כתוב summary תמציתי של מה שמצאת.",
     parameters: {
       type: "object",
       properties: {
@@ -1382,16 +1447,24 @@ const ALL_TOOLS = [
   },
   {
     name: "add_client_update",
-    description: "הוספת עדכון ללקוח",
+    description:
+      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. שיחה (call) או פגישה (meeting) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק note, complaint או weekly_update.",
     parameters: {
       type: "object",
       properties: {
         client_id: { type: "string" },
         content: { type: "string" },
+        update_type: {
+          type: "string",
+          enum: [...CARMEN_CLIENT_UPDATE_TYPES],
+          description:
+            "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
+        },
       },
       required: ["client_id", "content"],
     },
   },
+  ...FINDING_DRAFT_TOOLS,
   // MESSAGES
   {
     name: "send_message",
@@ -1903,7 +1976,7 @@ const ALL_TOOLS = [
   {
     name: "get_latest_campaign_pulse",
     description:
-      "שליפת תמונת הדופק האחרונה שכבר חושבה ונשמרה. בוואטסאפ מחזיר whatsapp_digest קצר (סיכום סטטוסים + קישור לדשבורד) בלבד — בלי טבלת לקוחות. בדשבורד הפנימי אפשר גם formatted_markdown. רק אם המשתמש מבקש נתונים חיים/ניתוח עמוק עבור לקוח — analyze_campaign_performance.",
+      "שליפת תמונת הדופק האחרונה שכבר חושבה ונשמרה. בוואטסאפ מחזיר whatsapp_digest קצר (סיכום סטטוסים + קישור לדשבורד) בלבד — בלי טבלת לקוחות. בדשבורד הפנימי אפשר גם formatted_markdown. לבדיקת דופק עדכנית — refresh_campaign_pulse. רק אם המשתמש מבקש נתונים חיים/ניתוח עמוק עבור לקוח — analyze_campaign_performance.",
     parameters: {
       type: "object",
       properties: {
@@ -1918,6 +1991,7 @@ const ALL_TOOLS = [
       },
     },
   },
+  REFRESH_CAMPAIGN_PULSE_TOOL,
   // MASKYOO CALLS REPORTING
   {
     name: "get_maskyoo_calls_report",
@@ -1972,8 +2046,7 @@ const ALL_TOOLS = [
   },
   {
     name: "update_client_health",
-    description:
-      "עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים).",
+    description: `עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים). ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -2008,8 +2081,7 @@ const ALL_TOOLS = [
   },
   {
     name: "batch_update_client_health",
-    description:
-      "עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור.",
+    description: `עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור. ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
     parameters: {
       type: "object",
       properties: {
@@ -2557,6 +2629,8 @@ const ALL_TOOLS = [
   // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
+  ...PULSE_TARGET_TOOLS,
+  ...CARD_DRAFT_TOOLS,
   {
     name: "list_marketing_work_items",
     description:
@@ -3112,7 +3186,7 @@ const ALL_TOOLS = [
   // UPDATES
   {
     name: "list_updates",
-    description: "רשימת עדכונים ללקוח או ליד",
+    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
     parameters: {
       type: "object",
       properties: {
@@ -3464,7 +3538,7 @@ const ALL_TOOLS = [
   {
     name: "verify_report_vs_meta",
     description:
-      'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים וימים — הוצאה לכל קמפיין, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד). ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.',
+      'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים, יום אחר יום לפי אזור הזמן של חשבון המודעות — הוצאה, תוצאה עיקרית (לידים/רכישות) והכנסות לכל קמפיין, ימים חסרים, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד); לתוצאות הבדיקה הלילית לכל הלקוחות (כולל גוגל) השתמשי ב-get_reconciliation_status. ימים שעוד לא סונכרנו מופיעים ב-not_yet_synced — אל תציגי אותם כתואמים. ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.',
     parameters: {
       type: "object",
       properties: {
@@ -3477,6 +3551,17 @@ const ALL_TOOLS = [
           type: "integer",
           description: "כמה ימים מלאים אחורה (ברירת מחדל 7, עד 30)",
         },
+      },
+    },
+  },
+  {
+    name: "get_reconciliation_status",
+    description:
+      'תוצאות הבדיקה הלילית שמשווה את הדוחות ב-AIOS מול מטא וגוגל (7 ימים מלאים, לכל קמפיין ולכל יום: הוצאה, תוצאה עיקרית והכנסות; ימים חסרים; קמפיינים שחסרים בצד אחד; ולבעלים — חשבונות מודעות עם הוצאה שלא משויכים ללקוח). קריאה בלבד מהתוצאה השמורה האחרונה — לא פונה לפלטפורמות. השתמשי כששואלים "הדוחות תואמים?", "יש פערים מול הפלטפורמה?" או לפני דוח ללקוח. בלי client_id מחזיר את כל הלקוחות (מנהלים בלבד).',
+    parameters: {
+      type: "object",
+      properties: {
+        client_id: { type: "string" },
       },
     },
   },
@@ -5796,9 +5881,13 @@ async function executeTool(
     userText?: string | null;
     /** Carmen's previous message; the workshop reads the taps that answer it. */
     lastAssistant?: string | null;
+    /** The board page marked with this message (workshop_artifact_id). */
+    markedArtifactId?: string | null;
     outOfBand?: boolean;
     /** The client open in the workshop view (workshop_client_id). */
     viewClientId?: string | null;
+    /** The project open on the workshop board (workshop_item_id). */
+    openItemId?: string | null;
     /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
     devTaskTurn?: {
       /** When the user's message of this turn arrived; the offered task must be older. */
@@ -5811,6 +5900,11 @@ async function executeTool(
   } = {},
   /** The chat's app origin (request Origin), for full links to files the app serves. */
   appLinkOrigin?: string | null,
+  // The person talking to Carmen in this run (resolveHumanRequesterUserId).
+  // Omitted = nobody can vouch for a client contact, so calls are not logged.
+  humanRequesterUserId?: string | null,
+  // The "תעדי <code>" this run answers (confirm_finding_draft); omitted = none.
+  findingDraftReply?: FindingDraftReply | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -5835,12 +5929,10 @@ async function executeTool(
     };
   }
   const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
-  // Role-based scope: managers (owner/agency_owner/agency_manager/super_admin) bypass the campaigner narrow-scope.
-  const isManagerRole =
-    !!callerRole &&
-    ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-      callerRole,
-    );
+  // callerRole is the highest role in any of the caller's tenants, not only this
+  // one, until AIO-275 scopes it to this tenant; get_reconciliation_status
+  // already re-reads the roles held in this tenant.
+  const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
   const isTeamManager = callerRole === "team_manager";
   const managedAgencyIds = Array.isArray(callerManagedAgencyIds)
     ? callerManagedAgencyIds
@@ -5870,8 +5962,10 @@ async function executeTool(
         turnId: approval.turnId ?? null,
         userText: approval.userText ?? null,
         lastAssistant: approval.lastAssistant ?? null,
+        markedArtifactId: approval.markedArtifactId ?? null,
         approvedOutOfBand: approval.outOfBand === true,
         viewClientId: approval.viewClientId ?? null,
+        openItemId: approval.openItemId ?? null,
         imageEngines: async () => {
           const { data } = await supabase
             .from("tenant_integrations")
@@ -5969,6 +6063,7 @@ async function executeTool(
           return connectedSceneEngines(
             (data?.settings || {}) as Record<string, unknown>,
             await videoConnectionsFor(supabase, tenantId),
+            Deno.env.get("RENDER_WORKER_KLING") === "1",
           );
         },
         videoConnections: () => videoConnectionsFor(supabase, tenantId),
@@ -5998,6 +6093,14 @@ async function executeTool(
         assertCallerCanAccessClient(supabase, clientId, callerScope),
     );
   }
+  if (isCardDraftTool(name)) {
+    return executeCardDraftTool(supabase, {
+      tenantId,
+      args,
+      requesterUserId: humanRequesterUserId ?? null,
+      reply: findingDraftReply ?? null,
+    });
+  }
   if (isCreativeStudioTool(name)) {
     return executeCreativeStudioTool(
       supabase,
@@ -6006,6 +6109,35 @@ async function executeTool(
       args,
       (clientId) =>
         assertCallerCanAccessClient(supabase, clientId, callerScope),
+    );
+  }
+  if (isFindingDraftTool(name)) {
+    return executeFindingDraftTool(supabase, {
+      tenantId,
+      args,
+      requesterUserId: humanRequesterUserId ?? null,
+      reply: findingDraftReply ?? null,
+    });
+  }
+  if (isPulseTargetTool(name)) {
+    return executePulseTargetTool(
+      supabase,
+      {
+        tenantId,
+        accessibleTenantIds,
+        actorUserId,
+        agentId: agentId || null,
+        callerRole: callerRole || null,
+        callerPhone: callerPhone || null,
+        isManagerRole,
+        isTeamManager,
+        managedAgencyIds,
+        callerCampaignerId: callerCampaignerId || null,
+        assertClientAccess: (clientId) =>
+          assertCallerCanAccessClient(supabase, clientId, callerScope),
+      },
+      name,
+      args,
     );
   }
   switch (name) {
@@ -6699,18 +6831,15 @@ async function executeTool(
     }
     case "add_client_update": {
       await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      const { data, error } = await supabase
-        .from("client_updates")
-        .insert({
-          client_id: args.client_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { update_id: data.id };
+      // Tenant check, attribution and dedupe happen in record_client_card_entry.
+      return await addClientUpdateFromCarmen(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        content: args.content,
+        updateType: args.update_type,
+        humanRequesterUserId,
+        surface,
+      });
     }
     case "send_message": {
       const { phone, contactName } = await sendTargetFor(
@@ -7898,6 +8027,39 @@ async function executeTool(
           "status משקף ביצועי קמפיין ונתונים בלבד. היעדר שיחה מתועדת עם הלקוח מופיע בנפרד ב-no_recent_client_call וב-no_recent_client_call_count, ואינו הופך לקוח ל'תשומת לב'. בדשבורד הפנימי אפשר להציג את formatted_markdown. בוואטסאפ — רק whatsapp_digest (סיכום + קישור), בלי טבלה. אל תריצי כלי חי נוסף אלא אם המשתמש ביקש במפורש נתונים חיים/רענון או ניתוח עמוק. אם manual_overrides לא ריק — קראי את reason של כל תיקון ידני: זה feedback מקצועי על מתי האלגוריתם מגזים/מפחית. אל תתעלמי ממנו בדיונים על סיווג לקוחות; אל תשני snapshot בעצמך.",
       };
     }
+    case REFRESH_PULSE_TOOL_NAME: {
+      return await executeRefreshCampaignPulse(
+        {
+          args,
+          supabase,
+          tenantId,
+          surface,
+          callerCampaignerId,
+          actorUserId,
+          accessibleTenantIds,
+          assertCallerCanAccessClient: (clientId: string) =>
+            assertCallerCanAccessClient(supabase, clientId, callerScope),
+          supabaseUrl: SUPABASE_URL,
+          serviceKey: SUPABASE_SERVICE_ROLE_KEY,
+        },
+        (pulseArgs) =>
+          executeTool(
+            "get_latest_campaign_pulse",
+            pulseArgs,
+            supabase,
+            tenantId,
+            userId,
+            callerCampaignerId,
+            agentId,
+            callerRole,
+            callerManagedAgencyIds,
+            callerPhone,
+            waNotify,
+            surface,
+            conversationId,
+          ),
+      );
+    }
     case "analyze_campaign_performance": {
       // 1. Resolve scope -> list of target clients (active+onboarding)
       let agencyIdsFilter: string[] | null = null;
@@ -8304,13 +8466,11 @@ async function executeTool(
       }
 
       // 1. Update mood_status on client
-      const updateData: any = { mood_status: args.mood_status };
-      const { error: clientErr } = await supabase
-        .from("clients")
-        .update(updateData)
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds);
-      if (clientErr) throw clientErr;
+      await setClientMoodStatus(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        moodStatus: args.mood_status,
+      });
 
       // 2. Create communication_log entry
       const commStatus =
@@ -8332,19 +8492,15 @@ async function executeTool(
         });
       if (logErr) throw logErr;
 
-      // 3. Also create a client_update so it's visible in the client updates tab
-      if (effectiveUserId) {
-        const { error: clientUpdateErr } = await supabase
-          .from("client_updates")
-          .insert({
-            client_id: args.client_id,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: `[עדכון אוטומטי - כרמן] ${args.note}`,
-          });
-
-        if (clientUpdateErr) throw clientUpdateErr;
-      }
+      // 3. Card entry as source carmen, so it never counts as client contact.
+      const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
+        tenantId,
+        clientId: args.client_id,
+        note: args.note,
+        moodStatus: args.mood_status,
+        requesterUserId: humanRequesterUserId,
+        tool: "update_client_health",
+      });
 
       return {
         success: true,
@@ -8352,6 +8508,7 @@ async function executeTool(
         mood_status: args.mood_status,
         communication_status: commStatus,
         user_id: effectiveUserId,
+        ...cardEntry,
       };
     }
     case "get_client_retention_scan": {
@@ -8496,12 +8653,11 @@ async function executeTool(
         }
         try {
           await assertCallerCanAccessClient(supabase, clientId, callerScope);
-          const { error: clientErr } = await supabase
-            .from("clients")
-            .update({ mood_status: mood })
-            .eq("id", clientId)
-            .in("tenant_id", accessibleTenantIds);
-          if (clientErr) throw clientErr;
+          await setClientMoodStatus(supabase, {
+            tenantId,
+            clientId,
+            moodStatus: mood,
+          });
           const commStatus =
             update.communication_status ||
             (mood === "happy"
@@ -8520,21 +8676,19 @@ async function executeTool(
               updated_by: batchUserId,
             });
           if (logErr) throw logErr;
-          if (batchUserId) {
-            const { error: clientUpdateErr } = await supabase
-              .from("client_updates")
-              .insert({
-                client_id: clientId,
-                tenant_id: tenantId,
-                user_id: batchUserId,
-                content: `[עדכון אוטומטי - כרמן] ${note}`,
-              });
-            if (clientUpdateErr) throw clientUpdateErr;
-          }
+          const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
+            tenantId,
+            clientId,
+            note,
+            moodStatus: mood,
+            requesterUserId: humanRequesterUserId,
+            tool: "batch_update_client_health",
+          });
           results.push({
             client_id: clientId,
             success: true,
             mood_status: mood,
+            ...cardEntry,
           });
         } catch (err: any) {
           results.push({
@@ -10028,9 +10182,7 @@ async function executeTool(
       let scopeNote = "current_chat";
       if (!browseAll && waNotify?.chat_id) {
         const chatId = String(waNotify.chat_id);
-        const isGroupChat =
-          /@g\.us/i.test(chatId) || waNotify.is_group === true;
-        if (isGroupChat) {
+        if (isGroupChat(waNotify)) {
           const { data: g } = await supabase
             .from("whatsapp_groups")
             .select("id")
@@ -10515,17 +10667,20 @@ async function executeTool(
     }
     // UPDATES
     case "list_updates": {
-      const table =
-        args.entity_type === "client" ? "client_updates" : "lead_updates";
-      const idCol = args.entity_type === "client" ? "client_id" : "lead_id";
-      const { data, error } = await supabase
-        .from(table)
-        .select("id, content, created_at")
-        .eq(idCol, args.entity_id)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      return { count: data.length, updates: data };
+      if (args.entity_type === "client") {
+        await assertCallerCanAccessClient(
+          supabase,
+          args.entity_id,
+          callerScope,
+        );
+      }
+      return await listUpdates(supabase, {
+        entityType: args.entity_type,
+        entityId: args.entity_id,
+        tenantId,
+        accessibleTenantIds,
+        limit: args.limit,
+      });
     }
     // GOALS
     case "create_goal": {
@@ -11105,130 +11260,30 @@ async function executeTool(
           "בדיקה לכל הלקוחות זמינה למנהלים בלבד — העבירי client_id",
         );
       const days = Math.min(Math.max(Number(args.days) || 7, 1), 30);
-      const ymd = (d: Date) => d.toISOString().slice(0, 10);
-      const until = new Date(Date.now() - 86400000);
-      const since = new Date(until.getTime() - (days - 1) * 86400000);
-      const sinceStr = ymd(since);
-      const untilStr = ymd(until);
-
-      let tablesQuery = supabase
-        .from("crm_tables")
-        .select(
-          "id, tenant_id, client_id, integration_type, integration_settings, clients!inner(name, status, agencies(name))",
-        )
-        .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
-        .in("tenant_id", accessibleTenantIds)
-        .neq("campaign_active", false);
-      if (args.client_id)
-        tablesQuery = tablesQuery.eq("client_id", args.client_id);
-      else tablesQuery = tablesQuery.eq("clients.status", "active");
-      const { data: fbTables, error: tablesErr } = await tablesQuery.limit(200);
-      if (tablesErr) throw tablesErr;
-      const tables = (fbTables || [])
-        .filter((t: any) => {
-          if (!t.integration_settings?.ad_account_id) return false;
-          if (!args.agency_name) return true;
-          return String(t.clients?.agencies?.name || "")
-            .toLowerCase()
-            .includes(String(args.agency_name).toLowerCase());
-        })
-        .slice(0, 40);
-      if (!tables.length)
+      const tables = await listVerifyTables(supabase, {
+        tenantIds: accessibleTenantIds,
+        clientId: args.client_id || null,
+        agencyName: args.agency_name || null,
+      });
+      if (!tables.length) {
         return {
           checked: 0,
           note: "לא נמצא דוח פייסבוק פעיל עם חשבון מודעות בסקופ",
         };
-
-      const results: any[] = [];
-      for (const t of tables) {
-        const clientName = t.clients?.name || t.client_id;
-        const acct = String(t.integration_settings.ad_account_id).replace(
-          /^act_/,
-          "",
-        );
-        const token =
-          (await fbGetToken(supabase, t.tenant_id)) ||
-          (await fbGetToken(supabase, accessibleTenantIds[0]));
-        if (!token) {
-          results.push({ client: clientName, error: "אין טוקן פייסבוק פעיל" });
-          continue;
-        }
-        const url =
-          `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=campaign` +
-          `&time_range=${encodeURIComponent(JSON.stringify({ since: sinceStr, until: untilStr }))}` +
-          `&fields=campaign_id,campaign_name,objective,spend&limit=500&access_token=${token}`;
-        let metaRows: any[] = [];
-        try {
-          const r = await fetch(url);
-          const j = await r.json();
-          if (!r.ok || j?.error) {
-            results.push({
-              client: clientName,
-              error: `מטא: ${j?.error?.message || r.status}`,
-            });
-            continue;
-          }
-          metaRows = (j.data || []).map((d: any) => ({
-            campaign_id: d.campaign_id,
-            campaign_name: d.campaign_name,
-            objective: d.objective,
-            spend: Number(d.spend || 0),
-          }));
-        } catch (e: any) {
-          results.push({
-            client: clientName,
-            error: `מטא: ${e?.message || e}`,
-          });
-          continue;
-        }
-        const { data: recs } = await supabase
-          .from("crm_records")
-          .select("data")
-          .eq("table_id", t.id)
-          .eq("data->>entity_level", "campaign")
-          .gte("data->>date", sinceStr)
-          .lte("data->>date", untilStr)
-          .limit(5000);
-        const byCampaign = new Map<
-          string,
-          { campaign_id: string; campaign_name: string; spend: number }
-        >();
-        for (const rec of recs || []) {
-          const d = rec.data || {};
-          const id = String(d.campaign_id || d.campaign_name || "");
-          const row = byCampaign.get(id) || {
-            campaign_id: id,
-            campaign_name: d.campaign_name,
-            spend: 0,
-          };
-          row.spend += Number(d.spend) || 0;
-          byCampaign.set(id, row);
-        }
-        const cmp = compareReportToMeta({
-          metaRows,
-          aiosRows: [...byCampaign.values()],
-          reportType: facebookReportType(
-            t.integration_type,
-            t.integration_settings,
-          ) as any,
-        });
-        results.push({
-          client: clientName,
-          agency: t.clients?.agencies?.name || null,
-          ...cmp,
-        });
       }
-      const problems = results.filter((r) => r.error || !r.ok);
-      return {
-        period: `${sinceStr} – ${untilStr}`,
-        checked: results.length,
-        ok_count: results.length - problems.length,
-        ok_clients: results
-          .filter((r) => !r.error && r.ok)
-          .map((r) => r.client),
-        problems,
-      };
+      return await verifyReportVsMeta({
+        db: supabase,
+        tables,
+        days,
+        now: new Date(),
+        fallbackTenantIds: accessibleTenantIds.slice(0, 1),
+      });
     }
+    case "get_reconciliation_status":
+      return await reconciliationStatusTool(
+        { supabase, callerScope, tenantId, actorUserId },
+        args,
+      );
     case "check_ad_accounts_health": {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see
       // analyze_campaign_performance — same cross-tenant flooding hazard).
@@ -12769,20 +12824,19 @@ async function executeTool(
           () => {},
         );
 
-      if (effectiveUserId) {
-        await supabase
-          .from("client_updates")
-          .insert({
-            client_id: clientId,
-            tenant_id: tenantId,
-            user_id: effectiveUserId,
-            content: note,
-          })
-          .then(
-            () => {},
-            () => {},
-          );
-      }
+      await recordClientCardEntry(supabase, {
+        tenantId,
+        clientId,
+        content: note,
+        source: "carmen",
+        attributedUserId: effectiveUserId,
+        metadata: { tool: "connect_client_meta_ad_account" },
+      }).catch((err) =>
+        console.warn(
+          "[connect_client_meta_ad_account] client card entry failed",
+          err,
+        ),
+      );
 
       return {
         success: true,
@@ -13707,12 +13761,9 @@ async function executeTool(
 // MAIN HANDLER
 // ===========================
 import { requireAuth } from "../_shared/security.ts";
+import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
-
-// Surface for which the agent is currently invoked.
-// 'internal_chat' = the in-app chat / dialog / AI Support page (same brain as AIOS,
-// but no dialog progress UI). Default for unspecified callers.
-type Surface = "whatsapp" | "aios" | "task" | "internal_chat" | "grok_bot";
+import { runTenantDenied } from "./run-tenant-access.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -13748,10 +13799,7 @@ async function handleRunAgent(
       conversation_id,
       wa_notify,
     } = bodyJson;
-    const inWorkshopRequest =
-      surface !== "whatsapp" &&
-      Array.isArray(requestedTaskSkills) &&
-      requestedTaskSkills.includes(WORKSHOP_SKIN);
+    const inWorkshopRequest = isWorkshopTurn(surface, requestedTaskSkills);
     let task_skills = requestedTaskSkills;
     // Per-task engine override (agent_tasks.engine_model). Only internal
     // service calls may set it — stripped from user requests in Deno.serve.
@@ -13774,30 +13822,20 @@ async function handleRunAgent(
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // In the workshop the server picks the specialist for this message (designer, producer or
-    // video editor) from the message and the open project, and pins her skin; see roles.ts.
-    // Approves a waiting budget from the user's code and states the project's next step.
-    const workshopNote = inWorkshopRequest
-      ? await workshopTurnNote(
+    // A paid workshop confirm must arrive in a later user message than the quote it confirms;
+    // a script approved in this turn may not be replaced in it (workshop-turn-setup.ts).
+    const turnId = crypto.randomUUID();
+    // The workshop's note and specialist for this message (workshop-turn-setup.ts).
+    const { workshopNote, workshopRoleForRun } = inWorkshopRequest
+      ? await workshopTurnSetup(
           supabase,
+          bodyJson,
           tenant_id,
-          workshopItemIdFrom(bodyJson),
-          String(command_text ?? ""),
-          lastAssistantText(conversation_history),
+          command_text,
+          conversation_history,
+          turnId,
         )
-      : null;
-    const workshopRoleForRun = inWorkshopRequest
-      ? workshopRole(
-          String(command_text ?? ""),
-          parseActiveSkin(bodyJson.active_skin),
-          await workshopProjectKind(
-            supabase,
-            tenant_id,
-            workshopItemIdFrom(bodyJson),
-            workshopSceneIdFrom(bodyJson),
-          ),
-        )
-      : null;
+      : { workshopNote: null, workshopRoleForRun: null };
     if (workshopRoleForRun) {
       task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
       if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
@@ -13913,18 +13951,7 @@ async function handleRunAgent(
       }
       const roleList = (roles || []).map((r: any) => r.role);
       // Priority order
-      const order = [
-        "super_admin",
-        "owner",
-        "agency_owner",
-        "agency_manager",
-        "team_manager",
-        "campaigner",
-        "sales_person",
-        "seo",
-        "viewer",
-      ];
-      for (const r of order) {
+      for (const r of CALLER_ROLE_PRIORITY) {
         if (roleList.includes(r)) {
           callerRole = r;
           break;
@@ -13942,11 +13969,16 @@ async function handleRunAgent(
       );
     }
     const isManagerRoleCaller =
-      !!callerRole &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        callerRole,
-      );
+      !!callerRole && MANAGER_ROLES.includes(callerRole);
     const isTeamManagerCaller = callerRole === "team_manager";
+    // A person talking to Carmen right now (not a task, automation or bot run):
+    // only they can confirm a client call or meeting for the client card.
+    const humanRequesterUserId = resolveHumanRequesterUserId({
+      userId: callerUserId,
+      surface,
+      automationId: automation_id,
+    });
+    const findingDraftReply = findingDraftReplyOf(command_text, wa_notify);
 
     // System/dev-fix escalations (Cursor/Claude/Manus MCP + GitHub agent) —
     // tiered allowlist: David=full, Ana=bugfix→Cursor only. Role alone is not enough.
@@ -13968,8 +14000,6 @@ async function handleRunAgent(
     // completed turn here. This also makes Realtime ask_carmen calls continue
     // the exact same conversation as typed chat.
     let serverConversationId: string | null = null;
-    // A paid workshop confirm must arrive in a later user message than the quote it confirms.
-    const turnId = crypto.randomUUID();
     // A dev task is approved only in a later user message than the one that offered it.
     const turnStartedAt = new Date().toISOString();
     // The signed-in user's own message in an AIOS chat (the workshop, the video studio, the
@@ -14315,7 +14345,7 @@ async function handleRunAgent(
     // Keeps V1 behavior as default; zero risk to existing agents
     let systemPrompt: string;
     console.log(
-      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"}`,
+      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })}`,
     );
     if (shouldUseV2Prompt(agent)) {
       // Build V2 prompt using the new modular builder
@@ -14755,7 +14785,7 @@ async function handleRunAgent(
         .toISOString()
         .split("T")[0];
       const todayISO = now.toISOString().split("T")[0];
-      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני הרצה של pulse_check / סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8).\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
+      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
       systemPrompt += `\n\n=== הקשר ארגוני ===\n${tenantContext}`;
 
       // Inject memory context — instructions get top priority and a strict directive
@@ -14909,6 +14939,11 @@ async function handleRunAgent(
       }
       if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
+    // Hebrew verbs carry gender: Carmen addresses the caller by the gender their name shows.
+    systemPrompt +=
+      addressByNameLine(
+        callerName ?? (await callerProfileName(supabase, callerUserId)),
+      ) ?? "";
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
@@ -15036,15 +15071,6 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 • תשובות קצרות לשאלות פשוטות נשארות קצרות — טבלה רק כשיש באמת נתונים טבלאיים.`;
     }
 
-    // WhatsApp / scheduled tasks: pulse must stay short (counts + dashboard link).
-    if (isCarmen && (surface === "whatsapp" || surface === "task")) {
-      systemPrompt += `\n\n📱 === בדיקת דופק בוואטסאפ (חובה) ===
-• בקשה ל"בדיקת דופק" / "דופק" / "מצב קמפיינים" — חובה get_latest_campaign_pulse בלבד.
-• אחרי הכלי — החזירי את whatsapp_digest כלשונו, כולל בלוק "🔴 דורש טיפול" כשיש ושורת הקישור לדשבורד. בלי הקדמה, בלי סיכום נוסף.
-• "בדיקת תקינות מערכות וקמפיינים" זה דוח אחר (health probe) — לא בדיקת דופק. אל תערבבי ביניהם.
-• אסור טבלת Markdown, אסור "בדיקת דופק אחרונה — חושבה ב־…" + פירוט לקוחות, אסור להמציא שורות מה-rows.`;
-    }
-
     // 4. Filter tools
     const allowedTools = (agent.allowed_tools || []) as string[];
     // Carmen can always answer about herself (her personas and their portraits), whatever
@@ -15067,36 +15093,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         (t) => !disabledTools.includes(t.name),
       );
     }
-    // Workshop tools write to the board of the open project; outside the workshop skin
-    // (WhatsApp, other chats) Carmen has no board to show them on.
-    const inWorkshop =
-      surface !== "whatsapp" &&
-      Array.isArray(task_skills) &&
-      task_skills.includes(WORKSHOP_SKIN);
-    if (!inWorkshop) {
-      filteredTools = filteredTools.filter((t) => !isWorkshopTool(t.name));
-    } else {
-      // A workshop "מאשר" answers the workshop: the approval queue (WhatsApp, Meta) is not
-      // reachable from here, so a tap can never run an unrelated pending approval. Tools that
-      // publish, message people, change ads or act later are not offered here either.
-      filteredTools = filteredTools.filter(
-        (t) => !isBlockedInWorkshop(t.name, true),
-      );
-    }
-    if (inWorkshop && workshopRoleForRun) {
-      filteredTools = toolsForRole(
-        filteredTools,
-        workshopRoleForRun,
-        isWorkshopTool,
-      );
-    }
-    // A skin's tools may be added below; workshop tools only for this run's role.
+    filteredTools = keepCarmenPulseTools(filteredTools, ALL_TOOLS, {
+      isCarmen,
+      disabledTools,
+      caller: { surface, callerCampaignerId, callerUserId },
+    });
+    const skinDisabledTools = skinToolDenylist(disabledTools, {
+      surface,
+      callerCampaignerId,
+      callerUserId,
+    });
+    // Workshop tools only in the workshop skin, without the tools it never offers (workshop-turn-setup.ts).
+    const inWorkshop = isWorkshopTurn(surface, task_skills);
+    filteredTools = workshopTurnTools(filteredTools, inWorkshop);
+    // A skin's tools may be added below, under the same rule.
     const workshopToolAllowed = (name: string) =>
-      !isBlockedInWorkshop(name, inWorkshop) &&
-      (!isWorkshopTool(name) ||
-        (inWorkshop &&
-          (!workshopRoleForRun ||
-            ROLE_TOOLS[workshopRoleForRun].includes(name))));
+      workshopToolOffered(name, inWorkshop);
     // The system graph contains internal architecture. Keep it invisible to
     // non-manager callers even if an agent's allowlist includes the tool.
     if (!isManagerRoleCaller) {
@@ -15115,6 +15127,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // Only unqualified summaries use empty tool args; scoped requests must
     // retain their client/agency filters through normal tool routing.
     const isStoredPulseRequest = !pinSkillsOnly && isCachedPulseRequest(cmd);
+    const pulseRefreshRoute = decidePulseRefreshRouting({
+      text: cmd,
+      isCarmen,
+      pinSkillsOnly,
+      digestSurface: pulseSurfacePrefersWhatsAppDigest(surface),
+      caller: {
+        campaignerId: callerCampaignerId,
+        userId: callerUserId,
+        role: callerRole,
+      },
+    });
     const userAskedBackground =
       /\b(ברקע|תמשיכ[יה]\s+לבד|background|אל\s+תחכ[יה]|תעדכנ[יה]\s+אחר[\s-]?כך|תרוצ[יה]\s+ברקע)\b/i.test(
         cmd,
@@ -15182,7 +15205,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           lazy: tokenOptimize,
           priorityTools: PRIORITY_TOOLS,
           legacyCoreTools: CORE_TOOLS,
-          forceInclude: (userText, picked, fullSchemaNames) =>
+          forceInclude: (userText, picked, fullSchemaNames) => {
             applyToolForceIncludes(
               userText,
               picked,
@@ -15197,7 +15220,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 extractMeetingUrl,
               },
               fullSchemaNames,
-            ),
+            );
+            promoteFindingDraftTool(userText, picked, fullSchemaNames);
+            promoteCardDraftTool(userText, picked, fullSchemaNames);
+          },
         },
       );
       filteredTools = routed.tools;
@@ -15364,10 +15390,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const model = resolveModel(
       modelOverride || agent.engine || "gemini-3-flash",
     );
-    // A workshop step needs a look at the project, the tool, and a reply: give it room for that
+    // A workshop step needs a look at the project, the tools, and a reply: give it room for that
     // even when the agent is tuned to very few rounds.
     const maxRounds = workshopRoleForRun
-      ? Math.max(agent.max_tool_rounds || 25, 6)
+      ? workshopToolRounds(agent.max_tool_rounds)
       : agent.max_tool_rounds || 25;
     const safeTemp =
       typeof temperature === "number"
@@ -15428,18 +15454,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       );
       // Skin → capability enforcement: a matched skin's allowed_tools are
       // guaranteed to be available, even when agent.allowed_tools narrows the
-      // set. Explicitly disabled tools stay disabled (denylist wins).
+      // set. Explicitly disabled tools stay disabled (denylist wins), and so do
+      // the pulse tools for an unidentified caller (skinToolDenylist).
       const skillToolNames = new Set(
         _matchedSkills.flatMap((s) => s.tools || []),
       );
       if (skillToolNames.size > 0 && !pinSkillsOnly) {
-        const present = new Set(filteredTools.map((t) => t.name));
-        const missing = ALL_TOOLS.filter(
+        const missing = missingEnabledTools(
+          filteredTools,
+          ALL_TOOLS,
+          skillToolNames,
+          skinDisabledTools,
+        ).filter(
           (t) =>
-            skillToolNames.has(t.name) &&
             workshopToolAllowed(t.name) &&
-            !present.has(t.name) &&
-            !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
         );
         if (missing.length > 0) {
@@ -15474,14 +15502,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const pinned = (
           await resolveSkillsBySlug(task_skills as string[], skillTenantId)
         ).filter((s) => !disabledSkins.includes(s.id));
-        const pinnedTools = new Set(pinned.flatMap((s) => s.tools || []));
-        const present = new Set(filteredTools.map((t) => t.name));
-        const missing = ALL_TOOLS.filter(
+        const missing = missingEnabledTools(
+          filteredTools,
+          ALL_TOOLS,
+          pinned.flatMap((s) => s.tools || []),
+          skinDisabledTools,
+        ).filter(
           (t) =>
-            pinnedTools.has(t.name) &&
             workshopToolAllowed(t.name) &&
-            !present.has(t.name) &&
-            !disabledTools.includes(t.name) &&
             isDevEscalationToolAllowed(t.name, devEscalationTier),
         );
         if (missing.length > 0) {
@@ -15496,6 +15524,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         console.error("[AGENT] pinned skin tools failed (non-fatal):", e);
       }
     }
+    // Versioned pulse rules (AIO-237) come after the V1/V2 prompt and every
+    // skin's text, so a tenant pulse skin that says not to refresh cannot
+    // override them. On WhatsApp and scheduled tasks the block also keeps the
+    // pulse to the short digest.
+    systemPrompt = appendCarmenPulseRules(systemPrompt, {
+      isCarmen,
+      surface,
+      pinSkillsOnly,
+    });
     // Surface instruction-capture confirmation in the system prompt so the model knows
     // a rule was just persisted and can acknowledge it briefly without re-saving.
     if (instructionCaptured) {
@@ -15738,6 +15775,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Deterministic path: WhatsApp pulse request → return colorful cached digest verbatim.
+    // It does not check the caller yet, so an unidentified sender gets the
+    // tenant digest too (AIO-248).
     if (
       isCarmen &&
       isStoredPulseRequest &&
@@ -15939,7 +15978,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       lastAssistantText: lastAssistantText(conversation_history),
     };
     let silentNudges = 0;
+    let roundsRun = 0;
     for (let round = 0; round < maxRounds; round++) {
+      roundsRun = round + 1;
       // Provider failover: try the active provider; on a quota/credit error, advance
       // to the next provider in the chain and retry THIS round (no round consumed).
       let res!: Response;
@@ -15961,6 +16002,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             type: "function",
             function: { name: "get_latest_campaign_pulse" },
           };
+        }
+        const refreshChoice = pulseRefreshToolChoice(
+          pulseRefreshRoute,
+          cappedTools,
+        );
+        if (round === 0 && refreshChoice) {
+          payload.tool_choice = refreshChoice;
         }
         if (
           round === 0 &&
@@ -16007,9 +16055,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
-        // triggers failover. A connected brain may also fail on size, model or auth; any
-        // failure moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403), a body signalling exhausted balance/quota or a
+        // model the endpoint cannot serve (not a chat model / model_not_found) triggers
+        // failover. A connected brain may also fail on size, model or auth; any failure moves
+        // on, and the chain holds only what this brain plan allowed.
         if (
           movesToNextLink(res.status, err, !!llm.connectionId) &&
           (activeIdx < llmChain.length - 1 || (await extendChain()))
@@ -16017,18 +16066,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason =
-            res.status === 429
-              ? "מגבלת קצב/קרדיט"
-              : res.status === 401 || res.status === 403
-                ? "המפתח נדחה"
-                : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
             from,
             llm.label,
-            reason,
+            failoverReason(res.status, err),
           ).catch(() => {});
           continue; // retry the same round on the next provider
         }
@@ -16182,6 +16225,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 viewClientId: inWorkshop
                   ? workshopClientIdFrom(bodyJson)
                   : null,
+                openItemId: inWorkshop ? workshopItemIdFrom(bodyJson) : null,
+                markedArtifactId: inWorkshop
+                  ? workshopArtifactIdFrom(bodyJson)
+                  : null,
                 // Every chat: a dev-task yes is read only from the user's own AIOS chat turn.
                 devTaskTurn: {
                   turnStartedAt,
@@ -16191,6 +16238,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 lastAssistant: lastAssistantText(conversation_history),
               },
               request.origin ?? null,
+              humanRequesterUserId,
+              findingDraftReply,
             );
             if (result?.pending_approval && result?.approval_id) {
               await bindApprovalToConversation(
@@ -16261,6 +16310,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         ) {
           pulseDigestShortcut = result.whatsapp_digest.trim();
         }
+        if (
+          round === 0 &&
+          toolName === REFRESH_PULSE_TOOL_NAME &&
+          pulseRefreshRoute.digestShortcut
+        ) {
+          pulseDigestShortcut = buildPulseRefreshDigestReply(result);
+        }
         // A workshop question or budget request is sent to the user exactly as the server
         // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
         if (
@@ -16286,7 +16342,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     if (!String(finalOutput || "").trim()) {
-      const fallback = fallbackReply(toolLog);
+      const fallback = fallbackReply(toolLog, {
+        outOfSteps: stoppedAtStepLimit(
+          roundsRun,
+          maxRounds,
+          messages[messages.length - 1]?.role,
+        ),
+      });
       if (fallback) {
         finalOutput = fallback;
         if (emit) emit({ type: "token", content: fallback });
@@ -16515,15 +16577,17 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
     .maybeSingle();
   if (!agent) return json({ error: "No active Carmen agent for tenant" }, 404);
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
-  const pool = directToolPool(ALL_TOOLS as any[], {
-    allowedTools: agent.allowed_tools || [],
-    disabledTools: agent.disabled_tools || [],
-    isManager:
-      !!scope.role &&
-      ["owner", "agency_owner", "agency_manager", "super_admin"].includes(
-        scope.role,
-      ),
-  });
+  const disabledTools: string[] = agent.disabled_tools || [];
+  // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
+  const pool = keepCarmenPulseTools(
+    directToolPool(ALL_TOOLS as any[], {
+      allowedTools: agent.allowed_tools || [],
+      disabledTools,
+      isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
+    }),
+    ALL_TOOLS,
+    { isCarmen: true, disabledTools },
+  );
 
   if (req.action === "list") {
     return json({
@@ -16704,6 +16768,17 @@ Deno.serve(async (req) => {
     return await handleDirectTool(bodyJson);
   }
 
+  // A signed-in user runs only in a tenant they belong to (AIO-306), checked
+  // before any brain, key or tool of that tenant is read.
+  const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const tenantDenied = await runTenantDenied(guardClient, auth, bodyJson);
+  if (tenantDenied) {
+    return new Response(JSON.stringify({ error: tenantDenied }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const wantStream = bodyJson.stream === true;
   const surface: Surface =
     bodyJson.surface === "aios"
@@ -16718,8 +16793,16 @@ Deno.serve(async (req) => {
 
   // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
   // the route, grant and keys are all read here, never taken from the body.
-  const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const engine = await resolveBrainEngine(guardClient, auth, bodyJson);
+  const engine = await resolveWorkshopAwareEngine(
+    guardClient,
+    auth,
+    bodyJson,
+    async () =>
+      !(await internalBrainDenied(guardClient, auth, {
+        tenantId: bodyJson.tenant_id,
+        agentId: bodyJson.agent_id,
+      })),
+  );
   if (engine.kind === "denied") return brainDenied("brain");
   if (engine.kind === "refused")
     return refusedBrainResponse(engine.message, wantStream);
@@ -16750,51 +16833,80 @@ Deno.serve(async (req) => {
 
   // Streaming mode: AIOS-compatible SSE.
   // Events emitted: {type:'tool_call',tool,args}, {type:'token',content}, {type:'done',...}
+  // The turn keeps running after the client disconnects (closed chat panel,
+  // reloaded tab), and the server saves the answer (_shared/carmen/background-reply).
   const enc = new TextEncoder();
+  const recorder = createReplyRecorder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (obj: any) => {
+        recorder.observe(obj);
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {
-          /* ignore */
+          /* client gone: keep working, the reply is saved below */
         }
       };
-      try {
-        const resp = await handleRunAgent(
-          bodyJson,
-          surface,
-          emit,
-          brainEngine,
-          {
-            authKind: auth.kind,
-            origin: req.headers.get("origin"),
-          },
-          internalTail,
-        );
+      const turn = (async () => {
         let final: any = {};
         try {
-          final = await resp.json();
-        } catch {
-          /* ignore */
+          const resp = await handleRunAgent(
+            bodyJson,
+            surface,
+            emit,
+            brainEngine,
+            {
+              authKind: auth.kind,
+              origin: req.headers.get("origin"),
+            },
+            internalTail,
+          );
+          try {
+            final = await resp.json();
+          } catch {
+            /* ignore */
+          }
+          emit({
+            type: "done",
+            success: final.success !== false,
+            output: final.output,
+            tools_used: final.tools_used,
+            error: final.error,
+          });
+        } catch (e: any) {
+          emit({ type: "error", error: e?.message || String(e) });
+          emit({
+            type: "done",
+            success: false,
+            error: e?.message || String(e),
+          });
+        } finally {
+          try {
+            controller.close();
+          } catch {
+            /* ignore */
+          }
         }
-        emit({
-          type: "done",
-          success: final.success !== false,
-          output: final.output,
-          tools_used: final.tools_used,
-          error: final.error,
-        });
-      } catch (e: any) {
-        emit({ type: "error", error: e?.message || String(e) });
-        emit({ type: "done", success: false, error: e?.message || String(e) });
-      } finally {
-        try {
-          controller.close();
-        } catch {
-          /* ignore */
+        // Only the chat that sent a reply_key gets its answer saved here; the
+        // other streaming callers keep saving their own replies.
+        const replyKey = parseReplyKey(bodyJson.reply_key);
+        if (
+          surface === "internal_chat" &&
+          replyKey &&
+          recorder.conversationId
+        ) {
+          await saveCarmenReply(
+            createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
+            {
+              conversationId: recorder.conversationId,
+              content: recorder.reply(final.output),
+              replyKey,
+            },
+          ).catch((e) => console.error("[carmen] reply save failed:", e));
         }
-      }
+      })();
+      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(turn);
+      await turn;
     },
   });
 

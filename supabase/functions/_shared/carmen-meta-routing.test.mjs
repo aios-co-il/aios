@@ -95,6 +95,7 @@ Deno.test(
         tenantId: "tenant-1",
         senderUserId: "user-1",
         message: "שלום",
+        sendKind: "carmen",
         integrationId: "meta-1",
         phoneNumber: "972507677613",
       });

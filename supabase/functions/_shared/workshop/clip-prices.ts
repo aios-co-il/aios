@@ -13,7 +13,7 @@ export const MUSIC_USD_PER_MINUTE = 0.5;
 
 /**
  * The music bed is made for the film that will be rendered, not the planned scenes
- * (render-worker src/jobs/music-length.mjs): the narration can stretch the scenes, and the end
+ * (render-worker src/jobs/music-length.ts): the narration can stretch the scenes, and the end
  * card and a tail follow them. The quote prices that upper bound: the planned seconds with 15%
  * headroom, plus 8.5 s for the longest end card (4.5 s with a three-line call to action) and the
  * 4 s tail. The worker never asks for more than the run's quote.

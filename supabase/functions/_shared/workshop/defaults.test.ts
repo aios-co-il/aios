@@ -41,6 +41,7 @@ Deno.test(
     assertStrictEquals(inferFilmSeconds("סרטון של 30 שניות"), 30);
     assertStrictEquals(inferFilmSeconds("סרטון של 2 דקות"), 90);
     assertStrictEquals(inferFilmSeconds("סרטון של דקה"), 60);
+    assertStrictEquals(inferFilmSeconds("סרטון של חצי דקה"), 30);
     assertStrictEquals(inferFilmSeconds("סרטון של 1 שניות"), 3);
   },
 );

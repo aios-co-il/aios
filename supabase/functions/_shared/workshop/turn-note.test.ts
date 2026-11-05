@@ -6,7 +6,13 @@ import {
 } from "jsr:@std/assert@1";
 import { approveFromMessage } from "./budget-approve.ts";
 import { budgetOf, requestBudget } from "./budget.ts";
-import { nextFilmStep } from "./turn-note.ts";
+import { APPROVE_SCRIPT, SCRIPT_CHOICE } from "./script-approval.ts";
+import {
+  ANY_KIND,
+  DO_THE_STEP,
+  nextFilmStep,
+  workshopTurnNote,
+} from "./turn-note.ts";
 
 Deno.test(
   "the next film step follows the project, so the storyboard is not rewritten",
@@ -172,6 +178,31 @@ Deno.test(
 );
 
 Deno.test(
+  "a film ending with a call to action passes the user's own line whole",
+  async () => {
+    const payload = {
+      project_type: "video",
+      workshop_brief: { answers: { סיום: "לוגו וקריאה לפעולה" } },
+    };
+    const query = () => {
+      const chain: Record<string, unknown> = {};
+      for (const name of ["select", "eq", "in", "lt", "order", "update"])
+        chain[name] = () => chain;
+      chain.maybeSingle = async () => ({ data: { payload } });
+      chain.then = (resolve: (value: unknown) => void) =>
+        resolve({ data: [], error: null });
+      return chain;
+    };
+    const note = String(
+      await workshopTurnNote({ from: query }, "t1", "item-1", "שלום"),
+    );
+    // Staging, 2 Nov: "up to 6 words" cut the user's 20% offer short on the end card.
+    assertMatch(note, /בדיוק כמו שכתב, עד 120 תווים/);
+    assert(!/עד 6 מילים/.test(note));
+  },
+);
+
+Deno.test(
   "a tapped answer is saved to the brief at the start of the turn",
   async () => {
     const { workshopTurnNote } = await import("./turn-note.ts");
@@ -206,5 +237,94 @@ Deno.test(
       "חם ונינוח",
     );
     assertMatch(String(note), /אווירה: חם ונינוח/);
+  },
+);
+
+Deno.test(
+  "every turn on an open project tells Carmen to do a missing step herself",
+  async () => {
+    const answer = { data: { payload: {} }, error: null };
+    const rows = { data: [], error: null };
+    const chain: Record<string, unknown> = {
+      select: () => chain,
+      eq: () => chain,
+      in: () => chain,
+      lt: () => chain,
+      update: () => chain,
+      maybeSingle: () => Promise.resolve(answer),
+      then: (resolve: (value: unknown) => unknown) => resolve(rows),
+    };
+    const db = { from: () => chain };
+    const note = await workshopTurnNote(
+      db,
+      "tenant-1",
+      "item-1",
+      "תעשי מה שצריך",
+    );
+    assert(note?.includes(DO_THE_STEP));
+    // A picture project hears it can become a film from one of its pictures.
+    assert(note?.includes(ANY_KIND));
+  },
+);
+
+Deno.test(
+  "the closing line's limit is one number for the tool and the turn note",
+  async () => {
+    const { CTA_MAX_CHARS } = await import("./cta.ts");
+    const { WORKSHOP_TOOLS } = await import("./tool-definitions.ts");
+    const produce = WORKSHOP_TOOLS.find(
+      (tool) => tool.name === "workshop_produce_video",
+    );
+    const cta = (
+      produce?.parameters.properties as Record<string, { description?: string }>
+    ).cta_text;
+    assertMatch(
+      String(cta?.description),
+      new RegExp(`עד ${CTA_MAX_CHARS} תווים`),
+    );
+  },
+);
+
+Deno.test(
+  "a tap on the script question approves the script whatever Carmen calls next",
+  async () => {
+    const payload = {
+      project_type: "video",
+      workshop_script: {
+        artifact_id: "script-1",
+        title: "תחלופה",
+        total_s: 3,
+        beats: [{ start_s: 0, end_s: 3, narration: "שלום" }],
+        approved: false,
+      },
+    };
+    type Update = { payload?: typeof payload };
+    const updates: Array<Update> = [];
+    const query = () => {
+      const chain: Record<string, unknown> = {};
+      for (const name of ["select", "eq", "in", "lt", "order", "limit"]) {
+        chain[name] = () => chain;
+      }
+      chain.update = (value: Update) => {
+        updates.push(value);
+        return chain;
+      };
+      chain.maybeSingle = async () => ({ data: { payload } });
+      chain.then = (resolve: (value: unknown) => void) =>
+        resolve({ data: [], error: null });
+      return chain;
+    };
+    const note = await workshopTurnNote(
+      { from: query },
+      "t1",
+      "item-1",
+      APPROVE_SCRIPT,
+      `תסריט · תחלופה\n\n${SCRIPT_CHOICE}`,
+    );
+    assertStrictEquals(
+      updates.find((u) => u.payload)?.payload?.workshop_script.approved,
+      true,
+    );
+    assertMatch(note ?? "", /תסריט: אושר/);
   },
 );

@@ -1,0 +1,17 @@
+---
+description: Migrations and DB tests
+globs: "supabase/migrations/**,supabase/tests/**,supabase/ops/**"
+alwaysApply: false
+---
+
+<!-- Generated from .claude/rules/migrations.md by scripts/sync-cursor-rules.ts; edit that file. -->
+
+# Migrations and DB tests
+
+- **Migrations and `supabase/ops/` follow `AGENTS.md`** (Environments and production safeguards). When a migration supersedes an ops script, retire the script instead of keeping it in sync.
+- **Migration lifecycle**: date each new file after develop's latest migration, with a unique version; fold this PR's own follow-ups into its first migration; keep every version already applied on Staging or a Preview branch, as a no-op stub with the same version or via `supabase migration repair --status reverted` on that branch.
+- **Use the generated Supabase types.** A migration that adds a table, column or RPC ships types regenerated with `scripts/gen-types.sh` from a database that already has it (`--local`, or `--linked` to the PR's Preview branch); let the client infer what it can.
+- **SQL reads clearly**: a one-line comment per policy and per function saying what it checks or does, explicit `TG_OP` branches in triggers, set-based statements instead of per-row selects in loops, `RAISE NOTICE` when a guard skips, and a blank line between policy blocks.
+- **SECURITY DEFINER functions** set `search_path`, filter by tenant and `REVOKE ALL … FROM PUBLIC, anon, authenticated` before granting (`TENANT_ISOLATION.md`).
+- **Data fixes touch exactly the bad rows**: pin ids or a narrow window, and state in the PR body the triggers the fix fires and the read-only counts that confirm it matches only those rows.
+- **DB logic gets a rollback harness** in `supabase/tests/*.sql` (pattern: `signature_*.sql`), with a test that fails on the old code at the trigger, SQL function or grant that broke.

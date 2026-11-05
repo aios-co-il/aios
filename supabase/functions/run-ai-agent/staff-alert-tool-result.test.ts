@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 
-import type { StaffAlertResult } from "./staff-alert.ts";
+import type { StaffAlertResult } from "../_shared/staff-alert/send.ts";
 import { staffAlertToolResult } from "./staff-alert-tool-result.ts";
 
 /** A Manus send outcome on manus-1. */

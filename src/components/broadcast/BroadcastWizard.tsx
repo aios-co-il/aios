@@ -37,6 +37,14 @@ import {
   WizardTemplatePicker,
 } from "@/components/broadcast/wizard/WizardTemplatePicker";
 import { TemplateFieldPicker } from "@/components/broadcast/BroadcastTemplates";
+import { WizardEmailBody } from "@/components/broadcast/wizard/WizardEmailBody";
+import { WizardTestSend } from "@/components/broadcast/wizard/WizardTestSend";
+import {
+  emailBodyHasContent,
+  wizardSender,
+} from "@/components/broadcast/wizard/wizardHelpers";
+import { WizardManualAudience } from "@/components/broadcast/wizard/WizardManualAudience";
+import { splitContacts } from "../../../supabase/functions/_shared/broadcast/email-address.ts";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -149,6 +157,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   // WA Groups state
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [groupSearch, setGroupSearch] = useState("");
+  const [manualText, setManualText] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [htmlMode, setHtmlMode] = useState(false);
@@ -191,6 +200,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       setCandidateSearch("");
       setSelectedGroupIds([]);
       setGroupSearch("");
+      setManualText("");
       setBodyText("");
       setBodyHtml("");
       setHtmlMode(false);
@@ -266,6 +276,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
     if (source === "wa_groups")
       return { source: "wa_groups", groupIds: selectedGroupIds };
     if (source === "list") return { source: "list", listId };
+    if (source === "manual")
+      return { source: "manual", manualContacts: splitContacts(manualText) };
     const include = pickMode ? { includeIds: selectedIds } : {};
     if (source === "clients")
       return {
@@ -310,7 +322,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       open &&
       pickMode &&
       source !== "list" &&
-      source !== "wa_groups",
+      source !== "wa_groups" &&
+      source !== "manual",
     queryFn: async () => {
       if (source === "clients") {
         const q = supabase
@@ -399,6 +412,10 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
     if (step === 2 && open) {
       if (source === "wa_groups") {
         setAudienceCount(selectedGroupIds.length);
+      } else if (source === "manual") {
+        // Typed addresses: wait for a pause in typing before counting.
+        const t = setTimeout(runPreview, 400);
+        return () => clearTimeout(t);
       } else if (source !== "list" || listId) {
         runPreview();
       }
@@ -420,10 +437,27 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
     pickMode,
     selectedIds,
     selectedGroupIds,
+    manualText,
   ]);
 
   const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  const sender =
+    channel === "email"
+      ? wizardSender({
+          custom: fromMode === "custom",
+          fromLocal,
+          fromDomain,
+          fromName,
+          defaultDomain,
+        })
+      : { email: null, name: null };
+  // Lists, groups and typed contacts have no CRM records to pick from.
+  const canPickRecipients =
+    source !== "list" && source !== "wa_groups" && source !== "manual";
+  // Email without a template is written in the editor / HTML box.
+  const emailEditable = channel === "email" && !templateId;
 
   const canNext = () => {
     if (step === 1)
@@ -433,7 +467,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       return (audienceCount ?? 0) > 0;
     }
     if (step === 3) {
-      if (bodyText.trim().length === 0 && bodyHtml.trim().length === 0)
+      if (emailEditable) {
+        if (!emailBodyHasContent(bodyHtml)) return false;
+      } else if (bodyText.trim().length === 0 && bodyHtml.trim().length === 0)
         return false;
       if (channel === "email") {
         if (subject.trim().length === 0) return false;
@@ -459,20 +495,8 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         provider: selectedProvider,
         integration_id: channel === "email" ? null : integrationId,
         subject: channel === "email" ? subject : null,
-        from_email:
-          channel === "email"
-            ? fromMode === "custom"
-              ? `${fromLocal}@${fromDomain}`
-              : defaultDomain
-                ? `${defaultDomain.default_local}@${defaultDomain.domain}`
-                : null
-            : null,
-        from_name:
-          channel === "email"
-            ? fromMode === "custom"
-              ? fromName.trim() || null
-              : defaultDomain?.from_name || null
-            : null,
+        from_email: sender.email,
+        from_name: sender.name,
         reply_to: channel === "email" && replyTo.trim() ? replyTo.trim() : null,
         body_text: bodyText,
         body_html: channel === "email" && bodyHtml ? bodyHtml : null,
@@ -636,6 +660,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                   <SelectItem value="clients">לקוחות</SelectItem>
                   <SelectItem value="campaigners">צוות</SelectItem>
                   <SelectItem value="list">רשימת תפוצה</SelectItem>
+                  <SelectItem value="manual">הזנה ידנית</SelectItem>
                   {channel === "whatsapp" && (
                     <SelectItem value="wa_groups">
                       <span className="flex items-center gap-1">
@@ -739,6 +764,14 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
               </div>
             )}
 
+            {source === "manual" && (
+              <WizardManualAudience
+                channel={channel}
+                value={manualText}
+                onChange={setManualText}
+              />
+            )}
+
             {/* ── Existing sources ── */}
             {source === "list" && (
               <div>
@@ -836,7 +869,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                 />
               )}
 
-            {source !== "list" && source !== "wa_groups" && (
+            {canPickRecipients && (
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -1025,11 +1058,21 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                 </div>
               </>
             )}
-            <Label>תוכן ההודעה</Label>
-            {bodyHtml ? (
-              <WizardContentPreview bodyHtml={bodyHtml} htmlMode={htmlMode} />
+            {emailEditable ? (
+              <WizardEmailBody
+                bodyHtml={bodyHtml}
+                setBodyHtml={setBodyHtml}
+                htmlMode={htmlMode}
+                setHtmlMode={setHtmlMode}
+              />
+            ) : bodyHtml ? (
+              <>
+                <Label>תוכן ההודעה</Label>
+                <WizardContentPreview bodyHtml={bodyHtml} htmlMode={htmlMode} />
+              </>
             ) : (
               <>
+                <Label>תוכן ההודעה</Label>
                 {source !== "wa_groups" && (
                   <TemplateFieldPicker
                     onPick={(v) => setBodyText((b) => (b ? `${b} ${v}` : v))}
@@ -1046,6 +1089,27 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                   }
                 />
               </>
+            )}
+            {channel === "email" && (
+              <WizardTestSend
+                disabled={
+                  !subject.trim() ||
+                  !sender.email ||
+                  !(emailBodyHasContent(bodyHtml) || bodyText.trim())
+                }
+                getPayload={() => ({
+                  tenantId,
+                  subject,
+                  bodyHtml,
+                  bodyText,
+                  htmlMode: !!bodyHtml && htmlMode,
+                  vars: {},
+                  attachments,
+                  fromEmail: sender.email,
+                  fromName: sender.name,
+                  replyTo: replyTo.trim() || null,
+                })}
+              />
             )}
             {channel !== "email" && (
               <div>

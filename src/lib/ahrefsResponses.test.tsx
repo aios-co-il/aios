@@ -67,7 +67,7 @@ describe("ad account lists", () => {
     ).toEqual([{ id: "act_1", name: "Main", currency: "ILS" }]);
     expect(
       readGoogleAdsAccounts({ accounts: [{ id: 123, name: "G" }, {}] }),
-    ).toEqual([{ id: 123, name: "G" }]);
+    ).toEqual([{ id: "123", name: "G", currency: "", manager: false }]);
     expect(readFacebookAdAccounts(null)).toEqual([]);
   });
 });

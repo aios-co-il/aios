@@ -1,23 +1,30 @@
 import { ASSET_BUCKET, type AssetView, isHttpUrl } from "./assets.ts";
 import {
+  answerFor,
   answersFromArgs,
   answersFromMessage,
   briefAnswersOf,
   briefAsked,
   filmFromAnswers,
+  REFERENCE,
   styleFromAnswers,
   unanswered,
   withBriefAnswers,
   withBriefAsked,
+  withBriefReadTurn,
 } from "./brief-answers.ts";
+import { readRequest, referenceThisTurn, turnKey } from "./brief-reading.ts";
+import { withoutUnpickedConcept } from "./concept-choice.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
 import { briefingGate } from "./briefing.ts";
 import { PROVIDER_LABEL } from "./capabilities.ts";
 import { type Db } from "./db.ts";
 import { type WorkshopDeps } from "./gate.ts";
-import { type ImageProvider, normalizeEngine } from "./image-providers.ts";
+import { normalizeEngine } from "./image-engine-name.ts";
+import { type ImageProvider } from "./image-providers.ts";
 import { lookOf, withLook } from "./look.ts";
+import { syncBriefPage } from "./project-brief.ts";
 import { asRecord, recordArtifact } from "./record.ts";
 
 export function voiceHelpers(
@@ -93,6 +100,13 @@ export async function savePayload(
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
   if (error) throw new Error(error.message);
+  await syncBriefPage(
+    supabase,
+    tenantId,
+    itemId,
+    asRecord(current?.data?.payload),
+    next,
+  );
 }
 
 /**
@@ -147,8 +161,22 @@ export async function briefProject(
       deps.userText ?? "",
       unanswered(questions, briefAnswersOf(payload)),
     ),
-    ...answersFromArgs(args.brief_answers),
+    // A concept Carmen names counts only when the user picked it (concept-choice.ts).
+    ...withoutUnpickedConcept(answersFromArgs(args.brief_answers), {
+      userText: deps.userText ?? "",
+      lastAssistant: deps.lastAssistant ?? "",
+    }),
   };
+  const reference = referenceThisTurn(args, deps.userText ?? "");
+  if (reference && !answerFor(fresh, REFERENCE)) {
+    fresh[REFERENCE] = reference.answer;
+  }
+  // A picture given in the message joins the look like the reference_urls Carmen passes, so the
+  // pictures follow it; kept on the project even when the tool stops to ask.
+  const referenceUrls = [
+    ...(Array.isArray(args.reference_urls) ? args.reference_urls : []),
+    ...(reference?.picture ? [reference.picture] : []),
+  ];
   const briefed = withBriefAnswers(payload, fresh);
   const answers = briefAnswersOf(briefed);
   const writtenFilm =
@@ -163,7 +191,12 @@ export async function briefProject(
     ...(writtenFilm && !args.film_brief ? { film_brief: writtenFilm } : {}),
     ...(writtenStyle ? { style_bible: writtenStyle } : {}),
   };
-  const folded = withLook(briefed, { ...args, engine: asked, ...written });
+  const folded = withLook(briefed, {
+    ...args,
+    reference_urls: referenceUrls,
+    engine: asked,
+    ...written,
+  });
   const look = lookOf(folded.payload);
   const gate = briefingGate({
     look,
@@ -178,16 +211,31 @@ export async function briefProject(
     needsStyle: options.needsStyle,
     answers,
     asked: briefAsked(payload),
+    read: readRequest(payload, args, deps, Boolean(options.save)),
   });
   if (gate) {
     // Shown to the user now: from the next turn Carmen may fill in what they leave open.
     const asking = typeof gate.say_to_user === "string" && gate.say_to_user;
     if (
       options.save &&
-      (Object.keys(fresh).length > 0 || writtenFilm || writtenStyle || asking)
+      (Object.keys(fresh).length > 0 ||
+        writtenFilm ||
+        writtenStyle ||
+        asking ||
+        gate.reading ||
+        referenceUrls.length > 0)
     ) {
-      const kept = withLook(briefed, written).payload;
-      await options.save(asking ? withBriefAsked(kept) : kept);
+      let kept = withLook(briefed, {
+        ...written,
+        reference_urls: referenceUrls,
+      }).payload;
+      if (asking) {
+        kept = withBriefAsked(kept);
+      }
+      if (gate.reading) {
+        kept = withBriefReadTurn(kept, turnKey(deps));
+      }
+      await options.save(kept);
     }
     return { gate: gate as unknown as Record<string, unknown> };
   }

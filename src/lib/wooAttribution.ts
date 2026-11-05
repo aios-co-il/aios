@@ -69,13 +69,16 @@ export function extractWooOrderAttribution(
 
 /** Human-readable Hebrew label for dashboard grouping. */
 export function buildWooAttributionLabel(
-  attr: {
-    source_type?: string | null;
-    utm_source?: string | null;
-    utm_medium?: string | null;
-    referrer?: string | null;
-    session_entry?: string | null;
-  } | null,
+  attr:
+    | {
+        source_type?: string | null;
+        utm_source?: string | null;
+        utm_medium?: string | null;
+        referrer?: string | null;
+        session_entry?: string | null;
+      }
+    | null
+    | undefined,
 ): string {
   if (!attr) return "לא ידוע";
 

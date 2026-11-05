@@ -31,6 +31,7 @@ test("an open project goes to Carmen with its id, a new board tells her to start
   expect(open!.promptAddon).toMatch(/artifact_id=a-9/);
   expect(open!.promptAddon).not.toMatch(/client_id=/);
   expect(open?.workshopItemId).toBe("p-1");
+  expect(open?.workshopArtifactId).toBe("a-9");
   expect(open?.workshopClientId).toBe(null);
 
   const blank = workshopRequestParts({

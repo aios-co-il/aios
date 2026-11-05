@@ -26,7 +26,10 @@ import {
 } from "@/lib/defaultReportEmailRecipients";
 import { ClientDashboardSnapshot } from "./ClientDashboardSnapshot";
 import { WhatsAppGroupSelect } from "./WhatsAppGroupSelect";
-import { ReportWhatsAppSenderSelect } from "./ReportWhatsAppSenderSelect";
+import { ReportSenderPicker } from "@/components/report-sender/ReportSenderPicker";
+import { useReportSenderChoice } from "@/components/report-sender/useReportSenderChoice";
+import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
+import { toastReportSent } from "@/components/report-sender/toastReportSent";
 import {
   ReportEmailSenderSelect,
   type ReportEmailSender,
@@ -35,6 +38,8 @@ import { syncReportTables, waitForSnapshotReady } from "@/lib/reportSync";
 import { errorMessage } from "@/lib/jsonReaders";
 import { toDashboardTables } from "@/types/dashboardRows";
 import { downloadReportPdf } from "@/lib/reportPdf";
+import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
+import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { buildSharedDashboardUrl } from "@/lib/appEnv";
 
 interface ClientDashboardPanelProps {
@@ -96,6 +101,7 @@ export function ClientDashboardPanel({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const recordDelivery = useRecordReportDelivery();
   const snapshotRef = useRef<HTMLDivElement>(null);
 
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -110,7 +116,7 @@ export function ClientDashboardPanel({
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [sendEmail, setSendEmail] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [waSenderId, setWaSenderId] = useState("");
+  const waSender = useReportSenderChoice(tenantId);
   const [directPhone, setDirectPhone] = useState("");
   const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
   const [emailSender, setEmailSender] = useState<ReportEmailSender | null>(
@@ -520,39 +526,32 @@ export function ClientDashboardPanel({
       return;
     }
     setIsSending(true);
+    const sentChannels: ReportDeliveryChannel[] = [];
+    let effectiveShareUrl: string | null = shareUrl || null;
     try {
-      let effectiveShareUrl = shareUrl;
       if (!effectiveShareUrl) {
         const token = await ensureShareToken();
         if (token) effectiveShareUrl = buildSharedDashboardUrl(token);
       }
 
       if (sendWhatsApp) {
-        const formData = new FormData();
-        formData.append("file", blob, `dashboard-${dashboard.name}.jpg`);
-        formData.append("tenantId", tenantId);
-        formData.append("fileType", "image");
-        const caption = `${messageText}\n\n📊 צפה בדשבורד המלא: ${effectiveShareUrl || ""}`;
-        formData.append("caption", caption);
-        if (selectedGroupId && selectedGroupId !== "__none__")
-          formData.append("groupId", selectedGroupId);
-        else if (directPhone) formData.append("phoneNumber", directPhone);
-        if (waSenderId) formData.append("integrationId", waSenderId);
-        if (clientId) formData.append("clientId", clientId);
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-green-api-file`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${session?.access_token}` },
-            body: formData,
-          },
-        );
-        if (!response.ok) throw new Error("שגיאה בשליחת וואטסאפ");
-        toast.success("הדשבורד נשלח בוואטסאפ");
+        const hasGroup = !!selectedGroupId && selectedGroupId !== "__none__";
+        const sent = await sendReportWhatsApp({
+          tenantId,
+          pick: waSender.pick,
+          file: blob,
+          fileName: `dashboard-${dashboard.name}.jpg`,
+          fileType: "image",
+          caption: `${messageText}\n\n📊 צפה בדשבורד המלא: ${effectiveShareUrl || ""}`,
+          groupId: hasGroup ? selectedGroupId : null,
+          phoneNumber: hasGroup ? null : directPhone,
+          clientId,
+          // A dashboard share: the client card logs it once, from report_deliveries.
+          sendKind: "dashboard_share",
+          sendRef: dashboard.id,
+        });
+        sentChannels.push("whatsapp");
+        toastReportSent(sent, "הדשבורד נשלח בוואטסאפ");
       }
 
       if (sendEmail) {
@@ -607,6 +606,7 @@ export function ClientDashboardPanel({
                 ? JSON.stringify(resendData.details)
                 : resendData.error,
             );
+          sentChannels.push("email");
           toast.success("הדשבורד נשלח באימייל");
         } else {
           // Default: send from the connected Gmail account (unchanged behavior).
@@ -641,35 +641,26 @@ export function ClientDashboardPanel({
               throw gmailError;
             }
           } else {
+            sentChannels.push("email");
             toast.success("הדשבורד נשלח באימייל");
           }
         }
       }
-
-      const { error: deliveryLogError } = await supabase
-        .from("report_deliveries")
-        .insert({
-          tenant_id: tenantId,
-          client_id: clientId,
-          target_type: "dashboard",
-          target_id: dashboard.id,
-          channels: [
-            ...(sendWhatsApp ? ["whatsapp"] : []),
-            ...(sendEmail ? ["email"] : []),
-          ],
-          status: "sent",
-          details: {
-            source: "manual",
-            share_url: effectiveShareUrl,
-            email_recipients: sendEmail ? emailRecipients : [],
-          },
-        });
-      if (deliveryLogError)
-        console.warn("Failed to log dashboard delivery:", deliveryLogError);
     } catch (e) {
       console.error("Send error:", e);
       toast.error(`שגיאה בשליחה: ${errorMessage(e) || "לא ידוע"}`);
     } finally {
+      recordDelivery.mutate({
+        tenantId,
+        clientId,
+        targetType: "dashboard",
+        targetId: dashboard.id,
+        title: dashboard.name,
+        shareUrl: effectiveShareUrl,
+        requested: { whatsapp: sendWhatsApp, email: sendEmail },
+        sent: sentChannels,
+        emailRecipients,
+      });
       setIsSending(false);
     }
   };
@@ -810,10 +801,10 @@ export function ClientDashboardPanel({
 
         {sendWhatsApp && (
           <div className="space-y-2">
-            <ReportWhatsAppSenderSelect
-              tenantId={tenantId}
-              value={waSenderId}
-              onChange={setWaSenderId}
+            <ReportSenderPicker
+              choice={waSender}
+              groups={groups}
+              groupId={selectedGroupId}
             />
             <WhatsAppGroupSelect
               groups={groups}

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/carmen_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layoutDirection="rtl"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:textColor="@color/carmen_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/title"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:textColor="@color/carmen_text"
+            android:id="@+id/status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textSize="18sp" />
+
+        <Button
+            style="@style/Carmen.PrimaryButton"
+            android:id="@+id/toggle_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="16dp"
+            android:text="@string/start_listening" />
+
+        <TextView
+            android:textColor="@color/carmen_text"
+            android:id="@+id/counters_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" />
+
+        <TextView
+            android:textColor="@color/carmen_text"
+            android:id="@+id/aios_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:textColor="@color/carmen_text"
+            android:id="@+id/account_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            style="@style/Carmen.OutlineButton"
+            android:id="@+id/account_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/sign_in" />
+
+        <Button
+            style="@style/Carmen.OutlineButton"
+            android:id="@+id/battery_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="24dp"
+            android:text="@string/battery_settings" />
+
+        <Button
+            style="@style/Carmen.OutlineButton"
+            android:id="@+id/full_screen_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/full_screen_settings" />
+
+        <Button
+            style="@style/Carmen.OutlineButton"
+            android:id="@+id/export_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/export_log" />
+
+        <Button
+            style="@style/Carmen.OutlineButton"
+            android:id="@+id/clear_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/clear_log" />
+
+        <TextView
+            android:textColor="@color/carmen_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/privacy_note" />
+    </LinearLayout>
+</ScrollView>

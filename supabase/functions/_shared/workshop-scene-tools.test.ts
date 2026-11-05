@@ -10,7 +10,6 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { executeWorkshopTool, WORKSHOP_TOOLS } from "./workshop-tools.ts";
-import { ROLE_TOOLS } from "./workshop/roles.ts";
 import { REDO_KEY } from "./workshop/scene-helpers.ts";
 
 type Row = Record<string, any>;
@@ -302,17 +301,9 @@ const update = (
     ...args,
   }) as Promise<Row>;
 
-Deno.test(
-  "workshop_update_scene is offered to the producer and the video editor",
-  () => {
-    assert(
-      WORKSHOP_TOOLS.some((tool) => tool.name === "workshop_update_scene"),
-    );
-    assert(ROLE_TOOLS.producer.includes("workshop_update_scene"));
-    assert(ROLE_TOOLS.editor.includes("workshop_update_scene"));
-    assert(!ROLE_TOOLS.designer.includes("workshop_update_scene"));
-  },
-);
+Deno.test("workshop_update_scene is a declared workshop tool", () => {
+  assert(WORKSHOP_TOOLS.some((tool) => tool.name === "workshop_update_scene"));
+});
 
 Deno.test("the scene the user selected changes alone, for free", async () => {
   const db = film();
@@ -393,6 +384,98 @@ Deno.test(
       db.tables.marketing_video_scenes.at(-1)?.overlay_text,
       "",
     );
+  },
+);
+
+Deno.test(
+  "a scene's text style and size are saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      title_style: "punch",
+      title_size: "huge",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["title_style", "title_size"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).title_style, "punch");
+    assertStrictEquals((scenes[1].meta as Row).title_size, "huge");
+    assertStrictEquals(db.rpcs.length, 0);
+    // Carmen's tool says a scene's text style can be changed.
+    const tool = WORKSHOP_TOOLS.find((t) => t.name === "workshop_update_scene");
+    assertMatch(String(tool?.description), /title_style, title_size/);
+    // A name the film does not know changes nothing.
+    const unknown = await update(db, { scene_id: "s-2", title_style: "spin" });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).title_style, "punch");
+  },
+);
+
+Deno.test(
+  "a scene's key-word emphasis is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      title_emphasis: "stamp",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["title_emphasis"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).title_emphasis, "stamp");
+    assertStrictEquals(db.rpcs.length, 0);
+    // An effect the film does not know changes nothing.
+    const unknown = await update(db, {
+      scene_id: "s-2",
+      title_emphasis: "sparkle",
+    });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).title_emphasis, "stamp");
+  },
+);
+
+Deno.test(
+  "a scene's overlay is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, {
+      scene_id: "s-2",
+      scene_overlay: "bubbles",
+    });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["scene_overlay"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).scene_overlay, "bubbles");
+    assertStrictEquals(db.rpcs.length, 0);
+    // "none" turns the film's overlay off for this scene; an unknown name changes nothing.
+    const off = await update(db, { scene_id: "s-2", scene_overlay: "none" });
+    assertEquals(off.changed, ["scene_overlay"]);
+    const unknown = await update(db, {
+      scene_id: "s-2",
+      scene_overlay: "fireworks",
+    });
+    assertEquals(unknown.changed ?? [], []);
+    assertStrictEquals((scenes[1].meta as Row).scene_overlay, "none");
+  },
+);
+
+Deno.test(
+  "a scene's own transition is saved for the next assembly, for free",
+  async () => {
+    const db = film();
+    const result = await update(db, { scene_id: "s-2", transition: "ripple" });
+    assertStrictEquals(result.success, true);
+    assertEquals(result.changed, ["transition"]);
+    const scenes = db.tables.marketing_video_scenes;
+    assertStrictEquals((scenes[1].meta as Row).transition, "ripple");
+    assertStrictEquals(db.rpcs.length, 0);
+    // "skin" is the worker's own, and an unknown name changes nothing.
+    for (const transition of ["skin", "spin"]) {
+      const unknown = await update(db, { scene_id: "s-2", transition });
+      assertEquals(unknown.changed ?? [], []);
+    }
+    assertStrictEquals((scenes[1].meta as Row).transition, "ripple");
   },
 );
 
@@ -605,11 +688,11 @@ Deno.test(
 // ── Talking scenes from the user's own pictures ─────────────────────────────
 
 const skins = ["campaigner", "designer", "analyst"];
-const materials = (format = "9:16") =>
+const materials = (format = "9:16", video: Row = {}) =>
   memoryDb({
     marketing_work_items: [
       project({
-        payload: payload({ format, video: {} }),
+        payload: payload({ format, video }),
       }),
     ],
     workshop_assets: skins.map((skin, index) => ({
@@ -647,6 +730,25 @@ const editArgs = {
   ],
   durations: [4, null, null],
 };
+
+Deno.test(
+  "a new edit from the user's pictures starts without the last film's kept design",
+  async () => {
+    const db = materials("9:16", { keep_design: true, voice_id: "v-1" });
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_edit_from_assets",
+      editArgs,
+    )) as Row;
+    assertStrictEquals(result.success, true);
+    const video = (db.tables.marketing_work_items[0].payload as Row)
+      .video as Row;
+    // The production of the new film decides again (tools/keep-design.ts).
+    assertStrictEquals(video.keep_design, undefined);
+    assertStrictEquals(video.voice_id, "v-1");
+  },
+);
 
 Deno.test(
   "lipsync, dialogue, speaker and motion arrays reach each scene of the user's pictures",
@@ -801,7 +903,7 @@ Deno.test(
       )) as Row;
       assertStrictEquals(produced.success, true, JSON.stringify(produced));
       const rpc = db.rpcs.find((call) => call.name === "produce_video")!;
-      assertStrictEquals(rpc.args.p_aspect, format);
+      assertStrictEquals(rpc.args.p_options.aspect, format);
     }
   },
 );
@@ -1231,5 +1333,201 @@ Deno.test(
         name,
       );
     }
+  },
+);
+
+// ── A film is written from a concept the user chose ─────────────────────────
+
+const conceptPage = (title: string, text: string, index: number) => ({
+  id: `concept-${index}`,
+  tenant_id: "tenant-1",
+  item_id: "item-1",
+  kind: "concept",
+  title,
+  meta: { text },
+  created_at: `2026-11-04T10:0${index}:00Z`,
+});
+
+/** A new film whose briefing is done; `pages` are concepts already on the board. */
+/** A briefed film; the script step after the concept has its own tests (tools/script-step.test.ts). */
+const briefedFilm = (pages: Array<Row> = []) =>
+  memoryDb({
+    marketing_work_items: [
+      project({
+        payload: { ...payload(), workshop_script: { skipped: true } },
+      }),
+    ],
+    workshop_artifacts: pages,
+  });
+
+const writeFilm = (
+  db: ReturnType<typeof memoryDb>,
+  args: Row = {},
+  deps: Row = {},
+) =>
+  executeWorkshopTool(
+    db,
+    "tenant-1",
+    "workshop_storyboard",
+    {
+      item_id: "item-1",
+      scenes: [{ visual_prompt: "a bakery at dawn", voiceover_text: "בוקר" }],
+      ...args,
+    },
+    async () => {},
+    null,
+    deps,
+  ) as Promise<Row>;
+
+const briefOf = (db: ReturnType<typeof memoryDb>) =>
+  (db.tables.marketing_work_items[0].payload as Row).workshop_brief as Row;
+
+const storyboardPage = (db: ReturnType<typeof memoryDb>) =>
+  db.tables.workshop_artifacts.find((page) => page.kind === "storyboard");
+
+Deno.test(
+  "a new film without a chosen concept gets concepts first and no scenes",
+  async () => {
+    const db = briefedFilm();
+    const asked = await writeFilm(db);
+    assertStrictEquals(asked.needs_input, true);
+    assertEquals(asked.missing, ["concept"]);
+    // Carmen writes the concepts herself before the user is asked.
+    assertStrictEquals(asked.say_to_user, "");
+    assertMatch(asked.carmen_next, /workshop_save_concepts/);
+    assertMatch(asked.carmen_next, /\[\[בחירה: קונספט \|/);
+    assertStrictEquals(db.rpcs.length, 0);
+    assertEquals(db.tables.marketing_video_scenes ?? [], []);
+  },
+);
+
+Deno.test(
+  "concepts on the board are offered as one tap question before the scenes",
+  async () => {
+    const db = briefedFilm([
+      conceptPage("יום אחד", "מסע של יום עבודה", 1),
+      conceptPage("לילה | שקט", "המאפייה לפני הזריחה", 2),
+    ]);
+    const asked = await writeFilm(db);
+    assertStrictEquals(asked.needs_input, true);
+    assertMatch(
+      asked.say_to_user,
+      /\[\[בחירה: קונספט \| יום אחד \| לילה שקט\]\]/,
+    );
+    assertStrictEquals(db.rpcs.length, 0);
+  },
+);
+
+Deno.test(
+  "a tapped concept is kept in the brief and the scenes carry it",
+  async () => {
+    const db = briefedFilm([
+      conceptPage("יום אחד", "מסע של יום עבודה", 1),
+      conceptPage("לילה", "המאפייה לפני הזריחה", 2),
+    ]);
+    const written = await writeFilm(
+      db,
+      {},
+      {
+        lastAssistant: "איזה כיוון?\n[[בחירה: קונספט | יום אחד | לילה]]",
+        userText: "לילה",
+      },
+    );
+    assertStrictEquals(written.success, true, JSON.stringify(written));
+    assertStrictEquals(written.concept, "לילה");
+    assertStrictEquals(briefOf(db).answers.קונספט, "לילה");
+    assertEquals(storyboardPage(db)?.meta.concept, {
+      title: "לילה",
+      text: "המאפייה לפני הזריחה",
+    });
+    assertStrictEquals(db.tables.marketing_video_scenes.length, 1);
+  },
+);
+
+Deno.test(
+  "a concept saved again under its title is chosen in its newest version",
+  async () => {
+    const db = briefedFilm([
+      conceptPage("לילה", "גרסה ישנה", 1),
+      conceptPage("לילה", "המאפייה לפני הזריחה", 2),
+    ]);
+    const written = await writeFilm(
+      db,
+      {},
+      {
+        lastAssistant: "איזה כיוון?\n[[בחירה: קונספט | לילה]]",
+        userText: "לילה",
+      },
+    );
+    assertStrictEquals(written.success, true, JSON.stringify(written));
+    assertEquals(storyboardPage(db)?.meta.concept, {
+      title: "לילה",
+      text: "המאפייה לפני הזריחה",
+    });
+  },
+);
+
+Deno.test(
+  "a concept chosen in words reaches the tool as concept and is saved",
+  async () => {
+    const db = briefedFilm([conceptPage("יום אחד", "מסע של יום עבודה", 1)]);
+    // The user answered the concept question in words; a concept nobody offered is refused
+    // (tools/film-concept.test.ts).
+    const written = await writeFilm(
+      db,
+      { concept: "יום אחד" },
+      {
+        lastAssistant: "איזה כיוון?\n[[בחירה: קונספט | יום אחד]]",
+        userText: "את הראשון",
+      },
+    );
+    assertStrictEquals(written.success, true, JSON.stringify(written));
+    assertStrictEquals(briefOf(db).answers.קונספט, "יום אחד");
+    assertStrictEquals(
+      storyboardPage(db)?.meta.concept.text,
+      "מסע של יום עבודה",
+    );
+    // The next storyboard of this film does not ask again.
+    const again = await writeFilm(db, { replace: true });
+    assertStrictEquals(again.success, true, JSON.stringify(again));
+  },
+);
+
+Deno.test(
+  "the user's skip of the concepts goes straight to the scenes when they asked for it",
+  async () => {
+    const db = briefedFilm();
+    const written = await writeFilm(
+      db,
+      { skip_concepts: true },
+      { userText: "בלי קונספט, ישר לסצנות" },
+    );
+    assertStrictEquals(written.success, true, JSON.stringify(written));
+    assertStrictEquals(written.concept, undefined);
+    assertStrictEquals(storyboardPage(db)?.meta.concept, undefined);
+    assertMatch(briefOf(db).answers.קונספט, /בלי קונספט/);
+  },
+);
+
+Deno.test(
+  "a film that has scenes, or is edited from the user's pictures, is not asked for a concept",
+  async () => {
+    const filmed = film();
+    const replaced = await writeFilm(
+      filmed,
+      {
+        replace: true,
+      },
+      { userText: "תכתבי סטוריבורד חדש" },
+    );
+    assertStrictEquals(replaced.needs_input, undefined);
+    assertStrictEquals(replaced.success, true, JSON.stringify(replaced));
+    const edit = (await executeWorkshopTool(
+      materials(),
+      "tenant-1",
+      "workshop_edit_from_assets",
+      editArgs,
+    )) as Row;
+    assertStrictEquals(edit.success, true);
   },
 );

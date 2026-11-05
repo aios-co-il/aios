@@ -141,7 +141,7 @@ const Phrase: React.FC<{
 
 /**
  * Motion-graphic captions: the narration in phrases of two to four words (render-worker
- * motion-captions.mjs), each word springing in as it is said, the spoken word on an accent
+ * motion-captions.ts), each word springing in as it is said, the spoken word on an accent
  * highlight and the phrase's key word larger in the accent colour. A soft shade behind the
  * phrases keeps them legible over a bright picture.
  */

@@ -32,6 +32,9 @@ export function isPhoneInAllowedList(phone, allowedPhones) {
   return list.some((p) => phonesMatch(phone, p));
 }
 
+/** Longest real phone we accept; WhatsApp LIDs are longer (14+ digits). */
+export const MAX_PHONE_DIGITS = 13;
+
 /**
  * True when a value is a real phone number rather than a WhatsApp LID.
  * Manus LIDs are long opaque ids (14+ digits); real Israeli mobiles are at most
@@ -39,7 +42,9 @@ export function isPhoneInAllowedList(phone, allowedPhones) {
  */
 export function looksLikeRealPhone(value) {
   const d = digitsOnly(value);
-  if (!d || d.length > 13) return false;
+  if (!d || d.length > MAX_PHONE_DIGITS) {
+    return false;
+  }
   return /^[5-9]\d{8}$/.test(phoneTail9(d));
 }
 

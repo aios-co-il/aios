@@ -11,6 +11,7 @@ import {
   parseHttpResponse,
   parsePublicHttpUrl,
 } from "./workshop/public-url.ts";
+import { readUntilClosed } from "./public-fetch-read.ts";
 
 export interface PublicFetchResult {
   ok: boolean;
@@ -119,34 +120,12 @@ async function pinnedGet(
       ),
       limit.expired,
     ]);
-    const open = conn;
-    const cap = options.maxBytes + HEADER_ALLOWANCE;
-    const read = async () => {
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      const buffer = new Uint8Array(16_384);
-      let capped = false;
-      while (true) {
-        const n = await open.read(buffer);
-        if (n === null) break;
-        chunks.push(buffer.slice(0, n));
-        total += n;
-        if (total > cap) {
-          capped = true;
-          break;
-        }
-      }
-      const raw = new Uint8Array(total);
-      let at = 0;
-      for (const chunk of chunks) {
-        raw.set(chunk, at);
-        at += chunk.length;
-      }
-      return { raw, capped };
-    };
-    const { raw, capped } = await Promise.race([read(), limit.expired]);
+    const { raw, capped, cleanClose } = await Promise.race([
+      readUntilClosed(conn, options.maxBytes + HEADER_ALLOWANCE),
+      limit.expired,
+    ]);
     const response = parseHttpResponse(raw);
-    return response ? { ...response, capped } : null;
+    return response ? { ...response, capped, cleanClose } : null;
   } finally {
     limit.clear();
     closeQuietly(conn);
@@ -183,7 +162,11 @@ export async function fetchPublic(
       }
       const ok = response.status >= 200 && response.status < 300;
       const incomplete = ok
-        ? bodyProblem(response, { maxBytes, capped: response.capped })
+        ? bodyProblem(response, {
+            maxBytes,
+            capped: response.capped,
+            cleanClose: response.cleanClose,
+          })
         : null;
       if (incomplete) return fail(incomplete, target.url.href);
       return {

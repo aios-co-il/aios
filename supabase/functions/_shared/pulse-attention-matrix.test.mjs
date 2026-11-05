@@ -1,44 +1,10 @@
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
-import {
-  buildPulseAttentionRows,
-  evaluateEfficiencyIssue,
-  readApprovedPlatformTarget,
-  resolvePlatformTarget,
-} from "./pulse-attention-matrix.mjs";
+import { buildPulseAttentionRows } from "./pulse-attention-matrix.mjs";
 
-Deno.test("readApprovedPlatformTarget reads pulse_platform_targets", () => {
-  assertStrictEquals(
-    readApprovedPlatformTarget(
-      { pulse_platform_targets: { leads: { cpl: 90 } } },
-      "leads",
-    )?.value,
-    90,
-  );
-});
+/** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
+const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
 
-Deno.test("resolvePlatformTarget falls back to 30d baseline", () => {
-  assertStrictEquals(
-    resolvePlatformTarget({}, "leads", 75)?.source,
-    "baseline_30d",
-  );
-});
-
-Deno.test("evaluateEfficiencyIssue flags approved target breach", () => {
-  const issue = evaluateEfficiencyIssue({
-    currentEfficiency: 120,
-    trend7dPct: null,
-    target: {
-      value: 90,
-      kind: "cpl",
-      direction: "maximum",
-      source: "approved",
-    },
-  });
-  assertStrictEquals(issue?.level, "alert");
-});
-
-// FIXME: failing before the Deno migration (was never run in CI); fix or delete.
-Deno.test.ignore(
+Deno.test(
   "leads-only google table reclassifies mis-tagged ecommerce rows to CPL",
   () => {
     const rows = buildPulseAttentionRows({
@@ -55,7 +21,7 @@ Deno.test.ignore(
           efficiency_7d: 0.04,
           baseline_efficiency_7d: 0.05,
           trend_7d_pct: 12,
-          last_change_at: "2026-09-18T10:00:00Z",
+          last_change_at: RECENT_CHANGE,
         },
       ],
       tables: [

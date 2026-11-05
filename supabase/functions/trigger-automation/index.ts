@@ -1,12 +1,23 @@
 // redeploy trigger: Carmen sessions keyed by chat JID only; never speaker-phone fallback (2026-08-27b)
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
+import { summarizeExecution } from "./execution-summary.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { sendCarmenReplyViaActionStep } from "../_shared/carmen.ts";
+import { findMetaStepClientRecipient } from "./client-recipient.ts";
+import {
+  fieldValueContains,
+  fieldValueEquals,
+  fieldValueStartsWith,
+  sourceBranch,
+} from "./field-match.ts";
+import { recordAutomationStepSend } from "./step-client-send.ts";
 import {
   buildWaNotifyFromOrigin,
   requireOriginChatId,
 } from "../_shared/carmen-session-identity.ts";
 import { formatClientFollowUpMessage } from "../_shared/client-follow-up-message.ts";
+import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
+import { isCampaignRole } from "../_shared/client-team/campaign-role.ts";
 import {
   dropUnresolvedTemplateLines,
   sanitizeTemplateParameter,
@@ -1011,7 +1022,7 @@ async function sendTaskNotificationFromTenantCarmen(
       .or(`end_date.is.null,end_date.gte.${today}`)
       .order("created_at", { ascending: true });
     const preferred = (team || []).find((row: any) =>
-      /campaign|ppc|קמפיינ/i.test(String(row.role_on_account || "")),
+      isCampaignRole(row.role_on_account),
     );
     campaignerId = preferred?.campaigner_id || team?.[0]?.campaigner_id || null;
   }
@@ -1297,6 +1308,7 @@ async function sendTaskNotificationFromTenantCarmen(
     phoneNumber: recipient.phone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
   if (!sent) {
     await releaseTaskNotificationDelivery(supabase, {
@@ -1447,6 +1459,7 @@ async function sendClientFollowUpFromTenantCarmen(
     phoneNumber: recipientPhone,
     isGroup: false,
     message,
+    sendKind: "staff_alert",
   });
 
   console.log("[client-follow-up-carmen]", {
@@ -1619,48 +1632,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Guard: cooldown - prevent same trigger+entity from firing again within 30 seconds
-    if (
-      requestBody.trigger_type === "whatsapp_message_received" &&
-      entityKey !== "no-entity"
-    ) {
-      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
-      const { data: recentExec } = await supabase
-        .from("automation_executions")
-        .select("id")
-        .eq("tenant_id", requestBody.tenant_id)
-        .eq("trigger_type", "whatsapp_message_received")
-        .eq("entity_id", entityKey)
-        .gte("started_at", thirtySecondsAgo)
-        .eq("status", "running")
-        .limit(1)
-        .maybeSingle();
-
-      if (recentExec) {
-        return new Response(
-          JSON.stringify({ error: "Cooldown active", entity: entityKey }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 429,
-          },
-        );
-      }
-    }
-
-    const { data: execRecord } = await supabase
-      .from("automation_executions")
-      .insert({
-        execution_id: executionId,
-        tenant_id: requestBody.tenant_id || null,
-        automation_id: requestBody.automationId || null,
-        trigger_type: requestBody.trigger_type || null,
-        entity_id: entityKey !== "no-entity" ? entityKey : null,
-        depth: executionDepth,
-        status: "running",
-        started_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+    // No time-based cooldown here: it used to drop every group message that
+    // arrived within 30s of the previous one. Redelivered webhooks are now
+    // deduplicated at the source by provider message id (green-api-webhook),
+    // and the execution row is written only once automations have matched.
 
     // ===== END SAFETY GUARDS =====
 
@@ -2525,27 +2500,25 @@ Deno.serve(async (req) => {
                   const expected = String(stepConfig.condition_value || "");
                   const actual = String(stepData[field] ?? "");
                   let result = false;
-                  if (operator === "equals") result = actual === expected;
-                  else if (operator === "not_equals")
-                    result = actual !== expected;
-                  else if (operator === "contains")
-                    result = actual
-                      .toLowerCase()
-                      .includes(expected.toLowerCase());
-                  else if (operator === "not_contains")
-                    result = !actual
-                      .toLowerCase()
-                      .includes(expected.toLowerCase());
-                  else if (operator === "starts_with")
-                    result = actual.startsWith(expected);
-                  else if (operator === "greater_than")
+                  if (operator === "equals") {
+                    result = fieldValueEquals(field, actual, expected);
+                  } else if (operator === "not_equals") {
+                    result = !fieldValueEquals(field, actual, expected);
+                  } else if (operator === "contains") {
+                    result = fieldValueContains(field, actual, expected);
+                  } else if (operator === "not_contains") {
+                    result = !fieldValueContains(field, actual, expected);
+                  } else if (operator === "starts_with") {
+                    result = fieldValueStartsWith(field, actual, expected);
+                  } else if (operator === "greater_than") {
                     result = parseFloat(actual) > parseFloat(expected);
-                  else if (operator === "less_than")
+                  } else if (operator === "less_than") {
                     result = parseFloat(actual) < parseFloat(expected);
-                  else if (operator === "is_empty")
+                  } else if (operator === "is_empty") {
                     result = !actual || actual === "undefined";
-                  else if (operator === "is_not_empty")
+                  } else if (operator === "is_not_empty") {
                     result = !!actual && actual !== "undefined";
+                  }
                   stepResponse = { condition_result: result };
                   nodeOutputs[step.id] = {
                     ...stepData,
@@ -2575,7 +2548,8 @@ Deno.serve(async (req) => {
                   ];
                   const matchedBranch = branches.includes(actualValue)
                     ? actualValue
-                    : branches[branches.length - 1];
+                    : (sourceBranch(switchField, actualValue, branches) ??
+                      branches[branches.length - 1]);
                   stepResponse = { matched_branch: matchedBranch };
                   nodeOutputs[step.id] = {
                     ...stepData,
@@ -3917,6 +3891,31 @@ Deno.serve(async (req) => {
         }
       }),
     );
+
+    // Record the run only if at least one automation actually ran (conditions
+    // met, not skipped), with its final status.
+    const summary = summarizeExecution(results);
+    if (summary.actions_count > 0) {
+      const { error: execInsertError } = await supabase
+        .from("automation_executions")
+        .insert({
+          execution_id: executionId,
+          tenant_id: requestBody.tenant_id || tenantId || null,
+          automation_id: requestBody.automationId || null,
+          trigger_type: requestBody.trigger_type || null,
+          entity_id: entityKey !== "no-entity" ? entityKey : null,
+          depth: executionDepth,
+          started_at: new Date(executionStartTime).toISOString(),
+          finished_at: new Date().toISOString(),
+          ...summary,
+        });
+      if (execInsertError) {
+        console.error(
+          "[trigger-automation] execution record insert failed:",
+          execInsertError,
+        );
+      }
+    }
 
     return new Response(
       JSON.stringify({
@@ -5734,6 +5733,8 @@ async function resolveWaIntegration(
       idInstance: config.external_instance_id,
       apiTokenInstance: config.external_api_token,
       providerType: "green_api" as const,
+      connectionUserId: null,
+      integrationId: null,
     };
   }
 
@@ -5776,7 +5777,14 @@ async function resolveWaIntegration(
     if (!idInstance || !apiTokenInstance)
       throw new Error("הגדרות Green API חסרות");
   }
-  return { idInstance, apiTokenInstance, providerType };
+  return {
+    idInstance,
+    apiTokenInstance,
+    providerType,
+    connectionUserId:
+      typeof integration.user_id === "string" ? integration.user_id : null,
+    integrationId: typeof integration.id === "string" ? integration.id : null,
+  };
 }
 
 async function sendWaMessage(opts: {
@@ -5997,15 +6005,23 @@ async function executeMetaWhatsappMessage(
   const phoneField = String(config.phone_field || "phone");
   const sendingToClient =
     phoneField === "client_phone" || phoneField === "recipient_phone";
+  const leadId = sendingToClient
+    ? data?.lead_id || null
+    : data?.lead_id || data?.id || null;
+  const clientRecipientId = await findMetaStepClientRecipient(supabase, {
+    tenantId,
+    phoneNumber,
+    data,
+    leadId,
+  });
   const payload: Record<string, unknown> = {
     tenantId,
     integrationId: integration.id,
     senderUserId,
     phoneNumber,
-    clientId: data?.client_id || null,
-    leadId: sendingToClient
-      ? data?.lead_id || null
-      : data?.lead_id || data?.id || null,
+    clientId: clientRecipientId || data?.client_id || null,
+    leadId,
+    ...(clientRecipientId ? { sendKind: "automation" } : {}),
   };
 
   if (sendMode === "template") {
@@ -6130,8 +6146,13 @@ async function executeGreenApiMessage(
     }
 
     // Resolve integration once
-    const { idInstance, apiTokenInstance, providerType } =
-      await resolveWaIntegration(supabase, config, tenantId);
+    const {
+      idInstance,
+      apiTokenInstance,
+      providerType,
+      connectionUserId,
+      integrationId,
+    } = await resolveWaIntegration(supabase, config, tenantId);
 
     // Build message once (using available data; no per-recipient contactRecord override)
     let message = replaceTemplateVariables(
@@ -6185,6 +6206,17 @@ async function executeGreenApiMessage(
             results.push({ chatId, status: "skipped", result: r });
           } else {
             results.push({ chatId, status: "sent", result: r });
+            await recordAutomationStepSend(supabase, {
+              tenantId,
+              chatId,
+              message,
+              provider: providerType,
+              connectionUserId,
+              integrationId,
+              providerResponse: r,
+              data,
+              recipients: config.recipients,
+            });
           }
         } catch (sendErr) {
           if (sendClaimInserted) {
@@ -6572,6 +6604,18 @@ async function executeGreenApiMessage(
     throw sendErr;
   }
 
+  await recordAutomationStepSend(supabase, {
+    tenantId,
+    chatId,
+    message,
+    provider: providerType,
+    connectionUserId: integration?.user_id ?? null,
+    integrationId: integration?.id ?? null,
+    providerResponse: sendResult,
+    data,
+    contact: contactRecord,
+  });
+
   return {
     success: true,
     message_sent: message,
@@ -6787,6 +6831,8 @@ async function executeGreenApiToCampaigner(
       channel: "whatsapp",
       provider: "green_api",
       raw_provider_data: { automation: true, send_target, sendResult },
+      // A message to the campaigner, never logged on a client card.
+      send_kind: "staff_alert",
     });
 
     if (chatError) {
@@ -6940,43 +6986,27 @@ async function executeAddClientUpdate(
     tenantSlug,
   );
 
-  // Get a system user ID for the update
-  const { data: ownerRole } = await supabase
-    .from("user_roles")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .eq("role", "owner")
-    .limit(1)
-    .maybeSingle();
-
-  const userId = ownerRole?.user_id || data.user_id;
-
-  if (!userId) {
-    throw new Error("לא נמצא משתמש לשמירת העדכון");
-  }
-
-  // Insert update into client_updates table
-  const { data: insertedUpdate, error: insertError } = await supabase
-    .from("client_updates")
-    .insert({
-      client_id: clientId,
-      tenant_id: tenantId,
-      user_id: userId,
+  // record_client_card_entry checks the client is in this tenant, marks the
+  // row as an automation entry (never counted as client contact) and
+  // attributes it to the client's campaigner, else the tenant owner.
+  try {
+    const entry = await recordClientCardEntry(supabase, {
+      tenantId,
+      clientId,
       content: updateContent,
-    })
-    .select()
-    .single();
-
-  if (insertError) {
+      source: "automation",
+    });
+    return {
+      success: true,
+      update_id: entry.entryId,
+      content: updateContent,
+    };
+  } catch (insertError) {
     console.error("Error inserting client update:", insertError);
-    throw new Error(`שגיאה בשמירת עדכון: ${insertError.message}`);
+    const reason =
+      insertError instanceof Error ? insertError.message : String(insertError);
+    throw new Error(`שגיאה בשמירת עדכון: ${reason}`);
   }
-
-  return {
-    success: true,
-    update_id: insertedUpdate.id,
-    content: updateContent,
-  };
 }
 
 // Execute create task action
