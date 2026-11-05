@@ -66,6 +66,8 @@ export default function ChatView({
 }: ChatViewProps) {
   const queryClient = useQueryClient();
   const { tenant: currentTenant, tenantId } = useCurrentTenant();
+  const activeTenantId = useRef(tenantId);
+  activeTenantId.current = tenantId;
   const { userId } = useCurrentUser();
   const { buildPath } = useTenantPath();
   const isMobile = useIsMobile();
@@ -1214,7 +1216,7 @@ export default function ChatView({
             type={convertType}
             onSuccess={(id, type, conversionTenantId) => {
               setConvertDialogOpen(false);
-              if (conversionTenantId === tenantId) {
+              if (conversionTenantId === activeTenantId.current) {
                 onContactConverted?.(id, type);
               }
             }}
