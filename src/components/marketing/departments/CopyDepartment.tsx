@@ -1,6 +1,7 @@
 import { loadCopyHandoffTargets } from "./copyHandoffTargets";
 import {
   readCopyDepartmentItems,
+  copyClientContext,
   filesFromAttachments,
   readCopyPayload,
   readCopyWorkItem,
@@ -1968,11 +1969,7 @@ function NewProjectDialog({
             department: "copy",
             content_type: "posts",
             intake_source: "studio",
-            client_website: website,
-            client_files: files.map((file) => ({
-              name: file.name,
-              path: file.path ?? null,
-            })),
+            ...copyClientContext(website, files),
           },
         })
         .select("id")
@@ -2127,8 +2124,7 @@ function ProjectSettings({
       ...(item.payload ?? {}),
       ...extra,
       department: "copy",
-      client_website: website,
-      client_files: files.map((file) => ({ name: file.name, path: file.path })),
+      ...copyClientContext(website, files),
     };
     const keepExistingStage =
       !!nextClientId &&

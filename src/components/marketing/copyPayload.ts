@@ -88,6 +88,17 @@ export function filesFromAttachments(attachments: unknown): Array<BriefFile> {
   });
 }
 
+/** Build both client-context writes without narrowing attachment metadata. */
+export function copyClientContext(
+  website: string | null,
+  files: Array<BriefFile>,
+): Pick<CopyPayload, "client_website" | "client_files"> {
+  return {
+    client_website: website,
+    client_files: files.map((file) => ({ ...file, path: file.path ?? null })),
+  };
+}
+
 /** Keep raw routing metadata at the boundary and isolate malformed eligible rows. */
 function readDepartmentItems<
   T extends { payload: unknown; current_stage_id: string | null },
