@@ -144,6 +144,7 @@ const TOOL_LABELS: Record<string, string> = {
   workshop_update_scene: "משנה סצנה",
   workshop_edit_from_assets: "עורכת סרט מהחומרים",
   workshop_choose_voice: "בוחרת קול",
+  workshop_save_pronunciation: "שומרת הגייה",
   workshop_make_stills: "יוצרת תמונות לסצנות",
   workshop_produce_video: "מפיקה את הסרט",
   workshop_assign_client: "משייכת ללקוח",

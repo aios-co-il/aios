@@ -6,6 +6,7 @@ import { SAVE_SCRIPT_TOOL } from "./tool-definitions-script.ts";
 import { UPDATE_SCENE_TOOL } from "./tool-definitions-scene.ts";
 import { MAKE_STILLS_TOOL } from "./tool-definitions-stills.ts";
 import { STORYBOARD_TOOL } from "./tool-definitions-storyboard.ts";
+import { PRONUNCIATION_TOOL } from "./tools/save-pronunciation.ts";
 import { VOICE_TOOL } from "./voice-tool.ts";
 
 export const WORKSHOP_SKIN = "carmen_workshop";
@@ -13,6 +14,7 @@ export const WORKSHOP_SKIN = "carmen_workshop";
 export const WORKSHOP_TOOLS = [
   EDIT_TOOL,
   VOICE_TOOL,
+  PRONUNCIATION_TOOL,
   ...PROJECT_TOOLS,
   ...CREATIVE_TOOLS,
   SAVE_SCRIPT_TOOL,

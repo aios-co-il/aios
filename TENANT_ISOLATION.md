@@ -70,6 +70,7 @@ USING (
 - ✅ import_history
 - ✅ workshop_artifacts
 - ✅ workshop_assets
+- ✅ workshop_pronunciations
 - ✅ cursor_task_sessions
 - ✅ tenant_inactive_members
 

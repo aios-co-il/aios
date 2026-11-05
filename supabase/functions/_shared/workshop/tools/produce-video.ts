@@ -1,115 +1,23 @@
-import { spendBudget } from "../budget.ts";
-import { imageFormatsFrom } from "../defaults.ts";
-import { gatePaid, refundMissing } from "../gate.ts";
 import { productionRunning } from "../production.ts";
-import { loadProject, savePayload, voiceHelpers } from "../project-io.ts";
-import { asRecord, creativeStageFor, recordArtifact } from "../record.ts";
-import {
-  PAGE_COLUMNS,
-  endingOf,
-  hasOwnClip,
-  loadScenes,
-  previewClipIds,
-} from "../scene-helpers.ts";
+import { loadProject, voiceHelpers } from "../project-io.ts";
+import { asRecord } from "../record.ts";
+import { hasOwnClip, loadScenes } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
-import { clipSaysLine, talkingLine } from "../talking.ts";
-import { costSceneOf } from "../cost-scene.ts";
-import {
-  ENGINE_LABEL,
-  type SceneEngine,
-  isSceneEngine,
-} from "../scene-engine.ts";
-import { quotedProductionEstimate } from "../video-cost.ts";
-import { isSceneOverlay } from "../scene-overlays.ts";
-import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
-import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
-import { autoChoices } from "./auto-choices.ts";
+import { keepsDesign } from "./keep-design.ts";
+import { narrationStep } from "./narration-review.ts";
+import { gateProduction } from "./produce-video-gate.ts";
+import { quoteProduction } from "./produce-video-quote.ts";
+import { sceneEngineFor, scenesToMake } from "./produce-video-scenes.ts";
+import { linkStage, pendingFilm, runningReply } from "./produce-video-stage.ts";
+import { startProduction } from "./produce-video-start.ts";
 import { stillsStep } from "./stills-approval.ts";
-import { narrationVoiceId } from "../voices.ts";
-import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
-import { isTitleEmphasis } from "../title-emphasis.ts";
-import { isEndCardBackground, isEndCardStyle } from "../film-look.ts";
-import {
-  keepsDesign,
-  redrawnClipIds,
-  remakeRedrawnClips,
-} from "./keep-design.ts";
-
-type Scene = Record<string, unknown>;
-
-const KEPT_DESIGN_NOTE =
-  "הסרט שמר את העיצוב מההפקה הקודמת (keep_design): הסצנות הן תנועת מצלמה על התמונות, בלי הנפשה. אם המשתמש ביקש הנפשה אמיתית, אמרי לו והפיקי שוב עם keep_design=false.";
 
 /**
- * Of the scenes kept as they are, the talking ones the production lip-syncs again: a still to
- * lip-sync and a clip that does not say the current line (advance_video_production's rule).
+ * Produces the film: animates the scenes, narrates, adds music and assembles it in the background.
+ * Each step that waits for the user (the pictures, the voice, the narration in semi-automatic
+ * mode, the budget) answers instead of starting.
  */
-async function relipScenes(
-  supabase: ToolContext["supabase"],
-  tenantId: string,
-  kept: Scene[],
-): Promise<Scene[]> {
-  const talking = kept.filter(
-    (scene) =>
-      scene.still_asset_id && talkingLine(scene.meta, scene.voiceover_text),
-  );
-  const ids = talking
-    .map((scene) => String(scene.clip_asset_id ?? ""))
-    .filter(Boolean);
-  if (ids.length === 0) return talking;
-  const { data } = await supabase
-    .from("marketing_assets")
-    .select("id, meta")
-    .eq("tenant_id", tenantId)
-    .in("id", ids);
-  const clips = new Map(
-    (Array.isArray(data) ? data : []).map((row: Scene) => [
-      String(row.id),
-      row.meta,
-    ]),
-  );
-  return talking.filter(
-    (scene) =>
-      !clipSaysLine(
-        clips.get(String(scene.clip_asset_id ?? "")),
-        talkingLine(scene.meta, scene.voiceover_text),
-      ),
-  );
-}
-
-/**
- * What produce_video makes for the whole film besides the clips: a narration when the current one
- * does not read the script in the film's voice (video_narration_ready; a new voice narrates
- * again), and a music bed when the film has none. A check that cannot be read counts as due, so
- * the quote never leaves them out.
- */
-async function soundDue(
-  supabase: ToolContext["supabase"],
-  tenantId: string,
-  itemId: string,
-  newVoice: boolean,
-) {
-  try {
-    const ready = newVoice
-      ? null
-      : await supabase.rpc("video_narration_ready", { p_item_id: itemId });
-    const { data } = await supabase
-      .from("marketing_assets")
-      .select("id, type, url")
-      .eq("tenant_id", tenantId)
-      .eq("item_id", itemId)
-      .eq("type", "music")
-      .limit(5);
-    const bed = (Array.isArray(data) ? data : []).some(
-      (row: Scene) => row.type === "music" && String(row.url ?? "") !== "",
-    );
-    return { narration: ready?.data !== true, music: !bed };
-  } catch {
-    return { narration: true, music: true };
-  }
-}
-
 export async function workshopProduceVideo(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
@@ -135,66 +43,18 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     };
 
   const video = asRecord(project.payload.video);
-  const pendingFilm = () =>
-    supabase
-      .from("workshop_artifacts")
-      .select(PAGE_COLUMNS)
-      .eq("tenant_id", tenantId)
-      .eq("item_id", itemId)
-      .eq("kind", "film")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-  const runningReply = (
-    provider: unknown,
-    client: unknown,
-    artifact: unknown,
-  ) => ({
-    success: true,
-    status: "running",
-    already_running: true,
-    engine: isSceneEngine(provider) ? ENGINE_LABEL[provider] : undefined,
-    client_id: client,
-    user_message: "הסרט כבר בהפקה, והוא יופיע בלוח כשיהיה מוכן.",
-    message:
-      "הפקה כבר רצה לפרויקט הזה ולא הותחלה שנייה. לבדוק את המצב: workshop_get_state (production), ולא להפיק שוב.",
-    ...(artifact ? { artifact } : {}),
-  });
   // produce_video queues nothing while a production runs: no quote, no second charge.
   const production = asRecord(video.production);
   if (productionRunning(production))
     return runningReply(
       production.provider,
       project.client_id,
-      (await pendingFilm())?.data,
+      (await pendingFilm(ctx, itemId))?.data,
     );
 
-  let stageId = project.stage_id;
-  let clientId = project.client_id;
-  if (!stageId) {
-    const wanted = String(args.client_id ?? "").trim() || clientId || null;
-    try {
-      if (wanted && wanted !== project.client_id)
-        await assertClientAccess(wanted);
-      const stage = await creativeStageFor(supabase, tenantId, wanted);
-      const linked = await supabase
-        .from("marketing_work_items")
-        .update({
-          ...(wanted ? { client_id: wanted } : {}),
-          pipeline_id: stage.pipelineId,
-          current_stage_id: stage.stageId,
-        })
-        .eq("id", itemId)
-        .eq("tenant_id", tenantId);
-      if (linked.error) return { error: linked.error.message };
-      stageId = stage.stageId;
-      clientId = wanted;
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : "שיוך הלקוח נכשל",
-      };
-    }
+  const linked = await linkStage(ctx, itemId, project);
+  if ("error" in linked) {
+    return linked;
   }
 
   // Semi-automatic: the user approves the pictures before they are animated (stills-approval.ts).
@@ -204,311 +64,58 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   }
   project.payload = approval.payload;
 
-  let engine: SceneEngine | null = isSceneEngine(args.engine)
-    ? args.engine
-    : isSceneEngine(video.scene_engine) && video.scene_engine !== "mock"
-      ? video.scene_engine
-      : null;
-  // A remembered ElevenLabs choice is re-checked: Starter cannot animate or narrate,
-  // and defaultEngine then returns Higgsfield or the free preview.
-  if (!engine || engine === "elevenlabs") {
-    const resolved = deps.defaultEngine ? await deps.defaultEngine() : null;
-    if (resolved) engine = resolved;
-  }
-  if (!engine) engine = "mock";
-  // A finished design keeps its own text: the camera moves over the original picture.
   const keepDesign = keepsDesign(args, video);
-  if (keepDesign) {
-    engine = "mock";
-  }
-  // The scenes produce_video queues a clip for: none yet, stale, failed, or (on a paid
-  // engine) made by the free preview.
-  const previewClips =
-    engine === "mock"
-      ? new Set<string>()
-      : await previewClipIds(
-          supabase,
-          tenantId,
-          itemId,
-          scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
-        );
-  // A finished design's scenes that a video model already redrew are made again from the picture.
-  const redrawnClips = keepDesign
-    ? await redrawnClipIds(
-        supabase,
-        tenantId,
-        itemId,
-        scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
-      )
-    : new Set<string>();
-  const animated = scenes.filter(
-    (scene) =>
-      !scene.clip_asset_id ||
-      scene.clip_stale === true ||
-      scene.status === "failed" ||
-      previewClips.has(String(scene.clip_asset_id)) ||
-      redrawnClips.has(String(scene.clip_asset_id)),
-  );
-  const costScenes = animated.map(costSceneOf);
-  // A kept clip that does not say the scene's current line (a line changed on the board) is
-  // lip-synced again by the production (queue_video_lipsync), so the quote prices that too.
-  const relip = (
-    await relipScenes(
-      supabase,
-      tenantId,
-      scenes.filter((scene) => !animated.includes(scene)),
-    )
-  ).map(costSceneOf);
-  const withVoice = scenes.some((scene) =>
-    String(scene.voiceover_text ?? "").trim(),
-  );
-  // A talking scene's own line is recorded in the project's voice too (queue_video_lipsync
-  // reads video.voice_id), so it also needs a voice the user chose.
-  const talking = scenes.some((scene) =>
-    talkingLine(scene.meta, scene.voiceover_text),
-  );
-  const withMusic = args.music !== false;
-  // Trailer sound design (a transition sound at each cut, a soft hit on title and end card) and
-  // the music bed both follow the film brief; the render worker reads video.sound_design and
-  // makes the effects in this production's render only, so the quote includes them.
-  const soundDesign = wantsSoundDesign(project.payload, {
-    choice: args.sound_design,
-    userText: deps.userText,
-  });
-  // The narration is checked against this voice; a new one re-narrates the film.
-  const voiceId = narrationVoiceId(args.voice_id, video.voice_id);
-  // Narration and music are made for the whole film, also when no scene is animated (a film cut
-  // from the user's own videos, or one line changed).
-  const due = await soundDue(
-    supabase,
-    tenantId,
+  const engine = await sceneEngineFor(args, video, deps, keepDesign);
+  const made = await scenesToMake(ctx, itemId, scenes, engine, keepDesign);
+  const quote = await quoteProduction(ctx, {
     itemId,
-    voiceId !== narrationVoiceId(undefined, video.voice_id),
-  );
-  const estimate = quotedProductionEstimate(
+    payload: project.payload,
+    video,
+    scenes,
     engine,
-    costScenes,
-    {
-      withVoice: withVoice && due.narration,
-      withMusic: withMusic && due.music,
-      withSoundEffects: soundDesign,
-      film: scenes.map(costSceneOf),
-    },
-    deps.videoConnections ? await deps.videoConnections() : {},
-    relip,
-  );
+    animated: made.animated,
+    relip: made.relip,
+  });
+  const { withVoice, talking, voiceId, estimate } = quote;
   // Narration needs a voice the user chose after hearing it.
   if ((withVoice || talking) && !voiceId)
     return await chooseVoice(
       {},
       voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
     );
-  const gate = await gatePaid(
-    supabase,
-    tenantId,
-    itemId,
-    project.payload,
-    {
-      tool: "workshop_produce_video",
-      engine,
-      count: costScenes.length + relip.length,
-      usd: estimate.totalUsd,
-    },
-    args,
-    deps,
-    {
-      engine,
-      engine_label: ENGINE_LABEL[engine],
-      scenes: scenes.length,
-      clip_seconds: estimate.clipSeconds,
-      with_voice: withVoice,
-      with_music: withMusic,
-      // Talking scenes and what their voice lines and lip sync add to the price.
-      ...(estimate.talkingScenes > 0
-        ? {
-            talking_scenes: estimate.talkingScenes,
-            lipsync_usd: estimate.lipsync.usd,
-          }
-        : {}),
-      ...(soundDesign
-        ? {
-            with_sound_effects: true,
-            sound_effects_usd: estimate.soundEffects.usd,
-          }
-        : {}),
-      estimated_usd: estimate.totalUsd,
-      message:
-        engine === "mock"
-          ? estimate.totalUsd > 0
-            ? `הסצנות יונפשו במנוע התצוגה החינמי (תנועה פשוטה על התמונות); הקריינות והסאונד יעלו עד כ-$${estimate.totalUsd}. אשר/י והתחל.`
-            : "הסרט יופק במנוע התצוגה החינמי (תנועה פשוטה על התמונות), בלי עלות. אשר/י והתחל."
-          : `ההפקה במנוע ${ENGINE_LABEL[engine]} תעלה עד כ-$${estimate.totalUsd}. אשר/י והתחל.`,
-    },
-  );
+  // Semi-automatic: the user hears the narration before anything is animated (narration-review.ts).
+  const review = await narrationStep(ctx, itemId, project.payload, {
+    narrated: withVoice,
+    newVoice: quote.newVoice,
+    voiceId: voiceId ?? "",
+    stageId: linked.stageId,
+    engine,
+    scenes,
+    filmUsd: estimate.totalUsd - estimate.voice.usd,
+    units: quote.units,
+  });
+  if ("stop" in review) {
+    return review.stop;
+  }
+  project.payload = review.payload;
+  const gate = await gateProduction(ctx, itemId, project.payload, {
+    engine,
+    scenes: scenes.length,
+    quote,
+  });
   if ("stop" in gate) return gate.stop;
 
-  const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
-  const ctaText =
-    typeof args.cta_text === "string"
-      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, CTA_MAX_CHARS)
-      : "";
-  const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
-  // The quote is charged before the RPC (the payload's video settings must be saved first); a
-  // production that never started gives it back.
-  const units = costScenes.length + relip.length || 1;
-  const refund = () =>
-    refundMissing(supabase, tenantId, itemId, "workshop_produce_video", units);
-  try {
-    await savePayload(
-      supabase,
-      tenantId,
-      itemId,
-      spendBudget(
-        {
-          ...endingOf(gate.payload, ctaText),
-          video: {
-            // From the gated payload: it holds the pictures' approval (stills-approval.ts).
-            ...asRecord(gate.payload.video),
-            scene_engine: engine,
-            sound_engine: "elevenlabs",
-            sound_design: soundDesign,
-            keep_design: keepDesign,
-            // How the scenes' text enters, how large it is and how its key words are emphasised
-            // (title-styles.ts, title-emphasis.ts).
-            ...(isTitleStyle(args.title_style)
-              ? { title_style: args.title_style }
-              : {}),
-            ...(isTitleSize(args.title_size)
-              ? { title_size: args.title_size }
-              : {}),
-            ...(isTitleEmphasis(args.title_emphasis)
-              ? { title_emphasis: args.title_emphasis }
-              : {}),
-            ...(isFilmFont(args.font) ? { font: args.font } : {}),
-            // The graphics over every scene's picture (scene-overlays.ts).
-            ...(isSceneOverlay(args.scene_overlay)
-              ? { scene_overlay: args.scene_overlay }
-              : {}),
-            // The closing card's design, its background and its glass (film-look.ts).
-            ...(isEndCardStyle(args.end_card_style)
-              ? { end_card_style: args.end_card_style }
-              : {}),
-            ...(isEndCardBackground(args.end_card_background)
-              ? { end_card_background: args.end_card_background }
-              : {}),
-            ...(typeof args.end_card_glass === "boolean"
-              ? { end_card_glass: args.end_card_glass }
-              : {}),
-            // The narration is checked against this voice; a new one re-narrates the film.
-            ...(voiceId ? { voice_id: voiceId } : {}),
-          },
-        },
-        "workshop_produce_video",
-        units,
-      ),
-    );
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : "שמירת הפרויקט נכשלה",
-    };
-  }
-  try {
-    await remakeRedrawnClips(
-      supabase,
-      tenantId,
-      itemId,
-      scenes
-        .filter((scene) => redrawnClips.has(String(scene.clip_asset_id)))
-        .map((scene) => String(scene.id)),
-    );
-  } catch (error) {
-    await refund();
-    return {
-      error: error instanceof Error ? error.message : "סימון הסצנות נכשל",
-    };
-  }
-  const produced = await supabase.rpc("produce_video", {
-    p_item_id: itemId,
-    p_options: {
-      aspect: format,
-      provider: engine,
-      // Free-preview clips are priced in costScenes, so the paid engine may redo them.
-      redo_preview: true,
-      estimate: {
-        clips: estimate.clips,
-        voice: estimate.voice,
-        music: estimate.music,
-        lipsync: estimate.lipsync,
-        sound_effects: estimate.soundEffects,
-      },
-      stage_id: stageId,
-      with_voice: withVoice,
-      with_music: withMusic,
-      voice_id: voiceId,
-      music_prompt: musicPrompt,
-      generate_audio: false,
-    },
-  });
-  if (produced.error) {
-    await refund();
-    return {
-      error: [
-        produced.error.message,
-        produced.error.details,
-        produced.error.code,
-      ]
-        .filter(Boolean)
-        .join(" | "),
-    };
-  }
-  const state = asRecord(produced.data);
-  // A production that failed at once queued nothing paid, and gets no pending film page (it
-  // would spin forever).
-  if (state.status === "failed") {
-    await refund();
-    return {
-      success: false,
-      status: "failed",
-      error: String(state.error ?? "ההפקה נכשלה"),
-    };
-  }
-  // produce_video's lock: another production runs, and this call queued nothing.
-  const alreadyRunning =
-    state.status === "running" &&
-    Number(state.clips ?? 0) + Number(state.voices ?? 0) === 0 &&
-    Number(state.music ?? 0) === 0;
-  if (alreadyRunning) await refund();
-  const open = alreadyRunning ? await pendingFilm() : null;
-  if (alreadyRunning && open?.data)
-    return runningReply(engine, clientId, open.data);
-  const artifact = await recordArtifact(supabase, {
-    tenantId,
+  return await startProduction(ctx, {
     itemId,
-    kind: "film",
-    title: project.title ? `${project.title} · סרט` : "הסרט",
-    status: "pending",
-    meta: { engine, estimated_usd: estimate.totalUsd },
+    title: project.title,
+    payload: gate.payload,
+    engine,
+    keepDesign,
+    stageId: linked.stageId,
+    clientId: linked.clientId,
+    redrawnSceneIds: scenes
+      .filter((scene) => made.redrawnClips.has(String(scene.clip_asset_id)))
+      .map((scene) => String(scene.id)),
+    quote,
   });
-  return {
-    success: true,
-    started: true,
-    status: state.status ?? "running",
-    engine: ENGINE_LABEL[engine],
-    client_id: clientId,
-    ...(soundDesign ? { sound_design: true } : {}),
-    // A design kept from the film's last production, not asked for now: Carmen can undo it.
-    ...(keepDesign && typeof args.keep_design !== "boolean"
-      ? { kept_design_note: KEPT_DESIGN_NOTE }
-      : {}),
-    // The user's line, with what Carmen chose on her own in automatic mode (auto-choices.ts).
-    ...autoChoices(gate.payload, voiceId),
-    message:
-      "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",
-    artifact,
-    workshop: {
-      event: "artifacts",
-      item_id: itemId,
-      artifact_id: artifact.id,
-    },
-  };
 }
