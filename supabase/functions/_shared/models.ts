@@ -192,20 +192,23 @@ export function resolveModelId(engine: string | null | undefined): string {
   // Manus is routed separately (not via resolveLLMTarget / OpenAI-compatible)
   const lower = engine.toLowerCase();
   if (lower === "manus/manus-1" || lower === "manus-1") return "manus/manus-1";
-  // Legacy mappings
-  const legacy: Record<string, string> = {
-    "gemini-1.5-flash": "google/gemini-2.5-flash",
-    "gemini-3-pro": "google/gemini-3.1-pro-preview",
-    "manus-1.6": "google/gemini-3-flash-preview",
-    "manus-1.6-max": "google/gemini-2.5-pro",
-    "manus-1.6-lite": "google/gemini-2.5-flash-lite",
-    "claude-sonnet": "anthropic/claude-sonnet-4-6",
-    // OpenAI serves its "pro" models only on the Responses API, and Carmen's loop uses Chat
-    // Completions: an agent still set to one runs on its chat sibling.
-    "gpt-5.4-pro": "openai/gpt-5.4",
-    "openai/gpt-5.4-pro": "openai/gpt-5.4",
-    "gpt-5.5-pro": "openai/gpt-5.5",
-    "openai/gpt-5.5-pro": "openai/gpt-5.5",
-  };
-  return legacy[engine] || "google/gemini-3-flash-preview";
+  return legacyModelId(engine) || "google/gemini-3-flash-preview";
 }
+
+/** The catalog id a retired engine value now runs on, or undefined when it is not a legacy value. */
+export function legacyModelId(engine: string): string | undefined {
+  return LEGACY_MODEL_IDS[engine.replace(/^openai\//, "")];
+}
+
+const LEGACY_MODEL_IDS: Record<string, string> = {
+  "gemini-1.5-flash": "google/gemini-2.5-flash",
+  "gemini-3-pro": "google/gemini-3.1-pro-preview",
+  "manus-1.6": "google/gemini-3-flash-preview",
+  "manus-1.6-max": "google/gemini-2.5-pro",
+  "manus-1.6-lite": "google/gemini-2.5-flash-lite",
+  "claude-sonnet": "anthropic/claude-sonnet-4-6",
+  // OpenAI serves its "pro" models only on the Responses API, and Carmen's loop uses Chat
+  // Completions: an agent still set to one (alias or "openai/" id) runs on its chat sibling.
+  "gpt-5.4-pro": "openai/gpt-5.4",
+  "gpt-5.5-pro": "openai/gpt-5.5",
+};

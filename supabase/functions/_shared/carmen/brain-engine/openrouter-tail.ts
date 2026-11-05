@@ -63,21 +63,33 @@ export function movesToNextLink(
   if (connected) return true;
   if (status === 401 || status === 402 || status === 403 || status === 429)
     return true;
-  if (isModelUnavailable(status, body)) {
-    return true;
-  }
-  return /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
-    body,
+  return (
+    isModelUnavailable(status, body) ||
+    /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
+      body,
+    )
   );
 }
 
-/** The provider cannot run this model here: it does not exist, or is not a chat model. */
-export function isModelUnavailable(status: number, body: string): boolean {
-  if (status !== 400 && status !== 404) {
-    return false;
+/** The Hebrew reason Carmen records when a provider answer moves her loop to the next link. */
+export function failoverReason(status: number, body: string): string {
+  if (status === 429) {
+    return "מגבלת קצב/קרדיט";
   }
-  return /not a chat model|model_not_found|does not exist|unsupported model/i.test(
-    body,
+  if (status === 401 || status === 403) {
+    return "המפתח נדחה";
+  }
+  if (isModelUnavailable(status, body)) {
+    return "המודל לא זמין";
+  }
+  return "קרדיט נגמר";
+}
+
+/** OpenAI cannot run this model on Chat Completions: it is unknown, or not a chat model. */
+export function isModelUnavailable(status: number, body: string): boolean {
+  return (
+    (status === 400 || status === 404) &&
+    /not a chat model|model_not_found/i.test(body)
   );
 }
 

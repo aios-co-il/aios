@@ -22,7 +22,7 @@ import {
 } from "../_shared/carmen/brain-engine/load.ts";
 import { resolveWorkshopAwareEngine } from "../_shared/carmen/brain-engine/workshop-brain.ts";
 import {
-  isModelUnavailable,
+  failoverReason,
   movesToNextLink,
   openRouterTail,
   lazyBrainTail,
@@ -16047,9 +16047,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] AI error ${res.status} on ${llm.label}:`,
           err.substring(0, 200),
         );
-        // A 429, a refused key (401/402/403) or a body signalling exhausted balance/quota
-        // triggers failover. A connected brain may also fail on size, model or auth; any
-        // failure moves on, and the chain holds only what this brain plan allowed.
+        // A 429, a refused key (401/402/403), a body signalling exhausted balance/quota or a
+        // model the endpoint cannot serve (not a chat model / model_not_found) triggers
+        // failover. A connected brain may also fail on size, model or auth; any failure moves
+        // on, and the chain holds only what this brain plan allowed.
         if (
           movesToNextLink(res.status, err, !!llm.connectionId) &&
           (activeIdx < llmChain.length - 1 || (await extendChain()))
@@ -16057,20 +16058,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           const from = llm.label;
           activeIdx++;
           llm = llmChain[activeIdx];
-          const reason =
-            res.status === 429
-              ? "מגבלת קצב/קרדיט"
-              : res.status === 401 || res.status === 403
-                ? "המפתח נדחה"
-                : isModelUnavailable(res.status, err)
-                  ? "המודל לא זמין"
-                  : "קרדיט נגמר";
           recordProviderFailover(
             supabase,
             agent.tenant_id,
             from,
             llm.label,
-            reason,
+            failoverReason(res.status, err),
           ).catch(() => {});
           continue; // retry the same round on the next provider
         }

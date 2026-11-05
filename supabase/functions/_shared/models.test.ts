@@ -7,6 +7,7 @@ Deno.test(
     assertStrictEquals(resolveModelId("gpt-5.5-pro"), "openai/gpt-5.5");
     assertStrictEquals(resolveModelId("openai/gpt-5.5-pro"), "openai/gpt-5.5");
     assertStrictEquals(resolveModelId("gpt-5.4-pro"), "openai/gpt-5.4");
+    assertStrictEquals(resolveModelId("openai/gpt-5.4-pro"), "openai/gpt-5.4");
   },
 );
 

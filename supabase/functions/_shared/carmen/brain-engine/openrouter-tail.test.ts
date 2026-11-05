@@ -1,5 +1,6 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  failoverReason,
   isModelUnavailable,
   lazyBrainTail,
   movesToNextLink,
@@ -302,4 +303,20 @@ Deno.test("a model the endpoint cannot serve moves to the next link", () => {
   );
   assertStrictEquals(isModelUnavailable(500, notChat), false);
   assertStrictEquals(movesToNextLink(400, "bad request", false), false);
+});
+
+Deno.test("each failover records why the loop moved on", () => {
+  const notChat = '{"error":{"message":"This is not a chat model."}}';
+  assertStrictEquals(failoverReason(429, ""), "מגבלת קצב/קרדיט");
+  assertStrictEquals(failoverReason(401, ""), "המפתח נדחה");
+  assertStrictEquals(failoverReason(403, ""), "המפתח נדחה");
+  assertStrictEquals(failoverReason(404, notChat), "המודל לא זמין");
+  assertStrictEquals(failoverReason(402, "insufficient_quota"), "קרדיט נגמר");
+});
+
+Deno.test("a missing route is not mistaken for an unavailable model", () => {
+  assertStrictEquals(
+    movesToNextLink(404, '{"error":"The resource does not exist"}', false),
+    false,
+  );
 });
