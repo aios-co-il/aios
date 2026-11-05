@@ -4,13 +4,6 @@
   "config": "tsconfig.app.json",
   "diagnostics": [
     {
-      "file": "src/components/agents/SystemCronJobsPanel.tsx",
-      "code": 2322,
-      "message": "Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "p_schedule",
-      "count": 1
-    },
-    {
       "file": "src/components/agents/tabs/AgentLearningTab.tsx",
       "code": 2339,
       "message": "Property 'subcategory' does not exist on type '{ name: string; count: number; }'.",
@@ -25,32 +18,11 @@
       "count": 1
     },
     {
-      "file": "src/components/agents/tabs/McpConnectionsTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 1
-    },
-    {
       "file": "src/components/agents/tabs/ProfileTab.tsx",
       "code": 2304,
       "message": "Cannot find name 'tenantId'.",
       "source": "tenantId",
       "count": 2
-    },
-    {
-      "file": "src/components/agents/tabs/RunsTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "selectedRunId",
-      "count": 1
-    },
-    {
-      "file": "src/components/agents/tabs/SupervisorTab.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 1
     },
     {
       "file": "src/components/agents/tabs/SupervisorTab.tsx",
