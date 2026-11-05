@@ -93,7 +93,7 @@ Deno.test("narration waits for a voice the user heard and chose", async () => {
       scene("s-1", { still_asset_id: "a", voiceover_text: "שלום" }),
     ],
   });
-  const asked = (await executeWorkshopTool(
+  const asked = (await executeApprovedWorkshopTool(
     db,
     "tenant-1",
     "workshop_produce_video",

@@ -30,6 +30,8 @@ import { type ToolContext } from "../tool-context.ts";
 import { costSceneOf } from "../cost-scene.ts";
 import { quotedProductionEstimate } from "../video-cost.ts";
 import { wantsSoundDesign } from "../sound-design.ts";
+import { isAutoMode } from "../workshop-mode.ts";
+import { STILLS_QUESTION } from "./stills-approval.ts";
 
 /** The scene's own character picture (saved by workshop_storyboard), if it has one. */
 const ownReference = (scene: Record<string, any>) =>
@@ -301,8 +303,19 @@ export async function workshopMakeStills(ctx: ToolContext) {
           }${
             remaining > 0
               ? `נשארו ${remaining} סצנות בלי תמונה: קראי שוב ל-workshop_make_stills להמשך, בלי redo. כל עוד זה בתקציב זה ירוץ בלי לשאול.`
-              : "לכל הסצנות יש תמונה: הציעי להמשיך להפקת הסרט."
+              : allMadeNote(settled)
           }`,
+    // Semi-automatic: the last picture ends the turn on the pictures' approval question.
+    ...(remaining === 0 && created > 0 && !isAutoMode(settled)
+      ? { say_to_user: STILLS_QUESTION }
+      : {}),
     workshop: { event: "artifacts", item_id: itemId },
   };
+}
+
+/** What Carmen does once every scene has its picture, by the project's mode (workshop-mode.ts). */
+function allMadeNote(payload: Record<string, unknown>) {
+  return isAutoMode(payload)
+    ? "לכל הסצנות יש תמונה. מצב אוטומטי: המשיכי מיד בעצמך לבחירת הקול (אם צריך) ולהפקת הסרט."
+    : "לכל הסצנות יש תמונה. השאלה לאישור התמונות נשלחה למשתמש (say_to_user); עצרי עד שיאשר. ביקש לתקן: תקני את הסצנות שביקש.";
 }

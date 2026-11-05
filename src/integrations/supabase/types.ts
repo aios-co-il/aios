@@ -18852,6 +18852,10 @@ export type Database = {
         };
         Returns: string;
       };
+      workshop_set_mode: {
+        Args: { p_item_id: string; p_mode: string };
+        Returns: string;
+      };
       workshop_settle_pending_artifact: {
         Args: {
           p_add_meta: Json;

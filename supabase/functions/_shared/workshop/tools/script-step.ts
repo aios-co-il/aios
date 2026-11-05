@@ -20,6 +20,7 @@ import { savePayload } from "../project-io.ts";
 import { SCRIPT_CHOICE, withTappedScriptApproval } from "../script-approval.ts";
 import type { ToolContext } from "../tool-context.ts";
 import { NO_CONCEPT, type FilmConcept } from "./film-concept.ts";
+import { isAutoMode } from "../workshop-mode.ts";
 import { skipAskedByUser, skipRefused } from "./skip-request.ts";
 
 export interface ScriptGate {
@@ -28,6 +29,8 @@ export interface ScriptGate {
   say_to_user: "";
   carmen_next: string;
   script?: string;
+  /** Automatic mode: Carmen writes the script and goes on in this turn. */
+  carmen_continues?: true;
 }
 
 /**
@@ -61,7 +64,7 @@ export async function scriptStep(
   await savePayload(ctx.supabase, ctx.tenantId, itemId, next);
   const gate = script
     ? approvalGate(script)
-    : writeGate(film.concept, filmSeconds(next));
+    : writeGate(film.concept, filmSeconds(next), isAutoMode(next));
   return {
     stop: refused
       ? { ...gate, carmen_next: `${skipRefused("script")} ${gate.carmen_next}` }
@@ -88,6 +91,11 @@ function settledThisTurn(
     return { payload: withScriptSkipped(payload), skipRefused: false };
   }
   const skipRefused = ctx.args.skip_script === true;
+  // In automatic mode the saved script needs no approval (workshop-mode.ts); no turn is kept, so
+  // Carmen may still revise it in this turn.
+  if (isAutoMode(payload)) {
+    return { payload: withScriptApproved(payload, null), skipRefused };
+  }
   if (ctx.args.script_approved === true && userCouldApprove(ctx, payload)) {
     return {
       payload: withScriptApproved(payload, ctx.deps.turnId ?? null),
@@ -122,6 +130,7 @@ function userCouldApprove(
 function writeGate(
   concept: FilmConcept | null,
   seconds: number | null,
+  auto: boolean,
 ): ScriptGate {
   const length = seconds
     ? `הסרט ${seconds} שניות: סכום duration_s של השורות שווה ${seconds}, והקריינות בכולו עד ${maxWords(seconds)} מילים.`
@@ -129,6 +138,15 @@ function writeGate(
   const from = concept
     ? `לפי הקונספט שנבחר, "${concept.title}": ${concept.text}`
     : "לפי הבריף.";
+  if (auto) {
+    return {
+      needs_input: true,
+      missing: ["script"],
+      say_to_user: "",
+      carmen_continues: true,
+      carmen_next: `מצב אוטומטי: כתבי תסריט מלא ${from} לכל שורה (beat): duration_s, narration, on_screen ו-visual. ${length} ${SCRIPT_GUIDE} שמרי ב-workshop_save_script: במצב הזה הוא נחשב מאושר כשהוא נשמר. ואז קראי מיד ל-workshop_storyboard, בלי לעצור. ${AFTER_APPROVAL}`,
+    };
+  }
   // say_to_user stays empty: a non-empty one ends the turn before Carmen can write the script.
   return {
     needs_input: true,

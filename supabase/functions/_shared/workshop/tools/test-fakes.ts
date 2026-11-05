@@ -1,5 +1,6 @@
 /** Fakes and fixtures the workshop tool tests share: a scripted Supabase client, projects, scenes. */
 import { executeWorkshopTool } from "../../workshop-tools.ts";
+import { STILLS_QUESTION } from "./stills-approval.ts";
 
 export type RunArgs = Parameters<typeof executeWorkshopTool>;
 
@@ -10,7 +11,11 @@ export type RunArgs = Parameters<typeof executeWorkshopTool>;
 export function executeApprovedWorkshopTool(...call: RunArgs) {
   const [db, tenantId, name, args, access, userId, deps] = call;
   const approved = args.confirmed === true && args.approval_token === undefined;
-  return executeWorkshopTool(db, tenantId, name, args, access, userId, {
+  // Production tests start after the user approved the scene pictures too (stills-approval.ts).
+  const stills = name === "workshop_produce_video" && !deps?.lastAssistant;
+  const run = stills ? { stills_approved: true, ...args } : args;
+  return executeWorkshopTool(db, tenantId, name, run, access, userId, {
+    ...(stills ? { lastAssistant: STILLS_QUESTION } : {}),
     ...(deps ?? {}),
     ...(approved ? { approvedOutOfBand: true } : {}),
   });

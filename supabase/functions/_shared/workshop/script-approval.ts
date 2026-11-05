@@ -34,9 +34,13 @@ export function cleanScriptApproval(lastAssistant: string, userText: string) {
 
 /** The approve button itself, or a bare approval word with nothing after it. */
 function approvesScript(answer: string) {
+  return answer.trim() === APPROVE_SCRIPT || isBareApproval(answer);
+}
+
+/** A bare approval word or phrase with nothing after it (also read for the scene pictures). */
+export function isBareApproval(answer: string) {
   const text = answer.trim();
   return (
-    text === APPROVE_SCRIPT ||
     /^(מאשר|מאשרת|מאשרים|מאושר)[\s.!]*$/.test(text) ||
     isExplicitApprovalPhrase(text)
   );

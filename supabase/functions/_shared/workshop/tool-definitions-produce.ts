@@ -45,6 +45,11 @@ export const PRODUCE_VIDEO_TOOL = {
           "רק אם המשתמש ביקש מנוע מסוים; אחרת נבחר לפי המפתחות של הארגון. מנוע שלא מחובר לא נחשב שגיאה: השרת בוחר מנוע מחובר ומחזיר engine_note.",
       },
       voice_id: { type: "string" },
+      stills_approved: {
+        type: "boolean",
+        description:
+          "true רק כשהמשתמש אישר במילים את תמונות הסצנות בתשובה לשאלת האישור שלהן (מצב חצי אוטומטי). לחיצה על הכפתור נקראת לבד.",
+      },
       music: { type: "boolean", description: "false רק אם ביקשו בלי מוזיקה" },
       sound_design: {
         type: "boolean",

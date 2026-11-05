@@ -26,6 +26,7 @@ import { type ImageProvider } from "./image-providers.ts";
 import { lookOf, withLook } from "./look.ts";
 import { syncBriefPage } from "./project-brief.ts";
 import { asRecord, recordArtifact } from "./record.ts";
+import { isAutoMode } from "./workshop-mode.ts";
 
 export function voiceHelpers(
   supabase: Db,
@@ -37,6 +38,7 @@ export function voiceHelpers(
   return {
     voiceSample: deps.voiceSample,
     userText: deps.userText ?? null,
+    auto: isAutoMode(payload),
     addSamplePage: async (title: string, path: string, voiceId: string) => {
       // One sample page per voice in a project, however often the menu is shown.
       const { data: existing } = await supabase
@@ -212,6 +214,7 @@ export async function briefProject(
     answers,
     asked: briefAsked(payload),
     read: readRequest(payload, args, deps, Boolean(options.save)),
+    auto: isAutoMode(payload),
   });
   if (gate) {
     // Shown to the user now: from the next turn Carmen may fill in what they leave open.

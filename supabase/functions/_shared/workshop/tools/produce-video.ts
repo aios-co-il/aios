@@ -24,6 +24,8 @@ import { isSceneOverlay } from "../scene-overlays.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
 import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
+import { autoChoices } from "./auto-choices.ts";
+import { stillsStep } from "./stills-approval.ts";
 import { narrationVoiceId } from "../voices.ts";
 import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
 import { isTitleEmphasis } from "../title-emphasis.ts";
@@ -195,6 +197,11 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     }
   }
 
+  // Semi-automatic: the user approves the pictures before they are animated (stills-approval.ts).
+  const approval = await stillsStep(ctx, itemId, project.payload, scenes);
+  if ("stop" in approval) return approval.stop;
+  project.payload = approval.payload;
+
   let engine: SceneEngine | null = isSceneEngine(args.engine)
     ? args.engine
     : isSceneEngine(video.scene_engine) && video.scene_engine !== "mock"
@@ -358,7 +365,8 @@ export async function workshopProduceVideo(ctx: ToolContext) {
         {
           ...endingOf(gate.payload, ctaText),
           video: {
-            ...video,
+            // From the gated payload: it holds the pictures' approval (stills-approval.ts).
+            ...asRecord(gate.payload.video),
             scene_engine: engine,
             sound_engine: "elevenlabs",
             sound_design: soundDesign,
@@ -491,6 +499,8 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     ...(keepDesign && typeof args.keep_design !== "boolean"
       ? { kept_design_note: KEPT_DESIGN_NOTE }
       : {}),
+    // Automatic mode: what Carmen chose on her own, for her closing line (auto-choices.ts).
+    ...autoChoices(gate.payload, voiceId),
     message:
       "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",
     artifact,
