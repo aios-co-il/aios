@@ -79,11 +79,12 @@ function settledThisTurn(
     return withScriptSkipped(payload);
   }
   if (ctx.args.script_approved === true && userCouldApprove(ctx, payload)) {
-    return withScriptApproved(payload);
+    return withScriptApproved(payload, ctx.deps.turnId ?? null);
   }
   return withTappedScriptApproval(payload, {
     lastAssistant: ctx.deps.lastAssistant ?? "",
     userText: ctx.deps.userText ?? "",
+    turnId: ctx.deps.turnId,
   });
 }
 

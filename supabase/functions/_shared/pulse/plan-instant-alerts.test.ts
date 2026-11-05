@@ -1,7 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
 import { fakeSupabase, healthy, WEDNESDAY } from "./fake-alert-log.ts";
-import { planInstantAlerts } from "./plan-instant-alerts.ts";
+import { dedupeWindowHours, planInstantAlerts } from "./plan-instant-alerts.ts";
 
 const OWNER_PHONE = "972501234567";
 const MANAGER_PHONE = "972529999999";
@@ -181,6 +181,37 @@ Deno.test("planInstantAlerts", async (t) => {
       assertEquals(result.planned, [
         { candidate, recipients: [OWNER_PHONE, MANAGER_PHONE], sentTo: [] },
       ]);
+    },
+  );
+});
+
+Deno.test("dedupeWindowHours", async (t) => {
+  const lost = { rule_type: "connection_lost" as const };
+
+  await t.step("a client finding keeps its rule's throttle", () => {
+    assertStrictEquals(dedupeWindowHours(lost, WEDNESDAY), 24);
+    assertStrictEquals(
+      dedupeWindowHours({ rule_type: "no_contact" }, WEDNESDAY),
+      7 * 24,
+    );
+  });
+
+  await t.step(
+    "a lost connection reaches back to when it was lost (AIO-342)",
+    () => {
+      const tenDaysAgo = new Date(
+        WEDNESDAY.getTime() - 10 * 24 * 3600e3,
+      ).toISOString();
+      assertStrictEquals(
+        dedupeWindowHours({ ...lost, open_since: tenDaysAgo }, WEDNESDAY),
+        10 * 24 + 1,
+      );
+      // Lost an hour ago: the rule's window is already longer.
+      const hourAgo = new Date(WEDNESDAY.getTime() - 3600e3).toISOString();
+      assertStrictEquals(
+        dedupeWindowHours({ ...lost, open_since: hourAgo }, WEDNESDAY),
+        24,
+      );
     },
   );
 });

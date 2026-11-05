@@ -37,7 +37,6 @@ import {
 } from "../_shared/carmen-private-routing.ts";
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
-import { recordManusFallbackReply } from "./fallback-reply.ts";
 import { isUnresolvedGroupAuthor } from "./group-author.ts";
 
 const corsHeaders = {
@@ -1921,66 +1920,6 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             resolvedGroupMsg,
           ),
           sendVoice: makeVoiceSender(groupTenantId),
-          sendMessage: async (_chatId: string, message: string) => {
-            const baseUrl =
-              settings.gateway_url || "https://whatsappgw-pzpyrrww.manus.space";
-            const instanceId = settings.instance_id;
-            const apiKey = integ.api_key;
-            if (!instanceId || !apiKey) return false;
-            // IMPORTANT: bound the gateway call with a timeout. Without it, a stalled Manus
-            // connection hangs this whole function and the WhatsApp message is stuck on "sending".
-            // No retry on abort: the message may already have been delivered, so a retry risks a duplicate.
-            const FETCH_TIMEOUT_MS = 60000;
-            const controller = new AbortController();
-            const timer = setTimeout(
-              () => controller.abort(),
-              FETCH_TIMEOUT_MS,
-            );
-            const started = Date.now();
-            try {
-              const res = await fetch(
-                `${baseUrl}/api/v1/instances/${instanceId}/send/group`,
-                {
-                  method: "POST",
-                  headers: {
-                    "X-Api-Key": apiKey,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    groupId: groupChatId,
-                    body: message,
-                  }),
-                  signal: controller.signal,
-                },
-              );
-              clearTimeout(timer);
-              console.log("[manus-wa Carmen group send]", {
-                groupChatId,
-                status: res.status,
-                ok: res.ok,
-                elapsedMs: Date.now() - started,
-              });
-              await recordManusFallbackReply(res, {
-                db: supabase,
-                tenantId: groupTenantId,
-                chatId: groupChatId,
-                message,
-                connectionUserId,
-                integrationId: integ.id,
-              });
-              return res.ok;
-            } catch (err) {
-              clearTimeout(timer);
-              const isAbort = err instanceof Error && err.name === "AbortError";
-              console.error(
-                "manus-wa Carmen group sendMessage error:",
-                isAbort
-                  ? `aborted after ${Date.now() - started}ms (gateway timeout) — not retried to avoid duplicate delivery`
-                  : err,
-              );
-              return false;
-            }
-          },
         });
         if (result.handled) carmenOutcome = result.outcome;
         console.log("[carmen-group]", {
@@ -2160,46 +2099,6 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         ),
         isVoiceMessage: messageIsVoice(payload, msgContainer, resolvedMsg),
         sendVoice: makeVoiceSender(tenantId),
-        sendMessage: async (_chatId: string, message: string) => {
-          try {
-            const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-            const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-            console.log("[carmen->manus] sending", {
-              integrationId: integ.id,
-              tenantId,
-              phoneNumber: carmenTargetPhone,
-              connectionUserId,
-              messageLen: message.length,
-            });
-            const res = await fetch(
-              `${supabaseUrl}/functions/v1/send-manus-wa-message`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${serviceKey}`,
-                },
-                body: JSON.stringify({
-                  integrationId: integ.id,
-                  tenantId,
-                  phoneNumber: carmenTargetPhone,
-                  senderUserId: connectionUserId,
-                  message,
-                  sendKind: "carmen",
-                }),
-              },
-            );
-            const txt = await res.text();
-            console.log("[carmen->manus] result", {
-              status: res.status,
-              body: txt.slice(0, 500),
-            });
-            return res.ok;
-          } catch (err) {
-            console.error("manus-wa Carmen sendMessage error:", err);
-            return false;
-          }
-        },
       });
       if (result.handled) carmenOutcome = result.outcome;
       console.log("[carmen-private]", {

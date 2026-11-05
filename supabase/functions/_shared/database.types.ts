@@ -8308,6 +8308,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      integration_disconnect_events: {
+        Row: {
+          disconnected_at: string;
+          id: string;
+          integration_id: string;
+          integration_type: string;
+          reason: string | null;
+          reconnected_at: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          disconnected_at?: string;
+          id?: string;
+          integration_id: string;
+          integration_type: string;
+          reason?: string | null;
+          reconnected_at?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          disconnected_at?: string;
+          id?: string;
+          integration_id?: string;
+          integration_type?: string;
+          reason?: string | null;
+          reconnected_at?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "integration_disconnect_events_integration_id_fkey";
+            columns: ["integration_id"];
+            isOneToOne: false;
+            referencedRelation: "tenant_integrations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "integration_disconnect_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       integration_health: {
         Row: {
           consecutive_failures: number;
@@ -17922,6 +17967,11 @@ export type Database = {
         Args: { _preset_id: string; _tenant_id: string };
         Returns: undefined;
       };
+      integration_display_label: { Args: { p_type: string }; Returns: string };
+      integration_needs_reauth: {
+        Args: { p_settings: Json };
+        Returns: boolean;
+      };
       is_automation_shared_to_tenant: {
         Args: { _automation_id: string; _tenant_id: string };
         Returns: boolean;
@@ -18148,6 +18198,19 @@ export type Database = {
             Returns: Json;
           }
         | { Args: { p_item_id: string; p_options: Json }; Returns: Json };
+      pulse_open_integration_disconnects: {
+        Args: { p_tenant_id: string };
+        Returns: {
+          account_label: string;
+          disconnected_at: string;
+          event_id: string;
+          integration_id: string;
+          integration_type: string;
+          provider_label: string;
+          report_tables: number;
+          shared_with_tenants: string[];
+        }[];
+      };
       queue_video_clips: {
         Args: {
           p_aspect?: string;

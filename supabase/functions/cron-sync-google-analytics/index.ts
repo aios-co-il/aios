@@ -1,6 +1,9 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
+import {
+  countCronTables,
+  cronRunResponse,
+} from "../_shared/sync-cron/run-body.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +11,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -86,10 +89,11 @@ serve(async (req) => {
         .eq("id", integrationId)
         .maybeSingle();
 
+      // A table whose connection is lost did not sync: it counts as failed.
       if (!integ || integ.is_active === false) {
         results.push({
           tableId: t.id,
-          status: "skipped",
+          status: "failed",
           reason: "integration inactive or missing",
         });
         continue;
@@ -97,7 +101,7 @@ serve(async (req) => {
       if ((integ.settings as any)?.needs_reauth) {
         results.push({
           tableId: t.id,
-          status: "skipped",
+          status: "failed",
           reason: "needs_reauth",
         });
         continue;
@@ -155,23 +159,18 @@ serve(async (req) => {
       }
     }
 
-    const summary = {
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      total: results.length,
-      success: results.filter((r) => r.status === "success").length,
-      failed: results.filter(
-        (r) => r.status === "failed" || r.status === "error",
-      ).length,
-      skipped: results.filter((r) => r.status === "skipped").length,
-      results,
-    };
-    console.log("[cron-ga] Done:", JSON.stringify(summary));
-
-    return new Response(JSON.stringify(summary), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Never a plain success when every table of this batch failed (AIO-342).
+    const counts = countCronTables(results, {
+      synced: ["success"],
+      failed: ["failed", "error"],
     });
+    console.log("[cron-ga] Done:", JSON.stringify(counts));
+    return cronRunResponse(
+      "cron-ga",
+      counts,
+      { startedAt, batch_offset: batchOffset, total: results.length, results },
+      corsHeaders,
+    );
   } catch (error: any) {
     console.error("[cron-ga] Fatal error:", error);
     return new Response(

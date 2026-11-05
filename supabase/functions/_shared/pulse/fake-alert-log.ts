@@ -20,6 +20,7 @@ type Result =
 type FakeQuery = {
   select: () => FakeQuery;
   eq: (col: string, val: unknown) => FakeQuery;
+  is: (col: string, val: null) => FakeQuery;
   in: (col: string, vals: unknown[]) => FakeQuery;
   or: (filter: string) => FakeQuery;
   gte: (col: string, val: string) => FakeQuery;
@@ -96,6 +97,10 @@ export function fakeSupabase(
     const builder: FakeQuery = {
       select: () => builder,
       eq: (col, val) => (filters.push((row) => row[col] === val), builder),
+      is: (col, val) => (
+        filters.push((row) => (row[col] ?? null) === val),
+        builder
+      ),
       in: (col, vals) => (
         filters.push((row) => vals.includes(row[col])),
         builder

@@ -13815,6 +13815,9 @@ async function handleRunAgent(
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // A paid workshop confirm must arrive in a later user message than the quote it confirms;
+    // a script approved in this turn may not be replaced in it (workshop-turn-setup.ts).
+    const turnId = crypto.randomUUID();
     // The workshop's note and specialist for this message (workshop-turn-setup.ts).
     const { workshopNote, workshopRoleForRun } = inWorkshopRequest
       ? await workshopTurnSetup(
@@ -13823,6 +13826,7 @@ async function handleRunAgent(
           tenant_id,
           command_text,
           conversation_history,
+          turnId,
         )
       : { workshopNote: null, workshopRoleForRun: null };
     if (workshopRoleForRun) {
@@ -13989,8 +13993,6 @@ async function handleRunAgent(
     // completed turn here. This also makes Realtime ask_carmen calls continue
     // the exact same conversation as typed chat.
     let serverConversationId: string | null = null;
-    // A paid workshop confirm must arrive in a later user message than the quote it confirms.
-    const turnId = crypto.randomUUID();
     // A dev task is approved only in a later user message than the one that offered it.
     const turnStartedAt = new Date().toISOString();
     // The signed-in user's own message in an AIOS chat (the workshop, the video studio, the

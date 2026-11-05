@@ -41,6 +41,7 @@ import {
 } from "../_shared/pulse-delivery.ts";
 import { PULSE_MANUAL_TRIGGER_SOURCE } from "../_shared/pulse/manual-trigger-source.ts";
 import { gatedInstantAlerts, noInstantAlerts } from "./instant-alerts-gate.ts";
+import { loadOpenIntegrationDisconnects } from "../_shared/pulse/connection-disconnects.ts";
 import {
   buildPulseCampaignRows,
   classifyPulseCampaignGoal,
@@ -829,8 +830,13 @@ Deno.serve(async (req) => {
     }
     const queueToPhone = (message: string, phone: string) =>
       queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, phone);
+    // The org's own lost connections join its connection_lost alerts (AIO-342).
+    const openDisconnects = await loadOpenIntegrationDisconnects(
+      supabase,
+      tenantId,
+    );
     let instantAlerts = noInstantAlerts();
-    if (snapshots.length) {
+    if (snapshots.length || openDisconnects.disconnects.length) {
       try {
         instantAlerts = await gatedInstantAlerts(setting, body, {
           supabase,
@@ -840,6 +846,7 @@ Deno.serve(async (req) => {
           reportRecipients: report.recipients,
           snapshots,
           criticalIssues,
+          disconnects: openDisconnects.disconnects,
           rules: setting.pulse_alert_rules,
           queueWhatsApp: (message, chatId) =>
             queuePulseWhatsApp(supabase, tenantId, tenantSlug, message, chatId),
@@ -1009,6 +1016,8 @@ Deno.serve(async (req) => {
           report_recipients_error: report.error,
           scoped_deliveries: scopedDeliveries,
           instant_alerts: instantAlerts,
+          open_disconnects: openDisconnects.disconnects.length,
+          open_disconnects_error: openDisconnects.error,
         },
       ],
       summary: digest,

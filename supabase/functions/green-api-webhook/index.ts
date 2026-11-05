@@ -26,7 +26,6 @@ import {
   propagateWhatsappGroupInviteLink,
   resolveWhatsappGroupInviteLink,
 } from "../_shared/whatsapp-groups.ts";
-import { recordCarmenFallbackGroupReply } from "../_shared/client-card/system-send.ts";
 import { forwardStoredSend } from "./stored-send-forward.ts";
 import {
   claimWebhookMessage,
@@ -295,37 +294,6 @@ async function forwardToTeamChannels(
     }
   } catch (e) {
     console.error("❌ Error forwarding to team channels:", e);
-  }
-}
-
-/**
- * Send a WhatsApp message via Green API (used by the shared Carmen handler).
- * Returns the provider response (its idMessage) when sent, null otherwise.
- */
-async function sendGreenApiMessage(
-  instanceId: string,
-  apiToken: string,
-  chatId: string,
-  message: string,
-): Promise<Record<string, unknown> | null> {
-  try {
-    const url = `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, message }),
-    });
-    if (!res.ok) {
-      return null;
-    }
-    const body = await res.json().catch((err) => {
-      console.error("❌ sendGreenApiMessage: unreadable response", err);
-      return null;
-    });
-    return body && typeof body === "object" ? body : {};
-  } catch (e) {
-    console.error("❌ sendGreenApiMessage error:", e);
-    return null;
   }
 }
 
@@ -1923,29 +1891,6 @@ Deno.serve(async (req) => {
           // so open-member-groups mode must never activate here.
           sourceChannel: "operator_mirror",
           connectionRole: carmenRole,
-          sendMessage: async (chatId: string, message: string) => {
-            const response = await sendGreenApiMessage(
-              instanceId,
-              apiToken,
-              chatId,
-              message,
-            );
-            if (!response) {
-              return false;
-            }
-            // Logged like a reply through the action step: only in a client's
-            // group, only while the tenant has card logging on.
-            await recordCarmenFallbackGroupReply(supabaseClient, {
-              tenantId,
-              chatId,
-              message,
-              provider: "green_api",
-              connectionUserId,
-              integrationId: integration.id,
-              providerResponse: response,
-            });
-            return true;
-          },
         });
         if (result.handled) {
           carmenOutcome = result.outcome;

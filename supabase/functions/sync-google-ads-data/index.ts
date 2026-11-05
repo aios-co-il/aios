@@ -9,6 +9,11 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
+import {
+  googleAdsTableAccount,
+  normalizeGoogleAdsCustomerId,
+} from "../_shared/ads-sync/google-customer-id.ts";
+import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
 import {
   resolveAdsSyncWindow,
@@ -223,7 +228,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const customerId = settings.customer_id;
+    // Dashes typed with the id make Google answer INVALID_CUSTOMER_ID (AIO-342).
+    const account = googleAdsTableAccount(settings);
+    const customerId = account.customerId;
     const dateRange = settings.date_range || "last_30_days";
 
     if (!customerId) {
@@ -347,10 +354,7 @@ Deno.serve(async (req) => {
       if (!refreshResp.ok || !refreshData.access_token) {
         const err = refreshData?.error || "refresh_failed";
         const errDesc = refreshData?.error_description || "";
-        const isPermanent =
-          err === "invalid_grant" ||
-          err === "unauthorized_client" ||
-          err === "invalid_client";
+        const isPermanent = isPermanentGoogleOAuthError(err);
         // Mark needs_reauth on permanent failures so the UI can prompt reconnection
         await supabaseAdmin
           .from("tenant_integrations")
@@ -689,7 +693,7 @@ Deno.serve(async (req) => {
     `;
 
     // Use manager_id (MCC) as login-customer-id if available, otherwise use customerId
-    let loginCustomerId = settings.manager_id || customerId;
+    let loginCustomerId = account.loginCustomerId ?? customerId;
 
     if (operational_only) {
       // David's status rules cover an active report of a client only.
@@ -897,9 +901,10 @@ Deno.serve(async (req) => {
       const tenantMccs = Array.from(
         new Set(
           (tenantTables || [])
-            .map((t: any) => t.integration_settings?.manager_id)
-            .filter(Boolean)
-            .map(String),
+            .map((t: { integration_settings: { manager_id?: unknown } }) =>
+              normalizeGoogleAdsCustomerId(t.integration_settings?.manager_id),
+            )
+            .filter((id): id is string => id !== null),
         ),
       );
 

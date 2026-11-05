@@ -42,7 +42,7 @@ export async function planInstantAlerts(
   let skipped = 0;
   const acceptedThisRun = new Map<string, InstantAlertLogRow[]>();
   for (const candidate of candidates) {
-    const throttleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
+    const throttleHours = dedupeWindowHours(candidate, now);
     const runKey = [
       candidate.rule_type,
       candidate.client_id,
@@ -94,4 +94,22 @@ export async function planInstantAlerts(
   }
 
   return { planned, skipped };
+}
+
+/**
+ * The rule's throttle window, widened for a lost connection to reach back to
+ * when it was lost (AIO-342). Its fingerprint names that disconnect, so it is
+ * sent once per disconnect however long it lasts.
+ */
+export function dedupeWindowHours(
+  candidate: Pick<PulseInstantAlertCandidate, "rule_type" | "open_since">,
+  now: Date,
+): number {
+  const ruleHours = RULE_THROTTLE_HOURS[candidate.rule_type];
+  const since = candidate.open_since ? Date.parse(candidate.open_since) : NaN;
+  if (Number.isNaN(since)) {
+    return ruleHours;
+  }
+  const openHours = Math.ceil((now.getTime() - since) / 3_600_000) + 1;
+  return Math.max(ruleHours, openHours);
 }

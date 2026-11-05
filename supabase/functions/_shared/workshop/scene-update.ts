@@ -17,6 +17,7 @@
  * The user's own pictures and videos are never replaced by invented ones.
  */
 
+import { changedMotionRefusal } from "./motion-direction.ts";
 import { asRecord } from "./record.ts";
 import { isSceneOverlay } from "./scene-overlays.ts";
 import { talkingLine } from "./talking.ts";
@@ -121,6 +122,11 @@ export function planSceneUpdate(
         error:
           "התמונה בסצנה הזו היא התמונה של המשתמש ולא נוצרה מתיאור, ולכן אין מה לשנות ב-visual_prompt. תמונה אחרת: המשתמש מעלה אותה בלשונית הנכסים, ואז עורכים מחדש עם workshop_edit_from_assets.",
       };
+  }
+
+  const posing = changedMotionRefusal(scene, args);
+  if (posing) {
+    return posing;
   }
 
   setText("title");
