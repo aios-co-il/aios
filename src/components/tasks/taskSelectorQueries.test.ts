@@ -51,6 +51,16 @@ describe("task selector query boundaries", () => {
     expect(query.limit).toHaveBeenCalledWith(400);
   });
 
+  it("rejects a failed detail lead selector instead of returning an empty list", async () => {
+    const error = new Error("lead query denied");
+    query.order.mockResolvedValueOnce({ data: null, error });
+
+    await expect(fetchTaskLeads("tenant")).rejects.toBe(error);
+    expect(from).toHaveBeenCalledWith("leads");
+    expect(query.eq).toHaveBeenCalledWith("tenant_id", "tenant");
+    expect(query.order).toHaveBeenCalledWith("company_name");
+  });
+
   it("propagates selector errors and permits an absent fallback agency", async () => {
     query.order.mockResolvedValueOnce({
       data: null,
