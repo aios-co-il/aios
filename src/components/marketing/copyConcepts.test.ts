@@ -1,4 +1,5 @@
-import { expect, test } from "vitest";
+import { describe, expect, expectTypeOf, it, test } from "vitest";
+import type { Database } from "@/integrations/supabase/types";
 import {
   appendCopyConcepts,
   copyConceptsGenerateGate,
@@ -11,6 +12,14 @@ import {
   resolveVisualPrompt,
   type CopyConcept,
 } from "./copyConcepts.ts";
+
+describe("copy concept persistence type", () => {
+  it("retains the normalized domain model's storage compatibility", () => {
+    expectTypeOf<CopyConcept>().toMatchTypeOf<
+      Database["public"]["Tables"]["marketing_work_items"]["Row"]["payload"]
+    >();
+  });
+});
 
 const concept = (overrides: Partial<CopyConcept> = {}): CopyConcept => ({
   id: overrides.id ?? "c1",

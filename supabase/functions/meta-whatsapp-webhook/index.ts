@@ -654,26 +654,6 @@ Deno.serve(async (request) => {
                 isManualOutgoing: false,
                 isGroup: false,
                 sourceChannel: "own_instance",
-                sendMessage: async (_chatId: string, message: string) => {
-                  const response = await fetch(
-                    `${supabaseUrl}/functions/v1/send-meta-whatsapp-message`,
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${serviceKey}`,
-                      },
-                      body: JSON.stringify({
-                        tenantId: target.tenantId,
-                        integrationId: integration.id,
-                        senderUserId: target.userId,
-                        phoneNumber: item.peerPhone,
-                        message,
-                      }),
-                    },
-                  );
-                  return response.ok;
-                },
               });
             } catch (carmenError) {
               console.error(

@@ -1,7 +1,7 @@
 import { hostLabel, isHttpUrl } from "../assets.ts";
 import { type Db } from "../db.ts";
 import { type WorkshopDeps } from "../gate.ts";
-import { sniffMime } from "../image-providers.ts";
+import { sniffMime } from "../image-bytes.ts";
 import { loadAssets, loadProject, savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
@@ -183,8 +183,13 @@ export async function workshopAddAssets(ctx: ToolContext) {
       logoUrl = null;
     }
   }
+  // Every entry failing is an error the model and the turn's fallback reply must see: without
+  // it Carmen retried the same import until the turn ran out of steps (Staging, 3 Nov). The
+  // error is a short line for the user; the raw reasons stay in `failed` for Carmen.
+  const success = failed.length < requested.length;
   return {
-    success: failed.length < requested.length,
+    success,
+    ...(success ? {} : { error: allFailedSummary(requested) }),
     added,
     failed,
     ...(logoUrl ? { logo_url: logoUrl } : {}),
@@ -197,4 +202,10 @@ export async function workshopAddAssets(ctx: ToolContext) {
     }${logoUrl ? " הלוגו נשמר לפרויקט ויופיע בסגיר הסרט." : ""}`.trim(),
     workshop: { event: "artifacts", item_id: itemId },
   };
+}
+
+/** What the user hears when nothing was added: pictures that could not be fetched, or else. */
+function allFailedSummary(requested: Array<unknown>): string {
+  const images = requested.some((entry) => asRecord(entry).kind === "image");
+  return images ? "הורדת התמונות לפרויקט נכשלה" : "הנכסים לא נוספו לפרויקט";
 }

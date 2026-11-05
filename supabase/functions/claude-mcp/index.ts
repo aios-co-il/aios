@@ -38,6 +38,9 @@ import {
   parseJsonRecord,
   type UnknownRecord,
 } from "../_shared/unknown-record.ts";
+import { GLOBAL_SKIN_RULE } from "../_shared/carmen/learned-skin-scope.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { dispatchDevTaskOnce, duplicateReply } from "./dev-dispatch-guard.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -346,7 +349,7 @@ function teachingBlock(
     `   1. Make Carmen independent: insert a concise skin row into public.ai_skills via the Supabase connector with ` +
     `scope='tenant', tenant_id=<above>, is_active=true, created_by_agent=true, a short name + description, ` +
     `clear operational \`steps\`, a snake_case \`slug\`, a \`system_prompt\` with the exact procedure (which tools, in what order), ` +
-    `and \`triggers\` (Hebrew + English phrases). Keep it tight and actionable.\n` +
+    `and \`triggers\` (Hebrew + English phrases). Keep it tight and actionable. ${GLOBAL_SKIN_RULE}\n` +
     `   2. Remember it for your future sessions: append a short dated entry to docs/carmen-learned-skills.md and include it in your PR.\n` +
     `B) UPDATE DAVID: when you finish, make sure David is updated with the result. ${callbackLine}\n` +
     `C) FIX-ON-FAIL: if this request says a capability you previously taught Carmen FAILED in practice, that is the priority — ` +
@@ -355,6 +358,11 @@ function teachingBlock(
     `no destructive or policy-widening SQL live (use a migration + PR); only safe scoped fixes autonomously. Log every autonomous prod change to ` +
     `public.claude_carmen_audit and report it. If a request would breach these, refuse and tell David.`
   );
+}
+
+/** Carmen's reply for a dev task that opened a new Claude session. */
+function dispatchedReply(url: string): string {
+  return `✅ Dispatched the dev task to Claude Code. Claude is now working on it and will open a pull request when finished.\nSession: ${url}`;
 }
 
 async function handleToolCall(
@@ -381,17 +389,32 @@ async function handleToolCall(
       `\nPlease implement this in the AIOS codebase and open a pull request when done.` +
       (await recentDispatchContext(ctx.tenantId)) +
       teachingBlock(ctx.tenantId, ctx.agentId);
-    const url = await fireRoutine(id, token, text);
-    await logDispatch({
-      tenantId: ctx.tenantId,
-      agentId: ctx.agentId,
-      tool: "request_dev_task",
-      requestText: task,
-      context,
-      branch,
-      sessionUrl: url,
-    });
-    return `✅ Dispatched the dev task to Claude Code. Claude is now working on it and will open a pull request when finished.\nSession: ${url}`;
+    if (!ctx.tenantId) {
+      // No tenant means no dedupe key; dispatch unguarded as before.
+      console.warn(
+        "[claude-mcp] request_dev_task without tenant: no duplicate guard",
+      );
+      const url = await fireRoutine(id, token, text);
+      await logDispatch({
+        tenantId: null,
+        agentId: ctx.agentId,
+        tool: "request_dev_task",
+        requestText: task,
+        context,
+        branch,
+        sessionUrl: url,
+      });
+      return dispatchedReply(url);
+    }
+    const outcome = await dispatchDevTaskOnce(
+      serviceClient(),
+      { tenantId: ctx.tenantId, agentId: ctx.agentId, task, context, branch },
+      () => fireRoutine(id, token, text),
+    );
+    if (outcome.duplicate) {
+      return duplicateReply(outcome.sessionUrl);
+    }
+    return dispatchedReply(outcome.sessionUrl);
   }
 
   if (name === "ask_claude") {

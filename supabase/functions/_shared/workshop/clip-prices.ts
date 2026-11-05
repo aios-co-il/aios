@@ -13,7 +13,7 @@ export const MUSIC_USD_PER_MINUTE = 0.5;
 
 /**
  * The music bed is made for the film that will be rendered, not the planned scenes
- * (render-worker src/jobs/music-length.mjs): the narration can stretch the scenes, and the end
+ * (render-worker src/jobs/music-length.ts): the narration can stretch the scenes, and the end
  * card and a tail follow them. The quote prices that upper bound: the planned seconds with 15%
  * headroom, plus 8.5 s for the longest end card (4.5 s with a three-line call to action) and the
  * 4 s tail. The worker never asks for more than the run's quote.
@@ -24,3 +24,18 @@ export const MUSIC_EXTRA_S = 8.5;
 /** Seconds of music a storyboard of `plannedS` seconds is quoted for. */
 export const musicQuoteSeconds = (plannedS: number) =>
   plannedS > 0 ? plannedS * (1 + MUSIC_HEADROOM) + MUSIC_EXTRA_S : 0;
+
+/**
+ * The characters the voice engine is billed for a line: its length without nikud. The render
+ * worker sends a Hebrew line with nikud (render-worker src/jobs/vocalize.ts), but ElevenLabs does
+ * not bill the vowel points (Staging, 5 Nov: a 96-character script sent pointed was billed 66), so
+ * the plain length is the upper bound. The worker records what was billed (its character-cost
+ * header) on the run.
+ */
+export function voiceCharacters(line: string): number {
+  return line.replace(POINTS, "").trim().length;
+}
+
+// The render worker's nikud classes (render-worker/src/jobs/nikud.ts POINTS): a vowel, dagesh,
+// shin/sin dot or cantillation; maqaf (U+05BE), paseq (U+05C0) and sof pasuq (U+05C3) stay.
+const POINTS = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g;

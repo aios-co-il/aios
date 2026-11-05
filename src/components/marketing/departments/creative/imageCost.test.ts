@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   addCost,
   costFromApiUsage,
@@ -133,4 +133,34 @@ test("project summary prefers stored costs and fills gaps from the official tabl
   expect(totals.images).toBe(2);
   expect(totals.exactImages).toBe(1);
   expect(totals.estimatedImages).toBe(1);
+});
+
+describe("stored image cost validation", () => {
+  test("incomplete stored costs use the existing run fallback", () => {
+    const complete = inferImageCost("high", "1024x1024");
+    const incomplete = { ...complete, source: undefined };
+    const totals = summarizeStoredImageCosts(
+      [{ generationCost: incomplete, imageUrl: "https://example.com/a.png" }],
+      "high",
+      [{ tokens_in: 200, tokens_out: 4160, cost_usd: 0.18 }],
+    );
+    expect(totals.tokens).toBe(4360);
+    expect(totals.costUsd).toBe(0.18);
+  });
+
+  test("non-finite stored costs use the official table instead of poisoning totals", () => {
+    const complete = inferImageCost("high", "1024x1024");
+    const totals = summarizeStoredImageCosts(
+      [
+        {
+          generationCost: { ...complete, costUsd: Number.NaN },
+          imageUrl: "https://example.com/a.png",
+        },
+      ],
+      "high",
+    );
+    expect(totals.tokens).toBe(4160);
+    expect(totals.costUsd).toBe(0.1664);
+    expect(totals.estimatedImages).toBe(1);
+  });
 });
