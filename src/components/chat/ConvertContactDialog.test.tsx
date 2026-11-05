@@ -61,6 +61,39 @@ describe("ConvertContactDialog creation result", () => {
 
   afterEach(cleanup);
 
+  it("creates and links an agency-free lead in the active tenant", async () => {
+    const onSuccess = vi.fn();
+    render(
+      withTestQuery(
+        <ConvertContactDialog
+          open
+          type="lead"
+          senderName="New lead"
+          senderPhone="12345"
+          onOpenChange={vi.fn()}
+          onSuccess={onSuccess}
+        />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "המר" }));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(mocks.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: "tenant-1",
+        company_name: "New lead",
+      }),
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith("convert-unknown-contact", {
+      body: {
+        senderPhone: "12345",
+        contactId: "group-1",
+        contactType: "lead",
+        tenantId: "tenant-1",
+      },
+    });
+  });
+
   it("passes a newly created group's id to message linking and the caller", async () => {
     const onSuccess = vi.fn();
     render(

@@ -176,6 +176,7 @@ export function ConvertContactDialog({
         const { data, error } = await supabase
           .from("leads")
           .insert({
+            tenant_id: requiredTenantId,
             company_name: leadData.company_name,
             contact_name: leadData.contact_name,
             agency_id: leadData.agency_id,
