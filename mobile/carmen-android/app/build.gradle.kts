@@ -24,8 +24,8 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0-carmen-face"
+        versionCode = 4
+        versionName = "0.4.0-marketing-os"
         // Phones only; drops the emulator (x86) copies of the native speech libraries.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "SUPABASE_URL", "\"${backendSetting("carmen.supabaseUrl", "CARMEN_SUPABASE_URL")}\"")

@@ -12,7 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 /** Carmen screen shown on activation, over the lock screen when needed: state and live transcript. */
 class CarmenActivity : AppCompatActivity() {
 
-    private var face: HologramFace? = null
+    private var face: CarmenPortrait? = null
 
     private val render: (CarmenSession.Snapshot) -> Unit = { snapshot ->
         face?.state = snapshot.state
@@ -31,7 +31,7 @@ class CarmenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
         setContentView(R.layout.activity_carmen)
-        face = HologramFace(findViewById(R.id.hologram), findViewById(R.id.hologram_glow))
+        face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow))
         CarmenSession.observe(render)
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
         findViewById<Button>(R.id.false_activation_button).setOnClickListener {

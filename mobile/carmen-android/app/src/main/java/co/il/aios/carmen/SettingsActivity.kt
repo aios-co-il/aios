@@ -25,6 +25,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var countersText: TextView
     private lateinit var toggleButton: Button
+    private lateinit var accountSection: AccountSection
 
     private val refresh = object : Runnable {
         override fun run() {
@@ -53,7 +54,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.full_screen_button).setOnClickListener { openFullScreenSetting() }
         findViewById<Button>(R.id.export_button).setOnClickListener { exportLog() }
-        AccountSection(this)
+        accountSection = AccountSection(this)
         findViewById<Button>(R.id.clear_button).setOnClickListener {
             log.clear()
             render()
@@ -63,6 +64,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         WakeWordService.resumeIfEnabled(this)
+        accountSection.render()
         handler.post(refresh)
     }
 

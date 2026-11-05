@@ -15,7 +15,7 @@ object CarmenSession {
     private val main = Handler(Looper.getMainLooper())
     private val observers = mutableSetOf<(Snapshot) -> Unit>()
 
-    /** Carmen's voice level 0..1 while she speaks; drives the hologram's glow. */
+    /** Carmen's voice level 0..1 while she speaks; drives the glow behind her portrait. */
     @Volatile
     var voiceLevel = 0f
 

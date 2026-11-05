@@ -8,7 +8,12 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import android.net.Uri
+import androidx.core.net.toUri
+import android.util.Base64
 import java.io.IOException
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 
 /**
@@ -32,16 +37,59 @@ class AiosAccount(context: Context) {
      */
     fun signIn(email: String, password: String) {
         val body = JSONObject().put("email", email).put("password", password)
-        saveTokens(authRequest("password", body), email)
+        completeSignIn(authRequest("password", body))
+        prefs.edit { putString(KEY_WEB_SESSION, authRequest("password", body).toString()) }
+    }
+
+    /**
+     * Google sign-in, in the phone's browser (Google refuses embedded web views) with PKCE.
+     * It runs twice: first for the app, then — instantly, Google remembers the choice — for
+     * the in-app web screen, so each client gets its own session, as with password sign-in.
+     */
+    fun googleSignInUrl(target: GoogleTarget): Uri {
+        val verifier = randomUrlSafe(48)
+        prefs.edit { putString(KEY_PKCE_PREFIX + target.name, verifier) }
+        val challenge = urlSafe(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()))
+        return "${BuildConfig.SUPABASE_URL}/auth/v1/authorize".toUri().buildUpon()
+            .appendQueryParameter("provider", "google")
+            .appendQueryParameter("redirect_to", target.redirect)
+            .appendQueryParameter("code_challenge", challenge)
+            .appendQueryParameter("code_challenge_method", "s256")
+            .build()
+    }
+
+    /** Exchanges the code Supabase sent back to [GoogleTarget.redirect] for a session. */
+    fun completeGoogleSignIn(target: GoogleTarget, code: String) {
+        val verifier = prefs.getString(KEY_PKCE_PREFIX + target.name, null)
+            ?: throw IOException("ההתחברות עם Google פגה, נסו שוב")
+        prefs.edit { remove(KEY_PKCE_PREFIX + target.name) }
+        val session = authRequest("pkce", JSONObject().put("auth_code", code).put("code_verifier", verifier))
+        when (target) {
+            GoogleTarget.APP -> completeSignIn(session)
+            GoogleTarget.WEB -> prefs.edit { putString(KEY_WEB_SESSION, session.toString()) }
+        }
+    }
+
+    enum class GoogleTarget(val redirect: String) {
+        APP("carmen-aios://auth/app"),
+        WEB("carmen-aios://auth/web"),
+    }
+
+    /** Stores the app's session and resolves the tenant whose Command Center the app opens. */
+    private fun completeSignIn(session: JSONObject) {
+        saveTokens(session, session.optJSONObject("user")?.optString("email").orEmpty())
         val tenantId = resolveActiveTenant()
             ?: throw IOException("למשתמש אין טננט פעיל ב-AIOS")
-        val webSession = authRequest("password", body)
         prefs.edit {
             putString(KEY_TENANT, tenantId)
             putString(KEY_TENANT_SLUG, tenantSlug(tenantId))
-            putString(KEY_WEB_SESSION, webSession.toString())
         }
     }
+
+    private fun randomUrlSafe(bytes: Int): String = urlSafe(ByteArray(bytes).also { SecureRandom().nextBytes(it) })
+
+    private fun urlSafe(bytes: ByteArray): String =
+        Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
     /** The Command Center page for the user's tenant, or the web app's home before sign-in. */
     fun webStartUrl(): String {
@@ -108,7 +156,7 @@ class AiosAccount(context: Context) {
             putString(KEY_REFRESH, json.getString("refresh_token"))
             putLong(KEY_EXPIRES_AT, System.currentTimeMillis() + json.optLong("expires_in", 3600) * 1000)
             putString(KEY_USER, json.optJSONObject("user")?.optString("id"))
-            putString(KEY_EMAIL, email)
+            if (email.isNotEmpty()) putString(KEY_EMAIL, email)
         }
     }
 
@@ -159,5 +207,6 @@ class AiosAccount(context: Context) {
         private const val KEY_TENANT = "tenant_id"
         private const val KEY_TENANT_SLUG = "tenant_slug"
         private const val KEY_WEB_SESSION = "web_session"
+        private const val KEY_PKCE_PREFIX = "pkce_"
     }
 }

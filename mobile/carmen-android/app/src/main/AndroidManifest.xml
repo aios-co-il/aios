@@ -31,6 +31,24 @@
         </activity>
 
         <activity
+            android:name=".SignInActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".AuthCallbackActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="carmen-aios" android:host="auth" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="@string/settings"

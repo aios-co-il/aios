@@ -9,22 +9,23 @@
     android:padding="24dp">
 
     <FrameLayout
-        android:layout_width="280dp"
-        android:layout_height="280dp"
-        android:layout_marginTop="24dp">
+        android:layout_width="270dp"
+        android:layout_height="360dp"
+        android:layout_marginTop="8dp">
 
         <View
-            android:id="@+id/hologram_glow"
+            android:id="@+id/portrait_glow"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@drawable/hologram_glow" />
+            android:background="@drawable/portrait_glow" />
 
         <ImageView
-            android:id="@+id/hologram"
+            android:id="@+id/carmen_portrait"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:contentDescription="@string/app_name"
-            android:src="@drawable/carmen_hologram" />
+            android:scaleType="fitCenter"
+            android:src="@drawable/carmen_portrait" />
     </FrameLayout>
 
     <TextView

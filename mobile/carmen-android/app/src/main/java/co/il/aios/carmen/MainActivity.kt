@@ -23,7 +23,7 @@ import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 
 /**
- * Carmen's home on the phone: the system's own Command Center (her hologram face, chat and
+ * Carmen's home on the phone: the system's own Command Center (chat and
  * live conversation) in a web view, so the phone shows exactly the design of the web app.
  * The wake word, which must work with the screen off, stays native.
  */
@@ -61,7 +61,11 @@ class MainActivity : AppCompatActivity() {
                 if (web.canGoBack()) web.goBack() else finish()
             }
         })
-        if (!account.isSignedIn) startActivity(Intent(this, SettingsActivity::class.java))
+        if (!account.isSignedIn) {
+            startActivity(Intent(this, SignInActivity::class.java))
+            finish()
+            return
+        }
         if (savedInstanceState == null) loadHome() else web.restoreState(savedInstanceState)
     }
 

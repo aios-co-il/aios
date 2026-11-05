@@ -1,45 +1,34 @@
 package co.il.aios.carmen
 
-import android.app.Activity
-import android.view.View
+import android.content.Intent
 import android.webkit.WebStorage
 import android.widget.Button
-import android.widget.EditText
 import android.widget.TextView
-import android.widget.Toast
-import kotlin.concurrent.thread
+import androidx.appcompat.app.AppCompatActivity
 
-/** Sign-in block on the test screen: connects the phone to the user's AIOS account. */
-class AccountSection(private val activity: Activity) {
+/** Account block on the settings screen: who is signed in, and sign in / sign out. */
+class AccountSection(private val activity: AppCompatActivity) {
 
     private val account = AiosAccount(activity)
-    private val title: TextView = activity.findViewById(R.id.aios_title)
     private val status: TextView = activity.findViewById(R.id.account_text)
-    private val email: EditText = activity.findViewById(R.id.email_input)
-    private val password: EditText = activity.findViewById(R.id.password_input)
     private val button: Button = activity.findViewById(R.id.account_button)
 
     init {
-        title.text = activity.getString(R.string.aios_section, BuildConfig.APP_ENV)
-        button.setOnClickListener { if (account.isSignedIn) signOut() else signIn() }
-        render()
+        activity.findViewById<TextView>(R.id.aios_title).text =
+            activity.getString(R.string.aios_section, BuildConfig.APP_ENV)
+        button.setOnClickListener {
+            if (account.isSignedIn) signOut() else activity.startActivity(Intent(activity, SignInActivity::class.java))
+        }
     }
 
-    private fun signIn() {
-        val address = email.text.toString().trim()
-        val secret = password.text.toString()
-        if (address.isEmpty() || secret.isEmpty()) return
-        button.isEnabled = false
-        button.setText(R.string.signing_in)
-        thread(name = "aios-sign-in") {
-            val result = runCatching { account.signIn(address, secret) }
-            activity.runOnUiThread {
-                result.onFailure { Toast.makeText(activity, it.message, Toast.LENGTH_LONG).show() }
-                password.text.clear()
-                button.isEnabled = true
-                render()
-            }
+    fun render() {
+        status.text = when {
+            !account.isConfigured -> activity.getString(R.string.not_configured)
+            account.isSignedIn -> activity.getString(R.string.signed_in_as, account.email)
+            else -> activity.getString(R.string.signed_out)
         }
+        button.isEnabled = account.isConfigured
+        button.setText(if (account.isSignedIn) R.string.sign_out else R.string.sign_in)
     }
 
     private fun signOut() {
@@ -47,19 +36,5 @@ class AccountSection(private val activity: Activity) {
         // Signs the in-app web screen out too (supabase-js keeps its session in localStorage).
         WebStorage.getInstance().deleteAllData()
         render()
-    }
-
-    private fun render() {
-        val signedIn = account.isSignedIn
-        status.text = when {
-            !account.isConfigured -> activity.getString(R.string.not_configured)
-            signedIn -> activity.getString(R.string.signed_in_as, account.email)
-            else -> activity.getString(R.string.signed_out)
-        }
-        val inputs = if (signedIn || !account.isConfigured) View.GONE else View.VISIBLE
-        email.visibility = inputs
-        password.visibility = inputs
-        button.isEnabled = account.isConfigured
-        button.setText(if (signedIn) R.string.sign_out else R.string.sign_in)
     }
 }

@@ -5,11 +5,12 @@ import android.view.View
 import kotlin.math.sin
 
 /**
- * Carmen's hologram on the phone, animated like the Command Center's `CarmenFace`: a slow
- * breathing scale, a glow that pulses while she listens or thinks, and follows her voice while
- * she speaks (smoothed, so it reacts to "is she speaking" rather than every syllable).
+ * Carmen's approved character (`src/assets/carmenCharacterImage.ts`, the marketing-manager
+ * skin's portrait) on the phone: a slow breathing scale, and a glow behind her that pulses while
+ * she listens or thinks and follows her voice while she speaks (smoothed, so it reacts to
+ * "is she speaking" rather than every syllable).
  */
-class HologramFace(private val portrait: View, private val glow: View) : Choreographer.FrameCallback {
+class CarmenPortrait(private val portrait: View, private val glow: View) : Choreographer.FrameCallback {
 
     var state = CarmenSession.State.ACKNOWLEDGING
     private var running = false

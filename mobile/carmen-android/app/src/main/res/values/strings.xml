@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Carmen</string>
+    <string name="brand_name">Carmen Marketing OS</string>
+    <string name="brand_tagline">מנהלת השיווק של העסק שלך</string>
+    <string name="email_label">אימייל</string>
+    <string name="password_label">סיסמה</string>
+    <string name="or">או</string>
+    <string name="sign_in_google">התחבר עם Google</string>
+    <string name="google_opening">ממשיכים ב-Google…</string>
+    <string name="google_failed">ההתחברות עם Google נכשלה: %1$s</string>
+    <string name="env_label">סביבה: %1$s</string>
     <string name="settings">הגדרות כרמן</string>
     <string name="title">כרמן — בדיקת \"היי כרמן\"</string>
     <string name="start_listening">הפעל האזנה</string>

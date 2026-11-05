@@ -3,8 +3,9 @@
 A small native Kotlin app: say "היי כרמן" on the phone, hear "כן, אני מקשיבה", then talk live
 with Carmen. Phase 1 (AIO-348) is the wake word; phase 2 (AIO-352) connects it to Carmen's brain
 through the same Realtime session the web Command Center uses. The home screen is the system's
-own Command Center (Carmen's hologram face, chat and live conversation) in a web view, and the
-wake-word screen shows the same hologram natively. Test report and Go/No-Go:
+own Command Center (chat and live conversation) in a web view, and the wake-word screen shows
+Carmen's approved character natively. Sign-in (email or Google) and settings use the Carmen
+Marketing OS look of the web app's `/auth`. Test report and Go/No-Go:
 [`docs/wake-word-test-report.md`](docs/wake-word-test-report.md).
 
 ## Get the APK
@@ -31,8 +32,10 @@ machine over an existing one fails with a signature error: uninstall first.
 3. Tap **הגדרות חיסכון בסוללה** and set Carmen to _Unrestricted_ / _Not optimized_.
 4. On Android 14+, tap **אישור הצגה על מסך נעול** and allow full-screen notifications, so the
    Carmen screen opens over the lock screen.
-5. Under **חיבור ל-AIOS** (gear button on the home screen), sign in with your AIOS (Staging)
-   email and password. The same sign-in opens the Command Center on the home screen.
+5. On the sign-in screen, sign in with your AIOS (Staging) email and password, or with Google.
+   The same sign-in opens the Command Center on the home screen. Google returns to the app
+   through `carmen-aios://auth/…`, which must be in the Supabase Auth redirect list
+   (`supabase/config.toml`; Production needs it added before a Production build).
 6. Say "היי כרמן", wait for "כן, אני מקשיבה", then ask Carmen anything. Tap **סגור** to end the
    conversation, or **זו הפעלת שווא** to record a false activation. 45 seconds of silence also ends it.
 
@@ -40,23 +43,24 @@ Stop listening from the app or from the notification's **עצור האזנה** a
 
 ## How it works
 
-| Piece                                                              | File                                    |
-| ------------------------------------------------------------------ | --------------------------------------- |
-| Wake phrase rule and recognizer grammar                            | `WakePhrase.kt`                         |
-| Double-activation guard (session + cooldown)                       | `ActivationGate.kt`                     |
-| Offline recognizer (Vosk, English small model, grammar-restricted) | `WakeWordEngine.kt`                     |
-| Microphone foreground service, activation flow                     | `WakeWordService.kt`                    |
-| Hebrew Android Text-to-Speech                                      | `CarmenVoice.kt`                        |
-| CSV event log for the test report                                  | `EventLog.kt`                           |
-| Resume prompt after reboot                                         | `BootReceiver.kt`                       |
-| AIOS sign-in (Supabase Auth) and active tenant                     | `AiosAccount.kt`, `AccountSection.kt`   |
-| Live conversation: Realtime WebSocket, `ask_carmen` tool           | `RealtimeConversation.kt`               |
-| Call audio (echo cancellation, speaker/headset routing)            | `ConversationAudio.kt`                  |
-| Carmen's brain (`run-ai-agent` stream)                             | `CarmenBrain.kt`                        |
-| Carmen screen state and transcript                                 | `CarmenSession.kt`, `CarmenActivity.kt` |
-| Home screen: Command Center web view, one sign-in for both         | `MainActivity.kt`                       |
-| Hologram face animation                                            | `HologramFace.kt`                       |
-| Settings and test screen                                           | `SettingsActivity.kt`                   |
+| Piece                                                              | File                                           |
+| ------------------------------------------------------------------ | ---------------------------------------------- |
+| Wake phrase rule and recognizer grammar                            | `WakePhrase.kt`                                |
+| Double-activation guard (session + cooldown)                       | `ActivationGate.kt`                            |
+| Offline recognizer (Vosk, English small model, grammar-restricted) | `WakeWordEngine.kt`                            |
+| Microphone foreground service, activation flow                     | `WakeWordService.kt`                           |
+| Hebrew Android Text-to-Speech                                      | `CarmenVoice.kt`                               |
+| CSV event log for the test report                                  | `EventLog.kt`                                  |
+| Resume prompt after reboot                                         | `BootReceiver.kt`                              |
+| AIOS sign-in (Supabase Auth) and active tenant                     | `AiosAccount.kt`, `AccountSection.kt`          |
+| Live conversation: Realtime WebSocket, `ask_carmen` tool           | `RealtimeConversation.kt`                      |
+| Call audio (echo cancellation, speaker/headset routing)            | `ConversationAudio.kt`                         |
+| Carmen's brain (`run-ai-agent` stream)                             | `CarmenBrain.kt`                               |
+| Carmen screen state and transcript                                 | `CarmenSession.kt`, `CarmenActivity.kt`        |
+| Home screen: Command Center web view, one sign-in for both         | `MainActivity.kt`                              |
+| Carmen portrait animation                                          | `CarmenPortrait.kt`                            |
+| Settings and test screen                                           | `SettingsActivity.kt`                          |
+| Sign-in screen and Google sign-in callback                         | `SignInActivity.kt`, `AuthCallbackActivity.kt` |
 
 The wake word runs on the phone only. Audio goes to OpenAI only during a conversation after the
 wake word, using a short-lived key from `carmen-realtime-session`; the OpenAI key never reaches the
