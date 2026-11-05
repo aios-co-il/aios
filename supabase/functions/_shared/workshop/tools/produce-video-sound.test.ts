@@ -184,8 +184,9 @@ Deno.test(
       { defaultEngine: async () => "elevenlabs" as const },
     )) as Record<string, any>;
     assertStrictEquals(asked.needs_budget, true);
-    // 1000 characters at $0.12, and a bed for 6 s planned (15.4 s with headroom) at $0.50 a minute.
-    assertStrictEquals(asked.estimated_usd, 0.25);
+    // 1000 plain Hebrew characters sent as 1700 with nikud at $0.12 per 1000, and a bed for 6 s
+    // planned (15.4 s with headroom) at $0.50 a minute.
+    assertStrictEquals(asked.estimated_usd, 0.33);
   },
 );
 
@@ -227,8 +228,8 @@ Deno.test(
     assertStrictEquals(again.clips.usd, 0.6);
     assertStrictEquals(again.voice.usd, 0);
     assertStrictEquals(again.music.usd, 0);
-    // A new voice narrates the whole script again.
+    // A new voice narrates the whole script again (1700 characters with nikud).
     const tamar = await produce({ voice_id: "p7J75VowGmxi3K0it9lN" });
-    assertStrictEquals(tamar.voice.usd, 0.12);
+    assertStrictEquals(tamar.voice.usd, 0.2);
   },
 );
