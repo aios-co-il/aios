@@ -1,7 +1,7 @@
 import { hasIntegrationId } from "@/lib/integrationIdentity";
+import { readIntegrationSettings } from "./userIntegrationSettings";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   CLIENT_INTEGRATION_COLUMNS,
@@ -190,16 +190,4 @@ export function useHasIntegrationAccess(
 ) {
   const { data: integrations } = useUserIntegrations(tenantId, integrationType);
   return (integrations || []).length > 0;
-}
-
-/** Decode the settings JSON boundary before exposing it to client mappers. */
-function readIntegrationSettings(settings: Json | null) {
-  if (
-    settings === null ||
-    (typeof settings === "object" && !Array.isArray(settings))
-  ) {
-    return settings;
-  }
-  console.error("Ignoring malformed integration settings");
-  return null;
 }
