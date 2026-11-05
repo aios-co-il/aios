@@ -16,46 +16,55 @@ const LISTEN =
   "האזינו לה: אם מילה נשמעת לא נכון, כתבו איזו מילה ואיך אומרים אותה, ואשמור את ההגייה לכל הסרטים הבאים בסדנה.";
 export const NARRATION_QUESTION = `הקריינות מוכנה בלוח (עמוד "קריינות"). ${LISTEN}\n${NARRATION_CHOICE}`;
 /**
- * While the take is being recorded there is nothing to hear, so no approval tap: a tap then would
- * approve a take the user never heard. NARRATION_QUESTION asks once it is on the board.
+ * The take was still recording when produce_video stopped waiting for it (narration-review.ts).
+ * No approval tap: a tap now would approve a take the user has not heard. Their reply once it is
+ * on the board approves that take (narrationApprovedNow), so nothing waits on a callback.
  */
-export const NARRATION_COMING = `הקריינות מוקלטת עכשיו ותופיע בלוח בעוד כחצי דקה (עמוד "קריינות"). כשתהיה מוכנה אשאל אם לאשר אותה.`;
+export const NARRATION_COMING = `הקריינות עדיין מוקלטת ותופיע בלוח בעוד רגע (עמוד "קריינות"). כשתופיע, האזינו לה וכתבו "${APPROVE_NARRATION}", או איזו מילה לתקן ואיך אומרים אותה.`;
 /**
  * payload.video: the voice run the last narration message was about, the turn it was sent in,
- * whether that take was on the board (NARRATION_QUESTION, not NARRATION_COMING), the approved run.
+ * whether that take was on the board (NARRATION_QUESTION), whether the user was told to answer
+ * once it appears (NARRATION_COMING), the approved run.
  */
 export const ASKED_RUN = "asked_narration_run";
 export const ASKED_TURN = "asked_narration_turn";
 export const ASKED_SHOWN = "asked_narration_shown";
+export const ASKED_WHEN_READY = "asked_narration_when_ready";
 export const APPROVED_RUN = "approved_narration_run";
 
 /**
- * The user approved, in this turn, the take the question in Carmen's last message showed: a tap,
- * a bare approval word, or their words Carmen read as approval (narration_approved). Only for the
- * take the question showed on the board, in an earlier turn, and never when they tapped "לתקן".
+ * The user approved, in this turn, the take Carmen's last narration message was about: a tap, a
+ * bare approval word, or their words Carmen read as approval (narration_approved). Only for that
+ * take, asked in an earlier turn, and never when they tapped "לתקן". The question showed the take
+ * on the board; after NARRATION_COMING the caller passes only the finished take that message was
+ * about (reviewTake), so the user's reply once it appeared counts the same way.
  */
 export function narrationApprovedNow(
   ctx: Pick<ToolContext, "args" | "deps">,
   video: Record<string, unknown>,
   runId: string,
 ) {
+  const userText = ctx.deps.userText ?? "";
   const answer = approvalAnswer(
     ctx.deps.lastAssistant ?? "",
-    ctx.deps.userText ?? "",
+    userText,
     NARRATION_LABEL,
     APPROVE_NARRATION,
   );
   if (
-    !answer.asked ||
     answer.change ||
+    userText.trim() === "" ||
+    userText.trim() === CHANGE_SCRIPT ||
     !askedEarlier(video, ctx.deps.turnId) ||
-    video[ASKED_SHOWN] !== true
+    video[ASKED_RUN] !== runId
   ) {
     return false;
   }
+  const answerable =
+    (video[ASKED_SHOWN] === true && answer.asked) ||
+    video[ASKED_WHEN_READY] === true;
   return (
-    video[ASKED_RUN] === runId &&
-    (ctx.args.narration_approved === true || answer.approved)
+    answerable && (ctx.args.narration_approved === true || answer.approved)
   );
 }
 

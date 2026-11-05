@@ -56,3 +56,41 @@ export async function loadTake(
     },
   };
 }
+
+/**
+ * How long produce_video waits for the take it queued, and how often it looks. Nothing calls
+ * Carmen back when the take is done, so the question is asked in the same call when it can be;
+ * the wait stays inside the edge function's time limit (as STILLS_BUDGET_MS does for pictures).
+ */
+const TAKE_WAIT_MS = 45_000;
+const TAKE_POLL_MS = 2_000;
+
+/**
+ * The take once voice run `runId` is no longer recording (or a newer run replaced it), null when
+ * it still is after TAKE_WAIT_MS, or the error that stopped the reading.
+ */
+export async function waitForTake(
+  supabase: Db,
+  itemId: string,
+  runId: string,
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((done) => setTimeout(done, ms)),
+): Promise<NarrationTake | { error: string } | null> {
+  const startedAt = Date.now();
+  for (
+    let waited = 0;
+    waited < TAKE_WAIT_MS && Date.now() - startedAt < TAKE_WAIT_MS;
+    waited += TAKE_POLL_MS
+  ) {
+    await sleep(TAKE_POLL_MS);
+    const loaded = await loadTake(supabase, itemId);
+    if ("error" in loaded) {
+      return loaded;
+    }
+    const take = loaded.take;
+    if (take && (take.last_run_id !== runId || !take.in_flight)) {
+      return take;
+    }
+  }
+  return null;
+}

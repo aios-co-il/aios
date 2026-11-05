@@ -177,8 +177,8 @@ Deno.test(
     ]);
     assertStringIncludes(saved.error, "הקריינות קצרה מדי");
     assertStringIncludes(saved.error, "שורה 2: 3 מילים, ונכנסות עד 5");
-    // A beat within one word of its most is not listed.
-    assert(!saved.error.includes("שורה 1:"), saved.error);
+    // A beat one word short of its most is listed too: every word that fits counts.
+    assertStringIncludes(saved.error, "שורה 1: 4 מילים, ונכנסות עד 5");
     assertStrictEquals(
       db.calls.some((c) => c.table === "workshop_artifacts"),
       false,

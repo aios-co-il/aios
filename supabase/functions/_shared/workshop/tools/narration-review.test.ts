@@ -4,11 +4,7 @@ import {
   assertMatch,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
-import {
-  APPROVE_NARRATION,
-  NARRATION_COMING,
-  NARRATION_QUESTION,
-} from "./narration-approval.ts";
+import { NARRATION_COMING, NARRATION_QUESTION } from "./narration-approval.ts";
 import {
   ASKED,
   NO_TAKE,
@@ -44,7 +40,7 @@ Deno.test(
     assertStrictEquals(last.asked_narration_turn, "turn-2");
     // Nothing to hear yet: the message carries no approval tap.
     assertStrictEquals(last.asked_narration_shown, false);
-    assert(!NARRATION_COMING.includes(APPROVE_NARRATION));
+    assert(!NARRATION_COMING.includes("[[בחירה"));
     assertStrictEquals(last.recorded_narration_script, SCRIPT);
   },
 );

@@ -74,7 +74,12 @@ export function film(
 /** produce_video in turn-2, the budget approved, with what the user said and Carmen last asked. */
 export const produce = (
   db: Db,
-  deps: { userText?: string; lastAssistant?: string; turnId?: string } = {},
+  deps: {
+    userText?: string;
+    lastAssistant?: string;
+    turnId?: string;
+    sleep?: (ms: number) => Promise<void>;
+  } = {},
   args: Record<string, unknown> = {},
 ) =>
   executeWorkshopTool(
@@ -90,9 +95,39 @@ export const produce = (
       turnId: "turn-2",
       approvedOutOfBand: true,
       defaultEngine: async () => "elevenlabs" as const,
+      // The take is polled while it records; tests do not wait between polls.
+      sleep: async () => {},
       ...deps,
     },
   ) as Promise<Reply>;
+
+/**
+ * workshop_narration_take answers each read with the next of `takes`, then keeps the last: the
+ * first read is produce_video's own, the rest are its polls while the take records.
+ */
+export function takesInTurn(db: Db, takes: Array<Record<string, unknown>>) {
+  const read = db.rpc;
+  let reads = 0;
+  db.rpc = (name: string, value: unknown) => {
+    if (name === "workshop_narration_take") {
+      db.script["rpc:workshop_narration_take"] =
+        takes[Math.min(reads++, takes.length - 1)];
+    }
+    return read(name, value);
+  };
+}
+
+/** The take of voice-run-2 (the run film() queues) while it records, and once on the board. */
+export const RECORDING = {
+  ...NO_TAKE,
+  last_run_id: "voice-run-2",
+  last_run_status: "running",
+};
+export const RECORDED = {
+  ...TAKE,
+  run_id: "voice-run-2",
+  last_run_id: "voice-run-2",
+};
 
 export const rpc = (db: Db, name: string) =>
   db.calls.filter((c) => c.table === `rpc:${name}`);

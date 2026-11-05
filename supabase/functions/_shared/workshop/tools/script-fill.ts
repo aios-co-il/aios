@@ -6,7 +6,6 @@
 
 import type { ScriptBeat } from "../film-script.ts";
 import {
-  FILL_SLACK_WORDS,
   MIN_FILL,
   PACE_GUIDE,
   WORDS_PER_SECOND,
@@ -20,9 +19,10 @@ import {
  * Why the narration is too short for its beats, with every narrated beat that can take more words
  * and how many, or null when it fills at least MIN_FILL of what its beats can hold. A beat holds
  * maxWords whole words plus its pauses, not its full length (a 2.2-second beat holds 3 words, 1.8
- * seconds), so a script filled to its maxWords always saves. With no beat that can take more
- * words the script saves too: the refusal only ever asks for words that fit. Beats without
- * narration (an on-screen-only beat) are left out of both sides.
+ * seconds), so MIN_FILL can always be reached by adding words and a script filled to its maxWords
+ * always saves. The refusal lists every beat with room for even one more word: a word short in each
+ * of five 3-second beats is 4 of 5 words everywhere, about 82%. Beats without narration (an
+ * on-screen-only beat) are left out of both sides.
  */
 export function fillRefusal(beats: Array<ScriptBeat>): string | null {
   const narrated = beats
@@ -42,11 +42,12 @@ export function fillRefusal(beats: Array<ScriptBeat>): string | null {
     0,
   );
   const room = narrated.flatMap(({ index, words, fits }) =>
-    fits - words > FILL_SLACK_WORDS
+    fits > words
       ? [`שורה ${index + 1}: ${words} מילים, ונכנסות עד ${fits}`]
       : [],
   );
-  if (room.length === 0 || spoken >= holds * MIN_FILL) {
+  // No room means every beat is at its maxWords, so the fill is already whole.
+  if (spoken >= holds * MIN_FILL || room.length === 0) {
     return null;
   }
   const percent = Math.round((spoken / holds) * 100);

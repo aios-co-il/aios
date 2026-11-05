@@ -2,26 +2,28 @@
  * Semi-automatic mode: the user hears the narration before anything is animated. Dicta's nikud
  * still left words said wrong (Staging, 5 Nov: "מכירות" came out "מחירות"), and a wrong word was
  * only heard in the finished film, after every clip was paid for. Once the voice is chosen,
- * produce_video records the narration alone (narration-take.ts), the take lands on the board as a
- * "קריינות" page, and production waits for the user's approval of that take. Corrections are
- * tenant-wide pronunciations (save-pronunciation.ts); a changed one, a new script or a new voice
- * records the narration again. The approved take is the film's narration: produce_video queues
+ * produce_video records the narration alone (narration-take.ts), waits for the take to land on
+ * the board as a "קריינות" page (narration-ask.ts), and production waits for the user's approval
+ * of that take. Corrections are tenant-wide pronunciations (save-pronunciation.ts); a changed one,
+ * a new script or a new voice records the narration again. The approved take is the film's narration: produce_video queues
  * no voice run while video_narration_ready holds.
  */
 
 import { savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
-import type { ToolContext } from "../tool-context.ts";
 import { isAutoMode } from "../workshop-mode.ts";
 import {
   APPROVED_RUN,
   ASKED_RUN,
-  ASKED_SHOWN,
-  ASKED_TURN,
-  NARRATION_COMING,
   NARRATION_QUESTION,
   narrationApprovedNow,
 } from "./narration-approval.ts";
+import {
+  askAbout,
+  awaitTake,
+  failedStop,
+  type ReviewContext,
+} from "./narration-ask.ts";
 import {
   RECORDED_SCRIPT,
   narrationScript,
@@ -29,14 +31,6 @@ import {
   type NarrationPlan,
 } from "./narration-take.ts";
 import { loadTake, type NarrationTake } from "./narration-take-state.ts";
-
-const CARMEN_NEXT =
-  'הקריינות מחכה לאישור המשתמש (מצב חצי אוטומטי). say_to_user נשלח למשתמש כמו שהוא; עצרי. אישר (בכפתור, או במילים כמו "מאשר"): קראי שוב ל-workshop_produce_video, ובאישור במילים עם narration_approved=true. מילה נשמעת לא נכון: workshop_save_pronunciation ואז workshop_produce_video, שמקליט מחדש. ביקש הקלטה חדשה בלי תיקון: workshop_produce_video עם redo_narration=true.';
-
-type ReviewContext = Pick<
-  ToolContext,
-  "supabase" | "tenantId" | "args" | "deps"
->;
 
 /**
  * Before produce_video quotes the film: the payload when the narration is approved (or needs no
@@ -65,14 +59,8 @@ export async function narrationStep(
     return { payload };
   }
   const video = asRecord(payload.video);
-  if (take.in_flight) {
-    return await askAbout(
-      ctx,
-      itemId,
-      payload,
-      take.last_run_id,
-      NARRATION_COMING,
-    );
+  if (take.in_flight && take.last_run_id) {
+    return await awaitTake(ctx, itemId, payload, take.last_run_id);
   }
   if (isFresh(take, ctx.args) && !plan.newVoice) {
     return await reviewTake(ctx, itemId, payload, take.run_id);
@@ -88,13 +76,7 @@ export async function narrationStep(
   if ("error" in recorded || "stop" in recorded) {
     return { stop: "stop" in recorded ? recorded.stop : recorded };
   }
-  return await askAbout(
-    ctx,
-    itemId,
-    recorded.payload,
-    recorded.runId,
-    NARRATION_COMING,
-  );
+  return await awaitTake(ctx, itemId, recorded.payload, recorded.runId);
 }
 
 /**
@@ -117,35 +99,6 @@ async function reviewTake(
   const next = { ...payload, video: { ...video, [APPROVED_RUN]: runId } };
   await savePayload(ctx.supabase, ctx.tenantId, itemId, next);
   return { payload: next };
-}
-
-/** Records which take the question shows and the turn it is asked in, and stops with it. */
-async function askAbout(
-  ctx: ReviewContext,
-  itemId: string,
-  payload: Record<string, unknown>,
-  runId: string | null,
-  question: string,
-) {
-  const video = asRecord(payload.video);
-  await savePayload(ctx.supabase, ctx.tenantId, itemId, {
-    ...payload,
-    video: {
-      ...video,
-      [ASKED_RUN]: runId,
-      [ASKED_TURN]: ctx.deps.turnId ?? null,
-      [ASKED_SHOWN]: question === NARRATION_QUESTION,
-    },
-  });
-  return {
-    stop: {
-      needs_input: true,
-      missing: ["narration"],
-      ...(question === NARRATION_COMING ? { narration: "recording" } : {}),
-      say_to_user: question,
-      carmen_next: CARMEN_NEXT,
-    },
-  };
 }
 
 /** The newest take reads the current script in the project's voice and current pronunciations. */
@@ -176,13 +129,3 @@ const changedSinceRecording = (
   plan.newVoice ||
   take.pronunciations_since_last_run ||
   video[RECORDED_SCRIPT] !== narrationScript(plan.scenes);
-
-/** What produce_video answers when the narration recording failed: say why, record again only on request. */
-const failedStop = (error: string | null) => ({
-  needs_input: true,
-  missing: ["narration"],
-  narration: "failed",
-  error: error ?? "הקלטת הקריינות נכשלה",
-  carmen_next:
-    "הקלטת הקריינות נכשלה. אמרי למשתמש במשפט אחד למה (error) ושאלי אם לנסות שוב. רק אם ביקש: workshop_produce_video עם redo_narration=true.",
-});

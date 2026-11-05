@@ -79,12 +79,15 @@ export function applyPronunciations(
   return { text, used };
 }
 
-/** The word said its pronunciation's way (with its own prefix letters), or null when none names it. */
+/**
+ * The word said its pronunciation's way (with its own prefix letters), or null when none names it.
+ * A one-letter word matches too (as in workshop_narration_take); prefix letters always leave one.
+ */
 function sayWord(core: string, pronunciations: Pronunciations) {
   const plain = plainWord(core);
   for (
     let prefix = 0;
-    prefix <= MAX_PREFIX && prefix < plain.length - 1;
+    prefix <= MAX_PREFIX && prefix < plain.length;
     prefix++
   ) {
     const head = Array.from(plain.slice(0, prefix));

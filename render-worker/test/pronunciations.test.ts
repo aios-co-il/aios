@@ -24,6 +24,13 @@ describe("applyPronunciations", () => {
     expect(applyPronunciations("כַּרְמֵן כאן", SAID).text).toBe("קַרְמֶן כאן");
   });
 
+  test("matches a one-letter word, alone or after a prefix letter", () => {
+    const letter = { ש: "שִׁין" };
+    expect(applyPronunciations("ש, וש.", letter).text).toBe("שִׁין, ושִׁין.");
+    // Prefix letters alone never strip down to an empty word.
+    expect(applyPronunciations("ו", { ו: "וָו" }).text).toBe("וָו");
+  });
+
   test("leaves other words alone, also ones that only contain a named word", () => {
     const out = applyPronunciations("כרמנית מכירותיים", SAID);
     expect(out.text).toBe("כרמנית מכירותיים");
