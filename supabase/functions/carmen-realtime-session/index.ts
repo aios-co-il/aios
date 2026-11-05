@@ -22,6 +22,17 @@ const corsHeaders = {
 
 const REALTIME_MODEL = "gpt-realtime";
 
+// When Carmen answers: after 350 ms of silence (the default waits longer and felt slow,
+// David 5 Nov), keeping speech that started 300 ms earlier; she can still be interrupted.
+const TURN_DETECTION = {
+  type: "server_vad",
+  threshold: 0.5,
+  prefix_padding_ms: 300,
+  silence_duration_ms: 350,
+  create_response: true,
+  interrupt_response: true,
+};
+
 // Mirrors resolveOpenAIKey in _shared/ai.ts (kept local so this function stays
 // single-file deployable): env var first, then the active llm integration row.
 async function resolveOpenAIKey(): Promise<string | null> {
@@ -135,6 +146,7 @@ Deno.serve(async (req) => {
               // A phone or laptop mic close to the speaker: filtering room noise keeps it
               // from being heard as a request.
               noise_reduction: { type: "near_field" },
+              turn_detection: TURN_DETECTION,
             },
             output: { voice: selectedVoice },
           },
