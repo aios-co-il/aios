@@ -5,7 +5,7 @@ import { callerAddressLine, userAddressLine } from "./user-address.ts";
 describe("userAddressLine", () => {
   it("addresses a man in the masculine", () => {
     const line = userAddressLine("דוד קסטלנואובו", "male");
-    assertMatch(line, /את מדברת עם דוד קסטלנואובו/);
+    assertMatch(line, /המשתמש בשיחה: דוד קסטלנואובו/);
     assertMatch(line, /בלשון זכר/);
     assertNotMatch(line, /בלשון נקבה \(/);
   });
@@ -23,12 +23,12 @@ describe("userAddressLine", () => {
 
   it("still sets the rule when the name is unknown", () => {
     const line = userAddressLine("   ", null);
-    assertNotMatch(line, /את מדברת עם/);
+    assertNotMatch(line, /המשתמש בשיחה:/);
     assertMatch(line, /בלשון רבים/);
   });
 
   it("says the feminine instructions are for Carmen, not the user", () => {
-    assertMatch(userAddressLine(null, "male"), /מופנות אלייך, כרמן/);
+    assertMatch(userAddressLine(null, "male"), /מופנות אלייך, הסוכן/);
   });
 });
 
@@ -52,7 +52,7 @@ describe("callerAddressLine", () => {
       error: null,
     });
     const line = await callerAddressLine(profile, "u1", null);
-    assertMatch(line, /את מדברת עם דוד\./);
+    assertMatch(line, /המשתמש בשיחה: דוד\./);
     assertMatch(line, /בלשון זכר/);
   });
 
@@ -62,14 +62,14 @@ describe("callerAddressLine", () => {
       error: null,
     });
     const line = await callerAddressLine(profile, "u1", "מחלקת קופי");
-    assertMatch(line, /את מדברת עם דוד\./);
+    assertMatch(line, /המשתמש בשיחה: דוד\./);
     assertNotMatch(line, /מחלקת קופי/);
   });
 
   it("falls back to the request name, in the plural, without a profile", async () => {
     const missing = db({ data: null, error: null });
     const line = await callerAddressLine(missing, "u1", "מחלקת קופי");
-    assertMatch(line, /את מדברת עם מחלקת קופי\./);
+    assertMatch(line, /המשתמש בשיחה: מחלקת קופי\./);
     assertMatch(line, /בלשון רבים/);
   });
 

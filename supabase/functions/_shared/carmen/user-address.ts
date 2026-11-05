@@ -25,8 +25,9 @@ export function userAddressLine(
   gender: AddressGender,
 ): string {
   const name = (fullName ?? "").trim();
-  const who = name ? `את מדברת עם ${name}. ` : "";
-  return `\n\n🙋 **פנייה למשתמש:** ${who}${ADDRESS_RULE[gender ?? "unknown"]} ההוראות בלשון נקבה בפרומפט מופנות אלייך, כרמן, לא למשתמש.`;
+  const who = name ? `המשתמש בשיחה: ${name}. ` : "";
+  // Agent-neutral: run-ai-agent also runs custom agents, not only Carmen.
+  return `\n\n🙋 **פנייה למשתמש:** ${who}${ADDRESS_RULE[gender ?? "unknown"]} הוראות בלשון נקבה או זכר בפרומפט מופנות אלייך, הסוכן, לא למשתמש.`;
 }
 
 /**
