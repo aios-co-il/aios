@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserIntegrations } from "@/hooks/useUserIntegrations";
 import type { Json } from "@/integrations/supabase/types";
 import type { ClientIntegration } from "@/lib/tenantIntegrationsClient";
-import { asJsonObject, isJsonObject } from "@/lib/jsonReaders";
+import { asJsonObject } from "@/lib/jsonReaders";
 import { toGscSites, type GscSite } from "./gscSites";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

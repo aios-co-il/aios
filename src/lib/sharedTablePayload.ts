@@ -27,9 +27,10 @@ export interface SharedTableRecord {
   data: JsonObject;
 }
 
+/** A `crm_fields` column of the shared table: its data key and display name. */
 export interface SharedTableField {
-  field_key?: string;
-  field_label?: string;
+  key: string;
+  label: string;
 }
 
 export interface SharedTableInfo {
@@ -84,7 +85,9 @@ const sharedTableInfoSchema = z
   .catch(undefined);
 
 const sharedTableFieldList = listOf(
-  z.object({ field_key: optionalString, field_label: optionalString }),
+  z
+    .object({ key: z.string(), name: z.string().catch("") })
+    .transform(({ key, name }): SharedTableField => ({ key, label: name })),
 );
 
 const sharedTableBodySchema = objectBody.pipe(

@@ -64,6 +64,12 @@ export function TaskSheet({ taskId, onClose }: Props) {
                   <Badge variant="secondary">{task.priority}</Badge>
                 )}
               </div>
+              {task.notes && (
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">תיאור</div>
+                  <p className="text-xs whitespace-pre-wrap">{task.notes}</p>
+                </div>
+              )}
               {task.due_date && (
                 <div>
                   <div className="text-xs text-slate-500">תאריך יעד</div>

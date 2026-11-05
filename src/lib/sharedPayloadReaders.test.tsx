@@ -36,7 +36,7 @@ describe("toSharedTablePayload", () => {
     const payload = toSharedTablePayload({
       table: { id: "t1", name: "SEO", integration_type: "ahrefs" },
       records: [],
-      fields: [{ key: "k", name: "K" }],
+      fields: [{ key: "k", name: "K" }, { name: "no key" }],
       ahrefs_reports: [report, { id: "bad" }],
       gsc_records: [{ data: { query: "shoes", clicks: 3 } }],
       gsc_multi_period: {
@@ -55,9 +55,7 @@ describe("toSharedTablePayload", () => {
     });
     expect(payload.table).toMatchObject({ id: "t1" });
     expect(payload.table?.client_id).toBeUndefined();
-    expect(payload.fields).toEqual([
-      { field_key: undefined, field_label: undefined },
-    ]);
+    expect(payload.fields).toEqual([{ key: "k", label: "K" }]);
     expect(payload.ahrefs_reports?.map((r) => r.id)).toEqual(["r1"]);
     expect(payload.gsc_records).toEqual([
       { id: undefined, data: { query: "shoes", clicks: 3 } },

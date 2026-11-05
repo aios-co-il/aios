@@ -1,21 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import {
-  createClient,
-  type SupabaseClient,
-} from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { syncClientCardFromReportTable } from "../_shared/client-report-sync.ts";
-import type {
-  Database,
-  Tables,
-  TablesUpdate,
-} from "../_shared/database.types.ts";
+import type { Tables, TablesUpdate } from "../_shared/database.types.ts";
+import {
+  type DbClient,
+  serviceClient,
+  userClient,
+} from "../_shared/supabase-clients.ts";
 import {
   asJsonObject,
   isJsonObject,
   type JsonObject,
 } from "../_shared/crm-json.ts";
 
-type AdminClient = SupabaseClient<Database>;
 type CrmTableRow = Tables<"crm_tables">;
 
 const corsHeaders = {
@@ -32,7 +28,7 @@ interface CampaignerScope {
 }
 
 async function userHasSeoScope(
-  admin: AdminClient,
+  admin: DbClient,
   userId: string,
 ): Promise<boolean> {
   const { data: hasScope, error } = await admin.rpc("user_has_seo_scope", {
@@ -69,7 +65,7 @@ async function userHasSeoScope(
 }
 
 async function getSeoClientIds(
-  admin: AdminClient,
+  admin: DbClient,
   userId: string,
 ): Promise<Set<string> | null> {
   if (!(await userHasSeoScope(admin, userId))) return null;
@@ -85,7 +81,7 @@ async function getSeoClientIds(
 // policies for campaigners, so the service-role fallbacks below authorize
 // against this scope explicitly instead of widening RLS.
 async function getCampaignerScope(
-  admin: AdminClient,
+  admin: DbClient,
   userId: string,
 ): Promise<CampaignerScope | null> {
   const [{ data: campaignerRole }, { data: profileRow }] = await Promise.all([
@@ -122,7 +118,7 @@ async function getCampaignerScope(
 }
 
 async function isClientInCampaignerScope(
-  admin: AdminClient,
+  admin: DbClient,
   clientId: string,
   scope: CampaignerScope,
 ): Promise<boolean> {
@@ -133,13 +129,6 @@ async function isClientInCampaignerScope(
     .eq("id", clientId)
     .maybeSingle();
   return !!clientRow?.agency_id && scope.agencyIds.has(clientRow.agency_id);
-}
-
-function serviceRoleClient(): AdminClient {
-  return createClient<Database>(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
 }
 
 /** Match crm_tables.client_id and legacy integration_settings.clientId. */
@@ -170,11 +159,7 @@ async function syncClientCardAfterTableChange(
   if (!tableRow?.client_id || !tableRow?.integration_type) return;
   const settings = tableRow.integration_settings;
   try {
-    const reportSyncClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
-    await syncClientCardFromReportTable(reportSyncClient, {
+    await syncClientCardFromReportTable(serviceClient(), {
       ...tableRow,
       integration_settings: isJsonObject(settings) ? settings : null,
     });
@@ -189,15 +174,7 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient<Database>(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      },
-    );
+    const supabase = userClient(req.headers.get("Authorization") ?? "");
 
     const {
       data: { user },
@@ -504,7 +481,7 @@ serve(async (req) => {
         // RLS blocked the insert (crm_tables has no INSERT policy for campaigners).
         // A campaigner or SEO user may still create a table for clients in scope —
         // verify explicitly and insert with the service role.
-        const admin = serviceRoleClient();
+        const admin = serviceClient();
         const scope = await getCampaignerScope(admin, user.id);
         const seoClientIds = scope
           ? null
@@ -651,7 +628,7 @@ serve(async (req) => {
           return forbidden("אין לך הרשאה לעדכן את הטבלה הזו");
         }
 
-        const admin = serviceRoleClient();
+        const admin = serviceClient();
 
         const { data: tableRow, error: tableErr } = await admin
           .from("crm_tables")

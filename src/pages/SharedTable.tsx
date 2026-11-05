@@ -369,18 +369,11 @@ export default function SharedTable() {
   // Generic table columns from fields or data keys
   const genericColumns = useMemo(() => {
     if (isIntegrationTable) return [];
-    if (!data?.records?.length)
-      return (
-        data?.fields?.map((f) => ({
-          key: f.field_key ?? "",
-          label: f.field_label,
-        })) || []
-      );
-    if (data?.fields?.length) {
-      return data.fields.map((f) => ({
-        key: f.field_key ?? "",
-        label: f.field_label,
-      }));
+    if (!data?.records?.length) {
+      return data?.fields ?? [];
+    }
+    if (data.fields?.length) {
+      return data.fields;
     }
     const keys = Object.keys(data.records[0]?.data || {}).filter(
       (k: string) => !k.startsWith("_") && k !== "report_type",
