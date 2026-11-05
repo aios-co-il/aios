@@ -1,0 +1,12 @@
+{
+  "name": "higgsfield-seedance-example",
+  "private": true,
+  "type": "module",
+  "description": "Seedance 2.5 text-to-video through the official Higgsfield SDK. Server-side only; kept out of the app bundle.",
+  "scripts": {
+    "start": "node --experimental-strip-types index.ts"
+  },
+  "dependencies": {
+    "@higgsfield/client": "0.2.6"
+  }
+}

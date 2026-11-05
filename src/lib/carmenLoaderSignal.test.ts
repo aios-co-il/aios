@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import {
   __resetCarmenLoaderSignalForTests,
   cancelCarmenFadeOutGhosts,
@@ -12,11 +11,11 @@ import {
   wouldLegacyEagerSpawnGhost,
 } from "./carmenLoaderSignal.ts";
 
-test.beforeEach(() => {
+beforeEach(() => {
   __resetCarmenLoaderSignalForTests();
 });
 
-test.afterEach(() => {
+afterEach(() => {
   __resetCarmenLoaderSignalForTests();
 });
 
@@ -34,13 +33,13 @@ test("scene hand-off cancels the fade-out ghost", () => {
 
   releaseSuspense();
   // Pre-fix eager path would spawn here (idle snapshot during the gap).
-  assert.equal(wouldLegacyEagerSpawnGhost(), true);
-  assert.equal(ghostAlive, true);
-  assert.equal(carmenSceneJustEnded(), true);
+  expect(wouldLegacyEagerSpawnGhost()).toBe(true);
+  expect(ghostAlive).toBe(true);
+  expect(carmenSceneJustEnded()).toBe(true);
 
   const releasePage = registerCarmenScene();
-  assert.equal(ghostAlive, false);
-  assert.equal(getCarmenLoaderSnapshot().scenes, 1);
+  expect(ghostAlive).toBe(false);
+  expect(getCarmenLoaderSnapshot().scenes).toBe(1);
   releasePage();
 });
 
@@ -51,9 +50,9 @@ test("scene→content dissolve keeps the ghost (nothing cancels it)", () => {
     ghostAlive = false;
   });
   release();
-  assert.equal(ghostAlive, true);
-  assert.equal(cancelCarmenFadeOutGhosts(), 1);
-  assert.equal(ghostAlive, false);
+  expect(ghostAlive).toBe(true);
+  expect(cancelCarmenFadeOutGhosts()).toBe(1);
+  expect(ghostAlive).toBe(false);
 });
 
 test("wait registration also cancels a pending ghost", () => {
@@ -64,36 +63,36 @@ test("wait registration also cancels a pending ghost", () => {
   });
   release();
   const wait = registerCarmenWait();
-  assert.equal(ghostAlive, false);
+  expect(ghostAlive).toBe(false);
   wait();
 });
 
 test("content fade must not run while Carmen is covering the route", () => {
-  assert.equal(shouldFadeRouteContent(), true);
+  expect(shouldFadeRouteContent()).toBe(true);
 
   const wait = registerCarmenWait();
-  assert.equal(shouldFadeRouteContent(), false);
+  expect(shouldFadeRouteContent()).toBe(false);
   wait();
 
   const scene = registerCarmenScene();
-  assert.equal(shouldFadeRouteContent(), false);
+  expect(shouldFadeRouteContent()).toBe(false);
   scene();
-  assert.equal(shouldFadeRouteContent(), true);
+  expect(shouldFadeRouteContent()).toBe(true);
 });
 
 test("continued hand-off window stays open after a scene ends", () => {
   const release = registerCarmenScene();
   release();
-  assert.equal(carmenSceneJustEnded(), true);
-  assert.equal(carmenSceneJustEnded(0), false);
+  expect(carmenSceneJustEnded()).toBe(true);
+  expect(carmenSceneJustEnded(0)).toBe(false);
 });
 
 test("wait then scene escalation keeps a single loading moment", () => {
   const releaseWait = registerCarmenWait();
-  assert.deepEqual(getCarmenLoaderSnapshot(), { waiting: 1, scenes: 0 });
+  expect(getCarmenLoaderSnapshot()).toStrictEqual({ waiting: 1, scenes: 0 });
   releaseWait();
   const releaseScene = registerCarmenScene();
-  assert.deepEqual(getCarmenLoaderSnapshot(), { waiting: 0, scenes: 1 });
+  expect(getCarmenLoaderSnapshot()).toStrictEqual({ waiting: 0, scenes: 1 });
   releaseScene();
-  assert.deepEqual(getCarmenLoaderSnapshot(), { waiting: 0, scenes: 0 });
+  expect(getCarmenLoaderSnapshot()).toStrictEqual({ waiting: 0, scenes: 0 });
 });

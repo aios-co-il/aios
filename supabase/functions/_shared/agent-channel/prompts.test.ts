@@ -1,8 +1,7 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertEquals, assertMatch, assertNotMatch } from "jsr:@std/assert@1";
 import { buildCodexWorkspaceAgentInput } from "./prompts.ts";
 
-test("Codex workspace input uses MCP delivery without secrets", () => {
+Deno.test("Codex workspace input uses MCP delivery without secrets", () => {
   const input = buildCodexWorkspaceAgentInput({
     userText: "בדיקת codex",
     conversationId: "conv-1",
@@ -11,13 +10,13 @@ test("Codex workspace input uses MCP delivery without secrets", () => {
     environment: "production",
     projectRef: "zvoijyneresvkadpprel",
   });
-  assert.match(input, /\[AIOS Command Center · Codex Direct\]/);
-  assert.match(input, /AIOS Agent Channel — Production/);
-  assert.match(input, /reply_to_aios_session exactly once/);
-  assert.match(input, /conversation_id: conv-1/);
-  assert.match(input, /environment: production/);
+  assertMatch(input, /\[AIOS Command Center · Codex Direct\]/);
+  assertMatch(input, /AIOS Agent Channel — Production/);
+  assertMatch(input, /reply_to_aios_session exactly once/);
+  assertMatch(input, /conversation_id: conv-1/);
+  assertMatch(input, /environment: production/);
   const envelope = JSON.parse(input.match(/AIOS_ENVELOPE_JSON: (.+)/)![1]);
-  assert.deepEqual(envelope, {
+  assertEquals(envelope, {
     conversation_id: "conv-1",
     session_id: "sess-1",
     origin: "codex",
@@ -27,11 +26,11 @@ test("Codex workspace input uses MCP delivery without secrets", () => {
     mcp_connection: "AIOS Agent Channel — Production",
     parliament_round: null,
   });
-  assert.doesNotMatch(input, /Authorization: Bearer/);
-  assert.doesNotMatch(input, /agent-channel-callback/);
+  assertNotMatch(input, /Authorization: Bearer/);
+  assertNotMatch(input, /agent-channel-callback/);
 });
 
-test("Codex workspace input selects Staging MCP by project ref", () => {
+Deno.test("Codex workspace input selects Staging MCP by project ref", () => {
   const input = buildCodexWorkspaceAgentInput({
     userText: "ping",
     conversationId: "c",
@@ -40,23 +39,26 @@ test("Codex workspace input selects Staging MCP by project ref", () => {
     environment: "staging",
     parliamentRound: 2,
   });
-  assert.match(input, /AIOS Agent Channel — Staging/);
-  assert.match(input, /environment: staging/);
-  assert.match(input, /parliament_round: 2/);
+  assertMatch(input, /AIOS Agent Channel — Staging/);
+  assertMatch(input, /environment: staging/);
+  assertMatch(input, /parliament_round: 2/);
 });
 
-test("Codex workspace input carries attachments and forbids forwarding", () => {
-  const input = buildCodexWorkspaceAgentInput({
-    userText: "",
-    conversationId: "c",
-    sessionId: "s",
-    tenantId: "t",
-    environment: "production",
-    attachments: [
-      { type: "image", name: "a.png", url: "https://x/a.png" } as any,
-    ],
-  });
-  assert.match(input, /no text — see attached files/);
-  assert.match(input, /a\.png → https:\/\/x\/a\.png/);
-  assert.match(input, /Do not forward it to Cursor/);
-});
+Deno.test(
+  "Codex workspace input carries attachments and forbids forwarding",
+  () => {
+    const input = buildCodexWorkspaceAgentInput({
+      userText: "",
+      conversationId: "c",
+      sessionId: "s",
+      tenantId: "t",
+      environment: "production",
+      attachments: [
+        { type: "image", name: "a.png", url: "https://x/a.png" } as any,
+      ],
+    });
+    assertMatch(input, /no text — see attached files/);
+    assertMatch(input, /a\.png → https:\/\/x\/a\.png/);
+    assertMatch(input, /Do not forward it to Cursor/);
+  },
+);

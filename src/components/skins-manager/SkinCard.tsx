@@ -1,3 +1,4 @@
+import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -48,10 +49,11 @@ export function SkinCard({
         </div>
         <div className="flex items-center gap-1.5">
           {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt=""
-              className="h-7 w-7 rounded-full object-cover"
+            <CarmenPortrait
+              image={avatarUrl}
+              name={skin.name}
+              custom
+              className="!h-10 !w-10 shrink-0"
             />
           ) : (
             <Sparkles className="h-4 w-4 text-orange-500" />

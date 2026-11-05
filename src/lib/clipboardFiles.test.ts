@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   claimClipboardPaste,
   filesFromClipboardData,
@@ -14,9 +13,9 @@ test("filesFromClipboardData reads screenshot blobs from items", () => {
   const files = filesFromClipboardData({
     items: [{ kind: "file", getAsFile: () => blob }],
   });
-  assert.equal(files.length, 1);
-  assert.equal(files[0].type, "image/png");
-  assert.equal(files[0].name, "screenshot.png");
+  expect(files.length).toBe(1);
+  expect(files[0].type).toBe("image/png");
+  expect(files[0].name).toBe("screenshot.png");
 });
 
 test("filesFromClipboardData collapses the same image from items and files", () => {
@@ -32,7 +31,7 @@ test("filesFromClipboardData collapses the same image from items and files", () 
     items: [{ kind: "file", type: "image/png", getAsFile: () => fromItem }],
     files: [fromList],
   });
-  assert.equal(files.length, 1);
+  expect(files.length).toBe(1);
 });
 
 test("filesFromClipboardData keeps a real filename and de-dupes files list", () => {
@@ -44,33 +43,34 @@ test("filesFromClipboardData keeps a real filename and de-dupes files list", () 
     items: [{ kind: "file", getAsFile: () => file }],
     files: [file],
   });
-  assert.equal(files.length, 1);
-  assert.equal(files[0].name, "brief.pdf");
+  expect(files.length).toBe(1);
+  expect(files[0].name).toBe("brief.pdf");
 });
 
+/** A plain EventTarget carrying the DOM-ish fields the helpers read. */
+function fakeTarget(props: {
+  tagName: string;
+  isContentEditable?: boolean;
+}): EventTarget {
+  return Object.assign(new EventTarget(), props);
+}
+
 test("claimClipboardPaste de-dupes the same tick", () => {
-  assert.equal(claimClipboardPaste(), true);
-  assert.equal(claimClipboardPaste(), false);
+  expect(claimClipboardPaste()).toBe(true);
+  expect(claimClipboardPaste()).toBe(false);
 });
 
 test("isClipboardTypingTarget skips inputs and textareas but not the files cube", () => {
-  assert.equal(
-    isClipboardTypingTarget({ tagName: "INPUT" } as EventTarget),
+  expect(isClipboardTypingTarget(fakeTarget({ tagName: "INPUT" }))).toBe(true);
+  expect(isClipboardTypingTarget(fakeTarget({ tagName: "TEXTAREA" }))).toBe(
     true,
   );
-  assert.equal(
-    isClipboardTypingTarget({ tagName: "TEXTAREA" } as EventTarget),
-    true,
-  );
-  assert.equal(
-    isClipboardTypingTarget({
-      tagName: "DIV",
-      isContentEditable: false,
-    } as EventTarget),
-    false,
-  );
-  assert.equal(
-    isClipboardTypingTarget({ tagName: "BUTTON" } as EventTarget),
+  expect(
+    isClipboardTypingTarget(
+      fakeTarget({ tagName: "DIV", isContentEditable: false }),
+    ),
+  ).toBe(false);
+  expect(isClipboardTypingTarget(fakeTarget({ tagName: "BUTTON" }))).toBe(
     false,
   );
 });
@@ -80,36 +80,34 @@ test("file paste field accepts Ctrl+V even though it is a textarea", () => {
     tagName: "TEXTAREA",
     dataset: { filePaste: "true" },
   } as unknown as EventTarget;
-  assert.equal(isFilePasteField(field), true);
-  assert.equal(isClipboardTypingTarget(field), false);
+  expect(isFilePasteField(field)).toBe(true);
+  expect(isClipboardTypingTarget(field)).toBe(false);
 });
 
 test("isClipboardImage treats screenshot names as images", () => {
-  assert.equal(
+  expect(
     isClipboardImage(
       new File([new Uint8Array([1])], "screenshot.png", { type: "" }),
     ),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isClipboardImage(
       new File([new Uint8Array([1])], "brief.pdf", { type: "application/pdf" }),
     ),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("notes paste keeps text and pulls images into files", () => {
-  const notes = { tagName: "TEXTAREA" } as EventTarget;
+  const notes = fakeTarget({ tagName: "TEXTAREA" });
   const image = new File([new Uint8Array([1])], "screenshot.png", {
     type: "image/png",
   });
   const pdf = new File([new Uint8Array([1])], "brief.pdf", {
     type: "application/pdf",
   });
-  assert.equal(shouldUploadClipboardPaste(notes, [image]), true);
-  assert.equal(shouldUploadClipboardPaste(notes, [pdf]), false);
-  assert.equal(shouldUploadClipboardPaste(notes, []), false);
+  expect(shouldUploadClipboardPaste(notes, [image])).toBe(true);
+  expect(shouldUploadClipboardPaste(notes, [pdf])).toBe(false);
+  expect(shouldUploadClipboardPaste(notes, [])).toBe(false);
 });
 
 test("filesFromClipboardData reads an image item that is not marked as a file", () => {
@@ -119,6 +117,6 @@ test("filesFromClipboardData reads an image item that is not marked as a file", 
   const files = filesFromClipboardData({
     items: [{ kind: "string", type: "image/png", getAsFile: () => blob }],
   });
-  assert.equal(files.length, 1);
-  assert.equal(files[0].name, "shot.png");
+  expect(files.length).toBe(1);
+  expect(files[0].name).toBe("shot.png");
 });

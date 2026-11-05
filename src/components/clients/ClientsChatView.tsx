@@ -31,7 +31,10 @@ import {
   Video,
   ArrowRight,
   Menu,
+  Palette,
 } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
+import { useTenantPath } from "@/hooks/useTenantPath";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DuplicateClientDialog } from "@/components/forms/DuplicateClientDialog";
 import { CreateOrgForClientDialog } from "@/components/clients/CreateOrgForClientDialog";
@@ -91,13 +94,20 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { CarmenWhatsAppAccess } from "@/components/carmen/CarmenWhatsAppAccess";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
+import { permissionForSubpath } from "@/lib/moduleRoutePermissions";
+
+/** What the workshop route asks for, so the link shows only to whoever may open it. */
+const WORKSHOP_PERMISSION = permissionForSubpath("workshop");
 
 interface ClientsChatViewProps {
   clients: any[];
   agencies?: any[];
   canViewFinance?: boolean;
+  /** False while finance access is loading; the business-tab guard waits for it. */
+  financeAccessReady?: boolean;
   getClientFinancialData?: (clientId: string) => any;
   initialClientId?: string; // deep-link: open this client on mount
   initialTab?: string; // deep-link: open this tab on mount (?tab=recordings)
@@ -142,6 +152,7 @@ export function ClientsChatView({
   clients,
   agencies,
   canViewFinance,
+  financeAccessReady = true,
   getClientFinancialData,
   initialClientId,
   initialTab,
@@ -168,12 +179,13 @@ export function ClientsChatView({
     onSelectedClientChange?.(selectedClientId);
   }, [onSelectedClientChange, selectedClientId]);
 
-  // Guard: redirect away from "business" tab if user lacks finance view permission
+  // Guard: redirect away from "business" tab if user lacks finance view permission.
+  // Wait for the answer, so a ?tab=business deep link survives the first render.
   useEffect(() => {
-    if (activeTab === "business" && !canViewFinance) {
+    if (financeAccessReady && activeTab === "business" && !canViewFinance) {
       setActiveTab("details");
     }
-  }, [activeTab, canViewFinance]);
+  }, [activeTab, canViewFinance, financeAccessReady]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(
     new Set(),
@@ -186,7 +198,9 @@ export function ClientsChatView({
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const queryClient = useQueryClient();
+  const { buildPath } = useTenantPath();
   const { tenantId } = useCurrentTenant();
+  const { hasPermission } = useUserPermissions();
   const { provision, provisioning } = useProvisionClientChannels();
 
   const { data: whatsappGroups = [] } = useQuery({
@@ -1220,6 +1234,26 @@ export function ClientsChatView({
                       <BarChart3 className="h-4 w-4" />
                     )}
                   </Button>
+
+                  {(!WORKSHOP_PERMISSION ||
+                    hasPermission(WORKSHOP_PERMISSION)) && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      title="פתח בסדנה"
+                    >
+                      <RouterLink
+                        to={buildPath(
+                          `workshop?client=${encodeURIComponent(selectedClient.id)}`,
+                        )}
+                      >
+                        <Palette className="h-4 w-4" />
+                        פתח בסדנה
+                      </RouterLink>
+                    </Button>
+                  )}
 
                   <Button
                     variant="outline"

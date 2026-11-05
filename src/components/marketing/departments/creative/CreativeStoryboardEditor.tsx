@@ -632,7 +632,7 @@ export function CreativeStoryboardEditor({
                 <div className="space-y-1.5">
                   <Label>מודל לפריימים</Label>
                   <Select
-                    value={stillModel ?? "gpt-image-1"}
+                    value={stillModel ?? "gpt-image-2.5-sunburst"}
                     onValueChange={(value) =>
                       onStillModelChange(value as StillModel)
                     }
@@ -641,7 +641,9 @@ export function CreativeStoryboardEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gpt-image-1">gpt-image-1</SelectItem>
+                      <SelectItem value="gpt-image-2.5-sunburst">
+                        gpt-image-2.5-sunburst
+                      </SelectItem>
                       <SelectItem value="nano-banana-pro">
                         Nano Banana Pro (דמות עקבית)
                       </SelectItem>

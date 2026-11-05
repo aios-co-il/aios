@@ -148,6 +148,8 @@ function messageBelongsToRoute(msg: ChatLike, route: BrainRoute): boolean {
 
   // Direct seat: only that seat's traffic (including the user's lines to it).
   if (!channel) return false;
+  // Model brains all have provider "model"; only the slug identifies one.
+  if (route.route_type === "model") return channel === route.slug;
   return channel === route.slug || channel === route.provider;
 }
 
@@ -205,6 +207,7 @@ export function conversationMatchesRoute(
   // routing_mode is stored as route_type ("direct_channel") for every direct seat —
   // without a resolvable brain_route_id we must not leak Cursor↔Grok↔Codex threads.
   if (mode === "direct_channel" || mode === route.route_type) return false;
+  if (route.route_type === "model") return mode === route.slug;
   return mode === route.slug || mode === route.provider;
 }
 

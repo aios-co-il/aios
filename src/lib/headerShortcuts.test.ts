@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   DEFAULT_HEADER_SHORTCUT_KEYS,
   headerShortcutsStorageKey,
@@ -17,39 +16,37 @@ const accessible = [
 ];
 
 test("new users get tasks, clients and reports when accessible", () => {
-  assert.deepEqual(resolveHeaderShortcuts(null, accessible), [
+  expect(resolveHeaderShortcuts(null, accessible)).toStrictEqual([
     ...DEFAULT_HEADER_SHORTCUT_KEYS,
   ]);
 });
 
 test("saved empty selection remains empty", () => {
-  assert.deepEqual(resolveHeaderShortcuts("[]", accessible), []);
+  expect(resolveHeaderShortcuts("[]", accessible)).toStrictEqual([]);
 });
 
 test("corrupt storage recovers to defaults", () => {
-  assert.deepEqual(resolveHeaderShortcuts("{bad json", accessible), [
+  expect(resolveHeaderShortcuts("{bad json", accessible)).toStrictEqual([
     ...DEFAULT_HEADER_SHORTCUT_KEYS,
   ]);
-  assert.deepEqual(
+  expect(
     resolveHeaderShortcuts(JSON.stringify({ tasks: true }), accessible),
-    [...DEFAULT_HEADER_SHORTCUT_KEYS],
-  );
+  ).toStrictEqual([...DEFAULT_HEADER_SHORTCUT_KEYS]);
 });
 
 test("inaccessible, stale and duplicate modules are removed", () => {
-  assert.deepEqual(
+  expect(
     resolveHeaderShortcuts(
       JSON.stringify(["tasks", "forbidden", "tasks", "leads"]),
       accessible,
     ),
-    ["tasks", "leads"],
-  );
+  ).toStrictEqual(["tasks", "leads"]);
 });
 
 test("shortcut selection is capped and can always be removed", () => {
   const full = ["tasks", "clients", "dynamic-tables", "leads", "chat"];
-  assert.deepEqual(toggleHeaderShortcut(full, "dashboard"), full);
-  assert.deepEqual(toggleHeaderShortcut(full, "tasks"), [
+  expect(toggleHeaderShortcut(full, "dashboard")).toStrictEqual(full);
+  expect(toggleHeaderShortcut(full, "tasks")).toStrictEqual([
     "clients",
     "dynamic-tables",
     "leads",
@@ -58,12 +55,10 @@ test("shortcut selection is capped and can always be removed", () => {
 });
 
 test("storage is isolated per user and tenant", () => {
-  assert.equal(
-    headerShortcutsStorageKey("user-a", "tenant-a"),
+  expect(headerShortcutsStorageKey("user-a", "tenant-a")).toBe(
     "headerShortcuts:user-a:tenant-a",
   );
-  assert.notEqual(
-    headerShortcutsStorageKey("user-a", "tenant-a"),
+  expect(headerShortcutsStorageKey("user-a", "tenant-a")).not.toBe(
     headerShortcutsStorageKey("user-a", "tenant-b"),
   );
 });

@@ -172,6 +172,17 @@ class MirrorTests(unittest.TestCase):
         source = (Path(__file__).with_name('staging_mirror') / 'cli.py').read_text()
         self.assertIn("manifest.get('replace_on_sync', [])", source)
 
+    def test_video_job_queue_stays_in_its_environment(self):
+        # Staging and every PR preview drain marketing_runs with the render worker. A
+        # Production run mirrored in as queued or running would be claimed and paid again.
+        manifest = json.loads(Path(__file__).with_name('staging-data-manifest.json').read_text())
+        catalog = {name: {'pk': ['id'], 'columns': [{'name': 'id', 'generated': ''}]}
+                   for name in manifest['tables'] + ['marketing_runs']}
+        plan, errors = mirror.preflight(manifest['tables'], catalog, catalog)
+        self.assertEqual(errors, [])
+        self.assertNotIn('marketing_runs', [table['name'] for table in plan])
+        self.assertIn('marketing_runs', manifest['excluded'])
+
     def test_source_cannot_be_target(self):
         with self.assertRaises(ValueError): mirror.Management('a'*20, 'a'*20, 'fake')
 

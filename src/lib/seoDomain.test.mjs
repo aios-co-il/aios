@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import {
   buildSeoReportTenantIds,
   extractDomainHint,
@@ -17,17 +16,19 @@ test("buildSeoReportTenantIds includes client home + agency access + table tenan
     [{ accessing_tenant_id: "mc", source_tenant_id: "dmm" }],
     ["table-tenant"],
   );
-  assert.deepEqual(ids.sort(), ["dmm", "home", "mc", "table-tenant"].sort());
+  expect(ids.sort()).toStrictEqual(
+    ["dmm", "home", "mc", "table-tenant"].sort(),
+  );
 });
 
 test("extractDomainHint finds hostnames in table titles", () => {
-  assert.equal(extractDomainHint("ג.ג - אנגלית - gg-ds.com"), "gg-ds.com");
-  assert.equal(extractDomainHint("YTS"), "");
+  expect(extractDomainHint("ג.ג - אנגלית - gg-ds.com")).toBe("gg-ds.com");
+  expect(extractDomainHint("YTS")).toBe("");
 });
 
 test("looksLikeSeoDomain rejects Hebrew client names stored as targetDomain", () => {
-  assert.equal(looksLikeSeoDomain("ג.ג - אנגלית - gg-ds.com"), false);
-  assert.equal(looksLikeSeoDomain("gg-ds.com"), true);
+  expect(looksLikeSeoDomain("ג.ג - אנגלית - gg-ds.com")).toBe(false);
+  expect(looksLikeSeoDomain("gg-ds.com")).toBe(true);
 });
 
 test("pickSeoSyncDomain prefers linkedGscSiteUrl and ahrefs_reports over empty client", () => {
@@ -36,26 +37,24 @@ test("pickSeoSyncDomain prefers linkedGscSiteUrl and ahrefs_reports over empty c
     client: { website: null, ahrefs_domain: null },
     tableName: "מן מכונות ניקוי",
   });
-  assert.equal(fromGsc.domain, "manltd.co.il");
-  assert.equal(fromGsc.from, "linkedGscSiteUrl");
+  expect(fromGsc.domain).toBe("manltd.co.il");
+  expect(fromGsc.from).toBe("linkedGscSiteUrl");
 
   const fromReport = pickSeoSyncDomain({
     settings: {},
     client: { website: null, ahrefs_domain: null },
     latestReportDomain: "manltd.co.il",
   });
-  assert.equal(fromReport.domain, "manltd.co.il");
-  assert.equal(fromReport.from, "ahrefs_reports");
+  expect(fromReport.domain).toBe("manltd.co.il");
+  expect(fromReport.from).toBe("ahrefs_reports");
 });
 
 test("resolveLinkedCrmTableId ignores stale saved ids", () => {
   const candidates = [{ id: "ga-live", client_id: "client-1" }];
-  assert.equal(
-    resolveLinkedCrmTableId("ga-deleted", candidates, "client-1"),
+  expect(resolveLinkedCrmTableId("ga-deleted", candidates, "client-1")).toBe(
     "ga-live",
   );
-  assert.equal(
-    resolveLinkedCrmTableId("ga-live", candidates, "client-1"),
+  expect(resolveLinkedCrmTableId("ga-live", candidates, "client-1")).toBe(
     "ga-live",
   );
 });
@@ -65,18 +64,16 @@ test("resolveLinkedCrmTableId prefers this client's table over another client's 
     { id: "ga-other", client_id: "other-client" },
     { id: "ga-own", client_id: "client-1" },
   ];
-  assert.equal(
-    resolveLinkedCrmTableId("ga-other", candidates, "client-1"),
+  expect(resolveLinkedCrmTableId("ga-other", candidates, "client-1")).toBe(
     "ga-own",
   );
-  assert.equal(
+  expect(
     resolveLinkedCrmTableId(
       "ga-other",
       [{ id: "ga-other", client_id: "other-client" }],
       "client-1",
     ),
-    "ga-other",
-  );
+  ).toBe("ga-other");
 });
 
 test("selectSeoTableForClient prefers domain match over null-domain duplicate", () => {
@@ -98,11 +95,11 @@ test("selectSeoTableForClient prefers domain match over null-domain duplicate", 
     "client-1",
     "https://franchise.org.il",
   );
-  assert.equal(picked?.id, "good");
+  expect(picked?.id).toBe("good");
 });
 
 test("resolveSeoLinkedGscSiteUrl prefers linkedGscSiteUrl and falls back to legacy gsc_site_url", () => {
-  assert.equal(
+  expect(
     resolveSeoLinkedGscSiteUrl({
       integrationSettings: {
         linkedGscSiteUrl: "sc-domain:franchise.org.il",
@@ -110,40 +107,36 @@ test("resolveSeoLinkedGscSiteUrl prefers linkedGscSiteUrl and falls back to lega
       },
       expectedDomain: "franchise.org.il",
     }),
-    "sc-domain:franchise.org.il",
-  );
+  ).toBe("sc-domain:franchise.org.il");
 
-  assert.equal(
+  expect(
     resolveSeoLinkedGscSiteUrl({
       integrationSettings: { gsc_site_url: "sc-domain:franchise.org.il" },
       clientGscSiteUrl: "https://franchise.org.il/",
       expectedDomain: "franchise.org.il",
     }),
-    "sc-domain:franchise.org.il",
-  );
+  ).toBe("sc-domain:franchise.org.il");
 
-  assert.equal(
+  expect(
     resolveSeoLinkedGscSiteUrl({
       integrationSettings: {},
       clientGscSiteUrl: "https://franchise.org.il/",
       expectedDomain: "franchise.org.il",
     }),
-    "https://franchise.org.il/",
-  );
+  ).toBe("https://franchise.org.il/");
 
-  assert.equal(
+  expect(
     resolveSeoLinkedGscSiteUrl({
       integrationSettings: { gsc_site_url: "https://other.example/" },
       expectedDomain: "franchise.org.il",
     }),
-    "",
-  );
+  ).toBe("");
 });
 
 test("seoTableNeedsSyncThisMonth is true when last sync is before current month", () => {
   const lastMonth = new Date();
   lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
-  assert.equal(seoTableNeedsSyncThisMonth(lastMonth.toISOString()), true);
-  assert.equal(seoTableNeedsSyncThisMonth(null), true);
-  assert.equal(seoTableNeedsSyncThisMonth(new Date().toISOString()), false);
+  expect(seoTableNeedsSyncThisMonth(lastMonth.toISOString())).toBe(true);
+  expect(seoTableNeedsSyncThisMonth(null)).toBe(true);
+  expect(seoTableNeedsSyncThisMonth(new Date().toISOString())).toBe(false);
 });

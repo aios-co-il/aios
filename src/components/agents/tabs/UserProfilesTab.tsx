@@ -1,3 +1,4 @@
+import type { Tables } from "@/integrations/supabase/types";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,10 +23,17 @@ import { useTenant } from "@/contexts/TenantContext";
 import { formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 
-export function UserProfilesTab({ agent }: { agent: any }) {
+type ProfileDraft = {
+  id?: string;
+  contact_phone: string;
+  display_name: string | null;
+  profile: string;
+};
+
+export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
   const { currentTenantId } = useTenant();
   const qc = useQueryClient();
-  const [editing, setEditing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<ProfileDraft | null>(null);
   const [creating, setCreating] = useState(false);
 
   const { data: profiles = [], isLoading } = useQuery({
@@ -43,7 +51,8 @@ export function UserProfilesTab({ agent }: { agent: any }) {
   });
 
   const save = useMutation({
-    mutationFn: async (p: any) => {
+    mutationFn: async (p: ProfileDraft) => {
+      if (!currentTenantId) throw new Error("חסר ארגון");
       const payload = {
         tenant_id: currentTenantId,
         agent_id: agent.id,
@@ -73,7 +82,7 @@ export function UserProfilesTab({ agent }: { agent: any }) {
       setCreating(false);
       toast.success("נשמר");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const del = useMutation({
@@ -232,6 +241,7 @@ export function UserProfilesTab({ agent }: { agent: any }) {
             </Button>
             <Button
               onClick={() => {
+                if (!editing) return;
                 try {
                   JSON.parse(editing.profile || "{}");
                 } catch {

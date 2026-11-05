@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import { FALLBACK_BRAIN_ROUTES } from "./agentChannelRouting.ts";
 import {
   conversationMatchesRoute,
@@ -16,8 +15,8 @@ test("seat key maps parliament to shared and cursor to direct", () => {
     (r) => r.slug === "parliament",
   )!;
   const cursor = FALLBACK_BRAIN_ROUTES.find((r) => r.slug === "cursor")!;
-  assert.equal(seatKeyFromRoute(parliament), "shared");
-  assert.equal(seatKeyFromRoute(cursor), "cursor");
+  expect(seatKeyFromRoute(parliament)).toBe("shared");
+  expect(seatKeyFromRoute(cursor)).toBe("cursor");
 });
 
 test("shared space shows all agent lines; direct hides other agents and their user lines", () => {
@@ -33,18 +32,15 @@ test("shared space shows all agent lines; direct hides other agents and their us
     { role: "assistant", speaker: "cursor", channel: "cursor", content: "a" },
     { role: "assistant", speaker: "grok", channel: "grok", content: "b" },
   ];
-  assert.equal(filterMessagesForRoute(msgs, parliament).length, 5);
-  assert.equal(filterMessagesForRoute(msgs, cursor).length, 2);
-  assert.deepEqual(
+  expect(filterMessagesForRoute(msgs, parliament).length).toBe(5);
+  expect(filterMessagesForRoute(msgs, cursor).length).toBe(2);
+  expect(
     filterMessagesForRoute(msgs, cursor).map((m) => m.content),
-    ["ask cursor", "a"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["ask cursor", "a"]);
+  expect(
     filterMessagesForRoute(msgs, carmen).map((m) => m.content),
-    ["ask carmen", "c"],
-  );
-  assert.equal(
-    messageSpeakerKey({ role: "assistant", speaker: "codex" }),
+  ).toStrictEqual(["ask carmen", "c"]);
+  expect(messageSpeakerKey({ role: "assistant", speaker: "codex" })).toBe(
     "codex",
   );
 });
@@ -53,11 +49,10 @@ test("topic rail picks agent sprite from brain_route_id", () => {
   const cursor = FALLBACK_BRAIN_ROUTES.find((r) => r.slug === "cursor")!;
   const internal = FALLBACK_BRAIN_ROUTES.find((r) => r.slug === "internal")!;
   const conv = { brain_route_id: cursor.id, routing_mode: "direct_channel" };
-  assert.match(topicAgentSprite(conv, FALLBACK_BRAIN_ROUTES), /ghost-cursor/);
-  assert.equal(topicAgentLabel(conv, FALLBACK_BRAIN_ROUTES), "Cursor Direct");
+  expect(topicAgentSprite(conv, FALLBACK_BRAIN_ROUTES)).toMatch(/ghost-cursor/);
+  expect(topicAgentLabel(conv, FALLBACK_BRAIN_ROUTES)).toBe("Cursor Direct");
   const carmenConv = { brain_route_id: internal.id, routing_mode: "internal" };
-  assert.match(
-    topicAgentSprite(carmenConv, FALLBACK_BRAIN_ROUTES),
+  expect(topicAgentSprite(carmenConv, FALLBACK_BRAIN_ROUTES)).toMatch(
     /^data:image\/webp;base64,/,
   );
 });
@@ -69,8 +64,8 @@ test("untagged legacy user lines stay on Carmen, not Cursor Direct", () => {
     { role: "user", content: "old carmen ask" },
     { role: "assistant", speaker: "carmen", content: "old reply" },
   ];
-  assert.equal(filterMessagesForRoute(msgs, cursor).length, 0);
-  assert.equal(filterMessagesForRoute(msgs, carmen).length, 2);
+  expect(filterMessagesForRoute(msgs, cursor).length).toBe(0);
+  expect(filterMessagesForRoute(msgs, carmen).length).toBe(2);
 });
 
 test("conversation list is scoped to the active seat", () => {
@@ -105,28 +100,23 @@ test("conversation list is scoped to the active seat", () => {
     },
     { id: "6", updated_at: "2026-01-06", routing_mode: "direct_channel" },
   ];
-  assert.deepEqual(
+  expect(
     conversationsForRoute(items, cursor, routes).map((c) => c.id),
-    ["1"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["1"]);
+  expect(
     conversationsForRoute(items, grok, routes).map((c) => c.id),
-    ["5"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["5"]);
+  expect(
     conversationsForRoute(items, carmen, routes).map((c) => c.id),
-    ["2", "4"],
-  );
-  assert.deepEqual(
+  ).toStrictEqual(["2", "4"]);
+  expect(
     conversationsForRoute(items, parliament, routes).map((c) => c.id),
-    ["3"],
-  );
-  assert.equal(
+  ).toStrictEqual(["3"]);
+  expect(
     conversationMatchesRoute(
       { routing_mode: "direct_channel" },
       cursor,
       routes,
     ),
-    false,
-  );
+  ).toBe(false);
 });

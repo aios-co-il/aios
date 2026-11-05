@@ -142,7 +142,7 @@ export async function findGaIntegrationForDomain(
       group,
     ): group is {
       integrationId: string;
-      own?: boolean;
+      own: boolean | undefined;
       properties: GaPropertyRef[];
     } => Array.isArray(group.properties),
   );

@@ -1,20 +1,11 @@
-export type ImageQuality = "low" | "medium" | "high";
-export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
-export type ImageCostSource = "api" | "official_table" | "inferred";
+import type { z } from "zod";
+import { imageCost, imageQuality, imageSize } from "./creativeAssetPayload";
 
-export interface ImageGenerationCost {
-  model: "gpt-image-1" | "gemini-3-pro-image";
-  quality: ImageQuality;
-  size: ImageSize;
-  textTokens: number;
-  imageInTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  costUsd: number;
-  source: ImageCostSource;
-  createdAt: string;
-  referenceCount?: number;
-}
+export type ImageGenerationCost = z.output<typeof imageCost>;
+
+export type ImageQuality = ImageGenerationCost["quality"];
+export type ImageSize = ImageGenerationCost["size"];
+export type ImageCostSource = ImageGenerationCost["source"];
 
 /** Official gpt-image-1 rates (USD per 1M tokens). */
 export const GPT_IMAGE1_USD_PER_M = {
@@ -67,24 +58,14 @@ export const estimateTextTokens = (text: string): number => {
 };
 
 export const isImageQuality = (value: unknown): value is ImageQuality =>
-  value === "low" || value === "medium" || value === "high";
+  imageQuality.safeParse(value).success;
 
 export const isImageSize = (value: unknown): value is ImageSize =>
-  value === "1024x1024" || value === "1024x1536" || value === "1536x1024";
+  imageSize.safeParse(value).success;
 
 export const isImageGenerationCost = (
   value: unknown,
-): value is ImageGenerationCost => {
-  if (!value || typeof value !== "object") return false;
-  const cost = value as ImageGenerationCost;
-  return (
-    (cost.model === "gpt-image-1" || cost.model === "gemini-3-pro-image") &&
-    isImageQuality(cost.quality) &&
-    isImageSize(cost.size) &&
-    typeof cost.totalTokens === "number" &&
-    typeof cost.costUsd === "number"
-  );
-};
+): value is ImageGenerationCost => imageCost.safeParse(value).success;
 
 const makeCost = (
   quality: ImageQuality,
@@ -95,7 +76,7 @@ const makeCost = (
   source: ImageCostSource,
   referenceCount = 0,
 ): ImageGenerationCost => ({
-  model: "gpt-image-1",
+  model: "gpt-image-2.5-sunburst",
   quality,
   size,
   textTokens,
@@ -211,7 +192,7 @@ export const costSourceLabel = (totals: CostTotals) => {
 };
 
 export interface StoredImageCost {
-  generationCost?: ImageGenerationCost | null;
+  generationCost?: unknown;
   imageUrl?: string;
   source?: string;
   format?: string;

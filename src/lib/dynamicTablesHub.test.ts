@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { expect, test } from "vitest";
 import {
   appendCategorySearchParam,
   DYNAMIC_TABLES_CATEGORY_PARAM,
@@ -8,8 +7,7 @@ import {
 
 test("appendCategorySearchParam adds category to tenant path", () => {
   const path = appendCategorySearchParam("/t/demo/dynamic-tables", "SEO");
-  assert.equal(
-    path,
+  expect(path).toBe(
     `/t/demo/dynamic-tables?${DYNAMIC_TABLES_CATEGORY_PARAM}=SEO`,
   );
 });
@@ -18,14 +16,13 @@ test("stripCategorySearchParam returns hub path", () => {
   const path = stripCategorySearchParam(
     `/t/demo/dynamic-tables?${DYNAMIC_TABLES_CATEGORY_PARAM}=SEO&tab=tables`,
   );
-  assert.equal(path, "/t/demo/dynamic-tables?tab=tables");
+  expect(path).toBe("/t/demo/dynamic-tables?tab=tables");
 });
 
 test("stripCategorySearchParam removes only category param", () => {
-  assert.equal(
+  expect(
     stripCategorySearchParam(
       `/t/demo/dynamic-tables?${DYNAMIC_TABLES_CATEGORY_PARAM}=SEO`,
     ),
-    "/t/demo/dynamic-tables",
-  );
+  ).toBe("/t/demo/dynamic-tables");
 });

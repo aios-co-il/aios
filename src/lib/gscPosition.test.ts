@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   aggregateGscQueryRows,
   gscQueriesMatch,
@@ -17,22 +16,22 @@ import {
 } from "./gscPosition.ts";
 
 test("top20DisplayPosition hides ranks outside the top 20 and blank zeros", () => {
-  assert.equal(top20DisplayPosition(8.24), 8.2);
-  assert.equal(top20DisplayPosition(20), 20);
-  assert.equal(top20DisplayPosition(20.4), null);
-  assert.equal(top20DisplayPosition(0), null);
-  assert.equal(top20DisplayPosition(null), null);
-  assert.equal(top20DisplayPosition(""), null);
+  expect(top20DisplayPosition(8.24)).toBe(8.2);
+  expect(top20DisplayPosition(20)).toBe(20);
+  expect(top20DisplayPosition(20.4)).toBe(null);
+  expect(top20DisplayPosition(0)).toBe(null);
+  expect(top20DisplayPosition(null)).toBe(null);
+  expect(top20DisplayPosition("")).toBe(null);
 });
 
 test("keywordTop20Rank keeps a Search Console top-20 rank when Ahrefs is worse", () => {
   const rank = keywordTop20Rank({ position: 46, gsc_position: 7.2 });
-  assert.deepEqual(rank, { position: 7.2, source: "gsc" });
+  expect(rank).toStrictEqual({ position: 7.2, source: "gsc" });
 });
 
 test("keywordTop20Rank prefers the better Ahrefs rank inside the top 20", () => {
   const rank = keywordTop20Rank({ position: 4, gsc_position: 11 });
-  assert.deepEqual(rank, { position: 4, source: "ahrefs" });
+  expect(rank).toStrictEqual({ position: 4, source: "ahrefs" });
 });
 
 test("keywordTop20Rank reads a GSC-only row from its own position", () => {
@@ -41,15 +40,15 @@ test("keywordTop20Rank reads a GSC-only row from its own position", () => {
     position: 3.5,
     gsc_position: 3.5,
   });
-  assert.deepEqual(rank, { position: 3.5, source: "gsc" });
-  assert.equal(keywordTop20Rank({ _source: "gsc", position: 28 }), null);
+  expect(rank).toStrictEqual({ position: 3.5, source: "gsc" });
+  expect(keywordTop20Rank({ _source: "gsc", position: 28 })).toBe(null);
 });
 
 test("gscQueriesMatch is exact and does not treat a shorter query as the same phrase", () => {
-  assert.equal(gscQueriesMatch("נופר זומר", "נופר זומר"), true);
-  assert.equal(gscQueriesMatch("נופר זומר", "  נופר   זומר "), true);
-  assert.equal(gscQueriesMatch("נופר זומר", "נופר"), false);
-  assert.equal(gscQueriesMatch("נופר", "נופר זומר עורכת דין"), false);
+  expect(gscQueriesMatch("נופר זומר", "נופר זומר")).toBe(true);
+  expect(gscQueriesMatch("נופר זומר", "  נופר   זומר ")).toBe(true);
+  expect(gscQueriesMatch("נופר זומר", "נופר")).toBe(false);
+  expect(gscQueriesMatch("נופר", "נופר זומר עורכת דין")).toBe(false);
 });
 
 test("aggregateGscQueryRows weights by impressions and ignores position 0", () => {
@@ -58,11 +57,11 @@ test("aggregateGscQueryRows weights by impressions and ignores position 0", () =
     { query: "נופר זומר", clicks: 0, impressions: 100, position: 0 },
     { query: "נופר זומר", clicks: 4, impressions: 8, position: 18 },
   ]);
-  assert.equal(row.query, "נופר זומר");
-  assert.equal(row.clicks, 5);
-  assert.equal(row.impressions, 110);
+  expect(row.query).toBe("נופר זומר");
+  expect(row.clicks).toBe(5);
+  expect(row.impressions).toBe(110);
   // (3*2 + 18*8) / 10 = 15, not pulled into the top by the zero-position day.
-  assert.equal(row.position, 15);
+  expect(row.position).toBe(15);
 });
 
 test("aggregateGscQueryRows does not invent a top-20 rank from an unweighted average", () => {
@@ -70,98 +69,90 @@ test("aggregateGscQueryRows does not invent a top-20 rank from an unweighted ave
     { query: "ביטוי רעש", clicks: 0, impressions: 1, position: 2 },
     { query: "ביטוי רעש", clicks: 1, impressions: 1000, position: 48 },
   ]);
-  assert.ok(row.position > 20);
-  assert.equal(top20DisplayPosition(row.position), null);
+  expect(row.position > 20).toBeTruthy();
+  expect(top20DisplayPosition(row.position)).toBe(null);
 });
 
 test("visibleGscPosition blanks a rank the Top 20 list would hide", () => {
-  assert.equal(visibleGscPosition("נופר זומר", 6.1), 6.1);
-  assert.equal(visibleGscPosition("נופר זומר", 33), null);
-  assert.equal(
+  expect(visibleGscPosition("נופר זומר", 6.1)).toBe(6.1);
+  expect(visibleGscPosition("נופר זומר", 33)).toBe(null);
+  expect(
     visibleGscPosition("בנק דיסקונט", 4, { tracked: ["נופר זומר עורכת דין"] }),
-    null,
-  );
-  assert.equal(
+  ).toBe(null);
+  expect(
     visibleGscPosition("נופר זומר", 4, {
       tracked: ["נופר זומר"],
       forceIrrelevant: ["נופר זומר"],
     }),
-    null,
-  );
-  assert.equal(
+  ).toBe(null);
+  expect(
     visibleGscPosition("עורך דין נופר זומר", 9, { tracked: ["נופר זומר"] }),
-    9,
-  );
+  ).toBe(9);
 });
 
 test("tracked phrases keep a position outside the top 20 when they have Search Console data", () => {
-  assert.equal(
+  expect(
     trackedQueryPosition("נופר זומר", 33.2, { tracked: ["נופר זומר"] }),
-    33.2,
-  );
-  assert.equal(
+  ).toBe(33.2);
+  expect(
     trackedQueryPosition("ביטוי אחר", 33, { tracked: ["נופר זומר"] }),
-    null,
-  );
-  assert.equal(
+  ).toBe(null);
+  expect(
     trackedQueryPosition("נופר זומר", 33, {
       tracked: ["נופר זומר"],
       forceIrrelevant: ["נופר זומר"],
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("tracked phrases show the better rank from Ahrefs or Search Console", () => {
-  assert.deepEqual(
+  expect(
     keywordDisplayPosition({ position: null, gsc_position: 27.4 }),
-    { position: 27.4, source: "gsc" },
-  );
-  assert.deepEqual(keywordDisplayPosition({ position: 6, gsc_position: 27 }), {
+  ).toStrictEqual({ position: 27.4, source: "gsc" });
+  expect(
+    keywordDisplayPosition({ position: 6, gsc_position: 27 }),
+  ).toStrictEqual({
     position: 6,
     source: "ahrefs",
   });
-  assert.deepEqual(
+  expect(
     betterDisplayRank({ ahrefsPosition: 46, gscPosition: 7.2 }),
-    { position: 7.2, source: "gsc" },
-  );
-  assert.deepEqual(keywordDisplayPosition({ position: 40, gsc_position: 33 }), {
+  ).toStrictEqual({ position: 7.2, source: "gsc" });
+  expect(
+    keywordDisplayPosition({ position: 40, gsc_position: 33 }),
+  ).toStrictEqual({
     position: 33,
     source: "gsc",
   });
-  assert.deepEqual(
+  expect(
     keywordDisplayPosition({
       position: 7,
       ahrefs_position: 46,
       gsc_position: 7,
       _position_source: "gsc",
     }),
-    { position: 7, source: "gsc" },
-  );
+  ).toStrictEqual({ position: 7, source: "gsc" });
 });
 
 test("a tracked phrase on the Search Console list uses the better stored rank", () => {
-  assert.deepEqual(
+  expect(
     trackedPhraseRank("נופר זומר", 33, {
       tracked: ["נופר זומר"],
       ahrefsPositions: { "נופר זומר": 14 },
     }),
-    { position: 14, source: "ahrefs" },
-  );
-  assert.deepEqual(
+  ).toStrictEqual({ position: 14, source: "ahrefs" });
+  expect(
     trackedPhraseRank("נופר זומר", null, {
       tracked: ["נופר זומר"],
       ahrefsPositions: { "נופר זומר": 14 },
     }),
-    { position: 14, source: "ahrefs" },
-  );
-  assert.equal(
+  ).toStrictEqual({ position: 14, source: "ahrefs" });
+  expect(
     trackedPhraseRank("ביטוי אחר", 33, {
       tracked: ["נופר זומר"],
       ahrefsPositions: { "נופר זומר": 14 },
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("a later keyword list without ranks keeps the rank stored on an earlier report", () => {
@@ -176,8 +167,8 @@ test("a later keyword list without ranks keeps the rank stored on an earlier rep
       },
     ],
   );
-  assert.equal(merged[0].position, 14);
-  assert.equal(merged[0].traffic, 8);
+  expect(merged[0].position).toBe(14);
+  expect(merged[0].traffic).toBe(8);
   const positions = ahrefsPositionsFromReports([
     {
       report_data: {
@@ -190,5 +181,5 @@ test("a later keyword list without ranks keeps the rank stored on an earlier rep
       },
     },
   ]);
-  assert.equal(positions.get("נופר זומר"), 14);
+  expect(positions.get("נופר זומר")).toBe(14);
 });

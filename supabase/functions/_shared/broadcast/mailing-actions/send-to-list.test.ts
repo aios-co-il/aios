@@ -1,5 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import { fakeDb } from "../fake-db.ts";
 import { executeSendTemplateToList } from "./send-to-list.ts";
 
@@ -57,45 +60,48 @@ const statusUpdates = (writes: { table: string; values: unknown }[]) =>
         : null,
     );
 
-test("a test run skips without touching the database", async () => {
+Deno.test("a test run skips without touching the database", async () => {
   const s = setup(true, async () => ({ total: 3 }));
-  assert.deepEqual(await s.run({ test: true }), {
+  assertEquals(await s.run({ test: true }), {
     success: true,
     skipped: "test_run",
   });
-  assert.deepEqual(s.rpcCalls, []);
-  assert.deepEqual(s.writes, []);
-  assert.deepEqual(s.enqueued, []);
+  assertEquals(s.rpcCalls, []);
+  assertEquals(s.writes, []);
+  assertEquals(s.enqueued, []);
 });
 
-test("an unreserved send is skipped as sent_recently", async () => {
+Deno.test("an unreserved send is skipped as sent_recently", async () => {
   const s = setup(false, async () => ({ total: 3 }));
   const res = await s.run();
-  assert.equal(res.skipped, "sent_recently");
-  assert.deepEqual(s.enqueued, []);
-  assert.deepEqual(s.writes, []);
+  assertStrictEquals(res.skipped, "sent_recently");
+  assertEquals(s.enqueued, []);
+  assertEquals(s.writes, []);
 });
 
-test("a reserved send with recipients starts sending", async () => {
+Deno.test("a reserved send with recipients starts sending", async () => {
   const s = setup(true, async () => ({ total: 3 }));
   const res = await s.run();
-  assert.deepEqual(res, { success: true, broadcast_id: "b1", recipients: 3 });
-  assert.deepEqual(s.enqueued, ["b1"]);
-  assert.deepEqual(statusUpdates(s.writes), ["draft", "sending"]);
+  assertEquals(res, { success: true, broadcast_id: "b1", recipients: 3 });
+  assertEquals(s.enqueued, ["b1"]);
+  assertEquals(statusUpdates(s.writes), ["draft", "sending"]);
 });
 
-test("a send with no valid recipients is canceled", async () => {
+Deno.test("a send with no valid recipients is canceled", async () => {
   const s = setup(true, async () => ({ total: 0 }));
   await s.run();
-  assert.deepEqual(statusUpdates(s.writes), ["draft", "canceled"]);
+  assertEquals(statusUpdates(s.writes), ["draft", "canceled"]);
 });
 
-test("an enqueue failure marks the broadcast failed and rethrows", async () => {
-  const s = setup(true, async () => {
-    throw new Error("boom");
-  });
-  await assert.rejects(s.run(), /boom/);
-  assert.deepEqual(statusUpdates(s.writes), ["draft", "failed"]);
-  const failed = s.writes.at(-1);
-  assert.deepEqual(failed?.values, { status: "failed", last_error: "boom" });
-});
+Deno.test(
+  "an enqueue failure marks the broadcast failed and rethrows",
+  async () => {
+    const s = setup(true, async () => {
+      throw new Error("boom");
+    });
+    await assertRejects(() => s.run(), Error, "boom");
+    assertEquals(statusUpdates(s.writes), ["draft", "failed"]);
+    const failed = s.writes.at(-1);
+    assertEquals(failed?.values, { status: "failed", last_error: "boom" });
+  },
+);

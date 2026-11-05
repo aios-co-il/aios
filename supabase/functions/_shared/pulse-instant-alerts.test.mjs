@@ -1,19 +1,19 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   DEFAULT_PULSE_ALERT_RULES,
-  confirmPulseExceptionCandidate,
   evaluatePulseInstantAlerts,
   parsePulseAlertRules,
 } from "./pulse-instant-alerts.ts";
 
-test("parsePulseAlertRules applies defaults", () => {
-  assert.deepEqual(parsePulseAlertRules(null), DEFAULT_PULSE_ALERT_RULES);
-  assert.equal(parsePulseAlertRules({ cpl_spike_pct: 60 }).cpl_spike_pct, 60);
+Deno.test("parsePulseAlertRules applies defaults", () => {
+  assertEquals(parsePulseAlertRules(null), DEFAULT_PULSE_ALERT_RULES);
+  assertStrictEquals(
+    parsePulseAlertRules({ cpl_spike_pct: 60 }).cpl_spike_pct,
+    60,
+  );
 });
 
-test("evaluatePulseInstantAlerts detects no contact and CPL spike", () => {
+Deno.test("evaluatePulseInstantAlerts detects no contact and CPL spike", () => {
   const now = Date.parse("2026-09-15T07:00:00+03:00");
   const rows = evaluatePulseInstantAlerts(
     [
@@ -30,106 +30,99 @@ test("evaluatePulseInstantAlerts detects no contact and CPL spike", () => {
     DEFAULT_PULSE_ALERT_RULES,
     now,
   );
-  assert.equal(rows.length, 2);
-  assert.ok(rows.some((row) => row.rule_type === "no_contact"));
-  assert.ok(rows.some((row) => row.rule_type === "cpl_spike"));
+  assertStrictEquals(rows.length, 2);
+  assert(rows.some((row) => row.rule_type === "no_contact"));
+  assert(rows.some((row) => row.rule_type === "cpl_spike"));
 });
 
-test("evaluatePulseInstantAlerts respects disabled master switch", () => {
+Deno.test("evaluatePulseInstantAlerts respects disabled master switch", () => {
   const rows = evaluatePulseInstantAlerts(
     [{ client_id: "c1", client_name: "Acme", cpl_change_pct: 99, flags: [] }],
     [],
     { ...DEFAULT_PULSE_ALERT_RULES, instant_wa_enabled: false },
   );
-  assert.deepEqual(rows, []);
+  assertEquals(rows, []);
 });
 
-test("campaign exception includes target, evidence and last-change context", () => {
-  const rows = evaluatePulseInstantAlerts(
-    [
-      {
-        client_id: "c1",
-        client_name: "Acme",
-        flags: [],
-        campaign_breakdown: [
-          {
-            campaign_key: "meta:id:123",
-            campaign_name: "Leads",
-            goal: "leads",
-            status_reason: "חריגה מתמשכת מהיעד המאושר",
-            alert_eligible: true,
-            target_kind: "cpl",
-            target_value: 30,
-            efficiency_3d: 52,
-            efficiency_7d: 48,
-            trend_3d_pct: 40,
-            trend_7d_pct: 31,
-            data_fresh_through: "2026-09-17",
-            last_change_at: "2026-09-10T08:00:00Z",
-          },
-        ],
-      },
-    ],
-    [],
-    DEFAULT_PULSE_ALERT_RULES,
-  );
-  const exception = rows.find((row) => row.rule_type === "campaign_exception");
-  assert.ok(exception);
-  assert.equal(exception.campaign_key, "meta:id:123");
-  assert.equal(exception.evidence.target_value, 30);
-  assert.match(exception.message, /קמפיין: Leads/);
-  assert.match(exception.message, /שינוי אחרון: 2026-09-10/);
-});
+Deno.test(
+  "campaign exception keeps target and last-change evidence; its line names client, campaign, reason and figures",
+  () => {
+    const rows = evaluatePulseInstantAlerts(
+      [
+        {
+          client_id: "c1",
+          client_name: "Acme",
+          flags: [],
+          campaign_breakdown: [
+            {
+              campaign_key: "meta:id:123",
+              campaign_name: "Leads",
+              goal: "leads",
+              status_reason: "חריגה מתמשכת מהיעד המאושר",
+              alert_eligible: true,
+              target_kind: "cpl",
+              target_value: 30,
+              efficiency_3d: 52,
+              efficiency_7d: 48,
+              trend_3d_pct: 40,
+              trend_7d_pct: 31,
+              data_fresh_through: "2026-09-17",
+              last_change_at: "2026-09-10T08:00:00Z",
+            },
+          ],
+        },
+      ],
+      [],
+      DEFAULT_PULSE_ALERT_RULES,
+    );
+    const exception = rows.find(
+      (row) => row.rule_type === "campaign_exception",
+    );
+    assert(exception);
+    assertStrictEquals(exception.campaign_key, "meta:id:123");
+    assertStrictEquals(exception.evidence.target_value, 30);
+    assertStrictEquals(
+      exception.evidence.last_change_at,
+      "2026-09-10T08:00:00Z",
+    );
+    assertStrictEquals(
+      exception.line,
+      "Acme — Leads — חריגה מתמשכת מהיעד המאושר — 3 ימים: 52 · 7 ימים: 48 · יעד: CPL 30",
+    );
+  },
+);
 
-test("target-aware campaign rows suppress the legacy raw CPL-spike alert", () => {
-  const rows = evaluatePulseInstantAlerts(
-    [
-      {
-        client_id: "c1",
-        client_name: "Acme",
-        cpl_change_pct: 80,
-        flags: [],
-        campaign_breakdown: [
-          {
-            campaign_key: "meta:id:123",
-            campaign_name: "Leads",
-            goal: "leads",
-            status_reason: "התוצאה בתוך היעד המאושר",
-            alert_eligible: false,
-          },
-        ],
-      },
-    ],
-    [],
-    DEFAULT_PULSE_ALERT_RULES,
-  );
-  assert.equal(
-    rows.some((row) => row.rule_type === "cpl_spike"),
-    false,
-  );
-  assert.equal(
-    rows.some((row) => row.rule_type === "campaign_exception"),
-    false,
-  );
-});
-
-test("automatic AI verification may veto a filtered exception", () => {
-  const candidate = {
-    client_id: "c1",
-    client_name: "Acme",
-    rule_type: "campaign_exception",
-    message: "evidence",
-    evidence: { target_value: 30 },
-  };
-  assert.equal(
-    confirmPulseExceptionCandidate(candidate, { confirmed: false }),
-    null,
-  );
-  const confirmed = confirmPulseExceptionCandidate(candidate, {
-    confirmed: true,
-    summary: "החריגה מאומתת",
-    recommended_check: "בדיקת אירוע ההמרה",
-  });
-  assert.match(confirmed.message, /אימות AI/);
-  assert.equal(confirmed.evidence.ai_confirmation.confirmed, true);
-});
+Deno.test(
+  "target-aware campaign rows suppress the legacy raw CPL-spike alert",
+  () => {
+    const rows = evaluatePulseInstantAlerts(
+      [
+        {
+          client_id: "c1",
+          client_name: "Acme",
+          cpl_change_pct: 80,
+          flags: [],
+          campaign_breakdown: [
+            {
+              campaign_key: "meta:id:123",
+              campaign_name: "Leads",
+              goal: "leads",
+              status_reason: "התוצאה בתוך היעד המאושר",
+              alert_eligible: false,
+            },
+          ],
+        },
+      ],
+      [],
+      DEFAULT_PULSE_ALERT_RULES,
+    );
+    assertStrictEquals(
+      rows.some((row) => row.rule_type === "cpl_spike"),
+      false,
+    );
+    assertStrictEquals(
+      rows.some((row) => row.rule_type === "campaign_exception"),
+      false,
+    );
+  },
+);

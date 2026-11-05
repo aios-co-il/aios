@@ -1,5 +1,8 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import {
+  assertEquals,
+  assertMatch,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   recallTranscriptToText,
   RecallApiError,
@@ -35,29 +38,32 @@ const v111Download = [
   },
 ];
 
-test("parses the v1.11 top-level array download into a speaker timeline", () => {
-  const text = recallTranscriptToText(v111Download);
-  assert.equal(
-    text,
-    [
-      "[00:00] דוד: שלום כרמן",
-      "[00:03] רונית: בוקר טוב",
-      "[00:11] דוד: נתחיל",
-    ].join("\n"),
-  );
-});
+Deno.test(
+  "parses the v1.11 top-level array download into a speaker timeline",
+  () => {
+    const text = recallTranscriptToText(v111Download);
+    assertStrictEquals(
+      text,
+      [
+        "[00:00] דוד: שלום כרמן",
+        "[00:03] רונית: בוקר טוב",
+        "[00:11] דוד: נתחיל",
+      ].join("\n"),
+    );
+  },
+);
 
-test("orders lines by timestamp across participants", () => {
+Deno.test("orders lines by timestamp across participants", () => {
   const lines = recallTranscriptToText(v111Download).split("\n");
-  assert.deepEqual(
+  assertEquals(
     lines.map((l) => l.slice(1, 6)),
     ["00:00", "00:03", "00:11"],
   );
 });
 
-test("returns empty string for a transcript with no words yet", () => {
-  assert.equal(recallTranscriptToText([]), "");
-  assert.equal(
+Deno.test("returns empty string for a transcript with no words yet", () => {
+  assertStrictEquals(recallTranscriptToText([]), "");
+  assertStrictEquals(
     recallTranscriptToText([
       { participant: { id: 1, name: "דוד" }, words: [] },
     ]),
@@ -65,17 +71,20 @@ test("returns empty string for a transcript with no words yet", () => {
   );
 });
 
-test("falls back to participant names when a segment has no display name", () => {
-  const text = recallTranscriptToText([
-    {
-      participant: { id: 7 },
-      words: [{ text: "בדיקה", start_timestamp: { relative: 2 } }],
-    },
-  ]);
-  assert.equal(text, "[00:02] משתתף: בדיקה");
-});
+Deno.test(
+  "falls back to participant names when a segment has no display name",
+  () => {
+    const text = recallTranscriptToText([
+      {
+        participant: { id: 7 },
+        words: [{ text: "בדיקה", start_timestamp: { relative: 2 } }],
+      },
+    ]);
+    assertStrictEquals(text, "[00:02] משתתף: בדיקה");
+  },
+);
 
-test("still supports the utterances schema", () => {
+Deno.test("still supports the utterances schema", () => {
   const text = recallTranscriptToText({
     utterances: [
       {
@@ -84,102 +93,114 @@ test("still supports the utterances schema", () => {
       },
     ],
   });
-  assert.equal(text, "[00:00] דוד: היי");
+  assertStrictEquals(text, "[00:00] דוד: היי");
 });
 
-test("still supports a plain text transcript", () => {
-  assert.equal(recallTranscriptToText({ text: "תמלול פשוט" }), "תמלול פשוט");
+Deno.test("still supports a plain text transcript", () => {
+  assertStrictEquals(
+    recallTranscriptToText({ text: "תמלול פשוט" }),
+    "תמלול פשוט",
+  );
 });
 
-test("detects Recall 402 as a credit error", () => {
-  assert.equal(isRecallCreditHttp(402, ""), true);
-  assert.equal(isRecallCreditHttp(400, "insufficient credit balance"), true);
-  assert.equal(isRecallCreditHttp(500, "oops"), false);
+Deno.test("detects Recall 402 as a credit error", () => {
+  assertStrictEquals(isRecallCreditHttp(402, ""), true);
+  assertStrictEquals(
+    isRecallCreditHttp(400, "insufficient credit balance"),
+    true,
+  );
+  assertStrictEquals(isRecallCreditHttp(500, "oops"), false);
   const err = new RecallApiError(
     402,
     '{"code":"payment_required"}',
     recallCreditErrorMessage("eu-central-1"),
   );
-  assert.equal(isRecallCreditError(err), true);
-  assert.match(
+  assertStrictEquals(isRecallCreditError(err), true);
+  assertMatch(
     err.message,
     /eu-central-1\.recall\.ai\/dashboard\/billing\/usage/,
   );
-  assert.equal(
+  assertStrictEquals(
     isRecallCreditError(new Error("Recall create bot failed (502): nope")),
     false,
   );
 });
 
-test("formats bot hours and billing dashboard URL", () => {
-  assert.equal(formatRecallBotHours(30), "1 דק׳");
-  assert.equal(formatRecallBotHours(3600), "1.0 שעות");
-  assert.equal(formatRecallBotHours(18 * 3600), "18 שעות");
-  assert.equal(
+Deno.test("formats bot hours and billing dashboard URL", () => {
+  assertStrictEquals(formatRecallBotHours(30), "1 דק׳");
+  assertStrictEquals(formatRecallBotHours(3600), "1.0 שעות");
+  assertStrictEquals(formatRecallBotHours(18 * 3600), "18 שעות");
+  assertStrictEquals(
     recallBillingDashboardUrl("eu-central-1"),
     "https://eu-central-1.recall.ai/dashboard/billing/usage",
   );
 });
 
-test("budget thresholds fire at 80% then 95%", () => {
-  assert.equal(recallBudgetThreshold(7.9 * 3600, 10), null);
-  assert.equal(recallBudgetThreshold(8 * 3600, 10), "budget_80");
-  assert.equal(recallBudgetThreshold(9.5 * 3600, 10), "budget_95");
-  assert.equal(recallBudgetThreshold(100, 0), null);
+Deno.test("budget thresholds fire at 80% then 95%", () => {
+  assertStrictEquals(recallBudgetThreshold(7.9 * 3600, 10), null);
+  assertStrictEquals(recallBudgetThreshold(8 * 3600, 10), "budget_80");
+  assertStrictEquals(recallBudgetThreshold(9.5 * 3600, 10), "budget_95");
+  assertStrictEquals(recallBudgetThreshold(100, 0), null);
 });
 
-test("credit canary runs on first check, every 3h while ok, every 30m while down", () => {
-  const now = Date.parse("2026-08-26T12:00:00Z");
-  assert.equal(shouldRunRecallCreditCanary([], now), true);
+Deno.test(
+  "credit canary runs on first check, every 3h while ok, every 30m while down",
+  () => {
+    const now = Date.parse("2026-08-26T12:00:00Z");
+    assertStrictEquals(shouldRunRecallCreditCanary([], now), true);
 
-  const okRecent = [
-    {
-      status: "ok",
-      detail: "קרדיט פעיל · 1.0 שעות החודש · נבדק עכשיו",
-      checked_at: "2026-08-26T10:00:00Z", // 2h ago
-    },
-  ];
-  assert.equal(shouldRunRecallCreditCanary(okRecent, now), false);
+    const okRecent = [
+      {
+        status: "ok",
+        detail: "קרדיט פעיל · 1.0 שעות החודש · נבדק עכשיו",
+        checked_at: "2026-08-26T10:00:00Z", // 2h ago
+      },
+    ];
+    assertStrictEquals(shouldRunRecallCreditCanary(okRecent, now), false);
 
-  const okStale = [
-    {
-      status: "ok",
-      detail: "קרדיט פעיל · נבדק עכשיו",
-      checked_at: "2026-08-26T08:59:00Z", // 3h1m ago
-    },
-  ];
-  assert.equal(shouldRunRecallCreditCanary(okStale, now), true);
+    const okStale = [
+      {
+        status: "ok",
+        detail: "קרדיט פעיל · נבדק עכשיו",
+        checked_at: "2026-08-26T08:59:00Z", // 3h1m ago
+      },
+    ];
+    assertStrictEquals(shouldRunRecallCreditCanary(okStale, now), true);
 
-  const downFresh = [
-    {
-      status: "down",
-      detail: "הקרדיט נגמר · נבדק עכשיו",
-      checked_at: "2026-08-26T11:45:00Z", // 15m ago
-    },
-  ];
-  assert.equal(shouldRunRecallCreditCanary(downFresh, now), false);
+    const downFresh = [
+      {
+        status: "down",
+        detail: "הקרדיט נגמר · נבדק עכשיו",
+        checked_at: "2026-08-26T11:45:00Z", // 15m ago
+      },
+    ];
+    assertStrictEquals(shouldRunRecallCreditCanary(downFresh, now), false);
 
-  const downStale = [
-    {
-      status: "down",
-      detail: "הקרדיט נגמר · נבדק עכשיו",
-      checked_at: "2026-08-26T11:29:00Z", // 31m ago
-    },
-  ];
-  assert.equal(shouldRunRecallCreditCanary(downStale, now), true);
+    const downStale = [
+      {
+        status: "down",
+        detail: "הקרדיט נגמר · נבדק עכשיו",
+        checked_at: "2026-08-26T11:29:00Z", // 31m ago
+      },
+    ];
+    assertStrictEquals(shouldRunRecallCreditCanary(downStale, now), true);
 
-  // Cached rows without the marker should not hide the last real canary.
-  const cachedAfterCanary = [
-    {
-      status: "ok",
-      detail: "קרדיט פעיל · 1.0 שעות החודש",
-      checked_at: "2026-08-26T11:50:00Z",
-    },
-    {
-      status: "ok",
-      detail: "קרדיט פעיל · נבדק עכשיו",
-      checked_at: "2026-08-26T10:00:00Z",
-    },
-  ];
-  assert.equal(shouldRunRecallCreditCanary(cachedAfterCanary, now), false);
-});
+    // Cached rows without the marker should not hide the last real canary.
+    const cachedAfterCanary = [
+      {
+        status: "ok",
+        detail: "קרדיט פעיל · 1.0 שעות החודש",
+        checked_at: "2026-08-26T11:50:00Z",
+      },
+      {
+        status: "ok",
+        detail: "קרדיט פעיל · נבדק עכשיו",
+        checked_at: "2026-08-26T10:00:00Z",
+      },
+    ];
+    assertStrictEquals(
+      shouldRunRecallCreditCanary(cachedAfterCanary, now),
+      false,
+    );
+  },
+);

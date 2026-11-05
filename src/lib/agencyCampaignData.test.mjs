@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import { buildClientCampaignTableData } from "./agencyCampaignData.ts";
 
 test("buildClientCampaignTableData aggregates campaigns per client table", () => {
@@ -43,10 +42,10 @@ test("buildClientCampaignTableData aggregates campaigns per client table", () =>
     platformFilter: "all",
   });
 
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].records.length, 1);
-  assert.equal(rows[0].totals.leads, 3);
-  assert.equal(rows[0].totals.spend, 75);
+  expect(rows.length).toBe(1);
+  expect(rows[0].records.length).toBe(1);
+  expect(rows[0].totals.leads).toBe(3);
+  expect(rows[0].totals.spend).toBe(75);
 });
 
 test("buildClientCampaignTableData respects platform filter", () => {
@@ -71,7 +70,7 @@ test("buildClientCampaignTableData respects platform filter", () => {
     platformFilter: "google_ads",
   });
 
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].integrationType, "google_ads");
-  assert.equal(rows[0].totals.spend, 20);
+  expect(rows.length).toBe(1);
+  expect(rows[0].integrationType).toBe("google_ads");
+  expect(rows[0].totals.spend).toBe(20);
 });

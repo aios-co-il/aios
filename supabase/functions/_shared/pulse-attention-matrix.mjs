@@ -3,6 +3,10 @@ import {
   isEcommerceReportTable,
   tableReportGoal,
 } from "./pulse-campaign-goals.mjs";
+import { evaluateEfficiencyIssue } from "./pulse/efficiency-issue.ts";
+import { isConfirmedGoogleSalesCampaign } from "./pulse/google-sales-campaign.ts";
+import { pulsePlatformOf } from "./pulse/platforms.ts";
+import { resolvePulseTargetAcross } from "./pulse/targets/resolve.ts";
 
 const MOOD_STATUS_LABELS = {
   happy: "😊 מבסוט / תקין",
@@ -14,7 +18,6 @@ const MOOD_STATUS_LABELS = {
   complaint: "😟 סכנת נטישה / תלונה",
 };
 
-const TREND_WATCH_PCT = 25;
 const MS_PER_DAY = 86_400_000;
 
 function daysSince(iso) {
@@ -29,15 +32,13 @@ function round(value, digits = 2) {
   return Math.round(value * factor) / factor;
 }
 
+/** The client's report tables of one ad platform, picked as the target editor picks them. */
 function platformTablesForClient(tables, clientId, platform) {
-  return tables.filter((table) => {
-    if (table.client_id !== clientId) return false;
-    if (platform === "google") return table.integration_type === "google_ads";
-    return (
-      table.integration_type === "facebook_insights" ||
-      table.integration_type === "facebook_ecommerce"
-    );
-  });
+  return tables.filter(
+    (table) =>
+      table.client_id === clientId &&
+      pulsePlatformOf(table.integration_type) === platform,
+  );
 }
 
 function platformConfiguredGoal(tables, clientId, platform) {
@@ -72,6 +73,9 @@ function effectiveCampaignGoal(row, table) {
   if (!table || row.goal !== "ecommerce") return row.goal;
   if (isEcommerceReportTable(table)) return row.goal;
   if (rowConfirmsSalesObjective(row)) return "ecommerce";
+  if (isConfirmedGoogleSalesCampaign(row, table)) {
+    return "ecommerce";
+  }
   return "leads";
 }
 
@@ -112,6 +116,11 @@ function goalFromRows(rows, configuredGoal = null) {
   }
   if (configuredGoal === "leads" && (counts.get("leads") ?? 0) > 0)
     return "leads";
+  // Rows are already normalized: ecommerce rows left in a leads report are
+  // confirmed sales campaigns, so a platform with only those is measured on ROAS.
+  if (configuredGoal === "leads" && best === "ecommerce" && counts.size === 1) {
+    return "ecommerce";
+  }
   if (configuredGoal === "leads" && best === "ecommerce") return "leads";
   if (configuredGoal && configuredGoal !== "unknown") return configuredGoal;
   if (bestSpend >= 0) return best;
@@ -179,134 +188,6 @@ function aggregatePlatformMetrics(rows, configuredGoal = null) {
       baselineWeight > 0 ? round(baselineWeighted / baselineWeight) : null,
     lastChangeAt,
   };
-}
-
-export function readApprovedPlatformTarget(settings = {}, goal) {
-  const platformTargets = settings.pulse_platform_targets || {};
-  const goalTargets = platformTargets[goal] || platformTargets.default || {};
-  const legacyTargets =
-    settings.pulse_targets || settings.campaign_targets || {};
-  const mapped = { ...(legacyTargets.default || {}), ...goalTargets };
-
-  if (goal === "ecommerce") {
-    const roas = Number(
-      mapped.roas ?? mapped.target_roas ?? settings.target_roas,
-    );
-    if (Number.isFinite(roas) && roas > 0)
-      return {
-        value: roas,
-        kind: "roas",
-        direction: "minimum",
-        source: "approved",
-      };
-    const cpa = Number(mapped.cpa ?? mapped.target_cpa ?? settings.target_cpa);
-    if (Number.isFinite(cpa) && cpa > 0)
-      return {
-        value: cpa,
-        kind: "cpa",
-        direction: "maximum",
-        source: "approved",
-      };
-  }
-  if (goal === "leads") {
-    const cpl = Number(mapped.cpl ?? mapped.target_cpl ?? settings.target_cpl);
-    if (Number.isFinite(cpl) && cpl > 0)
-      return {
-        value: cpl,
-        kind: "cpl",
-        direction: "maximum",
-        source: "approved",
-      };
-  }
-  if (goal === "engagement") {
-    const cost = Number(
-      mapped.cost_per_result ??
-        mapped.target_cost_per_result ??
-        settings.target_cost_per_result,
-    );
-    if (Number.isFinite(cost) && cost > 0)
-      return {
-        value: cost,
-        kind: "cost_per_result",
-        direction: "maximum",
-        source: "approved",
-      };
-  }
-  return null;
-}
-
-export function resolvePlatformTarget(settings, goal, baselineEfficiency7d) {
-  const approved = readApprovedPlatformTarget(settings || {}, goal);
-  if (approved) return approved;
-  if (
-    baselineEfficiency7d !== null &&
-    baselineEfficiency7d !== undefined &&
-    Number.isFinite(baselineEfficiency7d) &&
-    baselineEfficiency7d > 0
-  ) {
-    const useRoas = goal === "ecommerce";
-    return {
-      value: round(baselineEfficiency7d),
-      kind: useRoas ? "roas" : goal === "leads" ? "cpl" : "cost_per_result",
-      direction: useRoas ? "minimum" : "maximum",
-      source: "baseline_30d",
-    };
-  }
-  return null;
-}
-
-function isEfficiencyWorse(current, target) {
-  if (target.direction === "minimum") return current < target.value;
-  return current > target.value;
-}
-
-export function evaluateEfficiencyIssue({
-  currentEfficiency,
-  trend7dPct,
-  target,
-}) {
-  if (currentEfficiency === null) return null;
-
-  if (target?.source === "approved") {
-    if (isEfficiencyWorse(currentEfficiency, target)) {
-      const kindLabel =
-        target.kind === "roas"
-          ? "ROAS"
-          : target.kind === "cpl"
-            ? "CPL"
-            : target.kind === "cpa"
-              ? "CPA"
-              : "עלות לתוצאה";
-      return {
-        level: "alert",
-        label: `${kindLabel} ${currentEfficiency} מול יעד ${target.value}`,
-      };
-    }
-    return null;
-  }
-
-  if (trend7dPct !== null && trend7dPct >= TREND_WATCH_PCT) {
-    return {
-      level: trend7dPct >= 40 ? "alert" : "watch",
-      label: `מגמת 7 ימים +${trend7dPct}% (ללא יעד מאושר)`,
-    };
-  }
-
-  if (
-    target?.source === "baseline_30d" &&
-    isEfficiencyWorse(currentEfficiency, target)
-  ) {
-    const pctAbove =
-      target.direction === "maximum"
-        ? round(((currentEfficiency - target.value) / target.value) * 100, 1)
-        : round(((target.value - currentEfficiency) / target.value) * 100, 1);
-    return {
-      level: pctAbove >= 25 ? "alert" : "watch",
-      label: `מול בסיס 30 יום (${target.value}) — ${pctAbove}%`,
-    };
-  }
-
-  return null;
 }
 
 function evaluateCampaignTouchIssue(lastChangeAt, spend7d, hasEfficiencyIssue) {
@@ -382,6 +263,10 @@ function rowHasIssue(issues) {
   return Object.values(issues).some((issue) => issue && issue.level !== "ok");
 }
 
+/**
+ * One attention row per client and platform that has an issue.
+ * @param {{ campaignRows?: object[], tables?: object[], clients?: object[] }} input
+ */
 export function buildPulseAttentionRows({
   campaignRows = [],
   tables = [],
@@ -416,22 +301,23 @@ export function buildPulseAttentionRows({
     const metrics = aggregatePlatformMetrics(normalizedRows, configuredGoal);
     if (metrics.spend7d <= 0) continue;
 
+    const clientTables = tablesByClient.get(clientId) ?? [];
     const primaryTable = pickPrimaryTable(
-      tablesByClient.get(clientId) ?? [],
+      clientTables,
       platform,
       metrics.primaryGoal,
     );
-    const settings = primaryTable?.integration_settings || {};
-    const target = resolvePlatformTarget(
-      settings,
+    // The platform target as the pulse and the editor read it: from any of the
+    // platform's tables (the resolver breaks ties itself, whatever their order).
+    const target = resolvePulseTargetAcross(
+      platformTablesForClient(tables, clientId, platform).map((table) => ({
+        tableId: table.id,
+        integrationType: table.integration_type ?? null,
+        settings: table.integration_settings || {},
+      })),
       metrics.primaryGoal,
-      metrics.baselineEfficiency7d,
     );
-    const efficiencyIssue = evaluateEfficiencyIssue({
-      currentEfficiency: metrics.efficiency7d,
-      trend7dPct: metrics.trend7dPct,
-      target,
-    });
+    const efficiencyIssue = evaluateEfficiencyIssue({ campaignRows: rows });
 
     const issues = {
       campaignTouch: evaluateCampaignTouchIssue(
@@ -462,6 +348,7 @@ export function buildPulseAttentionRows({
       primaryGoal: metrics.primaryGoal,
       target,
       currentEfficiency: metrics.efficiency7d,
+      baselineEfficiency7d: metrics.baselineEfficiency7d,
       spend7d: metrics.spend7d,
       issues,
       hasAnyIssue: true,
@@ -473,33 +360,4 @@ export function buildPulseAttentionRows({
       String(a.clientName).localeCompare(String(b.clientName), "he") ||
       String(a.platform).localeCompare(String(b.platform)),
   );
-}
-
-export function platformTargetFieldKey(goal) {
-  if (goal === "ecommerce") return "roas";
-  if (goal === "engagement") return "cost_per_result";
-  return "cpl";
-}
-
-export function buildPlatformTargetPatch(existingSettings = {}, goal, value) {
-  const currentPlatformTargets = {
-    ...(existingSettings.pulse_platform_targets || {}),
-  };
-  const field = platformTargetFieldKey(goal);
-  if (value === null || !Number.isFinite(value) || value <= 0) {
-    const nextGoal = { ...(currentPlatformTargets[goal] || {}) };
-    delete nextGoal[field];
-    delete nextGoal[`target_${field}`];
-    if (Object.keys(nextGoal).length === 0) delete currentPlatformTargets[goal];
-    else currentPlatformTargets[goal] = nextGoal;
-  } else {
-    currentPlatformTargets[goal] = {
-      ...(currentPlatformTargets[goal] || {}),
-      [field]: value,
-    };
-  }
-  return {
-    ...existingSettings,
-    pulse_platform_targets: currentPlatformTargets,
-  };
 }

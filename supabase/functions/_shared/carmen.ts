@@ -2,7 +2,7 @@
 // Encapsulates: trigger keyword detection, session lifecycle, agent invocation, and
 // optional filtering by a configured integration (carmen_integration_id).
 //
-// The transport (Green API vs Manus WA) is abstracted via the `sendMessage` callback.
+// Replies go out through the Carmen automation's send step (sendCarmenReplyViaActionStep).
 // Session identity is the WhatsApp chat JID (see carmen-session-identity.ts): one
 // group / one private chat = one session. Phone is last-speaker metadata only.
 
@@ -22,6 +22,26 @@ import {
   managerGroupAccessViaAllowedPhones,
 } from "./carmen-group-sender.ts";
 import { buildObservedGroupMembersNote } from "./carmen-observe-group-member.ts";
+import {
+  type CarmenSourceChannel,
+  groupScopeGate,
+} from "./carmen/group-scope.ts";
+import {
+  clientGroupAudienceNote,
+  findGroupClientName,
+} from "./carmen/client-group-audience.ts";
+import {
+  CLIENT_INTAKE_REPLY_HE,
+  findGroupClientAuthor,
+  forwardClientRequest,
+} from "./carmen/client-intake.ts";
+import {
+  DEFAULT_GROUP_REPLY_LEVEL,
+  type GroupReplyLevel,
+} from "./carmen/group-reply-level.ts";
+import { loadGroupReplyLevel } from "./carmen/load-group-reply-level.ts";
+import { sendStaffAlert } from "./staff-alert/send.ts";
+import { resolveCarmenIdentityPhone } from "./carmen/identity-phone.ts";
 import {
   loadGroupAgencyVoice,
   loadRelationshipNote,
@@ -902,19 +922,31 @@ export async function findCarmenSessionAutomation(
   return null;
 }
 
-// Look up the first send action step of a Carmen automation and dispatch the reply through it
-// (Manus or Green API), regardless of which webhook received the inbound message.
-// Returns true when delivery succeeded via the action step; false if no action step is configured
-// or the send failed — callers should fall back to the webhook-supplied sendMessage in that case.
+/**
+ * Look up the first send action step of a Carmen automation and dispatch the reply through it
+ * (Manus or Green API), regardless of which webhook received the inbound message.
+ * Returns true when delivery succeeded via the action step; false if no action step is configured,
+ * the send failed or the client send guard refused it. There is no fallback: nothing else sends.
+ * The send is stamped send_kind "carmen": the chat_messages trigger logs it on the client card
+ * only in a group that belongs to one client. Notifications to team members pass "staff_alert"
+ * and are never logged.
+ */
 export async function sendCarmenReplyViaActionStep(args: {
   supabase: any;
   automationId: string;
   tenantId: string;
-  connectionUserId: string;
+  connectionUserId: string | null;
   chatId: string;
   phoneNumber: string;
   isGroup: boolean;
   message: string;
+  sendKind?: "carmen" | "staff_alert";
+  /**
+   * The guard's proof for a Carmen send: the phone of the staff member she is
+   * answering in this chat (client-send/carmen-proof.ts). Without it, a send
+   * to a client-side chat is refused.
+   */
+  sendRef?: string | null;
 }): Promise<boolean> {
   const {
     supabase,
@@ -925,6 +957,8 @@ export async function sendCarmenReplyViaActionStep(args: {
     phoneNumber,
     isGroup,
     message,
+    sendKind = "carmen",
+    sendRef = null,
   } = args;
 
   if (!replyDestinationIsConsistent({ chatId, isGroup })) {
@@ -1001,7 +1035,11 @@ export async function sendCarmenReplyViaActionStep(args: {
     tenantId,
     senderUserId: connectionUserId,
     message,
+    sendKind,
   };
+  if (sendRef) {
+    body.sendRef = sendRef;
+  }
   if (integrationId) body.integrationId = integrationId;
   if (groupId) {
     body.groupId = groupId;
@@ -1044,7 +1082,7 @@ export interface CarmenWaNotify {
   surface: "whatsapp";
   tenant_id: string;
   automation_id: string | null;
-  connection_user_id: string;
+  connection_user_id: string | null;
   chat_id: string;
   phone_number: string | null;
   is_group: boolean;
@@ -1195,7 +1233,7 @@ export async function findActiveCarmenSession(
   supabase: any,
   tenantId: string,
   chatId: string,
-  connectionUserId: string,
+  connectionUserId: string | null,
   idleMinutes: number = CARMEN_SESSION_IDLE_MINUTES_DEFAULT,
   integrationId?: string | null,
 ): Promise<any | null> {
@@ -1250,8 +1288,8 @@ export interface CarmenContext {
   tenantId: string;
   /** Row id of the tenant_integrations record that received this message. */
   integrationId: string;
-  /** User who owns the integration (used as Carmen session owner). */
-  connectionUserId: string;
+  /** User who owns the integration (used as Carmen session owner); null when unowned. */
+  connectionUserId: string | null;
   /** Provider chat id (e.g. "972501234567@c.us"). */
   chatId: string;
   /** Counterpart phone (digits only or with country code). */
@@ -1273,15 +1311,13 @@ export interface CarmenContext {
    * activates on 'own_instance' — the operator mirror keeps the legacy
    * default-deny so Carmen never answers in the operator's private groups.
    */
-  sourceChannel?: "own_instance" | "operator_mirror" | null;
+  sourceChannel?: CarmenSourceChannel | null;
   /**
    * Role of the receiving connection. "secondary" (e.g. the owner's personal
    * phone) only wakes Carmen for a trigger-word message through an automation
    * pinned to this connection — see secondaryCarmenGate. Default: primary.
    */
   connectionRole?: CarmenConnectionRole;
-  /** Transport-specific send function. Returns true on success. */
-  sendMessage: (chatId: string, message: string) => Promise<boolean>;
   /** True when the inbound message was a voice note (transcribed audio). */
   isVoiceMessage?: boolean;
   /** Optional transport voice sender — when set and the inbound was voice,
@@ -1298,30 +1334,13 @@ export type CarmenHandleResult =
     };
 
 type CarmenIdentityAccess =
-  | { allowed: true; context: string }
+  | { allowed: true; context: string; role: "staff" | "client_contact" }
   | { allowed: false; reply: string | null; reason: string };
 
 function phoneTail(value: string | null | undefined): string {
   return String(value || "")
     .replace(/\D/g, "")
     .slice(-9);
-}
-
-async function resolveCarmenIdentityPhone(
-  supabase: any,
-  phoneNumber: string,
-): Promise<string> {
-  const digits = String(phoneNumber || "").replace(/\D/g, "");
-  const tail = phoneTail(digits);
-  if (tail && /^[5-9]\d{8}$/.test(tail)) return digits;
-  if (!digits) return digits;
-  const { data: known } = await supabase
-    .from("wa_lid_map")
-    .select("phone")
-    .eq("lid", digits)
-    .maybeSingle();
-  if (known?.phone) return String(known.phone).replace(/\D/g, "");
-  return digits;
 }
 
 type CarmenTenantStaff = {
@@ -1577,6 +1596,7 @@ async function resolveCarmenGroupIdentity(
       if (tenantStaff?.isManager) {
         return {
           allowed: true,
+          role: "staff",
           context: `\n\n[הרשאת זהות מחייבת] הדובר הוא ${tenantStaff.displayName || identity.display_name || senderName || "מנהל"} בתפקיד ${tenantStaff.role} בארגון הנוכחי. מותר לענות במסגרת הארגון הנוכחי בלבד. אין לחשוף מידע מארגונים אחרים.`,
         };
       }
@@ -1604,6 +1624,7 @@ async function resolveCarmenGroupIdentity(
       }
       return {
         allowed: true,
+        role: "staff",
         context: `\n\n[הרשאת זהות מחייבת] הדובר הוא איש צוות מאומת: ${identity.display_name || senderName || "ללא שם"}. מותר לענות רק לגבי הלקוחות הפעילים המשויכים אליו: ${clients.join(", ") || "אין לקוחות משויכים"}. אין לחשוף מידע על לקוחות אחרים.`,
       };
     }
@@ -1616,6 +1637,7 @@ async function resolveCarmenGroupIdentity(
     }
     return {
       allowed: true,
+      role: "client_contact",
       context: `\n\n[הרשאת זהות מחייבת] הדובר הוא איש קשר של הלקוח ${groupClient?.name || identity.client_id} (${identity.client_id}). חברותו בקבוצת הלקוח מאשרת שירות בקבוצה זו. מותר לענות רק במידע חיצוני שאושר ללקוח זה. אסור לחשוף תקשורת פנימית, הערות צוות, מידע כספי פנימי, לקוחות אחרים או דיוני הנהלה.`,
     };
   }
@@ -1652,6 +1674,7 @@ async function resolveCarmenGroupIdentity(
   ) {
     return {
       allowed: true,
+      role: "staff",
       context: `\n\n[הרשאת זהות מחייבת] הדובר הוא ${staff?.displayName || senderName || "מנהל"} (${digits}) — מנהל מורשה לפי carmen_allowed_phones. מותר לענות במסגרת הארגון בקבוצה זו בלבד.`,
     };
   }
@@ -1706,7 +1729,6 @@ export async function handleCarmenMessage(
     isManualOutgoing,
     isGroup,
     sourceChannel,
-    sendMessage,
     connectionRole,
   } = ctx;
   const chatId = origin.chatId;
@@ -1804,6 +1826,12 @@ export async function handleCarmenMessage(
     { isGroup },
   );
 
+  const groupScope = isGroup
+    ? groupScopeGate(mergedScope, cfg, sourceChannel)
+    : null;
+
+  let groupRowId: string | null = null;
+  let groupLevel: GroupReplyLevel = DEFAULT_GROUP_REPLY_LEVEL;
   // GROUP SAFETY GATE: a blocked group must stay completely silent regardless
   // of provider, automation scope, or an already-warm Carmen session. Green API
   // checks this before calling us, but Manus reaches the shared handler directly,
@@ -1841,6 +1869,20 @@ export async function handleCarmenMessage(
     if (groupIds.length !== 1) {
       return { handled: false, reason: "group_not_uniquely_registered" };
     }
+    groupRowId = groupIds[0];
+    // The group's reply level (AIO-349): at automations_only Carmen never
+    // talks there, while its messages are still stored and automations run.
+    groupLevel = await loadGroupReplyLevel(supabase, {
+      tenantId,
+      groupId: groupRowId,
+    });
+    if (groupLevel === "automations_only") {
+      console.log("[carmen] group answers automations only; staying silent", {
+        tenantId,
+        chatId,
+      });
+      return { handled: true, outcome: "active" };
+    }
 
     // Every group turn requires a fresh, explicit address to Carmen. A warm
     // session must never make her listen to the group's ordinary conversation.
@@ -1851,6 +1893,17 @@ export async function handleCarmenMessage(
       !groupMessageInvokesCarmen(messageText)
     ) {
       return { handled: false, reason: "group_not_addressed" };
+    }
+
+    // Before identity, so a group that was never opted in gets no reply at all.
+    if (!groupScope?.allowed) {
+      console.log("[carmen] group not opted in; staying silent", {
+        tenantId,
+        chatId,
+        scopeMode: mergedScope.scopeMode,
+        sourceChannel,
+      });
+      return { handled: false, reason: "group_requires_explicit_scope" };
     }
   }
 
@@ -1918,10 +1971,11 @@ export async function handleCarmenMessage(
     }
   }
 
-  // Outbound routing: prefer the automation's configured action step (send_manus_message /
-  // send_green_api_message) so the reply goes through the module the user picked, regardless
-  // of which webhook received the inbound message. Falls back to the webhook-supplied
-  // sendMessage when no action step exists or the dispatch fails.
+  // Outbound routing: the automation's configured action step (send_manus_message /
+  // send_green_api_message), so the reply goes through the module the user picked and
+  // through the client send guard, regardless of which webhook received the inbound
+  // message. There is no direct-to-provider fallback (AIO-349): a refused or failed
+  // send stays unsent, because the fallback skipped the guard.
   const routingAutomationId =
     activeSession?.automation_id || earlyAutomation?.id || null;
   const routedSend = async (
@@ -1954,9 +2008,18 @@ export async function handleCarmenMessage(
         phoneNumber: replyPhone,
         isGroup,
         message,
+        // The author of this turn: staff asking in this chat is the only
+        // proof that lets Carmen's reply reach a client-side chat.
+        sendRef: phoneNumber || null,
       });
     }
-    if (!sent) sent = await sendMessage(toChatId, message);
+    if (!sent) {
+      console.error("[carmen] reply not sent: no guarded route delivered it", {
+        tenantId,
+        chatId: toChatId,
+        automationId: routingAutomationId,
+      });
+    }
     // Voice-in → voice-out: when the user spoke, Carmen also answers in a
     // voice note (fire-and-forget; the text reply above is the reliable path).
     if (sent && ctx.isVoiceMessage && ctx.sendVoice) {
@@ -1970,6 +2033,42 @@ export async function handleCarmenMessage(
         );
     }
     return sent;
+  };
+
+  // The group's own client addressed Carmen in a group that answers clients:
+  // a fixed thank-you, never an AI answer, and the request goes to the team.
+  const answerClientIntake = async (intake: {
+    groupId: string;
+    clientIds: Array<string>;
+  }) => {
+    await routedSend(chatId, CLIENT_INTAKE_REPLY_HE);
+    await forwardClientRequest({
+      db: supabase,
+      tenantId,
+      groupId: intake.groupId,
+      clientIds: intake.clientIds,
+      senderName,
+      senderPhone: phoneNumber,
+      message: messageText,
+      sendAlert: async (phone, message) => {
+        const result = await sendStaffAlert({
+          supabase,
+          supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "",
+          serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          tenantId,
+          phone,
+          message,
+        });
+        if (!result.sent) {
+          console.error("[carmen] client request not forwarded", {
+            tenantId,
+            status: result.status,
+            error: result.error,
+          });
+        }
+        return result.sent;
+      },
+    });
   };
 
   // Built once and passed to runCarmenAI so any subagent that Carmen spawns
@@ -2000,6 +2099,31 @@ export async function handleCarmenMessage(
       mergedScope.allowedPhones,
       mergedScope.policyPhones,
     );
+    const clientAuthor =
+      groupLevel === "client" && groupRowId
+        ? await findGroupClientAuthor(supabase, {
+            tenantId,
+            groupId: groupRowId,
+            phone: phoneNumber,
+          })
+        : null;
+    if (clientAuthor && groupRowId) {
+      await answerClientIntake({
+        groupId: groupRowId,
+        clientIds: clientAuthor.clientIds,
+      });
+      return { handled: true, outcome: "active" };
+    }
+    if (access.allowed && access.role === "client_contact") {
+      // Only a group at the "client" level answers its client, and then only
+      // through the intake above.
+      console.log("[carmen] group does not answer clients; staying silent", {
+        tenantId,
+        chatId,
+        groupLevel,
+      });
+      return { handled: true, outcome: "active" };
+    }
     if (!access.allowed) {
       if (access.reply) await routedSend(chatId, access.reply);
       console.log("[carmen] group author blocked by identity access", {
@@ -2012,6 +2136,14 @@ export async function handleCarmenMessage(
       return { handled: true, outcome: "active" };
     }
     identityContext += access.context;
+    // Everything said in a client's group reaches the client (AIO-349).
+    const audienceClient = await findGroupClientName(supabase, {
+      tenantId,
+      chatId,
+    });
+    if (audienceClient) {
+      identityContext += clientGroupAudienceNote(audienceClient);
+    }
     // Roster from Manus-group traffic only (own_instance). Helps Carmen address
     // known campaigners/contacts by participant_phone when they invoke her.
     if (sourceChannel === "own_instance") {
@@ -2358,28 +2490,10 @@ export async function handleCarmenMessage(
     }
   }
 
-  // Default-deny groups: a legacy "all-scope" automation must NOT auto-trigger inside
-  // WhatsApp groups. Groups require explicit opt-in via scopeMode === 'specific_group'
-  // (and the group listed in allowedGroups) — this way disabling the dedicated groups
-  // automation actually silences Carmen in groups.
-  //
-  // Exception — open-member-groups mode: when the automation opts in via
-  // `carmen_open_member_groups: true`, Carmen may answer in ANY group her own
-  // WhatsApp number is a member of (being added to the group IS the opt-in),
-  // but only for messages arriving via her OWN instance (sourceChannel
-  // 'own_instance'). The operator's mirrored green_api channel keeps the legacy
-  // default-deny — that channel sees ALL the operator's personal groups.
-  const openMemberGroups =
-    isGroup &&
-    (mergedScope.openMemberGroups ||
-      carmenAutomation.configuration?.carmen_open_member_groups === true) &&
-    sourceChannel === "own_instance";
-  if (isGroup && scopeMode !== "specific_group" && !openMemberGroups) {
-    return { handled: false, reason: "group_requires_explicit_scope" };
-  }
-  // Sessions opened through the exception are direct-address-only for their whole
-  // lifetime (see the open_group gate in the continuation branch above).
-  const openGroupStart = openMemberGroups && scopeMode !== "specific_group";
+  // Sessions opened through open-member-groups mode are direct-address-only for
+  // their whole lifetime (see the open_group gate in the continuation branch above).
+  const openGroupStart =
+    groupScope?.allowed === true && groupScope.openGroupStart;
 
   const triggerKeywords = resolveTriggerKeywords(
     carmenAutomation.configuration,

@@ -1,19 +1,33 @@
 import type { ReactElement } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import AddTaskForm from "./AddTaskForm";
 
 describe("AddTaskForm team-member assignment", () => {
+  it("logs a backend creation failure once without closing the form", async () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    fixtures.insert.mockImplementationOnce(() => {
+      throw new Error("task create denied");
+    });
+    const user = userEvent.setup();
+    mountForm(<AddTaskForm clientId="client-1" />);
+    await openDialog(user);
+    await user.type(screen.getByLabelText("כותרת המשימה"), "בדיקת שגיאה");
+    await selectMember(user, "קמפיינר ראשון");
+    await user.click(screen.getByRole("button", { name: "הוסף משימה" }));
+    await waitFor(() =>
+      expect(diagnostic).toHaveBeenCalledExactlyOnceWith(
+        "Task creation failed:",
+        "task create denied",
+      ),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "הוספת משימה חדשה" }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps selector search open across parent-driven category changes", async () => {
     const user = userEvent.setup();
     const { rerender } = mountForm(<AddTaskForm />);
@@ -142,7 +156,7 @@ describe("AddTaskForm team-member assignment", () => {
 });
 
 function mountForm(form: ReactElement) {
-  const { queryClient, wrapper } = withTestQuery();
+  const { queryClient, wrapper } = createTestQueryHarness();
   clients.push(queryClient);
   return render(form, { wrapper });
 }
@@ -177,7 +191,8 @@ interface BackendQuery {
   then(resolve: (value: BackendResult) => unknown): Promise<unknown>;
 }
 
-const clients: ReturnType<typeof withTestQuery>["queryClient"][] = [];
+const clients: Array<ReturnType<typeof createTestQueryHarness>["queryClient"]> =
+  [];
 const fixtures = vi.hoisted(() => ({
   campaigners: [
     { id: "campaigner-1", full_name: "קמפיינר ראשון" },
@@ -256,14 +271,8 @@ vi.mock("@/hooks/useAssignableCampaigners", () => ({
   useAssignableCampaigners: () => ({ data: fixtures.campaigners }),
 }));
 
-beforeAll(() => {
-  if (!HTMLElement.prototype.scrollIntoView)
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value() {},
-    });
-});
 beforeEach(() => {
+  vi.restoreAllMocks();
   Object.assign(fixtures.role, {
     isCampaigner: false,
     isTeamManager: false,

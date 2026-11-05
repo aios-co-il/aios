@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useMatch } from "react-router-dom";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
 import { CommandCenterSidecar } from "./CommandCenterSidecar";
 import { useCommandCenterAccess } from "./access";
@@ -22,6 +23,8 @@ export function CommandCenterSidecarShell({
 }: CommandCenterSidecarShellProps) {
   const ctx = useCommandCenterSidecar();
   const access = useCommandCenterAccess();
+  // The route segment itself: a tenant slug such as "workshop-studio" is not the workshop.
+  const onWorkshop = useMatch("/t/:tenantSlug/workshop") !== null;
   const open = (embedded ? (openProp ?? false) : ctx.open) && access.allowed;
   const setOpen = embedded ? (onOpenChange ?? ignoreOpenChange) : ctx.setOpen;
 
@@ -37,7 +40,7 @@ export function CommandCenterSidecarShell({
   // In RTL the first flex child sits on the right, so the session column
   // docks on the right edge and the page content shrinks beside it.
   return (
-    <div className="carmen-session-layout">
+    <div className={`carmen-session-layout${onWorkshop ? " is-workshop" : ""}`}>
       {open && (
         <aside
           className="carmen-session"

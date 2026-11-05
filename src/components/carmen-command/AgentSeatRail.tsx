@@ -14,6 +14,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { RouteIcon, routeColor } from "./BrainRouteIcon";
 
 const SEAT_ARIA: Record<AgentSeatKey, string> = {
   shared: "מרחב משותף",
@@ -73,22 +74,57 @@ function SeatOptionIcon({ seatKey }: { seatKey: AgentSeatKey }) {
   );
 }
 
+const EXTRA_PREFIX = "route:";
+
+/** Seats for the header select: the fixed rail, then every other active brain. */
+export function seatSelectOptions(routes: BrainRoute[]): {
+  seats: AgentSeatKey[];
+  extras: BrainRoute[];
+} {
+  const seats = RAIL_SEAT_ORDER.filter(
+    (key) => key === "shared" || routeForSeatKey(routes, key),
+  );
+  const covered = new Set(
+    seats
+      .map((key) => routeForSeatKey(routes, key)?.id)
+      .filter(Boolean) as string[],
+  );
+  const extras = routes.filter((r) => !covered.has(r.id));
+  return { seats, extras };
+}
+
+function ExtraOptionIcon({ route }: { route: BrainRoute }) {
+  if (route.route_type === "model")
+    return (
+      <span
+        className="flex h-5 w-5 shrink-0 items-center justify-center"
+        aria-hidden
+      >
+        <RouteIcon type="model" color={routeColor(route)} />
+      </span>
+    );
+  const key = route.slug as AgentSeatKey;
+  return <SeatOptionIcon seatKey={key in AGENT_SPRITES ? key : "carmen"} />;
+}
+
 export function AgentSeatSelect({
   routes,
   selected,
   onSelect,
   className = "",
 }: Pick<AgentSeatRailProps, "routes" | "selected" | "onSelect" | "className">) {
+  const { seats, extras } = seatSelectOptions(routes);
+  const extra = extras.find((r) => r.id === selected.id);
   const activeKey = seatKeyFromRoute(selected);
-  const options = RAIL_SEAT_ORDER.filter(
-    (key) => key === "shared" || routeForSeatKey(routes, key),
-  );
+  const value = extra ? `${EXTRA_PREFIX}${extra.slug}` : activeKey;
 
   return (
     <Select
-      value={activeKey}
-      onValueChange={(key) => {
-        const route = routeForSeatKey(routes, key as AgentSeatKey);
+      value={value}
+      onValueChange={(next) => {
+        const route = next.startsWith(EXTRA_PREFIX)
+          ? extras.find((r) => r.slug === next.slice(EXTRA_PREFIX.length))
+          : routeForSeatKey(routes, next as AgentSeatKey);
         if (route) onSelect(route);
       }}
     >
@@ -97,12 +133,18 @@ export function AgentSeatSelect({
         className={`cc-seat-select-trigger border-[var(--cc-line)] bg-[rgba(8,16,34,0.85)] text-[var(--cc-text)] shadow-none ring-0 ring-offset-0 focus:ring-0 focus:ring-offset-0${className ? ` ${className}` : ""}`}
       >
         <span className="cc-seat-select-value flex min-w-0 items-center gap-2">
-          <SeatOptionIcon seatKey={activeKey} />
-          <span className="truncate">{SEAT_ARIA[activeKey]}</span>
+          {extra ? (
+            <ExtraOptionIcon route={extra} />
+          ) : (
+            <SeatOptionIcon seatKey={activeKey} />
+          )}
+          <span className="truncate">
+            {extra ? extra.label : SEAT_ARIA[activeKey]}
+          </span>
         </span>
       </SelectTrigger>
       <SelectContent className="cc-seat-select-content border-[var(--cc-line-strong)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]">
-        {options.map((key) => (
+        {seats.map((key) => (
           <SelectItem
             key={key}
             value={key}
@@ -112,6 +154,19 @@ export function AgentSeatSelect({
             <span className="flex items-center gap-2">
               <SeatOptionIcon seatKey={key} />
               <span>{SEAT_ARIA[key]}</span>
+            </span>
+          </SelectItem>
+        ))}
+        {extras.map((r) => (
+          <SelectItem
+            key={r.id}
+            value={`${EXTRA_PREFIX}${r.slug}`}
+            textValue={r.label}
+            className="cc-seat-select-item"
+          >
+            <span className="flex items-center gap-2">
+              <ExtraOptionIcon route={r} />
+              <span>{r.label}</span>
             </span>
           </SelectItem>
         ))}

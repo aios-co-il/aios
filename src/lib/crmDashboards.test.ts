@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 
 /**
  * Pure merge/dedupe logic used by fetchAccessibleDashboards — kept here so we
@@ -38,40 +37,39 @@ test("owned MC dashboards + DMM shared-agency dashboards union without duplicate
     { id: "aviali-mc", created_at: "2026-08-02T00:00:00Z" },
   ];
   const merged = mergeDashboardRows(owned, foreign);
-  assert.equal(merged.length, 4);
-  assert.deepEqual(
-    merged.map((r) => r.id),
-    ["aviali-mc", "man-dmm", "holder-dmm", "berliner-dmm"],
-  );
+  expect(merged.length).toBe(4);
+  expect(merged.map((r) => r.id)).toStrictEqual([
+    "aviali-mc",
+    "man-dmm",
+    "holder-dmm",
+    "berliner-dmm",
+  ]);
 });
 
 test("shared-agency create prefers agency home tenant over UI tenant", () => {
   const DMM = "dmm-tenant";
   const MC = "mc-tenant";
-  assert.equal(
+  expect(
     pickHomeTenant({
       uiTenantId: MC,
       agencyTenantId: DMM,
       clientTenantId: DMM,
     }),
-    DMM,
-  );
-  assert.equal(
+  ).toBe(DMM);
+  expect(
     pickHomeTenant({
       uiTenantId: MC,
       agencyTenantId: null,
       clientTenantId: DMM,
     }),
-    DMM,
-  );
-  assert.equal(
+  ).toBe(DMM);
+  expect(
     pickHomeTenant({
       uiTenantId: MC,
       agencyTenantId: null,
       clientTenantId: null,
     }),
-    MC,
-  );
+  ).toBe(MC);
 });
 
 test("owned-agency foreign rows are part of the accessible union (DMM sees MC orphans)", () => {
@@ -82,8 +80,5 @@ test("owned-agency foreign rows are part of the accessible union (DMM sees MC or
     { id: "aviali-mc-orphan", created_at: "2026-08-02T00:00:00Z" },
   ];
   const merged = mergeDashboardRows(ownedOnDmm, foreignOnMcOwnedAgency);
-  assert.equal(
-    merged.some((r) => r.id === "aviali-mc-orphan"),
-    true,
-  );
+  expect(merged.some((r) => r.id === "aviali-mc-orphan")).toBe(true);
 });

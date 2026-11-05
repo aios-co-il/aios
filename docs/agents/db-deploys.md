@@ -7,15 +7,16 @@ Migrations in `supabase/migrations/**` are applied by the Supabase GitHub integr
 - **Edge functions deploy to a branch only if declared** as `[functions.<name>]` in `supabase/config.toml`. A new function without an entry is silently not deployed.
 - **Merge to `develop`:** the persistent `develop` branch applies migrations and deploys declared functions.
 - **Push to `main`:** the Supabase GitHub integration applies migrations and deploys declared functions to Production. Only functions declared as `[functions.<name>]` in `supabase/config.toml` deploy, so declare every new function there.
+- **SQL tests:** `.github/workflows/sql-tests.yml` runs every `supabase/tests/*.sql` with `psql -v ON_ERROR_STOP=1` against a throwaway `supabase db start` database (all migrations plus the dev seed), with no secrets and no hosted project. It runs on every push to `develop` and `main`, and on PRs and merge-queue runs that change `supabase/**`; other PRs skip it and report success. A test creates any user, tenant or row the dev seed lacks instead of assuming Staging data. Locally: `supabase db start`, then the same `psql` loop against `postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
 - **Types:** regenerate `src/integrations/supabase/types.ts` with `scripts/gen-types.sh`; `_check_types.yml` is no longer wired to a PR gate.
 
 ### GitHub config
 
-| Kind                                  | Name                                                                              |
-| ------------------------------------- | --------------------------------------------------------------------------------- |
-| Environment variable                  | `SUPABASE_PROJECT_REF` (`staging` environment, used by the mirror and type check) |
-| Repo variable                         | `PROD_PROJECT_REF`                                                                |
-| Environment secret                    | `DB_PASSWORD` (per environment)                                                   |
-| Repo secret                           | `BASE_ACCESS_TOKEN`                                                               |
-| Branch protection (`develop`, `main`) | PR required; 1 approving review; merge restricted to authorised humans            |
-| Required checks                       | `Supabase Preview` replaces the removed `Staging deploy result`                   |
+| Kind                                  | Name                                                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Environment variable                  | `SUPABASE_PROJECT_REF` (`staging` environment, used by the mirror, type check and render drain) |
+| Repo variable                         | `PROD_PROJECT_REF`                                                                              |
+| Environment secret                    | `DB_PASSWORD` (per environment)                                                                 |
+| Repo secret                           | `BASE_ACCESS_TOKEN`                                                                             |
+| Branch protection (`develop`, `main`) | PR required; 1 approving review; merge restricted to authorised humans                          |
+| Required checks                       | `Supabase Preview` replaces the removed `Staging deploy result`                                 |

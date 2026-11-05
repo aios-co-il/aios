@@ -1,17 +1,22 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { assertStrictEquals } from "jsr:@std/assert@1";
 import { unarchiveExistingLead } from "./unarchive-lead.ts";
 
-test("unarchiveExistingLead restores archived rows and is a no-op otherwise", () => {
-  const archived: Record<string, unknown> = { notes: "x" };
-  assert.equal(
-    unarchiveExistingLead({ archived_at: "2026-08-25T00:00:00Z" }, archived),
-    true,
-  );
-  assert.equal(archived.archived_at, null);
-  assert.equal(archived.archived_by, null);
+Deno.test(
+  "unarchiveExistingLead restores archived rows and is a no-op otherwise",
+  () => {
+    const archived: Record<string, unknown> = { notes: "x" };
+    assertStrictEquals(
+      unarchiveExistingLead({ archived_at: "2026-08-25T00:00:00Z" }, archived),
+      true,
+    );
+    assertStrictEquals(archived.archived_at, null);
+    assertStrictEquals(archived.archived_by, null);
 
-  const live: Record<string, unknown> = {};
-  assert.equal(unarchiveExistingLead({ archived_at: null }, live), false);
-  assert.equal(unarchiveExistingLead(null, live), false);
-});
+    const live: Record<string, unknown> = {};
+    assertStrictEquals(
+      unarchiveExistingLead({ archived_at: null }, live),
+      false,
+    );
+    assertStrictEquals(unarchiveExistingLead(null, live), false);
+  },
+);

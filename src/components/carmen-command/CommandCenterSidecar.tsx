@@ -1,5 +1,5 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { CarmenChatBar, CarmenChatBarHandle } from "./CarmenChatBar";
 import { BrainRouteSelector } from "./BrainRouteSelector";
@@ -11,12 +11,17 @@ import type { CarmenFaceState } from "./CarmenFace";
 import { CommandCenterSidecarHeader } from "./CommandCenterSidecarHeader";
 import { CarmenSessionVideoCard } from "./CarmenSessionVideoCard";
 import { useSidecarSessionDefaults } from "./useSidecarSessionDefaults";
+import { WorkshopModeToggle } from "@/components/workshop/WorkshopModeToggle";
+import { useOpenWorkshopProject } from "@/components/workshop/useOpenWorkshopProject";
 import "@/components/carmen-command/command-center.css";
 
 interface CommandCenterSidecarProps {
   onClose?: () => void;
   className?: string;
   session?: boolean;
+  /** Carmen opened as a full page instead of the side column. */
+  page?: boolean;
+  headerActions?: ReactNode;
 }
 
 /**
@@ -26,11 +31,15 @@ export function CommandCenterSidecar({
   onClose,
   className,
   session = false,
+  page = false,
+  headerActions,
 }: CommandCenterSidecarProps) {
   const identity = useCarmenIdentity();
   const contextMetadata = useSystemFixContext();
   const tenantId = contextMetadata.tenant_id ?? null;
   const brain = useBrainChannel(tenantId);
+  // The workshop board's open project: the chat shows its automatic / semi-automatic switch.
+  const workshopProjectId = useOpenWorkshopProject();
   const chatRef = useRef<CarmenChatBarHandle>(null);
   const [faceState, setFaceState] = useState<CarmenFaceState>("idle");
   const audioLevelRef = useRef(0);
@@ -52,6 +61,8 @@ export function CommandCenterSidecar({
         path={contextMetadata.path}
         onToggleHistory={() => chatRef.current?.toggleHistory()}
         onClose={onClose}
+        actions={headerActions}
+        subtitle={page ? "מסך מלא" : undefined}
       />
 
       {session && (
@@ -59,6 +70,7 @@ export function CommandCenterSidecar({
           videoCard={videoCard}
           faceState={faceState}
           onClose={onClose}
+          showExpand={!page}
         />
       )}
       {brain.noBrainAccess && (
@@ -66,7 +78,9 @@ export function CommandCenterSidecar({
           אין לך הרשאה לאף מוח של כרמן. אפשר לבקש גישה ממנהל המערכת.
         </p>
       )}
-      <div className="carmen-session-chat flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+      <div
+        className={`carmen-session-chat flex min-h-0 flex-1 flex-col overflow-hidden p-2${page ? " mx-auto w-full max-w-4xl" : ""}`}
+      >
         <CarmenChatBar
           ref={chatRef}
           tenantId={tenantId}
@@ -77,18 +91,28 @@ export function CommandCenterSidecar({
           startFresh={session}
           contextMetadata={contextMetadata}
           composerAccessory={
-            session ? (
-              <div className="grid w-full grid-cols-2 gap-2">
-                <BrainRouteSelector
-                  routes={brain.routes}
-                  value={brain.selected.id}
-                  status={brain.status}
-                  externalUrl={brain.externalUrl}
-                  onChange={(route) => brain.selectRoute(route, null)}
-                  compact
-                  className="min-w-0"
-                />
-                <CarmenSkinSwitcher className="h-9 w-full min-w-0" />
+            session || workshopProjectId ? (
+              <div className="flex w-full flex-col gap-2">
+                {session ? (
+                  <div className="grid w-full grid-cols-2 gap-2">
+                    <BrainRouteSelector
+                      routes={brain.routes}
+                      value={brain.selected.id}
+                      status={brain.status}
+                      externalUrl={brain.externalUrl}
+                      onChange={(route) => brain.selectRoute(route, null)}
+                      compact
+                      className="min-w-0"
+                    />
+                    <CarmenSkinSwitcher className="h-9 w-full min-w-0" />
+                  </div>
+                ) : null}
+                {workshopProjectId ? (
+                  <WorkshopModeToggle
+                    tenantId={tenantId}
+                    projectId={workshopProjectId}
+                  />
+                ) : null}
               </div>
             ) : undefined
           }

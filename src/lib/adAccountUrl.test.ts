@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   adAccountShortcutLabel,
   getAdAccountLinks,
@@ -7,23 +6,23 @@ import {
 } from "./adAccountUrl.ts";
 
 test("facebook insights opens Ads Manager with the account id", () => {
-  assert.equal(
+  expect(
     getAdAccountUrl({
       integration_type: "facebook_insights",
       integration_settings: { ad_account_id: "act_120245824650190459" },
     }),
+  ).toBe(
     "https://business.facebook.com/adsmanager/manage/campaigns?act=120245824650190459",
   );
 });
 
 test("google ads opens the customer overview", () => {
-  assert.equal(
+  expect(
     getAdAccountUrl({
       integration_type: "google_ads",
       integration_settings: { customer_id: "123-456-7890" },
     }),
-    "https://ads.google.com/aw/overview?__e=1234567890",
-  );
+  ).toBe("https://ads.google.com/aw/overview?__e=1234567890");
 });
 
 test("a dashboard collects one shortcut per ads account", () => {
@@ -42,7 +41,7 @@ test("a dashboard collects one shortcut per ads account", () => {
       integration_settings: { customer_id: "123-456-7890" },
     },
   ]);
-  assert.deepEqual(links, [
+  expect(links).toStrictEqual([
     {
       url: "https://business.facebook.com/adsmanager/manage/campaigns?act=111",
       label: "חשבון Facebook",
@@ -52,23 +51,21 @@ test("a dashboard collects one shortcut per ads account", () => {
       label: "חשבון Google Ads",
     },
   ]);
-  assert.equal(adAccountShortcutLabel(links[0], 1), "פתח חשבון מודעות");
-  assert.equal(adAccountShortcutLabel(links[0], 2), "חשבון Facebook");
+  expect(adAccountShortcutLabel(links[0], 1)).toBe("פתח חשבון מודעות");
+  expect(adAccountShortcutLabel(links[0], 2)).toBe("חשבון Facebook");
 });
 
 test("reports without an ads account have no shortcut", () => {
-  assert.equal(
+  expect(
     getAdAccountUrl({
       integration_type: "google_analytics",
       integration_settings: {},
     }),
-    null,
-  );
-  assert.equal(
+  ).toBe(null);
+  expect(
     getAdAccountUrl({
       integration_type: "facebook_insights",
       integration_settings: {},
     }),
-    null,
-  );
+  ).toBe(null);
 });

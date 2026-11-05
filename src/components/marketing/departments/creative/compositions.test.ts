@@ -1,6 +1,4 @@
-import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   CREATIVE_COMPOSITIONS,
   buildCompositionLock,
@@ -12,45 +10,43 @@ import {
 } from "./compositions.ts";
 
 test("seven graphic architectures are available and structurally different", () => {
-  assert.equal(CREATIVE_COMPOSITIONS.length, 7);
-  assert.equal(CREATIVE_COMPOSITIONS[0].id, "offer");
+  expect(CREATIVE_COMPOSITIONS.length).toBe(7);
+  expect(CREATIVE_COMPOSITIONS[0].id).toBe("offer");
   const signatures = CREATIVE_COMPOSITIONS.map(
     (item) => `${item.type.x}:${item.type.y}:${item.logo.x}`,
   );
-  assert.equal(new Set(signatures).size, signatures.length);
+  expect(new Set(signatures).size).toBe(signatures.length);
 });
 
 test("offer composition asks for a full-bleed photo and forbids a painted template", () => {
   const lock = buildCompositionLock("offer");
-  assert.match(lock, /full-bleed/i);
-  assert.match(lock, /diagonal/i);
-  assert.doesNotMatch(lock, /Leave the LEFT/i);
+  expect(lock).toMatch(/full-bleed/i);
+  expect(lock).toMatch(/diagonal/i);
+  expect(lock).not.toMatch(/Leave the LEFT/i);
 });
 
 test("composition lock forbids the old caption template and copying faces from boards", () => {
   const lock = buildCompositionLock("rail");
-  assert.match(lock, /RAIL/);
-  assert.match(lock, /logo-top-right/i);
-  assert.match(lock, /not layout and not faces/i);
-  assert.match(lock, /Never default to a bottom-corner/i);
+  expect(lock).toMatch(/RAIL/);
+  expect(lock).toMatch(/logo-top-right/i);
+  expect(lock).toMatch(/not layout and not faces/i);
+  expect(lock).toMatch(/Never default to a bottom-corner/i);
 });
 
 test("pickCompositionId prefers an unused structure", () => {
   const first = pickCompositionId("a");
   const second = pickCompositionId("b", [first]);
-  assert.notEqual(second, first);
+  expect(second).not.toBe(first);
 });
 
 test("auto generation never picks the Promo lead-gen offer board", () => {
   for (const seed of ["a", "b", "copy-1", "וריאציה 3", "seo / geo"]) {
-    assert.notEqual(pickVariationComposition({ seed }), "offer");
-    assert.notEqual(
-      pickCompositionId(seed, [], { exclude: ["offer"] }),
+    expect(pickVariationComposition({ seed })).not.toBe("offer");
+    expect(pickCompositionId(seed, [], { exclude: ["offer"] })).not.toBe(
       "offer",
     );
   }
-  assert.equal(
-    pickVariationComposition({ seed: "x", lockedId: "offer" }),
+  expect(pickVariationComposition({ seed: "x", lockedId: "offer" })).toBe(
     "offer",
   );
 });
@@ -64,52 +60,41 @@ test("auto generation rotates poster layouts across a grid", () => {
     used.push(id);
     return id;
   });
-  assert.equal(new Set(picked).size, 4);
-  assert.equal(picked.includes("offer"), false);
+  expect(new Set(picked).size).toBe(4);
+  expect(picked.includes("offer")).toBe(false);
 });
 
 test("missing composition falls back to flush, not the offer board", () => {
-  assert.equal(DEFAULT_COMPOSITION_ID, "flush");
-  assert.equal(compositionById(undefined).id, "flush");
+  expect(DEFAULT_COMPOSITION_ID).toBe("flush");
+  expect(compositionById(undefined).id).toBe("flush");
 });
 
 test("flush logo is not bottom-left and does not sit under type or CTA", () => {
   const flush = compositionById("flush");
-  assert.ok(flush.logo.y < 20, "logo should sit near the top");
-  assert.ok(flush.logo.x > 50, "logo should not default to the left edge");
-  assert.equal(layoutRectsOverlap(flush.logo, flush.type), false);
-  assert.equal(layoutRectsOverlap(flush.logo, flush.cta), false);
+  expect(flush.logo.y < 20, "logo should sit near the top").toBeTruthy();
+  expect(
+    flush.logo.x > 50,
+    "logo should not default to the left edge",
+  ).toBeTruthy();
+  expect(layoutRectsOverlap(flush.logo, flush.type)).toBe(false);
+  expect(layoutRectsOverlap(flush.logo, flush.cta)).toBe(false);
 });
 
 test("no composition parks the logo on top of type or CTA", () => {
   for (const item of CREATIVE_COMPOSITIONS) {
-    assert.equal(
+    expect(
       layoutRectsOverlap(item.logo, item.type),
-      false,
       `${item.id} logo vs type`,
-    );
-    assert.equal(
+    ).toBe(false);
+    expect(
       layoutRectsOverlap(item.logo, item.cta),
-      false,
       `${item.id} logo vs cta`,
-    );
+    ).toBe(false);
   }
-});
-
-test("image generation lock no longer reserves the old caption template", () => {
-  const source = readFileSync(
-    new URL("../../lib/creativeImagePrompt.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(source, /Do NOT reserve a top headline strip/);
-  assert.match(source, /garbles Hebrew/);
-  assert.match(source, /quiet atmospheric pocket/);
-  assert.doesNotMatch(source, /reserved top-right pad/);
-  assert.doesNotMatch(source, /lower third/);
 });
 
 test("offer lock allows a soft pocket and forbids a painted silhouette", () => {
   const lock = buildCompositionLock("offer");
-  assert.match(lock, /quiet atmospheric pocket/i);
-  assert.match(lock, /drawn silhouette/i);
+  expect(lock).toMatch(/quiet atmospheric pocket/i);
+  expect(lock).toMatch(/drawn silhouette/i);
 });

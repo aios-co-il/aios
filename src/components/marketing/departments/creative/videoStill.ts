@@ -1,27 +1,16 @@
-/** Image model for storyboard stills. Nano Banana Pro keeps a recurring character steadier. */
-export type StillModel = "gpt-image-1" | "nano-banana-pro";
+import {
+  readCreativeVideoSettings,
+  type CreativeVideoSettings,
+} from "./creativeProjectSettings";
 
-export const getStillModel = (
-  payload: Record<string, unknown> | null | undefined,
-): StillModel => {
-  const video = payload?.video;
-  const model =
-    video && typeof video === "object"
-      ? (video as Record<string, unknown>).still_model
-      : undefined;
-  return model === "nano-banana-pro" ? "nano-banana-pro" : "gpt-image-1";
-};
+/** Image model for storyboard stills; persisted unknown engines keep their previous default. */
+export type StillModel = NonNullable<CreativeVideoSettings["still_model"]>;
 
-export const getCharacterRefUrl = (
-  payload: Record<string, unknown> | null | undefined,
-): string | undefined => {
-  const video = payload?.video;
-  const url =
-    video && typeof video === "object"
-      ? (video as Record<string, unknown>).character_ref_url
-      : undefined;
-  return typeof url === "string" && url ? url : undefined;
-};
+export const getStillModel = (payload: unknown): StillModel =>
+  readCreativeVideoSettings(payload).still_model ?? "gpt-image-2.5-sunburst";
+
+export const getCharacterRefUrl = (payload: unknown): string | undefined =>
+  readCreativeVideoSettings(payload).character_ref_url || undefined;
 
 // Image models refuse or imitate protected studio looks; describe the look instead.
 const STUDIO_NAMES =

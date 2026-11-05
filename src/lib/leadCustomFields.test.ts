@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 import {
   getLeadCustomFieldInitialValues,
   getMissingRequiredLeadCustomFields,
@@ -72,65 +71,60 @@ const fields: LeadCustomFieldDefinition[] = [
 ];
 
 test("returns only visible non-system lead fields in configured order", () => {
-  assert.deepEqual(
+  expect(
     getVisibleLeadCustomFields(fields).map((field) => field.field_key),
-    ["employees", "city", "approved"],
-  );
+  ).toStrictEqual(["employees", "city", "approved"]);
 });
 
 test("loads field values from form_data with checkbox normalization", () => {
   const customFields = getVisibleLeadCustomFields(fields);
-  assert.deepEqual(
+  expect(
     getLeadCustomFieldInitialValues(customFields, {
       city: "חיפה",
       employees: 12,
       approved: "true",
     }),
-    { employees: "12", city: "חיפה", approved: true },
-  );
+  ).toStrictEqual({ employees: "12", city: "חיפה", approved: true });
 });
 
 test("merges custom values without removing unrelated form answers", () => {
   const customFields = getVisibleLeadCustomFields(fields);
-  assert.deepEqual(
+  expect(
     mergeLeadCustomFieldValues(
       { campaign_question: "כן", city: "ישן" },
       customFields,
       { employees: "25", city: " תל אביב ", approved: false },
     ),
-    {
-      campaign_question: "כן",
-      city: "תל אביב",
-      employees: 25,
-      approved: false,
-    },
-  );
+  ).toStrictEqual({
+    campaign_question: "כן",
+    city: "תל אביב",
+    employees: 25,
+    approved: false,
+  });
 });
 
 test("keeps nested form answers when a custom field uses the same key", () => {
   const customFields = getVisibleLeadCustomFields(fields);
-  assert.deepEqual(
+  expect(
     mergeLeadCustomFieldValues(
       { city: { question: "עיר", answer: "חיפה" }, employees: 4 },
       customFields,
       { city: "תל אביב", employees: "9", approved: false },
     ),
-    {
-      city: { question: "עיר", answer: "חיפה" },
-      employees: 9,
-      approved: false,
-    },
-  );
+  ).toStrictEqual({
+    city: { question: "עיר", answer: "חיפה" },
+    employees: 9,
+    approved: false,
+  });
 });
 
 test("reports empty required text and unchecked required checkbox fields", () => {
   const customFields = getVisibleLeadCustomFields(fields);
-  assert.deepEqual(
+  expect(
     getMissingRequiredLeadCustomFields(customFields, {
       city: " ",
       employees: "",
       approved: false,
     }).map((field) => field.field_key),
-    ["city", "approved"],
-  );
+  ).toStrictEqual(["city", "approved"]);
 });

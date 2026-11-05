@@ -1,4 +1,4 @@
-export interface CopyConcept {
+export type CopyConcept = {
   id: string;
   name: string;
   bigIdea: string;
@@ -13,7 +13,7 @@ export interface CopyConcept {
   copyKey: string;
   approved: boolean;
   approvedAt: string | null;
-}
+};
 
 const FIELD_ALIASES: Record<
   keyof Omit<
@@ -73,6 +73,7 @@ export function parseCopyConceptsFromPayload(
     if (!name && !bigIdea) return [];
     return [
       {
+        ...rec,
         id: text(rec.id) || crypto.randomUUID(),
         name: name || "קונספט",
         bigIdea,

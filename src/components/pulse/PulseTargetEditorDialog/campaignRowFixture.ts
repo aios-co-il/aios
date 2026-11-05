@@ -1,0 +1,48 @@
+import type { PulseCampaignGoalRow } from "@/lib/pulseCampaignGoals";
+
+/** A spending lead campaign of client-1 in table t1, CPL 75 against a baseline of 50. */
+export function campaignRow(
+  over: Partial<PulseCampaignGoalRow> = {},
+): PulseCampaignGoalRow {
+  return {
+    campaign_key: "k1",
+    campaign_id: "c1",
+    campaign_name: "לידים שיפוץ",
+    client_id: "client-1",
+    table_id: "t1",
+    platform: "meta",
+    goal: "leads",
+    classification_source: "platform_goal",
+    outcome_kind: "leads",
+    status: "critical",
+    status_tier: "exception",
+    status_reason: "",
+    alert_eligible: true,
+    target_value: null,
+    target_kind: null,
+    spend_3d: 300,
+    outcomes_3d: 4,
+    efficiency_3d: 75,
+    spend_7d: 900,
+    outcomes_7d: 12,
+    revenue_7d: 0,
+    efficiency_7d: 75,
+    baseline_efficiency_3d: 50,
+    baseline_efficiency_7d: 50,
+    trend_3d_pct: 50,
+    trend_7d_pct: 50,
+    impressions_7d: 0,
+    reach_7d: 0,
+    frequency_7d: null,
+    spend_today: 0,
+    outcomes_today: null,
+    revenue_today: 0,
+    efficiency_today: null,
+    data_fresh_through: null,
+    last_change_at: null,
+    last_sync_at: null,
+    partial_today_excluded: true,
+    today_partial_included: false,
+    ...over,
+  };
+}

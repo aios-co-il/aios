@@ -1,0 +1,84 @@
+name: CI — SQL tests
+
+# Runs every supabase/tests/*.sql against a throwaway local Supabase database
+# built from supabase/migrations and the dev seed. No secrets: the job never
+# links or connects to a hosted project.
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # develop's merge queue: each queued PR is checked on top of the PRs ahead of it.
+  merge_group:
+
+concurrency:
+  group: sql-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sql-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      sql: ${{ steps.filter.outputs.sql }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: filter
+        name: Detect database changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          set -euo pipefail
+          # Pushes always run; PRs and merge-queue runs skip (and report success) without database changes.
+          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^supabase/|^\.github/workflows/sql-tests\.yml$'; then
+            echo "sql=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sql=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  sql-tests:
+    needs: sql-changes
+    if: needs.sql-changes.outputs.sql == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+
+      - name: Start local database (migrations and seed)
+        run: supabase db start
+
+      - name: Run supabase/tests/*.sql
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -uo pipefail
+          failed=()
+          for test in supabase/tests/*.sql; do
+            echo "::group::$test"
+            if psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -f "$test"; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error file=$test::$test failed"
+              failed+=("$test")
+            fi
+          done
+          if [ "${#failed[@]}" -gt 0 ]; then
+            echo "::error::${#failed[@]} SQL test(s) failed: ${failed[*]}"
+            exit 1
+          fi
+
+      - name: Stop local database
+        if: always()
+        run: supabase stop --no-backup
