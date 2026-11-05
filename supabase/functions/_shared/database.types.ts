@@ -18589,7 +18589,11 @@ export type Database = {
         Returns: boolean;
       };
       update_system_cron_job: {
-        Args: { p_active?: boolean; p_jobid: number; p_schedule?: string };
+        Args: {
+          p_active?: boolean;
+          p_jobid: number;
+          p_schedule?: string | null;
+        };
         Returns: undefined;
       };
       user_can_access_client: {
