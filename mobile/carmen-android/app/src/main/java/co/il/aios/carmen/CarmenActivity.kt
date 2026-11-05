@@ -41,6 +41,7 @@ class CarmenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
         setContentView(R.layout.activity_carmen)
+        keepClearOfSystemBars()
         stateText = findViewById(R.id.state_text)
         // Rounded tile corners (the XML attribute needs API 31; minSdk is 30).
         findViewById<View>(R.id.call_tile).clipToOutline = true
