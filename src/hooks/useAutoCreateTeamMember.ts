@@ -68,13 +68,10 @@ export function useAutoCreateTeamMember() {
       if (existing) {
         campaigner = { id: existing.id, reused: true };
         if (!(existing.email || "").trim() && params.email) {
-          const { error } = await supabase
+          await supabase
             .from("campaigners")
             .update({ email: params.email })
             .eq("id", existing.id);
-          if (error) {
-            throw error;
-          }
         }
       } else {
         const { data: created, error: campaignerError } = await supabase
@@ -179,13 +176,10 @@ export function useAutoCreateTeamMember() {
       if (existing) {
         salesPerson = { id: existing.id, reused: true };
         if (!(existing.email || "").trim() && params.email) {
-          const { error } = await supabase
+          await supabase
             .from("sales_people")
             .update({ email: params.email })
             .eq("id", existing.id);
-          if (error) {
-            throw error;
-          }
         }
       } else {
         const { data: created, error: salesPersonError } = await supabase

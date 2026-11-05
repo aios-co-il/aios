@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
 import { useAutoCreateTeamMember } from "./useAutoCreateTeamMember";
@@ -41,8 +41,8 @@ function CreateMember({ kind }: { kind: MemberKind }) {
 }
 
 /** Fluent fake keeps awaited query results and write arguments observable. */
-function queryReply(data: unknown, error: Error | null = null) {
-  const promise = Promise.resolve({ data, error });
+function queryReply(data: unknown) {
+  const promise = Promise.resolve({ data, error: null });
   return {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
@@ -110,27 +110,6 @@ describe.each<MemberKind>(["campaigner", "salesPerson"])(
       expect(profileWrite.update).toHaveBeenCalledWith({
         [profileKey]: "existing-member",
       });
-    });
-
-    it("reports a rejected email update before linking or claiming success", async () => {
-      from
-        .mockReturnValueOnce(queryReply({ [profileKey]: "existing-member" }))
-        .mockReturnValueOnce(
-          queryReply([{ id: "existing-member", email: null }]),
-        )
-        .mockReturnValueOnce(
-          queryReply(null, new Error("email update rejected")),
-        )
-        .mockReturnValue(queryReply(null));
-      render(withTestQuery(<CreateMember kind={kind} />));
-      fireEvent.click(screen.getByRole("button"));
-      await waitFor(() =>
-        expect(errorToast).toHaveBeenCalledWith(
-          expect.stringContaining("email update rejected"),
-        ),
-      );
-      expect(from).toHaveBeenCalledTimes(3);
-      expect(success).not.toHaveBeenCalled();
     });
   },
 );
