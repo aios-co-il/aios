@@ -51,7 +51,7 @@ export function useBroadcastDomains() {
       const { data, error } = await supabase
         .from("broadcast_email_domains")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .order("is_default", { ascending: false })
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -70,7 +70,7 @@ export function useBroadcastDomains() {
         await supabase
           .from("broadcast_email_domains")
           .update({ is_default: false })
-          .eq("tenant_id", tenantId);
+          .filter("tenant_id", "eq", tenantId);
       }
       const { error } = await supabase.from("broadcast_email_domains").insert({
         tenant_id: tenantId,
@@ -98,7 +98,7 @@ export function useBroadcastDomains() {
         .from("broadcast_email_domains")
         .update({ domain, default_local, from_name })
         .eq("id", id)
-        .eq("tenant_id", tenantId);
+        .filter("tenant_id", "eq", tenantId);
       if (error) throw error;
       return { wasSwapped, email: formatSenderEmail(default_local, domain) };
     },
@@ -121,7 +121,7 @@ export function useBroadcastDomains() {
       await supabase
         .from("broadcast_email_domains")
         .update({ is_default: false })
-        .eq("tenant_id", tenantId);
+        .filter("tenant_id", "eq", tenantId);
       const { error } = await supabase
         .from("broadcast_email_domains")
         .update({ is_default: true })
