@@ -10122,7 +10122,7 @@ async function executeTool(
           .is("group_id", null)
           .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
       else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const data = await readScopedChatRows<ChatHistorySearchRow>(
+      const data: ChatHistorySearchRow[] = await readScopedChatRows(
         supabase,
         q,
         chatScope,
