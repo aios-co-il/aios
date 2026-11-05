@@ -198,10 +198,6 @@ export const CarmenChatBar = forwardRef<
 ) {
   const identity = useCarmenIdentity();
   const isSidecar = mode === "sidecar";
-  useEffect(() => {
-    if (!isSidecar) return;
-    setMicCaptureMode("transcribe_only");
-  }, [isSidecar]);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<CommandCenterAttachment[]>([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
@@ -1774,6 +1770,9 @@ export const CarmenChatBar = forwardRef<
     isConvMode ||
     uploadingAttachments;
 
+  // The side column is narrow: there the microphone mode and voice live in the "+" menu.
+  const inlineVoiceSelects = isSidecar ? "hidden" : "hidden sm:flex";
+  const optionsMenuVisibility = isSidecar ? "" : "sm:hidden";
   const composerPlaceholder = isSidecar
     ? (sidecarPlaceholder ?? "תיאור תיקון / בקשה למסך הנוכחי…")
     : isTranscribing
@@ -1931,7 +1930,7 @@ export const CarmenChatBar = forwardRef<
               type="button"
               title="עוד אפשרויות"
               disabled={composerBusy && !isSidecar}
-              className="order-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--cc-line)] text-[var(--cc-text-dim)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40 sm:hidden"
+              className={`order-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--cc-line)] text-[var(--cc-text-dim)] transition-colors hover:border-[var(--cc-line-strong)] hover:text-[var(--cc-accent)] disabled:opacity-40 ${optionsMenuVisibility}`}
             >
               <Plus className="h-5 w-5" />
             </button>
@@ -1957,64 +1956,60 @@ export const CarmenChatBar = forwardRef<
               )}
               צרף קובץ או תמונה
             </button>
-            {!isSidecar && (
-              <>
-                <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
-                  מצב מיקרופון
-                </label>
-                <select
-                  value={micCaptureMode}
-                  onChange={(e) =>
-                    selectMicCaptureMode(e.target.value as MicCaptureMode)
-                  }
-                  title="מצב מיקרופון"
-                  className="mt-1 h-10 w-full rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
-                  disabled={
-                    isConvMode || isTranscribeRecording || isTranscribing
-                  }
-                >
-                  {(
-                    Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]
-                  ).map((mode) => (
+            <>
+              <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
+                מצב מיקרופון
+              </label>
+              <select
+                value={micCaptureMode}
+                onChange={(e) =>
+                  selectMicCaptureMode(e.target.value as MicCaptureMode)
+                }
+                title="מצב מיקרופון"
+                className="mt-1 h-10 w-full rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
+                disabled={isConvMode || isTranscribeRecording || isTranscribing}
+              >
+                {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
+                  (mode) => (
                     <option key={mode} value={mode}>
                       {MIC_CAPTURE_MODE_LABELS[mode]}
                     </option>
+                  ),
+                )}
+              </select>
+              <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
+                קול כרמן
+              </label>
+              <div className="mt-1 flex items-center gap-2">
+                <Headphones className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
+                <select
+                  value={selectedVoice ?? ""}
+                  onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
+                  title="קול"
+                  className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
+                >
+                  <option value="">{DEFAULT_VOICE_LABEL}</option>
+                  {CARMEN_VOICES.map((voice) => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.label}
+                    </option>
                   ))}
                 </select>
-                <label className="mt-3 block text-[10px] font-medium text-[var(--cc-text-dim)]">
-                  קול כרמן
-                </label>
-                <div className="mt-1 flex items-center gap-2">
-                  <Headphones className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
-                  <select
-                    value={selectedVoice ?? ""}
-                    onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
-                    title="קול"
-                    className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
-                  >
-                    <option value="">{DEFAULT_VOICE_LABEL}</option>
-                    {CARMEN_VOICES.map((voice) => (
-                      <option key={voice.id} value={voice.id}>
-                        {voice.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={previewVoice}
-                    disabled={isPreviewingVoice}
-                    title="דוגמה"
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
-                  >
-                    {isPreviewingVoice ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Play className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
+                <button
+                  type="button"
+                  onClick={previewVoice}
+                  disabled={isPreviewingVoice}
+                  title="דוגמה"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
+                >
+                  {isPreviewingVoice ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </>
           </DropdownMenuContent>
         </DropdownMenu>
         <button
@@ -2032,140 +2027,119 @@ export const CarmenChatBar = forwardRef<
             <Paperclip className="h-4 w-4" />
           )}
         </button>
-        {isSidecar ? (
-          <button
-            onClick={handleMicClick}
-            disabled={isTranscribing}
-            title={isTranscribeRecording ? "עצור הקלטה" : "מיקרופון לתמלול"}
-            className={`cc-mic order-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-              isTranscribeRecording
-                ? "border-[var(--cc-crit)] bg-[rgba(248,113,113,0.15)] text-[var(--cc-crit)]"
-                : isTranscribing
-                  ? "border-[var(--cc-line)] opacity-60"
-                  : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(76,195,255,0.15)]"
-            }`}
+        <div
+          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 ${inlineVoiceSelects}`}
+        >
+          <select
+            value={micCaptureMode}
+            onChange={(e) =>
+              selectMicCaptureMode(e.target.value as MicCaptureMode)
+            }
+            title="מצב מיקרופון"
+            className="max-w-[120px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
+            disabled={isConvMode || isTranscribeRecording || isTranscribing}
           >
-            {isTranscribing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : isTranscribeRecording ? (
-              <Square className="h-4 w-4" />
+            {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
+              (mode) => (
+                <option key={mode} value={mode}>
+                  {MIC_CAPTURE_MODE_LABELS[mode]}
+                </option>
+              ),
+            )}
+          </select>
+        </div>
+        <div
+          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 ${inlineVoiceSelects}`}
+        >
+          <Headphones className="h-4 w-4 text-[var(--cc-accent)]" />
+          <select
+            value={selectedVoice ?? ""}
+            onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
+            title="קול"
+            className="max-w-[130px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
+          >
+            <option value="">{DEFAULT_VOICE_LABEL}</option>
+            {CARMEN_VOICES.map((voice) => (
+              <option key={voice.id} value={voice.id}>
+                {voice.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={previewVoice}
+            disabled={isPreviewingVoice}
+            title="דוגמה"
+            className="text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
+          >
+            {isPreviewingVoice ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <AudioLines className="h-5 w-5" />
+              <Play className="h-3.5 w-3.5" />
             )}
           </button>
-        ) : (
+        </div>
+        <button
+          onClick={handleMicClick}
+          disabled={isTranscribing}
+          title={
+            micCaptureMode === "transcribe_only"
+              ? isTranscribeRecording
+                ? "עצור הקלטה"
+                : "מיקרופון לתמלול בלבד"
+              : isConvMode
+                ? "סיים שיחה חיה"
+                : "שיחה חיה"
+          }
+          className={`cc-mic order-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
+            isConvMode || isTranscribeRecording
+              ? "border-[var(--cc-crit)] bg-[rgba(248,113,113,0.15)] text-[var(--cc-crit)]"
+              : isTranscribing
+                ? "border-[var(--cc-line)] opacity-60"
+                : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(76,195,255,0.15)]"
+          }`}
+        >
+          {isTranscribing ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : isConvMode || isTranscribeRecording ? (
+            <Square className="h-4 w-4" />
+          ) : micCaptureMode === "transcribe_only" ? (
+            <AudioLines className="h-5 w-5" />
+          ) : (
+            <Mic className="h-5 w-5" />
+          )}
+        </button>
+        {isConvMode && (
           <>
-            <div className="hidden h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 sm:flex">
-              <select
-                value={micCaptureMode}
-                onChange={(e) =>
-                  selectMicCaptureMode(e.target.value as MicCaptureMode)
-                }
-                title="מצב מיקרופון"
-                className="max-w-[120px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
-                disabled={isConvMode || isTranscribeRecording || isTranscribing}
-              >
-                {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
-                  (mode) => (
-                    <option key={mode} value={mode}>
-                      {MIC_CAPTURE_MODE_LABELS[mode]}
-                    </option>
-                  ),
-                )}
-              </select>
-            </div>
-            <div className="hidden h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 sm:flex">
-              <Headphones className="h-4 w-4 text-[var(--cc-accent)]" />
-              <select
-                value={selectedVoice ?? ""}
-                onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
-                title="קול"
-                className="max-w-[130px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
-              >
-                <option value="">{DEFAULT_VOICE_LABEL}</option>
-                {CARMEN_VOICES.map((voice) => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={previewVoice}
-                disabled={isPreviewingVoice}
-                title="דוגמה"
-                className="text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
-              >
-                {isPreviewingVoice ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
             <button
-              onClick={handleMicClick}
-              disabled={isTranscribing}
-              title={
-                micCaptureMode === "transcribe_only"
-                  ? isTranscribeRecording
-                    ? "עצור הקלטה"
-                    : "מיקרופון לתמלול בלבד"
-                  : isConvMode
-                    ? "סיים שיחה חיה"
-                    : "שיחה חיה"
-              }
-              className={`cc-mic order-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-                isConvMode || isTranscribeRecording
-                  ? "border-[var(--cc-crit)] bg-[rgba(248,113,113,0.15)] text-[var(--cc-crit)]"
-                  : isTranscribing
-                    ? "border-[var(--cc-line)] opacity-60"
-                    : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(76,195,255,0.15)]"
+              onClick={toggleMute}
+              title={isMuted ? "מיקרופון" : "השתק מיקרופון"}
+              className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
+                isMuted
+                  ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
+                  : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
               }`}
             >
-              {isTranscribing ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : isConvMode || isTranscribeRecording ? (
-                <Square className="h-4 w-4" />
-              ) : micCaptureMode === "transcribe_only" ? (
-                <AudioLines className="h-5 w-5" />
+              {isMuted ? (
+                <MicOff className="h-4 w-4" />
               ) : (
-                <Mic className="h-5 w-5" />
+                <Mic className="h-4 w-4" />
               )}
             </button>
-            {isConvMode && (
-              <>
-                <button
-                  onClick={toggleMute}
-                  title={isMuted ? "מיקרופון" : "השתק מיקרופון"}
-                  className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-                    isMuted
-                      ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
-                      : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
-                  }`}
-                >
-                  {isMuted ? (
-                    <MicOff className="h-4 w-4" />
-                  ) : (
-                    <Mic className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  onClick={toggleOutputMute}
-                  title={isOutputMuted ? "השמע" : "השתק כרמן"}
-                  className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
-                    isOutputMuted
-                      ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
-                      : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
-                  }`}
-                >
-                  {isOutputMuted ? (
-                    <VolumeX className="h-4 w-4" />
-                  ) : (
-                    <Volume2 className="h-4 w-4" />
-                  )}
-                </button>
-              </>
-            )}
+            <button
+              onClick={toggleOutputMute}
+              title={isOutputMuted ? "השמע" : "השתק כרמן"}
+              className={`order-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all sm:order-none ${
+                isOutputMuted
+                  ? "border-[var(--cc-warn)] bg-[rgba(251,191,36,0.15)] text-[var(--cc-warn)]"
+                  : "border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)]"
+              }`}
+            >
+              {isOutputMuted ? (
+                <VolumeX className="h-4 w-4" />
+              ) : (
+                <Volume2 className="h-4 w-4" />
+              )}
+            </button>
           </>
         )}
         <input
