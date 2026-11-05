@@ -1,7 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, ReactElement } from "react";
 
-export function withTestQuery() {
+/** Wrap tested UI in a provider with its own query cache. */
+export function withTestQuery(ui: ReactElement): ReactElement {
+  const { wrapper: TestQueryProvider } = createTestQueryHarness();
+  return <TestQueryProvider>{ui}</TestQueryProvider>;
+}
+
+/** Legacy cache setup remains explicit until its callers migrate in AIO-339. */
+export function createTestQueryHarness() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
@@ -9,6 +16,7 @@ export function withTestQuery() {
     },
   });
 
+  /** Rerenders share this harness's client without sharing another test's cache. */
   function TestQueryProvider({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

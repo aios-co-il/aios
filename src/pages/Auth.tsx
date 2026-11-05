@@ -340,10 +340,10 @@ export default function Auth() {
     toast({ title: "הסיסמה עודכנה", description: "הסיסמה שלך עודכנה בהצלחה" });
 
     const {
-      data: { user, session },
+      data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      await navigateToApp(user.id, session?.access_token);
+      await navigateToApp(user.id);
     }
     setLoading(false);
   };

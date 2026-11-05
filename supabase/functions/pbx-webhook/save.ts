@@ -1,7 +1,8 @@
 // Writes an incoming PBX event to call_logs.
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import type { PbxEvent, PbxSettings } from "../_shared/telephony/types.ts";
-import { WebhookError } from "./errors.ts";
+import { callerUpgrade, loadFirstTenantUser, resolveCaller } from "./caller.ts";
 import type { CallLogRow, Owner } from "./match.ts";
 import { mapCallStatus } from "./status.ts";
 
@@ -9,24 +10,21 @@ import { mapCallStatus } from "./status.ts";
 export type Recording = { url: string | null; path: string | null };
 export type SavedCall = Owner & { callLogId: string };
 
+/** Applies a later PBX event to the call's existing call_logs row (tenant-keyed). */
 export async function updateCall(
-  sb: SupabaseClient,
+  sb: DbClient,
+  tenantId: string,
   existing: CallLogRow,
   event: PbxEvent,
   owner: Owner,
   recording: Recording,
+  settings: PbxSettings,
 ): Promise<SavedCall> {
-  const update: Record<string, unknown> = {
-    status: resolveStatus(event, recording, existing),
-    ...recordingColumns(event, recording),
-  };
-  if (!existing.lead_id && owner.leadId) update.lead_id = owner.leadId;
-  if (!existing.client_id && owner.clientId) update.client_id = owner.clientId;
-  if (event.duration !== null) update.duration = event.duration;
   const { error } = await sb
     .from("call_logs")
-    .update(update)
-    .eq("id", existing.id);
+    .update(callUpdate(existing, event, owner, recording, settings))
+    .eq("id", existing.id)
+    .eq("tenant_id", tenantId);
   if (error) throw error;
   return {
     callLogId: existing.id,
@@ -35,40 +33,68 @@ export async function updateCall(
   };
 }
 
+/** Inserts the call_logs row for a call the PBX reports first, choosing its caller. */
 export async function insertCall(
-  sb: SupabaseClient,
+  sb: DbClient,
   tenantId: string,
   settings: PbxSettings,
   event: PbxEvent,
   owner: Owner,
   recording: Recording,
 ): Promise<SavedCall> {
-  const callerUserId = await resolveCallerUser(
-    sb,
-    tenantId,
-    settings,
-    event.extension,
+  const caller = await resolveCaller(settings, event.extension, () =>
+    loadFirstTenantUser(sb, tenantId),
   );
+  const row: TablesInsert<"call_logs"> = {
+    tenant_id: tenantId,
+    lead_id: owner.leadId,
+    client_id: owner.clientId,
+    caller_user_id: caller.userId,
+    caller_resolution: caller.resolution,
+    from_number: event.caller,
+    to_number: event.called || event.caller || "unknown",
+    status: resolveStatus(event, recording, null),
+    duration: event.duration ?? 0,
+    provider: "pbx",
+    provider_call_id: event.callId,
+    notes: buildNotes(event, settings),
+    ...recordingColumns(event, recording),
+  };
   const { data, error } = await sb
     .from("call_logs")
-    .insert({
-      tenant_id: tenantId,
-      lead_id: owner.leadId,
-      client_id: owner.clientId,
-      caller_user_id: callerUserId,
-      from_number: event.caller,
-      to_number: event.called || event.caller || "unknown",
-      status: resolveStatus(event, recording, null),
-      duration: event.duration ?? 0,
-      provider: "pbx",
-      provider_call_id: event.callId,
-      notes: buildNotes(event, settings),
-      ...recordingColumns(event, recording),
-    })
+    .insert(row)
     .select("id")
     .single();
   if (error) throw error;
   return { callLogId: data.id, ...owner };
+}
+
+/**
+ * The columns an event changes on the call it continues; a call nobody was
+ * named for takes the agent its extension names (callerUpgrade).
+ */
+export function callUpdate(
+  existing: CallLogRow,
+  event: PbxEvent,
+  owner: Owner,
+  recording: Recording,
+  settings: PbxSettings,
+): TablesUpdate<"call_logs"> {
+  const update: TablesUpdate<"call_logs"> = {
+    status: resolveStatus(event, recording, existing),
+    ...recordingColumns(event, recording),
+    ...callerUpgrade(settings, event.extension, existing.caller_resolution),
+  };
+  if (!existing.lead_id && owner.leadId) {
+    update.lead_id = owner.leadId;
+  }
+  if (!existing.client_id && owner.clientId) {
+    update.client_id = owner.clientId;
+  }
+  if (event.duration !== null) {
+    update.duration = event.duration;
+  }
+  return update;
 }
 
 function hasRecording(recording: Recording): boolean {
@@ -92,29 +118,6 @@ function resolveStatus(
   if (event.status) return mapCallStatus(event.status);
   if (hasRecording(recording)) return "completed";
   return existing?.status ?? "completed";
-}
-
-/** The agent on the extension, else the tenant's first user
- *  (call_logs.caller_user_id is required). */
-async function resolveCallerUser(
-  sb: SupabaseClient,
-  tenantId: string,
-  settings: PbxSettings,
-  extension: string | null,
-): Promise<string> {
-  const mapped = extension
-    ? (settings.extensions || []).find((e) => e.extension === extension)
-    : undefined;
-  if (mapped?.user_id) return mapped.user_id;
-  const { data } = await sb
-    .from("tenant_users")
-    .select("user_id")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!data?.user_id) throw new WebhookError("No tenant user found", 422);
-  return data.user_id;
 }
 
 function buildNotes(event: PbxEvent, settings: PbxSettings): string | null {

@@ -135,6 +135,7 @@ export const parseCopyVariationsFromPayload = (
     const parts = text ? parseCreativeCopy(text) : {};
     return [
       {
+        ...rec,
         id: asText(rec.id) || crypto.randomUUID(),
         key: key || "1",
         label: asText(rec.label) || `וריאציה ${key || "1"}`,
@@ -162,6 +163,7 @@ export const hydrateCopyVariations = (
     const prev = byKey.get(block.key);
     if (prev) byKey.delete(block.key);
     return {
+      ...prev,
       id: prev?.id || crypto.randomUUID(),
       key: block.key,
       label: block.label,

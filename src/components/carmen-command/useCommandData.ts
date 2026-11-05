@@ -4,6 +4,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { asJsonObject } from "@/lib/response";
+import { MANAGER_ROUND_RUN_KIND } from "../../../supabase/functions/_shared/manager-round/run-kind.ts";
 
 const daysAgo = (n: number) =>
   new Date(Date.now() - n * 86400000).toISOString();
@@ -234,6 +235,9 @@ function alertTypeLabel(type: string): string {
     cpl_spike: "קפיצה בעלות ליד",
     frequency_high: "תדירות גבוהה",
     ad_disapproved: "מודעה נדחתה",
+    account_disabled: "חשבון הפרסום הושבת או הוגבל",
+    ad_account_billing_issue: "בעיית חיוב בחשבון הפרסום",
+    no_live_ads: "אין מודעה באוויר",
   };
   return map[type] ?? type;
 }
@@ -265,6 +269,7 @@ export function useHealth(tenantId: string | null) {
           .from("heartbeat_logs")
           .select("triggered_at, summary")
           .eq("tenant_id", tenantId!)
+          .neq("run_kind", MANAGER_ROUND_RUN_KIND)
           .order("triggered_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -543,6 +548,10 @@ export function useUsage(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 120000,
     queryFn: async () => {
+      const tid = tenantId;
+      if (!tid) {
+        throw new Error("Missing tenant");
+      }
       const since = daysAgo(30);
       const [actions, marketing, aiUsage, llmRow] = await Promise.all([
         safeRows(
@@ -572,6 +581,7 @@ export function useUsage(tenantId: string | null) {
           const r = await supabase
             .from("tenant_integrations")
             .select("settings")
+            .eq("tenant_id", tid)
             .eq("integration_type", "llm")
             .eq("is_active", true)
             .limit(1)

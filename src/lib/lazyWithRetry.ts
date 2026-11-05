@@ -36,11 +36,9 @@ export function lazyWithRetry<T extends ComponentType<any>>(
           // ignore
         }
         window.location.reload();
-        return {
-          default: function ChunkReloadPlaceholder() {
-            return null;
-          },
-        };
+        // The page is reloading: stay suspended instead of resolving to a
+        // placeholder component that would not satisfy `T`.
+        return new Promise<never>(() => {});
       }
 
       throw error;

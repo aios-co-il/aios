@@ -3,9 +3,10 @@
  * tapping "מאשר תקציב <code>": their own message carries the code, so nothing Carmen read (a
  * website, a tool result) can approve a spend. Steps that fit in what is left run without
  * asking; a step that would go over stops and asks to raise the budget. A run David approved
- * in the approvals queue does not draw on the budget check. A quote is only an estimate: once
- * what the project really spent reaches the approved budget, the render worker's claim
- * (claim_video_run, 20261026103258) hands out no further paid job.
+ * in the approvals queue does not draw on the budget check. A quote is only an estimate: the
+ * render worker's claim (claim_video_run, 20261105140000) hands out a paid job only while what the
+ * project really spent and what is left of the production quote for the parts still in flight
+ * (clips with lip sync, narration, music) fit the approved budget.
  */
 
 import type {
@@ -46,8 +47,8 @@ export const approvalCode = (token: string) =>
     .toUpperCase();
 
 /**
- * Whether the user's message is the approval tap: "מאשר תקציב <code>" (or a typed "מאשרת"), with
- * the code as a whole word. A message that merely contains the code (a year, a price, a phone
+ * Whether the user's message is the approval tap: "מאשר תקציב $<amount> · <code>" (the button),
+ * "מאשר תקציב <code>" or a typed "מאשרת", with the code as a whole word. A message that merely contains the code (a year, a price, a phone
  * number, a link) or says "לא מאשר" approves nothing. Several taps at once arrive one per line
  * as "question: answer" (src/lib/quickReplies.ts), so the phrase may follow a colon.
  */
@@ -55,14 +56,18 @@ export function approvesRequest(userText: unknown, code: string): boolean {
   const wanted = code.replace(/[^a-z0-9]/gi, "").toUpperCase();
   if (!wanted) return false;
   return new RegExp(
-    `(?<!לא\\s*)(?:^|[^\\p{L}\\p{N}])מאשרת?\\s+תקציב\\s+${wanted}(?![\\p{L}\\p{N}])`,
+    `(?<!לא\\s*)(?:^|[^\\p{L}\\p{N}])מאשרת?\\s+תקציב\\s+(?:\\$[\\d.,]+\\s*·?\\s*)?${wanted}(?![\\p{L}\\p{N}])`,
     "u",
   ).test(String(userText ?? "").toUpperCase());
 }
 
-/** The tap-to-answer marker Carmen puts under the budget (see src/lib/quickReplies.ts). */
+/**
+ * The tap-to-answer marker Carmen puts under the budget (see src/lib/quickReplies.ts). The button
+ * names the amount it approves: on Staging it showed only the code, beside a message about
+ * raising the budget, and did not say what a tap would approve.
+ */
 export const budgetPrompt = (capUsd: number, code: string) =>
-  `[[בחירה: לאשר תקציב של $${capUsd} לפרויקט? | מאשר תקציב ${code} | לא עכשיו]]`;
+  `[[בחירה: לאשר תקציב של $${capUsd} לפרויקט? | מאשר תקציב $${capUsd} · ${code} | לא עכשיו]]`;
 
 export function budgetOf(payload: Record<string, unknown>): Budget {
   const raw = asRecord(payload[KEY]);

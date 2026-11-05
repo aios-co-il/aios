@@ -5,8 +5,10 @@ import { describeCronHe } from "../../supabase/functions/_shared/cron-next.ts";
 import { computeNextRun } from "../../supabase/functions/_shared/agent-task-schedule.ts";
 import type { Database, Tables } from "@/integrations/supabase/types";
 
-export type TaskKind = "one_off" | "recurring" | "goal" | "dev" | "system";
-export type TaskSource = "agent_tasks" | "goals" | "dev_tasks" | "cron_job";
+export type TaskKind =
+  "one_off" | "recurring" | "goal" | "dev" | "system" | "automation";
+export type TaskSource =
+  "agent_tasks" | "goals" | "dev_tasks" | "cron_job" | "automation";
 export type TaskStatus =
   | "running"
   | "waiting"
@@ -54,6 +56,7 @@ export const KIND_LABELS: Record<TaskKind, string> = {
   goal: "יעד",
   dev: "פיתוח",
   system: "מערכת",
+  automation: "אוטומציה",
 };
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -245,7 +248,14 @@ export function mapCronJob(
 }
 
 export type TaskFilter =
-  "all" | "running" | "recurring" | "one_off" | "goal" | "dev" | "system";
+  | "all"
+  | "running"
+  | "recurring"
+  | "one_off"
+  | "goal"
+  | "dev"
+  | "automation"
+  | "system";
 
 export const FILTERS: { value: TaskFilter; label: string }[] = [
   { value: "all", label: "הכל" },
@@ -254,6 +264,7 @@ export const FILTERS: { value: TaskFilter; label: string }[] = [
   { value: "one_off", label: "חד-פעמיות" },
   { value: "goal", label: "יעדים" },
   { value: "dev", label: "פיתוח" },
+  { value: "automation", label: "אוטומציות" },
   { value: "system", label: "מערכת" },
 ];
 

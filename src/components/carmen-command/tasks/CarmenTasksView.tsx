@@ -12,6 +12,7 @@ import {
   Search,
   Server,
   Target,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +33,9 @@ import {
   type TaskStatus,
 } from "@/lib/carmenTaskRows";
 import { computeNextRun } from "../../../../supabase/functions/_shared/agent-task-schedule.ts";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { carmenTasksKey, useCarmenTasks } from "../useCarmenTasks";
+import { toggleAutomation } from "./automationSwitch";
 
 const KIND_ICON: Record<TaskKind, typeof Repeat> = {
   one_off: Bot,
@@ -40,6 +43,7 @@ const KIND_ICON: Record<TaskKind, typeof Repeat> = {
   goal: Target,
   dev: Code2,
   system: Server,
+  automation: Zap,
 };
 
 const STATUS_TONE: Record<TaskStatus, string> = {
@@ -135,6 +139,8 @@ export function CarmenTasksView({
           )
           .eq("id", row.id);
         if (e) throw e;
+      } else if (row.source === "automation") {
+        await toggleAutomation(requireTenantId(tenantId), row.id, on);
       } else if (row.source === "cron_job") {
         const { error: e } = await supabase.rpc("update_system_cron_job", {
           p_jobid: Number(row.id),
@@ -168,20 +174,16 @@ export function CarmenTasksView({
   });
   const setMaxParallel = useMutation({
     mutationFn: async (n: number) => {
-      if (!tenantId) throw new Error("חסר tenant");
-      // tenant_heartbeat_settings has no unique key on tenant_id, so no upsert.
-      const { data: updated, error: e } = await supabase
-        .from("tenant_heartbeat_settings")
-        .update({ max_concurrent_tasks: n })
-        .eq("tenant_id", tenantId)
-        .select("tenant_id");
-      if (e) throw e;
-      if (!updated?.length) {
-        const { error: insertError } = await supabase
-          .from("tenant_heartbeat_settings")
-          .insert({ tenant_id: tenantId, max_concurrent_tasks: n });
-        if (insertError) throw insertError;
+      if (!tenantId) {
+        throw new Error("חסר tenant");
       }
+      const { error: e } = await supabase
+        .from("tenant_heartbeat_settings")
+        .upsert(
+          { tenant_id: tenantId, max_concurrent_tasks: n },
+          { onConflict: "tenant_id" },
+        );
+      if (e) throw e;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["carmen-max-parallel", tenantId] });
@@ -270,6 +272,7 @@ export function CarmenTasksView({
             row.enabled !== null &&
             (row.source === "agent_tasks" ||
               row.source === "cron_job" ||
+              row.source === "automation" ||
               row.source === "goals");
           return (
             <li key={row.key}>

@@ -1,3 +1,8 @@
+import {
+  metaObjectiveGoal,
+  type FacebookCampaignType,
+} from "./meta-ads/campaign-objectives.ts";
+
 // Shared Facebook Insights → CRM record logic.
 //
 // Both `sync-facebook-insights` (manual "sync now") and
@@ -9,7 +14,22 @@
 // `offsite_conversion.custom.*` prefix — so website-lead campaigns optimised on a
 // custom conversion were silently counted as 0 leads in the synced report.
 
+import {
+  dominantAdsetValueByCampaign,
+  resolveDestinationType,
+  type DestinationTypeMaps,
+} from "./fb-insights/adsets.ts";
+import {
+  NEW_FOLLOWERS_LABEL,
+  countNewFollowers,
+  isProfileTraffic,
+} from "./fb-insights/followers.ts";
 import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
+import {
+  fetchInstagramFollows,
+  INSTAGRAM_FOLLOWS_FIELD,
+  instagramFollowsKey,
+} from "./fb-insights/instagramFollows.ts";
 
 export interface CampaignStatus {
   id: string;
@@ -55,7 +75,11 @@ export interface InsightRecord {
   roas: number;
   campaign_objective: string | null;
   optimization_goal: string | null;
-  campaign_type: "lead" | "ecommerce" | "traffic" | "other";
+  campaign_type: FacebookCampaignType;
+  /** Facebook Page and Instagram profile follows attributed to the ads. */
+  new_followers: number;
+  /** Where the ad set sends people (WEBSITE, FACEBOOK_PAGE, INSTAGRAM_PROFILE, …). */
+  destination_type: string | null;
   effective_status?: string | null;
   configured_status?: string | null;
   updated_time?: string | null;
@@ -95,6 +119,8 @@ export const FB_INSIGHTS_FIELD_KEYS = [
   "configured_status",
   "updated_time",
   "result_label",
+  "new_followers",
+  "destination_type",
 ];
 export const FB_INSIGHTS_FIELD_NAMES = [
   "תאריך",
@@ -128,6 +154,8 @@ export const FB_INSIGHTS_FIELD_NAMES = [
   "סטטוס מוגדר",
   "עדכון אחרון בקמפיין",
   "תווית תוצאה",
+  NEW_FOLLOWERS_LABEL,
+  "מיקום ההמרה",
 ];
 export const FB_INSIGHTS_FIELD_TYPES = [
   "date",
@@ -160,6 +188,8 @@ export const FB_INSIGHTS_FIELD_TYPES = [
   "text",
   "text",
   "text",
+  "text",
+  "number",
   "text",
 ];
 
@@ -304,24 +334,10 @@ export function buildCampaignOptimizationGoalMap(
     optimization_goal?: string | null;
   }>,
 ): Record<string, string> {
-  const counts = new Map<string, Map<string, number>>();
-  for (const adset of adsets) {
-    const campaignId = String(adset.campaign_id || "");
-    const goal = String(adset.optimization_goal || "")
-      .trim()
-      .toUpperCase();
-    if (!campaignId || !goal) continue;
-    const campaignCounts = counts.get(campaignId) || new Map<string, number>();
-    campaignCounts.set(goal, (campaignCounts.get(goal) || 0) + 1);
-    counts.set(campaignId, campaignCounts);
-  }
-  const result: Record<string, string> = {};
-  for (const [campaignId, campaignCounts] of counts) {
-    result[campaignId] = [...campaignCounts.entries()].sort(
-      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
-    )[0][0];
-  }
-  return result;
+  return dominantAdsetValueByCampaign(
+    adsets,
+    (adset) => adset.optimization_goal,
+  );
 }
 
 // Standard FB Pixel "intent" events that landing pages frequently use INSTEAD of
@@ -568,6 +584,7 @@ export function buildInsightRecord(
   resultLeadTypesByCampaign: Record<string, string[]> = {},
   optimizationGoalsByCampaign: Record<string, string> = {},
   resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
+  destinationTypes: DestinationTypeMaps = { byCampaign: {}, byAdset: {} },
 ): InsightRecord {
   // Deduplicate: FB often returns the same event (e.g. leadgen_grouped,
   // offsite_conversion.fb_pixel_lead) in BOTH insight.actions AND
@@ -613,9 +630,8 @@ export function buildInsightRecord(
   const _objectiveForLeads = String(
     _campaignStatusForLeads?.objective || "",
   ).toUpperCase();
-  const _isLeadFormObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    _objectiveForLeads,
-  );
+  const _isLeadFormObjective =
+    metaObjectiveGoal(_objectiveForLeads) === "leads";
   const _isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     _objectiveForLeads,
   );
@@ -785,14 +801,8 @@ export function buildInsightRecord(
 
   const campaignStatus = campaignStatuses[insight.campaign_id];
   const objective = String(campaignStatus?.objective || "").toUpperCase();
-  const isEcommerceObjective = [
-    "OUTCOME_SALES",
-    "PRODUCT_CATALOG_SALES",
-    "SALES",
-  ].includes(objective);
-  const isLeadObjective = ["OUTCOME_LEADS", "LEAD_GENERATION"].includes(
-    objective,
-  );
+  const isEcommerceObjective = metaObjectiveGoal(objective) === "ecommerce";
+  const isLeadObjective = metaObjectiveGoal(objective) === "leads";
   const isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     objective,
   );
@@ -924,7 +934,7 @@ export function buildInsightRecord(
       "link_clicks",
       "landing_page_views",
     ].includes(configuredMetric.kind);
-  const campaignType: "lead" | "ecommerce" | "traffic" | "other" =
+  const campaignType: FacebookCampaignType =
     isEcommerceObjective || configuredEcommerce
       ? "ecommerce"
       : isTrafficObjective && !isMessagingLeadCampaign && !_callOptimized
@@ -983,6 +993,11 @@ export function buildInsightRecord(
     campaign_objective: campaignStatus?.objective || null,
     optimization_goal: optimizationGoal,
     campaign_type: campaignType,
+    new_followers: countNewFollowers(
+      sumByTypes,
+      Number(insight[INSTAGRAM_FOLLOWS_FIELD]) || 0,
+    ),
+    destination_type: resolveDestinationType(insight, destinationTypes),
     effective_status: campaignStatus?.effective_status || null,
     configured_status: campaignStatus?.configured_status || null,
     updated_time: campaignStatus?.updated_time || null,
@@ -1031,15 +1046,24 @@ export async function buildAllLevelInsightRecords(
   untilStr: string,
   accessToken: string,
   campaignStatuses: Record<string, CampaignStatus>,
-  resultLeadTypesByCampaign: Record<string, string[]> = {},
-  optimizationGoalsByCampaign: Record<string, string> = {},
-  resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
+  resultLeadTypesByCampaign: Record<string, string[]>,
+  optimizationGoalsByCampaign: Record<string, string>,
+  resultMetrics: ResultMetricMaps,
+  destinationTypes: DestinationTypeMaps,
 ): Promise<{
   records: InsightRecord[];
   levelCounts: Record<AdsEntityLevel, number>;
   /** Levels whose fetch failed, with the error. A failed level contributes no rows. */
   levelErrors: Partial<Record<AdsEntityLevel, string>>;
 }> {
+  if (!destinationTypes) {
+    // CI runs the edge tests without type-checking (AIO-34), so a sync that
+    // drops this argument in a merge would otherwise store destination_type =
+    // null on every row. Fail before fetching or writing anything.
+    throw new Error(
+      "buildAllLevelInsightRecords: destinationTypes is required (buildDestinationTypeMaps)",
+    );
+  }
   const allRows: InsightRecord[] = [];
   const levelCounts: Record<AdsEntityLevel, number> = {
     campaign: 0,
@@ -1047,6 +1071,10 @@ export async function buildAllLevelInsightRecords(
     ad: 0,
   };
   const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
+  const profileCampaignIds = profileTrafficCampaignIds(
+    destinationTypes,
+    optimizationGoalsByCampaign,
+  );
 
   for (const level of ADS_LEVELS) {
     try {
@@ -1057,14 +1085,28 @@ export async function buildAllLevelInsightRecords(
         untilStr,
         accessToken,
       );
+      const instagramFollows = await fetchInstagramFollows(
+        adAccountId,
+        level,
+        sinceStr,
+        untilStr,
+        accessToken,
+        profileCampaignIds,
+      );
       for (const insight of raw) {
         allRows.push(
           buildInsightRecord(
-            insight,
+            {
+              ...insight,
+              [INSTAGRAM_FOLLOWS_FIELD]: instagramFollows.get(
+                instagramFollowsKey(level, insight),
+              ),
+            },
             campaignStatuses,
             resultLeadTypesByCampaign,
             optimizationGoalsByCampaign,
             resultMetrics,
+            destinationTypes,
           ),
         );
       }
@@ -1078,6 +1120,26 @@ export async function buildAllLevelInsightRecords(
   }
 
   return { records: allRows, levelCounts, levelErrors };
+}
+
+/**
+ * Campaigns that send people to a Page or Instagram profile: the only ones
+ * whose follows the reports price, so the only ones the follows read asks for.
+ */
+function profileTrafficCampaignIds(
+  destinationTypes: DestinationTypeMaps,
+  optimizationGoalsByCampaign: Record<string, string>,
+): Array<string> {
+  const campaignIds = new Set([
+    ...Object.keys(destinationTypes.byCampaign),
+    ...Object.keys(optimizationGoalsByCampaign),
+  ]);
+  return [...campaignIds].filter((id) =>
+    isProfileTraffic(
+      destinationTypes.byCampaign[id],
+      optimizationGoalsByCampaign[id],
+    ),
+  );
 }
 
 export type LastMetaActivity = {

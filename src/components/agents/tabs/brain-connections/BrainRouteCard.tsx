@@ -96,7 +96,7 @@ function IconButton(props: {
   return <Button variant="ghost" size="icon" {...props} />;
 }
 
-/** Last 4 of a saved key, "from env", or what is missing. */
+/** Last 4 of the tenant's own key, where a shared or project key comes from, or what is missing. */
 function KeyBadge({
   connection,
   builtin,
@@ -104,20 +104,27 @@ function KeyBadge({
   connection?: BrainConnection;
   builtin?: BuiltinBrainState;
 }) {
-  const last4 = connection?.key_last4 ?? builtin?.key_last4;
-  if (last4)
+  if (connection) {
+    return connection.key_last4 ? (
+      <Badge variant="secondary" dir="ltr">
+        ••••{connection.key_last4}
+      </Badge>
+    ) : (
+      <Badge variant="destructive">חסר מפתח</Badge>
+    );
+  }
+  if (!builtin) return null;
+  if (builtin.source === "own")
     return (
       <Badge variant="secondary" dir="ltr">
-        ••••{last4}
+        ••••{builtin.key_last4}
       </Badge>
     );
-  if (connection) return <Badge variant="destructive">חסר מפתח</Badge>;
-  if (!builtin) return null;
-  return builtin.env_configured ? (
-    <Badge variant="outline">מסוד סביבה</Badge>
-  ) : (
-    <Badge variant="destructive">לא מוגדר</Badge>
-  );
+  if (builtin.source === "shared")
+    return <Badge variant="outline">משותף מ-{builtin.shared_from?.name}</Badge>;
+  if (builtin.source === "project")
+    return <Badge variant="outline">מפתח הפרויקט</Badge>;
+  return <Badge variant="destructive">לא מוגדר</Badge>;
 }
 
 /** The route's own description (e.g. "נתב חכם"), else its slug. */

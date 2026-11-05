@@ -5,6 +5,7 @@
  * - GET /rest/v1/<table>: the rows matching its eq./neq./is./in./lt./lte./
  *   gt./gte. filters, each optionally negated with not., limited. Any other
  *   operator throws, so a test cannot pass on a filter the fake ignores.
+ *   A `.single()` read gets the one row as an object, else PostgREST's 406.
  * - POST, PATCH, DELETE /rest/v1/<table>: recorded in `calls`, answered empty.
  * - POST /rest/v1/rpc/<fn>: rpc[fn](args).
  * - GET /auth/v1/user: the user `users` maps the bearer token to, else 401.
@@ -39,7 +40,7 @@ export function fakeSupabaseHttp(opts: FakeSupabaseHttpOptions) {
     const request = new Request(input, init);
     const url = new URL(request.url);
     const text = await request.text();
-    const body: unknown = text ? JSON.parse(text) : null;
+    const body: unknown = text ? parseBody(text) : null;
     calls.push({ method: request.method, url, body });
     if (!request.url.startsWith(opts.supabaseUrl)) {
       return opts.other?.(url, body) ?? json({ error: "unexpected" }, 404);
@@ -63,7 +64,14 @@ export function fakeSupabaseHttp(opts: FakeSupabaseHttpOptions) {
         status: request.method === "POST" ? 201 : 204,
       });
     }
-    return json(selectRows(tables[name] ?? [], url.searchParams));
+    const rows = selectRows(tables[name] ?? [], url.searchParams);
+    // .single() asks for one object, as PostgREST answers it.
+    if (request.headers.get("accept")?.includes("vnd.pgrst.object+json")) {
+      return rows.length === 1
+        ? json(rows[0])
+        : json({ code: "PGRST116", message: `${rows.length} rows` }, 406);
+    }
+    return json(rows);
   };
   return { fetch: impl, calls };
 }
@@ -117,6 +125,15 @@ function compare(value: unknown, arg: string): number {
     return 0;
   }
   return x < arg ? -1 : 1;
+}
+
+/** A JSON body parsed; any other body (an OAuth form post, say) as its text. */
+function parseBody(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 /** Whether a parsed body is a plain object. */

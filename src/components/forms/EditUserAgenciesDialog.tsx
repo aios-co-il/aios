@@ -37,7 +37,9 @@ export function EditUserAgenciesDialog({
   const { data: agencies } = useQuery({
     queryKey: ["agencies-for-edit", currentUserId, currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return [];
+      if (!currentTenant?.id || !currentUserId) {
+        return [];
+      }
 
       const { data: userRoles } = await supabase
         .from("user_roles")
@@ -194,6 +196,7 @@ export function EditUserAgenciesDialog({
     try {
       // Handle based on user type
       if (userType === "sales_person" && userProfile?.sales_person_id) {
+        const salesPersonId = userProfile.sales_person_id;
         // Update sales_person_agencies
         const { error: deleteError } = await supabase
           .from("sales_person_agencies")
@@ -207,7 +210,7 @@ export function EditUserAgenciesDialog({
             .from("sales_person_agencies")
             .insert(
               selectedAgencies.map((agencyId) => ({
-                sales_person_id: userProfile.sales_person_id,
+                sales_person_id: salesPersonId,
                 agency_id: agencyId,
               })),
             );

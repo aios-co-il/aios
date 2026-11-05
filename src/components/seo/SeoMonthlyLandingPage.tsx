@@ -124,7 +124,7 @@ export function SeoMonthlyLandingPageCapture({
   reportRef,
 }: {
   snapshot: SeoMonthlyShareSnapshot;
-  reportRef: RefObject<HTMLDivElement | null>;
+  reportRef: RefObject<HTMLDivElement>;
 }) {
   return (
     <div

@@ -1,4 +1,6 @@
-import { expect, test } from "vitest";
+import { describe, expect, expectTypeOf, it, test } from "vitest";
+import type { Json } from "@/integrations/supabase/types";
+import type { BrandBook, StyleReference } from "./brandKit";
 import {
   brandKitPrompt,
   creativeAssetStoragePath,
@@ -15,6 +17,13 @@ import {
 
 const SUPABASE_STORAGE_KEY =
   /^(\w|\/|!|-|\.|\*|'|\(|\)| |&|\$|@|=|;|:|\+|,|\?)*$/;
+
+describe("brand persistence types", () => {
+  it("accepts the existing closed brand and reference models at the JSON write boundary", () => {
+    expectTypeOf<BrandBook>().toMatchTypeOf<Json>();
+    expectTypeOf<StyleReference>().toMatchTypeOf<Json>();
+  });
+});
 
 test("hebrew reference filenames become a supabase-safe storage key", () => {
   const path = creativeAssetStoragePath(

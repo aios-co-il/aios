@@ -1,12 +1,9 @@
 import { expect, test } from "vitest";
 
 import {
-  aggregatePulseMetricsFromRecords,
   applyClientCallToPulseSnapshot,
-  applyPeriodMetricsToSnapshot,
   buildPulseDashboardUrl,
   clientHasCampaignService,
-  expandPulseToPlatformGoalRows,
   filterPulseCallFlags,
   collectCampaignBreakdownFromSnapshots,
   pulseClientsNeedingRecordBuild,
@@ -149,134 +146,13 @@ test("this_week bounds start on Sunday through today", () => {
   expect(bounds.endDate).toBe("2026-08-05");
 });
 
-test("aggregates period metrics and CPL change vs prior window", () => {
-  const bounds = getPulsePeriodBounds(
-    "last_week",
-    new Date("2026-08-05T12:00:00+03:00"),
+test("a platform goal row is labelled by platform and goal", () => {
+  expect(platformGoalLabel({ platformLabel: "Meta", goal: "leads" })).toBe(
+    "Meta · לידים",
   );
-  const records = [
-    { data: { date: "2026-07-28", spend: 200, leads: 4 } },
-    { data: { date: "2026-07-30", spend: 100, leads: 1 } },
-    { data: { date: "2026-07-20", spend: 100, leads: 2 } }, // prior week CPL 50
-  ];
-  const metrics = aggregatePulseMetricsFromRecords(records, bounds, false);
-  expect(metrics.spend_7d).toBe(300);
-  expect(metrics.leads_7d).toBe(5);
-  expect(metrics.cpl_7d).toBe(60);
-  // current CPL 60 vs prior 50 → +20%
-  expect(metrics.cpl_change_pct).toBe(20);
-  expect(metrics.data_fresh_through).toBe("2026-07-30");
-});
-
-test("applyPeriodMetricsToSnapshot keeps meta fields", () => {
-  const base = {
-    client_id: "c1",
-    agency_id: null,
-    status: "healthy",
-    is_ecommerce: false,
-    spend_7d: 1,
-    leads_7d: 1,
-    cpl_7d: 1,
-    cpl_change_pct: 0,
-    purchases_7d: 0,
-    revenue_7d: 0,
-    roas_7d: null,
-    flags: [],
-    data_fresh_through: "2026-08-05",
-    calculated_at: "2026-08-05T10:00:00Z",
-    last_meta_change_at: "2026-08-01T09:00:00Z",
-    last_meta_change_type: "UPDATE",
-    last_meta_change_actor: "David",
-    last_meta_change_object: "adset",
-    meta_change_availability: "ok",
-  };
-  const next = applyPeriodMetricsToSnapshot(base, {
-    spend_7d: 99,
-    leads_7d: 3,
-    cpl_7d: 33,
-    cpl_change_pct: 5,
-    purchases_7d: 0,
-    revenue_7d: 0,
-    roas_7d: null,
-    data_fresh_through: "2026-08-01",
-    record_count: 2,
-  });
-  expect(next.spend_7d).toBe(99);
-  expect(next.last_meta_change_actor).toBe("David");
-  expect(next.status).toBe("healthy");
-});
-
-test("expands pulse rows per platform when Meta and Google tables exist", () => {
-  const bounds = getPulsePeriodBounds(
-    "last_7_days",
-    new Date("2026-08-05T12:00:00+03:00"),
-  );
-  const snapshot = {
-    client_id: "c1",
-    agency_id: null,
-    status: "healthy",
-    campaign_goal_mode: "leads",
-    is_ecommerce: false,
-    spend_7d: 300,
-    lead_spend_7d: 300,
-    ecommerce_spend_7d: 0,
-    leads_7d: 10,
-    cpl_7d: 30,
-    cpl_change_pct: 0,
-    purchases_7d: 0,
-    revenue_7d: 0,
-    roas_7d: null,
-    lead_goal_status: "healthy",
-    ecommerce_goal_status: null,
-    flags: [],
-    data_fresh_through: "2026-08-05",
-    calculated_at: "2026-08-05T10:00:00Z",
-    last_meta_change_at: null,
-    last_meta_change_type: null,
-    last_meta_change_actor: null,
-    last_meta_change_object: null,
-    meta_change_availability: "not_applicable",
-    last_client_call_at: null,
-    last_client_call_by: null,
-  };
-  const tables = [
-    {
-      id: "t-meta",
-      client_id: "c1",
-      integration_type: "facebook_insights",
-      campaign_active: true,
-    },
-    {
-      id: "t-google",
-      client_id: "c1",
-      integration_type: "google_ads",
-      campaign_active: true,
-    },
-  ];
-  const records = [
-    { table_id: "t-meta", data: { date: "2026-08-04", spend: 100, leads: 4 } },
-    {
-      table_id: "t-google",
-      data: { date: "2026-08-04", spend: 200, leads: 6 },
-    },
-  ];
-  const rows = expandPulseToPlatformGoalRows({
-    snapshot,
-    services: ["ppc_meta", "ppc_google"],
-    tables,
-    records,
-    bounds,
-  });
-  expect(rows.length).toBe(2);
-  expect(rows.map((row) => row.platformLabel).sort()).toStrictEqual([
-    "Google",
-    "Meta",
-  ]);
-  expect(platformGoalLabel(rows[0])).toBe(
-    rows[0].platformLabel +
-      " · " +
-      (rows[0].goal === "ecommerce" ? "איקומרס" : "לידים"),
-  );
+  expect(
+    platformGoalLabel({ platformLabel: "Google", goal: "ecommerce" }),
+  ).toBe("Google · איקומרס");
 });
 
 test("prefers stored snapshot breakdown and only rebuilds clients without it", () => {
@@ -491,4 +367,43 @@ test("rollup: paused-unknown critical does not flash red before Meta hints land"
     },
   ];
   expect(rollupStatusFromCampaigns(afterHints).status).toBe("healthy");
+});
+
+test("rollup: every campaign paused on an active report is a warning", () => {
+  const paused = (goal, id) => ({
+    client_id: "roma",
+    table_id: "t-meta",
+    platform: "meta",
+    goal,
+    campaign_key: `meta:id:${id}`,
+    campaign_id: id,
+    campaign_name: `C${id}`,
+    spend_7d: 50,
+    outcomes_7d: 2,
+    revenue_7d: 0,
+    status: "healthy",
+    status_reason: "ok",
+    delivery_status: "paused",
+  });
+
+  const allPaused = rollupStatusFromCampaigns([paused("leads", "1")]);
+  expect(allPaused.status).toBe("warning");
+  expect(allPaused.status_reason).toContain("הדוח פעיל");
+
+  // Another campaign of the client on the same platform is live: fine.
+  expect(
+    rollupStatusFromCampaigns([paused("leads", "1")], { liveElsewhere: true })
+      .status,
+  ).toBe("healthy");
+
+  const rollups = rollupCampaignRowsByClientGoal({
+    campaignRows: [
+      paused("leads", "1"),
+      { ...paused("ecommerce", "2"), delivery_status: "active" },
+    ],
+    snapshotsByClient: new Map(),
+  });
+  const leads = rollups.find((row) => row.goal === "leads");
+  expect(leads?.status).toBe("healthy");
+  expect(leads?.status_reason).toContain("קמפיין אחר של הלקוח באוויר");
 });

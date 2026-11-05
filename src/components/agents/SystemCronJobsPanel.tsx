@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 import { getCronMeta, describeCronExpression } from "@/lib/cronJobsCatalog";
+import { CronSendsBadge } from "@/components/carmen-command/tasks/CronSendsBadge";
 
 const CRON_PRESETS = [
   { label: "כל דקה", value: "* * * * *" },
@@ -113,7 +114,7 @@ export function SystemCronJobsPanel({
     }) => {
       const { error } = await supabase.rpc("update_system_cron_job", {
         p_jobid: jobid,
-        p_schedule: null,
+        p_schedule: undefined,
         p_active: active,
       });
       if (error) throw error;
@@ -232,6 +233,9 @@ export function SystemCronJobsPanel({
                   <p className="text-xs text-muted-foreground mt-1">
                     {meta.description}
                   </p>
+                  <div className="mt-1">
+                    <CronSendsBadge meta={meta} />
+                  </div>
                   <p className="text-[10px] text-muted-foreground/70 mt-1 font-mono truncate">
                     {job.jobname}
                   </p>
