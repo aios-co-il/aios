@@ -1,6 +1,7 @@
 import { hasIntegrationId } from "@/lib/integrationIdentity";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   CLIENT_INTEGRATION_COLUMNS,
@@ -51,17 +52,17 @@ export function useUserIntegrations(
       // Report OAuth connections are tenant-scoped (see reportIntegrationTypes).
       const isTenantScoped = isReportTenantScopedIntegration(integrationType);
 
-      // Literal projections let Supabase infer rows without changing credential visibility.
-      const selectColumns =
-        getClientIntegrationSelect(integrationType) ===
-        CLIENT_INTEGRATION_COLUMNS
-          ? CLIENT_INTEGRATION_COLUMNS
-          : CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY;
+      // Each literal projection is parsed separately by Supabase's query types.
+      const integrationQuery = () => {
+        const query = supabase.from("tenant_integrations");
+        return getClientIntegrationSelect(integrationType) ===
+          CLIENT_INTEGRATION_COLUMNS
+          ? query.select(CLIENT_INTEGRATION_COLUMNS)
+          : query.select(CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY);
+      };
 
       // 1. Fetch user's own integrations (or all tenant integrations for tenant-scoped types)
-      let ownQuery = supabase
-        .from("tenant_integrations")
-        .select(selectColumns)
+      let ownQuery = integrationQuery()
         .in("tenant_id", tenantIds)
         .eq("integration_type", integrationType)
         .eq("is_active", true);
@@ -70,9 +71,13 @@ export function useUserIntegrations(
         ownQuery = ownQuery.eq("user_id", userId);
       }
 
-      const { data: ownIntegrations, error: ownError } = await ownQuery;
+      const { data: ownRows, error: ownError } = await ownQuery;
 
       if (ownError) throw ownError;
+      const ownIntegrations = (ownRows || []).map((row) => ({
+        ...row,
+        settings: readIntegrationSettings(row.settings),
+      }));
 
       // For tenant-scoped types, mark _isOwn correctly based on actual ownership
       if (isTenantScoped) {
@@ -120,16 +125,17 @@ export function useUserIntegrations(
 
       let sharedIntegrations: any[] = [];
       if (sharedIntegrationIds.length > 0) {
-        const { data: shared, error: sharedError } = await supabase
-          .from("tenant_integrations")
-          .select(selectColumns)
+        const { data: shared, error: sharedError } = await integrationQuery()
           .in("tenant_id", tenantIds)
           .eq("integration_type", integrationType)
           .eq("is_active", true)
           .in("id", sharedIntegrationIds);
 
         if (sharedError) throw sharedError;
-        sharedIntegrations = shared || [];
+        sharedIntegrations = (shared || []).map((row) => ({
+          ...row,
+          settings: readIntegrationSettings(row.settings),
+        }));
       }
 
       // 3. Get owner profiles for shared integrations
@@ -184,4 +190,16 @@ export function useHasIntegrationAccess(
 ) {
   const { data: integrations } = useUserIntegrations(tenantId, integrationType);
   return (integrations || []).length > 0;
+}
+
+/** Decode the settings JSON boundary before exposing it to client mappers. */
+function readIntegrationSettings(settings: Json | null) {
+  if (
+    settings === null ||
+    (typeof settings === "object" && !Array.isArray(settings))
+  ) {
+    return settings;
+  }
+  console.error("Ignoring malformed integration settings");
+  return null;
 }

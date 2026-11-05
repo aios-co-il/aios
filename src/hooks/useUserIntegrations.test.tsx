@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import type { Json } from "@/integrations/supabase/types";
 import { getClientIntegrationSelect } from "@/lib/tenantIntegrationsClient";
 import { withTestQuery } from "@/test/withTestQuery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +11,7 @@ interface IntegrationFixture {
   tenant_id: string;
   user_id: string;
   integration_type: string;
-  settings: { client_sites: { "client-1": string } };
+  settings: Json | null;
 }
 
 const mocks = vi.hoisted(() => ({
@@ -108,6 +109,18 @@ describe("useUserIntegrations identity boundary", () => {
     },
   );
 
+  it.each<Json>(["malformed", ["malformed"], 12, true])(
+    "normalizes malformed settings %j before exposing integrations",
+    async (settings) => {
+      mocks.own = [{ ...fixture, settings }];
+      render(withTestQuery(<IntegrationSettings />));
+      expect(await screen.findByText("null")).toBeInTheDocument();
+      expect(console.error).toHaveBeenCalledWith(
+        "Ignoring malformed integration settings",
+      );
+    },
+  );
+
   it("keeps the tenant fallback available when a malformed personal ID has a matching site", async () => {
     mocks.own = [{ ...fixture, id: 42 }];
     render(withTestQuery(<ResolvedIntegration />));
@@ -142,4 +155,15 @@ function ResolvedIntegration() {
     expectedDomain: "example.com",
   });
   return <output>{`${integrationId}:${isFallback}`}</output>;
+}
+
+/** Observe the mapper's settings output through the real tenant-scoped query. */
+function IntegrationSettings() {
+  const { data, isSuccess } = useUserIntegrations(
+    "tenant-1",
+    "google_search_console",
+  );
+  return (
+    <output>{isSuccess ? JSON.stringify(data[0]?.settings) : "loading"}</output>
+  );
 }
