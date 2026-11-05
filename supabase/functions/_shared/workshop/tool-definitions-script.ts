@@ -1,6 +1,7 @@
 /** workshop_save_script: the film's script, written after the concept and approved before scenes. */
 
-import { SCRIPT_GUIDE, WORDS_PER_SECOND } from "./film-script.ts";
+import { SCRIPT_GUIDE } from "./film-script.ts";
+import { WORDS_PER_SECOND } from "./script-pace.ts";
 
 export const SAVE_SCRIPT_TOOL = {
   name: "workshop_save_script",

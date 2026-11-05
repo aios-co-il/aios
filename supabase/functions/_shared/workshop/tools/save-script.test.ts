@@ -123,5 +123,33 @@ Deno.test("narration that cannot be said in its beat is refused", async () => {
     beat(2, "זה משפט ארוך מדי בשביל שתי שניות בלבד"),
     beat(13, "סוף"),
   ]);
-  assertMatch(refused.error, /שורה 1: 8 מילים .* \(עד 5\)/);
+  assertMatch(
+    refused.error,
+    /שורה 1: הקריינות נאמרת בכ-4.3 שניות ולא נכנסת ב-2 /,
+  );
+});
+
+// The Staging film of 5 Nov: six 2.5-second beats that passed at 2.5 words a second, and a
+// take that ran 17.7 seconds, so the 15-second film rendered at 18.3.
+Deno.test("lines the voice cannot say in 2.5 seconds are refused", async () => {
+  const lines = [
+    "עברתם 7 קמפיינרים?",
+    "הקמפיינר ה-8 לא ישנה את התמונה.",
+    "קמפיין הוא מהלך אחד.",
+    "ולכל עסק יש לפחות 5 מהלכים.",
+    "שיווק, מכירות, לידים, תוכן, SEO.",
+    "כרמן רואה את כולם.",
+  ];
+  const db = fakeDb(film());
+  const refused = await save(
+    db,
+    lines.map((line) => beat(2.5, line)),
+  );
+  assertMatch(refused.error, /^שורה 2: הקריינות נאמרת בכ-3.3 שניות/);
+  const list = await save(fakeDb(film()), [
+    beat(2.5, "קמפיין הוא מהלך אחד."),
+    beat(2.5, "שיווק, מכירות, לידים, תוכן, SEO."),
+    beat(10, "כרמן רואה את כולם."),
+  ]);
+  assertMatch(list.error, /^שורה 2: הקריינות נאמרת בכ-4.2 שניות/);
 });

@@ -9,7 +9,6 @@ import {
   conceptAnswer,
   filmScriptOf,
   filmSeconds,
-  maxWords,
   SCRIPT_GUIDE,
   scriptText,
   withScriptApproved,
@@ -17,6 +16,7 @@ import {
   type FilmScript,
 } from "../film-script.ts";
 import { savePayload } from "../project-io.ts";
+import { maxWords } from "../script-pace.ts";
 import { SCRIPT_CHOICE, withTappedScriptApproval } from "../script-approval.ts";
 import type { ToolContext } from "../tool-context.ts";
 import { NO_CONCEPT, type FilmConcept } from "./film-concept.ts";

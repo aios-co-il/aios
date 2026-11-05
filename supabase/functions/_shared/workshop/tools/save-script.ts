@@ -6,12 +6,11 @@
 
 import {
   filmSeconds,
-  maxWords,
   scriptText,
-  spokenWords,
   withScript,
   type ScriptBeat,
 } from "../film-script.ts";
+import { WORDS_PER_SECOND, spokenSeconds } from "../script-pace.ts";
 import type { Db } from "../db.ts";
 import { loadProject, savePayload } from "../project-io.ts";
 import { asRecord, recordArtifact } from "../record.ts";
@@ -138,9 +137,10 @@ function beatsRefusal(beats: Array<ScriptBeat>, film: number | null) {
     if (!beat.narration && !beat.on_screen) {
       return `שורה ${index + 1}: חסרים narration ו-on_screen.`;
     }
-    const words = spokenWords(beat.narration);
-    if (words > maxWords(length)) {
-      return `שורה ${index + 1}: ${words} מילים בקריינות לא נכנסות ב-${length} שניות (עד ${maxWords(length)}). קצרי את השורה או הוסיפי לה זמן.`;
+    // The voice's own pace with its pauses: a longer line stretches the film past its length.
+    const said = Math.round(spokenSeconds(beat.narration) * 10) / 10;
+    if (said > length) {
+      return `שורה ${index + 1}: הקריינות נאמרת בכ-${said} שניות ולא נכנסת ב-${length} (בערך ${WORDS_PER_SECOND} מילים לשנייה, וכל פסיק וסוף משפט מוסיפים הפסקה). קצרי את השורה או הוסיפי לה זמן, אחרת הסרט יוצא ארוך מהמתוכנן.`;
     }
   }
   const total = beats[beats.length - 1].end_s;
