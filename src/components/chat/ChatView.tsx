@@ -1212,15 +1212,11 @@ export default function ChatView({
             senderPhone={senderPhone || contactId}
             senderName={contact?.name}
             type={convertType}
-            onSuccess={(id, type) => {
+            onSuccess={(id, type, conversionTenantId) => {
               setConvertDialogOpen(false);
-              queryClient.invalidateQueries({
-                queryKey: ["chat-contacts", tenantId],
-              });
-              queryClient.invalidateQueries({
-                queryKey: ["unknown-contacts", tenantId],
-              });
-              onContactConverted?.(id, type);
+              if (conversionTenantId === tenantId) {
+                onContactConverted?.(id, type);
+              }
             }}
           />
           <LinkContactDialog

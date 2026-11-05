@@ -122,7 +122,7 @@ describe("ConvertContactDialog creation result", () => {
     fireEvent.click(screen.getByRole("button", { name: "המר" }));
 
     await waitFor(() =>
-      expect(onSuccess).toHaveBeenCalledWith("group-1", "group"),
+      expect(onSuccess).toHaveBeenCalledWith("group-1", "group", "tenant-1"),
     );
     expect(mocks.insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -185,7 +185,7 @@ describe("ConvertContactDialog creation result", () => {
       await act(async () => finishInsert());
 
       await waitFor(() =>
-        expect(onSuccess).toHaveBeenCalledWith("contact-1", type),
+        expect(onSuccess).toHaveBeenCalledWith("contact-1", type, "tenant-1"),
       );
       expect(mocks.invoke).toHaveBeenCalledWith("convert-unknown-contact", {
         body: {
