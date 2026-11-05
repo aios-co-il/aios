@@ -14,7 +14,7 @@ import type { ToolContext } from "../tool-context.ts";
 
 const TOOL = "workshop_produce_video";
 
-/** workshop_narration_take's answer (migration 20261105160000_workshop_narration_review). */
+/** workshop_narration_take's answer (migration 20261105170000_workshop_narration_review). */
 export interface NarrationTake {
   ready: boolean;
   talking: boolean;

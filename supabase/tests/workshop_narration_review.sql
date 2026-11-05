@@ -1,4 +1,4 @@
--- The narration review (20261105160000_workshop_narration_review): synthetic rows inside one
+-- The narration review (20261105170000_workshop_narration_review): synthetic rows inside one
 -- transaction that is rolled back, signed in as a tenant member (authenticated role).
 -- workshop_pronunciations: a member reads and writes only their own tenant's words, one row per
 -- word. workshop_narration_take: a pronunciation saved after the newest take for a word in its
