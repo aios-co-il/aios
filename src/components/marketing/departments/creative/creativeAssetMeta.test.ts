@@ -5,54 +5,14 @@ import {
   serializeCreativeAssetMeta,
 } from "./creativeAssetMeta";
 
-const db = vi.hoisted(() => ({
-  update: vi.fn(),
-  insert: vi.fn(),
-  cleanup: vi.fn(),
-  projectFilters: vi.fn(),
-  cleanupFilters: vi.fn(),
-  itemError: null as { message: string } | null,
-  assetError: null as { message: string } | null,
-  cleanupError: null as { message: string } | null,
-}));
+const db = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: () => ({
-      update: (value: unknown) => {
-        db.update(value);
-        const query = {
-          eq: (key: string, value: string) => {
-            db.projectFilters(key, value);
-            return query;
-          },
-          select: () => ({ single: async () => ({ error: db.itemError }) }),
-        };
-        return query;
-      },
-      insert: async (value: unknown) => {
-        db.insert(value);
-        return { error: db.assetError };
-      },
-      delete: () => {
-        db.cleanup();
-        const query = {
-          eq: (key: string, value: string) => {
-            db.cleanupFilters(key, value);
-            return query;
-          },
-          select: () => ({ single: async () => ({ error: db.cleanupError }) }),
-        };
-        return query;
-      },
-    }),
-  },
+  supabase: { rpc: db.rpc },
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  db.itemError = null;
-  db.assetError = null;
-  db.cleanupError = null;
+  vi.resetAllMocks();
+  db.rpc.mockResolvedValue({ error: null });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -64,7 +24,7 @@ const request = () => ({
   active: creativeVariation.parse({ id: "asset", imageUrl: "image" }),
 });
 
-describe("creative asset metadata boundary", () => {
+describe("creative asset persistence boundary", () => {
   it("preserves the original projection and opaque nested metadata", () => {
     const variation = creativeVariation.parse({
       id: "asset",
@@ -86,7 +46,7 @@ describe("creative asset metadata boundary", () => {
     });
   });
 
-  it("rejects an invalid complete variation before any write with safe field diagnostics", async () => {
+  it("rejects an invalid complete variation before any RPC with safe diagnostics", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const input = request();
     input.active.layers.push({
@@ -98,44 +58,29 @@ describe("creative asset metadata boundary", () => {
       height: 1,
     });
     await expect(saveCreativeVariation(input)).rejects.toThrow();
-    expect(db.update).not.toHaveBeenCalled();
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.rpc).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith("Invalid creative asset variation", {
       fields: ["layers.0.x"],
     });
   });
 
-  it("uses normalized defaults for both metadata and asset content", async () => {
+  it("sends both snapshots in one transaction using normalized defaults", async () => {
     const input = request();
     for (const field of ["name", "format", "layers", "comments"])
       Reflect.deleteProperty(input.active, field);
-    await saveCreativeVariation(input);
-    expect(db.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenant_id: "tenant",
-        item_id: "item",
-        type: "image",
-        url: "image",
-        content: JSON.stringify({ layers: [], format: "1:1" }),
-        meta: expect.objectContaining({
-          variation_name: "גרסה",
-          layers: [],
-          comments: [],
-          format: "1:1",
-        }),
-      }),
-    );
-    expect(db.insert.mock.invocationCallOrder[0]).toBeLessThan(
-      db.update.mock.invocationCallOrder[0],
-    );
-    expect(db.projectFilters.mock.calls).toEqual([
-      ["id", "item"],
-      ["tenant_id", "tenant"],
-    ]);
-    expect(db.cleanup).not.toHaveBeenCalled();
+    await saveCreativeVariation({ ...input, stageId: "stage" });
+    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("save_creative_variation", {
+      p_item_id: "item",
+      p_tenant_id: "tenant",
+      p_stage_id: "stage",
+      p_payload: {},
+      p_url: "image",
+      p_content: JSON.stringify({ layers: [], format: "1:1" }),
+      p_meta: serializeCreativeAssetMeta(input.active),
+    });
   });
 
-  it("serializes project JSON inside the boundary before inserting an asset", async () => {
+  it("serializes project JSON before making any RPC", async () => {
     await saveCreativeVariation({
       ...request(),
       payload: {
@@ -144,65 +89,52 @@ describe("creative asset metadata boundary", () => {
         opaque: { keep: true },
       },
     });
-    expect(db.update).toHaveBeenCalledWith({
-      payload: { date: "2026-01-01T00:00:00.000Z", opaque: { keep: true } },
-    });
-    db.insert.mockClear();
+    expect(db.rpc).toHaveBeenCalledWith(
+      "save_creative_variation",
+      expect.objectContaining({
+        p_payload: { date: "2026-01-01T00:00:00.000Z", opaque: { keep: true } },
+      }),
+    );
+    db.rpc.mockClear();
     const circular: { self?: unknown } = {};
     circular.self = circular;
     await expect(
       saveCreativeVariation({ ...request(), payload: circular }),
     ).rejects.toThrow();
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.rpc).not.toHaveBeenCalled();
   });
 
-  it("does not update the project when asset insertion fails", async () => {
-    db.assetError = { message: "insert failed" };
-    await expect(saveCreativeVariation(request())).rejects.toEqual(
-      db.assetError,
-    );
-    expect(db.update).not.toHaveBeenCalled();
-    expect(db.cleanup).not.toHaveBeenCalled();
-  });
+  it.each(["database", "transport"])(
+    "propagates %s failure without any compensating request",
+    async (failure) => {
+      const error = new Error("save failed");
+      if (failure === "database") db.rpc.mockResolvedValue({ error });
+      else db.rpc.mockRejectedValue(error);
+      await expect(saveCreativeVariation(request())).rejects.toEqual(error);
+      expect(db.rpc).toHaveBeenCalledOnce();
+    },
+  );
 
-  it("removes only this new asset when the project write fails without rewriting concurrent payloads", async () => {
-    db.itemError = { message: "project failed or row missing" };
-    await expect(saveCreativeVariation(request())).rejects.toEqual(
-      db.itemError,
-    );
-    expect(db.update).toHaveBeenCalledTimes(1);
-    expect(db.cleanup).toHaveBeenCalledTimes(1);
-    expect(db.cleanupFilters.mock.calls).toEqual([
-      ["id", expect.any(String)],
-      ["tenant_id", "tenant"],
-      ["item_id", "item"],
-    ]);
-    const insertedId = db.cleanupFilters.mock.calls[0][1];
-    expect(db.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ id: insertedId }),
-    );
-    expect(db.update.mock.invocationCallOrder[0]).toBeLessThan(
-      db.cleanup.mock.invocationCallOrder[0],
-    );
-  });
-
-  it("surfaces and records a failed or missing compensation row", async () => {
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    db.itemError = { message: "project failed" };
-    db.cleanupError = { message: "delete failed or row missing" };
-    await expect(saveCreativeVariation(request())).rejects.toThrow(
-      "שמירת הפרויקט וניקוי תמונת הנכס נכשלו",
-    );
-    expect(log).toHaveBeenCalledWith("Creative asset compensation failed", {
-      error: db.itemError,
-      cleanupError: db.cleanupError,
+  it("keeps a committed pair intact when its response is lost", async () => {
+    const committed: string[] = [];
+    db.rpc.mockImplementation(async () => {
+      committed.push("project", "image");
+      throw new Error("response lost after commit");
     });
+    await expect(saveCreativeVariation(request())).rejects.toThrow(
+      "response lost after commit",
+    );
+    expect(committed).toEqual(["project", "image"]);
+    expect(db.rpc).toHaveBeenCalledOnce();
   });
 
-  it("saves a project without an active variation without inserting or deleting assets", async () => {
+  it("omits the image snapshot when no variation is active", async () => {
     await saveCreativeVariation({ ...request(), active: undefined });
-    expect(db.update).toHaveBeenCalledWith({ payload: {} });
-    expect(db.insert).not.toHaveBeenCalled();
-    expect(db.cleanup).not.toHaveBeenCalled();
+    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("save_creative_variation", {
+      p_item_id: "item",
+      p_tenant_id: "tenant",
+      p_payload: {},
+      p_stage_id: undefined,
+    });
   });
 });
