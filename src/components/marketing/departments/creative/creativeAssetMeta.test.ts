@@ -1,140 +1,106 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { creativeVariation } from "./creativeAssetPayload";
-import {
-  saveCreativeVariation,
-  serializeCreativeAssetMeta,
-} from "./creativeAssetMeta";
+import { describe, expect, it } from "vitest";
+import type { CreativeVariation } from "./types";
+import { serializeCreativeAssetMeta } from "./creativeAssetMeta";
 
-const db = vi.hoisted(() => ({ rpc: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: db.rpc },
-}));
+/** The original insert projection, serialized by Supabase's JSON transport. */
+function originalMetadataJson(active: CreativeVariation) {
+  return JSON.stringify({
+    source: "manual_edit",
+    skin_slug: "social_media",
+    variation_id: active.id,
+    variation_name: active.name,
+    comments: active.comments,
+    layers: active.layers,
+    format: active.format,
+  });
+}
 
-beforeEach(() => {
-  vi.resetAllMocks();
-  db.rpc.mockResolvedValue({ error: null });
-});
-afterEach(() => vi.restoreAllMocks());
+/** A complete editor variation without invoking a schema or applying defaults. */
+function variation(): CreativeVariation {
+  return {
+    id: "variation",
+    imageUrl: "image",
+    name: "Name",
+    layers: [],
+    comments: [],
+    format: "1:1",
+    createdAt: "now",
+  };
+}
 
-const request = () => ({
-  itemId: "item",
-  tenantId: "tenant",
-  stageId: null,
-  payload: {},
-  active: creativeVariation.parse({ id: "asset", imageUrl: "image" }),
-});
-
-describe("creative asset persistence boundary", () => {
-  it("preserves the original projection and opaque nested metadata", () => {
-    const variation = creativeVariation.parse({
-      id: "asset",
-      imageUrl: "image",
-      comments: [
-        { id: "comment", text: "Text", createdAt: "now", worker_note: "Keep" },
-      ],
-    });
-    expect(serializeCreativeAssetMeta(variation)).toEqual({
+describe("creative metadata transport parity", () => {
+  it("keeps the exact seven fields and nested opaque metadata", () => {
+    const active = variation();
+    active.comments.push(
+      Object.assign(
+        { id: "comment", text: "Text", createdAt: "now" },
+        { worker_note: { keep: true } },
+      ),
+    );
+    expect(JSON.stringify(serializeCreativeAssetMeta(active))).toBe(
+      originalMetadataJson(active),
+    );
+    expect(serializeCreativeAssetMeta(active)).toEqual({
       source: "manual_edit",
       skin_slug: "social_media",
-      variation_id: "asset",
-      variation_name: "גרסה",
+      variation_id: "variation",
+      variation_name: "Name",
       comments: [
-        { id: "comment", text: "Text", createdAt: "now", worker_note: "Keep" },
+        {
+          id: "comment",
+          text: "Text",
+          createdAt: "now",
+          worker_note: { keep: true },
+        },
       ],
       layers: [],
       format: "1:1",
     });
   });
 
-  it("rejects an invalid complete variation before any RPC with safe diagnostics", async () => {
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    const input = request();
-    input.active.layers.push({
+  it("does not introduce schema defaults for missing runtime fields", () => {
+    const active = variation();
+    for (const field of ["name", "layers", "comments", "format"])
+      Reflect.deleteProperty(active, field);
+    expect(JSON.stringify(serializeCreativeAssetMeta(active))).toBe(
+      originalMetadataJson(active),
+    );
+    expect(serializeCreativeAssetMeta(active)).toEqual({
+      source: "manual_edit",
+      skin_slug: "social_media",
+      variation_id: "variation",
+    });
+  });
+
+  it("keeps transport conversion of nonfinite values instead of newly rejecting them", () => {
+    const active = variation();
+    active.layers.push({
       id: "layer",
       type: "text",
       x: NaN,
-      y: 0,
+      y: Infinity,
       width: 1,
       height: 1,
     });
-    await expect(saveCreativeVariation(input)).rejects.toThrow();
-    expect(db.rpc).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith("Invalid creative asset variation", {
-      fields: ["layers.0.x"],
-    });
-  });
-
-  it("sends both snapshots in one transaction using normalized defaults", async () => {
-    const input = request();
-    for (const field of ["name", "format", "layers", "comments"])
-      Reflect.deleteProperty(input.active, field);
-    await saveCreativeVariation({ ...input, stageId: "stage" });
-    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("save_creative_variation", {
-      p_item_id: "item",
-      p_tenant_id: "tenant",
-      p_stage_id: "stage",
-      p_payload: {},
-      p_url: "image",
-      p_content: JSON.stringify({ layers: [], format: "1:1" }),
-      p_meta: serializeCreativeAssetMeta(input.active),
-    });
-  });
-
-  it("serializes project JSON before making any RPC", async () => {
-    await saveCreativeVariation({
-      ...request(),
-      payload: {
-        date: new Date("2026-01-01"),
-        omitted: undefined,
-        opaque: { keep: true },
-      },
-    });
-    expect(db.rpc).toHaveBeenCalledWith(
-      "save_creative_variation",
-      expect.objectContaining({
-        p_payload: { date: "2026-01-01T00:00:00.000Z", opaque: { keep: true } },
-      }),
+    expect(JSON.stringify(serializeCreativeAssetMeta(active))).toBe(
+      originalMetadataJson(active),
     );
-    db.rpc.mockClear();
-    const circular: { self?: unknown } = {};
-    circular.self = circular;
-    await expect(
-      saveCreativeVariation({ ...request(), payload: circular }),
-    ).rejects.toThrow();
-    expect(db.rpc).not.toHaveBeenCalled();
+    expect(serializeCreativeAssetMeta(active)).toMatchObject({
+      layers: [{ x: null, y: null }],
+    });
   });
 
-  it.each(["database", "transport"])(
-    "propagates %s failure without any compensating request",
-    async (failure) => {
-      const error = new Error("save failed");
-      if (failure === "database") db.rpc.mockResolvedValue({ error });
-      else db.rpc.mockRejectedValue(error);
-      await expect(saveCreativeVariation(request())).rejects.toEqual(error);
-      expect(db.rpc).toHaveBeenCalledOnce();
-    },
-  );
-
-  it("keeps a committed pair intact when its response is lost", async () => {
-    const committed: string[] = [];
-    db.rpc.mockImplementation(async () => {
-      committed.push("project", "image");
-      throw new Error("response lost after commit");
-    });
-    await expect(saveCreativeVariation(request())).rejects.toThrow(
-      "response lost after commit",
+  it("keeps the existing serialization failure for cyclic opaque metadata", () => {
+    const active = variation();
+    const metadata: { self?: unknown } = {};
+    metadata.self = metadata;
+    active.comments.push(
+      Object.assign(
+        { id: "comment", text: "Text", createdAt: "now" },
+        { metadata },
+      ),
     );
-    expect(committed).toEqual(["project", "image"]);
-    expect(db.rpc).toHaveBeenCalledOnce();
-  });
-
-  it("omits the image snapshot when no variation is active", async () => {
-    await saveCreativeVariation({ ...request(), active: undefined });
-    expect(db.rpc).toHaveBeenCalledExactlyOnceWith("save_creative_variation", {
-      p_item_id: "item",
-      p_tenant_id: "tenant",
-      p_payload: {},
-      p_stage_id: undefined,
-    });
+    expect(() => originalMetadataJson(active)).toThrow(TypeError);
+    expect(() => serializeCreativeAssetMeta(active)).toThrow(TypeError);
   });
 });

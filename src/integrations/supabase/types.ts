@@ -18445,18 +18445,6 @@ export type Database = {
       };
       run_ddl_once: { Args: { sql: string }; Returns: string };
       run_system_cron_job_now: { Args: { p_jobid: number }; Returns: string };
-      save_creative_variation: {
-        Args: {
-          p_content?: string;
-          p_item_id: string;
-          p_meta?: Json;
-          p_payload: Json;
-          p_stage_id?: string;
-          p_tenant_id: string;
-          p_url?: string;
-        };
-        Returns: string;
-      };
       save_video_storyboard: {
         Args: { p_item_id: string; p_scenes: Json };
         Returns: {

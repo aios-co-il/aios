@@ -1,6 +1,6 @@
+import { serializeCreativeAssetMeta } from "./creative/creativeAssetMeta";
 import type { CreativeVideoSettings } from "./creative/creativeProjectSettings";
 import { serializeCreativeVideoSettingsPatch } from "./creative/creativeVideoSettingsPatch";
-import { saveCreativeVariation } from "./creative/creativeAssetMeta";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -330,9 +330,6 @@ export function CreativeDepartment({
   onClientChange,
 }: Props) {
   const queryClient = useQueryClient();
-  const saveVariationMutation = useMutation({
-    mutationFn: saveCreativeVariation,
-  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedVariationId, setSelectedVariationId] = useState<string | null>(
     null,
@@ -1747,13 +1744,30 @@ export function CreativeDepartment({
           ) || latestPayload.visual_prompt,
       };
 
-      await saveVariationMutation.mutateAsync({
-        itemId: selected.id,
-        tenantId,
-        stageId: context?.creativeStage?.id ?? selected.current_stage_id,
-        payload: nextPayload,
-        active,
-      });
+      const { error: itemError } = await supabase
+        .from("marketing_work_items")
+        .update({ payload: nextPayload })
+        .eq("id", selected.id)
+        .eq("tenant_id", tenantId);
+      if (itemError) throw itemError;
+
+      if (active) {
+        const { error: assetError } = await supabase
+          .from("marketing_assets")
+          .insert({
+            tenant_id: tenantId,
+            item_id: selected.id,
+            stage_id: context?.creativeStage?.id ?? selected.current_stage_id,
+            type: "image",
+            url: active.imageUrl,
+            content: JSON.stringify({
+              layers: active.layers,
+              format: active.format,
+            }),
+            meta: serializeCreativeAssetMeta(active),
+          });
+        if (assetError) throw assetError;
+      }
 
       toast.success(message);
       await refresh();
