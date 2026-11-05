@@ -71,8 +71,12 @@ describe("BroadcastWizard tenant query request equivalence", () => {
                 ascending: true,
               });
             } else {
-              if (table === "leads") query.is("archived_at", null);
-              if (activeOnly) query.eq("active", true);
+              if (table === "leads") {
+                query.is("archived_at", null);
+              }
+              if (activeOnly) {
+                query.eq("active", true);
+              }
               query.limit(1000);
             }
             await query;
