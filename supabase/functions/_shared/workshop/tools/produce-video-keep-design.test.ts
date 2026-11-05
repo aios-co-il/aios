@@ -24,9 +24,9 @@ Deno.test(
       { defaultEngine: async () => "openrouter" as const },
     )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
-      ?.value as { p_provider: string };
+      ?.value as { p_options: { provider: string } };
     // Not a video model, which redraws the picture and garbles its text.
-    assertStrictEquals(rpc.p_provider, "mock");
+    assertStrictEquals(rpc.p_options.provider, "mock");
     // Asked for in this call: nothing to point out.
     assertStrictEquals(result.kept_design_note, undefined);
     const saved = db.calls
@@ -69,8 +69,8 @@ Deno.test(
       { defaultEngine: async () => "openrouter" as const },
     )) as { kept_design_note?: string };
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
-      ?.value as { p_provider: string };
-    assertStrictEquals(rpc.p_provider, "mock");
+      ?.value as { p_options: { provider: string } };
+    assertStrictEquals(rpc.p_options.provider, "mock");
     // Staging, 2 Nov: Carmen did not know the film still kept its design when the user asked for
     // real animation, so she is told how to undo it.
     assertMatch(String(result.kept_design_note), /keep_design=false/);

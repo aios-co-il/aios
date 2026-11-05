@@ -56,17 +56,20 @@ Deno.test(
     );
     // The whole sentence reaches the end card, which wraps it into lines.
     assertStrictEquals(trailer.payload.cta_text, waitlist);
-    assertMatch(trailer.rpc.p_music_prompt, /^Restrained cinematic trailer/);
+    assertMatch(
+      trailer.rpc.p_options.music_prompt,
+      /^Restrained cinematic trailer/,
+    );
     assertStrictEquals(trailer.saved.sound_design, true);
     assertStrictEquals(trailer.result.sound_design, true);
     // The effects are made in this production's render, so its quote includes them.
-    assertStrictEquals(trailer.rpc.p_estimate.sound_effects.usd, 0.09);
+    assertStrictEquals(trailer.rpc.p_options.estimate.sound_effects.usd, 0.09);
 
     const calm = await run("קצב: רגוע ורגשי. מוזיקה: אקוסטית חמה.");
-    assertMatch(calm.rpc.p_music_prompt, /warm acoustic/);
+    assertMatch(calm.rpc.p_options.music_prompt, /warm acoustic/);
     assertStrictEquals(calm.saved.sound_design, false);
     assertStrictEquals(calm.result.sound_design, undefined);
-    assertStrictEquals(calm.rpc.p_estimate.sound_effects.usd, 0);
+    assertStrictEquals(calm.rpc.p_options.estimate.sound_effects.usd, 0);
 
     const asked = await run("קצב: רגוע", { sound_design: true });
     assertStrictEquals(asked.saved.sound_design, true);
@@ -217,7 +220,7 @@ Deno.test(
           string,
           any
         >
-      ).p_estimate;
+      ).p_options.estimate;
     };
     const again = await produce();
     // Scene 2's 3 s become a 4 s ElevenLabs clip at $0.15 a second.

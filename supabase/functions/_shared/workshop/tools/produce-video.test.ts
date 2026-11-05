@@ -99,10 +99,10 @@ Deno.test(
     );
     const rpc = db.calls.find((c) => c.table === "rpc:produce_video")
       ?.value as Record<string, any>;
-    assertStrictEquals(rpc.p_provider, "elevenlabs");
-    assertStrictEquals(rpc.p_aspect, "9:16");
-    assertStrictEquals(rpc.p_stage_id, "stage-1");
-    assertStrictEquals(rpc.p_with_voice, true);
+    assertStrictEquals(rpc.p_options.provider, "elevenlabs");
+    assertStrictEquals(rpc.p_options.aspect, "9:16");
+    assertStrictEquals(rpc.p_options.stage_id, "stage-1");
+    assertStrictEquals(rpc.p_options.with_voice, true);
     const film = db.calls.find((c) => c.table === "workshop_artifacts")
       ?.value as Record<string, any>;
     assertStrictEquals(film.kind, "film");
