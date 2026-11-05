@@ -42,7 +42,9 @@ class CarmenActivity : AppCompatActivity() {
         showOverLockScreen()
         setContentView(R.layout.activity_carmen)
         stateText = findViewById(R.id.state_text)
-        face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow))
+        // Rounded tile corners (the XML attribute needs API 31; minSdk is 30).
+        findViewById<View>(R.id.call_tile).clipToOutline = true
+        face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow), fixedFrame = true)
         findViewById<Chronometer>(R.id.call_timer).apply {
             base = SystemClock.elapsedRealtime()
             start()

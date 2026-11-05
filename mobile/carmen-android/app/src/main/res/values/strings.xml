@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Carmen</string>
     <string name="brand_name">Carmen Marketing OS</string>
     <string name="brand_tagline">מנהלת השיווק של העסק שלך</string>
     <string name="email_label">אימייל</string>

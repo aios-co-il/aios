@@ -169,11 +169,11 @@ How we keep them working:
 3. **Health probe.** Command Center calls `agent-channel-send` `action=channel_health`. If the key is rejected, the HUD shows a banner. After a copy, hashes of the allowlist should match Production; no function redeploy is required.
 4. **After a copy:** from Preview → Command Center, send a one-word ping on Cursor Direct or the table. Expect `agent_channel_sessions.external_url` and no 401.
 
-## Carmen Android app (Staging only)
+## Carmen Android app
 
-- `mobile/carmen-android` builds against AIOS Staging: repository variables `CARMEN_ANDROID_SUPABASE_URL` and `CARMEN_ANDROID_SUPABASE_KEY` (Staging URL and publishable key; the **Carmen Android** workflow fails without them), and the Staging alias as the in-app Command Center.
-- Google sign-in returns through `carmen-aios://auth/**`, allowed in the base `[auth]` redirect list of `supabase/config.toml`, which `develop` uses.
-- A Production build (release key, Production redirect and URLs) is AIO-356.
+- `mobile/carmen-android` has two variants that install side by side. **Staging** (`co.il.aios.carmen.staging`, "Carmen Staging", debug-signed) reads the repository variables `CARMEN_ANDROID_SUPABASE_URL` / `CARMEN_ANDROID_SUPABASE_KEY` (Staging URL and publishable key; the **Carmen Android** workflow fails without them) and opens the Staging alias as its Command Center. **Production** (`co.il.aios.carmen`, "Carmen") takes the Production URL and publishable key from the tracked `.env` and opens `https://aios.co.il`.
+- Google sign-in returns through `carmen-aios-staging://auth/**` (base `[auth]` redirect list in `supabase/config.toml`, used by `develop`) and `carmen-aios://auth/**` (`[remotes.production.auth]`, applied on merge to `main`).
+- The Production APK is built only from `main`, signed with the release key from the secrets `CARMEN_RELEASE_KEYSTORE_BASE64`, `CARMEN_RELEASE_STORE_PASSWORD`, `CARMEN_RELEASE_KEY_ALIAS` and `CARMEN_RELEASE_KEY_PASSWORD`; without them the build fails instead of shipping a debug-signed app. Keep a copy of the keystore outside GitHub: a new key cannot update an installed app.
 
 ## Report loading
 
