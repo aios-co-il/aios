@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTerminology } from "@/hooks/useTerminology";
 import { toast } from "sonner";
@@ -34,9 +35,8 @@ import {
   type ConvertGroupFormValues,
 } from "@/lib/formSchemas";
 
-type ClientFormValues = ConvertClientFormValues;
-type LeadFormValues = ConvertLeadFormValues;
-type GroupFormValues = ConvertGroupFormValues;
+type ContactFormValues =
+  ConvertClientFormValues | ConvertLeadFormValues | ConvertGroupFormValues;
 
 interface ConvertContactDialogProps {
   open: boolean;
@@ -44,7 +44,11 @@ interface ConvertContactDialogProps {
   senderPhone: string;
   senderName?: string | null;
   type: "client" | "lead" | "group";
-  onSuccess: (id: string, type: "client" | "lead" | "group") => void;
+  onSuccess: (
+    id: string,
+    type: "client" | "lead" | "group",
+    tenantId: string,
+  ) => void;
 }
 
 export function ConvertContactDialog({
@@ -60,7 +64,7 @@ export function ConvertContactDialog({
   const { terms } = useTerminology();
   const [isConverting, setIsConverting] = useState(false);
 
-  const form = useForm<ClientFormValues | LeadFormValues | GroupFormValues>({
+  const form = useForm<ContactFormValues>({
     resolver: zodResolver(
       type === "client"
         ? convertClientSchema
@@ -122,15 +126,14 @@ export function ConvertContactDialog({
   });
 
   const createMutation = useMutation({
-    mutationFn: async (
-      values: ClientFormValues | LeadFormValues | GroupFormValues,
-    ) => {
+    mutationFn: async (values: ContactFormValues) => {
+      const requiredTenantId = requireTenantId(tenantId);
       if (type === "group") {
-        const groupData = values as GroupFormValues;
+        const groupData = convertGroupSchema.parse(values);
         const { data, error } = await supabase
           .from("whatsapp_groups")
           .insert({
-            tenant_id: tenantId,
+            tenant_id: requiredTenantId,
             group_chat_id: senderPhone, // Use sender_phone as temporary group_chat_id
             group_name: groupData.group_name,
             description: groupData.description,
@@ -140,21 +143,25 @@ export function ConvertContactDialog({
           .single();
 
         if (error) throw error;
-        return { data, type: "group" as const };
+        return {
+          id: data.id,
+          type: "group" as const,
+          tenantId: requiredTenantId,
+        };
       } else if (type === "client") {
-        const clientData = values as ClientFormValues;
+        const clientData = convertClientSchema.parse(values);
         // Use the RPC so a campaigner who converts a contact is auto-assigned to
         // client_team — otherwise the new client is invisible to them (and to
         // anyone filtering clients by that campaigner).
         const { data: newClientId, error } = await supabase.rpc(
           "create_client_with_assignment",
           {
-            p_tenant_id: tenantId,
+            p_tenant_id: requiredTenantId,
             p_agency_id: clientData.agency_id,
             p_name: clientData.name,
-            p_phone: clientData.phone || null,
-            p_email: clientData.email || null,
-            p_notes: clientData.notes || null,
+            p_phone: clientData.phone || undefined,
+            p_email: clientData.email || undefined,
+            p_notes: clientData.notes || undefined,
           },
         );
         if (error) throw error;
@@ -171,12 +178,17 @@ export function ConvertContactDialog({
             );
         }
 
-        return { id: newClientId as string, type: "client" as const };
+        return {
+          id: newClientId,
+          type: "client" as const,
+          tenantId: requiredTenantId,
+        };
       } else {
-        const leadData = values as LeadFormValues;
+        const leadData = convertLeadSchema.parse(values);
         const { data, error } = await supabase
           .from("leads")
           .insert({
+            tenant_id: requiredTenantId,
             company_name: leadData.company_name,
             contact_name: leadData.contact_name,
             agency_id: leadData.agency_id,
@@ -189,7 +201,11 @@ export function ConvertContactDialog({
           .single();
         if (error) throw error;
 
-        return { id: data.id, type: "lead" as const };
+        return {
+          id: data.id,
+          type: "lead" as const,
+          tenantId: requiredTenantId,
+        };
       }
     },
     onSuccess: async (result) => {
@@ -203,7 +219,7 @@ export function ConvertContactDialog({
             senderPhone,
             contactId: result.id,
             contactType: result.type,
-            tenantId,
+            tenantId: result.tenantId,
           },
         },
       );
@@ -221,13 +237,17 @@ export function ConvertContactDialog({
         );
       }
 
-      queryClient.invalidateQueries({ queryKey: ["chat-contacts", tenantId] });
-      queryClient.invalidateQueries({ queryKey: ["chat-messages", tenantId] });
       queryClient.invalidateQueries({
-        queryKey: ["unknown-contacts", tenantId],
+        queryKey: ["chat-contacts", result.tenantId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["chat-messages", result.tenantId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["unknown-contacts", result.tenantId],
       });
       onOpenChange(false);
-      onSuccess(result.id, result.type);
+      onSuccess(result.id, result.type, result.tenantId);
     },
     onError: (error: any) => {
       console.error("Failed to create contact:", error);
@@ -237,10 +257,6 @@ export function ConvertContactDialog({
       );
     },
   });
-
-  const onSubmit = (values: ClientFormValues | LeadFormValues) => {
-    createMutation.mutate(values);
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -261,7 +277,10 @@ export function ConvertContactDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          onSubmit={form.handleSubmit((data) => createMutation.mutate(data))}
+          className="space-y-4"
+        >
           {type === "group" ? (
             <>
               <div>

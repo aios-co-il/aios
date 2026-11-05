@@ -50,6 +50,7 @@ interface ChatViewProps {
   contactName?: string;
   telegramChatId?: string;
   activeChatProvider?: string | null;
+  onContactConverted?: (id: string, type: "client" | "lead" | "group") => void;
   onBack?: () => void;
 }
 
@@ -60,10 +61,13 @@ export default function ChatView({
   contactName,
   telegramChatId,
   activeChatProvider,
+  onContactConverted,
   onBack,
 }: ChatViewProps) {
   const queryClient = useQueryClient();
   const { tenant: currentTenant, tenantId } = useCurrentTenant();
+  const activeTenantId = useRef(tenantId);
+  activeTenantId.current = tenantId;
   const { userId } = useCurrentUser();
   const { buildPath } = useTenantPath();
   const isMobile = useIsMobile();
@@ -1177,7 +1181,7 @@ export default function ChatView({
           isLoading={isLoadingMessages}
           contactId={contactId}
           contactType={contactType}
-          agencyId={contact?.agency_id}
+          agencyId={contact?.agency_id ?? undefined}
           anchorMessageId={anchorMessageId}
           currentPeriod={messagePeriod}
           onLoadMore={(period) => setMessagePeriod(period)}
@@ -1210,15 +1214,11 @@ export default function ChatView({
             senderPhone={senderPhone || contactId}
             senderName={contact?.name}
             type={convertType}
-            onSuccess={(id, type) => {
+            onSuccess={(id, type, conversionTenantId) => {
               setConvertDialogOpen(false);
-              queryClient.invalidateQueries({
-                queryKey: ["chat-contacts", tenantId],
-              });
-              queryClient.invalidateQueries({
-                queryKey: ["unknown-contacts", tenantId],
-              });
-              if (onBack) onBack();
+              if (conversionTenantId === activeTenantId.current) {
+                onContactConverted?.(id, type);
+              }
             }}
           />
           <LinkContactDialog

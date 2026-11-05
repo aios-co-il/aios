@@ -1054,6 +1054,9 @@ export default function Chat() {
             contactName={selectedContact.name}
             telegramChatId={selectedContact.telegramChatId}
             activeChatProvider={selectedContact.activeChatProvider}
+            onContactConverted={(id, type) =>
+              setSelectedContact({ ...selectedContact, id, type })
+            }
             onBack={isMobile ? () => setSelectedContact(null) : undefined}
           />
         ) : (
