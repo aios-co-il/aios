@@ -53,11 +53,7 @@ export type TenantIntegrationRow = {
   [key: string]: unknown;
 };
 
-export type ClientIntegration = Omit<
-  TenantIntegrationRow,
-  "api_key" | "settings"
-> & {
-  settings?: Record<string, unknown> | null;
+export type ClientIntegration = Omit<TenantIntegrationRow, "api_key"> & {
   has_credential: boolean;
   api_key?: TenantIntegrationRow["api_key"];
   _isOwn?: boolean;
