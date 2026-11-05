@@ -14,11 +14,15 @@
         android:padding="20dp">
 
         <ImageView
-            android:layout_width="150dp"
-            android:layout_height="200dp"
+            android:id="@+id/sign_in_portrait"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:adjustViewBounds="true"
+            android:background="@drawable/rounded_tile"
             android:contentDescription="@string/app_name"
             android:scaleType="fitCenter"
-            android:src="@drawable/carmen_portrait" />
+            android:src="@drawable/carmen_call" />
 
         <LinearLayout
             android:layout_width="match_parent"

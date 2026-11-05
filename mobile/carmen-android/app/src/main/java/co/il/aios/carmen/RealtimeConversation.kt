@@ -7,6 +7,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.Executors
@@ -34,6 +35,7 @@ class RealtimeConversation(
     }
 
     private val brain = CarmenBrain(account)
+    private val phone = PhoneTools(context)
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private val tools = Executors.newSingleThreadExecutor()
     private val responses = ResponseGate()
@@ -43,6 +45,10 @@ class RealtimeConversation(
     @Volatile private var ended = false
     @Volatile private var toolRunning = false
     @Volatile private var heardCarmen = false
+
+    /** A call or media start waiting for Carmen's last line, then the end of the conversation. */
+    @Volatile private var afterConversation: (() -> Unit)? = null
+    @Volatile private var finishAfterNextResponse = false
 
     fun start() {
         listener.onState(CarmenSession.State.CONNECTING)
@@ -120,8 +126,14 @@ class RealtimeConversation(
                 // Only Carmen's words are shown; the user's own speech is not transcribed on screen.
                 event.optString("transcript").trim().takeIf { it.isNotEmpty() }?.let { listener.onTranscript(it) }
             "response.output_item.done" -> event.optJSONObject("item")?.let(::maybeCallTool)
+            "session.created" -> event.optJSONObject("session")?.let(::addPhoneTools)
             "response.done" -> {
-                if (responses.onDone()) send(JSONObject().put("type", "response.create"))
+                if (finishAfterNextResponse) {
+                    finishAfterNextResponse = false
+                    finishForPhoneAction()
+                    return
+                }
+                if (responses.onDone()) requestResponse()
                 listener.onState(CarmenSession.State.LISTENING)
                 resetIdleTimer()
             }
@@ -129,8 +141,26 @@ class RealtimeConversation(
         }
     }
 
+    /** Appends the phone's own tools to the ones the server gave the session (ask_carmen). */
+    private fun addPhoneTools(session: JSONObject) {
+        val tools = session.optJSONArray("tools") ?: JSONArray()
+        phone.definitions().forEach { tools.put(it) }
+        send(
+            JSONObject().put("type", "session.update").put(
+                "session",
+                JSONObject().put("type", "realtime").put("tools", tools),
+            ),
+        )
+    }
+
     private fun maybeCallTool(item: JSONObject) {
-        if (item.optString("type") != "function_call" || item.optString("name") != "ask_carmen") return
+        if (item.optString("type") != "function_call") return
+        val name = item.optString("name")
+        if (phone.handles(name)) {
+            runPhoneTool(item, name)
+            return
+        }
+        if (name != "ask_carmen") return
         val question = runCatching { JSONObject(item.optString("arguments")).optString("question") }.getOrDefault("")
         listener.onState(CarmenSession.State.THINKING)
         log.record(EventLog.Event.BRAIN_CALLED, question.take(80))
@@ -139,17 +169,53 @@ class RealtimeConversation(
             val answer = brain.ask(question)
             toolRunning = false
             if (ended) return@execute
-            send(
-                JSONObject().put("type", "conversation.item.create").put(
-                    "item",
-                    JSONObject().put("type", "function_call_output")
-                        .put("call_id", item.optString("call_id"))
-                        .put("output", answer.take(MAX_TOOL_OUTPUT)),
-                ),
-            )
-            if (responses.requestCreate()) send(JSONObject().put("type", "response.create"))
-            resetIdleTimer()
+            answerTool(item.optString("call_id"), answer)
         }
+    }
+
+    private fun runPhoneTool(item: JSONObject, name: String) {
+        val args = runCatching { JSONObject(item.optString("arguments")) }.getOrDefault(JSONObject())
+        log.record(EventLog.Event.PHONE_TOOL, name)
+        tools.execute {
+            val result = phone.run(name, args)
+            if (ended) return@execute
+            result.afterConversation?.let { afterConversation = it }
+            answerTool(item.optString("call_id"), result.output)
+        }
+    }
+
+    private fun answerTool(callId: String, output: String) {
+        send(
+            JSONObject().put("type", "conversation.item.create").put(
+                "item",
+                JSONObject().put("type", "function_call_output")
+                    .put("call_id", callId)
+                    .put("output", output.take(MAX_TOOL_OUTPUT)),
+            ),
+        )
+        if (responses.requestCreate()) requestResponse()
+        resetIdleTimer()
+    }
+
+    /** Asks for Carmen's next answer; after a call or media start, that answer is her last line. */
+    private fun requestResponse() {
+        send(JSONObject().put("type", "response.create"))
+        if (afterConversation != null) finishAfterNextResponse = true
+    }
+
+    /** Lets Carmen's last words play out, ends the conversation, then dials or starts the media. */
+    private fun finishForPhoneAction(waitedMs: Long = 0) {
+        if (ended) return
+        if (!audio.isIdle() && waitedMs < MAX_LAST_LINE_MS) {
+            worker.schedule({ finishForPhoneAction(waitedMs + POLL_MS) }, POLL_MS, TimeUnit.MILLISECONDS)
+            return
+        }
+        val action = afterConversation
+        afterConversation = null
+        worker.schedule({
+            end("phone action")
+            runCatching { action?.invoke() }.onFailure { log.record(EventLog.Event.ERROR, "Phone action: ${it.message}") }
+        }, PLAYBACK_TAIL_MS, TimeUnit.MILLISECONDS)
     }
 
     /** The one opening line of the call, then Carmen waits for the user's request. */
@@ -197,6 +263,9 @@ class RealtimeConversation(
 
     private companion object {
         const val IDLE_MS = 45_000L
+        const val POLL_MS = 200L
+        const val MAX_LAST_LINE_MS = 6_000L
+        const val PLAYBACK_TAIL_MS = 700L
         const val MAX_TOOL_OUTPUT = 8_000
         val http: OkHttpClient = OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
