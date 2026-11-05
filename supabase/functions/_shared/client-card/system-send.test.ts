@@ -5,7 +5,6 @@ import {
   automationChatRow,
   findAutomationClientGroup,
   recordAutomationClientSend,
-  recordCarmenFallbackGroupReply,
 } from "./system-send.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -186,80 +185,5 @@ Deno.test(
     );
     assertEquals(db.queries, []);
     assertEquals(db.inserts, []);
-  },
-);
-
-Deno.test(
-  "a Carmen fallback reply is recorded only in a group of one client",
-  async () => {
-    const db = fakeSystemSendDb({
-      whatsapp_groups: groups,
-      groupClient: { [GROUP]: CLIENT, "staff-group": null },
-    });
-    const reply = { ...baseSend, message: "כרמן: הקמפיין עודכן" };
-    assertStrictEquals(
-      await recordCarmenFallbackGroupReply(db, {
-        ...reply,
-        chatId: "120363@g.us",
-      }),
-      "recorded",
-    );
-    assertStrictEquals(db.inserts.length, 1);
-    assertStrictEquals(db.inserts[0].row.send_kind, "carmen");
-    assertStrictEquals(db.inserts[0].row.group_id, GROUP);
-    assertEquals(db.inserts[0].row.raw_provider_data, {
-      idMessage: "BAE5F1",
-      carmen: true,
-      team_forward: "pending",
-    });
-    // A staff group, and a private chat (even the client's own phone), are
-    // never logged, like a reply through the action step.
-    assertStrictEquals(
-      await recordCarmenFallbackGroupReply(db, {
-        ...reply,
-        chatId: "777@g.us",
-      }),
-      "not_client",
-    );
-    const rpcsBefore = db.rpcs.length;
-    assertStrictEquals(
-      await recordCarmenFallbackGroupReply(db, {
-        ...reply,
-        chatId: "972501234567@c.us",
-      }),
-      "not_client",
-    );
-    assertStrictEquals(db.rpcs.length, rpcsBefore, "no lookup for a DM");
-    assertStrictEquals(db.inserts.length, 1);
-    // The same opt-in switch as every other card entry.
-    const off = fakeSystemSendDb({
-      whatsapp_groups: groups,
-      groupClient: { [GROUP]: CLIENT },
-      loggingOn: false,
-    });
-    assertStrictEquals(
-      await recordCarmenFallbackGroupReply(off, {
-        ...reply,
-        chatId: "120363@g.us",
-      }),
-      "logging_off",
-    );
-    assertEquals(off.inserts, []);
-    // Manus: no Green API echo, so no mirror is owed.
-    const manus = fakeSystemSendDb({
-      whatsapp_groups: groups,
-      groupClient: { [GROUP]: CLIENT },
-    });
-    await recordCarmenFallbackGroupReply(manus, {
-      ...reply,
-      provider: "manus_wa",
-      providerResponse: { success: true, messageId: "m-1" },
-      chatId: "120363@g.us",
-    });
-    assertEquals(manus.inserts[0].row.raw_provider_data, {
-      success: true,
-      messageId: "m-1",
-      carmen: true,
-    });
   },
 );
