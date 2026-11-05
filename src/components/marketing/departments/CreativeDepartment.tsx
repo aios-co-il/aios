@@ -1,3 +1,4 @@
+import { serializeCreativeAssetMeta } from "./creative/creativeAssetMeta";
 import type { CreativeVideoSettings } from "./creative/creativeProjectSettings";
 import { serializeCreativeVideoSettingsPatch } from "./creative/creativeVideoSettingsPatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1763,15 +1764,7 @@ export function CreativeDepartment({
               layers: active.layers,
               format: active.format,
             }),
-            meta: {
-              source: "manual_edit",
-              skin_slug: "social_media",
-              variation_id: active.id,
-              variation_name: active.name,
-              comments: active.comments,
-              layers: active.layers,
-              format: active.format,
-            },
+            meta: serializeCreativeAssetMeta(active),
           });
         if (assetError) throw assetError;
       }
