@@ -69,7 +69,8 @@
 -- which blocks sign-ins and profile writes for that second; lock_timeout fails
 -- the deploy after 5 seconds instead of queueing behind a long transaction.
 --
--- No row changes, and nothing is sent. Safe to re-run: a key already ON
+-- Row changes only in step 7a (one deleted user's leftover references, archived
+-- first), and nothing is sent. Safe to re-run: a key already ON
 -- DELETE SET NULL is left alone, and each object is created or replaced. An
 -- earlier draft of this migration (version 20261103110000, applied only on
 -- this PR's Preview branch) let owners write tenant_inactive_members and read
@@ -801,6 +802,106 @@ end;
 $$;
 
 revoke all on function public.client_updates_keep_owner() from public, anon, authenticated;
+
+-- 7a. One deleted user's leftover references. bcd21d1c-3b39-4a7c-9dbf-4c89679110b9
+-- has no auth.users row and no profile, yet six columns still point at them.
+-- The rows were written while foreign keys were not enforced
+-- (session_replication_role replica), so the old keys still show as
+-- validated; re-adding the keys below validates them again, which failed the
+-- Production deploy on 2026-11-05 (23503 on ai_detection_prompts_created_by_fkey).
+-- Read-only counts on Production that day, all for this one user:
+-- crm_records.created_by 76, chat_messages.blocked_by_user_id 56,
+-- ai_detection_prompts.created_by 49, import_history.imported_by 48,
+-- crm_tables.created_by 21, chat_messages.sent_by_user_id 1. No other key to
+-- auth.users or profiles had an orphan. These references become NULL, which
+-- is what the new ON DELETE SET NULL keys do when a user is deleted; each row
+-- is copied to archive.orphan_rows first. Nothing is sent. Where the user's
+-- references are gone (Staging, fresh databases) this changes nothing.
+-- The work is a function so supabase/tests/clear_deleted_user_references.sql
+-- can plant such references and check it; only the migration and the service
+-- role run it.
+
+-- Clears one missing user's references in the six columns above, each row
+-- archived first; a user who still exists is left alone. Returns the number of
+-- references cleared. The update triggers that would re-validate a CRM record
+-- or move updated_at are off for these updates only (only one that is on now
+-- is switched off, and only that one back on); no other trigger on these
+-- tables fires for these columns.
+create or replace function archive.clear_deleted_user_references(p_user uuid)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  r record;
+  v_count integer;
+  v_total integer := 0;
+  v_quiet boolean;
+begin
+  if p_user is null or exists (select 1 from auth.users where id = p_user) then
+    raise notice 'user % exists or is null; no leftover references to clear', p_user;
+    return 0;
+  end if;
+
+  for r in
+    select * from (values
+      ('ai_detection_prompts', 'created_by', null),
+      ('chat_messages', 'blocked_by_user_id', 'update_chat_messages_updated_at'),
+      ('chat_messages', 'sent_by_user_id', 'update_chat_messages_updated_at'),
+      ('crm_records', 'created_by', 'validate_crm_record_trigger'),
+      ('crm_tables', 'created_by', 'update_crm_tables_updated_at'),
+      ('import_history', 'imported_by', null)
+    ) as t(tbl, col, quiet_trigger)
+  loop
+    execute format('select count(*) from public.%I where %I = $1', r.tbl, r.col)
+      into v_count using p_user;
+    if v_count = 0 then
+      raise notice 'no references to user % in %.%', p_user, r.tbl, r.col;
+      continue;
+    end if;
+
+    execute format(
+      'insert into archive.orphan_rows (source_table, row_id, row, reason)
+       select %L, t.id, to_jsonb(t), %L from public.%I t where t.%I = $1
+       on conflict (source_table, row_id, reason) do nothing',
+      r.tbl,
+      r.col || ' pointed at a deleted user; cleared by 20261104100000',
+      r.tbl,
+      r.col
+    ) using p_user;
+
+    v_quiet := r.quiet_trigger is not null and exists (
+      select 1
+      from pg_catalog.pg_trigger
+      where tgrelid = format('public.%I', r.tbl)::regclass
+        and tgname = r.quiet_trigger
+        and tgenabled = 'O'
+        and not tgisinternal
+    );
+    if v_quiet then
+      execute format('alter table public.%I disable trigger %I', r.tbl, r.quiet_trigger);
+    end if;
+
+    execute format('update public.%I set %I = null where %I = $1', r.tbl, r.col, r.col)
+      using p_user;
+    get diagnostics v_count = row_count;
+
+    if v_quiet then
+      execute format('alter table public.%I enable trigger %I', r.tbl, r.quiet_trigger);
+    end if;
+    v_total := v_total + v_count;
+    raise notice 'cleared % reference(s) to deleted user % in %.%', v_count, p_user, r.tbl, r.col;
+  end loop;
+  return v_total;
+end;
+$$;
+
+revoke all on function archive.clear_deleted_user_references(uuid) from public, anon, authenticated;
+
+select archive.clear_deleted_user_references('bcd21d1c-3b39-4a7c-9dbf-4c89679110b9');
+
+comment on table archive.orphan_rows is
+  'Rows a migration deleted or changed, as they were before. 20261103110000_restore_lost_constraints: rows whose client was deleted. 20261103110500_archive_deleted_clients (reason client_deleted): every deleted client, with its communication_logs and seo_monthly_updates rows, copied before the delete cascades. 20261104100000_user_deactivate_keep_history: rows whose user column pointed at a deleted user, before it was cleared.';
 
 do $$
 declare
