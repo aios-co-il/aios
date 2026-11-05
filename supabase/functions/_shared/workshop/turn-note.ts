@@ -52,6 +52,10 @@ export const DO_THE_STEP =
 export const ANY_KIND =
   "הפרויקט לא נעול לסוג אחד: הוא יכול לעבור בין קופי, תמונות וסרטון. סרטון מתמונה שכבר בפרויקט: workshop_storyboard עם from_artifact_id של התמונה.";
 
+/** The user tapped approval on the script in this message. */
+const SCRIPT_APPROVED_NOW =
+  "המשתמש אישר עכשיו את התסריט. אל תשמרי אותו שוב ב-workshop_save_script; המשיכי מיד ל-workshop_storyboard, סצנה אחת לכל שורה.";
+
 export interface FilmState {
   scenes: number;
   withStill: number;
@@ -95,6 +99,7 @@ export async function workshopTurnNote(
   userText: string,
   lastAssistant = "",
   selectedArtifactId: string | null = null,
+  turnId: string | null = null,
 ): Promise<string | null> {
   if (!itemId || typeof tenantId !== "string" || !tenantId) return null;
   try {
@@ -111,11 +116,14 @@ export async function workshopTurnNote(
     const approved = approveFromMessage(payload, userText);
     // Every tapped answer goes into the brief, so Carmen can come back to it later.
     const tapped = tappedAnswers(lastAssistant, userText);
-    // A tap on the script question approves the script, whatever Carmen calls next.
-    const next = withTappedScriptApproval(
-      withBriefAnswers(approved?.payload ?? payload, tapped),
-      { lastAssistant, userText },
-    );
+    // A tap on the script question approves the script, whatever Carmen calls next; the turn is
+    // kept so she cannot replace the approved script in this turn (save-script-guards.ts).
+    const briefed = withBriefAnswers(approved?.payload ?? payload, tapped);
+    const next = withTappedScriptApproval(briefed, {
+      lastAssistant,
+      userText,
+      turnId,
+    });
     if (next !== payload) {
       const { error } = await supabase
         .from("marketing_work_items")
@@ -131,6 +139,9 @@ export async function workshopTurnNote(
       } else {
         await syncBriefPage(supabase, tenantId, itemId, payload, next);
         payload = next;
+        if (next !== briefed) {
+          lines.push(SCRIPT_APPROVED_NOW);
+        }
         if (approved)
           lines.push(
             `המשתמש אישר עכשיו תקציב של $${approved.capUsd} לפרויקט. אל תבקשי אישור שוב. המשיכי מיד ל${approved.tool ? TOOL_STEP[approved.tool] : "שלב שחיכה לאישור"}.`,

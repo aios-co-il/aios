@@ -23,7 +23,8 @@ import { workshopTurnNote } from "../_shared/workshop/turn-note.ts";
 /**
  * In the workshop the server picks the specialist for this message (designer, producer or
  * video editor) from the message and the open project, and pins her skin; see roles.ts.
- * Approves a waiting budget from the user's code and states the project's next step.
+ * Approves a waiting budget from the user's code and states the project's next step; `turnId`
+ * is the run's turn, so a script approved by a tap now is known as approved in this turn.
  */
 export async function workshopTurnSetup(
   supabase: Db,
@@ -31,6 +32,7 @@ export async function workshopTurnSetup(
   tenantId: unknown,
   commandText: unknown,
   conversationHistory: unknown,
+  turnId: string,
 ) {
   const workshopNote = await workshopTurnNote(
     supabase,
@@ -39,6 +41,7 @@ export async function workshopTurnSetup(
     String(commandText ?? ""),
     lastAssistantText(conversationHistory),
     workshopArtifactIdFrom(bodyJson),
+    turnId,
   );
   const workshopRoleForRun = workshopRole(
     String(commandText ?? ""),

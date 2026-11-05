@@ -52,6 +52,8 @@ export interface FilmScript {
   /** The turn it was saved in: an approval in words counts only in a later turn. */
   saved_turn: string | null;
   approved: boolean;
+  /** The turn the user approved it in, when known: Carmen may not replace it in that turn. */
+  approved_turn: string | null;
 }
 
 export type ScriptState = FilmScript | { skipped: true } | null;
@@ -91,16 +93,19 @@ export function filmScriptOf(payload: Record<string, unknown>): ScriptState {
     total_s: Number(stored.total_s) || 0,
     beats,
     concept,
-    saved_turn:
-      typeof stored.saved_turn === "string" ? stored.saved_turn : null,
+    saved_turn: turnOf(stored.saved_turn),
     approved: stored.approved === true,
+    approved_turn: turnOf(stored.approved_turn),
   };
 }
+
+/** A stored turn id, or null when none was recorded. */
+const turnOf = (value: unknown) => (typeof value === "string" ? value : null);
 
 /** A new script on the project, for the concept chosen now: unapproved until the user says so. */
 export function withScript(
   payload: Record<string, unknown>,
-  script: Omit<FilmScript, "approved" | "concept">,
+  script: Omit<FilmScript, "approved" | "approved_turn" | "concept">,
 ) {
   const concept = conceptAnswer(briefAnswersOf(payload));
   return { ...payload, [KEY]: { ...script, concept, approved: false } };
@@ -112,16 +117,20 @@ export const withScriptSkipped = (payload: Record<string, unknown>) => ({
   [KEY]: { skipped: true },
 });
 
-/** The stored script, approved. A project without a script is returned as it is. */
-export function withScriptApproved(payload: Record<string, unknown>) {
+/**
+ * The stored script, approved in `turnId` (null when the turn is not known). A project without a
+ * script, or with one already approved, is returned as it is.
+ */
+export function withScriptApproved(
+  payload: Record<string, unknown>,
+  turnId: string | null = null,
+) {
   const script = filmScriptOf(payload);
   if (!script || "skipped" in script || script.approved) {
     return payload;
   }
-  return {
-    ...payload,
-    [KEY]: { ...asRecord(payload[KEY]), approved: true },
-  };
+  const stored = { ...asRecord(payload[KEY]), approved: true };
+  return { ...payload, [KEY]: { ...stored, approved_turn: turnId } };
 }
 
 /** Script approved, or skipped by the user: the storyboard may be written. */
@@ -189,7 +198,7 @@ export function scriptLines(
   }
   return [
     script.approved
-      ? "תסריט: אושר. הסטוריבורד נבנה ממנו, סצנה אחת לכל שורה."
+      ? "תסריט: אושר. לא שומרים אותו שוב: הצעד הבא workshop_storyboard, סצנה אחת לכל שורה."
       : "תסריט: ממתין לאישור המשתמש. אין סצנות עד שהוא מאשר; בקשת שינוי: כתבי מחדש ושמרי שוב ב-workshop_save_script.",
   ];
 }
