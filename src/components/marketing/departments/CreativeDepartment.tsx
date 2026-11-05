@@ -1,6 +1,5 @@
 import { serializeCreativeAssetMeta } from "./creative/creativeAssetMeta";
 import type { CreativeVideoSettings } from "./creative/creativeProjectSettings";
-import { serializeCreativeProjectPayload } from "./creative/creativePayloadTransport";
 import { serializeCreativeVideoSettingsPatch } from "./creative/creativeVideoSettingsPatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -75,6 +74,7 @@ import type {
   CreativeComment,
   CreativeItem,
   CreativeProjectDraft,
+  ManualCreativePayload,
   CreativeProjectType,
   CreativeVariation,
   StoryboardFrame,
@@ -879,7 +879,7 @@ export function CreativeDepartment({
         .from("marketing_work_items")
         .update({
           title: draft.title.trim() || selected.title,
-          payload: serializeCreativeProjectPayload(nextPayload),
+          payload: nextPayload,
         })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
@@ -986,7 +986,7 @@ export function CreativeDepartment({
             ? selected.current_stage_id
             : stageId
           : null,
-        payload: serializeCreativeProjectPayload(nextPayload),
+        payload: nextPayload,
       })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
@@ -1747,7 +1747,7 @@ export function CreativeDepartment({
 
       const { error: itemError } = await supabase
         .from("marketing_work_items")
-        .update({ payload: serializeCreativeProjectPayload(nextPayload) })
+        .update({ payload: nextPayload })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
       if (itemError) throw itemError;
@@ -1849,7 +1849,7 @@ export function CreativeDepartment({
     await supabase
       .from("marketing_work_items")
       .update({
-        payload: serializeCreativeProjectPayload({
+        payload: {
           ...(selected.payload ?? {}),
           notes,
           visual_style: getVisualStyleId(selected.payload),
@@ -1859,7 +1859,7 @@ export function CreativeDepartment({
             approved.length > 0
               ? approved
               : selected.payload?.approved_concepts,
-        }),
+        },
       })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
@@ -2810,12 +2810,12 @@ export function CreativeDepartment({
         .update({
           current_stage_id: context.campaignStage.id,
           status: "draft",
-          payload: serializeCreativeProjectPayload({
+          payload: {
             ...(selected.payload ?? {}),
             variations,
             creative_approved: true,
             department: "campaigns",
-          }),
+          },
         })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
@@ -4515,7 +4515,7 @@ function ManualCreativeDialog({
       }
       const linkedCopy = mode === "from_copy" ? selectedCopyItem : null;
       const at = new Date().toISOString();
-      let payload: Record<string, unknown> = {
+      let payload: ManualCreativePayload = {
         brief_text: brief.trim() || undefined,
         copy_text: copyText.trim() || undefined,
         format,
@@ -4556,7 +4556,7 @@ function ManualCreativeDialog({
           title: title.trim(),
           status: "draft",
           target_channel: projectType === "video" ? "video" : "creative",
-          payload: serializeCreativeProjectPayload(payload),
+          payload,
         })
         .select("id")
         .single();

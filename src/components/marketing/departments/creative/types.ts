@@ -11,6 +11,7 @@ export type CreativeFormat = Extract<z.output<typeof creativeFormat>, string>;
 
 import type { BrandBook, StyleReference } from "./brandKit";
 import type { CreativeVisualStyleId } from "./visualStyles";
+import type { CopyPayload } from "../../copyPayload";
 
 export type CreativeProjectType = "static" | "video";
 
@@ -27,24 +28,26 @@ export interface StoryboardFrame extends z.output<typeof storyboardFrame> {
 
 export type VideoSceneStatus = NonNullable<StoryboardFrame["status"]>;
 
-export interface CreativeComment extends z.output<typeof creativeComment> {
-  id: z.output<typeof creativeComment>["id"];
-}
+export type CreativeComment = z.output<typeof creativeComment>;
 
 export type LayerShadowStyle = NonNullable<CreativeLayer["shadowStyle"]>;
 
 export type CreativeLayerRole = NonNullable<CreativeLayer["role"]>;
 
-export interface CreativeLayer extends z.output<typeof creativeLayer> {
-  id: z.output<typeof creativeLayer>["id"];
-}
+export type CreativeLayer = z.output<typeof creativeLayer>;
 
-export interface CreativeVariation extends z.output<typeof creativeVariation> {
-  id: z.output<typeof creativeVariation>["id"];
+export type CreativeVariation = Omit<
+  z.output<typeof creativeVariation>,
+  "format" | "layers" | "comments"
+> & {
   format: CreativeFormat;
   layers: Array<CreativeLayer>;
   comments: Array<CreativeComment>;
-}
+};
+
+export type ManualCreativePayload = CopyPayload & {
+  visual_style?: CreativeVisualStyleId;
+};
 
 export interface CreativeItem {
   id: string;

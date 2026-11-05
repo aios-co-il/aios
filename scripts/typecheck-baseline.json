@@ -270,6 +270,20 @@
       "count": 1
     },
     {
+      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
+      "code": 2322,
+      "message": "Type '{ notes: string; visual_style: CreativeVisualStyleId; department: string; visual_prompt: unknown; approved_concepts: unknown; }' is not assignable to type 'Json | undefined'.\n  Types of property 'visual_prompt' are incompatible.\n    Type 'unknown' is not assignable to type 'Json | undefined'.",
+      "source": "payload",
+      "count": 1
+    },
+    {
+      "file": "src/components/marketing/departments/CreativeDepartment.tsx",
+      "code": 2322,
+      "message": "Type '{ variations: CreativeVariation[]; department: string; image_url: string; visual_prompt: unknown; }' is not assignable to type 'Json | undefined'.\n  Type '{ variations: CreativeVariation[]; department: string; image_url: string; visual_prompt: unknown; }' is not assignable to type '{ [key: string]: Json | undefined; }'.\n    Property 'visual_prompt' is incompatible with index signature.\n      Type 'unknown' is not assignable to type 'Json | undefined'.",
+      "source": "payload",
+      "count": 1
+    },
+    {
       "file": "src/components/marketing/SocialContentGantt.tsx",
       "code": 2345,
       "message": "Argument of type 'Partial<WorkItem>' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n  Type 'Partial<WorkItem>' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n    Types of property 'status' are incompatible.\n      Type 'string | undefined' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.\n        Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",
