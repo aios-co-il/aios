@@ -12,7 +12,7 @@ import {
   jsonObjectOrNull,
 } from "../_shared/agent-task-result.ts";
 import { readChatCompletion, readToolCall } from "./llm-response.ts";
-import { errorMessage as thrownMessage } from "../_shared/error-message.ts";
+import { errorMessage } from "../_shared/error-message.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -246,7 +246,9 @@ async function executeTool(
         const m = text.match(/data:\s*(\{[^\n]+\})/);
         parsed = m ? JSON.parse(m[1]) : { result: text };
       } else parsed = JSON.parse(text);
-      if (parsed === null) return { ok: true, raw: text.slice(0, 500) };
+      if (parsed === null) {
+        return { ok: true, raw: text.slice(0, 500) };
+      }
       return jsonObjectOrNull(parsed)?.result ?? parsed;
     } catch {
       return { ok: true, raw: text.slice(0, 500) };
@@ -266,7 +268,7 @@ async function finalizeRun(
   run: RunRow,
   finalAnswer: string,
   status: "completed" | "failed",
-  errorMessage?: string,
+  failureMessage?: string,
 ) {
   // Reflection: ask the model to summarize and write episodic memory.
   try {
@@ -314,7 +316,7 @@ async function finalizeRun(
       }
     }
   } catch (e) {
-    console.error("[reflection] failed:", thrownMessage(e));
+    console.error("[reflection] failed:", errorMessage(e));
   }
 
   await supabase
@@ -322,7 +324,7 @@ async function finalizeRun(
     .update({
       status,
       final_answer: finalAnswer,
-      error_message: errorMessage ?? null,
+      error_message: failureMessage ?? null,
       completed_at: new Date().toISOString(),
     })
     .eq("id", run.id);
@@ -604,7 +606,7 @@ Deno.serve(async (req) => {
       try {
         observation = await executeTool(supabase, tool, toolInput, run);
       } catch (e) {
-        observation = { ok: false, error: String(thrownMessage(e) ?? e) };
+        observation = { ok: false, error: String(errorMessage(e) ?? e) };
         status = "error";
       }
 
@@ -650,7 +652,7 @@ Deno.serve(async (req) => {
       error: "max_steps_reached",
     });
   } catch (e) {
-    console.error("[run-ai-agent-v2] error:", thrownMessage(e));
-    return jsonResponse({ error: String(thrownMessage(e) ?? e) }, 500);
+    console.error("[run-ai-agent-v2] error:", errorMessage(e));
+    return jsonResponse({ error: String(errorMessage(e) ?? e) }, 500);
   }
 });

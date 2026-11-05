@@ -24,9 +24,13 @@ function surfaceIsWhatsApp(notify: Json | undefined): boolean {
 /** The stored notify target, only when it is pinned to a valid originating WhatsApp chat. */
 function originatingNotify(notify: Json | undefined): WhatsAppNotify | null {
   const target = readWhatsAppNotify(notify);
-  if (!target) return null;
+  if (!target) {
+    return null;
+  }
   const origin = requireOriginChatId(target.chat_id);
-  if (!origin.ok) return null;
+  if (!origin.ok) {
+    return null;
+  }
   return replyDestinationIsConsistent({
     chatId: origin.chatId,
     isGroup: target.is_group,
@@ -112,7 +116,9 @@ async function maybeSendBatchReport(
   task: Pick<AgentTaskRow, "batch_id">,
   storedNotify: Json | undefined,
 ): Promise<void> {
-  if (!surfaceIsWhatsApp(storedNotify) || !task.batch_id) return;
+  if (!surfaceIsWhatsApp(storedNotify) || !task.batch_id) {
+    return;
+  }
   const preservedNotify = originatingNotify(storedNotify);
   if (!preservedNotify) {
     const raw = asJsonObject(storedNotify);

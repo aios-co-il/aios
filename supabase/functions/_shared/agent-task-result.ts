@@ -38,17 +38,23 @@ const assistantTextSchema = z.object({
 export function lastAssistantContent(
   history: Json | undefined,
 ): string | undefined {
-  if (!Array.isArray(history)) return undefined;
+  if (!Array.isArray(history)) {
+    return undefined;
+  }
   for (let i = history.length - 1; i >= 0; i--) {
     const message = assistantTextSchema.safeParse(history[i]);
-    if (message.success) return message.data.content;
+    if (message.success) {
+      return message.data.content;
+    }
   }
   return undefined;
 }
 
 /** final_output when present, else the last assistant message of the history. */
 export function taskResultOutput(result: JsonObject): string | undefined {
-  if (typeof result.final_output === "string") return result.final_output;
+  if (typeof result.final_output === "string") {
+    return result.final_output;
+  }
   return lastAssistantContent(result.conversation_history);
 }
 

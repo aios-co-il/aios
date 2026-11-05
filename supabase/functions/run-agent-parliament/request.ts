@@ -34,7 +34,9 @@ export type HistoryMessage = z.infer<typeof historyMessageSchema>;
 
 /** Object entries of conversation_history as role/content text, the way the direct prompt renders them. */
 export function readHistory(value: unknown): HistoryMessage[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.flatMap((item) => {
     const parsed = historyMessageSchema.safeParse(item);
     return parsed.success ? [parsed.data] : [];
