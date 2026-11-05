@@ -1,4 +1,5 @@
 import java.net.URI
+import java.util.Properties
 import java.util.UUID
 import java.util.zip.ZipInputStream
 
@@ -6,6 +7,14 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// AIOS backend the app signs in to. Staging values come from local.properties
+// (carmen.supabaseUrl / carmen.supabaseKey / carmen.appEnv) or CARMEN_SUPABASE_* env vars in CI.
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun backendSetting(key: String, env: String, fallback: String = ""): String =
+    (localProps.getProperty(key) ?: System.getenv(env) ?: fallback).trim()
 
 android {
     namespace = "co.il.aios.carmen"
@@ -15,10 +24,13 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-wakeword"
+        versionCode = 2
+        versionName = "0.2.0-realtime"
         // Phones only; drops the emulator (x86) copies of the native speech libraries.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        buildConfigField("String", "SUPABASE_URL", "\"${backendSetting("carmen.supabaseUrl", "CARMEN_SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"${backendSetting("carmen.supabaseKey", "CARMEN_SUPABASE_KEY")}\"")
+        buildConfigField("String", "APP_ENV", "\"${backendSetting("carmen.appEnv", "CARMEN_APP_ENV", "staging")}\"")
     }
 
     buildTypes {
@@ -42,7 +54,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.alphacephei:vosk-android:0.3.75@aar")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for JVM unit tests (android.jar only has stubs).
+    testImplementation("org.json:json:20240303")
 }
 
 // The offline speech model is ~40 MB, so it is downloaded at build time instead of committed.

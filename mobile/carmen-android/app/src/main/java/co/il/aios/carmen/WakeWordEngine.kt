@@ -19,7 +19,7 @@ interface WakeWordEngine {
 
     fun start(listener: Listener)
 
-    /** Stops reading the microphone while Carmen speaks or holds a session. */
+    /** Releases the microphone while Carmen speaks or holds a conversation, and takes it back. */
     fun setPaused(paused: Boolean)
 
     fun stop()
@@ -33,9 +33,12 @@ class VoskWakeWordEngine(
 
     private var model: Model? = null
     private var speechService: SpeechService? = null
+    private var recognizer: Recognizer? = null
+    private var listener: WakeWordEngine.Listener? = null
     private var stopped = false
 
     override fun start(listener: WakeWordEngine.Listener) {
+        this.listener = listener
         StorageService.unpack(
             context, ASSET_MODEL_DIR, UNPACKED_MODEL_DIR,
             { loaded ->
@@ -45,23 +48,22 @@ class VoskWakeWordEngine(
                     return@unpack
                 }
                 model = loaded
-                startRecognizer(loaded, listener)
+                if (startRecognizer(loaded, listener)) listener.onReady()
             },
             { error: IOException -> listener.onError("Could not unpack speech model", error) },
         )
     }
 
-    private fun startRecognizer(loaded: Model, listener: WakeWordEngine.Listener) {
-        try {
-            val recognizer = Recognizer(loaded, SAMPLE_RATE, WakePhraseMatcher.GRAMMAR)
-            recognizer.setWords(true)
-            speechService = SpeechService(recognizer, SAMPLE_RATE).also {
-                it.startListening(recognitionListener(listener))
-            }
-            listener.onReady()
-        } catch (e: IOException) {
-            listener.onError("Could not open the microphone", e)
+    private fun startRecognizer(loaded: Model, listener: WakeWordEngine.Listener): Boolean = try {
+        val created = Recognizer(loaded, SAMPLE_RATE, WakePhraseMatcher.GRAMMAR).also { recognizer = it }
+        created.setWords(true)
+        speechService = SpeechService(created, SAMPLE_RATE).also {
+            it.startListening(recognitionListener(listener))
         }
+        true
+    } catch (e: IOException) {
+        listener.onError("Could not open the microphone", e)
+        false
     }
 
     private fun recognitionListener(listener: WakeWordEngine.Listener) = object : RecognitionListener {
@@ -80,14 +82,25 @@ class VoskWakeWordEngine(
     }
 
     override fun setPaused(paused: Boolean) {
-        speechService?.setPause(paused)
+        if (paused) {
+            releaseMicrophone()
+        } else if (!stopped && speechService == null) {
+            val loaded = model ?: return
+            listener?.let { startRecognizer(loaded, it) }
+        }
+    }
+
+    private fun releaseMicrophone() {
+        speechService?.stop()
+        speechService?.shutdown()
+        speechService = null
+        recognizer?.close()
+        recognizer = null
     }
 
     override fun stop() {
         stopped = true
-        speechService?.stop()
-        speechService?.shutdown()
-        speechService = null
+        releaseMicrophone()
         model?.close()
         model = null
     }

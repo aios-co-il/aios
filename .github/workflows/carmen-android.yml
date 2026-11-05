@@ -1,5 +1,5 @@
-# Builds the Carmen Mobile Android app (wake word phase): runs its unit tests and uploads a
-# privately installable APK as a workflow artifact. It touches no environment or secret.
+# Builds the Carmen Mobile Android app: runs its unit tests and uploads a
+# privately installable APK as a workflow artifact. It reads only public repository variables.
 name: Carmen Android
 
 on:
@@ -33,6 +33,11 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
       - name: Build APK
+        # Staging backend for sign-in and the live conversation (public URL and publishable key).
+        env:
+          CARMEN_SUPABASE_URL: ${{ vars.CARMEN_ANDROID_SUPABASE_URL }}
+          CARMEN_SUPABASE_KEY: ${{ vars.CARMEN_ANDROID_SUPABASE_KEY }}
+          CARMEN_APP_ENV: staging
         run: ./gradlew --no-daemon assembleRelease
       - uses: actions/upload-artifact@v4
         with:

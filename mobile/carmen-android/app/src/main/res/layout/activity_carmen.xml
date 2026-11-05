@@ -15,6 +15,7 @@
         android:background="@drawable/listening_dot" />
 
     <TextView
+        android:id="@+id/state_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
@@ -22,11 +23,36 @@
         android:textColor="#FFFFFF"
         android:textSize="28sp" />
 
+    <TextView
+        android:id="@+id/notice_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:textColor="#FCA5A5"
+        android:visibility="gone" />
+
+    <ScrollView
+        android:id="@+id/transcript_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        android:layout_weight="1">
+
+        <TextView
+            android:id="@+id/transcript_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:lineSpacingExtra="6dp"
+            android:textColor="#E5E7EB"
+            android:textSize="16sp" />
+    </ScrollView>
+
     <Button
         android:id="@+id/close_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="48dp"
+        android:layout_marginTop="16dp"
         android:text="@string/close" />
 
     <Button

@@ -18,6 +18,7 @@ class EventLog(private val context: Context) {
     enum class Event {
         LISTENING_STARTED, LISTENING_STOPPED, WAKE_DETECTED, WAKE_IGNORED, VOICE_STARTED,
         SESSION_ENDED, FALSE_ACTIVATION, BOOT_RESUME_PROMPT, BATTERY_SAMPLE, ERROR,
+        CONVERSATION_STARTED, BRAIN_CALLED, CONVERSATION_ENDED,
     }
 
     private val file: File get() = File(context.filesDir, FILE_NAME)

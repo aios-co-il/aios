@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.full_screen_button).setOnClickListener { openFullScreenSetting() }
         findViewById<Button>(R.id.export_button).setOnClickListener { exportLog() }
+        AccountSection(this)
         findViewById<Button>(R.id.clear_button).setOnClickListener {
             log.clear()
             render()

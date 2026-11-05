@@ -4,18 +4,34 @@ import android.os.Bundle
 import android.view.WindowManager
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
+import android.view.View
 import android.widget.Button
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
-/** Basic Carmen screen shown on activation, over the lock screen when needed. */
+/** Carmen screen shown on activation, over the lock screen when needed: state and live transcript. */
 class CarmenActivity : AppCompatActivity() {
+
+    private val render: (CarmenSession.Snapshot) -> Unit = { snapshot ->
+        findViewById<TextView>(R.id.state_text).setText(stateLabel(snapshot.state))
+        findViewById<TextView>(R.id.notice_text).apply {
+            text = snapshot.notice
+            visibility = if (snapshot.notice == null) View.GONE else View.VISIBLE
+        }
+        findViewById<TextView>(R.id.transcript_text).text = snapshot.lines.joinToString("\n\n")
+        findViewById<ScrollView>(R.id.transcript_scroll).post {
+            findViewById<ScrollView>(R.id.transcript_scroll).fullScroll(View.FOCUS_DOWN)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
         setContentView(R.layout.activity_carmen)
-        findViewById<android.view.View>(R.id.listening_indicator).startAnimation(pulse())
+        findViewById<View>(R.id.listening_indicator).startAnimation(pulse())
+        CarmenSession.observe(render)
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
         findViewById<Button>(R.id.false_activation_button).setOnClickListener {
             EventLog(this).record(EventLog.Event.FALSE_ACTIVATION)
@@ -36,7 +52,17 @@ class CarmenActivity : AppCompatActivity() {
         repeatCount = Animation.INFINITE
     }
 
+    private fun stateLabel(state: CarmenSession.State) = when (state) {
+        CarmenSession.State.ACKNOWLEDGING -> R.string.state_acknowledging
+        CarmenSession.State.CONNECTING -> R.string.state_connecting
+        CarmenSession.State.LISTENING -> R.string.state_listening
+        CarmenSession.State.THINKING -> R.string.state_thinking
+        CarmenSession.State.SPEAKING -> R.string.state_speaking
+        CarmenSession.State.ENDED -> R.string.state_ended
+    }
+
     override fun onDestroy() {
+        CarmenSession.unobserve(render)
         if (isFinishing) WakeWordService.send(this, WakeWordService.ACTION_SESSION_ENDED)
         super.onDestroy()
     }

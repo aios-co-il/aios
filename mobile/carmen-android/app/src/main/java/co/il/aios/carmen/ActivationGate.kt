@@ -42,6 +42,7 @@ class ActivationGate(
 
     companion object {
         const val DEFAULT_COOLDOWN_MS = 3_000L
-        const val DEFAULT_MAX_SESSION_MS = 30_000L
+        // Backstop only: a live conversation ends itself after silence.
+        const val DEFAULT_MAX_SESSION_MS = 15 * 60_000L
     }
 }

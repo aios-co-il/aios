@@ -22,7 +22,9 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private val gate = ActivationGate()
     private lateinit var log: EventLog
     private lateinit var voice: CarmenVoice
+    private lateinit var account: AiosAccount
     private var engine: WakeWordEngine? = null
+    private var conversation: RealtimeConversation? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val endSessionOnTimeout = Runnable { endSession("timeout") }
@@ -38,6 +40,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         super.onCreate()
         log = EventLog(this)
         voice = CarmenVoice(this, log)
+        account = AiosAccount(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -86,12 +89,37 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         engine?.setPaused(true)
         status = Status.ACTIVE
         log.record(EventLog.Event.WAKE_DETECTED, detail)
+        CarmenSession.begin()
         showCarmen()
         voice.acknowledge(
             onStart = { ms -> log.record(EventLog.Event.VOICE_STARTED, "latency_ms=$ms") },
-            onDone = {},
+            onDone = { handler.post { startConversation() } },
         )
         handler.postDelayed(endSessionOnTimeout, ActivationGate.DEFAULT_MAX_SESSION_MS)
+    }
+
+    /** After "כן, אני מקשיבה", opens the live conversation with Carmen's brain. */
+    private fun startConversation() {
+        if (gate.state != ActivationGate.State.ACTIVE || conversation != null) return
+        if (!account.isSignedIn) {
+            CarmenSession.notice(getString(R.string.sign_in_to_talk))
+            handler.removeCallbacks(endSessionOnTimeout)
+            handler.postDelayed(endSessionOnTimeout, SIGNED_OUT_SESSION_MS)
+            return
+        }
+        conversation = RealtimeConversation(this, account, log, conversationListener).also { it.start() }
+    }
+
+    private val conversationListener = object : RealtimeConversation.Listener {
+        override fun onState(state: CarmenSession.State) = CarmenSession.setState(state)
+        override fun onTranscript(line: String) = CarmenSession.addLine(line)
+        override fun onEnded(reason: String) {
+            if (reason.startsWith("error")) CarmenSession.notice(getString(R.string.conversation_failed, reason))
+            handler.post {
+                conversation = null
+                endSession(reason)
+            }
+        }
     }
 
     private fun showCarmen() {
@@ -104,6 +132,8 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private fun endSession(reason: String) {
         if (gate.state != ActivationGate.State.ACTIVE) return
         handler.removeCallbacks(endSessionOnTimeout)
+        conversation?.also { conversation = null }?.stop(reason)
+        CarmenSession.setState(CarmenSession.State.ENDED)
         getSystemService(NotificationManager::class.java).cancel(Notifications.WAKE_ID)
         gate.endSession()
         engine?.setPaused(false)
@@ -136,6 +166,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        conversation?.also { conversation = null }?.stop("listening stopped")
         engine?.stop()
         if (engine != null) log.record(EventLog.Event.LISTENING_STOPPED)
         engine = null
@@ -155,6 +186,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         const val ACTION_STOP = "co.il.aios.carmen.STOP"
         const val ACTION_SESSION_ENDED = "co.il.aios.carmen.SESSION_ENDED"
         private const val BATTERY_SAMPLE_MS = 15 * 60 * 1000L
+        private const val SIGNED_OUT_SESSION_MS = 8_000L
         private const val WAKE_LOCK_TIMEOUT_MS = BATTERY_SAMPLE_MS + 5 * 60 * 1000L
 
         @Volatile
