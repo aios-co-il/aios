@@ -146,7 +146,7 @@ import {
   workshopTurnSetup,
   workshopTurnTools,
 } from "./workshop-turn-setup.ts";
-import { callerProfile, userAddressLine } from "./user-address.ts";
+import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
@@ -14948,11 +14948,7 @@ async function handleRunAgent(
     }
     // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
     // The profile name wins over user_name, which some screens set to a department label.
-    const caller = await callerProfile(supabase, callerUserId);
-    systemPrompt += userAddressLine(
-      caller.fullName ?? callerName,
-      caller.gender,
-    );
+    systemPrompt += await callerAddressLine(supabase, callerUserId, callerName);
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (

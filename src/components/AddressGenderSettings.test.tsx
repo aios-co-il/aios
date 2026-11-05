@@ -53,6 +53,23 @@ describe("AddressGenderSettings", () => {
     );
   });
 
+  it("names the choice by the card title", async () => {
+    render(withTestQuery(<AddressGenderSettings />));
+    expect(
+      await screen.findByRole("radiogroup", { name: "איך כרמן פונה אליך" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the saved choice selected after the save", async () => {
+    render(withTestQuery(<AddressGenderSettings />));
+    fireEvent.click(await screen.findByLabelText("לשון זכר"));
+    await waitFor(() => expect(backend.update).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByLabelText("לשון זכר")).toBeChecked(),
+    );
+    expect(screen.getByLabelText("לשון רבים (ברירת מחדל)")).not.toBeChecked();
+  });
+
   it("clears the gender when the plural is picked", async () => {
     backend.gender = "female";
     render(withTestQuery(<AddressGenderSettings />));

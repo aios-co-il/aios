@@ -1,9 +1,8 @@
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import type { Database } from "../_shared/database.types.ts";
+import type { DbClient } from "../supabase-clients.ts";
 import { type AddressGender, toAddressGender } from "./address-gender.ts";
 
 /** The caller's profile fields that shape how Carmen addresses them. */
-export interface CallerProfile {
+interface CallerProfile {
   fullName: string | null;
   gender: AddressGender;
 }
@@ -30,9 +29,23 @@ export function userAddressLine(
   return `\n\n🙋 **פנייה למשתמש:** ${who}${ADDRESS_RULE[gender ?? "unknown"]} ההוראות בלשון נקבה בפרומפט מופנות אלייך, כרמן, לא למשתמש.`;
 }
 
+/**
+ * The address line for the signed-in caller: their profile's name and gender. The profile name
+ * wins over `requestName`, which some screens set to a label such as a department name; the
+ * request name is used only when the profile has none.
+ */
+export async function callerAddressLine(
+  db: Pick<DbClient, "from">,
+  userId: string | null,
+  requestName: string | null,
+): Promise<string> {
+  const caller = await callerProfile(db, userId);
+  return userAddressLine(caller.fullName ?? requestName, caller.gender);
+}
+
 /** The signed-in caller's name and address gender from their profile. */
-export async function callerProfile(
-  db: SupabaseClient<Database>,
+async function callerProfile(
+  db: Pick<DbClient, "from">,
   userId: string | null,
 ): Promise<CallerProfile> {
   if (!userId) {
@@ -44,7 +57,7 @@ export async function callerProfile(
     .eq("id", userId)
     .maybeSingle();
   if (error) {
-    console.error("[AGENT] caller profile lookup failed", error.message);
+    console.error("[user-address] caller profile lookup failed", error.message);
     return { fullName: null, gender: null };
   }
   return {
