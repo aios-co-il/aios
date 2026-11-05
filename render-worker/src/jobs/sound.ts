@@ -1,7 +1,6 @@
 import {
   assertTenantPath,
   finalError,
-  flagged,
   loadRunItem,
   loadRunScene,
   safeSegment,
@@ -17,10 +16,7 @@ import {
   MUSIC_MODEL,
   SPEECH_MODEL,
   composeMusic,
-  synthesizeSpeech,
 } from "../providers/elevenlabsSound.ts";
-import { synthesizeGeminiSpeech } from "../providers/geminiTts.ts";
-import { synthesizeOpenRouterSpeech } from "../providers/openrouterTts.ts";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.ts";
 import {
   MUSIC_MAX_MS,
@@ -29,7 +25,7 @@ import {
   musicLengthMs,
   quotedMusicMs,
 } from "./music-length.ts";
-import { spokenAlignment } from "./nikud.ts";
+import { speakScript } from "./speak-script.ts";
 import { vocalizeForSpeech } from "./vocalize.ts";
 
 const BUCKET = "creative-video";
@@ -75,7 +71,7 @@ async function generateOnce({
   generate,
   submitting = (work) => work(),
 }) {
-  if (run.output?.audio_path === path) return run.output.audio_meta ?? {};
+  if (alreadyGenerated(run, path)) return run.output.audio_meta ?? {};
   // The paid call and the save of its file run inside the worker's submit guard, so a stop
   // never puts the run back to queued between the payment and the save (src/inflight.ts).
   return submitting(() => generateAndStore({ db, run, path, generate }));
@@ -139,96 +135,18 @@ export async function generateVoice({
     "voice",
     continuous ? "narration" : "music",
   ).replace(/\.mp3$/, ".audio");
-  const meta = await generateOnce({
-    db,
-    run,
-    path,
-    submitting,
-    generate: async () => {
-      // Only the engine hears the nikud; the stored script and its captions stay without it.
-      const voiced = await vocalize(text, { log });
-      if (apiKey) {
-        try {
-          const speech = await synthesizeSpeech({
-            apiKey,
-            voiceId: run.input?.voice_id || null,
-            text: voiced.text,
-          });
-          return {
-            bytes: speech.bytes,
-            contentType: "audio/mpeg",
-            meta: {
-              provider: "elevenlabs",
-              model: SPEECH_MODEL(),
-              voice_id: speech.voiceId,
-              alignment: spokenAlignment(speech.alignment, voiced.text, text),
-              nikud: voiced.nikud,
-            },
-          };
-        } catch (error) {
-          if (!isPaidPlanError(error) && !isRejectedKeyError(error))
-            throw error;
-          log(
-            `[voice] ${run.id} ElevenLabs cannot narrate (${isPaidPlanError(error) ? "plan" : "key"}); trying OpenRouter, then Gemini`,
-          );
-        }
-      }
-      // A refused request is not billed, so the next route may still be tried.
-      const openRouterKey = await resolveOpenRouterKey().catch(() => null);
-      if (openRouterKey) {
-        try {
-          const speech = await synthesizeOpenRouterSpeech({
-            apiKey: openRouterKey,
-            voiceId: run.input?.voice_id || null,
-            text: voiced.text,
-          });
-          return {
-            bytes: speech.bytes,
-            contentType: speech.contentType,
-            meta: {
-              provider: "openrouter",
-              model: speech.model,
-              voice_id: speech.voice,
-              cost_usd: speech.costUsd,
-              cost_reported: speech.costReported,
-              generation_id: speech.generationId ?? null,
-              nikud: voiced.nikud,
-            },
-          };
-        } catch (error) {
-          // A failure after OpenRouter charged is final; only a refused request moves on.
-          if (flagged(error, "final") || !googleKey) {
-            throw error;
-          }
-          log(
-            `[voice] ${run.id} OpenRouter speech failed (${error instanceof Error ? error.message : error}); using Gemini`,
-          );
-        }
-      }
-      if (!googleKey) {
-        throw finalError(
-          apiKey
-            ? "קריינות ElevenLabs לא זמינה (תוכנית Pro או מפתח לא תקין), ואין מוח OpenRouter או מפתח Google לקריינות חלופית"
-            : "אין מפתח לקריינות: חברו ElevenLabs, מוח OpenRouter או Google",
-        );
-      }
-      const speech = await synthesizeGeminiSpeech({
-        apiKey: googleKey,
-        text: voiced.text,
+  const meta = alreadyGenerated(run, path)
+    ? (run.output.audio_meta ?? {})
+    : await newTake({
+        db,
+        run,
+        path,
+        submitting,
+        script: text,
+        vocalize,
+        engines: { apiKey, googleKey, resolveOpenRouterKey },
+        log,
       });
-      return {
-        bytes: speech.bytes,
-        contentType: speech.contentType,
-        meta: {
-          provider: "gemini",
-          model: speech.model,
-          voice_id: speech.voice,
-          cost_usd: speech.costUsd,
-          nikud: voiced.nikud,
-        },
-      };
-    },
-  });
   const provider = meta.provider || "elevenlabs";
   const model = meta.model || SPEECH_MODEL();
   if (continuous) {
@@ -273,15 +191,46 @@ export async function generateVoice({
     output: { path, provider, voice_id: meta.voice_id ?? null },
     provider,
     credits: 0,
-    // ElevenLabs bills characters and returns no price; Gemini's comes from its token counts.
-    // OpenRouter's is what it charged when its generation record had the price.
+    // ElevenLabs bills characters (meta.characters: what it counted for the pointed text; the
+    // script's length only for audio made before that was recorded). Gemini's price comes from
+    // its token counts; OpenRouter's is what it charged when its generation record had the price.
     costUsd:
       provider === "gemini" || provider === "openrouter"
         ? Number(meta.cost_usd) || 0
-        : Math.round((text.length / 1000) * VOICE_USD_PER_1000_CHARS * 10000) /
-          10000,
+        : Math.round(
+            ((Number(meta.characters) || text.length) / 1000) *
+              VOICE_USD_PER_1000_CHARS *
+              10000,
+          ) / 10000,
   };
 }
+
+/**
+ * Makes and stores a new take of the script. The nikud call is not paid, so it runs before the
+ * submit guard, which holds only the paid engine call and the save of its file.
+ */
+async function newTake({
+  db,
+  run,
+  path,
+  submitting,
+  script,
+  vocalize,
+  engines,
+  log,
+}) {
+  const voiced = await vocalize(script, { log });
+  return generateOnce({
+    db,
+    run,
+    path,
+    submitting,
+    generate: () => speakScript({ run, script, voiced, ...engines, log }),
+  });
+}
+
+/** True when an earlier attempt of this run already stored its audio at `path`. */
+const alreadyGenerated = (run, path) => run.output?.audio_path === path;
 
 /**
  * The bed's length. The run's music_length_ms is the storyboard's planned total; the bed is

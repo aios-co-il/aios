@@ -1,13 +1,12 @@
 // Hebrew vowel points (nikud) for the voice only. The script, its captions and the word timings
 // the edit cuts on stay without nikud; only the string sent to the TTS engine carries it.
-import type { SpeechAlignment } from "../providers/responses.ts";
 
 /** Vowel points, dagesh, shin/sin dots and cantillation; maqaf, paseq and sof pasuq stay. */
 const POINTS = /[֑-ׇֽֿׁׂׅׄ]/g;
 const LETTER = /[א-ת]/;
 const POINTED_LETTER = /[א-ת][֑-ׇֽֿׁׂׅׄ]/g;
-/** Matres lectionis: a vocalizer may drop or add them (בוקר → בֹּקֶר) and still say the word. */
-const MATRES = /[וי]/g;
+/** Matres lectionis: a vocalizer may drop them (בוקר → בֹּקֶר) and still say the same word. */
+const MATRES = new Set(["ו", "י"]);
 
 /** The text without nikud. */
 export const stripNikud = (text: string) => text.replace(POINTS, "");
@@ -28,7 +27,8 @@ export function isVocalized(text: string): boolean {
 /**
  * The script with each word replaced by its pointed form from `candidate`, or null when the
  * candidate has a different number of words. A word keeps its own spelling when the candidate
- * changed more than nikud and matres (a different word, other punctuation), or when the script
+ * changed more than nikud and dropped matres (a different word, other punctuation, an added
+ * mater that makes בת into בַּיִת), or when the script
  * already pointed it. Whitespace always comes from the script, so the word runs line up for
  * spokenAlignment.
  */
@@ -48,105 +48,26 @@ export function mergeVocalized(script: string, candidate: string) {
       if (stripNikud(run) !== run) {
         return run;
       }
-      return spelling(word) === spelling(run) ? word : run;
+      return sameWord(run, word) ? word : run;
     })
     .join("");
 }
 
-/** A word's letters and punctuation without nikud or matres. */
-const spelling = (word: string) => stripNikud(word).replace(MATRES, "");
-
 /**
- * The TTS character timings re-keyed to the script. The engine timed `spoken` (the pointed
- * text); captions and line-sync read the script, so each script word takes the span its pointed
- * word was said in, shared by its letters. When the runs do not line up, the points are removed
- * from the timed characters instead.
+ * True when the pointed candidate spells the script word with nothing changed but some ו/י
+ * left out: its plain letters are the script's, in order, missing only matres. A candidate
+ * that adds a letter (בת → בַּיִת) is another word.
  */
-export function spokenAlignment(
-  alignment: SpeechAlignment | null,
-  spoken: string,
-  script: string,
-): SpeechAlignment | null {
-  if (!alignment || spoken === script) {
-    return alignment;
-  }
-  return alignmentByRuns(alignment, spoken, script) ?? withoutPoints(alignment);
-}
-
-/** Script characters timed by the run of the spoken text they stand for, or null. */
-function alignmentByRuns(
-  alignment: SpeechAlignment,
-  spoken: string,
-  script: string,
-): SpeechAlignment | null {
-  const chars = alignment.characters ?? [];
-  const starts = alignment.character_start_times_seconds ?? [];
-  const ends = alignment.character_end_times_seconds ?? [];
-  if (chars.join("") !== spoken || starts.length !== chars.length) {
-    return null;
-  }
-  const spokenRuns = spoken.match(/\s+|\S+/g) ?? [];
-  const scriptRuns = script.match(/\s+|\S+/g) ?? [];
-  if (spokenRuns.length !== scriptRuns.length) {
-    return null;
-  }
-  const out: SpeechAlignment = {
-    characters: [],
-    character_start_times_seconds: [],
-    character_end_times_seconds: [],
-  };
-  let entry = 0;
-  for (let index = 0; index < spokenRuns.length; index++) {
-    const first = entry;
-    let covered = 0;
-    while (covered < spokenRuns[index].length && entry < chars.length) {
-      covered += chars[entry++].length;
+export function sameWord(script: string, candidate: string): boolean {
+  const written = Array.from(stripNikud(script).normalize("NFC"));
+  const said = Array.from(stripNikud(candidate).normalize("NFC"));
+  let at = 0;
+  for (const letter of written) {
+    if (letter === said[at]) {
+      at++;
+    } else if (!MATRES.has(letter)) {
+      return false;
     }
-    if (covered !== spokenRuns[index].length) {
-      return null;
-    }
-    const start = Number(starts[first]);
-    const end = Number(ends[entry - 1]);
-    const letters = Array.from(scriptRuns[index]);
-    letters.forEach((letter, at) => {
-      out.characters.push(letter);
-      out.character_start_times_seconds.push(
-        start + ((end - start) * at) / letters.length,
-      );
-      out.character_end_times_seconds.push(
-        start + ((end - start) * (at + 1)) / letters.length,
-      );
-    });
   }
-  return out;
-}
-
-/** The timed characters with their points removed; a bare point extends the letter before it. */
-function withoutPoints(alignment: SpeechAlignment): SpeechAlignment {
-  const out: SpeechAlignment = {
-    characters: [],
-    character_start_times_seconds: [],
-    character_end_times_seconds: [],
-  };
-  (alignment.characters ?? []).forEach((char, index) => {
-    const bare = stripNikud(String(char ?? ""));
-    const last = out.characters.length - 1;
-    if (!bare) {
-      if (last >= 0) {
-        out.character_end_times_seconds[last] = Math.max(
-          out.character_end_times_seconds[last],
-          Number(alignment.character_end_times_seconds?.[index]),
-        );
-      }
-      return;
-    }
-    out.characters.push(bare);
-    out.character_start_times_seconds.push(
-      Number(alignment.character_start_times_seconds?.[index]),
-    );
-    out.character_end_times_seconds.push(
-      Number(alignment.character_end_times_seconds?.[index]),
-    );
-  });
-  return out;
+  return at === said.length;
 }

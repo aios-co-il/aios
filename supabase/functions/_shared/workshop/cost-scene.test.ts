@@ -8,8 +8,14 @@ import {
   clipEstimate,
   costSceneOf,
   musicEstimate,
+  roundUsd,
   voiceEstimate,
 } from "./cost-scene.ts";
+import {
+  NIKUD_CHARACTER_FACTOR,
+  VOICE_USD_PER_1000_CHARS,
+  voiceCharacters,
+} from "./clip-prices.ts";
 import { type SceneEngine } from "./scene-engine.ts";
 
 const scenes = [
@@ -48,6 +54,26 @@ Deno.test("voice and music prices match the app", () => {
   assertStrictEquals(voiceEstimate(scenes).usd, appVoice(frames).usd);
   assertStrictEquals(musicEstimate(scenes).usd, appMusic(frames).usd);
 });
+
+Deno.test(
+  "a plain Hebrew line is quoted at the length of its pointed text",
+  () => {
+    const line = "הקפה שלנו נקלה בכל בוקר מחדש ונשלח אליכם תוך יומיים";
+    assertStrictEquals(voiceCharacters(line), Math.ceil(line.length * 1.7));
+    assertStrictEquals(NIKUD_CHARACTER_FACTOR, 1.7);
+    // English and an already pointed line are sent as they are.
+    assertStrictEquals(voiceCharacters("Fresh coffee"), 12);
+    const pointed = "הַקָּפֶה שֶׁלָּנוּ";
+    assertStrictEquals(voiceCharacters(pointed), pointed.length);
+    const plain = voiceEstimate([{ duration_s: 5, voiceover_text: line }]);
+    assertStrictEquals(
+      plain.usd,
+      roundUsd(
+        (Math.ceil(line.length * 1.7) / 1000) * VOICE_USD_PER_1000_CHARS,
+      ),
+    );
+  },
+);
 
 Deno.test(
   "an OpenRouter clip shorter than 5 s is quoted at the 5 s it is billed for",

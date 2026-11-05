@@ -9,15 +9,6 @@ const TIMEOUT_MS = () => Number(process.env.NIKUD_TIMEOUT_MS) || 15_000;
 /** Adds nikud to a plain Hebrew text; throws when the vocalizer cannot answer. */
 export type Vocalizer = (text: string) => Promise<string>;
 
-/** NIKUD_DICTA_URL, else Dicta's public endpoint; "off" turns the step off (null). */
-export function nakdanUrl(): string | null {
-  const configured = String(process.env.NIKUD_DICTA_URL ?? "").trim();
-  if (configured.toLowerCase() === "off") {
-    return null;
-  }
-  return configured || DEFAULT_URL;
-}
-
 /** The Nakdan vocalizer, or null when NIKUD_DICTA_URL is "off". */
 export function nakdanVocalizer(
   fetchImpl: FetchImpl = fetch,
@@ -42,6 +33,15 @@ export function nakdanVocalizer(
     }
     return words.map(pointedWord).join("");
   };
+}
+
+/** NIKUD_DICTA_URL, else Dicta's public endpoint; "off" turns the step off (null). */
+export function nakdanUrl(): string | null {
+  const configured = String(process.env.NIKUD_DICTA_URL ?? "").trim();
+  if (configured.toLowerCase() === "off") {
+    return null;
+  }
+  return configured || DEFAULT_URL;
 }
 
 /** Modern Hebrew, no morphology, no meteg. */

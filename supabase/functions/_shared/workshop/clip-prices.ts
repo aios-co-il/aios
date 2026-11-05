@@ -9,6 +9,12 @@ export const HIGGSFIELD_USD_PER_SECOND = 0.1;
 /** OpenRouter kwaivgi/kling-v3.0-std, 720p without audio. */
 export const OPENROUTER_USD_PER_SECOND = 0.084;
 export const VOICE_USD_PER_1000_CHARS = 0.12;
+/**
+ * The render worker adds nikud to a plain Hebrew line before the voice engine (render-worker
+ * src/jobs/vocalize.ts), and ElevenLabs bills the pointed text it is sent: 1.45–1.8× the
+ * plain length on real scripts. The quote prices the upper end.
+ */
+export const NIKUD_CHARACTER_FACTOR = 1.7;
 export const MUSIC_USD_PER_MINUTE = 0.5;
 
 /**
@@ -24,3 +30,18 @@ export const MUSIC_EXTRA_S = 8.5;
 /** Seconds of music a storyboard of `plannedS` seconds is quoted for. */
 export const musicQuoteSeconds = (plannedS: number) =>
   plannedS > 0 ? plannedS * (1 + MUSIC_HEADROOM) + MUSIC_EXTRA_S : 0;
+
+/**
+ * The characters the voice engine is billed for a line. A Hebrew line that is not already
+ * mostly pointed (the worker's isVocalized: half its letters or more) is sent with nikud, so it
+ * is priced at NIKUD_CHARACTER_FACTOR times its length.
+ */
+export function voiceCharacters(line: string): number {
+  const text = line.trim();
+  const letters = text.match(/[א-ת]/g)?.length ?? 0;
+  const pointed = text.match(/[א-ת][\u0591-\u05C7]/g)?.length ?? 0;
+  const getsNikud = letters > 0 && pointed / letters < 0.5;
+  return getsNikud
+    ? Math.ceil(text.length * NIKUD_CHARACTER_FACTOR)
+    : text.length;
+}

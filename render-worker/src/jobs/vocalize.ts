@@ -59,6 +59,11 @@ function remember(script: string, pointed: string) {
   cache.set(script, pointed);
 }
 
+/** Forgets every pointed script; tests call it so one test's answer never serves another. */
+export function clearVocalizedCache() {
+  cache.clear();
+}
+
 /** What vocalizeForSpeech sends to the TTS engine, and what its nikud step did. */
 export interface Vocalized {
   text: string;
