@@ -27,6 +27,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private lateinit var account: AiosAccount
     private var engine: WakeWordEngine? = null
     private var conversation: RealtimeConversation? = null
+    private var talkWhenReady = false
     private var wakeLock: PowerManager.WakeLock? = null
 
     private val endSessionOnTimeout = Runnable { endSession("timeout") }
@@ -48,6 +49,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> stopListening()
+            ACTION_TALK -> talk()
             ACTION_SESSION_ENDED -> endSession("closed")
             ACTION_APP_MIC -> lendMicrophoneToApp(true)
             ACTION_APP_MIC_DONE -> lendMicrophoneToApp(false)
@@ -82,10 +84,29 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         status = Status.ARMED
         log.record(EventLog.Event.LISTENING_STARTED)
         handler.post(sampleBattery)
+        if (talkWhenReady) {
+            talkWhenReady = false
+            activate("manual")
+        }
+    }
+
+    /** "דברו עם כרמן" on the home screen: the same activation as the wake word, by tap. */
+    private fun talk() {
+        if (engine == null) {
+            talkWhenReady = true
+            startListening()
+        } else {
+            // IDLE only while the Command Center holds the microphone; a running session stays as is.
+            if (gate.state == ActivationGate.State.IDLE) gate.arm()
+            activate("manual")
+        }
     }
 
     override fun onWakeWord(words: List<RecognizedWord>) {
-        val detail = words.joinToString(" ") { "${it.word}:${"%.2f".format(it.confidence)}" }
+        activate(words.joinToString(" ") { "${it.word}:${"%.2f".format(it.confidence)}" })
+    }
+
+    private fun activate(detail: String) {
         if (!gate.tryActivate(System.currentTimeMillis())) {
             log.record(EventLog.Event.WAKE_IGNORED, detail)
             return
@@ -204,6 +225,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     companion object {
         const val ACTION_START = "co.il.aios.carmen.START"
         const val ACTION_STOP = "co.il.aios.carmen.STOP"
+        const val ACTION_TALK = "co.il.aios.carmen.TALK"
         const val ACTION_SESSION_ENDED = "co.il.aios.carmen.SESSION_ENDED"
         const val ACTION_APP_MIC = "co.il.aios.carmen.APP_MIC"
         const val ACTION_APP_MIC_DONE = "co.il.aios.carmen.APP_MIC_DONE"
@@ -227,6 +249,16 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
             val micGranted = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED
             if (ListeningPrefs.isEnabled(context) && status == Status.STOPPED && micGranted) start(context)
+        }
+
+        /** Opens a conversation now, starting the microphone service first if it is off. */
+        fun talk(context: Context) {
+            val intent = intent(context, ACTION_TALK)
+            if (status == Status.STOPPED) {
+                ContextCompat.startForegroundService(context, intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
         fun send(context: Context, action: String) {

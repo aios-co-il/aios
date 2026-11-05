@@ -2,9 +2,10 @@
 
 A small native Kotlin app: say "היי כרמן" on the phone, hear "כן, אני מקשיבה", then talk live
 with Carmen. Phase 1 (AIO-348) is the wake word; phase 2 (AIO-352) connects it to Carmen's brain
-through the same Realtime session the web Command Center uses. The home screen is the system's
-own Command Center (chat and live conversation) in a web view, and the wake-word screen shows
-Carmen's approved character natively. Sign-in (email or Google) and settings use the Carmen
+through the same Realtime session the web Command Center uses. The home screen is Carmen herself:
+her approved character, **דברו עם כרמן** for a live conversation by tap, and the "היי כרמן"
+listening switch. The system's Command Center (chat and live conversation) opens from there in a
+web view. Sign-in (email or Google) and settings use the Carmen
 Marketing OS look of the web app's `/auth`. Test report and Go/No-Go:
 [`docs/wake-word-test-report.md`](docs/wake-word-test-report.md).
 
@@ -57,7 +58,8 @@ Stop listening from the app or from the notification's **עצור האזנה** a
 | Call audio (echo cancellation, speaker/headset routing)            | `ConversationAudio.kt`                         |
 | Carmen's brain (`run-ai-agent` stream)                             | `CarmenBrain.kt`                               |
 | Carmen screen state and transcript                                 | `CarmenSession.kt`, `CarmenActivity.kt`        |
-| Home screen: Command Center web view, one sign-in for both         | `MainActivity.kt`                              |
+| Home screen: portrait, talk button, listening switch               | `MainActivity.kt`                              |
+| Command Center web view, one sign-in for both                      | `CommandCenterActivity.kt`                     |
 | Carmen portrait animation                                          | `CarmenPortrait.kt`                            |
 | Settings and test screen                                           | `SettingsActivity.kt`                          |
 | Sign-in screen and Google sign-in callback                         | `SignInActivity.kt`, `AuthCallbackActivity.kt` |

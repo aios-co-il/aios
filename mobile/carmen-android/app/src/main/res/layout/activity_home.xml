@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/carmen_screen_bg"
+    android:gravity="center_horizontal"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <ImageView
+        android:layout_width="180dp"
+        android:layout_height="56dp"
+        android:contentDescription="@string/brand_name"
+        android:scaleType="fitCenter"
+        android:src="@drawable/carmen_wordmark" />
+
+    <FrameLayout
+        android:id="@+id/home_portrait_frame"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:contentDescription="@string/talk_to_carmen">
+
+        <View
+            android:id="@+id/home_glow"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/portrait_glow" />
+
+        <ImageView
+            android:id="@+id/home_portrait"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/app_name"
+            android:scaleType="fitCenter"
+            android:src="@drawable/carmen_portrait" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/home_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="@color/carmen_accent"
+        android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/talk_button"
+        style="@style/Carmen.PrimaryButton"
+        android:layout_height="56dp"
+        android:layout_marginTop="16dp"
+        android:text="@string/talk_to_carmen"
+        android:textSize="18sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/outline_button"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/listen_for_wake_word"
+            android:textColor="@color/carmen_text"
+            android:textSize="15sp" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/listen_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/command_center_button"
+            style="@style/Carmen.OutlineButton"
+            android:layout_width="0dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:text="@string/open_command_center" />
+
+        <Button
+            android:id="@+id/home_settings_button"
+            style="@style/Carmen.OutlineButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:text="@string/settings" />
+    </LinearLayout>
+</LinearLayout>

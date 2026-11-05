@@ -65,4 +65,8 @@ object ListeningPrefs {
     fun setEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_ENABLED, enabled) }
     }
+
+    /** True once listening was ever turned on or off, so the home screen stops turning it on. */
+    fun wasChosen(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(KEY_ENABLED)
 }
