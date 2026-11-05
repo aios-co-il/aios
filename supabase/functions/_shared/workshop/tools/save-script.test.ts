@@ -73,8 +73,8 @@ Deno.test(
     const db = fakeDb(film());
     const saved = await save(db, [
       beat(2, "עברתם שבעה קמפיינרים?", "7 קמפיינרים"),
-      beat(5, "קמפיין הוא רק מהלך אחד מתוך חמישה.", "1 מתוך 5"),
-      beat(5, "כרמן רואה את כל התמונה.", "כל התמונה"),
+      beat(5, "קמפיין הוא רק מהלך אחד מתוך חמישה שהעסק צריך.", "1 מתוך 5"),
+      beat(5, "כרמן רואה את כל התמונה ומחברת את כל החלקים.", "כל התמונה"),
       beat(3, "קחו את כרמן לשיווק שלכם.", "קחו את כרמן"),
     ]);
     assertStrictEquals(saved.success, true, JSON.stringify(saved));
@@ -161,4 +161,39 @@ Deno.test("lines the voice cannot say in 2.5 seconds are refused", async () => {
   assertMatch(list.error, /: שורה 2: 5 מילים נאמרות בכ-4.2 שניות/);
   // The refusal states the same limit Carmen was told before writing (SCRIPT_GUIDE).
   assertStringIncludes(list.error, PACE_GUIDE);
+});
+
+Deno.test(
+  "a narration well short of the film is refused with the beats that can say more",
+  async () => {
+    // Staging, 5 Nov: this script spoke about 11 of its 15 seconds and the film came out 13.2.
+    const db = fakeDb(film());
+    const saved = await save(db, [
+      beat(3, "קמפיין הוא מהלך אחד."),
+      beat(3, "ולעסק יש חמישה."),
+      beat(3, "קופי, מדיה, מכירות."),
+      beat(3, "ודאטה, שמחברת הכול."),
+      beat(3, "כרמן מנהלת את הכול."),
+    ]);
+    assertStringIncludes(saved.error, "הקריינות קצרה מדי");
+    assertStringIncludes(saved.error, "שורה 2: 3 מילים, ונכנסות עד 5");
+    // A beat one word short of its most is listed too: every word that fits counts.
+    assertStringIncludes(saved.error, "שורה 1: 4 מילים, ונכנסות עד 5");
+    assertStrictEquals(
+      db.calls.some((c) => c.table === "workshop_artifacts"),
+      false,
+    );
+  },
+);
+
+Deno.test("beats filled to within a word of their most are saved", async () => {
+  const db = fakeDb(film());
+  const saved = await save(db, [
+    beat(3, "קמפיין הוא רק מהלך אחד."),
+    beat(3, "ולעסק שלכם יש חמישה תחומים."),
+    beat(3, "קופי, מדיה, מכירות ודאטה."),
+    beat(3, "שמחברת את הכול יחד."),
+    beat(3, "כרמן מנהלת את הכול."),
+  ]);
+  assertStrictEquals(saved.success, true, JSON.stringify(saved));
 });

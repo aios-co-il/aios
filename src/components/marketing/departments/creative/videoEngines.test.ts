@@ -88,8 +88,8 @@ test("voice bills the spoken characters and music bills the storyboard length", 
       }),
     ]).map((item) => item.id),
   ).toStrictEqual(["a", "b"]);
-  // 1000 plain Hebrew characters are sent with nikud, 1700 characters at $0.12 per 1000.
-  expect(voiceEstimate(frames).usd).toBe(0.2);
+  // 1000 Hebrew characters at $0.12 per 1000: ElevenLabs does not bill the nikud it is sent.
+  expect(voiceEstimate(frames).usd).toBe(0.12);
   expect(musicEstimate(frames).seconds).toBe(10);
   // Priced for the film the bed covers: 10 s with 15% headroom, the end card and the tail.
   expect(musicEstimate(frames).usd).toBe(0.17);
