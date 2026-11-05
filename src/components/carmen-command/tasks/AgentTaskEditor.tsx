@@ -102,10 +102,13 @@ export function AgentTaskEditor({
     queryKey: ["carmen-agent-task", taskId],
     enabled: !!taskId,
     queryFn: async () => {
+      if (!taskId) {
+        return null;
+      }
       const full = await supabase
         .from("agent_tasks")
         .select("*")
-        .eq("id", taskId!)
+        .eq("id", taskId)
         .maybeSingle();
       if (full.error) throw full.error;
       return full.data;
@@ -295,10 +298,13 @@ export function AgentTaskEditor({
 
   const remove = useMutation({
     mutationFn: async () => {
+      if (!taskId) {
+        throw new Error("חסר מזהה משימה");
+      }
       const { error } = await supabase
         .from("agent_tasks")
         .delete()
-        .eq("id", taskId!);
+        .eq("id", taskId);
       if (error) throw error;
     },
     onSuccess: () => {

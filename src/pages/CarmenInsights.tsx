@@ -142,7 +142,11 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
 
   const episodesBySession = useMemo(() => {
     const m = new Map<string, Tables<"carmen_memory_episodes">>();
-    for (const e of episodes) if (e.session_ref) m.set(e.session_ref, e);
+    for (const e of episodes) {
+      if (e.session_ref) {
+        m.set(e.session_ref, e);
+      }
+    }
     return m;
   }, [episodes]);
 

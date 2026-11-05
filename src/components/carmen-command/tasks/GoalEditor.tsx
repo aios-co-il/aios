@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/requireTenantId";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,10 +69,13 @@ export function GoalEditor({
     queryKey: ["carmen-goal", goalId],
     enabled: !!goalId,
     queryFn: async () => {
+      if (!goalId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("goals")
         .select("*")
-        .eq("id", goalId!)
+        .eq("id", goalId)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -147,7 +151,12 @@ export function GoalEditor({
   });
 
   const iterate = useMutation({
-    mutationFn: async () => runGoalIteration(await token(), tenantId!, goalId!),
+    mutationFn: async () => {
+      if (!goalId) {
+        throw new Error("חסר מזהה יעד");
+      }
+      return runGoalIteration(await token(), requireTenantId(tenantId), goalId);
+    },
     onSuccess: () => {
       invalidate();
       toast.success("הופעלה איטרציה של מנוע היעד");
