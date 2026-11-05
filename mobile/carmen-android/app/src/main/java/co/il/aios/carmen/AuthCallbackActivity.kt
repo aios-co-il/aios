@@ -7,7 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
 
 /**
- * Receives `carmen-aios://auth/app|web?code=…` from Supabase after Google sign-in. After the
+ * Receives `<AUTH_SCHEME>://auth/app|web?code=…` (per variant) from Supabase after Google sign-in. After the
  * app's session it starts the second round for the in-app web screen, then opens Carmen's home.
  */
 class AuthCallbackActivity : AppCompatActivity() {
