@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   applyRepeatInboundReopen,
-  updateLeadWithRepeatReopen,
+  reopenRepeatLead,
 } from "../_shared/lead-repeat-reopen.ts";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 import type { TablesUpdate } from "../_shared/database.types.ts";
@@ -266,7 +266,15 @@ Deno.serve(async (req) => {
         applyRepeatInboundReopen(existingLead, { source: "cold_call" }),
       );
 
-      await updateLeadWithRepeatReopen(supabase, existingLead.id, updates);
+      const { error: updateError } = await reopenRepeatLead(
+        supabase,
+        existingLead,
+        updates,
+        { source: "cold_call" },
+      );
+      if (updateError) {
+        console.error("❌ Error updating existing lead:", updateError);
+      }
 
       // Trigger automations for existing lead
       try {

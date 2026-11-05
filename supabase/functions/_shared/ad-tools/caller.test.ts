@@ -64,7 +64,7 @@ Deno.test(
     const calls: string[] = [];
     assertEquals(await caller(SERVICE, B, "write", calls), {
       ok: true,
-      caller: { kind: "service_role", tenantId: B },
+      caller: { kind: "service_role", tenantId: B, approvalRun: false },
     });
     assertEquals(calls, []); // trusted caller: no user lookups
     denied(await caller(SERVICE, undefined), 400);

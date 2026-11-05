@@ -444,6 +444,8 @@ export default function GoogleAnalyticsSettings() {
                     const isOwn = integ._isOwn;
                     const sharedByName = integ._sharedByName;
                     const needsReauth = Boolean(s?.needs_reauth);
+                    // Preserve React's numeric children (0 and NaN) while narrowing.
+                    const connectedAt = s?.connected_at;
                     return (
                       <div
                         key={integ.id}
@@ -473,14 +475,17 @@ export default function GoogleAnalyticsSettings() {
                                 </Badge>
                               )}
                             </div>
-                            {s?.connected_at && (
-                              <p className="text-xs text-muted-foreground">
-                                חובר:{" "}
-                                {new Date(
-                                  s.connected_at as string,
-                                ).toLocaleDateString("he-IL")}
-                              </p>
-                            )}
+                            {typeof connectedAt === "number" && !connectedAt
+                              ? connectedAt
+                              : !!s &&
+                                Boolean(connectedAt) && (
+                                  <p className="text-xs text-muted-foreground">
+                                    חובר:{" "}
+                                    {new Date(
+                                      s.connected_at as string,
+                                    ).toLocaleDateString("he-IL")}
+                                  </p>
+                                )}
                             {needsReauth && (
                               <p className="text-xs text-destructive mt-1">
                                 החיבור לגוגל בוטל או פג תוקף. לחץ על "חבר מחדש"

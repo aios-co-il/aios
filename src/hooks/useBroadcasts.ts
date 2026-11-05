@@ -12,7 +12,7 @@ export type BroadcastStatus =
 export type AudienceFilterMode = "include" | "exclude";
 
 export type AudienceFilter = {
-  source: "clients" | "leads" | "campaigners" | "list" | "wa_groups";
+  source: "clients" | "leads" | "campaigners" | "list" | "wa_groups" | "manual";
   statuses?: string[]; // clients
   statusMode?: AudienceFilterMode;
   serviceTags?: string[]; // clients
@@ -28,6 +28,7 @@ export type AudienceFilter = {
   activeOnly?: boolean; // campaigners
   listId?: string; // source = list
   groupIds?: string[]; // source = wa_groups (whatsapp_groups UUIDs)
+  manualContacts?: string[]; // source = manual: typed emails / phones
   includeIds?: string[]; // manual selection within a source
   excludeIds?: string[];
 };
@@ -85,7 +86,7 @@ export function useBroadcasts() {
       const { data, error } = await supabase
         .from("broadcasts")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as Broadcast[];

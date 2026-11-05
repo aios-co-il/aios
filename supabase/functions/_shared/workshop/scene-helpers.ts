@@ -39,7 +39,7 @@ export const SCENE_COLUMNS =
 /**
  * The film's closing card follows the ending the user chose (brief "סיום"): none, the logo only,
  * or the logo with Carmen's call to action. The render reads end_card and cta_text
- * (render-worker compose/brand.mjs).
+ * (render-worker compose/brand.ts).
  */
 export function endingOf(payload: Record<string, unknown>, ctaText: string) {
   const ending = answerFor(briefAnswersOf(payload), "סיום");

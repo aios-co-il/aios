@@ -55,11 +55,11 @@ interface CalendarShare {
   owner_user_id: string;
   shared_with_user_id: string;
   permission_level: string;
-  created_at: string;
+  created_at: string | null;
   shared_with_profile?: {
     email: string | null;
     full_name: string | null;
-  };
+  } | null;
 }
 
 export function CalendarSharingSettings() {

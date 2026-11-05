@@ -10,8 +10,14 @@
  *    would otherwise steal David's private 1:1 destination.
  *  - conversation identity is the chat JID (see carmen-session-identity.ts);
  *    notify never follows the freshest live session.
+ *
+ * Already over max-lines; the report-recipient step lives in
+ * carmen-report-recipients/notify-recipient.ts, and splitting the rest of
+ * this file by topic is AIO-123.
  */
 
+import { notifyReportRecipient } from "./carmen-report-recipients/notify-recipient.ts";
+import type { CarmenReportRecipient } from "./carmen-report-recipients/resolve.ts";
 import { isGroupChatId } from "./carmen-session-identity.ts";
 
 export { isGroupChatId } from "./carmen-session-identity.ts";
@@ -40,8 +46,8 @@ export type NotifyStaffCandidate = {
 export type ResolveCarmenNotifyTargetInput = {
   /** Explicit chat_id / phone from the caller (highest priority). */
   preferredPhone?: string | null;
-  /** tenant_heartbeat_settings.campaign_pulse_phone */
-  campaignPulsePhone?: string | null;
+  /** Whom the tenant's Carmen reports to (loadCarmenReportRecipients), in order. */
+  reportRecipients?: Pick<CarmenReportRecipient, "phone" | "name" | "source">[];
   /** Non-group carmen_whatsapp_sessions for the tenant (newest first preferred). */
   sessions: NotifySessionCandidate[];
   /** Active tenant campaigners with phones (this tenant only). */
@@ -54,7 +60,7 @@ export type ResolveCarmenNotifyTargetResult = {
   contactName: string | null;
   source:
     | "preferred_phone"
-    | "campaign_pulse_phone"
+    | "report_recipient"
     | "tenant_staff_session"
     | "tenant_staff_phone"
     | "none";
@@ -187,6 +193,7 @@ export function resolveCarmenNotifyTarget(
   const tryPhone = (
     phoneRaw: string | null | undefined,
     source: ResolveCarmenNotifyTargetResult["source"],
+    fallbackName: string | null = null,
   ): ResolveCarmenNotifyTargetResult | null => {
     const phone = normalizeNotifyPhone(phoneRaw);
     if (!phone) return null;
@@ -199,7 +206,7 @@ export function resolveCarmenNotifyTarget(
     return {
       chatId,
       phone: normalizeNotifyPhone(session?.phone) ?? phone,
-      contactName: contactNameFor(session, staff, phone),
+      contactName: contactNameFor(session, staff, phone) ?? fallbackName,
       source,
     };
   };
@@ -207,8 +214,11 @@ export function resolveCarmenNotifyTarget(
   const preferred = tryPhone(input.preferredPhone, "preferred_phone");
   if (preferred) return preferred;
 
-  const pulse = tryPhone(input.campaignPulsePhone, "campaign_pulse_phone");
-  if (pulse) return pulse;
+  const listed = notifyReportRecipient(input.reportRecipients);
+  const report = tryPhone(listed?.phone, "report_recipient", listed?.name);
+  if (report) {
+    return report;
+  }
 
   // Prefer a session whose chat belongs to a tenant campaigner.
   // Managers (מנהל צוות) win over regular campaigners when both have sessions.
@@ -251,6 +261,6 @@ export function resolveCarmenNotifyTarget(
     contactName: null,
     source: "none",
     reason:
-      "No preferred phone, campaign_pulse_phone, or tenant campaigner session/phone found — refusing cross-tenant owner fallback",
+      "No preferred phone, report recipient, or tenant campaigner session/phone found — refusing cross-tenant owner fallback",
   };
 }

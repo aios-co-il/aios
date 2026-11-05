@@ -1,4 +1,5 @@
 import {
+  addFacebookCampaignTypeRow,
   aggregateFacebookCampaignsFromRecords,
   getAdsPurchasesFromData,
   getLeadsFromData,
@@ -8,6 +9,11 @@ import {
   type FacebookCampaignRow,
   type RawAdsMetricData,
 } from "@/lib/adsMetrics";
+import {
+  addFacebookFollowers,
+  emptyFacebookFollowers,
+  type FacebookFollowerTotals,
+} from "@/lib/facebookFollowers";
 
 export type AdsEntityLevel = "campaign" | "adset" | "ad";
 
@@ -183,7 +189,14 @@ export function aggregateFacebookRecordsAtLevel(
     return aggregateFacebookCampaignsFromRecords(records);
   }
 
-  const map: Record<string, FacebookCampaignRow & { key: string }> = {};
+  const map: Record<
+    string,
+    FacebookCampaignRow & { key: string; followers: FacebookFollowerTotals }
+  > = {};
+  const types: Record<
+    string,
+    ReturnType<typeof addFacebookCampaignTypeRow>
+  > = {};
   records.forEach((record) => {
     const d = record.data || {};
     const key = getEntityGroupKey(d, level);
@@ -200,16 +213,14 @@ export function aggregateFacebookRecordsAtLevel(
         purchase_value: 0,
         add_to_cart: 0,
         campaign_type: d.campaign_type,
+        followers: emptyFacebookFollowers(),
       };
     }
-    const rowType = String(d.campaign_type || "").toLowerCase();
-    if (
-      rowType === "ecommerce" ||
-      rowType === "lead" ||
-      rowType === "traffic"
-    ) {
-      map[key].campaign_type = rowType;
-    }
+    // An ad set or ad takes its campaign's type, decided as for the campaign.
+    types[key] = addFacebookCampaignTypeRow(
+      types[key] ?? { configured: null, stored: "other" },
+      d,
+    );
     map[key].impressions += Number(d.impressions) || 0;
     map[key].clicks += Number(d.clicks) || 0;
     map[key].spend += getSpendFromData(d);
@@ -217,7 +228,13 @@ export function aggregateFacebookRecordsAtLevel(
     map[key].purchases += getAdsPurchasesFromData(d);
     map[key].purchase_value += getRevenueFromData(d);
     map[key].add_to_cart += Number(d.add_to_cart) || 0;
+    map[key].followers = addFacebookFollowers(map[key].followers, d);
   });
+
+  for (const [key, type] of Object.entries(types)) {
+    const campaignType = type.configured ?? type.stored;
+    if (campaignType !== "other") map[key].campaign_type = campaignType;
+  }
 
   return Object.values(map).sort((a, b) => b.spend - a.spend);
 }

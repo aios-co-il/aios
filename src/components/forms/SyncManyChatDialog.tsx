@@ -38,6 +38,9 @@ export function SyncManyChatDialog() {
   const { data: manychatContactsCount } = useQuery({
     queryKey: ["manychat-contacts", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return 0;
+      }
       const { count, error } = await supabase
         .from("chat_messages")
         .select("client_id", { count: "exact", head: true })

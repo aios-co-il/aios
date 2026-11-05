@@ -90,7 +90,7 @@ Deno.test(
     const call = gate(SERVICE, pauseShared, { account_id: "333" });
     assertEquals(await call.result, {
       ok: true,
-      caller: { kind: "service_role", tenantId: "t2" },
+      caller: { kind: "service_role", tenantId: "t2", approvalRun: false },
     });
     assertEquals(call.tokens, []);
     assertEquals(call.reads, []);

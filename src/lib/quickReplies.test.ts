@@ -1,7 +1,13 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
+import {
+  MAX_ANSWER,
+  answersFromMessage,
+} from "@functions/_shared/workshop/brief-answers.ts";
 import {
   answerableIndex,
+  freeAnswer,
   hidePartialQuickReplies,
+  offersOther,
   parseQuickReplies,
   quickReplyAnswer,
 } from "./quickReplies.ts";
@@ -59,4 +65,56 @@ test("only the latest assistant reply is answerable, and a user message closes i
   ).toBe(0);
   expect(answerableIndex([{ role: "assistant" }, { role: "user" }])).toBe(-1);
   expect(answerableIndex([])).toBe(-1);
+});
+
+describe("an answer in the user's own words", () => {
+  test("every group offers it unless Carmen already wrote an other option", () => {
+    expect(
+      offersOther({ label: "קצב", options: ["מהיר", "אחרי הצהריים"] }),
+    ).toBe(true);
+    expect(offersOther({ label: "קצב", options: ["מהיר", "אחר"] })).toBe(false);
+    expect(offersOther({ label: "קצב", options: ["אחר (פרטי)"] })).toBe(false);
+    expect(offersOther({ label: "x", options: ["Other…"] })).toBe(false);
+  });
+
+  test("it does not take one of Carmen's six options", () => {
+    const { groups } = parseQuickReplies(
+      "[[בחירה: x | 1 | 2 | 3 | 4 | 5 | 6]]",
+    );
+    expect(groups[0].options.length).toBe(6);
+    expect(offersOther(groups[0])).toBe(true);
+  });
+
+  test("it is one trimmed line, capped at the server's answer length", () => {
+    expect(freeAnswer("  קצב\n  איטי  ")).toBe("קצב איטי");
+    expect(freeAnswer("   ")).toBe("");
+    expect(freeAnswer("א".repeat(300)).length).toBe(MAX_ANSWER);
+  });
+
+  test("alone it still names its question, so the server saves it to the brief", () => {
+    const groups = [{ label: "קצב", options: ["אנרגטי ומהיר", "רגוע ורגשי"] }];
+    const message = quickReplyAnswer(groups, {
+      קצב: freeAnswer("איטי ומהפנט"),
+    });
+    expect(message).toBe("קצב: איטי ומהפנט");
+    expect(answersFromMessage(message, groups)).toStrictEqual({
+      קצב: "איטי ומהפנט",
+    });
+  });
+
+  test("among several groups it reaches the server as that question's answer", () => {
+    const groups = [
+      { label: "קצב", options: ["אנרגטי ומהיר", "רגוע ורגשי"] },
+      { label: "סיום", options: ["קריאה לפעולה"] },
+    ];
+    const message = quickReplyAnswer(groups, {
+      קצב: freeAnswer(" איטי בהתחלה ואז מתפוצץ "),
+      סיום: "קריאה לפעולה",
+    });
+    expect(message).toBe("קצב: איטי בהתחלה ואז מתפוצץ\nסיום: קריאה לפעולה");
+    expect(answersFromMessage(message, groups)).toStrictEqual({
+      קצב: "איטי בהתחלה ואז מתפוצץ",
+      סיום: "קריאה לפעולה",
+    });
+  });
 });

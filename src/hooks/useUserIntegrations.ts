@@ -1,7 +1,10 @@
+import { hasIntegrationId } from "@/lib/integrationIdentity";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
+  CLIENT_INTEGRATION_COLUMNS,
+  CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY,
   getClientIntegrationSelect,
   toClientIntegration,
   type ClientIntegration,
@@ -24,7 +27,7 @@ import { isTenantIntegrationRow } from "@/lib/tenantIntegrationsClient";
  * differs from where the GSC/GA integration was created). RLS still applies.
  */
 export function useUserIntegrations(
-  tenantId: string | string[] | undefined,
+  tenantId: string | Array<string> | null | undefined,
   integrationType: string,
   options?: { enabled?: boolean; returnAll?: boolean },
 ) {
@@ -51,11 +54,16 @@ export function useUserIntegrations(
       const isTenantScoped = isReportTenantScopedIntegration(integrationType);
 
       const selectColumns = getClientIntegrationSelect(integrationType);
+      // PostgREST's type parser requires one projection literal per select call.
+      const selectIntegrations = () => {
+        const query = supabase.from("tenant_integrations");
+        return selectColumns === CLIENT_INTEGRATION_COLUMNS
+          ? query.select(CLIENT_INTEGRATION_COLUMNS)
+          : query.select(CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY);
+      };
 
       // 1. Fetch user's own integrations (or all tenant integrations for tenant-scoped types)
-      let ownQuery = supabase
-        .from("tenant_integrations")
-        .select(selectColumns)
+      let ownQuery = selectIntegrations()
         .in("tenant_id", tenantIds)
         .eq("integration_type", integrationType)
         .eq("is_active", true);
@@ -87,15 +95,17 @@ export function useUserIntegrations(
           }
         }
 
-        return (ownIntegrations || []).map((i) =>
-          toClientIntegration(i, {
-            _isOwn: i.user_id === userId,
-            _sharedByName:
-              i.user_id && i.user_id !== userId
-                ? ownerProfiles[i.user_id] || null
-                : null,
-          }),
-        );
+        return (ownIntegrations || [])
+          .map((i) =>
+            toClientIntegration(i, {
+              _isOwn: i.user_id === userId,
+              _sharedByName:
+                i.user_id && i.user_id !== userId
+                  ? ownerProfiles[i.user_id] || null
+                  : null,
+            }),
+          )
+          .filter(hasIntegrationId);
       }
 
       // 2. Fetch shared integrations via permissions (for user-scoped types)
@@ -112,9 +122,7 @@ export function useUserIntegrations(
 
       let sharedIntegrations: TenantIntegrationRow[] = [];
       if (sharedIntegrationIds.length > 0) {
-        const { data: shared, error: sharedError } = await supabase
-          .from("tenant_integrations")
-          .select(selectColumns)
+        const { data: shared, error: sharedError } = await selectIntegrations()
           .in("tenant_id", tenantIds)
           .eq("integration_type", integrationType)
           .eq("is_active", true)
@@ -162,7 +170,7 @@ export function useUserIntegrations(
           ),
       ];
 
-      return combined;
+      return combined.filter(hasIntegrationId);
     },
     enabled,
   });
@@ -172,7 +180,7 @@ export function useUserIntegrations(
  * Check if user has ANY active integration of a given type (own or shared).
  */
 export function useHasIntegrationAccess(
-  tenantId: string | string[] | undefined,
+  tenantId: Parameters<typeof useUserIntegrations>[0],
   integrationType: string,
 ) {
   const { data: integrations } = useUserIntegrations(tenantId, integrationType);

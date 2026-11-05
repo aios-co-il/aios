@@ -18,7 +18,7 @@ import { sendCrmWhatsappToLead } from "@/lib/sendCrmWhatsapp";
  * Hook לניהול קביעת פגישות עם יומן Google (דרך Unified)
  * משותף בין EditLeadDialog ו-EditClientDialog
  */
-export function useMeetingScheduler(tenantId?: string) {
+export function useMeetingScheduler(tenantId?: string | null) {
   const [meetingDate, setMeetingDate] = useState<Date | undefined>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

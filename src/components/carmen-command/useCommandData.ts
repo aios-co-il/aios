@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { MANAGER_ROUND_RUN_KIND } from "../../../supabase/functions/_shared/manager-round/run-kind.ts";
 
 // Several ops tables (heartbeat_logs, integration_alerts_log, agent_action_log…)
 // are not in the generated Database types yet.
@@ -231,6 +232,9 @@ function alertTypeLabel(type: string): string {
     cpl_spike: "קפיצה בעלות ליד",
     frequency_high: "תדירות גבוהה",
     ad_disapproved: "מודעה נדחתה",
+    account_disabled: "חשבון הפרסום הושבת או הוגבל",
+    ad_account_billing_issue: "בעיית חיוב בחשבון הפרסום",
+    no_live_ads: "אין מודעה באוויר",
   };
   return map[type] ?? type;
 }
@@ -262,6 +266,7 @@ export function useHealth(tenantId: string | null) {
           .from("heartbeat_logs")
           .select("triggered_at, summary")
           .eq("tenant_id", tenantId)
+          .neq("run_kind", MANAGER_ROUND_RUN_KIND)
           .order("triggered_at", { ascending: false })
           .limit(1)
           .maybeSingle(),

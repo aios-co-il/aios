@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { isJsonObject, jsonString } from "@/lib/jsonFields";
+import type { TablesInsert } from "@/integrations/supabase/types";
+import { Constants, type TablesUpdate } from "@/integrations/supabase/types";
 import {
   format,
   startOfMonth,
@@ -80,6 +82,11 @@ interface WorkItem {
   marketing_pipeline_stages?: { name: string; stage_type: string } | null;
 }
 
+type WorkItemPatch = Pick<
+  TablesUpdate<"marketing_work_items">,
+  "status" | "scheduled_date" | "payload"
+>;
+
 // ─── Platform best practices ─────────────────────────────────────────────────
 
 const PLATFORM_TIPS: Record<
@@ -155,7 +162,7 @@ const statusConfig: Record<
     icon: <Loader2 className="h-3 w-3 animate-spin" />,
     dot: "bg-blue-500",
   },
-  review: {
+  waiting_approval: {
     label: "לאישור",
     color: "text-amber-700",
     bg: "bg-amber-50 border-amber-200",
@@ -371,6 +378,7 @@ function PostChip({
 
 // ─── Post detail dialog ───────────────────────────────────────────────────────
 
+/** Edit persisted scheduling and status fields using their database contracts. */
 function PostDetailDialog({
   item,
   open,
@@ -380,7 +388,7 @@ function PostDetailDialog({
   item: WorkItem | null;
   open: boolean;
   onClose: () => void;
-  onUpdate: (id: string, patch: Partial<WorkItem>) => void;
+  onUpdate: (id: string, patch: WorkItemPatch) => void;
 }) {
   const [editDate, setEditDate] = useState("");
   const [editStatus, setEditStatus] = useState("");
@@ -490,8 +498,18 @@ function PostDetailDialog({
             size="sm"
             className="w-full"
             onClick={() => {
-              const patch: Partial<WorkItem> = {};
-              if (editStatus) patch.status = editStatus;
+              const patch: WorkItemPatch = {};
+              if (editStatus) {
+                const status =
+                  Constants.public.Enums.marketing_item_status.find(
+                    (value) => value === editStatus,
+                  );
+                if (!status) {
+                  toast.error("סטטוס לא תקין");
+                  return;
+                }
+                patch.status = status;
+              }
               if (editDate) patch.scheduled_date = editDate;
               if (Object.keys(patch).length > 0) {
                 onUpdate(item.id, patch);
@@ -551,24 +569,26 @@ function NewItemDialog({
         .maybeSingle();
 
       // Create one item per selected platform
-      const inserts = channels.map((ch) => ({
-        pipeline_id: pipelineId,
-        tenant_id: tenantId,
-        client_id: clientId,
-        current_stage_id: stage?.id ?? null,
-        title:
-          channels.length > 1
-            ? `${title.trim()} – ${channelConfig[ch]?.label ?? ch}`
-            : title.trim(),
-        status: "draft",
-        scheduled_date: date || null,
-        target_channel: ch,
-        payload: {
-          channel: ch,
-          copy_text: copy.trim() || null,
-          auto_run: autoRun,
-        },
-      }));
+      const inserts: Array<TablesInsert<"marketing_work_items">> = channels.map(
+        (ch) => ({
+          pipeline_id: pipelineId,
+          tenant_id: tenantId,
+          client_id: clientId,
+          current_stage_id: stage?.id ?? null,
+          title:
+            channels.length > 1
+              ? `${title.trim()} – ${channelConfig[ch]?.label ?? ch}`
+              : title.trim(),
+          status: "draft",
+          scheduled_date: date || null,
+          target_channel: ch,
+          payload: {
+            channel: ch,
+            copy_text: copy.trim() || null,
+            auto_run: autoRun,
+          },
+        }),
+      );
 
       const { error } = await supabase
         .from("marketing_work_items")
@@ -709,6 +729,7 @@ function NewItemDialog({
 
 // ─── List item row (enhanced) ─────────────────────────────────────────────────
 
+/** Render one content item and submit only writable content fields. */
 function ListItemRow({
   item,
   selected,
@@ -721,7 +742,7 @@ function ListItemRow({
   selected: boolean;
   onSelect: () => void;
   onClick: () => void;
-  onUpdate: (id: string, patch: Partial<WorkItem>) => void;
+  onUpdate: (id: string, patch: WorkItemPatch) => void;
   onPublish: (id: string) => void;
 }) {
   const [editingCopy, setEditingCopy] = useState(false);
@@ -1020,13 +1041,7 @@ export function SocialContentGantt({
   });
 
   const updateItem = useMutation({
-    mutationFn: async ({
-      id,
-      patch,
-    }: {
-      id: string;
-      patch: Partial<WorkItem>;
-    }) => {
+    mutationFn: async ({ id, patch }: { id: string; patch: WorkItemPatch }) => {
       const { error } = await supabase
         .from("marketing_work_items")
         .update(patch)

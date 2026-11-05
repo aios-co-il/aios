@@ -1,0 +1,116 @@
+/**
+ * The first recipient of owner-first findings (KIND_POLICY.ownerFirst: an
+ * unlogged call goes to the person who made it). Only a finding whose
+ * evidence names that person (evidence.attributed) has one: the owner the
+ * router defaults to the client's first campaigner never narrows level 0.
+ * The owner is looked up among the client's campaigners, then the tenant's
+ * staff, then the tenant's active campaigner logins. Someone the router
+ * cannot reach in this tenant is left out, so the ladder starts with the
+ * client's campaigners instead.
+ */
+import type { Json } from "../../_shared/database.types.ts";
+import { isFindingKind } from "../../_shared/manager-round/kinds.ts";
+import { normalizeStaffPhone } from "../../_shared/staff-whatsapp.ts";
+import type {
+  FindingRow,
+  Recipient,
+  RecipientRole,
+} from "../findings/types.ts";
+import type { PeopleDirectory, StaffMember } from "../recipients/directory.ts";
+import {
+  type ClientRecipients,
+  staffRecipient,
+} from "../recipients/resolve.ts";
+import { KIND_POLICY } from "./policy.ts";
+
+export type OwnerInput = {
+  tenantId: string;
+  findings: FindingRow[];
+  /** Each client's people, as resolved for this run. */
+  people: Map<string, ClientRecipients>;
+  staff: StaffMember[];
+};
+
+/** The reachable owner of each owner-first finding, by finding id. */
+export async function resolveOwners(
+  directory: PeopleDirectory,
+  input: OwnerInput,
+): Promise<Map<string, Recipient>> {
+  const owners = new Map<string, Recipient>();
+  const unknown: { findingId: string; key: string; userId: string }[] = [];
+  for (const finding of input.findings) {
+    const userId = ownerFirstUser(finding);
+    if (!userId) {
+      continue;
+    }
+    const known = knownPerson(finding.client_id, userId, input);
+    if (known) {
+      owners.set(finding.id, known);
+    } else {
+      unknown.push({ findingId: finding.id, key: `user:${userId}`, userId });
+    }
+  }
+  if (!unknown.length) {
+    return owners;
+  }
+  const contacts = await directory.contacts(input.tenantId, [
+    ...new Set(unknown.map((entry) => entry.key)),
+  ]);
+  for (const { findingId, key, userId } of unknown) {
+    const contact = contacts.get(key);
+    if (contact) {
+      owners.set(findingId, {
+        key,
+        user_id: userId,
+        name: contact.name,
+        phone: normalizeStaffPhone(contact.phone),
+        role: "campaigner",
+      });
+    }
+  }
+  return owners;
+}
+
+/** The named owner of a finding whose kind goes to its owner first, else null. */
+function ownerFirstUser(finding: FindingRow): string | null {
+  return isFindingKind(finding.kind) &&
+    KIND_POLICY[finding.kind].ownerFirst &&
+    isAttributed(finding.evidence)
+    ? finding.owner_user_id
+    : null;
+}
+
+/** evidence.attributed: the collector named the person (e.g. the caller). */
+function isAttributed(evidence: Json): boolean {
+  return (
+    !!evidence &&
+    typeof evidence === "object" &&
+    !Array.isArray(evidence) &&
+    evidence.attributed === true
+  );
+}
+
+/** The owner as one of the client's campaigners or the tenant's staff. */
+function knownPerson(
+  clientId: string | null,
+  userId: string,
+  input: OwnerInput,
+): Recipient | null {
+  const campaigner = input.people
+    .get(clientId ?? "")
+    ?.campaigners.find((recipient) => recipient.user_id === userId);
+  if (campaigner) {
+    return campaigner;
+  }
+  const member = input.staff.find((staff) => staff.user_id === userId);
+  return member ? staffRecipient(member, staffRole(member)) : null;
+}
+
+/** Owners and agency owners keep the owner role, as resolveBriefRecipients names them; other staff are managers. */
+function staffRole(member: StaffMember): RecipientRole {
+  return member.roles.some(
+    (role) => role === "owner" || role === "agency_owner",
+  )
+    ? "owner"
+    : "manager";
+}

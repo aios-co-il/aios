@@ -1,3 +1,4 @@
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 /**
  * StageWorkspace
  * ──────────────
@@ -197,7 +198,9 @@ function ModeToggle({
   onUpdate,
 }: {
   stage: BoardStage;
-  onUpdate: (mode: MarketingApprovalMode) => void;
+  onUpdate: (
+    mode: Tables<"marketing_pipeline_stages">["approval_mode"],
+  ) => void;
 }) {
   const current = stage.approval_mode ?? "hybrid";
   const modes: {
@@ -207,19 +210,19 @@ function ModeToggle({
     activeClass: string;
   }[] = [
     {
-      key: "auto",
+      key: "auto" as const,
       label: "אוטומטי",
       icon: Zap,
       activeClass: "bg-emerald-500 text-white",
     },
     {
-      key: "hybrid",
+      key: "hybrid" as const,
       label: "חצי",
       icon: Clock,
       activeClass: "bg-amber-500 text-white",
     },
     {
-      key: "manual",
+      key: "manual" as const,
       label: "ידני",
       icon: Hand,
       activeClass: "bg-gray-500 text-white",
@@ -626,7 +629,7 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
         (candidate) => candidate.id === stage.id,
       );
       const nextStage = currentIndex >= 0 ? stages?.[currentIndex + 1] : null;
-      const update = nextStage
+      const update: TablesUpdate<"marketing_work_items"> = nextStage
         ? { current_stage_id: nextStage.id, status: "draft" }
         : { status: "approved" };
 
@@ -671,7 +674,9 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
     }
   };
 
-  const handleUpdateMode = async (mode: MarketingApprovalMode) => {
+  const handleUpdateMode = async (
+    mode: Tables<"marketing_pipeline_stages">["approval_mode"],
+  ) => {
     try {
       await supabase
         .from("marketing_pipeline_stages")

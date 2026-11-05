@@ -43,12 +43,24 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
     mutationFn: async ({ userId }: { userId: string }) => {
       if (!integrationId) throw new Error("No integration ID");
 
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError) {
+        throw authError;
+      }
+      const grantedBy = user?.id;
+      if (!grantedBy) {
+        throw new Error("יש להתחבר מחדש כדי להעניק הרשאה");
+      }
+
       const { error } = await supabase
         .from("integration_user_permissions")
         .insert({
           integration_id: integrationId,
           user_id: userId,
-          granted_by: (await supabase.auth.getUser()).data.user?.id,
+          granted_by: grantedBy,
         });
 
       if (error) throw error;

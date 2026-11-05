@@ -47,25 +47,30 @@ test("filesFromClipboardData keeps a real filename and de-dupes files list", () 
   expect(files[0].name).toBe("brief.pdf");
 });
 
+/** A plain EventTarget carrying the DOM-ish fields the helpers read. */
+function fakeTarget(props: {
+  tagName: string;
+  isContentEditable?: boolean;
+}): EventTarget {
+  return Object.assign(new EventTarget(), props);
+}
+
 test("claimClipboardPaste de-dupes the same tick", () => {
   expect(claimClipboardPaste()).toBe(true);
   expect(claimClipboardPaste()).toBe(false);
 });
 
 test("isClipboardTypingTarget skips inputs and textareas but not the files cube", () => {
-  expect(isClipboardTypingTarget({ tagName: "INPUT" } as EventTarget)).toBe(
-    true,
-  );
-  expect(isClipboardTypingTarget({ tagName: "TEXTAREA" } as EventTarget)).toBe(
+  expect(isClipboardTypingTarget(fakeTarget({ tagName: "INPUT" }))).toBe(true);
+  expect(isClipboardTypingTarget(fakeTarget({ tagName: "TEXTAREA" }))).toBe(
     true,
   );
   expect(
-    isClipboardTypingTarget({
-      tagName: "DIV",
-      isContentEditable: false,
-    } as EventTarget),
+    isClipboardTypingTarget(
+      fakeTarget({ tagName: "DIV", isContentEditable: false }),
+    ),
   ).toBe(false);
-  expect(isClipboardTypingTarget({ tagName: "BUTTON" } as EventTarget)).toBe(
+  expect(isClipboardTypingTarget(fakeTarget({ tagName: "BUTTON" }))).toBe(
     false,
   );
 });
@@ -93,7 +98,7 @@ test("isClipboardImage treats screenshot names as images", () => {
 });
 
 test("notes paste keeps text and pulls images into files", () => {
-  const notes = { tagName: "TEXTAREA" } as EventTarget;
+  const notes = fakeTarget({ tagName: "TEXTAREA" });
   const image = new File([new Uint8Array([1])], "screenshot.png", {
     type: "image/png",
   });

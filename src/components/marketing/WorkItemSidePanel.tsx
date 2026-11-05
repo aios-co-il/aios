@@ -294,7 +294,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
         setTimeout(() => runStage(nextStage.id), 500);
       }
     } else {
-      // Last stage approved — mark item as completed
+      // The item enum uses approved; completed belongs to marketing_runs.
       await save({ status: "approved" });
     }
     refetchRuns();

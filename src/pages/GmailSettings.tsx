@@ -461,7 +461,7 @@ function AllowedLabelsSection({
   userId,
   isConnected,
 }: {
-  tenantId: string | undefined;
+  tenantId: string | null | undefined;
   userId: string | undefined;
   isConnected: boolean;
 }) {

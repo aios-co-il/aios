@@ -23,14 +23,7 @@ export async function workshopSaveCopy(ctx: ToolContext) {
       isConcepts
         ? {
             title: String(entry.title ?? "").trim(),
-            text: [
-              String(entry.idea ?? "").trim(),
-              String(entry.visual ?? "").trim()
-                ? `ויזואל: ${String(entry.visual).trim()}`
-                : "",
-            ]
-              .filter(Boolean)
-              .join("\n\n"),
+            text: conceptText(entry),
           }
         : {
             title: String(entry.headline ?? "").trim(),
@@ -76,4 +69,21 @@ export async function workshopSaveCopy(ctx: ToolContext) {
       artifact_id: artifacts[artifacts.length - 1].id,
     },
   };
+}
+
+/** A concept page: the idea, then the film's message, narration and arc, then the visual. */
+function conceptText(entry: Record<string, unknown>): string {
+  const part = (key: string, label = "") => {
+    const text = String(entry[key] ?? "").trim();
+    return text && label ? `${label}: ${text}` : text;
+  };
+  return [
+    part("idea"),
+    part("message", "המסר"),
+    part("narration", "קריינות"),
+    part("arc", "המהלך"),
+    part("visual", "ויזואל"),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }

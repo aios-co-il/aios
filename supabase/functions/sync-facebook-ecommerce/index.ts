@@ -12,6 +12,10 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
+  buildDestinationTypeMaps,
+  fetchAdsets,
+} from "../_shared/fb-insights/adsets.ts";
+import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
@@ -348,24 +352,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    const adsets: AdsetRow[] = [];
-    {
-      let next: string | null =
-        `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,optimization_goal,promoted_object&limit=500&access_token=${accessToken}`;
-      while (next) {
-        const r = await fetch(next);
-        const d: unknown = await r.json();
-        if (getPath(d, "error")) break;
-        adsets.push(...adsetRows(d));
-        next = getString(d, "paging", "next") || null;
-      }
-    }
+    const adsets = await fetchAdsets(
+      adAccountId,
+      accessToken,
+      "sync-facebook-ecommerce",
+    );
     const campaignObjectives: Record<string, string | null | undefined> = {};
     for (const c of Object.values(campaignStatuses))
       campaignObjectives[c.id] = c.objective;
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
     const resultMetrics = buildResultMetricMaps(adsets);
+    const destinationTypes = buildDestinationTypeMaps(adsets);
 
     const {
       records: insights,
@@ -380,6 +378,7 @@ Deno.serve(async (req) => {
       resultLeadTypes,
       optimizationGoals,
       resultMetrics,
+      destinationTypes,
     );
     console.log(
       `[sync-facebook-ecommerce] synced ${insights.length} rows`,
