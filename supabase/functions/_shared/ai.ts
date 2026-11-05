@@ -140,7 +140,6 @@ export async function aiEmbedBatch(
   }
 }
 
-/** Single-prompt chat completion → raw assistant string, or null. */
 /* ---------- Usage metering (additive, best-effort) ----------
    Every helper logs its OpenAI usage to ai_usage_log so the Command Center
    can show consumption and fire budget alerts. Failures are swallowed —
@@ -191,9 +190,19 @@ export function logAiUsage(row: {
   }
 }
 
+/** Single-prompt chat completion → raw assistant string, or null. */
 export async function aiChat(
   prompt: string,
-  opts?: { model?: string; jsonMode?: boolean },
+  opts?: {
+    model?: string;
+    jsonMode?: boolean;
+    signal?: AbortSignal;
+    /** Logged on the ai_usage_log row and its source (default "aiChat"). */
+    tenantId?: string;
+    source?: string;
+    /** The call's cost, known before the asynchronous log insert lands. */
+    onUsage?: (usage: { costUsd: number }) => void;
+  },
 ): Promise<string | null> {
   const key = await resolveOpenAIKey();
   if (!key) return null;
@@ -210,33 +219,45 @@ export async function aiChat(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: opts?.signal,
     });
     if (!r.ok) return null;
     const j = await r.json();
     const model = opts?.model || AI_CHAT_MODEL;
+    const costUsd = estimateOpenAICostUSD(
+      model,
+      j?.usage?.prompt_tokens ?? 0,
+      j?.usage?.completion_tokens ?? 0,
+    );
     logAiUsage({
-      source: "aiChat",
+      source: opts?.source ?? "aiChat",
       model,
       tokens_in: j?.usage?.prompt_tokens ?? null,
       tokens_out: j?.usage?.completion_tokens ?? null,
-      cost_usd: estimateOpenAICostUSD(
-        model,
-        j?.usage?.prompt_tokens ?? 0,
-        j?.usage?.completion_tokens ?? 0,
-      ),
+      cost_usd: costUsd,
+      tenant_id: opts?.tenantId,
     });
+    opts?.onUsage?.({ costUsd: costUsd ?? 0 });
     return j?.choices?.[0]?.message?.content ?? null;
   } catch {
     return null;
   }
 }
 
-/** Chat completion that returns parsed JSON (json_object mode), or null. */
+/**
+ * Chat completion that returns parsed JSON (json_object mode), or null.
+ * An aborted `signal` ends the request and resolves to null.
+ */
 export async function aiChatJSON<T = any>(
   prompt: string,
   model?: string,
+  opts?: { signal?: AbortSignal },
 ): Promise<T | null> {
-  const raw = await aiChat(prompt, { model, jsonMode: true });
+  const raw = await aiChat(prompt, {
+    model,
+    jsonMode: true,
+    signal: opts?.signal,
+  });
   if (!raw) return null;
   try {
     return JSON.parse(raw) as T;

@@ -49,8 +49,11 @@ export function inferFormats(text: string, kind: ProjectKind): Format[] {
 const SECONDS = /(\d+(?:\.\d+)?)\s*(?:שניות|שניה|שנייה|שנ׳|sec(?:onds?)?|s\b)/i;
 const MINUTES = /(\d+(?:\.\d+)?)\s*(?:דקות|דקה|min(?:utes?)?)/i;
 const ONE_MINUTE = /(?:^|\s)דקה(?:\s|$|[.,!?])/;
+/** "חצי דקה" names no number and would read as a minute. */
+const HALF_MINUTE = /חצי\s+דקה/;
 
-export function inferFilmSeconds(text: string): number {
+export function inferFilmSeconds(request: string): number {
+  const text = request.replace(HALF_MINUTE, "30 שניות");
   const seconds = SECONDS.exec(text);
   const minutes = MINUTES.exec(text);
   let value = DEFAULT_FILM_SECONDS;

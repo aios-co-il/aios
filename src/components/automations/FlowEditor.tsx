@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -36,9 +37,9 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { FlowNodeRF, FlowNodeData } from "./FlowNode";
+import { FlowNodeRF, FlowNodeData, type RFNodeData } from "./FlowNode";
 import { AddStepMenu } from "./AddStepMenu";
-import { InsertableEdge } from "./InsertableEdge";
+import { InsertableEdge, type InsertableEdgeData } from "./InsertableEdge";
 import { StepConfigPanel } from "./StepConfigPanel";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import { TestFlowWithLeadDialog } from "./TestFlowWithLeadDialog";
@@ -52,6 +53,9 @@ const nodeTypes = {
 const edgeTypes = {
   insertable: InsertableEdge,
 };
+
+type FlowEditorNode = Node<RFNodeData>;
+type FlowEditorEdge = Edge<InsertableEdgeData>;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -72,11 +76,12 @@ function normalizeStepConfiguration(config: unknown): Record<string, any> {
   return {};
 }
 
+/** Keep the renderer's node data aligned with the editor state contract. */
 function toRFNode(
   nd: FlowNodeData,
   onDelete: (id: string) => void,
   onSelect: (id: string) => void,
-): Node {
+): FlowEditorNode {
   return {
     id: nd.id,
     type: "flowNode",
@@ -145,8 +150,12 @@ export default function FlowEditor({
   );
 
   // React Flow state
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<FlowEditorNode>(
+    [],
+  );
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<FlowEditorEdge>(
+    [],
+  );
 
   // ── Callbacks ──────────────────────────────────────────────────────────────
 
@@ -209,7 +218,7 @@ export default function FlowEditor({
   const syncRFNodes = useCallback(
     (dataMap: Record<string, FlowNodeData>) => {
       setRfNodes((prev) =>
-        Object.values(dataMap).map((nd) => {
+        Object.values(dataMap).map((nd): FlowEditorNode => {
           const existing = prev.find((n) => n.id === nd.id);
           return {
             ...(existing || {}),
@@ -226,7 +235,7 @@ export default function FlowEditor({
               onDisconnect: handleDisconnectNode,
             },
             draggable: true,
-          } as Node;
+          };
         }),
       );
     },
@@ -309,7 +318,7 @@ export default function FlowEditor({
 
     if (steps.length > 0) {
       const dataMap: Record<string, FlowNodeData> = {};
-      const edges: Edge[] = [];
+      const edges: Array<FlowEditorEdge> = [];
 
       steps.forEach((s: any) => {
         const configuration = normalizeStepConfiguration(s.configuration);
@@ -359,7 +368,7 @@ export default function FlowEditor({
           data: { onInsert: handleInsertBetween },
           animated: false,
           style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-          markerEnd: { type: "arrowclosed" as any },
+          markerEnd: { type: MarkerType.ArrowClosed },
         });
       });
 
@@ -459,7 +468,7 @@ export default function FlowEditor({
             data: { onInsert: handleInsertBetween },
             animated: false,
             style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-            markerEnd: { type: "arrowclosed" as any },
+            markerEnd: { type: MarkerType.ArrowClosed },
           },
           {
             id: `e-${newId}-${targetId}`,
@@ -471,7 +480,7 @@ export default function FlowEditor({
             data: { onInsert: handleInsertBetween },
             animated: false,
             style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-            markerEnd: { type: "arrowclosed" as any },
+            markerEnd: { type: MarkerType.ArrowClosed },
           },
         ];
       });
@@ -542,7 +551,7 @@ export default function FlowEditor({
             data: { onInsert: handleInsertBetween },
             animated: false,
             style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-            markerEnd: { type: "arrowclosed" as any },
+            markerEnd: { type: MarkerType.ArrowClosed },
           },
         ]);
       }
@@ -596,14 +605,14 @@ export default function FlowEditor({
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      const edge: Edge = {
+      const edge: FlowEditorEdge = {
         ...connection,
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
         type: "insertable",
         data: { onInsert: handleInsertBetween },
         animated: false,
         style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
-        markerEnd: { type: "arrowclosed" as any },
+        markerEnd: { type: MarkerType.ArrowClosed },
       };
       setRfEdges((eds) => addEdge(edge, eds));
 

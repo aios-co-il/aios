@@ -646,14 +646,15 @@ export function PublishingStudio({
   useEffect(() => {
     if (correlationSynced.current || !correlatedSites.length) return;
     const updates = correlatedSites.filter(
-      ({ site, project, primaryDomain }) => {
+      (row): row is typeof row & { site: PublishingSite } => {
+        const { site, project, primaryDomain } = row;
         const liveUrl = primaryDomain
           ? `https://${primaryDomain}`
           : project.deployment?.state === "READY" && project.deployment.url
             ? `https://${project.deployment.url}`
             : null;
         return (
-          site &&
+          !!site &&
           (site.connection_id !== project.id ||
             (!!liveUrl && site.base_url !== liveUrl) ||
             (project.deployment?.state === "READY" && site.status !== "active"))

@@ -5,13 +5,15 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  { ignores: ["dist", ".local"] },
   {
     rules: {
+      curly: "warn",
       "max-lines": [
         "warn",
         { max: 150, skipBlankLines: true, skipComments: true },
       ],
+      "no-unneeded-ternary": "warn",
     },
   },
   {
@@ -31,10 +33,12 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
-      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/unified-signatures": "error",
+      "@typescript-eslint/no-non-null-assertion": "warn",
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
+      "@typescript-eslint/array-type": ["warn", { default: "generic" }], // AIO-305
     },
   },
   {

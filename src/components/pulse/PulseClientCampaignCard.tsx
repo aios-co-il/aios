@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Facebook, FileSpreadsheet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PulseTrafficMetrics } from "./PulseTrafficMetrics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -58,6 +59,10 @@ import {
   type PulseCampaignGoalRow,
 } from "@/lib/pulseCampaignGoals";
 import { Input } from "@/components/ui/input";
+import {
+  pulseTargetKindLabel,
+  pulseTargetSourceLabel,
+} from "../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 const PLATFORM_CONFIG: Record<string, { name: string; color: string }> = {
   facebook_insights: { name: "Facebook", color: "text-blue-600" },
@@ -441,8 +446,8 @@ export function PulseCampaignGoalCard({
           <div className="font-medium">{row.status_reason}</div>
           <div className="mt-1 text-xs text-muted-foreground">
             {row.target_value === null
-              ? "אין יעד מאושר — המגמה מוצגת עם מגבלת מסקנה"
-              : `יעד מאושר: ${String(row.target_kind || "יעד").toUpperCase()} ${row.target_value}`}
+              ? "אין יעד — המגמה מוצגת מול 4 השבועות הקודמים"
+              : `${pulseTargetSourceLabel(row.target_source)}: ${pulseTargetKindLabel(row.target_kind)} ${row.target_value}`}
           </div>
         </div>
 
@@ -507,6 +512,7 @@ export function PulseCampaignGoalCard({
           )}
           {row.goal === "engagement" ? (
             <>
+              <PulseTrafficMetrics row={row} formatNumber={formatNumber} />
               <div>
                 <span className="text-muted-foreground">תפוצה: </span>
                 <strong>{formatNumber(row.reach_7d)}</strong>

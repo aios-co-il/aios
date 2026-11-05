@@ -1,12 +1,9 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   resolveBoardTaskAgency,
   resolveNewTaskAgency,
   resolveTaskEffectiveAgency,
   filterTasksBySelectedAgency,
-  filterTasksForBoardView,
-  headerAgencyAppliesToBoard,
-  resolveTasksBoardAgencyFilter,
   buildTasksBoardScopeOrFilter,
   resolveTasksBoardScope,
   syncLocalTasksForAgencyFilter,
@@ -92,82 +89,17 @@ test("filterTasksBySelectedAgency leaves the list alone for all", () => {
   expect(filterTasksBySelectedAgency(all, null)).toBe(all);
 });
 
-test("mine view keeps assigned tasks across agencies regardless of header", () => {
-  const rows = [
-    misstampedDmmTask,
-    promoClientTaskStampedDmm,
-    promoTaskNoClient,
-  ];
-  expect(
-    filterTasksForBoardView(rows, "all", "mine").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-  expect(
-    filterTasksForBoardView(rows, PROMO, "mine").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-});
-
-test("resolveTasksBoardAgencyFilter ignores header on person queues", () => {
-  expect(resolveTasksBoardAgencyFilter("mine", "all")).toBe("all");
-  expect(resolveTasksBoardAgencyFilter("mine", PROMO)).toBe("all");
-  expect(resolveTasksBoardAgencyFilter("staff-david", PROMO)).toBe("all");
-  expect(resolveTasksBoardAgencyFilter("all", PROMO)).toBe(PROMO);
-});
-
-test("team view still honors the header agency", () => {
-  const rows = [
-    misstampedDmmTask,
-    promoClientTaskStampedDmm,
-    promoTaskNoClient,
-  ];
-  expect(
-    filterTasksForBoardView(rows, PROMO, "all").map((task) => task.id),
-  ).toStrictEqual(["2", "3"]);
-});
-
-test("header agency applies on team board only", () => {
-  expect(headerAgencyAppliesToBoard("all", PROMO)).toBe(true);
-  expect(headerAgencyAppliesToBoard("all", "all")).toBe(false);
-  expect(headerAgencyAppliesToBoard("mine", "all")).toBe(false);
-  expect(headerAgencyAppliesToBoard("mine", PROMO)).toBe(false);
-  expect(headerAgencyAppliesToBoard("staff-david", PROMO)).toBe(false);
-});
-
-test("picking a specific campaigner keeps tasks across agencies", () => {
-  const rows = [
-    misstampedDmmTask,
-    promoClientTaskStampedDmm,
-    promoTaskNoClient,
-  ];
-  expect(
-    filterTasksForBoardView(rows, "all", "staff-david").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-  expect(
-    filterTasksForBoardView(rows, PROMO, "staff-david").map((task) => task.id),
-  ).toStrictEqual(["1", "2", "3"]);
-});
-
-test("syncLocalTasksForAgencyFilter keeps mine rows across agencies while fetching", () => {
-  const duringFetch = syncLocalTasksForAgencyFilter({
-    isFetching: true,
-    fetchedTasks: [],
-    previousLocal: [misstampedDmmTask, promoTaskNoClient],
-    selectedAgency: "all",
-    campaignerFilter: "mine",
-  });
-  expect(duringFetch.map((task) => task.id)).toStrictEqual(["1", "3"]);
-});
-
-test("syncLocalTasksForAgencyFilter can narrow by campaigner while fetching", () => {
-  const rows = [
+test("my queue honors the header agency through the client's agency", () => {
+  const myRows = [
     { ...misstampedDmmTask, campaigner_id: "staff-itay" },
+    { ...promoClientTaskStampedDmm, campaigner_id: "staff-itay" },
     { ...promoTaskNoClient, campaigner_id: "staff-other" },
   ];
-  const duringFetch = syncLocalTasksForAgencyFilter({
-    isFetching: true,
-    fetchedTasks: [],
-    previousLocal: rows,
-    selectedAgency: "all",
-    campaignerFilter: "mine",
+  const board = syncLocalTasksForAgencyFilter({
+    isFetching: false,
+    fetchedTasks: myRows,
+    previousLocal: [],
+    selectedAgency: PROMO,
     applyCampaignerFilter: (tasks) =>
       filterTasksByCampaignerBoardFilter(tasks, "mine", {
         kind: "assigned",
@@ -176,7 +108,17 @@ test("syncLocalTasksForAgencyFilter can narrow by campaigner while fetching", ()
         campaignerIds: ["staff-itay"],
       }),
   });
-  expect(duringFetch.map((task) => task.id)).toStrictEqual(["1"]);
+  expect(board.map((task) => task.id)).toStrictEqual(["2"]);
+});
+
+test("my queue keeps every agency when the header is all", () => {
+  const duringFetch = syncLocalTasksForAgencyFilter({
+    isFetching: true,
+    fetchedTasks: [],
+    previousLocal: [misstampedDmmTask, promoTaskNoClient],
+    selectedAgency: "all",
+  });
+  expect(duringFetch.map((task) => task.id)).toStrictEqual(["1", "3"]);
 });
 
 test("buildTasksBoardScopeOrFilter scopes tenant and shared agencies only", () => {
@@ -210,6 +152,7 @@ test("resolveTasksBoardScope ignores own-tenant agency ids (not cross-tenant sha
     type: "tenant_or_shared",
     tenantId: "tenant-promo",
     crossTenantAgencyIds: ["agency-dmm-mc"],
+    ownedAgencyShares: [],
   });
 });
 
@@ -269,4 +212,48 @@ test("syncLocalTasksForAgencyFilter applies settled server rows for the agency",
     selectedAgency: PROMO,
   });
   expect(settled.map((task) => task.id)).toStrictEqual(["2"]);
+});
+
+describe("own agency tasks stamped by a tenant it is shared with", () => {
+  const mcTenant = "tenant-mc";
+  const promoShare = { agencyId: PROMO, tenantId: "tenant-promo" };
+
+  test("the board fetch asks for each owned agency and share tenant pair", () => {
+    const scope = resolveTasksBoardScope({
+      tenantId: mcTenant,
+      ownedAgencyShares: [promoShare],
+    });
+    expect(buildTasksBoardScopeOrFilter(scope)).toBe(
+      "tenant_id.eq.tenant-mc,and(agency_id.eq.agency-promo,tenant_id.eq.tenant-promo)",
+    );
+  });
+
+  test("a task the share tenant made on the owned agency stays on the board", () => {
+    expect(
+      taskBelongsToBoardTenantScope(
+        {
+          tenant_id: "tenant-promo",
+          agency_id: PROMO,
+          client_id: null,
+          clients: null,
+        },
+        mcTenant,
+        [],
+        [promoShare],
+      ),
+    ).toBe(true);
+  });
+
+  test("a task on the owned agency from a tenant without the share is dropped", () => {
+    const rows = [
+      { id: "kept", tenant_id: "tenant-promo", agency_id: PROMO },
+      { id: "unshared", tenant_id: "tenant-other", agency_id: PROMO },
+      { id: "other-agency", tenant_id: "tenant-promo", agency_id: DMM },
+    ];
+    expect(
+      filterTasksByBoardTenantScope(rows, mcTenant, [], [promoShare]).map(
+        (task) => task.id,
+      ),
+    ).toStrictEqual(["kept"]);
+  });
 });

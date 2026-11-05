@@ -33,3 +33,7 @@ context, ask the user for it before making the call below.
     with the numeric comment ID from the thread's comment `html_url` (the
     `#discussion_r<id>` suffix, not the thread's GraphQL `id`).
   - Top-level PR comment: `mcp__github__add_issue_comment`.
+
+Unattended mode ([`unattended.md`](./unattended.md)) posts every reply it owes
+without being asked, and creates tickets with `mcp__github__issue_write`
+(`mcp__github__search_issues` for the duplicate check).

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Loader2, Plus, Send } from "lucide-react";
 
-/** Test email to the current user, for email templates. */
+/** Test email: to the current user, or to typed addresses when `to` is set. */
 export interface TestSendPayload {
   tenantId: string | null | undefined;
   subject: string;
@@ -13,6 +13,11 @@ export interface TestSendPayload {
   htmlMode: boolean;
   vars: TemplateVars;
   attachments: EmailAttachment[];
+  bodyText?: string;
+  to?: string[];
+  fromEmail?: string | null;
+  fromName?: string | null;
+  replyTo?: string | null;
 }
 
 /** "Send test" (email only) and "Save" buttons of the template editor. */

@@ -1,17 +1,19 @@
 import { normalizeNotifyPhone } from "../_shared/carmen-notify-target.ts";
+import { loadNotifyReportRecipients } from "../_shared/carmen-report-recipients/load.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
-/** The tenant's pulse phone, recent Carmen sessions (newest first) and active campaigners with a phone. */
+/**
+ * Whom the tenant's Carmen reports to, recent Carmen sessions (newest first)
+ * and active campaigners with a phone. A failed report-list read is logged,
+ * flagged as reportRecipientsUnavailable and leaves the staff chain to decide;
+ * any other failed read throws.
+ */
 export async function loadNotifyRecipients(
-  sb: Pick<DbClient, "from">,
+  sb: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
 ) {
-  const [heartbeat, sessions, campaigners] = await Promise.all([
-    sb
-      .from("tenant_heartbeat_settings")
-      .select("campaign_pulse_phone")
-      .eq("tenant_id", tenantId)
-      .maybeSingle(),
+  const [report, sessions, campaigners] = await Promise.all([
+    loadNotifyReportRecipients(sb, tenantId, "claude-notify"),
     sb
       .from("carmen_whatsapp_sessions")
       .select(
@@ -28,12 +30,13 @@ export async function loadNotifyRecipients(
       .eq("active", true)
       .limit(200),
   ]);
-  const error = heartbeat.error ?? sessions.error ?? campaigners.error;
+  const error = sessions.error ?? campaigners.error;
   if (error) {
     throw new Error(`claude-notify: load recipients failed: ${error.message}`);
   }
   return {
-    campaignPulsePhone: heartbeat.data?.campaign_pulse_phone ?? null,
+    reportRecipients: report.recipients,
+    reportRecipientsUnavailable: report.unavailable,
     sessions: sessions.data ?? [],
     staff: (campaigners.data ?? [])
       .filter((c) => !!normalizeNotifyPhone(c.phone))

@@ -78,7 +78,7 @@ export async function trackCursorTaskSession(
 
   const { error } = await supabase
     .from("cursor_task_sessions")
-    .upsert(row, { onConflict: "cursor_agent_id" });
+    .upsert(row, { onConflict: "tenant_id,cursor_agent_id" });
   if (error) throw error;
 
   if (input.humanTaskId) {
@@ -100,6 +100,7 @@ export async function trackCursorTaskSession(
 
 export async function touchCursorTaskSession(
   supabase: { from: (t: string) => any },
+  tenantId: string,
   cursorAgentId: string,
   status?: CursorSessionStatus,
 ): Promise<void> {
@@ -111,6 +112,7 @@ export async function touchCursorTaskSession(
   await supabase
     .from("cursor_task_sessions")
     .update(patch)
+    .eq("tenant_id", tenantId)
     .eq("cursor_agent_id", id);
 }
 

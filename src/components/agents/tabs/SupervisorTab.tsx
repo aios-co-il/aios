@@ -35,7 +35,7 @@ export function SupervisorTab({
       const { data } = await supabase
         .from("ai_agents")
         .select("id, name, talent")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .neq("id", agent.id);
       return data ?? [];
     },
