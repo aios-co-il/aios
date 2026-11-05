@@ -24,6 +24,8 @@ class RealtimeConversation(
     private val account: AiosAccount,
     private val log: EventLog,
     private val listener: Listener,
+    /** When the wake word or the talk button fired; the first audio logs the delay from it. */
+    private val activatedAt: Long,
 ) {
     interface Listener {
         fun onState(state: CarmenSession.State)
@@ -40,6 +42,7 @@ class RealtimeConversation(
     private var idleTimer: ScheduledFuture<*>? = null
     @Volatile private var ended = false
     @Volatile private var toolRunning = false
+    @Volatile private var heardCarmen = false
 
     fun start() {
         listener.onState(CarmenSession.State.CONNECTING)
@@ -75,7 +78,7 @@ class RealtimeConversation(
                 end("error: audio ${it.message}")
                 return
             }
-            listener.onState(CarmenSession.State.LISTENING)
+            greet()
             resetIdleTimer()
         }
 
@@ -105,6 +108,10 @@ class RealtimeConversation(
                 resetIdleTimer()
             }
             "response.output_audio.delta", "response.audio.delta" -> {
+                if (!heardCarmen) {
+                    heardCarmen = true
+                    log.record(EventLog.Event.VOICE_STARTED, "latency_ms=${System.currentTimeMillis() - activatedAt}")
+                }
                 listener.onState(CarmenSession.State.SPEAKING)
                 audio.play(Base64.decode(event.getString("delta"), Base64.DEFAULT))
             }
@@ -142,6 +149,16 @@ class RealtimeConversation(
             if (responses.requestCreate()) send(JSONObject().put("type", "response.create"))
             resetIdleTimer()
         }
+    }
+
+    /** The one opening line of the call, then Carmen waits for the user's request. */
+    private fun greet() {
+        send(
+            JSONObject().put("type", "response.create").put(
+                "response",
+                JSONObject().put("instructions", "Say exactly \"כן, אני מקשיבה\" in Hebrew, nothing else, then wait."),
+            ),
+        )
     }
 
     private fun sendAudio(pcm: ByteArray) {

@@ -116,15 +116,21 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         log.record(EventLog.Event.WAKE_DETECTED, detail)
         CarmenSession.begin()
         showCarmen()
-        voice.acknowledge(
-            onStart = { ms -> log.record(EventLog.Event.VOICE_STARTED, "latency_ms=$ms") },
-            onDone = { handler.post { startConversation() } },
-        )
+        val activatedAt = System.currentTimeMillis()
+        if (account.isSignedIn) {
+            // Carmen says "כן, אני מקשיבה" herself, in her own voice, once the call connects.
+            startConversation(activatedAt)
+        } else {
+            voice.acknowledge(
+                onStart = { ms -> log.record(EventLog.Event.VOICE_STARTED, "latency_ms=$ms") },
+                onDone = { handler.post { startConversation(activatedAt) } },
+            )
+        }
         handler.postDelayed(endSessionOnTimeout, ActivationGate.DEFAULT_MAX_SESSION_MS)
     }
 
     /** After "כן, אני מקשיבה", opens the live conversation with Carmen's brain. */
-    private fun startConversation() {
+    private fun startConversation(activatedAt: Long) {
         if (gate.state != ActivationGate.State.ACTIVE || conversation != null) return
         if (!account.isSignedIn) {
             CarmenSession.notice(getString(R.string.sign_in_to_talk))
@@ -132,7 +138,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
             handler.postDelayed(endSessionOnTimeout, SIGNED_OUT_SESSION_MS)
             return
         }
-        conversation = RealtimeConversation(this, account, log, conversationListener).also { it.start() }
+        conversation = RealtimeConversation(this, account, log, conversationListener, activatedAt).also { it.start() }
     }
 
     private val conversationListener = object : RealtimeConversation.Listener {
