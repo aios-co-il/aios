@@ -15,7 +15,7 @@ import {
   SCENES_FOLDER,
   folderTabs,
   type WorkshopArtifact,
-} from "./workshopFeed";
+} from "./workshopFeedModel";
 
 const row = (over: Partial<SceneRow> = {}): SceneRow => ({
   id: "s1",

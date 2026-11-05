@@ -7,11 +7,9 @@ import {
   PUBLIC_TABLE_SETTINGS_KEYS,
   toPublicTableSettings,
 } from "../../supabase/functions/_shared/share-links/public-table-settings.ts";
-import {
-  facebookTableUsesMixedRows,
-  isFacebookLeadsOnlyTable,
-} from "@/lib/adsMetrics";
-import { getCampaignType } from "@/lib/agencyCampaignData";
+import { isEcommerceReportTable } from "../../supabase/functions/_shared/campaign-goal/table-goal.ts";
+import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
+import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { resolveDashboardCurrency } from "@/lib/currency";
 import { parseSharedReportTabs } from "@/lib/sharedReportTabs";
@@ -149,11 +147,13 @@ describe("share link table settings", () => {
     publicTables.forEach((table, index) => {
       const stored = storedTables[index].integration_settings;
       const filtered = table.integration_settings;
-      expect(getCampaignType(table.integration_type, filtered)).toBe(
-        getCampaignType(table.integration_type, stored),
+      const filteredTable = { ...table, integration_settings: filtered };
+      const storedTable = { ...table, integration_settings: stored };
+      expect(isEcommerceReportTable(filteredTable)).toBe(
+        isEcommerceReportTable(storedTable),
       );
-      expect(facebookTableUsesMixedRows(table.integration_type, filtered)).toBe(
-        facebookTableUsesMixedRows(table.integration_type, stored),
+      expect(googleReportFallbackGoal([filteredTable])).toBe(
+        googleReportFallbackGoal([storedTable]),
       );
       expect(isFacebookLeadsOnlyTable(filtered)).toBe(
         isFacebookLeadsOnlyTable(stored),

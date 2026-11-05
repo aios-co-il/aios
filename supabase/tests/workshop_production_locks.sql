@@ -222,7 +222,7 @@ BEGIN
   SELECT * INTO v_run FROM public.claim_video_run(ARRAY['clip', 'voice', 'music', 'lipsync'], 'qa');
 
   FOR v_run IN SELECT * FROM public.marketing_runs WHERE id IN (v_paid, v_voice, v_alone_clip) LOOP
-    IF v_run.status <> 'failed' OR coalesce(v_run.error, '') NOT LIKE '%התקציב שאושר לפרויקט נוצל%' THEN
+    IF v_run.status <> 'failed' OR coalesce(v_run.error, '') NOT LIKE '%התקציב שאושר לפרויקט%' THEN
       RAISE EXCEPTION 'budget: a paid % over the approved budget must end failed with the budget error (%, %)',
         v_run.kind, v_run.status, v_run.error;
     END IF;

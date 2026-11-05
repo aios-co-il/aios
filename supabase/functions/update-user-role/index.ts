@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { canGrantRole } from "../_shared/user-admin/role-grant.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,19 +56,15 @@ serve(async (req: Request) => {
       throw new Error("Error checking user roles");
     }
 
-    const isSuperAdmin = roles?.some(
-      (r) => r.role === "super_admin" && r.tenant_id === null,
-    );
-    const isOwnerInAnyTenant = roles?.some((r) => r.role === "owner");
-
-    if (!isSuperAdmin && !isOwnerInAnyTenant) {
-      throw new Error("Only owners or super admins can update user roles");
-    }
-
     const { userId, role, tenantId }: UpdateRoleRequest = await req.json();
 
     if (!userId || !role || !tenantId) {
       throw new Error("User ID, role, and tenant ID are required");
+    }
+
+    // An owner changes roles only in a tenant it owns, and never to super_admin.
+    if (!canGrantRole(roles ?? [], tenantId, role, ["owner"])) {
+      throw new Error("Only owners or super admins can update user roles");
     }
 
     // Validate role

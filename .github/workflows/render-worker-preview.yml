@@ -130,4 +130,4 @@ jobs:
           WORKER_ID: gha-preview
           WORKER_ENV: preview
         # exec: the runner's stop signal reaches node (not only bash), so it requeues its runs.
-        run: exec node src/index.mjs
+        run: exec node src/index.ts

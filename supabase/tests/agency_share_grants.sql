@@ -35,6 +35,10 @@ BEGIN
   VALUES ('QA ROLLBACK W', 'qa-rollback-' || gen_random_uuid()) RETURNING id INTO t_w;
 
   -- The actor owns t_x, and t_z or t_w when it switches its active tenant.
+  -- Like a real owner it is also a tenant_users member: an active tenant must
+  -- be one the user belongs to (20261102109000_active_tenant_membership).
+  INSERT INTO public.tenant_users (user_id, tenant_id, role)
+  VALUES (actor, t_x, 'owner'), (actor, t_z, 'owner'), (actor, t_w, 'owner');
   INSERT INTO public.user_active_tenant (user_id, tenant_id) VALUES (actor, t_x)
   ON CONFLICT (user_id) DO UPDATE SET tenant_id = excluded.tenant_id;
   INSERT INTO public.user_roles (user_id, role, tenant_id)

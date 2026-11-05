@@ -9,19 +9,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { BuiltinBrainState } from "../../../../../supabase/functions/_shared/carmen/brain-connections/types.ts";
+import type {
+  BuiltinBrainState,
+  TenantRef,
+} from "../../../../../supabase/functions/_shared/carmen/brain-connections/types.ts";
+import { BuiltinShareSection } from "./BuiltinShareSection";
 import type { useBrainConnections } from "./useBrainConnections";
 
+/** What this tenant runs on when it has no key of its own. */
+const FALLBACK_TEXT: Record<string, string> = {
+  shared: "המפתח המשותף",
+  project: "מפתח הפרויקט",
+};
+
 /**
- * Key (and id) for a built-in brain; it overrides the env secret for this
- * tenant. Mounted only while open, so it starts from the saved id.
+ * This tenant's own key and id for a built-in brain, saved only as a pair,
+ * and who it is shared with. Mounted only while open, so it starts from the
+ * saved id.
  */
 export function BuiltinKeyDialog({
   builtin,
+  shareTargets,
   write,
   onClose,
 }: {
   builtin: BuiltinBrainState;
+  shareTargets: TenantRef[];
   write: ReturnType<typeof useBrainConnections>["write"];
   onClose: () => void;
 }) {
@@ -29,8 +42,15 @@ export function BuiltinKeyDialog({
   const [externalId, setExternalId] = useState(builtin.external_id ?? "");
   const hasOverride = !!builtin.key_last4 || !!builtin.external_id;
   const idChanged = (builtin.external_id ?? "") !== externalId.trim();
-  const canSave =
-    apiKey.trim().length >= 8 || (!!builtin.id_label && idChanged);
+  // A key needs its id and an id needs its key, so a send never mixes sources.
+  const hasKey = apiKey.trim().length >= 8 || !!builtin.key_last4;
+  const hasId = !builtin.id_label || !!externalId.trim();
+  const changed = !!apiKey.trim() || (!!builtin.id_label && idChanged);
+  const canSave = hasKey && hasId && changed;
+  const fallback =
+    builtin.source === "shared"
+      ? `${FALLBACK_TEXT.shared} מ-${builtin.shared_from?.name ?? ""}`
+      : (FALLBACK_TEXT[builtin.source ?? ""] ?? "המוח לא מוגדר");
 
   const save = () =>
     write.mutate(
@@ -52,7 +72,7 @@ export function BuiltinKeyDialog({
       {
         action: "reset_builtin",
         payload: { builtin_slug: builtin.slug },
-        success: "חזר לסוד הסביבה",
+        success: "המפתח של הארגון נמחק",
       },
       { onSuccess: onClose },
     );
@@ -63,8 +83,9 @@ export function BuiltinKeyDialog({
         <DialogHeader>
           <DialogTitle>מפתח ל-{builtin.label}</DialogTitle>
           <DialogDescription>
-            מפתח שנשמר כאן גובר על סוד הסביבה של הפרויקט. בלי מפתח כאן, נעשה
-            שימוש בסוד הסביבה ({builtin.env_configured ? "מוגדר" : "לא מוגדר"}).
+            מפתח שנשמר כאן משמש רק את הארגון הזה
+            {builtin.id_label ? `, ונשמר יחד עם ה-${builtin.id_label}` : ""}.
+            {builtin.source !== "own" && ` כרגע: ${fallback}.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -98,7 +119,7 @@ export function BuiltinKeyDialog({
                 disabled={write.isPending}
                 onClick={reset}
               >
-                חזרה לסוד הסביבה
+                מחיקת המפתח של הארגון
               </Button>
             )}
             <Button
@@ -109,6 +130,13 @@ export function BuiltinKeyDialog({
               {write.isPending ? "שומר…" : "שמירה"}
             </Button>
           </div>
+          {builtin.can_share && shareTargets.length > 0 && (
+            <BuiltinShareSection
+              builtin={builtin}
+              shareTargets={shareTargets}
+              write={write}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

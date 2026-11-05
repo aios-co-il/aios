@@ -7,8 +7,10 @@ DECLARE
   png text := 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAoCAYAAAAIeF9DAAABaklEQVR4nO2a2w4CIQxEV///n/XJmBAo0E4vkDkvJuoC7TDtLvo8hBBCCGn5NK9H8MpegBM9EY6I9Z29gECOcMoRu2aTlcSXjTvCIdm1vJf8sm7x3inRtbyd7yV85r0WFZ4Oid6Fs/mOcIqXIFKgUUnoCTASpYwwHpZdDQ45t1SqVq9Zvc4VtENGQVYsFxXXBBVktuO8dp/GHdJ3U0VBCbJq//Y9a/CI5JXqKwhBrLUYGbjWhWXKqlUQjRio0mUpVSPSRbEIYnEGunQhSRUF2dStO3QnaA93zMYL6StaQRAJ0e7EyAfLcLdoBKnQhNFj7I7vJsquIB5Ptzv9xLtUjQgTZUeQyKOGSk3+R0hfWRXEWwzN2VPGuZN7X1kRJMoZUumq5ph2rbB8zATJPhEdCZF+Kvv81wBdizRYlhiaH5quYeSQTGdcnfAZPUGyy5Q03/Vi9QRxa1jERoU7m+y/EBFCCCGEEELI9XwB8rdKLSjw0x0AAAAASUVORK5CYII=';
   fields jsonb; values jsonb; result jsonb; message text;
 BEGIN
-  SELECT tenant_id, created_by INTO tenant, creator FROM public.signature_documents LIMIT 1;
-  IF tenant IS NULL THEN RAISE EXCEPTION 'Requires an existing tenant/document owner'; END IF;
+  creator := gen_random_uuid();
+  INSERT INTO auth.users (id, email) VALUES (creator, 'qa-signature-' || creator || '@example.invalid');
+  INSERT INTO public.tenants (name, slug)
+    VALUES ('QA ROLLBACK signature integrity', 'qa-signature-' || gen_random_uuid()) RETURNING id INTO tenant;
   fields := '[{"id":"name","type":"full_name","required":true,"recipient_index":0,"position":{"page":1}},
     {"id":"stamp","type":"signature_stamp","required":true,"recipient_index":0,"position":{"page":1}},
     {"id":"signature2","type":"signature","required":true,"recipient_index":0,"position":{"page":2}}]'::jsonb;

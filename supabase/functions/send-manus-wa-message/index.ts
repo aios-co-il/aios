@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { lineAccess, senderAccess } from "./sender-access.ts";
+import { senderAccess, senderLine } from "./sender-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import type { Json, Tables } from "../_shared/database.types.ts";
@@ -8,7 +8,12 @@ import {
   parseJsonOrRaw,
   thrownMessage,
   thrownName,
-} from "../_shared/manus-json.ts";
+} from "../_shared/manus/json.ts";
+import { lineSetting } from "../_shared/report-sender/line-access.ts";
+import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
+import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
+import { toGatewayPhone } from "../_shared/telephony/phone.ts";
+import { liveLineDeps } from "./line.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,20 +22,6 @@ const corsHeaders = {
 };
 
 const BASE_URL = "https://whatsappgw-pzpyrrww.manus.space";
-
-type ManusWaIntegration = Pick<
-  Tables<"tenant_integrations">,
-  "id" | "tenant_id" | "api_key" | "settings" | "user_id"
->;
-
-// Normalize Israeli/intl phone to digits-only with country code default 972.
-function toGatewayPhone(input: string, defaultCc = "972"): string {
-  let d = (input || "").replace(/[^0-9]/g, "");
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith(defaultCc)) return d;
-  if (d.startsWith("0")) return defaultCc + d.slice(1);
-  return defaultCc + d;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -95,6 +86,8 @@ Deno.serve(async (req) => {
       tenantId: providedTenantId,
       senderUserId,
       integrationId,
+      sendKind,
+      sendRef,
     } = body;
 
     if (isServiceRole) {
@@ -179,40 +172,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Find integration
-    let integ: ManusWaIntegration | null = null;
-    if (integrationId) {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .eq("integration_type", "manus_wa")
-        .eq("is_active", true)
-        .maybeSingle();
-      integ = data;
-      const usable =
-        integ && (await lineAccess(admin, tenantId, access, integ));
-      if (usable instanceof Response) {
-        return usable;
-      }
-      if (!usable) {
-        integ = null;
-      }
-    } else {
-      const { data } = await admin
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("user_id", userId)
-        .eq("integration_type", "manus_wa")
-        .eq("is_active", true)
-        .order("created_at", { ascending: true })
-        .limit(1);
-      integ = data?.[0] || null;
+    const lineStep = await senderLine(liveLineDeps(serviceClient()), {
+      type: "manus_wa",
+      isServiceRole,
+      tenantId,
+      userId,
+      integrationId,
+      superAdmin: access.superAdmin,
+    });
+    if (lineStep instanceof Response) {
+      return lineStep;
     }
+    if ("refusal" in lineStep) {
+      return new Response(JSON.stringify(lineStep.refusal.body), {
+        status: lineStep.refusal.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const integ = lineStep.line;
+    const instanceId = integ && lineSetting(integ.settings, "instance_id");
 
-    const settings = asJsonObject(integ?.settings);
-    if (!integ?.api_key || !settings?.instance_id) {
+    if (!integ?.api_key || !instanceId) {
       return new Response(
         JSON.stringify({ error: "Manus WhatsApp not configured" }),
         {
@@ -222,11 +202,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const instanceId = settings.instance_id;
     const apiKey = integ.api_key;
-    const cc = String(
-      settings.country_code || settings.default_country_code || "972",
-    );
+    const cc =
+      lineSetting(integ.settings, "country_code") ??
+      lineSetting(integ.settings, "default_country_code") ??
+      "972";
     // For groups, send chat id as-is (e.g. "1234567890-9876543210@g.us"); otherwise normalize phone.
     const to = groupChatId
       ? groupChatId
@@ -234,6 +214,19 @@ Deno.serve(async (req) => {
           String(phoneNumber || ""),
           /^\d{1,3}$/.test(cc) ? cc : "972",
         );
+
+    const refused = await refuseClientSend(serviceClient(), {
+      functionName: "send-manus-wa-message",
+      tenantId,
+      channel: "whatsapp",
+      address: to,
+      groupId: groupChatId ? groupId : null,
+      isServiceRole,
+      body,
+    });
+    if (refused) {
+      return refused;
+    }
 
     const guard = checkWhatsAppSend(groupChatId ? `group:${groupChatId}` : to);
     if (guard.decision === "BLOCK") {
@@ -307,7 +300,9 @@ Deno.serve(async (req) => {
         const isManusTimeout =
           typeof respError === "string" &&
           /timeout of \d+ms exceeded/i.test(respError);
-        if (res.ok && asJsonObject(respData)?.success !== false) break;
+        if (res.ok && asJsonObject(respData)?.success !== false) {
+          break;
+        }
         if (!isManusTimeout && res.status < 500) {
           // non-retryable client error
           break;
@@ -385,6 +380,7 @@ Deno.serve(async (req) => {
       sent_by_user_id: userId,
       raw_provider_data: respData,
       sender_phone: groupChatId ? null : to,
+      ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
     if (insertError) console.error("Failed to save message:", insertError);
 
