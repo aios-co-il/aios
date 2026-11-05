@@ -6,15 +6,9 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeFileName } from "../../../../lib/sanitizeFileName.ts";
 
-export interface BrandBook extends z.output<typeof creativeBrandBook> {
-  colors: z.output<typeof creativeBrandBook>["colors"];
-}
+export type BrandBook = z.output<typeof creativeBrandBook>;
 
-export interface StyleReference extends z.output<
-  typeof creativeStyleReference
-> {
-  url: z.output<typeof creativeStyleReference>["url"];
-}
+export type StyleReference = z.output<typeof creativeStyleReference>;
 
 export interface CreativeBrandKit {
   logoUrl?: string;

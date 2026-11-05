@@ -1,5 +1,6 @@
 import { serializeCreativeAssetMeta } from "./creative/creativeAssetMeta";
 import type { CreativeVideoSettings } from "./creative/creativeProjectSettings";
+import type { StoredCreativePayload } from "./creative/storedCreativePayload";
 import { serializeCreativeVideoSettingsPatch } from "./creative/creativeVideoSettingsPatch";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -74,6 +75,7 @@ import type {
   CreativeComment,
   CreativeItem,
   CreativeProjectDraft,
+  ManualCreativePayload,
   CreativeProjectType,
   CreativeVariation,
   StoryboardFrame,
@@ -1717,7 +1719,7 @@ export function CreativeDepartment({
       if (readError) throw readError;
       const latestPayload = (latestRow?.payload ??
         selected.payload ??
-        {}) as Record<string, unknown>;
+        {}) as StoredCreativePayload;
       const nextIds = new Set(nextVariations.map((row) => row.id));
       const dropIds = variations
         .map((row) => row.id)
@@ -4514,7 +4516,7 @@ function ManualCreativeDialog({
       }
       const linkedCopy = mode === "from_copy" ? selectedCopyItem : null;
       const at = new Date().toISOString();
-      let payload: Record<string, unknown> = {
+      let payload: ManualCreativePayload = {
         brief_text: brief.trim() || undefined,
         copy_text: copyText.trim() || undefined,
         format,
