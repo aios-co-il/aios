@@ -95,6 +95,9 @@ class MainActivity : AppCompatActivity() {
     private fun withMic(action: () -> Unit) {
         val needed = buildList {
             add(Manifest.permission.RECORD_AUDIO)
+            // Phase 3: Carmen finds contacts and calls; asked together so setup is one prompt.
+            add(Manifest.permission.READ_CONTACTS)
+            add(Manifest.permission.CALL_PHONE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
         }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isEmpty()) {
