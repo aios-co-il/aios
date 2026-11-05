@@ -1,12 +1,12 @@
 // WhatsApp + intel-feed alerts when Recall meeting-bot credit runs out.
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { DbClient } from "./supabase-clients.ts";
 import {
   formatRecallBotHours,
   recallBillingDashboardUrl,
   recallCreditErrorMessage,
 } from "./recall.ts";
 
-type RecallAlertClient = Pick<SupabaseClient, "from" | "rpc">;
+type RecallAlertClient = Pick<DbClient, "from" | "rpc">;
 
 export const DAVID_TENANT = "6ad8f321-25db-4a04-8e44-e57a7c8961b2";
 const THROTTLE_HOURS = 6;
