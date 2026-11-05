@@ -41,6 +41,9 @@ Deno.serve(async (req) => {
   const content = body.content;
   if (!conversationId || !content)
     return json(400, { error: "conversation_id and content are required" });
+  if (body.event_type === null) {
+    return json(400, { error: "Unknown event_type" });
+  }
 
   const token = bearerFrom(req);
   if (!token) return json(401, { error: "Missing callback token" });

@@ -17,7 +17,10 @@ const openChatSessionRowsSchema = z
   )
   .catch([]);
 
-type OpenChatSessionsResult = { data: unknown };
+type OpenChatSessionsResult = {
+  data: unknown;
+  error?: { message: string } | null;
+};
 
 interface OpenChatSessionsQuery extends PromiseLike<OpenChatSessionsResult> {
   match(query: { tenant_id: string; provider: string }): OpenChatSessionsQuery;
@@ -109,6 +112,10 @@ export function missingOpenChatMessage(provider: OpenChatProvider): string {
   );
 }
 
+export function openChatLookupFailedMessage(reason: string): string {
+  return `לא הצלחתי לקרוא את הצ'אטים הפתוחים של Cursor: ${reason}`;
+}
+
 export function busyOpenChatMessage(
   provider: OpenChatProvider,
   url?: string | null,
@@ -149,19 +156,23 @@ export async function collectOpenChatIds(
     if (fixed) ids.push(fixed.sessionId);
   }
 
-  try {
-    const { data: sessions } = await sb
-      .from("agent_channel_sessions")
-      .select("external_session_id")
-      .match({ tenant_id: args.tenantId, provider: args.provider })
-      .not("external_session_id", "is", null)
-      .order("last_activity_at", { ascending: false })
-      .limit(5);
-    for (const row of openChatSessionRowsSchema.parse(sessions)) {
-      ids.push(...uniqueCloudAgentIds(row.external_session_id));
-    }
-  } catch {
-    /* ignore */
+  const { data: sessions, error } = await sb
+    .from("agent_channel_sessions")
+    .select("external_session_id")
+    .match({ tenant_id: args.tenantId, provider: args.provider })
+    .not("external_session_id", "is", null)
+    .order("last_activity_at", { ascending: false })
+    .limit(5);
+  if (error) {
+    console.error("[sticky-agent] open chat sessions lookup failed", {
+      tenantId: args.tenantId,
+      provider: args.provider,
+      error: error.message,
+    });
+    throw new Error(openChatLookupFailedMessage(error.message));
+  }
+  for (const row of openChatSessionRowsSchema.parse(sessions)) {
+    ids.push(...uniqueCloudAgentIds(row.external_session_id));
   }
 
   return uniqueCloudAgentIds(...ids);

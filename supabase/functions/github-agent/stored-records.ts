@@ -9,7 +9,9 @@ export function readProposedFix(
   raw: unknown,
 ): { filePath: string; newCode: string } | null {
   const { file_path, new_code } = proposedFixSchema.parse(raw);
-  if (!file_path || !new_code) return null;
+  if (!file_path || !new_code) {
+    return null;
+  }
   return { filePath: String(file_path), newCode: String(new_code) };
 }
 

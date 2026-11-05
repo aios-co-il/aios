@@ -181,7 +181,9 @@ export async function deliverWhatsAppReply(
   content: string,
 ): Promise<boolean | null> {
   const target = replyTargetFrom(sessionMetadata);
-  if (!target) return null;
+  if (!target) {
+    return null;
+  }
   const res = await fetch(
     `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-manus-wa-message`,
     {

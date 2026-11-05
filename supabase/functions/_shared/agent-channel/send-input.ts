@@ -38,6 +38,9 @@ export function parseConversationHistory(raw: unknown): HistoryMessage[] {
   return conversationHistorySchema.parse(raw);
 }
 
+/** The composer allows the same (COMMAND_CENTER_MAX_FILES in src/lib/commandCenterAttachments.ts). */
+const MAX_ATTACHMENTS = 6;
+
 const attachmentText = z.unknown().transform((v) => String(v || "").trim());
 
 const attachmentSchema = z
@@ -54,13 +57,15 @@ const attachmentSchema = z
   })
   .refine((a) => a.name && a.url.startsWith("http"));
 
-/** Up to 6 attachments with a name and an http(s) url; malformed items are skipped. */
+/** Up to MAX_ATTACHMENTS attachments with a name and an http(s) url; malformed items are skipped. */
 export function parseAttachments(raw: unknown): ChannelAttachment[] {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   return raw
     .flatMap((item) => {
       const parsed = attachmentSchema.safeParse(item);
       return parsed.success ? [parsed.data] : [];
     })
-    .slice(0, 6);
+    .slice(0, MAX_ATTACHMENTS);
 }

@@ -41,7 +41,7 @@ Deno.test("parseCallbackBody defaults missing and odd fields", () => {
   assertStrictEquals(body.conversation_id, "");
   assertStrictEquals(body.content, "5");
   assertStrictEquals(body.origin, null);
-  assertStrictEquals(body.event_type, "custom");
+  assertStrictEquals(body.event_type, null);
   assertStrictEquals(body.speaker, undefined);
   assertStrictEquals(body.parliament_round, undefined);
   assertEquals(body.metadata, {});

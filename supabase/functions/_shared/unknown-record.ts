@@ -16,7 +16,11 @@ export function asRecord(value: unknown): UnknownRecord {
 export function parseJsonRecord(raw: string): UnknownRecord {
   try {
     return asRecord(JSON.parse(raw));
-  } catch {
+  } catch (e) {
+    console.warn("[parseJsonRecord] invalid JSON", {
+      error: e instanceof Error ? e.message : String(e),
+      length: raw.length,
+    });
     return {};
   }
 }

@@ -6,6 +6,7 @@ import type {
   ChannelProvider,
   CloudDirectProvider,
   ConversationStatus,
+  MessageEventType,
   SendResult,
   WorkspaceProvider,
 } from "./types.ts";
@@ -365,12 +366,13 @@ export function resolveCallbackOrigin(
 
 const callbackEventTypeSchema = z.preprocess(
   (raw) => raw || "message",
-  z.coerce.string(),
+  z.enum(["message", "progress", "approval_request", "system"]),
 );
 
-/** Absent event_type defaults to "message"; any other value is kept as text. */
-export function parseCallbackEventType(raw: unknown): string {
-  return callbackEventTypeSchema.parse(raw);
+/** Absent event_type is "message"; any other value must be a known type, else null. */
+export function parseCallbackEventType(raw: unknown): MessageEventType | null {
+  const parsed = callbackEventTypeSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 /** Narrow generated database strings before exposing a route to channel code. */

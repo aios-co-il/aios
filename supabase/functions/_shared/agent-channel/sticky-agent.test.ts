@@ -2,6 +2,7 @@ import {
   assert,
   assertEquals,
   assertMatch,
+  assertRejects,
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import {
@@ -13,10 +14,11 @@ import {
   cursorDirectStickyEnabled,
   envOpenChatId,
   missingOpenChatMessage,
+  openChatLookupFailedMessage,
   uniqueCloudAgentIds,
 } from "./sticky-agent.ts";
 
-type MockRows = { data: unknown };
+type MockRows = { data: unknown; error?: { message: string } | null };
 
 interface MockChain extends PromiseLike<MockRows> {
   select(): MockChain;
@@ -27,8 +29,12 @@ interface MockChain extends PromiseLike<MockRows> {
   maybeSingle(): Promise<MockRows>;
 }
 
-function mockChain(single: unknown, rows: unknown): MockChain {
-  const result: MockRows = { data: rows };
+function mockChain(
+  single: unknown,
+  rows: unknown,
+  error: { message: string } | null = null,
+): MockChain {
+  const result: MockRows = { data: rows, error };
   const chain: MockChain = {
     select: () => chain,
     match: () => chain,
@@ -206,4 +212,22 @@ Deno.test("open-chat session rows tolerate malformed entries", async () => {
     env: { CURSOR_DIRECT_STICKY: "true" },
   });
   assertEquals(ids, ["bc-ok"]);
+});
+
+Deno.test("a failed open-chat session lookup is reported, not ignored", async () => {
+  const sb = {
+    from() {
+      return mockChain(null, null, { message: "permission denied" });
+    },
+  };
+  await assertRejects(
+    () =>
+      collectOpenChatIds(sb, {
+        tenantId: "t1",
+        provider: "cursor",
+        env: { CURSOR_DIRECT_STICKY: "true" },
+      }),
+    Error,
+    openChatLookupFailedMessage("permission denied"),
+  );
 });

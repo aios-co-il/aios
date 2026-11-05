@@ -1,16 +1,10 @@
-import {
-  createClient,
-  type SupabaseClient,
-} from "https://esm.sh/@supabase/supabase-js@2";
-import type { Database } from "../_shared/database.types.ts";
+import { getRepoSlug } from "../_shared/github-repo.ts";
+import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 import {
   readCredentialRepo,
   readProfile,
   readProposedFix,
 } from "./stored-records.ts";
-
-type GithubAgentClient = SupabaseClient<Database>;
-import { getRepoSlug } from "../_shared/github-repo.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,10 +54,7 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header");
 
-    const supabase = createClient<Database>(
-      SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY,
-    );
+    const supabase = serviceClient();
     const token = authHeader.replace("Bearer ", "");
 
     // Internal calls from run-ai-agent come in with the service-role key as
@@ -167,7 +158,7 @@ Deno.serve(async (req: Request) => {
 // Get GitHub token from secure storage
 // ==========================================
 async function getGithubToken(
-  supabase: GithubAgentClient,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<string | null> {
   const { data } = await supabase
@@ -184,7 +175,7 @@ async function getGithubToken(
 // Chat Support - understands user requests
 // ==========================================
 async function handleChatSupport(
-  supabase: GithubAgentClient,
+  supabase: DbClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -292,7 +283,7 @@ ${JSON.stringify(userContext, null, 2)}
 // Analyze Error
 // ==========================================
 async function handleAnalyzeError(
-  supabase: GithubAgentClient,
+  supabase: DbClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -392,7 +383,7 @@ Return JSON:
 // Fix Code - creates PR on GitHub
 // ==========================================
 async function handleFixCode(
-  supabase: GithubAgentClient,
+  supabase: DbClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -426,7 +417,9 @@ async function handleFixCode(
   if (!approval) throw new Error("Approved action not found");
 
   const fix = readProposedFix(approval.proposed_changes);
-  if (!fix) throw new Error("Missing fix details");
+  if (!fix) {
+    throw new Error("Missing fix details");
+  }
   const { filePath: file_path, newCode: new_code } = fix;
 
   // Get repo info from credentials metadata
@@ -564,7 +557,7 @@ async function handleFixCode(
 // Check user permissions
 // ==========================================
 async function handleCheckPermissions(
-  supabase: GithubAgentClient,
+  supabase: DbClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -581,7 +574,7 @@ async function handleCheckPermissions(
 // Handle approval/rejection
 // ==========================================
 async function handleApproval(
-  supabase: GithubAgentClient,
+  supabase: DbClient,
   request: AgentRequest,
   userId: string,
   tenantId: string,
@@ -631,7 +624,7 @@ async function handleApproval(
 // Helpers
 // ==========================================
 async function getUserContext(
-  supabase: GithubAgentClient,
+  supabase: DbClient,
   userId: string,
   tenantId: string,
 ) {
