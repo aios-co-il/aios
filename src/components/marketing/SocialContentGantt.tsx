@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   format,
   startOfMonth,
@@ -545,24 +546,26 @@ function NewItemDialog({
         .maybeSingle();
 
       // Create one item per selected platform
-      const inserts = channels.map((ch) => ({
-        pipeline_id: pipelineId,
-        tenant_id: tenantId,
-        client_id: clientId,
-        current_stage_id: stage?.id ?? null,
-        title:
-          channels.length > 1
-            ? `${title.trim()} – ${channelConfig[ch]?.label ?? ch}`
-            : title.trim(),
-        status: "draft",
-        scheduled_date: date || null,
-        target_channel: ch,
-        payload: {
-          channel: ch,
-          copy_text: copy.trim() || null,
-          auto_run: autoRun,
-        },
-      }));
+      const inserts: Array<TablesInsert<"marketing_work_items">> = channels.map(
+        (ch) => ({
+          pipeline_id: pipelineId,
+          tenant_id: tenantId,
+          client_id: clientId,
+          current_stage_id: stage?.id ?? null,
+          title:
+            channels.length > 1
+              ? `${title.trim()} – ${channelConfig[ch]?.label ?? ch}`
+              : title.trim(),
+          status: "draft",
+          scheduled_date: date || null,
+          target_channel: ch,
+          payload: {
+            channel: ch,
+            copy_text: copy.trim() || null,
+            auto_run: autoRun,
+          },
+        }),
+      );
 
       const { error } = await supabase
         .from("marketing_work_items")
