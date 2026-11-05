@@ -26,6 +26,7 @@ export function fakeTables(
             (tables[table] || []).find((row) =>
               filters.every(([column, value]) => row[column] === value),
             ) ?? null,
+          error: null,
         }),
       };
       return query;

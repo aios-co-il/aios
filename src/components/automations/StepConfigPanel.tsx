@@ -4133,6 +4133,11 @@ function WhatsAppTriggerConfig({
     enabled: !!tenantId,
   });
 
+  const selectableIntegrations = (greenApiIntegrations || []).filter(
+    (integration): integration is typeof integration & { user_id: string } =>
+      integration.user_id !== null,
+  );
+
   return (
     <div className="space-y-4">
       {/* Source filter */}
@@ -4358,7 +4363,7 @@ function WhatsAppTriggerConfig({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">כל החיבורים</SelectItem>
-              {greenApiIntegrations.map((int) => (
+              {selectableIntegrations.map((int) => (
                 <SelectItem key={int.id} value={int.user_id}>
                   {cfgText(cfgObject(int.settings)?.display_name) ||
                     `חיבור ${int.instance_id}`}

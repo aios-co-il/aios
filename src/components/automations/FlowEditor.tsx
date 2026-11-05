@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -12,7 +13,6 @@ import {
   Node,
   BackgroundVariant,
   Panel,
-  MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useParams, useNavigate } from "react-router-dom";
@@ -37,12 +37,12 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { FlowNodeRF, FlowNodeData } from "./FlowNode";
+import { FlowNodeRF, FlowNodeData, type RFNodeData } from "./FlowNode";
 import { isJsonObject } from "./automationStepConfig";
 import { flowStepRowToNodeData } from "./flowStepRow";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { AddStepMenu } from "./AddStepMenu";
-import { InsertableEdge } from "./InsertableEdge";
+import { InsertableEdge, type InsertableEdgeData } from "./InsertableEdge";
 import { StepConfigPanel } from "./StepConfigPanel";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import { TestFlowWithLeadDialog } from "./TestFlowWithLeadDialog";
@@ -57,13 +57,17 @@ const edgeTypes = {
   insertable: InsertableEdge,
 };
 
+type FlowEditorNode = Node<RFNodeData>;
+type FlowEditorEdge = Edge<InsertableEdgeData>;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Keep the renderer's node data aligned with the editor state contract. */
 function toRFNode(
   nd: FlowNodeData,
   onDelete: (id: string) => void,
   onSelect: (id: string) => void,
-): Node {
+): FlowEditorNode {
   return {
     id: nd.id,
     type: "flowNode",
@@ -132,8 +136,12 @@ export default function FlowEditor({
   );
 
   // React Flow state
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<FlowEditorNode>(
+    [],
+  );
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<FlowEditorEdge>(
+    [],
+  );
 
   // ── Callbacks ──────────────────────────────────────────────────────────────
 
@@ -196,7 +204,7 @@ export default function FlowEditor({
   const syncRFNodes = useCallback(
     (dataMap: Record<string, FlowNodeData>) => {
       setRfNodes((prev) =>
-        Object.values(dataMap).map((nd) => {
+        Object.values(dataMap).map((nd): FlowEditorNode => {
           const existing = prev.find((n) => n.id === nd.id);
           return {
             ...(existing || {}),
@@ -213,7 +221,7 @@ export default function FlowEditor({
               onDisconnect: handleDisconnectNode,
             },
             draggable: true,
-          } as Node;
+          };
         }),
       );
     },
@@ -296,7 +304,7 @@ export default function FlowEditor({
 
     if (steps.length > 0) {
       const dataMap: Record<string, FlowNodeData> = {};
-      const edges: Edge[] = [];
+      const edges: Array<FlowEditorEdge> = [];
 
       steps.forEach((s) => {
         dataMap[s.id] = flowStepRowToNodeData(s);
@@ -569,7 +577,7 @@ export default function FlowEditor({
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      const edge: Edge = {
+      const edge: FlowEditorEdge = {
         ...connection,
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
         type: "insertable",

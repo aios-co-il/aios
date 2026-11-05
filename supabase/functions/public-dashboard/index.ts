@@ -244,6 +244,7 @@ Deno.serve(async (req) => {
       return filteredRecords.map((r: any) => ({
         ...r,
         _source: table.integration_type,
+        _tableId: table.id,
         _tableName: table.name,
         _integrationSettings: publicSettings,
       }));
@@ -777,6 +778,7 @@ Deno.serve(async (req) => {
           name: t.name,
           integration_type: t.integration_type,
           integration_settings: toPublicTableSettings(t.integration_settings),
+          category: t.category,
         })),
         records: allRecords,
         woocommerce: {

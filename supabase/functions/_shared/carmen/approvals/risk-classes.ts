@@ -94,4 +94,7 @@ const APPROVAL_RISK_BY_TOOL: Readonly<Record<string, RiskClass>> =
     delete_memory: "destructive",
     // Internal, reversible
     cancel_broadcast: "internal_write",
+    // AIO-236: a pulse target only changes which campaigns alert; the manager or
+    // campaigner who asked for it approves it, and it can be changed again any time.
+    set_pulse_target: "internal_write",
   });

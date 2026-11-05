@@ -16,6 +16,9 @@ import {
 } from "@/components/ui/select";
 import { CalendarClock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { ScheduleSenderSelect } from "@/components/report-sender/ScheduleSenderSelect";
+import { reportSenderMessage } from "@/components/report-sender/reportSenderMessages";
+import { useScheduleSender } from "@/components/report-sender/useScheduleSender";
 
 interface Props {
   clientId: string;
@@ -72,6 +75,7 @@ export function ClientReportScheduleSettings({
     },
     enabled: !!clientId && !!target.id,
   });
+  const sender = useScheduleSender(tenantId, schedule);
 
   useEffect(() => {
     setEnabled(!!schedule?.enabled);
@@ -104,6 +108,11 @@ export function ClientReportScheduleSettings({
       toast.error("יש להזין לפחות כתובת אימייל אחת");
       return;
     }
+    const line = sender.toSave(enabled && sendWhatsApp);
+    if ("error" in line) {
+      toast.error(line.error);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -126,26 +135,25 @@ export function ClientReportScheduleSettings({
           ...(sendWhatsApp ? ["whatsapp"] : []),
           ...(sendEmail ? ["email"] : []),
         ],
+        whatsapp_integration_id: line.id,
         email_recipients: emailRecipients,
         message: message.trim() || null,
-        created_by: user.id,
       };
 
+      // The creator is set once: the worker sends as them, and the line was
+      // resolved for them, so a colleague's save never takes the schedule over.
+      const schedules = supabase.from("report_schedules");
       const result = schedule?.id
-        ? await supabase
-            .from("report_schedules")
-            .update(payload)
-            .eq("id", schedule.id)
-        : await supabase.from("report_schedules").insert(payload);
+        ? await schedules.update(payload).eq("id", schedule.id)
+        : await schedules.insert({ ...payload, created_by: user.id });
       if (result.error) throw result.error;
       await queryClient.invalidateQueries({ queryKey });
       toast.success(
         enabled ? "תזמון הדוח נשמר והופעל" : "הגדרת התזמון נשמרה ללא הפעלה",
       );
     } catch (error: unknown) {
-      toast.error(
-        `שמירת התזמון נכשלה: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      const text = error instanceof Error ? error.message : String(error);
+      toast.error(`שמירת התזמון נכשלה: ${reportSenderMessage(text) ?? text}`);
     } finally {
       setSaving(false);
     }
@@ -249,6 +257,7 @@ export function ClientReportScheduleSettings({
         </label>
       </div>
 
+      {sendWhatsApp && <ScheduleSenderSelect field={sender} />}
       {sendEmail && (
         <Input
           value={emails}

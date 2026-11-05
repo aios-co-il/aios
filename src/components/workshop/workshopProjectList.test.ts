@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import {
   defaultProject,
-  departmentPath,
   groupByDepartment,
   groupProjects,
   statusLabel,
@@ -93,16 +92,4 @@ test("with no project in the URL the latest board opens", () => {
     ])?.id,
   ).toBe("board");
   expect(defaultProject([row({ id: "copy" })])).toBe(null);
-});
-
-test("a department screen opens on the project's client, or on general content", () => {
-  expect(departmentPath("copy", "c-1")).toBe(
-    "marketing/department/copy?client=c-1",
-  );
-  expect(departmentPath("seo", null)).toBe(
-    "marketing/department/seo?client=general",
-  );
-  // Only an open screen: marketing/department/campaigns is still the coming-soon placeholder.
-  // @ts-expect-error campaigns is not a DepartmentScreen (checked by npm run typecheck)
-  expect(departmentPath("campaigns", null)).toContain("campaigns");
 });

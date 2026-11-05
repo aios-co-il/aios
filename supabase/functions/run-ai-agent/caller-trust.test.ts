@@ -101,7 +101,7 @@ Deno.test("service-only fields: source guards", async (t) => {
       for (const later of [
         "bodyJson.direct_tool",
         "const surface: Surface",
-        "resolveBrainEngine(",
+        "resolveWorkshopAwareEngine(",
         "handleRunAgent(",
       ])
         assert(

@@ -34,6 +34,7 @@ export const CARMEN_EXECUTOR_TOOLS: readonly string[] = Object.freeze([
   "record_expense_payment",
   "delete_expense_payment",
   "update_client_retainer",
+  "set_pulse_target",
 ]);
 
 /** A row carmen-approval-execute knows how to run (not a run-ai-agent-v2 run step). */

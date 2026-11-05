@@ -284,6 +284,9 @@ Deno.serve(async (req) => {
       sent_by_user_id: user.id,
       connection_user_id: user.id,
       raw_provider_data: manychatData,
+      // A person's WhatsApp message to a client or lead: logged on the client
+      // card as a daily chat count (AIO-242). Other channels are not WhatsApp.
+      ...(channel === "whatsapp" ? { send_kind: "chat" } : {}),
     };
 
     if (clientId) {

@@ -5,63 +5,77 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { readFile } from "node:fs/promises";
-import {
-  campaignStateMap,
-  evaluateGoogleOperationalIssues,
-} from "./campaign-operational-health.ts";
+import { googleFindingsFor } from "./campaign-operational-health.ts";
 
-Deno.test(
-  "first operational scan establishes a baseline without alerting",
-  () => {
-    assertEquals(
-      evaluateGoogleOperationalIssues(null, [
-        {
-          id: "1",
-          name: "Lead",
-          status: "ENABLED",
-          primary_status: "ELIGIBLE",
-        },
-      ]),
-      [],
-    );
-  },
-);
-
-Deno.test("alerts when an enabled campaign becomes blocked or paused", () => {
-  const previous = campaignStateMap([
-    { id: "1", name: "Lead", status: "ENABLED", primary_status: "ELIGIBLE" },
-    { id: "2", name: "Shop", status: "ENABLED", primary_status: "ELIGIBLE" },
-  ]);
-  const issues = evaluateGoogleOperationalIssues(previous, [
-    {
-      id: "1",
-      name: "Lead",
-      status: "ENABLED",
-      primary_status: "NOT_ELIGIBLE",
-      primary_status_reasons: ["BILLING_SETUP"],
-    },
-    { id: "2", name: "Shop", status: "PAUSED", primary_status: "NOT_ELIGIBLE" },
-  ]);
-  assertStrictEquals(issues.length, 2);
-  assertEquals(issues[0].details.primary_status_reasons, ["BILLING_SETUP"]);
+const campaign = (id, status, primary_status, reasons = []) => ({
+  id,
+  name: `קמפיין ${id}`,
+  status,
+  primary_status,
+  primary_status_reasons: reasons,
 });
 
-Deno.test("does not alert repeatedly when campaign was already stopped", () => {
-  const previous = campaignStateMap([
-    { id: "1", name: "Lead", status: "PAUSED", primary_status: "NOT_ELIGIBLE" },
-  ]);
+const types = (campaigns) =>
+  googleFindingsFor("123", campaigns).map((f) => [f.alert_type, f.campaign_id]);
+
+Deno.test("one paused campaign beside a live one is fine", () => {
   assertEquals(
-    evaluateGoogleOperationalIssues(previous, [
-      {
-        id: "1",
-        name: "Lead",
-        status: "PAUSED",
-        primary_status: "NOT_ELIGIBLE",
-      },
+    types([
+      campaign("1", "ENABLED", "ELIGIBLE"),
+      campaign("2", "PAUSED", "PAUSED"),
     ]),
     [],
   );
 });
+
+Deno.test("every campaign paused alerts once, on the account", () => {
+  assertEquals(
+    types([
+      campaign("1", "PAUSED", "PAUSED"),
+      campaign("2", "PAUSED", "NOT_ELIGIBLE"),
+    ]),
+    [["no_live_ads", "account:123"]],
+  );
+});
+
+Deno.test("a campaign Google will not serve alerts, with its reasons", () => {
+  const findings = googleFindingsFor("123", [
+    campaign("1", "ENABLED", "ELIGIBLE"),
+    campaign("2", "ENABLED", "NOT_ELIGIBLE", ["BILLING_SETUP"]),
+  ]);
+  assertEquals(
+    findings.map((f) => [f.alert_type, f.campaign_id, f.severity]),
+    [["campaign_stopped", "2", "critical"]],
+  );
+  assertEquals(findings[0].details.primary_status_reasons, ["BILLING_SETUP"]);
+  assertMatch(String(findings[0].details.reason), /BILLING_SETUP/);
+});
+
+Deno.test("only stopped campaigns: both the stop and nothing live", () => {
+  assertEquals(types([campaign("1", "ENABLED", "NOT_ELIGIBLE")]), [
+    ["campaign_stopped", "1"],
+    ["no_live_ads", "account:123"],
+  ]);
+});
+
+Deno.test("pending, limited and unknown campaigns count as live", () => {
+  for (const status of ["PENDING", "LIMITED", "LEARNING", null]) {
+    assertEquals(types([campaign("1", "ENABLED", status)]), []);
+  }
+});
+
+Deno.test(
+  "a misconfigured campaign is recorded, not reported as nothing live",
+  () => {
+    assertEquals(
+      types([
+        campaign("1", "ENABLED", "MISCONFIGURED"),
+        campaign("2", "ENABLED", "ELIGIBLE"),
+      ]),
+      [["campaign_with_issues", "1"]],
+    );
+  },
+);
 
 // FIXME: failing before the Deno migration (was never run in CI); fix or delete.
 Deno.test.ignore(
@@ -89,6 +103,6 @@ Deno.test.ignore(
     assertNotMatch(metaMonitor, /\/insights\?/);
     assertMatch(metaMonitor, /account_disabled/);
     assertMatch(googleSync, /campaign\.primary_status_reasons/);
-    assertMatch(googleSync, /evaluateGoogleOperationalIssues/);
+    assertMatch(googleSync, /googleFindingsFor/);
   },
 );

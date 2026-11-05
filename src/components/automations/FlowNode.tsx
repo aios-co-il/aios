@@ -205,12 +205,12 @@ export const ACTION_TYPE_LABELS: Record<string, string> = {
 
 // ─── React Flow custom node component ─────────────────────────────────────────
 
-interface RFNodeData {
+export type RFNodeData = {
   nodeData: FlowNodeData;
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
   onDisconnect?: (id: string) => void;
-}
+};
 
 export const FlowNodeRF = memo(function FlowNodeRF({
   data,

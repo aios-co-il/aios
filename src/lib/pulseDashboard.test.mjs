@@ -492,3 +492,42 @@ test("rollup: paused-unknown critical does not flash red before Meta hints land"
   ];
   expect(rollupStatusFromCampaigns(afterHints).status).toBe("healthy");
 });
+
+test("rollup: every campaign paused on an active report is a warning", () => {
+  const paused = (goal, id) => ({
+    client_id: "roma",
+    table_id: "t-meta",
+    platform: "meta",
+    goal,
+    campaign_key: `meta:id:${id}`,
+    campaign_id: id,
+    campaign_name: `C${id}`,
+    spend_7d: 50,
+    outcomes_7d: 2,
+    revenue_7d: 0,
+    status: "healthy",
+    status_reason: "ok",
+    delivery_status: "paused",
+  });
+
+  const allPaused = rollupStatusFromCampaigns([paused("leads", "1")]);
+  expect(allPaused.status).toBe("warning");
+  expect(allPaused.status_reason).toContain("הדוח פעיל");
+
+  // Another campaign of the client on the same platform is live: fine.
+  expect(
+    rollupStatusFromCampaigns([paused("leads", "1")], { liveElsewhere: true })
+      .status,
+  ).toBe("healthy");
+
+  const rollups = rollupCampaignRowsByClientGoal({
+    campaignRows: [
+      paused("leads", "1"),
+      { ...paused("ecommerce", "2"), delivery_status: "active" },
+    ],
+    snapshotsByClient: new Map(),
+  });
+  const leads = rollups.find((row) => row.goal === "leads");
+  expect(leads?.status).toBe("healthy");
+  expect(leads?.status_reason).toContain("קמפיין אחר של הלקוח באוויר");
+});

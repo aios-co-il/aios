@@ -23,7 +23,7 @@ import {
   projectFormat,
   shouldFollow,
   type WorkshopArtifact,
-} from "./workshopFeed";
+} from "./workshopFeedModel";
 
 const IDEAS = [
   "סרטון קצר של כרמן ליד מחשב",
@@ -108,7 +108,9 @@ function PageBody({
             {summary}
           </p>
         ) : null}
-        {brief ? <p className="text-sm leading-relaxed">{brief}</p> : null}
+        {brief ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{brief}</p>
+        ) : null}
       </div>
     );
   }

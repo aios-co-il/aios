@@ -6,7 +6,7 @@
  * top band; without spoken captions, it sits where the captions would.
  */
 
-/** A key word is drawn this much larger (render-worker motion-captions.mjs KEY_WIDTH). */
+/** A key word is drawn this much larger (render-worker motion-captions.ts KEY_WIDTH). */
 export const KEY_SCALE = 1.3;
 /** Width of a bold Hebrew glyph in ems, on average (Heebo Bold). */
 export const GLYPH_EM = 0.58;
@@ -78,7 +78,8 @@ export const lineEm = (words: { text: string; key?: boolean }[]) =>
   ) +
   WORD_GAP_EM * Math.max(0, words.length - 1);
 
-const channels = (hex: string): [number, number, number] | null => {
+/** A hex colour's channels (0–1), or null for anything else. */
+export const channels = (hex: string): [number, number, number] | null => {
   const raw = hex.replace("#", "");
   const full =
     raw.length === 3

@@ -2,11 +2,8 @@ import type { ReactNode } from "react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { Globe, Plus } from "lucide-react";
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useTenantPath } from "@/hooks/useTenantPath";
 import { DEPARTMENTS } from "../../../supabase/functions/_shared/workshop/departments.ts";
-import { departmentPath } from "./workshopProjectList";
 import { useWorkshopClientCard } from "./useWorkshopClientCard";
 
 const siteHref = (url: string) =>
@@ -31,14 +28,13 @@ const EMPTY = <span className="text-muted-foreground">—</span>;
 export function WorkshopClientCard({
   tenantId,
   clientId,
-  onNewCreative,
+  onNewProject,
 }: {
   tenantId: string | undefined;
   clientId: string;
-  onNewCreative: () => void;
+  /** Starts a new project of this department in the chat (its label, as the card shows it). */
+  onNewProject: (department: string) => void;
 }) {
-  const { buildPath } = useTenantPath();
-
   const { client, sites, seoReport, ranks, gsc, pbn } = useWorkshopClientCard(
     tenantId,
     clientId,
@@ -135,41 +131,26 @@ export function WorkshopClientCard({
         <div className="mt-5">
           <h3 className="text-sm font-medium">פרויקט חדש</h3>
           <div className="mt-2 flex flex-wrap gap-2">
-            {/* Creative starts here on the board; the rest open their own screen, if it is open. */}
-            {DEPARTMENTS.map(({ id, label, screen }) => {
-              if (id === "creative")
-                return (
-                  <Button
-                    key={id}
-                    size="sm"
-                    className="gap-1"
-                    onClick={onNewCreative}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    {label}
-                  </Button>
-                );
-              if (screen)
-                return (
-                  <Button
-                    key={id}
-                    asChild
-                    size="sm"
-                    variant="outline"
-                    className="gap-1"
-                  >
-                    <Link to={buildPath(departmentPath(screen, clientId))}>
-                      <Plus className="h-3.5 w-3.5" />
-                      {label}
-                    </Link>
-                  </Button>
-                );
-              return (
+            {/* Every department starts here, in the chat and on the board; a department with no
+                workshop tools yet (campaigns) is not offered. */}
+            {DEPARTMENTS.map(({ id, label, screen }) =>
+              id === "creative" || screen ? (
+                <Button
+                  key={id}
+                  size="sm"
+                  variant={id === "creative" ? "default" : "outline"}
+                  className="gap-1"
+                  onClick={() => onNewProject(label)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {label}
+                </Button>
+              ) : (
                 <Button key={id} size="sm" variant="outline" disabled>
                   {label} · בקרוב
                 </Button>
-              );
-            })}
+              ),
+            )}
           </div>
         </div>
       </section>

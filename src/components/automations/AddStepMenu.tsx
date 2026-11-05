@@ -29,14 +29,14 @@ interface AddStepMenuProps {
 
 export function AddStepMenu({ onAdd, label }: AddStepMenuProps) {
   return (
-    <DropdownMenu>
+    <DropdownMenu dir="rtl">
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5 h-8">
           <Plus className="h-3.5 w-3.5" />
           {label || "הוסף צעד"}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56" dir="rtl">
+      <DropdownMenuContent align="end" className="w-56">
         {/* ── פעולות ── */}
         <DropdownMenuLabel className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider px-2 py-1">
           פעולות

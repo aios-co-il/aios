@@ -47,6 +47,11 @@ import { EditUserNameDialog } from "@/components/forms/EditUserNameDialog";
 import EditSalesPersonAgenciesDialog from "@/components/forms/EditSalesPersonAgenciesDialog";
 import EditManagedAgenciesDialog from "@/components/forms/EditManagedAgenciesDialog";
 import { ResetPasswordDialog } from "@/components/forms/ResetPasswordDialog";
+import { DeactivateMemberButton } from "@/components/UsersPage/DeactivateMemberButton";
+import { InactiveMembersCard } from "@/components/UsersPage/InactiveMembersCard";
+import { MEMBER_LIST_KEYS } from "@/components/UsersPage/useMemberActivation";
+import type { DeleteMemberResult } from "@functions/_shared/user-admin/member-results.ts";
+import { invokeEdgeFunction } from "@/lib/edgeFunctionInvoke";
 import { syncProfileToTeamMember } from "@/hooks/useSyncProfileTeamMember";
 import { getAllModules } from "@/lib/modules";
 import { PermissionsSelector } from "@/components/forms/PermissionsSelector";
@@ -882,37 +887,26 @@ export default function Users() {
       userId?: string;
       email?: string;
     }) => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
-
       const removeTenantId = tenantId || currentUserTenant?.tenant_id;
       if (!removeTenantId) throw new Error("לא נמצא ארגון פעיל");
 
-      const { data, error } = await supabase.functions.invoke("delete-user", {
-        body: {
-          userId,
-          email,
-          tenantId: removeTenantId,
-          removeFromTenantOnly: true,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      return invokeEdgeFunction<DeleteMemberResult>("delete-user", {
+        userId,
+        email,
+        tenantId: removeTenantId,
       });
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      return data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["users-with-roles", tenantId],
-      });
-      await queryClient.refetchQueries({
-        queryKey: ["users-with-roles", tenantId],
-      });
-      toast.success("המשתמש הוסר מהארגון בהצלחה");
+    onSuccess: async (result) => {
+      await Promise.all(
+        MEMBER_LIST_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      );
+      toast.success(
+        result.accountDeleted
+          ? "המשתמש נמחק; העדכונים שלו נשארים בהיסטוריה"
+          : "המשתמש הוסר מהארגון; העדכונים שלו נשארים בהיסטוריה",
+      );
     },
     onError: (error: Error) => {
       toast.error("שגיאה במחיקת משתמש: " + error.message);
@@ -1699,6 +1693,10 @@ export default function Users() {
                             <Mail className="h-3 w-3 ml-1" />
                             שלח מחדש
                           </Button>
+                          <DeactivateMemberButton
+                            user={user}
+                            currentUserId={currentUserId}
+                          />
                           <Button
                             variant="destructive"
                             size="sm"
@@ -2026,6 +2024,11 @@ export default function Users() {
                               >
                                 <Mail className="h-4 w-4" />
                               </Button>
+                              <DeactivateMemberButton
+                                user={user}
+                                currentUserId={currentUserId}
+                                compact
+                              />
                               <Button
                                 variant="destructive"
                                 size="icon"
@@ -2290,6 +2293,10 @@ export default function Users() {
                           <Mail className="h-3 w-3 ml-1" />
                           שלח מחדש
                         </Button>
+                        <DeactivateMemberButton
+                          user={user}
+                          currentUserId={currentUserId}
+                        />
                         {user.id !== currentUserId && (
                           <Button
                             variant="destructive"
@@ -2631,6 +2638,11 @@ export default function Users() {
                               <Mail className="h-3 w-3 ml-1" />
                               שלח מחדש
                             </Button>
+                            <DeactivateMemberButton
+                              user={user}
+                              currentUserId={currentUserId}
+                              compact
+                            />
                             {user.id !== currentUserId && (
                               <Button
                                 variant="destructive"
@@ -2662,6 +2674,8 @@ export default function Users() {
           )}
         </>
       )}
+
+      <InactiveMembersCard />
 
       <Card className="p-4 md:p-6 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
         <h2 className="text-lg md:text-xl font-semibold mb-2 flex items-center gap-2">

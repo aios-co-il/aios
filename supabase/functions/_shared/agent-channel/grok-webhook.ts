@@ -1,16 +1,12 @@
 export async function fireGrokBotWebhook(args: {
   task: string;
   context: string;
-  /** Tenant overrides from Carmen settings; env secrets otherwise. */
-  url?: string;
-  key?: string;
+  /** Both from the tenant's brain env (brain-env.ts), never the raw env. */
+  url: string;
+  key: string;
 }): Promise<{ id: string; url: string }> {
-  const url = String(
-    args.url || Deno.env.get("GROK_BOT_WEBHOOK_URL") || "",
-  ).trim();
-  const key = String(
-    args.key || Deno.env.get("GROK_BOT_WEBHOOK_KEY") || "",
-  ).trim();
+  const url = args.url.trim();
+  const key = args.key.trim();
   if (!url || !key) throw new Error("Grok Bot webhook is not configured.");
 
   const task = args.task.trim();

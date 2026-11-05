@@ -83,10 +83,10 @@ import { useTeamMembersForMeeting } from "@/hooks/useTeamMembersForMeeting";
 import { useAgencies, useSalesPeople } from "@/hooks/useEntityLists";
 import {
   findLeadStatus,
-  inferLeadSource,
   leadArrivalSourceChanged,
   leadCreatedAtWasBumped,
   leadFirstSourceDisplay,
+  leadSourceDisplay,
   leadSourceFieldLabel,
   LEAD_SOURCE_SELECT_OPTIONS,
   resolveResponseStatusKey,
@@ -200,7 +200,7 @@ export function EditLeadDialog({
   const { activeStages: pipelineStages } = useLeadPipelineStages();
   const { tenantId } = useCurrentTenant();
 
-  const meetingScheduler = useMeetingScheduler(tenantId);
+  const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
   const {
     data: teamMembers = [],
@@ -218,7 +218,7 @@ export function EditLeadDialog({
       contact_name: lead.contact_name || "",
       email: lead.email || "",
       phone: lead.phone || "",
-      source: lead.source ? inferLeadSource(lead.source) : "paid_ads",
+      source: lead.source || "paid_ads",
       campaign_name: lead.campaign_name || "",
       status: lead.status || "new",
       response_status: lead.response_status || "",
@@ -296,7 +296,7 @@ export function EditLeadDialog({
       contact_name: lead.contact_name || "",
       email: lead.email || "",
       phone: lead.phone || "",
-      source: lead.source ? inferLeadSource(lead.source) : "paid_ads",
+      source: lead.source || "paid_ads",
       campaign_name: lead.campaign_name || "",
       status: lead.status || "new",
       response_status: lead.response_status || "",
@@ -408,9 +408,8 @@ export function EditLeadDialog({
         email: values.email || null,
         phone: values.phone || null,
         campaign_name: (values.campaign_name || "").trim() || null,
-        source: inferLeadSource(
-          values.source || lead.source || "paid_ads",
-        ) as any,
+        // Keep the arrival source as the sender wrote it unless the user picks another.
+        source: values.source || lead.source || "paid_ads",
         status: (values.status as any) || "new",
         response_status:
           values.response_status && values.response_status !== "none"
@@ -1145,7 +1144,7 @@ export function EditLeadDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {LEAD_SOURCE_SELECT_OPTIONS.map((opt) => (
+                        {sourceSelectOptions(lead.source).map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -1282,7 +1281,10 @@ export function EditLeadDialog({
 
           {/* Tab: Digital signature documents */}
           <TabsContent value="docs" className="space-y-6 mt-0">
-            <SendSignatureFromLeadPanel lead={lead} tenantId={tenantId} />
+            <SendSignatureFromLeadPanel
+              lead={lead}
+              tenantId={tenantId ?? undefined}
+            />
           </TabsContent>
 
           {/* Tab 2: Proposals & Pricing */}
@@ -1862,4 +1864,23 @@ export function EditLeadDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * The fixed source options, plus the lead's own source when a webhook sent
+ * free text (e.g. "FB"), so the select shows it and saving keeps it.
+ */
+function sourceSelectOptions(
+  current: string | null | undefined,
+): { value: string; label: string }[] {
+  const options: { value: string; label: string }[] = [
+    ...LEAD_SOURCE_SELECT_OPTIONS,
+  ];
+  if (current && !options.some((opt) => opt.value === current)) {
+    options.unshift({
+      value: current,
+      label: leadSourceDisplay({ source: current }),
+    });
+  }
+  return options;
 }

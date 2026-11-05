@@ -13,18 +13,31 @@ import {
 } from "../scene-helpers.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { clipSaysLine, talkingLine } from "../talking.ts";
+import { costSceneOf } from "../cost-scene.ts";
 import {
   ENGINE_LABEL,
   type SceneEngine,
-  costSceneOf,
   isSceneEngine,
-  quotedProductionEstimate,
-} from "../video-cost.ts";
+} from "../scene-engine.ts";
+import { quotedProductionEstimate } from "../video-cost.ts";
+import { isSceneOverlay } from "../scene-overlays.ts";
 import { musicPromptFor, wantsSoundDesign } from "../sound-design.ts";
+import { CTA_MAX_CHARS } from "../cta.ts";
 import { chooseVoice } from "../voice-tool.ts";
 import { narrationVoiceId } from "../voices.ts";
+import { isFilmFont, isTitleSize, isTitleStyle } from "../title-styles.ts";
+import { isTitleEmphasis } from "../title-emphasis.ts";
+import { isEndCardBackground, isEndCardStyle } from "../film-look.ts";
+import {
+  keepsDesign,
+  redrawnClipIds,
+  remakeRedrawnClips,
+} from "./keep-design.ts";
 
 type Scene = Record<string, unknown>;
+
+const KEPT_DESIGN_NOTE =
+  "הסרט שמר את העיצוב מההפקה הקודמת (keep_design): הסצנות הן תנועת מצלמה על התמונות, בלי הנפשה. אם המשתמש ביקש הנפשה אמיתית, אמרי לו והפיקי שוב עם keep_design=false.";
 
 /**
  * Of the scenes kept as they are, the talking ones the production lip-syncs again: a still to
@@ -194,6 +207,11 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     if (resolved) engine = resolved;
   }
   if (!engine) engine = "mock";
+  // A finished design keeps its own text: the camera moves over the original picture.
+  const keepDesign = keepsDesign(args, video);
+  if (keepDesign) {
+    engine = "mock";
+  }
   // The scenes produce_video queues a clip for: none yet, stale, failed, or (on a paid
   // engine) made by the free preview.
   const previewClips =
@@ -205,12 +223,22 @@ export async function workshopProduceVideo(ctx: ToolContext) {
           itemId,
           scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
         );
+  // A finished design's scenes that a video model already redrew are made again from the picture.
+  const redrawnClips = keepDesign
+    ? await redrawnClipIds(
+        supabase,
+        tenantId,
+        itemId,
+        scenes.map((scene) => scene.clip_asset_id).filter(Boolean),
+      )
+    : new Set<string>();
   const animated = scenes.filter(
     (scene) =>
       !scene.clip_asset_id ||
       scene.clip_stale === true ||
       scene.status === "failed" ||
-      previewClips.has(String(scene.clip_asset_id)),
+      previewClips.has(String(scene.clip_asset_id)) ||
+      redrawnClips.has(String(scene.clip_asset_id)),
   );
   const costScenes = animated.map(costSceneOf);
   // A kept clip that does not say the scene's current line (a line changed on the board) is
@@ -313,7 +341,7 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   const format = imageFormatsFrom([project.payload.format], ["9:16"])[0];
   const ctaText =
     typeof args.cta_text === "string"
-      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, 120)
+      ? args.cta_text.replace(/\s+/g, " ").trim().slice(0, CTA_MAX_CHARS)
       : "";
   const musicPrompt = musicPromptFor(gate.payload, deps.userText ?? "");
   // The quote is charged before the RPC (the payload's video settings must be saved first); a
@@ -334,6 +362,33 @@ export async function workshopProduceVideo(ctx: ToolContext) {
             scene_engine: engine,
             sound_engine: "elevenlabs",
             sound_design: soundDesign,
+            keep_design: keepDesign,
+            // How the scenes' text enters, how large it is and how its key words are emphasised
+            // (title-styles.ts, title-emphasis.ts).
+            ...(isTitleStyle(args.title_style)
+              ? { title_style: args.title_style }
+              : {}),
+            ...(isTitleSize(args.title_size)
+              ? { title_size: args.title_size }
+              : {}),
+            ...(isTitleEmphasis(args.title_emphasis)
+              ? { title_emphasis: args.title_emphasis }
+              : {}),
+            ...(isFilmFont(args.font) ? { font: args.font } : {}),
+            // The graphics over every scene's picture (scene-overlays.ts).
+            ...(isSceneOverlay(args.scene_overlay)
+              ? { scene_overlay: args.scene_overlay }
+              : {}),
+            // The closing card's design, its background and its glass (film-look.ts).
+            ...(isEndCardStyle(args.end_card_style)
+              ? { end_card_style: args.end_card_style }
+              : {}),
+            ...(isEndCardBackground(args.end_card_background)
+              ? { end_card_background: args.end_card_background }
+              : {}),
+            ...(typeof args.end_card_glass === "boolean"
+              ? { end_card_glass: args.end_card_glass }
+              : {}),
             // The narration is checked against this voice; a new one re-narrates the film.
             ...(voiceId ? { voice_id: voiceId } : {}),
           },
@@ -347,25 +402,42 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       error: error instanceof Error ? error.message : "שמירת הפרויקט נכשלה",
     };
   }
+  try {
+    await remakeRedrawnClips(
+      supabase,
+      tenantId,
+      itemId,
+      scenes
+        .filter((scene) => redrawnClips.has(String(scene.clip_asset_id)))
+        .map((scene) => String(scene.id)),
+    );
+  } catch (error) {
+    await refund();
+    return {
+      error: error instanceof Error ? error.message : "סימון הסצנות נכשל",
+    };
+  }
   const produced = await supabase.rpc("produce_video", {
     p_item_id: itemId,
-    p_aspect: format,
-    p_provider: engine,
-    // Free-preview clips are priced in costScenes, so the paid engine may redo them.
-    p_redo_preview: true,
-    p_estimate: {
-      clips: estimate.clips,
-      voice: estimate.voice,
-      music: estimate.music,
-      lipsync: estimate.lipsync,
-      sound_effects: estimate.soundEffects,
+    p_options: {
+      aspect: format,
+      provider: engine,
+      // Free-preview clips are priced in costScenes, so the paid engine may redo them.
+      redo_preview: true,
+      estimate: {
+        clips: estimate.clips,
+        voice: estimate.voice,
+        music: estimate.music,
+        lipsync: estimate.lipsync,
+        sound_effects: estimate.soundEffects,
+      },
+      stage_id: stageId,
+      with_voice: withVoice,
+      with_music: withMusic,
+      voice_id: voiceId,
+      music_prompt: musicPrompt,
+      generate_audio: false,
     },
-    p_stage_id: stageId,
-    p_with_voice: withVoice,
-    p_with_music: withMusic,
-    p_voice_id: voiceId,
-    p_music_prompt: musicPrompt,
-    p_generate_audio: false,
   });
   if (produced.error) {
     await refund();
@@ -415,6 +487,10 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     engine: ENGINE_LABEL[engine],
     client_id: clientId,
     ...(soundDesign ? { sound_design: true } : {}),
+    // A design kept from the film's last production, not asked for now: Carmen can undo it.
+    ...(keepDesign && typeof args.keep_design !== "boolean"
+      ? { kept_design_note: KEPT_DESIGN_NOTE }
+      : {}),
     message:
       "ההפקה התחילה ורצה ברקע בשרת ההפקה. הסרט יופיע בלוח כשיהיה מוכן. אל תפיקי שוב: לבדיקה קראי ל-workshop_get_state ובדקי production.",
     artifact,

@@ -6,6 +6,7 @@ import {
 import {
   compareReportToMeta,
   facebookReportType,
+  objectiveKind,
 } from "./report-meta-verify.mjs";
 
 Deno.test("matching spend within rounding is ok", () => {
@@ -57,3 +58,17 @@ Deno.test("report type follows the table", () => {
   );
   assertStrictEquals(facebookReportType("facebook_insights", {}), "mixed");
 });
+
+Deno.test(
+  "a legacy CONVERSIONS campaign does not flag a leads-only report",
+  () => {
+    assertStrictEquals(objectiveKind("CONVERSIONS"), "other");
+    const r = compareReportToMeta({
+      metaRows: [{ campaign_id: "1", objective: "CONVERSIONS", spend: 400 }],
+      aiosRows: [{ campaign_id: "1", spend: 400 }],
+      reportType: "leads",
+    });
+    assertStrictEquals(r.type_issue, null);
+    assertStrictEquals(r.spend_by_objective.other, 400);
+  },
+);
