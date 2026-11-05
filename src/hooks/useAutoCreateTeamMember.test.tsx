@@ -116,7 +116,8 @@ describe.each<MemberKind>(["campaigner", "salesPerson"])(
         )
         .mockReturnValueOnce(
           queryReply(null, new Error("email update rejected")),
-        );
+        )
+        .mockReturnValue(queryReply(null));
       render(withTestQuery(<CreateMember kind={kind} />));
       fireEvent.click(screen.getByRole("button"));
       await waitFor(() =>
