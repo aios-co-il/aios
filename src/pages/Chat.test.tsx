@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
 import Chat from "./Chat";
 
-const mocks = vi.hoisted(() => ({ tenantId: "tenant-1" as string | null }));
+const mocks = vi.hoisted(() => ({
+  tenantId: "tenant-1" as string | null,
+  finishConversion: undefined as (() => void) | undefined,
+}));
 
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({
@@ -36,9 +39,19 @@ vi.mock("@/components/chat/ConvertContactDialog", () => ({
   }: {
     onSuccess: (id: string, type: "group", tenantId: string) => void;
   }) => (
-    <button onClick={() => onSuccess("new-group", "group", "tenant-1")}>
-      Complete conversion
-    </button>
+    <>
+      <button
+        onClick={() => {
+          mocks.finishConversion = () =>
+            onSuccess("new-group", "group", "tenant-1");
+        }}
+      >
+        Start conversion
+      </button>
+      <button onClick={() => mocks.finishConversion?.()}>
+        Complete conversion
+      </button>
+    </>
   ),
 }));
 vi.mock("@/components/chat/ChatMessageList", () => ({
@@ -147,6 +160,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 describe("Chat conversion selection", () => {
   beforeEach(() => {
     mocks.tenantId = "tenant-1";
+    mocks.finishConversion = undefined;
   });
 
   afterEach(() => {
@@ -167,6 +181,7 @@ describe("Chat conversion selection", () => {
       "unknown:unknown-1",
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Start conversion" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Complete conversion" }),
     );
@@ -191,10 +206,11 @@ describe("Chat conversion selection", () => {
         "unknown:unknown-1",
       );
 
+      fireEvent.click(screen.getByRole("button", { name: "Start conversion" }));
       mocks.tenantId = nextTenant;
       view.rerender(cloneElement(wrapped, undefined, page()));
       const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
-      // Complete tenant-1's pending conversion through the real ChatView callback.
+      // Linking retains the callback captured before the tenant changed.
       fireEvent.click(
         screen.getByRole("button", { name: "Complete conversion" }),
       );
