@@ -87,6 +87,7 @@ export async function savePayload(
   // asset_references belongs to the assets trigger and workshop_mode to the toggle
   // (workshop_set_mode): keep what the database holds right now, so a save from the copy a tool
   // loaded at its start never wipes the pictures the user just marked or undoes a mode switch.
+  // The workshop_keep_mode trigger enforces the mode in the same statement as well.
   const current = await supabase
     .from("marketing_work_items")
     .select("payload")

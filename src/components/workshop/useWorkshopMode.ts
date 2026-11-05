@@ -36,7 +36,11 @@ export function useWorkshopMode(
             if (error) {
               throw error;
             }
-            return workshopModeFrom(data?.workshop_mode);
+            // A missing row (deleted, or hidden by RLS) is a failed read, not "semi".
+            if (!data) {
+              throw new Error("workshop project not found");
+            }
+            return workshopModeFrom(data.workshop_mode);
           }
         : skipToken,
   });

@@ -88,6 +88,20 @@ BEGIN
   RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub', '', true);
 
+  -- Any other payload write keeps the stored mode: a stale copy can't undo the switch.
+  UPDATE public.marketing_work_items
+     SET payload = jsonb_set(payload, '{workshop_mode}', '"semi"')
+   WHERE id = v_other_item;
+  IF (SELECT payload->>'workshop_mode' FROM public.marketing_work_items WHERE id = v_other_item) <> 'auto' THEN
+    RAISE EXCEPTION 'a plain payload write must keep the stored mode';
+  END IF;
+  UPDATE public.marketing_work_items
+     SET payload = payload - 'workshop_mode'
+   WHERE id = v_other_item;
+  IF (SELECT payload->>'workshop_mode' FROM public.marketing_work_items WHERE id = v_other_item) IS DISTINCT FROM 'auto' THEN
+    RAISE EXCEPTION 'a payload write without the key must keep the stored mode';
+  END IF;
+
   RAISE NOTICE 'workshop_set_mode: all checks passed';
 END;
 $test$;

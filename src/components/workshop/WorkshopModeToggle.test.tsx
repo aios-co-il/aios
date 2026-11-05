@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   stored: { workshop_mode: null as string | null },
   readError: null as { message: string } | null,
+  missing: false,
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -14,7 +15,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => {
   const chain: Record<string, unknown> = {
     maybeSingle: async () =>
-      mocks.readError
+      mocks.readError || mocks.missing
         ? { data: null, error: mocks.readError }
         : { data: { ...mocks.stored }, error: null },
   };
@@ -32,6 +33,7 @@ describe("WorkshopModeToggle", () => {
     mocks.rpc.mockReset();
     mocks.stored.workshop_mode = null;
     mocks.readError = null;
+    mocks.missing = false;
   });
 
   test("a project without a mode shows semi-automatic", async () => {
@@ -93,6 +95,14 @@ describe("WorkshopModeToggle", () => {
 
   test("a mode that cannot be read shows an error, not a guessed mode", async () => {
     mocks.readError = { message: "denied" };
+    render(withTestQuery(<WorkshopModeToggle tenantId="t1" projectId="p1" />));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(pressed("חצי אוטומטי")).toBe("false");
+    expect(screen.getByRole("button", { name: "אוטומטי" })).toBeDisabled();
+  });
+
+  test("a project row that can't be found shows an error, not semi-automatic", async () => {
+    mocks.missing = true;
     render(withTestQuery(<WorkshopModeToggle tenantId="t1" projectId="p1" />));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(pressed("חצי אוטומטי")).toBe("false");

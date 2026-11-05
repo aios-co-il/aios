@@ -23,6 +23,8 @@ begin
   if p_mode is null or p_mode not in ('auto', 'semi') then
     raise exception 'workshop_set_mode: the mode is auto or semi' using errcode = '22023';
   end if;
+  -- workshop_keep_mode lets only this function change the key.
+  perform set_config('aios.workshop_mode_write', 'on', true);
   update public.marketing_work_items as item
      set payload = jsonb_set(coalesce(item.payload, '{}'::jsonb), '{workshop_mode}', to_jsonb(p_mode))
    where item.id = p_item_id
@@ -30,6 +32,7 @@ begin
        select tu.tenant_id from public.tenant_users as tu where tu.user_id = (select auth.uid())
      )
   returning item.payload->>'workshop_mode' into v_mode;
+  perform set_config('aios.workshop_mode_write', 'off', true);
   if v_mode is null then
     raise exception 'workshop_set_mode: project % not found', p_item_id using errcode = 'P0002';
   end if;
@@ -40,6 +43,34 @@ $$;
 revoke all on function public.workshop_set_mode(uuid, text)
   from public, anon, authenticated, service_role;
 grant execute on function public.workshop_set_mode(uuid, text) to authenticated;
+
+-- Keeps payload.workshop_mode as stored on every other payload write, in the same statement: a
+-- tool saving the payload copy it loaded earlier (or after a failed read) can never undo the
+-- user's switch, however the save and the switch interleave. Only workshop_set_mode changes it.
+create or replace function public.workshop_keep_mode()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if coalesce(current_setting('aios.workshop_mode_write', true), '') = 'on'
+     or (new.payload -> 'workshop_mode') is not distinct from (old.payload -> 'workshop_mode') then
+    return new;
+  end if;
+  new.payload := case
+    when old.payload ? 'workshop_mode'
+      then jsonb_set(coalesce(new.payload, '{}'::jsonb), '{workshop_mode}', old.payload -> 'workshop_mode')
+    else coalesce(new.payload, '{}'::jsonb) - 'workshop_mode'
+  end;
+  return new;
+end;
+$$;
+
+drop trigger if exists workshop_keep_mode on public.marketing_work_items;
+create trigger workshop_keep_mode
+  before update of payload on public.marketing_work_items
+  for each row execute function public.workshop_keep_mode();
 
 -- Carmen's rules for the two modes, in the workshop skins that run a project.
 UPDATE public.ai_skills SET
