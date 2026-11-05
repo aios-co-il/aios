@@ -152,6 +152,8 @@ interface CarmenChatBarProps {
   composerAccessory?: ReactNode;
   /** Open on a new conversation instead of restoring the last one; past chats stay in history. */
   startFresh?: boolean;
+  /** Full-width page: the voice controls sit beside the input even in sidecar mode. */
+  wide?: boolean;
 }
 
 const CARMEN_VOICES = [
@@ -193,6 +195,7 @@ export const CarmenChatBar = forwardRef<
     sidecarPlaceholder,
     composerAccessory,
     startFresh = false,
+    wide = false,
   },
   ref,
 ) {
@@ -1771,8 +1774,9 @@ export const CarmenChatBar = forwardRef<
     uploadingAttachments;
 
   // The side column is narrow: there the microphone mode and voice live in the "+" menu.
-  const inlineVoiceSelects = isSidecar ? "hidden" : "hidden sm:flex";
-  const optionsMenuVisibility = isSidecar ? "" : "sm:hidden";
+  const narrowColumn = isSidecar && !wide;
+  const inlineVoiceSelects = narrowColumn ? "hidden" : "hidden sm:flex";
+  const optionsMenuVisibility = narrowColumn ? "" : "sm:hidden";
   const composerPlaceholder = isSidecar
     ? (sidecarPlaceholder ?? "תיאור תיקון / בקשה למסך הנוכחי…")
     : isTranscribing
@@ -2157,7 +2161,8 @@ export const CarmenChatBar = forwardRef<
           disabled={
             isTranscribeRecording ||
             isTranscribing ||
-            (!isSidecar && isConvMode)
+            // A live call owns the conversation: typing would start a parallel brain request.
+            isConvMode
           }
           className="order-2 h-11 min-w-0 flex-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-3 text-sm outline-none placeholder:text-[var(--cc-text-dim)] focus:border-[var(--cc-line-strong)] sm:order-none"
         />
