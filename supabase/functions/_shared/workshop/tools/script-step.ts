@@ -19,6 +19,7 @@ import { savePayload } from "../project-io.ts";
 import { SCRIPT_CHOICE, withTappedScriptApproval } from "../script-approval.ts";
 import type { ToolContext } from "../tool-context.ts";
 import { NO_CONCEPT, type FilmConcept } from "./film-concept.ts";
+import { skipAskedByUser, skipRefused } from "./skip-request.ts";
 
 export interface ScriptGate {
   needs_input: true;
@@ -32,7 +33,7 @@ export interface ScriptGate {
  * The approved script the scenes follow (null when the step does not apply), or `stop`: the gate
  * that asks for one first. The approval comes from a tap on the script question in this turn or
  * from script_approved (the user approved in words, in a later turn than the script was saved);
- * skip_script (or skip_concepts) records the user's skip. A film that already has scenes, and one
+ * skip_script (or the concept skip) records the user's skip when they asked for it. A film that already has scenes, and one
  * cut from the user's own materials, are past this step.
  */
 export async function scriptStep(
@@ -44,7 +45,7 @@ export async function scriptStep(
   | { stop: ScriptGate }
   | { payload: Record<string, unknown>; script: FilmScript | null }
 > {
-  const next = settledThisTurn(ctx, payload);
+  const { payload: next, skipRefused: refused } = settledThisTurn(ctx, payload);
   const script = filmScriptOf(next);
   if (script && "skipped" in script) {
     return { payload: next, script: null };
@@ -57,34 +58,47 @@ export async function scriptStep(
   }
   // The briefing answers and the concept choice reached so far are kept, as on the concept gate.
   await savePayload(ctx.supabase, ctx.tenantId, itemId, next);
+  const gate = script
+    ? approvalGate(script)
+    : writeGate(film.concept, filmSeconds(next));
   return {
-    stop: script
-      ? approvalGate(script)
-      : writeGate(film.concept, filmSeconds(next)),
+    stop: refused
+      ? { ...gate, carmen_next: `${skipRefused("script")} ${gate.carmen_next}` }
+      : gate,
   };
 }
 
-/** The payload with what the user settled in this turn: a skip, or approval of the stored script. */
+/**
+ * The payload with what the user settled in this turn: a skip, or approval of the stored script.
+ * Carmen's skip_script counts only when the user asked for it (skip-request.ts); `skipRefused`
+ * says she sent one they did not.
+ */
 function settledThisTurn(
   ctx: Pick<ToolContext, "args" | "deps">,
   payload: Record<string, unknown>,
-) {
-  // Skipping the concepts means the user gave a full script of their own (or asked to go
-  // straight to scenes), so there is no script to write and approve either.
-  const conceptSkipped =
-    ctx.args.skip_concepts === true ||
-    conceptAnswer(briefAnswersOf(payload)) === NO_CONCEPT;
-  if (ctx.args.skip_script === true || conceptSkipped) {
-    return withScriptSkipped(payload);
+): { payload: Record<string, unknown>; skipRefused: boolean } {
+  // A skip of the concepts the user asked for (film-concept.ts saved it to the brief) means they
+  // gave a full script of their own or asked to go straight to scenes: no script to approve.
+  const conceptSkipped = conceptAnswer(briefAnswersOf(payload)) === NO_CONCEPT;
+  const asked =
+    ctx.args.skip_script === true &&
+    skipAskedByUser("script", ctx.deps.userText ?? "", filmSeconds(payload));
+  if (asked || conceptSkipped) {
+    return { payload: withScriptSkipped(payload), skipRefused: false };
   }
+  const skipRefused = ctx.args.skip_script === true;
   if (ctx.args.script_approved === true && userCouldApprove(ctx, payload)) {
-    return withScriptApproved(payload, ctx.deps.turnId ?? null);
+    return {
+      payload: withScriptApproved(payload, ctx.deps.turnId ?? null),
+      skipRefused,
+    };
   }
-  return withTappedScriptApproval(payload, {
+  const tapped = withTappedScriptApproval(payload, {
     lastAssistant: ctx.deps.lastAssistant ?? "",
     userText: ctx.deps.userText ?? "",
     turnId: ctx.deps.turnId,
   });
+  return { payload: tapped, skipRefused };
 }
 
 /**

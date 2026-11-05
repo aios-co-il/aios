@@ -238,15 +238,6 @@ Deno.test("an approved script is filmed one scene per line", async () => {
   assertStrictEquals(savedScenes(db), undefined);
 });
 
-Deno.test("the user's skip goes straight to the scenes", async () => {
-  const db = fakeDb(film());
-  const written = await storyboard(db, { skip_script: true });
-  assertStrictEquals(written.success, true, JSON.stringify(written));
-  assertEquals(savedScript(db), { skipped: true });
-  // Carmen's own lines stay when there is no script.
-  assertStrictEquals(savedScenes(db)?.[0].voiceover_text, "משהו אחר");
-});
-
 Deno.test(
   "a film that has scenes, or is cut from the user's materials, is not asked for a script",
   async () => {
@@ -259,15 +250,5 @@ Deno.test(
     const edited = fakeDb(film(undefined, { workshop_edit: true }));
     const written = await storyboard(edited);
     assertStrictEquals(written.success, true, JSON.stringify(written));
-  },
-);
-
-Deno.test(
-  "skipping the concepts (the user's own full script) skips the script step too",
-  async () => {
-    const db = fakeDb(film());
-    const written = await storyboard(db, { skip_concepts: true });
-    assertStrictEquals(written.success, true, JSON.stringify(written));
-    assertEquals(savedScript(db), { skipped: true });
   },
 );

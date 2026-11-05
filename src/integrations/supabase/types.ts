@@ -18757,6 +18757,32 @@ export type Database = {
           stage_id: string;
         }[];
       };
+      workshop_edit_page: {
+        Args: { p_artifact_id: string; p_beats?: Json; p_text?: string };
+        Returns: {
+          created_at: string;
+          created_by: string | null;
+          folder: string;
+          id: string;
+          item_id: string;
+          kind: string;
+          meta: Json;
+          ref_id: string | null;
+          ref_table: string | null;
+          status: string;
+          tenant_id: string;
+          thumb_url: string | null;
+          title: string;
+          updated_at: string;
+          url: string | null;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "workshop_artifacts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       workshop_edit_scene_text: {
         Args: {
           p_dialogue?: string;
