@@ -162,6 +162,7 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
    - **Voice-OUT:** each assistant bubble has a "השמע" speaker button → `carmen-speak` edge function (`aiSpeak`, mp3) → browser `<audio>` playback.
 
 - TTS/STT helpers live in `_shared/ai.ts` (`aiSpeak` / `aiTranscribe`). Voice = `ai_agents.voice` (default `shimmer`).
+- **Live voice (`carmen-realtime-session`)** uses the tenant's default Carmen agent, the row `run-ai-agent` resolves without an `agent_id`, in the `tenant_id` the client sends (members and super admins only) or else the caller's active tenant (`get_user_tenant_id`). Identity is the agent's `system_prompt`, else the V1 or V2 identity the chat would use for that agent; then `writing_style` / `response_length` and the mood layer (`_shared/carmen/agent-mood.ts`). Voice adds only speaking rules and the `ask_carmen` hand-off (`voice-instructions.ts`). She speaks the user's pick, else `ai_agents.voice` (TTS-only `nova` / `fable` / `onyx` map to the closest Realtime voice), else `marin` (`voice-choice.ts`). A failed settings read never blocks the session; she falls back to the V1 identity.
 
 ## Shabbat quiet hours and pulse instant alerts (AIO-226)
 
