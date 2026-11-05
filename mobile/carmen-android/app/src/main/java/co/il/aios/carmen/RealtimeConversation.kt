@@ -13,6 +13,7 @@ import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 /**
  * Live voice conversation with Carmen after the wake word. It opens the same OpenAI Realtime
@@ -35,6 +36,8 @@ class RealtimeConversation(
     }
 
     private val brain = CarmenBrain(account)
+    private val memory = VoiceMemory(account, log)
+    private val transcript = VoiceTranscript()
     private val phone = PhoneTools(context)
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private val tools = Executors.newSingleThreadExecutor()
@@ -123,8 +126,12 @@ class RealtimeConversation(
                 audio.play(Base64.decode(event.getString("delta"), Base64.DEFAULT))
             }
             "response.output_audio_transcript.done", "response.audio_transcript.done" ->
-                // Only Carmen's words are shown; the user's own speech is not transcribed on screen.
-                event.optString("transcript").trim().takeIf { it.isNotEmpty() }?.let { listener.onTranscript(it) }
+                // Only Carmen's words are shown; the user's words are kept for memory, not displayed.
+                event.optString("transcript").trim().takeIf { it.isNotEmpty() }?.let {
+                    transcript.carmen(it)
+                    listener.onTranscript(it)
+                }
+            "conversation.item.input_audio_transcription.completed" -> transcript.user(event.optString("transcript"))
             "response.output_item.done" -> event.optJSONObject("item")?.let(::maybeCallTool)
             "session.created" -> event.optJSONObject("session")?.let(::addPhoneTools)
             "response.done" -> {
@@ -166,7 +173,8 @@ class RealtimeConversation(
         log.record(EventLog.Event.BRAIN_CALLED, question.take(80))
         toolRunning = true
         tools.execute {
-            val answer = brain.ask(question)
+            // The call so far, so the brain's conversation starts with what was already said.
+            val answer = brain.ask(question, transcript.turns())
             toolRunning = false
             if (ended) return@execute
             answerTool(item.optString("call_id"), answer)
@@ -258,6 +266,7 @@ class RealtimeConversation(
         worker.shutdown()
         tools.shutdownNow()
         log.record(EventLog.Event.CONVERSATION_ENDED, reason)
+        thread(name = "carmen-memory") { memory.save(transcript, brain.conversationId) }
         listener.onEnded(reason)
     }
 

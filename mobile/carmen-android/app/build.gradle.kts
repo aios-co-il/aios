@@ -32,8 +32,8 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.9.0"
+        versionCode = 17
+        versionName = "0.9.2"
         // 64-bit phones only: keeps the APK small enough to download reliably to a phone.
         ndk { abiFilters += listOf("arm64-v8a") }
     }
