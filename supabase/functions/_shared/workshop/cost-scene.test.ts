@@ -56,6 +56,19 @@ Deno.test("voice and music prices match the app", () => {
 });
 
 Deno.test(
+  "a line with one plain word or only maqafs is quoted with nikud, like the worker sends it",
+  () => {
+    // Maqaf is punctuation, not a point: the worker still adds nikud to this line.
+    assertStrictEquals(voiceCharacters("א־ב־ג־ד"), Math.ceil(7 * 1.7));
+    // One plain word (פה) is enough for the worker to ask Dicta.
+    const partly = "שֶׁלָּנוּ פה";
+    assertStrictEquals(voiceCharacters(partly), Math.ceil(partly.length * 1.7));
+    const full = "שֶׁלָּנוּ פֹּה";
+    assertStrictEquals(voiceCharacters(full), full.length);
+  },
+);
+
+Deno.test(
   "a plain Hebrew line is quoted at the length of its pointed text",
   () => {
     const line = "הקפה שלנו נקלה בכל בוקר מחדש ונשלח אליכם תוך יומיים";

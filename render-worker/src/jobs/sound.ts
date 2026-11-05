@@ -188,7 +188,16 @@ export async function generateVoice({
   }
   log(`[voice] ${run.id} stored ${path}`);
   return {
-    output: { path, provider, voice_id: meta.voice_id ?? null },
+    // The worker finishes the run with the run it claimed plus this output, so the take's
+    // metadata (nikud, billed characters) rides here too; the intermediate save above does not
+    // reach the claimed run.
+    output: {
+      path,
+      provider,
+      voice_id: meta.voice_id ?? null,
+      audio_path: path,
+      audio_meta: meta,
+    },
     provider,
     credits: 0,
     // ElevenLabs bills characters (meta.characters: what it counted for the pointed text; the

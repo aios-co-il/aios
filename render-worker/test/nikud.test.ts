@@ -26,6 +26,14 @@ describe("nikud text", () => {
     expect(isVocalized(PLAIN)).toBe(false);
   });
 
+  test("a script counts as pointed only when every Hebrew word is", () => {
+    expect(isVocalized("שֶׁלָּנוּ פה")).toBe(false);
+    expect(isVocalized("שֶׁלָּנוּ פֹּה")).toBe(true);
+    // Maqaf is punctuation, not a point.
+    expect(isVocalized("א־ב־ג־ד")).toBe(false);
+    expect(isVocalized("Hello AIOS")).toBe(false);
+  });
+
   test("a word whose letters changed beyond its matres keeps the script's spelling", () => {
     expect(mergeVocalized(PLAIN, POINTED)).toBe(POINTED);
     expect(mergeVocalized("שלום לכולם", "שָׁלוֹם לְכֻלָּם")).toBe(

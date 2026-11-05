@@ -32,16 +32,25 @@ export const musicQuoteSeconds = (plannedS: number) =>
   plannedS > 0 ? plannedS * (1 + MUSIC_HEADROOM) + MUSIC_EXTRA_S : 0;
 
 /**
- * The characters the voice engine is billed for a line. A Hebrew line that is not already
- * mostly pointed (the worker's isVocalized: half its letters or more) is sent with nikud, so it
- * is priced at NIKUD_CHARACTER_FACTOR times its length.
+ * The characters the voice engine is billed for a line. A Hebrew line with any word not yet
+ * pointed is sent with nikud, so it is priced at NIKUD_CHARACTER_FACTOR times its length.
  */
 export function voiceCharacters(line: string): number {
   const text = line.trim();
-  const letters = text.match(/[א-ת]/g)?.length ?? 0;
-  const pointed = text.match(/[א-ת][\u0591-\u05C7]/g)?.length ?? 0;
-  const getsNikud = letters > 0 && pointed / letters < 0.5;
-  return getsNikud
+  return getsNikud(text)
     ? Math.ceil(text.length * NIKUD_CHARACTER_FACTOR)
     : text.length;
 }
+
+// Copy of the render worker's rule (render-worker/src/jobs/nikud.ts isVocalized): the worker
+// cannot import edge code, so change both together. A point is a vowel, dagesh, shin/sin dot or
+// cantillation; maqaf (U+05BE), paseq (U+05C0) and sof pasuq (U+05C3) are punctuation.
+const HEBREW_LETTER = /[\u05D0-\u05EA]/;
+const POINTED_LETTER =
+  /[\u05D0-\u05EA][\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/;
+
+/** True when the worker would add nikud: some Hebrew word has no pointed letter. */
+const getsNikud = (text: string) =>
+  text
+    .split(/\s+/)
+    .some((word) => HEBREW_LETTER.test(word) && !POINTED_LETTER.test(word));

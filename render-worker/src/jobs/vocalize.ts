@@ -9,9 +9,10 @@ const CACHE_LIMIT = 200;
 const cache = new Map<string, string>();
 
 /**
- * The text to send to the TTS engine and what the nikud step did. Not Hebrew, or already
- * pointed: the script as is. Otherwise the vocalizer's answer, merged word by word
- * (mergeVocalized), or the script as is when the vocalizer fails or answers a different text.
+ * The text to send to the TTS engine and what the nikud step did. Not Hebrew, or every Hebrew
+ * word already pointed: the script as is. Otherwise the vocalizer's answer for its plain words,
+ * merged word by word (mergeVocalized: words the script pointed stay its own), or the script as
+ * is when the vocalizer fails or answers a different text.
  */
 export async function vocalizeForSpeech(
   script: string,
@@ -35,7 +36,8 @@ export async function vocalizeForSpeech(
   }
   try {
     const merged = mergeVocalized(script, await vocalizer(stripNikud(script)));
-    if (!merged || !isVocalized(merged)) {
+    // Nothing gained: the answer had other words or no points for the script's plain ones.
+    if (!merged || merged === script) {
       log(
         "[nikud] the vocalizer's answer does not match the script; speaking it without nikud",
       );

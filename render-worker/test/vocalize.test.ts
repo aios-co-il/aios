@@ -39,6 +39,25 @@ describe("vocalizeForSpeech", () => {
     expect(vocalizer).not.toHaveBeenCalled();
   });
 
+  test("a partly pointed script asks for its plain words and keeps the ones it pointed", async () => {
+    // Dicta points every word it is sent; the script's own שֶׁלָּנוּ stays, its plain פה is taken.
+    const vocalizer = vi.fn(async () => "שֶׁלָנוּ פֹּה");
+    expect(
+      await vocalizeForSpeech("שֶׁלָּנוּ פה", { vocalizer }),
+    ).toStrictEqual({ text: "שֶׁלָּנוּ פֹּה", nikud: "added" });
+    expect(vocalizer).toHaveBeenCalledWith("שלנו פה");
+  });
+
+  test("an answer that points none of the plain words speaks the script as written", async () => {
+    const log = vi.fn();
+    expect(
+      await vocalizeForSpeech("ערב טוב", {
+        vocalizer: async () => "ערב טוב",
+        log,
+      }),
+    ).toStrictEqual({ text: "ערב טוב", nikud: "failed" });
+  });
+
   test("speaks the script as written when the vocalizer fails or answers another text", async () => {
     const log = vi.fn();
     const failing = async () => {

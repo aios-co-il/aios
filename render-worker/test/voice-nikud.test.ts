@@ -12,8 +12,15 @@ const POINTED = "הַקָּפֶה שֶׁלָּנוּ נְקַלָּה בְּכָ
 beforeEach(() => clearVocalizedCache());
 afterEach(() => vi.unstubAllGlobals());
 
-/** A voice run over one scene row whose text is PLAIN; records what the run stores. */
-function voiceFixture(input: Record<string, unknown>, sceneMeta = {}) {
+/**
+ * A voice run over one scene row whose text is PLAIN; records what the run stores. With
+ * `restUpdate`, the update only reaches the database (as the REST client does), not the run.
+ */
+function voiceFixture(
+  input: Record<string, unknown>,
+  sceneMeta = {},
+  { restUpdate = false } = {},
+) {
   const run = {
     id: "run1",
     tenant_id: "t1",
@@ -23,6 +30,7 @@ function voiceFixture(input: Record<string, unknown>, sceneMeta = {}) {
     output: {} as { audio_path?: string; audio_meta?: Record<string, unknown> },
   };
   const rpcs = [];
+  const updates = [];
   const db = {
     async select(table) {
       if (table === "marketing_work_items") {
@@ -32,13 +40,16 @@ function voiceFixture(input: Record<string, unknown>, sceneMeta = {}) {
     },
     async upload() {},
     async update(_table, _filter, patch) {
-      run.output = patch.output;
+      updates.push(patch);
+      if (!restUpdate) {
+        run.output = patch.output;
+      }
     },
     async rpc(name, args) {
       rpcs.push([name, args.p_meta]);
     },
   };
-  return { run, db, rpcs };
+  return { run, db, rpcs, updates };
 }
 
 const pointedVocalize = (text: string) =>
@@ -90,6 +101,32 @@ describe("the voice run", () => {
     expect(result.costUsd).toBe(
       Math.round((POINTED.length / 1000) * 0.12 * 10000) / 10000,
     );
+  });
+
+  test("a first take's nikud and billed characters reach the finished run's output", async () => {
+    stubElevenLabs([]);
+    const { run, db, updates } = voiceFixture(
+      { continuous: true, voice_id: "v1" },
+      {},
+      { restUpdate: true },
+    );
+    const result = await generateVoice({
+      db,
+      run,
+      apiKey: "eleven",
+      log: () => {},
+      vocalize: pointedVocalize,
+    });
+    expect(updates).toHaveLength(1);
+    // What index.ts finishes the run with: the claimed run's output plus the handler's.
+    const finished = { ...run.output, ...result.output };
+    expect(finished.audio_path).toBe(updates[0].output.audio_path);
+    expect(finished.audio_meta).toMatchObject({
+      provider: "elevenlabs",
+      nikud: "added",
+      characters: POINTED.length,
+      characters_basis: "sent_text",
+    });
   });
 
   test("ElevenLabs' character-cost header is the billed count when it sends one", async () => {
