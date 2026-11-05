@@ -223,6 +223,7 @@ Deno.test(
         style_approved: true,
         // The film's concept is settled too, so the scenes can be written in this call.
         brief_answers: { קונספט: "קליפ מהיר לפי הרפרנס" },
+        skip_script: true,
       },
       async () => {},
       null,

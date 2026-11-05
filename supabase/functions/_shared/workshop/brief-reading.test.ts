@@ -39,7 +39,7 @@ Deno.test("a site link or plain text is no reference", () => {
 });
 
 Deno.test(
-  "the request counts as read once per turn or with brief_answers",
+  "the request counts as read only once the gate asked in this turn",
   () => {
     const deps = { turnId: "turn-2" };
     const readLastTurn = { workshop_brief: { read_turn: "turn-1" } };
@@ -48,14 +48,16 @@ Deno.test(
       readRequest({ workshop_brief: { read_turn: "turn-2" } }, {}, deps, true),
       true,
     );
+    // Answers Carmen sends on her own (a tapped concept, the ending) are not a reading of the
+    // request (Staging, 4 Nov: the look the request named was asked again).
     assertStrictEquals(
       readRequest(
         readLastTurn,
-        { brief_answers: { none: "none" } },
+        { brief_answers: { קונספט: "תחלופה" } },
         deps,
         true,
       ),
-      true,
+      false,
     );
     // A tool that cannot keep the mark never asks, so it cannot loop.
     assertStrictEquals(readRequest(readLastTurn, {}, deps, false), true);

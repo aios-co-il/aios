@@ -21,14 +21,29 @@ export function askedChoices(message: string): Choice[] {
   return asked;
 }
 
+/** A script question's label (script-approval.ts reads its answer; the brief does not keep it). */
+export const isScriptLabel = (label: string) => label.includes("תסריט");
+
+/**
+ * The answers to Carmen's questions in her last message, for the brief. The budget question is
+ * answered by its code (budget-approve.ts) and the script question by script-approval.ts; neither
+ * is kept in the brief.
+ */
 export function tappedAnswers(
   lastAssistant: string,
   userText: string,
 ): BriefAnswers {
-  // The budget question is answered by its code (budget-approve.ts), not kept in the brief.
   const asked = askedChoices(lastAssistant).filter(
-    (choice) => !/תקציב/.test(choice.label),
+    (choice) => !/תקציב/.test(choice.label) && !isScriptLabel(choice.label),
   );
+  return answersTo(asked, userText);
+}
+
+/** The user's answers to these questions: "נושא: תשובה" lines, or a lone tap one question owns. */
+export function answersTo(
+  asked: Array<Choice>,
+  userText: string,
+): BriefAnswers {
   if (asked.length === 0) return {};
   const labels = new Set(asked.map((choice) => choice.label));
   const answers: BriefAnswers = {};

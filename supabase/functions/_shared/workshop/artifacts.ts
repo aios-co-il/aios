@@ -4,6 +4,7 @@ export const ARTIFACT_KINDS = [
   "brief",
   "concept",
   "copy",
+  "script",
   "image",
   "variation",
   "storyboard",
@@ -29,6 +30,7 @@ export const FOLDER_BY_KIND: Record<ArtifactKind, string> = {
   brief: "",
   concept: "copy",
   copy: "copy",
+  script: "copy",
   image: "images",
   variation: "images",
   storyboard: "video/scenes",
@@ -103,7 +105,9 @@ export function folderTree(
 /** Which Carmen skin is wearing the hat for a tool, so the avatar follows the work. */
 export function skinForTool(tool: string): string | null {
   if (
-    /^workshop_(plan_concepts|write_copy|save_concepts|save_copy)$/.test(tool)
+    /^workshop_(plan_concepts|write_copy|save_concepts|save_copy|save_script)$/.test(
+      tool,
+    )
   )
     return "copywriter";
   if (

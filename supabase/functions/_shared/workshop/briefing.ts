@@ -56,8 +56,8 @@ export interface BriefingInput {
    */
   asked?: boolean;
   /**
-   * Carmen already read the request for what it answers (she passed brief_answers, or was asked
-   * to in this turn). Until then the first questions are not shown: say_to_user goes out as is,
+   * Carmen already read the request for what it answers: the gate asked her to in this turn
+   * (brief-reading.ts). Answers she sends on her own do not count. Until then the first questions are not shown: say_to_user goes out as is,
    * so she cannot leave out a question the user already answered.
    */
   read?: boolean;
