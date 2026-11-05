@@ -168,6 +168,7 @@ const CARMEN_VOICES = [
 
 type CarmenVoice = (typeof CARMEN_VOICES)[number]["id"];
 const VOICE_STORAGE_KEY = "aios:carmen-voice";
+const DEFAULT_VOICE_LABEL = "קול ברירת מחדל של כרמן";
 
 /**
  * The "talk to Carmen" bar: typed text stays text; the mic opens OpenAI Realtime.
@@ -221,12 +222,10 @@ export const CarmenChatBar = forwardRef<
   const [isMuted, setIsMuted] = useState(false);
   const [isOutputMuted, setIsOutputMuted] = useState(false);
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<CarmenVoice>(() => {
-    const saved = localStorage.getItem(VOICE_STORAGE_KEY);
-    return CARMEN_VOICES.some((voice) => voice.id === saved)
-      ? (saved as CarmenVoice)
-      : "marin";
-  });
+  // null = no pick saved: live voice speaks Carmen's configured voice (ai_agents.voice).
+  const [selectedVoice, setSelectedVoice] = useState<CarmenVoice | null>(() =>
+    toCarmenVoice(localStorage.getItem(VOICE_STORAGE_KEY)),
+  );
   const [showHistory, setShowHistory] = useState(false);
   const historyVisible = historyOpen ?? showHistory;
   const setHistory = (open: boolean) => {
@@ -308,7 +307,7 @@ export const CarmenChatBar = forwardRef<
               "Content-Type": "application/json",
               Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ text, voice: selectedVoice }),
+            body: JSON.stringify({ text, voice: selectedVoice ?? undefined }),
           },
         );
         return res.ok ? await res.blob() : null;
@@ -1046,7 +1045,7 @@ export const CarmenChatBar = forwardRef<
 
   /** Try to open an OpenAI Realtime session. Returns false on failure — caller must NOT fall back to transcribe-voice. */
   const beginRealtime = useCallback(
-    async (voice: CarmenVoice = selectedVoice): Promise<boolean> => {
+    async (voice: CarmenVoice | null = selectedVoice): Promise<boolean> => {
       try {
         const {
           data: { session },
@@ -1064,9 +1063,10 @@ export const CarmenChatBar = forwardRef<
               Authorization: `Bearer ${session.access_token}`,
             },
             // Without an explicit pick, the server uses Carmen's configured voice.
-            body: JSON.stringify(
-              localStorage.getItem(VOICE_STORAGE_KEY) ? { voice } : {},
-            ),
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              ...(voice ? { voice } : {}),
+            }),
           },
         );
         if (!res.ok) {
@@ -1131,6 +1131,7 @@ export const CarmenChatBar = forwardRef<
       onFaceState,
       reportRealtimeError,
       selectedVoice,
+      tenantId,
     ],
   );
 
@@ -1658,9 +1659,13 @@ export const CarmenChatBar = forwardRef<
   }, [stopSpeech]);
 
   const selectVoice = useCallback(
-    async (voice: CarmenVoice) => {
+    async (voice: CarmenVoice | null) => {
       setSelectedVoice(voice);
-      localStorage.setItem(VOICE_STORAGE_KEY, voice);
+      if (voice) {
+        localStorage.setItem(VOICE_STORAGE_KEY, voice);
+      } else {
+        localStorage.removeItem(VOICE_STORAGE_KEY);
+      }
       if (!convModeRef.current || !realtimeRef.current) return;
 
       realtimeRef.current.stop();
@@ -1977,11 +1982,12 @@ export const CarmenChatBar = forwardRef<
                 <div className="mt-1 flex items-center gap-2">
                   <Headphones className="h-4 w-4 shrink-0 text-[var(--cc-accent)]" />
                   <select
-                    value={selectedVoice}
-                    onChange={(e) => selectVoice(e.target.value as CarmenVoice)}
+                    value={selectedVoice ?? ""}
+                    onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
                     title="קול"
                     className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
                   >
+                    <option value="">{DEFAULT_VOICE_LABEL}</option>
                     {CARMEN_VOICES.map((voice) => (
                       <option key={voice.id} value={voice.id}>
                         {voice.label}
@@ -2066,11 +2072,12 @@ export const CarmenChatBar = forwardRef<
             <div className="hidden h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 sm:flex">
               <Headphones className="h-4 w-4 text-[var(--cc-accent)]" />
               <select
-                value={selectedVoice}
-                onChange={(e) => selectVoice(e.target.value as CarmenVoice)}
+                value={selectedVoice ?? ""}
+                onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
                 title="קול"
                 className="max-w-[130px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
               >
+                <option value="">{DEFAULT_VOICE_LABEL}</option>
                 {CARMEN_VOICES.map((voice) => (
                   <option key={voice.id} value={voice.id}>
                     {voice.label}
@@ -2187,3 +2194,8 @@ export const CarmenChatBar = forwardRef<
     </div>
   );
 });
+
+/** The picked or saved value as a voice, or null for Carmen's default voice. */
+function toCarmenVoice(value: string | null): CarmenVoice | null {
+  return CARMEN_VOICES.find((voice) => voice.id === value)?.id ?? null;
+}

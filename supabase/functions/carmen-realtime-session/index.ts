@@ -2,13 +2,16 @@
 // live voice conversation. The browser then talks WebRTC directly to OpenAI;
 // the real OPENAI_API_KEY never reaches the frontend.
 //
-// POST body: { voice?: string } — without one, Carmen's configured voice (ai_agents.voice).
-// Her persona and tone come from the same agent settings as the text chat.
+// POST body: { voice?: string, tenant_id?: string } — without a voice, Carmen's configured
+// voice (chooseRealtimeVoice); without a tenant, the caller's active tenant. Her persona,
+// tone and mood come from the same agent settings as the text chat.
 // Response: { client_secret: string, model: string }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
-import { loadVoiceAgentProfile } from "./agent-profile.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { loadVoiceAgent } from "./agent-profile.ts";
+import { chooseRealtimeVoice } from "./voice-choice.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
 
 const corsHeaders = {
@@ -18,18 +21,6 @@ const corsHeaders = {
 };
 
 const REALTIME_MODEL = "gpt-realtime";
-const REALTIME_VOICES = new Set([
-  "alloy",
-  "ash",
-  "ballad",
-  "coral",
-  "echo",
-  "sage",
-  "shimmer",
-  "verse",
-  "marin",
-  "cedar",
-]);
 
 // Mirrors resolveOpenAIKey in _shared/ai.ts (kept local so this function stays
 // single-file deployable): env var first, then the active llm integration row.
@@ -114,14 +105,11 @@ Deno.serve(async (req) => {
       /* name is a nicety */
     }
 
-    const { voice } = await req
+    const { voice, tenant_id } = await req
       .json()
       .catch(() => ({}) as Record<string, unknown>);
-    const profile = await loadVoiceAgentProfile(caller.id);
-    const selectedVoice =
-      [voice, profile?.voice].find(
-        (v): v is string => typeof v === "string" && REALTIME_VOICES.has(v),
-      ) ?? "marin";
+    const agent = await loadVoiceAgent(serviceClient(), caller.id, tenant_id);
+    const selectedVoice = chooseRealtimeVoice(voice, agent?.voice ?? null);
 
     const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
@@ -135,13 +123,7 @@ Deno.serve(async (req) => {
           type: "realtime",
           model: REALTIME_MODEL,
           instructions: buildVoiceInstructions(
-            profile ?? {
-              systemPrompt: null,
-              writingStyle: null,
-              responseLength: null,
-              voice: null,
-              tenantName: "",
-            },
+            agent?.profile ?? null,
             callerName,
           ),
           audio: {
