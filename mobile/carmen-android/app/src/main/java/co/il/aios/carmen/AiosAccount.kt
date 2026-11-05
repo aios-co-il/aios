@@ -71,8 +71,8 @@ class AiosAccount(context: Context) {
     }
 
     enum class GoogleTarget(val redirect: String) {
-        APP("carmen-aios://auth/app"),
-        WEB("carmen-aios://auth/web"),
+        APP("${BuildConfig.AUTH_SCHEME}://auth/app"),
+        WEB("${BuildConfig.AUTH_SCHEME}://auth/web"),
     }
 
     /** Stores the app's session and resolves the tenant whose Command Center the app opens. */
