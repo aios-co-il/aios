@@ -398,8 +398,12 @@ function ContactLookupEditor({
 
 const emailRecipientSchema: RecipientSchema<EmailRecipient> =
   z.discriminatedUnion("type", [
-    z.object({ type: z.literal("email_field"), field: z.string() }),
-    z.object({ type: z.literal("email_manual"), email: z.string() }),
+    z
+      .object({ type: z.literal("email_field"), field: z.string() })
+      .passthrough(),
+    z
+      .object({ type: z.literal("email_manual"), email: z.string() })
+      .passthrough(),
     contactLookupRecipientSchema,
   ]);
 

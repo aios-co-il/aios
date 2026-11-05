@@ -10,11 +10,13 @@ export const idTextSchema = z.union([
   z.number().finite().transform(String),
 ]);
 
-export const contactLookupRecipientSchema = z.object({
-  type: z.literal("contact_lookup"),
-  entity: z.enum(["lead", "client"]),
-  id: idTextSchema,
-});
+export const contactLookupRecipientSchema = z
+  .object({
+    type: z.literal("contact_lookup"),
+    entity: z.enum(["lead", "client"]),
+    id: idTextSchema,
+  })
+  .passthrough();
 
 const unsupportedRecipientSchema = z.object({
   type: z.literal("unsupported"),

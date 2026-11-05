@@ -27,6 +27,7 @@ export function UnsupportedRecipientRow({
           variant="ghost"
           size="icon"
           onClick={onRemove}
+          aria-label="הסר יעד לא נתמך"
           className="h-9 w-9 text-destructive"
         >
           <Trash2 className="h-4 w-4" />

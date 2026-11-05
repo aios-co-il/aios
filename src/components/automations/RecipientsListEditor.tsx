@@ -521,11 +521,21 @@ function GroupLookupEditor({
 const recipientSchema: RecipientSchema<Recipient> = z.discriminatedUnion(
   "type",
   [
-    z.object({ type: z.literal("phone_field"), field: z.string() }),
-    z.object({ type: z.literal("group_field"), field: z.string() }),
-    z.object({ type: z.literal("phone_manual"), phone: idTextSchema }),
-    z.object({ type: z.literal("group_manual"), group_id: idTextSchema }),
-    z.object({ type: z.literal("group_lookup"), group_id: idTextSchema }),
+    z
+      .object({ type: z.literal("phone_field"), field: z.string() })
+      .passthrough(),
+    z
+      .object({ type: z.literal("group_field"), field: z.string() })
+      .passthrough(),
+    z
+      .object({ type: z.literal("phone_manual"), phone: idTextSchema })
+      .passthrough(),
+    z
+      .object({ type: z.literal("group_manual"), group_id: idTextSchema })
+      .passthrough(),
+    z
+      .object({ type: z.literal("group_lookup"), group_id: idTextSchema })
+      .passthrough(),
     contactLookupRecipientSchema,
   ],
 );

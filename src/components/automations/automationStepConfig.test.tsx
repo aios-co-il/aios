@@ -87,6 +87,12 @@ describe("form trigger list", () => {
     ]);
     expect(FORM_TRIGGER_OPTIONS.every((o) => o.label.length > 0)).toBe(true);
   });
+
+  it("offers only triggers the automations table can store", () => {
+    expect(FORM_TRIGGER_VALUES.filter((v) => !isAutomationTrigger(v))).toEqual(
+      [],
+    );
+  });
 });
 
 describe("flowStepRowToNodeData", () => {
@@ -119,6 +125,7 @@ describe("migrateLegacyRecipients", () => {
       { type: "phone_manual", phone: "0501234567" },
       { type: "phone_manual", phone: 972501234567 },
       { type: "contact_lookup", entity: "lead", id: 42 },
+      { type: "group_field", field: "group_chat_id", label: "VIP" },
       { type: "phone_manual" },
       { type: "future_type", target: "x" },
       "junk",
@@ -128,6 +135,7 @@ describe("migrateLegacyRecipients", () => {
       { type: "phone_manual", phone: "0501234567" },
       { type: "phone_manual", phone: "972501234567" },
       { type: "contact_lookup", entity: "lead", id: "42" },
+      { type: "group_field", field: "group_chat_id", label: "VIP" },
       { type: "unsupported", raw: { type: "phone_manual" } },
       { type: "unsupported", raw: { type: "future_type", target: "x" } },
       { type: "unsupported", raw: "junk" },
@@ -136,6 +144,7 @@ describe("migrateLegacyRecipients", () => {
       { type: "phone_manual", phone: "0501234567" },
       { type: "phone_manual", phone: "972501234567" },
       { type: "contact_lookup", entity: "lead", id: "42" },
+      { type: "group_field", field: "group_chat_id", label: "VIP" },
       { type: "phone_manual" },
       { type: "future_type", target: "x" },
       "junk",
@@ -159,18 +168,18 @@ describe("migrateLegacyEmailRecipients", () => {
   it("keeps stored recipients (unsupported ones verbatim) and migrates legacy keys", () => {
     const entries = migrateLegacyEmailRecipients({
       email_recipients: [
-        { type: "email_manual", email: "a@b.co" },
+        { type: "email_manual", email: "a@b.co", name: "Dana" },
         { type: "contact_lookup", entity: "client", id: 7 },
         3,
       ],
     });
     expect(entries).toEqual([
-      { type: "email_manual", email: "a@b.co" },
+      { type: "email_manual", email: "a@b.co", name: "Dana" },
       { type: "contact_lookup", entity: "client", id: "7" },
       { type: "unsupported", raw: 3 },
     ]);
     expect(toStoredRecipients(entries)).toEqual([
-      { type: "email_manual", email: "a@b.co" },
+      { type: "email_manual", email: "a@b.co", name: "Dana" },
       { type: "contact_lookup", entity: "client", id: "7" },
       3,
     ]);
@@ -220,7 +229,7 @@ describe("jsonObjectSchema helpers", () => {
 });
 
 describe("migrateLegacyRecipients schemas", () => {
-  it("rejects non-finite ids and unknown contact entities", () => {
+  it("rejects unknown contact entities and keeps extra keys on known types", () => {
     expect(
       migrateLegacyRecipients({
         recipients: [
@@ -233,7 +242,7 @@ describe("migrateLegacyRecipients schemas", () => {
         type: "unsupported",
         raw: { type: "contact_lookup", entity: "vendor", id: "1" },
       },
-      { type: "group_lookup", group_id: "12" },
+      { type: "group_lookup", group_id: "12", extra: "x" },
     ]);
   });
 });
