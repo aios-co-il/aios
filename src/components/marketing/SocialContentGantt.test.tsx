@@ -32,6 +32,7 @@ vi.mock("@/components/ui/select", () => ({
       onChange={(event) => onValueChange(event.target.value)}
     >
       {children}
+      <option value="unsupported-status">Unsupported status</option>
     </select>
   ),
   SelectTrigger: () => null,
@@ -108,6 +109,38 @@ describe("SocialContentGantt status persistence", () => {
     await waitFor(() =>
       expect(notifications.success).toHaveBeenCalledWith("עודכן"),
     );
+  });
+
+  test("ignores an unsupported status without changing the selection or updating", async () => {
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(
+        withTestQuery(
+          <SocialContentGantt
+            pipelineId="pipeline-1"
+            tenantId="tenant-1"
+            clientId="client-1"
+          />,
+        ),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Social draft" }),
+      );
+      const dialog = within(screen.getByRole("dialog"));
+      const status = dialog.getByRole("combobox");
+      expect(status).toHaveValue("draft");
+      diagnostic.mockClear();
+      fireEvent.change(status, { target: { value: "unsupported-status" } });
+      expect(diagnostic).toHaveBeenCalledExactlyOnceWith(
+        "Invalid marketing item status",
+      );
+      expect(status).toHaveValue("draft");
+      fireEvent.click(dialog.getByRole("button", { name: "שמור שינויים" }));
+      expect(db.updates).not.toHaveBeenCalled();
+      expect(notifications.success).not.toHaveBeenCalled();
+    } finally {
+      diagnostic.mockRestore();
+    }
   });
 
   test("reports a rejected status update", async () => {
