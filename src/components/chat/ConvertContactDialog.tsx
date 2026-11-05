@@ -139,7 +139,11 @@ export function ConvertContactDialog({
           .single();
 
         if (error) throw error;
-        return { id: data.id, type: "group" as const };
+        return {
+          id: data.id,
+          type: "group" as const,
+          tenantId: requiredTenantId,
+        };
       } else if (type === "client") {
         const clientData = convertClientSchema.parse(values);
         // Use the RPC so a campaigner who converts a contact is auto-assigned to
@@ -170,7 +174,11 @@ export function ConvertContactDialog({
             );
         }
 
-        return { id: newClientId, type: "client" as const };
+        return {
+          id: newClientId,
+          type: "client" as const,
+          tenantId: requiredTenantId,
+        };
       } else {
         const leadData = convertLeadSchema.parse(values);
         const { data, error } = await supabase
@@ -189,7 +197,11 @@ export function ConvertContactDialog({
           .single();
         if (error) throw error;
 
-        return { id: data.id, type: "lead" as const };
+        return {
+          id: data.id,
+          type: "lead" as const,
+          tenantId: requiredTenantId,
+        };
       }
     },
     onSuccess: async (result) => {
@@ -203,7 +215,7 @@ export function ConvertContactDialog({
             senderPhone,
             contactId: result.id,
             contactType: result.type,
-            tenantId,
+            tenantId: result.tenantId,
           },
         },
       );
@@ -221,10 +233,14 @@ export function ConvertContactDialog({
         );
       }
 
-      queryClient.invalidateQueries({ queryKey: ["chat-contacts", tenantId] });
-      queryClient.invalidateQueries({ queryKey: ["chat-messages", tenantId] });
       queryClient.invalidateQueries({
-        queryKey: ["unknown-contacts", tenantId],
+        queryKey: ["chat-contacts", result.tenantId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["chat-messages", result.tenantId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["unknown-contacts", result.tenantId],
       });
       onOpenChange(false);
       onSuccess(result.id, result.type);

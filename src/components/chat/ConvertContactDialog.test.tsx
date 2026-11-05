@@ -1,4 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cloneElement } from "react";
+import { QueryClient } from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { withTestQuery } from "@/test/withTestQuery";
@@ -59,7 +67,10 @@ describe("ConvertContactDialog creation result", () => {
     });
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("creates and links an agency-free lead in the active tenant", async () => {
     const onSuccess = vi.fn();
@@ -128,6 +139,69 @@ describe("ConvertContactDialog creation result", () => {
       },
     });
   });
+
+  it.each([
+    { type: "group", nextTenant: "tenant-2" },
+    { type: "group", nextTenant: null },
+    { type: "lead", nextTenant: "tenant-2" },
+    { type: "lead", nextTenant: null },
+  ] as const)(
+    "keeps the creation tenant when $type conversion finishes after switching to $nextTenant",
+    async ({ type, nextTenant }) => {
+      let finishInsert!: () => void;
+      const pendingInsert = new Promise<void>((resolve) => {
+        finishInsert = resolve;
+      });
+      mocks.insert.mockReturnValue({
+        select: () => ({
+          single: async () => {
+            await pendingInsert;
+            return { data: { id: "contact-1" }, error: null };
+          },
+        }),
+      });
+      const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      const onSuccess = vi.fn();
+      const dialog = () => (
+        <ConvertContactDialog
+          open
+          type={type}
+          senderName="New contact"
+          senderPhone="12345"
+          onOpenChange={vi.fn()}
+          onSuccess={onSuccess}
+        />
+      );
+      const wrapped = withTestQuery(dialog());
+      const view = render(wrapped);
+      fireEvent.click(screen.getByRole("button", { name: "המר" }));
+      await waitFor(() => expect(mocks.insert).toHaveBeenCalled());
+      expect(mocks.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ tenant_id: "tenant-1" }),
+      );
+
+      mocks.tenantId = nextTenant;
+      view.rerender(cloneElement(wrapped, undefined, dialog()));
+      await act(async () => finishInsert());
+
+      await waitFor(() =>
+        expect(onSuccess).toHaveBeenCalledWith("contact-1", type),
+      );
+      expect(mocks.invoke).toHaveBeenCalledWith("convert-unknown-contact", {
+        body: {
+          senderPhone: "12345",
+          contactId: "contact-1",
+          contactType: type,
+          tenantId: "tenant-1",
+        },
+      });
+      expect(invalidate.mock.calls).toEqual([
+        [{ queryKey: ["chat-contacts", "tenant-1"] }],
+        [{ queryKey: ["chat-messages", "tenant-1"] }],
+        [{ queryKey: ["unknown-contacts", "tenant-1"] }],
+      ]);
+    },
+  );
 
   it("rejects creation without a tenant before writing or linking messages", async () => {
     mocks.tenantId = null;
