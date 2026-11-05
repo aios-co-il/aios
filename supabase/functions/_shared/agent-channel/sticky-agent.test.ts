@@ -214,20 +214,23 @@ Deno.test("open-chat session rows tolerate malformed entries", async () => {
   assertEquals(ids, ["bc-ok"]);
 });
 
-Deno.test("a failed open-chat session lookup is reported, not ignored", async () => {
-  const sb = {
-    from() {
-      return mockChain(null, null, { message: "permission denied" });
-    },
-  };
-  await assertRejects(
-    () =>
-      collectOpenChatIds(sb, {
-        tenantId: "t1",
-        provider: "cursor",
-        env: { CURSOR_DIRECT_STICKY: "true" },
-      }),
-    Error,
-    openChatLookupFailedMessage("permission denied"),
-  );
-});
+Deno.test(
+  "a failed open-chat session lookup is reported, not ignored",
+  async () => {
+    const sb = {
+      from() {
+        return mockChain(null, null, { message: "permission denied" });
+      },
+    };
+    await assertRejects(
+      () =>
+        collectOpenChatIds(sb, {
+          tenantId: "t1",
+          provider: "cursor",
+          env: { CURSOR_DIRECT_STICKY: "true" },
+        }),
+      Error,
+      openChatLookupFailedMessage("permission denied"),
+    );
+  },
+);
