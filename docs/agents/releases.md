@@ -14,6 +14,7 @@ Follow the merge and production approval rules in root `AGENTS.md`.
 ## Releasing (product owner)
 
 - **Start a release:** Actions → `Release` → Run workflow on `develop`; pick the bump (`patch`, `minor`, `major`) and an optional note. The run checks that `develop` has something to ship, every `main` commit has an equivalent on `develop`, and CI on the `develop` commit is green. It then opens the `develop` → `main` PR with a changelog and waits for the `Production` environment reviewers.
+- **Dry run:** tick `dry_run` to run every check and print the changelog without the release app, a PR, a merge, a tag or a release. Use it for the first run after setup.
 - **Approval:** the `Production` environment's required reviewers are the Production approval. After they approve, the workflow merges the PR with a merge commit, tags `vX.Y.Z` and publishes a GitHub Release; Supabase and Vercel deploy Production from the `main` push. Agents never approve the run.
 - **Merge method:** a merge commit made by the release GitHub App, which bypasses the `main` ruleset. Squash would turn `Check develop has main` red for good, because one squashed patch has no per-commit equivalent on `develop`.
 - **Blocked release:** when a hotfix on `main` is missing from `develop`, the run fails and prints a prompt in its summary. Give that prompt to your coding agent. It opens the backport PR to `develop` and stops; a human queues it, then run the release again.

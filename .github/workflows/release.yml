@@ -9,6 +9,9 @@
 # Squash would make `Check develop has main` fail for good: one squashed patch has no
 # per-commit equivalent on develop. See docs/agents/releases.md for the setup.
 #
+# Run with dry_run first on a new setup: it runs every check and prints the changelog
+# without needing the release app or opening anything.
+#
 # A release is blocked while a main commit has no equivalent on develop (an unported
 # hotfix). The run then prints a prompt the product owner can give their coding agent.
 
@@ -27,6 +30,10 @@ on:
         description: Optional note shown at the top of the changelog
         type: string
         required: false
+      dry_run:
+        description: Run the checks and print the changelog only. No PR, merge, tag or release.
+        type: boolean
+        default: false
 
 concurrency:
   group: release
@@ -57,6 +64,7 @@ jobs:
           fetch-depth: 0
 
       - name: Require the release app
+        if: ${{ !inputs.dry_run }}
         env:
           APP_ID: ${{ secrets.RELEASE_APP_ID }}
           APP_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -152,6 +160,7 @@ jobs:
 
       - uses: actions/create-github-app-token@v2
         id: app
+        if: ${{ !inputs.dry_run }}
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -159,6 +168,7 @@ jobs:
       # The app token (not GITHUB_TOKEN) so the PR triggers the normal pull_request checks.
       - name: Open or update the release PR
         id: pr
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -177,6 +187,7 @@ jobs:
   publish:
     name: Approve, merge, tag
     needs: prepare
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     # Required reviewers on this environment are the Production approval.
     environment: Production
