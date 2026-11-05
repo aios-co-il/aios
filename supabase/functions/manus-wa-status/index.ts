@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { syncManusGroupsForTenant } from "../_shared/manus-wa-sync-groups-core.mjs";
 import type { Json } from "../_shared/database.types.ts";
-import { asJsonObject, parseJsonOrRaw } from "../_shared/manus-json.ts";
+import { asJsonObject, parseJsonOrRaw } from "../_shared/manus/json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

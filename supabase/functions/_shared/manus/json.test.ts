@@ -4,7 +4,7 @@ import {
   parseJsonOrRaw,
   thrownMessage,
   thrownName,
-} from "./manus-json.ts";
+} from "./json.ts";
 
 Deno.test("asJsonObject keeps objects and rejects other JSON values", () => {
   const obj = { instance_id: "i1", nested: { list: [1, null, true] } };

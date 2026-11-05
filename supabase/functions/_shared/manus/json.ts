@@ -1,5 +1,5 @@
 import { z } from "npm:zod@3.25.76";
-import type { Json } from "./database.types.ts";
+import type { Json } from "../database.types.ts";
 
 export type JsonObject = { [key: string]: Json | undefined };
 

@@ -34,7 +34,7 @@ import {
   asJsonObject,
   type JsonObject,
   thrownMessage,
-} from "../_shared/manus-json.ts";
+} from "../_shared/manus/json.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =

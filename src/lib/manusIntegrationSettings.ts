@@ -57,14 +57,20 @@ export function manusOutputText(
   output: Json | null | undefined,
 ): string | null {
   const items = manusOutputSchema.safeParse(output);
-  if (!items.success) return null;
+  if (!items.success) {
+    return null;
+  }
   const texts: string[] = [];
   for (const rawItem of items.data) {
     const item = manusOutputItemSchema.safeParse(rawItem);
-    if (!item.success) continue;
+    if (!item.success) {
+      continue;
+    }
     for (const rawPart of item.data.content) {
       const part = manusOutputTextPartSchema.safeParse(rawPart);
-      if (part.success && part.data.text) texts.push(String(part.data.text));
+      if (part.success && part.data.text) {
+        texts.push(String(part.data.text));
+      }
     }
   }
   return texts.length > 0 ? texts.join("\n\n") : null;
