@@ -15,6 +15,8 @@ import {
 import { Trash2, Filter, Settings2, ChevronDown, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import type { LeadStageScope } from "./leadStageScope";
+import { LeadStageScopeDefaultItems } from "./LeadStageScopeDefaultItems";
 
 export interface FilterPreset {
   id: string;
@@ -54,6 +56,9 @@ interface LeadFilterPresetTabsProps {
   stageFilterMode?: "show" | "hide";
   onStageSelect?: (stageId: string) => void;
   stageCounts?: Record<string, number>;
+  /** The saved scope the screen opens on, or null when none is saved. */
+  defaultStageScope?: LeadStageScope | null;
+  onDefaultStageScopeChange?: (scope: LeadStageScope) => void;
 }
 
 export function LeadFilterPresetTabs({
@@ -67,6 +72,8 @@ export function LeadFilterPresetTabs({
   stageFilterMode = "show",
   onStageSelect,
   stageCounts,
+  defaultStageScope = null,
+  onDefaultStageScopeChange,
 }: LeadFilterPresetTabsProps) {
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
@@ -340,6 +347,12 @@ export function LeadFilterPresetTabs({
                 </DropdownMenuItem>
               );
             })}
+            {onDefaultStageScopeChange && (
+              <LeadStageScopeDefaultItems
+                defaultStageScope={defaultStageScope}
+                onChange={onDefaultStageScopeChange}
+              />
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}

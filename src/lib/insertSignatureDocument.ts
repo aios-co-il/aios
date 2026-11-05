@@ -3,7 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 type InsertPayload =
   import("@/integrations/supabase/types").Database["public"]["Tables"]["signature_documents"]["Insert"];
 
-function stripKeys(payload: InsertPayload, keys: string[]): InsertPayload {
+function stripKeys(
+  payload: InsertPayload,
+  keys: Array<keyof InsertPayload>,
+): InsertPayload {
   const next = { ...payload };
   for (const key of keys) delete next[key];
   return next;

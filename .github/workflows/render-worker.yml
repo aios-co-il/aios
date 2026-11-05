@@ -103,4 +103,4 @@ jobs:
           WORKER_ID: gha-staging
           WORKER_ENV: staging
         # exec: the runner's stop signal reaches node (not only bash), so it requeues its runs.
-        run: exec node src/index.mjs
+        run: exec node src/index.ts

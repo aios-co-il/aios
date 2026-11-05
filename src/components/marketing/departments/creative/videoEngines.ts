@@ -7,6 +7,7 @@ import {
   OPENROUTER_USD_PER_SECOND,
   VOICE_USD_PER_1000_CHARS,
   musicQuoteSeconds,
+  voiceCharacters,
 } from "../../../../../supabase/functions/_shared/workshop/clip-prices.ts";
 import type { StoryboardFrame } from "./types";
 
@@ -184,7 +185,7 @@ export const framesToVoice = (frames: StoryboardFrame[]) => {
 export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
   const spoken = framesToVoice(frames);
   const characters = spoken.reduce(
-    (sum, frame) => sum + frame.voiceover.trim().length,
+    (sum, frame) => sum + voiceCharacters(frame.voiceover),
     0,
   );
   return {

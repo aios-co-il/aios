@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { SeoGeoDepartment } from "./SeoGeoDepartment";
+import { ALL_CLIENTS_FILTER } from "../clientFilter";
 
 type Row = Record<string, unknown>;
 
@@ -9,6 +10,7 @@ type Row = Record<string, unknown>;
 // so a screen that leaves a column out of its select does not get it.
 const db = vi.hoisted(() => {
   const tables: Record<string, Record<string, unknown>[]> = {};
+  const errors: Partial<Record<string, Error>> = {};
   const from = (table: string) => {
     const filters: Array<(row: Record<string, unknown>) => boolean> = [];
     let columns: string[] | null = null;
@@ -16,6 +18,9 @@ const db = vi.hoisted(() => {
     let insert: Record<string, unknown> | null = null;
     let patch: Record<string, unknown> | null = null;
     const run = () => {
+      if (errors[table]) {
+        return { data: null, count: null, error: errors[table] };
+      }
       const rows = (tables[table] ??= []);
       if (insert) rows.push({ id: `${table}-${rows.length + 1}`, ...insert });
       const hits = insert
@@ -69,7 +74,7 @@ const db = vi.hoisted(() => {
     };
     return query;
   };
-  return { tables, from };
+  return { tables, errors, from };
 });
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -84,6 +89,9 @@ beforeEach(() => {
   HTMLElement.prototype.hasPointerCapture = () => false;
   HTMLElement.prototype.scrollIntoView = () => {};
   for (const table of Object.keys(db.tables)) delete db.tables[table];
+  for (const table of Object.keys(db.errors)) {
+    delete db.errors[table];
+  }
   Object.assign(db.tables, {
     marketing_pipeline_stages: [
       {
@@ -126,7 +134,7 @@ beforeEach(() => {
 
 const renderScreen = () =>
   render(<SeoGeoDepartment clientFilter="client-1" tenantId="tenant-1" />, {
-    wrapper: withTestQuery().wrapper,
+    wrapper: createTestQueryHarness().wrapper,
   });
 
 test("a project of the open client gets its program settings and its client's sites", async () => {
@@ -163,4 +171,82 @@ test("a project's existing program shows the site it publishes to", async () => 
   await waitFor(() =>
     expect(screen.getByRole("combobox")).toHaveTextContent("הבלוג של לקוח 1"),
   );
+});
+
+describe("validated SEO strategy rendering", () => {
+  test("shows an items-query failure instead of the empty state", async () => {
+    db.errors.marketing_work_items = new Error("Items query unavailable");
+    renderScreen();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Items query unavailable",
+    );
+    expect(screen.queryByText("אין תוכניות עדיין")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /קידום האתר/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  test.each([false, true])(
+    "isolates malformed rows in all-clients queries (all invalid: %s)",
+    async (allInvalid) => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      db.tables.marketing_work_items.push({
+        id: "broken-item",
+        tenant_id: "tenant-1",
+        client_id: "client-2",
+        title: "Broken project",
+        status: "active",
+        current_stage_id: null,
+        payload: {
+          department: "seo",
+          seo_plan: { strategy: { objective: 7 } },
+        },
+      });
+      if (allInvalid) {
+        db.tables.marketing_work_items.shift();
+      }
+      render(
+        <SeoGeoDepartment
+          clientFilter={ALL_CLIENTS_FILTER}
+          tenantId="tenant-1"
+        />,
+        { wrapper: createTestQueryHarness().wrapper },
+      );
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Broken project");
+      expect(alert).toHaveTextContent("broken-item");
+      expect(screen.queryByText("אין תוכניות עדיין")).not.toBeInTheDocument();
+      if (!allInvalid) {
+        expect(
+          await screen.findByRole("button", { name: /קידום האתר/ }),
+        ).toBeInTheDocument();
+      }
+      expect(log).toHaveBeenCalledWith(
+        "Invalid SEO project",
+        "broken-item",
+        expect.any(Error),
+      );
+      log.mockRestore();
+    },
+  );
+
+  test("renders only named strategy fields when stored metadata contains an object", async () => {
+    db.tables.marketing_work_items[0].payload = {
+      department: "seo",
+      seo_plan: {
+        strategy: { objective: "Known objective", provider: { model: "x" } },
+        contentPlan: [{ title: "Article" }],
+      },
+    };
+    renderScreen();
+    const strategy = await screen.findByRole("tab", {
+      name: "אסטרטגיה",
+    });
+    fireEvent.mouseDown(strategy, { button: 0, ctrlKey: false });
+    const tab = await screen.findByRole("tab", { name: "אסטרטגיה ו-GEO" });
+    fireEvent.mouseDown(tab, { button: 0, ctrlKey: false });
+    expect(await screen.findByText("Known objective")).toBeInTheDocument();
+    expect(screen.queryByText("provider")).not.toBeInTheDocument();
+  });
 });

@@ -14,6 +14,14 @@ export type ManusGroupRow = {
   group_chat_id: string;
 };
 
+function isAutomationConfig(value: unknown): value is CarmenAutomationConfig {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toAutomationConfig(value: unknown): CarmenAutomationConfig | null {
+  return isAutomationConfig(value) ? value : null;
+}
+
 function normalizePhone(p: string) {
   return (p || "").replace(/\D/g, "");
 }
@@ -31,8 +39,8 @@ export async function fetchCarmenAutomationConfig(
   if (error) throw error;
 
   const configs = (steps || [])
-    .map((s: { configuration?: CarmenAutomationConfig }) => s.configuration)
-    .filter((c): c is CarmenAutomationConfig => !!c)
+    .map((s) => toAutomationConfig(s.configuration))
+    .filter((c): c is CarmenAutomationConfig => c !== null)
     .filter((c) => !c.agent_id || c.agent_id === agentId);
 
   if (!configs.length) return null;

@@ -18,7 +18,7 @@ import {
   stripVariationHeader,
   type StoredCopyVariation,
 } from "./copyVariations.ts";
-import type { CopyConcept } from "../../../copyConcepts.ts";
+import type { CopyConcept } from "../../copyConcepts.ts";
 
 const DOC = `
 וריאציה 1 — AIDA — פומו תחרותי
