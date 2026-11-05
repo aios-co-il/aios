@@ -30,6 +30,9 @@ class AiosAccount(context: Context) {
     val email: String? get() = prefs.getString(KEY_EMAIL, null)
     val isSignedIn: Boolean get() = prefs.getString(KEY_REFRESH, null) != null
 
+    /** Signed in with a tenant, the only state in which Carmen can work. */
+    val isReady: Boolean get() = isSignedIn && prefs.getString(KEY_TENANT, null) != null
+
     /**
      * Signs in with an AIOS email and password and resolves the user's active tenant. It also
      * opens a second, independent session for the in-app web screen, so one sign-in covers both
@@ -79,7 +82,11 @@ class AiosAccount(context: Context) {
     private fun completeSignIn(session: JSONObject) {
         saveTokens(session, session.optJSONObject("user")?.optString("email").orEmpty())
         val tenantId = resolveActiveTenant()
-            ?: throw IOException("למשתמש אין טננט פעיל ב-AIOS")
+        if (tenantId == null) {
+            // A session without a tenant cannot talk to Carmen: never leave the app signed in that way.
+            signOut()
+            throw IOException(NO_TENANT_MESSAGE)
+        }
         prefs.edit {
             putString(KEY_TENANT, tenantId)
             putString(KEY_TENANT_SLUG, tenantSlug(tenantId))
@@ -203,6 +210,7 @@ class AiosAccount(context: Context) {
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()
         private const val REFRESH_MARGIN_MS = 60_000L
+        const val NO_TENANT_MESSAGE = "החשבון הזה לא שייך לאף ארגון ב-AIOS. התחברו עם חשבון של הארגון, או בקשו הזמנה ממנהל הארגון."
         private val REFRESH_LOCK = Any()
         private const val PREFS = "aios_account"
         private const val KEY_ACCESS = "access_token"
