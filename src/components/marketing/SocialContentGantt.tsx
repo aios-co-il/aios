@@ -1,12 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Constants,
-  type Enums,
-  type TablesInsert,
-  type TablesUpdate,
-} from "@/integrations/supabase/types";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   format,
   startOfMonth,
@@ -159,7 +154,7 @@ const statusConfig: Record<
     icon: <Loader2 className="h-3 w-3 animate-spin" />,
     dot: "bg-blue-500",
   },
-  waiting_approval: {
+  review: {
     label: "לאישור",
     color: "text-amber-700",
     bg: "bg-amber-50 border-amber-200",
@@ -383,11 +378,10 @@ function PostDetailDialog({
   item: WorkItem | null;
   open: boolean;
   onClose: () => void;
-  onUpdate: (id: string, patch: TablesUpdate<"marketing_work_items">) => void;
+  onUpdate: (id: string, patch: Partial<WorkItem>) => void;
 }) {
   const [editDate, setEditDate] = useState("");
-  const [editStatus, setEditStatus] =
-    useState<Enums<"marketing_item_status">>();
+  const [editStatus, setEditStatus] = useState("");
 
   if (!item) return null;
 
@@ -441,17 +435,7 @@ function PostDetailDialog({
               </label>
               <Select
                 value={editStatus || item.status}
-                onValueChange={(value) => {
-                  const status =
-                    Constants.public.Enums.marketing_item_status.find(
-                      (candidate) => candidate === value,
-                    );
-                  if (status) {
-                    setEditStatus(status);
-                  } else {
-                    console.error("Invalid marketing item status");
-                  }
-                }}
+                onValueChange={(v) => setEditStatus(v)}
               >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
@@ -501,7 +485,7 @@ function PostDetailDialog({
             size="sm"
             className="w-full"
             onClick={() => {
-              const patch: TablesUpdate<"marketing_work_items"> = {};
+              const patch: Partial<WorkItem> = {};
               if (editStatus) patch.status = editStatus;
               if (editDate) patch.scheduled_date = editDate;
               if (Object.keys(patch).length > 0) {
@@ -734,7 +718,7 @@ function ListItemRow({
   selected: boolean;
   onSelect: () => void;
   onClick: () => void;
-  onUpdate: (id: string, patch: TablesUpdate<"marketing_work_items">) => void;
+  onUpdate: (id: string, patch: Partial<WorkItem>) => void;
   onPublish: (id: string) => void;
 }) {
   const [editingCopy, setEditingCopy] = useState(false);
@@ -1029,7 +1013,7 @@ export function SocialContentGantt({
       patch,
     }: {
       id: string;
-      patch: TablesUpdate<"marketing_work_items">;
+      patch: Partial<WorkItem>;
     }) => {
       const { error } = await supabase
         .from("marketing_work_items")
