@@ -29,8 +29,8 @@ class PhoneTools(private val context: Context) {
     fun definitions(): List<JSONObject> = listOf(
         tool(
             FIND_CONTACT,
-            "חיפוש איש קשר באנשי הקשר של הטלפון לפי שם (גם חלקי). מחזיר שמות ומספרים. השתמשי לפני כל שיחה.",
-            JSONObject().put("query", stringProp("השם או חלק ממנו, כפי שהמשתמש אמר")),
+            "חיפוש באנשי הקשר של הטלפון לפי שם (גם חלקי, בעברית או באנגלית) או לפי מספר טלפון. מחזיר שמות ומספרים. השתמשי לפני כל שיחה, וגם כשהמשתמש נותן מספר ושואל של מי הוא.",
+            JSONObject().put("query", stringProp("השם או חלק ממנו כפי שהמשתמש אמר, או מספר טלפון")),
             listOf("query"),
         ),
         tool(
@@ -66,26 +66,38 @@ class PhoneTools(private val context: Context) {
     }.getOrElse { Result("הפעולה בטלפון נכשלה: ${it.message.orEmpty().take(120)}") }
 
     private fun findContacts(query: String): String {
-        if (query.isBlank()) return "לא נאמר שם לחיפוש."
+        if (query.isBlank()) return "לא נאמר שם או מספר לחיפוש."
         if (!granted(Manifest.permission.READ_CONTACTS)) return NO_CONTACTS_PERMISSION
-        val matches = linkedSetOf<String>()
-        val words = query.trim().split(Regex("\\s+")).filter { it.length >= 2 }
-        for (term in listOf(query.trim()) + words) {
-            context.contentResolver.query(
-                Phone.CONTENT_URI,
-                arrayOf(Phone.DISPLAY_NAME, Phone.NUMBER, Phone.TYPE, Phone.LABEL),
-                "${Phone.DISPLAY_NAME} LIKE ?",
-                arrayOf("%$term%"),
-                "${Phone.DISPLAY_NAME} ASC",
-            )?.use { cursor ->
-                while (cursor.moveToNext() && matches.size < MAX_MATCHES) {
-                    val label = Phone.getTypeLabel(context.resources, cursor.getInt(2), cursor.getString(3))
-                    matches += "${cursor.getString(0)} — $label: ${cursor.getString(1)}"
-                }
-            }
-            if (matches.isNotEmpty()) break
+        val found = ContactSearch.find(loadContacts(), query.trim(), MAX_MATCHES)
+        if (found.total == 0) {
+            return if (ContactSearch.isNumber(query)) "המספר $query לא שמור באנשי הקשר." else "לא נמצא איש קשר בשם \"$query\"."
         }
-        return if (matches.isEmpty()) "לא נמצא איש קשר בשם \"$query\"." else matches.joinToString("\n")
+        val lines = found.contacts.map { contact ->
+            "${contact.name} — " + contact.numbers.joinToString(", ") { "${it.label}: ${it.number}" }
+        }
+        val more = found.total - found.contacts.size
+        return (lines + listOfNotNull(if (more > 0) "ועוד $more התאמות. שאלי שם משפחה או פרט נוסף כדי לצמצם." else null))
+            .joinToString("\n")
+    }
+
+    /** Every phone number in the contacts, from all accounts on the phone (Google, SIM, phone). */
+    private fun loadContacts(): List<PhoneContact> {
+        val rows = mutableListOf<Pair<String, ContactNumber>>()
+        context.contentResolver.query(
+            Phone.CONTENT_URI,
+            arrayOf(Phone.DISPLAY_NAME, Phone.NUMBER, Phone.TYPE, Phone.LABEL),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(0) ?: continue
+                val number = cursor.getString(1) ?: continue
+                val label = Phone.getTypeLabel(context.resources, cursor.getInt(2), cursor.getString(3)).toString()
+                rows += name to ContactNumber(number, label)
+            }
+        }
+        return ContactSearch.merge(rows)
     }
 
     private fun call(args: JSONObject): Result {
