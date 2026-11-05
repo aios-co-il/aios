@@ -1,7 +1,7 @@
 /**
- * workshop_storyboard directs motion like a marketing manager, not a fashion model (David, Nov
- * 2026: "Carmen's animations look like a fashion model"): the guide is in the tool and a person
- * scene whose motion asks for posing is sent back with its number.
+ * workshop_storyboard directs Carmen like a marketing manager, not a fashion model (David, Nov
+ * 2026: "Carmen's animations look like a fashion model"): the guide is in the tool and a Carmen
+ * scene whose motion asks for posing is sent back with its number; a client's film may pose.
  */
 import {
   assert,
@@ -34,7 +34,7 @@ async function storyboard(scenes: Array<Record<string, unknown>>) {
 }
 
 Deno.test(
-  "a person scene that poses like a model is refused with its number",
+  "a Carmen scene that poses like a model is refused with its number",
   async () => {
     const { result, saved } = await storyboard([
       { visual_prompt: "Carmen at her desk", motion_prompt: PROFESSIONAL },
@@ -46,6 +46,32 @@ Deno.test(
     ]);
     assertMatch(String(result.error), /^סצנה 2: /);
     assertMatch(String(result.error), /strikes a pose/);
+    assertStrictEquals(saved, false);
+  },
+);
+
+Deno.test("a client's fashion film may pose", async () => {
+  const { result, saved } = await storyboard([
+    {
+      visual_prompt: "a fashion model in the new summer dress on a studio set",
+      motion_prompt: "The model poses in the new dress and strikes a pose.",
+    },
+  ]);
+  assertStrictEquals(result.error, undefined);
+  assert(saved);
+});
+
+Deno.test(
+  "a scene in Carmen's skin portrait that poses is refused",
+  async () => {
+    const { result, saved } = await storyboard([
+      {
+        visual_prompt: "a woman in a blazer in the office",
+        motion_prompt: "She strikes a pose.",
+        reference_url: "https://app.aios.co.il/brand/carmen/skins/analyst.webp",
+      },
+    ]);
+    assertMatch(String(result.error), /^סצנה 1: /);
     assertStrictEquals(saved, false);
   },
 );

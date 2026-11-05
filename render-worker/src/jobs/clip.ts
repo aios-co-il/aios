@@ -16,8 +16,9 @@ import {
 } from "../providers/index.ts";
 import {
   clipNegativePrompt,
-  showsPerson,
+  showsCarmen,
 } from "../providers/composed-motion.ts";
+import { textlessMotion } from "../providers/textless-motion.ts";
 import { publicStill } from "./still-image.ts";
 
 const BUCKET = "creative-video";
@@ -89,7 +90,7 @@ export async function generateClip({
   const scene = await loadRunScene(
     db,
     run,
-    "id,still_asset_id,voiceover_text,meta",
+    "id,still_asset_id,voiceover_text,visual_prompt,meta",
   );
   // A talking scene on an engine that speaks is made in one pass: the line goes in the prompt
   // and the clip carries the speech. Otherwise the clip is silent and advance_video_production
@@ -106,6 +107,12 @@ export async function generateClip({
     : [];
   if (!still?.url)
     throw finalError("clip run: the scene has no still (is required)");
+  // Judged on the motion as the engine gets it (clipPrompt drops the sentences asking for text).
+  const carmen = showsCarmen({
+    visual_prompt: scene.visual_prompt,
+    motion: textlessMotion(input.motion_prompt),
+    meta: scene.meta,
+  });
   const durationS = Number(input.duration_s) || 5;
   const aspect = input.aspect || "9:16";
   const estimate = provider.estimate({ durationS, talking: Boolean(talking) });
@@ -136,11 +143,9 @@ export async function generateClip({
         imageBytes,
         imageUrl,
         prompt: talking
-          ? talkingPrompt(input.motion_prompt, talking)
-          : clipPrompt(input.motion_prompt),
-        negativePrompt: clipNegativePrompt(
-          showsPerson(input.motion_prompt, Boolean(talking)),
-        ),
+          ? talkingPrompt(input.motion_prompt, talking, carmen)
+          : clipPrompt(input.motion_prompt, carmen),
+        negativePrompt: clipNegativePrompt(carmen),
         durationS,
         aspect,
         generateAudio: Boolean(talking) || input.generate_audio === true,

@@ -10,7 +10,7 @@ import { PRODUCTION_LOCKED, productionLockError } from "./production.ts";
 import { briefAnswersField } from "./project-brief.ts";
 import { publicUrlOf } from "./project-io.ts";
 import { asRecord } from "./record.ts";
-import { directedMotionField } from "./motion-direction.ts";
+import { summaryMotionField } from "./motion-direction.ts";
 import { spokenField } from "./spoken-text.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -51,8 +51,8 @@ export const EDIT_TOOL = {
       motion: {
         type: "array",
         items: { type: "string" },
-        description: directedMotionField(
-          "איך כל תמונה זזה, באנגלית, לפי הסדר (למשל Slow push-in. She looks up from the laptop into the lens and nods once. Ends looking into the lens.). לכל סקין פעולה שמתאימה לתפקיד שלה.",
+        description: summaryMotionField(
+          "איך כל תמונה זזה, באנגלית, לפי הסדר (למשל Slow push-in. The chef lifts the pan and holds it toward the lens. Ends with the pan still, steam rising.). לכל תמונה פעולה אחת שמתאימה למה שרואים בה.",
         ),
       },
       lipsync: {

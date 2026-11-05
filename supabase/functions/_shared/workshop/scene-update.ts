@@ -124,9 +124,7 @@ export function planSceneUpdate(
       };
   }
 
-  const posing = given(args, "motion_prompt")
-    ? changedMotionRefusal(scene, args)
-    : null;
+  const posing = changedMotionRefusal(scene, args);
   if (posing) {
     return posing;
   }
