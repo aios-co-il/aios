@@ -1,5 +1,10 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { handleCarmenMessage, type CarmenContext } from "./carmen.ts";
+import { CLIENT_INTAKE_REPLY_HE } from "./carmen/client-intake.ts";
+import {
+  accessFlagsFor,
+  type GroupReplyLevel,
+} from "./carmen/group-reply-level.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const GROUP_CHAT = "120363111222333@g.us";
@@ -13,8 +18,25 @@ type Row = Record<string, unknown>;
  * A Supabase stand-in for the handler: every query is thenable and resolves to the
  * rows of its table that match its .eq()/.in() filters; writes resolve empty.
  */
-function fakeDb(tables: Record<string, Array<Row>>) {
+function fakeDb(
+  tables: Record<string, Array<Row>>,
+  rpcs: Record<string, (args: Row) => unknown> = {},
+) {
   return {
+    rpc(fn: string, args: Row) {
+      const answer = { data: rpcs[fn]?.(args) ?? null, error: null };
+      const single = () => {
+        const data = answer.data;
+        return Promise.resolve({
+          data: Array.isArray(data) ? (data[0] ?? null) : data,
+          error: null,
+        });
+      };
+      return {
+        single,
+        then: (resolve: (value: unknown) => unknown) => resolve(answer),
+      };
+    },
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = [];
       const rows = () =>
@@ -56,35 +78,42 @@ function fakeDb(tables: Record<string, Array<Row>>) {
 }
 
 /** A tenant whose Carmen automation has the given scope, and one registered group. */
-function tenantDb(scope: Row, extra: Record<string, Array<Row>> = {}) {
-  return fakeDb({
-    automation_flow_steps: [
-      {
-        tenant_id: TENANT,
-        step_type: "trigger",
-        action_type: "carmen_whatsapp_session",
-        automation_id: "auto-1",
-        configuration: { agent_id: "agent-1", ...scope },
-      },
-      {
-        tenant_id: TENANT,
-        step_type: "action",
-        action_type: "send_manus_message",
-        automation_id: "auto-1",
-        configuration: { integration_id: "integration-1" },
-      },
-    ],
-    automations: [{ id: "auto-1", active: true, configuration: {} }],
-    whatsapp_groups: [
-      {
-        id: "group-1",
-        tenant_id: TENANT,
-        group_chat_id: GROUP_CHAT,
-        is_blocked: false,
-      },
-    ],
-    ...extra,
-  });
+function tenantDb(
+  scope: Row,
+  extra: Record<string, Array<Row>> = {},
+  rpcs: Record<string, (args: Row) => unknown> = {},
+) {
+  return fakeDb(
+    {
+      automation_flow_steps: [
+        {
+          tenant_id: TENANT,
+          step_type: "trigger",
+          action_type: "carmen_whatsapp_session",
+          automation_id: "auto-1",
+          configuration: { agent_id: "agent-1", ...scope },
+        },
+        {
+          tenant_id: TENANT,
+          step_type: "action",
+          action_type: "send_manus_message",
+          automation_id: "auto-1",
+          configuration: { integration_id: "integration-1" },
+        },
+      ],
+      automations: [{ id: "auto-1", active: true, configuration: {} }],
+      whatsapp_groups: [
+        {
+          id: "group-1",
+          tenant_id: TENANT,
+          group_chat_id: GROUP_CHAT,
+          is_blocked: false,
+        },
+      ],
+      ...extra,
+    },
+    rpcs,
+  );
 }
 
 /** A request body the handler posted to a send function. */
@@ -275,3 +304,111 @@ Deno.test(
     );
   },
 );
+
+Deno.test("handleCarmenMessage follows the group's reply level", async (t) => {
+  const CLIENT = "33333333-3333-4333-8333-333333333333";
+  const CLIENT_PHONE = "972521112233";
+  const optedIn = {
+    carmen_scope_mode: "specific_group",
+    carmen_allowed_group_ids: [GROUP_CHAT],
+  };
+  /** The group's access row at this level. */
+  const access = (level: GroupReplyLevel) => ({
+    carmen_client_group_access: [
+      {
+        tenant_id: TENANT,
+        whatsapp_group_id: "group-1",
+        client_id: CLIENT,
+        ...accessFlagsFor(level),
+      },
+    ],
+  });
+  /** The group's client, recognised by the phone on the card. */
+  const clientPhone = {
+    resolve_send_recipient: () => [
+      {
+        recipient_kind: "client",
+        client_ids: [CLIENT],
+        lead_id: null,
+        group_id: null,
+        ambiguous: false,
+        sender_staff: false,
+      },
+    ],
+    whatsapp_group_client_ids: () => [CLIENT],
+  };
+
+  await t.step("automations only: Carmen answers nobody", async () => {
+    const { ctx } = groupTurn(
+      tenantDb(optedIn, access("automations_only")),
+      LID,
+    );
+    const { result, posted } = await capturingSends(() =>
+      handleCarmenMessage(ctx),
+    );
+    assertEquals(result, { handled: true, outcome: "active" });
+    assertEquals(posted, []);
+  });
+
+  await t.step(
+    "client: the group's client gets the fixed thank-you, as its proof",
+    async () => {
+      const { ctx } = groupTurn(
+        tenantDb(optedIn, access("client"), clientPhone),
+        CLIENT_PHONE,
+      );
+      const { result, posted } = await capturingSends(() =>
+        handleCarmenMessage(ctx),
+      );
+      assertEquals(result, { handled: true, outcome: "active" });
+      assertEquals(posted[0].body.message, CLIENT_INTAKE_REPLY_HE);
+      assertEquals(posted[0].body.sendRef, CLIENT_PHONE);
+      assertEquals(posted[0].body.groupId, "group-1");
+    },
+  );
+
+  await t.step(
+    "staff (the default): an approved client contact gets nothing",
+    async () => {
+      const { ctx } = groupTurn(
+        tenantDb(
+          optedIn,
+          {
+            whatsapp_groups: [
+              {
+                id: "group-1",
+                tenant_id: TENANT,
+                group_chat_id: GROUP_CHAT,
+                is_blocked: false,
+              },
+            ],
+            clients: [
+              {
+                id: CLIENT,
+                tenant_id: TENANT,
+                name: "Detailit",
+                whatsapp_group_id: "group-1",
+              },
+            ],
+            carmen_whatsapp_identities: [
+              {
+                tenant_id: TENANT,
+                phone: CLIENT_PHONE,
+                status: "approved",
+                entity_type: "client_contact",
+                client_id: CLIENT,
+              },
+            ],
+          },
+          clientPhone,
+        ),
+        CLIENT_PHONE,
+      );
+      const { result, posted } = await capturingSends(() =>
+        handleCarmenMessage(ctx),
+      );
+      assertEquals(result, { handled: true, outcome: "active" });
+      assertEquals(posted, []);
+    },
+  );
+});

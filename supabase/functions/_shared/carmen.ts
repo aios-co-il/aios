@@ -30,6 +30,17 @@ import {
   clientGroupAudienceNote,
   findGroupClientName,
 } from "./carmen/client-group-audience.ts";
+import {
+  CLIENT_INTAKE_REPLY_HE,
+  findGroupClientAuthor,
+  forwardClientRequest,
+} from "./carmen/client-intake.ts";
+import {
+  DEFAULT_GROUP_REPLY_LEVEL,
+  type GroupReplyLevel,
+} from "./carmen/group-reply-level.ts";
+import { loadGroupReplyLevel } from "./carmen/load-group-reply-level.ts";
+import { sendStaffAlert } from "./staff-alert/send.ts";
 import { resolveCarmenIdentityPhone } from "./carmen/identity-phone.ts";
 import {
   loadGroupAgencyVoice,
@@ -1323,7 +1334,7 @@ export type CarmenHandleResult =
     };
 
 type CarmenIdentityAccess =
-  | { allowed: true; context: string }
+  | { allowed: true; context: string; role: "staff" | "client_contact" }
   | { allowed: false; reply: string | null; reason: string };
 
 function phoneTail(value: string | null | undefined): string {
@@ -1585,6 +1596,7 @@ async function resolveCarmenGroupIdentity(
       if (tenantStaff?.isManager) {
         return {
           allowed: true,
+          role: "staff",
           context: `\n\n[הרשאת זהות מחייבת] הדובר הוא ${tenantStaff.displayName || identity.display_name || senderName || "מנהל"} בתפקיד ${tenantStaff.role} בארגון הנוכחי. מותר לענות במסגרת הארגון הנוכחי בלבד. אין לחשוף מידע מארגונים אחרים.`,
         };
       }
@@ -1612,6 +1624,7 @@ async function resolveCarmenGroupIdentity(
       }
       return {
         allowed: true,
+        role: "staff",
         context: `\n\n[הרשאת זהות מחייבת] הדובר הוא איש צוות מאומת: ${identity.display_name || senderName || "ללא שם"}. מותר לענות רק לגבי הלקוחות הפעילים המשויכים אליו: ${clients.join(", ") || "אין לקוחות משויכים"}. אין לחשוף מידע על לקוחות אחרים.`,
       };
     }
@@ -1624,6 +1637,7 @@ async function resolveCarmenGroupIdentity(
     }
     return {
       allowed: true,
+      role: "client_contact",
       context: `\n\n[הרשאת זהות מחייבת] הדובר הוא איש קשר של הלקוח ${groupClient?.name || identity.client_id} (${identity.client_id}). חברותו בקבוצת הלקוח מאשרת שירות בקבוצה זו. מותר לענות רק במידע חיצוני שאושר ללקוח זה. אסור לחשוף תקשורת פנימית, הערות צוות, מידע כספי פנימי, לקוחות אחרים או דיוני הנהלה.`,
     };
   }
@@ -1660,6 +1674,7 @@ async function resolveCarmenGroupIdentity(
   ) {
     return {
       allowed: true,
+      role: "staff",
       context: `\n\n[הרשאת זהות מחייבת] הדובר הוא ${staff?.displayName || senderName || "מנהל"} (${digits}) — מנהל מורשה לפי carmen_allowed_phones. מותר לענות במסגרת הארגון בקבוצה זו בלבד.`,
     };
   }
@@ -1815,6 +1830,8 @@ export async function handleCarmenMessage(
     ? groupScopeGate(mergedScope, cfg, sourceChannel)
     : null;
 
+  let groupRowId: string | null = null;
+  let groupLevel: GroupReplyLevel = DEFAULT_GROUP_REPLY_LEVEL;
   // GROUP SAFETY GATE: a blocked group must stay completely silent regardless
   // of provider, automation scope, or an already-warm Carmen session. Green API
   // checks this before calling us, but Manus reaches the shared handler directly,
@@ -1851,6 +1868,20 @@ export async function handleCarmenMessage(
       .filter(Boolean);
     if (groupIds.length !== 1) {
       return { handled: false, reason: "group_not_uniquely_registered" };
+    }
+    groupRowId = groupIds[0];
+    // The group's reply level (AIO-349): at automations_only Carmen never
+    // talks there, while its messages are still stored and automations run.
+    groupLevel = await loadGroupReplyLevel(supabase, {
+      tenantId,
+      groupId: groupRowId,
+    });
+    if (groupLevel === "automations_only") {
+      console.log("[carmen] group answers automations only; staying silent", {
+        tenantId,
+        chatId,
+      });
+      return { handled: true, outcome: "active" };
     }
 
     // Every group turn requires a fresh, explicit address to Carmen. A warm
@@ -2004,6 +2035,42 @@ export async function handleCarmenMessage(
     return sent;
   };
 
+  // The group's own client addressed Carmen in a group that answers clients:
+  // a fixed thank-you, never an AI answer, and the request goes to the team.
+  const answerClientIntake = async (intake: {
+    groupId: string;
+    clientIds: Array<string>;
+  }) => {
+    await routedSend(chatId, CLIENT_INTAKE_REPLY_HE);
+    await forwardClientRequest({
+      db: supabase,
+      tenantId,
+      groupId: intake.groupId,
+      clientIds: intake.clientIds,
+      senderName,
+      senderPhone: phoneNumber,
+      message: messageText,
+      sendAlert: async (phone, message) => {
+        const result = await sendStaffAlert({
+          supabase,
+          supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "",
+          serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          tenantId,
+          phone,
+          message,
+        });
+        if (!result.sent) {
+          console.error("[carmen] client request not forwarded", {
+            tenantId,
+            status: result.status,
+            error: result.error,
+          });
+        }
+        return result.sent;
+      },
+    });
+  };
+
   // Built once and passed to runCarmenAI so any subagent that Carmen spawns
   // during this turn can push its final result back into THIS WhatsApp chat
   // (without it, "I'm working in the background" turns into a dead end).
@@ -2032,6 +2099,31 @@ export async function handleCarmenMessage(
       mergedScope.allowedPhones,
       mergedScope.policyPhones,
     );
+    const clientAuthor =
+      groupLevel === "client" && groupRowId
+        ? await findGroupClientAuthor(supabase, {
+            tenantId,
+            groupId: groupRowId,
+            phone: phoneNumber,
+          })
+        : null;
+    if (clientAuthor && groupRowId) {
+      await answerClientIntake({
+        groupId: groupRowId,
+        clientIds: clientAuthor.clientIds,
+      });
+      return { handled: true, outcome: "active" };
+    }
+    if (access.allowed && access.role === "client_contact") {
+      // Only a group at the "client" level answers its client, and then only
+      // through the intake above.
+      console.log("[carmen] group does not answer clients; staying silent", {
+        tenantId,
+        chatId,
+        groupLevel,
+      });
+      return { handled: true, outcome: "active" };
+    }
     if (!access.allowed) {
       if (access.reply) await routedSend(chatId, access.reply);
       console.log("[carmen] group author blocked by identity access", {

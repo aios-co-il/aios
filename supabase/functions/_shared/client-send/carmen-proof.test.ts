@@ -1,15 +1,20 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { authorizeClientSend } from "./authorize.ts";
-import { carmenStaffAskedInChat } from "./carmen-proof.ts";
+import { carmenAnswersRequestInChat } from "./carmen-proof.ts";
 import {
   CLIENT,
   guardDb,
+  OTHER_CLIENT,
   OTHER_TENANT,
   refusalRows,
   resolved,
   TENANT,
 } from "./fake-guard-db.ts";
-import type { ClientSendRequest } from "./types.ts";
+import {
+  accessFlagsFor,
+  type GroupReplyLevel,
+} from "../carmen/group-reply-level.ts";
+import type { ClientSendRequest, SendRecipient } from "./types.ts";
 
 const NOW = new Date("2026-11-05T10:00:00.000Z");
 const GROUP_ROW = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -52,20 +57,41 @@ const clientGroup = resolved("client_group", [CLIENT], {
   group_id: GROUP_ROW,
 });
 
-/** The proof over these stored messages, with STAFF_PHONE staff or not. */
+/** The client group as the guard resolved it. */
+const theGroup: SendRecipient = {
+  kind: "client_group",
+  clientIds: [CLIENT],
+  leadId: null,
+  groupId: GROUP_ROW,
+  ambiguous: false,
+  senderStaff: false,
+};
+
+/** The group's carmen_client_group_access row at this level. */
+const accessRow = (level: GroupReplyLevel) => ({
+  tenant_id: TENANT,
+  whatsapp_group_id: GROUP_ROW,
+  ...accessFlagsFor(level),
+});
+
+/**
+ * The proof over these stored messages, with STAFF_PHONE resolved as given
+ * and the group's access rows.
+ */
 async function proves(
   request: ClientSendRequest,
   messages: Array<Record<string, unknown>>,
-  staffPhone = staff,
+  author = staff,
+  access: Array<Record<string, unknown>> = [],
 ) {
   const { db } = guardDb({
-    recipients: { "972545612156": staffPhone },
-    tables: { chat_messages: messages },
+    recipients: { "972545612156": author },
+    tables: { chat_messages: messages, carmen_client_group_access: access },
   });
-  return await carmenStaffAskedInChat(db, request, NOW);
+  return await carmenAnswersRequestInChat(db, request, theGroup, NOW);
 }
 
-Deno.test("carmenStaffAskedInChat", async (t) => {
+Deno.test("carmenAnswersRequestInChat", async (t) => {
   await t.step("staff wrote in this group moments ago", async () => {
     assertEquals(await proves(carmenReply(), [groupMessage({})]), true);
   });
@@ -113,6 +139,40 @@ Deno.test("carmenStaffAskedInChat", async (t) => {
       false,
     );
   });
+
+  await t.step(
+    "the group's reply level decides who Carmen answers",
+    async () => {
+      const asked = [groupMessage({})];
+      const groupClient = resolved("client_contact", [CLIENT]);
+      const otherClient = resolved("client_contact", [OTHER_CLIENT]);
+      assertEquals(
+        await proves(carmenReply(), asked, groupClient),
+        false,
+        "by default the group's client gets no answer",
+      );
+      assertEquals(
+        await proves(carmenReply(), asked, groupClient, [accessRow("client")]),
+        true,
+      );
+      assertEquals(
+        await proves(carmenReply(), asked, otherClient, [accessRow("client")]),
+        false,
+        "another client's contact is not this group's client",
+      );
+      assertEquals(
+        await proves(carmenReply(), asked, staff, [
+          accessRow("automations_only"),
+        ]),
+        false,
+        "at automations_only Carmen answers nobody",
+      );
+      assertEquals(
+        await proves(carmenReply(), asked, staff, [accessRow("staff")]),
+        true,
+      );
+    },
+  );
 
   await t.step(
     "a private reply goes back to that same staff phone",

@@ -18,8 +18,8 @@ type AutomationTrigger = Database["public"]["Enums"]["automation_trigger"];
  * `never`: refused whatever it carries. `sender_staff`: refused unless the
  * address is also the sending tenant's own staff (types.ts senderStaff).
  * `report_schedule`, `broadcast_sending` and `automation`: the send_ref must
- * prove what asked for it (proofs.ts). `carmen_staff_request`: the tenant's
- * staff asked Carmen in that same chat moments ago (carmen-proof.ts).
+ * prove what asked for it (proofs.ts). `carmen_request`: someone Carmen
+ * may answer there asked her in that same chat moments ago (carmen-proof.ts).
  * `opt_in`: the client card's switch for that kind and target.
  */
 export type ClientRule =
@@ -28,7 +28,7 @@ export type ClientRule =
   | { proof: "report_schedule" }
   | { proof: "broadcast_sending" }
   | { proof: "automation" }
-  | { proof: "carmen_staff_request"; refusal: ClientSendRefusal }
+  | { proof: "carmen_request"; refusal: ClientSendRefusal }
   | { proof: "opt_in"; kind: ClientAutoSendKind };
 
 export const CLIENT_RULES: Record<SendKind, ClientRule> = {
@@ -41,9 +41,10 @@ export const CLIENT_RULES: Record<SendKind, ClientRule> = {
   report: { proof: "report_schedule" },
   broadcast: { proof: "broadcast_sending" },
   automation: { proof: "automation" },
-  // A client sees Carmen only when staff asked her in that chat (AIO-349).
+  // A client sees Carmen only when staff, or in a group that answers clients
+  // that group's client, asked her in that chat (AIO-349).
   // An approved send from the queue is AIO-350.
-  carmen: { proof: "carmen_staff_request", refusal: "carmen_unverified" },
+  carmen: { proof: "carmen_request", refusal: "carmen_unverified" },
 };
 
 /** The rule of a service-role send that names no kind. */

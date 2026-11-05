@@ -2,7 +2,7 @@
 // with the proofs and card switches it asks for. Lookups throw on failure;
 // authorize.ts turns a throw into guard_error.
 import type { DbClient } from "../supabase-clients.ts";
-import { carmenStaffAskedInChat } from "./carmen-proof.ts";
+import { carmenAnswersRequestInChat } from "./carmen-proof.ts";
 import { isOptedIn } from "./opt-in.ts";
 import { sendingBroadcast } from "./broadcast-proof.ts";
 import { automationTarget, reportScheduleClient } from "./proofs.ts";
@@ -41,8 +41,10 @@ export async function clientRefusal(
       return await broadcastRefusal(db, request, recipient);
     case "automation":
       return await automationRefusal(db, request, recipient);
-    case "carmen_staff_request":
-      return (await carmenStaffAskedInChat(db, request)) ? null : rule.refusal;
+    case "carmen_request":
+      return (await carmenAnswersRequestInChat(db, request, recipient))
+        ? null
+        : rule.refusal;
     case "opt_in":
       return await optInRefusal(db, request, recipient, rule.kind);
   }
