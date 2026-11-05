@@ -51,3 +51,12 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "voice waits for the user's request and runs a pulse check only when asked",
+  () => {
+    const text = buildVoiceInstructions(profile, null);
+    assertStringIncludes(text, "המתיני שהמשתמש יגיד מה הוא רוצה");
+    assert(!text.includes("שגיאת תמלול"));
+  },
+);

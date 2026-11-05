@@ -150,6 +150,9 @@ Deno.serve(async (req) => {
                 model: "gpt-4o-mini-transcribe",
                 language: "he",
               },
+              // A phone or laptop mic close to the speaker: filtering room noise keeps it
+              // from being heard as a request.
+              noise_reduction: { type: "near_field" },
             },
             output: { voice: selectedVoice },
           },
