@@ -91,7 +91,7 @@ The following setup is documented for these environments; Vercel variables, Supa
 
 ## Code, data and deployment synchronization
 
-- Code: feature → reviewed Preview → `develop` → verify → approved `main` release. Main hotfixes automatically merge back into develop. Conflicts fail visibly; no force-push or “ours/theirs” overwrite is used.
+- Code: feature → reviewed Preview → `develop` → verify → approved `main` release. A main hotfix reaches develop through a cherry-pick PR (see `docs/agents/releases.md`). Conflicts fail visibly; no force-push or “ours/theirs” overwrite is used.
 - Vercel builds each environment from source with its own variables. Never promote a Preview build containing Staging URLs to Production.
 - Data: `scripts/staging-data-manifest.json` lists the mirrored business tables, including clients, report definitions/records, SEO, WooCommerce, analytics and permissions. The `sync-staging-data.yml` workflow runs only on `workflow_dispatch` (the nightly schedule was removed with the move to Supabase Branching); Staging deploys do not run it. A failed run stays red, names the failing phase or table with the database error message, and ends with a step summary of tables and row counts.
 - Every source request uses the Supabase **read-only** query endpoint. Fingerprints detect changes even if `updated_at` was not maintained. Only changed rows are transferred. Parent rows load before children. Deletion mirroring requires explicit approval and a manual `--apply-deletes` run; runs only insert/update. Import transactions restore the prior USER-trigger state and keep FK checks enabled.
@@ -146,8 +146,8 @@ Neither GitHub drain claims Production runs. Both resolve their service key with
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
 4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
-5. Release PR **`develop` → `main`**, merged by a human (the Supabase GitHub integration applies migrations and deploys declared functions to Production).
-6. `Check develop has main` runs on `main` and `develop` pushes; `Branch contains latest main` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
+5. Release PR **`develop` → `main`**, opened by the `Release` workflow and merged after the `Production` environment reviewers approve (the Supabase GitHub integration applies migrations and deploys declared functions to Production).
+6. `Check develop has main` runs on `main` and `develop` pushes; `Branch contains latest main` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is merged with a merge commit by the release app (`release.yml`, see `docs/agents/releases.md`) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
 8. Do not resend old WhatsApp notifications while fixing delivery. David must explicitly approve that backfill.
 
