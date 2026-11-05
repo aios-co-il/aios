@@ -1,7 +1,10 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import { BUILTIN_BRAIN_KEYS } from "./builtin-keys.ts";
+import { fakeDb } from "./fake-db.ts";
 import {
   brainEnvFrom,
   type BuiltinKeys,
+  type KeySource,
   resolveBuiltinKeys,
 } from "./key-source.ts";
 
@@ -195,6 +198,35 @@ Deno.test("key-source", async (t) => {
       );
       const keys = await resolveBuiltinKeys(sb, CLIENT, PROJECT);
       assertStrictEquals(bySlug(keys, "cursor").source, null);
+    },
+  );
+
+  await t.step(
+    "MarketingCaptain is home, DMM uses its share, any other org has nothing (AIO-354)",
+    async () => {
+      const slugs = BUILTIN_BRAIN_KEYS.map((b) => b.slug);
+      const full = Object.fromEntries(
+        BUILTIN_BRAIN_KEYS.flatMap((b) => b.envNames.map((n) => [n, `p-${n}`])),
+      );
+      const sb = fakeDb({
+        tables: {
+          carmen_brain_home_tenants: [{ tenant_id: HOME }],
+          carmen_brain_key_shares: slugs.map((slug) => ({
+            source_tenant_id: HOME,
+            target_tenant_id: "dmm",
+            builtin_slug: slug,
+          })),
+        },
+      });
+      const [home, dmm, other] = await Promise.all(
+        [HOME, "dmm", CLIENT].map((t) => resolveBuiltinKeys(sb, t, full)),
+      );
+      const want = (source: KeySource | null) => slugs.map(() => source);
+      const src = (keys: Array<BuiltinKeys>) => keys.map((k) => k.source);
+      assertEquals(src(home), want({ kind: "project" }));
+      assertEquals(src(dmm), want({ kind: "shared", fromTenantId: HOME }));
+      assertEquals(brainEnvFrom(full, dmm), brainEnvFrom(full, home));
+      assertEquals(src(other), want(null));
     },
   );
 
