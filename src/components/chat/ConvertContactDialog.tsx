@@ -44,7 +44,11 @@ interface ConvertContactDialogProps {
   senderPhone: string;
   senderName?: string | null;
   type: "client" | "lead" | "group";
-  onSuccess: (id: string, type: "client" | "lead" | "group") => void;
+  onSuccess: (
+    id: string,
+    type: "client" | "lead" | "group",
+    tenantId: string,
+  ) => void;
 }
 
 export function ConvertContactDialog({
@@ -243,7 +247,7 @@ export function ConvertContactDialog({
         queryKey: ["unknown-contacts", result.tenantId],
       });
       onOpenChange(false);
-      onSuccess(result.id, result.type);
+      onSuccess(result.id, result.type, result.tenantId);
     },
     onError: (error: any) => {
       console.error("Failed to create contact:", error);

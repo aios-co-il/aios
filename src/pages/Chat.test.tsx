@@ -1,13 +1,17 @@
+import { cloneElement } from "react";
+import { QueryClient } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
 import Chat from "./Chat";
 
+const mocks = vi.hoisted(() => ({ tenantId: "tenant-1" as string | null }));
+
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({
-    tenantId: "tenant-1",
-    tenant: { id: "tenant-1" },
+    tenantId: mocks.tenantId,
+    tenant: mocks.tenantId ? { id: mocks.tenantId } : null,
   }),
 }));
 vi.mock("@/hooks/useCurrentUser", () => ({
@@ -30,9 +34,9 @@ vi.mock("@/components/chat/ConvertContactDialog", () => ({
   ConvertContactDialog: ({
     onSuccess,
   }: {
-    onSuccess: (id: string, type: "group") => void;
+    onSuccess: (id: string, type: "group", tenantId: string) => void;
   }) => (
-    <button onClick={() => onSuccess("new-group", "group")}>
+    <button onClick={() => onSuccess("new-group", "group", "tenant-1")}>
       Complete conversion
     </button>
   ),
@@ -141,7 +145,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 describe("Chat conversion selection", () => {
-  afterEach(cleanup);
+  beforeEach(() => {
+    mocks.tenantId = "tenant-1";
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("opens the returned group thread on desktop after converting an unknown contact", async () => {
     render(
@@ -164,4 +175,34 @@ describe("Chat conversion selection", () => {
       "group:new-group",
     );
   });
+
+  it.each(["tenant-2", null])(
+    "does not invalidate or select the old tenant's conversion after switching to %s",
+    async (nextTenant) => {
+      const page = () => (
+        <MemoryRouter>
+          <Chat />
+        </MemoryRouter>
+      );
+      const wrapped = withTestQuery(page());
+      const view = render(wrapped);
+      fireEvent.click(await screen.findByText("Unknown sender"));
+      expect(await screen.findByTestId("thread")).toHaveTextContent(
+        "unknown:unknown-1",
+      );
+
+      mocks.tenantId = nextTenant;
+      view.rerender(cloneElement(wrapped, undefined, page()));
+      const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      // Complete tenant-1's pending conversion through the real ChatView callback.
+      fireEvent.click(
+        screen.getByRole("button", { name: "Complete conversion" }),
+      );
+
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(screen.getByTestId("thread")).toHaveTextContent(
+        "unknown:unknown-1",
+      );
+    },
+  );
 });
