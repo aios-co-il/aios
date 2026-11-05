@@ -40,6 +40,9 @@ export function ShareIntegrationTenantsDialog({
   const { data: tenants = [], isLoading: tenantsLoading } = useQuery({
     queryKey: ["all-tenants-for-sharing", tenantId],
     queryFn: async () => {
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tenants")
         .select("id, name, slug")

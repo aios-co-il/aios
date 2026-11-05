@@ -1,102 +1,43 @@
 // Friendly catalog for system cron jobs.
 // Keys are the cron.job.jobname values.
 
+import { CARMEN_CRON_JOBS } from "./cronJobsCatalogCarmen";
+import { SYNC_CRON_JOBS } from "./cronJobsCatalogSync";
+import { SYSTEM_CRON_JOBS } from "./cronJobsCatalogSystem";
+
 export type CronCategory =
-  "carmen" | "sync" | "reminders" | "telegram" | "system";
+  "carmen" | "sync" | "reminders" | "messaging" | "telegram" | "system";
+
+/**
+ * What a job sends to people. "dashboard" writes only what the app shows;
+ * "none" sends and shows nothing new. `sendsNote` explains an indirect send.
+ */
+export type CronSends =
+  "whatsapp" | "email" | "whatsapp_email" | "telegram" | "dashboard" | "none";
 
 export interface CronJobMeta {
   label: string;
   description: string;
   category: CronCategory;
   icon: string;
+  sends: CronSends;
+  sendsNote?: string;
 }
 
+/** Short Hebrew label of what a job sends, for a badge. */
+export const CRON_SENDS_LABEL: Record<CronSends, string> = {
+  whatsapp: "שולח וואטסאפ",
+  email: "שולח מייל",
+  whatsapp_email: "שולח וואטסאפ ומייל",
+  telegram: "עונה בטלגרם",
+  dashboard: "דשבורד בלבד",
+  none: "לא שולח",
+};
+
 export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
-  "carmen-memory-worker-1m": {
-    label: "כרמן — עיבוד זיכרון",
-    description: "מעבד את ה-outbox של זיכרון כרמן ושומר אירועים חדשים.",
-    category: "carmen",
-    icon: "🧠",
-  },
-  "carmen-memory-consolidate-daily": {
-    label: "כרמן — איחוד זיכרונות יומי",
-    description: "מאחד ומקצר את הזיכרונות של כרמן פעם ביום (03:00).",
-    category: "carmen",
-    icon: "📚",
-  },
-  "carmen-heartbeat": {
-    label: "כרמן — Heartbeat",
-    description: "פעימה אוטונומית של כרמן: שולח תזכורות, פותח משימות תקועות.",
-    category: "carmen",
-    icon: "❤️",
-  },
-  "sync-facebook-insights-twice-daily": {
-    label: "סנכרון Facebook Insights",
-    description:
-      "מסנכרן ביצועי קמפיינים פעמיים ביום, לפני רענון בדיקת הדופק (07:00 ו-16:00).",
-    category: "sync",
-    icon: "📊",
-  },
-  "campaign-pulse-sunday-0730": {
-    label: "בדיקת דופק שבועית",
-    description:
-      "מחשב בדיקת דופק דטרמיניסטית ביום ראשון 07:30 (שעון ישראל) ושולח לוואטסאפ — לבעלים ולכל קמפיינר (scoped, מכרמן הארגון).",
-    category: "carmen",
-    icon: "💗",
-  },
-  "campaign-pulse-morning-0730": {
-    label: "בדיקת דופק בוקר",
-    description:
-      "מחשב בדיקת דופק דטרמיניסטית ב-07:30 ושולח לוואטסאפ קישור לדשבורד בדיקת דופק (בלי רשימת לקוחות).",
-    category: "carmen",
-    icon: "💗",
-  },
-  "cron-sync-facebook-ecommerce-daily": {
-    label: "סנכרון Facebook eCommerce",
-    description:
-      "מושך נתוני eCommerce מ-Facebook פעמיים ביום, לפני רענון בדיקת הדופק.",
-    category: "sync",
-    icon: "🛒",
-  },
-  "daily-ga-sync": {
-    label: "סנכרון Google Analytics",
-    description:
-      "מושך נתוני GA לכל המחוברים פעמיים ביום, לפני רענון בדיקת הדופק.",
-    category: "sync",
-    icon: "📈",
-  },
-  "daily-google-ads-sync": {
-    label: "סנכרון Google Ads",
-    description:
-      "מסנכרן קמפיינים והוצאות Google Ads פעמיים ביום, לפני רענון בדיקת הדופק.",
-    category: "sync",
-    icon: "🎯",
-  },
-  "sync-woocommerce-twice-daily": {
-    label: "סנכרון WooCommerce",
-    description:
-      "מסנכרן הזמנות, מוצרים ולקוחות פעמיים ביום, רבע שעה לפני סנכרון הקמפיינים.",
-    category: "sync",
-    icon: "🛍️",
-  },
-  "check-overdue-tasks-daily": {
-    label: "בדיקת משימות באיחור",
-    description: "סורק משימות שעבר זמנן ושולח התראות (05:30).",
-    category: "reminders",
-    icon: "⏰",
-  },
-  "check-meeting-reminders-daily": {
-    label: "תזכורות לפגישות",
-    description: "שולח תזכורות לפגישות הקרובות (08:00).",
-    category: "reminders",
-    icon: "📅",
-  },
-  "telegram-poll": {
-    label: "Telegram — Polling",
-    description: "מאזין להודעות חדשות מבוטים בטלגרם.",
-    category: "telegram",
-    icon: "✈️",
-  },
+  ...CARMEN_CRON_JOBS,
+  ...SYNC_CRON_JOBS,
+  ...SYSTEM_CRON_JOBS,
 };
 
 /**
@@ -126,6 +67,7 @@ export function getCronMeta(jobname: string): CronJobMeta {
       description: "ג'וב מערכת ללא תיעוד.",
       category: "system",
       icon: "⚙️",
+      sends: "none",
     }
   );
 }

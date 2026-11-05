@@ -81,7 +81,7 @@ export interface SendSignatureDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   document: SendSignatureDialogDoc | null;
-  tenantId?: string;
+  tenantId?: string | null;
   defaultRecipient?: SendSignatureDialogRecipient;
   mode?: "direct" | "template";
   leadId?: string;

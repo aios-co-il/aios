@@ -2,6 +2,7 @@ import { executeCreativeStudioTool } from "../../creative-studio-tools.ts";
 import { assetForCarmen } from "../assets.ts";
 import { briefAnswersOf } from "../brief-answers.ts";
 import { lookOf } from "../look.ts";
+import { projectBrief } from "../project-brief.ts";
 import { type RunRow, productionReport } from "../production.ts";
 import { loadAssets } from "../project-io.ts";
 import { asRecord } from "../record.ts";
@@ -74,7 +75,7 @@ export async function workshopGetState(ctx: ToolContext) {
       asRecord(asRecord(itemPayload.video).production),
     ),
     plan: asRecord(itemPayload.workshop),
-    brief: String(itemPayload.brief_text ?? "").slice(0, 3000),
+    brief: projectBrief(itemPayload),
     brief_answers: briefAnswersOf(itemPayload),
     film_brief: lookOf(itemPayload).film,
     look: {

@@ -1,4 +1,5 @@
 import type { CarmenVideoProps, SceneKind } from "./video";
+import type { FilmLook, SceneLook } from "./workshop-scene-look";
 export type InputScene = {
   id: string;
   order: number;
@@ -80,9 +81,7 @@ export function manifestToProps(manifest: InputManifest): CarmenVideoProps {
 /** Workshop film (manifest schemaVersion 2 and 3). Every v3 field is optional. */
 export type WorkshopMove =
   "push" | "drift-left" | "drift-right" | "rise" | "pull" | "static";
-/** "skin": the same character in another picture (flash, scale pop and light sweep). */
-export type WorkshopTransition =
-  "cut" | "crossfade" | "slide" | "wipe" | "zoom" | "skin";
+export type { WorkshopTransition } from "./workshop-transitions";
 export type WorkshopWord = {
   text: string;
   startFrame: number;
@@ -112,7 +111,7 @@ export type WorkshopBrand = {
   ctaLines?: string[] | null;
   ctaUrl?: string | null;
 };
-export type WorkshopScene = {
+export type WorkshopScene = SceneLook & {
   id: string;
   durationFrames: number;
   still?: string | null;
@@ -129,7 +128,6 @@ export type WorkshopScene = {
    */
   kicker?: string | null;
   move?: WorkshopMove;
-  transition?: WorkshopTransition;
   transitionFrames?: number;
   lipsync?: boolean;
   clipVolume?: number;
@@ -160,7 +158,7 @@ export type WorkshopMusicLoop = {
   fadeInFrames: number;
   fadeOutFrames: number;
 };
-export type WorkshopFilmProps = {
+export type WorkshopFilmProps = FilmLook & {
   scenes: WorkshopScene[];
   narration?: string | null;
   music?: string | null;
