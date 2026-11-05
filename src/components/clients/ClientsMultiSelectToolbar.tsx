@@ -25,7 +25,7 @@ interface ClientsMultiSelectToolbarProps {
   onClearSelection: () => void;
   onSelectAll?: () => void;
   totalCount: number;
-  tenantId?: string;
+  tenantId?: string | null;
 }
 
 const STATUS_OPTIONS = [
