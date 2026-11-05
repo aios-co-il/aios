@@ -47,6 +47,12 @@ class CarmenVoice(context: Context, private val log: EventLog) {
         if (initialized) speak() else pending = speak
     }
 
+    /** Speaks a short line with the phone's voice, for when Carmen herself cannot be reached. */
+    fun say(text: String) {
+        val speak: () -> Unit = { if (ready) tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, NOTICE_ID) }
+        if (initialized) speak() else pending = speak
+    }
+
     fun shutdown() {
         tts.shutdown()
     }
@@ -54,5 +60,6 @@ class CarmenVoice(context: Context, private val log: EventLog) {
     private companion object {
         const val ACKNOWLEDGEMENT = "כן, אני מקשיבה"
         const val UTTERANCE_ID = "carmen-ack"
+        const val NOTICE_ID = "carmen-notice"
     }
 }

@@ -109,8 +109,13 @@ class AiosAccount(context: Context) {
         prefs.edit { clear() }
     }
 
-    /** A valid session, refreshing the access token when it is about to expire. */
-    fun session(): Session {
+    /**
+     * A valid session, refreshing the access token when it is about to expire. One refresh at a
+     * time across every instance: a refresh token works once, so two parallel refreshes would fail.
+     */
+    fun session(): Session = synchronized(REFRESH_LOCK) { currentSession() }
+
+    private fun currentSession(): Session {
         val refresh = prefs.getString(KEY_REFRESH, null) ?: throw IOException("לא מחובר ל-AIOS")
         if (System.currentTimeMillis() > prefs.getLong(KEY_EXPIRES_AT, 0) - REFRESH_MARGIN_MS) {
             saveTokens(authRequest("refresh_token", JSONObject().put("refresh_token", refresh)), email.orEmpty())
@@ -198,6 +203,7 @@ class AiosAccount(context: Context) {
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()
         private const val REFRESH_MARGIN_MS = 60_000L
+        private val REFRESH_LOCK = Any()
         private const val PREFS = "aios_account"
         private const val KEY_ACCESS = "access_token"
         private const val KEY_REFRESH = "refresh_token"

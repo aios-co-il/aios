@@ -56,6 +56,7 @@
     <string name="state_ended">השיחה הסתיימה</string>
     <string name="sign_in_to_talk">כדי לדבר עם כרמן יש להתחבר ל-AIOS במסך הראשי</string>
     <string name="conversation_failed">החיבור לכרמן נכשל: %1$s</string>
+    <string name="conversation_failed_spoken">אין לי חיבור כרגע, נסה שוב בעוד רגע</string>
     <string name="aios_section">חיבור ל-AIOS (%1$s)</string>
     <string name="email_hint">אימייל של AIOS</string>
     <string name="password_hint">סיסמה</string>

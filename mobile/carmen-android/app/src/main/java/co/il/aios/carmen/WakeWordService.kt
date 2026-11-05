@@ -145,7 +145,10 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         override fun onState(state: CarmenSession.State) = CarmenSession.setState(state)
         override fun onTranscript(line: String) = CarmenSession.addLine(line)
         override fun onEnded(reason: String) {
-            if (reason.startsWith("error")) CarmenSession.notice(getString(R.string.conversation_failed, reason))
+            if (reason.startsWith("error")) {
+                CarmenSession.notice(getString(R.string.conversation_failed, reason))
+                voice.say(getString(R.string.conversation_failed_spoken))
+            }
             handler.post {
                 conversation = null
                 endSession(reason)
@@ -212,8 +215,8 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     }
 
     override fun onDestroy() {
+        endSession("listening stopped")
         handler.removeCallbacksAndMessages(null)
-        conversation?.also { conversation = null }?.stop("listening stopped")
         engine?.stop()
         if (engine != null) log.record(EventLog.Event.LISTENING_STOPPED)
         engine = null

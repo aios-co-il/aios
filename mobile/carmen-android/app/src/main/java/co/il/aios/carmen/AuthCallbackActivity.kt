@@ -15,7 +15,8 @@ class AuthCallbackActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val data = intent.data
-        val target = AiosAccount.GoogleTarget.entries.firstOrNull { it.redirect == data?.buildUpon()?.clearQuery()?.build().toString() }
+        val redirect = data?.buildUpon()?.clearQuery()?.build()?.toString()
+        val target = AiosAccount.GoogleTarget.entries.firstOrNull { it.redirect == redirect }
         val code = data?.getQueryParameter("code")
         if (target == null || code == null) {
             fail(data?.getQueryParameter("error_description") ?: "no code")

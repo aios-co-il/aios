@@ -21,8 +21,8 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.6.1-one-greeting"
+        versionCode = 9
+        versionName = "0.6.2-review-fixes"
         // 64-bit phones only: keeps the APK small enough to download reliably to a phone.
         ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "SUPABASE_URL", "\"${backendSetting("carmen.supabaseUrl", "CARMEN_SUPABASE_URL")}\"")
@@ -40,7 +40,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Private install only: sign release with the debug key until distribution (phase 6).
+            // Private install only: signed with the debug key; a release key is AIO-356.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

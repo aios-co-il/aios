@@ -16,32 +16,33 @@ Marketing OS look of the web app's `/auth`. Test report and Go/No-Go:
 - Or build locally with JDK 17+ and the Android SDK (platform 35):
   `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
 - The AIOS backend comes from `local.properties` (`carmen.supabaseUrl`, `carmen.supabaseKey`,
-  `carmen.appEnv`) or, in CI, the repository variables `CARMEN_ANDROID_SUPABASE_URL` and
-  `CARMEN_ANDROID_SUPABASE_KEY`. Use the Staging project and its publishable key; without them
-  the app still builds, and only the wake word works. `carmen.webUrl` / `CARMEN_WEB_URL` sets the
-  web app shown on the home screen (default: the Staging alias, which Vercel protects with a login
-  until Staging has a public domain).
-  The APK is about 5 MB (64-bit phones, code shrinking on); the offline speech model (~40 MB)
+  `carmen.appEnv`, optional `carmen.webUrl`) or, in CI, the repository variables
+  `CARMEN_ANDROID_SUPABASE_URL` and `CARMEN_ANDROID_SUPABASE_KEY` (Staging project URL and its
+  publishable key). The CI build fails when they are missing; the app cannot sign in without them.
+  `carmen.webUrl` defaults to the Staging alias, which Vercel protects with a login; a public
+  Staging domain and the Production build are tracked in AIO-356.
+- The APK is about 5 MB (64-bit phones, code shrinking on); the offline speech model (~40 MB)
   downloads once, the first time listening starts.
 
-The APK is signed with the debug key for private installs. Installing a build from another
-machine over an existing one fails with a signature error: uninstall first.
+The APK is signed with the debug key for private installs (a release key is AIO-356). Installing
+a build from another machine over an existing one fails with a signature error: uninstall first.
 
 ## Install and set up the phone
 
 1. Allow installing from your browser or file manager, open the APK, install.
-2. Open **Carmen** and tap **הפעל האזנה**; allow microphone and notifications.
-3. Tap **הגדרות חיסכון בסוללה** and set Carmen to _Unrestricted_ / _Not optimized_.
-4. On Android 14+, tap **אישור הצגה על מסך נעול** and allow full-screen notifications, so the
-   Carmen screen opens over the lock screen.
-5. On the sign-in screen, sign in with your AIOS (Staging) email and password, or with Google.
-   The same sign-in opens the Command Center on the home screen. Google returns to the app
-   through `carmen-aios://auth/…`, which must be in the Supabase Auth redirect list
-   (`supabase/config.toml`; Production needs it added before a Production build).
-6. Say "היי כרמן", wait for "כן, אני מקשיבה", then ask Carmen anything. Tap **סגור** to end the
-   conversation, or **זו הפעלת שווא** to record a false activation. 45 seconds of silence also ends it.
+2. Open **Carmen** and sign in with your AIOS (Staging) email and password, or with Google.
+   Google returns to the app through `carmen-aios://auth/…`, which must be in the Supabase Auth
+   redirect list (`supabase/config.toml`; Production is AIO-356).
+3. The home screen is Carmen. Allow microphone and notifications; "היי כרמן" listening turns on
+   the first time, and the **האזנה ל"היי כרמן"** switch turns it on or off.
+4. In **הגדרות**, tap **הגדרות חיסכון בסוללה** and set Carmen to _Unrestricted_, and on Android
+   14+ allow full-screen notifications, so the Carmen screen opens over the lock screen.
+5. Say "היי כרמן" or tap **דברו עם כרמן**: Carmen says "כן, אני מקשיבה" and listens. Tap **סגור**
+   to end the conversation, or **זו הפעלת שווא** to record a false activation; 45 seconds of
+   silence also ends it. **כתבו לכרמן** opens a typed chat, and **מרכז הפיקוד** the system's
+   Command Center.
 
-Stop listening from the app or from the notification's **עצור האזנה** action.
+Stop listening from the switch or from the notification's **עצור האזנה** action.
 
 ## How it works
 

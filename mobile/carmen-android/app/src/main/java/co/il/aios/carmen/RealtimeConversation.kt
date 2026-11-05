@@ -38,7 +38,7 @@ class RealtimeConversation(
     private val tools = Executors.newSingleThreadExecutor()
     private val responses = ResponseGate()
     private val audio = ConversationAudio(context) { pcm -> sendAudio(pcm) }
-    private var socket: WebSocket? = null
+    @Volatile private var socket: WebSocket? = null
     private var idleTimer: ScheduledFuture<*>? = null
     @Volatile private var ended = false
     @Volatile private var toolRunning = false
@@ -54,7 +54,8 @@ class RealtimeConversation(
                     .header("Authorization", "Bearer $secret")
                     .build()
                 socket = http.newWebSocket(request, events)
-            } catch (e: IOException) {
+            } catch (e: Exception) {
+                // IO, a malformed mint response or a refused token: never leave the call stuck connecting.
                 end("error: ${e.message}")
             }
         }
@@ -175,7 +176,7 @@ class RealtimeConversation(
     /** Ends the conversation after a stretch with no speech from either side. */
     private fun resetIdleTimer() {
         idleTimer?.cancel(false)
-        if (ended) return
+        if (ended || worker.isShutdown) return
         // A long brain call is not silence: wait for its answer before counting idle time.
         idleTimer = worker.schedule({ if (toolRunning) resetIdleTimer() else end("idle") }, IDLE_MS, TimeUnit.MILLISECONDS)
     }

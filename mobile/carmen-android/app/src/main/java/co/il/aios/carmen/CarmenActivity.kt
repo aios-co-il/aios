@@ -14,8 +14,14 @@ class CarmenActivity : AppCompatActivity() {
 
     private var face: CarmenPortrait? = null
 
+    private val closeAfterEnd = Runnable { if (!isFinishing) finish() }
+
     private val render: (CarmenSession.Snapshot) -> Unit = { snapshot ->
         face?.state = snapshot.state
+        // The session is over: leave the lock screen so the display can turn off again.
+        val view = findViewById<View>(R.id.state_text)
+        view.removeCallbacks(closeAfterEnd)
+        if (snapshot.state == CarmenSession.State.ENDED) view.postDelayed(closeAfterEnd, CLOSE_AFTER_END_MS)
         findViewById<TextView>(R.id.state_text).setText(stateLabel(snapshot.state))
         findViewById<TextView>(R.id.notice_text).apply {
             text = snapshot.notice
@@ -67,8 +73,13 @@ class CarmenActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        findViewById<View>(R.id.state_text)?.removeCallbacks(closeAfterEnd)
         CarmenSession.unobserve(render)
         if (isFinishing) WakeWordService.send(this, WakeWordService.ACTION_SESSION_ENDED)
         super.onDestroy()
+    }
+
+    private companion object {
+        const val CLOSE_AFTER_END_MS = 3_000L
     }
 }
