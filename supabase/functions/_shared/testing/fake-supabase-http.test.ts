@@ -37,4 +37,23 @@ Deno.test("fakeSupabaseHttp", async (t) => {
       'unsupported filter "ilike.*report*"',
     );
   });
+
+  await t.step(
+    "a .single() read gets one object, or 406 when not exactly one row",
+    async () => {
+      const http = fakeSupabaseHttp({
+        supabaseUrl: SUPABASE_URL,
+        tables: { tasks: [{ id: "a" }, { id: "b" }] },
+      });
+      const single = { accept: "application/vnd.pgrst.object+json" };
+      const one = await http.fetch(`${SUPABASE_URL}/rest/v1/tasks?id=eq.a`, {
+        headers: single,
+      });
+      assertEquals(await one.json(), { id: "a" });
+      const two = await http.fetch(`${SUPABASE_URL}/rest/v1/tasks`, {
+        headers: single,
+      });
+      assertEquals(two.status, 406);
+    },
+  );
 });

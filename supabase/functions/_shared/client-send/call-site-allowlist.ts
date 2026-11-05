@@ -61,8 +61,6 @@ export const KNOWN_BYPASSES: CallSiteLists["bypasses"] = {
   "send-resend-email/index.ts": "AIO-246 no caller or tenant check yet",
   "telegram-send/index.ts": "AIO-246 no caller or tenant check yet",
   "_shared/calendar-conference.mjs": "AIO-248 Carmen's calendar invites",
-  "green-api-webhook/index.ts": "AIO-248 Carmen's direct fallback replies",
-  "manus-wa-webhook/index.ts": "AIO-248 Carmen's direct fallback replies",
   "run-ai-agent/index.ts": "AIO-248 Carmen's calendar tools",
   "_shared/signature-automation.ts": "AIO-267 signature emails, automations",
   "auto-sync-new-lead/index.ts": "AIO-267 ManyChat flow per new lead",

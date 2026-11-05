@@ -1,6 +1,7 @@
 // Higgsfield image-to-video (PixVerse V6). Auth is `Key id:secret`.
 // The still must be a URL Higgsfield can fetch; the worker signs the private file.
 import { higgsfieldCredential } from "./higgsfield-credential.ts";
+import { TEXT_NEGATIVE } from "./composed-motion.ts";
 import { providerJson } from "./json.ts";
 import type { HiggsfieldRequestResponse } from "./responses.ts";
 import type {
@@ -27,6 +28,7 @@ export const higgsfieldClipSeconds = (seconds: unknown) =>
 
 export function higgsfieldClipBody({
   prompt,
+  negativePrompt,
   imageUrl,
   durationS,
   generateAudio,
@@ -38,7 +40,7 @@ export function higgsfieldClipBody({
     duration: higgsfieldClipSeconds(durationS),
     resolution: "720p",
     generate_audio: generateAudio === true,
-    negative_prompt: "text, letters, captions, logo, watermark",
+    negative_prompt: negativePrompt || TEXT_NEGATIVE,
   };
 }
 

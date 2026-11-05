@@ -17,12 +17,16 @@ import { loadProject, savePayload } from "../project-io.ts";
 import { asRecord, recordArtifact } from "../record.ts";
 import { SCRIPT_CHOICE } from "../script-approval.ts";
 import { type ToolContext } from "../tool-context.ts";
+import { scriptSaveStop } from "./save-script-guards.ts";
 
 const MAX_BEATS = 20;
 /** Rounding slack when the beats are compared with the film's length. */
 const LENGTH_SLACK_S = 0.5;
 
-/** Saves the script, shows it to the user as text and asks for approval with one tap question. */
+/**
+ * Saves the script, shows it to the user as text and asks for approval with one tap question;
+ * scriptSaveStop answers instead when there is no chosen concept or nothing new to save.
+ */
 export async function workshopSaveScript(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
@@ -40,6 +44,10 @@ export async function workshopSaveScript(ctx: ToolContext) {
   }
   const { payload } = loaded.project;
   const beats = timedBeats(args.beats);
+  const stop = scriptSaveStop(payload, beats, deps);
+  if (stop) {
+    return stop;
+  }
   const refusal = beatsRefusal(beats, filmSeconds(payload));
   if (refusal) {
     return { error: refusal };

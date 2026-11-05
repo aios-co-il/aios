@@ -28,6 +28,11 @@ import {
   fetchManusGroupsSyncInfo,
   syncCarmenManusGroups,
 } from "@/lib/carmenManusGroups";
+import { GroupReplyLevelSelect } from "./carmen-access/GroupReplyLevelSelect";
+import {
+  accessFlagsFor,
+  DEFAULT_GROUP_REPLY_LEVEL,
+} from "../../../../supabase/functions/_shared/carmen/group-reply-level.ts";
 import {
   buildPolicyFromAutomation,
   fetchCarmenAutomationConfig,
@@ -584,8 +589,7 @@ export function CarmenConversationAccessTab({
       {
         client_id: c?.id || "",
         whatsapp_group_id: c?.whatsapp_group_id || "",
-        allow_client_contacts: true,
-        allow_assigned_campaigners: true,
+        ...accessFlagsFor(DEFAULT_GROUP_REPLY_LEVEL),
         info_boundary: "external_only",
       },
     ]);
@@ -607,8 +611,7 @@ export function CarmenConversationAccessTab({
             client_id: patch.client_id || "",
             agency_id: patch.agency_id || "",
             whatsapp_group_id: groupId,
-            allow_client_contacts: true,
-            allow_assigned_campaigners: true,
+            ...accessFlagsFor(DEFAULT_GROUP_REPLY_LEVEL),
             info_boundary: "external_only",
           },
         ];
@@ -1099,7 +1102,8 @@ export function CarmenConversationAccessTab({
           </h3>
         </div>
         <p className="text-xs text-muted-foreground text-right">
-          איש קשר לקוח מדבר רק בקבוצת הלקוח, רק על הלקוח — לפי info_boundary.
+          לכל קבוצת לקוח: רק אוטומציות (כרמן לא עונה), עונה לצוות, או עונה לצוות
+          וללקוח. לקוח מקבל תודה קבועה, והבקשה שלו עוברת לצוות בפרטי.
         </p>
         {clientRows.map((row, idx) => (
           <div
@@ -1155,17 +1159,14 @@ export function CarmenConversationAccessTab({
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex flex-row-reverse items-center gap-2 justify-end">
-              <span className="text-xs">אנשי קשר</span>
-              <Checkbox
-                checked={row.allow_client_contacts}
-                onCheckedChange={(c) => {
-                  const next = [...clientRows];
-                  next[idx] = { ...row, allow_client_contacts: !!c };
-                  setClientRows(next);
-                }}
-              />
-            </div>
+            <GroupReplyLevelSelect
+              flags={row}
+              onChange={(flags) => {
+                const next = [...clientRows];
+                next[idx] = { ...row, ...flags };
+                setClientRows(next);
+              }}
+            />
             <Select
               value={row.info_boundary}
               onValueChange={(v: "external_only" | "full") => {
