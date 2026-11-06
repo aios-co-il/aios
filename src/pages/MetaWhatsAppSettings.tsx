@@ -251,7 +251,7 @@ export default function MetaWhatsAppSettings({
   const codeRef = useRef<string | null>(null);
   const sessionRef = useRef<{
     data: Record<string, unknown>;
-    event: string;
+    event: string | undefined;
   } | null>(null);
   const completingRef = useRef(false);
   const sessionTimerRef = useRef<number | null>(null);
