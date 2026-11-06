@@ -1,11 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
 import { useBroadcasts } from "./useBroadcasts";
@@ -76,6 +71,7 @@ describe("broadcast list tenant filter", () => {
 
   for (const tenantId of ["tenant-1", "", null]) {
     it(`preserves enabled and explicit refetch behavior for ${tenantId}`, async () => {
+      const user = userEvent.setup();
       context.tenantId = tenantId;
       render(withTestQuery(<Probe />));
       if (tenantId) {
@@ -84,7 +80,7 @@ describe("broadcast list tenant filter", () => {
         expect(requests).toHaveLength(0);
       }
       requests.length = 0;
-      fireEvent.click(screen.getByRole("button", { name: "Refetch" }));
+      await user.click(screen.getByRole("button", { name: "Refetch" }));
       await waitFor(() => expect(requests).toHaveLength(1));
       const url = new URL(requests[0].url);
       expect(url.pathname).toBe("/rest/v1/broadcasts");
