@@ -144,7 +144,7 @@ jobs:
               commits: $commits[0],
               conflictingFiles: [split("\n")[] | select(. != "")]
             }' conflicts.txt > prompt-input.json
-          node .github/scripts/print-agent-prompt.ts prompt-input.json > prompt.txt
+          node scripts/agent-prompt/print-agent-prompt.ts prompt-input.json > prompt.txt
           {
             echo "The automatic backport to \`develop\` stopped on a merge conflict, so no backport PR was opened. The next release is blocked until the hotfix is ported."
             echo

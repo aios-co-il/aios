@@ -35,7 +35,6 @@ export default defineConfig({
             "scripts/**/*.test.mjs",
             "scripts/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",
-            ".github/scripts/**/*.test.ts",
           ],
         },
       },

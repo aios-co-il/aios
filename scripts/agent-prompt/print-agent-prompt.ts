@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { buildAgentPrompt, type PromptInput } from "./agent-repair-prompt.ts";
 
-// Usage: node .github/scripts/print-agent-prompt.ts <input.json>
+// Usage: node scripts/agent-prompt/print-agent-prompt.ts <input.json>
 // The workflow writes the JSON (a PromptInput) and prints this output in its error and step summary.
 const [, , inputPath] = process.argv;
 if (!inputPath) {
