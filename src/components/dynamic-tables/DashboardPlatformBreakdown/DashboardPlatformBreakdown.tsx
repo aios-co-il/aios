@@ -61,6 +61,16 @@ const SALES_HEADERS = [
   "הכנסות",
   "ROAS",
 ];
+
+/**
+ * The sales columns; without revenue and ROAS when the purchases carry no
+ * value, which are then measured by cost per purchase alone.
+ */
+function salesHeaders(sales: DashboardCombinedSales): string[] {
+  return purchaseValueUnreported(sales)
+    ? SALES_HEADERS.filter((label) => label !== "הכנסות" && label !== "ROAS")
+    : SALES_HEADERS;
+}
 const LEAD_HEADERS = ["לידים", "עלות לליד"];
 
 const REVENUE_SOURCE_LABELS: Record<DashboardRevenueSource, string> = {
@@ -87,7 +97,7 @@ export function DashboardPlatformBreakdown({
   const showLeads = summary.hasLeads;
   const headers = [
     ...DELIVERY_HEADERS,
-    ...(showSales ? SALES_HEADERS : []),
+    ...(showSales ? salesHeaders(sales) : []),
     ...(showLeads ? LEAD_HEADERS : []),
   ];
   return (
@@ -192,7 +202,13 @@ function MixedRows({
             <GoalRowLabel row={row} platformLabel={platformLabel} />
           </TableCell>
           <DeliveryCells metrics={row.metrics} format={format} />
-          {showSales && <SalesCells figures={rowSales(row)} format={format} />}
+          {showSales && (
+            <SalesCells
+              withValue={!purchaseValueUnreported(sales)}
+              figures={rowSales(row)}
+              format={format}
+            />
+          )}
           {showLeads && <LeadCells figures={rowLeads(row)} format={format} />}
         </TableRow>
       ))}
@@ -209,6 +225,7 @@ function MixedRows({
         <DeliveryCells metrics={summary.total} format={format} />
         {showSales && (
           <SalesCells
+            withValue={!purchaseValueUnreported(sales)}
             figures={{
               ...sales,
               addToCartTracked: sales.addToCart > 0,
@@ -255,7 +272,11 @@ function GoalSections({
                 </TableCell>
                 <DeliveryCells metrics={row.metrics} format={format} />
                 {showSales && (
-                  <SalesCells figures={rowSales(row)} format={format} />
+                  <SalesCells
+                    withValue={!purchaseValueUnreported(sales)}
+                    figures={rowSales(row)}
+                    format={format}
+                  />
                 )}
                 {showLeads && (
                   <LeadCells figures={rowLeads(row)} format={format} />
@@ -275,6 +296,7 @@ function GoalSections({
               <DeliveryCells metrics={summary.goals[goal]} format={format} />
               {showSales && (
                 <SalesCells
+                  withValue={!purchaseValueUnreported(sales)}
                   figures={
                     goal === "ecommerce"
                       ? { ...sales, addToCartTracked: sales.addToCart > 0 }
@@ -296,7 +318,13 @@ function GoalSections({
       <TableRow className="bg-muted/50 font-bold border-t-2">
         <TableCell>סה"כ כל הקמפיינים</TableCell>
         <DeliveryCells metrics={summary.total} format={format} />
-        {showSales && <SalesCells figures={null} format={format} />}
+        {showSales && (
+          <SalesCells
+            withValue={!purchaseValueUnreported(sales)}
+            figures={null}
+            format={format}
+          />
+        )}
         {showLeads && <LeadCells figures={null} format={format} />}
       </TableRow>
     </>

@@ -261,12 +261,14 @@ describe("DashboardPlatformBreakdown", () => {
       },
       null,
     );
+    // Measured like leads: by cost per purchase, with no revenue or ROAS
+    // column at all.
+    expect(headers()).not.toContain("הכנסות");
+    expect(headers()).not.toContain("ROAS");
     expect(cellsOf("Facebook - קמפייני מכירות").slice(4)).toStrictEqual([
       "-",
       "15",
       "₪22",
-      "₪0",
-      "-",
     ]);
     expect(screen.getByText(/נמדד בעלות לרכישה ולא ב-ROAS/)).toBeTruthy();
   });
