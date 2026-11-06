@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ export default function Auth() {
   const [mfaCode, setMfaCode] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
   const [inviteBanner, setInviteBanner] = useState<string | null>(null);
+  const passwordSignInStarted = useRef(false);
   const isDevEnv = isNonProduction(resolveFrontendAppEnv());
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -118,7 +119,10 @@ export default function Auth() {
       user: { id: string };
       access_token: string;
     }) => {
-      if (navigated || needsPasswordSetup) return;
+      // Password sign-in owns navigation until MFA succeeds, including SDK events.
+      if (navigated || needsPasswordSetup || passwordSignInStarted.current) {
+        return;
+      }
       navigated = true;
       setCheckingSession(true);
       const ok = await navigateToApp(session.user.id, session.access_token);
@@ -173,43 +177,62 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    passwordSignInStarted.current = true;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      toast({
-        title: "שגיאה",
-        description: error.message,
-        variant: "destructive",
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      setLoading(false);
-      return;
-    }
+      if (error) {
+        throw error;
+      }
 
-    const {
-      data: { currentLevel, nextLevel },
-    } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { data, error: assuranceError } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assuranceError) {
+        throw assuranceError;
+      }
+      if (!data.currentLevel || !data.nextLevel) {
+        throw new Error("לא ניתן לאמת את רמת האימות. נא לנסות להתחבר שוב.");
+      }
+      const { currentLevel, nextLevel } = data;
 
-    if (nextLevel === "aal2" && currentLevel !== "aal2") {
-      const factors = await supabase.auth.mfa.listFactors();
-      if (factors.data?.totp && factors.data.totp.length > 0) {
-        setFactorId(factors.data.totp[0].id);
+      if (nextLevel === "aal2" && currentLevel !== "aal2") {
+        const { data: factors, error: factorsError } =
+          await supabase.auth.mfa.listFactors();
+        if (factorsError) {
+          throw factorsError;
+        }
+        const factor = factors.totp[0];
+        if (!factor) {
+          throw new Error("לא נמצא גורם אימות נתמך. נא לפנות לתמיכה.");
+        }
+        setFactorId(factor.id);
         setMfaRequired(true);
-        setLoading(false);
         return;
       }
-    }
 
-    const { data: session } = await supabase.auth.getSession();
-    if (session?.session) {
-      await navigateToApp(
-        session.session.user.id,
-        session.session.access_token,
-      );
+      const { data: session, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError) {
+        throw sessionError;
+      }
+      if (session?.session) {
+        await navigateToApp(
+          session.session.user.id,
+          session.session.access_token,
+        );
+      }
+    } catch (error: unknown) {
+      toast({
+        title: "שגיאה",
+        description: error instanceof Error ? error.message : "שגיאה בהתחברות",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleMFAVerify = async (e: React.FormEvent) => {
