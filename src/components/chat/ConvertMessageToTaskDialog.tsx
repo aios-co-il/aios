@@ -43,7 +43,7 @@ interface ConvertMessageToTaskDialogProps {
   messageText: string;
   contactId?: string;
   contactType?: "client" | "lead" | "group" | "unknown" | "telegram";
-  agencyId?: string;
+  agencyId?: string | null;
 }
 
 export function ConvertMessageToTaskDialog({
