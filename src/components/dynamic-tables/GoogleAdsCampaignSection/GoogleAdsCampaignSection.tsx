@@ -4,12 +4,8 @@ import type { WooGoogleAttributionSummary } from "@/lib/wooAttribution";
 import { GoogleAdsCampaignTable } from "./GoogleAdsCampaignTable";
 import { GoogleAdsKpiCards } from "./GoogleAdsKpiCards";
 import { GoogleWooNotice } from "./GoogleWooNotice";
-import type {
-  GoogleAdsCampaignSummary,
-  GoogleAdsFormatters,
-  GoogleAdsTotals,
-  GoogleStoreTotals,
-} from "./types";
+import { googleStoreTotals } from "./googleAdsTotals";
+import type { GoogleAdsCampaignSummary, GoogleAdsFormatters } from "./types";
 
 type Props = GoogleAdsFormatters & {
   summary: GoogleAdsCampaignSummary;
@@ -79,22 +75,4 @@ export function GoogleAdsCampaignSection({
       )}
     </>
   );
-}
-
-/** Purchases, revenue and ROAS of the ecommerce campaigns; WooCommerce figures replace Google's when it overlays. */
-function googleStoreTotals(
-  ecommerce: GoogleAdsTotals,
-  woo?: WooGoogleAttributionSummary | null,
-): GoogleStoreTotals {
-  const purchases = woo ? woo.paidOrders : ecommerce.conversions;
-  const revenue = woo ? woo.paidRevenue : ecommerce.conversions_value;
-  return {
-    purchases,
-    revenue,
-    roas: ecommerce.spend > 0 ? revenue / ecommerce.spend : 0,
-    wooDiffers:
-      !!woo &&
-      (purchases !== ecommerce.conversions ||
-        Math.abs(revenue - ecommerce.conversions_value) > 1),
-  };
 }
