@@ -12,11 +12,7 @@ import {
   getSpendFromData,
   type AdsMetricData,
 } from "../../supabase/functions/_shared/campaign-goal/ads-metrics.ts";
-import {
-  addFacebookCampaignTypeRow,
-  effectiveFacebookCampaignType,
-  isFacebookLeadsOnlyTable,
-} from "../../supabase/functions/_shared/campaign-goal/facebook-type.ts";
+import { addFacebookCampaignTypeRow } from "../../supabase/functions/_shared/campaign-goal/facebook-type.ts";
 
 // Result counts and the Facebook campaign type live with the pulse
 // (_shared/campaign-goal/), so the reports, the dashboards and the pulse read
@@ -74,39 +70,6 @@ export type FacebookCampaignRow = {
   /** Set by the record aggregators; traffic tables show it. */
   followers?: FacebookFollowerTotals;
 };
-
-export function isFacebookTrafficCampaign(data: FacebookCampaignRow): boolean {
-  return effectiveFacebookCampaignType(data) === "traffic";
-}
-
-/**
- * Split aggregated Facebook campaigns into a single ecommerce or leads table
- * plus traffic, for dashboards without a mixed Facebook table. Mixed tables
- * split by groupFacebookRowsByGoal, like the reports.
- */
-export function groupFacebookCampaigns(
-  campaigns: FacebookCampaignRow[],
-  options: { singleTableMode: "ecommerce" | "leads" },
-): {
-  ecommerce: FacebookCampaignRow[];
-  leads: FacebookCampaignRow[];
-  traffic: FacebookCampaignRow[];
-} {
-  const traffic = campaigns.filter(isFacebookTrafficCampaign);
-  const nonTraffic = campaigns.filter((c) => !isFacebookTrafficCampaign(c));
-
-  if (options.singleTableMode === "ecommerce") {
-    // An ecommerce report can still run lead campaigns (e.g. recruiting) — show them as leads.
-    const isLead = (c: FacebookCampaignRow) =>
-      String(c.campaign_type || "").toLowerCase() === "lead";
-    return {
-      ecommerce: nonTraffic.filter((c) => !isLead(c)),
-      leads: nonTraffic.filter(isLead),
-      traffic,
-    };
-  }
-  return { ecommerce: [], leads: nonTraffic, traffic };
-}
 
 /**
  * The key Facebook campaign rows are aggregated under: the campaign's name. The
@@ -167,13 +130,4 @@ export function aggregateFacebookCampaignsFromRecords(
     if (campaignType !== "other") map[name].campaign_type = campaignType;
   }
   return Object.values(map).sort((a, b) => b.spend - a.spend);
-}
-
-/** facebook_insights tables without an explicit leads-only flag show both ecom + lead campaigns. */
-export function facebookTableUsesMixedRows(
-  integrationType?: string | null,
-  integrationSettings?: Record<string, unknown> | null,
-): boolean {
-  if (integrationType !== "facebook_insights") return false;
-  return !isFacebookLeadsOnlyTable(integrationSettings);
 }

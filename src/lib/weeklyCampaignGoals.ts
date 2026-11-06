@@ -4,6 +4,7 @@ import {
   type ReportCampaignGoal,
 } from "@/lib/campaignGoals";
 import { costPerFollower, sumFacebookFollowers } from "@/lib/facebookFollowers";
+import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import { weeklyRoas } from "@/lib/weeklyAdsRevenue";
 import type {
   WeeklyCampaignRow,
@@ -53,6 +54,30 @@ export function weeklySourceModesForTable(
       : undefined,
     facebook_ecommerce: "ecommerce",
     google_ads: campaignType === "ecommerce" ? "ecommerce" : "leads",
+  };
+}
+
+/**
+ * A dashboard's goal settings for the weekly tab, over all of its report
+ * tables: as weeklySourceModesForTable for one table. Facebook Insights is
+ * leads-only when a Facebook Insights table is set to leads, and Google falls
+ * back to the reports' goal for its rows no rule can key.
+ */
+export function weeklySourceModesForTables(
+  tables: Array<{
+    integration_type?: string | null;
+    integration_settings?: Record<string, unknown> | null;
+  }>,
+): WeeklySourceModes {
+  const leadsOnly = tables.some(
+    (table) =>
+      table.integration_type === "facebook_insights" &&
+      isFacebookLeadsOnlyTable(table.integration_settings),
+  );
+  return {
+    facebook_insights: leadsOnly ? "leads" : undefined,
+    facebook_ecommerce: "ecommerce",
+    google_ads: googleReportFallbackGoal(tables),
   };
 }
 

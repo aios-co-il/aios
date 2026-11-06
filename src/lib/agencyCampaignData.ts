@@ -1,12 +1,15 @@
-import {
-  getAdsPurchasesFromData,
-  getRevenueFromData,
-  getSpendFromData,
-} from "@/lib/adsMetrics";
+import { getSpendFromData } from "@/lib/adsMetrics";
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
+import { adsRowOutcomes } from "@/lib/adsRowOutcomes";
+import {
+  reportCampaignGoalOf,
+  type ReportCampaignGoal,
+} from "@/lib/campaignGoals";
 
 export type CampaignRecord = {
   campaignName: string;
+  /** The campaign's goal as its report shows it; absent on a totals row. */
+  goal?: ReportCampaignGoal;
   impressions: number;
   clicks: number;
   leads: number;
@@ -21,6 +24,7 @@ export type ClientCampaignTableData = {
   tableId: string;
   tableName: string;
   integrationType: string;
+  /** Ecommerce when any of the table's campaigns is a sales campaign. */
   campaignType: "leads" | "ecommerce";
   records: CampaignRecord[];
   totals: CampaignRecord;
@@ -59,30 +63,6 @@ export function matchesAgencyPlatformFilter(
   return true;
 }
 
-export const getLeadsFromData = (data: Record<string, unknown>) =>
-  Number(data?.leads) ||
-  Number(data?.conversions) ||
-  Number(data?.website_leads) ||
-  Number(data?.offsite_conversion) ||
-  Number(data?.offsite_conversion_fb_pixel_lead) ||
-  Number(data?.leadgen_grouped) ||
-  Number(data?.lead) ||
-  0;
-
-export function getCampaignType(
-  integrationType: string,
-  integrationSettings?: Record<string, unknown> | null,
-): "leads" | "ecommerce" {
-  if (integrationType === "facebook_insights") return "leads";
-  if (integrationType === "facebook_ecommerce") return "ecommerce";
-  if (integrationType === "google_ads") {
-    return integrationSettings?.campaign_type === "ecommerce"
-      ? "ecommerce"
-      : "leads";
-  }
-  return "leads";
-}
-
 type RawCampaignRecord = {
   table_id: string;
   data?: Record<string, unknown>;
@@ -96,6 +76,12 @@ type CampaignTableMeta = {
   integration_settings?: Record<string, unknown> | null;
 };
 
+/**
+ * Each client table's campaigns in the period. Every campaign takes its goal
+ * from its report (reportCampaignGoalOf) and adds only what that goal
+ * measures, as the reports count it: purchases and revenue for sales, leads
+ * for leads, neither for traffic.
+ */
 export function buildClientCampaignTableData(input: {
   clients: Array<{ id: string; name: string }>;
   tables: CampaignTableMeta[];
@@ -110,19 +96,26 @@ export function buildClientCampaignTableData(input: {
   const tableMeta = new Map(tables.map((table) => [table.id, table]));
   const tableDataMap = new Map<string, ClientCampaignTableData>();
 
-  for (const record of records) {
+  const periodRecords = records.filter((record) => {
     const table = tableMeta.get(record.table_id);
-    if (!table?.client_id) continue;
-    if (!isAdsIntegration(table.integration_type)) continue;
+    if (!table?.client_id) return false;
+    if (!isAdsIntegration(table.integration_type)) return false;
     if (!matchesAgencyPlatformFilter(table.integration_type, platformFilter))
-      continue;
-
+      return false;
     const data = record.data || {};
     const date = typeof data.date === "string" ? data.date : null;
-    if (!date || date < startDate || date > endDate) continue;
-    if (!shouldIncludeInAdsDashboardAggregate(data, table.integration_type))
-      continue;
+    if (!date || date < startDate || date > endDate) return false;
+    return shouldIncludeInAdsDashboardAggregate(data, table.integration_type);
+  });
+  const goalOf = reportCampaignGoalOf(periodRecords, tables);
 
+  for (const record of periodRecords) {
+    const table = tableMeta.get(record.table_id)!;
+    // Every Facebook and Google Ads table gives each of its campaigns a goal.
+    const goal = goalOf(record)?.goal;
+    if (!goal) continue;
+
+    const data = record.data || {};
     const key = `${table.client_id}-${table.id}`;
     if (!tableDataMap.has(key)) {
       tableDataMap.set(key, {
@@ -131,10 +124,7 @@ export function buildClientCampaignTableData(input: {
         tableId: table.id,
         tableName: table.name || "",
         integrationType: table.integration_type,
-        campaignType: getCampaignType(
-          table.integration_type,
-          table.integration_settings,
-        ),
+        campaignType: "leads",
         records: [],
         totals: emptyTotals(),
       });
@@ -146,11 +136,12 @@ export function buildClientCampaignTableData(input: {
     );
 
     let campaignRecord = tableData.records.find(
-      (row) => row.campaignName === campaignName,
+      (row) => row.campaignName === campaignName && row.goal === goal,
     );
     if (!campaignRecord) {
       campaignRecord = {
         campaignName,
+        goal,
         impressions: 0,
         clicks: 0,
         leads: 0,
@@ -163,24 +154,18 @@ export function buildClientCampaignTableData(input: {
 
     const impressions = Number(data.impressions) || 0;
     const clicks = Number(data.clicks) || 0;
-    const leads = getLeadsFromData(data);
-    const purchases = getAdsPurchasesFromData(data);
+    const { leads, purchases, revenue } = adsRowOutcomes(data, goal);
     const spend = getSpendFromData(data);
-    const revenue = getRevenueFromData(data);
 
-    campaignRecord.impressions += impressions;
-    campaignRecord.clicks += clicks;
-    campaignRecord.leads += leads;
-    campaignRecord.purchases += purchases;
-    campaignRecord.spend += spend;
-    campaignRecord.revenue += revenue;
-
-    tableData.totals.impressions += impressions;
-    tableData.totals.clicks += clicks;
-    tableData.totals.leads += leads;
-    tableData.totals.purchases += purchases;
-    tableData.totals.spend += spend;
-    tableData.totals.revenue += revenue;
+    for (const row of [campaignRecord, tableData.totals]) {
+      row.impressions += impressions;
+      row.clicks += clicks;
+      row.leads += leads;
+      row.purchases += purchases;
+      row.spend += spend;
+      row.revenue += revenue;
+    }
+    if (goal === "ecommerce") tableData.campaignType = "ecommerce";
   }
 
   return Array.from(tableDataMap.values())
