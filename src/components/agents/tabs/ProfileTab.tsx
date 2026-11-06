@@ -456,6 +456,7 @@ const MOOD_OPTIONS: {
   },
 ];
 
+/** Save mood independently and invalidate the parent's tenant-scoped agent list. */
 function MoodCard({
   agent,
   tenantId,
@@ -543,6 +544,7 @@ const VOICE_OPTIONS: { value: string; label: string }[] = [
   { value: "onyx", label: "🎙️ Onyx — גברי, עמוק" },
 ];
 
+/** Save voice independently and invalidate the parent's tenant-scoped agent list. */
 function VoiceCard({
   agent,
   tenantId,
