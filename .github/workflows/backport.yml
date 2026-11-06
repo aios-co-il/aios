@@ -46,18 +46,18 @@ jobs:
 
       - name: Require the backport app
         env:
-          APP_ID: ${{ secrets.RELEASE_APP_ID }}
+          APP_ID: ${{ vars.RELEASE_APP_ID }}
           APP_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
         run: |
           if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
-            echo "::error title=Backport app missing::Secrets RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY are not set, so no backport PR can be opened. Port $PR_URL by hand."
+            echo "::error title=Backport app missing::Variable RELEASE_APP_ID or secret RELEASE_APP_PRIVATE_KEY is not set, so no backport PR can be opened. Port $PR_URL by hand."
             exit 1
           fi
 
       - uses: actions/create-github-app-token@v2
         id: app
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
+          app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - name: Skip when develop already has every main change
