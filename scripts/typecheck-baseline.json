@@ -382,20 +382,6 @@
       "count": 1
     },
     {
-      "file": "src/pages/Products.tsx",
-      "code": 7005,
-      "message": "Variable 'sharedProducts' implicitly has an 'any[]' type.",
-      "source": "sharedProducts",
-      "count": 1
-    },
-    {
-      "file": "src/pages/Products.tsx",
-      "code": 7034,
-      "message": "Variable 'sharedProducts' implicitly has type 'any[]' in some locations where its type cannot be determined.",
-      "source": "sharedProducts",
-      "count": 1
-    },
-    {
       "file": "src/pages/SalesDashboard.tsx",
       "code": 7006,
       "message": "Parameter 'p' implicitly has an 'any' type.",
