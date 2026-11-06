@@ -20,6 +20,7 @@ import {
   toDateString,
 } from "../_shared/report-sync-window.ts";
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
+import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
 import {
   detectGoogleAdsError,
@@ -732,10 +733,20 @@ Deno.serve(async (req) => {
             .filter((campaign: OperationalCampaignState) => campaign.id),
       );
       const checkedAt = new Date().toISOString();
+      // The pulse reads each campaign's status from these states (Google rows
+      // carry none). An answer that did not parse keeps the stored states.
       await patchIntegrationSettings(
         supabaseAdmin,
         table_id,
-        { operational_status_checked_at: checkedAt },
+        {
+          operational_status_checked_at: checkedAt,
+          ...(batches.length
+            ? {
+                operational_campaign_states:
+                  operationalCampaignStates(campaigns),
+              }
+            : {}),
+        },
         settings,
       );
       // An answer that did not parse reads as no batches: judge nothing rather

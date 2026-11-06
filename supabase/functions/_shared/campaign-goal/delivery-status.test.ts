@@ -2,6 +2,7 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   isCampaignOff,
   latestCampaignStatuses,
+  operationalCampaignStates,
   resolveCampaignDeliveryStatus,
 } from "./delivery-status.ts";
 
@@ -24,6 +25,43 @@ Deno.test("campaign delivery status", async (t) => {
         "active",
       );
       assertStrictEquals(isCampaignOff({ deliveryStatus: "ended" }), true);
+    },
+  );
+
+  await t.step(
+    "the states the operational check stores read back per campaign",
+    () => {
+      const settings = {
+        operational_campaign_states: operationalCampaignStates([
+          {
+            id: "e",
+            name: "Ended",
+            status: "ENABLED",
+            primary_status: "ENDED",
+            primary_status_reasons: [],
+          },
+          {
+            id: "p",
+            name: "Paused",
+            status: "PAUSED",
+            primary_status: "PAUSED",
+            primary_status_reasons: [],
+          },
+          {
+            id: "l",
+            name: "Live",
+            status: "ENABLED",
+            primary_status: "LIMITED",
+            primary_status_reasons: [],
+          },
+        ]),
+      };
+      const statusOf = (campaign_id: string) =>
+        resolveCampaignDeliveryStatus({ campaign_id }, settings);
+      assertEquals(
+        [statusOf("e"), statusOf("p"), statusOf("l"), statusOf("x")],
+        ["ended", "paused", "active", "unknown"],
+      );
     },
   );
 

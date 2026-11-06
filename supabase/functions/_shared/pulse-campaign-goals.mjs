@@ -8,6 +8,10 @@ import {
   latestCampaignStatuses,
   resolveCampaignDeliveryStatus,
 } from "./campaign-goal/delivery-status.ts";
+import {
+  resolveCampaignGoalVotes,
+  voteSpend,
+} from "./campaign-goal/goal-vote.ts";
 import { classifyGoogleCampaignRow } from "./campaign-goal/google-classify.ts";
 import { adsRowOutcomes, goalResultCount } from "./campaign-goal/outcomes.ts";
 import { campaignGoalOverride } from "./campaign-goal/override.ts";
@@ -836,10 +840,11 @@ function usableCampaignRecords(records, tables, windows) {
  * the campaign is read from.
  */
 function campaignDays(usable, verdictOf) {
+  const goalOf = campaignGoals(usable, verdictOf);
   const placesByCampaign = new Map();
   const byDay = new Map();
   for (const item of usable) {
-    const verdict = verdictOf(item.record);
+    const verdict = goalOf.get(campaignIdentityKey(item));
     if (!verdict) continue;
     const goal = pulseGoalName(verdict.goal);
     const campaignKey = canonicalCampaignMergeKey(
@@ -873,6 +878,36 @@ function campaignDays(usable, verdictOf) {
     campaigns.set(item.campaignKey, list);
   }
   return { campaigns, placesByCampaign };
+}
+
+/**
+ * One goal per campaign across duplicate report tables. Each table's report
+ * goal votes (resolveCampaignGoalVotes: the strongest signal, then spend), so
+ * a campaign read from a leads-only and an ecommerce table stays one campaign.
+ */
+function campaignGoals(usable, verdictOf) {
+  const votes = [];
+  for (const item of usable) {
+    const verdict = verdictOf(item.record);
+    if (!verdict) continue;
+    votes.push({
+      key: campaignIdentityKey(item),
+      goal: verdict.goal,
+      source: verdict.source,
+      spend: voteSpend(item.record.data),
+    });
+  }
+  return resolveCampaignGoalVotes(votes);
+}
+
+/** A campaign across its report tables: client, platform and name. */
+function campaignIdentityKey(item) {
+  return canonicalCampaignMergeKey(
+    item.table.client_id,
+    item.platform,
+    "*",
+    item.identity,
+  );
 }
 
 /**

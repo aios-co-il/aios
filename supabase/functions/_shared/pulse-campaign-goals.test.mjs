@@ -1070,3 +1070,51 @@ Deno.test("a campaign without synced follows has no follower count", () => {
   assertStrictEquals(row.ctr_7d, null);
   assertStrictEquals(row.new_followers_7d, null);
 });
+
+Deno.test(
+  "a campaign in a leads-only table and an ecommerce table stays one campaign with one goal",
+  () => {
+    const tables = [
+      {
+        id: "meta-leads",
+        client_id: "c1",
+        integration_type: "facebook_insights",
+        integration_settings: { campaign_type: "leads" },
+      },
+      {
+        id: "meta-ecom",
+        client_id: "c1",
+        integration_type: "facebook_ecommerce",
+        integration_settings: {},
+      },
+    ];
+    const records = [];
+    for (const date of ["2026-09-15", "2026-09-16", "2026-09-17"]) {
+      for (const [table_id, spend] of [
+        ["meta-leads", 30],
+        ["meta-ecom", 40],
+      ]) {
+        records.push({
+          table_id,
+          data: {
+            date,
+            campaign_id: "77",
+            campaign_name: "מכירות כפול",
+            campaign_objective: "OUTCOME_SALES",
+            spend,
+            purchases: 0,
+            leads: 0,
+          },
+        });
+      }
+    }
+    const rows = buildPulseCampaignRows({
+      records,
+      tables,
+      nowYmd: "2026-09-18",
+    });
+    assertStrictEquals(rows.length, 1);
+    assertStrictEquals(rows[0].goal, "ecommerce");
+    assertStrictEquals(rows[0].alert_eligible, true);
+  },
+);

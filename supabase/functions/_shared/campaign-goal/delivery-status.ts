@@ -137,6 +137,25 @@ export function latestCampaignStatuses<
   return statuses;
 }
 
+/** One Google campaign's state as the operational check reads it. */
+export type OperationalCampaignStatus = {
+  id: string;
+  status: string;
+  primary_status?: string | null;
+};
+
+/**
+ * The `operational_campaign_states` the Google operational check stores on its
+ * table, keyed by campaign id, for resolveCampaignDeliveryStatus to read.
+ */
+export function operationalCampaignStates<T extends OperationalCampaignStatus>(
+  campaigns: Array<T>,
+): Record<string, T> {
+  return Object.fromEntries(
+    campaigns.map((campaign) => [campaign.id, campaign]),
+  );
+}
+
 /** The status an operational state stores; Google's ENDED wins over ENABLED. */
 function operationalStatus(state: unknown): CampaignDeliveryStatus {
   if (!isRecord(state)) {
