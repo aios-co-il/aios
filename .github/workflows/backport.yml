@@ -1,12 +1,4 @@
-# Opens a develop backport PR when a hotfix merges into main (AIO-145).
-#
-# Feature and hotfix history stays linear, so a main hotfix must be cherry-picked onto
-# develop. This ports every main commit that has no patch-equivalent on develop
-# (scripts/main-missing-from.sh), oldest first, and opens a PR to develop. The `Check
-# develop has main` run stays red until a human queues and merges that PR.
-#
-# A develop -> main release PR does not trigger it. On a cherry-pick conflict the
-# workflow opens no PR and comments on the hotfix PR with a prompt for a coding agent.
+# Opens a develop backport PR when a hotfix merges into main
 
 name: Backport hotfix to develop
 
