@@ -191,6 +191,48 @@ Deno.test(
 );
 
 Deno.test(
+  "a campaign resumed after a week or more without spend gets 3 quiet days again",
+  () => {
+    const leadRow = (date: string, cost: number) =>
+      googleRow("g", date, {
+        campaign_id: "1",
+        campaign_name: "Search",
+        conversion_goal: "leads",
+        cost,
+        conversions: 0,
+      });
+    const build = (pausedDays: string[]) =>
+      buildPulseCampaignRows({
+        records: [
+          ...["2026-10-01", "2026-10-02", "2026-10-03"].map((date) =>
+            leadRow(date, 100),
+          ),
+          ...pausedDays.map((date) => leadRow(date, 0)),
+          leadRow("2026-10-23", 100),
+        ],
+        tables: [googleTable("g")],
+        nowYmd: "2026-10-24",
+      })[0];
+    // Long pause: 10-04..10-22 with no spend, resumed 10-23 → 1 full day.
+    assertStrictEquals(build([]).alert_eligible, false);
+    // Short pause: spending again on 10-20 and 10-21 keeps it one run.
+    const shortPause = buildPulseCampaignRows({
+      records: [
+        ...["2026-10-13", "2026-10-14", "2026-10-15"].map((date) =>
+          leadRow(date, 100),
+        ),
+        ...["2026-10-20", "2026-10-21", "2026-10-23"].map((date) =>
+          leadRow(date, 100),
+        ),
+      ],
+      tables: [googleTable("g")],
+      nowYmd: "2026-10-24",
+    })[0];
+    assertStrictEquals(shortPause.alert_eligible, true);
+  },
+);
+
+Deno.test(
   "rows synced before the goal was stamped do not outvote the stamped rows",
   () => {
     const records = lastWeek.map((date, i) =>

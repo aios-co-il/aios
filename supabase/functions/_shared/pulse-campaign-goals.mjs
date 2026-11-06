@@ -41,6 +41,8 @@ import {
 export { isEcommerceReportTable };
 
 const DAY_MS = 86_400_000;
+/** Days in a row with no spend after which spending again is a new run. */
+const RESUME_PAUSE_DAYS = 7;
 
 export const PULSE_CAMPAIGN_GOALS = ["leads", "engagement", "ecommerce"];
 
@@ -787,13 +789,13 @@ export function buildPulseCampaignRows({
     usable.map((item) => item.record),
     tables,
   );
-  const { campaigns, placesByCampaign, firstSpendDays } = campaignDays(
+  const { campaigns, placesByCampaign, spendDays } = campaignDays(
     usable,
     verdictOf,
   );
   const context = {
     windows,
-    firstSpendDays,
+    spendDays,
     rules: resolvePulseCostRules(alertRules),
     current3Dates: datesBetween(windows.current3.start, windows.current3.end),
     current7Dates: datesBetween(windows.current7.start, windows.current7.end),
@@ -846,7 +848,7 @@ function usableCampaignRecords(records, tables, windows) {
 function campaignDays(usable, verdictOf) {
   const goalOf = campaignGoals(usable, verdictOf);
   const placesByCampaign = new Map();
-  const firstSpendDays = new Map();
+  const spendDays = new Map();
   const byDay = new Map();
   for (const item of usable) {
     const verdict = goalOf.get(campaignIdentityKey(item));
@@ -860,7 +862,7 @@ function campaignDays(usable, verdictOf) {
     );
     // Read from every row, before the one-row-per-day pick below, so a
     // duplicate table's ₪0 rows cannot make a running campaign look new.
-    noteFirstSpendDay(firstSpendDays, campaignKey, item);
+    noteSpendDay(spendDays, campaignKey, item);
     addCampaignPlace(placesByCampaign, campaignKey, {
       table: item.table,
       identity: item.identity,
@@ -885,20 +887,18 @@ function campaignDays(usable, verdictOf) {
     list.push(item);
     campaigns.set(item.campaignKey, list);
   }
-  return { campaigns, placesByCampaign, firstSpendDays };
+  return { campaigns, placesByCampaign, spendDays };
 }
 
-/** Records the earliest day a campaign id spent, per pulse campaign. */
-function noteFirstSpendDay(firstSpendDays, campaignKey, item) {
+/** Records each day a campaign id spent, per pulse campaign. */
+function noteSpendDay(spendDays, campaignKey, item) {
   if (!(getSpendFromData(item.record.data) > 0)) {
     return;
   }
   const key = campaignIdKey(campaignKey, item.identity.id);
-  const day = String(item.record.data.date).slice(0, 10);
-  const known = firstSpendDays.get(key);
-  if (!known || day < known) {
-    firstSpendDays.set(key, day);
-  }
+  const days = spendDays.get(key) || new Set();
+  days.add(String(item.record.data.date).slice(0, 10));
+  spendDays.set(key, days);
 }
 
 /** One campaign id inside a pulse campaign (a relaunch keeps the name). */
@@ -962,21 +962,40 @@ function latestCampaignItem(items) {
 }
 
 /**
- * Full days from the running id's first spend day through the last full day.
- * A relaunch under the same name counts from its new id. Rows reach back ~35
- * days, so an older campaign counts as old enough.
+ * Full days the running id has spent in its current run, through the last
+ * full day. A relaunch under the same name counts from its new id, and a
+ * campaign that resumes after a long pause starts a new run (David,
+ * 2026-11-06). Rows reach back ~35 days, so an older campaign counts as old
+ * enough.
  */
-function fullDaysRunning(items, firstSpendDays, lastFullDay) {
+function fullDaysRunning(items, spendDays, lastFullDay) {
   const newest = latestCampaignItem(items);
-  const firstSpendDay = firstSpendDays.get(
+  const days = spendDays.get(
     campaignIdKey(newest.campaignKey, newest.identity.id),
   );
-  if (!firstSpendDay) {
+  if (!days) {
     return 0;
   }
-  return (
-    Math.round((utcDate(lastFullDay) - utcDate(firstSpendDay)) / DAY_MS) + 1
-  );
+  const runStart = currentRunStart([...days].sort());
+  return Math.round((utcDate(lastFullDay) - utcDate(runStart)) / DAY_MS) + 1;
+}
+
+/**
+ * The first spend day after the last long pause: at least
+ * RESUME_PAUSE_DAYS days in a row with no spend.
+ */
+function currentRunStart(sortedDays) {
+  let runStart = sortedDays[0];
+  for (let i = 1; i < sortedDays.length; i++) {
+    const daysWithoutSpend =
+      Math.round(
+        (utcDate(sortedDays[i]) - utcDate(sortedDays[i - 1])) / DAY_MS,
+      ) - 1;
+    if (daysWithoutSpend >= RESUME_PAUSE_DAYS) {
+      runStart = sortedDays[i];
+    }
+  }
+  return runStart;
 }
 
 /** Latest dated row first; ties break on table id, then campaign id. */
@@ -1038,7 +1057,7 @@ function pulseCampaignRow(items, places, context) {
       spend3d: current3.spend,
       fullDaysRunning: fullDaysRunning(
         items,
-        context.firstSpendDays,
+        context.spendDays,
         windows.current3.end,
       ),
     },
