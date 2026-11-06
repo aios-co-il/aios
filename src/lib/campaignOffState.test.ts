@@ -108,6 +108,44 @@ describe("reportOffLookup", () => {
     expect(reportOffLookup(undefined)({ table_id: "t1" })).toBe(false);
   });
 
+  it("marks a campaign the operational check saw paused or removed", () => {
+    const isReportOff = reportOffLookup([
+      {
+        id: "echo",
+        campaign_active: true,
+        integration_settings: {
+          operational_campaign_states: {
+            "45606969": { status: "PAUSED" },
+            "45609489": { status: "REMOVED" },
+            "24171383033": { status: "ENABLED" },
+          },
+        },
+      },
+    ]);
+    expect(isReportOff({ data: { campaign_id: "45606969" } })).toBe(true);
+    expect(isReportOff({ data: { campaign_id: "45609489" } })).toBe(true);
+    expect(isReportOff({ data: { campaign_id: "24171383033" } })).toBe(false);
+    expect(isReportOff({ data: { campaign_id: "unseen" } })).toBe(false);
+  });
+
+  it("reads each record's own report for its campaign's state", () => {
+    const isReportOff = reportOffLookup([
+      {
+        id: "a",
+        integration_settings: {
+          operational_campaign_states: { "1": { status: "PAUSED" } },
+        },
+      },
+      { id: "b", integration_settings: {} },
+    ]);
+    expect(isReportOff({ table_id: "a", data: { campaign_id: "1" } })).toBe(
+      true,
+    );
+    expect(isReportOff({ table_id: "b", data: { campaign_id: "1" } })).toBe(
+      false,
+    );
+  });
+
   it("lists the switched-off tables", () => {
     expect([
       ...switchedOffTableIds([
