@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { Tables } from "@/integrations/supabase/types";
 import {
   Card,
   CardContent,
@@ -29,28 +30,22 @@ import {
 import { toast } from "sonner";
 import { Code, Copy, Check, Plus, Globe, BarChart3 } from "lucide-react";
 
-interface Client {
-  id: string;
-  name: string;
-  website?: string;
-}
+type Client = Pick<Tables<"clients">, "id" | "name" | "website">;
 
-interface TrackingConfig {
-  id: string;
-  client_id: string;
-  tracking_id: string;
-  website_domain: string | null;
-  is_active: boolean;
+type TrackingConfig = Pick<
+  Tables<"site_tracking_configs">,
+  "id" | "client_id" | "tracking_id" | "website_domain" | "is_active"
+> & {
   settings: Record<string, boolean>;
   clients?: { id: string; name: string } | null;
-}
+};
 
 interface TrackingCodeGeneratorProps {
   clients: Client[];
   trackingConfigs: TrackingConfig[];
   onCreateConfig: (data: { clientId: string; domain: string }) => void;
   isCreating: boolean;
-  onViewDashboard?: (clientId: string) => void;
+  onViewDashboard?: (clientId: TrackingConfig["client_id"]) => void;
 }
 
 export function TrackingCodeGenerator({
@@ -67,7 +62,7 @@ export function TrackingCodeGenerator({
 
   const supabaseUrl = "https://zvoijyneresvkadpprel.supabase.co";
 
-  const generateEmbedCode = (trackingId: string) => {
+  const generateEmbedCode = (trackingId: TrackingConfig["tracking_id"]) => {
     return `<!-- Marketing Captain Analytics -->
 <script>
 (function(w,d,s,c) {

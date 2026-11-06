@@ -114,7 +114,7 @@ export function SystemCronJobsPanel({
     }) => {
       const { error } = await supabase.rpc("update_system_cron_job", {
         p_jobid: jobid,
-        p_schedule: null,
+        p_schedule: undefined,
         p_active: active,
       });
       if (error) throw error;

@@ -1,3 +1,4 @@
+import type { Task } from "./taskTypes";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { markLinkedTaskDoneForCalendarEvent } from "@/lib/taskCalendarSync";
@@ -128,40 +129,6 @@ import {
   getStoredCalendarProvider,
   startCalendarOAuth,
 } from "@/lib/calendarApi";
-
-interface Task {
-  id: string;
-  title: string;
-  notes: string | null;
-  status: string;
-  priority: number;
-  due_date: string | null;
-  due_time: string | null;
-  client_id: string | null;
-  lead_id: string | null;
-  agency_id: string | null;
-  campaigner_id: string | null;
-  sales_person_id?: string | null;
-  tenant_id: string | null;
-  created_by?: string | null;
-  creator_name?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  sort_order?: number;
-  target_date?: string | null;
-  duration_minutes?: number;
-  google_calendar_event_id?: string | null;
-  recurrence_frequency?: "daily" | "weekly" | "monthly" | null;
-  recurrence_interval?: number;
-  recurrence_weekday?: number | null;
-  recurrence_monthday?: number | null;
-  recurrence_series_id?: string | null;
-  recurrence_previous_task_id?: string | null;
-  clients?: { name: string; agency_id?: string | null } | null;
-  leads?: { company_name?: string | null; contact_name?: string | null } | null;
-  task_updates?: { id: string }[];
-  task_collaborators?: { id?: string; campaigner_id?: string }[];
-}
 
 interface CalendarEvent {
   id: string;
@@ -304,14 +271,6 @@ export function WeeklyTaskBoard() {
   // Mobile: full task list by default; calendar opens only via the calendar icon.
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
 
-  // Full task type from DB
-  type FullTask = Task & {
-    clients?: { name: string; agency_id?: string | null } | null;
-    campaigners?: { full_name: string } | null;
-    task_updates?: { id: string }[];
-    task_collaborators?: { id?: string; campaigner_id?: string }[];
-  };
-
   const linkedTaskId = searchParams.get("task");
   useEffect(() => {
     if (!linkedTaskId || !user?.id) return;
@@ -337,7 +296,7 @@ export function WeeklyTaskBoard() {
         toast.error("המשימה לא נמצאה או שאין לך הרשאה לצפות בה");
         return;
       }
-      setSelectedTask(data as FullTask);
+      setSelectedTask(data as Task);
       setViewMode("chat");
       setDialogOpen(false);
     };
@@ -662,7 +621,7 @@ export function WeeklyTaskBoard() {
 
       query = applyBoardFilters(query);
 
-      let taskRows: FullTask[] = [];
+      let taskRows: Task[] = [];
       if (!skipAssignedQuery) {
         const { data, error } = await query
           .order("due_date", { ascending: true })
@@ -670,7 +629,7 @@ export function WeeklyTaskBoard() {
           .order("sort_order", { ascending: true });
 
         if (error) throw error;
-        taskRows = (data || []) as FullTask[];
+        taskRows = (data || []) as Task[];
       }
 
       if (collaboratorTaskIds.length > 0) {
@@ -701,7 +660,7 @@ export function WeeklyTaskBoard() {
           );
           const { data: extra, error: extraError } = await extraQuery;
           if (extraError) throw extraError;
-          taskRows = taskRows.concat((extra || []) as FullTask[]);
+          taskRows = taskRows.concat((extra || []) as Task[]);
         }
       }
 
@@ -751,7 +710,7 @@ export function WeeklyTaskBoard() {
         const { data: recurringExtra, error: recurringError } =
           await recurringQuery;
         if (recurringError) throw recurringError;
-        taskRows = taskRows.concat((recurringExtra || []) as FullTask[]);
+        taskRows = taskRows.concat((recurringExtra || []) as Task[]);
         const seenRecurring = new Set<string>();
         taskRows = taskRows.filter((task) => {
           if (seenRecurring.has(task.id)) return false;
@@ -787,7 +746,7 @@ export function WeeklyTaskBoard() {
   });
 
   // Local tasks state for optimistic updates
-  const [localTasks, setLocalTasks] = useState<FullTask[]>([]);
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
   // View-as preview: show the selected user's queue, not the admin's.
   useEffect(() => {
@@ -801,7 +760,7 @@ export function WeeklyTaskBoard() {
   }, [isViewingAs, viewAsUserId, tenantId, queryClient]);
 
   const applyBoardViewFilters = useMemo(
-    () => (rows: FullTask[]) => {
+    () => (rows: Task[]) => {
       let filtered = filterTasksByBoardTenantScope(
         filterTasksBySelectedAgency(rows, selectedAgency),
         tenantId!,
@@ -946,7 +905,7 @@ export function WeeklyTaskBoard() {
       const { data } = await supabase
         .from("agencies")
         .select("id")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .limit(1)
         .single();
       return data;
@@ -1295,7 +1254,7 @@ export function WeeklyTaskBoard() {
       newTime?: string | null;
       title?: string;
       googleCalendarEventId?: string | null;
-      durationMinutes?: number;
+      durationMinutes?: number | null;
     }) => {
       const updateData: {
         due_date: string | null;
