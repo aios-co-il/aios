@@ -10,8 +10,8 @@ import {
   countStoppedCampaignsByClient,
   computeGoalMetricsFromRecords,
   detectCampaignGoalMode,
-  integrationTypeToGoal,
   isPulseDeliveryExcludedPhone,
+  reportTableGoal,
   selectPulseCriticalAlerts,
   tableMatchesServices,
   worstPulseStatus,
@@ -562,19 +562,15 @@ Deno.serve(async (req) => {
         );
         const stoppedCount = stoppedByClient.get(client.id) || 0;
         const leadTables = activeTables.filter(
-          (table: any) =>
-            integrationTypeToGoal(table.integration_type, table) === "leads",
+          (table: any) => reportTableGoal(table) === "leads",
         );
         const ecommerceTables = activeTables.filter(
-          (table: any) =>
-            integrationTypeToGoal(table.integration_type, table) ===
-            "ecommerce",
+          (table: any) => reportTableGoal(table) === "ecommerce",
         );
         const leadClassification = classifyCampaignPulseStatus({
           activeTables: leadTables,
           hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) =>
-              integrationTypeToGoal(table.integration_type, table) === "leads",
+            (table: any) => reportTableGoal(table) === "leads",
           ),
           recentRecordCount: leadRecords.filter(
             (row: any) =>
@@ -592,9 +588,7 @@ Deno.serve(async (req) => {
         const ecommerceClassification = classifyCampaignPulseStatus({
           activeTables: ecommerceTables,
           hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) =>
-              integrationTypeToGoal(table.integration_type, table) ===
-              "ecommerce",
+            (table: any) => reportTableGoal(table) === "ecommerce",
           ),
           recentRecordCount: ecommerceRecords.filter(
             (row: any) =>

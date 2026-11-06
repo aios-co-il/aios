@@ -4,6 +4,12 @@
  * stale sync are never collapsed into no_data.
  */
 import { hasRepeatedSyncFailures } from "./ads-sync/freshness.ts";
+import { getSpendFromData } from "./campaign-goal/ads-metrics.ts";
+import { adsRowOutcomes, goalResultCount } from "./campaign-goal/outcomes.ts";
+import {
+  isEcommerceReportTable,
+  reportTableGoal,
+} from "./campaign-goal/table-goal.ts";
 import {
   NO_RECENT_CLIENT_CALL_TEXT,
   isLegacyClientCallFlag,
@@ -531,20 +537,16 @@ export function isPulseDeliveryExcludedPhone(
   );
 }
 
-import {
-  isEcommerceReportTable,
-  integrationTypeToGoal,
-} from "./pulse-campaign-goals.mjs";
+export { isEcommerceReportTable, reportTableGoal };
 
-export { isEcommerceReportTable, integrationTypeToGoal };
-
+/** A client's goal mode from its active report tables' own goals (reportTableGoal). */
 export function detectCampaignGoalMode(
   tables: CampaignTableLike[],
 ): CampaignGoalMode {
   const goals = new Set<CampaignGoal>();
   for (const table of tables) {
     if (table.campaign_active === false) continue;
-    const goal = integrationTypeToGoal(table.integration_type, table);
+    const goal = reportTableGoal(table);
     if (goal) goals.add(goal);
   }
   if (goals.has("leads") && goals.has("ecommerce")) return "hybrid";
@@ -562,14 +564,21 @@ export type GoalMetricBundle = {
 
 type RecordLike = { data?: Record<string, unknown> | null };
 
-function sumRecordFields(rows: RecordLike[], fields: string[]): number {
-  return rows.reduce((total, row) => {
+/** A window's spend, results and revenue as the report counts them for `goal`. */
+type GoalWindowTotals = { spend: number; outcomes: number; revenue: number };
+
+function goalWindowTotals(
+  rows: RecordLike[],
+  goal: CampaignGoal,
+): GoalWindowTotals {
+  const totals = { spend: 0, outcomes: 0, revenue: 0 };
+  for (const row of rows) {
     const data = row.data || {};
-    const field = fields.find(
-      (candidate) => data[candidate] !== undefined && data[candidate] !== null,
-    );
-    return total + (field ? Number(data[field]) || 0 : 0);
-  }, 0);
+    totals.spend += getSpendFromData(data);
+    totals.outcomes += goalResultCount(data, goal) ?? 0;
+    totals.revenue += adsRowOutcomes(data, goal).revenue;
+  }
+  return totals;
 }
 
 function roundMetric(value: number | null, digits = 2): number | null {
@@ -585,7 +594,12 @@ function isCampaignLevelAdsRow(
   return level === "campaign";
 }
 
-/** Aggregate 7d + prior-window metrics for one campaign goal from CRM rows. */
+/**
+ * Aggregate 7d + prior-window metrics for one campaign goal from CRM rows.
+ * Spend, results and revenue are the report's (getSpendFromData,
+ * goalResultCount, adsRowOutcomes): purchases and revenue for ecommerce, leads
+ * for leads. The caller passes the records whose campaign has that report goal.
+ */
 export function computeGoalMetricsFromRecords(
   records: RecordLike[],
   goal: CampaignGoal,
@@ -597,64 +611,47 @@ export function computeGoalMetricsFromRecords(
     const date = typeof row.data?.date === "string" ? row.data.date : null;
     return date && date >= d14Str;
   });
-  const current = recent.filter(
-    (row) => typeof row.data?.date === "string" && row.data.date >= d7Str,
+  const current = goalWindowTotals(
+    recent.filter(
+      (row) => typeof row.data?.date === "string" && row.data.date >= d7Str,
+    ),
+    goal,
   );
-  const previous = recent.filter((row) => {
-    const date = row.data?.date;
-    return typeof date === "string" && date >= d14Str && date < d7Str;
-  });
-
-  const spend = sumRecordFields(current, ["spend", "cost"]);
-  const prevSpend = sumRecordFields(previous, ["spend", "cost"]);
+  const previous = goalWindowTotals(
+    recent.filter((row) => {
+      const date = row.data?.date;
+      return typeof date === "string" && date >= d14Str && date < d7Str;
+    }),
+    goal,
+  );
 
   if (goal === "ecommerce") {
-    // Google Ads rows report purchases as `conversions`.
-    const purchases = sumRecordFields(current, ["purchases", "conversions"]);
-    const revenue = sumRecordFields(current, [
-      "purchase_value",
-      "conversions_value",
-      "revenue",
-    ]);
-    const prevRevenue = sumRecordFields(previous, [
-      "purchase_value",
-      "conversions_value",
-      "revenue",
-    ]);
-    const roas = spend > 0 ? revenue / spend : null;
-    const prevRoas = prevSpend > 0 ? prevRevenue / prevSpend : null;
+    const roas = current.spend > 0 ? current.revenue / current.spend : null;
+    const prevRoas =
+      previous.spend > 0 ? previous.revenue / previous.spend : null;
     const changePct =
       roas !== null && prevRoas !== null && prevRoas > 0
         ? ((roas - prevRoas) / prevRoas) * 100
         : null;
     return {
-      spend: roundMetric(spend) ?? 0,
-      outcomes: roundMetric(purchases) ?? 0,
-      revenue: roundMetric(revenue) ?? 0,
+      spend: roundMetric(current.spend) ?? 0,
+      outcomes: roundMetric(current.outcomes) ?? 0,
+      revenue: roundMetric(current.revenue) ?? 0,
       efficiency: roundMetric(roas),
       changePct: roundMetric(changePct, 1),
     };
   }
 
-  const leads = sumRecordFields(current, [
-    "leads",
-    "conversions",
-    "all_conversions",
-  ]);
-  const prevLeads = sumRecordFields(previous, [
-    "leads",
-    "conversions",
-    "all_conversions",
-  ]);
-  const cpl = leads > 0 ? spend / leads : null;
-  const prevCpl = prevLeads > 0 ? prevSpend / prevLeads : null;
+  const cpl = current.outcomes > 0 ? current.spend / current.outcomes : null;
+  const prevCpl =
+    previous.outcomes > 0 ? previous.spend / previous.outcomes : null;
   const changePct =
     cpl !== null && prevCpl !== null && prevCpl > 0
       ? ((cpl - prevCpl) / prevCpl) * 100
       : null;
   return {
-    spend: roundMetric(spend) ?? 0,
-    outcomes: roundMetric(leads) ?? 0,
+    spend: roundMetric(current.spend) ?? 0,
+    outcomes: roundMetric(current.outcomes) ?? 0,
     revenue: 0,
     efficiency: roundMetric(cpl),
     changePct: roundMetric(changePct, 1),

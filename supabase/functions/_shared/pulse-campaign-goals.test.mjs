@@ -5,37 +5,18 @@ import {
 } from "jsr:@std/assert@1";
 import {
   buildPulseCampaignRows,
-  classifyPulseCampaignGoal,
-  integrationTypeToGoal,
-  isEcommerceReportTable,
   pulseTrendWindows,
 } from "./pulse-campaign-goals.mjs";
+import { reportCampaignGoalOf } from "./campaign-goal/campaign-goals.ts";
 import { goalResultCount } from "./campaign-goal/outcomes.ts";
 import { buildInsightRecord } from "./fbInsights.ts";
 
-Deno.test(
-  "table helpers share one ecommerce definition across pulse and reports",
-  () => {
-    const ecommerceTable = {
-      integration_type: "facebook_insights",
-      category: "איקומרס",
-      integration_settings: {},
-    };
-    assertStrictEquals(isEcommerceReportTable(ecommerceTable), true);
-    assertStrictEquals(
-      integrationTypeToGoal("facebook_insights", ecommerceTable),
-      "ecommerce",
-    );
-    assertStrictEquals(
-      integrationTypeToGoal("facebook_insights", {
-        integration_type: "facebook_insights",
-      }),
-      "leads",
-    );
-  },
-);
-
-Deno.test("fbInsights sync output classifies identically in pulse", () => {
+Deno.test("fbInsights sync output gets the report goal in the pulse", () => {
+  const table = { id: "t", integration_type: "facebook_insights" };
+  const reportGoal = (data) => {
+    const record = { table_id: "t", data };
+    return reportCampaignGoalOf([record], [table])(record)?.goal;
+  };
   const sales = buildInsightRecord(
     {
       date_start: "2026-09-17",
@@ -57,7 +38,7 @@ Deno.test("fbInsights sync output classifies identically in pulse", () => {
     {},
     { sale: "OFFSITE_CONVERSIONS" },
   );
-  assertStrictEquals(classifyPulseCampaignGoal(sales).goal, "ecommerce");
+  assertStrictEquals(reportGoal(sales), "ecommerce");
 
   const engagement = buildInsightRecord(
     {
@@ -79,190 +60,19 @@ Deno.test("fbInsights sync output classifies identically in pulse", () => {
     {},
     { eng: "THRUPLAY" },
   );
-  assertStrictEquals(classifyPulseCampaignGoal(engagement).goal, "engagement");
+  assertStrictEquals(reportGoal(engagement), "traffic");
 });
 
 Deno.test(
-  "classifies campaign objective and never defaults an unknown campaign to leads",
+  "a lead campaign's results are its leads, however Meta reports them",
   () => {
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ campaign_objective: "OUTCOME_LEADS" }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ campaign_objective: "OUTCOME_TRAFFIC" }).goal,
-      "engagement",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ campaign_type: "traffic" }).goal,
-      "engagement",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ optimization_goal: "THRUPLAY" }).goal,
-      "engagement",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ campaign_objective: "OUTCOME_SALES" }).goal,
-      "ecommerce",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ campaign_name: "קמפיין קיץ" }).goal,
-      "unknown",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_objective: "OUTCOME_SALES",
-        campaign_type: "lead",
-      }).goal,
-      "ecommerce",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({}, { integration_type: "facebook_ecommerce" })
-        .goal,
-      "ecommerce",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal(
-        { campaign_type: "lead" },
-        { integration_type: "facebook_insights", category: "איקומרס" },
-      ).goal,
-      "ecommerce",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal(
-        { campaign_type: "lead" },
-        { integration_type: "facebook_ecommerce" },
-      ).goal,
-      "ecommerce",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal(
-        { campaign_type: "lead", campaign_objective: "OUTCOME_LEADS" },
-        { integration_type: "facebook_ecommerce" },
-      ).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal(
-        { campaign_objective: "OUTCOME_SALES" },
-        { integration_settings: { campaign_type: "leads" } },
-      ).goal,
-      "ecommerce",
-    );
-  },
-);
-
-Deno.test(
-  "Meta lead campaigns with LINK_CLICKS optimization classify as leads not engagement",
-  () => {
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_type: "lead",
-        campaign_objective: "OUTCOME_LEADS",
-        optimization_goal: "LINK_CLICKS",
-        link_clicks: 120,
-        clicks: 120,
-        result_kind: "link_clicks",
-      }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_name: "דורון אקו | לידים",
-        optimization_goal: "LINK_CLICKS",
-        link_clicks: 45,
-        result_kind: "link_clicks",
-      }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_type: "traffic",
-        optimization_goal: "LINK_CLICKS",
-        link_clicks: 45,
-        result_kind: "link_clicks",
-      }).goal,
-      "engagement",
-    );
     assertStrictEquals(
       goalResultCount({ link_clicks: 45, leads: 3 }, "leads"),
       3,
     );
-  },
-);
-
-Deno.test(
-  "WhatsApp / messaging lead campaigns classify as leads not engagement",
-  () => {
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_name: "מעורבות | 18.8 - וואטסאפ",
-        campaign_objective: "OUTCOME_ENGAGEMENT",
-        optimization_goal: "LINK_CLICKS",
-        link_clicks: 394,
-        result_kind: "link_clicks",
-      }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_name: "הלם פארם | לידים ווטסאפ",
-        campaign_objective: "OUTCOME_ENGAGEMENT",
-        optimization_goal: "CONVERSATIONS",
-        conversations: 3,
-      }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ optimization_goal: "CONVERSATIONS" }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ result_kind: "conversations" }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ result_kind: "messages" }).goal,
-      "leads",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ optimization_goal: "THRUPLAY" }).goal,
-      "engagement",
-    );
     assertStrictEquals(
       goalResultCount({ conversations: 4, spend: 100 }, "leads"),
       4,
-    );
-  },
-);
-
-Deno.test(
-  "classifies from synced result_kind and Hebrew campaign names",
-  () => {
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ result_kind: "purchases" }).goal,
-      "ecommerce",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ result_kind: "video_views" }).goal,
-      "engagement",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_name: "קמפיין מכירות | מבצעים ספטמבר",
-      }).goal,
-      "ecommerce",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({
-        campaign_name: "קמפיין מעורבות | סרטונים חדש",
-      }).goal,
-      "engagement",
-    );
-    assertStrictEquals(
-      classifyPulseCampaignGoal({ campaign_name: "קמפיין לידים | דרושים" })
-        .goal,
-      "leads",
     );
   },
 );
