@@ -122,9 +122,7 @@ async function signIn() {
     "user@example.test",
   );
   await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
-  await interaction.click(
-    screen.getByRole("button", { name: "התחבר", exact: true }),
-  );
+  await interaction.click(screen.getByRole("button", { name: "התחבר" }));
   data.subscription.unsubscribe();
   expect(state.events).toContain("SIGNED_IN");
   return interaction;
@@ -168,9 +166,7 @@ describe("Auth password MFA readiness", () => {
         finishAssurance();
       }
       await waitFor(() =>
-        expect(
-          screen.getByRole("button", { name: "התחבר", exact: true }),
-        ).toBeEnabled(),
+        expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled(),
       );
       expect(state.toast).toHaveBeenCalledWith(
         expect.objectContaining({ title: "שגיאה", variant: "destructive" }),
@@ -217,9 +213,7 @@ describe("Auth password MFA readiness", () => {
       false,
     );
     await interaction.type(screen.getByLabelText("קוד אימות"), "123456");
-    await interaction.click(
-      screen.getByRole("button", { name: "אמת", exact: true }),
-    );
+    await interaction.click(screen.getByRole("button", { name: "אמת" }));
     expect(await screen.findByText("Protected home")).toBeInTheDocument();
     expect(state.home).toHaveBeenCalledExactlyOnceWith(user.id);
     expect(
