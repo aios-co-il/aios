@@ -1772,11 +1772,13 @@ export async function handleCarmenMessage(
       .eq("connection_user_id", connectionUserId)
       .eq("chat_id", chatId)
       .limit(5);
-    const stale = (active || []).filter((s: any) =>
+    const sessions: Array<{ id: string; integration_id: string | null }> =
+      active || [];
+    const stale = sessions.filter((s) =>
       staleOnThisIntegration(s.integration_id, integrationId),
     );
     if (stale.length > 0) {
-      const ids = stale.map((s: any) => s.id);
+      const ids = stale.map((s) => s.id);
       await supabase
         .from("carmen_whatsapp_sessions")
         .update({ status: "ended", ended_at: new Date().toISOString() })
