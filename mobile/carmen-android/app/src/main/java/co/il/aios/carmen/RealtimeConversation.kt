@@ -38,6 +38,7 @@ class RealtimeConversation(
     private val brain = CarmenBrain(account)
     private val memory = VoiceMemory(account, log)
     private val pronunciations = Pronunciations(account)
+    private val whatsApp = WhatsAppSend(account)
     private val transcript = VoiceTranscript()
     private val phone = PhoneTools(context)
     private val worker = Executors.newSingleThreadScheduledExecutor()
@@ -153,6 +154,7 @@ class RealtimeConversation(
     private fun addPhoneTools(session: JSONObject) {
         val tools = session.optJSONArray("tools") ?: JSONArray()
         phone.definitions().forEach { tools.put(it) }
+        tools.put(whatsApp.definition())
         send(
             JSONObject().put("type", "session.update").put(
                 "session",
@@ -170,6 +172,10 @@ class RealtimeConversation(
         }
         if (name == Pronunciations.TOOL) {
             savePronunciation(item)
+            return
+        }
+        if (name == WhatsAppSend.TOOL) {
+            sendWhatsApp(item)
             return
         }
         if (name != "ask_carmen") return
@@ -191,6 +197,16 @@ class RealtimeConversation(
         log.record(EventLog.Event.PHONE_TOOL, Pronunciations.TOOL)
         tools.execute {
             val result = pronunciations.save(args.optString("term"), args.optString("spoken"))
+            if (ended) return@execute
+            answerTool(item.optString("call_id"), result)
+        }
+    }
+
+    private fun sendWhatsApp(item: JSONObject) {
+        val args = runCatching { JSONObject(item.optString("arguments")) }.getOrDefault(JSONObject())
+        log.record(EventLog.Event.PHONE_TOOL, WhatsAppSend.TOOL)
+        tools.execute {
+            val result = whatsApp.run(args)
             if (ended) return@execute
             answerTool(item.optString("call_id"), result)
         }

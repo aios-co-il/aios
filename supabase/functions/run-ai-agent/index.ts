@@ -12,6 +12,7 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
+import { defaultGatewayLine, integrationTypesFor } from "./whatsapp-lines.ts";
 import {
   brainDenied,
   internalBrainDenied,
@@ -3588,7 +3589,11 @@ const ALL_TOOLS = [
     parameters: {
       type: "object",
       properties: {
-        type: { type: "string", description: "סינון לפי סוג אינטגרציה" },
+        type: {
+          type: "string",
+          description:
+            'סינון לפי סוג אינטגרציה. "whatsapp" מחזיר את כל קווי הוואטסאפ (manus_wa, green_api, meta_whatsapp).',
+        },
         only_active: { type: "boolean" },
       },
     },
@@ -3700,15 +3705,19 @@ const ALL_TOOLS = [
   {
     name: "send_whatsapp_via_gateway",
     description:
-      "שליחת הודעת WhatsApp דרך instance ספציפי של ה-Gateway. עדיף על send_message כשרוצים לשלוח מחיבור מסוים.",
+      "שליחת הודעת WhatsApp לכל מספר (גם למשתמש עצמו או לאיש קשר פרטי) דרך קו הוואטסאפ של הארגון. בלי integrationId נשלח מקו ה-manus_wa הפעיל של הארגון.",
     parameters: {
       type: "object",
       properties: {
-        integrationId: { type: "string", description: "מזהה האינטגרציה" },
+        integrationId: {
+          type: "string",
+          description:
+            "מזהה קו manus_wa מסוים (לא חובה; בלי זה נשלח מהקו הפעיל של הארגון)",
+        },
         phone: { type: "string", description: "מספר טלפון (עם או בלי קידומת)" },
         message: { type: "string", description: "תוכן ההודעה" },
       },
-      required: ["integrationId", "phone", "message"],
+      required: ["phone", "message"],
     },
   },
   {
@@ -11585,7 +11594,8 @@ async function executeTool(
           "id, integration_type, is_active, settings, last_sync_at, created_at",
         )
         .in("tenant_id", accessibleTenantIds);
-      if (args.type) q = q.eq("integration_type", args.type);
+      if (args.type)
+        q = q.in("integration_type", integrationTypesFor(args.type));
       if (args.only_active) q = q.eq("is_active", true);
       const { data, error } = await q.order("integration_type");
       if (error) throw error;
@@ -11741,6 +11751,14 @@ async function executeTool(
       return data;
     }
     case "send_whatsapp_via_gateway": {
+      const integrationId =
+        args.integrationId || (await defaultGatewayLine(supabase, tenantId));
+      if (!integrationId) {
+        return {
+          error:
+            "לארגון אין קו manus_wa פעיל לשליחת וואטסאפ. אפשר לחבר קו בהגדרות האינטגרציות.",
+        };
+      }
       const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
         method: "POST",
         headers: {
@@ -11749,7 +11767,7 @@ async function executeTool(
         },
         body: JSON.stringify({
           action: "send_message",
-          integrationId: args.integrationId,
+          integrationId,
           phone: args.phone,
           message: args.message,
         }),

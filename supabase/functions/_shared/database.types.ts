@@ -7,11 +7,6 @@ export type Json =
   | Json[];
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.17";
-  };
   graphql_public: {
     Tables: {
       [_ in never]: never;
@@ -442,163 +437,6 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
-      };
-      agent_collaboration_agents: {
-        Row: {
-          agent_key: string;
-          capabilities: string[];
-          created_at: string;
-          current_task_id: string | null;
-          display_name: string;
-          id: string;
-          last_seen_at: string;
-          metadata: Json;
-          status: string;
-          tenant_id: string | null;
-          updated_at: string;
-        };
-        Insert: {
-          agent_key: string;
-          capabilities?: string[];
-          created_at?: string;
-          current_task_id?: string | null;
-          display_name: string;
-          id?: string;
-          last_seen_at?: string;
-          metadata?: Json;
-          status?: string;
-          tenant_id?: string | null;
-          updated_at?: string;
-        };
-        Update: {
-          agent_key?: string;
-          capabilities?: string[];
-          created_at?: string;
-          current_task_id?: string | null;
-          display_name?: string;
-          id?: string;
-          last_seen_at?: string;
-          metadata?: Json;
-          status?: string;
-          tenant_id?: string | null;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "agent_collaboration_agents_current_task_id_fkey";
-            columns: ["current_task_id"];
-            isOneToOne: false;
-            referencedRelation: "agent_collaboration_tasks";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      agent_collaboration_messages: {
-        Row: {
-          body: string;
-          created_at: string;
-          id: string;
-          message_type: string;
-          metadata: Json;
-          read_by: string[];
-          recipient: string | null;
-          sender: string;
-          task_id: string | null;
-          tenant_id: string | null;
-        };
-        Insert: {
-          body: string;
-          created_at?: string;
-          id?: string;
-          message_type?: string;
-          metadata?: Json;
-          read_by?: string[];
-          recipient?: string | null;
-          sender: string;
-          task_id?: string | null;
-          tenant_id?: string | null;
-        };
-        Update: {
-          body?: string;
-          created_at?: string;
-          id?: string;
-          message_type?: string;
-          metadata?: Json;
-          read_by?: string[];
-          recipient?: string | null;
-          sender?: string;
-          task_id?: string | null;
-          tenant_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "agent_collaboration_messages_task_id_fkey";
-            columns: ["task_id"];
-            isOneToOne: false;
-            referencedRelation: "agent_collaboration_tasks";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      agent_collaboration_tasks: {
-        Row: {
-          acceptance_criteria: string[];
-          assigned_to: string | null;
-          branch: string | null;
-          claimed_at: string | null;
-          completed_at: string | null;
-          created_at: string;
-          created_by: string;
-          description: string;
-          id: string;
-          metadata: Json;
-          preview_url: string | null;
-          priority: string;
-          pull_request_url: string | null;
-          status: string;
-          tenant_id: string | null;
-          title: string;
-          updated_at: string;
-        };
-        Insert: {
-          acceptance_criteria?: string[];
-          assigned_to?: string | null;
-          branch?: string | null;
-          claimed_at?: string | null;
-          completed_at?: string | null;
-          created_at?: string;
-          created_by: string;
-          description?: string;
-          id?: string;
-          metadata?: Json;
-          preview_url?: string | null;
-          priority?: string;
-          pull_request_url?: string | null;
-          status?: string;
-          tenant_id?: string | null;
-          title: string;
-          updated_at?: string;
-        };
-        Update: {
-          acceptance_criteria?: string[];
-          assigned_to?: string | null;
-          branch?: string | null;
-          claimed_at?: string | null;
-          completed_at?: string | null;
-          created_at?: string;
-          created_by?: string;
-          description?: string;
-          id?: string;
-          metadata?: Json;
-          preview_url?: string | null;
-          priority?: string;
-          pull_request_url?: string | null;
-          status?: string;
-          tenant_id?: string | null;
-          title?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
       };
       agent_credentials: {
         Row: {
@@ -4042,6 +3880,161 @@ export type Database = {
           },
         ];
       };
+      carmen_finding_counters: {
+        Row: {
+          last_code: number;
+          tenant_id: string;
+        };
+        Insert: {
+          last_code?: number;
+          tenant_id: string;
+        };
+        Update: {
+          last_code?: number;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_counters_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_deliveries: {
+        Row: {
+          attempted_at: string | null;
+          channel: string;
+          created_at: string;
+          error: string | null;
+          finding_id: string;
+          id: string;
+          level: number;
+          message_key: string | null;
+          not_before: string;
+          provider_message_id: string | null;
+          recipient_key: string;
+          recipient_name: string | null;
+          recipient_phone: string | null;
+          recipient_user_id: string | null;
+          round_id: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempted_at?: string | null;
+          channel: string;
+          created_at?: string;
+          error?: string | null;
+          finding_id: string;
+          id?: string;
+          level: number;
+          message_key?: string | null;
+          not_before?: string;
+          provider_message_id?: string | null;
+          recipient_key: string;
+          recipient_name?: string | null;
+          recipient_phone?: string | null;
+          recipient_user_id?: string | null;
+          round_id?: string | null;
+          slot: string;
+          status: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempted_at?: string | null;
+          channel?: string;
+          created_at?: string;
+          error?: string | null;
+          finding_id?: string;
+          id?: string;
+          level?: number;
+          message_key?: string | null;
+          not_before?: string;
+          provider_message_id?: string | null;
+          recipient_key?: string;
+          recipient_name?: string | null;
+          recipient_phone?: string | null;
+          recipient_user_id?: string | null;
+          round_id?: string | null;
+          slot?: string;
+          status?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_deliveries_tenant_id_finding_id_fkey";
+            columns: ["tenant_id", "finding_id"];
+            isOneToOne: false;
+            referencedRelation: "carmen_findings";
+            referencedColumns: ["tenant_id", "id"];
+          },
+          {
+            foreignKeyName: "carmen_finding_deliveries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_finding_events: {
+        Row: {
+          actor_user_id: string | null;
+          created_at: string;
+          details: Json;
+          event: string;
+          finding_id: string;
+          id: string;
+          level: number | null;
+          note: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          details?: Json;
+          event: string;
+          finding_id: string;
+          id?: string;
+          level?: number | null;
+          note?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          details?: Json;
+          event?: string;
+          finding_id?: string;
+          id?: string;
+          level?: number | null;
+          note?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_finding_events_tenant_id_finding_id_fkey";
+            columns: ["tenant_id", "finding_id"];
+            isOneToOne: false;
+            referencedRelation: "carmen_findings";
+            referencedColumns: ["tenant_id", "id"];
+          },
+          {
+            foreignKeyName: "carmen_finding_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_findings: {
         Row: {
           agency_id: string | null;
@@ -4161,161 +4154,6 @@ export type Database = {
             foreignKeyName: "carmen_findings_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      carmen_finding_events: {
-        Row: {
-          actor_user_id: string | null;
-          created_at: string;
-          details: Json;
-          event: string;
-          finding_id: string;
-          id: string;
-          level: number | null;
-          note: string | null;
-          tenant_id: string;
-        };
-        Insert: {
-          actor_user_id?: string | null;
-          created_at?: string;
-          details?: Json;
-          event: string;
-          finding_id: string;
-          id?: string;
-          level?: number | null;
-          note?: string | null;
-          tenant_id: string;
-        };
-        Update: {
-          actor_user_id?: string | null;
-          created_at?: string;
-          details?: Json;
-          event?: string;
-          finding_id?: string;
-          id?: string;
-          level?: number | null;
-          note?: string | null;
-          tenant_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "carmen_finding_events_tenant_id_finding_id_fkey";
-            columns: ["tenant_id", "finding_id"];
-            isOneToOne: false;
-            referencedRelation: "carmen_findings";
-            referencedColumns: ["tenant_id", "id"];
-          },
-          {
-            foreignKeyName: "carmen_finding_events_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      carmen_finding_deliveries: {
-        Row: {
-          attempted_at: string | null;
-          channel: string;
-          created_at: string;
-          error: string | null;
-          finding_id: string;
-          id: string;
-          level: number;
-          message_key: string | null;
-          not_before: string;
-          provider_message_id: string | null;
-          recipient_key: string;
-          recipient_name: string | null;
-          recipient_phone: string | null;
-          recipient_user_id: string | null;
-          round_id: string | null;
-          slot: string;
-          status: string;
-          tenant_id: string;
-          updated_at: string;
-        };
-        Insert: {
-          attempted_at?: string | null;
-          channel: string;
-          created_at?: string;
-          error?: string | null;
-          finding_id: string;
-          id?: string;
-          level: number;
-          message_key?: string | null;
-          not_before?: string;
-          provider_message_id?: string | null;
-          recipient_key: string;
-          recipient_name?: string | null;
-          recipient_phone?: string | null;
-          recipient_user_id?: string | null;
-          round_id?: string | null;
-          slot: string;
-          status: string;
-          tenant_id: string;
-          updated_at?: string;
-        };
-        Update: {
-          attempted_at?: string | null;
-          channel?: string;
-          created_at?: string;
-          error?: string | null;
-          finding_id?: string;
-          id?: string;
-          level?: number;
-          message_key?: string | null;
-          not_before?: string;
-          provider_message_id?: string | null;
-          recipient_key?: string;
-          recipient_name?: string | null;
-          recipient_phone?: string | null;
-          recipient_user_id?: string | null;
-          round_id?: string | null;
-          slot?: string;
-          status?: string;
-          tenant_id?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "carmen_finding_deliveries_tenant_id_finding_id_fkey";
-            columns: ["tenant_id", "finding_id"];
-            isOneToOne: false;
-            referencedRelation: "carmen_findings";
-            referencedColumns: ["tenant_id", "id"];
-          },
-          {
-            foreignKeyName: "carmen_finding_deliveries_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      carmen_finding_counters: {
-        Row: {
-          last_code: number;
-          tenant_id: string;
-        };
-        Insert: {
-          last_code?: number;
-          tenant_id: string;
-        };
-        Update: {
-          last_code?: number;
-          tenant_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "carmen_finding_counters_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: true;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
           },
@@ -4536,7 +4374,7 @@ export type Database = {
           spoken: string;
           tenant_id: string;
           term: string;
-          term_key?: never;
+          term_key?: string | null;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -4546,7 +4384,7 @@ export type Database = {
           spoken?: string;
           tenant_id?: string;
           term?: string;
-          term_key?: never;
+          term_key?: string | null;
           updated_at?: string;
           updated_by?: string | null;
         };
@@ -17062,7 +16900,10 @@ export type Database = {
           p_step_key: string;
           p_tenant_id: string;
         };
-        Returns: { broadcast_id: string; reserved: boolean }[];
+        Returns: {
+          broadcast_id: string;
+          reserved: boolean;
+        }[];
       };
       broadcast_tenant_has_synced_lists: {
         Args: { p_tenant_id: string };
@@ -17071,6 +16912,11 @@ export type Database = {
       bump_skill_usage_by_slug: {
         Args: { p_slugs: string[]; p_tenant_id: string };
         Returns: undefined;
+      };
+      caller_owns_tenant: { Args: { _tenant_id: string }; Returns: boolean };
+      caller_owns_tenant_of_user: {
+        Args: { _user_id: string };
+        Returns: boolean;
       };
       can_access_agency: {
         Args: { _agency_id: string; _user_id: string };
@@ -17116,129 +16962,13 @@ export type Database = {
         Args: { p_connection_id: string; p_secret: string };
         Returns: undefined;
       };
-      carmen_finding_confirm_contact: {
-        Args: {
-          p_content: string;
-          p_finding_id: string;
-          p_tenant_id: string;
-          p_update_type: string;
-          p_user_id: string;
-        };
-        Returns: { entry_id: string; inserted: boolean; outcome: string }[];
-      };
-      carmen_finding_may_confirm: {
-        Args: {
-          p_agency_id: string;
-          p_attributed: boolean;
-          p_client_id: string;
-          p_owner_user_id: string;
-          p_tenant_id: string;
-          p_user_id: string;
-        };
+      carmen_delivery_went_out: {
+        Args: { p_status: string };
         Returns: boolean;
       };
-      carmen_finding_resolve_card_written: {
-        Args: {
-          p_actor_user_id?: string;
-          p_entry_id: string;
-          p_finding_id: string;
-          p_tenant_id: string;
-        };
-        Returns: boolean;
-      };
-      carmen_finding_role_of: {
-        Args: {
-          p_agency_id?: string;
-          p_client_id?: string;
-          p_tenant_id: string;
-          p_user_id: string;
-        };
-        Returns: string;
-      };
-      carmen_finding_viewer_role: {
-        Args: { p_agency_id: string; p_client_id: string; p_tenant_id: string };
-        Returns: string;
-      };
-      carmen_finding_upsert: {
-        Args: {
-          p_candidates: Json;
-          p_collector: string;
-          p_detector_version: string;
-          p_round_id: string;
-          p_tenant_id: string;
-        };
-        Returns: {
-          finding_id: string;
-          fingerprint: string;
-          kind: string;
-          outcome: string;
-          short_code: number;
-        }[];
-      };
-      carmen_finding_set_status: {
-        Args: {
-          p_feedback?: string;
-          p_finding_id: string;
-          p_note?: string;
-          p_status?: string;
-        };
-        Returns: {
-          feedback: string;
-          id: string;
-          resolution: string;
-          status: string;
-        }[];
-      };
-      carmen_finding_resolve: {
-        Args: {
-          p_collector: string;
-          p_items: Json;
-          p_round_id: string;
-          p_tenant_id: string;
-        };
-        Returns: {
-          finding_id: string;
-          short_code: number;
-        }[];
-      };
-      carmen_finding_record_send: {
-        Args: {
-          p_delivery_ids: string[];
-          p_error?: string;
-          p_message_key?: string;
-          p_not_before?: string;
-          p_provider_message_id?: string;
-          p_status: string;
-          p_tenant_id: string;
-        };
+      carmen_finding_apply_route: {
+        Args: { p_decisions: Json; p_round_id: string; p_tenant_id: string };
         Returns: number;
-      };
-      carmen_finding_record_brief: {
-        Args: {
-          p_error?: string;
-          p_finding_ids: string[];
-          p_message_key: string;
-          p_provider_message_id?: string;
-          p_recipient: Json;
-          p_status: string;
-          p_tenant_id: string;
-        };
-        Returns: number;
-      };
-      carmen_finding_mark_missing: {
-        Args: {
-          p_after_misses?: number;
-          p_client_ids?: string[];
-          p_fingerprints?: string[];
-          p_kind: string;
-          p_round_id?: string;
-          p_seen: string[];
-          p_tenant_id: string;
-        };
-        Returns: {
-          finding_id: string;
-          short_code: number;
-        }[];
       };
       carmen_finding_claim_deliveries: {
         Args: { p_limit?: number; p_tenant_id: string };
@@ -17270,13 +17000,133 @@ export type Database = {
           isSetofReturn: true;
         };
       };
-      carmen_finding_apply_route: {
-        Args: { p_decisions: Json; p_round_id: string; p_tenant_id: string };
+      carmen_finding_confirm_contact: {
+        Args: {
+          p_content: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+          p_update_type: string;
+          p_user_id: string;
+        };
+        Returns: {
+          entry_id: string;
+          inserted: boolean;
+          outcome: string;
+        }[];
+      };
+      carmen_finding_mark_missing: {
+        Args: {
+          p_after_misses?: number;
+          p_client_ids?: string[];
+          p_fingerprints?: string[];
+          p_kind: string;
+          p_round_id?: string;
+          p_seen: string[];
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_may_confirm: {
+        Args: {
+          p_agency_id: string;
+          p_attributed: boolean;
+          p_client_id: string;
+          p_owner_user_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
+      carmen_finding_record_brief: {
+        Args: {
+          p_error?: string;
+          p_finding_ids: string[];
+          p_message_key: string;
+          p_provider_message_id?: string;
+          p_recipient: Json;
+          p_status: string;
+          p_tenant_id: string;
+        };
         Returns: number;
       };
-      carmen_delivery_went_out: {
-        Args: { p_status: string };
+      carmen_finding_record_send: {
+        Args: {
+          p_delivery_ids: string[];
+          p_error?: string;
+          p_message_key?: string;
+          p_not_before?: string;
+          p_provider_message_id?: string;
+          p_status: string;
+          p_tenant_id: string;
+        };
+        Returns: number;
+      };
+      carmen_finding_resolve: {
+        Args: {
+          p_collector: string;
+          p_items: Json;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_resolve_card_written: {
+        Args: {
+          p_actor_user_id?: string;
+          p_entry_id: string;
+          p_finding_id: string;
+          p_tenant_id: string;
+        };
         Returns: boolean;
+      };
+      carmen_finding_role_of: {
+        Args: {
+          p_agency_id?: string;
+          p_client_id?: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
+      carmen_finding_set_status: {
+        Args: {
+          p_feedback?: string;
+          p_finding_id: string;
+          p_note?: string;
+          p_status?: string;
+        };
+        Returns: {
+          feedback: string;
+          id: string;
+          resolution: string;
+          status: string;
+        }[];
+      };
+      carmen_finding_upsert: {
+        Args: {
+          p_candidates: Json;
+          p_collector: string;
+          p_detector_version: string;
+          p_round_id: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          finding_id: string;
+          fingerprint: string;
+          kind: string;
+          outcome: string;
+          short_code: number;
+        }[];
+      };
+      carmen_finding_viewer_role: {
+        Args: { p_agency_id: string; p_client_id: string; p_tenant_id: string };
+        Returns: string;
       };
       carmen_fix_campaigner_access: {
         Args: {
@@ -17294,34 +17144,34 @@ export type Database = {
         Args: { p_tenant_id: string };
         Returns: boolean;
       };
-      carmen_manager_is_owner_of: {
-        Args: { p_tenant_id: string; p_user_id: string };
-        Returns: boolean;
-      };
-      carmen_manager_without_stamps: {
-        Args: { p_manager: Json };
-        Returns: Json;
-      };
-      carmen_manager_reset_ladders: {
-        Args: { p_kinds: string[]; p_tenant_id: string };
-        Returns: number;
-      };
-      carmen_manager_mode_sends: { Args: { p_mode: string }; Returns: boolean };
-      carmen_manager_kinds_without_stamps: {
-        Args: { p_kinds: Json };
-        Returns: Json;
-      };
-      carmen_manager_kind_sends: {
-        Args: { p_kind: Json; p_mode: string };
-        Returns: boolean;
+      carmen_manager_changed_kinds: {
+        Args: { p_new: Json; p_old: Json };
+        Returns: string[];
       };
       carmen_manager_is_owner: {
         Args: { p_tenant_id: string };
         Returns: boolean;
       };
-      carmen_manager_changed_kinds: {
-        Args: { p_new: Json; p_old: Json };
-        Returns: string[];
+      carmen_manager_is_owner_of: {
+        Args: { p_tenant_id: string; p_user_id: string };
+        Returns: boolean;
+      };
+      carmen_manager_kind_sends: {
+        Args: { p_kind: Json; p_mode: string };
+        Returns: boolean;
+      };
+      carmen_manager_kinds_without_stamps: {
+        Args: { p_kinds: Json };
+        Returns: Json;
+      };
+      carmen_manager_mode_sends: { Args: { p_mode: string }; Returns: boolean };
+      carmen_manager_reset_ladders: {
+        Args: { p_kinds: string[]; p_tenant_id: string };
+        Returns: number;
+      };
+      carmen_manager_without_stamps: {
+        Args: { p_manager: Json };
+        Returns: Json;
       };
       carmen_member_has_personal_key: {
         Args: { p_user_id: string };
@@ -17370,16 +17220,16 @@ export type Database = {
           user_id: string;
         }[];
       };
-      carmen_round_try_lease: {
-        Args: { p_seconds?: number; p_tenant_id: string };
+      carmen_round_claim_slot: {
+        Args: { p_key: string; p_slot: string; p_tenant_id: string };
         Returns: boolean;
       };
       carmen_round_end_lease: {
         Args: { p_error?: string; p_tenant_id: string };
         Returns: undefined;
       };
-      carmen_round_claim_slot: {
-        Args: { p_key: string; p_slot: string; p_tenant_id: string };
+      carmen_round_try_lease: {
+        Args: { p_seconds?: number; p_tenant_id: string };
         Returns: boolean;
       };
       carmen_send_activation: {
@@ -17514,6 +17364,14 @@ export type Database = {
           whatsapp_direct: boolean;
           whatsapp_group: boolean;
         }[];
+      };
+      client_card_logs_system_sends: {
+        Args: { p_tenant: string };
+        Returns: boolean;
+      };
+      client_card_profile_or_null: {
+        Args: { p_user: string };
+        Returns: string;
       };
       client_update_documents_phone_call: {
         Args: { p_content: string };
@@ -18480,6 +18338,10 @@ export type Database = {
           sender_staff: boolean;
         }[];
       };
+      resolve_whatsapp_group_client: {
+        Args: { p_group: string };
+        Returns: string;
+      };
       restore_archived_leads: {
         Args: { p_lead_ids: string[] };
         Returns: number;
@@ -18630,11 +18492,7 @@ export type Database = {
         Returns: boolean;
       };
       update_system_cron_job: {
-        Args: {
-          p_active?: boolean;
-          p_jobid: number;
-          p_schedule?: string | null;
-        };
+        Args: { p_active?: boolean; p_jobid: number; p_schedule?: string };
         Returns: undefined;
       };
       user_can_access_client: {
@@ -18758,6 +18616,14 @@ export type Database = {
       };
       video_narration_ready: { Args: { p_item_id: string }; Returns: boolean };
       video_project_voice: { Args: { p_payload: Json }; Returns: string };
+      video_run_estimate: {
+        Args: { p_estimate: Json; p_share: number };
+        Returns: Json;
+      };
+      video_scene_share: {
+        Args: { p_scenes: number; p_seconds: number; p_total_seconds: number };
+        Returns: number;
+      };
       video_take_current: {
         Args: { p_line: string; p_meta: Json; p_voice: string };
         Returns: boolean;
@@ -18768,6 +18634,14 @@ export type Database = {
       };
       video_voice_matches: {
         Args: { p_meta: Json; p_voice: string };
+        Returns: boolean;
+      };
+      whatsapp_group_client_ids: {
+        Args: { p_group: string };
+        Returns: string[];
+      };
+      whatsapp_group_link_tenant_ok: {
+        Args: { p_group_tenant: string; p_link_tenant: string };
         Returns: boolean;
       };
       workshop_assign_client: {
@@ -18795,12 +18669,22 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      workshop_budget_short: { Args: { p_run_id: string }; Returns: boolean };
       workshop_creative_stage: {
         Args: { p_client_id?: string; p_tenant_id: string };
         Returns: {
           pipeline_id: string;
           stage_id: string;
         }[];
+      };
+      workshop_department_stage: {
+        Args: {
+          p_client: string;
+          p_stage_type: string;
+          p_tenant: string;
+          p_track: string;
+        };
+        Returns: string;
       };
       workshop_edit_page: {
         Args: { p_artifact_id: string; p_beats?: Json; p_text?: string };
@@ -18937,9 +18821,9 @@ export type Database = {
         | "send_greenapi_to_campaigner"
         | "create_task"
         | "create_lead"
-        | "send_telegram"
         | "send_meta_whatsapp_message"
-        | "send_signature";
+        | "send_signature"
+        | "send_telegram";
       automation_trigger:
         | "task_assigned"
         | "task_status_changed"
@@ -19009,8 +18893,7 @@ export type Database = {
         | "proposal_sent"
         | "closed"
         | "transferred_to_onboarding"
-        | "meeting_scheduled"
-        | "negotiation";
+        | "meeting_scheduled";
       marketing_approval_mode: "manual" | "auto" | "hybrid";
       marketing_item_status:
         | "draft"
@@ -19205,9 +19088,9 @@ export const Constants = {
         "send_greenapi_to_campaigner",
         "create_task",
         "create_lead",
-        "send_telegram",
         "send_meta_whatsapp_message",
         "send_signature",
+        "send_telegram",
       ],
       automation_trigger: [
         "task_assigned",
@@ -19292,7 +19175,6 @@ export const Constants = {
         "closed",
         "transferred_to_onboarding",
         "meeting_scheduled",
-        "negotiation",
       ],
       marketing_approval_mode: ["manual", "auto", "hybrid"],
       marketing_item_status: [
