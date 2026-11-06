@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("dashboard supplier campaigner filter requests", () => {
   for (const campaignerId of ["campaigner-1", "", null, undefined]) {
     it(`preserves the request for ${campaignerId}`, async () => {
-      const requests: Request[] = [];
+      const requests: Array<Request> = [];
       const client = createClient("https://example.com", "test-key", {
         auth: {
           persistSession: false,
