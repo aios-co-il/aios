@@ -2130,7 +2130,10 @@ export default function DashboardView() {
                       {(platformFilter === "all" ||
                         platformFilter === "google_analytics" ||
                         platformFilter === "woocommerce") && (
-                        <CombinedRoasCard roas={combinedSales.roas} />
+                        <CombinedRoasCard
+                          sales={combinedSales}
+                          formatCurrency={formatCurrency}
+                        />
                       )}
                     </>
                   ) : (

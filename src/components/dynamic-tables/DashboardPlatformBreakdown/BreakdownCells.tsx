@@ -55,7 +55,13 @@ export function DeliveryCells({
   );
 }
 
-/** Add-to-cart, purchases, revenue and ROAS; dashes for a row of another goal. */
+/** The sales columns' count, for a row of another goal. */
+const SALES_CELL_COUNT = 5;
+
+/**
+ * Add-to-cart, purchases, cost per purchase, revenue and ROAS; dashes for a
+ * row of another goal.
+ */
 export function SalesCells({
   figures,
   format,
@@ -64,14 +70,16 @@ export function SalesCells({
     addToCart: number;
     addToCartTracked: boolean;
     purchases: number;
+    /** Null without purchases. */
+    costPerPurchase: number | null;
     revenue: number;
-    /** Null when no spend can be set against the revenue. */
+    /** Null without spend, or when the purchases carry no value. */
     roas: number | null;
   } | null;
   format: GoogleAdsFormatters;
 }) {
   if (!figures) {
-    return <EmptyCells count={4} />;
+    return <EmptyCells count={SALES_CELL_COUNT} />;
   }
   return (
     <>
@@ -81,6 +89,11 @@ export function SalesCells({
           : "-"}
       </TableCell>
       <TableCell>{format.formatNumber(figures.purchases)}</TableCell>
+      <TableCell>
+        {figures.costPerPurchase === null
+          ? "-"
+          : format.formatCurrency(figures.costPerPurchase)}
+      </TableCell>
       <TableCell>{format.formatCurrency(figures.revenue)}</TableCell>
       <TableCell>
         {figures.roas === null ? (

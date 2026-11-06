@@ -158,6 +158,7 @@ describe("DashboardPlatformBreakdown", () => {
       "עלות לקליק",
       "הוספה לעגלה",
       "רכישות",
+      "עלות לרכישה",
       "הכנסות",
       "ROAS",
       "לידים",
@@ -166,6 +167,7 @@ describe("DashboardPlatformBreakdown", () => {
     expect(cellsOf("Facebook - קמפייני מכירות").slice(4)).toStrictEqual([
       "9",
       "4",
+      "₪25",
       "₪500",
       "5.00",
       "-",
@@ -178,17 +180,19 @@ describe("DashboardPlatformBreakdown", () => {
       "-",
       "-",
       "-",
+      "-",
       "4",
       "₪50",
     ]);
     expect(cellsOf("Facebook - קמפייני תנועה").slice(4)).toStrictEqual(
-      Array(6).fill("-"),
+      Array(7).fill("-"),
     );
     // WooCommerce revenue over the ₪450 spent outside lead campaigns; the
     // lead campaigns' ₪600 over their 5 leads.
     expect(cellsOf('סה"כ').slice(4)).toStrictEqual([
       "30",
       "12",
+      "₪38",
       "₪2250",
       "5.00",
       "5",
@@ -215,10 +219,35 @@ describe("DashboardPlatformBreakdown", () => {
     expect(cellsOf('סה"כ').slice(4)).toStrictEqual([
       "-",
       "2",
+      "-",
       "₪500",
       "-",
       "4",
       "₪50",
     ]);
+  });
+
+  it("a sales row whose purchases carry no value shows its cost per purchase, not a ROAS of 0", () => {
+    renderBreakdown(
+      {
+        facebook: {
+          ecommerce: [
+            fbCampaign("FB gift course", { spend: 336, purchases: 15 }),
+          ],
+          leads: [],
+          traffic: [],
+        },
+        google: [],
+      },
+      null,
+    );
+    expect(cellsOf("Facebook - קמפייני מכירות").slice(4)).toStrictEqual([
+      "-",
+      "15",
+      "₪22",
+      "₪0",
+      "-",
+    ]);
+    expect(screen.getByText(/נמדד בעלות לרכישה ולא ב-ROAS/)).toBeTruthy();
   });
 });
