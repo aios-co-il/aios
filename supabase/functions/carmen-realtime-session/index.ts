@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
+import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 import { loadVoiceAgent } from "./agent-profile.ts";
 import { chooseRealtimeVoice } from "./voice-choice.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
@@ -110,18 +111,12 @@ Deno.serve(async (req) => {
         error: "No OpenAI key available (env or llm integration)",
       });
 
-    // Personalization: greet the caller by name (best-effort)
-    let callerName: string | null = null;
-    try {
-      const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-      const pr = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/rest/v1/profiles?id=eq.${caller.id}&select=full_name`,
-        { headers: { apikey: service, Authorization: `Bearer ${service}` } },
-      );
-      if (pr.ok) callerName = (await pr.json())?.[0]?.full_name ?? null;
-    } catch {
-      /* name is a nicety */
-    }
+    // Hebrew verbs carry gender: the caller's profile name and gender set how Carmen speaks to them.
+    const addressLine = await callerAddressLine(
+      serviceClient(),
+      caller.id,
+      null,
+    );
 
     const { voice, tenant_id } = await req
       .json()
@@ -148,7 +143,7 @@ Deno.serve(async (req) => {
           type: "realtime",
           model: REALTIME_MODEL,
           instructions: [
-            buildVoiceInstructions(agent?.profile ?? null, callerName),
+            buildVoiceInstructions(agent?.profile ?? null, addressLine),
             orgBrief ? orgBriefInstructions(orgBrief) : "",
             pronunciationInstructions(pronunciations),
           ]

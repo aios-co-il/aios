@@ -25,6 +25,12 @@ Deno.test(
   },
 );
 
+Deno.test("the menu asks the user in the plural, not the feminine", () => {
+  const menu = voiceMenu();
+  assertMatch(menu, /^בחרו קול/);
+  assertNotMatch(menu, /תבחרי|בחרי /);
+});
+
 Deno.test(
   "only voices that produced a sample are offered when some did",
   () => {
