@@ -77,19 +77,17 @@ describe("loadPronunciations", () => {
     });
   });
 
-  test("a failed read speaks without them", async () => {
-    const lines: Array<string> = [];
-    const map = await loadPronunciations(
-      {
-        async select() {
-          throw new Error("down");
+  test("a failed read throws, so the voice run retries before anything is paid", async () => {
+    await expect(
+      loadPronunciations(
+        {
+          async select() {
+            throw new Error("down");
+          },
         },
-      },
-      "t1",
-      (line) => lines.push(line),
-    );
-    expect(map).toStrictEqual({});
-    expect(lines[0]).toContain("down");
+        "t1",
+      ),
+    ).rejects.toThrow("down");
   });
 });
 
@@ -140,5 +138,44 @@ describe("the voice run with pronunciations", () => {
     expect(sent).toStrictEqual(["מֶדְיָה מְכִירוֹת"]);
     expect(rpcs[0][1].text).toBe("מדיה מכירות");
     expect(rpcs[0][1].pronunciations).toStrictEqual({ מכירות: "מְכִירוֹת" });
+  });
+
+  test("a dictionary that can't be read fails the run before the engine is called", async () => {
+    const sent: Array<string> = [];
+    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body).text);
+      return Response.json({ audio_base64: "AQID", alignment: null });
+    });
+    const run = {
+      id: "run1",
+      tenant_id: "t1",
+      item_id: "item1",
+      scene_id: null,
+      input: { continuous: true, voice_id: "v1" },
+      output: {},
+    };
+    const db = {
+      async select(table: string) {
+        if (table === "carmen_pronunciations") throw new Error("down");
+        if (table === "marketing_work_items") {
+          return [{ id: "item1", tenant_id: "t1", client_id: "c1" }];
+        }
+        return [{ id: "s1", voiceover_text: "מדיה מכירות", meta: {} }];
+      },
+      async upload() {},
+      async update() {},
+      async rpc() {},
+    };
+    await expect(
+      generateVoice({
+        db,
+        run,
+        apiKey: "eleven",
+        log: () => {},
+        vocalize: (text: string) =>
+          vocalizeForSpeech(text, { vocalizer: async () => text }),
+      }),
+    ).rejects.toThrow("down");
+    expect(sent).toStrictEqual([]);
   });
 });

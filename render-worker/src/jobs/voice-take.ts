@@ -47,7 +47,7 @@ export async function newTake({
   // The tenant's pronunciations come first; the nikud step keeps the words they point.
   const said = applyPronunciations(
     script,
-    await loadPronunciations(db, run.tenant_id, log),
+    await loadPronunciations(db, run.tenant_id),
   );
   const voiced = await vocalize(said.text, { log });
   return generateOnce({

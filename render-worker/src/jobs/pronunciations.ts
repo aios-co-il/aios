@@ -25,35 +25,28 @@ export type Pronunciations = Record<string, string>;
 
 /**
  * The tenant's usable pronunciations by plain lower-case term, the newest winning when two terms
- * share one; none when they cannot be read (logged, never blocks the voice).
+ * share one. A failed read throws before anything is paid for: a take made without a saved
+ * pronunciation would look current to the narration review, so the voice run retries instead.
  */
 export async function loadPronunciations(
   db: { select: (table: string, query: string) => Promise<unknown> },
   tenantId: string,
-  log: (line: string) => void = console.log,
 ): Promise<Pronunciations> {
-  try {
-    const rows = await db.select(
-      "carmen_pronunciations",
-      `tenant_id=eq.${encodeURIComponent(tenantId)}&select=term,spoken&order=updated_at.asc`,
-    );
-    const map: Pronunciations = {};
-    for (const row of Array.isArray(rows) ? rows : []) {
-      const term =
-        typeof row?.term === "string" ? plainWord(row.term).toLowerCase() : "";
-      const spoken = typeof row?.spoken === "string" ? row.spoken.trim() : "";
-      // A phrase (from the live voice) on either side would break the word timings: skipped.
-      if (term && spoken && !/\s/.test(term) && !/\s/.test(spoken)) {
-        map[term] = spoken.normalize("NFC");
-      }
+  const rows = await db.select(
+    "carmen_pronunciations",
+    `tenant_id=eq.${encodeURIComponent(tenantId)}&select=term,spoken&order=updated_at.asc`,
+  );
+  const map: Pronunciations = {};
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const term =
+      typeof row?.term === "string" ? plainWord(row.term).toLowerCase() : "";
+    const spoken = typeof row?.spoken === "string" ? row.spoken.trim() : "";
+    // A phrase (from the live voice) on either side would break the word timings: skipped.
+    if (term && spoken && !/\s/.test(term) && !/\s/.test(spoken)) {
+      map[term] = spoken.normalize("NFC");
     }
-    return map;
-  } catch (error) {
-    log(
-      `[pronunciations] not read (${error instanceof Error ? error.message : error}); speaking without them`,
-    );
-    return {};
   }
+  return map;
 }
 
 /**
