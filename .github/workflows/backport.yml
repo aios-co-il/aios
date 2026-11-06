@@ -7,12 +7,6 @@ on:
     types: [closed]
     branches: [main]
 
-# One group for all hotfixes, so two merges close together add to the same backport PR
-# one after the other instead of racing to open separate ones.
-concurrency:
-  group: backport
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
@@ -21,6 +15,12 @@ jobs:
     name: Cherry-pick onto develop
     if: github.event.pull_request.merged == true && github.event.pull_request.head.ref != 'develop'
     runs-on: ubuntu-latest
+    # On the job, not the workflow: skipped events (closed unmerged, release PRs) must not
+    # take the pending slot from a hotfix run. One group, so two merges close together add
+    # to the same backport PR one after the other instead of racing to open separate ones.
+    concurrency:
+      group: backport
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -135,18 +135,17 @@ jobs:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           OPEN_PR: ${{ steps.existing.outputs.number }}
         run: |
-          # checkout left git on the default token; push as the app so CI runs on the PR.
+          # checkout stored the read-only workflow token as an extraheader, which git sends
+          # ahead of any credential helper. Drop it so the push goes out as the app and CI runs.
+          git config --local --unset-all http.https://github.com/.extraheader || true
           gh auth setup-git
           if [ -n "$OPEN_PR" ]; then
             git push origin "$BRANCH"
-            gh pr view "$OPEN_PR" --json body --jq .body > body.md
-            printf -- '- %s: %s\n' "$PR_URL" "$PR_TITLE" >> body.md
-            gh pr edit "$OPEN_PR" --body-file body.md
           else
             # No backport PR is open here, so a leftover branch from an earlier run is stale.
             git push origin --delete "$BRANCH" 2>/dev/null || true
             git push origin "$BRANCH"
-            printf 'Backports main hotfixes to develop, made by `git cherry-pick -x`.\n\nA human queues this PR. `Check develop has main` stays red until it merges, and the next release is blocked until then. Hotfixes that merge to main before then are added to this PR.\n\nHotfixes included:\n- %s: %s\n' "$PR_URL" "$PR_TITLE" > body.md
+            printf 'Backports main hotfixes to develop, made by `git cherry-pick -x`.\n\nA human queues this PR. `Check develop has main` stays red until it merges, and the next release is blocked until then. Hotfixes that merge to main before then are added to this PR; each commit keeps a `(cherry picked from commit ...)` line naming its main commit.\n' > body.md
             gh pr create --base develop --head "$BRANCH" --title "ci(backport): port main hotfixes to develop [AIO-145]" --body-file body.md
           fi
 
@@ -157,15 +156,21 @@ jobs:
 
       - name: Comment on the hotfix PR when the cherry-pick conflicts
         if: steps.pick.outputs.result == 'conflict'
+        env:
+          OPEN_PR: ${{ steps.existing.outputs.number }}
         run: |
-          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --arg title "$PR_TITLE" --slurpfile commits commits.json '{
+          existing=""
+          if [ -n "$OPEN_PR" ]; then
+            existing="https://github.com/$GITHUB_REPOSITORY/pull/$OPEN_PR"
+          fi
+          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --arg title "$PR_TITLE" --arg existing "$existing" --slurpfile commits commits.json '{
               kind: "backport-conflict",
               repo: $repo,
               hotfixPr: $pr,
               prTitle: $title,
               commits: $commits[0],
               conflictingFiles: [split("\n")[] | select(. != "")]
-            }' conflicts.txt > prompt-input.json
+            } + (if $existing != "" then {existingBackportPr: $existing} else {} end)' conflicts.txt > prompt-input.json
           node scripts/agent-prompt/print-agent-prompt.ts prompt-input.json > prompt.txt
           {
             echo "The automatic backport to \`develop\` stopped on a merge conflict, so the hotfix was not added to a backport PR. The next release is blocked until the hotfix is ported."

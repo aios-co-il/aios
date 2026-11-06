@@ -60,6 +60,29 @@ describe("buildAgentPrompt", () => {
     );
   });
 
+  test("pushes onto the open backport branch instead of opening another PR", () => {
+    const url = "https://github.com/aios-co-il/aios/pull/1200";
+    for (const input of [
+      { ...unported, existingBackportPr: url },
+      {
+        kind: "backport-conflict" as const,
+        repo: "aios-co-il/aios",
+        commits: [hotfix],
+        hotfixPr: "https://github.com/aios-co-il/aios/pull/891",
+        conflictingFiles: ["src/pages/Leads.tsx"],
+        existingBackportPr: url,
+      },
+    ]) {
+      const prompt = buildAgentPrompt(input);
+      expect(prompt).toContain(
+        "git switch -c backport/main-hotfixes origin/backport/main-hotfixes --no-track",
+      );
+      expect(prompt).toContain("git push origin HEAD:backport/main-hotfixes");
+      expect(prompt).toContain("Do not open another PR.");
+      expect(prompt).not.toContain("origin/develop --no-track");
+    }
+  });
+
   test("lists the conflicting files and the hotfix PR for a conflict", () => {
     const prompt = buildAgentPrompt({
       kind: "backport-conflict",

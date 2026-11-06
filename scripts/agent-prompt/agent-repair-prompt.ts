@@ -12,11 +12,14 @@ export type PromptInput =
       repo: string;
       commits: Array<HotfixCommit>;
       hotfixPr: string;
+      existingBackportPr?: string;
       /** Title of the hotfix PR. Falls back to the first commit subject. */
       prTitle?: string;
       conflictingFiles: Array<string>;
     };
 
+/** The rolling branch behind the one open backport PR (see .github/workflows/backport.yml). */
+const BACKPORT_BRANCH = "backport/main-hotfixes";
 const MAX_LISTED = 10;
 const ISSUE_RE = /\bAIO-\d+\b/;
 const PR_NUMBER_SUFFIX_RE = / \(#\d+\)$/;
@@ -34,7 +37,10 @@ const FILES_HINT =
 export function buildAgentPrompt(input: PromptInput): string {
   const shas = input.commits.map((commit) => commit.sha);
   const issue = findIssue(input.commits);
-  const branch = `chore/${issue ?? "<issue>"}/backport-${shas[0].slice(0, 7)}`;
+  const existing = existingBackportPr(input);
+  const branch = existing
+    ? BACKPORT_BRANCH
+    : `chore/${issue ?? "<issue>"}/backport-${shas[0].slice(0, 7)}`;
   return [
     taskLine(input),
     "",
@@ -43,12 +49,18 @@ export function buildAgentPrompt(input: PromptInput): string {
     "",
     "Do:",
     "1. Read AGENTS.md and CODING_STANDARDS.md in full.",
-    "2. git fetch origin develop main",
-    `3. git switch -c ${branch} origin/develop --no-track`,
+    existing
+      ? `2. git fetch origin develop main ${BACKPORT_BRANCH}`
+      : "2. git fetch origin develop main",
+    existing
+      ? `3. git switch -c ${branch} origin/${branch} --no-track`
+      : `3. git switch -c ${branch} origin/develop --no-track`,
     `4. git cherry-pick -x ${shas.join(" ")}   (oldest first)`,
     "5. On a conflict, resolve it against current develop so both sides keep their intent, then git add and git cherry-pick --continue.",
     "6. pnpm format:check",
-    `7. git push -u origin HEAD, then open a PR to develop titled exactly: ${prTitle(input)}`,
+    existing
+      ? `7. git push origin HEAD:${branch} (a fast-forward onto the open backport PR). Do not open another PR.`
+      : `7. git push -u origin HEAD, then open a PR to develop titled exactly: ${prTitle(input)}`,
     "",
     "Values:",
     `- Repository: ${input.repo}`,
@@ -60,7 +72,9 @@ export function buildAgentPrompt(input: PromptInput): string {
     "- Add the PR to the merge queue, enable auto-merge, or merge anything.",
     "- Push to main or change Production.",
     "",
-    "Done when: the PR is open and its CI has started. Reply with the PR link and stop.",
+    existing
+      ? "Done when: the commits are pushed to the existing PR and its CI has restarted. Reply with the PR link and stop."
+      : "Done when: the PR is open and its CI has started. Reply with the PR link and stop.",
     "A human queues it. After it merges, `scripts/main-missing-from.sh origin/develop` exits 0, and the Release workflow can be run again.",
   ].join("\n");
 }
@@ -111,13 +125,19 @@ function truncate<T>(
   return lines;
 }
 
+/** URL of the open backport PR whose branch the commits go onto, if there is one. */
+function existingBackportPr(input: PromptInput): string | undefined {
+  return input.existingBackportPr;
+}
+
 /** Sends the agent to an open backport PR rather than a duplicate. */
 function existingPrLine(input: PromptInput): Array<string> {
-  if (input.kind !== "unported-hotfix" || !input.existingBackportPr) {
+  const url = existingBackportPr(input);
+  if (!url) {
     return [];
   }
   return [
-    `- A backport PR already exists: ${input.existingBackportPr}. Review and fix that PR instead of opening another.`,
+    `- A backport PR already exists: ${url}. Add the commits to its branch (${BACKPORT_BRANCH}) instead of opening another.`,
   ];
 }
 
