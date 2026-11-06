@@ -706,6 +706,8 @@ function aggregate(rows, goal, outcomeKind) {
   let hasOutcomes = false;
   let revenue = 0;
   let impressions = 0;
+  let clicks = 0;
+  let newFollowers = null;
   let reach = 0;
   let frequencyWeighted = 0;
   let frequencyWeight = 0;
@@ -715,6 +717,11 @@ function aggregate(rows, goal, outcomeKind) {
     const data = row.data || {};
     spend += numberValue(data, ["spend", "cost"]);
     impressions += numberValue(data, ["impressions"]);
+    clicks += numberValue(data, ["link_clicks", "clicks"]);
+    // Rows synced before follows were stored carry no count: not a real 0.
+    if (data.new_followers !== undefined && data.new_followers !== null) {
+      newFollowers = (newFollowers ?? 0) + numberValue(data, ["new_followers"]);
+    }
     reach += numberValue(data, ["reach"]);
     revenue += numberValue(data, [
       "purchase_value",
@@ -744,6 +751,8 @@ function aggregate(rows, goal, outcomeKind) {
     outcomes: hasOutcomes ? outcomes : null,
     revenue,
     impressions,
+    clicks,
+    newFollowers,
     reach,
     frequency: frequencyWeight ? frequencyWeighted / frequencyWeight : null,
     efficiency: hasOutcomes && outcomes > 0 ? spend / outcomes : null,
@@ -1172,6 +1181,13 @@ export function buildPulseCampaignRows({
         1,
       ),
       impressions_7d: round(current7.impressions),
+      clicks_7d: round(current7.clicks),
+      ctr_7d: round(
+        current7.impressions > 0
+          ? (current7.clicks / current7.impressions) * 100
+          : null,
+      ),
+      new_followers_7d: round(current7.newFollowers),
       reach_7d: round(current7.reach),
       frequency_7d: round(current7.frequency),
       spend_today: round(today.spend),

@@ -184,7 +184,7 @@ export default function Tenants() {
       .from("tenant_users")
       .select("*")
       .eq("tenant_id", tenantId)
-      .eq("user_id", userId)
+      .filter("user_id", "eq", userId)
       .maybeSingle();
 
     // Super admins can access if allowed, or if they're the owner
@@ -192,7 +192,7 @@ export default function Tenants() {
       const { data: ownerCheck } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId)
+        .filter("user_id", "eq", userId)
         .eq("tenant_id", tenantId)
         .eq("role", "owner")
         .maybeSingle();

@@ -36,8 +36,10 @@ const emptyTotals = (): CampaignRecord => ({
   revenue: 0,
 });
 
-export const isFacebookIntegration = (source: string) =>
-  ["facebook_insights", "facebook_ecommerce"].includes(source);
+export const isFacebookIntegration = (
+  source: string | null,
+): source is "facebook_insights" | "facebook_ecommerce" =>
+  source === "facebook_insights" || source === "facebook_ecommerce";
 
 export const isGoogleAdsIntegration = (source: string) =>
   source === "google_ads";

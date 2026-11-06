@@ -55,8 +55,8 @@ export default function AccountingSettings() {
   // Update integration settings
   const updateIntegration = useMutation({
     mutationFn: async (data: {
-      api_key?: string;
-      company_id?: string;
+      api_key?: string | null;
+      company_id?: string | null;
       is_active?: boolean;
       auto_sync_enabled?: boolean;
     }) => {
