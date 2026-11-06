@@ -14,6 +14,9 @@ const LID = "224686986293269";
 
 type Row = Record<string, unknown>;
 
+/** An update the fake applied: its table, values and the ids it matched. */
+type FakeUpdate = { table: string; values: Row; ids: Array<unknown> };
+
 /**
  * A Supabase stand-in for the handler: every query is thenable and resolves to the
  * rows of its table that match its .eq()/.in() filters; writes resolve empty.
@@ -21,6 +24,7 @@ type Row = Record<string, unknown>;
 function fakeDb(
   tables: Record<string, Array<Row>>,
   rpcs: Record<string, (args: Row) => unknown> = {},
+  updates: Array<FakeUpdate> = [],
 ) {
   return {
     rpc(fn: string, args: Row) {
@@ -39,8 +43,20 @@ function fakeDb(
     },
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = [];
+      let pendingUpdate: Row | null = null;
       const rows = () =>
         (tables[table] || []).filter((row) => filters.every((f) => f(row)));
+      const settle = () => {
+        if (pendingUpdate) {
+          updates.push({
+            table,
+            values: pendingUpdate,
+            ids: rows().map((row) => row.id),
+          });
+          pendingUpdate = null;
+        }
+        return { data: rows(), error: null };
+      };
       const query: Record<string, unknown> = {
         eq: (column: string, value: unknown) => {
           filters.push((row) => row[column] === value);
@@ -52,8 +68,11 @@ function fakeDb(
         },
         maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null }),
         single: () => Promise.resolve({ data: rows()[0] ?? null }),
-        then: (resolve: (value: unknown) => unknown) =>
-          resolve({ data: rows(), error: null }),
+        update: (values: Row) => {
+          pendingUpdate = values;
+          return query;
+        },
+        then: (resolve: (value: unknown) => unknown) => resolve(settle()),
       };
       for (const passThrough of [
         "select",
@@ -66,7 +85,6 @@ function fakeDb(
         "not",
         "order",
         "limit",
-        "update",
         "insert",
         "upsert",
       ]) {
@@ -412,3 +430,79 @@ Deno.test("handleCarmenMessage follows the group's reply level", async (t) => {
     },
   );
 });
+
+Deno.test(
+  "handleCarmenMessage on a line with no Carmen automation",
+  async (t) => {
+    const DM = "972507677613@c.us";
+    /** Active sessions of one DM: Carmen's own line, this line, a legacy one. */
+    const sessions: Array<Row> = [
+      { id: "on-carmen-line", integration_id: "integration-1" },
+      { id: "on-this-line", integration_id: "mirror-line" },
+      { id: "legacy", integration_id: null },
+    ].map((session) => ({
+      ...session,
+      tenant_id: TENANT,
+      status: "active",
+      connection_user_id: "user-1",
+      chat_id: DM,
+    }));
+
+    /** The DM reaching the mirror line, which no automation is pinned to. */
+    async function mirrorTurn(integrationId: string | null) {
+      const updates: Array<FakeUpdate> = [];
+      const supabase = fakeDb(
+        {
+          automation_flow_steps: [
+            {
+              tenant_id: TENANT,
+              step_type: "trigger",
+              action_type: "carmen_whatsapp_session",
+              automation_id: "auto-1",
+              configuration: { carmen_integration_id: "integration-1" },
+            },
+          ],
+          automations: [{ id: "auto-1", active: true, configuration: {} }],
+          carmen_whatsapp_sessions: sessions,
+        },
+        {},
+        updates,
+      );
+      const result = await handleCarmenMessage({
+        supabase,
+        tenantId: TENANT,
+        integrationId: integrationId as string,
+        connectionUserId: "user-1",
+        phoneNumber: "972507677613",
+        senderName: "David",
+        messageText: "מה המצב?",
+        isIncoming: true,
+        isManualOutgoing: false,
+        isGroup: false,
+        chatId: DM,
+        connectionRole: "secondary",
+      });
+      const ended = updates
+        .filter((u) => u.values.status === "ended")
+        .flatMap((u) => u.ids);
+      return { result, ended };
+    }
+
+    await t.step("keeps the session Carmen's own line opened", async () => {
+      const { result, ended } = await mirrorTurn("mirror-line");
+      assertEquals(result, {
+        handled: false,
+        reason: "no_automation_for_integration",
+      });
+      assertEquals(ended, ["on-this-line", "legacy"]);
+    });
+
+    await t.step(
+      "ends every session when the caller names no line",
+      async () => {
+        const { ended } = await mirrorTurn(null);
+        assertEquals(ended, ["on-carmen-line", "on-this-line", "legacy"]);
+      },
+    );
+  },
+);

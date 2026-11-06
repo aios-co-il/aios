@@ -1758,18 +1758,24 @@ export async function handleCarmenMessage(
 
   // HARD GUARD: if no flow-based Carmen automation is pinned to this integration,
   // Carmen must stay completely silent on this channel — even if a stale session
-  // (from a deleted/legacy automation or a different integration) is still marked active.
+  // of this integration (or a legacy one with none) is still marked active.
   // Auto-end any such stale sessions so they can't keep the channel "warm".
+  // Another integration's session is left alone: the same chat often reaches a
+  // second line (the operator's Green API phone mirrors their DM to Carmen's
+  // Manus number), and ending it there closed Carmen's live session (AIO-428).
   if (!earlyAutomation) {
-    const { data: stale } = await supabase
+    const { data: active } = await supabase
       .from("carmen_whatsapp_sessions")
-      .select("id")
+      .select("id, integration_id")
       .eq("tenant_id", tenantId)
       .eq("status", "active")
       .eq("connection_user_id", connectionUserId)
       .eq("chat_id", chatId)
       .limit(5);
-    if (stale && stale.length > 0) {
+    const stale = (active || []).filter((s: any) =>
+      staleOnThisIntegration(s.integration_id, integrationId),
+    );
+    if (stale.length > 0) {
       const ids = stale.map((s: any) => s.id);
       await supabase
         .from("carmen_whatsapp_sessions")
@@ -2754,4 +2760,20 @@ export async function handleCarmenMessage(
   );
 
   return { handled: true, outcome: "started" };
+}
+
+/**
+ * Whether a session found on a line with no Carmen automation is that line's
+ * own: it ran on this integration, or it predates integration pinning. A
+ * caller that names no integration keeps ending every session of the chat.
+ */
+function staleOnThisIntegration(
+  sessionIntegrationId: string | null | undefined,
+  integrationId: string | null | undefined,
+): boolean {
+  return (
+    !integrationId ||
+    !sessionIntegrationId ||
+    sessionIntegrationId === integrationId
+  );
 }
