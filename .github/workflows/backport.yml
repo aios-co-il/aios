@@ -89,13 +89,20 @@ jobs:
           set -o pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # git cherry lists oldest first; merge commits are skipped, they carry no patch.
-          shas=$(git cherry origin/develop origin/main | awk '$1 == "+" {print $2}')
+          # The script lists the main commits develop still lacks (oldest first), and counts a
+          # squash-merged port as present, so it decides which commits to pick.
+          shas=$(awk '/^  / {print $1}' missing.txt)
           if [ -n "$OPEN_PR" ]; then
             # Add to the open PR: only commits its branch does not carry yet.
             git switch -c "$BRANCH" "origin/$BRANCH"
-            on_branch=$(git cherry "origin/$BRANCH" origin/main | awk '$1 == "+" {print $2}')
-            shas=$(printf '%s\n' "$shas" | grep -Fx -f <(printf '%s\n' "$on_branch") || true)
+            status=0
+            scripts/main-missing-from.sh "origin/$BRANCH" > on-branch.txt || status=$?
+            if [ "$status" -gt 1 ]; then
+              echo "::error title=Could not compare main with the backport branch::scripts/main-missing-from.sh exited $status"
+              exit "$status"
+            fi
+            not_on_branch=$(awk '/^  / {print $1}' on-branch.txt)
+            shas=$(printf '%s\n' "$shas" | grep -Fx -f <(printf '%s\n' "$not_on_branch") || true)
             if [ -z "$shas" ]; then
               echo "result=covered" >> "$GITHUB_OUTPUT"
               echo "Backport PR #$OPEN_PR already carries every missing main commit."
@@ -103,7 +110,7 @@ jobs:
             fi
           else
             if [ -z "$shas" ]; then
-              echo "::error title=Nothing to cherry-pick::main-missing-from.sh reported missing commits but git cherry found none."
+              echo "::error title=Nothing to cherry-pick::main-missing-from.sh reported missing commits but listed none."
               exit 1
             fi
             git switch -c "$BRANCH" origin/develop
