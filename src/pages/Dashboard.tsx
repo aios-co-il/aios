@@ -350,7 +350,11 @@ export default function Dashboard() {
       }
 
       if (selectedSupplier !== "all" && clientTeamData) {
-        taskQuery = taskQuery.filter("campaigner_id", "eq", relatedCampaignerId);
+        taskQuery = taskQuery.filter(
+          "campaigner_id",
+          "eq",
+          relatedCampaignerId,
+        );
 
         // סינון לקוחות לפי client_team
         if (clientTeamData.length > 0) {
