@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
+  CLIENT_INTEGRATION_COLUMNS,
+  CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY,
   getClientIntegrationSelect,
   toClientIntegration,
   type ClientIntegration,
@@ -50,11 +52,16 @@ export function useUserIntegrations(
       const isTenantScoped = isReportTenantScopedIntegration(integrationType);
 
       const selectColumns = getClientIntegrationSelect(integrationType);
+      // PostgREST's type parser requires one projection literal per select call.
+      const selectIntegrations = () => {
+        const query = supabase.from("tenant_integrations");
+        return selectColumns === CLIENT_INTEGRATION_COLUMNS
+          ? query.select(CLIENT_INTEGRATION_COLUMNS)
+          : query.select(CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY);
+      };
 
       // 1. Fetch user's own integrations (or all tenant integrations for tenant-scoped types)
-      let ownQuery = supabase
-        .from("tenant_integrations")
-        .select(selectColumns)
+      let ownQuery = selectIntegrations()
         .in("tenant_id", tenantIds)
         .eq("integration_type", integrationType)
         .eq("is_active", true);
@@ -113,9 +120,7 @@ export function useUserIntegrations(
 
       let sharedIntegrations: any[] = [];
       if (sharedIntegrationIds.length > 0) {
-        const { data: shared, error: sharedError } = await supabase
-          .from("tenant_integrations")
-          .select(selectColumns)
+        const { data: shared, error: sharedError } = await selectIntegrations()
           .in("tenant_id", tenantIds)
           .eq("integration_type", integrationType)
           .eq("is_active", true)
