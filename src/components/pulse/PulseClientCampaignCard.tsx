@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Facebook, FileSpreadsheet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PulseTrafficMetrics } from "./PulseTrafficMetrics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -511,6 +512,7 @@ export function PulseCampaignGoalCard({
           )}
           {row.goal === "engagement" ? (
             <>
+              <PulseTrafficMetrics row={row} formatNumber={formatNumber} />
               <div>
                 <span className="text-muted-foreground">תפוצה: </span>
                 <strong>{formatNumber(row.reach_7d)}</strong>

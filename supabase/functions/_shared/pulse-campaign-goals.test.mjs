@@ -1007,3 +1007,78 @@ Deno.test(
     assertStrictEquals(rows[0].spend_7d, 190);
   },
 );
+
+Deno.test(
+  "an Instagram traffic campaign shows clicks, CTR and new followers",
+  () => {
+    const table = {
+      id: "t-amy",
+      client_id: "amy",
+      integration_type: "facebook_insights",
+      integration_settings: {},
+    };
+    const dates = [
+      "2026-09-11",
+      "2026-09-12",
+      "2026-09-13",
+      "2026-09-14",
+      "2026-09-15",
+      "2026-09-16",
+      "2026-09-17",
+    ];
+    const records = dates.map((date, index) => ({
+      table_id: table.id,
+      data: {
+        date,
+        entity_level: "campaign",
+        campaign_id: "ig-traffic",
+        campaign_name: "קמפיין טראפיק לאינסטגרם",
+        campaign_objective: "OUTCOME_TRAFFIC",
+        optimization_goal: "PROFILE_VISIT",
+        destination_type: "INSTAGRAM_PROFILE",
+        spend: 100,
+        impressions: 4000,
+        link_clicks: 80,
+        // The first day was synced before follows were stored.
+        ...(index === 0 ? {} : { new_followers: 10 }),
+      },
+    }));
+    const [row] = buildPulseCampaignRows({
+      records,
+      tables: [table],
+      nowYmd: "2026-09-18",
+    });
+    assertStrictEquals(row.goal, "engagement");
+    assertStrictEquals(row.impressions_7d, 28000);
+    assertStrictEquals(row.clicks_7d, 560);
+    assertStrictEquals(row.ctr_7d, 2);
+    assertStrictEquals(row.new_followers_7d, 60);
+  },
+);
+
+Deno.test("a campaign without synced follows has no follower count", () => {
+  const [row] = buildPulseCampaignRows({
+    records: [
+      {
+        table_id: "t1",
+        data: {
+          date: "2026-09-17",
+          entity_level: "campaign",
+          campaign_id: "web",
+          campaign_name: "טראפיק לאתר",
+          campaign_objective: "OUTCOME_TRAFFIC",
+          spend: 50,
+          impressions: 0,
+          clicks: 30,
+        },
+      },
+    ],
+    tables: [
+      { id: "t1", client_id: "c1", integration_type: "facebook_insights" },
+    ],
+    nowYmd: "2026-09-18",
+  });
+  assertStrictEquals(row.clicks_7d, 30);
+  assertStrictEquals(row.ctr_7d, null);
+  assertStrictEquals(row.new_followers_7d, null);
+});
