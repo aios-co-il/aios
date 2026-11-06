@@ -177,7 +177,7 @@ export function useUserIntegrations(
  * Check if user has ANY active integration of a given type (own or shared).
  */
 export function useHasIntegrationAccess(
-  tenantId: string | string[] | undefined,
+  tenantId: Parameters<typeof useUserIntegrations>[0],
   integrationType: string,
 ) {
   const { data: integrations } = useUserIntegrations(tenantId, integrationType);
