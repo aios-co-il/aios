@@ -58,3 +58,27 @@ export function withTappedScriptApproval(
     ? withScriptApproved(payload, turn.turnId ?? null)
     : payload;
 }
+
+/**
+ * How the user answered one approval question in Carmen's last message: whether it was asked,
+ * whether they tapped "לתקן", and whether the answer is a clean approval (the approve button, or a
+ * bare approval word as the whole message). Read for the scene pictures and the narration.
+ */
+export function approvalAnswer(
+  lastAssistant: string,
+  userText: string,
+  label: string,
+  approveOption: string,
+) {
+  const asked = askedChoices(lastAssistant).filter(
+    (choice) => choice.label === label,
+  );
+  const answers = Object.values(answersTo(asked, userText));
+  const approves = (answer: string) =>
+    answer.trim() === approveOption || isBareApproval(answer);
+  return {
+    asked: asked.length > 0 && userText.trim() !== "",
+    change: answers.some((answer) => answer.trim() === CHANGE_SCRIPT),
+    approved: answers.some(approves) || approves(userText),
+  };
+}
