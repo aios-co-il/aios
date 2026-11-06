@@ -362,13 +362,6 @@
     },
     {
       "file": "src/pages/MenuManagement.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 1
-    },
-    {
-      "file": "src/pages/MenuManagement.tsx",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "tenant_id",
