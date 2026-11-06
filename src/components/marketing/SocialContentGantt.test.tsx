@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   Database,
@@ -15,11 +16,29 @@ const state = vi.hoisted(() => ({
   fetch: vi.fn<typeof fetch>(),
   success: vi.fn(),
   error: vi.fn(),
+  invalidSelection: false,
 }));
 
 vi.mock("sonner", () => ({
   toast: { success: state.success, error: state.error },
 }));
+vi.mock("@/components/ui/select", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/components/ui/select")>();
+  return {
+    ...actual,
+    Select: (props: ComponentProps<typeof actual.Select>) => (
+      <actual.Select
+        {...props}
+        onValueChange={(value) =>
+          props.onValueChange?.(
+            state.invalidSelection ? "invalid_status" : value,
+          )
+        }
+      />
+    ),
+  };
+});
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: createClient<Database>("https://social.test", "test-key", {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -49,6 +68,7 @@ beforeEach(() => {
     updated_at: "2026-01-01T00:00:00Z",
   };
   rejectUpdate = false;
+  state.invalidSelection = false;
   updates = [];
   state.success.mockReset();
   state.error.mockReset();
@@ -115,6 +135,17 @@ describe("SocialContentGantt approval persistence", () => {
     expect(screen.getByText("טיוטה")).toBeInTheDocument();
     expect(state.success).not.toHaveBeenCalled();
     expect(row.status).toBe("draft");
+  });
+
+  it("rejects a synthetic invalid selector payload locally without writing", async () => {
+    // Normal Radix options are valid; inject drift only at their callback boundary.
+    state.invalidSelection = true;
+    await editStatus("לאישור");
+    expect(state.error).toHaveBeenCalledWith("סטטוס לא תקין");
+    expect(updates).toEqual([]);
+    expect(state.success).not.toHaveBeenCalled();
+    expect(row.status).toBe("draft");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 
