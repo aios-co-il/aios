@@ -8,8 +8,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  costPerPurchase,
   goalCpl,
   goalRoas,
+  purchaseValueUnreported,
   type DashboardCombinedSales,
   type DashboardRevenueSource,
 } from "@/lib/dashboardCombinedFigures";
@@ -45,7 +47,13 @@ const DELIVERY_HEADERS = [
   "קליקים",
   "עלות לקליק",
 ];
-const SALES_HEADERS = ["הוספה לעגלה", "רכישות", "הכנסות", "ROAS"];
+const SALES_HEADERS = [
+  "הוספה לעגלה",
+  "רכישות",
+  "עלות לרכישה",
+  "הכנסות",
+  "ROAS",
+];
 const LEAD_HEADERS = ["לידים", "עלות לליד"];
 
 const REVENUE_SOURCE_LABELS: Record<DashboardRevenueSource, string> = {
@@ -139,6 +147,8 @@ export function DashboardPlatformBreakdown({
             {revenueSource
               ? `${REVENUE_SOURCE_LABELS[revenueSource]} בפועל חלקי הוצאות הפרסום ללא קמפייני הלידים.`
               : "ההכנסות שמדווחים קמפייני המכירות חלקי ההוצאה עליהם."}
+            {unvaluedSales(summary) &&
+              " קמפיין מכירות שמדווח רכישות בלי ערך רכישה (למשל מוצר במתנה) נמדד בעלות לרכישה ולא ב-ROAS."}
           </p>
         )}
       </CardContent>
@@ -148,7 +158,20 @@ export function DashboardPlatformBreakdown({
 
 /** A sales row's figures; null for a row of another goal. */
 function rowSales({ goal, metrics }: DashboardGoalRow) {
-  return goal === "ecommerce" ? { ...metrics, roas: goalRoas(metrics) } : null;
+  return goal === "ecommerce"
+    ? {
+        ...metrics,
+        roas: goalRoas(metrics),
+        costPerPurchase: costPerPurchase(metrics),
+      }
+    : null;
+}
+
+/** Whether a sales row reports purchases without their value. */
+function unvaluedSales(summary: DashboardGoalSummary): boolean {
+  return summary.rows.some(
+    (row) => row.goal === "ecommerce" && purchaseValueUnreported(row.metrics),
+  );
 }
 
 /** A lead row's leads and cost per lead; null for a row of another goal. */

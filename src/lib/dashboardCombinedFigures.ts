@@ -28,9 +28,14 @@ export type DashboardSourceRecord = {
   data?: Record<string, unknown> | null;
 };
 
-/** Combined sales; ROAS is null when no spend can be set against the revenue. */
+/**
+ * Combined sales. ROAS is null when no spend can be set against the revenue,
+ * or when the purchases carry no value (purchaseValueUnreported); cost per
+ * purchase is null without purchases.
+ */
 export type DashboardCombinedSales = DashboardStoreSales & {
   roas: number | null;
+  costPerPurchase: number | null;
 };
 
 /**
@@ -72,17 +77,49 @@ export function combinedDashboardSales(
 ): DashboardCombinedSales {
   const sales = summary.goals.ecommerce;
   if (!store) {
-    return {
-      ...pickSales(sales),
-      roas: roasOrNull(sales.revenue, sales.spend),
-    };
+    return salesOverSpend(pickSales(sales), sales.spend);
   }
-  return {
-    purchases: store.purchases || sales.purchases,
-    revenue: store.revenue,
-    addToCart: store.addToCart,
-    roas: roasOrNull(store.revenue, nonLeadSpend(summary)),
-  };
+  return salesOverSpend(
+    {
+      purchases: store.purchases || sales.purchases,
+      revenue: store.revenue,
+      addToCart: store.addToCart,
+    },
+    nonLeadSpend(summary),
+  );
+}
+
+/**
+ * Purchases that carry no value, such as a free course a sales campaign
+ * gives away: ROAS cannot measure them, so they are shown by cost per
+ * purchase. A sales campaign that sold nothing is not one of them and keeps
+ * its ROAS of 0.
+ */
+export function purchaseValueUnreported(figures: {
+  purchases: number;
+  revenue: number;
+}): boolean {
+  return figures.purchases > 0 && figures.revenue <= 0;
+}
+
+/**
+ * The cost per purchase the dashboard's ROAS card shows in place of ROAS when
+ * the purchases carry no value; null when ROAS applies.
+ */
+export function unvaluedPurchaseCost(
+  sales: DashboardCombinedSales,
+): number | null {
+  return purchaseValueUnreported(sales) ? sales.costPerPurchase : null;
+}
+
+/** Spend over purchases, or null without purchases or spend. */
+export function costPerPurchase(metrics: {
+  spend: number;
+  purchases: number;
+}): number | null {
+  return metrics.purchases > 0 && metrics.spend > 0
+    ? metrics.spend / metrics.purchases
+    : null;
 }
 
 /** The lead campaigns' leads and cost per lead: their spend over their leads. */
@@ -123,8 +160,15 @@ export function dashboardCampaignMode(
   return salesTable ? "ecommerce" : "leads";
 }
 
-/** Revenue over spend. */
-export function goalRoas(metrics: { spend: number; revenue: number }): number {
+/** Revenue over spend; null when the purchases carry no value. */
+export function goalRoas(metrics: {
+  spend: number;
+  revenue: number;
+  purchases: number;
+}): number | null {
+  if (purchaseValueUnreported(metrics)) {
+    return null;
+  }
   return metrics.spend > 0 ? metrics.revenue / metrics.spend : 0;
 }
 
@@ -138,9 +182,17 @@ function nonLeadSpend(summary: DashboardGoalSummary): number {
   return summary.total.spend - summary.goals.leads.spend;
 }
 
-/** Revenue over spend, or null without spend. */
-function roasOrNull(revenue: number, spend: number): number | null {
-  return spend > 0 ? revenue / spend : null;
+/** Sales with their ROAS and cost per purchase against this spend. */
+function salesOverSpend(
+  sales: DashboardStoreSales,
+  spend: number,
+): DashboardCombinedSales {
+  const measurable = spend > 0 && !purchaseValueUnreported(sales);
+  return {
+    ...sales,
+    roas: measurable ? sales.revenue / spend : null,
+    costPerPurchase: costPerPurchase({ spend, purchases: sales.purchases }),
+  };
 }
 
 /** Purchases, revenue and add-to-cart of Analytics' daily rows. */
