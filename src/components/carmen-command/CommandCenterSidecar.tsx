@@ -89,6 +89,7 @@ export function CommandCenterSidecar({
           audioLevelRef={audioLevelRef}
           mode="sidecar"
           startFresh={session}
+          wide={page}
           contextMetadata={contextMetadata}
           composerAccessory={
             session || workshopProjectId ? (
