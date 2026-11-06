@@ -24,7 +24,7 @@ describe("EvalsTab tenant readiness", () => {
         "Quality",
       );
       await user.click(
-        screen.getByRole("button", { name: "צור", exact: true }),
+        screen.getByRole("button", { name: "צור" }),
       );
       if (!tenantId) {
         await waitFor(() =>

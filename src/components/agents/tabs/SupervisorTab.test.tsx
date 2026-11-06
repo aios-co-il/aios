@@ -33,7 +33,7 @@ describe("SupervisorTab child tenant readiness", () => {
         ),
       );
       await user.click(
-        screen.getByRole("button", { name: "הוסף", exact: true }),
+        screen.getByRole("button", { name: "הוסף" }),
       );
       if (!tenantId) {
         await waitFor(() =>
