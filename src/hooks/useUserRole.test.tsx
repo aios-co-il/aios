@@ -1,9 +1,7 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Constants, type Enums } from "@/integrations/supabase/types";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { useUserRole } from "./useUserRole";
 
 vi.mock("./useCurrentTenant", () => ({
@@ -20,39 +18,27 @@ type RoleCase = {
 };
 
 /** Exercise the actual hook against preloaded server-state responses. */
-function RoleProbe({ roles, membership = null, seoTagged = false }: RoleCase) {
-  const client = useQueryClient();
-  useState(() => {
-    client.setQueryData(["session"], {
-      user: { id: "user-1", email: "user@example.test" },
-    });
-    client.setQueryData(["user-roles", "user-1", "tenant-1", false], roles);
-    client.setQueryData(
-      ["tenant-membership-role", "user-1", "tenant-1"],
-      membership,
-    );
-    client.setQueryData(["user-campaigner-id", "user-1"], "campaigner-1");
-    client.setQueryData(
-      ["user-campaigner-role-tags", "campaigner-1"],
-      seoTagged ? ["SEO"] : [],
-    );
-    client.setQueryData(["user-sales-person-agency-ids", "user-1"], null);
+function renderRoles({
+  roles,
+  membership = null,
+  seoTagged = false,
+}: RoleCase) {
+  const { queryClient, wrapper } = createTestQueryHarness();
+  queryClient.setQueryData(["session"], {
+    user: { id: "user-1", email: "user@example.test" },
   });
-  const result = useUserRole();
-  return (
-    <output data-testid="roles">
-      {JSON.stringify({
-        roles: result.roles,
-        isOwner: result.isOwner,
-        isAgencyOwner: result.isAgencyOwner,
-        isTeamManager: result.isTeamManager,
-        isCampaigner: result.isCampaigner,
-        isSalesPerson: result.isSalesPerson,
-        isSuperAdmin: result.isSuperAdmin,
-        isSeo: result.isSeo,
-      })}
-    </output>
+  queryClient.setQueryData(["user-roles", "user-1", "tenant-1", false], roles);
+  queryClient.setQueryData(
+    ["tenant-membership-role", "user-1", "tenant-1"],
+    membership,
   );
+  queryClient.setQueryData(["user-campaigner-id", "user-1"], "campaigner-1");
+  queryClient.setQueryData(
+    ["user-campaigner-role-tags", "campaigner-1"],
+    seoTagged ? ["SEO"] : [],
+  );
+  queryClient.setQueryData(["user-sales-person-agency-ids", "user-1"], null);
+  return renderHook(useUserRole, { wrapper });
 }
 
 afterEach(cleanup);
@@ -66,10 +52,8 @@ describe("useUserRole permission membership", () => {
   it.each(combinations.map((roles) => ({ roles })))(
     "preserves all role flags for $roles",
     ({ roles }) => {
-      render(withTestQuery(<RoleProbe roles={roles} />));
-      expect(
-        JSON.parse(screen.getByTestId("roles").textContent || "null"),
-      ).toEqual({
+      const { result } = renderRoles({ roles });
+      expect(result.current).toMatchObject({
         roles,
         isOwner: roles.includes("owner"),
         isAgencyOwner: roles.includes("agency_owner"),
@@ -85,10 +69,8 @@ describe("useUserRole permission membership", () => {
   it.each(["owner", "agency_owner"])(
     "preserves the tenant %s fallback independently of global roles",
     (membership) => {
-      render(withTestQuery(<RoleProbe roles={[]} membership={membership} />));
-      expect(
-        JSON.parse(screen.getByTestId("roles").textContent || "null"),
-      ).toMatchObject({
+      const { result } = renderRoles({ roles: [], membership });
+      expect(result.current).toMatchObject({
         isOwner: membership === "owner",
         isAgencyOwner: membership === "agency_owner",
         isSuperAdmin: false,
@@ -98,10 +80,8 @@ describe("useUserRole permission membership", () => {
   );
 
   it("preserves the SEO campaigner tag fallback", () => {
-    render(withTestQuery(<RoleProbe roles={[]} seoTagged />));
-    expect(
-      JSON.parse(screen.getByTestId("roles").textContent || "null"),
-    ).toMatchObject({
+    const { result } = renderRoles({ roles: [], seoTagged: true });
+    expect(result.current).toMatchObject({
       isOwner: false,
       isAgencyOwner: false,
       isSuperAdmin: false,
