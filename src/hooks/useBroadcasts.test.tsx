@@ -13,7 +13,7 @@ import { useBroadcasts } from "./useBroadcasts";
 const context = vi.hoisted((): { tenantId: string | null } => ({
   tenantId: "tenant-1",
 }));
-const requests: Request[] = [];
+const requests: Array<Request> = [];
 const client = createClient("https://example.com", "test-key", {
   auth: { persistSession: false, autoRefreshToken: false },
   global: {
