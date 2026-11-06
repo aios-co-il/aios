@@ -1,5 +1,5 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
-import { campaignGoalOverride } from "./campaign-goal-override.ts";
+import { campaignGoalOverride } from "./override.ts";
 
 Deno.test("campaignGoalOverride", async (t) => {
   await t.step("reads the goal by campaign id, then by trimmed name", () => {

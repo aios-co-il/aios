@@ -1,5 +1,5 @@
 import { groupRowsByCampaignGoal } from "@/lib/campaignGoals";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 
 type GoogleGoalRow = {
   goal: GoogleCampaignGoal;

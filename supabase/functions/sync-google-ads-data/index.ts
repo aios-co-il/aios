@@ -19,7 +19,7 @@ import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
-import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
 import {
   detectGoogleAdsError,

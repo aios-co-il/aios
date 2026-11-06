@@ -2,12 +2,21 @@ import {
   META_LEAD_OBJECTIVES,
   META_SALES_OBJECTIVES,
 } from "./meta-ads/campaign-objectives.ts";
-import { campaignGoalOverride } from "./pulse/campaign-goal-override.ts";
-import { classifyGoogleCampaignGoal } from "./pulse/google-campaign-goal.ts";
+import { getSpendFromData } from "./campaign-goal/ads-metrics.ts";
+import { reportCampaignGoalOf } from "./campaign-goal/campaign-goals.ts";
 import {
-  resolveCampaignGoals,
-  voteSpend,
-} from "./pulse/resolve-campaign-goals.ts";
+  latestCampaignStatuses,
+  resolveCampaignDeliveryStatus,
+} from "./campaign-goal/delivery-status.ts";
+import { classifyGoogleCampaignRow } from "./campaign-goal/google-classify.ts";
+import { adsRowOutcomes, goalResultCount } from "./campaign-goal/outcomes.ts";
+import { campaignGoalOverride } from "./campaign-goal/override.ts";
+import { pulseGoalName } from "./campaign-goal/report-goals.ts";
+import {
+  campaignNameGoal,
+  legacyCampaignTypeGoal,
+} from "./campaign-goal/row-hints.ts";
+import { isEcommerceReportTable } from "./campaign-goal/table-goal.ts";
 import {
   addCampaignPlace,
   campaignPlaces,
@@ -16,6 +25,7 @@ import {
   compareCampaignItems,
   UNNAMED_CAMPAIGN,
 } from "./pulse/campaign-target.ts";
+import { gatePulseAlert } from "./pulse/alert-gate.ts";
 import { resolvePulseCostRules } from "./pulse/cost-rules.ts";
 import {
   measureBaselineGuard,
@@ -24,69 +34,11 @@ import {
   targetlessStatus,
 } from "./pulse/targetless-status.ts";
 
+export { isEcommerceReportTable };
+
 const DAY_MS = 86_400_000;
 
 export const PULSE_CAMPAIGN_GOALS = ["leads", "engagement", "ecommerce"];
-
-const PAUSED_DELIVERY_STATUSES = new Set([
-  "PAUSED",
-  "CAMPAIGN_PAUSED",
-  "ADSET_PAUSED",
-  "AD_PAUSED",
-]);
-const ACTIVE_DELIVERY_STATUSES = new Set([
-  "ACTIVE",
-  "ENABLED",
-  "ELIGIBLE",
-  "LIMITED",
-  "LEARNING",
-]);
-const REMOVED_DELIVERY_STATUSES = new Set([
-  "REMOVED",
-  "DELETED",
-  "ARCHIVED",
-  "DISAPPROVED",
-]);
-
-export function resolveCampaignDeliveryStatus(
-  data = {},
-  integrationSettings = {},
-) {
-  const raw = String(
-    data.effective_status ||
-      data.configured_status ||
-      data.campaign_status ||
-      data.status ||
-      "",
-  )
-    .trim()
-    .toUpperCase();
-  if (raw) {
-    if (PAUSED_DELIVERY_STATUSES.has(raw) || raw.includes("PAUSED"))
-      return "paused";
-    if (ACTIVE_DELIVERY_STATUSES.has(raw)) return "active";
-    if (REMOVED_DELIVERY_STATUSES.has(raw)) return "removed";
-    return "other";
-  }
-  const campaignId = String(data.campaign_id || data.campaignId || "");
-  const states = integrationSettings.operational_campaign_states;
-  if (campaignId && states && typeof states === "object") {
-    const state = states[campaignId];
-    const status = String(state?.status || "").toUpperCase();
-    if (status === "PAUSED") return "paused";
-    if (status === "ENABLED") return "active";
-    if (status === "REMOVED") return "removed";
-  }
-  return "unknown";
-}
-
-export function campaignDeliveryStatusLabel(status) {
-  if (status === "active") return "פעיל";
-  if (status === "paused") return "מושהה";
-  if (status === "removed") return "הוסר";
-  if (status === "other") return "לא פעיל";
-  return "לא ידוע";
-}
 
 const LEAD_TERMS = [
   "LEAD",
@@ -211,19 +163,6 @@ function goalFromSyncedRowMetrics(data = {}, context = {}) {
   return null;
 }
 
-function goalFromCampaignName(name) {
-  const raw = String(name || "").trim();
-  if (!raw) return null;
-  if (/מכירות|sales|purchase|רכיש/i.test(raw)) return "ecommerce";
-  if (
-    /ליד|lead|ווטסאפ|וואטסאפ|whatsapp|הודע|message|שיח|conversation/i.test(raw)
-  )
-    return "leads";
-  if (/מעורבות|סרטון|video|thruplay|traffic|טראפיק|צפיות|view/i.test(raw))
-    return "engagement";
-  return null;
-}
-
 function goalFromOptimizationGoal(optimizationGoal) {
   const normalized = String(optimizationGoal || "")
     .trim()
@@ -238,16 +177,6 @@ function goalFromOptimizationGoal(optimizationGoal) {
   }
   if (includesTerm([normalized], LEAD_TERMS)) return "leads";
   if (includesTerm([normalized], ENGAGEMENT_TERMS)) return "engagement";
-  return null;
-}
-
-function goalFromDerivedCampaignType(campaignType) {
-  const normalized = String(campaignType || "")
-    .trim()
-    .toLowerCase();
-  if (normalized === "ecommerce") return "ecommerce";
-  if (normalized === "traffic") return "engagement";
-  if (normalized === "lead") return "leads";
   return null;
 }
 
@@ -270,17 +199,6 @@ export function tableReportGoal(table = {}) {
   return null;
 }
 
-/** Single source of truth for “is this CRM table an ecommerce report?” */
-export function isEcommerceReportTable(table = {}) {
-  if (table.integration_type === "facebook_ecommerce") return true;
-  if (String(table.category || "").trim() === "איקומרס") return true;
-  return (
-    String(table.integration_settings?.campaign_type || "")
-      .trim()
-      .toLowerCase() === "ecommerce"
-  );
-}
-
 /** Table-level default goal for pulse rollups (not per-campaign). */
 export function integrationTypeToGoal(integrationType, table) {
   if (table && isEcommerceReportTable(table)) return "ecommerce";
@@ -291,21 +209,6 @@ export function integrationTypeToGoal(integrationType, table) {
   )
     return "leads";
   return null;
-}
-
-/** Map stored pulse breakdown / snapshot row back to classifier input. */
-export function classificationDataFromStoredRow(row = {}) {
-  if (row.data && typeof row.data === "object") return row.data;
-  return {
-    campaign_objective: row.campaign_objective ?? row.objective ?? null,
-    objective: row.campaign_objective ?? row.objective ?? null,
-    optimization_goal: row.optimization_goal ?? null,
-    campaign_type: row.campaign_type_hint ?? row.campaign_type ?? null,
-    result_kind: row.result_kind ?? row.outcome_kind ?? null,
-    campaign_name: row.campaign_name ?? null,
-    pulse_goal: row.pulse_goal ?? null,
-    campaign_goal: row.campaign_goal ?? null,
-  };
 }
 
 function tableReportDefaultGoal(context = {}) {
@@ -355,7 +258,7 @@ function goalFromMessagingLeadSignals(data = {}) {
       return "leads";
     }
   }
-  const nameGoal = goalFromCampaignName(data.campaign_name);
+  const nameGoal = campaignNameGoal(data.campaign_name);
   if (nameGoal === "leads") return "leads";
   return null;
 }
@@ -386,7 +289,7 @@ function goalFromExplicitLeadSignals(data = {}, context = {}) {
   const manual = normalizedTerms(data.pulse_goal, data.campaign_goal);
   if (includesTerm(manual, ["LEAD", "LEADS", "CPL"])) return "leads";
 
-  const nameGoal = goalFromCampaignName(data.campaign_name);
+  const nameGoal = campaignNameGoal(data.campaign_name);
   if (nameGoal === "leads") return "leads";
 
   const optimization = String(data.optimization_goal || "")
@@ -417,21 +320,21 @@ function hasExplicitLeadSignals(data = {}, context = {}) {
   return goalFromExplicitLeadSignals(data, context) === "leads";
 }
 
-/** Classify by campaign objective first; fall back to report type only when unknown. */
+/**
+ * One Meta or Google row's goal by the pulse's former row rules. Only Carmen's
+ * reconcile still reads it (AIO-489 moves it to the shared campaign goal);
+ * campaign rows take each campaign's goal from reportCampaignGoalOf.
+ */
 export function classifyPulseCampaignGoal(data = {}, context = {}) {
   const ctx = classificationContext(context);
+
+  if (ctx.integration_type === "google_ads") {
+    return classifyGoogleCampaignRow(data, ctx);
+  }
 
   const override = campaignGoalOverride(data, ctx.integration_settings);
   if (PULSE_CAMPAIGN_GOALS.includes(override)) {
     return { goal: override, source: "explicit_mapping" };
-  }
-
-  if (ctx.integration_type === "google_ads") {
-    return classifyGoogleCampaignGoal(data, {
-      legacyGoal: goalFromDerivedCampaignType(data.campaign_type),
-      nameGoal: goalFromCampaignName(data.campaign_name),
-      reportIsEcommerce: isEcommerceReportTable(ctx),
-    });
   }
 
   const messagingLeadGoal = goalFromMessagingLeadSignals(data);
@@ -484,10 +387,10 @@ export function classifyPulseCampaignGoal(data = {}, context = {}) {
   }
 
   const reportDefault = tableReportDefaultGoal(ctx);
-  const nameGoal = goalFromCampaignName(data.campaign_name);
+  const nameGoal = campaignNameGoal(data.campaign_name);
   if (nameGoal) return { goal: nameGoal, source: "explicit_mapping" };
 
-  const derived = goalFromDerivedCampaignType(data.campaign_type);
+  const derived = legacyCampaignTypeGoal(data.campaign_type);
   if (derived) {
     // Ecommerce report tables: ignore fbInsights "lead" heuristic unless objective confirms leads.
     if (
@@ -519,74 +422,6 @@ function firstPresent(data, fields) {
     }
   }
   return { value: null, field: null };
-}
-
-/** Outcome fields where 0 means “empty”, not a real result (e.g. WP verified_leads placeholder). */
-function firstPositivePresent(data, fields) {
-  for (const field of fields) {
-    if (
-      data[field] !== null &&
-      data[field] !== undefined &&
-      data[field] !== ""
-    ) {
-      const value = Number(data[field]);
-      if (Number.isFinite(value) && value > 0) return { value, field };
-    }
-  }
-  return { value: null, field: null };
-}
-
-export function pulseCampaignOutcome(data = {}, goal = "unknown") {
-  if (goal === "ecommerce") {
-    // Google Ads rows report purchases as `conversions` (the Google Ads UI column).
-    const result = firstPresent(data, [
-      "purchases",
-      "purchase",
-      "transactions",
-      "conversions",
-    ]);
-    return { ...result, kind: result.field ? "purchases" : null };
-  }
-  if (goal === "leads") {
-    // Google Ads sync may stamp verified_leads=0 on every row after WP enrichment.
-    // Prefer platform conversions/leads; only use verified_leads when > 0.
-    const result = firstPositivePresent(data, [
-      "leads",
-      "conversions",
-      "form_leads",
-      "website_leads",
-      "all_conversions",
-      "conversations",
-      "messages",
-      "messaging_conversations",
-      "messaging_conversation_started",
-    ]);
-    if (result.field) return { ...result, kind: "leads" };
-    const verified = firstPositivePresent(data, ["verified_leads"]);
-    if (verified.field) return { ...verified, kind: "leads" };
-    return { value: null, field: null, kind: null };
-  }
-  if (goal === "engagement") {
-    const candidates = [
-      ["conversations", "conversations"],
-      ["messages", "messages"],
-      ["video_views", "video_views"],
-      ["thruplays", "video_views"],
-      ["post_engagements", "engagements"],
-      ["engagements", "engagements"],
-      ["results", "results"],
-      ["result", "results"],
-      ["landing_page_views", "landing_page_views"],
-      ["lp_or_form_views", "landing_page_views"],
-      ["link_clicks", "link_clicks"],
-      ["clicks", "clicks"],
-    ];
-    for (const [field, kind] of candidates) {
-      const result = firstPresent(data, [field]);
-      if (result.field) return { ...result, kind };
-    }
-  }
-  return { value: null, field: null, kind: null };
 }
 
 function utcDate(ymd) {
@@ -625,16 +460,13 @@ function numberValue(data, fields) {
   return firstPresent(data, fields).value ?? 0;
 }
 
-function recordScore(record, table) {
-  const data = record.data || {};
-  const classification = classifyPulseCampaignGoal(data, {
-    integration_type: table?.integration_type,
-    integration_settings: table?.integration_settings || {},
-    category: table?.category,
-  });
-  let score = classification.goal === "unknown" ? 0 : 10;
+/**
+ * How well a daily row describes its campaign, to pick one row per day among
+ * duplicate report tables: one with the campaign id and its Meta setup wins.
+ */
+function recordScore(data) {
+  let score = 0;
   if (data.campaign_id) score += 2;
-  if (pulseCampaignOutcome(data, classification.goal).field) score += 3;
   if (data.campaign_objective || data.optimization_goal) score += 2;
   return score;
 }
@@ -700,7 +532,12 @@ function platformForIntegration(type) {
   return "unknown";
 }
 
-function aggregate(rows, goal, outcomeKind) {
+/**
+ * A window's totals. Results and revenue are what the report counts for the
+ * campaign's report goal (goalResultCount, adsRowOutcomes): purchases for
+ * sales, leads for leads, none for traffic.
+ */
+function aggregate(rows, reportGoal) {
   let spend = 0;
   let outcomes = 0;
   let hasOutcomes = false;
@@ -715,7 +552,7 @@ function aggregate(rows, goal, outcomeKind) {
 
   for (const row of rows) {
     const data = row.data || {};
-    spend += numberValue(data, ["spend", "cost"]);
+    spend += getSpendFromData(data);
     impressions += numberValue(data, ["impressions"]);
     clicks += numberValue(data, ["link_clicks", "clicks"]);
     // Rows synced before follows were stored carry no count: not a real 0.
@@ -723,17 +560,10 @@ function aggregate(rows, goal, outcomeKind) {
       newFollowers = (newFollowers ?? 0) + numberValue(data, ["new_followers"]);
     }
     reach += numberValue(data, ["reach"]);
-    revenue += numberValue(data, [
-      "purchase_value",
-      "conversions_value",
-      "revenue",
-    ]);
-    const outcome = pulseCampaignOutcome(data, goal);
-    if (
-      outcome.value !== null &&
-      (!outcomeKind || outcome.kind === outcomeKind)
-    ) {
-      outcomes += outcome.value;
+    revenue += adsRowOutcomes(data, reportGoal).revenue;
+    const result = goalResultCount(data, reportGoal);
+    if (result !== null) {
+      outcomes += result;
       hasOutcomes = true;
     }
     const frequency = firstPresent(data, ["frequency"]).value;
@@ -756,20 +586,20 @@ function aggregate(rows, goal, outcomeKind) {
     reach,
     frequency: frequencyWeight ? frequencyWeighted / frequencyWeight : null,
     efficiency: hasOutcomes && outcomes > 0 ? spend / outcomes : null,
-    roas: goal === "ecommerce" && spend > 0 ? revenue / spend : null,
+    roas: reportGoal === "ecommerce" && spend > 0 ? revenue / spend : null,
     freshest,
   };
 }
 
-function normalizedBaseline(rows, goal, outcomeKind, currentDates) {
-  if (!rows.length) return aggregate([], goal, outcomeKind);
+function normalizedBaseline(rows, reportGoal, currentDates) {
+  if (!rows.length) return aggregate([], reportGoal);
   const weekdays = new Set(
     currentDates.map((date) => utcDate(date).getUTCDay()),
   );
   const matching = rows.filter((row) =>
     weekdays.has(utcDate(row.data.date).getUTCDay()),
   );
-  const raw = aggregate(matching, goal, outcomeKind);
+  const raw = aggregate(matching, reportGoal);
   const representedDays = new Set(matching.map((row) => row.data.date)).size;
   const scale = representedDays > 0 ? currentDates.length / representedDays : 0;
   return {
@@ -825,11 +655,20 @@ function classifyStatus({
       alertEligible: false,
     };
   }
-  if (goal === "unknown") {
+  if (deliveryStatus === "ended") {
     return {
-      status: "warning",
-      tier: "needs_classification",
-      reason: "מטרת הקמפיין אינה מזוהה — נדרש סיווג לפי יעד ואירוע אופטימיזציה",
+      status: "healthy",
+      tier: "normal",
+      reason: "קמפיין הסתיים",
+      alertEligible: false,
+    };
+  }
+  if (goal === "engagement") {
+    // The report measures traffic by delivery and spend only: no result to judge.
+    return {
+      status: "healthy",
+      tier: "normal",
+      reason: "קמפיין תנועה — נמדד בהוצאה ובחשיפה בלבד",
       alertEligible: false,
     };
   }
@@ -923,8 +762,10 @@ function datesBetween(start, end) {
 }
 
 /**
- * One row per campaign, one goal per campaign, with its 3/7-day numbers,
- * baseline, target and status.
+ * One row per campaign with its 3/7-day numbers, baseline, target and status.
+ * Each campaign's goal and result count are the report's for the same rows
+ * (reportCampaignGoalOf, goalResultCount), and its status is its latest dated
+ * row's (latestCampaignStatuses), so the pulse and the reports never disagree.
  * `alertRules` is the tenant's tenant_heartbeat_settings.pulse_alert_rules: the
  * snapshot and the dashboard pass the same value, so the cost thresholds for
  * campaigns without a target (manager.cost) are the same on both sides.
@@ -936,11 +777,34 @@ export function buildPulseCampaignRows({
   nowYmd,
   alertRules = null,
 }) {
-  const rules = resolvePulseCostRules(alertRules);
   const windows = pulseTrendWindows(nowYmd);
-  const tableMap = new Map(tables.map((table) => [table.id, table]));
-  const deduped = new Map();
+  const usable = usableCampaignRecords(records, tables, windows);
+  const verdictOf = reportCampaignGoalOf(
+    usable.map((item) => item.record),
+    tables,
+  );
+  const { campaigns, placesByCampaign } = campaignDays(usable, verdictOf);
+  const context = {
+    windows,
+    rules: resolvePulseCostRules(alertRules),
+    current3Dates: datesBetween(windows.current3.start, windows.current3.end),
+    current7Dates: datesBetween(windows.current7.start, windows.current7.end),
+  };
+  const rows = [];
+  for (const [campaignKey, items] of campaigns) {
+    const places = campaignPlaces(placesByCampaign, campaignKey);
+    rows.push(pulseCampaignRow(items, places, context));
+  }
+  return dedupePulseCampaignRows(rows).sort(
+    (a, b) =>
+      String(a.client_id).localeCompare(String(b.client_id)) ||
+      String(a.campaign_name).localeCompare(String(b.campaign_name), "he"),
+  );
+}
 
+/** Campaign-level rows of a Meta or Google table inside the trend windows. */
+function usableCampaignRecords(records, tables, windows) {
+  const tableMap = new Map(tables.map((table) => [table.id, table]));
   const usable = [];
   for (const record of records) {
     const data = record.data || {};
@@ -956,155 +820,116 @@ export function buildPulseCampaignRows({
     if (!table) continue;
     const platform = platformForIntegration(table.integration_type);
     if (platform === "unknown") continue;
-    const identity = campaignIdentity(data, platform);
-    const classification = classifyPulseCampaignGoal(data, {
-      integration_type: table.integration_type,
-      integration_settings: table.integration_settings || {},
-      category: table.category,
-    });
     usable.push({
       record,
       table,
       platform,
-      identity,
-      goal: classification.goal,
-      source: classification.source,
+      identity: campaignIdentity(data, platform),
     });
   }
+  return usable;
+}
 
-  // One goal per campaign: daily rows can classify differently (e.g. a Google PMax day
-  // with conversions vs. a clicks-only day), which split one campaign across categories.
-  const campaignOf = (item) =>
-    canonicalCampaignMergeKey(
+/**
+ * The rows of each campaign, one per day (the best row among duplicate report
+ * tables), keyed by client, platform, report goal and name, with every table
+ * the campaign is read from.
+ */
+function campaignDays(usable, verdictOf) {
+  const placesByCampaign = new Map();
+  const byDay = new Map();
+  for (const item of usable) {
+    const verdict = verdictOf(item.record);
+    if (!verdict) continue;
+    const goal = pulseGoalName(verdict.goal);
+    const campaignKey = canonicalCampaignMergeKey(
       item.table.client_id,
       item.platform,
-      "*",
+      goal,
       item.identity,
     );
-  const campaignGoal = resolveCampaignGoals(
-    usable.map((item) => ({
-      key: campaignOf(item),
-      goal: item.goal,
-      source: item.source,
-      spend: voteSpend(item.record.data),
-    })),
-  );
-
-  const placesByCampaign = new Map();
-  for (const item of usable) {
-    const { record, table, platform, identity } = item;
-    const data = record.data;
-    const goal = campaignGoal.get(campaignOf(item));
-    const campaignKey = canonicalCampaignMergeKey(
-      table.client_id,
-      platform,
-      goal,
-      identity,
-    );
-    addCampaignPlace(placesByCampaign, campaignKey, { table, identity });
-
-    const mergeKey = `${campaignKey}:${data.date}`;
+    addCampaignPlace(placesByCampaign, campaignKey, {
+      table: item.table,
+      identity: item.identity,
+    });
     const candidate = {
-      record,
-      table,
-      identity,
-      platform,
+      ...item,
+      campaignKey,
       goal,
-      score: recordScore(record, table),
+      reportGoal: verdict.goal,
+      source: verdict.source,
+      score: recordScore(item.record.data),
     };
-    const previous = deduped.get(mergeKey);
+    const dayKey = `${campaignKey}:${item.record.data.date}`;
+    const previous = byDay.get(dayKey);
     if (!previous || compareCampaignItems(candidate, previous, goal) < 0) {
-      deduped.set(mergeKey, candidate);
+      byDay.set(dayKey, candidate);
     }
   }
-
   const campaigns = new Map();
-  for (const item of deduped.values()) {
-    const key = canonicalCampaignMergeKey(
-      item.table.client_id,
-      item.platform,
-      item.goal,
-      item.identity,
-    );
-    const list = campaigns.get(key) || [];
+  for (const item of byDay.values()) {
+    const list = campaigns.get(item.campaignKey) || [];
     list.push(item);
-    campaigns.set(key, list);
+    campaigns.set(item.campaignKey, list);
   }
+  return { campaigns, placesByCampaign };
+}
 
-  const current3Dates = datesBetween(
-    windows.current3.start,
-    windows.current3.end,
-  );
-  const current7Dates = datesBetween(
-    windows.current7.start,
-    windows.current7.end,
-  );
-  const rows = [];
+/**
+ * A campaign's delivery status: its latest dated row that states one, else
+ * the operational state its tables store for its id (Google rows carry none).
+ */
+function campaignDeliveryStatus(items) {
+  const latest = latestCampaignStatuses(
+    items.map((item) => item.record),
+    () => "campaign",
+  ).get("campaign");
+  if (latest) return latest;
+  for (const item of items) {
+    const status = resolveCampaignDeliveryStatus(
+      { campaign_id: item.identity.id },
+      item.table.integration_settings || {},
+    );
+    if (status !== "unknown") return status;
+  }
+  return "unknown";
+}
 
-  for (const [campaignKey, items] of campaigns) {
-    const sample = items.reduce((best, item) =>
-      compareCampaignItems(item, best, item.goal) < 0 ? item : best,
+/** One campaign's pulse row from its daily rows. */
+function pulseCampaignRow(items, places, context) {
+  const { windows, rules, current3Dates, current7Dates } = context;
+  const sample = items.reduce((best, item) =>
+    compareCampaignItems(item, best, item.goal) < 0 ? item : best,
+  );
+  const { goal, reportGoal } = sample;
+  const campaignRecords = items.map((item) => item.record);
+  const inWindow = (start, end) =>
+    campaignRecords.filter(
+      (row) => row.data.date >= start && row.data.date <= end,
     );
-    const sampleClassification = classifyPulseCampaignGoal(sample.record.data, {
-      integration_type: sample.table.integration_type,
-      integration_settings: sample.table.integration_settings || {},
-      category: sample.table.category,
-    });
-    const classification = {
-      goal: sample.goal,
-      source: sampleClassification.source,
-    };
-    const outcome = pulseCampaignOutcome(
-      sample.record.data,
-      classification.goal,
-    );
-    const campaignRecords = items.map((item) => item.record);
-    const inWindow = (start, end) =>
-      campaignRecords.filter(
-        (row) => row.data.date >= start && row.data.date <= end,
-      );
-    const current3 = aggregate(
-      inWindow(windows.current3.start, windows.current3.end),
-      classification.goal,
-      outcome.kind,
-    );
-    const current7 = aggregate(
-      inWindow(windows.current7.start, windows.current7.end),
-      classification.goal,
-      outcome.kind,
-    );
-    const today = aggregate(
-      inWindow(windows.today, windows.today),
-      classification.goal,
-      outcome.kind,
-    );
-    const baselineRows = inWindow(windows.baseline.start, windows.baseline.end);
-    const baseline3 = normalizedBaseline(
-      baselineRows,
-      classification.goal,
-      outcome.kind,
-      current3Dates,
-    );
-    const baseline7 = normalizedBaseline(
-      baselineRows,
-      classification.goal,
-      outcome.kind,
-      current7Dates,
-    );
-    const baselineGuard = measureBaselineGuard(
-      baselineRows,
-      aggregate(baselineRows, classification.goal, outcome.kind).outcomes,
-      (row) => numberValue(row.data, ["spend", "cost"]),
-    );
-    const tableSettings = sample.table.integration_settings || {};
-    const deliveryStatus = resolveCampaignDeliveryStatus(
-      sample.record.data,
-      tableSettings,
-    );
-    const places = campaignPlaces(placesByCampaign, campaignKey);
-    const target = campaignTarget(places, classification.goal);
-    const status = classifyStatus({
-      goal: classification.goal,
+  const current3 = aggregate(
+    inWindow(windows.current3.start, windows.current3.end),
+    reportGoal,
+  );
+  const current7 = aggregate(
+    inWindow(windows.current7.start, windows.current7.end),
+    reportGoal,
+  );
+  const today = aggregate(inWindow(windows.today, windows.today), reportGoal);
+  const baselineRows = inWindow(windows.baseline.start, windows.baseline.end);
+  const baseline3 = normalizedBaseline(baselineRows, reportGoal, current3Dates);
+  const baseline7 = normalizedBaseline(baselineRows, reportGoal, current7Dates);
+  const baselineGuard = measureBaselineGuard(
+    baselineRows,
+    aggregate(baselineRows, reportGoal).outcomes,
+    (row) => getSpendFromData(row.data),
+  );
+  const settings = sample.table.integration_settings || {};
+  const deliveryStatus = campaignDeliveryStatus(items);
+  const target = campaignTarget(places, goal);
+  const status = gatePulseAlert(
+    classifyStatus({
+      goal,
       current3,
       current7,
       baseline3,
@@ -1113,98 +938,92 @@ export function buildPulseCampaignRows({
       target,
       deliveryStatus,
       costRules: rules,
-    });
-    const useRoas =
-      classification.goal === "ecommerce" && target?.kind !== "cpa";
-    const lowerIsBetter = !useRoas;
-    const efficiency3 = useRoas ? current3.roas : current3.efficiency;
-    const efficiency7 = useRoas ? current7.roas : current7.efficiency;
-    const efficiencyToday = useRoas ? today.roas : today.efficiency;
-    const baselineEfficiency3 = useRoas ? baseline3.roas : baseline3.efficiency;
-    const baselineEfficiency7 = useRoas ? baseline7.roas : baseline7.efficiency;
-    const settings = tableSettings;
-    const lastChangeCandidates = [
-      ...items.map((item) => item.record.data.updated_time),
-      settings.last_campaign_updated_at,
-      settings.last_meta_activity?.at,
-    ]
-      .filter(Boolean)
-      .map(String)
-      .sort();
-
-    const mergeKey = canonicalCampaignMergeKey(
-      sample.table.client_id,
-      sample.platform,
-      classification.goal,
-      sample.identity,
-    );
-    rows.push({
-      campaign_key: mergeKey,
-      campaign_id: sample.identity.id,
-      campaign_name: sample.identity.name,
-      client_id: sample.table.client_id,
-      table_id: sample.table.id,
-      platform: sample.platform,
-      goal: classification.goal,
-      campaign_objective:
-        sample.record.data.campaign_objective ||
-        sample.record.data.objective ||
-        null,
-      optimization_goal: sample.record.data.optimization_goal || null,
-      campaign_type_hint: sample.record.data.campaign_type || null,
-      result_kind: sample.record.data.result_kind || null,
-      delivery_status: deliveryStatus,
-      classification_source: classification.source,
-      outcome_kind: outcome.kind,
-      status: status.status,
-      status_tier: status.tier,
-      status_reason: status.reason,
-      alert_eligible: status.alertEligible,
-      ...campaignTargetFields(target, places),
-      spend_3d: round(current3.spend),
-      outcomes_3d: round(current3.outcomes),
-      efficiency_3d: round(efficiency3),
-      spend_7d: round(current7.spend),
-      outcomes_7d: round(current7.outcomes),
-      revenue_7d: round(current7.revenue),
-      efficiency_7d: round(efficiency7),
-      baseline_efficiency_3d: round(baselineEfficiency3),
-      baseline_efficiency_7d: round(baselineEfficiency7),
-      baseline_outcomes: round(baselineGuard.outcomes),
-      baseline_days: baselineGuard.days,
-      trend_3d_pct: round(
-        pct(efficiency3, baselineEfficiency3, lowerIsBetter),
-        1,
-      ),
-      trend_7d_pct: round(
-        pct(efficiency7, baselineEfficiency7, lowerIsBetter),
-        1,
-      ),
-      impressions_7d: round(current7.impressions),
-      clicks_7d: round(current7.clicks),
-      ctr_7d: round(
-        current7.impressions > 0
-          ? (current7.clicks / current7.impressions) * 100
-          : null,
-      ),
-      new_followers_7d: round(current7.newFollowers),
-      reach_7d: round(current7.reach),
-      frequency_7d: round(current7.frequency),
-      spend_today: round(today.spend),
-      outcomes_today: round(today.outcomes),
-      revenue_today: round(today.revenue),
-      efficiency_today: round(efficiencyToday),
-      data_fresh_through: today.freshest || current7.freshest,
-      last_change_at: lastChangeCandidates.at(-1) || null,
-      last_sync_at: settings.last_sync_at || null,
-      partial_today_excluded: true,
-      today_partial_included: Boolean(today.freshest),
-    });
-  }
-
-  return dedupePulseCampaignRows(rows).sort(
-    (a, b) =>
-      String(a.client_id).localeCompare(String(b.client_id)) ||
-      String(a.campaign_name).localeCompare(String(b.campaign_name), "he"),
+    }),
+    { goal, deliveryStatus, spend3d: current3.spend },
   );
+  const useRoas = goal === "ecommerce" && target?.kind !== "cpa";
+  const lowerIsBetter = !useRoas;
+  const efficiency3 = useRoas ? current3.roas : current3.efficiency;
+  const efficiency7 = useRoas ? current7.roas : current7.efficiency;
+  const efficiencyToday = useRoas ? today.roas : today.efficiency;
+  const baselineEfficiency3 = useRoas ? baseline3.roas : baseline3.efficiency;
+  const baselineEfficiency7 = useRoas ? baseline7.roas : baseline7.efficiency;
+  const lastChangeCandidates = [
+    ...items.map((item) => item.record.data.updated_time),
+    settings.last_campaign_updated_at,
+    settings.last_meta_activity?.at,
+  ]
+    .filter(Boolean)
+    .map(String)
+    .sort();
+
+  return {
+    campaign_key: sample.campaignKey,
+    campaign_id: sample.identity.id,
+    campaign_name: sample.identity.name,
+    client_id: sample.table.client_id,
+    table_id: sample.table.id,
+    platform: sample.platform,
+    goal,
+    campaign_objective:
+      sample.record.data.campaign_objective ||
+      sample.record.data.objective ||
+      null,
+    optimization_goal: sample.record.data.optimization_goal || null,
+    campaign_type_hint: sample.record.data.campaign_type || null,
+    result_kind: sample.record.data.result_kind || null,
+    delivery_status: deliveryStatus,
+    classification_source: sample.source,
+    outcome_kind: OUTCOME_KIND_OF_GOAL[reportGoal],
+    status: status.status,
+    status_tier: status.tier,
+    status_reason: status.reason,
+    alert_eligible: status.alertEligible,
+    ...campaignTargetFields(target, places),
+    spend_3d: round(current3.spend),
+    outcomes_3d: round(current3.outcomes),
+    efficiency_3d: round(efficiency3),
+    spend_7d: round(current7.spend),
+    outcomes_7d: round(current7.outcomes),
+    revenue_7d: round(current7.revenue),
+    efficiency_7d: round(efficiency7),
+    baseline_efficiency_3d: round(baselineEfficiency3),
+    baseline_efficiency_7d: round(baselineEfficiency7),
+    baseline_outcomes: round(baselineGuard.outcomes),
+    baseline_days: baselineGuard.days,
+    trend_3d_pct: round(
+      pct(efficiency3, baselineEfficiency3, lowerIsBetter),
+      1,
+    ),
+    trend_7d_pct: round(
+      pct(efficiency7, baselineEfficiency7, lowerIsBetter),
+      1,
+    ),
+    impressions_7d: round(current7.impressions),
+    clicks_7d: round(current7.clicks),
+    ctr_7d: round(
+      current7.impressions > 0
+        ? (current7.clicks / current7.impressions) * 100
+        : null,
+    ),
+    new_followers_7d: round(current7.newFollowers),
+    reach_7d: round(current7.reach),
+    frequency_7d: round(current7.frequency),
+    spend_today: round(today.spend),
+    outcomes_today: round(today.outcomes),
+    revenue_today: round(today.revenue),
+    efficiency_today: round(efficiencyToday),
+    data_fresh_through: today.freshest || current7.freshest,
+    last_change_at: lastChangeCandidates.at(-1) || null,
+    last_sync_at: settings.last_sync_at || null,
+    partial_today_excluded: true,
+    today_partial_included: Boolean(today.freshest),
+  };
 }
+
+/** What a campaign's results are, by its report goal; traffic has none. */
+const OUTCOME_KIND_OF_GOAL = {
+  ecommerce: "purchases",
+  leads: "leads",
+  traffic: null,
+};

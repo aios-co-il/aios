@@ -6,7 +6,7 @@ import {
   type GoogleReportTable,
 } from "@/lib/googleCampaignGoals";
 import type { GoogleGoalPresence } from "@/lib/googleGoalPresence";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 
 export type SharedTableGoals = GoogleGoalPresence & {
   /** Goal of a Google Ads row's campaign; null when the table is not a Google Ads table. */
