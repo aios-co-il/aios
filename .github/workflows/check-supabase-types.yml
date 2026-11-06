@@ -7,6 +7,10 @@ name: check-supabase-types
 
 on:
   workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -21,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.source_sha || github.sha }}
           persist-credentials: false
 
       - uses: supabase/setup-cli@v1
@@ -63,8 +68,15 @@ jobs:
 
           Agent prompt: "Regenerate the Supabase types for this branch with \`supabase db start\` and \`./scripts/gen-types.sh --local\`, then commit both generated files."
           EOF
-          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file comment.md \
-            || gh pr comment "$PR_NUMBER" --body-file comment.md
+          # Edit only this workflow's own comment, found by its marker; never another bot comment.
+          ids=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- check-supabase-types -->"))) | .id')
+          id=${ids%%$'\n'*}
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md
+          else
+            gh pr comment "$PR_NUMBER" --body-file comment.md
+          fi
 
       - name: Stop local database
         if: always()

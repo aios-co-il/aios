@@ -31,6 +31,7 @@ jobs:
       frontend: ${{ steps.exclusions.outputs.frontend || 'true' }}
       functions: ${{ steps.areas.outputs.functions || 'true' }}
       mirror: ${{ steps.areas.outputs.mirror || 'true' }}
+      rules: ${{ steps.areas.outputs.rules || 'true' }}
       supabase-types: ${{ steps.areas.outputs.supabase-types || 'true' }}
       worker: ${{ steps.areas.outputs.worker || 'true' }}
     steps:
@@ -67,14 +68,23 @@ jobs:
         with:
           base: ${{ github.event.merge_group.base_sha }}
           filters: |
+            # The Deno suite also reads migrations, supabase/ops and a few frontend catalogs.
             functions:
-              - "supabase/functions/**"
+              - "supabase/**"
+              - "src/lib/agentToolsCatalog.ts"
+              - "src/lib/cronJobsCatalog.ts"
+              - "src/components/marketing/departments/creative/videoEngines.ts"
               - ".github/workflows/ci-frontend.yml"
               - ".github/actions/**"
             worker:
               - "render-worker/**"
+              - "package.json"
+              - "pnpm-lock.yaml"
               - ".github/workflows/ci-frontend.yml"
               - ".github/actions/**"
+            # Source rules are Markdown, which `code` ignores, but test:guards checks their generated twins.
+            rules:
+              - ".claude/rules/**"
             supabase-types:
               - "supabase/migrations/**"
               - "src/integrations/supabase/types.ts"
@@ -235,7 +245,7 @@ jobs:
 
   guards:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.rules == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -293,6 +303,8 @@ jobs:
       contents: read
       pull-requests: write
     uses: ./.github/workflows/check-supabase-types.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
 
   # The one check the develop ruleset requires. Skipped jobs pass; failed or cancelled ones fail.
   ci-gate:
