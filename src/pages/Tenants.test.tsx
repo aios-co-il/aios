@@ -1,11 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { Database } from "@/integrations/supabase/types";
@@ -79,6 +74,7 @@ describe("Tenants access-check requests", () => {
   it.each(["user-1", undefined, ""])(
     "preserves both SDK filters and denied access for user %s",
     async (userId) => {
+      const user = userEvent.setup();
       state.userId = userId;
       render(
         withTestQuery(
@@ -87,7 +83,7 @@ describe("Tenants access-check requests", () => {
           </MemoryRouter>,
         ),
       );
-      fireEvent.click(screen.getByText("Target organization"));
+      await user.click(screen.getByText("Target organization"));
       await waitFor(() =>
         expect(state.toast).toHaveBeenCalledWith(
           expect.objectContaining({ title: "אין הרשאה" }),
