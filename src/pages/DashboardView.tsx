@@ -2,6 +2,8 @@ import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsC
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
+import { DashboardGoalOverview } from "@/components/dynamic-tables/DashboardGoalOverview/DashboardGoalOverview";
+import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
@@ -1996,7 +1998,20 @@ export default function DashboardView() {
           ) : (
             <>
               {/* Summary Cards - only show in All and Analytics tabs */}
-              {platformFilter === "all" && (
+              {platformFilter === "all" && hasSeveralGoals(dashboardGoals) && (
+                <DashboardGoalOverview
+                  summary={dashboardGoals}
+                  sales={combinedSales}
+                  leads={combinedLeads}
+                  delivery={totalSummary}
+                  platformLabel={(platform) => ({
+                    ...PLATFORM_CONFIG[platform],
+                    icon: getIntegrationIcon(platform),
+                  })}
+                  format={{ formatCurrency, formatNumber, formatUnitCost }}
+                />
+              )}
+              {platformFilter === "all" && !hasSeveralGoals(dashboardGoals) && (
                 <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 auto-rows-fr">
                   {(showAdsCards || showAnalyticsCards) && (
                     <Card className="h-full bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
