@@ -144,14 +144,22 @@ describe("Auth password MFA readiness", () => {
               finishAssurance = () =>
                 resolve({
                   data: null,
-                  error: new AuthApiError("Assurance unavailable", 503),
+                  error: new AuthApiError(
+                    "Assurance unavailable",
+                    503,
+                    "unexpected_failure",
+                  ),
                 });
             }),
         );
       } else if (failure === "factors") {
         vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
           data: null,
-          error: new AuthApiError("Factors unavailable", 503),
+          error: new AuthApiError(
+            "Factors unavailable",
+            503,
+            "unexpected_failure",
+          ),
         });
       } else {
         vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
