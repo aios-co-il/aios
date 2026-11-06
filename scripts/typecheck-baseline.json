@@ -109,27 +109,6 @@
       "count": 1
     },
     {
-      "file": "src/components/leads/LeadsChatView.tsx",
-      "code": 2322,
-      "message": "Type 'string | null | undefined' is not assignable to type 'BackgroundColor | undefined'.\n  Type 'null' is not assignable to type 'BackgroundColor | undefined'.",
-      "source": "backgroundColor",
-      "count": 1
-    },
-    {
-      "file": "src/components/leads/LeadsChatView.tsx",
-      "code": 2322,
-      "message": "Type 'string | null' is not assignable to type 'string | undefined'.\n  Type 'null' is not assignable to type 'string | undefined'.",
-      "source": "tenantId",
-      "count": 1
-    },
-    {
-      "file": "src/components/leads/LeadsChatView.tsx",
-      "code": 2345,
-      "message": "Argument of type '{ status_key: string; color: string; label?: string | undefined; }[]' is not assignable to parameter of type 'LeadStatusLike[]'.\n  Type '{ status_key: string; color: string; label?: string | undefined; }' is not assignable to type 'LeadStatusLike'.\n    Types of property 'label' are incompatible.\n      Type 'string | undefined' is not assignable to type 'string'.\n        Type 'undefined' is not assignable to type 'string'.",
-      "source": "statuses",
-      "count": 1
-    },
-    {
       "file": "src/components/marketing/SocialContentGantt.tsx",
       "code": 2345,
       "message": "Argument of type 'Partial<WorkItem>' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n  Type 'Partial<WorkItem>' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n    Types of property 'status' are incompatible.\n      Type 'string | undefined' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.\n        Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",

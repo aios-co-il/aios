@@ -263,10 +263,11 @@ export function resolveResponseStatusKey(
   return null;
 }
 
-export function findLeadStatus(
+/** Find a matching row while preserving the caller's status fields. */
+export function findLeadStatus<TStatus extends LeadStatusLike>(
   value: string | null | undefined,
-  statuses: LeadStatusLike[],
-): LeadStatusLike | undefined {
+  statuses: Array<TStatus>,
+): TStatus | undefined {
   const key = resolveResponseStatusKey(value, statuses);
   if (!key) return undefined;
   return statuses.find((s) => s.status_key === key);
