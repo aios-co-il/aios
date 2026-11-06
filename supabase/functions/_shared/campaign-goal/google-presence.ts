@@ -1,4 +1,5 @@
 import type { GoogleCampaignGoal } from "./google-classify.ts";
+import { isEcommerceReportTable, type GoalReportTable } from "./table-goal.ts";
 
 export type GoogleGoalPresence = { hasEcommerce: boolean; hasLeads: boolean };
 
@@ -19,17 +20,17 @@ export function googleGoalPresence(
   };
 }
 
-/** A report's goal for Google rows no rule can key: ecommerce when a Google table is set to ecommerce. */
+/**
+ * A report's goal for Google rows no rule can key: ecommerce when a Google
+ * table is an ecommerce report, by its settings or its "איקומרס" category
+ * (isEcommerceReportTable, AIO-494).
+ */
 export function googleReportFallbackGoal(
-  tables: Array<{
-    integration_type?: string | null;
-    integration_settings?: Record<string, unknown> | null;
-  }>,
+  tables: Array<GoalReportTable>,
 ): GoogleCampaignGoal {
   const ecommerce = tables.some(
     (table) =>
-      table.integration_type === "google_ads" &&
-      table.integration_settings?.campaign_type === "ecommerce",
+      table.integration_type === "google_ads" && isEcommerceReportTable(table),
   );
   return ecommerce ? "ecommerce" : "leads";
 }

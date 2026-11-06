@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
+import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
 import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -423,8 +424,7 @@ export default function DynamicTableView({
     : siblingAdLinks;
 
   const isGoogleAdsEcommerceReport =
-    table?.integration_type === "google_ads" &&
-    table?.integration_settings?.campaign_type === "ecommerce";
+    table?.integration_type === "google_ads" && isEcommerceReportTable(table);
 
   const wooDateRangeIso = useMemo(
     () =>

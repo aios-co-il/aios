@@ -60,6 +60,17 @@ describe("googleManualRoiFigures", () => {
     );
   });
 
+  it("hides the card on a table in the איקומרס category (AIO-494)", () => {
+    const categoryTable = {
+      ...table,
+      integration_settings: {},
+      category: "איקומרס",
+    };
+    expect(
+      googleManualRoiFigures([record("search", "leads")], categoryTable),
+    ).toBe(null);
+  });
+
   it("hides the card on a sales table or an empty range without saved figures", () => {
     const salesTable = {
       ...table,
