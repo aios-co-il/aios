@@ -5,6 +5,8 @@ import {
   combinedDashboardSales,
   dashboardCampaignMode,
   dashboardStore,
+  goalRoas,
+  unvaluedPurchaseCost,
 } from "./dashboardCombinedFigures";
 import {
   dashboardGoalsOf,
@@ -87,6 +89,7 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
       revenue: 1400,
       addToCart: 9,
       roas: 3.5,
+      costPerPurchase: 40,
     });
     // 600 / 5: not the rows' average of ₪50 and ₪400, nor over all 1050.
     expect(combinedDashboardLeads(summary).cpl).toBe(120);
@@ -101,6 +104,7 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
       revenue: 2250,
       addToCart: 7,
       roas: 5,
+      costPerPurchase: 45,
     });
   });
 
@@ -126,6 +130,47 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
       leads: table?.leads,
       cpl: table?.cpl,
     });
+  });
+});
+
+describe("sales campaigns whose purchases carry no value", () => {
+  // A free course: Facebook counts 15 purchases worth ₪0 on ₪336.
+  const giftCampaign = facebookRecord("FB gift course", {
+    campaign_objective: "OUTCOME_SALES",
+    spend: 336,
+    purchases: 15,
+    purchase_value: 0,
+  });
+
+  it("show the cost per purchase instead of a ROAS of 0", () => {
+    const sales = combinedDashboardSales(
+      dashboardGoalsOf([giftCampaign]),
+      null,
+    );
+    expect(sales.roas).toBeNull();
+    expect(sales.costPerPurchase).toBe(22.4);
+    expect(unvaluedPurchaseCost(sales)).toBe(22.4);
+    expect(goalRoas({ spend: 336, purchases: 15, revenue: 0 })).toBeNull();
+  });
+
+  it("leave a campaign that sells with value on ROAS", () => {
+    const summary = dashboardGoalsOf(mixedCampaigns);
+    const sales = combinedDashboardSales(summary, null);
+    expect(sales.roas).toBe(3.5);
+    expect(unvaluedPurchaseCost(sales)).toBeNull();
+    expect(goalRoas({ spend: 100, purchases: 4, revenue: 500 })).toBe(5);
+  });
+
+  it("keep a ROAS of 0 for a sales campaign that spent and sold nothing", () => {
+    const unsold = facebookRecord("FB unsold", {
+      campaign_objective: "OUTCOME_SALES",
+      spend: 200,
+      purchases: 0,
+      purchase_value: 0,
+    });
+    const sales = combinedDashboardSales(dashboardGoalsOf([unsold]), null);
+    expect(goalRoas({ spend: 200, purchases: 0, revenue: 0 })).toBe(0);
+    expect(unvaluedPurchaseCost(sales)).toBeNull();
   });
 });
 
