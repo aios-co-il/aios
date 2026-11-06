@@ -43,9 +43,9 @@ const user: User = {
 function testToken() {
   const encode = (value: object) =>
     btoa(JSON.stringify(value))
-      .replaceAll("=", "")
-      .replaceAll("+", "-")
-      .replaceAll("/", "_");
+      .replace(/=/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
   return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
     sub: user.id,
     exp: 4102444800,
