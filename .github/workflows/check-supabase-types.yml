@@ -54,7 +54,8 @@ jobs:
 
       - name: Tell the PR how to fix stale types
         # Only the comparison step means stale types; a setup or migration failure needs a different fix.
-        if: steps.compare.outcome == 'failure' && github.event_name == 'pull_request'
+        # failure() is required: without a status function Actions adds success(), which skips this step.
+        if: failure() && steps.compare.outcome == 'failure' && github.event_name == 'pull_request'
         # Fork PRs get a read-only token, so a failed comment must not mask the real failure.
         continue-on-error: true
         env:
