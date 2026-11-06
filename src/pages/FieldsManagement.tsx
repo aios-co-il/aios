@@ -138,7 +138,7 @@ export default function FieldsManagement() {
       const { data, error } = await supabase
         .from("custom_fields")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .eq("entity_type", selectedEntity)
         .order("sort_order");
 
