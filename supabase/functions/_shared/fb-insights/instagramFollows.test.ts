@@ -21,12 +21,15 @@ const insightRow = {
 
 /**
  * Graph responses: the main insights read returns `insightRow` without
- * follows; the Instagram follows read returns `follows` (or an error).
+ * follows; a read that asks for Meta's `instagram_profile_follow` field
+ * returns `follows` (or an error). Meta accepts `instagram_profile_follow_v2`
+ * but returns no value for it, so a read asking only for that gets no follows.
  */
 function graph(follows: unknown): typeof fetch {
   return async (input) => {
     const url = String(input);
-    if (url.includes(INSTAGRAM_FOLLOWS_FIELD)) {
+    const fields = new URL(url).searchParams.get("fields")?.split(",") ?? [];
+    if (fields.includes("instagram_profile_follow")) {
       return new Response(JSON.stringify(follows));
     }
     const level = url.match(/level=(\w+)/)?.[1];
@@ -68,7 +71,7 @@ Deno.test("Instagram follows in the insights sync", async (t) => {
             {
               campaign_id: CAMPAIGN,
               date_start: "2026-11-01",
-              [INSTAGRAM_FOLLOWS_FIELD]: "12",
+              instagram_profile_follow: "12",
             },
           ],
         }),
