@@ -19,3 +19,27 @@ export function isEcommerceReportTable(table: GoalReportTable = {}): boolean {
       .toLowerCase() === "ecommerce"
   );
 }
+
+/** The ad report tables that hold campaigns of one goal unless set to ecommerce. */
+const LEAD_DEFAULT_TABLE_TYPES: ReadonlySet<string> = new Set([
+  "facebook_insights",
+  "google_ads",
+]);
+
+/**
+ * A report table's own goal, for what is set per table rather than per
+ * campaign (the pulse's client goal mode and its per-goal table checks):
+ * ecommerce for an ecommerce report table, leads for any other Meta or Google
+ * Ads table, and null for a table without ad campaigns. Each campaign's own
+ * goal is reportCampaignGoalOf's.
+ */
+export function reportTableGoal(
+  table: GoalReportTable = {},
+): "ecommerce" | "leads" | null {
+  if (isEcommerceReportTable(table)) {
+    return "ecommerce";
+  }
+  return LEAD_DEFAULT_TABLE_TYPES.has(table.integration_type ?? "")
+    ? "leads"
+    : null;
+}

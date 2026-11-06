@@ -1,10 +1,8 @@
 import {
-  integrationTypeToGoal,
   isEcommerceReportTable,
-  tableReportGoal,
-} from "./pulse-campaign-goals.mjs";
+  reportTableGoal,
+} from "./campaign-goal/table-goal.ts";
 import { evaluateEfficiencyIssue } from "./pulse/efficiency-issue.ts";
-import { isConfirmedGoogleSalesCampaign } from "./pulse/google-sales-campaign.ts";
 import { pulsePlatformOf } from "./pulse/platforms.ts";
 import { resolvePulseTargetAcross } from "./pulse/targets/resolve.ts";
 
@@ -41,63 +39,16 @@ function platformTablesForClient(tables, clientId, platform) {
   );
 }
 
+/** The goal the platform's report tables are set to (reportTableGoal), when they agree. */
 function platformConfiguredGoal(tables, clientId, platform) {
   const matches = platformTablesForClient(tables, clientId, platform);
   const goals = new Set(
-    matches
-      .map(
-        (table) =>
-          tableReportGoal(table) ||
-          integrationTypeToGoal(table.integration_type, table),
-      )
-      .filter(Boolean),
+    matches.map((table) => reportTableGoal(table)).filter(Boolean),
   );
   if (goals.size === 1) return [...goals][0];
   if (matches.length && !matches.some((table) => isEcommerceReportTable(table)))
     return "leads";
   return null;
-}
-
-function rowConfirmsSalesObjective(row) {
-  const objective = String(row.campaign_objective || row.objective || "")
-    .trim()
-    .toUpperCase();
-  return (
-    objective.includes("OUTCOME_SALES") ||
-    objective.includes("PRODUCT_CATALOG") ||
-    objective.includes("PURCHASE")
-  );
-}
-
-function effectiveCampaignGoal(row, table) {
-  if (!table || row.goal !== "ecommerce") return row.goal;
-  if (isEcommerceReportTable(table)) return row.goal;
-  if (rowConfirmsSalesObjective(row)) return "ecommerce";
-  if (isConfirmedGoogleSalesCampaign(row, table)) {
-    return "ecommerce";
-  }
-  return "leads";
-}
-
-function normalizeAttentionRows(rows, tableById) {
-  return rows.map((row) => {
-    const table = tableById.get(row.table_id);
-    const goal = effectiveCampaignGoal(row, table);
-    if (goal === row.goal) return row;
-    const efficiency7d =
-      goal === "ecommerce"
-        ? row.spend_7d > 0 && row.revenue_7d
-          ? row.revenue_7d / row.spend_7d
-          : row.efficiency_7d
-        : row.outcomes_7d > 0 && row.spend_7d
-          ? row.spend_7d / row.outcomes_7d
-          : row.efficiency_7d;
-    return {
-      ...row,
-      goal,
-      efficiency_7d: efficiency7d ?? row.efficiency_7d,
-    };
-  });
 }
 
 function goalFromRows(rows, configuredGoal = null) {
@@ -116,8 +67,8 @@ function goalFromRows(rows, configuredGoal = null) {
   }
   if (configuredGoal === "leads" && (counts.get("leads") ?? 0) > 0)
     return "leads";
-  // Rows are already normalized: ecommerce rows left in a leads report are
-  // confirmed sales campaigns, so a platform with only those is measured on ROAS.
+  // Each row carries its campaign's report goal (buildPulseCampaignRows), so a
+  // platform whose leads report holds only sales campaigns is measured on ROAS.
   if (configuredGoal === "leads" && best === "ecommerce" && counts.size === 1) {
     return "ecommerce";
   }
@@ -264,7 +215,9 @@ function rowHasIssue(issues) {
 }
 
 /**
- * One attention row per client and platform that has an issue.
+ * One attention row per client and platform that has an issue. Each campaign
+ * row keeps the goal buildPulseCampaignRows gave it, the report's goal for the
+ * campaign; the matrix never reclassifies it.
  * @param {{ campaignRows?: object[], tables?: object[], clients?: object[] }} input
  */
 export function buildPulseAttentionRows({
@@ -273,7 +226,6 @@ export function buildPulseAttentionRows({
   clients = [],
 }) {
   const clientMap = new Map(clients.map((client) => [client.clientId, client]));
-  const tableById = new Map(tables.map((table) => [table.id, table]));
   const tablesByClient = new Map();
   for (const table of tables) {
     const list = tablesByClient.get(table.client_id) ?? [];
@@ -297,8 +249,7 @@ export function buildPulseAttentionRows({
     if (!client) continue;
 
     const configuredGoal = platformConfiguredGoal(tables, clientId, platform);
-    const normalizedRows = normalizeAttentionRows(rows, tableById);
-    const metrics = aggregatePlatformMetrics(normalizedRows, configuredGoal);
+    const metrics = aggregatePlatformMetrics(rows, configuredGoal);
     if (metrics.spend7d <= 0) continue;
 
     const clientTables = tablesByClient.get(clientId) ?? [];

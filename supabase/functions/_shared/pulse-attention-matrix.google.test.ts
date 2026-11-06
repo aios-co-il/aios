@@ -1,6 +1,6 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
+import { reportCampaignGoalOf } from "./campaign-goal/campaign-goals.ts";
 import { buildPulseAttentionRows } from "./pulse-attention-matrix.mjs";
-import { classifyPulseCampaignGoal } from "./pulse-campaign-goals.mjs";
 
 /** A campaign change from yesterday, so "no campaign touch" never fires by date alone. */
 const RECENT_CHANGE = new Date(Date.now() - 86_400_000).toISOString();
@@ -63,12 +63,15 @@ Deno.test(
 Deno.test(
   "a Google campaign named as a sales campaign is an explicit mapping and keeps ROAS in a leads report",
   () => {
-    const { goal, source } = classifyPulseCampaignGoal(
-      { campaign_name: "sales - PMax" },
-      leadsGoogleTable,
-    );
-    assertStrictEquals(goal, "ecommerce");
-    assertStrictEquals(source, "explicit_mapping");
+    // The report's goal for the campaign, which buildPulseCampaignRows stores.
+    const record = {
+      table_id: leadsGoogleTable.id,
+      data: { campaign_id: "9", campaign_name: "sales - PMax", cost: 10 },
+    };
+    const verdict = reportCampaignGoalOf([record], [leadsGoogleTable])(record);
+    assertStrictEquals(verdict?.goal, "ecommerce");
+    assertStrictEquals(verdict?.source, "explicit_mapping");
+    const source = verdict.source;
 
     const rows = buildPulseAttentionRows({
       campaignRows: [salesCampaignRow(source, "sales - PMax")],

@@ -1,4 +1,8 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  META_LEAD_OBJECTIVES,
+  META_SALES_OBJECTIVES,
+} from "../meta-ads/campaign-objectives.ts";
 import { reportCampaignGoalOf } from "./campaign-goals.ts";
 
 const meta = {
@@ -80,3 +84,19 @@ Deno.test(
     });
   },
 );
+
+Deno.test("every Meta sales and lead objective decides the report goal", () => {
+  const goalOf = (objective: string) => {
+    const record = {
+      table_id: "m",
+      data: { campaign_id: "1", campaign_objective: objective },
+    };
+    return reportCampaignGoalOf([record], [meta])(record)?.goal;
+  };
+  for (const objective of META_SALES_OBJECTIVES) {
+    assertStrictEquals(goalOf(objective), "ecommerce");
+  }
+  for (const objective of META_LEAD_OBJECTIVES) {
+    assertStrictEquals(goalOf(objective), "leads");
+  }
+});

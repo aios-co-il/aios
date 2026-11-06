@@ -6,8 +6,9 @@
  *
  * The keys come from src/pages/SharedDashboard.tsx, src/pages/SharedTable.tsx
  * and the helpers they call:
- * - campaign_type: getCampaignType, facebookTableUsesMixedRows,
- *   isFacebookLeadsOnlyTable, resolveAnalyticsReportMode, SharedTable mode
+ * - campaign_type: reportCampaignGoalOf (isFacebookLeadsOnlyTable,
+ *   isEcommerceReportTable, googleReportFallbackGoal),
+ *   weeklySourceModesForTables, resolveAnalyticsReportMode, SharedTable mode
  * - currency: resolveDashboardCurrency, SharedTable currency formatting
  * - default_report_mode: resolveAnalyticsReportMode
  * - use_woo_google_attribution: shouldUseGoogleWooAttributionOverlay

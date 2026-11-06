@@ -5,6 +5,14 @@ import {
 
 // The goals live with the pulse, so the reports and the pulse share one list.
 export { REPORT_CAMPAIGN_GOALS, type ReportCampaignGoal };
+// Each record's campaign goal as its table's report shows it.
+export {
+  reportCampaignGoalOf,
+  reportCampaignKey,
+  type CampaignGoalRecord,
+  type CampaignGoalTable,
+  type CampaignGoalVerdict,
+} from "../../supabase/functions/_shared/campaign-goal/campaign-goals.ts";
 
 /** Title of each goal's campaign table. */
 export const CAMPAIGN_GOAL_TITLES: Record<ReportCampaignGoal, string> = {

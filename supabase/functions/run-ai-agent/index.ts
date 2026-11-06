@@ -357,6 +357,17 @@ import {
   RETENTION_BATCH_LIMIT,
 } from "../_shared/client-retention.ts";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
+import type {
+  CampaignGoalRecord,
+  CampaignGoalTable,
+} from "../_shared/campaign-goal/campaign-goals.ts";
+import { CallBudget } from "../_shared/reconcile/budget.ts";
+import { readCampaignDays } from "../_shared/reconcile/meta-campaign-days.ts";
+import { liveCampaignRows, storedCampaignRows } from "./campaign-rows.ts";
+import { liveCampaignWindow } from "./live-campaign-window.ts";
+import { clientPerformanceEntry } from "./client-performance.ts";
+import { staleClientEntry } from "./stale-client-entry.ts";
+import { readCampaignGoalTables } from "./goal-tables.ts";
 
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
@@ -1653,7 +1664,8 @@ const ALL_TOOLS = [
   },
   {
     name: "get_facebook_campaign_data",
-    description: "שליפת נתוני קמפיינים מפייסבוק לצורך ניתוח",
+    description:
+      "שליפת נתוני קמפיינים מפייסבוק לצורך ניתוח. לכל קמפיין goal ו-results כמו בדוח: רכישות לקמפיין מכירות (ecommerce), לידים לקמפיין לידים (leads), ובקמפיין תנועה (traffic) אין תוצאה.",
     parameters: {
       type: "object",
       properties: {
@@ -1964,7 +1976,7 @@ const ALL_TOOLS = [
   {
     name: "analyze_campaign_performance",
     description:
-      "ניתוח ביצועי קמפיינים מטבלאות CRM. מזהה טבלאות קמפיין לפי שדות (spend+campaign_name) ולא לפי שם — תופס גם טבלאות בעברית. מחזיר coverage_summary (כמה לקוחות מסונכרנים מתוך הסקופ), synced_clients (עם spend/CPL/שינוי 7 מול 30 יום) ו-not_connected_clients (לקוחות שאין להם טבלת קמפיין). חובה לדווח על שני הסלוטים, ולא רק על מי שיש לו נתונים.",
+      "ניתוח ביצועי קמפיינים מטבלאות CRM. מזהה טבלאות קמפיין לפי שדות (spend+campaign_name) ולא לפי שם — תופס גם טבלאות בעברית. מחזיר coverage_summary (כמה לקוחות מסונכרנים מתוך הסקופ), synced_clients (עם spend/CPL/שינוי 7 מול 30 יום; לידים רק מקמפייני לידים ורכישות רק מקמפייני מכירות, כמו בדוח) ו-not_connected_clients (לקוחות שאין להם טבלת קמפיין). חובה לדווח על שני הסלוטים, ולא רק על מי שיש לו נתונים.",
     parameters: {
       type: "object",
       properties: {
@@ -4683,18 +4695,52 @@ async function fbResolveClientAdAccount(
   tenantId: string,
   clientId: string,
 ): Promise<string | null> {
+  return (
+    (await fbResolveClientMetaReport(supabase, tenantId, clientId))?.account ??
+    null
+  );
+}
+
+/**
+ * The client's ad account (without act_) and the Meta report table it comes
+ * from, whose settings decide its campaigns' goals. An account set only on the
+ * client record gets a table with no settings, judged like a mixed report.
+ */
+async function fbResolveClientMetaReport(
+  supabase: AgentDatabaseClient,
+  _tenantId: string,
+  clientId: string,
+): Promise<{ account: string; table: CampaignGoalTable } | null> {
   // client_id is globally unique — do not require tenant_id match. Shared/partner
   // tenants often hold the CRM row while Carmen runs under David's home tenant.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("crm_tables")
-    .select("integration_settings, last_sync_at")
+    .select(
+      "id, integration_type, integration_settings, category, last_sync_at",
+    )
     .eq("client_id", clientId)
     .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
     .order("last_sync_at", { ascending: false, nullsFirst: false });
+  if (error) {
+    // Logged, not thrown: the client-record fallback below still answers.
+    console.warn(
+      `[fbResolveClientMetaReport] ${clientId}: ${errorMessage(error)}`,
+    );
+  }
   for (const t of data || []) {
     const s = jsonObject(t?.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
-    if (acc) return String(acc).replace(/^act_/, "");
+    if (acc) {
+      return {
+        account: String(acc).replace(/^act_/, ""),
+        table: {
+          id: t.id,
+          integration_type: t.integration_type,
+          integration_settings: s,
+          category: t.category,
+        },
+      };
+    }
   }
   // 2. Fallback: clients.meta_ads_account_id (the ad account set directly on the client record).
   const { data: cl } = await supabase
@@ -4702,8 +4748,15 @@ async function fbResolveClientAdAccount(
     .select("meta_ads_account_id")
     .eq("id", clientId)
     .maybeSingle();
-  if (cl?.meta_ads_account_id)
-    return String(cl.meta_ads_account_id).replace(/^act_/, "");
+  if (cl?.meta_ads_account_id) {
+    return {
+      account: String(cl.meta_ads_account_id).replace(/^act_/, ""),
+      table: {
+        id: `client:${clientId}`,
+        integration_type: "facebook_insights",
+      },
+    };
+  }
   return null;
 }
 
@@ -5420,7 +5473,15 @@ async function fbLiveCampaignList(
   }
 }
 
-/** Live campaign-level insights (spend/leads/etc.) over a day window. Null on failure. */
+/** Meta requests one live campaign read may spend: campaigns, ad sets and day insights, paged. */
+const LIVE_CAMPAIGN_CALL_BUDGET = 30;
+const LIVE_CAMPAIGN_MAX_PAGES = 10;
+
+/**
+ * Live campaign rows over the last `days` full days, read and counted the way
+ * the sync stores them (readCampaignDays) and judged as the client's Meta
+ * report judges the same rows (liveCampaignRows). Null on failure.
+ */
 async function fbLiveCampaignInsights(
   supabase: AgentDatabaseClient,
   tenantId: string,
@@ -5428,46 +5489,28 @@ async function fbLiveCampaignInsights(
   days: number,
 ) {
   try {
-    const acct = await fbResolveClientAdAccount(supabase, tenantId, clientId);
+    const report = await fbResolveClientMetaReport(
+      supabase,
+      tenantId,
+      clientId,
+    );
     const token = await fbGetToken(supabase, tenantId);
-    if (!acct || !token) return null;
-    const preset =
-      days <= 1
-        ? "yesterday"
-        : days <= 7
-          ? "last_7d"
-          : days <= 14
-            ? "last_14d"
-            : days <= 30
-              ? "last_30d"
-              : days <= 90
-                ? "last_90d"
-                : "maximum";
-    const fields =
-      "campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach";
-    const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/insights?level=campaign&date_preset=${preset}&fields=${fields}&limit=500&access_token=${token}`;
-    const r = await fetch(url);
-    const res = await readMetaResponse(r);
-    const j = res.ok ? res.value : null;
-    if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
-    return j.data.map((d) => {
-      const leads = fbLeadsFromActions(d.actions);
-      const spend = Number(d.spend || 0);
-      return {
-        campaign_id: d.campaign_id ?? null,
-        campaign_name: d.campaign_name ?? null,
-        impressions: Number(d.impressions || 0),
-        clicks: Number(d.clicks || 0),
-        spend,
-        leads_count: leads,
-        cpc: d.cpc ? Number(d.cpc) : null,
-        cpm: d.cpm ? Number(d.cpm) : null,
-        ctr: d.ctr ? Number(d.ctr) : null,
-        reach: d.reach ? Number(d.reach) : null,
-        cost_per_lead: leads > 0 ? Number((spend / leads).toFixed(2)) : null,
-      };
-    });
-  } catch {
+    if (!report || !token) {
+      return null;
+    }
+    const rows = await readCampaignDays(
+      `act_${report.account}`,
+      liveCampaignWindow(days, new Date()),
+      token,
+      {
+        budget: new CallBudget(LIVE_CAMPAIGN_CALL_BUDGET),
+        maxPages: LIVE_CAMPAIGN_MAX_PAGES,
+      },
+    );
+    return liveCampaignRows(rows, report.table);
+  } catch (err) {
+    // The tool falls back to the stored rows; say why the live read failed.
+    console.warn(`[fbLiveCampaignInsights] ${clientId}: ${errorMessage(err)}`);
     return null;
   }
 }
@@ -7119,37 +7162,14 @@ async function executeTool(
         };
       }
 
-      const { data: records, error } = await supabase
-        .from("crm_records")
-        .select("data")
-        .in("table_id", tableIds)
-        .in("tenant_id", accessibleTenantIds);
-      if (error) throw error;
-
-      const rows = (records || [])
-        .map((r: any) => r.data || {})
-        .filter((d: any) => d.date && d.date >= sinceDateStr)
-        .sort((a: any, b: any) => (b.date || "").localeCompare(a.date || ""))
-        .slice(0, 500)
-        .map((d: any) => ({
-          campaign_id: d.campaign_id ?? null,
-          campaign_name: d.campaign_name ?? null,
-          date: d.date ?? null,
-          impressions: d.impressions ?? null,
-          clicks: d.clicks ?? null,
-          spend: d.spend ?? d.cost ?? null,
-          leads_count: d.leads ?? d.leads_count ?? d.form_leads ?? null,
-          reach: d.reach ?? null,
-          cpc: d.cpc ?? null,
-          cpm: d.cpm ?? null,
-          ctr: d.ctr ?? null,
-          cost_per_lead: d.cost_per_lead ?? d.cpl ?? null,
-          campaign_status:
-            d.effective_status ??
-            d.campaign_status ??
-            d.configured_status ??
-            null,
-        }));
+      // Campaign-level rows only, as the reports count them, paged past 1000 rows.
+      const records = await fetchCampaignLevelRecords(supabase, {
+        tableIds,
+        sinceYmd: sinceDateStr,
+        tenantIds: accessibleTenantIds,
+      });
+      const goalTables = await readCampaignGoalTables(supabase, tableIds);
+      const rows = storedCampaignRows(records, [...goalTables.values()]);
       return {
         count: rows.length,
         campaigns: rows,
@@ -8101,7 +8121,7 @@ async function executeTool(
       // Own tenant's clients + shared-tenant clients ONLY within agencies shared via
       // agency_tenant_access. A tenant-wide scope here floods the report with the
       // partner tenant's entire client base and scrambles the per-agency grouping.
-      const perfSel = "id, name, agency_id, is_ecommerce, agencies(name)";
+      const perfSel = "id, name, agency_id, agencies(name)";
       const perfFilters = (q: any) => {
         q = q.in("status", ["active"]); // pulse/health reports must exclude paused/ended/onboarding clients
         if (args.client_id) q = q.eq("id", args.client_id);
@@ -8176,6 +8196,14 @@ async function executeTool(
         arr.push(t);
         tablesByClient.set(t.client_id, arr);
       }
+      // Each table's goal settings: the reports judge a campaign by its table.
+      const campaignTableIds = (campaignTables || []).map(
+        (t: { table_id: string }) => t.table_id,
+      );
+      const goalTableById = await readCampaignGoalTables(
+        supabase,
+        campaignTableIds,
+      );
 
       // 3. Compute metrics for each client that has tables
       const now = new Date();
@@ -8200,204 +8228,44 @@ async function executeTool(
           continue;
         }
 
-        const tableIds = tables.map((t: any) => t.table_id);
-        const filteredRecords = await supabase
-          .from("crm_records")
-          .select("data")
-          .in("table_id", tableIds)
-          .in("tenant_id", accessibleTenantIds)
-          .filter("data->>date", "gte", d30Str)
-          .limit(5000);
-        let records =
-          !filteredRecords.error && (filteredRecords.data?.length || 0) > 0
-            ? filteredRecords.data
-            : null;
-        if (!records) {
-          const fallbackRecords = await supabase
-            .from("crm_records")
-            .select("data")
-            .in("table_id", tableIds)
-            .in("tenant_id", accessibleTenantIds)
-            .limit(5000);
-          records = fallbackRecords.data || [];
-        }
-
-        // Tables exist = connected. Empty/stale sync is attention, not "not connected".
-        const recentProbe = (records || []).filter(
-          (r: any) => r.data?.date && r.data.date >= d30Str,
+        const tableIds: Array<string> = tables.map(
+          (t: { table_id: string }) => t.table_id,
         );
-        if (!records || recentProbe.length === 0) {
-          synced_clients.push({
-            client_id: client.id,
-            client_name: client.name,
-            agency_name: client.agencies?.name ?? null,
-            is_ecommerce:
-              !!client.is_ecommerce ||
-              tables.some(
-                (t: any) => t.integration_type === "facebook_ecommerce",
-              ),
-            spend_7d: 0,
-            spend_30d: 0,
-            leads_7d: 0,
-            leads_30d: 0,
-            cpl_7d: null,
-            cpl_30d_avg: null,
-            purchases_7d: 0,
-            purchases_30d: 0,
-            revenue_7d: 0,
-            revenue_30d: 0,
-            cpp_7d: null,
-            cpp_change_pct: null,
-            roas_7d: null,
-            profit_7d: 0,
-            spend_change_pct: null,
-            cpl_change_pct: null,
-            last_data_date: null,
-            last_campaign_update: null,
-            days_since_last_campaign_touch: null,
-            sync_status: "stale_or_empty",
-            alert:
-              "🟡 סנכרון ישן או חסר — טבלת קמפיין מחוברת אך אין נתונים ב-30 הימים האחרונים",
+        // Campaign-level rows only, as the reports count them (ad set and ad
+        // rows repeat the campaign's spend and results), paged past 1000 rows.
+        let records: Array<CampaignGoalRecord>;
+        try {
+          records = await fetchCampaignLevelRecords(supabase, {
+            tableIds,
+            sinceYmd: d30Str,
+            tenantIds: accessibleTenantIds,
           });
+        } catch (err) {
+          console.warn(
+            `[analyze_campaign_performance] ${client.id}: ${errorMessage(err)}`,
+          );
+          synced_clients.push(staleClientEntry(client, true));
           continue;
         }
 
-        const last30d = recentProbe;
-        const last7d = last30d.filter((r: any) => r.data?.date >= d7Str);
-        const older = last30d.filter((r: any) => r.data?.date < d7Str);
+        // Tables exist = connected. Empty/stale sync is attention, not "not connected".
+        if (records.length === 0) {
+          synced_clients.push(staleClientEntry(client));
+          continue;
+        }
 
-        const sumFields = (arr: any[], fields: string[]) =>
-          arr.reduce((s: number, r: any) => {
-            const field = fields.find(
-              (candidate) =>
-                r.data?.[candidate] !== undefined &&
-                r.data?.[candidate] !== null,
-            );
-            return s + (field ? parseFloat(r.data?.[field]) || 0 : 0);
-          }, 0);
-        const spend7 = sumFields(last7d, ["spend", "cost"]);
-        const spendOlder = sumFields(older, ["spend", "cost"]);
-        const leads7 = sumFields(last7d, [
-          "leads",
-          "conversions",
-          "all_conversions",
-        ]);
-        const leadsOlder = sumFields(older, [
-          "leads",
-          "conversions",
-          "all_conversions",
-        ]);
-
-        const days7 = Math.max(last7d.length, 1);
-        const daysOlder = Math.max(older.length, 1);
-        const dailySpend7 = spend7 / days7;
-        const dailySpendOlder = spendOlder / daysOlder;
-        const spendChangePct =
-          dailySpendOlder > 0
-            ? ((dailySpend7 - dailySpendOlder) / dailySpendOlder) * 100
-            : null;
-
-        const cpl7 = leads7 > 0 ? spend7 / leads7 : null;
-        const cplOlder = leadsOlder > 0 ? spendOlder / leadsOlder : null;
-        const cplChangePct =
-          cplOlder && cpl7 ? ((cpl7 - cplOlder) / cplOlder) * 100 : null;
-
-        // Ecommerce metrics (purchases / purchase_value / roas)
-        const purchases7 = sumFields(last7d, ["purchases"]);
-        const purchasesOlder = sumFields(older, ["purchases"]);
-        const purchaseValue7 = sumFields(last7d, [
-          "purchase_value",
-          "conversions_value",
-          "revenue",
-        ]);
-        const purchaseValueOlder = sumFields(older, [
-          "purchase_value",
-          "conversions_value",
-          "revenue",
-        ]);
-        const cpp7 = purchases7 > 0 ? spend7 / purchases7 : null;
-        const cppOlder =
-          purchasesOlder > 0 ? spendOlder / purchasesOlder : null;
-        const cppChangePct =
-          cppOlder && cpp7 ? ((cpp7 - cppOlder) / cppOlder) * 100 : null;
-        const roas7 = spend7 > 0 ? purchaseValue7 / spend7 : null;
-        const profit7 = purchaseValue7 - spend7;
-
-        const updatedTimes = last30d
-          .map((r: any) => r.data?.updated_time)
-          .filter((t: any) => t)
-          .sort()
-          .reverse();
-        const lastCampaignUpdate = updatedTimes[0] || null;
-        const daysSinceLastCampaignTouch = lastCampaignUpdate
-          ? Math.floor(
-              (now.getTime() - new Date(lastCampaignUpdate).getTime()) /
-                (1000 * 60 * 60 * 24),
-            )
-          : null;
-
-        const lastDataDate =
-          last30d
-            .map((r: any) => r.data?.date)
-            .filter(Boolean)
-            .sort()
-            .reverse()[0] || null;
-
-        const isEcom =
-          !!client.is_ecommerce ||
-          tables.some((t: any) => t.integration_type === "facebook_ecommerce");
-        const ecomAlert = isEcom
-          ? roas7 !== null && roas7 < 1
-            ? "🔴 ROAS<1 הפסד"
-            : purchases7 === 0 && spend7 > 0
-              ? "🔴 אין רכישות"
-              : roas7 !== null && roas7 < 1.5
-                ? "🟠 ROAS נמוך"
-                : cppChangePct !== null && cppChangePct > 25
-                  ? "🟠 CPP עלה"
-                  : "🟢 תקין"
-          : null;
-
-        synced_clients.push({
-          client_id: client.id,
-          client_name: client.name,
-          agency_name: client.agencies?.name ?? null,
-          is_ecommerce: isEcom,
-          spend_7d: Math.round(spend7 * 100) / 100,
-          spend_30d: Math.round((spend7 + spendOlder) * 100) / 100,
-          leads_7d: leads7,
-          leads_30d: leads7 + leadsOlder,
-          cpl_7d: cpl7 ? Math.round(cpl7 * 100) / 100 : null,
-          cpl_30d_avg: cplOlder ? Math.round(cplOlder * 100) / 100 : null,
-          // Ecommerce metrics — present for all clients but the skill only uses them when is_ecommerce=true
-          purchases_7d: purchases7,
-          purchases_30d: purchases7 + purchasesOlder,
-          revenue_7d: Math.round(purchaseValue7 * 100) / 100,
-          revenue_30d:
-            Math.round((purchaseValue7 + purchaseValueOlder) * 100) / 100,
-          cpp_7d: cpp7 ? Math.round(cpp7 * 100) / 100 : null,
-          cpp_change_pct:
-            cppChangePct !== null ? Math.round(cppChangePct * 10) / 10 : null,
-          roas_7d: roas7 !== null ? Math.round(roas7 * 100) / 100 : null,
-          profit_7d: Math.round(profit7 * 100) / 100,
-          spend_change_pct:
-            spendChangePct !== null
-              ? Math.round(spendChangePct * 10) / 10
-              : null,
-          cpl_change_pct:
-            cplChangePct !== null ? Math.round(cplChangePct * 10) / 10 : null,
-          last_data_date: lastDataDate,
-          last_campaign_update: lastCampaignUpdate,
-          days_since_last_campaign_touch: daysSinceLastCampaignTouch,
-          sync_status: "ok",
-          alert: isEcom
-            ? ecomAlert
-            : spendChangePct !== null && spendChangePct > 15
-              ? "🔴 התייקרות"
-              : cplChangePct !== null && cplChangePct > 20
-                ? "🟡 עלייה בעלות לליד"
-                : "🟢 תקין",
-        });
+        synced_clients.push(
+          clientPerformanceEntry({
+            client,
+            records,
+            tables: tableIds.flatMap((id) => {
+              const table = goalTableById.get(id);
+              return table ? [table] : [];
+            }),
+            d7Str,
+            now,
+          }),
+        );
       }
 
       synced_clients.sort(
