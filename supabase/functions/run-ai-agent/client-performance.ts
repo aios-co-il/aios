@@ -9,6 +9,7 @@ import {
   type CampaignGoalRecord,
   type CampaignGoalTable,
 } from "../_shared/campaign-goal/campaign-goals.ts";
+import { reportTableGoal } from "../_shared/campaign-goal/table-goal.ts";
 import { reportWindowTotals } from "./report-window-totals.ts";
 
 /** The client fields the tool reports. */
@@ -21,7 +22,8 @@ export type PerformanceClient = {
 /**
  * One synced client's entry. `records` are its campaign-level rows of the last
  * 30 days; `d7Str` starts the 7-day window. A client is ecommerce when one of
- * its campaigns is a sales campaign in its report.
+ * its report tables is an ecommerce report (reportTableGoal), as the pulse
+ * snapshot sets `is_ecommerce`, so both tools agree (AIO-489).
  */
 export function clientPerformanceEntry(input: {
   client: PerformanceClient;
@@ -76,8 +78,8 @@ export function clientPerformanceEntry(input: {
       )
     : null;
 
-  const isEcom = records.some(
-    (record) => verdictOf(record)?.goal === "ecommerce",
+  const isEcom = input.tables.some(
+    (table) => reportTableGoal(table) === "ecommerce",
   );
   const ecomAlert =
     roas7 !== null && roas7 < 1

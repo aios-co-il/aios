@@ -4713,7 +4713,7 @@ async function fbResolveClientMetaReport(
 ): Promise<{ account: string; table: CampaignGoalTable } | null> {
   // client_id is globally unique — do not require tenant_id match. Shared/partner
   // tenants often hold the CRM row while Carmen runs under David's home tenant.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("crm_tables")
     .select(
       "id, integration_type, integration_settings, category, last_sync_at",
@@ -4721,6 +4721,12 @@ async function fbResolveClientMetaReport(
     .eq("client_id", clientId)
     .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
     .order("last_sync_at", { ascending: false, nullsFirst: false });
+  if (error) {
+    // Logged, not thrown: the client-record fallback below still answers.
+    console.warn(
+      `[fbResolveClientMetaReport] ${clientId}: ${errorMessage(error)}`,
+    );
+  }
   for (const t of data || []) {
     const s = jsonObject(t?.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
@@ -5502,7 +5508,9 @@ async function fbLiveCampaignInsights(
       },
     );
     return liveCampaignRows(rows, report.table);
-  } catch {
+  } catch (err) {
+    // The tool falls back to the stored rows; say why the live read failed.
+    console.warn(`[fbLiveCampaignInsights] ${clientId}: ${errorMessage(err)}`);
     return null;
   }
 }

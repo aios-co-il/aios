@@ -58,9 +58,30 @@ describe("clientPerformanceEntry", () => {
         cpl: 10,
         purchases: 2,
         ecommerceSpend: 100,
-        isEcommerce: true,
+        isEcommerce: false,
       },
     );
+  });
+
+  it("is ecommerce by its report tables, as the pulse snapshot sets is_ecommerce", () => {
+    const entry = clientPerformanceEntry({
+      client,
+      records: [
+        day("2026-11-03", {
+          ...sales,
+          spend: 100,
+          purchases: 2,
+          purchase_value: 300,
+        }),
+      ],
+      tables: [
+        meta,
+        { ...meta, id: "e", integration_type: "facebook_ecommerce" },
+      ],
+      d7Str: "2026-10-30",
+      now: new Date("2026-11-06T10:00:00Z"),
+    });
+    assertEquals([entry.is_ecommerce, entry.alert], [true, "🟢 תקין"]);
   });
 
   it("a client with only lead campaigns is not ecommerce", () => {

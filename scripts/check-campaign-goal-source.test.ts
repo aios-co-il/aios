@@ -36,6 +36,38 @@ describe("check-campaign-goal-source", () => {
     ]);
   });
 
+  test("flags the other ways code has classified a goal or counted results", () => {
+    const samples = [
+      'if (objective.includes("OUTCOME_SALES")) return true;',
+      'const sales = objective.startsWith("OUTCOME_SALES");',
+      'case "OUTCOME_LEADS":',
+      'const SALES = new Set(["OUTCOME_SALES", "CONVERSIONS"]);',
+      'const isSales = settings?.campaign_type === "ecommerce";',
+      "const leads = d.leads ?? d.conversions ?? d.all_conversions;",
+      'const leads = sumFields(rows, ["leads", "conversions", "all_conversions"]);',
+      "const getAdsPurchasesFromData = (data) => Number(data.purchases);",
+      "function rowConfirmsSalesObjective(row) {",
+    ];
+    for (const sample of samples) {
+      expect(findViolations("src/x.ts", sample), sample).toHaveLength(1);
+    }
+  });
+
+  test("a known gap skips only its own rule", () => {
+    const source = [
+      'const sales = table.integration_settings?.campaign_type === "ecommerce";',
+      'if (objective === "OUTCOME_SALES") {',
+    ].join("\n");
+    expect(findViolations("src/pages/DynamicTableView.tsx", source)).toEqual([
+      "src/pages/DynamicTableView.tsx:2: a campaign objective compared to a goal objective",
+    ]);
+  });
+
+  test("leaves a sync's field list alone", () => {
+    const source = '"conversions", "conversions_value", "all_conversions",';
+    expect(findViolations("supabase/functions/x/index.ts", source)).toEqual([]);
+  });
+
   test("allows importing the module and listing objectives as choices", () => {
     const source = [
       'import { getLeadsFromData } from "@/lib/adsMetrics";',
