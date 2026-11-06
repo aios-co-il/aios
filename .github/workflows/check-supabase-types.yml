@@ -43,6 +43,7 @@ jobs:
           cp src/integrations/supabase/types.ts supabase/functions/_shared/database.types.ts
 
       - name: Fail if committed types are stale
+        id: compare
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git status --short
@@ -52,7 +53,8 @@ jobs:
           fi
 
       - name: Tell the PR how to fix stale types
-        if: failure() && github.event_name == 'pull_request'
+        # Only the comparison step means stale types; a setup or migration failure needs a different fix.
+        if: steps.compare.outcome == 'failure' && github.event_name == 'pull_request'
         # Fork PRs get a read-only token, so a failed comment must not mask the real failure.
         continue-on-error: true
         env:

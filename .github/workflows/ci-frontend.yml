@@ -68,12 +68,10 @@ jobs:
         with:
           base: ${{ github.event.merge_group.base_sha }}
           filters: |
-            # The Deno suite also reads migrations, supabase/ops and a few frontend catalogs.
+            # The Deno suite also reads migrations, supabase/ops and all of src/ (caller-trust.test.ts scans it).
             functions:
               - "supabase/**"
-              - "src/lib/agentToolsCatalog.ts"
-              - "src/lib/cronJobsCatalog.ts"
-              - "src/components/marketing/departments/creative/videoEngines.ts"
+              - "src/**"
               - ".github/workflows/ci-frontend.yml"
               - ".github/actions/**"
             worker:
