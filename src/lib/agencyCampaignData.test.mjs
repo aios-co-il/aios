@@ -1,5 +1,8 @@
-import { expect, test } from "vitest";
-import { buildClientCampaignTableData } from "./agencyCampaignData.ts";
+import { describe, expect, test } from "vitest";
+import {
+  buildClientCampaignTableData,
+  isFacebookIntegration,
+} from "./agencyCampaignData.ts";
 
 test("buildClientCampaignTableData aggregates campaigns per client table", () => {
   const rows = buildClientCampaignTableData({
@@ -73,4 +76,20 @@ test("buildClientCampaignTableData respects platform filter", () => {
   expect(rows.length).toBe(1);
   expect(rows[0].integrationType).toBe("google_ads");
   expect(rows[0].totals.spend).toBe(20);
+});
+
+describe("isFacebookIntegration nullable database source", () => {
+  test.each([
+    null,
+    "",
+    "facebook_insights",
+    "facebook_ecommerce",
+    "google_ads",
+    "facebook",
+    "FACEBOOK_INSIGHTS",
+  ])("preserves the previous membership decision for %s", (source) => {
+    expect(isFacebookIntegration(source)).toBe(
+      ["facebook_insights", "facebook_ecommerce"].includes(source),
+    );
+  });
 });
