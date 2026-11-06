@@ -22,27 +22,27 @@ permissions:
 jobs:
   sql-changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      sql: ${{ steps.filter.outputs.sql }}
+      sql: ${{ steps.filter.outputs.sql || 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+      # Pushes have no base, so this step skips and the output defaults to true.
+      # PRs use the API; merge-queue runs diff against the queue's base SHA.
       - id: filter
-        name: Detect database changes
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
-        run: |
-          set -euo pipefail
-          # Pushes always run; PRs and merge-queue runs skip (and report success) without database changes.
-          # grep reads the whole list (no -q): under pipefail an early exit gives git diff SIGPIPE (141),
-          # and a large PR would then skip the tests (AIO-410).
-          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -E '^supabase/|^\.github/workflows/sql-tests\.yml$' >/dev/null; then
-            echo "sql=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "sql=false" >> "$GITHUB_OUTPUT"
-          fi
+        if: github.event.pull_request || github.event.merge_group
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          base: ${{ github.event.merge_group.base_sha }}
+          filters: |
+            sql:
+              - "supabase/**"
+              - ".github/workflows/sql-tests.yml"
 
   sql-tests:
     needs: sql-changes
