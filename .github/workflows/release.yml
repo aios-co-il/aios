@@ -1,0 +1,252 @@
+# Product-owner release: develop -> main.
+#
+# Run from the Actions tab. `prepare` checks that the release is safe and opens the
+# develop -> main PR with a changelog. `publish` waits for approval from the
+# Production environment's required reviewers, merges that PR, then tags and publishes
+# a GitHub Release. Supabase and Vercel deploy Production from the main push.
+#
+# Merge method is a merge commit made by a GitHub App that bypasses the `main` ruleset.
+# Squash would make `Check develop has main` fail for good: one squashed patch has no
+# per-commit equivalent on develop. See docs/agents/releases.md for the setup.
+#
+# Run with dry_run first on a new setup: it runs every check and prints the changelog
+# without needing the release app or opening anything.
+#
+# A release is blocked while a main commit has no equivalent on develop (an unported
+# hotfix). The run then prints a prompt the product owner can give their coding agent.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: minor
+        required: true
+      notes:
+        description: Optional note shown at the top of the changelog
+        type: string
+        required: false
+      dry_run:
+        description: Run the checks and print the changelog only. No PR, merge, tag or release.
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Preflight and release PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      pr_number: ${{ steps.pr.outputs.number }}
+      head_sha: ${{ steps.pin.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUMP: ${{ inputs.bump }}
+      NOTES: ${{ inputs.notes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Require the release app
+        if: ${{ !inputs.dry_run }}
+        env:
+          APP_ID: ${{ secrets.RELEASE_APP_ID }}
+          APP_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::error title=Release app missing::Secrets RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY are not set. An admin sets them up once; see docs/agents/releases.md."
+            exit 1
+          fi
+
+      - name: Pin the develop commit being released
+        id: pin
+        run: echo "sha=$(git rev-parse origin/develop)" >> "$GITHUB_OUTPUT"
+
+      - name: Require something to release
+        run: |
+          pending=$(git cherry origin/main origin/develop | grep -c '^+' || true)
+          if [ "$pending" -eq 0 ]; then
+            echo "::error title=Nothing to release::develop has no change that main lacks."
+            exit 1
+          fi
+          echo "$pending change(s) to release"
+
+      - name: Block while a hotfix is not on develop
+        run: |
+          if scripts/main-missing-from.sh origin/develop > missing.txt; then
+            exit 0
+          fi
+          jq -R -s --arg repo "$GITHUB_REPOSITORY" '{
+              kind: "unported-hotfix",
+              repo: $repo,
+              commits: [split("\n")[] | select(startswith("  ")) | ltrimstr("  ")
+                | {sha: (split(" ")[0]), subject: (split(" ")[1:] | join(" "))}]
+            }' missing.txt > prompt-input.json
+          node .github/scripts/print-agent-prompt.ts prompt-input.json > prompt.txt
+          {
+            echo "### Release blocked: a hotfix is not on develop yet"
+            echo
+            echo "Releasing now would overwrite the hotfix on Production. Give this prompt to your coding agent, then run the release again after the backport PR is merged:"
+            echo
+            echo '```text'
+            cat prompt.txt
+            echo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::group::Prompt for your coding agent"
+          cat prompt.txt
+          echo
+          echo "::endgroup::"
+          echo "::error title=Release blocked::main has hotfix commits that develop lacks. The prompt for your coding agent is in the run summary."
+          exit 1
+
+      - name: Require green CI on the pinned develop commit
+        env:
+          SHA: ${{ steps.pin.outputs.sha }}
+        run: |
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?per_page=100")
+          bad=$(jq -r '[.check_runs[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral") | not)) | .name] | unique | join(", ")' <<<"$runs")
+          running=$(jq -r '[.check_runs[] | select(.status != "completed") | .name] | unique | join(", ")' <<<"$runs")
+          if [ -n "$bad" ]; then
+            echo "::error title=CI not green::Failing on develop $SHA: $bad"
+            exit 1
+          fi
+          if [ -n "$running" ]; then
+            echo "::error title=CI still running::Wait for these on develop $SHA, then run the release again: $running"
+            exit 1
+          fi
+          for required in build typescript; do
+            ok=$(jq -r --arg n "$required" '[.check_runs[] | select(.name == $n and .conclusion == "success")] | length' <<<"$runs")
+            if [ "$ok" -eq 0 ]; then
+              echo "::error title=CI missing::Required check '$required' has no success on develop $SHA."
+              exit 1
+            fi
+          done
+
+      - name: Work out the next version
+        id: version
+        run: |
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --merged origin/main --sort=-v:refname | head -1)
+          version=$(node .github/scripts/print-release-info.ts version "$latest" "$BUMP")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version (previous: ${latest:-none})"
+
+      - name: Write the changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          printf '%s' "$NOTES" > notes-input.txt
+          git cherry origin/main origin/develop | awk '$1 == "+" {print $2}' \
+            | xargs -r -n1 git log -1 --format=%s \
+            | tac > subjects.txt
+          node .github/scripts/print-release-info.ts notes "$VERSION" notes-input.txt < subjects.txt > release-notes.md
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/create-github-app-token@v2
+        id: app
+        if: ${{ !inputs.dry_run }}
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # The app token (not GITHUB_TOKEN) so the PR triggers the normal pull_request checks.
+      - name: Open or update the release PR
+        id: pr
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          number=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')
+          title="chore(release): $VERSION"
+          if [ -z "$number" ]; then
+            url=$(gh pr create --base main --head develop --title "$title" --body-file release-notes.md)
+            number="${url##*/}"
+          else
+            gh pr edit "$number" --title "$title" --body-file release-notes.md
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "Release PR: #$number"
+
+  publish:
+    name: Approve, merge, tag
+    needs: prepare
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment are the Production approval.
+    environment: Production
+    permissions:
+      contents: write
+      checks: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PR: ${{ needs.prepare.outputs.pr_number }}
+      HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+    steps:
+      - name: Require reviewers on the Production environment
+        run: |
+          reviewers=$(gh api "repos/$GITHUB_REPOSITORY/environments/Production" --jq '[.protection_rules[] | select(.type == "required_reviewers")] | length' || echo unknown)
+          if [ "$reviewers" = "0" ]; then
+            echo "::error title=No approval gate::The Production environment has no required reviewers, so this run would not wait for a human. Add them in Settings > Environments."
+            exit 1
+          fi
+
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Wait for the PR up-to-date check
+        run: |
+          for attempt in $(seq 1 40); do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.name == "Branch contains latest main")] | sort_by(.started_at) | last | (.conclusion // .status // "missing")')
+            echo "Branch contains latest main: $state"
+            if [ "$state" = "success" ]; then exit 0; fi
+            if [ "$state" = "failure" ]; then
+              echo "::error title=Release PR is behind main::Branch contains latest main failed on $HEAD_SHA. Port the missing main commits to develop, then run the release again."
+              exit 1
+            fi
+            sleep 15
+          done
+          echo "::error title=Check timed out::Branch contains latest main did not finish on $HEAD_SHA within 10 minutes."
+          exit 1
+
+      # Passing sha makes GitHub reject the merge if develop moved after the preflight.
+      - name: Merge the release PR with a merge commit
+        id: merge
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          merged=$(gh api -X PUT "repos/$GITHUB_REPOSITORY/pulls/$PR/merge" \
+            -f merge_method=merge -f sha="$HEAD_SHA" \
+            -f commit_title="chore(release): $VERSION (#$PR)" --jq .sha)
+          echo "sha=$merged" >> "$GITHUB_OUTPUT"
+          echo "Merged #$PR as $merged"
+
+      - name: Tag and publish the GitHub Release
+        env:
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        run: |
+          gh pr view "$PR" --json body --jq .body > release-notes.md
+          gh release create "$VERSION" --target "$MERGE_SHA" --title "$VERSION" --notes-file release-notes.md
+          echo "Released $VERSION at $MERGE_SHA. Supabase and Vercel deploy Production from this main push." >> "$GITHUB_STEP_SUMMARY"
