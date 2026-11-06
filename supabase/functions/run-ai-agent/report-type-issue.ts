@@ -43,7 +43,7 @@ export function facebookReportType(
  * (Hebrew, for Carmen's answer, or null) and Meta's spend by report goal.
  */
 export function reportTypeIssue(
-  metaRows: MetaRow[] = [],
+  metaRows: Array<MetaRow> = [],
   reportType: FacebookReportType = "mixed",
 ): {
   typeIssue: string | null;
@@ -75,7 +75,7 @@ export function reportTypeIssue(
 
 /** Meta's spend summed by each row's campaign goal. */
 function metaSpendByGoal(
-  metaRows: MetaRow[],
+  metaRows: Array<MetaRow>,
 ): Record<ReportCampaignGoal, number> {
   const goals = facebookCampaignGoals(metaRows, reportCampaignKey, {
     leadsOnly: false,

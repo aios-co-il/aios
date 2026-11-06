@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import type { Database } from "../_shared/database.types.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   fetchCampaignLevelRecords,
   type CrmRecordRow,
+  type RecordsClient,
 } from "../_shared/ads-sync/campaign-records.ts";
 import { isRecord } from "../_shared/ads-sync/is-record.ts";
-import { analyzePeriods, eventPeriodWindows } from "./periods.ts";
+import { eventPeriodWindows } from "./event-windows.ts";
+import { analyzePeriods } from "./periods.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,10 +40,7 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient<Database>(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const supabase = serviceClient();
 
     const windows = eventPeriodWindows(eventDates, daysBeforeEvent, new Date());
 
@@ -61,10 +59,10 @@ serve(async (req) => {
 
     // Campaign-level rows of the event windows, as the reports count them
     // (ad set and ad rows repeat the campaign's spend and results), paged.
-    let records: CrmRecordRow[] = [];
+    let records: Array<CrmRecordRow> = [];
     try {
       if (windows.length > 0) {
-        records = await fetchCampaignLevelRecords(supabase, {
+        records = await fetchCampaignLevelRecords(asRecordsClient(supabase), {
           tableIds: [tableId],
           sinceYmd: windows.reduce(
             (min, w) => (w.startDate < min ? w.startDate : min),
@@ -300,3 +298,14 @@ ${eventPeriods.map((p) => `📅 ${p.eventDate}: ₪${p.metrics.totalSpend} הו�
     );
   }
 });
+
+/**
+ * The service client as the paged reader sees it. Checking the generated
+ * client against RecordsClient compares every table's query builder and hits
+ * TypeScript's depth limit (TS2589), so the check stops at `from`.
+ */
+function asRecordsClient(client: {
+  from(table: "crm_records"): unknown;
+}): RecordsClient {
+  return client as RecordsClient;
+}

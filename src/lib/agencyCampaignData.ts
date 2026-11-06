@@ -98,22 +98,26 @@ export function buildClientCampaignTableData(input: {
 
   const periodRecords = records.filter((record) => {
     const table = tableMeta.get(record.table_id);
-    if (!table?.client_id) return false;
-    if (!isAdsIntegration(table.integration_type)) return false;
-    if (!matchesAgencyPlatformFilter(table.integration_type, platformFilter))
-      return false;
     const data = record.data || {};
-    const date = typeof data.date === "string" ? data.date : null;
-    if (!date || date < startDate || date > endDate) return false;
-    return shouldIncludeInAdsDashboardAggregate(data, table.integration_type);
+    const date = typeof data.date === "string" ? data.date : "";
+    return (
+      !!table?.client_id &&
+      isAdsIntegration(table.integration_type) &&
+      matchesAgencyPlatformFilter(table.integration_type, platformFilter) &&
+      date >= startDate &&
+      date <= endDate &&
+      shouldIncludeInAdsDashboardAggregate(data, table.integration_type)
+    );
   });
   const goalOf = reportCampaignGoalOf(periodRecords, tables);
 
   for (const record of periodRecords) {
-    const table = tableMeta.get(record.table_id)!;
+    const table = tableMeta.get(record.table_id);
     // Every Facebook and Google Ads table gives each of its campaigns a goal.
     const goal = goalOf(record)?.goal;
-    if (!goal) continue;
+    if (!table || !goal) {
+      continue;
+    }
 
     const data = record.data || {};
     const key = `${table.client_id}-${table.id}`;
@@ -139,16 +143,7 @@ export function buildClientCampaignTableData(input: {
       (row) => row.campaignName === campaignName && row.goal === goal,
     );
     if (!campaignRecord) {
-      campaignRecord = {
-        campaignName,
-        goal,
-        impressions: 0,
-        clicks: 0,
-        leads: 0,
-        purchases: 0,
-        spend: 0,
-        revenue: 0,
-      };
+      campaignRecord = { ...emptyTotals(), campaignName, goal };
       tableData.records.push(campaignRecord);
     }
 
@@ -165,7 +160,9 @@ export function buildClientCampaignTableData(input: {
       row.spend += spend;
       row.revenue += revenue;
     }
-    if (goal === "ecommerce") tableData.campaignType = "ecommerce";
+    if (goal === "ecommerce") {
+      tableData.campaignType = "ecommerce";
+    }
   }
 
   return Array.from(tableDataMap.values())

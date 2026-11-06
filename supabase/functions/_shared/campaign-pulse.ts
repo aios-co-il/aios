@@ -568,7 +568,7 @@ type RecordLike = { data?: Record<string, unknown> | null };
 type GoalWindowTotals = { spend: number; outcomes: number; revenue: number };
 
 function goalWindowTotals(
-  rows: RecordLike[],
+  rows: Array<RecordLike>,
   goal: CampaignGoal,
 ): GoalWindowTotals {
   const totals = { spend: 0, outcomes: 0, revenue: 0 };

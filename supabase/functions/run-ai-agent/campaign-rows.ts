@@ -66,8 +66,8 @@ function resultFields(goal: Goal, spend: number, counted: Counted) {
  * row's report goal, taken over every row passed.
  */
 export function storedCampaignRows(
-  records: CampaignGoalRecord[],
-  tables: CampaignGoalTable[],
+  records: Array<CampaignGoalRecord>,
+  tables: Array<CampaignGoalTable>,
   limit = 500,
 ) {
   const verdictOf = reportCampaignGoalOf(records, tables);
@@ -93,7 +93,10 @@ export function storedCampaignRows(
         cpm: d.cpm ?? null,
         ctr: d.ctr ?? null,
         campaign_status:
-          d.effective_status ?? d.campaign_status ?? d.configured_status ?? null,
+          d.effective_status ??
+          d.campaign_status ??
+          d.configured_status ??
+          null,
       };
     });
 }
@@ -109,7 +112,7 @@ export function liveCampaignRows(
 ) {
   const records = rows.map((row) => ({ table_id: table.id, data: row.data }));
   const verdictOf = reportCampaignGoalOf(records, [table]);
-  const byCampaign = new Map<string, CampaignGoalRecord[]>();
+  const byCampaign = new Map<string, Array<CampaignGoalRecord>>();
   for (const record of records) {
     const key = reportCampaignKey(record.data);
     byCampaign.set(key, [...(byCampaign.get(key) ?? []), record]);
@@ -122,7 +125,7 @@ export function liveCampaignRows(
 }
 
 /** One campaign's window totals from its day rows. */
-function liveCampaignRow(records: CampaignGoalRecord[], goal: Goal) {
+function liveCampaignRow(records: Array<CampaignGoalRecord>, goal: Goal) {
   let spend = 0;
   let impressions = 0;
   let clicks = 0;
@@ -160,26 +163,6 @@ function liveCampaignRow(records: CampaignGoalRecord[], goal: Goal) {
     cpc: clicks > 0 ? round(spend / clicks) : null,
     cpm: impressions > 0 ? round((spend / impressions) * 1000) : null,
     ctr: impressions > 0 ? round((clicks / impressions) * 100) : null,
-  };
-}
-
-/**
- * The last `days` full days before `now` (UTC dates, ending yesterday), the
- * span Meta's last_N_days presets cover.
- */
-export function liveCampaignWindow(
-  days: number,
-  now: Date,
-): { start: string; end: string } {
-  const count = Math.max(1, Math.floor(Number(days)) || 1);
-  const end = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1),
-  );
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - (count - 1));
-  return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
   };
 }
 

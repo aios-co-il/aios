@@ -111,8 +111,10 @@ describe("reportTypeIssue", () => {
     );
     const spend = { ecommerce: 0, leads: 0, traffic: 0 };
     for (const r of rows) {
-      const goal = verdictOf({ table_id: "t", data: r.data })!.goal;
-      spend[goal] += Number(r.data.spend);
+      const goal = verdictOf({ table_id: "t", data: r.data })?.goal;
+      if (goal) {
+        spend[goal] += Number(r.data.spend);
+      }
     }
     assertEquals(reportTypeIssue(rows).spendByGoal, spend);
   });

@@ -363,15 +363,11 @@ import type {
 } from "../_shared/campaign-goal/campaign-goals.ts";
 import { CallBudget } from "../_shared/reconcile/budget.ts";
 import { readCampaignDays } from "../_shared/reconcile/meta-campaign-days.ts";
-import {
-  liveCampaignRows,
-  liveCampaignWindow,
-  storedCampaignRows,
-} from "./campaign-rows.ts";
-import {
-  clientPerformanceEntry,
-  staleClientEntry,
-} from "./client-performance.ts";
+import { liveCampaignRows, storedCampaignRows } from "./campaign-rows.ts";
+import { liveCampaignWindow } from "./live-campaign-window.ts";
+import { clientPerformanceEntry } from "./client-performance.ts";
+import { staleClientEntry } from "./stale-client-entry.ts";
+import { readCampaignGoalTables } from "./goal-tables.ts";
 
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
@@ -4719,14 +4715,16 @@ async function fbResolveClientMetaReport(
   // tenants often hold the CRM row while Carmen runs under David's home tenant.
   const { data } = await supabase
     .from("crm_tables")
-    .select("id, integration_type, integration_settings, category, last_sync_at")
+    .select(
+      "id, integration_type, integration_settings, category, last_sync_at",
+    )
     .eq("client_id", clientId)
     .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
     .order("last_sync_at", { ascending: false, nullsFirst: false });
   for (const t of data || []) {
     const s = jsonObject(t?.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
-    if (acc)
+    if (acc) {
       return {
         account: String(acc).replace(/^act_/, ""),
         table: {
@@ -4736,6 +4734,7 @@ async function fbResolveClientMetaReport(
           category: t.category,
         },
       };
+    }
   }
   // 2. Fallback: clients.meta_ads_account_id (the ad account set directly on the client record).
   const { data: cl } = await supabase
@@ -4743,11 +4742,15 @@ async function fbResolveClientMetaReport(
     .select("meta_ads_account_id")
     .eq("id", clientId)
     .maybeSingle();
-  if (cl?.meta_ads_account_id)
+  if (cl?.meta_ads_account_id) {
     return {
       account: String(cl.meta_ads_account_id).replace(/^act_/, ""),
-      table: { id: `client:${clientId}`, integration_type: "facebook_insights" },
+      table: {
+        id: `client:${clientId}`,
+        integration_type: "facebook_insights",
+      },
     };
+  }
   return null;
 }
 
@@ -5486,7 +5489,9 @@ async function fbLiveCampaignInsights(
       clientId,
     );
     const token = await fbGetToken(supabase, tenantId);
-    if (!report || !token) return null;
+    if (!report || !token) {
+      return null;
+    }
     const rows = await readCampaignDays(
       `act_${report.account}`,
       liveCampaignWindow(days, new Date()),
@@ -7155,18 +7160,8 @@ async function executeTool(
         sinceYmd: sinceDateStr,
         tenantIds: accessibleTenantIds,
       });
-      const { data: goalTables, error: goalTablesErr } = await supabase
-        .from("crm_tables")
-        .select("id, integration_type, integration_settings, category")
-        .in("id", tableIds);
-      if (goalTablesErr) throw goalTablesErr;
-      const rows = storedCampaignRows(
-        records,
-        (goalTables || []).map((t) => ({
-          ...t,
-          integration_settings: jsonObject(t.integration_settings),
-        })),
-      );
+      const goalTables = await readCampaignGoalTables(supabase, tableIds);
+      const rows = storedCampaignRows(records, [...goalTables.values()]);
       return {
         count: rows.length,
         campaigns: rows,
@@ -8195,22 +8190,12 @@ async function executeTool(
       }
       // Each table's goal settings: the reports judge a campaign by its table.
       const campaignTableIds = (campaignTables || []).map(
-        (t: any) => t.table_id,
+        (t: { table_id: string }) => t.table_id,
       );
-      const goalTableById = new Map<string, CampaignGoalTable>();
-      if (campaignTableIds.length > 0) {
-        const { data: goalTables, error: goalTablesErr } = await supabase
-          .from("crm_tables")
-          .select("id, integration_type, integration_settings, category")
-          .in("id", campaignTableIds);
-        if (goalTablesErr) throw goalTablesErr;
-        for (const t of goalTables || []) {
-          goalTableById.set(t.id, {
-            ...t,
-            integration_settings: jsonObject(t.integration_settings),
-          });
-        }
-      }
+      const goalTableById = await readCampaignGoalTables(
+        supabase,
+        campaignTableIds,
+      );
 
       // 3. Compute metrics for each client that has tables
       const now = new Date();
@@ -8235,10 +8220,12 @@ async function executeTool(
           continue;
         }
 
-        const tableIds: string[] = tables.map((t: any) => t.table_id);
+        const tableIds: Array<string> = tables.map(
+          (t: { table_id: string }) => t.table_id,
+        );
         // Campaign-level rows only, as the reports count them (ad set and ad
         // rows repeat the campaign's spend and results), paged past 1000 rows.
-        let records: CampaignGoalRecord[];
+        let records: Array<CampaignGoalRecord>;
         try {
           records = await fetchCampaignLevelRecords(supabase, {
             tableIds,
