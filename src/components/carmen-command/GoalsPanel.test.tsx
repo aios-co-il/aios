@@ -45,6 +45,8 @@ const goal: ExecutionGoal = {
   execution_mode: true,
   autonomous_mode: true,
   engine_status: "PLANNING",
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
 };
 
 describe("GoalsPanel selected-goal actions", () => {
