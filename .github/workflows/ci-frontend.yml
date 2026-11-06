@@ -27,13 +27,14 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      code: ${{ steps.exclusions.outputs.code || 'true' }}
-      frontend: ${{ steps.exclusions.outputs.frontend || 'true' }}
-      functions: ${{ steps.areas.outputs.functions || 'true' }}
-      mirror: ${{ steps.areas.outputs.mirror || 'true' }}
-      rules: ${{ steps.areas.outputs.rules || 'true' }}
-      supabase-types: ${{ steps.areas.outputs.supabase-types || 'true' }}
-      worker: ${{ steps.areas.outputs.worker || 'true' }}
+      # A PR over GitHub's 3000-file listing cap may be truncated, so it runs everything.
+      code: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.exclusions.outputs.code || 'true' }}
+      frontend: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.exclusions.outputs.frontend || 'true' }}
+      functions: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.functions || 'true' }}
+      mirror: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.mirror || 'true' }}
+      rules: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.rules || 'true' }}
+      supabase-types: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.supabase-types || 'true' }}
+      worker: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.worker || 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:

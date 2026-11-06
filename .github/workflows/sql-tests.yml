@@ -26,7 +26,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      sql: ${{ steps.filter.outputs.sql || 'true' }}
+      # A PR over GitHub's 3000-file listing cap may be truncated, so it runs everything.
+      sql: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.filter.outputs.sql || 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,7 +47,8 @@ jobs:
 
   sql-tests:
     needs: sql-changes
-    if: needs.sql-changes.outputs.sql == 'true'
+    # always() so a failed detection job runs the tests instead of skipping this required check.
+    if: always() && (needs.sql-changes.result != 'success' || needs.sql-changes.outputs.sql == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
