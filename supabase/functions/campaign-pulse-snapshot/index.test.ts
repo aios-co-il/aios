@@ -47,6 +47,20 @@ Deno.test("campaign-pulse-snapshot wiring", async (t) => {
   );
 
   await t.step(
+    "the client goal mode comes from its campaigns' report goals (AIO-494)",
+    () => {
+      assertMatch(
+        source,
+        /const goalMode = clientGoalModeOf\(\{\s*records,\s*goalOf: \(row: any\) => verdictOf\(row\)\?\.goal,\s*tables: activeTables,\s*sinceYmd: windows\.recent30Start,/,
+      );
+      assertMatch(
+        source,
+        /goalTables\(\s*activeTables,\s*"ecommerce",\s*ecommerceRecords,?\s*\)/,
+      );
+    },
+  );
+
+  await t.step(
     "warns about an unreachable list only on a run that reports",
     () => {
       assertMatch(

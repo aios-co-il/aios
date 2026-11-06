@@ -10,12 +10,14 @@ import {
   countStoppedCampaignsByClient,
   computeGoalMetricsFromRecords,
   detectCampaignGoalMode,
+  goalTables,
   isPulseDeliveryExcludedPhone,
   reportTableGoal,
   selectPulseCriticalAlerts,
   tableMatchesServices,
   worstPulseStatus,
 } from "../_shared/campaign-pulse.ts";
+import { clientGoalModeOf } from "../_shared/campaign-goal/client-goal-mode.ts";
 import { resolveNoRecentClientCall } from "../_shared/pulse/client-call.ts";
 import {
   cachedLastMetaActivity,
@@ -519,7 +521,14 @@ Deno.serve(async (req) => {
           (row: any) =>
             row.data?.date && row.data.date >= windows.recent30Start,
         );
-        const goalMode = detectCampaignGoalMode(activeTables);
+        // Which goals the client's running campaigns have in their reports
+        // (David, AIO-494): one sales campaign makes its ROAS count.
+        const goalMode = clientGoalModeOf({
+          records,
+          goalOf: (row: any) => verdictOf(row)?.goal,
+          tables: activeTables,
+          sinceYmd: windows.recent30Start,
+        });
         const leadMetrics = computeGoalMetricsFromRecords(
           recordsThrough(leadRecords, windows.end),
           "leads",
@@ -561,17 +570,19 @@ Deno.serve(async (req) => {
           now.getTime(),
         );
         const stoppedCount = stoppedByClient.get(client.id) || 0;
-        const leadTables = activeTables.filter(
-          (table: any) => reportTableGoal(table) === "leads",
-        );
-        const ecommerceTables = activeTables.filter(
-          (table: any) => reportTableGoal(table) === "ecommerce",
+        const leadTables = goalTables(activeTables, "leads", leadRecords);
+        const ecommerceTables = goalTables(
+          activeTables,
+          "ecommerce",
+          ecommerceRecords,
         );
         const leadClassification = classifyCampaignPulseStatus({
           activeTables: leadTables,
-          hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) => reportTableGoal(table) === "leads",
-          ),
+          hasConfiguredCampaignTable:
+            leadTables.length > 0 ||
+            configuredForClient.some(
+              (table: any) => reportTableGoal(table) === "leads",
+            ),
           recentRecordCount: leadRecords.filter(
             (row: any) =>
               row.data?.date && row.data.date >= windows.recent30Start,
@@ -587,9 +598,11 @@ Deno.serve(async (req) => {
         });
         const ecommerceClassification = classifyCampaignPulseStatus({
           activeTables: ecommerceTables,
-          hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) => reportTableGoal(table) === "ecommerce",
-          ),
+          hasConfiguredCampaignTable:
+            ecommerceTables.length > 0 ||
+            configuredForClient.some(
+              (table: any) => reportTableGoal(table) === "ecommerce",
+            ),
           recentRecordCount: ecommerceRecords.filter(
             (row: any) =>
               row.data?.date && row.data.date >= windows.recent30Start,

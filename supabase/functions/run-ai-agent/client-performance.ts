@@ -8,7 +8,7 @@ import {
   reportCampaignGoalOf,
   type CampaignGoalRecord,
 } from "../_shared/campaign-goal/campaign-goals.ts";
-import { reportTableGoal } from "../_shared/campaign-goal/table-goal.ts";
+import { clientGoalModeOf } from "../_shared/campaign-goal/client-goal-mode.ts";
 import type { ReportGoalTable } from "./goal-tables.ts";
 import { reportWindowTotals } from "./report-window-totals.ts";
 
@@ -21,9 +21,9 @@ export type PerformanceClient = {
 
 /**
  * One synced client's entry. `records` are its campaign-level rows of the last
- * 30 days; `d7Str` starts the 7-day window. A client is ecommerce when one of
- * its report tables is an ecommerce report (reportTableGoal), as the pulse
- * snapshot sets `is_ecommerce`, so both tools agree (AIO-489).
+ * 30 days; `d7Str` starts the 7-day window. A client is ecommerce when a
+ * sales campaign of its spent in those days (clientGoalModeOf), as the pulse
+ * snapshot sets `is_ecommerce`, so both tools agree (AIO-494).
  */
 export function clientPerformanceEntry(input: {
   client: PerformanceClient;
@@ -78,11 +78,13 @@ export function clientPerformanceEntry(input: {
       )
     : null;
 
-  // Switched-off tables do not count, as detectCampaignGoalMode skips them.
-  const isEcom = input.tables.some(
-    (table) =>
-      table.campaign_active !== false && reportTableGoal(table) === "ecommerce",
-  );
+  const isEcom =
+    clientGoalModeOf({
+      records,
+      goalOf: (record) => verdictOf(record)?.goal,
+      tables: input.tables,
+      sinceYmd: "",
+    }) !== "leads";
   const ecomAlert =
     roas7 !== null && roas7 < 1
       ? "🔴 ROAS<1 הפסד"
