@@ -23,9 +23,7 @@ describe("EvalsTab tenant readiness", () => {
         screen.getByPlaceholderText("לדוגמה: זיהוי לקוחות בסיכון"),
         "Quality",
       );
-      await user.click(
-        screen.getByRole("button", { name: "צור" }),
-      );
+      await user.click(screen.getByRole("button", { name: "צור" }));
       if (!tenantId) {
         await waitFor(() =>
           expect(toast.error).toHaveBeenCalledWith("לא נבחר ארגון (tenant)"),

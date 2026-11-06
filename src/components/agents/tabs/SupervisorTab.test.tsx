@@ -32,9 +32,7 @@ describe("SupervisorTab child tenant readiness", () => {
           <SupervisorTab agent={{ id: "agent-a", name: "Supervisor" }} />,
         ),
       );
-      await user.click(
-        screen.getByRole("button", { name: "הוסף" }),
-      );
+      await user.click(screen.getByRole("button", { name: "הוסף" }));
       if (!tenantId) {
         await waitFor(() =>
           expect(toast.error).toHaveBeenCalledWith("לא נבחר ארגון (tenant)"),
