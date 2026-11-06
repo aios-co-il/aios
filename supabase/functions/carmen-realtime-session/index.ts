@@ -14,6 +14,13 @@ import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 import { loadVoiceAgent } from "./agent-profile.ts";
 import { chooseRealtimeVoice } from "./voice-choice.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
+import {
+  loadPronunciations,
+  pronunciationInstructions,
+  SAVE_PRONUNCIATION_TOOL,
+} from "./pronunciations.ts";
+import { loadOrgBrief } from "./org-brief.ts";
+import { orgBriefInstructions } from "./org-brief-text.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,7 +121,14 @@ Deno.serve(async (req) => {
     const { voice, tenant_id } = await req
       .json()
       .catch(() => ({}) as Record<string, unknown>);
-    const agent = await loadVoiceAgent(serviceClient(), caller.id, tenant_id);
+    const db = serviceClient();
+    const agent = await loadVoiceAgent(db, caller.id, tenant_id);
+    const [pronunciations, orgBrief] = agent
+      ? await Promise.all([
+          loadPronunciations(db, agent.tenantId),
+          loadOrgBrief(db, agent.tenantId),
+        ])
+      : [[], null];
     const selectedVoice = chooseRealtimeVoice(voice, agent?.voice ?? null);
 
     const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -128,10 +142,13 @@ Deno.serve(async (req) => {
         session: {
           type: "realtime",
           model: REALTIME_MODEL,
-          instructions: buildVoiceInstructions(
-            agent?.profile ?? null,
-            addressLine,
-          ),
+          instructions: [
+            buildVoiceInstructions(agent?.profile ?? null, addressLine),
+            orgBrief ? orgBriefInstructions(orgBrief) : "",
+            pronunciationInstructions(pronunciations),
+          ]
+            .filter(Boolean)
+            .join("\n"),
           audio: {
             input: {
               transcription: {
@@ -162,6 +179,7 @@ Deno.serve(async (req) => {
                 required: ["question"],
               },
             },
+            SAVE_PRONUNCIATION_TOOL,
           ],
           tool_choice: "auto",
         },
