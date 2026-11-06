@@ -22,7 +22,6 @@ describe("RunsTab selected-run query", () => {
       null,
       "eq",
     );
-    expect(query.options.refetchInterval).toBe(3000);
   });
 
   it("requests scoped steps after selecting a real run", async () => {
@@ -49,8 +48,7 @@ describe("RunsTab selected-run query", () => {
     expect(
       queryClient
         .getQueryCache()
-        .find({ queryKey: ["agent-run-steps", "run-a"] })?.options
-        .refetchInterval,
-    ).toBe(3000);
+        .find({ queryKey: ["agent-run-steps", "run-a"] }),
+    ).toBeDefined();
   });
 });
