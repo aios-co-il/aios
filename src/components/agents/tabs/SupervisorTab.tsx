@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,15 +31,16 @@ export function SupervisorTab({ agent }: { agent: any }) {
 
   const { data: allAgents } = useQuery({
     queryKey: ["ai-agents", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_agents")
-        .select("id, name, talent")
-        .filter("tenant_id", "eq", tenantId)
-        .neq("id", agent.id);
-      return data ?? [];
-    },
-    enabled: !!tenantId,
+    queryFn: tenantId
+      ? async () => {
+          const { data } = await supabase
+            .from("ai_agents")
+            .select("id, name, talent")
+            .filter("tenant_id", "eq", tenantId)
+            .neq("id", agent.id);
+          return data ?? [];
+        }
+      : skipToken,
   });
 
   const { data: links } = useQuery({
