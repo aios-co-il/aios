@@ -205,7 +205,7 @@ function pulseVerdicts(): Map<string, Verdict> {
 describe("the pulse judges each campaign as the report shows it", () => {
   it("gives every Meta and Google campaign the report's goal and result count", () => {
     const report = reportVerdicts();
-    expect(report.size).toBeGreaterThan(15);
+    expect(report.size).toBe(21);
     expect(Object.fromEntries(pulseVerdicts())).toEqual(
       Object.fromEntries(report),
     );
