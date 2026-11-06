@@ -39,4 +39,14 @@ describe("PulseTrafficMetrics", () => {
     expect(screen.getByText("—")).toBeTruthy();
     expect(screen.queryByText(/עוקבים חדשים/)).toBeNull();
   });
+
+  it("shows nothing for a snapshot stored before these metrics", () => {
+    const { container } = render(
+      <PulseTrafficMetrics
+        row={{ outcome_kind: "link_clicks" }}
+        formatNumber={formatNumber}
+      />,
+    );
+    expect(container.textContent).toBe("");
+  });
 });

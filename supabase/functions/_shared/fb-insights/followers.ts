@@ -18,6 +18,38 @@ export function countNewFollowers(
   );
 }
 
+/**
+ * A campaign or row that sends people to a Facebook Page or Instagram profile:
+ * by its ad set destination, or, for rows synced before destination_type was
+ * stored, by its optimization goal. Shared by the sync and the reports.
+ */
+export function isProfileTraffic(
+  destinationType: unknown,
+  optimizationGoal: unknown,
+): boolean {
+  return (
+    PROFILE_DESTINATION_TYPES.has(String(destinationType ?? "")) ||
+    PROFILE_OPTIMIZATION_GOALS.has(String(optimizationGoal ?? ""))
+  );
+}
+
+/** Ad set destinations of Meta's profile visit ads (Traffic objective). */
+const PROFILE_DESTINATION_TYPES = new Set([
+  "FACEBOOK_PAGE",
+  "INSTAGRAM_PROFILE",
+  "INSTAGRAM_PROFILE_AND_FACEBOOK_PAGE",
+]);
+
+/**
+ * Optimization goals of profile visit ads. Meta's profile visit ad guides set
+ * PROFILE_VISIT on Traffic campaigns; its field catalog lists
+ * VISIT_INSTAGRAM_PROFILE ("Instagram profile visits").
+ */
+const PROFILE_OPTIMIZATION_GOALS = new Set([
+  "PROFILE_VISIT",
+  "VISIT_INSTAGRAM_PROFILE",
+]);
+
 /** Column name of the stored follower count, shared by the sync and the reports. */
 export const NEW_FOLLOWERS_LABEL = "עוקבים חדשים";
 

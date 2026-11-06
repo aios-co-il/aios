@@ -77,12 +77,15 @@ export type PulseCampaignGoalRow = {
   trend_3d_pct: number | null;
   trend_7d_pct: number | null;
   impressions_7d: number;
-  /** Link clicks (all clicks on rows without them) over the last 7 full days. */
-  clicks_7d: number;
+  /**
+   * Link clicks (all clicks on rows without them) over the last 7 full days.
+   * This and the two below are absent on snapshots stored before they existed.
+   */
+  clicks_7d?: number;
   /** Clicks per 100 impressions; null without impressions. */
-  ctr_7d: number | null;
+  ctr_7d?: number | null;
   /** Ad-attributed Page and Instagram follows; null when no row carries a count. */
-  new_followers_7d: number | null;
+  new_followers_7d?: number | null;
   reach_7d: number;
   frequency_7d: number | null;
   spend_today: number;

@@ -25,9 +25,10 @@ type InsightsPage = {
 };
 
 /**
- * Read Instagram follows per entity and day in its own request, so a Graph
- * error here never fails the insights sync. On an error the read is logged and
- * returns no follows; rows then keep the follows found in `actions`.
+ * Read Instagram follows per entity and day of `campaignIds` in its own
+ * request, so a Graph error here never fails the insights sync. Without
+ * campaigns it makes no request. On an error the read is logged and returns no
+ * follows; rows then keep the follows found in `actions`.
  */
 export async function fetchInstagramFollows(
   adAccountId: string,
@@ -35,13 +36,23 @@ export async function fetchInstagramFollows(
   sinceStr: string,
   untilStr: string,
   accessToken: string,
+  campaignIds: Array<string>,
   fetchPage: typeof fetch = fetch,
 ): Promise<InstagramFollows> {
   const follows: InstagramFollows = new Map();
+  if (campaignIds.length === 0) {
+    return follows;
+  }
+  const filtering = encodeURIComponent(
+    JSON.stringify([
+      { field: "campaign.id", operator: "IN", value: campaignIds },
+    ]),
+  );
   let next: string | null =
     `https://graph.facebook.com/${INSTAGRAM_FOLLOWS_GRAPH_VERSION}/${adAccountId}/insights?level=${level}` +
     `&fields=${ENTITY_ID_FIELD[level]},${INSTAGRAM_FOLLOWS_FIELD}` +
     `&time_range={"since":"${sinceStr}","until":"${untilStr}"}` +
+    `&filtering=${filtering}` +
     "&time_increment=1&use_unified_attribution_setting=true&limit=500" +
     `&access_token=${accessToken}`;
   try {

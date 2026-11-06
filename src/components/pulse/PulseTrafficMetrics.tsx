@@ -13,8 +13,14 @@ type Props = {
  * Clicks, CTR and new followers of a traffic or engagement campaign in the
  * pulse check, beside its impressions. Clicks are left out when they already
  * are the campaign's outcome, and followers until a synced row counts them.
+ * A snapshot stored before these metrics existed shows none of them.
  */
 export function PulseTrafficMetrics({ row, formatNumber }: Props) {
+  if (row.clicks_7d === undefined) {
+    return null;
+  }
+  const ctr = row.ctr_7d ?? null;
+  const newFollowers = row.new_followers_7d ?? null;
   const clicksAreOutcome =
     row.outcome_kind === "link_clicks" || row.outcome_kind === "clicks";
   return (
@@ -27,14 +33,14 @@ export function PulseTrafficMetrics({ row, formatNumber }: Props) {
       )}
       <div>
         <span className="text-muted-foreground">CTR: </span>
-        <strong>{row.ctr_7d === null ? "—" : `${row.ctr_7d}%`}</strong>
+        <strong>{ctr === null ? "—" : `${ctr}%`}</strong>
       </div>
-      {row.new_followers_7d !== null && (
+      {newFollowers !== null && (
         <div>
           <span className="text-muted-foreground">
             {FOLLOWER_COLUMN_LABELS.newFollowers}:{" "}
           </span>
-          <strong>{formatNumber(row.new_followers_7d)}</strong>
+          <strong>{formatNumber(newFollowers)}</strong>
         </div>
       )}
     </>

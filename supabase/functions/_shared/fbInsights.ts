@@ -22,6 +22,7 @@ import {
 import {
   NEW_FOLLOWERS_LABEL,
   countNewFollowers,
+  isProfileTraffic,
 } from "./fb-insights/followers.ts";
 import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
 import {
@@ -1070,6 +1071,10 @@ export async function buildAllLevelInsightRecords(
     ad: 0,
   };
   const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
+  const profileCampaignIds = profileTrafficCampaignIds(
+    destinationTypes,
+    optimizationGoalsByCampaign,
+  );
 
   for (const level of ADS_LEVELS) {
     try {
@@ -1086,6 +1091,7 @@ export async function buildAllLevelInsightRecords(
         sinceStr,
         untilStr,
         accessToken,
+        profileCampaignIds,
       );
       for (const insight of raw) {
         allRows.push(
@@ -1114,6 +1120,26 @@ export async function buildAllLevelInsightRecords(
   }
 
   return { records: allRows, levelCounts, levelErrors };
+}
+
+/**
+ * Campaigns that send people to a Page or Instagram profile: the only ones
+ * whose follows the reports price, so the only ones the follows read asks for.
+ */
+function profileTrafficCampaignIds(
+  destinationTypes: DestinationTypeMaps,
+  optimizationGoalsByCampaign: Record<string, string>,
+): Array<string> {
+  const campaignIds = new Set([
+    ...Object.keys(destinationTypes.byCampaign),
+    ...Object.keys(optimizationGoalsByCampaign),
+  ]);
+  return [...campaignIds].filter((id) =>
+    isProfileTraffic(
+      destinationTypes.byCampaign[id],
+      optimizationGoalsByCampaign[id],
+    ),
+  );
 }
 
 export type LastMetaActivity = {

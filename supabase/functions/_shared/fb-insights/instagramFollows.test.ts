@@ -93,6 +93,46 @@ Deno.test("Instagram follows in the insights sync", async (t) => {
 });
 
 Deno.test("fetchInstagramFollows", async (t) => {
+  await t.step("asks Meta nothing without profile campaigns", async () => {
+    let requests = 0;
+    const fetchPage: typeof fetch = () => {
+      requests += 1;
+      return Promise.resolve(new Response("{}"));
+    };
+    const follows = await fetchInstagramFollows(
+      "act_1",
+      "campaign",
+      "2026-11-01",
+      "2026-11-02",
+      "token",
+      [],
+      fetchPage,
+    );
+    assertEquals(follows.size, 0);
+    assertEquals(requests, 0);
+  });
+
+  await t.step("asks only for the given campaigns", async () => {
+    const urls: Array<string> = [];
+    const fetchPage: typeof fetch = (input) => {
+      urls.push(String(input));
+      return Promise.resolve(new Response(JSON.stringify({ data: [] })));
+    };
+    await fetchInstagramFollows(
+      "act_1",
+      "campaign",
+      "2026-11-01",
+      "2026-11-02",
+      "token",
+      ["c1", "c2"],
+      fetchPage,
+    );
+    const filtering = new URL(urls[0]).searchParams.get("filtering");
+    assertEquals(JSON.parse(filtering ?? "[]"), [
+      { field: "campaign.id", operator: "IN", value: ["c1", "c2"] },
+    ]);
+  });
+
   await t.step("keys follows by entity and day across pages", async () => {
     const pages: Record<string, unknown> = {
       first: {
@@ -132,6 +172,7 @@ Deno.test("fetchInstagramFollows", async (t) => {
       "2026-11-01",
       "2026-11-02",
       "token",
+      ["c1"],
       fetchPage,
     );
     assertEquals(
