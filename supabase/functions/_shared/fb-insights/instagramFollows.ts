@@ -3,8 +3,11 @@ import type { AdsEntityLevel } from "../ads-sync/levels.ts";
 /**
  * Ads Manager's "Instagram follows" column. Meta reports it as its own
  * insights metric, not inside `actions`, so the main insights read misses it.
+ * Graph accepts `instagram_profile_follow_v2` too but returns nothing for it;
+ * this field returns Ads Manager's number (161 follows on a profile visit ad
+ * set, checked against Ads Manager on 2026-11-06).
  */
-export const INSTAGRAM_FOLLOWS_FIELD = "instagram_profile_follow_v2";
+export const INSTAGRAM_FOLLOWS_FIELD = "instagram_profile_follow";
 
 /**
  * The metric dates from July 2025, after the v21.0 the main insights read

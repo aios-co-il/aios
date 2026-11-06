@@ -21,12 +21,15 @@ const insightRow = {
 
 /**
  * Graph responses: the main insights read returns `insightRow` without
- * follows; the Instagram follows read returns `follows` (or an error).
+ * follows; a read that asks for Meta's `instagram_profile_follow` field
+ * returns `follows` (or an error). Meta accepts `instagram_profile_follow_v2`
+ * but returns no value for it, so a read asking only for that gets no follows.
  */
 function graph(follows: unknown): typeof fetch {
   return async (input) => {
     const url = String(input);
-    if (url.includes(INSTAGRAM_FOLLOWS_FIELD)) {
+    const fields = new URL(url).searchParams.get("fields")?.split(",") ?? [];
+    if (fields.includes("instagram_profile_follow")) {
       return new Response(JSON.stringify(follows));
     }
     const level = url.match(/level=(\w+)/)?.[1];
@@ -68,7 +71,7 @@ Deno.test("Instagram follows in the insights sync", async (t) => {
             {
               campaign_id: CAMPAIGN,
               date_start: "2026-11-01",
-              [INSTAGRAM_FOLLOWS_FIELD]: "12",
+              instagram_profile_follow: "12",
             },
           ],
         }),
@@ -90,6 +93,62 @@ Deno.test("Instagram follows in the insights sync", async (t) => {
       assertEquals(records[0].new_followers, 0);
     },
   );
+});
+
+Deno.test("Instagram follows per ad set and per campaign", async () => {
+  // Two ad sets of one profile visit campaign on one day; Meta reports each
+  // ad set's own follows and the campaign's total (205 + 161).
+  const adsetRow = (adsetId: string, name: string) => ({
+    ...insightRow,
+    adset_id: adsetId,
+    adset_name: name,
+  });
+  const mainRows: Record<string, unknown[]> = {
+    campaign: [insightRow],
+    adset: [adsetRow("a1", "Inheritance"), adsetRow("a2", "Bank account")],
+    ad: [],
+  };
+  const followRows: Record<string, unknown[]> = {
+    campaign: [
+      {
+        campaign_id: CAMPAIGN,
+        date_start: "2026-11-01",
+        instagram_profile_follow: "366",
+      },
+    ],
+    adset: [
+      {
+        adset_id: "a1",
+        date_start: "2026-11-01",
+        instagram_profile_follow: "205",
+      },
+      {
+        adset_id: "a2",
+        date_start: "2026-11-01",
+        instagram_profile_follow: "161",
+      },
+    ],
+    ad: [],
+  };
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    const level = url.searchParams.get("level") ?? "";
+    const fields = url.searchParams.get("fields")?.split(",") ?? [];
+    const data = fields.includes("instagram_profile_follow")
+      ? followRows[level]
+      : mainRows[level];
+    return new Response(JSON.stringify({ data: data ?? [] }));
+  };
+  const { records } = await syncedCampaignRows(fetchImpl);
+  const followersOf = (level: string, id: string) =>
+    records.find(
+      (row) =>
+        row.entity_level === level &&
+        (level === "adset" ? row.adset_id === id : row.campaign_id === id),
+    )?.new_followers;
+  assertEquals(followersOf("adset", "a1"), 205);
+  assertEquals(followersOf("adset", "a2"), 161);
+  assertEquals(followersOf("campaign", CAMPAIGN), 366);
 });
 
 Deno.test("fetchInstagramFollows", async (t) => {
