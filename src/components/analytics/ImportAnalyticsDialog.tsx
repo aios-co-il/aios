@@ -236,14 +236,13 @@ export function ImportAnalyticsDialog({
       for (const row of parsedData) {
         try {
           // Parse the date
-          let parsedDate: Date;
+          let parsedDate: Date | undefined;
           const dateFormats = [
             /(\d{4})-(\d{2})-(\d{2})/, // 2024-01-01
             /(\d{2})\/(\d{2})\/(\d{4})/, // 01/01/2024
             /(\d{2})\/(\d{2})\/(\d{2})/, // 01/01/24
           ];
 
-          let matched = false;
           for (const fmt of dateFormats) {
             const match = row.date.match(fmt);
             if (match) {
@@ -267,12 +266,11 @@ export function ImportAnalyticsDialog({
                   parseInt(match[1]),
                 );
               }
-              matched = true;
               break;
             }
           }
 
-          if (!matched) {
+          if (!parsedDate) {
             errors.push(`Invalid date format: ${row.date}`);
             continue;
           }
