@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Crown, Trash2, Plus, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 
 export function SupervisorTab({ agent }: { agent: any }) {
   const qc = useQueryClient();
@@ -54,8 +55,9 @@ export function SupervisorTab({ agent }: { agent: any }) {
   const addChild = useMutation({
     mutationFn: async () => {
       if (!childId) throw new Error("בחר סוכן");
+      const writeTenantId = requireTenantId(tenantId);
       const { error } = await supabase.from("agent_supervisors").insert({
-        tenant_id: tenantId,
+        tenant_id: writeTenantId,
         supervisor_agent_id: agent.id,
         child_agent_id: childId,
         routing_hint: hint || null,

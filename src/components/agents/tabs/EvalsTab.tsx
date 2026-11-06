@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 
 export function EvalsTab({ agent }: { agent: any }) {
   const qc = useQueryClient();
@@ -67,6 +68,7 @@ export function EvalsTab({ agent }: { agent: any }) {
 
   const createEval = useMutation({
     mutationFn: async () => {
+      const writeTenantId = requireTenantId(tenantId);
       let dataset: any;
       try {
         dataset = JSON.parse(datasetStr);
@@ -75,7 +77,7 @@ export function EvalsTab({ agent }: { agent: any }) {
       }
       if (!Array.isArray(dataset)) throw new Error("ה-dataset חייב להיות מערך");
       const { error } = await supabase.from("agent_evals").insert({
-        tenant_id: tenantId,
+        tenant_id: writeTenantId,
         agent_id: agent.id,
         name,
         dataset,

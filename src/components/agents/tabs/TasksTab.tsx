@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -129,12 +130,13 @@ export function TasksTab({
   });
   const testReminder = useMutation({
     mutationFn: async () => {
+      const writeTenantId = requireTenantId(tenantId);
       const when = new Date(Date.now() + 2 * 60 * 1000).toISOString();
       const {
         data: { user },
       } = await supabase.auth.getUser();
       const { error } = await supabase.from("agent_tasks").insert({
-        tenant_id: tenantId,
+        tenant_id: writeTenantId,
         agent_id: agent.id,
         title: "🧪 בדיקת תזכורת (2 דקות)",
         description:
