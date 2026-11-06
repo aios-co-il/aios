@@ -151,13 +151,6 @@
       "count": 1
     },
     {
-      "file": "src/components/telephony/CallHistoryTab.tsx",
-      "code": 18047,
-      "message": "'log.duration' is possibly 'null'.",
-      "source": "log.duration",
-      "count": 1
-    },
-    {
       "file": "src/components/ui/slider.tsx",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
