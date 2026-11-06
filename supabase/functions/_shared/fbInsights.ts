@@ -24,6 +24,11 @@ import {
   countNewFollowers,
 } from "./fb-insights/followers.ts";
 import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
+import {
+  fetchInstagramFollows,
+  INSTAGRAM_FOLLOWS_FIELD,
+  instagramFollowsKey,
+} from "./fb-insights/instagramFollows.ts";
 
 export interface CampaignStatus {
   id: string;
@@ -987,7 +992,10 @@ export function buildInsightRecord(
     campaign_objective: campaignStatus?.objective || null,
     optimization_goal: optimizationGoal,
     campaign_type: campaignType,
-    new_followers: countNewFollowers(sumByTypes),
+    new_followers: countNewFollowers(
+      sumByTypes,
+      Number(insight[INSTAGRAM_FOLLOWS_FIELD]) || 0,
+    ),
     destination_type: resolveDestinationType(insight, destinationTypes),
     effective_status: campaignStatus?.effective_status || null,
     configured_status: campaignStatus?.configured_status || null,
@@ -1072,10 +1080,22 @@ export async function buildAllLevelInsightRecords(
         untilStr,
         accessToken,
       );
+      const instagramFollows = await fetchInstagramFollows(
+        adAccountId,
+        level,
+        sinceStr,
+        untilStr,
+        accessToken,
+      );
       for (const insight of raw) {
         allRows.push(
           buildInsightRecord(
-            insight,
+            {
+              ...insight,
+              [INSTAGRAM_FOLLOWS_FIELD]: instagramFollows.get(
+                instagramFollowsKey(level, insight),
+              ),
+            },
             campaignStatuses,
             resultLeadTypesByCampaign,
             optimizationGoalsByCampaign,
