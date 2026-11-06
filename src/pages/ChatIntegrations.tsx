@@ -56,7 +56,7 @@ export default function ChatIntegrations() {
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .eq("integration_type", "manychat")
         .maybeSingle();
 
@@ -75,7 +75,7 @@ export default function ChatIntegrations() {
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .eq("user_id", userId)
         .eq("integration_type", "green_api")
         .maybeSingle();
@@ -94,7 +94,7 @@ export default function ChatIntegrations() {
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .eq("user_id", userId)
         .eq("integration_type", "manus_wa")
         .maybeSingle();
@@ -110,7 +110,7 @@ export default function ChatIntegrations() {
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("id,user_id,display_name,is_active,settings")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .eq("integration_type", "meta_whatsapp")
         .order("created_at")
         .limit(1);
@@ -157,7 +157,11 @@ export default function ChatIntegrations() {
 
       // Get owner profiles
       const ownerIds = [
-        ...new Set(integrations.map((i) => i.user_id).filter(Boolean)),
+        ...new Set(
+          integrations
+            .map((i) => i.user_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
       ];
       if (ownerIds.length === 0)
         return integrations.map((i) => ({ ...i, owner_profile: null }));
@@ -426,6 +430,7 @@ export default function ChatIntegrations() {
         {providers.map((provider) => {
           const Icon = provider.icon;
           const isActive = provider.status === "active";
+          const integration = provider.integration;
 
           return (
             <Card key={provider.id} className="relative overflow-hidden">
@@ -528,14 +533,14 @@ export default function ChatIntegrations() {
                       {provider.hasApiKey ? "ניהול הגדרות" : "הגדר עכשיו"}
                     </Button>
 
-                    {provider.hasApiKey && provider.integration && (
+                    {provider.hasApiKey && integration && (
                       <Button
                         onClick={() =>
                           setPermissionsDialog({
                             open: true,
-                            integrationId: provider.integration.id,
+                            integrationId: integration.id,
                             integrationName: provider.name,
-                            integrationOwnerId: provider.integration.user_id,
+                            integrationOwnerId: integration.user_id,
                           })
                         }
                         variant="outline"
