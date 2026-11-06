@@ -1,11 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { serviceClient } from "../_shared/supabase-clients.ts";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { CALLER_TABLE_COLUMNS, readCallerTable } from "./caller-table.ts";
 import {
   fetchCampaignLevelRecords,
   type CrmRecordRow,
   type RecordsClient,
 } from "../_shared/ads-sync/campaign-records.ts";
-import { isRecord } from "../_shared/ads-sync/is-record.ts";
 import { eventPeriodWindows } from "./event-windows.ts";
 import { analyzePeriods } from "./periods.ts";
 
@@ -40,22 +40,30 @@ serve(async (req) => {
       );
     }
 
-    const supabase = serviceClient();
-
-    const windows = eventPeriodWindows(eventDates, daysBeforeEvent, new Date());
-
-    const { data: table, error: tableError } = await supabase
-      .from("crm_tables")
-      .select("id, integration_type, integration_settings, category")
-      .eq("id", tableId)
-      .maybeSingle();
-    if (tableError) {
-      console.error("Error fetching table:", tableError);
-      return new Response(JSON.stringify({ error: "Failed to fetch table" }), {
-        status: 500,
+    // The caller must be able to open the table (RLS) before the service
+    // client reads its rows (AIO-495).
+    const callerDb = userClient(req.headers.get("Authorization") ?? "");
+    const callerTable = await readCallerTable(
+      (id) =>
+        callerDb
+          .from("crm_tables")
+          .select(CALLER_TABLE_COLUMNS)
+          .eq("id", id)
+          .maybeSingle(),
+      tableId,
+    );
+    if (!callerTable.ok) {
+      return new Response(JSON.stringify({ error: callerTable.error }), {
+        status: callerTable.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const table = callerTable.table;
+    // The rows belong to the table the caller may open, so they are read by
+    // table_id; their tenant_id can differ (the sync sweeps shared tenants).
+    const supabase = serviceClient();
+
+    const windows = eventPeriodWindows(eventDates, daysBeforeEvent, new Date());
 
     // Campaign-level rows of the event windows, as the reports count them
     // (ad set and ad rows repeat the campaign's spend and results), paged.
@@ -86,11 +94,21 @@ serve(async (req) => {
     }
 
     if (records.length === 0) {
-      const { data: anyRecord } = await supabase
+      const { data: anyRecord, error: probeError } = await supabase
         .from("crm_records")
         .select("id")
         .eq("table_id", tableId)
         .limit(1);
+      if (probeError) {
+        console.error("Error probing records:", probeError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch records" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
       if (!anyRecord || anyRecord.length === 0) {
         return new Response(
           JSON.stringify({ error: "No records found for this table" }),
@@ -104,14 +122,7 @@ serve(async (req) => {
 
     const { eventPeriods, campaignPeriodData } = analyzePeriods({
       records,
-      table: table
-        ? {
-            ...table,
-            integration_settings: isRecord(table.integration_settings)
-              ? table.integration_settings
-              : null,
-          }
-        : null,
+      table,
       windows,
       campaignFilter,
       byCampaign: analysisType === "raw_table",
