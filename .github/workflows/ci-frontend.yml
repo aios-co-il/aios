@@ -31,7 +31,8 @@ jobs:
       frontend: ${{ steps.exclusions.outputs.frontend || 'true' }}
       functions: ${{ steps.areas.outputs.functions || 'true' }}
       mirror: ${{ steps.areas.outputs.mirror || 'true' }}
-      types: ${{ steps.areas.outputs.types || 'true' }}
+      supabase-types: ${{ steps.areas.outputs.supabase-types || 'true' }}
+      worker: ${{ steps.areas.outputs.worker || 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,11 +71,15 @@ jobs:
               - "supabase/functions/**"
               - ".github/workflows/ci-frontend.yml"
               - ".github/actions/**"
-            types:
+            worker:
+              - "render-worker/**"
+              - ".github/workflows/ci-frontend.yml"
+              - ".github/actions/**"
+            supabase-types:
               - "supabase/migrations/**"
               - "src/integrations/supabase/types.ts"
               - "supabase/functions/_shared/database.types.ts"
-              - ".github/workflows/_check_types.yml"
+              - ".github/workflows/check-supabase-types.yml"
             mirror:
               - "scripts/staging_mirror/**"
               - "scripts/sync-staging-data.py"
@@ -198,7 +203,7 @@ jobs:
 
   worker-typecheck:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.worker == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -263,9 +268,10 @@ jobs:
       - name: Edge function tests (Deno)
         run: deno test -A --no-check supabase/functions
 
+  # Vercel builds every PR preview but not the merge queue's combined commit, so only the queue builds here.
   build:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -278,10 +284,13 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
-  check-types:
+  check-supabase-types:
     needs: changes
-    if: needs.changes.outputs.types == 'true'
-    uses: ./.github/workflows/_check_types.yml
+    if: needs.changes.outputs.supabase-types == 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/check-supabase-types.yml
 
   # The one check the develop ruleset requires. Skipped jobs pass; failed or cancelled ones fail.
   ci-gate:
@@ -296,7 +305,7 @@ jobs:
         guards,
         deno,
         build,
-        check-types,
+        check-supabase-types,
         mirror-sql,
       ]
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-name: _check_types
+name: check-supabase-types
 
 # Fails when the committed Supabase types differ from what the migrations generate.
 # Builds a throwaway local database from supabase/migrations and the dev seed, so it
@@ -10,9 +10,10 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
-  check-types:
+  check-supabase-types:
     name: Check Supabase types match migrations
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -44,6 +45,26 @@ jobs:
             echo "::error::Generated Supabase types differ from the committed ones. Run ./scripts/gen-types.sh --local after 'supabase db start' and commit both generated files."
             exit 1
           fi
+
+      - name: Tell the PR how to fix stale types
+        if: failure() && github.event_name == 'pull_request'
+        # Fork PRs get a read-only token, so a failed comment must not mask the real failure.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- check-supabase-types -->'
+          cat > comment.md <<EOF
+          $marker
+          **Supabase types are stale.** The committed types differ from what \`supabase/migrations\` generates.
+
+          Fix: run \`supabase db start\`, then \`./scripts/gen-types.sh --local\`, and commit \`src/integrations/supabase/types.ts\` and \`supabase/functions/_shared/database.types.ts\`.
+
+          Agent prompt: "Regenerate the Supabase types for this branch with \`supabase db start\` and \`./scripts/gen-types.sh --local\`, then commit both generated files."
+          EOF
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file comment.md \
+            || gh pr comment "$PR_NUMBER" --body-file comment.md
 
       - name: Stop local database
         if: always()
