@@ -1,0 +1,86 @@
+name: check-supabase-types
+
+# Fails when the committed Supabase types differ from what the migrations generate.
+# Builds a throwaway local database from supabase/migrations and the dev seed, so it
+# needs no secrets, never touches a hosted project, and sees a PR's own migrations.
+# Called by ci-frontend.yml when migrations or the generated types change.
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-supabase-types:
+    name: Check Supabase types match migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+
+      - name: Start local database (migrations and seed)
+        run: supabase db start
+
+      - name: Generate types from the local schema
+        run: |
+          # Invoke the pinned CLI directly: scripts/gen-types.sh is PR code and uses the repo's pnpm install.
+          supabase gen types typescript --local > src/integrations/supabase/types.ts
+          npx --yes prettier@3.9.9 --log-level warn --write src/integrations/supabase/types.ts
+          cp src/integrations/supabase/types.ts supabase/functions/_shared/database.types.ts
+
+      - name: Fail if committed types are stale
+        id: compare
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            git diff --stat
+            echo "::error::Generated Supabase types differ from the committed ones. Run ./scripts/gen-types.sh --local after 'supabase db start' and commit both generated files."
+            exit 1
+          fi
+
+      - name: Tell the PR how to fix stale types
+        # Only the comparison step means stale types; a setup or migration failure needs a different fix.
+        # failure() is required: without a status function Actions adds success(), which skips this step.
+        if: failure() && steps.compare.outcome == 'failure' && github.event_name == 'pull_request'
+        # Fork PRs get a read-only token, so a failed comment must not mask the real failure.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- check-supabase-types -->'
+          cat > comment.md <<EOF
+          $marker
+          **Supabase types are stale.** The committed types differ from what \`supabase/migrations\` generates.
+
+          Fix: run \`supabase db start\`, then \`./scripts/gen-types.sh --local\`, and commit \`src/integrations/supabase/types.ts\` and \`supabase/functions/_shared/database.types.ts\`.
+
+          Agent prompt: "Regenerate the Supabase types for this branch with \`supabase db start\` and \`./scripts/gen-types.sh --local\`, then commit both generated files."
+          EOF
+          # Edit only this workflow's own comment, found by its marker; never another bot comment.
+          ids=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- check-supabase-types -->"))) | .id')
+          id=${ids%%$'\n'*}
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md
+          else
+            gh pr comment "$PR_NUMBER" --body-file comment.md
+          fi
+
+      - name: Stop local database
+        if: always()
+        run: supabase stop --no-backup

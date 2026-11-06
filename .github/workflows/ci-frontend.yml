@@ -8,8 +8,9 @@ on:
         required: true
   pull_request:
     branches: [main, develop]
+  # develop is covered by pull_request and its merge queue, which test the same content.
   push:
-    branches: [main, develop]
+    branches: [main]
   # develop's merge queue: each queued PR is checked on top of the PRs ahead of it.
   merge_group:
 
@@ -18,7 +19,88 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # One cheap job decides which gated jobs run. Pushes and reusable calls run everything;
+  # PRs and merge-queue runs are narrowed. Skipped jobs report success to the ruleset.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      # A PR over GitHub's 3000-file listing cap may be truncated, so it runs everything.
+      code: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.exclusions.outputs.code || 'true' }}
+      frontend: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.exclusions.outputs.frontend || 'true' }}
+      functions: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.functions || 'true' }}
+      mirror: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.mirror || 'true' }}
+      rules: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.rules || 'true' }}
+      supabase-types: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.supabase-types || 'true' }}
+      worker: ${{ github.event.pull_request.changed_files >= 3000 && 'true' || steps.areas.outputs.worker || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      # Pushes and reusable calls have no base, so these steps skip and every output defaults to true.
+      # PRs use the API; merge-queue runs diff against the queue's base SHA.
+      - id: exclusions
+        if: github.event.pull_request || github.event.merge_group
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          base: ${{ github.event.merge_group.base_sha }}
+          # "every" lets a filter subtract: it runs unless every changed file is ignorable.
+          predicate-quantifier: every
+          filters: |
+            code:
+              - "**"
+              - "!docs/**"
+              - "!**/*.md"
+            frontend:
+              - "**"
+              - "!docs/**"
+              - "!**/*.md"
+              - "!supabase/migrations/**"
+              - "!supabase/tests/**"
+              - "!supabase/ops/**"
+              - "!supabase/seeds/**"
+      - id: areas
+        if: github.event.pull_request || github.event.merge_group
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          base: ${{ github.event.merge_group.base_sha }}
+          filters: |
+            # The Deno suite also reads migrations, supabase/ops and all of src/ (caller-trust.test.ts scans it).
+            functions:
+              - "supabase/**"
+              - "src/**"
+              - ".github/workflows/ci-frontend.yml"
+              - ".github/actions/**"
+            worker:
+              - "render-worker/**"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - ".github/workflows/ci-frontend.yml"
+              - ".github/actions/**"
+            # Source rules are Markdown, which `code` ignores, but test:guards checks their generated twins.
+            rules:
+              - ".claude/rules/**"
+            supabase-types:
+              - "supabase/migrations/**"
+              - "src/integrations/supabase/types.ts"
+              - "supabase/functions/_shared/database.types.ts"
+              - ".github/workflows/check-supabase-types.yml"
+            mirror:
+              - "scripts/staging_mirror/**"
+              - "scripts/sync-staging-data.py"
+              - "scripts/sync-agent-credentials.py"
+              - "scripts/verify-staging-containment.py"
+              - "scripts/staging-data-manifest.json"
+              - "scripts/test_staging_mirror*"
+              - "supabase/ops/install_staging_data_mirror.sql"
+
   typescript:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -68,6 +150,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: pnpm
+          cache-dependency-path: trusted-base/pnpm-lock.yaml
       - name: Install trusted compiler dependencies without hooks
         working-directory: ${{ steps.checker.outputs.directory }}
         run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
@@ -86,33 +170,8 @@ jobs:
         working-directory: project
         run: node "$CHECKER_DIRECTORY/scripts/typecheck.mjs" --project "$PWD"
 
-  baseline-review:
-    if: github.event.pull_request && contains(fromJSON('["main", "develop"]'), github.event.pull_request.base.ref)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      BOOTSTRAP_TYPECHECK_SHA: ${{ secrets.TYPESCRIPT_GATE_BOOTSTRAP_SHA }}
-    steps:
-      # This job never checks out, installs, imports, or executes PR code.
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: trusted-base
-          persist-credentials: false
-      - name: Validate optional reviewed bootstrap revision
-        run: |
-          if [ -n "$BOOTSTRAP_TYPECHECK_SHA" ] && ! [[ "$BOOTSTRAP_TYPECHECK_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo 'TYPESCRIPT_GATE_BOOTSTRAP_SHA must be a reviewed, full commit SHA.' >&2
-            exit 1
-          fi
-      - uses: actions/checkout@v4
-        if: env.BOOTSTRAP_TYPECHECK_SHA != ''
-        with:
-          ref: ${{ env.BOOTSTRAP_TYPECHECK_SHA }}
-          path: trusted-bootstrap
-          persist-credentials: false
-      - name: Validate baseline using trusted policy
+      - name: Validate TypeScript baseline using trusted policy
+        if: github.event.pull_request && contains(fromJSON('["main", "develop"]'), github.event.pull_request.base.ref)
         uses: actions/github-script@v7
         with:
           script: |
@@ -126,23 +185,17 @@ jobs:
             }
             const { validateBaseline } = await import(pathToFileURL(policyPath).href);
             const pr = context.payload.pull_request;
-            async function readText(path, ref, allowMissing = false) {
-              try {
-                const { data } = await github.rest.repos.getContent({
-                  ...context.repo, path, ref,
-                  mediaType: { format: 'raw' },
-                });
-                return typeof data === 'string' ? data : Buffer.from(data.content, 'base64').toString('utf8');
-              } catch (error) {
-                if (allowMissing && error.status === 404) return null;
-                throw error;
-              }
-            }
-            const current = JSON.parse(await readText('scripts/typecheck-baseline.json', pr.head.sha));
+            const { data } = await github.rest.repos.getContent({
+              ...context.repo, path: 'scripts/typecheck-baseline.json', ref: pr.head.sha,
+              mediaType: { format: 'raw' },
+            });
+            const current = JSON.parse(typeof data === 'string' ? data : Buffer.from(data.content, 'base64').toString('utf8'));
             validateBaseline(current);
             core.info(`TypeScript baseline is valid at ${pr.head.sha}; baseline updates do not require a separate approval.`);
 
-  build:
+  lint-format:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -150,79 +203,138 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Check formatting (Prettier)
         run: pnpm format:check
-
       - name: Lint repository sources
         run: pnpm lint
 
+  worker-typecheck:
+    needs: changes
+    if: needs.changes.outputs.worker == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Type-check the render worker
         run: pnpm typecheck:worker
 
+  tests:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
       - name: TypeScript gate regression tests
         run: pnpm test:typecheck
-
       - name: Component regression tests
         run: pnpm test:components
 
+  guards:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.rules == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
       - name: Regression guards (dashboards + permission personas)
         run: pnpm test:guards
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.BASE_ACCESS_TOKEN }}
           SUPABASE_STAGING_PROJECT_ID: ${{ secrets.SUPABASE_STAGING_PROJECT_ID }}
 
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
-      - name: Edge function tests (Deno)
-        run: deno test -A --no-check supabase/functions
-
-      - name: Build frontend
-        run: pnpm build
-
-  mirror-changes:
+  deno:
+    needs: changes
+    if: needs.changes.outputs.functions == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    outputs:
-      mirror: ${{ steps.filter.outputs.mirror }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || github.sha }}
-          fetch-depth: 0
-      - id: filter
-        name: Detect mirror script changes
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge function tests (Deno)
+        # Edge functions import `npm:` packages. Without this flag Deno finds the repo's package.json and
+        # demands an installed node_modules; with it, Deno fetches them itself and no install hooks run.
+        run: deno test -A --no-check --node-modules-dir=none supabase/functions
+
+  # Vercel builds every PR preview but not the merge queue's combined commit, so only the queue builds here.
+  build:
+    needs: changes
+    if: github.event_name == 'merge_group' && needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - name: Build frontend
+        run: pnpm build
+
+  check-supabase-types:
+    needs: changes
+    if: needs.changes.outputs.supabase-types == 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/check-supabase-types.yml
+    with:
+      source_sha: ${{ inputs.source_sha }}
+
+  # The one check the develop ruleset requires. Skipped jobs pass; failed or cancelled ones fail.
+  ci-gate:
+    if: always()
+    needs:
+      [
+        changes,
+        typescript,
+        lint-format,
+        worker-typecheck,
+        tests,
+        guards,
+        deno,
+        build,
+        check-supabase-types,
+        mirror-sql,
+      ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to pass or be skipped
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
-          set -euo pipefail
-          # Pushes and reusable calls always run; only PRs and merge-queue runs are narrowed.
-          # grep reads the whole list (no -q): under pipefail an early exit gives git diff SIGPIPE (141),
-          # and a large PR would then skip the mirror tests (AIO-410).
-          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -E '^scripts/(staging_mirror/|sync-staging-data\.py|sync-agent-credentials\.py|verify-staging-containment\.py|staging-data-manifest\.json|test_staging_mirror)|^supabase/ops/install_staging_data_mirror\.sql$' >/dev/null; then
-            echo "mirror=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "mirror=false" >> "$GITHUB_OUTPUT"
+          if grep -Eq '"(failure|cancelled)"' <<<"$RESULTS"; then
+            echo "::error::A CI job failed or was cancelled: $RESULTS"
+            exit 1
           fi
 
   mirror-sql:
-    needs: mirror-changes
-    if: needs.mirror-changes.outputs.mirror == 'true'
+    needs: changes
+    if: needs.changes.outputs.mirror == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
