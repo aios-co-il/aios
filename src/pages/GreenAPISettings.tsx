@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import {
@@ -216,9 +217,10 @@ export default function GreenAPISettings({
       if (!userId) {
         throw new Error("משתמש לא מחובר");
       }
+      const writeTenantId = requireTenantId(tenantId);
 
       const integrationData = {
-        tenant_id: tenantId,
+        tenant_id: writeTenantId,
         user_id: userId,
         integration_type: "green_api",
         api_key: apiToken,
