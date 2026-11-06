@@ -2,7 +2,7 @@ import type { AdsEntityLevel } from "@/lib/adsEntityLevel";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { groupFacebookRowsByGoal } from "@/lib/facebookGoalGroups";
 import type { GoogleGoalPresence } from "@/lib/googleGoalPresence";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import {
   sharedCampaignTables,
   type SharedCampaignTables,
