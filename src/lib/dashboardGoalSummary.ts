@@ -46,6 +46,14 @@ export type DashboardGoalSummary = {
 };
 
 /**
+ * Whether the dashboard has campaigns of more than one goal: its "All" tab
+ * then shows each goal apart instead of one mixed row of figures.
+ */
+export function hasSeveralGoals(summary: DashboardGoalSummary): boolean {
+  return new Set(summary.rows.map((row) => row.goal)).size > 1;
+}
+
+/**
  * A dashboard's ads campaigns by goal, from the campaign tables its platform
  * tabs show: Facebook as split for those tables (groupFacebookRowsByGoal on a
  * mixed table) and Google Ads by each campaign's own goal. Each goal adds only

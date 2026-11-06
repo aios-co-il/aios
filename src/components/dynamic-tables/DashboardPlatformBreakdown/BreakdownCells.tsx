@@ -55,16 +55,15 @@ export function DeliveryCells({
   );
 }
 
-/** The sales columns' count, for a row of another goal. */
-const SALES_CELL_COUNT = 5;
-
 /**
  * Add-to-cart, purchases, cost per purchase, revenue and ROAS; dashes for a
- * row of another goal.
+ * row of another goal. Without `withValue` (purchases that carry no value)
+ * the revenue and ROAS cells are left out, as their headers are.
  */
 export function SalesCells({
   figures,
   format,
+  withValue = true,
 }: {
   figures: {
     addToCart: number;
@@ -77,9 +76,10 @@ export function SalesCells({
     roas: number | null;
   } | null;
   format: GoogleAdsFormatters;
+  withValue?: boolean;
 }) {
   if (!figures) {
-    return <EmptyCells count={SALES_CELL_COUNT} />;
+    return <EmptyCells count={withValue ? 5 : 3} />;
   }
   return (
     <>
@@ -94,18 +94,24 @@ export function SalesCells({
           ? "-"
           : format.formatCurrency(figures.costPerPurchase)}
       </TableCell>
-      <TableCell>{format.formatCurrency(figures.revenue)}</TableCell>
-      <TableCell>
-        {figures.roas === null ? (
-          "-"
-        ) : (
-          <span
-            className={figures.roas >= 1 ? "text-green-600" : "text-red-600"}
-          >
-            {figures.roas.toFixed(2)}
-          </span>
-        )}
-      </TableCell>
+      {withValue && (
+        <>
+          <TableCell>{format.formatCurrency(figures.revenue)}</TableCell>
+          <TableCell>
+            {figures.roas === null ? (
+              "-"
+            ) : (
+              <span
+                className={
+                  figures.roas >= 1 ? "text-green-600" : "text-red-600"
+                }
+              >
+                {figures.roas.toFixed(2)}
+              </span>
+            )}
+          </TableCell>
+        </>
+      )}
     </>
   );
 }

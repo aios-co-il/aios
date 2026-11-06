@@ -2,6 +2,9 @@ import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsC
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
+import { DashboardGoalOverview } from "@/components/dynamic-tables/DashboardGoalOverview/DashboardGoalOverview";
+import { FacebookSalesCampaignsCard } from "@/components/dynamic-tables/FacebookSalesCampaigns/FacebookSalesCampaignsCard";
+import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
@@ -1358,7 +1361,20 @@ export default function SharedDashboard({
       ) : (
         <>
           {/* Summary Cards - "All" tab: 7 KPI cards like DashboardView */}
-          {platformFilter === "all" && (
+          {platformFilter === "all" && hasSeveralGoals(dashboardGoals) && (
+            <DashboardGoalOverview
+              summary={dashboardGoals}
+              sales={combinedSales}
+              leads={combinedLeads}
+              delivery={totalSummary}
+              platformLabel={(platform) => ({
+                ...PLATFORM_CONFIG[platform],
+                icon: getIntegrationIcon(platform),
+              })}
+              format={{ formatCurrency, formatNumber, formatUnitCost }}
+            />
+          )}
+          {platformFilter === "all" && !hasSeveralGoals(dashboardGoals) && (
             <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 auto-rows-fr">
               {(showAdsCards || showAnalyticsCards) && (
                 <Card className="h-full bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
@@ -1537,108 +1553,11 @@ export default function SharedDashboard({
             facebookCampaignGroups.all.length > 0 && (
               <div className="space-y-4">
                 {facebookCampaignGroups.ecommerce.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Facebook className="h-5 w-5 text-blue-600" />
-                        קמפיינים איקומרס - Facebook
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-right">
-                                קמפיין
-                              </TableHead>
-                              <TableHead className="text-right">
-                                חשיפות
-                              </TableHead>
-                              <TableHead className="text-right">
-                                קליקים
-                              </TableHead>
-                              <TableHead className="text-right">
-                                הוצאה
-                              </TableHead>
-                              <TableHead className="text-right">
-                                הוספות לעגלה
-                              </TableHead>
-                              <TableHead className="text-right">
-                                רכישות
-                              </TableHead>
-                              <TableHead className="text-right">
-                                ערך רכישות
-                              </TableHead>
-                              <TableHead className="text-right">ROAS</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {facebookCampaignGroups.ecommerce.map((c) => {
-                              const roas =
-                                c.spend > 0 ? c.purchase_value / c.spend : 0;
-                              return (
-                                <TableRow key={`ecom-${c.name}`}>
-                                  <TableCell className="font-medium max-w-[300px]">
-                                    {c.name}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatNumber(c.impressions)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatNumber(c.clicks)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatCurrency(c.spend)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.add_to_cart > 0
-                                        ? "text-orange-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatNumber(c.add_to_cart)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.purchases > 0
-                                        ? "text-green-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatNumber(c.purchases)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.purchase_value > 0
-                                        ? "text-green-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatCurrency(c.purchase_value)}
-                                  </TableCell>
-                                  <TableCell>
-                                    <span
-                                      className={
-                                        roas >= 1
-                                          ? "text-green-600 font-semibold"
-                                          : roas > 0
-                                            ? "text-red-600"
-                                            : ""
-                                      }
-                                    >
-                                      {roas > 0 ? roas.toFixed(2) + "x" : "0x"}
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <FacebookSalesCampaignsCard
+                    campaigns={facebookCampaignGroups.ecommerce}
+                    formatCurrency={formatCurrency}
+                    formatNumber={formatNumber}
+                  />
                 )}
                 {facebookCampaignGroups.leads.length > 0 && (
                   <Card>
