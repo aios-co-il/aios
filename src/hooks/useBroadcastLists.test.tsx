@@ -1,11 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
 import { useBroadcastLists } from "./useBroadcastLists";
@@ -96,6 +91,7 @@ describe("broadcast list query request equivalence", () => {
 
   for (const enabled of [true, false]) {
     it(`preserves ${enabled ? "enabled" : "disabled"} reads and manual refetch`, async () => {
+      const user = userEvent.setup();
       context.tenantId = enabled ? "tenant-1" : null;
       render(withTestQuery(<Probe listId={enabled ? "list-1" : undefined} />));
       if (enabled) {
@@ -104,7 +100,7 @@ describe("broadcast list query request equivalence", () => {
         expect(requests).toHaveLength(0);
       }
       requests.length = 0;
-      fireEvent.click(screen.getByRole("button", { name: "Refetch" }));
+      await user.click(screen.getByRole("button", { name: "Refetch" }));
       await waitFor(() => expect(requests).toHaveLength(3));
       const urls = requests
         .map((request) => new URL(request.url))
