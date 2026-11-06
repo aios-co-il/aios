@@ -502,20 +502,6 @@
     },
     {
       "file": "src/pages/GreenAPISettings.tsx",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | null'.\n  Type 'undefined' is not assignable to type 'string | null'.",
-      "source": "ownerId",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GreenAPISettings.tsx",
-      "code": 2345,
-      "message": "Argument of type '(string | null)[]' is not assignable to parameter of type 'readonly string[]'.\n  Type 'string | null' is not assignable to type 'string'.\n    Type 'null' is not assignable to type 'string'.",
-      "source": "ownerIds",
-      "count": 1
-    },
-    {
-      "file": "src/pages/GreenAPISettings.tsx",
       "code": 2345,
       "message": "Argument of type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to parameter of type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n  Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n    Types of property 'tenant_id' are incompatible.\n      Type 'string | null' is not assignable to type 'string | undefined'.\n        Type 'null' is not assignable to type 'string | undefined'.",
       "source": "integrationData",
@@ -534,13 +520,6 @@
       "message": "Argument of type 'string | null' is not assignable to parameter of type 'string | string[] | undefined'.\n  Type 'null' is not assignable to type 'string | string[] | undefined'.",
       "source": "currentTenantId",
       "count": 3
-    },
-    {
-      "file": "src/pages/ManusWhatsAppSettings.tsx",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | null'.\n  Type 'undefined' is not assignable to type 'string | null'.",
-      "source": "ownerId",
-      "count": 1
     },
     {
       "file": "src/pages/MenuManagement.tsx",
