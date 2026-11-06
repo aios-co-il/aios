@@ -12,12 +12,18 @@ export type PromptInput =
       repo: string;
       commits: Array<HotfixCommit>;
       hotfixPr: string;
+      /** Title of the hotfix PR. Falls back to the first commit subject. */
+      prTitle?: string;
       conflictingFiles: Array<string>;
     };
 
 const MAX_LISTED = 10;
 const ISSUE_RE = /\bAIO-\d+\b/;
 const PR_NUMBER_SUFFIX_RE = / \(#\d+\)$/;
+const COMMITS_HINT =
+  "Run `scripts/main-missing-from.sh origin/develop` for the full list.";
+const FILES_HINT =
+  "Run `git diff --name-only --diff-filter=U` after the cherry-pick stops for the full list.";
 
 /**
  * Builds the paste-ready prompt a product owner gives their coding agent when a
@@ -42,7 +48,7 @@ export function buildAgentPrompt(input: PromptInput): string {
     `4. git cherry-pick -x ${shas.join(" ")}   (oldest first)`,
     "5. On a conflict, resolve it against current develop so both sides keep their intent, then git add and git cherry-pick --continue.",
     "6. pnpm format:check",
-    `7. git push -u origin HEAD, then open a PR to develop titled exactly: ${prTitle(input.commits[0])}`,
+    `7. git push -u origin HEAD, then open a PR to develop titled exactly: ${prTitle(input)}`,
     "",
     "Values:",
     `- Repository: ${input.repo}`,
@@ -78,7 +84,7 @@ function whenLines(input: PromptInput): Array<string> {
     `The automatic cherry-pick of ${input.hotfixPr} onto develop stopped on a conflict. Commits to port:`,
     ...listCommits(input.commits),
     "Conflicting files:",
-    ...truncate(input.conflictingFiles, (file) => `  - ${file}`),
+    ...truncate(input.conflictingFiles, (file) => `  - ${file}`, FILES_HINT),
   ];
 }
 
@@ -87,20 +93,20 @@ function listCommits(commits: Array<HotfixCommit>): Array<string> {
   return truncate(
     commits,
     (commit) => `  - ${commit.sha.slice(0, 7)} ${commit.subject}`,
+    COMMITS_HINT,
   );
 }
 
-/** Lists at most MAX_LISTED entries and says how to see the rest. */
+/** Lists at most MAX_LISTED entries and appends `hint` saying how to see the rest. */
 function truncate<T>(
   items: Array<T>,
   format: (item: T) => string,
+  hint: string,
 ): Array<string> {
   const lines = items.slice(0, MAX_LISTED).map(format);
   const hidden = items.length - MAX_LISTED;
   if (hidden > 0) {
-    lines.push(
-      `  - ... and ${hidden} more. Run \`scripts/main-missing-from.sh origin/develop\` for the full list.`,
-    );
+    lines.push(`  - ... and ${hidden} more. ${hint}`);
   }
   return lines;
 }
@@ -126,7 +132,13 @@ function findIssue(commits: Array<HotfixCommit>): string | null {
   return null;
 }
 
-/** Keeps the original conventional title and drops the "(#123)" squash suffix. */
-function prTitle(commit: HotfixCommit): string {
-  return commit.subject.replace(PR_NUMBER_SUFFIX_RE, "");
+/**
+ * The hotfix PR's own title when known (conflict path), else the first commit subject
+ * without its "(#123)" squash suffix.
+ */
+function prTitle(input: PromptInput): string {
+  if (input.kind === "backport-conflict" && input.prTitle) {
+    return input.prTitle;
+  }
+  return input.commits[0].subject.replace(PR_NUMBER_SUFFIX_RE, "");
 }

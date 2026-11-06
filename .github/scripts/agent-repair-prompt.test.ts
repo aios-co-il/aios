@@ -73,6 +73,32 @@ describe("buildAgentPrompt", () => {
     expect(prompt).toContain("  - src/pages/Leads.tsx");
   });
 
+  test("uses the hotfix PR title on the conflict path", () => {
+    const prompt = buildAgentPrompt({
+      kind: "backport-conflict",
+      repo: "aios-co-il/aios",
+      commits: [hotfix],
+      hotfixPr: "https://github.com/aios-co-il/aios/pull/891",
+      prTitle: "fix(leads): hide kanban columns [AIO-291]",
+      conflictingFiles: ["src/pages/Leads.tsx"],
+    });
+    expect(prompt).toContain(
+      "titled exactly: fix(leads): hide kanban columns [AIO-291]",
+    );
+  });
+
+  test("points a truncated conflict file list at the git diff command", () => {
+    const prompt = buildAgentPrompt({
+      kind: "backport-conflict",
+      repo: "aios-co-il/aios",
+      commits: [hotfix],
+      hotfixPr: "https://github.com/aios-co-il/aios/pull/891",
+      conflictingFiles: Array.from({ length: 12 }, (_, i) => `src/f${i}.ts`),
+    });
+    expect(prompt).toContain("... and 2 more. Run `git diff --name-only");
+    expect(prompt).not.toContain("... and 2 more. Run `scripts/main-missing");
+  });
+
   test("truncates long lists and says how to get the rest", () => {
     const commits = Array.from({ length: 13 }, (_, index) => ({
       sha: `${String(index).padStart(7, "0")}ffff`,

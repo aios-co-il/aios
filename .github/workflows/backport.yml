@@ -15,8 +15,10 @@ on:
     types: [closed]
     branches: [main]
 
+# One group for all hotfixes: two merges close together would otherwise both see the same
+# missing commits and open overlapping backport PRs.
 concurrency:
-  group: backport-${{ github.event.pull_request.number }}
+  group: backport
   cancel-in-progress: false
 
 permissions:
@@ -61,18 +63,29 @@ jobs:
       - name: Skip when develop already has every main change
         id: missing
         run: |
-          if scripts/main-missing-from.sh origin/develop > missing.txt; then
-            echo "todo=false" >> "$GITHUB_OUTPUT"
-            echo "develop already has every main change"
-          else
-            echo "todo=true" >> "$GITHUB_OUTPUT"
-          fi
+          # Exit 1 means "commits missing". Any other failure (a failed fetch) must stop the job.
+          status=0
+          scripts/main-missing-from.sh origin/develop > missing.txt || status=$?
+          case "$status" in
+            0)
+              echo "todo=false" >> "$GITHUB_OUTPUT"
+              echo "develop already has every main change"
+              ;;
+            1)
+              echo "todo=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error title=Could not compare main with develop::scripts/main-missing-from.sh exited $status"
+              exit "$status"
+              ;;
+          esac
 
       - name: Skip when a backport PR is already open
         id: existing
         if: steps.missing.outputs.todo == 'true'
         run: |
-          open=$(gh pr list --base develop --head "$BRANCH" --state open --json number --jq 'length')
+          # Any open backport covers the same missing commits, so do not open a second one.
+          open=$(gh pr list --base develop --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("backport/"))] | length')
           echo "open=$open" >> "$GITHUB_OUTPUT"
 
       - name: Cherry-pick the missing main commits onto develop
@@ -81,9 +94,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set -o pipefail
           git switch -c "$BRANCH" origin/develop
           # git cherry lists oldest first; merge commits are skipped, they carry no patch.
           shas=$(git cherry origin/develop origin/main | awk '$1 == "+" {print $2}')
+          if [ -z "$shas" ]; then
+            echo "::error title=Nothing to cherry-pick::main-missing-from.sh reported missing commits but git cherry found none."
+            exit 1
+          fi
           for sha in $shas; do
             if ! git cherry-pick -x "$sha"; then
               git diff --name-only --diff-filter=U > conflicts.txt
@@ -99,20 +117,30 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
+          # checkout left git on the default token; push as the app so CI runs on the PR.
+          gh auth setup-git
+          # No backport PR is open here, so a leftover branch from an earlier run is stale.
+          git push origin --delete "$BRANCH" 2>/dev/null || true
           git push origin "$BRANCH"
           printf 'Backport of %s to develop, made by `git cherry-pick -x`.\n\nA human queues this PR. `Check develop has main` stays red until it merges, and the next release is blocked until then.\n' "$PR_URL" > body.md
           gh pr create --base develop --head "$BRANCH" --title "$PR_TITLE" --body-file body.md
 
+      - uses: actions/setup-node@v4
+        if: steps.pick.outputs.result == 'conflict'
+        with:
+          node-version: "24"
+
       - name: Comment on the hotfix PR when the cherry-pick conflicts
         if: steps.pick.outputs.result == 'conflict'
         run: |
-          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --slurpfile commits <(
+          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --arg title "$PR_TITLE" --slurpfile commits <(
             jq -R -s '[split("\n")[] | select(startswith("  ")) | ltrimstr("  ")
               | {sha: (split(" ")[0]), subject: (split(" ")[1:] | join(" "))}]' missing.txt
           ) '{
               kind: "backport-conflict",
               repo: $repo,
               hotfixPr: $pr,
+              prTitle: $title,
               commits: $commits[0],
               conflictingFiles: [split("\n")[] | select(. != "")]
             }' conflicts.txt > prompt-input.json
