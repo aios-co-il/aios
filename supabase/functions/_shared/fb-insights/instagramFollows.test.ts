@@ -95,6 +95,62 @@ Deno.test("Instagram follows in the insights sync", async (t) => {
   );
 });
 
+Deno.test("Instagram follows per ad set and per campaign", async () => {
+  // Two ad sets of one profile visit campaign on one day; Meta reports each
+  // ad set's own follows and the campaign's total (205 + 161).
+  const adsetRow = (adsetId: string, name: string) => ({
+    ...insightRow,
+    adset_id: adsetId,
+    adset_name: name,
+  });
+  const mainRows: Record<string, unknown[]> = {
+    campaign: [insightRow],
+    adset: [adsetRow("a1", "Inheritance"), adsetRow("a2", "Bank account")],
+    ad: [],
+  };
+  const followRows: Record<string, unknown[]> = {
+    campaign: [
+      {
+        campaign_id: CAMPAIGN,
+        date_start: "2026-11-01",
+        instagram_profile_follow: "366",
+      },
+    ],
+    adset: [
+      {
+        adset_id: "a1",
+        date_start: "2026-11-01",
+        instagram_profile_follow: "205",
+      },
+      {
+        adset_id: "a2",
+        date_start: "2026-11-01",
+        instagram_profile_follow: "161",
+      },
+    ],
+    ad: [],
+  };
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    const level = url.searchParams.get("level") ?? "";
+    const fields = url.searchParams.get("fields")?.split(",") ?? [];
+    const data = fields.includes("instagram_profile_follow")
+      ? followRows[level]
+      : mainRows[level];
+    return new Response(JSON.stringify({ data: data ?? [] }));
+  };
+  const { records } = await syncedCampaignRows(fetchImpl);
+  const followersOf = (level: string, id: string) =>
+    records.find(
+      (row) =>
+        row.entity_level === level &&
+        (level === "adset" ? row.adset_id === id : row.campaign_id === id),
+    )?.new_followers;
+  assertEquals(followersOf("adset", "a1"), 205);
+  assertEquals(followersOf("adset", "a2"), 161);
+  assertEquals(followersOf("campaign", CAMPAIGN), 366);
+});
+
 Deno.test("fetchInstagramFollows", async (t) => {
   await t.step("asks Meta nothing without profile campaigns", async () => {
     let requests = 0;
