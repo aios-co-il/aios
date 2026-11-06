@@ -17,7 +17,8 @@ export type CampaignRef = { id: string | null; name: string | null };
 
 export type CampaignSide = {
   name: string | null;
-  sample: Record<string, unknown> | null;
+  /** The campaign's rows on this side, to decide its report goal. */
+  rows: Array<Record<string, unknown>>;
   days: Map<string, DayMetrics>;
 };
 
@@ -44,13 +45,11 @@ export function groupByCampaign(
     }
     const side = out.get(key) || {
       name: row.campaign_name,
-      sample: null,
+      rows: [],
       days: new Map<string, DayMetrics>(),
     };
     side.name = side.name || row.campaign_name;
-    if (!side.sample) {
-      side.sample = row.data;
-    }
+    side.rows.push(row.data);
     const day = side.days.get(row.date) || emptyMetrics();
     addMetrics(day, recordMetrics(platform, row.data));
     side.days.set(row.date, day);
@@ -81,9 +80,10 @@ export function rekeyNamedRows(
     }
     const target = aios.get(id) || {
       name: named.name,
-      sample: named.sample,
+      rows: [],
       days: new Map<string, DayMetrics>(),
     };
+    target.rows.push(...named.rows);
     for (const [date, metrics] of named.days) {
       const day = target.days.get(date) || emptyMetrics();
       addMetrics(day, metrics);

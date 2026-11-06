@@ -4,9 +4,7 @@
 import {
   buildPulseCampaignRows as buildRows,
   dedupePulseCampaignRows as dedupeRows,
-  integrationTypeToGoal as tableIntegrationGoal,
   pulseTrendWindows as trendWindows,
-  tableReportGoal as reportTableGoal,
 } from "../../supabase/functions/_shared/pulse-campaign-goals.mjs";
 import type { CampaignDeliveryStatus } from "../../supabase/functions/_shared/campaign-goal/delivery-status.ts";
 import type {
@@ -112,14 +110,3 @@ export const buildPulseCampaignRows = buildRows as (input: {
 }) => Array<PulseCampaignGoalRow>;
 
 export const pulseTrendWindows = trendWindows;
-
-export const integrationTypeToGoal = tableIntegrationGoal as (
-  integrationType: string | null | undefined,
-  table?: {
-    integration_type?: string | null;
-    category?: string | null;
-    integration_settings?: { campaign_type?: string | null } | null;
-  } | null,
-) => "leads" | "ecommerce" | null;
-
-export const tableReportGoal = reportTableGoal;
