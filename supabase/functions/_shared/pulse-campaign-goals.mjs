@@ -787,9 +787,13 @@ export function buildPulseCampaignRows({
     usable.map((item) => item.record),
     tables,
   );
-  const { campaigns, placesByCampaign } = campaignDays(usable, verdictOf);
+  const { campaigns, placesByCampaign, firstSpendDays } = campaignDays(
+    usable,
+    verdictOf,
+  );
   const context = {
     windows,
+    firstSpendDays,
     rules: resolvePulseCostRules(alertRules),
     current3Dates: datesBetween(windows.current3.start, windows.current3.end),
     current7Dates: datesBetween(windows.current7.start, windows.current7.end),
@@ -842,6 +846,7 @@ function usableCampaignRecords(records, tables, windows) {
 function campaignDays(usable, verdictOf) {
   const goalOf = campaignGoals(usable, verdictOf);
   const placesByCampaign = new Map();
+  const firstSpendDays = new Map();
   const byDay = new Map();
   for (const item of usable) {
     const verdict = goalOf.get(campaignIdentityKey(item));
@@ -853,6 +858,9 @@ function campaignDays(usable, verdictOf) {
       goal,
       item.identity,
     );
+    // Read from every row, before the one-row-per-day pick below, so a
+    // duplicate table's ₪0 rows cannot make a running campaign look new.
+    noteFirstSpendDay(firstSpendDays, campaignKey, item);
     addCampaignPlace(placesByCampaign, campaignKey, {
       table: item.table,
       identity: item.identity,
@@ -877,7 +885,25 @@ function campaignDays(usable, verdictOf) {
     list.push(item);
     campaigns.set(item.campaignKey, list);
   }
-  return { campaigns, placesByCampaign };
+  return { campaigns, placesByCampaign, firstSpendDays };
+}
+
+/** Records the earliest day a campaign id spent, per pulse campaign. */
+function noteFirstSpendDay(firstSpendDays, campaignKey, item) {
+  if (!(getSpendFromData(item.record.data) > 0)) {
+    return;
+  }
+  const key = campaignIdKey(campaignKey, item.identity.id);
+  const day = String(item.record.data.date).slice(0, 10);
+  const known = firstSpendDays.get(key);
+  if (!known || day < known) {
+    firstSpendDays.set(key, day);
+  }
+}
+
+/** One campaign id inside a pulse campaign (a relaunch keeps the name). */
+function campaignIdKey(campaignKey, campaignId) {
+  return `${campaignKey}\u0000${campaignId}`;
 }
 
 /**
@@ -920,28 +946,34 @@ function campaignDeliveryStatus(items) {
     () => "campaign",
   ).get("campaign");
   if (latest) return latest;
-  // Newest first, so a relaunch under the same name (old id PAUSED, new id
-  // ENABLED) reads the id that is spending now, whatever order rows arrive in.
-  for (const item of [...items].sort(compareLatestFirst)) {
-    const status = resolveCampaignDeliveryStatus(
-      { campaign_id: item.identity.id },
-      item.table.integration_settings || {},
-    );
-    if (status !== "unknown") return status;
-  }
-  return "unknown";
+  // Only the id on the latest dated row: a relaunch under the same name (old
+  // id PAUSED, new id ENABLED or not stored yet) must not borrow the old id's
+  // state, whatever order rows arrive in.
+  const newest = latestCampaignItem(items);
+  return resolveCampaignDeliveryStatus(
+    { campaign_id: newest.identity.id },
+    newest.table.integration_settings || {},
+  );
+}
+
+/** The campaign's latest dated item; its id is the one running now. */
+function latestCampaignItem(items) {
+  return [...items].sort(compareLatestFirst)[0];
 }
 
 /**
- * Full days from a campaign's first spend day through the last full day.
- * Rows reach back ~35 days, so an older campaign counts as old enough.
+ * Full days from the running id's first spend day through the last full day.
+ * A relaunch under the same name counts from its new id. Rows reach back ~35
+ * days, so an older campaign counts as old enough.
  */
-function fullDaysRunning(records, lastFullDay) {
-  const firstSpendDay = records
-    .filter((row) => getSpendFromData(row.data) > 0)
-    .map((row) => String(row.data.date))
-    .sort()[0];
-  if (!firstSpendDay) return 0;
+function fullDaysRunning(items, firstSpendDays, lastFullDay) {
+  const newest = latestCampaignItem(items);
+  const firstSpendDay = firstSpendDays.get(
+    campaignIdKey(newest.campaignKey, newest.identity.id),
+  );
+  if (!firstSpendDay) {
+    return 0;
+  }
   return (
     Math.round((utcDate(lastFullDay) - utcDate(firstSpendDay)) / DAY_MS) + 1
   );
@@ -1004,7 +1036,11 @@ function pulseCampaignRow(items, places, context) {
       goal,
       deliveryStatus,
       spend3d: current3.spend,
-      fullDaysRunning: fullDaysRunning(campaignRecords, windows.current3.end),
+      fullDaysRunning: fullDaysRunning(
+        items,
+        context.firstSpendDays,
+        windows.current3.end,
+      ),
     },
   );
   const useRoas = goal === "ecommerce" && target?.kind !== "cpa";

@@ -129,6 +129,68 @@ Deno.test(
 );
 
 Deno.test(
+  "a relaunched id not yet in the stored states does not borrow the old id's PAUSED",
+  () => {
+    // The new id was created after the last operational check, so only the
+    // old id has a stored state.
+    const settings = {
+      operational_campaign_states: { old: { status: "PAUSED" } },
+    };
+    const records = lastWeek.map((date, i) =>
+      googleRow("g", date, {
+        campaign_id: i < 3 ? "old" : "new",
+        campaign_name: "Trip - Pmax",
+        conversion_goal: "leads",
+        cost: 100,
+        conversions: 0,
+      }),
+    );
+    for (const ordered of [records, [...records].reverse()]) {
+      const rows = buildPulseCampaignRows({
+        records: ordered,
+        tables: [googleTable("g", settings)],
+        nowYmd: "2026-10-24",
+      });
+      assertStrictEquals(rows.length, 1);
+      assertStrictEquals(rows[0].delivery_status, "unknown");
+      assertStrictEquals(rows[0].alert_eligible, true);
+    }
+  },
+);
+
+Deno.test(
+  "a relaunch counts its 3 quiet days from the new id, not the old id's spend",
+  () => {
+    const records = [
+      ...lastWeek.slice(0, 3).map((date) =>
+        googleRow("g", date, {
+          campaign_id: "old",
+          campaign_name: "Trip - Pmax",
+          conversion_goal: "leads",
+          cost: 100,
+          conversions: 0,
+        }),
+      ),
+      googleRow("g", "2026-10-23", {
+        campaign_id: "new",
+        campaign_name: "Trip - Pmax",
+        conversion_goal: "leads",
+        cost: 100,
+        conversions: 0,
+      }),
+    ];
+    const rows = buildPulseCampaignRows({
+      records,
+      tables: [googleTable("g")],
+      nowYmd: "2026-10-24",
+    });
+    assertStrictEquals(rows.length, 1);
+    assertStrictEquals(rows[0].campaign_id, "new");
+    assertStrictEquals(rows[0].alert_eligible, false);
+  },
+);
+
+Deno.test(
   "rows synced before the goal was stamped do not outvote the stamped rows",
   () => {
     const records = lastWeek.map((date, i) =>
