@@ -1,5 +1,6 @@
 // Production-shaped campaign rows behind the 2026-11-06 07:06 pulse run: the
-// 10 campaign_exception lines it sent, a lead campaign that spends with 0 leads,
+// 10 campaign_exception lines it sent, a lead campaign that spends with 0 leads
+// (started 11-04, so it is still in its 3-day quiet period on 11-06),
 // and a Google campaign Google marks ENDED. Spend per day is Production's.
 // Avieli's ids are real, so its fingerprints match the ones already logged in
 // pulse_instant_alert_log; the other clients and tables are placeholders.

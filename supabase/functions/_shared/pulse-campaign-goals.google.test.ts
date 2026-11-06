@@ -96,6 +96,143 @@ Deno.test(
 );
 
 Deno.test(
+  "a relaunch under the same name reads the state of the id that is spending now",
+  () => {
+    // Old id ran first and is PAUSED; the relaunched id runs after it and is
+    // ENABLED. The row order must not decide the status.
+    const settings = {
+      operational_campaign_states: {
+        old: { status: "PAUSED" },
+        new: { status: "ENABLED", primary_status: "ELIGIBLE" },
+      },
+    };
+    const records = lastWeek.map((date, i) =>
+      googleRow("g", date, {
+        campaign_id: i < 3 ? "old" : "new",
+        campaign_name: "Trip - Pmax",
+        conversion_goal: "leads",
+        cost: 100,
+        conversions: 0,
+      }),
+    );
+    for (const ordered of [records, [...records].reverse()]) {
+      const rows = buildPulseCampaignRows({
+        records: ordered,
+        tables: [googleTable("g", settings)],
+        nowYmd: "2026-10-24",
+      });
+      assertStrictEquals(rows.length, 1);
+      assertStrictEquals(rows[0].delivery_status, "active");
+      assertStrictEquals(rows[0].alert_eligible, true);
+    }
+  },
+);
+
+Deno.test(
+  "a relaunched id not yet in the stored states does not borrow the old id's PAUSED",
+  () => {
+    // The new id was created after the last operational check, so only the
+    // old id has a stored state.
+    const settings = {
+      operational_campaign_states: { old: { status: "PAUSED" } },
+    };
+    const records = lastWeek.map((date, i) =>
+      googleRow("g", date, {
+        campaign_id: i < 3 ? "old" : "new",
+        campaign_name: "Trip - Pmax",
+        conversion_goal: "leads",
+        cost: 100,
+        conversions: 0,
+      }),
+    );
+    for (const ordered of [records, [...records].reverse()]) {
+      const rows = buildPulseCampaignRows({
+        records: ordered,
+        tables: [googleTable("g", settings)],
+        nowYmd: "2026-10-24",
+      });
+      assertStrictEquals(rows.length, 1);
+      assertStrictEquals(rows[0].delivery_status, "unknown");
+      assertStrictEquals(rows[0].alert_eligible, true);
+    }
+  },
+);
+
+Deno.test(
+  "a relaunch counts its 3 quiet days from the new id, not the old id's spend",
+  () => {
+    const records = [
+      ...lastWeek.slice(0, 3).map((date) =>
+        googleRow("g", date, {
+          campaign_id: "old",
+          campaign_name: "Trip - Pmax",
+          conversion_goal: "leads",
+          cost: 100,
+          conversions: 0,
+        }),
+      ),
+      googleRow("g", "2026-10-23", {
+        campaign_id: "new",
+        campaign_name: "Trip - Pmax",
+        conversion_goal: "leads",
+        cost: 100,
+        conversions: 0,
+      }),
+    ];
+    const rows = buildPulseCampaignRows({
+      records,
+      tables: [googleTable("g")],
+      nowYmd: "2026-10-24",
+    });
+    assertStrictEquals(rows.length, 1);
+    assertStrictEquals(rows[0].campaign_id, "new");
+    assertStrictEquals(rows[0].alert_eligible, false);
+  },
+);
+
+Deno.test(
+  "a campaign resumed after a week or more without spend gets 3 quiet days again",
+  () => {
+    const leadRow = (date: string, cost: number) =>
+      googleRow("g", date, {
+        campaign_id: "1",
+        campaign_name: "Search",
+        conversion_goal: "leads",
+        cost,
+        conversions: 0,
+      });
+    const build = (pausedDays: string[]) =>
+      buildPulseCampaignRows({
+        records: [
+          ...["2026-10-01", "2026-10-02", "2026-10-03"].map((date) =>
+            leadRow(date, 100),
+          ),
+          ...pausedDays.map((date) => leadRow(date, 0)),
+          leadRow("2026-10-23", 100),
+        ],
+        tables: [googleTable("g")],
+        nowYmd: "2026-10-24",
+      })[0];
+    // Long pause: 10-04..10-22 with no spend, resumed 10-23 → 1 full day.
+    assertStrictEquals(build([]).alert_eligible, false);
+    // Short pause: spending again on 10-20 and 10-21 keeps it one run.
+    const shortPause = buildPulseCampaignRows({
+      records: [
+        ...["2026-10-13", "2026-10-14", "2026-10-15"].map((date) =>
+          leadRow(date, 100),
+        ),
+        ...["2026-10-20", "2026-10-21", "2026-10-23"].map((date) =>
+          leadRow(date, 100),
+        ),
+      ],
+      tables: [googleTable("g")],
+      nowYmd: "2026-10-24",
+    })[0];
+    assertStrictEquals(shortPause.alert_eligible, true);
+  },
+);
+
+Deno.test(
   "rows synced before the goal was stamped do not outvote the stamped rows",
   () => {
     const records = lastWeek.map((date, i) =>

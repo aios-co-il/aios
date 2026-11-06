@@ -1,7 +1,12 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { campaignMayAlert, gatePulseAlert } from "./alert-gate.ts";
 
-const running = { goal: "leads", deliveryStatus: "active", spend3d: 50 };
+const running = {
+  goal: "leads",
+  deliveryStatus: "active",
+  spend3d: 50,
+  fullDaysRunning: 10,
+};
 
 Deno.test("campaignMayAlert", async (t) => {
   await t.step("a running lead or sales campaign may alert", () => {
@@ -16,6 +21,17 @@ Deno.test("campaignMayAlert", async (t) => {
     assertStrictEquals(
       campaignMayAlert({ ...running, goal: "engagement" }),
       false,
+    );
+  });
+
+  await t.step("a campaign under 3 full days old does not alert yet", () => {
+    assertStrictEquals(
+      campaignMayAlert({ ...running, fullDaysRunning: 2 }),
+      false,
+    );
+    assertStrictEquals(
+      campaignMayAlert({ ...running, fullDaysRunning: 3 }),
+      true,
     );
   });
 
