@@ -64,6 +64,8 @@ function storedSettings(): Record<string, unknown> {
         primary_status_reasons: ["CAMPAIGN_PAUSED"],
       },
       "24171383033": { status: "ENABLED" },
+      "24311435943": { status: "ENABLED", primary_status: "ENDED" },
+      "24382550293": { status: "ENABLED", primary_status: "SECRET-free-23" },
       odd: { status: "SECRET-free-text-22" },
     },
     ad_account_id: "act_1",
@@ -124,6 +126,8 @@ Deno.test("public settings keep exactly the keys the shared pages read", () => {
     operational_campaign_states: {
       "45606969": { status: "PAUSED" },
       "24171383033": { status: "ENABLED" },
+      "24311435943": { status: "ENABLED", primary_status: "ENDED" },
+      "24382550293": { status: "ENABLED" },
     },
   });
   assertEquals(legacy, { sharedTabs: { monthly_work: true } });

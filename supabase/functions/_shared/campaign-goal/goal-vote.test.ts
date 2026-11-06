@@ -1,5 +1,5 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
-import { resolveCampaignGoals, voteSpend } from "./resolve-campaign-goals.ts";
+import { resolveCampaignGoals, voteSpend } from "./goal-vote.ts";
 
 Deno.test("a stronger signal beats a goal backed by more spend", () => {
   const goals = resolveCampaignGoals([

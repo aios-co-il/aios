@@ -1,4 +1,4 @@
-import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
 import { googleCampaignConversionGoal } from "./conversion-goal.ts";
 import {
   type CampaignConversions,

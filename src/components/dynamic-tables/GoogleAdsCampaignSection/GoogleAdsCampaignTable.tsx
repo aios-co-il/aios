@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { GoogleAdsCampaignTotalsRow } from "./GoogleAdsCampaignTotalsRow";
 import { ratio } from "@/lib/reportNumber";
 import type {

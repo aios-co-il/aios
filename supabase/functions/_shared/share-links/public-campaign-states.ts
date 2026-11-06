@@ -1,7 +1,10 @@
 import { isPlainObject } from "./public-table-settings.ts";
 
 /** Each campaign's platform status, as the share link returns it. */
-export type PublicCampaignStates = Record<string, { status: CampaignStatus }>;
+export type PublicCampaignStates = Record<string, PublicCampaignState>;
+
+/** `primary_status` goes out only as ENDED, the one value the reports read from it. */
+type PublicCampaignState = { status: CampaignStatus; primary_status?: "ENDED" };
 
 type CampaignStatus = "ENABLED" | "PAUSED" | "REMOVED";
 
@@ -14,8 +17,9 @@ const CAMPAIGN_STATUSES: ReadonlySet<string> = new Set([
 const MAX_CAMPAIGN_ID_LENGTH = 256;
 
 /**
- * Each campaign's status from operational_campaign_states. The campaign name
- * and status reasons are dropped, and so is any status outside the enum.
+ * Each campaign's status from operational_campaign_states, plus ENDED when
+ * Google says the campaign ended. The campaign name, status reasons and any
+ * status outside the enum are dropped.
  */
 export function campaignStatuses(
   value: unknown,
@@ -30,7 +34,10 @@ export function campaignStatuses(
       campaignId.length <= MAX_CAMPAIGN_ID_LENGTH &&
       isCampaignStatus(status)
     ) {
-      out[campaignId] = { status };
+      out[campaignId] =
+        isPlainObject(state) && state.primary_status === "ENDED"
+          ? { status, primary_status: "ENDED" }
+          : { status };
     }
   }
   return out;

@@ -108,7 +108,7 @@ describe("reportOffLookup", () => {
     expect(reportOffLookup(undefined)({ table_id: "t1" })).toBe(false);
   });
 
-  it("marks a campaign the operational check saw paused or removed", () => {
+  it("marks a campaign the operational check saw paused, removed or ended", () => {
     const isReportOff = reportOffLookup([
       {
         id: "echo",
@@ -118,12 +118,14 @@ describe("reportOffLookup", () => {
             "45606969": { status: "PAUSED" },
             "45609489": { status: "REMOVED" },
             "24171383033": { status: "ENABLED" },
+            "24311435943": { status: "ENABLED", primary_status: "ENDED" },
           },
         },
       },
     ]);
     expect(isReportOff({ data: { campaign_id: "45606969" } })).toBe(true);
     expect(isReportOff({ data: { campaign_id: "45609489" } })).toBe(true);
+    expect(isReportOff({ data: { campaign_id: "24311435943" } })).toBe(true);
     expect(isReportOff({ data: { campaign_id: "24171383033" } })).toBe(false);
     expect(isReportOff({ data: { campaign_id: "unseen" } })).toBe(false);
   });

@@ -1,9 +1,20 @@
+import { campaignGoalOverride } from "./override.ts";
+import { campaignNameGoal, legacyCampaignTypeGoal } from "./row-hints.ts";
+import { isEcommerceReportTable, type GoalReportTable } from "./table-goal.ts";
+
 /** What a Google Ads campaign is measured on: sales (ROAS) or leads (cost per lead). */
 export type GoogleCampaignGoal = "ecommerce" | "leads";
 
 type PulseGoal = GoogleCampaignGoal | "engagement";
 
-/** Signals that pulse-campaign-goals.mjs already parses from untyped rows and tables. */
+/** Goals a hand-written override (`pulse_campaign_goals`) may set. */
+const OVERRIDE_GOALS: ReadonlySet<string> = new Set([
+  "leads",
+  "engagement",
+  "ecommerce",
+]);
+
+/** Signals parsed from a row and its table before the Google rules run. */
 export type GoogleGoalHints = {
   /** Goal of the row's legacy `campaign_type`: Make/webhook rows carry the table type per row. */
   legacyGoal: PulseGoal | null;
@@ -15,6 +26,25 @@ export type GoogleGoalClassification = {
   goal: PulseGoal;
   source: "platform_goal" | "explicit_mapping" | "table_report_type";
 };
+
+/**
+ * One Google Ads daily row's goal vote, from its own fields and its report
+ * table: a hand-written override first, then classifyGoogleCampaignGoal.
+ */
+export function classifyGoogleCampaignRow(
+  data: Record<string, unknown>,
+  table: GoalReportTable,
+): GoogleGoalClassification {
+  const override = campaignGoalOverride(data, table.integration_settings || {});
+  if (isOverrideGoal(override)) {
+    return { goal: override, source: "explicit_mapping" };
+  }
+  return classifyGoogleCampaignGoal(data, {
+    legacyGoal: legacyCampaignTypeGoal(data.campaign_type),
+    nameGoal: campaignNameGoal(data.campaign_name),
+    reportIsEcommerce: isEcommerceReportTable(table),
+  });
+}
 
 /**
  * Google Ads campaigns (Performance Max, Search, Shopping) have no objective.
@@ -62,4 +92,9 @@ function stampedConversionGoal(value: unknown): GoogleCampaignGoal | null {
 /** Shopping campaigns only sell products. */
 function isShoppingChannel(value: unknown): boolean {
   return typeof value === "string" && value.toUpperCase() === "SHOPPING";
+}
+
+/** Whether a hand-written override names a goal the pulse knows. */
+function isOverrideGoal(goal: string): goal is PulseGoal {
+  return OVERRIDE_GOALS.has(goal);
 }

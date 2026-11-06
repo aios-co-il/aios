@@ -18,7 +18,7 @@
  * - pulse_campaign_goals: per-campaign goal overrides (short goal labels).
  *   Nothing on develop reads them yet; they are for the shared dashboard's
  *   Google Ads goal split (AIO-217).
- * - operational_campaign_states: reportOffLookup marks a paused or removed
+ * - operational_campaign_states: reportOffLookup marks a paused, removed or ended
  *   campaign "כבוי". Only each campaign's status is kept; its name and the
  *   status reasons stay private.
  *

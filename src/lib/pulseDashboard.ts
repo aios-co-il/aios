@@ -6,8 +6,6 @@ import {
   type PulsePlatform,
 } from "../../supabase/functions/_shared/pulse/platforms.ts";
 import {
-  classificationDataFromStoredRow,
-  classifyPulseCampaignGoal,
   integrationTypeToGoal,
   isEcommerceReportTable,
   dedupePulseCampaignRows,
@@ -240,16 +238,6 @@ export function pulseClientsNeedingRecordBuild(input: {
   return needsBuild;
 }
 
-function tableClassificationContext(
-  table: PulseCampaignTable,
-): Record<string, unknown> {
-  return {
-    integration_type: table.integration_type,
-    integration_settings: table.integration_settings || {},
-    category: table.category,
-  };
-}
-
 /** Pulse dashboard only tracks campaigns that spent in the current window. */
 export function filterPulseCampaignRowsWithSpend(
   rows: PulseCampaignGoalRow[],
@@ -283,54 +271,6 @@ export function pulseClientsWithMisclassifiedEcommerceReports(
   return Array.from(stale);
 }
 
-function applyFreshCampaignGoalClassification(
-  row: PulseCampaignGoalRow,
-  table: PulseCampaignTable | undefined,
-): PulseCampaignGoalRow {
-  if (!table) return row;
-  const classification = classifyPulseCampaignGoal(
-    classificationDataFromStoredRow(row),
-    tableClassificationContext(table),
-  );
-  if (classification.goal === "unknown" || classification.goal === row.goal)
-    return row;
-  const next: PulseCampaignGoalRow = {
-    ...row,
-    goal: classification.goal,
-    classification_source: classification.source,
-  };
-  if (
-    classification.goal === "leads" &&
-    (row.outcome_kind === "link_clicks" ||
-      row.outcome_kind === "clicks" ||
-      row.outcome_kind === "landing_page_views")
-  ) {
-    next.outcome_kind = "leads";
-  }
-  return next;
-}
-
-/** Clients whose stored breakdown goal no longer matches objective/report rules. */
-export function pulseClientsWithStaleCampaignGoals(
-  breakdownRows: PulseCampaignGoalRow[],
-  tables: PulseCampaignTable[],
-): string[] {
-  const tableById = new Map(tables.map((table) => [table.id, table]));
-  const stale = new Set<string>();
-  for (const row of breakdownRows) {
-    const table = tableById.get(row.table_id);
-    if (!table) continue;
-    const fresh = classifyPulseCampaignGoal(
-      classificationDataFromStoredRow(row),
-      tableClassificationContext(table),
-    );
-    if (fresh.goal !== "unknown" && fresh.goal !== row.goal) {
-      stale.add(row.client_id);
-    }
-  }
-  return Array.from(stale);
-}
-
 export type PulseCampaignDeliveryHint = {
   table_id: string;
   campaign_id: string;
@@ -345,13 +285,12 @@ const PAUSED_ROW_PATCH = {
   alert_eligible: false,
 };
 
-/** Apply delivery status + paused/removed criteria without a full crm_records rebuild. */
+/** Apply delivery status + paused/removed/ended criteria without a full crm_records rebuild. */
 export function rehydrateCampaignBreakdownRows(
   rows: PulseCampaignGoalRow[],
   tables: PulseCampaignTable[],
   hints: PulseCampaignDeliveryHint[] = [],
 ): PulseCampaignGoalRow[] {
-  const tableById = new Map(tables.map((table) => [table.id, table]));
   const settingsByTable = new Map(
     tables.map((table) => [table.id, table.integration_settings || {}]),
   );
@@ -379,7 +318,6 @@ export function rehydrateCampaignBreakdownRows(
               },
               settings,
             );
-      const table = tableById.get(row.table_id);
       let next: PulseCampaignGoalRow = { ...row, delivery_status };
       if (delivery_status === "paused") {
         next = { ...next, ...PAUSED_ROW_PATCH };
@@ -391,8 +329,16 @@ export function rehydrateCampaignBreakdownRows(
           status_reason: "קמפיין הוסר/לא פעיל",
           alert_eligible: false,
         };
+      } else if (delivery_status === "ended") {
+        next = {
+          ...next,
+          status: "healthy",
+          status_tier: "normal",
+          status_reason: "קמפיין הסתיים",
+          alert_eligible: false,
+        };
       }
-      return applyFreshCampaignGoalClassification(next, table);
+      return next;
     }),
   );
 }
