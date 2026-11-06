@@ -28,7 +28,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PR: ${{ github.event.pull_request.number }}
       PR_URL: ${{ github.event.pull_request.html_url }}
-      PR_TITLE: ${{ github.event.pull_request.title }}
       # One rolling branch and PR carries every hotfix until a human merges it.
       BRANCH: backport/main-hotfixes
     steps:
@@ -163,11 +162,10 @@ jobs:
           if [ -n "$OPEN_PR" ]; then
             existing="https://github.com/$GITHUB_REPOSITORY/pull/$OPEN_PR"
           fi
-          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --arg title "$PR_TITLE" --arg existing "$existing" --slurpfile commits commits.json '{
+          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --arg existing "$existing" --slurpfile commits commits.json '{
               kind: "backport-conflict",
               repo: $repo,
               hotfixPr: $pr,
-              prTitle: $title,
               commits: $commits[0],
               conflictingFiles: [split("\n")[] | select(. != "")]
             } + (if $existing != "" then {existingBackportPr: $existing} else {} end)' conflicts.txt > prompt-input.json

@@ -14,28 +14,27 @@ const unported: PromptInput = {
 };
 
 describe("buildAgentPrompt", () => {
-  test("names the commit, the branch, the cherry-pick and the exact PR title", () => {
+  test("names the commit, the rolling branch, the cherry-pick and the fixed PR title", () => {
     const prompt = buildAgentPrompt(unported);
     expect(prompt).toContain("abc1234 fix(leads): hide kanban columns");
     expect(prompt).toContain(
-      "git switch -c chore/AIO-291/backport-abc1234 origin/develop --no-track",
+      "git switch -c backport/main-hotfixes origin/develop --no-track",
     );
     expect(prompt).toContain("git cherry-pick -x abc1234def5678");
     expect(prompt).toContain(
-      "titled exactly: fix(leads): hide kanban columns outside the stage filter [AIO-291]",
+      "titled exactly: ci(backport): port main hotfixes to develop [AIO-145]",
     );
-    expect(prompt).not.toMatch(/titled exactly: .*\(#891\)/);
   });
 
-  test("tells the agent to ask for the Linear issue when the subject has none", () => {
+  test("never asks the user for anything, whether or not the subject has an issue", () => {
     const prompt = buildAgentPrompt({
       ...unported,
       commits: [
         { sha: "abc1234def5678", subject: "fix(leads): no issue here" },
       ],
     });
-    expect(prompt).toContain("chore/<issue>/backport-abc1234");
-    expect(prompt).toContain("Ask the user for the AIO-xx ID before step 3.");
+    expect(prompt).not.toMatch(/ask the user/i);
+    expect(prompt).toContain("Linear issue: AIO-145");
   });
 
   test("always carries the prohibitions and the stop condition", () => {
@@ -95,20 +94,6 @@ describe("buildAgentPrompt", () => {
     expect(prompt).toContain("finish a backport that hit a merge conflict");
     expect(prompt).toContain("pull/891 onto develop stopped on a conflict");
     expect(prompt).toContain("  - src/pages/Leads.tsx");
-  });
-
-  test("uses the hotfix PR title on the conflict path", () => {
-    const prompt = buildAgentPrompt({
-      kind: "backport-conflict",
-      repo: "aios-co-il/aios",
-      commits: [hotfix],
-      hotfixPr: "https://github.com/aios-co-il/aios/pull/891",
-      prTitle: "fix(leads): hide kanban columns [AIO-291]",
-      conflictingFiles: ["src/pages/Leads.tsx"],
-    });
-    expect(prompt).toContain(
-      "titled exactly: fix(leads): hide kanban columns [AIO-291]",
-    );
   });
 
   test("points a truncated conflict file list at the git diff command", () => {
