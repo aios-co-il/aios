@@ -34,7 +34,7 @@ import { ImportAnalyticsDialog } from "@/components/analytics/ImportAnalyticsDia
 export default function SiteAnalytics() {
   const { currentTenantId } = useTenant();
   const queryClient = useQueryClient();
-  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [selectedClientId, setSelectedClientId] = useState<string | null>("");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dateRange, setDateRange] = useState<DateRange>(() =>
     getDateRangeFromPreset("7_days"),
@@ -65,7 +65,7 @@ export default function SiteAnalytics() {
       const { data, error } = await supabase
         .from("clients")
         .select("id, name, website")
-        .eq("tenant_id", currentTenantId)
+        .filter("tenant_id", "eq", currentTenantId)
         .order("name");
       if (error) throw error;
       return data || [];
@@ -85,7 +85,7 @@ export default function SiteAnalytics() {
           clients:client_id (id, name)
         `,
         )
-        .eq("tenant_id", currentTenantId)
+        .filter("tenant_id", "eq", currentTenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -101,7 +101,7 @@ export default function SiteAnalytics() {
       const { count: visitorsCount } = await supabase
         .from("site_visitors")
         .select("*", { count: "exact", head: true })
-        .eq("tenant_id", currentTenantId);
+        .filter("tenant_id", "eq", currentTenantId);
 
       // Get sessions today
       const today = new Date();
@@ -110,21 +110,21 @@ export default function SiteAnalytics() {
       const { count: sessionsToday } = await supabase
         .from("site_sessions")
         .select("*", { count: "exact", head: true })
-        .eq("tenant_id", currentTenantId)
+        .filter("tenant_id", "eq", currentTenantId)
         .gte("started_at", today.toISOString());
 
       // Get pageviews today
       const { count: pageviewsToday } = await supabase
         .from("site_pageviews")
         .select("*", { count: "exact", head: true })
-        .eq("tenant_id", currentTenantId)
+        .filter("tenant_id", "eq", currentTenantId)
         .gte("viewed_at", today.toISOString());
 
       // Get events today
       const { count: eventsToday } = await supabase
         .from("site_events")
         .select("*", { count: "exact", head: true })
-        .eq("tenant_id", currentTenantId)
+        .filter("tenant_id", "eq", currentTenantId)
         .gte("occurred_at", today.toISOString());
 
       return {
