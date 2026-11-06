@@ -96,6 +96,39 @@ Deno.test(
 );
 
 Deno.test(
+  "a relaunch under the same name reads the state of the id that is spending now",
+  () => {
+    // Old id ran first and is PAUSED; the relaunched id runs after it and is
+    // ENABLED. The row order must not decide the status.
+    const settings = {
+      operational_campaign_states: {
+        old: { status: "PAUSED" },
+        new: { status: "ENABLED", primary_status: "ELIGIBLE" },
+      },
+    };
+    const records = lastWeek.map((date, i) =>
+      googleRow("g", date, {
+        campaign_id: i < 3 ? "old" : "new",
+        campaign_name: "Trip - Pmax",
+        conversion_goal: "leads",
+        cost: 100,
+        conversions: 0,
+      }),
+    );
+    for (const ordered of [records, [...records].reverse()]) {
+      const rows = buildPulseCampaignRows({
+        records: ordered,
+        tables: [googleTable("g", settings)],
+        nowYmd: "2026-10-24",
+      });
+      assertStrictEquals(rows.length, 1);
+      assertStrictEquals(rows[0].delivery_status, "active");
+      assertStrictEquals(rows[0].alert_eligible, true);
+    }
+  },
+);
+
+Deno.test(
   "rows synced before the goal was stamped do not outvote the stamped rows",
   () => {
     const records = lastWeek.map((date, i) =>

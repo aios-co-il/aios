@@ -920,7 +920,9 @@ function campaignDeliveryStatus(items) {
     () => "campaign",
   ).get("campaign");
   if (latest) return latest;
-  for (const item of items) {
+  // Newest first, so a relaunch under the same name (old id PAUSED, new id
+  // ENABLED) reads the id that is spending now, whatever order rows arrive in.
+  for (const item of [...items].sort(compareLatestFirst)) {
     const status = resolveCampaignDeliveryStatus(
       { campaign_id: item.identity.id },
       item.table.integration_settings || {},
@@ -928,6 +930,15 @@ function campaignDeliveryStatus(items) {
     if (status !== "unknown") return status;
   }
   return "unknown";
+}
+
+/** Latest dated row first; ties break on table id, then campaign id. */
+function compareLatestFirst(a, b) {
+  return (
+    String(b.record.data.date).localeCompare(String(a.record.data.date)) ||
+    String(a.table.id).localeCompare(String(b.table.id)) ||
+    String(a.identity.id).localeCompare(String(b.identity.id))
+  );
 }
 
 /** One campaign's pulse row from its daily rows. */
