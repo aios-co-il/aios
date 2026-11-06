@@ -21,9 +21,6 @@ const AVIELI_SALES_FINGERPRINTS = [
   `${AVIELI}:meta:ecommerce:name:קמפיין מכירות סרטונים:${SPEND_WITHOUT_RESULTS}:no_target:none`,
 ];
 
-/** The fingerprint of the lead campaign that spends with 0 leads. */
-const LEAD_ZERO_FINGERPRINT = `leads:meta:leads:name:קמפיין לידים -עמוד נחיתה 4.11:${SPEND_WITHOUT_RESULTS}:no_target:none`;
-
 const rows = buildPulseCampaignRows({
   records: TODAY_RECORDS,
   tables: REPORT_GOAL_TABLES,
@@ -86,13 +83,33 @@ Deno.test(
       assertStrictEquals(ended.alert_eligible, false);
     });
 
-    await t.step("a lead campaign that spends with 0 leads alerts", () => {
-      const leads = row("קמפיין לידים -עמוד נחיתה");
-      assertStrictEquals(leads.goal, "leads");
-      assertStrictEquals(leads.outcomes_7d, 0);
-      assertStrictEquals(leads.status_reason, SPEND_WITHOUT_RESULTS);
-      assertStrictEquals(leads.alert_eligible, true);
-    });
+    await t.step(
+      "a lead campaign with 0 leads waits for 3 full days: started 11-04, quiet on 11-06",
+      () => {
+        const leads = row("קמפיין לידים -עמוד נחיתה");
+        assertStrictEquals(leads.goal, "leads");
+        assertStrictEquals(leads.outcomes_7d, 0);
+        assertStrictEquals(leads.status_reason, SPEND_WITHOUT_RESULTS);
+        assertStrictEquals(leads.alert_eligible, false);
+      },
+    );
+
+    await t.step(
+      "the same lead campaign alerts on 11-07, after 3 full days with 0 leads",
+      () => {
+        const nextDay = buildPulseCampaignRows({
+          records: TODAY_RECORDS,
+          tables: REPORT_GOAL_TABLES,
+          nowYmd: "2026-11-07",
+        });
+        const leads = nextDay.find((candidate) =>
+          candidate.campaign_name.includes("קמפיין לידים -עמוד נחיתה"),
+        );
+        assertStrictEquals(leads?.outcomes_7d, 0);
+        assertStrictEquals(leads?.status_reason, SPEND_WITHOUT_RESULTS);
+        assertStrictEquals(leads?.alert_eligible, true);
+      },
+    );
 
     await t.step("Avieli's sales campaigns that still spend alert", () => {
       for (const name of ["8.6", "PURCHASE 3.11", "מכירות סרטונים"]) {
@@ -105,7 +122,7 @@ Deno.test(
 );
 
 Deno.test(
-  "today's run alerts on the running sales and lead campaigns only, with today's fingerprints",
+  "today's run alerts on the running sales campaigns only, with today's fingerprints",
   () => {
     const byClient = new Map<string, PulseSnapshotAlertInput>();
     for (const campaign of rows) {
@@ -125,7 +142,7 @@ Deno.test(
     });
     assertEquals(
       alerts.map((alert) => alert.fingerprint).sort(),
-      [...AVIELI_SALES_FINGERPRINTS, LEAD_ZERO_FINGERPRINT].sort(),
+      [...AVIELI_SALES_FINGERPRINTS].sort(),
     );
   },
 );

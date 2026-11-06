@@ -932,6 +932,21 @@ function campaignDeliveryStatus(items) {
   return "unknown";
 }
 
+/**
+ * Full days from a campaign's first spend day through the last full day.
+ * Rows reach back ~35 days, so an older campaign counts as old enough.
+ */
+function fullDaysRunning(records, lastFullDay) {
+  const firstSpendDay = records
+    .filter((row) => getSpendFromData(row.data) > 0)
+    .map((row) => String(row.data.date))
+    .sort()[0];
+  if (!firstSpendDay) return 0;
+  return (
+    Math.round((utcDate(lastFullDay) - utcDate(firstSpendDay)) / DAY_MS) + 1
+  );
+}
+
 /** Latest dated row first; ties break on table id, then campaign id. */
 function compareLatestFirst(a, b) {
   return (
@@ -985,7 +1000,12 @@ function pulseCampaignRow(items, places, context) {
       deliveryStatus,
       costRules: rules,
     }),
-    { goal, deliveryStatus, spend3d: current3.spend },
+    {
+      goal,
+      deliveryStatus,
+      spend3d: current3.spend,
+      fullDaysRunning: fullDaysRunning(campaignRecords, windows.current3.end),
+    },
   );
   const useRoas = goal === "ecommerce" && target?.kind !== "cpa";
   const lowerIsBetter = !useRoas;
