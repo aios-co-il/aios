@@ -77,6 +77,7 @@ describe("buildAgentPrompt", () => {
       expect(prompt).toContain(
         "git switch -c backport/main-hotfixes origin/backport/main-hotfixes --no-track",
       );
+      expect(prompt).toContain("then git merge origin/develop");
       expect(prompt).toContain("git push origin HEAD:backport/main-hotfixes");
       expect(prompt).toContain("Do not open another PR.");
       expect(prompt).not.toContain("origin/develop --no-track");

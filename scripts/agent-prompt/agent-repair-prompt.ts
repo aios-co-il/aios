@@ -53,7 +53,7 @@ export function buildAgentPrompt(input: PromptInput): string {
       ? `2. git fetch origin develop main ${BACKPORT_BRANCH}`
       : "2. git fetch origin develop main",
     existing
-      ? `3. git switch -c ${branch} origin/${branch} --no-track`
+      ? `3. git switch -c ${branch} origin/${branch} --no-track, then git merge origin/develop (on a conflict, resolve it so both sides keep their intent, then git add and git commit)`
       : `3. git switch -c ${branch} origin/develop --no-track`,
     `4. git cherry-pick -x ${shas.join(" ")}   (oldest first)`,
     "5. On a conflict, resolve it against current develop so both sides keep their intent, then git add and git cherry-pick --continue.",
