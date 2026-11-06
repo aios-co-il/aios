@@ -52,6 +52,19 @@ For each unresolved thread:
   - **Question**: only when the reviewer genuinely wants an explanation and no code
     change is implied (rare)
   - **Revert**: reviewer explicitly says "revert", "remove", or "this is out of scope"
+- Judge every action-required, suggestion, and revert comment on evidence and give it a
+  **verdict**; questions get none:
+  - **Needed**: you can name the concrete failure (input, state, or event) and it can
+    happen in this repo's real usage. Estimate how often from repo facts such as
+    history, rulesets, or how the code is triggered, not from the reviewer's tone.
+  - **Optional**: correct, but the failure is rare, cosmetic, or cheaper to accept.
+  - **False positive**: the claim is wrong. Prove it first (read the code, or run the
+    command on a scratch repo) and quote what you found.
+  - **Pre-existing**: the commented lines are identical on `develop`
+    (`git diff origin/develop -- <file>`). Skip them in this PR; if the failure is
+    Needed, name or file a follow-up issue.
+- Prefer the fix that deletes the thing the comment is about over one that adds
+  machinery around it: every added line is new surface for the next review.
 - Draft a concrete, specific fix for action-required and revert items. For questions,
   draft a brief answer. For suggestions, note whether it's worth doing.
 - Estimate size: `small` (a few lines), `medium` (one function/file), `large`
@@ -74,6 +87,7 @@ Output a numbered list. Standalone items:
 
 > <exact quote of the comment body>
 
+**Verdict:** <Needed | Optional | False positive | Pre-existing>: <the failure, and how likely it is here>
 **Analysis:** <1-2 sentences: what they mean and why it matters>
 **Proposed fix:** <concrete description of what to change>
 ```
@@ -86,13 +100,18 @@ Cascade groups:
 
 > <quote from the root comment>
 
+**Verdict:** <Needed | Optional | False positive | Pre-existing>: <the failure, and how likely it is here>
 **Analysis:** <why these are linked>
 **Proposed fix:** <single description covering all files in the group>
   - file-a.ts line X: ...
   - file-b.ts line Y: ...
 ```
 
-After the list, ask:
+After the list, say which comments you would fix and which you would skip, and why:
+recommend fixing the Needed ones and skipping the Optional, False positive, and Pre-existing ones.
+Leave skipped threads unresolved until the user says to resolve or reply to them.
+
+Then ask:
 
 > "Which of these would you like me to address? (e.g. "fix 1, 2, 4" or "all" or
 > "skip 3, fix the rest") For large ones I'll flag if they need a separate session."
