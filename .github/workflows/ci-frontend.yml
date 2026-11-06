@@ -266,7 +266,9 @@ jobs:
         with:
           deno-version: v2.x
       - name: Edge function tests (Deno)
-        run: deno test -A --no-check supabase/functions
+        # Edge functions import `npm:` packages. Without this flag Deno finds the repo's package.json and
+        # demands an installed node_modules; with it, Deno fetches them itself and no install hooks run.
+        run: deno test -A --no-check --node-modules-dir=none supabase/functions
 
   # Vercel builds every PR preview but not the merge queue's combined commit, so only the queue builds here.
   build:
