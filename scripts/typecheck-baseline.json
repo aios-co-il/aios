@@ -271,13 +271,6 @@
     },
     {
       "file": "src/hooks/useBroadcastDomains.ts",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 4
-    },
-    {
-      "file": "src/hooks/useBroadcastDomains.ts",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; default_local?: string | undefined; domain: string; from_name?: string | null | undefined; id?: string | undefined; is_default?: boolean | undefined; tenant_id: string; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; default_local?: string | undefined; domain: string; from_name?: string | null | undefined; id?: string | undefined; is_default?: boolean | undefined; tenant_id: string; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; default_local?: string | undefined; domain: string; from_name?: string | null | undefined; id?: string | undefined; is_default?: boolean | undefined; tenant_id: string; }, { ...; }>[]'.",
       "source": "tenant_id",
