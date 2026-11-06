@@ -448,7 +448,7 @@ export default function MenuManagement() {
       const { data, error } = await supabase
         .from("menu_items")
         .select("*")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .order("sort_order");
 
       if (error) throw error;
