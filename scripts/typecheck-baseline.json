@@ -39,13 +39,6 @@
       "count": 1
     },
     {
-      "file": "src/components/broadcast/BroadcastWizard.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "tenantId",
-      "count": 6
-    },
-    {
       "file": "src/components/CalendarSharingSettings.tsx",
       "code": 2345,
       "message": "Argument of type '(share: CalendarShare) => JSX.Element' is not assignable to parameter of type '(value: { id: string; owner_user_id: string; shared_with_user_id: string; permission_level: string; created_at: string | null; }, index: number, array: { id: string; owner_user_id: string; shared_with_user_id: string; permission_level: string; created_at: string | null; }[]) => Element'.\n  Types of parameters 'share' and 'value' are incompatible.\n    Type '{ id: string; owner_user_id: string; shared_with_user_id: string; permission_level: string; created_at: string | null; }' is not assignable to type 'CalendarShare'.\n      Types of property 'created_at' are incompatible.\n        Type 'string | null' is not assignable to type 'string'.\n          Type 'null' is not assignable to type 'string'.",
