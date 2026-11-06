@@ -1,11 +1,12 @@
-import { AuthApiError, createClient, type User } from "@supabase/supabase-js";
-import { render, screen, waitFor } from "@testing-library/react";
+import { AuthApiError, createClient } from "@supabase/supabase-js";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import Auth from "./Auth";
+import { user, sessionResponse, authResponse } from "./Auth.mfa.test-fixture";
 
 const state = vi.hoisted(() => ({
   fetch: vi.fn<typeof fetch>(),
@@ -31,72 +32,32 @@ vi.mock("@/integrations/supabase/client", () => ({
   }),
 }));
 
-const user: User = {
-  id: "11111111-1111-1111-1111-111111111111",
-  aud: "authenticated",
-  app_metadata: {},
-  user_metadata: {},
-  created_at: "2026-01-01T00:00:00Z",
-};
-
-/** Keep SDK session parsing and auth events real without contacting Auth. */
-function sessionResponse(aal = "aal1") {
-  const encode = (value: object) =>
-    btoa(JSON.stringify(value))
-      .replace(/=/g, "")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_");
-  return {
-    access_token: `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ sub: user.id, aal, exp: 4102444800 })}.c2lnbmF0dXJl`,
-    refresh_token: "synthetic-refresh",
-    token_type: "bearer",
-    expires_in: 3600,
-    user: {
-      ...user,
-      factors: state.needsMfa
-        ? [{ id: "factor-1", factor_type: "totp", status: "verified" }]
-        : [],
-    },
-  };
-}
-
 beforeEach(async () => {
-  vi.restoreAllMocks();
   state.needsMfa = false;
   state.home.mockReset().mockResolvedValue("/t/test/home");
   state.toast.mockReset();
-  state.requests = [];
   state.events = [];
-  state.fetch.mockReset().mockImplementation(async (input, init) => {
-    const request = new Request(input, init);
-    state.requests.push(request);
-    const path = new URL(request.url).pathname;
-    let body: object;
-    if (path === "/auth/v1/token") {
-      body = sessionResponse();
-    } else if (path === "/auth/v1/user") {
-      body = sessionResponse().user;
-    } else if (path.endsWith("/challenge")) {
-      body = { id: "challenge-1", type: "totp", expires_at: 4102444800 };
-    } else if (path.endsWith("/verify")) {
-      body = sessionResponse("aal2");
-    } else if (
-      path === "/functions/v1/process-user-invitation" ||
-      path === "/auth/v1/logout"
-    ) {
-      body = {};
-    } else {
-      throw new Error(`Unexpected request: ${request.method} ${path}`);
-    }
-    return new Response(JSON.stringify(body), {
-      headers: { "content-type": "application/json" },
-    });
-  });
+  state.fetch
+    .mockReset()
+    .mockImplementation((input, init) =>
+      authResponse(input, init, state.needsMfa, state.requests),
+    );
   await supabase.auth.signOut({ scope: "local" });
   state.requests = [];
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+/** Restore a valid session through the real SDK, including its SIGNED_IN event. */
+async function restoreSession() {
+  await supabase.auth.setSession({
+    access_token: sessionResponse().access_token,
+    refresh_token: "synthetic-refresh",
+  });
+}
 
 /** Mount the same Auth entry route used for password and restored sessions. */
 function renderAuth() {
@@ -129,10 +90,22 @@ async function signIn() {
 }
 
 describe("Auth password MFA readiness", () => {
-  it.each(["assurance", "factors", "missing factor"])(
+  it.each([
+    "assurance",
+    "factors",
+    "missing factor",
+    "current level",
+    "next level",
+    "session",
+  ])(
     "blocks navigation and restores the form after %s failure",
     async (failure) => {
-      state.needsMfa = failure !== "assurance";
+      state.needsMfa = failure === "factors" || failure === "missing factor";
+      const error = new AuthApiError(
+        `Unavailable ${failure}`,
+        503,
+        "unexpected_failure",
+      );
       let finishAssurance: () => void = () => undefined;
       if (failure === "assurance") {
         vi.spyOn(
@@ -144,26 +117,45 @@ describe("Auth password MFA readiness", () => {
               finishAssurance = () =>
                 resolve({
                   data: null,
-                  error: new AuthApiError(
-                    "Assurance unavailable",
-                    503,
-                    "unexpected_failure",
-                  ),
+                  error,
                 });
             }),
         );
       } else if (failure === "factors") {
         vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
           data: null,
-          error: new AuthApiError(
-            "Factors unavailable",
-            503,
-            "unexpected_failure",
-          ),
+          error,
         });
-      } else {
+      } else if (failure === "missing factor") {
         vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
           data: { all: [], totp: [], phone: [], webauthn: [] },
+          error: null,
+        });
+      } else if (failure === "session") {
+        const assurance = supabase.auth.mfa.getAuthenticatorAssuranceLevel.bind(
+          supabase.auth.mfa,
+        );
+        vi.spyOn(
+          supabase.auth.mfa,
+          "getAuthenticatorAssuranceLevel",
+        ).mockImplementation(async () => {
+          const result = await assurance();
+          vi.spyOn(supabase.auth, "getSession").mockResolvedValueOnce({
+            data: { session: null },
+            error,
+          });
+          return result;
+        });
+      } else {
+        vi.spyOn(
+          supabase.auth.mfa,
+          "getAuthenticatorAssuranceLevel",
+        ).mockResolvedValue({
+          data: {
+            currentLevel: failure === "current level" ? null : "aal1",
+            nextLevel: failure === "next level" ? null : "aal1",
+            currentAuthenticationMethods: [],
+          },
           error: null,
         });
       }
@@ -184,10 +176,7 @@ describe("Auth password MFA readiness", () => {
         false,
       );
       // A later SDK sign-in notification must not bypass the failed password flow.
-      await supabase.auth.setSession({
-        access_token: sessionResponse().access_token,
-        refresh_token: "synthetic-refresh",
-      });
+      await restoreSession();
       expect(state.home).not.toHaveBeenCalled();
     },
   );
@@ -198,10 +187,7 @@ describe("Auth password MFA readiness", () => {
       if (entry === "password") {
         await signIn();
       } else {
-        await supabase.auth.setSession({
-          access_token: sessionResponse().access_token,
-          refresh_token: "synthetic-refresh",
-        });
+        await restoreSession();
         renderAuth();
       }
       expect(await screen.findByText("Protected home")).toBeInTheDocument();
@@ -211,6 +197,49 @@ describe("Auth password MFA readiness", () => {
       ).toHaveLength(1);
     },
   );
+
+  it("cancels an older bootstrap navigation when password MFA fails", async () => {
+    let releaseHome: (path: string) => void = () => undefined;
+    state.home.mockReturnValue(
+      new Promise((resolve) => {
+        releaseHome = resolve;
+      }),
+    );
+    await restoreSession();
+    vi.useFakeTimers();
+    renderAuth();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4100);
+    });
+    vi.useRealTimers();
+    expect(state.home).toHaveBeenCalledTimes(1);
+    vi.spyOn(
+      supabase.auth.mfa,
+      "getAuthenticatorAssuranceLevel",
+    ).mockResolvedValue({
+      data: null,
+      error: new AuthApiError(
+        "Assurance unavailable",
+        503,
+        "unexpected_failure",
+      ),
+    });
+    const interaction = userEvent.setup();
+    await interaction.type(
+      screen.getByLabelText("אימייל"),
+      "user@example.test",
+    );
+    await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
+    await interaction.click(screen.getByRole("button", { name: "התחבר" }));
+    expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled();
+    await act(async () => {
+      releaseHome("/t/test/home");
+    });
+    expect(screen.queryByText("Protected home")).not.toBeInTheDocument();
+    expect(state.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "destructive" }),
+    );
+  });
 
   it("waits for TOTP verification before navigating", async () => {
     state.needsMfa = true;
@@ -224,12 +253,13 @@ describe("Auth password MFA readiness", () => {
     await interaction.click(screen.getByRole("button", { name: "אמת" }));
     expect(await screen.findByText("Protected home")).toBeInTheDocument();
     expect(state.home).toHaveBeenCalledExactlyOnceWith(user.id);
-    expect(
-      state.requests
-        .filter(
-          (r) => r.url.endsWith("/challenge") || r.url.endsWith("/verify"),
-        )
-        .map((r) => r.method),
-    ).toEqual(["POST", "POST"]);
+    const verification = state.requests.find((r) =>
+      r.url.endsWith("/factors/factor-1/verify"),
+    );
+    expect(verification?.method).toBe("POST");
+    expect(await verification?.json()).toEqual({
+      challenge_id: "challenge-1",
+      code: "123456",
+    });
   });
 });

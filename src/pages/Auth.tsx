@@ -55,12 +55,20 @@ export default function Auth() {
   const inviteToken = searchParams.get("token");
 
   const navigateToApp = useCallback(
-    async (userId: string, accessToken?: string) => {
+    async (
+      userId: string,
+      accessToken?: string,
+      isCurrent: () => boolean = () => true,
+    ) => {
       if (accessToken) {
         await processPendingInvitation(accessToken);
       }
 
       const homePath = await resolveAppHomePath(userId);
+      // Session work may have started before password sign-in took ownership.
+      if (!isCurrent()) {
+        return false;
+      }
       if (homePath) {
         navigate(homePath, { replace: true });
         return true;
@@ -125,7 +133,11 @@ export default function Auth() {
       }
       navigated = true;
       setCheckingSession(true);
-      const ok = await navigateToApp(session.user.id, session.access_token);
+      const ok = await navigateToApp(
+        session.user.id,
+        session.access_token,
+        () => !passwordSignInStarted.current,
+      );
       if (!ok) {
         navigated = false;
         setCheckingSession(false);
@@ -179,15 +191,21 @@ export default function Auth() {
     e.preventDefault();
     passwordSignInStarted.current = true;
     setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      toast({
+        title: "שגיאה",
+        description: error.message,
+        variant: "destructive",
       });
-      if (error) {
-        throw error;
-      }
+      setLoading(false);
+      return;
+    }
 
+    try {
       const { data, error: assuranceError } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       if (assuranceError) {
