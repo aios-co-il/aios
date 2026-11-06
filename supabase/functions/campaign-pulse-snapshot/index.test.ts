@@ -51,7 +51,7 @@ Deno.test("campaign-pulse-snapshot wiring", async (t) => {
     () => {
       assertMatch(
         source,
-        /const goalMode = clientGoalModeOf\(\{\s*records,\s*goalOf: \(row: any\) => verdictOf\(row\)\?\.goal,\s*tables: activeTables,\s*sinceYmd: windows\.recent30Start,/,
+        /const goalMode = clientGoalModeOf\(\{\s*records,\s*goalOf: \(row\) => verdictOf\(row\)\?\.goal,\s*tables: activeTables,\s*sinceYmd: windows\.recent30Start,/,
       );
       assertMatch(
         source,

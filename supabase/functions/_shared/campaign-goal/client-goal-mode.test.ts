@@ -2,14 +2,25 @@ import { assertStrictEquals } from "jsr:@std/assert@1";
 import { clientGoalModeOf } from "./client-goal-mode.ts";
 import type { ReportCampaignGoal } from "./report-goals.ts";
 
-type Row = { goal?: ReportCampaignGoal; data: Record<string, unknown> };
+type Row = {
+  table_id: string;
+  goal?: ReportCampaignGoal;
+  data: Record<string, unknown>;
+};
 
-const row = (goal: ReportCampaignGoal, date: string, spend: number): Row => ({
-  goal,
-  data: { date, spend },
-});
-const plainMeta = { integration_type: "facebook_insights" };
-const ecommerceTable = { integration_type: "facebook_ecommerce" };
+const row = (
+  table_id: string,
+  goal: ReportCampaignGoal,
+  date: string,
+  spend: number,
+): Row => ({ table_id, goal, data: { date, spend } });
+const plainMeta = { id: "m", integration_type: "facebook_insights" };
+const ecommerceTable = { id: "e", integration_type: "facebook_ecommerce" };
+const googleSales = {
+  id: "g",
+  integration_type: "google_ads",
+  integration_settings: { campaign_type: "ecommerce" },
+};
 
 /** The mode of `records` since 2026-10-07, as the pulse reads 30 days. */
 function modeOf(records: Array<Row>, tables: Array<Record<string, unknown>>) {
@@ -27,7 +38,7 @@ Deno.test("clientGoalModeOf", async (t) => {
     () => {
       // Before AIO-494 the table's settings alone made this a leads client.
       assertStrictEquals(
-        modeOf([row("ecommerce", "2026-11-01", 100)], [plainMeta]),
+        modeOf([row("m", "ecommerce", "2026-11-01", 100)], [plainMeta]),
         "ecommerce",
       );
     },
@@ -38,7 +49,10 @@ Deno.test("clientGoalModeOf", async (t) => {
     () => {
       assertStrictEquals(
         modeOf(
-          [row("leads", "2026-11-01", 50), row("ecommerce", "2026-11-02", 80)],
+          [
+            row("m", "leads", "2026-11-01", 50),
+            row("m", "ecommerce", "2026-11-02", 80),
+          ],
           [plainMeta],
         ),
         "hybrid",
@@ -50,8 +64,20 @@ Deno.test("clientGoalModeOf", async (t) => {
     "an ecommerce table whose campaigns are all lead campaigns is leads",
     () => {
       assertStrictEquals(
-        modeOf([row("leads", "2026-11-01", 50)], [ecommerceTable]),
+        modeOf([row("e", "leads", "2026-11-01", 50)], [ecommerceTable]),
         "leads",
+      );
+    },
+  );
+
+  await t.step(
+    "a sales table whose sync died keeps its goal, so its stale data still shows",
+    () => {
+      // Review finding: without this, a dead Google sales table beside a
+      // spending lead table dropped the sales status and its stale flag.
+      assertStrictEquals(
+        modeOf([row("m", "leads", "2026-11-01", 50)], [plainMeta, googleSales]),
+        "hybrid",
       );
     },
   );
@@ -62,9 +88,9 @@ Deno.test("clientGoalModeOf", async (t) => {
       assertStrictEquals(
         modeOf(
           [
-            row("ecommerce", "2026-11-01", 0),
-            row("ecommerce", "2026-09-01", 100),
-            row("traffic", "2026-11-01", 100),
+            row("m", "ecommerce", "2026-11-01", 0),
+            row("m", "ecommerce", "2026-09-01", 100),
+            row("m", "traffic", "2026-11-01", 100),
           ],
           [plainMeta],
         ),

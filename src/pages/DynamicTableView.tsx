@@ -180,6 +180,7 @@ interface CrmTable {
   secondary_integration_type?: string | null;
   secondary_integration_settings?: any;
   campaign_active?: boolean | null;
+  category?: string | null;
 }
 
 interface CrmField {
@@ -3130,7 +3131,10 @@ export default function DynamicTableView({
           currency={getCurrencySymbol(table?.integration_settings?.currency)}
           isLoading={weeklyRecordsPending}
           tables={table ? [table] : undefined}
-          sourceModes={weeklySourceModesForTable(table?.integration_settings)}
+          sourceModes={weeklySourceModesForTable(
+            table?.integration_settings,
+            table?.category,
+          )}
         />
       )}
 
@@ -3176,8 +3180,8 @@ export default function DynamicTableView({
                 adsEntityLevel === "campaign"
                   ? `קמפיין ${suffix}`
                   : entityColumnLabel;
-              // Respect table-level campaign_type setting: if 'leads', NEVER show ecommerce table
-              // (even if Facebook reports stray purchase events from a tracking pixel)
+              // Each campaign under its report goal; a leads-only table keeps every
+              // campaign in leads (stray pixel purchases do not make it sales).
               const {
                 ecommerce: ecommerceCampaigns,
                 leads: leadCampaigns,

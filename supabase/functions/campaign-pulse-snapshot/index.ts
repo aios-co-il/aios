@@ -525,7 +525,7 @@ Deno.serve(async (req) => {
         // (David, AIO-494): one sales campaign makes its ROAS count.
         const goalMode = clientGoalModeOf({
           records,
-          goalOf: (row: any) => verdictOf(row)?.goal,
+          goalOf: (row) => verdictOf(row)?.goal,
           tables: activeTables,
           sinceYmd: windows.recent30Start,
         });

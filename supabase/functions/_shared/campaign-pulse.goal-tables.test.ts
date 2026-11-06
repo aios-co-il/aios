@@ -1,5 +1,11 @@
-import { assertEquals } from "jsr:@std/assert@1";
-import { detectCampaignGoalMode, goalTables } from "./campaign-pulse.ts";
+import { assert, assertEquals } from "jsr:@std/assert@1";
+import { clientGoalModeOf } from "./campaign-goal/client-goal-mode.ts";
+import {
+  classifyCampaignPulseStatus,
+  detectCampaignGoalMode,
+  goalTables,
+} from "./campaign-pulse.ts";
+import { isLostConnectionFlag } from "./pulse/connection-loss.ts";
 
 const plainMeta = { id: "m", integration_type: "facebook_insights" };
 const shop = { id: "s", integration_type: "facebook_ecommerce" };
@@ -30,3 +36,40 @@ Deno.test("detectCampaignGoalMode reads the active tables' own goals", () => {
     "leads",
   );
 });
+
+Deno.test(
+  "a sales table whose sync died beside a spending lead table still raises the stale-sync flag",
+  () => {
+    // The snapshot's steps for one client (campaign-pulse-snapshot/index.ts).
+    const googleSales = {
+      id: "g",
+      integration_type: "google_ads",
+      integration_settings: { campaign_type: "ecommerce" },
+    };
+    const tables = [plainMeta, googleSales];
+    const leadRecords = [
+      { table_id: "m", data: { date: "2026-11-01", spend: 50, leads: 4 } },
+    ];
+    const mode = clientGoalModeOf({
+      records: leadRecords,
+      goalOf: () => "leads",
+      tables,
+      sinceYmd: "2026-10-07",
+    });
+    assertEquals(mode, "hybrid");
+    const sales = classifyCampaignPulseStatus({
+      activeTables: goalTables(tables, "ecommerce", []),
+      hasConfiguredCampaignTable: true,
+      recentRecordCount: 0,
+      isEcommerce: true,
+      spend7: 0,
+      leads7: 0,
+      purchases7: 0,
+      roas: null,
+      cplChangePct: null,
+    });
+    // The digest keeps sales flags when the mode is not "leads", and a
+    // stale-sync flag is what raises the connection-lost alert.
+    assert(sales.flags.some(isLostConnectionFlag));
+  },
+);

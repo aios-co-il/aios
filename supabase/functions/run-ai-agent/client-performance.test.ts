@@ -84,7 +84,7 @@ describe("clientPerformanceEntry", () => {
     assertEquals([entry.is_ecommerce, entry.alert], [true, "🟢 תקין"]);
   });
 
-  it("an ecommerce table without sales spend does not make the client ecommerce", () => {
+  it("a switched-off ecommerce table does not make the client ecommerce", () => {
     const entry = clientPerformanceEntry({
       client,
       records: [day("2026-11-03", { ...leads, spend: 50, leads: 5 })],
