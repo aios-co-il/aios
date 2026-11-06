@@ -60,8 +60,8 @@ export function continentSections(
 }
 
 /**
- * Whether campaign names are destinations: at least two continents, and most
- * of the campaigns name one. Other accounts never see the tab.
+ * Whether campaign names are destinations: at least two continents, and more
+ * than half of the campaigns name one. Other accounts never see the tab.
  */
 export function namesCampaignsByDestination(names: Iterable<string>): boolean {
   const unique = new Set(names);
@@ -74,7 +74,7 @@ export function namesCampaignsByDestination(names: Iterable<string>): boolean {
       named++;
     }
   }
-  return continents.size >= 2 && named * 2 >= unique.size;
+  return continents.size >= 2 && named * 2 > unique.size;
 }
 
 /** The Google Ads campaign names among a dashboard's records. */

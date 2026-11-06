@@ -512,6 +512,12 @@ export default function SharedDashboard({
     () => namesCampaignsByDestination(googleCampaignNames(records)),
     [records],
   );
+  // A period whose campaigns stop naming destinations drops the tab; leave it too.
+  useEffect(() => {
+    if (platformFilter === "continents" && !hasContinentsTab) {
+      setPlatformFilter("google_ads");
+    }
+  }, [platformFilter, hasContinentsTab]);
 
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];

@@ -63,4 +63,15 @@ describe("namesCampaignsByDestination", () => {
       namesCampaignsByDestination(["טיול ליפן - Pmax", "טיול לסין - Pmax"]),
     ).toBe(false);
   });
+
+  it("needs more than half of the campaigns to name a destination", () => {
+    expect(
+      namesCampaignsByDestination([
+        "טיול ליפן - Pmax",
+        "טיול לפרו - Pmax",
+        "Brand search",
+        "רימרקטינג",
+      ]),
+    ).toBe(false);
+  });
 });
