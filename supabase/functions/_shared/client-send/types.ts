@@ -40,8 +40,8 @@ export type SendRecipient = {
    * member's profile, an active campaigner or sales person, an approved
    * campaigner identity (pulse phones are not staff). The resolver has then
    * dropped the sender's own cards, so any clientIds left are other
-   * tenants' clients, as for a client org's owner seen from that org. Only
-   * staff alerts and reports use it.
+   * tenants' clients, as for a client org's owner seen from that org. The
+   * guard then treats the recipient as staff, whatever the send kind.
    */
   senderStaff: boolean;
 };

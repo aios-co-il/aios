@@ -150,12 +150,12 @@ class AiosAccount(context: Context) {
      * Writes rows through the REST API as the signed-in user, so row-level security applies,
      * and returns the written rows. [method] is POST (insert) or PATCH (update).
      */
-    fun restWrite(method: String, query: String, body: JSONObject): JSONArray {
+    fun restWrite(method: String, query: String, body: JSONObject, prefer: String = "return=representation"): JSONArray {
         val request = Request.Builder()
             .url("${BuildConfig.SUPABASE_URL}/rest/v1/$query")
             .header("apikey", BuildConfig.SUPABASE_KEY)
             .header("Authorization", "Bearer ${session().accessToken}")
-            .header("Prefer", "return=representation")
+            .header("Prefer", prefer)
             .method(method, body.toString().toRequestBody(JSON))
             .build()
         http.newCall(request).execute().use { response ->

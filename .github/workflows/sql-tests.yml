@@ -35,7 +35,9 @@ jobs:
         run: |
           set -euo pipefail
           # Pushes always run; PRs and merge-queue runs skip (and report success) without database changes.
-          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -Eq '^supabase/|^\.github/workflows/sql-tests\.yml$'; then
+          # grep reads the whole list (no -q): under pipefail an early exit gives git diff SIGPIPE (141),
+          # and a large PR would then skip the tests (AIO-410).
+          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD | grep -E '^supabase/|^\.github/workflows/sql-tests\.yml$' >/dev/null; then
             echo "sql=true" >> "$GITHUB_OUTPUT"
           else
             echo "sql=false" >> "$GITHUB_OUTPUT"
