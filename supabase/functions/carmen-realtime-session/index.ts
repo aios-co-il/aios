@@ -18,6 +18,8 @@ import {
   pronunciationInstructions,
   SAVE_PRONUNCIATION_TOOL,
 } from "./pronunciations.ts";
+import { loadOrgBrief } from "./org-brief.ts";
+import { orgBriefInstructions } from "./org-brief-text.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,9 +128,12 @@ Deno.serve(async (req) => {
       .catch(() => ({}) as Record<string, unknown>);
     const db = serviceClient();
     const agent = await loadVoiceAgent(db, caller.id, tenant_id);
-    const pronunciations = agent
-      ? await loadPronunciations(db, agent.tenantId)
-      : [];
+    const [pronunciations, orgBrief] = agent
+      ? await Promise.all([
+          loadPronunciations(db, agent.tenantId),
+          loadOrgBrief(db, agent.tenantId),
+        ])
+      : [[], null];
     const selectedVoice = chooseRealtimeVoice(voice, agent?.voice ?? null);
 
     const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -144,8 +149,11 @@ Deno.serve(async (req) => {
           model: REALTIME_MODEL,
           instructions: [
             buildVoiceInstructions(agent?.profile ?? null, callerName),
+            orgBrief ? orgBriefInstructions(orgBrief) : "",
             pronunciationInstructions(pronunciations),
-          ].join("\n"),
+          ]
+            .filter(Boolean)
+            .join("\n"),
           audio: {
             input: {
               transcription: {
