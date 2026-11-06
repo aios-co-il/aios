@@ -3,38 +3,45 @@
  * PreToolUse guard for Supabase `execute_sql`.
  *
  * `.claude/settings.json` approves `execute_sql` without a prompt so agents can
- * read data freely. This guard puts the prompt back for the two things an agent
- * must never run on its own (AGENTS.md):
- * - a write to Production ("never modify Production directly");
+ * read data freely. This guard puts the prompt back where AGENTS.md says an
+ * agent must not act alone:
  * - a call that can send a message or reach the network, in any environment
- *   ("do not replay old WhatsApp notifications").
+ *   ("do not replay old WhatsApp notifications");
+ * - any write to Production ("never modify Production directly");
+ * - a committed write anywhere else: database changes ship as migrations, and
+ *   table triggers (leads, tasks, tenant_integrations) post to edge functions.
+ *   Test scripts wrapped in BEGIN … ROLLBACK run without a prompt; pg_net only
+ *   sends after commit.
  *
- * It is a safety net for mistakes, not a SQL parser. When it cannot read a
- * query safely it asks.
+ * Repo functions are judged by their migrations (function-catalog.mjs); other
+ * functions by the words in their names. It is a safety net for mistakes, not
+ * a SQL parser: when it cannot read a query it asks, and settings.json blocks
+ * the call if this script fails.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { loadFunctionCatalog } from "./function-catalog.mjs";
+import {
+  firstWord,
+  functionCalls,
+  normalizeSql,
+  statements,
+} from "./sql-text.mjs";
 
 const PRODUCTION_PROJECT_ID = "zvoijyneresvkadpprel";
 
-// Statements that only read. Anything else on Production asks.
-const READ_STATEMENTS = new Set([
-  "select",
-  "with",
-  "explain",
-  "show",
-  "table",
-  "values",
-]);
+/** Splits a space-separated word list into a set. */
+const words = (list) => new Set(list.split(/\s+/).filter(Boolean));
+
+// Statements that only read.
+const READ_STATEMENTS = words("select with explain show table values");
 
 // Transaction control changes no data; the statements inside are checked on their own.
-const NEUTRAL_STATEMENTS = new Set([
-  "begin",
-  "start",
-  "commit",
-  "rollback",
-  "end",
-]);
+const NEUTRAL_STATEMENTS = words("begin start commit rollback end");
+
+// Session and planner settings a careful read may set first.
+const NEUTRAL_SET =
+  /^set\s+(local\s+|session\s+)?(statement_timeout|lock_timeout|idle_in_transaction_session_timeout|timezone|time\s+zone|enable_\w+|work_mem|jit|plan_cache_mode|random_page_cost)\b|^set\s+transaction\s+read\s+only\b/;
 
 // Words that turn a read statement into a write: DML inside a CTE or
 // EXPLAIN ANALYZE, SELECT ... INTO (creates a table), row locks.
@@ -42,124 +49,38 @@ const WRITE_KEYWORDS =
   /\b(insert|update|delete|merge|truncate|into|copy|lock)\b/;
 
 // Schemas whose functions reach the network or schedule jobs.
-const SEND_SCHEMAS = new Set(["net", "http", "dblink", "pgmq", "cron"]);
+const SEND_SCHEMAS = words("net http dblink pgmq cron");
 
-// Function-name words that mean "send something", checked in every environment.
-const SEND_WORDS = new Set([
-  "notify",
-  "send",
-  "resend",
-  "replay",
-  "whatsapp",
-  "telegram",
-  "email",
-  "sms",
-  "push",
-  "alert",
-  "webhook",
-  "http",
-  "enqueue",
-  "dispatch",
-  "deliver",
-  "broadcast",
-  "publish",
-]);
+// For functions outside the repo: name words that mean "send something" (by prefix,
+// so `notifications` counts) and "change data".
+const SEND_PREFIXES = [
+  ...words(`notif send resend replay whatsapp telegram email sms push alert webhook
+  http enqueue dispatch deliver broadcast publish kick invoke`),
+];
+const WRITE_WORDS = words(`
+  insert update delete upsert merge create drop alter archive purge cleanup
+  backfill repair restore reset set assign unassign grant revoke enable disable
+  activate deactivate reactivate mark record log process run execute exec
+  trigger schedule cancel claim release rotate register save store write add
+  remove clear flush toggle approve reject ensure seed import sync refresh
+  recompute recalculate apply fix move copy transfer link unlink attach detach
+  close reopen pause resume retry rebuild migrate upgrade promote demote invite
+  accept terminate reload increment decrement bump touch init initialize
+  provision resolve confirm complete queue advance patch edit submit decline
+  acquire lease decay settle offboard produce setval nextval lo`);
 
-// Function-name words that mean "change data", checked on Production only.
-const WRITE_WORDS = new Set([
-  "insert",
-  "update",
-  "delete",
-  "upsert",
-  "merge",
-  "create",
-  "drop",
-  "alter",
-  "archive",
-  "purge",
-  "cleanup",
-  "backfill",
-  "repair",
-  "restore",
-  "reset",
-  "set",
-  "assign",
-  "unassign",
-  "grant",
-  "revoke",
-  "enable",
-  "disable",
-  "activate",
-  "deactivate",
-  "mark",
-  "record",
-  "log",
-  "process",
-  "run",
-  "execute",
-  "exec",
-  "trigger",
-  "schedule",
-  "cancel",
-  "claim",
-  "release",
-  "rotate",
-  "register",
-  "save",
-  "store",
-  "write",
-  "add",
-  "remove",
-  "clear",
-  "flush",
-  "toggle",
-  "approve",
-  "reject",
-  "ensure",
-  "seed",
-  "import",
-  "sync",
-  "refresh",
-  "recompute",
-  "recalculate",
-  "apply",
-  "fix",
-  "move",
-  "copy",
-  "transfer",
-  "link",
-  "unlink",
-  "attach",
-  "detach",
-  "close",
-  "reopen",
-  "pause",
-  "resume",
-  "retry",
-  "rebuild",
-  "migrate",
-  "upgrade",
-  "promote",
-  "demote",
-  "invite",
-  "accept",
-  "terminate",
-  "reload",
-  "increment",
-  "decrement",
-  "bump",
-  "touch",
-  "init",
-  "initialize",
-  "provision",
-  "setval",
-  "nextval",
-  "lo",
-]);
+// Built-ins whose names contain a write word but only compute a value.
+const PURE_BUILTINS = words(`
+  jsonb_set jsonb_set_lax jsonb_insert array_remove log log10 jsonb_to_record
+  json_to_record jsonb_populate_record json_populate_record pg_trigger_depth`);
+
+const CATALOG = loadFunctionCatalog(
+  new URL("../../supabase/migrations/", import.meta.url),
+);
 
 if (
   process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
 ) {
   main();
 }
@@ -186,30 +107,26 @@ export function askReason(payload) {
 
   const sql = normalizeSql(query);
   if (sql === null) {
-    return "Could not read this SQL safely (unclosed quote or comment). Confirm it before it runs.";
+    return "Could not read this SQL safely (unclosed quote, comment or dollar body). Confirm it before it runs.";
   }
 
-  const calls = functionCalls(sql);
+  const calls = functionCalls(sql, SEND_SCHEMAS);
   const sendCall = calls.find(isSendCall);
   if (sendCall) {
     return `This query calls ${sendCall}(), which can send a message or reach the network. Confirm before it runs.`;
   }
 
-  if (payload?.tool_input?.project_id !== PRODUCTION_PROJECT_ID) {
+  const write = describeWrite(sql, calls);
+  if (!write) {
     return null;
   }
-
-  const writeStatement = statements(sql).find(isWriteStatement);
-  if (writeStatement) {
-    return `Production write ("${writeStatement.slice(0, 60)}"). AGENTS.md: never modify Production directly. Confirm before it runs.`;
+  if (isProduction(payload.tool_input.project_id)) {
+    return `Production write (${write}). AGENTS.md: never modify Production directly. Confirm before it runs.`;
   }
-
-  const writeCall = calls.find(isWriteCall);
-  if (writeCall) {
-    return `This Production query calls ${writeCall}(), which may change data. Confirm before it runs.`;
+  if (isRolledBack(sql)) {
+    return null;
   }
-
-  return null;
+  return `This query commits a write (${write}). Database changes ship as migrations, and table triggers can send messages. Wrap a test in BEGIN … ROLLBACK, or confirm.`;
 }
 
 /**
@@ -237,159 +154,85 @@ function readPayload() {
 }
 
 /**
- * Lowercases the SQL and removes what cannot run: comments and the contents of
- * single-quoted strings. Quoted identifiers keep their text so
- * `"claude_notify_david"(...)` is still seen. Dollar-quoted bodies are code
- * (DO blocks, function bodies), so only their delimiters are removed.
- * Returns null when a quote or comment never closes.
- * @param {string} query
- * @returns {string | null}
+ * True for the Production project, and for a missing or unreadable id: a
+ * Supabase server set up for one project takes no project_id at all.
  */
-export function normalizeSql(query) {
-  let out = "";
-  let i = 0;
-  while (i < query.length) {
-    const ch = query[i];
-    const next = query[i + 1];
-    if (ch === "-" && next === "-") {
-      const end = query.indexOf("\n", i);
-      if (end === -1) {
-        break;
-      }
-      out += " ";
-      i = end;
-    } else if (ch === "/" && next === "*") {
-      const end = blockCommentEnd(query, i);
-      if (end === -1) {
-        return null;
-      }
-      out += " ";
-      i = end;
-    } else if (ch === "'") {
-      const end = stringEnd(query, i, isEscapeString(query, i));
-      if (end === -1) {
-        return null;
-      }
-      out += "''";
-      i = end;
-    } else if (ch === '"') {
-      const end = identifierEnd(query, i);
-      if (end === -1) {
-        return null;
-      }
-      out += query
-        .slice(i + 1, end - 1)
-        .replace(/""/g, "_")
-        .replace(/\W/g, "_");
-      i = end;
-    } else if (
-      ch === "$" &&
-      /[A-Za-z_$]/.test(next ?? "") &&
-      !/\w/.test(query[i - 1] ?? "")
-    ) {
-      const tag = /^\$[A-Za-z_]*\$/.exec(query.slice(i));
-      out += " ";
-      i += tag ? tag[0].length : 1;
-    } else {
-      out += ch;
-      i += 1;
-    }
-  }
-  return out.toLowerCase();
-}
-
-/** Index just past a (nested) block comment that starts at `start`, or -1. */
-function blockCommentEnd(query, start) {
-  let depth = 0;
-  for (let i = start; i < query.length - 1; i += 1) {
-    if (query[i] === "/" && query[i + 1] === "*") {
-      depth += 1;
-      i += 1;
-    } else if (query[i] === "*" && query[i + 1] === "/") {
-      depth -= 1;
-      i += 1;
-      if (depth === 0) {
-        return i + 1;
-      }
-    }
-  }
-  return -1;
-}
-
-/** True when the quote at `start` opens an E'...' string, where backslash escapes. */
-function isEscapeString(query, start) {
+function isProduction(projectId) {
   return (
-    /[eE]/.test(query[start - 1] ?? "") && !/\w/.test(query[start - 2] ?? "")
+    typeof projectId !== "string" ||
+    projectId.trim().toLowerCase() === PRODUCTION_PROJECT_ID
   );
 }
 
-/** Index just past the single-quoted string that starts at `start`, or -1. */
-function stringEnd(query, start, backslashEscapes) {
-  for (let i = start + 1; i < query.length; i += 1) {
-    if (backslashEscapes && query[i] === "\\") {
-      i += 1;
-    } else if (query[i] === "'") {
-      if (query[i + 1] === "'") {
-        i += 1;
-      } else {
-        return i + 1;
-      }
-    }
+/** Short description of the first thing in the SQL that can change data, or null. */
+function describeWrite(sql, calls) {
+  const statement = statements(sql).find(isWriteStatement);
+  if (statement) {
+    return `"${statement.slice(0, 60)}"`;
   }
-  return -1;
-}
-
-/** Index just past the double-quoted identifier that starts at `start`, or -1. */
-function identifierEnd(query, start) {
-  for (let i = start + 1; i < query.length; i += 1) {
-    if (query[i] === '"') {
-      if (query[i + 1] === '"') {
-        i += 1;
-      } else {
-        return i + 1;
-      }
-    }
-  }
-  return -1;
-}
-
-/** Non-empty statements of normalized SQL, without leading parentheses. */
-function statements(sql) {
-  return sql
-    .split(";")
-    .map((statement) => statement.trim().replace(/^[(\s]+/, ""))
-    .filter(Boolean);
+  const call = calls.find(isWriteCall);
+  return call ? `${call}()` : null;
 }
 
 /** True when a normalized statement can change data. */
 function isWriteStatement(statement) {
-  const first = /^[a-z]+/.exec(statement)?.[0] ?? "";
-  if (NEUTRAL_STATEMENTS.has(first)) {
+  const first = firstWord(statement);
+  if (NEUTRAL_STATEMENTS.has(first) || NEUTRAL_SET.test(statement)) {
     return false;
   }
   return !READ_STATEMENTS.has(first) || WRITE_KEYWORDS.test(statement);
 }
 
-/** Every `name(` or `schema.name(` in normalized SQL. */
-function functionCalls(sql) {
-  return [...sql.matchAll(/([a-z_][\w$]*(?:\s*\.\s*[a-z_][\w$]*)?)\s*\(/g)].map(
-    (match) => match[1].replace(/\s+/g, ""),
+/**
+ * True when the SQL opens a transaction, rolls it back, and only reads after
+ * the last ROLLBACK (harnesses often end with `select 'passed'`), so nothing
+ * it writes is kept. `END` is not treated as a commit because a DO body's
+ * `end $$` splits into a statement of its own.
+ */
+function isRolledBack(sql) {
+  const list = statements(sql);
+  const firstWords = list.map(firstWord);
+  const lastRollback = firstWords.lastIndexOf("rollback");
+  const tail = list.slice(lastRollback + 1);
+  return (
+    ["begin", "start"].includes(firstWords[0]) &&
+    lastRollback > 0 &&
+    !firstWords.includes("commit") &&
+    !describeWrite(tail.join(";"), functionCalls(tail.join(";"), SEND_SCHEMAS))
   );
 }
 
 /** True when a function call can send a message or reach the network. */
 function isSendCall(call) {
-  const [schema, name] = call.includes(".") ? call.split(".") : ["", call];
-  return (
-    SEND_SCHEMAS.has(schema) ||
-    nameWords(name).some((word) => SEND_WORDS.has(word))
+  const [schema, name] = splitCall(call);
+  if (SEND_SCHEMAS.has(schema)) {
+    return true;
+  }
+  const known = CATALOG.get(name);
+  if (known) {
+    return known.sends;
+  }
+  return nameWords(name).some((word) =>
+    SEND_PREFIXES.some((prefix) => word.startsWith(prefix)),
   );
 }
 
-/** True when a function call's name says it changes data. */
+/** True when a function call can change data. */
 function isWriteCall(call) {
-  const name = call.includes(".") ? call.split(".")[1] : call;
+  const [schema, name] = splitCall(call);
+  const known = CATALOG.get(name);
+  if (known) {
+    return !known.readOnly;
+  }
+  if (["", "pg_catalog"].includes(schema) && PURE_BUILTINS.has(name)) {
+    return false;
+  }
   return nameWords(name).some((word) => WRITE_WORDS.has(word));
+}
+
+/** `[schema, name]` of a call; schema is "" when unqualified. */
+function splitCall(call) {
+  return call.includes(".") ? call.split(".") : ["", call];
 }
 
 /** Words of a snake_case function name. */
