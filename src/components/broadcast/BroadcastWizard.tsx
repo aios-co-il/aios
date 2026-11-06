@@ -228,7 +228,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("id, settings, user_id, integration_type, display_name")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .in("integration_type", ["green_api", "manus_wa"])
         .eq("is_active", true);
       if (error) throw error;
@@ -243,7 +243,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       const { data, error } = await supabase
         .from("chat_tags")
         .select("id, name, color")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .order("sort_order");
       if (error) throw error;
       return data || [];
@@ -258,7 +258,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       const { data, error } = await supabase
         .from("whatsapp_groups")
         .select("id, group_name, group_chat_id, description")
-        .eq("tenant_id", tenantId)
+        .filter("tenant_id", "eq", tenantId)
         .eq("is_blocked", false)
         .order("group_name", { ascending: true });
       if (error) throw error;
@@ -329,7 +329,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         const q = supabase
           .from("clients")
           .select("id, contact_name, name, phone, email, status")
-          .eq("tenant_id", tenantId);
+          .filter("tenant_id", "eq", tenantId);
         const { data } = await q.limit(1000);
         let rows = data || [];
         if (clientStatuses.length) {
@@ -351,7 +351,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
           .select(
             "id, contact_name, company_name, phone, email, status, response_status",
           )
-          .eq("tenant_id", tenantId)
+          .filter("tenant_id", "eq", tenantId)
           .is("archived_at", null);
         const { data } = await q.limit(1000);
         let rows = data || [];
@@ -377,7 +377,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
       let q = supabase
         .from("campaigners")
         .select("id, full_name, phone, email")
-        .eq("tenant_id", tenantId);
+        .filter("tenant_id", "eq", tenantId);
       if (activeOnly) q = q.eq("active", true);
       const { data } = await q.limit(1000);
       return (data || []).map((c: any) => ({
