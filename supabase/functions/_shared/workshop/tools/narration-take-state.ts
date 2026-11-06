@@ -6,7 +6,7 @@
 import type { Db } from "../db.ts";
 import { asRecord } from "../record.ts";
 
-/** workshop_narration_take's answer (migration 20261105170000_workshop_narration_review). */
+/** workshop_narration_take's answer (migration 20261105220000_workshop_narration_review). */
 export interface NarrationTake {
   ready: boolean;
   talking: boolean;

@@ -1,6 +1,9 @@
-// The tenant's own pronunciations (workshop_pronunciations, saved by Carmen's
-// workshop_save_pronunciation for every project of the workshop): each word of the script that
-// one names is replaced by its spoken form in the text the TTS engine hears. They run before the
+// The tenant's pronunciations, from Carmen's one dictionary (carmen_pronunciations, AIO-414: saved
+// by her live voice's save_pronunciation and by the workshop's workshop_save_pronunciation): each
+// word of the script that one names is replaced by its spoken form in the text the TTS engine
+// hears. The live voice gives the model every entry as an instruction; here only an entry whose
+// term and spoken form are one word each is used, matched as a whole word (case-insensitively, as
+// the dictionary's term_key), also after prefix letters, so the word timings still line up. They run before the
 // nikud step, which keeps a pointed word as it is (mergeVocalized), so a pronunciation always wins
 // over Dicta's. The stored script, its captions and the word timings keep the script's spelling.
 import { stripNikud } from "./nikud.ts";
@@ -9,8 +12,8 @@ import { stripNikud } from "./nikud.ts";
  * Hebrew prefix letters a script word may carry before the named word (ו, ה, ב, כ, ל, מ, ש).
  * Change together with plainWord and EDGE below: the edge's plainWord in
  * supabase/functions/_shared/workshop/tools/save-pronunciation.ts stores the words this matches,
- * and workshop_narration_take (migration 20261105170000_workshop_narration_review) finds them in
- * a take's script with the same prefix and edge rule.
+ * and workshop_narration_take (migration 20261105220000_workshop_narration_review) keys the
+ * dictionary and finds its terms in a take's script with the same prefix and edge rule.
  */
 const PREFIXES = new Set(["ו", "ה", "ב", "כ", "ל", "מ", "ש"]);
 const MAX_PREFIX = 2;
@@ -20,7 +23,10 @@ const EDGE =
 
 export type Pronunciations = Record<string, string>;
 
-/** The tenant's pronunciations by plain word; none when they cannot be read (logged, never blocks the voice). */
+/**
+ * The tenant's usable pronunciations by plain lower-case term, the newest winning when two terms
+ * share one; none when they cannot be read (logged, never blocks the voice).
+ */
 export async function loadPronunciations(
   db: { select: (table: string, query: string) => Promise<unknown> },
   tenantId: string,
@@ -28,15 +34,17 @@ export async function loadPronunciations(
 ): Promise<Pronunciations> {
   try {
     const rows = await db.select(
-      "workshop_pronunciations",
-      `tenant_id=eq.${encodeURIComponent(tenantId)}&select=word,spoken`,
+      "carmen_pronunciations",
+      `tenant_id=eq.${encodeURIComponent(tenantId)}&select=term,spoken&order=updated_at.asc`,
     );
     const map: Pronunciations = {};
     for (const row of Array.isArray(rows) ? rows : []) {
-      const word = typeof row?.word === "string" ? plainWord(row.word) : "";
+      const term =
+        typeof row?.term === "string" ? plainWord(row.term).toLowerCase() : "";
       const spoken = typeof row?.spoken === "string" ? row.spoken.trim() : "";
-      if (word && spoken && !/\s/.test(spoken)) {
-        map[word] = spoken.normalize("NFC");
+      // A phrase (from the live voice) on either side would break the word timings: skipped.
+      if (term && spoken && !/\s/.test(term) && !/\s/.test(spoken)) {
+        map[term] = spoken.normalize("NFC");
       }
     }
     return map;
@@ -50,7 +58,7 @@ export async function loadPronunciations(
 
 /**
  * The script with every word a pronunciation names said its way, and the pronunciations used.
- * A word matches without its nikud and punctuation, also after up to two prefix letters
+ * A word matches without its nikud, punctuation or case, also after up to two prefix letters
  * (והמכירות → ו + ה + מְכִירוֹת). Whitespace and the word count stay the script's, so the engine's
  * timings line up word for word (spokenAlignment).
  */
@@ -84,7 +92,8 @@ export function applyPronunciations(
  * A one-letter word matches too (as in workshop_narration_take); prefix letters always leave one.
  */
 function sayWord(core: string, pronunciations: Pronunciations) {
-  const plain = plainWord(core);
+  // Lower case only changes Latin letters, never the Hebrew prefix letters kept below.
+  const plain = plainWord(core).toLowerCase();
   for (
     let prefix = 0;
     prefix <= MAX_PREFIX && prefix < plain.length;

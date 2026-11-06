@@ -37,6 +37,12 @@ describe("applyPronunciations", () => {
     expect(out.used).toStrictEqual({});
   });
 
+  test("matches a term in any case, as the dictionary's term_key does", () => {
+    const out = applyPronunciations("עם AIOS.", { aios: "אֵיי-אַיי-אוֹ-אֶס" });
+    expect(out.text).toBe("עם אֵיי-אַיי-אוֹ-אֶס.");
+    expect(out.used).toStrictEqual({ aios: "אֵיי-אַיי-אוֹ-אֶס" });
+  });
+
   test("keeps the word count, so the timings line up with the script", () => {
     const script = "מכירות ודאטה, שמחברת הכול.";
     const out = applyPronunciations(script, SAID);
@@ -45,23 +51,30 @@ describe("applyPronunciations", () => {
 });
 
 describe("loadPronunciations", () => {
-  test("reads the run's tenant and keys the words without nikud", async () => {
+  test("reads the run's tenant from Carmen's dictionary and keys the terms plain", async () => {
     const queries: Array<string> = [];
     const map = await loadPronunciations(
       {
         async select(table: string, query: string) {
           queries.push(`${table}?${query}`);
           return [
-            { word: "מְכִירוֹת", spoken: "מְכִירוֹת" },
-            { word: "שתי", spoken: "שתי מילים" },
+            { term: "מְכִירוֹת", spoken: "מְכִירוֹת" },
+            { term: "AIOS", spoken: "אֵיי-אַיי-אוֹ-אֶס" },
+            { term: "שתי", spoken: "שתי מילים" },
+            { term: "בוקר טוב", spoken: "בֹּקֶר-טוֹב" },
           ];
         },
       },
       "t1",
     );
-    expect(queries[0]).toContain("workshop_pronunciations?tenant_id=eq.t1");
-    // A spoken form of two words would break the word timings: skipped.
-    expect(map).toStrictEqual({ מכירות: "מְכִירוֹת" });
+    expect(queries[0]).toContain("carmen_pronunciations?tenant_id=eq.t1");
+    // The newest entry wins when two terms share a key.
+    expect(queries[0]).toContain("order=updated_at.asc");
+    // A phrase on either side (the live voice takes them) would break the word timings: skipped.
+    expect(map).toStrictEqual({
+      מכירות: "מְכִירוֹת",
+      aios: "אֵיי-אַיי-אוֹ-אֶס",
+    });
   });
 
   test("a failed read speaks without them", async () => {
@@ -102,8 +115,8 @@ describe("the voice run with pronunciations", () => {
         if (table === "marketing_work_items") {
           return [{ id: "item1", tenant_id: "t1", client_id: "c1" }];
         }
-        if (table === "workshop_pronunciations") {
-          return [{ word: "מכירות", spoken: "מְכִירוֹת" }];
+        if (table === "carmen_pronunciations") {
+          return [{ term: "מכירות", spoken: "מְכִירוֹת" }];
         }
         return [{ id: "s1", voiceover_text: "מדיה מכירות", meta: {} }];
       },

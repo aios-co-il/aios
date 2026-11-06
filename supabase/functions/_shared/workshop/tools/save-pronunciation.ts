@@ -1,8 +1,10 @@
 /**
- * workshop_save_pronunciation: how a word is said in the tenant's films, for every project of the
- * workshop (workshop_pronunciations). The render worker puts the spoken form in place of the word
- * in the text the voice engine hears, ahead of Dicta's nikud (render-worker jobs/pronunciations.ts).
- * A spoken form is one word, so the take's word timings still line up with the script's words.
+ * workshop_save_pronunciation: how a word is said, saved to Carmen's one pronunciation dictionary
+ * (carmen_pronunciations, AIO-414), so it applies to her live voice and to every film of the
+ * tenant. The render worker puts the spoken form in place of the word in the text the voice engine
+ * hears, ahead of Dicta's nikud (render-worker jobs/pronunciations.ts). A spoken form is one word,
+ * so the take's word timings still line up with the script's words; the live voice's own
+ * save_pronunciation also takes phrases, which only the live voice uses.
  */
 
 import { type ToolContext } from "../tool-context.ts";
@@ -19,7 +21,7 @@ const EDGES =
 export const PRONUNCIATION_TOOL = {
   name: "workshop_save_pronunciation",
   description:
-    'שומרת איך אומרים מילה בקריינות, לכל הסדנה: חל על כל הפרויקטים והסרטים הבאים של הארגון, לא רק על הפרויקט הזה. כשהמשתמש אומר שמילה נשמעת לא נכון ("מכירות נשמע מחירות"): word המילה כפי שכתובה בתסריט, spoken מילה אחת בניקוד מלא (מְכִירוֹת) או בכתיב שנשמע נכון. מילה שכבר נשמרה מתעדכנת. אחר כך קראי ל-workshop_produce_video כדי להקליט את הקריינות מחדש. לא עולה כסף.',
+    'שומרת איך אומרים מילה במילון ההגייה של כרמן: חל על הקול שלך בשיחות החיות ועל הקריינות בכל הפרויקטים והסרטים הבאים של הארגון, לא רק על הפרויקט הזה. כשהמשתמש אומר שמילה נשמעת לא נכון ("מכירות נשמע מחירות"): word המילה כפי שכתובה בתסריט, spoken מילה אחת בניקוד מלא (מְכִירוֹת) או בכתיב שנשמע נכון. מילה שכבר נשמרה מתעדכנת. אחר כך קראי ל-workshop_produce_video כדי להקליט את הקריינות מחדש. לא עולה כסף.',
   parameters: {
     type: "object",
     properties: {
@@ -55,9 +57,15 @@ export async function workshopSavePronunciation(ctx: ToolContext) {
   if ("error" in parsed) {
     return parsed;
   }
-  const { error } = await ctx.supabase.from("workshop_pronunciations").upsert(
-    parsed.entries.map((entry) => ({ tenant_id: ctx.tenantId, ...entry })),
-    { onConflict: "tenant_id,word" },
+  // The live voice's save_pronunciation upserts on the same key (term_key: the term trimmed, in
+  // lower case), so a correction from either replaces the other's.
+  const { error } = await ctx.supabase.from("carmen_pronunciations").upsert(
+    parsed.entries.map((entry) => ({
+      tenant_id: ctx.tenantId,
+      term: entry.word,
+      spoken: entry.spoken,
+    })),
+    { onConflict: "tenant_id,term_key" },
   );
   if (error) {
     console.error("[workshop] pronunciations not saved", error.message);
@@ -69,13 +77,16 @@ export async function workshopSavePronunciation(ctx: ToolContext) {
   return {
     success: true,
     saved: parsed.entries,
-    message: `ההגייה נשמרה לכל הסדנה: ${said}. היא תחול בכל הקריינויות מעכשיו, בכל הפרויקטים.`,
+    message: `ההגייה נשמרה במילון ההגייה של כרמן: ${said}. היא תחול מעכשיו בשיחות הקוליות ובכל הקריינויות, בכל הפרויקטים.`,
     carmen_next:
-      "אמרי למשתמש שההגייה נשמרה לכל הסדנה ותיזכר בכל הסרטים הבאים. אם הפרויקט הזה מחכה לאישור הקריינות, קראי עכשיו ל-workshop_produce_video: הקריינות מוקלטת מחדש עם ההגייה ומוצגת שוב לאישור.",
+      "אמרי למשתמש שההגייה נשמרה ותיזכר בשיחות הקוליות ובכל הסרטים הבאים. אם הפרויקט הזה מחכה לאישור הקריינות, קראי עכשיו ל-workshop_produce_video: הקריינות מוקלטת מחדש עם ההגייה ומוצגת שוב לאישור.",
   };
 }
 
-/** The entries as stored (the word plain, the spoken form one word), or why one cannot be used. */
+/**
+ * The entries as stored (the word plain, the spoken form one word), or why one cannot be used.
+ * Keyed by the word in lower case, as term_key is: one upsert cannot touch a row twice.
+ */
 function parseEntries(
   value: unknown,
 ): { entries: Array<Entry> } | { error: string } {
@@ -98,7 +109,7 @@ function parseEntries(
     if (word.length > MAX_WORD || spoken.length > MAX_SPOKEN) {
       return { error: `המילה ארוכה מדי: "${word}"` };
     }
-    byWord.set(word, { word, spoken });
+    byWord.set(word.toLowerCase(), { word, spoken });
   }
   if (byWord.size === 0) {
     return { error: "pronunciations ריק: לכל מילה word ו-spoken." };
@@ -109,8 +120,8 @@ function parseEntries(
 /**
  * The word as the worker matches it: without nikud or the punctuation around it. Change together
  * with render-worker/src/jobs/pronunciations.ts (plainWord, PREFIXES, EDGE) and
- * workshop_narration_take (migration 20261105170000_workshop_narration_review), which match the
- * stored word in a script the same way.
+ * workshop_narration_take (migration 20261105220000_workshop_narration_review), which key the
+ * dictionary's terms and match them in a script the same way.
  */
 export const plainWord = (text: string) =>
   text.normalize("NFC").replace(POINTS, "").trim().replace(EDGES, "");

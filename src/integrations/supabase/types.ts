@@ -16739,44 +16739,6 @@ export type Database = {
           },
         ];
       };
-      workshop_pronunciations: {
-        Row: {
-          created_at: string;
-          created_by: string | null;
-          id: string;
-          spoken: string;
-          tenant_id: string;
-          updated_at: string;
-          word: string;
-        };
-        Insert: {
-          created_at?: string;
-          created_by?: string | null;
-          id?: string;
-          spoken: string;
-          tenant_id: string;
-          updated_at?: string;
-          word: string;
-        };
-        Update: {
-          created_at?: string;
-          created_by?: string | null;
-          id?: string;
-          spoken?: string;
-          tenant_id?: string;
-          updated_at?: string;
-          word?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "workshop_pronunciations_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       zoom_recordings: {
         Row: {
           agency_id: string | null;

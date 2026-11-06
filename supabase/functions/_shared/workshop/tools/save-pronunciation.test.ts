@@ -24,12 +24,12 @@ const save = (db: Db, pronunciations: unknown) =>
 
 /** The rows the tool upserted, with its conflict target. */
 const upserted = (db: Db) =>
-  db.calls.find((c) => c.table === "workshop_pronunciations")?.value as
+  db.calls.find((c) => c.table === "carmen_pronunciations")?.value as
     | { rows: Array<Record<string, string>>; options: { onConflict: string } }
     | undefined;
 
 Deno.test(
-  "a correction is saved for the whole tenant, keyed by the plain word",
+  "a correction is saved to Carmen's dictionary for the whole tenant, keyed by the plain word",
   async () => {
     const db = fakeDb();
     const reply = await save(db, [
@@ -39,12 +39,13 @@ Deno.test(
     assertStrictEquals(reply.success, true, JSON.stringify(reply));
     const saved = upserted(db);
     assertEquals(saved?.rows, [
-      { tenant_id: "tenant-1", word: "מכירות", spoken: "מְכִירוֹת" },
-      { tenant_id: "tenant-1", word: "כרמן", spoken: "קַרְמֶן" },
+      { tenant_id: "tenant-1", term: "מכירות", spoken: "מְכִירוֹת" },
+      { tenant_id: "tenant-1", term: "כרמן", spoken: "קַרְמֶן" },
     ]);
-    assertStrictEquals(saved?.options.onConflict, "tenant_id,word");
-    // Carmen tells the user it is kept for every project, then records the narration again.
-    assertMatch(String(reply.message), /לכל הסדנה/);
+    // The live voice's save_pronunciation upserts on the same key.
+    assertStrictEquals(saved?.options.onConflict, "tenant_id,term_key");
+    // Carmen tells the user it is kept for her voice and every project, then records again.
+    assertMatch(String(reply.message), /מילון ההגייה של כרמן/);
     assertMatch(String(reply.carmen_next), /workshop_produce_video/);
   },
 );
@@ -63,6 +64,20 @@ Deno.test(
       assertStrictEquals(typeof reply.error, "string");
       assertStrictEquals(upserted(db), undefined);
     }
+  },
+);
+
+Deno.test(
+  "the same word in two cases is saved once, as term_key would collide",
+  async () => {
+    const db = fakeDb();
+    await save(db, [
+      { word: "AIOS", spoken: "אֵיי-אַיי-אוֹ-אֶס" },
+      { word: "aios", spoken: "אַיּוֹס" },
+    ]);
+    assertEquals(upserted(db)?.rows, [
+      { tenant_id: "tenant-1", term: "aios", spoken: "אַיּוֹס" },
+    ]);
   },
 );
 
