@@ -47,3 +47,16 @@ Deno.test("her capabilities say which questions need ask_carmen", () => {
   assertStringIncludes(text, "=== היכולות שלך ===");
   assertStringIncludes(text, "למספרים, סטטוסים ופעולות קראי ל-ask_carmen");
 });
+
+Deno.test(
+  "she sends WhatsApp through ask_carmen and never refuses before asking it",
+  () => {
+    // Seen in Production: the voice said it cannot send WhatsApp without asking her brain.
+    const text = orgBriefInstructions(brief);
+    assertStringIncludes(text, "שליחת וואטסאפ לכל אחד");
+    assertStringIncludes(
+      text,
+      "לעולם אל תגידי שאין לך יכולת או חיבור לפני שביקשת את זה מ-ask_carmen",
+    );
+  },
+);
