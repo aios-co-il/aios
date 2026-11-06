@@ -62,12 +62,17 @@ describe("DateRangeFilter disabled matching", () => {
       if (typeof matcher !== "function") {
         throw new Error("Missing matcher");
       }
+      expect(matcher(date)).toBeTypeOf("boolean");
       return isMatch(date, [matcher]);
     };
     expect(disabled(-2, oldDay)).toBe(false);
     expect(disabled(-1, future)).toBe(true);
+    expect(disabled(-1, oldDay)).toBe(false);
     fireEvent.click(screen.getAllByRole("button", { name: "choose bound" })[1]);
     expect(disabled(-2, laterDay)).toBe(true);
     expect(disabled(-2, oldDay)).toBe(false);
+    fireEvent.click(screen.getAllByRole("button", { name: "choose bound" })[0]);
+    expect(disabled(-1, new Date(2026, 5, 4))).toBe(true);
+    expect(disabled(-1, laterDay)).toBe(false);
   });
 });

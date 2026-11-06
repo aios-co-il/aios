@@ -4,14 +4,17 @@ import { withTestQuery } from "@/test/withTestQuery";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 
 const mocks = vi.hoisted(() => ({
-  queries: [] as Array<() => Promise<unknown>>,
+  queries: [] as Array<{ queryFn: () => Promise<unknown>; enabled: boolean }>,
   requests: [] as Array<string>,
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useQuery: (options: { queryFn: () => Promise<unknown> }) => {
-    mocks.queries.push(options.queryFn);
+  useQuery: (options: {
+    queryFn: () => Promise<unknown>;
+    enabled: boolean;
+  }) => {
+    mocks.queries.push(options);
     return { data: undefined, isLoading: false };
   },
 }));
@@ -47,7 +50,7 @@ afterEach(() => {
 
 describe("AnalyticsDashboard tenant filters", () => {
   it.each(["tenant-id", null])(
-    "retains eq.%s for all four queries",
+    "retains enabled decisions and eq.%s on manual query execution",
     async (tenantId) => {
       const range = {
         start: new Date("2026-01-01T00:00:00Z"),
@@ -63,8 +66,12 @@ describe("AnalyticsDashboard tenant filters", () => {
           />,
         ),
       );
+      expect(mocks.queries.map((query) => query.enabled)).toEqual(
+        Array.from({ length: 4 }, () => !!tenantId),
+      );
+      expect(mocks.requests).toHaveLength(0);
       for (const query of mocks.queries) {
-        await query();
+        await query.queryFn();
       }
       expect(mocks.requests).toHaveLength(4);
       expect(

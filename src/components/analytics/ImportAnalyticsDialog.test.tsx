@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
+import { formatDateTime } from "@/lib/formatDateTime";
 import { ImportAnalyticsDialog } from "./ImportAnalyticsDialog";
 
 const mocks = vi.hoisted(() => ({
@@ -62,10 +63,10 @@ afterEach(() => {
 
 describe("ImportAnalyticsDialog date interpretation", () => {
   it.each([
-    ["2026-06-07", "2026-06-07"],
-    ["07/06/2026", "2026-06-07"],
-    ["07/06/26", "2026-06-07"],
-    ["2026-02-31", "2026-03-03"],
+    ["2026-06-07", "07/06/2026"],
+    ["07/06/2026", "07/06/2026"],
+    ["07/06/26", "07/06/2026"],
+    ["2026-02-31", "03/03/2026"],
     ["not a date", null],
   ])("retains existing handling of %s", async (date, expected) => {
     mocks.date = date;
@@ -94,8 +95,8 @@ describe("ImportAnalyticsDialog date interpretation", () => {
         screen.getByText(expected ? "יובאו 1 רשומות" : "יובאו 0 רשומות"),
       ).toBeVisible(),
     );
-    expect(mocks.inserts.map((row) => row.started_at.slice(0, 10))).toEqual(
-      expected ? [expected] : [],
-    );
+    expect(
+      mocks.inserts.map((row) => formatDateTime(row.started_at).slice(0, 10)),
+    ).toEqual(expected ? [expected] : []);
   });
 });
