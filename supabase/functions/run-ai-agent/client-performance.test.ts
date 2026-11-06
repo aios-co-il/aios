@@ -84,6 +84,25 @@ describe("clientPerformanceEntry", () => {
     assertEquals([entry.is_ecommerce, entry.alert], [true, "🟢 תקין"]);
   });
 
+  it("a switched-off ecommerce table does not make the client ecommerce", () => {
+    const entry = clientPerformanceEntry({
+      client,
+      records: [day("2026-11-03", { ...leads, spend: 50, leads: 5 })],
+      tables: [
+        meta,
+        {
+          ...meta,
+          id: "e",
+          integration_type: "facebook_ecommerce",
+          campaign_active: false,
+        },
+      ],
+      d7Str: "2026-10-30",
+      now: new Date("2026-11-06T10:00:00Z"),
+    });
+    assertEquals(entry.is_ecommerce, false);
+  });
+
   it("a client with only lead campaigns is not ecommerce", () => {
     const entry = clientPerformanceEntry({
       client,

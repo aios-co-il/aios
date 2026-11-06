@@ -7,6 +7,9 @@ import type { CampaignGoalTable } from "../_shared/campaign-goal/campaign-goals.
 import type { AgentDatabaseClient } from "./database-contracts.ts";
 import { jsonObject } from "./json-config.ts";
 
+/** A report table with whether its campaigns are switched on (`campaign_active`). */
+export type ReportGoalTable = CampaignGoalTable & { campaign_active?: boolean };
+
 /**
  * Each table's goal inputs by id. The ids come from a tenant-scoped lookup, so
  * the read filters by id only. Throws on a read error.
@@ -14,14 +17,16 @@ import { jsonObject } from "./json-config.ts";
 export async function readCampaignGoalTables(
   supabase: AgentDatabaseClient,
   tableIds: ReadonlyArray<string>,
-): Promise<Map<string, CampaignGoalTable>> {
-  const tables = new Map<string, CampaignGoalTable>();
+): Promise<Map<string, ReportGoalTable>> {
+  const tables = new Map<string, ReportGoalTable>();
   if (tableIds.length === 0) {
     return tables;
   }
   const { data, error } = await supabase
     .from("crm_tables")
-    .select("id, integration_type, integration_settings, category")
+    .select(
+      "id, integration_type, integration_settings, category, campaign_active",
+    )
     .in("id", tableIds);
   if (error) {
     throw error;

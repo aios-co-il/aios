@@ -7,9 +7,9 @@
 import {
   reportCampaignGoalOf,
   type CampaignGoalRecord,
-  type CampaignGoalTable,
 } from "../_shared/campaign-goal/campaign-goals.ts";
 import { reportTableGoal } from "../_shared/campaign-goal/table-goal.ts";
+import type { ReportGoalTable } from "./goal-tables.ts";
 import { reportWindowTotals } from "./report-window-totals.ts";
 
 /** The client fields the tool reports. */
@@ -28,7 +28,7 @@ export type PerformanceClient = {
 export function clientPerformanceEntry(input: {
   client: PerformanceClient;
   records: Array<CampaignGoalRecord>;
-  tables: Array<CampaignGoalTable>;
+  tables: Array<ReportGoalTable>;
   d7Str: string;
   now: Date;
 }): Record<string, unknown> {
@@ -78,8 +78,10 @@ export function clientPerformanceEntry(input: {
       )
     : null;
 
+  // Switched-off tables do not count, as detectCampaignGoalMode skips them.
   const isEcom = input.tables.some(
-    (table) => reportTableGoal(table) === "ecommerce",
+    (table) =>
+      table.campaign_active !== false && reportTableGoal(table) === "ecommerce",
   );
   const ecomAlert =
     roas7 !== null && roas7 < 1
