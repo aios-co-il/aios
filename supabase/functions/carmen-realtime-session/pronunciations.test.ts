@@ -13,10 +13,19 @@ Deno.test("the org's terms are listed as pronunciation bullets", () => {
   assertStringIncludes(text, "- עדווה ← עַדְוָה");
 });
 
-Deno.test("without terms she still knows to save a correction", () => {
+Deno.test("without org terms she knows the built-in marketing terms", () => {
   const text = pronunciationInstructions([]);
   assertStringIncludes(text, "save_pronunciation");
-  assertEquals(text.includes("הגי את המילים האלה"), false);
+  assertStringIncludes(text, "- ROAS ← רוֹאַס");
+  assertStringIncludes(text, "- כרמן ← כַּרְמֶן");
+});
+
+Deno.test("an org's correction replaces the built-in pronunciation", () => {
+  const text = pronunciationInstructions([
+    { term: " roas ", spoken: "אַר-אוֹ-אֵיי-אֶס" },
+  ]);
+  assertStringIncludes(text, "- roas ← אַר-אוֹ-אֵיי-אֶס");
+  assertEquals(text.includes("רוֹאַס"), false);
 });
 
 Deno.test("the save tool asks for the term and how to say it", () => {
