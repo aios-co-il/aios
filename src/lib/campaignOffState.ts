@@ -1,6 +1,7 @@
 import {
   isCampaignOff,
   latestCampaignStatuses,
+  resolveCampaignDeliveryStatus,
 } from "../../supabase/functions/_shared/campaign-goal/delivery-status.ts";
 
 // When a campaign is off is decided with the pulse, so both read one status.
@@ -13,10 +14,12 @@ export type CampaignOffRecord = {
   data?: Record<string, unknown> | null;
 };
 
-/** The part of a report table (crm_tables) that says whether its campaign is switched off. */
+/** The part of a report table (crm_tables) that says whether its campaigns are off. */
 export type CampaignOffTable = {
   id: string;
   campaign_active?: boolean | null;
+  /** Holds `operational_campaign_states`, each campaign's current platform status. */
+  integration_settings?: Record<string, unknown> | null;
 };
 
 /**
@@ -39,19 +42,45 @@ export function switchedOffTableIds(
 }
 
 /**
- * Whether a record's report is switched off. Single-table reports send
- * records without a table id, so one table stands for all of them.
+ * Whether a record's report marks its campaign off: the report is switched
+ * off, or the report's operational check last saw the campaign paused,
+ * removed or ended. Google Ads records carry no campaign status, so that check is
+ * what turns a paused Google campaign off. Single-table reports send records
+ * without a table id, so one table stands for all of them.
  */
 export function reportOffLookup(
   tables: Array<CampaignOffTable> | null | undefined,
 ): (record: CampaignOffRecord) => boolean {
   const list = tables ?? [];
   const offIds = switchedOffTableIds(list);
+  const byId = new Map(list.map((table) => [table.id, table]));
   const onlyTableId = list.length === 1 ? list[0].id : null;
   return (record) => {
     const tableId = record.table_id ?? record._tableId ?? onlyTableId;
-    return !!tableId && offIds.has(tableId);
+    if (!tableId) {
+      return false;
+    }
+    return (
+      offIds.has(tableId) ||
+      operationallyOff(record, byId.get(tableId)?.integration_settings)
+    );
   };
+}
+
+/** Whether the report's operational check last saw the record's campaign paused, removed or ended. */
+function operationallyOff(
+  record: CampaignOffRecord,
+  settings: Record<string, unknown> | null | undefined,
+): boolean {
+  const campaignId = record.data?.campaign_id;
+  if (!settings || campaignId == null || campaignId === "") {
+    return false;
+  }
+  const status = resolveCampaignDeliveryStatus(
+    { campaign_id: campaignId },
+    settings,
+  );
+  return isCampaignOff({ deliveryStatus: status });
 }
 
 /**
