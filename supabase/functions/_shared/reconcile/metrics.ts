@@ -2,7 +2,9 @@
  * What the reconciliation measures in a stored or platform record, and when a
  * difference between the two counts as a mismatch (AIO-238).
  */
-import { classifyPulseCampaignGoal } from "../pulse-campaign-goals.mjs";
+import { getSpendFromData } from "../campaign-goal/ads-metrics.ts";
+import { reportCampaignGoalOf } from "../campaign-goal/campaign-goals.ts";
+import { adsRowOutcomes } from "../campaign-goal/outcomes.ts";
 import type { ReconcilePlatform } from "./run-status.ts";
 import type { ReconcileTable } from "./types.ts";
 
@@ -39,7 +41,13 @@ export function exceedsTolerance(
   return diff > Math.max(Math.abs(platform) * tolerance.pct, floor);
 }
 
-/** Spend / results / revenue of one stored or platform record. */
+/**
+ * Spend / results / revenue of one stored or platform record. A Meta record's
+ * leads, purchases and revenue are counted as the report counts them
+ * (adsRowOutcomes), so a mismatch is a difference the report would show.
+ * Google rows keep the sync's own columns: the report counts their
+ * conversions as the result of either goal.
+ */
 export function recordMetrics(
   platform: ReconcilePlatform,
   data: Record<string, unknown>,
@@ -53,29 +61,35 @@ export function recordMetrics(
       revenue: num(data.conversions_value),
     };
   }
+  const outcomes = adsRowOutcomes(data);
   return {
-    spend: num(data.spend),
-    leads: num(data.leads),
-    purchases: num(data.purchases),
+    spend: getSpendFromData(data),
+    leads: outcomes.leads,
+    purchases: outcomes.purchases,
     conversions: 0,
-    revenue: num(data.purchase_value),
+    revenue: outcomes.revenue,
   };
 }
 
-/** Which result metric is primary for this campaign, or null when it has none. */
+/**
+ * Which result metric is primary for this campaign, or null when it has none:
+ * a Meta campaign's report goal over its rows (reportCampaignGoalOf), so a
+ * sales campaign is checked on purchases, a lead campaign on leads and a
+ * traffic campaign on spend only.
+ */
 export function primaryResultMetric(
   platform: ReconcilePlatform,
-  sample: Record<string, unknown> | null,
+  rows: Array<Record<string, unknown>>,
   table: ReconcileTable,
 ): "leads" | "purchases" | "conversions" | null {
   if (platform === "google") {
     return "conversions";
   }
-  const { goal } = classifyPulseCampaignGoal(sample || {}, {
-    integration_type: table.integration_type,
-    integration_settings: table.integration_settings || {},
-    category: table.category || null,
-  });
+  const records = rows.map((data) => ({ table_id: table.id, data }));
+  if (!records.length) {
+    return null;
+  }
+  const goal = reportCampaignGoalOf(records, [table])(records[0])?.goal;
   if (goal === "ecommerce") {
     return "purchases";
   }

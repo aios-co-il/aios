@@ -4,6 +4,8 @@ import { campaignRow } from "./campaignRowFixture";
 import { PulseTargetEditorDialog } from "./PulseTargetEditorDialog";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+// The client-level field reads the client row; NoResultsDaysField.test.tsx covers it.
+vi.mock("./NoResultsDaysField", () => ({ NoResultsDaysField: () => null }));
 
 describe("PulseTargetEditorDialog", () => {
   it("shows Carmen's market target with its rationale and saves it as approved", async () => {

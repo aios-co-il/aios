@@ -1,43 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { CALLER_TABLE_COLUMNS } from "./caller-table.ts";
+import {
+  fetchCampaignLevelRecords,
+  type RecordsClient,
+} from "../_shared/ads-sync/campaign-records.ts";
+import { loadTableData, type TableDataDeps } from "./table-data.ts";
+import { eventPeriodWindows } from "./event-windows.ts";
+import { analyzePeriods } from "./periods.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-interface EventPeriod {
-  eventDate: string;
-  startDate: string;
-  endDate: string;
-  metrics: {
-    totalSpend: number;
-    totalLeads: number;
-    avgCostPerLead: number;
-    avgCtr: number;
-    avgCpm: number;
-    totalClicks: number;
-    totalImpressions: number;
-    campaigns: string[];
-  };
-}
-
-interface CampaignPeriodData {
-  campaignName: string;
-  eventDate: string;
-  impressions: number;
-  clicks: number;
-  ctr: number;
-  cpc: number;
-  cpm: number;
-  leads: number;
-  costPerLead: number;
-  lpViews: number | null;
-  lpConversionRate: number | null;
-  costPerView: number | null;
-  spend: number;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -64,257 +40,29 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Fetch all records for this table
-    const { data: records, error: recordsError } = await supabase
-      .from("crm_records")
-      .select("data")
-      .eq("table_id", tableId);
-
-    if (recordsError) {
-      console.error("Error fetching records:", recordsError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch records" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    if (!records || records.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "No records found for this table" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Parse event dates and calculate periods
-    const currentYear = new Date().getFullYear();
-    const eventPeriods: EventPeriod[] = [];
-    const campaignPeriodData: CampaignPeriodData[] = [];
-
-    for (const dateStr of eventDates) {
-      // Parse date in format "D.M" or "DD.MM"
-      const parts = dateStr.trim().split(".");
-      if (parts.length !== 2) continue;
-
-      const day = parseInt(parts[0]);
-      const month = parseInt(parts[1]);
-
-      if (isNaN(day) || isNaN(month)) continue;
-
-      // Determine year (if month is in the future, use previous year)
-      const currentMonth = new Date().getMonth() + 1;
-      const year = month > currentMonth ? currentYear - 1 : currentYear;
-
-      const eventDate = new Date(year, month - 1, day);
-      const startDate = new Date(eventDate);
-      startDate.setDate(startDate.getDate() - daysBeforeEvent);
-
-      const eventDateStr = eventDate.toISOString().split("T")[0];
-      const startDateStr = startDate.toISOString().split("T")[0];
-      // Use original date string as key to preserve uniqueness
-      const eventDateDisplay = dateStr.trim();
-
-      // Filter records for this period
-      const periodRecords = records.filter((record) => {
-        const recordDate = record.data?.date;
-        if (!recordDate) return false;
-
-        // Apply campaign filter if provided
-        if (campaignFilter) {
-          const campaignName = String(
-            record.data?.campaign_name || "",
-          ).toLowerCase();
-          if (!campaignName.includes(campaignFilter.toLowerCase()))
-            return false;
-        }
-
-        return recordDate >= startDateStr && recordDate <= eventDateStr;
-      });
-
-      // For raw_table: aggregate by campaign within this period
-      if (analysisType === "raw_table") {
-        const campaignMap = new Map<
-          string,
-          {
-            impressions: number;
-            clicks: number;
-            leads: number;
-            spend: number;
-            lpViews: number | null;
-            ctrSum: number;
-            ctrCount: number;
-            cpmSum: number;
-            cpmCount: number;
-          }
-        >();
-
-        for (const record of periodRecords) {
-          const data = record.data;
-          const campaignName = data?.campaign_name || "לא צוין";
-
-          if (!campaignMap.has(campaignName)) {
-            campaignMap.set(campaignName, {
-              impressions: 0,
-              clicks: 0,
-              leads: 0,
-              spend: 0,
-              lpViews: null,
-              ctrSum: 0,
-              ctrCount: 0,
-              cpmSum: 0,
-              cpmCount: 0,
-            });
-          }
-
-          const campaign = campaignMap.get(campaignName)!;
-          campaign.impressions += parseInt(data?.impressions) || 0;
-          campaign.clicks += parseInt(data?.clicks) || 0;
-          campaign.leads += parseInt(data?.leads) || 0;
-          campaign.spend += parseFloat(data?.spend) || 0;
-
-          const lpViewsRaw =
-            data?.lp_or_form_views ??
-            data?.lp_views ??
-            data?.landing_page_views ??
-            data?.landing_page_view ??
-            data?.lpViews ??
-            null;
-          const lpViewsParsed =
-            lpViewsRaw === null || lpViewsRaw === undefined || lpViewsRaw === ""
-              ? null
-              : parseInt(String(lpViewsRaw).replace(/,/g, "")) || 0;
-
-          if (lpViewsParsed !== null) {
-            campaign.lpViews = (campaign.lpViews ?? 0) + lpViewsParsed;
-          }
-
-          if (data?.ctr) {
-            campaign.ctrSum += parseFloat(data.ctr);
-            campaign.ctrCount++;
-          }
-          if (data?.cpm) {
-            campaign.cpmSum += parseFloat(data.cpm);
-            campaign.cpmCount++;
-          }
-        }
-
-        // Convert to array
-        for (const [campaignName, metrics] of campaignMap) {
-          const ctr =
-            metrics.clicks > 0 && metrics.impressions > 0
-              ? (metrics.clicks / metrics.impressions) * 100
-              : metrics.ctrCount > 0
-                ? metrics.ctrSum / metrics.ctrCount
-                : 0;
-
-          const cpc = metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0;
-          const cpm =
-            metrics.impressions > 0
-              ? (metrics.spend / metrics.impressions) * 1000
-              : metrics.cpmCount > 0
-                ? metrics.cpmSum / metrics.cpmCount
-                : 0;
-
-          const costPerLead =
-            metrics.leads > 0 ? metrics.spend / metrics.leads : 0;
-
-          const lpConversionRate =
-            metrics.lpViews === null
-              ? null
-              : metrics.lpViews > 0
-                ? (metrics.leads / metrics.lpViews) * 100
-                : 0;
-
-          const costPerView =
-            metrics.lpViews === null
-              ? null
-              : metrics.lpViews > 0
-                ? metrics.spend / metrics.lpViews
-                : 0;
-
-          campaignPeriodData.push({
-            campaignName,
-            eventDate: eventDateDisplay,
-            impressions: metrics.impressions,
-            clicks: metrics.clicks,
-            ctr: Math.round(ctr * 100) / 100,
-            cpc: Math.round(cpc * 100) / 100,
-            cpm: Math.round(cpm * 100) / 100,
-            leads: metrics.leads,
-            costPerLead: Math.round(costPerLead * 100) / 100,
-            lpViews: metrics.lpViews,
-            lpConversionRate:
-              lpConversionRate === null
-                ? null
-                : Math.round(lpConversionRate * 100) / 100,
-            costPerView:
-              costPerView === null ? null : Math.round(costPerView * 100) / 100,
-            spend: Math.round(metrics.spend * 100) / 100,
-          });
-        }
-      }
-
-      // Calculate aggregate metrics for this period (for all analysis types)
-      let totalSpend = 0;
-      let totalLeads = 0;
-      let totalClicks = 0;
-      let totalImpressions = 0;
-      let ctrSum = 0;
-      let cpmSum = 0;
-      let ctrCount = 0;
-      let cpmCount = 0;
-      const campaigns = new Set<string>();
-
-      for (const record of periodRecords) {
-        const data = record.data;
-
-        totalSpend += parseFloat(data?.spend) || 0;
-        totalLeads += parseInt(data?.leads) || 0;
-        totalClicks += parseInt(data?.clicks) || 0;
-        totalImpressions += parseInt(data?.impressions) || 0;
-
-        if (data?.ctr) {
-          ctrSum += parseFloat(data.ctr);
-          ctrCount++;
-        }
-        if (data?.cpm) {
-          cpmSum += parseFloat(data.cpm);
-          cpmCount++;
-        }
-        if (data?.campaign_name) {
-          campaigns.add(data.campaign_name);
-        }
-      }
-
-      const avgCostPerLead = totalLeads > 0 ? totalSpend / totalLeads : 0;
-      const avgCtr = ctrCount > 0 ? ctrSum / ctrCount : 0;
-      const avgCpm = cpmCount > 0 ? cpmSum / cpmCount : 0;
-
-      eventPeriods.push({
-        eventDate: eventDateDisplay,
-        startDate: startDateStr,
-        endDate: eventDateStr,
-        metrics: {
-          totalSpend: Math.round(totalSpend * 100) / 100,
-          totalLeads,
-          avgCostPerLead: Math.round(avgCostPerLead * 100) / 100,
-          avgCtr: Math.round(avgCtr * 100) / 100,
-          avgCpm: Math.round(avgCpm * 100) / 100,
-          totalClicks,
-          totalImpressions,
-          campaigns: Array.from(campaigns),
-        },
+    const windows = eventPeriodWindows(eventDates, daysBeforeEvent, new Date());
+    // The caller must be able to read the table, as in the app, before any
+    // service-role read of its rows (AIO-495).
+    const tableData = await loadTableData(
+      liveTableDataDeps(req),
+      tableId,
+      windows,
+    );
+    if (!tableData.ok) {
+      return new Response(JSON.stringify({ error: tableData.error }), {
+        status: tableData.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const { table, records } = tableData;
+
+    const { eventPeriods, campaignPeriodData } = analyzePeriods({
+      records,
+      table,
+      windows,
+      campaignFilter,
+      byCampaign: analysisType === "raw_table",
+    });
 
     // Sort periods by date (newest first)
     eventPeriods.sort((a, b) => {
@@ -497,3 +245,59 @@ ${eventPeriods.map((p) => `📅 ${p.eventDate}: ₪${p.metrics.totalSpend} הו�
     );
   }
 });
+
+/**
+ * The data step's reads: the table as the caller, the caller's row access
+ * and the rows themselves with the service client.
+ */
+function liveTableDataDeps(req: Request): TableDataDeps {
+  const callerDb = userClient(req.headers.get("Authorization") ?? "");
+  const serviceDb = serviceClient();
+  return {
+    loadCallerTable: (id) =>
+      callerDb
+        .from("crm_tables")
+        .select(CALLER_TABLE_COLUMNS)
+        .eq("id", id)
+        .maybeSingle(),
+    callerMayReadRows: async (tableId) => {
+      const { data: auth, error: authError } = await callerDb.auth.getUser();
+      if (authError || !auth.user) {
+        return false;
+      }
+      const { data, error } = await serviceDb.rpc("user_can_access_crm_table", {
+        _user_id: auth.user.id,
+        _table_id: tableId,
+      });
+      if (error) {
+        throw new Error(`user_can_access_crm_table: ${error.message}`);
+      }
+      return data === true;
+    },
+    readRecords: ({ tableId, tenantId, sinceYmd, untilYmd }) =>
+      fetchCampaignLevelRecords(asRecordsClient(serviceDb), {
+        tableIds: [tableId],
+        tenantIds: [tenantId],
+        sinceYmd,
+        untilYmd,
+      }),
+    probeRecords: (tableId, tenantId) =>
+      serviceDb
+        .from("crm_records")
+        .select("id")
+        .eq("table_id", tableId)
+        .eq("tenant_id", tenantId)
+        .limit(1),
+  };
+}
+
+/**
+ * The service client as the paged reader sees it. Checking the generated
+ * client against RecordsClient compares every table's query builder and hits
+ * TypeScript's depth limit (TS2589), so the check stops at `from`.
+ */
+function asRecordsClient(client: {
+  from(table: "crm_records"): unknown;
+}): RecordsClient {
+  return client as RecordsClient;
+}

@@ -134,6 +134,29 @@ describe("compareCampaignDays", () => {
     assertEquals(r.findings, []);
   });
 
+  it("finds a WhatsApp lead mismatch the report would show", () => {
+    const whatsapp = {
+      campaign_objective: "OUTCOME_ENGAGEMENT",
+      optimization_goal: "CONVERSATIONS",
+      leads: 0,
+    };
+    const r = compareCampaignDays({
+      table: metaTable,
+      platform: "meta",
+      dates: ["2026-10-20"],
+      platformRows: [
+        row("7", "2026-10-20", { ...whatsapp, spend: 100, conversations: 9 }),
+      ],
+      aiosRows: [
+        row("7", "2026-10-20", { ...whatsapp, spend: 100, conversations: 4 }),
+      ],
+    });
+    assertEquals(
+      r.findings.map((f) => [f.metric, f.aios_value, f.platform_value]),
+      [["leads", 4, 9]],
+    );
+  });
+
   it("uses cost, conversions and conversions_value for Google", () => {
     const r = compareCampaignDays({
       table: googleTable,

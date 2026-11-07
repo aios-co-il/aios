@@ -47,6 +47,42 @@ Deno.test("campaign-pulse-snapshot wiring", async (t) => {
   );
 
   await t.step(
+    "the client goal mode comes from its campaigns' report goals (AIO-494)",
+    () => {
+      assertMatch(
+        source,
+        /const goalMode = clientGoalModeOf\(\{\s*records,\s*goalOf: \(row\) => verdictOf\(row\)\?\.goal,\s*tables: activeTables,\s*sinceYmd: windows\.recent30Start,/,
+      );
+      assertMatch(
+        source,
+        /goalTables\(\s*activeTables,\s*"ecommerce",\s*ecommerceRecords,?\s*\)/,
+      );
+    },
+  );
+
+  await t.step(
+    "the client's no-results days reach the rows and both client statuses (AIO-502)",
+    () => {
+      assertMatch(
+        source,
+        /\.from\("clients"\)\s*\.select\(\s*"[^"]*pulse_no_results_days[^"]*"/,
+      );
+      assertMatch(
+        source,
+        /noResultsDaysByClient: noResultsDaysByClientOf\(client\)/,
+      );
+      assertMatch(
+        source,
+        /noResultsWindow: clientNoResultsWindow\(\s*client,\s*leadRecords,\s*"leads",\s*windows\.end,?\s*\)/,
+      );
+      assertMatch(
+        source,
+        /noResultsWindow: clientNoResultsWindow\(\s*client,\s*ecommerceRecords,\s*"ecommerce",\s*windows\.end,?\s*\)/,
+      );
+    },
+  );
+
+  await t.step(
     "warns about an unreachable list only on a run that reports",
     () => {
       assertMatch(

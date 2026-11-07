@@ -75,6 +75,7 @@ import {
 import { SharedTrafficTable } from "@/components/SharedTable/SharedTrafficTable";
 import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
+import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { useQueryClient } from "@tanstack/react-query";
 import { SHARED_TABLE_DATE_FILTERS } from "@/lib/dashboardDateFilters";
@@ -267,23 +268,15 @@ export default function SharedTable() {
   const formatTableUnitCost = (num: number) =>
     formatUnitCost(num, data?.table?.integration_settings?.currency);
 
-  // Deterministic table mode based on integration type + campaign_type setting
-  const tableCampaignType = String(
-    (data?.table?.integration_settings as any)?.campaign_type || "",
-  ).toLowerCase();
+  // The table's own mode, by the rule the internal report uses
+  // (isEcommerceReportTable reads the "איקומרס" category too, AIO-494). A
+  // Facebook Insights table splits per campaign, so its mode stays leads.
   const isGoogleAds = integrationType === "google_ads";
   const tableMode: "leads" | "ecommerce" =
-    integrationType === "facebook_ecommerce"
+    integrationType !== "facebook_insights" &&
+    isEcommerceReportTable(data?.table ?? {})
       ? "ecommerce"
-      : integrationType === "facebook_insights"
-        ? "leads"
-        : integrationType === "google_ads"
-          ? tableCampaignType === "ecommerce"
-            ? "ecommerce"
-            : "leads"
-          : tableCampaignType === "ecommerce"
-            ? "ecommerce"
-            : "leads";
+      : "leads";
   const tableGoals = useSharedTableGoals(
     data?.records,
     isGoogleAds ? data?.table : null,
@@ -691,6 +684,7 @@ export default function SharedTable() {
             tables={data?.table ? [data.table] : undefined}
             sourceModes={weeklySourceModesForTable(
               data?.table?.integration_settings,
+              data?.table?.category,
             )}
           />
         )}

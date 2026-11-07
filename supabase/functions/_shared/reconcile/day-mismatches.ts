@@ -29,7 +29,7 @@ export function dayMismatches(
 ): ReconcileFinding[] {
   const resultMetric = primaryResultMetric(
     input.platform,
-    p.sample || a.sample,
+    p.rows.length ? p.rows : a.rows,
     input.table,
   );
   const out: ReconcileFinding[] = [];
