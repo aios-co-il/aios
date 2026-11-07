@@ -73,51 +73,52 @@ export function useCarmenTasks(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 20_000,
     queryFn: async () => {
-      const [agentTasks, goals, devTasks, cronJobs, automations, heartbeat] = await Promise.all([
-        selectWithFallback<AgentTaskSourceRow>([
-          () =>
+      const [agentTasks, goals, devTasks, cronJobs, automations, heartbeat] =
+        await Promise.all([
+          selectWithFallback<AgentTaskSourceRow>([
+            () =>
+              supabase
+                .from("agent_tasks")
+                .select(`${AGENT_TASK_V2_COLUMNS}, ai_agents(name)`)
+                .eq("tenant_id", tenantId!)
+                .order("created_at", { ascending: false })
+                .limit(300),
+            () =>
+              supabase
+                .from("agent_tasks")
+                .select(`${AGENT_TASK_COLUMNS}, ai_agents(name)`)
+                .eq("tenant_id", tenantId!)
+                .order("created_at", { ascending: false })
+                .limit(300),
+          ]).catch(() => []),
+          selectWithFallback<GoalSourceRow>([
+            () =>
+              supabase
+                .from("goals")
+                .select(GOAL_ENGINE_COLUMNS)
+                .eq("tenant_id", tenantId!)
+                .order("updated_at", { ascending: false })
+                .limit(200),
+            () =>
+              supabase
+                .from("goals")
+                .select(GOAL_COLUMNS)
+                .eq("tenant_id", tenantId!)
+                .order("updated_at", { ascending: false })
+                .limit(200),
+          ]).catch(() => []),
+          dataOrEmpty(
             supabase
-              .from("agent_tasks")
-              .select(`${AGENT_TASK_V2_COLUMNS}, ai_agents(name)`)
-              .eq("tenant_id", tenantId!)
-              .order("created_at", { ascending: false })
-              .limit(300),
-          () =>
-            supabase
-              .from("agent_tasks")
-              .select(`${AGENT_TASK_COLUMNS}, ai_agents(name)`)
-              .eq("tenant_id", tenantId!)
-              .order("created_at", { ascending: false })
-              .limit(300),
-        ]).catch(() => []),
-        selectWithFallback<GoalSourceRow>([
-          () =>
-            supabase
-              .from("goals")
-              .select(GOAL_ENGINE_COLUMNS)
+              .from("dev_tasks")
+              .select(
+                "id, title, problem, status, priority, assigned_agent, pr_url, cursor_session_url, created_at, updated_at",
+              )
               .eq("tenant_id", tenantId!)
               .order("updated_at", { ascending: false })
-              .limit(200),
-          () =>
-            supabase
-              .from("goals")
-              .select(GOAL_COLUMNS)
-              .eq("tenant_id", tenantId!)
-              .order("updated_at", { ascending: false })
-              .limit(200),
-        ]).catch(() => []),
-        dataOrEmpty(
-          supabase
-            .from("dev_tasks")
-            .select(
-              "id, title, problem, status, priority, assigned_agent, pr_url, cursor_session_url, created_at, updated_at",
-            )
-            .eq("tenant_id", tenantId!)
-            .order("updated_at", { ascending: false })
-            .limit(100),
-        ),
-        // Super-admin only; everyone else simply doesn't see system jobs.
-        dataOrEmpty(supabase.rpc("list_system_cron_jobs")),
+              .limit(100),
+          ),
+          // Super-admin only; everyone else simply doesn't see system jobs.
+          dataOrEmpty(supabase.rpc("list_system_cron_jobs")),
           // A failed read shows every automation as on, the stored default.
           loadAutomationSettings(requireTenantId(tenantId)).catch(
             (e: unknown) => {
