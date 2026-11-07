@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Link2, Loader2, Search } from "lucide-react";
 import { invalidateClientCrmTablesQueries } from "@/lib/reportQueryCache";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 
 interface LinkTableToClientDialogProps {
   tableId: string;
@@ -68,10 +69,10 @@ export function LinkTableToClientDialog({
         .eq("accessing_tenant_id", tenantId);
 
       const sharedAgencyIds = (sharedAccess || [])
-        .map((s: any) => s.agency_id)
-        .filter(Boolean);
+        .map((s) => s.agency_id)
+        .filter((id): id is string => !!id);
 
-      let sharedClients: any[] = [];
+      let sharedClients: NonNullable<typeof ownClients> = [];
       if (sharedAgencyIds.length > 0) {
         const { data: sc } = await supabase
           .from("clients")
@@ -81,7 +82,7 @@ export function LinkTableToClientDialog({
       }
 
       // Merge & dedupe
-      const map = new Map<string, any>();
+      const map = new Map<string, (typeof sharedClients)[number]>();
       for (const c of [...(ownClients || []), ...sharedClients]) {
         if (!map.has(c.id)) map.set(c.id, c);
       }
@@ -105,14 +106,7 @@ export function LinkTableToClientDialog({
         body: { table_id: tableId, client_id: clientId },
       });
       if (error) {
-        let message = error.message;
-        try {
-          const details = await (error as any).context?.json();
-          if (details?.error) message = details.error;
-        } catch {
-          /* keep generic message */
-        }
-        throw new Error(message);
+        throw new Error(await edgeFunctionErrorMessage(error, error.message));
       }
     },
     onSuccess: (_data, clientId) => {
@@ -178,7 +172,7 @@ export function LinkTableToClientDialog({
                     לא נמצאו לקוחות
                   </div>
                 )}
-                {filteredClients.map((client: any) => (
+                {filteredClients.map((client) => (
                   <SelectItem key={client.id} value={client.id}>
                     {client.name}
                     {client.agencies?.name && (

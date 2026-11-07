@@ -40,10 +40,10 @@ export function isWooOrderInRevenueRange(
   );
 }
 
-export function filterWooOrdersForRevenue(
-  orders: WooOrderRevenueRow[],
+export function filterWooOrdersForRevenue<T extends WooOrderRevenueRow>(
+  orders: T[],
   range: { start: string; end: string } | null,
-): WooOrderRevenueRow[] {
+): T[] {
   const valid = orders.filter((o) => isWooRevenueStatus(o.status));
   if (!range) return valid;
   return valid.filter((o) => isWooOrderInRevenueRange(o, range));

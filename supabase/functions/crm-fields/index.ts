@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, TablesUpdate } from "../_shared/database.types.ts";
+import { thrownMessage } from "../_shared/crm-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,7 +31,7 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
@@ -200,7 +202,9 @@ serve(async (req) => {
           });
         }
 
-        const updateData: any = { updated_at: new Date().toISOString() };
+        const updateData: TablesUpdate<"crm_fields"> = {
+          updated_at: new Date().toISOString(),
+        };
         if (name) updateData.name = name;
         if (position !== undefined) updateData.position = position;
         if (is_required !== undefined) updateData.is_required = is_required;
@@ -262,12 +266,14 @@ serve(async (req) => {
     }
   } catch (error) {
     console.error("Error in crm-fields function:", error);
-    const err: any = error as any;
     const errorMessage =
-      err && err.message ? err.message : String(error) || "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage, details: err }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+      thrownMessage(error) || String(error) || "Unknown error";
+    return new Response(
+      JSON.stringify({ error: errorMessage, details: error }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

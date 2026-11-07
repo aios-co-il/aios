@@ -12,6 +12,9 @@ import { FacebookSalesCampaignsCard } from "@/components/dynamic-tables/Facebook
 import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
+import { type JsonObject, readString } from "@/lib/jsonReaders";
+import type { CrmTableIntegrationSettings } from "@/lib/dynamicTableTypes";
+import { toSharedDashboardPayload } from "@/lib/sharedDashboardPayload";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,7 +126,30 @@ type PlatformFilter =
   | "woocommerce"
   | "seo";
 
-const hasMeaningfulAnalyticsMetrics = (data: any) =>
+interface PlatformSummary {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  sessions: number;
+  users: number;
+  results: number;
+  revenue: number;
+  addToCart: number;
+}
+
+interface DailyChartPoint {
+  date: string;
+  spend: number;
+  revenue: number;
+  purchases: number;
+  addToCart: number;
+  sessions: number;
+  clicks: number;
+  impressions: number;
+  leads: number;
+}
+
+const hasMeaningfulAnalyticsMetrics = (data: JsonObject) =>
   getSessionsFromData(data) > 0 ||
   getUsersFromData(data) > 0 ||
   getPurchasesFromData(data) > 0 ||
@@ -240,7 +266,7 @@ export default function SharedDashboard({
         const body = await res.text();
         throw new Error(body || `public-dashboard failed (${res.status})`);
       }
-      return res.json();
+      return toSharedDashboardPayload(await res.json());
     },
     enabled: !!shareToken,
     retry: false,
@@ -268,7 +294,7 @@ export default function SharedDashboard({
         },
       );
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      return toSharedDashboardPayload(await res.json());
     },
     enabled: !!shareToken && platformFilter === "weekly",
     staleTime: 5 * 60_000,
@@ -287,13 +313,13 @@ export default function SharedDashboard({
   // skip facebook_insights records to avoid double-counting spend/impressions/clicks
   const records = useMemo(() => {
     const hasFbEcommerce = tables.some(
-      (t: any) => t.integration_type === "facebook_ecommerce",
+      (t) => t.integration_type === "facebook_ecommerce",
     );
     const hasFbInsights = tables.some(
-      (t: any) => t.integration_type === "facebook_insights",
+      (t) => t.integration_type === "facebook_insights",
     );
     if (hasFbEcommerce && hasFbInsights) {
-      return rawRecords.filter((r: any) => r._source !== "facebook_insights");
+      return rawRecords.filter((r) => r._source !== "facebook_insights");
     }
     return rawRecords;
   }, [rawRecords, tables]);
@@ -301,13 +327,13 @@ export default function SharedDashboard({
   const weeklyRecords = useMemo(() => {
     const source = weeklyData?.records || [];
     const hasFbEcommerce = tables.some(
-      (t: any) => t.integration_type === "facebook_ecommerce",
+      (t) => t.integration_type === "facebook_ecommerce",
     );
     const hasFbInsights = tables.some(
-      (t: any) => t.integration_type === "facebook_insights",
+      (t) => t.integration_type === "facebook_insights",
     );
     return hasFbEcommerce && hasFbInsights
-      ? source.filter((record: any) => record._source !== "facebook_insights")
+      ? source.filter((record) => record._source !== "facebook_insights")
       : source;
   }, [weeklyData?.records, tables]);
 
@@ -327,7 +353,7 @@ export default function SharedDashboard({
   const hasSeoMaskyoo = maskyooSnapshots.length > 0;
   const hasSeoGsc = seoGscRecords.length > 0;
   const hasSeoGa = seoGaRecords.length > 0;
-  const seoMonthly = (data as any)?.seo_monthly || null;
+  const seoMonthly = data?.seo_monthly || null;
   const hasMonthlyWork =
     Array.isArray(seoMonthly?.months) && seoMonthly.months.length > 0;
   console.log(
@@ -358,7 +384,7 @@ export default function SharedDashboard({
       { clicks: number; impressions: number; positionWeighted: number }
     >();
     for (const rec of seoGscRecords) {
-      const d = (rec as any).data || rec;
+      const d: JsonObject = rec.data || {};
       const kw = String(d.query || d.keyword || "").trim();
       if (!kw) continue;
       const clicks = Number(d.clicks) || 0;
@@ -409,7 +435,7 @@ export default function SharedDashboard({
 
     // Prefer monthly_channel records
     const monthlyChannelRows = seoGaRecords.filter(
-      (r: any) => r.data?.report_type === "monthly_channel",
+      (r) => r.data?.report_type === "monthly_channel",
     );
     if (monthlyChannelRows.length > 0) {
       const monthMap = new Map<string, number>();
@@ -432,7 +458,7 @@ export default function SharedDashboard({
 
     // Fallback: daily_source (exclude paid mediums)
     const dailySourceRows = seoGaRecords.filter(
-      (r: any) => r.data?.report_type === "daily_source",
+      (r) => r.data?.report_type === "daily_source",
     );
     if (dailySourceRows.length > 0) {
       const monthMap = new Map<string, number>();
@@ -456,8 +482,8 @@ export default function SharedDashboard({
 
     // Last fallback: monthly_organic
     return seoGaRecords
-      .filter((r: any) => r.data?.report_type === "monthly_organic")
-      .map((r: any) => ({
+      .filter((r) => r.data?.report_type === "monthly_organic")
+      .map((r) => ({
         month: r.data.month as string,
         sessions: Number(r.data.sessions) || 0,
       }))
@@ -465,7 +491,7 @@ export default function SharedDashboard({
   }, [seoGaRecords]);
 
   const hasVisibleAnalyticsData = useMemo(() => {
-    return records.some((record: any) => {
+    return records.some((record) => {
       const source = record._source || "";
       const recordData = record.data || {};
       return (
@@ -479,7 +505,7 @@ export default function SharedDashboard({
   // Available platforms
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
-    tables.forEach((t: any) => {
+    tables.forEach((t) => {
       if (t?.integration_type) set.add(t.integration_type);
     });
     const platforms: PlatformFilter[] = [];
@@ -588,7 +614,7 @@ export default function SharedDashboard({
 
   // Filter records: platform filter + only use 'daily' aggregate records for Analytics
   const filteredRecords = useMemo(() => {
-    return records.filter((record: any) => {
+    return records.filter((record) => {
       const source = record._source || "unknown";
       if (!matchesPlatformFilter(source, platformFilter)) return false;
       if (isAnalyticsPlatform(source)) {
@@ -609,8 +635,8 @@ export default function SharedDashboard({
   const allAnalyticsRecords = useMemo(() => {
     if (!hasVisibleAnalyticsData) return [];
     return records
-      .filter((r: any) => isAnalyticsPlatform(r._source || ""))
-      .map((r: any) => ({ id: r.id, data: r.data }));
+      .filter((r) => isAnalyticsPlatform(r._source || ""))
+      .map((r) => ({ id: r.id, data: r.data }));
   }, [records, hasVisibleAnalyticsData]);
 
   // Each ads campaign's goal as its report shows it (_shared/campaign-goal/).
@@ -622,8 +648,8 @@ export default function SharedDashboard({
   // Delivery and spend by platform, and Analytics results. Ads results are
   // counted per goal in dashboardGoals, as the reports count them.
   const summaryByPlatform = useMemo(() => {
-    const platforms: Record<string, any> = {};
-    filteredRecords.forEach((record: any) => {
+    const platforms: Record<string, PlatformSummary> = {};
+    filteredRecords.forEach((record) => {
       const rawSource = record._source || "unknown";
       const source = normalizePlatformKey(rawSource);
       if (!platforms[source]) {
@@ -658,7 +684,7 @@ export default function SharedDashboard({
   const globalAdsMetrics = useMemo(() => {
     let spend = 0,
       impressions = 0;
-    records.forEach((record: any) => {
+    records.forEach((record) => {
       const source = record._source || "unknown";
       if (isAdsPlatform(source)) {
         const data = record.data || {};
@@ -681,22 +707,20 @@ export default function SharedDashboard({
       analyticsAddToCart = 0,
       analyticsSessions = 0,
       analyticsUsers = 0;
-    Object.entries(summaryByPlatform).forEach(
-      ([platform, d]: [string, any]) => {
-        if (isAnalyticsPlatform(platform)) {
-          analyticsRevenue += d.revenue;
-          analyticsPurchases += d.results;
-          analyticsAddToCart += d.addToCart;
-          analyticsSessions += d.sessions;
-          analyticsUsers += d.users || 0;
-        } else if (isAdsPlatform(platform)) {
-          totalSpend += d.spend;
-          totalImpressions += d.impressions;
-          totalClicks += d.clicks;
-          adsSpend += d.spend;
-        }
-      },
-    );
+    Object.entries(summaryByPlatform).forEach(([platform, d]) => {
+      if (isAnalyticsPlatform(platform)) {
+        analyticsRevenue += d.revenue;
+        analyticsPurchases += d.results;
+        analyticsAddToCart += d.addToCart;
+        analyticsSessions += d.sessions;
+        analyticsUsers += d.users || 0;
+      } else if (isAdsPlatform(platform)) {
+        totalSpend += d.spend;
+        totalImpressions += d.impressions;
+        totalClicks += d.clicks;
+        adsSpend += d.spend;
+      }
+    });
     const effectiveSpend = totalSpend > 0 ? totalSpend : globalAdsMetrics.spend;
     const effectiveAdsSpend = adsSpend > 0 ? adsSpend : globalAdsMetrics.spend;
     const effectiveImpressions =
@@ -780,12 +804,12 @@ export default function SharedDashboard({
         addToCart: number;
       }
     > = {};
-    records.forEach((record: any) => {
+    records.forEach((record) => {
       const source = record._source || "unknown";
       if (!isAnalyticsPlatform(source)) return;
       const data = record.data || {};
       if (data.report_type !== "daily_source") return;
-      const sm = data.source_medium || "Unknown";
+      const sm = String(data.source_medium || "Unknown");
       const category = categorize(sm);
       if (!sources[category])
         sources[category] = {
@@ -823,12 +847,12 @@ export default function SharedDashboard({
         count: number;
       }
     > = {};
-    records.forEach((record: any) => {
+    records.forEach((record) => {
       const source = record._source || "unknown";
       if (!isAnalyticsPlatform(source)) return;
       const data = record.data || {};
       if (data.report_type !== "channel_group") return;
-      const ch = data.channel_group || "Unknown";
+      const ch = String(data.channel_group || "Unknown");
       if (!channels[ch])
         channels[ch] = {
           sessions: 0,
@@ -868,10 +892,13 @@ export default function SharedDashboard({
 
   // Daily chart data
   const dailyChartData = useMemo(() => {
-    const byDate: Record<string, any> = {};
-    filteredRecords.forEach((record: any) => {
-      const date = record.data?.date;
-      if (!date) return;
+    const byDate: Record<string, DailyChartPoint> = {};
+    filteredRecords.forEach((record) => {
+      const rawDate = record.data?.date;
+      if (!rawDate) {
+        return;
+      }
+      const date = String(rawDate);
       const source = record._source || "unknown";
       const data = record.data || {};
       if (!byDate[date]) {
@@ -900,11 +927,8 @@ export default function SharedDashboard({
       }
     });
     return Object.values(byDate)
-      .sort(
-        (a: any, b: any) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime(),
-      )
-      .map((d: any) => ({
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((d) => ({
         ...d,
         dateLabel: new Date(d.date).toLocaleDateString("he-IL", {
           day: "2-digit",
@@ -939,9 +963,7 @@ export default function SharedDashboard({
   const googleAdsSummary = useMemo(
     () =>
       summarizeGoogleAdsCampaigns(
-        records.filter(
-          (r: { _source?: string }) => (r._source || "") === "google_ads",
-        ),
+        records.filter((r) => (r._source || "") === "google_ads"),
         tables || [],
       ),
     [records, tables],
@@ -952,11 +974,11 @@ export default function SharedDashboard({
 
   const googleAdsTableSettings = useMemo(() => {
     const gaTables = (tables || []).filter(
-      (t: any) => t.integration_type === "google_ads",
+      (t) => t.integration_type === "google_ads",
     );
     return (
       gaTables.find(
-        (t: any) => t.integration_settings?.use_woo_google_attribution != null,
+        (t) => t.integration_settings?.use_woo_google_attribution != null,
       )?.integration_settings ?? gaTables[0]?.integration_settings
     );
   }, [tables]);
@@ -973,15 +995,18 @@ export default function SharedDashboard({
   const analyticsTableIds = useMemo(
     () =>
       (tables || [])
-        .filter((t: any) => t.integration_type === "google_analytics")
-        .map((t: any) => t.id as string),
+        .filter((t) => t.integration_type === "google_analytics")
+        .map((t) => t.id as string),
     [tables],
   );
 
   const analyticsReportMode = useMemo(
     () =>
       resolveAnalyticsReportMode({
-        dashboardMode: (data?.dashboard as any)?.settings?.default_report_mode,
+        dashboardMode: readString(
+          data?.dashboard?.settings,
+          "default_report_mode",
+        ),
         tables,
       }),
     [data?.dashboard, tables],
@@ -1162,11 +1187,9 @@ export default function SharedDashboard({
               gscMultiPeriod={gscMultiPeriod}
               gaOrganicByMonth={seoGaOrganicByMonth}
               clientId={dashboard?.client_id || null}
-              forceRelevant={
-                (data as any)?.seo_keyword_relevance?.force_relevant || []
-              }
+              forceRelevant={data?.seo_keyword_relevance?.force_relevant || []}
               forceIrrelevant={
-                (data as any)?.seo_keyword_relevance?.force_irrelevant || []
+                data?.seo_keyword_relevance?.force_irrelevant || []
               }
             />
             <PublicMaskyooCallsCard
@@ -1195,14 +1218,12 @@ export default function SharedDashboard({
                 dashboard?.name
               }
               domain={seoMonthly?.domain || null}
-              months={hasMonthlyWork ? seoMonthly.months : []}
+              months={hasMonthlyWork ? (seoMonthly?.months ?? []) : []}
               shareToken={seoMonthly?.share_token || null}
               ahrefsReports={ahrefsReports}
-              forceRelevant={
-                (data as any)?.seo_keyword_relevance?.force_relevant || []
-              }
+              forceRelevant={data?.seo_keyword_relevance?.force_relevant || []}
               forceIrrelevant={
-                (data as any)?.seo_keyword_relevance?.force_irrelevant || []
+                data?.seo_keyword_relevance?.force_irrelevant || []
               }
             />
           </TabsContent>

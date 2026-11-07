@@ -15,8 +15,14 @@ interface GaOrganicMonth {
   sessions: number;
 }
 
+interface TrafficHistoryPoint {
+  date?: string | null;
+  org_traffic?: number | null;
+  traffic?: number | null;
+}
+
 interface SeoTrafficChartProps {
-  trafficHistory: any[];
+  trafficHistory: TrafficHistoryPoint[];
   /** Monthly organic sessions derived from Google Analytics (optional) */
   gaOrganicByMonth?: GaOrganicMonth[];
 }
@@ -34,7 +40,7 @@ export function SeoTrafficChart({
       }));
     }
     // Fallback: Ahrefs traffic history
-    return trafficHistory.map((item: any) => ({
+    return trafficHistory.map((item) => ({
       date: item.date
         ? String(item.date).substring(5, 7) +
           "/" +

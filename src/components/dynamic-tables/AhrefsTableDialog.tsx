@@ -19,6 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/jsonReaders";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import {
@@ -206,10 +207,10 @@ export function AhrefsTableDialog({
       });
       onOpenChange(false);
       resetForm();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה ביצירת הטבלה",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {

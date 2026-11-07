@@ -106,7 +106,7 @@ export default function SalesDashboard() {
       const idToName = new Map<string, string>();
       const normNameToId = new Map<string, string>();
       const normalize = (s: string) => s.normalize("NFKC").trim().toLowerCase();
-      (productsList || []).forEach((p: any) => {
+      (productsList || []).forEach((p) => {
         if (p && p.id && p.name) {
           idToName.set(p.id, p.name);
           normNameToId.set(normalize(p.name), p.id);
@@ -124,7 +124,7 @@ export default function SalesDashboard() {
         }
       >();
 
-      (data || []).forEach((lead: any) => {
+      (data || []).forEach((lead) => {
         if (!lead.products) return;
         let tokens: string[] = [];
 

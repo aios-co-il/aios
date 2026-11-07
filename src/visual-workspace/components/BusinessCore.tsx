@@ -8,6 +8,7 @@ import {
   TrendingUp,
   ShieldAlert,
   Flame,
+  type LucideIcon,
 } from "lucide-react";
 
 interface Props {
@@ -104,7 +105,7 @@ function CoreStat({
   value,
   tone,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: number;
   tone?: "warn" | "danger";

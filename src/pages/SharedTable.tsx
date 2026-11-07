@@ -1,5 +1,12 @@
 import { useSharedTableGoals } from "@/components/SharedTable/useSharedTableGoals";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ComponentProps } from "react";
+import type { Json } from "@/integrations/supabase/types";
+import type { JsonObject } from "@/lib/jsonReaders";
+import {
+  toSharedTablePayload,
+  type SharedTablePayload,
+  type SharedTableRecord,
+} from "@/lib/sharedTablePayload";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -88,10 +95,23 @@ import {
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
 
+type PublicSeoProps = ComponentProps<typeof PublicSeoView>;
+
+interface CampaignSummaryRow {
+  name: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  leads: number;
+  purchases: number;
+  revenue: number;
+  addToCart: number;
+}
+
 // Date filter options — shared with DynamicTableView week windows via dashboardDateFilters.
 const DATE_FILTERS = SHARED_TABLE_DATE_FILTERS;
 
-const isEcommerceRecord = (d: any) =>
+const isEcommerceRecord = (d: JsonObject | null | undefined) =>
   String(d?.campaign_type || "").toLowerCase() === "ecommerce" ||
   Number(d?.purchases) > 0 ||
   Number(d?.purchase_value) > 0 ||
@@ -204,7 +224,7 @@ export default function SharedTable() {
         headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
       });
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      return toSharedTablePayload(await res.json());
     },
     enabled:
       !!shareToken &&
@@ -230,7 +250,7 @@ export default function SharedTable() {
         headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
       });
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      return toSharedTablePayload(await res.json());
     },
     enabled: !!shareToken && isSeoShare,
     staleTime: 5 * 60 * 1000,
@@ -260,8 +280,7 @@ export default function SharedTable() {
     isAdsPlatform(integrationType || "") ||
     isAnalyticsPlatform(integrationType || "");
   const formatCurrency = useMemo(
-    () =>
-      makeFormatCurrency((data?.table?.integration_settings as any)?.currency),
+    () => makeFormatCurrency(data?.table?.integration_settings?.currency),
     [data?.table?.integration_settings],
   );
   const formatTableUnitCost = (num: number) =>
@@ -269,7 +288,7 @@ export default function SharedTable() {
 
   // Deterministic table mode based on integration type + campaign_type setting
   const tableCampaignType = String(
-    (data?.table?.integration_settings as any)?.campaign_type || "",
+    data?.table?.integration_settings?.campaign_type || "",
   ).toLowerCase();
   const isGoogleAds = integrationType === "google_ads";
   const tableMode: "leads" | "ecommerce" =
@@ -303,7 +322,7 @@ export default function SharedTable() {
         headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
       });
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      return toSharedTablePayload(await res.json());
     },
     enabled:
       !!shareToken &&
@@ -350,18 +369,11 @@ export default function SharedTable() {
   // Generic table columns from fields or data keys
   const genericColumns = useMemo(() => {
     if (isIntegrationTable) return [];
-    if (!data?.records?.length)
-      return (
-        data?.fields?.map((f: any) => ({
-          key: f.field_key,
-          label: f.field_label,
-        })) || []
-      );
-    if (data?.fields?.length) {
-      return data.fields.map((f: any) => ({
-        key: f.field_key,
-        label: f.field_label,
-      }));
+    if (!data?.records?.length) {
+      return data?.fields ?? [];
+    }
+    if (data.fields?.length) {
+      return data.fields;
     }
     const keys = Object.keys(data.records[0]?.data || {}).filter(
       (k: string) => !k.startsWith("_") && k !== "report_type",
@@ -419,7 +431,7 @@ export default function SharedTable() {
     const hasGa = gaRecords.length > 0 && sharedTabs.ga;
     const hasGsc = gscRecords.length > 0 && sharedTabs.gsc;
     const gscPending = isSeoShare && gscLoading && !hasGsc && sharedTabs.gsc;
-    const seoMonthly = (data as any).seo_monthly || null;
+    const seoMonthly = data.seo_monthly || null;
     const hasMonthlyWork =
       Array.isArray(seoMonthly?.months) &&
       seoMonthly.months.length > 0 &&
@@ -433,10 +445,10 @@ export default function SharedTable() {
     const gscAggregated = (() => {
       if (!hasGsc) return [];
       return aggregateGscQueryRows(
-        gscRecords.map((rec: any) => {
-          const d = rec.data || rec;
+        gscRecords.map((rec) => {
+          const d: JsonObject = rec.data || {};
           return {
-            query: d.query || d.keyword || "",
+            query: String(d.query || d.keyword || ""),
             clicks: d.clicks,
             impressions: d.impressions,
             position: d.position,
@@ -460,18 +472,13 @@ export default function SharedTable() {
           onBack={() => setMonthlyWorkFullPage(false)}
           clientName={seoMonthly?.client_name || data.table.name}
           domain={
-            seoMonthly?.domain ||
-            ((data.table.integration_settings as any)?.targetDomain as string)
+            seoMonthly?.domain || data.table.integration_settings?.targetDomain
           }
-          months={hasMonthlyWork ? seoMonthly.months : []}
+          months={hasMonthlyWork ? (seoMonthly?.months ?? []) : []}
           shareToken={seoMonthly?.share_token || null}
           ahrefsReports={data.ahrefs_reports || []}
-          forceRelevant={
-            (data as any).seo_keyword_relevance?.force_relevant || []
-          }
-          forceIrrelevant={
-            (data as any).seo_keyword_relevance?.force_irrelevant || []
-          }
+          forceRelevant={data.seo_keyword_relevance?.force_relevant || []}
+          forceIrrelevant={data.seo_keyword_relevance?.force_irrelevant || []}
         />
       );
     }
@@ -523,11 +530,11 @@ export default function SharedTable() {
             maskyooSnapshots={maskyooSnapshots}
             periodLabel={periodLabel}
             tableName={data.table.name}
-            tableSettings={(data.table.integration_settings as any) || {}}
-            clientId={(data.table as any).client_id || null}
+            tableSettings={data.table.integration_settings || {}}
+            clientId={data.table.client_id || null}
             ahrefsReports={data.ahrefs_reports || []}
             gscMultiPeriod={data.gsc_multi_period || null}
-            seoKeywordRelevance={(data as any).seo_keyword_relevance}
+            seoKeywordRelevance={data.seo_keyword_relevance}
             sharedTabs={sharedTabs}
           />
         </div>
@@ -535,7 +542,7 @@ export default function SharedTable() {
     );
   }
 
-  const formatCellValue = (value: any) => {
+  const formatCellValue = (value: Json | undefined) => {
     if (value === null || value === undefined) return "—";
     if (typeof value === "number") {
       return new Intl.NumberFormat("he-IL", {
@@ -551,7 +558,7 @@ export default function SharedTable() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            {getIntegrationIcon(integrationType)}
+            {getIntegrationIcon(integrationType ?? null)}
             <h1 className="text-xl md:text-2xl font-bold">{data.table.name}</h1>
           </div>
           <DropdownMenu>
@@ -685,7 +692,7 @@ export default function SharedTable() {
                 "facebook_insights" | "facebook_ecommerce" | "google_ads"
             }
             currency={getCurrencySymbol(
-              (data?.table?.integration_settings as any)?.currency,
+              data?.table?.integration_settings?.currency,
             )}
             isLoading={weeklyPending}
             tables={data?.table ? [data.table] : undefined}
@@ -877,7 +884,7 @@ export default function SharedTable() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {campaignSummary.ecommerce.map((c: any) => {
+                      {campaignSummary.ecommerce.map((c) => {
                         const roas = c.spend > 0 ? c.revenue / c.spend : 0;
                         return (
                           <TableRow key={c.name}>
@@ -910,7 +917,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatCurrency(
                             campaignSummary.ecommerce.reduce(
-                              (s: number, c: any) => s + c.spend,
+                              (s: number, c) => s + c.spend,
                               0,
                             ),
                           )}
@@ -918,7 +925,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatNumber(
                             campaignSummary.ecommerce.reduce(
-                              (s: number, c: any) => s + c.impressions,
+                              (s: number, c) => s + c.impressions,
                               0,
                             ),
                           )}
@@ -926,7 +933,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatNumber(
                             campaignSummary.ecommerce.reduce(
-                              (s: number, c: any) => s + c.clicks,
+                              (s: number, c) => s + c.clicks,
                               0,
                             ),
                           )}
@@ -934,7 +941,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatNumber(
                             campaignSummary.ecommerce.reduce(
-                              (s: number, c: any) => s + c.addToCart,
+                              (s: number, c) => s + c.addToCart,
                               0,
                             ),
                           )}
@@ -942,7 +949,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatNumber(
                             campaignSummary.ecommerce.reduce(
-                              (s: number, c: any) => s + c.purchases,
+                              (s: number, c) => s + c.purchases,
                               0,
                             ),
                           )}
@@ -950,7 +957,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatCurrency(
                             campaignSummary.ecommerce.reduce(
-                              (s: number, c: any) => s + c.revenue,
+                              (s: number, c) => s + c.revenue,
                               0,
                             ),
                           )}
@@ -958,12 +965,12 @@ export default function SharedTable() {
                         <TableCell>
                           {(() => {
                             const totalSpend = campaignSummary.ecommerce.reduce(
-                              (s: number, c: any) => s + c.spend,
+                              (s: number, c) => s + c.spend,
                               0,
                             );
                             const totalRevenue =
                               campaignSummary.ecommerce.reduce(
-                                (s: number, c: any) => s + c.revenue,
+                                (s: number, c) => s + c.revenue,
                                 0,
                               );
                             const roas =
@@ -1015,7 +1022,7 @@ export default function SharedTable() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {campaignSummary.leads.map((c: any) => {
+                      {campaignSummary.leads.map((c) => {
                         const cpl = c.leads > 0 ? c.spend / c.leads : 0;
                         return (
                           <TableRow key={c.name}>
@@ -1036,7 +1043,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatCurrency(
                             campaignSummary.leads.reduce(
-                              (s: number, c: any) => s + c.spend,
+                              (s: number, c) => s + c.spend,
                               0,
                             ),
                           )}
@@ -1044,7 +1051,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatNumber(
                             campaignSummary.leads.reduce(
-                              (s: number, c: any) => s + c.impressions,
+                              (s: number, c) => s + c.impressions,
                               0,
                             ),
                           )}
@@ -1052,7 +1059,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatNumber(
                             campaignSummary.leads.reduce(
-                              (s: number, c: any) => s + c.clicks,
+                              (s: number, c) => s + c.clicks,
                               0,
                             ),
                           )}
@@ -1060,7 +1067,7 @@ export default function SharedTable() {
                         <TableCell>
                           {formatNumber(
                             campaignSummary.leads.reduce(
-                              (s: number, c: any) => s + c.leads,
+                              (s: number, c) => s + c.leads,
                               0,
                             ),
                           )}
@@ -1068,11 +1075,11 @@ export default function SharedTable() {
                         <TableCell>
                           {(() => {
                             const totalSpend = campaignSummary.leads.reduce(
-                              (s: number, c: any) => s + c.spend,
+                              (s: number, c) => s + c.spend,
                               0,
                             );
                             const totalLeads = campaignSummary.leads.reduce(
-                              (s: number, c: any) => s + c.leads,
+                              (s: number, c) => s + c.leads,
                               0,
                             );
                             return formatCurrency(
@@ -1111,19 +1118,17 @@ export default function SharedTable() {
               leads={manualRoi.leads}
               currency={(() => {
                 const code = (
-                  (data?.table?.integration_settings as any)?.currency || "ILS"
+                  data?.table?.integration_settings?.currency || "ILS"
                 ).toUpperCase();
                 return code === "USD" ? "$" : code === "EUR" ? "€" : "₪";
               })()}
               initialClosures={
-                (data.table.integration_settings as any)?.manual_roi
-                  ?.closures ?? null
+                data.table.integration_settings?.manual_roi?.closures ?? null
               }
               initialRevenue={
-                (data.table.integration_settings as any)?.manual_roi?.revenue ??
-                null
+                data.table.integration_settings?.manual_roi?.revenue ?? null
               }
-              integrationSettings={data.table.integration_settings as any}
+              integrationSettings={data.table.integration_settings}
               saveFn={async (manual_roi) => {
                 const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-table`;
                 const res = await fetch(baseUrl, {
@@ -1162,15 +1167,15 @@ export default function SharedTable() {
                     </TableHeader>
                     <TableBody>
                       {filteredRecords
-                        .sort((a: any, b: any) =>
-                          (b.data?.date || "").localeCompare(
-                            a.data?.date || "",
+                        .sort((a, b) =>
+                          String(b.data?.date || "").localeCompare(
+                            String(a.data?.date || ""),
                           ),
                         )
                         .slice(0, 60)
-                        .map((r: any, i: number) => (
+                        .map((r, i: number) => (
                           <TableRow key={r.id || i}>
-                            <TableCell>{r.data?.date || "—"}</TableCell>
+                            <TableCell>{String(r.data?.date || "—")}</TableCell>
                             <TableCell>
                               {formatNumber(getSessionsFromData(r.data))}
                             </TableCell>
@@ -1204,7 +1209,7 @@ export default function SharedTable() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {genericColumns.map((col: any) => (
+                      {genericColumns.map((col) => (
                         <TableHead
                           key={col.key}
                           className="text-right whitespace-nowrap"
@@ -1225,9 +1230,9 @@ export default function SharedTable() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredRecords.map((record: any, i: number) => (
+                      filteredRecords.map((record, i: number) => (
                         <TableRow key={record.id || i}>
-                          {genericColumns.map((col: any) => (
+                          {genericColumns.map((col) => (
                             <TableCell
                               key={col.key}
                               className="whitespace-nowrap"
@@ -1275,17 +1280,17 @@ function AhrefsSharedReportTabs({
   hasGsc: boolean;
   hasGa: boolean;
   gscPending: boolean;
-  gscRecords: any[];
-  gaRecords: any[];
-  gscAggregated: any[];
-  gaOrganicByMonth: any[];
-  maskyooSnapshots: any[];
+  gscRecords: SharedTableRecord[];
+  gaRecords: SharedTableRecord[];
+  gscAggregated: NonNullable<PublicSeoProps["gscData"]>;
+  gaOrganicByMonth: NonNullable<PublicSeoProps["gaOrganicByMonth"]>;
+  maskyooSnapshots: NonNullable<SharedTablePayload["maskyoo_snapshots"]>;
   periodLabel?: string;
   tableName: string;
   tableSettings: Record<string, unknown>;
   clientId: string | null;
-  ahrefsReports: any[];
-  gscMultiPeriod: any;
+  ahrefsReports: PublicSeoProps["reports"];
+  gscMultiPeriod: PublicSeoProps["gscMultiPeriod"] | null;
   seoKeywordRelevance?: {
     force_relevant?: string[];
     force_irrelevant?: string[];

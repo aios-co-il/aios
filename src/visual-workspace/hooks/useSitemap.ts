@@ -75,14 +75,14 @@ export function useSitemap() {
           is_visible: true,
           sort_order: 0,
           ...input.patch,
-        } as any);
+        });
         if (error) throw error;
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["menu-items", tenantId] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("שגיאה בשמירת השינוי", { description: err?.message });
     },
   });

@@ -14,10 +14,23 @@ import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { FacebookDashboardTrafficCard } from "@/components/dynamic-tables/FacebookDashboardTrafficCard";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import {
+  asJsonObject,
+  isJsonObject,
+  type JsonObject,
+  thrownMessage,
+} from "@/lib/jsonReaders";
+import {
+  type DashboardField,
+  type DashboardTable,
+  toDashboardFields,
+  toDashboardTables,
+} from "@/types/dashboardRows";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -175,6 +188,57 @@ type PlatformFilter =
   | "seo"
   | "woocommerce";
 
+/** A `crm-records` row: `crm_records.data` is user-defined JSON, narrowed per field. */
+type ReportRecordRow = Pick<Tables<"crm_records">, "id" | "data">;
+
+/** A record tagged with its table; `data` is read as an object, as the report helpers expect. */
+type DashboardRecord = {
+  id: string;
+  data: JsonObject;
+  _source?: string;
+  _tableName?: string;
+  _tableId?: string;
+  _integrationType?: string | null;
+  _campaignType?: "leads" | "ecommerce";
+};
+
+type PlatformSummary = {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  sessions: number;
+  users: number;
+  results: number;
+  revenue: number;
+  addToCart: number;
+};
+
+type DailyChartPoint = {
+  date: string;
+  spend: number;
+  revenue: number;
+  purchases: number;
+  addToCart: number;
+  sessions: number;
+  clicks: number;
+  impressions: number;
+  leads: number;
+};
+
+type SyncTask = { label: string; promise: Promise<{ error: unknown }> };
+
+const isAdsTable = (
+  table: DashboardTable,
+): table is DashboardTable & { integration_type: string } =>
+  isAdsPlatform(table.integration_type ?? "");
+
+const jsonStringOrNull = (value: Json | undefined): string | null =>
+  typeof value === "string" ? value : null;
+
+/** Raw-table cell content; nested JSON is shown as text instead of breaking render. */
+const rawCellValue = (value: Json | undefined): ReactNode =>
+  isJsonObject(value) || Array.isArray(value) ? JSON.stringify(value) : value;
+
 const isAdsPlatform = (source: string) =>
   ["facebook_insights", "facebook_ecommerce", "google_ads"].includes(source);
 const isAnalyticsPlatform = (source: string) => source === "google_analytics";
@@ -280,9 +344,8 @@ export default function DashboardView() {
     enabled: !!dashboardId,
   });
 
-  const isAgencyDashboard = (dashboard as any)?.dashboard_type === "agency";
-  const isOrganizationDashboard =
-    (dashboard as any)?.dashboard_type === "organization";
+  const isAgencyDashboard = dashboard?.dashboard_type === "agency";
+  const isOrganizationDashboard = dashboard?.dashboard_type === "organization";
   const isAgencyLikeDashboard = isAgencyDashboard || isOrganizationDashboard;
 
   // For organization dashboards: load all agencies (own + shared cross-tenant)
@@ -298,7 +361,7 @@ export default function DashboardView() {
         .from("agency_tenant_access")
         .select("agency_id")
         .eq("accessing_tenant_id", currentTenantId);
-      const sharedIds = (shared || []).map((r: any) => r.agency_id);
+      const sharedIds = (shared || []).map((r) => r.agency_id);
       let query = supabase.from("agencies").select("id, name").order("name");
       if (sharedIds.length > 0) {
         query = query.or(
@@ -326,7 +389,9 @@ export default function DashboardView() {
   }, [isOrganizationDashboard, orgAgencies, selectedOrgAgencyId]);
 
   // Fetch tables for the client
-  const { data: tables = [], isPending: tablesPending } = useQuery<any[]>({
+  const { data: tables = [], isPending: tablesPending } = useQuery<
+    DashboardTable[]
+  >({
     queryKey: ["crm-tables-for-dashboard", dashboard?.client_id],
     queryFn: async () => {
       if (!dashboard?.client_id) return [];
@@ -342,10 +407,10 @@ export default function DashboardView() {
         { method: "GET" },
       );
       if (response.error) throw response.error;
-      return Array.isArray(response.data) ? response.data : [];
+      return toDashboardTables(response.data);
     },
     enabled: !!dashboard?.client_id,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<DashboardTable[]>(),
     // Bust empty lists after permission grants; keep warm cache when data exists.
     refetchOnMount: refetchOnMountIfEmpty,
   });
@@ -354,7 +419,7 @@ export default function DashboardView() {
 
   const dashboardLastSyncAt = useMemo(() => {
     const stamps = tables
-      .map((t: any) => getReportLastSyncAt(t))
+      .map((t) => getReportLastSyncAt(t))
       .filter(Boolean) as string[];
     if (!stamps.length) return null;
     return stamps.sort().reverse()[0];
@@ -366,7 +431,7 @@ export default function DashboardView() {
 
   // Fetch fields for all tables (for raw table display)
   const { data: tableFields = {} } = useQuery({
-    queryKey: ["crm-fields-dashboard", tables.map((t: any) => t.id).join(",")],
+    queryKey: ["crm-fields-dashboard", tables.map((t) => t.id).join(",")],
     queryFn: async () => {
       if (tables.length === 0) return {};
       const {
@@ -374,17 +439,16 @@ export default function DashboardView() {
       } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      const fieldsMap: Record<string, any[]> = {};
+      const fieldsMap: Record<string, DashboardField[]> = {};
       await Promise.all(
-        tables.map(async (table: any) => {
+        tables.map(async (table) => {
           const response = await supabase.functions.invoke(
             `crm-fields?table_id=${table.id}`,
             { method: "GET" },
           );
           if (!response.error) {
-            const fields = (response.data as any)?.fields || [];
-            fieldsMap[table.id] = (fields as any[]).sort(
-              (a: any, b: any) => a.position - b.position,
+            fieldsMap[table.id] = toDashboardFields(response.data).sort(
+              (a, b) => a.position - b.position,
             );
           }
         }),
@@ -402,10 +466,10 @@ export default function DashboardView() {
     error: recordsError,
     dataUpdatedAt: recordsUpdatedAt,
     refetch: refetchRecords,
-  } = useQuery<any[]>({
+  } = useQuery<DashboardRecord[]>({
     queryKey: [
       "crm-records-dashboard",
-      tables.map((t: any) => t.id).join(","),
+      tables.map((t) => t.id).join(","),
       dateFilter,
       customFromStr,
       customToStr,
@@ -420,10 +484,10 @@ export default function DashboardView() {
       // Deduplicate Facebook tables: if both facebook_insights AND facebook_ecommerce exist,
       // skip facebook_insights to avoid double-counting spend/impressions/clicks
       const hasFbEcommerce = tables.some(
-        (t: any) => t.integration_type === "facebook_ecommerce",
+        (t) => t.integration_type === "facebook_ecommerce",
       );
       const hasFbInsights = tables.some(
-        (t: any) => t.integration_type === "facebook_insights",
+        (t) => t.integration_type === "facebook_insights",
       );
       const skipFbInsights = hasFbEcommerce && hasFbInsights;
 
@@ -438,15 +502,17 @@ export default function DashboardView() {
         "tiktok",
       ]);
 
-      const tablesToFetch = tables.filter((t: any) => {
-        if (!DASHBOARD_RECORD_TYPES.has(t.integration_type)) return false;
+      const tablesToFetch = tables.filter((t) => {
+        if (!DASHBOARD_RECORD_TYPES.has(t.integration_type ?? "")) {
+          return false;
+        }
         if (skipFbInsights && t.integration_type === "facebook_insights")
           return false;
         return true;
       });
 
-      const recordsPromises = tablesToFetch.map(async (table: any) => {
-        const records = await queryClient.fetchQuery({
+      const recordsPromises = tablesToFetch.map(async (table) => {
+        const records: ReportRecordRow[] = await queryClient.fetchQuery({
           ...reportRecordsQuery(
             supabase,
             table.id,
@@ -457,8 +523,9 @@ export default function DashboardView() {
           // Reuse fresh table data when navigating between report views.
         });
         return records.map((r) => ({
-          ...r,
-          _source: table.integration_type,
+          id: r.id,
+          data: asJsonObject(r.data),
+          _source: table.integration_type ?? undefined,
           _tableName: table.name,
           _tableId: table.id,
           _integrationType: table.integration_type,
@@ -469,7 +536,7 @@ export default function DashboardView() {
       return allResults.flat();
     },
     enabled: tables.length > 0 && isCustomReady,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<DashboardRecord[]>(),
     refetchOnMount: refetchOnMountIfEmpty,
   });
 
@@ -479,33 +546,30 @@ export default function DashboardView() {
   // Weekly comparison is independent of the dashboard's active date preset: it needs
   // every available campaign day (up to one year) to render the stacked week tables.
   const { data: weeklyRecords = [], isPending: weeklyRecordsPending } =
-    useQuery<any[]>({
+    useQuery<DashboardRecord[]>({
       queryKey: [
         "crm-records-dashboard-weekly",
-        tables.map((t: any) => t.id).join(","),
+        tables.map((t) => t.id).join(","),
       ],
       queryFn: async () => {
-        const adsTables = tables.filter((table: any) =>
-          isAdsPlatform(table.integration_type),
-        );
+        const adsTables = tables.filter(isAdsTable);
         const results = await Promise.all(
-          adsTables.map(async (table: any) => {
-            const records = await queryClient.fetchQuery({
+          adsTables.map(async (table) => {
+            const records: ReportRecordRow[] = await queryClient.fetchQuery({
               ...reportRecordsQuery(supabase, table.id, "last_365_days"),
             });
             return records.map((record) => ({
-              ...record,
-              _source: table.integration_type,
+              id: record.id,
+              data: asJsonObject(record.data),
+              _source: table.integration_type ?? undefined,
               _tableId: table.id,
             }));
           }),
         );
         return results.flat();
       },
-      enabled:
-        platformFilter === "weekly" &&
-        tables.some((t: any) => isAdsPlatform(t.integration_type)),
-      ...reportQueryOptions<any[]>(),
+      enabled: platformFilter === "weekly" && tables.some(isAdsTable),
+      ...reportQueryOptions<DashboardRecord[]>(),
     });
 
   // Check if client has SEO (Ahrefs) reports — do NOT filter by UI tenant.
@@ -532,7 +596,7 @@ export default function DashboardView() {
     queryFn: async () => {
       if (!dashboard?.client_id) return false;
       const { count, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .select("id", { count: "exact", head: true })
         .eq("client_id", dashboard.client_id)
         .eq("woocommerce_enabled", true)
@@ -610,7 +674,7 @@ export default function DashboardView() {
   // Available platforms for tab rendering
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
-    tables.forEach((t: any) => {
+    tables.forEach((t) => {
       if (t.integration_type) set.add(t.integration_type);
     });
     const platforms: PlatformFilter[] = [];
@@ -696,13 +760,13 @@ export default function DashboardView() {
   // IMPORTANT: Use only report_type='daily' for aggregation (KPI, charts).
   // report_type='daily_source' breaks down by traffic source and would cause double-counting.
   const filteredRecords = useMemo(() => {
-    return displayAllRecords.filter((record: any) => {
+    return displayAllRecords.filter((record) => {
       const source = record._source || "unknown";
       // Platform filter
       if (!matchesPlatformFilter(source, platformFilter)) return false;
       // For Analytics: only use 'daily' records for accurate totals
       if (isAnalyticsPlatform(source)) {
-        const data = record.data || {};
+        const data = asJsonObject(record.data);
         // Only include report_type='daily' (aggregate per day)
         // Exclude: traffic_source (no date), daily_source (per-source breakdown = double counting), top_pages
         if (data.report_type !== "daily") return false;
@@ -710,7 +774,7 @@ export default function DashboardView() {
       // Ads sync stores campaign + adset + ad rows; dashboards aggregate at campaign level only.
       if (
         isAdsPlatform(source) &&
-        !shouldIncludeInAdsDashboardAggregate(record.data, source)
+        !shouldIncludeInAdsDashboardAggregate(asJsonObject(record.data), source)
       )
         return false;
       return true;
@@ -721,8 +785,8 @@ export default function DashboardView() {
   // return the same totals as a short one. Name the first day that actually has data.
   const adsCoverageGap = useMemo(() => {
     const adsDates = displayAllRecords
-      .filter((r: any) => isAdsPlatform(r._source || ""))
-      .map((r: any) => r.data?.date);
+      .filter((r) => isAdsPlatform(r._source || ""))
+      .map((r) => jsonStringOrNull(asJsonObject(r.data).date));
     if (adsDates.length === 0) return null;
     const { startDate } = getDashboardDateRange(
       dateFilter,
@@ -736,8 +800,8 @@ export default function DashboardView() {
   // All analytics records (unfiltered by report_type) for GoogleAnalyticsDashboard component
   const allAnalyticsRecords = useMemo(() => {
     return displayAllRecords
-      .filter((r: any) => isAnalyticsPlatform(r._source || ""))
-      .map((r: any) => ({ id: r.id, data: r.data }));
+      .filter((r) => isAnalyticsPlatform(r._source || ""))
+      .map((r) => ({ id: r.id, data: asJsonObject(r.data) }));
   }, [displayAllRecords]);
 
   // Each ads campaign's goal as its report shows it (_shared/campaign-goal/).
@@ -749,9 +813,9 @@ export default function DashboardView() {
   // Delivery and spend by platform, and Analytics results. Ads results are
   // counted per goal in dashboardGoals, as the reports count them.
   const summaryByPlatform = useMemo(() => {
-    const platforms: Record<string, any> = {};
+    const platforms: Record<string, PlatformSummary> = {};
 
-    filteredRecords.forEach((record: any) => {
+    filteredRecords.forEach((record) => {
       const rawSource = record._source || "unknown";
       const source = normalizePlatformKey(rawSource);
       if (!platforms[source]) {
@@ -767,7 +831,7 @@ export default function DashboardView() {
         };
       }
 
-      const data = record.data || {};
+      const data = asJsonObject(record.data);
       if (isAnalyticsPlatform(source)) {
         platforms[source].sessions += getSessionsFromData(data);
         platforms[source].users += getUsersFromData(data);
@@ -789,10 +853,10 @@ export default function DashboardView() {
   const globalAdsMetrics = useMemo(() => {
     let spend = 0,
       impressions = 0;
-    displayAllRecords.forEach((record: any) => {
+    displayAllRecords.forEach((record) => {
       const source = record._source || "unknown";
       if (isAdsPlatform(source)) {
-        const data = record.data || {};
+        const data = asJsonObject(record.data);
         if (data.report_type && data.report_type !== "daily") return;
         if (!shouldIncludeInAdsDashboardAggregate(data, source)) return;
         spend += getSpendFromData(data);
@@ -814,22 +878,20 @@ export default function DashboardView() {
       analyticsSessions = 0,
       analyticsUsers = 0;
 
-    Object.entries(summaryByPlatform).forEach(
-      ([platform, data]: [string, any]) => {
-        if (isAnalyticsPlatform(platform)) {
-          analyticsRevenue += data.revenue;
-          analyticsPurchases += data.results;
-          analyticsAddToCart += data.addToCart;
-          analyticsSessions += data.sessions;
-          analyticsUsers += data.users || 0;
-        } else if (isAdsPlatform(platform)) {
-          totalSpend += data.spend;
-          totalImpressions += data.impressions;
-          totalClicks += data.clicks;
-          adsSpend += data.spend;
-        }
-      },
-    );
+    Object.entries(summaryByPlatform).forEach(([platform, data]) => {
+      if (isAnalyticsPlatform(platform)) {
+        analyticsRevenue += data.revenue;
+        analyticsPurchases += data.results;
+        analyticsAddToCart += data.addToCart;
+        analyticsSessions += data.sessions;
+        analyticsUsers += data.users || 0;
+      } else if (isAdsPlatform(platform)) {
+        totalSpend += data.spend;
+        totalImpressions += data.impressions;
+        totalClicks += data.clicks;
+        adsSpend += data.spend;
+      }
+    });
 
     // When on Analytics tab, ads platforms are filtered out, so use globalAdsMetrics
     const effectiveSpend = totalSpend > 0 ? totalSpend : globalAdsMetrics.spend;
@@ -910,13 +972,13 @@ export default function DashboardView() {
         addToCart: number;
       }
     > = {};
-    displayAllRecords.forEach((record: any) => {
+    displayAllRecords.forEach((record) => {
       const source = record._source || "unknown";
       if (!isAnalyticsPlatform(source)) return;
-      const data = record.data || {};
+      const data = asJsonObject(record.data);
       if (data.report_type !== "daily_source") return;
 
-      const sm = data.source_medium || "Unknown";
+      const sm = String(data.source_medium || "Unknown");
       const category = categorize(sm);
       if (!sources[category])
         sources[category] = {
@@ -956,13 +1018,13 @@ export default function DashboardView() {
         count: number;
       }
     > = {};
-    displayAllRecords.forEach((record: any) => {
+    displayAllRecords.forEach((record) => {
       const source = record._source || "unknown";
       if (!isAnalyticsPlatform(source)) return;
-      const data = record.data || {};
+      const data = asJsonObject(record.data);
       if (data.report_type !== "channel_group") return;
 
-      const ch = data.channel_group || "Unknown";
+      const ch = String(data.channel_group || "Unknown");
       if (!channels[ch])
         channels[ch] = {
           sessions: 0,
@@ -1005,13 +1067,15 @@ export default function DashboardView() {
 
   // Daily chart data
   const dailyChartData = useMemo(() => {
-    const byDate: Record<string, any> = {};
+    const byDate: Record<string, DailyChartPoint> = {};
 
-    filteredRecords.forEach((record: any) => {
-      const date = record.data?.date;
-      if (!date) return;
+    filteredRecords.forEach((record) => {
+      const data = asJsonObject(record.data);
+      if (!data.date) {
+        return;
+      }
+      const date = String(data.date);
       const source = record._source || "unknown";
-      const data = record.data || {};
 
       if (!byDate[date]) {
         byDate[date] = {
@@ -1041,11 +1105,8 @@ export default function DashboardView() {
     });
 
     return Object.values(byDate)
-      .sort(
-        (a: any, b: any) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime(),
-      )
-      .map((d: any) => ({
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((d) => ({
         ...d,
         dateLabel: new Date(d.date).toLocaleDateString("he-IL", {
           day: "2-digit",
@@ -1061,9 +1122,9 @@ export default function DashboardView() {
       return { records: [], fields: [], tableIds: [] };
 
     // Find matching tables
-    const matchingTables = tables.filter((t: any) => {
+    const matchingTables = tables.filter((t) => {
       if (platformFilter === "facebook")
-        return isFacebookPlatform(t.integration_type);
+        return isFacebookPlatform(t.integration_type ?? "");
       if (platformFilter === "google_ads")
         return t.integration_type === "google_ads";
       if (platformFilter === "google_analytics")
@@ -1071,25 +1132,25 @@ export default function DashboardView() {
       return false;
     });
 
-    const tableIds = matchingTables.map((t: any) => t.id);
+    const tableIds = matchingTables.map((t) => t.id);
 
     // Combine fields from matching tables (dedup by key)
-    const fieldsMap = new Map<string, any>();
-    matchingTables.forEach((t: any) => {
+    const fieldsMap = new Map<string, DashboardField>();
+    matchingTables.forEach((t) => {
       const fields = tableFields[t.id] || [];
-      fields.forEach((f: any) => {
+      fields.forEach((f) => {
         if (!fieldsMap.has(f.key)) {
           fieldsMap.set(f.key, f);
         }
       });
     });
     const fields = Array.from(fieldsMap.values()).sort(
-      (a: any, b: any) => a.position - b.position,
+      (a, b) => a.position - b.position,
     );
 
     // Get matching records
-    const records = displayAllRecords.filter((r: any) =>
-      tableIds.includes(r._tableId),
+    const records = displayAllRecords.filter(
+      (r) => r._tableId !== undefined && tableIds.includes(r._tableId),
     );
 
     return { records, fields, tableIds };
@@ -1141,11 +1202,11 @@ export default function DashboardView() {
 
   const googleAdsTableSettings = useMemo(() => {
     const gaTables = (tables || []).filter(
-      (t: any) => t.integration_type === "google_ads",
+      (t) => t.integration_type === "google_ads",
     );
     return (
       gaTables.find(
-        (t: any) => t.integration_settings?.use_woo_google_attribution != null,
+        (t) => t.integration_settings?.use_woo_google_attribution != null,
       )?.integration_settings ?? gaTables[0]?.integration_settings
     );
   }, [tables]);
@@ -1162,8 +1223,8 @@ export default function DashboardView() {
   const analyticsTableIds = useMemo(
     () =>
       (tables || [])
-        .filter((t: any) => t.integration_type === "google_analytics")
-        .map((t: any) => t.id as string),
+        .filter((t) => t.integration_type === "google_analytics")
+        .map((t) => t.id),
     [tables],
   );
 
@@ -1171,7 +1232,9 @@ export default function DashboardView() {
   const analyticsReportMode = useMemo(
     () =>
       resolveAnalyticsReportMode({
-        dashboardMode: (dashboard?.settings as any)?.default_report_mode,
+        dashboardMode: jsonStringOrNull(
+          asJsonObject(dashboard?.settings).default_report_mode,
+        ),
         tables,
       }),
     [dashboard?.settings, tables],
@@ -1189,9 +1252,9 @@ export default function DashboardView() {
 
   // Group records by date for table
   const recordsByDate = useMemo(() => {
-    const byDate: Record<string, any[]> = {};
-    filteredRecords.forEach((record: any) => {
-      const date = record.data?.date || "unknown";
+    const byDate: Record<string, DashboardRecord[]> = {};
+    filteredRecords.forEach((record) => {
+      const date = String(asJsonObject(record.data).date || "unknown");
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push(record);
     });
@@ -1256,8 +1319,8 @@ export default function DashboardView() {
       const { startDate, endDate } = computeRange();
 
       // Build a sync task per table based on integration_type
-      const tableTasks = (tables as any[])
-        .map((t: any) => {
+      const tableTasks = tables
+        .map((t): SyncTask | null => {
           switch (t.integration_type) {
             case "facebook_insights":
               return {
@@ -1309,18 +1372,18 @@ export default function DashboardView() {
               return null;
           }
         })
-        .filter(Boolean) as { label: string; promise: Promise<any> }[];
+        .filter((task): task is SyncTask => task !== null);
 
       // Fetch WooCommerce sites for this client and sync each
-      const wooTasks: { label: string; promise: Promise<any> }[] = [];
+      const wooTasks: SyncTask[] = [];
       if (dashboard?.client_id) {
         const { data: sites } = await supabase
-          .from("social_media_wordpress_sites" as any)
+          .from("social_media_wordpress_sites")
           .select("id, site_name")
           .eq("client_id", dashboard.client_id)
           .eq("woocommerce_enabled", true)
           .eq("is_active", true);
-        ((sites as any[]) || []).forEach((s: any) => {
+        (sites || []).forEach((s) => {
           wooTasks.push({
             label: `WooCommerce (${s.site_name})`,
             promise: supabase.functions.invoke("sync-woocommerce-data", {
@@ -1343,7 +1406,7 @@ export default function DashboardView() {
       results.forEach((r, i) => {
         if (
           r.status === "rejected" ||
-          (r.status === "fulfilled" && (r.value as any)?.error)
+          (r.status === "fulfilled" && r.value?.error)
         ) {
           failed.push(allTasks[i].label);
         }
@@ -1363,10 +1426,13 @@ export default function DashboardView() {
           { id: syncToast },
         );
       }
-    } catch (error: any) {
-      toast.error("שגיאה ברענון: " + (error?.message || "שגיאה לא ידועה"), {
-        id: syncToast,
-      });
+    } catch (error) {
+      toast.error(
+        "שגיאה ברענון: " + String(thrownMessage(error) || "שגיאה לא ידועה"),
+        {
+          id: syncToast,
+        },
+      );
     } finally {
       setIsRefreshing(false);
     }
@@ -1397,8 +1463,8 @@ export default function DashboardView() {
   }
 
   // Detect if there's actual Analytics data (any GA records present)
-  const hasAnalyticsData = displayAllRecords.some((r: any) =>
-    isAnalyticsPlatform(r._source),
+  const hasAnalyticsData = displayAllRecords.some((r) =>
+    isAnalyticsPlatform(r._source ?? ""),
   );
   const showAnalyticsCards =
     (platformFilter === "all" || platformFilter === "google_analytics") &&
@@ -1482,7 +1548,7 @@ export default function DashboardView() {
             {isAgencyDashboard ? (
               <>
                 <Building2 className="h-4 w-4" />
-                <span>{(dashboard as any).agencies?.name}</span>
+                <span>{dashboard.agencies?.name}</span>
               </>
             ) : isOrganizationDashboard ? (
               <>
@@ -1491,11 +1557,11 @@ export default function DashboardView() {
               </>
             ) : (
               <>
-                <span>{(dashboard as any).clients?.name}</span>
-                {(dashboard as any).agencies?.name && (
+                <span>{dashboard.clients?.name}</span>
+                {dashboard.agencies?.name && (
                   <>
                     <span>•</span>
-                    <span>{(dashboard as any).agencies?.name}</span>
+                    <span>{dashboard.agencies?.name}</span>
                   </>
                 )}
               </>
@@ -1520,7 +1586,7 @@ export default function DashboardView() {
                 <SelectValue placeholder="בחר סוכנות" />
               </SelectTrigger>
               <SelectContent>
-                {orgAgencies.map((a: any) => (
+                {orgAgencies.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {a.name}
                   </SelectItem>
@@ -1596,7 +1662,7 @@ export default function DashboardView() {
                     from: customDateRange.from,
                     to: customDateRange.to,
                   }}
-                  onSelect={(range: any) => {
+                  onSelect={(range) => {
                     setCustomDateRange({ from: range?.from, to: range?.to });
                     if (range?.from && range?.to) setCalendarOpen(false);
                   }}
@@ -1621,7 +1687,7 @@ export default function DashboardView() {
       {isAgencyDashboard ? (
         <AgencyDashboardContent
           agencyId={dashboard.agency_id!}
-          agencyName={(dashboard as any).agencies?.name || ""}
+          agencyName={dashboard.agencies?.name || ""}
           dateFilter={dateFilter}
           customFrom={customFromStr}
           customTo={customToStr}
@@ -1632,8 +1698,7 @@ export default function DashboardView() {
             key={selectedOrgAgencyId}
             agencyId={selectedOrgAgencyId}
             agencyName={
-              orgAgencies.find((a: any) => a.id === selectedOrgAgencyId)
-                ?.name || ""
+              orgAgencies.find((a) => a.id === selectedOrgAgencyId)?.name || ""
             }
             dateFilter={dateFilter}
             customFrom={customFromStr}
@@ -2080,7 +2145,7 @@ export default function DashboardView() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              {platformRawData.fields.map((field: any) => (
+                              {platformRawData.fields.map((field) => (
                                 <TableHead
                                   key={field.key}
                                   className="text-right whitespace-nowrap"
@@ -2092,16 +2157,23 @@ export default function DashboardView() {
                           </TableHeader>
                           <TableBody>
                             {platformRawData.records
-                              .sort((a: any, b: any) => {
-                                const dateA = a.data?.date || "";
-                                const dateB = b.data?.date || "";
+                              .sort((a, b) => {
+                                const dateA = String(
+                                  asJsonObject(a.data).date || "",
+                                );
+                                const dateB = String(
+                                  asJsonObject(b.data).date || "",
+                                );
                                 return dateB.localeCompare(dateA);
                               })
-                              .map((record: any, i: number) => (
+                              .map((record, i: number) => (
                                 <TableRow key={record.id || i}>
-                                  {platformRawData.fields.map((field: any) => {
-                                    const val = record.data?.[field.key];
-                                    let displayVal = val;
+                                  {platformRawData.fields.map((field) => {
+                                    const val = asJsonObject(record.data)[
+                                      field.key
+                                    ];
+                                    let displayVal: ReactNode =
+                                      rawCellValue(val);
                                     if (val === null || val === undefined) {
                                       displayVal = "-";
                                     } else if (typeof val === "number") {

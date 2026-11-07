@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/jsonReaders";
 import { jsonObject } from "@functions/_shared/pulse/json";
 import { useEffect, useState } from "react";
 import {
@@ -181,10 +182,10 @@ export function GoogleSearchConsoleTableDialog({
       });
       onOpenChange(false);
       resetForm();
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה ביצירת הטבלה",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {
