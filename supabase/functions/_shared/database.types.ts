@@ -5537,6 +5537,7 @@ export type Database = {
           notes: string | null;
           overall_status: string | null;
           phone: string | null;
+          pulse_no_results_days: number;
           retainer: number | null;
           seo_keyword_relevance: Json;
           services: Json | null;
@@ -5583,6 +5584,7 @@ export type Database = {
           notes?: string | null;
           overall_status?: string | null;
           phone?: string | null;
+          pulse_no_results_days?: number;
           retainer?: number | null;
           seo_keyword_relevance?: Json;
           services?: Json | null;
@@ -5629,6 +5631,7 @@ export type Database = {
           notes?: string | null;
           overall_status?: string | null;
           phone?: string | null;
+          pulse_no_results_days?: number;
           retainer?: number | null;
           seo_keyword_relevance?: Json;
           services?: Json | null;

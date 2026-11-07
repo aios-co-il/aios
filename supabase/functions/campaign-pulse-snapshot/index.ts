@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
     const { data: clients, error: clientsError } = await supabase
       .from("clients")
       .select(
-        "id, name, tenant_id, agency_id, is_ecommerce, services, agencies(name)",
+        "id, name, tenant_id, agency_id, is_ecommerce, services, pulse_no_results_days, agencies(name)",
       )
       .in(
         "agency_id",
@@ -516,6 +516,10 @@ Deno.serve(async (req) => {
           nowYmd: jerusalemYmd(now),
           // Same cost thresholds the dashboard reads (pulse_alert_rules.manager.cost).
           alertRules: setting.pulse_alert_rules,
+          // The client's full days without results before an alert (AIO-502).
+          noResultsDaysByClient: {
+            [client.id]: client.pulse_no_results_days,
+          },
         });
         const recent = records.filter(
           (row: any) =>

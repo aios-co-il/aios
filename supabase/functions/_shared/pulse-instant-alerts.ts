@@ -26,6 +26,7 @@ import {
   disconnectAlertCandidates,
   type OpenIntegrationDisconnect,
 } from "./pulse/connection-disconnects.ts";
+import { noResultsFindingReason } from "./pulse/no-results-window.ts";
 import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
 import { sendRunMessages } from "./pulse/instant-alert-send.ts";
 import { resolveInstantAlertRecipients } from "./pulse/instant-alert-recipients.ts";
@@ -89,6 +90,8 @@ export type PulseSnapshotAlertInput = {
     goal?: string | null;
     status_reason?: string | null;
     alert_eligible?: boolean | null;
+    /** The client's no-results window the row was judged with (AIO-502). */
+    no_results_days?: number | null;
     target_kind?: string | null;
     target_value?: number | null;
     /** "approved" (default) or "carmen_market" — named in the alert text. */
@@ -176,9 +179,14 @@ export function evaluatePulseInstantAlerts(
         Math.abs(Number(campaign.trend_3d_pct) || 0),
         Math.abs(Number(campaign.trend_7d_pct) || 0),
       );
+      // The no-results reason names the client's days; the fingerprint keeps
+      // the default's text, so changing the days resends nothing.
       const fingerprint = [
         campaign.campaign_key,
-        campaign.status_reason || "campaign_exception",
+        noResultsFindingReason(
+          campaign.status_reason || "campaign_exception",
+          campaign.no_results_days,
+        ),
         campaign.target_kind || "no_target",
         campaign.target_value ?? "none",
       ].join(":");
