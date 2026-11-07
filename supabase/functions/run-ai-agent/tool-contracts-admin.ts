@@ -1,3 +1,4 @@
+import { isObject } from "./json-config.ts";
 import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
 
@@ -162,4 +163,10 @@ export function isSuccessCriterionArg(
     optionalOf(readField(value, "verification_type"), "string") &&
     optionalOf(readField(value, "evidence_required"), "string")
   );
+}
+
+export function readField(value: unknown, key: string): unknown {
+  return value !== null && typeof value === "object" && key in value
+    ? Reflect.get(value, key)
+    : undefined;
 }
