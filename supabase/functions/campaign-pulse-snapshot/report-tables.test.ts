@@ -179,6 +179,27 @@ Deno.test("loadOffReportSpend", async (t) => {
   );
 
   await t.step(
+    "a nameless row is never covered by another nameless row",
+    async () => {
+      // Both would key as reportCampaignKey's "ללא שם" placeholder.
+      const { client } = fakeRecords([
+        { id: "1", table_id: "t-off", data: { date: "2026-11-05", spend: 40 } },
+      ]);
+      const activeRecords = [{ data: { date: "2026-11-05", spend: 90 } }];
+      const spend = await loadOffReportSpend(
+        client,
+        [ARCHI_OFF],
+        WINDOW,
+        activeRecords,
+      );
+      assertEquals(
+        spend.map((item) => item.spend_3d),
+        [40],
+      );
+    },
+  );
+
+  await t.step(
     "no spend left once the active table covers every campaign",
     async () => {
       const { client } = fakeRecords([

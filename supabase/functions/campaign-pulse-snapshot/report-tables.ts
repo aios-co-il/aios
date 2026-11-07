@@ -78,7 +78,8 @@ export async function loadOffReportSpend(
   const covered = campaignKeysInWindow(activeRecords, window);
   const spendByTable = new Map<string, number>();
   for (const row of inWindow(records, window)) {
-    if (row.data && covered.has(reportCampaignKey(row.data))) {
+    const key = isRecord(row.data) ? coverageKey(row.data) : null;
+    if (key && covered.has(key)) {
       continue;
     }
     spendByTable.set(
@@ -104,16 +105,29 @@ export async function loadOffReportSpend(
   });
 }
 
-/** The campaign keys (id, else name: reportCampaignKey) of rows in the window. */
+/** The campaign keys of rows in the window that name their campaign. */
 function campaignKeysInWindow(
   rows: Array<{ data?: unknown }>,
   window: { start: string; end: string },
 ): Set<string> {
-  return new Set(
-    inWindow(rows, window).flatMap((row) =>
-      isRecord(row.data) ? [reportCampaignKey(row.data)] : [],
-    ),
-  );
+  const keys = new Set<string>();
+  for (const row of inWindow(rows, window)) {
+    const key = isRecord(row.data) ? coverageKey(row.data) : null;
+    if (key) {
+      keys.add(key);
+    }
+  }
+  return keys;
+}
+
+/**
+ * A row's campaign key (id, else name: reportCampaignKey), or null for a row
+ * that names no campaign: reportCampaignKey's "ללא שם" placeholder would match
+ * any other nameless row and hide real spend.
+ */
+function coverageKey(data: Record<string, unknown>): string | null {
+  const named = data.campaign_id || data.campaign_name || data.campaign;
+  return named ? reportCampaignKey(data) : null;
 }
 
 /**
