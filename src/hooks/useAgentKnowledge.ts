@@ -20,7 +20,7 @@ export interface KnowledgeItem {
   folder_id: string | null;
   title: string;
   content: string | null;
-  kind: "note" | "document" | "link" | "snippet";
+  kind: string;
   url: string | null;
   tags: string[];
   created_at: string;
@@ -31,30 +31,30 @@ export function useAgentKnowledge(agentId: string | null) {
   const folders = useQuery({
     queryKey: ["agent-knowledge-folders", agentId],
     enabled: !!agentId,
-    queryFn: async () => {
+    queryFn: async (): Promise<KnowledgeFolder[]> => {
       const { data, error } = await supabase
-        .from("agent_knowledge_folders" as any)
+        .from("agent_knowledge_folders")
         .select("*")
         .eq("agent_id", agentId!)
         .order("position");
       if (error) throw error;
-      return (data ?? []) as any as KnowledgeFolder[];
+      return data ?? [];
     },
   });
 
   const items = useQuery({
     queryKey: ["agent-knowledge-items", agentId],
     enabled: !!agentId,
-    queryFn: async () => {
+    queryFn: async (): Promise<KnowledgeItem[]> => {
       const { data, error } = await supabase
-        .from("agent_knowledge_items" as any)
+        .from("agent_knowledge_items")
         .select(
           "id, agent_id, tenant_id, folder_id, title, content, kind, url, tags, created_at, updated_at",
         )
         .eq("agent_id", agentId!)
         .order("updated_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as any as KnowledgeItem[];
+      return data ?? [];
     },
   });
 
@@ -76,28 +76,26 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
       icon?: string;
     }) => {
       if (!agentId || !tenantId) throw new Error("missing agent/tenant");
-      const { error } = await supabase
-        .from("agent_knowledge_folders" as any)
-        .insert({
-          agent_id: agentId,
-          tenant_id: tenantId,
-          name: input.name,
-          parent_folder_id: input.parent_folder_id ?? null,
-          icon: input.icon ?? null,
-        });
+      const { error } = await supabase.from("agent_knowledge_folders").insert({
+        agent_id: agentId,
+        tenant_id: tenantId,
+        name: input.name,
+        parent_folder_id: input.parent_folder_id ?? null,
+        icon: input.icon ?? null,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       inv();
       toast.success("תיקייה נוצרה");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteFolder = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("agent_knowledge_folders" as any)
+        .from("agent_knowledge_folders")
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -106,31 +104,29 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
       inv();
       toast.success("נמחק");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const createItem = useMutation({
     mutationFn: async (input: Partial<KnowledgeItem>) => {
       if (!agentId || !tenantId) throw new Error("missing agent/tenant");
-      const { error } = await supabase
-        .from("agent_knowledge_items" as any)
-        .insert({
-          agent_id: agentId,
-          tenant_id: tenantId,
-          folder_id: input.folder_id ?? null,
-          title: input.title ?? "ללא כותרת",
-          content: input.content ?? null,
-          kind: input.kind ?? "note",
-          url: input.url ?? null,
-          tags: input.tags ?? [],
-        });
+      const { error } = await supabase.from("agent_knowledge_items").insert({
+        agent_id: agentId,
+        tenant_id: tenantId,
+        folder_id: input.folder_id ?? null,
+        title: input.title ?? "ללא כותרת",
+        content: input.content ?? null,
+        kind: input.kind ?? "note",
+        url: input.url ?? null,
+        tags: input.tags ?? [],
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       inv();
       toast.success("נוסף");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const updateItem = useMutation({
@@ -139,19 +135,19 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
       ...patch
     }: Partial<KnowledgeItem> & { id: string }) => {
       const { error } = await supabase
-        .from("agent_knowledge_items" as any)
+        .from("agent_knowledge_items")
         .update(patch)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => inv(),
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("agent_knowledge_items" as any)
+        .from("agent_knowledge_items")
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -160,7 +156,7 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
       inv();
       toast.success("נמחק");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   return { createFolder, deleteFolder, createItem, updateItem, deleteItem };

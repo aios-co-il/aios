@@ -46,7 +46,7 @@ export function MemoryLayersPanel({ agentId }: { agentId: string }) {
       };
       for (const layer of Object.keys(out) as Layer[]) {
         const { count } = await supabase
-          .from("agent_memory" as any)
+          .from("agent_memory")
           .select("id", { count: "exact", head: true })
           .eq("agent_id", agentId)
           .eq("memory_type", layer);
@@ -60,8 +60,9 @@ export function MemoryLayersPanel({ agentId }: { agentId: string }) {
     queryKey: ["memory-layer-items", agentId, active, search, contact],
     enabled: !!active,
     queryFn: async () => {
-      let q: any = supabase
-        .from("agent_memory" as any)
+      if (!active) return [];
+      let q = supabase
+        .from("agent_memory")
         .select(
           "id, title, summary, importance, created_at, contact_phone, memory_type",
         )
@@ -135,7 +136,7 @@ export function MemoryLayersPanel({ agentId }: { agentId: string }) {
                   אין תוצאות
                 </p>
               )}
-              {items.map((m: any) => (
+              {items.map((m) => (
                 <div key={m.id} className="p-2 rounded border bg-card text-sm">
                   <div className="flex items-center gap-2">
                     <Badge

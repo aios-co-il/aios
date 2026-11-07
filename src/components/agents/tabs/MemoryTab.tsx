@@ -35,13 +35,14 @@ import {
   BookOpen,
   Brain,
   Crown,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 import { he } from "date-fns/locale";
 import { MemoryLayersPanel } from "../MemoryLayersPanel";
 
-const CATEGORY_META: Record<string, { icon: any; label: string }> = {
+const CATEGORY_META: Record<string, { icon: LucideIcon; label: string }> = {
   clients: { icon: Users, label: "לקוחות" },
   conversations: { icon: MessageSquare, label: "שיחות" },
   team: { icon: UserCog, label: "צוות" },
@@ -66,7 +67,7 @@ function isCarmenName(name: string) {
   return n.includes("carmen") || name?.includes("כרמן");
 }
 
-export function MemoryTab({ agent }: { agent: any }) {
+export function MemoryTab({ agent }: { agent: { id: string; name: string } }) {
   return (
     <div className="space-y-3">
       <MemoryLayersPanel agentId={agent.id} />
@@ -116,7 +117,7 @@ function useCarmenItems(cat: string | null, sub: string | null | undefined) {
   const episodes = useCarmenMemoryEpisodes(cat === "episodes");
   const pointers = useCarmenMemoryPointers(cat ?? undefined, sub);
   if (cat === "episodes") {
-    const items: MemoryItem[] = (episodes.data ?? []).map((e: any) => ({
+    const items: MemoryItem[] = (episodes.data ?? []).map((e) => ({
       id: e.id,
       category: "episodes",
       subcategory: e.source_table,
