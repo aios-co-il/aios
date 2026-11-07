@@ -8,7 +8,7 @@ export type GoogleGoalPresence = {
   hasEcommerce: boolean;
   hasLeads: boolean;
   /** A campaign set to pay for exposure (AIO-496). */
-  hasTraffic?: boolean;
+  hasTraffic: boolean;
 };
 
 /** Which goals a set of campaigns or rows holds; with none, the fallback's. */

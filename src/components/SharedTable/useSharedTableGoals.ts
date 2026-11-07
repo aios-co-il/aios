@@ -32,6 +32,7 @@ export function useSharedTableGoals(
         goalOf: null,
         hasEcommerce: tableMode === "ecommerce",
         hasLeads: tableMode === "leads",
+        hasTraffic: false,
       };
     }
     return googleCampaignGoalOf(

@@ -172,7 +172,7 @@ Deno.test(
         { campaign_channel_type: "VIDEO", bidding_strategy_type: "TARGET_CPV" },
         {
           campaign_channel_type: "DEMAND_GEN",
-          bidding_strategy_type: "MAXIMIZE_CLICKS",
+          bidding_strategy_type: "TARGET_SPEND",
         },
       ]) {
         assertStrictEquals(

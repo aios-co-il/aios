@@ -53,8 +53,13 @@ export function sharedIntegrationReport(
     ? {
         hasEcommerce: facebookGroups.ecommerce.length > 0,
         hasLeads: facebookGroups.leads.length > 0,
+        hasTraffic: facebookGroups.traffic.length > 0,
       }
-    : { hasEcommerce: tableGoals.hasEcommerce, hasLeads: tableGoals.hasLeads };
+    : {
+        hasEcommerce: tableGoals.hasEcommerce,
+        hasLeads: tableGoals.hasLeads,
+        hasTraffic: tableGoals.hasTraffic,
+      };
   const isIntegration =
     isAdsPlatform(integrationType) || isAnalyticsPlatform(integrationType);
   const summary = isIntegration

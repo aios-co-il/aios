@@ -22,9 +22,10 @@ import type {
 
 /**
  * Google Ads campaigns of a report with each campaign's own goal (ecommerce,
- * leads, or traffic for a campaign set to pay for exposure). One account can run both, so totals are kept per goal: purchases and
- * ROAS only from ecommerce campaigns, conversions and cost per conversion only
- * from lead campaigns. Only campaign-level rows count: the sync also stores
+ * leads, or traffic for a campaign set to pay for exposure). One account can
+ * run several, so totals are kept per goal: purchases and ROAS only from
+ * ecommerce campaigns, conversions and cost per conversion only from lead
+ * campaigns, and traffic spend in neither. Only campaign-level rows count: the sync also stores
  * ad group and ad rows under the same campaign id.
  */
 export function summarizeGoogleAdsCampaigns(

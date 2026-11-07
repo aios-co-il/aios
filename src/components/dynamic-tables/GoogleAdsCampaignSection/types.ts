@@ -27,7 +27,7 @@ export type GoogleAdsCampaignSummary = {
   traffic: GoogleAdsTotals;
   hasEcommerce: boolean;
   hasLeads: boolean;
-  hasTraffic?: boolean;
+  hasTraffic: boolean;
 };
 
 /** Purchases, revenue and ROAS of the ecommerce campaigns, from WooCommerce when it overlays Google Ads. */

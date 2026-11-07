@@ -10,6 +10,7 @@ import {
   countStoppedCampaignsByClient,
   computeGoalMetricsFromRecords,
   detectCampaignGoalMode,
+  goalRecentRecordCount,
   goalTables,
   isPulseDeliveryExcludedPhone,
   reportTableGoal,
@@ -583,10 +584,13 @@ Deno.serve(async (req) => {
             configuredForClient.some(
               (table: any) => reportTableGoal(table) === "leads",
             ),
-          recentRecordCount: leadRecords.filter(
-            (row: any) =>
-              row.data?.date && row.data.date >= windows.recent30Start,
-          ).length,
+          recentRecordCount: goalRecentRecordCount({
+            records,
+            goal: "leads",
+            tables: leadTables,
+            goalOf: (row) => verdictOf(row)?.goal,
+            sinceYmd: windows.recent30Start,
+          }),
           isEcommerce: false,
           spend7: leadMetrics.spend,
           leads7: leadMetrics.outcomes,
@@ -603,10 +607,13 @@ Deno.serve(async (req) => {
             configuredForClient.some(
               (table: any) => reportTableGoal(table) === "ecommerce",
             ),
-          recentRecordCount: ecommerceRecords.filter(
-            (row: any) =>
-              row.data?.date && row.data.date >= windows.recent30Start,
-          ).length,
+          recentRecordCount: goalRecentRecordCount({
+            records,
+            goal: "ecommerce",
+            tables: ecommerceTables,
+            goalOf: (row) => verdictOf(row)?.goal,
+            sinceYmd: windows.recent30Start,
+          }),
           isEcommerce: true,
           spend7: ecommerceMetrics.spend,
           leads7: 0,

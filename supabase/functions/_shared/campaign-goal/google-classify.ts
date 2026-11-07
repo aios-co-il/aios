@@ -107,15 +107,20 @@ const EXPOSURE_CHANNELS: ReadonlySet<string> = new Set([
   "DISCOVERY",
 ]);
 
-/** Bid strategies that pay for impressions, views or clicks; conversion strategies are not here. */
+/**
+ * Bid strategies (Google's BiddingStrategyType) that pay for impressions,
+ * views or clicks. TARGET_SPEND is "Maximize clicks". Conversion strategies,
+ * and ENHANCED_CPC (manual CPC adjusted for conversions), are not here.
+ */
 const EXPOSURE_BIDDING: ReadonlySet<string> = new Set([
   "MANUAL_CPM",
   "TARGET_CPM",
+  "FIXED_CPM",
   "MANUAL_CPV",
   "TARGET_CPV",
   "MANUAL_CPC",
+  "TARGET_CPC",
   "TARGET_SPEND",
-  "MAXIMIZE_CLICKS",
 ]);
 
 /**
