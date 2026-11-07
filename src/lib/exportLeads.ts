@@ -402,7 +402,7 @@ export async function fetchAllLeadsForExport(
       lead_id: string;
       content: string;
       created_at: string;
-      user_id: string;
+      user_id: string | null;
       profiles?: { full_name?: string | null } | null;
     };
     const updateRows: Array<UpdateRow> = [];

@@ -1,5 +1,4 @@
 import type { TablesInsert } from "@/integrations/supabase/types";
-import { isLeadSource } from "@/lib/crmEnums";
 
 export type LeadInsert = TablesInsert<"leads">;
 
@@ -27,7 +26,7 @@ export function dropBlankFields(lead: LeadDraft): LeadDraft {
 
 /**
  * The draft as a `leads` insert row. Throws the error the database would return
- * for a missing company name or a source outside the `lead_source` enum.
+ * for a missing company name. Lead sources are free text.
  */
 export function toLeadInsert(lead: LeadDraft): LeadInsert {
   const { source, company_name, ...rest } = lead;
@@ -35,9 +34,6 @@ export function toLeadInsert(lead: LeadDraft): LeadInsert {
     throw new Error(
       'null value in column "company_name" of relation "leads" violates not-null constraint',
     );
-  }
-  if (source !== undefined && !isLeadSource(source)) {
-    throw new Error(`invalid input value for enum lead_source: "${source}"`);
   }
   return source === undefined
     ? { ...rest, company_name }

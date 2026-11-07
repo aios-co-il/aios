@@ -29,9 +29,11 @@ describe("toLeadInsert", () => {
     expect(() => toLeadInsert({ email: "a@b.co" })).toThrow(/company_name/);
   });
 
-  it("throws like the database for a source outside the enum", () => {
-    expect(() =>
-      toLeadInsert({ company_name: "Acme", source: "linkedin" }),
-    ).toThrow(/lead_source/);
+  it("preserves LinkedIn and other free-text sources", () => {
+    for (const source of ["linkedin", "partner-event-2026", "custom source"]) {
+      expect(toLeadInsert({ company_name: "Acme", source }).source).toBe(
+        source,
+      );
+    }
   });
 });

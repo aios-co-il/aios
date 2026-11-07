@@ -47,7 +47,7 @@ const TABLE_META: Record<
     needsIntegrationId: false,
     // The client field shows ids as Google Ads does ("123-456-7890").
     build: (v) => ({
-      customer_id: normalizeGoogleAdsCustomerId(v),
+      customer_id: normalizeGoogleAdsCustomerId(v) ?? v,
       date_range: "last_30_days",
       sync_frequency: "daily",
       data_source: "direct_api",

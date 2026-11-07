@@ -124,7 +124,7 @@ const client = {
   id: "client-1",
   name: "לקוח בדיקה",
   agency_id: "agency-1",
-  status: "active",
+  status: "active" as const,
   retainer: null,
   monthly_budget: null,
 };
