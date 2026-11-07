@@ -4,25 +4,11 @@
   "config": "tsconfig.app.json",
   "diagnostics": [
     {
-      "file": "src/components/agents/tabs/AgentLearningTab.tsx",
-      "code": 2339,
-      "message": "Property 'subcategory' does not exist on type '{ name: string; count: number; }'.",
-      "source": "subcategory",
-      "count": 4
-    },
-    {
       "file": "src/components/agents/tabs/EvalsTab.tsx",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[]'.",
       "source": "tenant_id",
       "count": 1
-    },
-    {
-      "file": "src/components/agents/tabs/ProfileTab.tsx",
-      "code": 2304,
-      "message": "Cannot find name 'tenantId'.",
-      "source": "tenantId",
-      "count": 2
     },
     {
       "file": "src/components/agents/tabs/SupervisorTab.tsx",
@@ -67,13 +53,6 @@
       "count": 3
     },
     {
-      "file": "src/components/carmen-command/GoalsPanel.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | null' is not assignable to parameter of type 'string'.\n  Type 'null' is not assignable to type 'string'.",
-      "source": "selectedId",
-      "count": 1
-    },
-    {
       "file": "src/components/chat/ConvertContactDialog.tsx",
       "code": 2322,
       "message": "Type 'string | null' is not assignable to type 'string'.\n  Type 'null' is not assignable to type 'string'.",
@@ -92,13 +71,6 @@
       "code": 2345,
       "message": "Argument of type '{ [x: string]: any; }' is not assignable to parameter of type 'RejectExcessProperties<{ active_chat_provider?: \"manychat\" | \"green_api\" | \"internal\" | \"manus_wa\" | \"meta_whatsapp\" | null | undefined; active_flags?: Json | undefined; agency_id?: string | undefined; ... 38 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n  Type '{ [x: string]: any; }' is not assignable to type '{ [x: string]: never; [x: number]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
       "source": "{ [field]: value }",
-      "count": 1
-    },
-    {
-      "file": "src/components/marketing/SocialContentGantt.tsx",
-      "code": 2345,
-      "message": "Argument of type 'Partial<WorkItem>' is not assignable to parameter of type 'RejectExcessProperties<{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>'.\n  Type 'Partial<WorkItem>' is not assignable to type '{ client_id?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; current_stage_id?: string | null | undefined; id?: string | undefined; ... 8 more ...; updated_at?: string | undefined; }'.\n    Types of property 'status' are incompatible.\n      Type 'string | undefined' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.\n        Type 'string' is not assignable to type '\"failed\" | \"draft\" | \"in_progress\" | \"waiting_approval\" | \"approved\" | \"published\" | \"archived\" | undefined'.",
-      "source": "patch",
       "count": 1
     },
     {
@@ -133,13 +105,6 @@
       "file": "src/hooks/useBroadcastLists.ts",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'list_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[]'.",
-      "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useIntegrationPermissions.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; granted_at?: string | undefined; granted_by: string; id?: string | undefined; integration_id: string; updated_at?: string | undefined; user_id: string; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | undefined' is not assignable to type 'string'.\n      Type 'undefined' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; granted_at?: string | undefined; granted_by: string; id?: string | undefined; integration_id: string; updated_at?: string | undefined; user_id: string; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'integration_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; granted_at?: string | undefined; granted_by: string; id?: string | undefined; integration_id: string; updated_at?: string | undefined; user_id: string; }, { ...; }>[]'.",
       "source": "insert",
       "count": 1
     },
@@ -200,13 +165,6 @@
       "count": 6
     },
     {
-      "file": "src/pages/FieldsManagement.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; entity_type: string; field_key: string; field_label: string; field_type: string; id?: string | undefined; is_required?: boolean | undefined; is_visible?: boolean | undefined; options?: Json | undefined; sort_order?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; entity_type: string; field_key: string; field_label: string; field_type: string; id?: string | undefined; is_required?: boolean | undefined; is_visible?: boolean | undefined; options?: Json | undefined; sort_order?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; entity_type: string; field_key: string; field_label: string; field_type: string; id?: string | undefined; is_required?: boolean | undefined; is_visible?: boolean | undefined; options?: Json | undefined; sort_order?: number | undefined; tenant_id: string; upda...'.",
-      "source": "tenant_id",
-      "count": 1
-    },
-    {
       "file": "src/pages/GoogleAnalyticsSettings.tsx",
       "code": 2345,
       "message": "Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<string | null>'.",
@@ -225,13 +183,6 @@
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Argument of type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }[]' is not assignable to parameter of type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n      Property 'tenant_id' is missing in type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }[]' but required in type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type 'RejectExcessProperties<{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }, { ...; }>'.\n      Type '{ tenant_id: string | null; user_id: string; integration_type: string; api_key: string; instance_id: string; is_active: boolean; api_token_last_4: string; settings: { instance_id: string; }; }' is not assignable to type '{ api_key?: string | null | undefined; api_token_last_4?: string | null | undefined; auto_sync_enabled?: boolean | undefined; company_id?: string | null | undefined; connection_visibility?: string | undefined; ... 11 more ...; user_id?: string | ... 1 more ... | undefined; }'.\n        Types of property 'tenant_id' are incompatible.\n          Type 'string | null' is not assignable to type 'string'.\n            Type 'null' is not assignable to type 'string'.",
       "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/pages/MenuManagement.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ badge?: string | null | undefined; category?: string | null | undefined; created_at?: string | undefined; custom_label?: string | null | undefined; icon?: string | null | undefined; ... 8 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "tenant_id",
       "count": 1
     },
     {
