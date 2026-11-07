@@ -2,6 +2,11 @@
 // The ephemeral client secret comes from the carmen-realtime-session edge
 // function; audio flows browser<->OpenAI directly, events over a data channel.
 
+import {
+  parseRealtimeServerEvent,
+  readAskCarmenQuestion,
+} from "./realtimeVoiceEvents";
+
 export interface RealtimeCallbacks {
   /** Final transcript of what the user said (one turn) */
   onUserTranscript: (text: string) => void;
@@ -105,12 +110,8 @@ export async function startRealtimeVoice(
     );
   };
   dc.onmessage = async (e) => {
-    let ev: any;
-    try {
-      ev = JSON.parse(e.data);
-    } catch {
-      return;
-    }
+    const ev = parseRealtimeServerEvent(e.data);
+    if (!ev) return;
     switch (ev.type) {
       case "response.created":
         responseActive = true;
@@ -142,7 +143,11 @@ export async function startRealtimeVoice(
         break;
       case "response.output_item.done": {
         const item = ev.item;
-        if (item?.type === "function_call" && !stopped) {
+        if (
+          item?.type === "function_call" &&
+          typeof item.name === "string" &&
+          !stopped
+        ) {
           const answer = await runTool(item.name, item.arguments, cb);
           if (answer === null || stopped) {
             break;
@@ -244,12 +249,12 @@ export async function startRealtimeVoice(
  */
 async function runTool(
   name: string,
-  rawArgs: string,
+  rawArgs: unknown,
   cb: RealtimeCallbacks,
 ): Promise<string | null> {
   let args: Record<string, unknown> = {};
   try {
-    args = JSON.parse(rawArgs) ?? {};
+    args = JSON.parse(String(rawArgs)) ?? {};
   } catch {
     console.warn("[realtime] malformed tool arguments", name);
   }

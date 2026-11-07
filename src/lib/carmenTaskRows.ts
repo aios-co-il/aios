@@ -3,6 +3,7 @@
 // tasks panel and its tests share the same rules.
 import { describeCronHe } from "../../supabase/functions/_shared/cron-next.ts";
 import { computeNextRun } from "../../supabase/functions/_shared/agent-task-schedule.ts";
+import type { Database, Tables } from "@/integrations/supabase/types";
 
 export type TaskKind =
   "one_off" | "recurring" | "goal" | "dev" | "system" | "automation";
@@ -19,10 +20,25 @@ export type TaskStatus =
   | "cancelled"
   | "draft";
 
-export type CarmenTaskRow = {
+export type AgentTaskSourceRow = Partial<Tables<"agent_tasks">> & {
+  ai_agents?: { name: string } | null;
+};
+export type GoalSourceRow = Partial<Tables<"goals">>;
+export type DevTaskSourceRow = Partial<Tables<"dev_tasks">>;
+export type CronJobSourceRow = Partial<
+  Database["public"]["Functions"]["list_system_cron_jobs"]["Returns"][number]
+>;
+
+type CarmenTaskRowSource =
+  | { source: "agent_tasks"; raw: AgentTaskSourceRow }
+  | { source: "goals"; raw: GoalSourceRow }
+  | { source: "dev_tasks"; raw: DevTaskSourceRow }
+  | { source: "cron_job"; raw: CronJobSourceRow }
+  | { source: "automation"; raw: { automation_key: string; enabled: boolean } };
+
+export type CarmenTaskRow = CarmenTaskRowSource & {
   key: string;
   kind: TaskKind;
-  source: TaskSource;
   id: string;
   title: string;
   subtitle: string | null;
@@ -33,7 +49,6 @@ export type CarmenTaskRow = {
   nextRunAt: string | null;
   executorLabel: string | null;
   updatedAt: string | null;
-  raw: Record<string, unknown>;
 };
 
 export const KIND_LABELS: Record<TaskKind, string> = {
@@ -57,8 +72,6 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   draft: "טיוטה",
 };
 
-type AnyRow = Record<string, any>;
-
 const fmt = (iso: string | null | undefined) => {
   if (!iso) return null;
   const d = new Date(iso);
@@ -72,11 +85,11 @@ const fmt = (iso: string | null | undefined) => {
   });
 };
 
-export function isRecurringAgentTask(t: AnyRow): boolean {
+export function isRecurringAgentTask(t: AgentTaskSourceRow): boolean {
   return ["recurring", "daily", "weekly"].includes(String(t.schedule_type));
 }
 
-export function agentTaskScheduleLabel(t: AnyRow): string {
+export function agentTaskScheduleLabel(t: AgentTaskSourceRow): string {
   const type = String(t.schedule_type || "once");
   if (type === "recurring") {
     if (t.cron_expression) {
@@ -91,7 +104,7 @@ export function agentTaskScheduleLabel(t: AnyRow): string {
   return "ידנית";
 }
 
-export function agentTaskStatus(t: AnyRow): TaskStatus {
+export function agentTaskStatus(t: AgentTaskSourceRow): TaskStatus {
   const s = String(t.status || "pending");
   if (s === "running") return "running";
   if (s === "failed") return "failed";
@@ -104,7 +117,7 @@ export function agentTaskStatus(t: AnyRow): TaskStatus {
   return "waiting";
 }
 
-export function mapAgentTask(t: AnyRow): CarmenTaskRow {
+export function mapAgentTask(t: AgentTaskSourceRow): CarmenTaskRow {
   const recurring = isRecurringAgentTask(t);
   const agentName = t.ai_agents?.name ?? null;
   return {
@@ -128,7 +141,7 @@ export function mapAgentTask(t: AnyRow): CarmenTaskRow {
   };
 }
 
-export function goalStatus(g: AnyRow): TaskStatus {
+export function goalStatus(g: GoalSourceRow): TaskStatus {
   const s = String(g.status || "active");
   if (s === "completed") return "done";
   if (s === "cancelled") return "cancelled";
@@ -145,7 +158,7 @@ export function goalStatus(g: AnyRow): TaskStatus {
   return "waiting";
 }
 
-export function mapGoal(g: AnyRow): CarmenTaskRow {
+export function mapGoal(g: GoalSourceRow): CarmenTaskRow {
   const autonomous = Boolean(g.autonomous_mode);
   return {
     key: `goals:${g.id}`,
@@ -172,7 +185,7 @@ export function mapGoal(g: AnyRow): CarmenTaskRow {
   };
 }
 
-export function devTaskStatus(d: AnyRow): TaskStatus {
+export function devTaskStatus(d: DevTaskSourceRow): TaskStatus {
   const s = String(d.status || "draft");
   if (s === "done") return "done";
   if (s === "cancelled") return "cancelled";
@@ -183,7 +196,7 @@ export function devTaskStatus(d: AnyRow): TaskStatus {
   return "waiting";
 }
 
-export function mapDevTask(d: AnyRow): CarmenTaskRow {
+export function mapDevTask(d: DevTaskSourceRow): CarmenTaskRow {
   return {
     key: `dev_tasks:${d.id}`,
     kind: "dev",
@@ -203,7 +216,7 @@ export function mapDevTask(d: AnyRow): CarmenTaskRow {
 }
 
 export function mapCronJob(
-  j: AnyRow,
+  j: CronJobSourceRow,
   meta: { label: string; description: string },
   now: Date = new Date(),
 ): CarmenTaskRow {
