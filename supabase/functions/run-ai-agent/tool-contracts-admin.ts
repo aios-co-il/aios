@@ -83,7 +83,7 @@ export interface AdAccountHealthIssue {
   client_id: string;
   client_name: string;
   agency_name: string | null;
-  ad_account_id: Json | undefined;
+  ad_account_id: string | number | null | undefined;
   fb: {
     status: string;
     has_spend_7d: boolean;
@@ -131,4 +131,10 @@ export function automationStepArg(value: unknown): AutomationStepArg {
     throw new TypeError(`Cannot read properties of ${value} (reading 'type')`);
   }
   return automationStepArgSchema.parse(value);
+}
+
+/** A Meta ad account identifier from stored integration settings. */
+export function readAdAccountId(value: unknown): string | number | undefined {
+  const parsed = z.union([z.string(), z.number()]).safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }

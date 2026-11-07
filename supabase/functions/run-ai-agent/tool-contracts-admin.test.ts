@@ -1,3 +1,4 @@
+import { readAdAccountId } from "./tool-contracts-admin.ts";
 import {
   assertEquals,
   assertStrictEquals,
@@ -116,5 +117,14 @@ Deno.test(
     assertStrictEquals(automationStepArg(["agent"]).type, undefined);
     assertThrows(() => automationStepArg(null), TypeError);
     assertThrows(() => automationStepArg(undefined), TypeError);
+  },
+);
+
+Deno.test(
+  "Meta account identifiers accept strings and numeric legacy IDs",
+  () => {
+    assertStrictEquals(readAdAccountId("act_123"), "act_123");
+    assertStrictEquals(readAdAccountId(123), 123);
+    assertStrictEquals(readAdAccountId({ id: "123" }), undefined);
   },
 );
