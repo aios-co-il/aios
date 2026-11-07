@@ -11,8 +11,6 @@ import type { Json } from "@/integrations/supabase/types";
  * on the frontend until those flows are migrated to edge functions.
  */
 
-import { isJsonObject } from "./jsonFields.ts";
-
 export const GOOGLE_INTEGRATION_TYPES = new Set([
   "google_analytics",
   "google_search_console",
@@ -64,15 +62,14 @@ type KnownTenantIntegrationFields = {
         : K
   ]: TenantIntegrationRow[K];
 };
-
 export type ClientIntegration = Omit<
   KnownTenantIntegrationFields,
-  "api_key"
+  "api_key" | "settings"
 > & {
   [key: string]: unknown;
-} & {
+  settings?: unknown;
   has_credential: boolean;
-  api_key?: TenantIntegrationRow["api_key"];
+  api_key?: string | null;
   _isOwn?: boolean;
   _sharedByName?: string | null;
 };
@@ -153,6 +150,7 @@ export function isGoogleIntegrationConnected(
   return !!(integration?.is_active && integration?.has_credential);
 }
 
+import { isJsonObject } from "./jsonFields.ts";
 const isNullableString = (value: unknown) =>
   value === undefined || value === null || typeof value === "string";
 
