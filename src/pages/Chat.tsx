@@ -1036,14 +1036,15 @@ export default function Chat() {
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Tag selector */}
-                              {!isMultiSelectMode && (
-                                <ChatTagSelector
-                                  contactId={contact.id}
-                                  contactType={contact.contact_type}
-                                  senderPhone={contact.sender_phone}
-                                  initialTagIds={contactTagIds}
-                                />
-                              )}
+                              {!isMultiSelectMode &&
+                                contact.contact_type !== "telegram" && (
+                                  <ChatTagSelector
+                                    contactId={contact.id}
+                                    contactType={contact.contact_type}
+                                    senderPhone={contact.sender_phone}
+                                    initialTagIds={contactTagIds}
+                                  />
+                                )}
 
                               {contact.unread_count > 0 && (
                                 <Badge
@@ -1057,15 +1058,16 @@ export default function Chat() {
                           </div>
 
                           {/* Tag badges */}
-                          {contactTagIds.length > 0 && (
-                            <ContactTagBadges
-                              contactId={contact.id}
-                              contactType={contact.contact_type}
-                              senderPhone={contact.sender_phone}
-                              allTags={allTags}
-                              contactTagIds={contactTagIds}
-                            />
-                          )}
+                          {contactTagIds.length > 0 &&
+                            contact.contact_type !== "telegram" && (
+                              <ContactTagBadges
+                                contactId={contact.id}
+                                contactType={contact.contact_type}
+                                senderPhone={contact.sender_phone}
+                                allTags={allTags}
+                                contactTagIds={contactTagIds}
+                              />
+                            )}
 
                           {contact.agency_name && (
                             <div className="min-w-0">
