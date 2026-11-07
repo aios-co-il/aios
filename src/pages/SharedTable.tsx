@@ -88,7 +88,10 @@ import {
   filterRecordsByEntityLevel,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
-import { namesCampaignsByDestination } from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import {
+  type AdsReportView,
+  useContinentsReportView,
+} from "@/components/dynamic-tables/CampaignContinents/useContinentsReportView";
 import { TableContinentsView } from "@/components/dynamic-tables/CampaignContinents/TableContinentsView";
 
 // Date filter options — shared with DynamicTableView week windows via dashboardDateFilters.
@@ -169,9 +172,6 @@ export default function SharedTable() {
   const [adsEntityLevel, setAdsEntityLevel] =
     useState<AdsEntityLevel>("campaign");
   const [monthlyWorkFullPage, setMonthlyWorkFullPage] = useState(false);
-  const [adsReportView, setAdsReportView] = useState<
-    "summary" | "weekly" | "continents"
-  >("summary");
   const queryClient = useQueryClient();
 
   const dateQueryKey = seoShareLocked
@@ -185,6 +185,7 @@ export default function SharedTable() {
   const {
     data: coreData,
     isLoading,
+    isFetching: coreFetching,
     error,
   } = useQuery({
     queryKey: ["shared-table", shareToken, dateQueryKey, "core"],
@@ -260,25 +261,15 @@ export default function SharedTable() {
 
   const integrationType = data?.table?.integration_type;
 
-  // Travel accounts name each Google campaign by its destination; they get a tab per continent.
-  const hasContinentsTab = useMemo(
-    () =>
-      integrationType === "google_ads" &&
-      namesCampaignsByDestination(
-        (data?.records || [])
-          .map((record: { data?: Record<string, unknown> | null }) =>
-            String(record.data?.campaign_name ?? ""),
-          )
-          .filter(Boolean),
-      ),
-    [integrationType, data?.records],
-  );
-  // A period whose campaigns stop naming destinations drops the tab; leave it too.
-  useEffect(() => {
-    if (adsReportView === "continents" && !hasContinentsTab) {
-      setAdsReportView("summary");
-    }
-  }, [adsReportView, hasContinentsTab]);
+  const {
+    view: adsReportView,
+    setView: setAdsReportView,
+    hasContinentsTab,
+  } = useContinentsReportView({
+    integrationType,
+    records: data?.records || [],
+    ready: coreData !== undefined && !coreFetching,
+  });
   const isIntegrationTable =
     isAdsPlatform(integrationType || "") ||
     isAnalyticsPlatform(integrationType || "");
@@ -674,9 +665,7 @@ export default function SharedTable() {
         {isAdsPlatform(integrationType || "") && (
           <Tabs
             value={adsReportView}
-            onValueChange={(value) =>
-              setAdsReportView(value as "summary" | "weekly" | "continents")
-            }
+            onValueChange={(value) => setAdsReportView(value as AdsReportView)}
           >
             <ResponsiveTabsList
               items={[
@@ -688,7 +677,7 @@ export default function SharedTable() {
               ]}
               value={adsReportView}
               onValueChange={(value) =>
-                setAdsReportView(value as "summary" | "weekly" | "continents")
+                setAdsReportView(value as AdsReportView)
               }
               mobileLabel="בחר תצוגה"
             />
