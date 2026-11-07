@@ -11,7 +11,6 @@ import {
   type TenantIntegrationRow,
 } from "@/lib/tenantIntegrationsClient";
 import { isReportTenantScopedIntegration } from "@/lib/reportIntegrationTypes";
-import { isTenantIntegrationRow } from "@/lib/tenantIntegrationsClient";
 
 /**
  * Fetches integrations the current user has access to:
@@ -129,8 +128,7 @@ export function useUserIntegrations(
           .in("id", sharedIntegrationIds);
 
         if (sharedError) throw sharedError;
-        const sharedRows: unknown[] = shared || [];
-        sharedIntegrations = sharedRows.filter(isTenantIntegrationRow);
+        sharedIntegrations = shared || [];
       }
 
       // 3. Get owner profiles for shared integrations

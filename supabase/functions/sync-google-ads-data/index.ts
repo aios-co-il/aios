@@ -641,8 +641,11 @@ Deno.serve(async (req) => {
             clicks: parseInt(metric("clicks")),
             ctr: parseFloat(metric("ctr")) * 100,
             cpc: parseInt(metric("averageCpc")) / 1000000,
-            campaign_channel_type: getString(result, "campaign", "advertisingChannelType") || undefined,
-            bidding_strategy_type: getString(result, "campaign", "biddingStrategyType") || undefined,
+            campaign_channel_type:
+              getString(result, "campaign", "advertisingChannelType") ||
+              undefined,
+            bidding_strategy_type:
+              getString(result, "campaign", "biddingStrategyType") || undefined,
             cost,
             conversions: finalConversions,
             conversions_value: conversionsValue,
@@ -957,7 +960,9 @@ Deno.serve(async (req) => {
         new Set(
           (tenantTables || [])
             .map((t: { integration_settings: unknown }) =>
-              normalizeGoogleAdsCustomerId(getPath(t.integration_settings, "manager_id")),
+              normalizeGoogleAdsCustomerId(
+                getPath(t.integration_settings, "manager_id"),
+              ),
             )
             .filter((id): id is string => id !== null),
         ),
