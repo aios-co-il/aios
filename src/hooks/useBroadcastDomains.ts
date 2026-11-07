@@ -65,7 +65,13 @@ export function useBroadcastDomains() {
       const { domain, default_local, from_name, wasSwapped } =
         normalizePayload(payload);
       if (!domain) throw new Error("missing_domain");
-      const writeTenantId = requireTenantId(tenantId);
+      const insertPayload = {
+        tenant_id: requireTenantId(tenantId),
+        created_by: userId,
+        domain,
+        from_name,
+        default_local,
+      };
       const isFirst = (list.data || []).length === 0;
       const makeDefault = payload.is_default || isFirst;
       if (makeDefault) {
@@ -75,11 +81,7 @@ export function useBroadcastDomains() {
           .filter("tenant_id", "eq", tenantId);
       }
       const { error } = await supabase.from("broadcast_email_domains").insert({
-        tenant_id: writeTenantId,
-        created_by: userId,
-        domain,
-        from_name,
-        default_local,
+        ...insertPayload,
         is_default: makeDefault,
       });
       if (error) throw error;

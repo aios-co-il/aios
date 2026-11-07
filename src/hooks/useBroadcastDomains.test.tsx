@@ -114,38 +114,6 @@ describe.each(["tenant-1", null])(
       );
     });
 
-    it("clears defaults then inserts the unchanged creation payload", async () => {
-      await mountDomains(tenantId);
-      requests = [];
-      if (!tenantId) {
-        await expectUnavailableCreation();
-        return;
-      }
-      await act(async () => {
-        await current.current.add.mutateAsync({
-          domain: "example.com",
-          is_default: true,
-        });
-      });
-      expectTenantRequest(
-        "PATCH",
-        JSON.stringify({ is_default: false }),
-        tenantId,
-      );
-      expect(requests.find((entry) => entry.method === "POST")?.body).toBe(
-        JSON.stringify({
-          tenant_id: tenantId,
-          created_by: "user-1",
-          domain: "example.com",
-          from_name: null,
-          default_local: "noreply",
-          is_default: true,
-        }),
-      );
-      expect(requests[0].method).toBe("PATCH");
-      expect(requests[1].method).toBe("POST");
-    });
-
     it("retains the ID and tenant filters on updates", async () => {
       await mountDomains(tenantId);
       requests = [];
@@ -230,6 +198,39 @@ describe("production domain errors", () => {
 });
 
 describe("tenant readiness for creation", () => {
+  it("clears defaults then inserts the unchanged creation payload", async () => {
+    await mountDomains("tenant-1");
+    requests = [];
+    await act(async () => {
+      await current.current.add.mutateAsync({
+        domain: "example.com",
+        is_default: true,
+      });
+    });
+    expectTenantRequest(
+      "PATCH",
+      JSON.stringify({ is_default: false }),
+      "tenant-1",
+    );
+    expect(requests.find((entry) => entry.method === "POST")?.body).toBe(
+      JSON.stringify({
+        tenant_id: "tenant-1",
+        created_by: "user-1",
+        domain: "example.com",
+        from_name: null,
+        default_local: "noreply",
+        is_default: true,
+      }),
+    );
+    expect(requests[0].method).toBe("PATCH");
+    expect(requests[1].method).toBe("POST");
+  });
+
+  it("rejects creation without a tenant before either write", async () => {
+    await mountDomains(null);
+    await expectUnavailableCreation();
+  });
+
   it("stops writes while unavailable, permits the ready tenant, then stops again", async () => {
     await mountDomains(null);
     await expectUnavailableCreation();
