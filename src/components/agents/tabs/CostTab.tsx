@@ -49,7 +49,7 @@ export function CostTab({
     queryKey: ["agent-cost", agent.id, range],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("agent_action_log" as any)
+        .from("agent_action_log")
         .select(
           "created_at,status,tokens_in,tokens_out,cost_usd,duration_ms,model,action_type",
         )
@@ -59,7 +59,8 @@ export function CostTab({
         .order("created_at", { ascending: true })
         .limit(5000);
       if (error) throw error;
-      return (data || []) as unknown as LogRow[];
+      const rows: LogRow[] = data || [];
+      return rows;
     },
   });
 
@@ -217,8 +218,8 @@ export function CostTab({
                   labelFormatter={(d) =>
                     format(new Date(d as string), "EEEE d/M", { locale: he })
                   }
-                  formatter={(v: any, name: string) =>
-                    name === "cost" ? fmtUsd(v as number) : fmtNum(v as number)
+                  formatter={(v, name) =>
+                    name === "cost" ? fmtUsd(Number(v)) : fmtNum(Number(v))
                   }
                   contentStyle={{
                     background: "hsl(var(--popover))",

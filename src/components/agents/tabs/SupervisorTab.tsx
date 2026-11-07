@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,11 @@ import { Crown, Trash2, Plus, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
-export function SupervisorTab({ agent }: { agent: any }) {
+export function SupervisorTab({
+  agent,
+}: {
+  agent: Pick<Tables<"ai_agents">, "id" | "name">;
+}) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const [childId, setChildId] = useState("");
@@ -68,11 +73,11 @@ export function SupervisorTab({ agent }: { agent: any }) {
       setHint("");
       toast.success("נוסף");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const toggle = useMutation({
-    mutationFn: async ({ id, enabled }: any) => {
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
       const { error } = await supabase
         .from("agent_supervisors")
         .update({ enabled })
@@ -112,7 +117,7 @@ export function SupervisorTab({ agent }: { agent: any }) {
       );
       qc.invalidateQueries({ queryKey: ["agent-runs", tenantId] });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -136,7 +141,7 @@ export function SupervisorTab({ agent }: { agent: any }) {
               <SelectValue placeholder="בחר סוכן" />
             </SelectTrigger>
             <SelectContent>
-              {(allAgents ?? []).map((a: any) => (
+              {(allAgents ?? []).map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.name}
                 </SelectItem>
@@ -157,7 +162,7 @@ export function SupervisorTab({ agent }: { agent: any }) {
       </Card>
 
       <div className="space-y-2">
-        {(links ?? []).map((l: any) => (
+        {(links ?? []).map((l) => (
           <Card key={l.id} className="p-3 flex items-center gap-3">
             <Switch
               checked={l.enabled}

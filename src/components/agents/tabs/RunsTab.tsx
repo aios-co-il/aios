@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { asJsonObject, jsonString } from "../agentUiHelpers";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,42 +17,45 @@ import {
   Shield,
   RotateCw,
   GitBranch,
+  type LucideIcon,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
-const STATUS_META: Record<string, { label: string; color: string; icon: any }> =
-  {
-    running: {
-      label: "רץ",
-      color: "bg-blue-500/10 text-blue-700",
-      icon: Activity,
-    },
-    waiting_approval: {
-      label: "ממתין לאישור",
-      color: "bg-amber-500/10 text-amber-700",
-      icon: Shield,
-    },
-    completed: {
-      label: "הסתיים",
-      color: "bg-emerald-500/10 text-emerald-700",
-      icon: CheckCircle2,
-    },
-    failed: {
-      label: "נכשל",
-      color: "bg-destructive/10 text-destructive",
-      icon: AlertCircle,
-    },
-    cancelled: {
-      label: "בוטל",
-      color: "bg-muted text-muted-foreground",
-      icon: Clock,
-    },
-  };
+const STATUS_META: Record<
+  string,
+  { label: string; color: string; icon: LucideIcon }
+> = {
+  running: {
+    label: "רץ",
+    color: "bg-blue-500/10 text-blue-700",
+    icon: Activity,
+  },
+  waiting_approval: {
+    label: "ממתין לאישור",
+    color: "bg-amber-500/10 text-amber-700",
+    icon: Shield,
+  },
+  completed: {
+    label: "הסתיים",
+    color: "bg-emerald-500/10 text-emerald-700",
+    icon: CheckCircle2,
+  },
+  failed: {
+    label: "נכשל",
+    color: "bg-destructive/10 text-destructive",
+    icon: AlertCircle,
+  },
+  cancelled: {
+    label: "בוטל",
+    color: "bg-muted text-muted-foreground",
+    icon: Clock,
+  },
+};
 
-const STEP_ICON: Record<string, any> = {
+const STEP_ICON: Record<string, LucideIcon> = {
   plan: Brain,
   tool: Wrench,
   observation: Eye,
@@ -59,7 +64,7 @@ const STEP_ICON: Record<string, any> = {
   final: CheckCircle2,
 };
 
-export function RunsTab({ agent }: { agent: any }) {
+export function RunsTab({ agent }: { agent: Pick<Tables<"ai_agents">, "id"> }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
@@ -79,7 +84,7 @@ export function RunsTab({ agent }: { agent: any }) {
       toast.success("Replay החל");
       qc.invalidateQueries({ queryKey: ["agent-runs", agent.id] });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const { data: runs = [] } = useQuery({
@@ -127,7 +132,7 @@ export function RunsTab({ agent }: { agent: any }) {
                 עדיין אין ריצות. הפעל את הסוכן דרך run-ai-agent-v2.
               </div>
             )}
-            {runs.map((r: any) => {
+            {runs.map((r) => {
               const meta = STATUS_META[r.status] ?? STATUS_META.failed;
               const Icon = meta.icon;
               return (
@@ -202,17 +207,19 @@ export function RunsTab({ agent }: { agent: any }) {
                   אין צעדים מתועדים
                 </div>
               )}
-              {steps.map((s: any) => {
-                const Icon = STEP_ICON[s.step_kind] ?? Activity;
+              {steps.map((s) => {
+                const toolName = jsonString(s.action_details, "tool_name");
+                const toolInput = asJsonObject(s.action_details)?.tool_input;
+                const Icon = STEP_ICON[s.step_kind ?? ""] ?? Activity;
                 return (
                   <Card key={s.id} className="p-3">
                     <div className="flex items-center gap-2 mb-2">
                       <Icon className="h-4 w-4 text-primary" />
                       <Badge variant="outline">צעד {s.step_index}</Badge>
                       <Badge variant="secondary">{s.step_kind}</Badge>
-                      {s.action_details?.tool_name && (
+                      {toolName && (
                         <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                          {s.action_details.tool_name}
+                          {toolName}
                         </code>
                       )}
                       {s.status === "error" && (
@@ -230,18 +237,18 @@ export function RunsTab({ agent }: { agent: any }) {
                         💭 {s.thought}
                       </div>
                     )}
-                    {s.action_details?.tool_input && (
+                    {toolInput ? (
                       <pre className="text-[10px] bg-muted p-2 rounded overflow-x-auto mb-2">
-                        {JSON.stringify(s.action_details.tool_input, null, 2)}
+                        {JSON.stringify(toolInput, null, 2)}
                       </pre>
-                    )}
-                    {s.observation && (
+                    ) : null}
+                    {s.observation ? (
                       <pre className="text-[10px] bg-emerald-500/5 border border-emerald-500/20 p-2 rounded overflow-x-auto">
                         {typeof s.observation === "string"
                           ? s.observation
                           : JSON.stringify(s.observation, null, 2)}
                       </pre>
-                    )}
+                    ) : null}
                     {s.error_message && (
                       <div className="text-xs text-destructive mt-1">
                         ⚠️ {s.error_message}
