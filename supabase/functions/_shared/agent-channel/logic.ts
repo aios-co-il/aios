@@ -1,3 +1,4 @@
+import { z } from "npm:zod@3.25.76";
 import type { Database, Json } from "../database.types.ts";
 import type {
   AdapterCapabilities,
@@ -5,6 +6,7 @@ import type {
   ChannelProvider,
   CloudDirectProvider,
   ConversationStatus,
+  MessageEventType,
   SendResult,
   WorkspaceProvider,
 } from "./types.ts";
@@ -360,6 +362,17 @@ export function resolveCallbackOrigin(
     return session;
   }
   return raw || session || "internal";
+}
+
+const callbackEventTypeSchema = z.preprocess(
+  (raw) => raw || "message",
+  z.enum(["message", "progress", "approval_request", "system"]),
+);
+
+/** Absent event_type is "message"; any other value must be a known type, else null. */
+export function parseCallbackEventType(raw: unknown): MessageEventType | null {
+  const parsed = callbackEventTypeSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 /** Narrow generated database strings before exposing a route to channel code. */

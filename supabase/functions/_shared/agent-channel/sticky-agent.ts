@@ -5,8 +5,36 @@ import {
   resolveCursorDirectSession,
 } from "../cursor-direct-session.ts";
 import { lightweightBrainEnabled } from "../carmen-brain-flags.ts";
+import { z } from "npm:zod@3.25.76";
 
 export type OpenChatProvider = "cursor";
+
+const openChatSessionRowsSchema = z
+  .array(
+    z
+      .object({ external_session_id: z.string().nullish().catch(null) })
+      .catch({ external_session_id: null }),
+  )
+  .catch([]);
+
+type OpenChatSessionsResult = {
+  data: unknown;
+  error?: { message: string } | null;
+};
+
+interface OpenChatSessionsQuery extends PromiseLike<OpenChatSessionsResult> {
+  match(query: { tenant_id: string; provider: string }): OpenChatSessionsQuery;
+  not(column: string, operator: string, value: null): OpenChatSessionsQuery;
+  order(column: string, options: { ascending: boolean }): OpenChatSessionsQuery;
+  limit(count: number): OpenChatSessionsQuery;
+}
+
+/** The session lookup below, plus the Cursor sticky-agent read. */
+interface OpenChatClient {
+  from(table: string): {
+    select(columns: string): OpenChatSessionsQuery;
+  };
+}
 
 export function asCloudAgentId(value?: string | null): string | null {
   return asCursorSessionId(value);
@@ -84,6 +112,10 @@ export function missingOpenChatMessage(provider: OpenChatProvider): string {
   );
 }
 
+export function openChatLookupFailedMessage(reason: string): string {
+  return `לא הצלחתי לקרוא את הצ'אטים הפתוחים של Cursor: ${reason}`;
+}
+
 export function busyOpenChatMessage(
   provider: OpenChatProvider,
   url?: string | null,
@@ -96,9 +128,7 @@ export function busyOpenChatMessage(
 }
 
 export async function collectOpenChatIds(
-  sb: {
-    from: (table: string) => any;
-  },
+  sb: OpenChatClient,
   args: {
     tenantId: string;
     provider: OpenChatProvider;
@@ -126,20 +156,23 @@ export async function collectOpenChatIds(
     if (fixed) ids.push(fixed.sessionId);
   }
 
-  try {
-    const { data: sessions } = await sb
-      .from("agent_channel_sessions")
-      .select("external_session_id")
-      .eq("tenant_id", args.tenantId)
-      .eq("provider", args.provider)
-      .not("external_session_id", "is", null)
-      .order("last_activity_at", { ascending: false })
-      .limit(5);
-    for (const row of sessions || []) {
-      ids.push(...uniqueCloudAgentIds(row?.external_session_id));
-    }
-  } catch {
-    /* ignore */
+  const { data: sessions, error } = await sb
+    .from("agent_channel_sessions")
+    .select("external_session_id")
+    .match({ tenant_id: args.tenantId, provider: args.provider })
+    .not("external_session_id", "is", null)
+    .order("last_activity_at", { ascending: false })
+    .limit(5);
+  if (error) {
+    console.error("[sticky-agent] open chat sessions lookup failed", {
+      tenantId: args.tenantId,
+      provider: args.provider,
+      error: error.message,
+    });
+    throw new Error(openChatLookupFailedMessage(error.message));
+  }
+  for (const row of openChatSessionRowsSchema.parse(sessions)) {
+    ids.push(...uniqueCloudAgentIds(row.external_session_id));
   }
 
   return uniqueCloudAgentIds(...ids);

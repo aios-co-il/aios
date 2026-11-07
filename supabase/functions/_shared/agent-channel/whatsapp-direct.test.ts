@@ -2,6 +2,7 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   isOwnerSender,
   parseWhatsAppDirectCommand,
+  replyTargetFrom,
   whatsAppReplyText,
 } from "./whatsapp-direct-logic.ts";
 
@@ -78,3 +79,59 @@ Deno.test(
     );
   },
 );
+
+Deno.test("reads the WhatsApp reply target from session metadata", () => {
+  const target = {
+    integration_id: "int-1",
+    phone_number: "972500000000",
+    connection_user_id: "user-1",
+  };
+  assertEquals(replyTargetFrom({ reply_whatsapp: target }), target);
+});
+
+Deno.test(
+  "no reply target for non-WhatsApp or malformed session metadata",
+  () => {
+    assertStrictEquals(replyTargetFrom(null), null);
+    assertStrictEquals(replyTargetFrom({}), null);
+    assertStrictEquals(
+      replyTargetFrom({
+        reply_whatsapp: {
+          integration_id: "int-1",
+          phone_number: "972500000000",
+        },
+      }),
+      null,
+    );
+    assertStrictEquals(
+      replyTargetFrom({
+        reply_whatsapp: {
+          integration_id: "",
+          phone_number: "972500000000",
+          connection_user_id: "user-1",
+        },
+      }),
+      null,
+    );
+    assertStrictEquals(
+      replyTargetFrom({
+        reply_whatsapp: {
+          integration_id: "int-1",
+          phone_number: true,
+          connection_user_id: "user-1",
+        },
+      }),
+      null,
+    );
+    assertStrictEquals(replyTargetFrom({ reply_whatsapp: "x" }), null);
+  },
+);
+
+Deno.test("keeps a numeric reply target field as stored", () => {
+  const target = {
+    integration_id: "int-1",
+    phone_number: 972500000000,
+    connection_user_id: "user-1",
+  };
+  assertEquals(replyTargetFrom({ reply_whatsapp: target }), target);
+});

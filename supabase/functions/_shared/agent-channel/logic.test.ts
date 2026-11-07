@@ -13,6 +13,7 @@ import {
   parseBrainRoute,
   withParliamentContext,
   recordParliamentAnswer,
+  parseCallbackEventType,
   resolveCallbackOrigin,
   type ParliamentState,
 } from "./logic.ts";
@@ -81,6 +82,25 @@ Deno.test(
     assertStrictEquals(resolveCallbackOrigin("codex", "chatgpt"), "chatgpt");
     assertStrictEquals(resolveCallbackOrigin(undefined, "codex"), "codex");
     assertStrictEquals(resolveCallbackOrigin(null, null), "internal");
+  },
+);
+
+Deno.test(
+  "parseCallbackEventType defaults absent event_type and rejects unknown types",
+  () => {
+    assertStrictEquals(parseCallbackEventType(undefined), "message");
+    assertStrictEquals(parseCallbackEventType(null), "message");
+    assertStrictEquals(parseCallbackEventType(""), "message");
+    assertStrictEquals(parseCallbackEventType(0), "message");
+    assertStrictEquals(parseCallbackEventType("progress"), "progress");
+    assertStrictEquals(
+      parseCallbackEventType("approval_request"),
+      "approval_request",
+    );
+    assertStrictEquals(parseCallbackEventType("system"), "system");
+    assertStrictEquals(parseCallbackEventType("bogus"), null);
+    assertStrictEquals(parseCallbackEventType("Message"), null);
+    assertStrictEquals(parseCallbackEventType(1), null);
   },
 );
 

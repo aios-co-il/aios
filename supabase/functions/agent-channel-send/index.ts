@@ -17,10 +17,17 @@ import {
 import { requireAuth } from "../_shared/security.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
+import { type SendResult } from "../_shared/agent-channel/types.ts";
 import {
-  type InputMode,
-  type SendResult,
-} from "../_shared/agent-channel/types.ts";
+  parseAttachments,
+  parseConversationHistory,
+  parseInputMode,
+} from "../_shared/agent-channel/send-input.ts";
+import {
+  asRecord,
+  errorMessageOr,
+  type UnknownRecord,
+} from "../_shared/unknown-record.ts";
 import {
   cancelParliament,
   clarifyParliamentSeat,
@@ -41,46 +48,6 @@ import {
   userHasTenantAccess,
 } from "../_shared/agent-channel/store.ts";
 
-function parseAttachments(raw: unknown) {
-  if (!Array.isArray(raw))
-    return [] as Array<{
-      name: string;
-      url: string;
-      type: "image" | "file";
-      size?: number;
-      path?: string;
-    }>;
-  return raw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const name = String((item as any).name || "").trim();
-      const url = String((item as any).url || "").trim();
-      const type = (item as any).type === "image" ? "image" : "file";
-      if (!name || !url.startsWith("http")) return null;
-      return {
-        name,
-        url,
-        type,
-        size:
-          typeof (item as any).size === "number"
-            ? (item as any).size
-            : undefined,
-        path:
-          typeof (item as any).path === "string"
-            ? (item as any).path
-            : undefined,
-      };
-    })
-    .filter(Boolean)
-    .slice(0, 6) as Array<{
-    name: string;
-    url: string;
-    type: "image" | "file";
-    size?: number;
-    path?: string;
-  }>;
-}
-
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
@@ -97,9 +64,9 @@ Deno.serve(async (req) => {
   if (!auth || auth.kind !== "user" || !auth.userId)
     return json(401, { error: "Unauthorized" });
 
-  let body: any;
+  let body: UnknownRecord;
   try {
-    body = await req.json();
+    body = asRecord(await req.json());
   } catch {
     return json(400, { error: "Invalid JSON" });
   }
@@ -112,6 +79,7 @@ Deno.serve(async (req) => {
   if (!allowed) return json(403, { error: "Not a member of this tenant" });
 
   const action = String(body.action || "send");
+  const inputMode = parseInputMode(body.input_mode);
   const carmen = await resolveCarmenAgent(sb, tenantId);
   const agentId = carmen?.id ?? "";
   if (!agentId) return json(400, { error: "No Carmen agent for this tenant" });
@@ -251,7 +219,7 @@ Deno.serve(async (req) => {
         : null,
       metadata: {
         origin: "internal",
-        input_mode: body.input_mode || "typed",
+        input_mode: inputMode,
         delivery_mode: "text",
       },
     });
@@ -286,7 +254,7 @@ Deno.serve(async (req) => {
           routing_mode: route.route_type,
           agent_id: agentId,
         })
-        .eq("id", body.conversation_id)
+        .eq("id", String(body.conversation_id))
         .eq("tenant_id", tenantId);
     }
     await sb
@@ -301,7 +269,7 @@ Deno.serve(async (req) => {
   }
 
   const conv = await ensureConversation(sb, {
-    conversationId: body.conversation_id || null,
+    conversationId: body.conversation_id ? String(body.conversation_id) : null,
     tenantId,
     userId: auth.userId,
     agentId,
@@ -333,8 +301,8 @@ Deno.serve(async (req) => {
     content,
     idempotency_key: idempotencyKey,
     metadata: {
-      input_mode: body.input_mode || "typed",
-      delivery_mode: body.input_mode === "realtime_voice" ? "realtime" : "text",
+      input_mode: inputMode,
+      delivery_mode: inputMode === "realtime_voice" ? "realtime" : "text",
       ...(attachments.length ? { attachments } : {}),
       ...(body.context_metadata && typeof body.context_metadata === "object"
         ? { context: body.context_metadata }
@@ -394,18 +362,16 @@ Deno.serve(async (req) => {
         skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
       ),
       attachments,
-      inputMode: (body.input_mode || "typed") as InputMode,
+      inputMode,
       idempotencyKey,
       brainAllowed: (slug) => brainLevel(accessRow, slug) !== null,
-      history: Array.isArray(body.conversation_history)
-        ? body.conversation_history
-        : [],
+      history: parseConversationHistory(body.conversation_history),
     });
     await setConversationStatus(sb, conv.id, result.status);
     await sb
       .from("ai_conversation_messages")
       .update({
-        metadata: { dispatch: result, input_mode: body.input_mode || "typed" },
+        metadata: { dispatch: result, input_mode: inputMode },
       })
       .eq("tenant_id", tenantId)
       .eq("idempotency_key", idempotencyKey);
@@ -413,10 +379,10 @@ Deno.serve(async (req) => {
       await setConversationStatus(sb, conv.id, "idle");
     }
     return json(200, result);
-  } catch (e: any) {
+  } catch (e) {
     await setConversationStatus(sb, conv.id, "error");
-    console.error("[agent-channel-send]", e?.message ?? e);
-    return json(500, { error: String(e?.message ?? e) });
+    console.error("[agent-channel-send]", errorMessageOr(e));
+    return json(500, { error: String(errorMessageOr(e)) });
   }
 });
 

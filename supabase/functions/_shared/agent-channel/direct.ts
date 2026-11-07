@@ -43,6 +43,7 @@ import {
 import { codexOpenAiApiEnabled, runtimeEnv } from "../carmen-brain-flags.ts";
 import { launchCodexViaOpenAiApi } from "./codex-api.ts";
 import { sendEnv } from "./brain-env.ts";
+import { parseJsonRecord } from "../unknown-record.ts";
 
 const MAX_TEXT = 100_000;
 
@@ -341,14 +342,9 @@ export async function launchClaude(
     await completeSession(sb, session.id, "failed");
     throw new Error(`Claude routine fire ${resp.status}: ${raw.slice(0, 300)}`);
   }
-  let data: any = {};
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
+  const data = parseJsonRecord(raw);
   const url = String(
-    data?.claude_code_session_url || data?.claude_code_session_id || "",
+    data.claude_code_session_url || data.claude_code_session_id || "",
   );
   await upsertRunningSession(sb, {
     tenant_id: ctx.tenantId,
