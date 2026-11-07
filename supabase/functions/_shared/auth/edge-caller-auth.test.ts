@@ -3,6 +3,7 @@ import {
   authorizeSecretOrServiceRole,
   bearerFrom,
   isGatewayServiceRoleRequest,
+  projectServiceRoleKeys,
   isServiceRoleRequest,
   jwtRole,
   trustedInternalCron,
@@ -102,38 +103,55 @@ Deno.test(
   },
 );
 
-const ENV_KEY = "sb_secret_env_key";
-const VAULT_ENV_KEY_JWT = fakeJwt({ role: "service_role", iss: "supabase" });
+const LEGACY_KEY = "legacy-service-role-key";
+const SECRET_KEY = "sb_secret_staging_key";
+const KEYS = [LEGACY_KEY, SECRET_KEY];
+const VAULT_SERVICE_JWT = fakeJwt({ role: "service_role", iss: "supabase" });
 const FUNCTIONS_DIR = new URL("../../", import.meta.url);
 
-Deno.test("gateway service role: the env key or a service_role JWT", () => {
+Deno.test("gateway service role: a project key or a service_role JWT", () => {
+  const allowed = (auth: string | null) =>
+    isGatewayServiceRoleRequest(auth, KEYS);
+  assertStrictEquals(allowed(bearer(LEGACY_KEY)), true);
+  // Staging's cron sends a new secret key from Vault (AIO-503).
+  assertStrictEquals(allowed(bearer(SECRET_KEY)), true);
+  // Production's cron sends a legacy JWT the env key does not equal.
+  assertStrictEquals(allowed(bearer(VAULT_SERVICE_JWT)), true);
+  assertStrictEquals(allowed(bearer(ANON_KEY)), false);
   assertStrictEquals(
-    isGatewayServiceRoleRequest(bearer(ENV_KEY), ENV_KEY),
-    true,
-  );
-  // The cron's Vault key differs from the env key (AIO-503).
-  assertStrictEquals(
-    isGatewayServiceRoleRequest(bearer(VAULT_ENV_KEY_JWT), ENV_KEY),
-    true,
-  );
-  assertStrictEquals(
-    isGatewayServiceRoleRequest(bearer(ANON_KEY), ENV_KEY),
+    allowed(bearer(fakeJwt({ role: "authenticated" }))),
     false,
   );
-  assertStrictEquals(
-    isGatewayServiceRoleRequest(
-      bearer(fakeJwt({ role: "authenticated" })),
-      ENV_KEY,
-    ),
-    false,
-  );
-  assertStrictEquals(
-    isGatewayServiceRoleRequest(bearer("other"), ENV_KEY),
-    false,
-  );
-  assertStrictEquals(isGatewayServiceRoleRequest(null, ENV_KEY), false);
-  assertStrictEquals(isGatewayServiceRoleRequest(VAULT_ENV_KEY_JWT, ""), false);
+  assertStrictEquals(allowed(bearer("sb_secret_other")), false);
+  assertStrictEquals(allowed(null), false);
+  assertStrictEquals(allowed(SECRET_KEY), false);
+  assertStrictEquals(isGatewayServiceRoleRequest(bearer(""), []), false);
 });
+
+Deno.test(
+  "projectServiceRoleKeys reads the legacy and every secret key",
+  () => {
+    const env = (vars: Record<string, string>) => (name: string) => vars[name];
+    assertEquals(
+      projectServiceRoleKeys(
+        env({
+          SUPABASE_SERVICE_ROLE_KEY: LEGACY_KEY,
+          SUPABASE_SECRET_KEYS: JSON.stringify({
+            default: SECRET_KEY,
+            billing: "sb_secret_b",
+            bad: 3,
+          }),
+        }),
+      ),
+      [LEGACY_KEY, SECRET_KEY, "sb_secret_b"],
+    );
+    assertEquals(
+      projectServiceRoleKeys(env({ SUPABASE_SECRET_KEYS: "{not json" })),
+      [],
+    );
+    assertEquals(projectServiceRoleKeys(env({})), []);
+  },
+);
 
 Deno.test(
   "every function using the gateway check has verify_jwt = true",

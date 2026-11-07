@@ -17,11 +17,24 @@ describe("isServiceRequest", () => {
   it("accepts the env key and the cron's Vault service-role JWT (AIO-503)", () => {
     const vaultJwt = fakeJwt({ role: "service_role", iss: "supabase" });
     assertStrictEquals(
-      isServiceRequest(req("Bearer env-key"), "env-key"),
+      isServiceRequest(req("Bearer env-key"), ["env-key", "sb_secret_staging"]),
       true,
     );
     assertStrictEquals(
-      isServiceRequest(req(`Bearer ${vaultJwt}`), "env-key"),
+      isServiceRequest(req(`Bearer ${vaultJwt}`), [
+        "env-key",
+        "sb_secret_staging",
+      ]),
+      true,
+    );
+  });
+
+  it("accepts Staging's new secret key from Vault", () => {
+    assertStrictEquals(
+      isServiceRequest(req("Bearer sb_secret_staging"), [
+        "env-key",
+        "sb_secret_staging",
+      ]),
       true,
     );
   });
@@ -29,10 +42,16 @@ describe("isServiceRequest", () => {
   it("refuses a user JWT or another key", () => {
     const userJwt = fakeJwt({ role: "authenticated", sub: "u1" });
     assertStrictEquals(
-      isServiceRequest(req(`Bearer ${userJwt}`), "env-key"),
+      isServiceRequest(req(`Bearer ${userJwt}`), [
+        "env-key",
+        "sb_secret_staging",
+      ]),
       false,
     );
-    assertStrictEquals(isServiceRequest(req("Bearer other"), "env-key"), false);
+    assertStrictEquals(
+      isServiceRequest(req("Bearer other"), ["env-key", "sb_secret_staging"]),
+      false,
+    );
   });
 });
 

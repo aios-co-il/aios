@@ -30,13 +30,17 @@ export type WorkerRequest = {
 };
 
 /**
- * True when the caller is the service role: the env key, or the cron's Vault
- * service-role JWT, which the gateway verified (verify_jwt = true, AIO-503).
+ * True when the caller is the service role: one of the project's service keys
+ * or the cron's Vault key, which the gateway verified (verify_jwt = true,
+ * AIO-503).
  */
-export function isServiceRequest(req: Request, serviceKey: string): boolean {
+export function isServiceRequest(
+  req: Request,
+  serviceKeys: Array<string>,
+): boolean {
   return isGatewayServiceRoleRequest(
     req.headers.get("Authorization"),
-    serviceKey,
+    serviceKeys,
   );
 }
 

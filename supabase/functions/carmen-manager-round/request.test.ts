@@ -11,16 +11,19 @@ Deno.test("isServiceCaller accepts only the service role", () => {
       method: "POST",
       headers: auth ? { Authorization: auth } : {},
     });
-  assertEquals(isServiceCaller(req("Bearer service-key"), "service-key"), true);
-  assertEquals(isServiceCaller(req("bearer service-key"), "service-key"), true);
-  assertEquals(isServiceCaller(req("Bearer user-jwt"), "service-key"), false);
+  const keys = ["service-key", "sb_secret_staging"];
+  assertEquals(isServiceCaller(req("Bearer service-key"), keys), true);
+  assertEquals(isServiceCaller(req("bearer service-key"), keys), true);
+  // Staging's cron sends a new secret key from Vault (AIO-503).
+  assertEquals(isServiceCaller(req("Bearer sb_secret_staging"), keys), true);
+  assertEquals(isServiceCaller(req("Bearer user-jwt"), keys), false);
   // The cron sends Vault's service-role JWT, not the env key (AIO-503).
   const vaultJwt = fakeJwt({ role: "service_role", iss: "supabase" });
-  assertEquals(isServiceCaller(req(`Bearer ${vaultJwt}`), "service-key"), true);
+  assertEquals(isServiceCaller(req(`Bearer ${vaultJwt}`), keys), true);
   const userJwt = fakeJwt({ role: "authenticated", sub: "u1" });
-  assertEquals(isServiceCaller(req(`Bearer ${userJwt}`), "service-key"), false);
-  assertEquals(isServiceCaller(req(), "service-key"), false);
-  assertEquals(isServiceCaller(req("Bearer "), ""), false);
+  assertEquals(isServiceCaller(req(`Bearer ${userJwt}`), keys), false);
+  assertEquals(isServiceCaller(req(), keys), false);
+  assertEquals(isServiceCaller(req("Bearer "), []), false);
 });
 
 Deno.test("parseRoundRequest", async (t) => {
