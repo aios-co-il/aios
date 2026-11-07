@@ -6,13 +6,15 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient } from "@tanstack/react-query";
-import { cloneElement } from "react";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import AccountingIntegrations from "./AccountingIntegrations";
-import { incomeWrites, state } from "./AccountingIntegrations.test-fixture";
+import {
+  incomeReads,
+  incomeWrites,
+  state,
+} from "./AccountingIntegrations.test-fixture";
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
@@ -45,6 +47,7 @@ beforeEach(() => {
   state.tenantId = "tenant-1";
   state.failWrite = false;
   state.requests.length = 0;
+  state.incomes.length = 0;
   toast.error.mockClear();
   toast.success.mockClear();
 });
@@ -55,8 +58,8 @@ afterEach(() => {
 
 describe("one-time income tenant readiness", () => {
   it("creates the ready tenant's income and refreshes its caches", async () => {
-    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
     const { user } = await fillIncome();
+    const readsBeforeSave = incomeReads().length;
     await user.click(screen.getByRole("button", { name: "שמור" }));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("הכנסה חד פעמית נוספה"),
@@ -67,33 +70,37 @@ describe("one-time income tenant readiness", () => {
       client_id: "client-1",
       product_name: "Website",
       amount: 125.5,
-      payment_month: format(new Date(), "yyyy-MM"),
+      payment_month: format(subMonths(new Date(), 1), "yyyy-MM"),
       notes: "Invoice note",
     });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["one-time-incomes-all", "tenant-1"],
-    });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["finance-summary", "tenant-1"],
-    });
+    expect(
+      await screen.findByRole("row", { name: /Test client.*Website/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/חד פעמי ב.*: ₪125\.5/)).toBeInTheDocument();
+    expect(incomeReads()).toHaveLength(readsBeforeSave + 1);
+    const refreshedRead = incomeReads().at(-1);
+    const query = new URLSearchParams(refreshedRead?.query);
+    expect(query.get("tenant_id")).toBe("eq.tenant-1");
+    expect(query.get("payment_month")).toBe(
+      `eq.${format(subMonths(new Date(), 1), "yyyy-MM")}`,
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("defensively rejects a synthetic direct-page tenant loss without clearing the form", async () => {
-    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
-    const { user, view, wrapped } = await fillIncome();
+    const { user, view } = await fillIncome();
     // Normal route guards block this state; directly rerendering the page tests its mutation boundary.
     state.tenantId = null;
-    view.rerender(cloneElement(wrapped, undefined, <AccountingIntegrations />));
-    invalidate.mockClear();
+    view.rerender(<AccountingIntegrations />);
+    const readsBeforeSave = incomeReads().length;
     await user.click(screen.getByRole("button", { name: "שמור" }));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("שגיאה בשמירה"),
     );
     expect(incomeWrites()).toEqual([]);
     expect(toast.success).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(incomeReads()).toHaveLength(readsBeforeSave);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("לדוגמה: בניית אתר")).toHaveValue(
       "Website",
@@ -104,15 +111,18 @@ describe("one-time income tenant readiness", () => {
 
   it("preserves failure feedback and the form after a rejected ready-tenant write", async () => {
     state.failWrite = true;
-    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
     const { user } = await fillIncome();
+    const readsBeforeSave = incomeReads().length;
     await user.click(screen.getByRole("button", { name: "שמור" }));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("שגיאה בשמירה"),
     );
     expect(incomeWrites()).toHaveLength(1);
     expect(toast.success).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(incomeReads()).toHaveLength(readsBeforeSave);
+    expect(
+      screen.queryByRole("row", { name: /Test client.*Website/ }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("לדוגמה: בניית אתר")).toHaveValue(
       "Website",
@@ -123,9 +133,10 @@ describe("one-time income tenant readiness", () => {
 /** Fill the real dialog through its inputs and Radix selectors with an isolated query cache. */
 async function fillIncome() {
   const user = userEvent.setup();
-  const wrapped = withTestQuery(<AccountingIntegrations />);
-  const view = render(wrapped);
+  const { wrapper } = createTestQueryHarness();
+  const view = render(<AccountingIntegrations />, { wrapper });
   await screen.findByText("Test client");
+  await waitFor(() => expect(incomeReads()).toHaveLength(1));
   await user.click(screen.getByRole("button", { name: "הכנסה חד פעמית" }));
   const dialog = screen.getByRole("dialog");
   const [clients, months] = within(dialog).getAllByRole("combobox");
@@ -137,11 +148,12 @@ async function fillIncome() {
   await user.type(screen.getByPlaceholderText("לדוגמה: בניית אתר"), "Website");
   await user.type(screen.getByPlaceholderText("0"), "125.5");
   await user.click(months);
-  const month = screen.getAllByRole("option")[0];
+  // Match the already displayed month so a successful refresh cannot come from a changed query key.
+  const month = screen.getAllByRole("option")[1];
   if (!month) {
     throw new Error("Income month missing");
   }
   await user.click(month);
   await user.type(screen.getByPlaceholderText("הערות"), "Invoice note");
-  return { user, view, wrapped };
+  return { user, view };
 }
