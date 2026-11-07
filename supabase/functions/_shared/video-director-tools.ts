@@ -39,20 +39,44 @@ export const isVideoDirectorTool = (name: string) =>
 type QueryResult = { data: unknown; error: { message: string } | null };
 
 type Query = {
-  select: (...args: unknown[]) => Query;
   eq: (...args: unknown[]) => Query;
   order: (...args: unknown[]) => Query;
   limit: (...args: unknown[]) => Query;
-  maybeSingle: () => Promise<QueryResult>;
+  maybeSingle: () => PromiseLike<QueryResult>;
   then: (
     onFulfilled: (value: QueryResult) => unknown,
     onRejected?: (reason: unknown) => unknown,
-  ) => Promise<unknown>;
+  ) => PromiseLike<unknown>;
 };
 
+type VideoDirectorTable =
+  | "marketing_work_items"
+  | "marketing_video_scenes"
+  | "marketing_assets"
+  | "marketing_runs";
+
+/** Builders stay `unknown` here so the generated-schema client fits without deep generic comparison. */
 export type VideoDirectorDb = {
-  from: (table: string) => Query;
-  rpc: (fn: string, args: Record<string, unknown>) => Promise<QueryResult>;
+  from(table: VideoDirectorTable): { select(columns: string): unknown };
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<QueryResult>;
+};
+
+const QUERY_METHODS = ["eq", "order", "limit", "maybeSingle", "then"];
+
+const isQuery = (value: unknown): value is Query =>
+  typeof value === "object" &&
+  value !== null &&
+  QUERY_METHODS.every((key) => typeof Reflect.get(value, key) === "function");
+
+const UNSUPPORTED_CLIENT = { error: "לקוח מסד נתונים לא נתמך" };
+
+const selectFrom = (
+  supabase: VideoDirectorDb,
+  table: VideoDirectorTable,
+  columns: string,
+) => {
+  const query = supabase.from(table).select(columns);
+  return isQuery(query) ? query : null;
 };
 
 const rowsOf = (data: unknown) => (Array.isArray(data) ? data : []);
@@ -72,9 +96,13 @@ export async function executeVideoDirectorTool(
   if (!itemId) return { error: "item_id נדרש" };
   if (!isVideoDirectorTool(name)) return { error: "כלי לא מוכר" };
 
-  const item = await supabase
-    .from("marketing_work_items")
-    .select("id, title, client_id, current_stage_id, payload")
+  const itemQuery = selectFrom(
+    supabase,
+    "marketing_work_items",
+    "id, title, client_id, current_stage_id, payload",
+  );
+  if (!itemQuery) return UNSUPPORTED_CLIENT;
+  const item = await itemQuery
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -98,27 +126,35 @@ export async function executeVideoDirectorTool(
   }
 
   if (name === "get_video_storyboard") {
-    const scenes = await supabase
-      .from("marketing_video_scenes")
-      .select(
-        "id, position, title, status, duration_s, overlay_text, voiceover_text, clip_asset_id, voice_asset_id",
-      )
+    const scenesQuery = selectFrom(
+      supabase,
+      "marketing_video_scenes",
+      "id, position, title, status, duration_s, overlay_text, voiceover_text, clip_asset_id, voice_asset_id",
+    );
+    const musicQuery = selectFrom(
+      supabase,
+      "marketing_assets",
+      "id, url, created_at",
+    );
+    const renderQuery = selectFrom(
+      supabase,
+      "marketing_runs",
+      "id, status, error, output, created_at",
+    );
+    if (!scenesQuery || !musicQuery || !renderQuery) return UNSUPPORTED_CLIENT;
+    const scenes = await scenesQuery
       .eq("item_id", itemId)
       .eq("tenant_id", tenantId)
       .order("position");
     if (scenes.error) return { error: scenes.error.message };
-    const music = await supabase
-      .from("marketing_assets")
-      .select("id, url, created_at")
+    const music = await musicQuery
       .eq("item_id", itemId)
       .eq("tenant_id", tenantId)
       .eq("type", "music")
       .order("created_at", { ascending: false })
       .limit(1);
     if (music.error) return { error: music.error.message };
-    const render = await supabase
-      .from("marketing_runs")
-      .select("id, status, error, output, created_at")
+    const render = await renderQuery
       .eq("item_id", itemId)
       .eq("tenant_id", tenantId)
       .eq("kind", "render")

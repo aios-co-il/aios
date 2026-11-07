@@ -40,6 +40,8 @@ export function scoreNameMatch(fullName, query) {
 
 /**
  * Pick a single staff match from candidate rows.
+ * @param {unknown} candidates
+ * @param {{ id?: string | null, name?: string | null, entityType?: string }} [options]
  * @returns {{ match: object|null, ambiguous: object[]|null, reason: string }}
  */
 export function selectStaffMatch(
