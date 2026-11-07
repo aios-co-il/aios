@@ -41,6 +41,10 @@ export function EventUsersTable({
           <p className="text-sm text-muted-foreground">
             טוען נתונים מ-Google Analytics…
           </p>
+        ) : !result && !failed ? (
+          <p className="text-sm text-muted-foreground">
+            בחרו טווח תאריכים כדי לראות את המשתמשים
+          </p>
         ) : failed || !result ? (
           <p className="text-sm text-muted-foreground">
             לא הצלחנו לטעון את נתוני המשתמשים מ-Google Analytics
