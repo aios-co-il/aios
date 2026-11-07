@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ComponentProps } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +65,8 @@ import {
   type ClientMoodStatus,
 } from "@/lib/clientMoodHistory";
 import { SeoUpdateModal } from "@/components/clients/SeoUpdateModal";
+import { isClientMoodStatus } from "@/lib/crmEnums";
+import { toTaskDetail } from "@/lib/taskDetail";
 
 interface ClientUpdatesTabProps {
   clientId: string;
@@ -115,7 +117,8 @@ export function ClientUpdatesTab({
   const [moodFilter, setMoodFilter] = useState<MoodFilter>("all");
   const [sourceFilter, setSourceFilter] =
     useState<ClientUpdateSourceFilter>("all");
-  const [editingTask, setEditingTask] = useState<any>(null);
+  const [editingTask, setEditingTask] =
+    useState<ComponentProps<typeof TaskDetailDialog>["task"]>(null);
   const [newUpdate, setNewUpdate] = useState("");
   const [newUpdateType, setNewUpdateType] = useState<string>("weekly_update");
   const [seoUpdateOpen, setSeoUpdateOpen] = useState(false);
@@ -146,7 +149,7 @@ export function ClientUpdatesTab({
     queryKey: ["comm-log-latest", clientId],
     queryFn: async () => {
       try {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from("communication_logs")
           .select("status, interaction_type, note, created_at")
           .eq("client_id", clientId)
@@ -167,14 +170,16 @@ export function ClientUpdatesTab({
     mutationFn: async (statusOverride?: string) => {
       if (!tenantId || !user?.id) throw new Error("Missing tenant or user");
       const statusToSave = statusOverride ?? commStatus;
+      if (!isClientMoodStatus(statusToSave))
+        throw new Error(`Invalid mood status: ${statusToSave}`);
       // 1) Update mood_status FIRST so the main badge syncs even if log insert fails
       const { error: clientError } = await supabase
         .from("clients")
-        .update({ mood_status: statusToSave } as any)
+        .update({ mood_status: statusToSave })
         .eq("id", clientId);
       if (clientError) throw clientError;
       // 2) Then insert into communication_logs (best-effort)
-      const { error: logError } = await (supabase as any)
+      const { error: logError } = await supabase
         .from("communication_logs")
         .insert({
           client_id: clientId,
@@ -203,7 +208,7 @@ export function ClientUpdatesTab({
       queryClient.invalidateQueries({ queryKey: ["client", clientId] });
       toast.success("מצב לקוח עודכן");
     },
-    onError: (err: any) => toast.error(err?.message || "שגיאה בשמירת עדכון"),
+    onError: (err) => toast.error(err?.message || "שגיאה בשמירת עדכון"),
   });
 
   // Fetch tasks
@@ -305,7 +310,7 @@ export function ClientUpdatesTab({
         user_id: user.id,
         content,
         update_type: resolvedUpdateType,
-      } as any);
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -465,15 +470,13 @@ export function ClientUpdatesTab({
                 {latestComm && (
                   <p className="text-xs text-muted-foreground">
                     עדכון אחרון:{" "}
-                    {format(
-                      new Date((latestComm as any).created_at),
-                      "d/M/yy",
-                      { locale: he },
-                    )}
+                    {format(new Date(latestComm.created_at ?? 0), "d/M/yy", {
+                      locale: he,
+                    })}
                     {" — "}
                     {MOOD_STATUS_OPTIONS.find(
-                      (o) => o.value === (latestComm as any).status,
-                    )?.label ?? (latestComm as any).status}
+                      (o) => o.value === latestComm.status,
+                    )?.label ?? latestComm.status}
                   </p>
                 )}
               </div>
@@ -880,7 +883,7 @@ export function ClientUpdatesTab({
                   clientName={clientName}
                   compact
                   tintByPriority
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,
@@ -922,7 +925,7 @@ export function ClientUpdatesTab({
                   clientName={clientName}
                   compact
                   tintByPriority
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,

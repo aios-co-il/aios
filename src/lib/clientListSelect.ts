@@ -50,7 +50,12 @@ export const CLIENT_LIST_COLUMNS = [
 ] as const;
 
 export const CLIENT_LIST_SELECT = `
-  ${CLIENT_LIST_COLUMNS.join(", ")},
+  id, name, status, agency_id, tenant_id, is_seo_client, services, created_at,
+  updated_at, phone, contact_name, email, website, notes, start_date, end_date,
+  mood_status, health_score, tier, industry, monthly_budget, retainer,
+  monthly_fixed_expense, folder_link, folder_links, attachments,
+  whatsapp_group_id, meta_ads_account_id, google_ads_account_id,
+  ga_property_id, gsc_site_url, ahrefs_domain,
   agencies (name),
   client_team (
     campaigner_id,

@@ -48,7 +48,7 @@ export function ClientLinkedFiles({
 
   return (
     <div className="space-y-1.5">
-      {files.map((file: any) => (
+      {files.map((file) => (
         <a
           key={file.id}
           href={file.file_url}

@@ -1,3 +1,4 @@
+import { thrownMessage } from "../_shared/lead-json.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -49,9 +50,9 @@ serve(async (req: Request) => {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (e: any) {
+  } catch (e) {
     return new Response(
-      JSON.stringify({ error: e?.message || "Unknown error" }),
+      JSON.stringify({ error: thrownMessage(e) || "Unknown error" }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

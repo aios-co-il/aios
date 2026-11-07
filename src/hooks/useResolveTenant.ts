@@ -8,7 +8,7 @@ export async function resolveTenantSlug(
   userId: string,
   retries = 3,
 ): Promise<string | null> {
-  let lastError: any = null;
+  let lastError: unknown = null;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
@@ -18,7 +18,7 @@ export async function resolveTenantSlug(
       }
 
       // 1) Try active tenant mapping first
-      const { data: activeTenant, error: activeError } = await (supabase as any)
+      const { data: activeTenant, error: activeError } = await supabase
         .from("user_active_tenant")
         .select("tenant_id, tenants(slug, status)")
         .eq("user_id", userId)
@@ -31,14 +31,13 @@ export async function resolveTenantSlug(
         );
       }
 
-      const activeSlug = (activeTenant as any)?.tenants?.slug as
-        string | undefined;
+      const activeSlug = activeTenant?.tenants?.slug;
       if (activeSlug) {
         return activeSlug;
       }
 
       // 2) Fall back to first available tenant from memberships
-      const { data: userTenants, error: tenantsError } = await (supabase as any)
+      const { data: userTenants, error: tenantsError } = await supabase
         .from("tenant_users")
         .select("tenant_id, tenants(slug, status)")
         .eq("user_id", userId)
@@ -61,18 +60,18 @@ export async function resolveTenantSlug(
 
       // Prefer marketingcaptain tenant if user is a member
       const mcTenant = (userTenants || []).find(
-        (t: any) => t?.tenants?.slug === "marketingcaptain",
+        (t) => t?.tenants?.slug === "marketingcaptain",
       );
-      const candidate: any =
+      const candidate =
         mcTenant ||
-        (userTenants || []).find((t: any) => t?.tenants?.status === "active") ||
+        (userTenants || []).find((t) => t?.tenants?.status === "active") ||
         (userTenants || [])[0];
-      const candidateSlug = candidate?.tenants?.slug as string | undefined;
-      const candidateTenantId = candidate?.tenant_id as string | undefined;
+      const candidateSlug = candidate?.tenants?.slug;
+      const candidateTenantId = candidate?.tenant_id;
 
       if (candidateSlug && candidateTenantId) {
         // Persist as active for next time
-        await (supabase as any).from("user_active_tenant").upsert(
+        await supabase.from("user_active_tenant").upsert(
           {
             user_id: userId,
             tenant_id: candidateTenantId,

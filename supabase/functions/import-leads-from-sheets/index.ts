@@ -1,3 +1,4 @@
+import { asObject, thrownMessage } from "../_shared/lead-json.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -152,6 +153,55 @@ const parseCreatedAt = (val: string): string | null => {
   return dateOnly ? `${dateOnly}T00:00:00Z` : null;
 };
 
+type ImportedLead = {
+  tenant_id: string;
+  agency_id: string | null;
+  company_name?: string;
+  contact_name?: string;
+  notes?: string;
+  products?: string;
+  campaign_name?: string;
+  industry?: string;
+  folder_link?: string;
+  email?: string;
+  phone?: string;
+  source?: string;
+  status?: string;
+  response_status?: string;
+  monthly_budget?: number;
+  three_month_budget?: number;
+  estimated_deal_value?: number;
+  created_at?: string;
+  updated_at?: string;
+  proposal_date?: string;
+  proposal_sent_date?: string;
+  won_date?: string;
+  sale_date?: string;
+  closing_date?: string;
+};
+
+/** Fields filled on an existing lead only when it has no value yet. */
+const FILL_IF_EMPTY_FIELDS = [
+  "contact_name",
+  "email",
+  "phone",
+  "notes",
+  "monthly_budget",
+  "three_month_budget",
+  "products",
+  "campaign_name",
+  "industry",
+  "folder_link",
+] as const;
+
+function copyLeadField<K extends keyof ImportedLead>(
+  to: Partial<ImportedLead>,
+  from: ImportedLead,
+  key: K,
+) {
+  to[key] = from[key];
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -275,7 +325,9 @@ Deno.serve(async (req) => {
     if (fetchHeadersOnly) {
       const previewRows = rows
         .slice(1, 6)
-        .map((row: any[]) => row.map((cell: any) => String(cell || "").trim()));
+        .map((row: unknown[]) =>
+          row.map((cell: unknown) => String(cell || "").trim()),
+        );
       return new Response(JSON.stringify({ headers, previewRows }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -351,10 +403,10 @@ Deno.serve(async (req) => {
     // Process each data row
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      const rowData: Record<string, any> = {};
+      const rowData: Record<string, string> = {};
 
       // Map row values to fields
-      row.forEach((value: any, index: number) => {
+      row.forEach((value: unknown, index: number) => {
         const field = headerMapping[index];
         if (field && value) {
           rowData[field] = String(value).trim();
@@ -372,7 +424,7 @@ Deno.serve(async (req) => {
       }
 
       // Prepare lead data
-      const leadData: Record<string, any> = {
+      const leadData: ImportedLead = {
         tenant_id: tenantId,
         agency_id: agencyId || null,
       };
@@ -493,28 +545,14 @@ Deno.serve(async (req) => {
 
         if (existingLead) {
           // Only update fields that are empty in existing lead but have values in new data
-          const updates: Record<string, any> = {};
+          const updates: Partial<ImportedLead> = {};
           let hasUpdates = false;
 
-          const existingLeadRecord = existingLead as Record<string, any>;
+          const existingLeadRecord = asObject(existingLead);
 
-          // Fields to check and update if empty
-          const fieldsToCheck = [
-            "contact_name",
-            "email",
-            "phone",
-            "notes",
-            "monthly_budget",
-            "three_month_budget",
-            "products",
-            "campaign_name",
-            "industry",
-            "folder_link",
-          ];
-
-          for (const field of fieldsToCheck) {
-            if (!existingLeadRecord[field] && leadData[field]) {
-              updates[field] = leadData[field];
+          for (const field of FILL_IF_EMPTY_FIELDS) {
+            if (!existingLeadRecord?.[field] && leadData[field]) {
+              copyLeadField(updates, leadData, field);
               hasUpdates = true;
             }
           }
@@ -577,9 +615,9 @@ Deno.serve(async (req) => {
             updatesAddedCount++;
           }
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error(`Error processing row ${i + 1}:`, error);
-        errors.push(`Row ${i + 1}: ${error.message}`);
+        errors.push(`Row ${i + 1}: ${thrownMessage(error)}`);
       }
     }
 
@@ -593,9 +631,9 @@ Deno.serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Import error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: thrownMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

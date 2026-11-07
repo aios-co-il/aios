@@ -1,5 +1,7 @@
+import { thrownMessage } from "../_shared/lead-json.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import type { Database } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +33,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const supabase = createClient<Database>(supabaseUrl, serviceRoleKey);
 
     const token = authHeader.replace("Bearer ", "");
     const {
@@ -60,7 +62,7 @@ serve(async (req: Request) => {
       .select("role")
       .eq("user_id", user.id);
 
-    const isSuperAdmin = rolesData?.some((r: any) => r.role === "super_admin");
+    const isSuperAdmin = rolesData?.some((r) => r.role === "super_admin");
 
     // Validate scope_tenant_id: check if user is a member of that tenant
     let effectiveTenantId: string | null = null;
@@ -120,14 +122,13 @@ serve(async (req: Request) => {
         .eq("user_id", user.id)
         .eq("role", "owner");
       isOwnerOfMarketingCaptain = (ownedTenants || []).some(
-        (r: any) =>
-          (r as any)?.tenants?.slug?.toLowerCase() === "marketingcaptain",
+        (r) => r.tenants?.slug?.toLowerCase() === "marketingcaptain",
       );
     } catch (e) {
       console.warn("Ownership check failed:", e);
     }
 
-    let tenants: any[] = [];
+    let tenants: unknown[] = [];
 
     if (isSuperAdmin) {
       // Super admins see ALL tenants
@@ -177,8 +178,8 @@ serve(async (req: Request) => {
       }
 
       const userTenants = (data || [])
-        .map((row: any) => row.tenants)
-        .filter((t: any) => t && t.id && t.name);
+        .map((row) => row.tenants)
+        .filter((t) => t && t.id && t.name);
 
       // Always show ALL tenants the user is a member of so they can switch between them
       tenants = userTenants;
@@ -188,10 +189,10 @@ serve(async (req: Request) => {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("list-user-tenants error:", error);
     return new Response(
-      JSON.stringify({ error: error?.message || "Internal error" }),
+      JSON.stringify({ error: thrownMessage(error) || "Internal error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

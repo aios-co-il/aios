@@ -195,7 +195,7 @@ export function CreateOrgForClientDialog({
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
       onCreated?.(data.tenant.id);
     },
-    onError: (e: any) => {
+    onError: (e) => {
       toast.error("שגיאה ביצירת הארגון: " + (e?.message || "אירעה שגיאה"));
     },
   });

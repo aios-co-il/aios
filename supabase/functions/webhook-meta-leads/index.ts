@@ -1,3 +1,5 @@
+import { thrownMessage } from "../_shared/lead-json.ts";
+import { buildLeadNotes, extractLeads } from "./parse-leads.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveTenantHomeAgencyId } from "../_shared/resolve-tenant-agency.ts";
 
@@ -165,8 +167,8 @@ Deno.serve(async (req) => {
         } else {
           created++;
         }
-      } catch (err: any) {
-        errors.push(`Lead processing error: ${err.message}`);
+      } catch (err) {
+        errors.push(`Lead processing error: ${thrownMessage(err)}`);
       }
     }
 
@@ -186,9 +188,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("webhook-meta-leads error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: thrownMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -198,113 +200,4 @@ Deno.serve(async (req) => {
 function normalizePhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
   return phone.replace(/[\s\-().+]/g, "").replace(/^0/, "972");
-}
-
-interface ParsedLead {
-  name?: string;
-  company_name?: string;
-  contact_name?: string;
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  form_name?: string;
-  campaign_name?: string;
-  ad_name?: string;
-  leadgen_id?: string;
-  raw?: any;
-}
-
-function extractLeads(body: any): ParsedLead[] {
-  const leads: ParsedLead[] = [];
-
-  // Format 1: Unified.to webhook format (array of leads)
-  if (Array.isArray(body)) {
-    for (const item of body) {
-      leads.push(parseLeadItem(item));
-    }
-    return leads;
-  }
-
-  // Format 2: Unified.to single lead
-  if (body.id && (body.emails || body.telephones || body.name)) {
-    leads.push(parseUnifiedLead(body));
-    return leads;
-  }
-
-  // Format 3: Meta direct webhook format
-  if (body.entry) {
-    for (const entry of body.entry) {
-      for (const change of entry.changes || []) {
-        if (change.field === "leadgen" && change.value) {
-          leads.push({
-            leadgen_id: change.value.leadgen_id,
-            form_name: change.value.form_id,
-            campaign_name: change.value.ad_id,
-            raw: change.value,
-          });
-        }
-      }
-    }
-    return leads;
-  }
-
-  // Format 4: Make.com / generic format
-  if (body.data && Array.isArray(body.data)) {
-    for (const item of body.data) {
-      leads.push(parseLeadItem(item));
-    }
-    return leads;
-  }
-
-  // Format 5: Single lead object
-  if (body.email || body.phone || body.name || body.contact_name) {
-    leads.push(parseLeadItem(body));
-    return leads;
-  }
-
-  // Format 6: Wrapped in 'lead' key
-  if (body.lead) {
-    leads.push(parseLeadItem(body.lead));
-    return leads;
-  }
-
-  return leads;
-}
-
-function parseUnifiedLead(item: any): ParsedLead {
-  return {
-    name: item.name || item.company_name || "",
-    contact_name: item.name || "",
-    email: Array.isArray(item.emails) ? item.emails[0]?.email : item.email,
-    phone: Array.isArray(item.telephones)
-      ? item.telephones[0]?.telephone
-      : item.phone,
-    company_name: item.company_name || item.company || "",
-    raw: item,
-  };
-}
-
-function parseLeadItem(item: any): ParsedLead {
-  return {
-    name: item.name || item.company_name || item.full_name || "",
-    contact_name: item.contact_name || item.full_name || item.name || "",
-    full_name: item.full_name || item.name || "",
-    email: item.email || item.Email || item.EMAIL || "",
-    phone: item.phone || item.Phone || item.PHONE || item.phone_number || "",
-    company_name: item.company_name || item.company || item.business_name || "",
-    form_name: item.form_name || item.form_id || "",
-    campaign_name: item.campaign_name || item.campaign_id || "",
-    ad_name: item.ad_name || item.ad_id || "",
-    leadgen_id: item.leadgen_id || item.id || "",
-    raw: item,
-  };
-}
-
-function buildLeadNotes(lead: ParsedLead): string {
-  const parts: string[] = ["מקור: Meta Lead Ads"];
-  if (lead.form_name) parts.push(`טופס: ${lead.form_name}`);
-  if (lead.campaign_name) parts.push(`קמפיין: ${lead.campaign_name}`);
-  if (lead.ad_name) parts.push(`מודעה: ${lead.ad_name}`);
-  if (lead.leadgen_id) parts.push(`leadgen_id: ${lead.leadgen_id}`);
-  return parts.join("\n");
 }

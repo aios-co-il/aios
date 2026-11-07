@@ -68,7 +68,7 @@ export function ImportClientsSheet({
       setSheetId("");
       setRange("Sheet1!A:I");
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בייבוא לקוחות: " + error.message);
     },
   });

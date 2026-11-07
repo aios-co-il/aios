@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { parseClientServices } from "@/lib/clientServices";
 
 export interface ClientConnections {
   client: {
@@ -51,9 +52,14 @@ export function useClientConnections(clientId: string | null | undefined) {
         .eq("client_id", clientId!);
 
       return {
-        client: (clientRes.data as any) ?? null,
-        socialPages: (pagesRes.data as any) ?? [],
-        wpSites: (wpRes.data as any) ?? [],
+        client: clientRes.data
+          ? {
+              ...clientRes.data,
+              services: parseClientServices(clientRes.data.services),
+            }
+          : null,
+        socialPages: pagesRes.data ?? [],
+        wpSites: wpRes.data ?? [],
       };
     },
   });

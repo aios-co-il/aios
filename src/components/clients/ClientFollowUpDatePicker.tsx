@@ -97,7 +97,7 @@ export function ClientFollowUpDatePicker({
       setDialogOpen(false);
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה בעדכון תאריך לשיחה",
         description: error.message,

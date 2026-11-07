@@ -31,6 +31,8 @@ import {
 } from "@/lib/pulseDashboard";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { errorMessageOf } from "@/lib/errorMessage";
+import { toJson } from "@/lib/json";
 
 const OVERRIDE_OPTIONS: OverallStatus[] = ["green", "yellow", "red"];
 
@@ -94,7 +96,7 @@ export function PulseStatusOverrideDialog({
     setSaving(true);
     try {
       if (target.activeOverride?.id) {
-        const { error: clearError } = await (supabase as any)
+        const { error: clearError } = await supabase
           .from("campaign_pulse_overrides")
           .update({ cleared_at: new Date().toISOString(), cleared_by: user.id })
           .eq("id", target.activeOverride.id)
@@ -104,7 +106,7 @@ export function PulseStatusOverrideDialog({
 
       if (overrideStatus !== target.algorithmOverall) {
         const algorithmStatus = target.pulse?.status ?? "no_data";
-        const { error: insertError } = await (supabase as any)
+        const { error: insertError } = await supabase
           .from("campaign_pulse_overrides")
           .insert({
             tenant_id: tenantId,
@@ -113,13 +115,13 @@ export function PulseStatusOverrideDialog({
             override_status: overrideStatus,
             reason: trimmedReason,
             algorithm_flags: target.flags,
-            algorithm_metrics: buildPulseAlgorithmMetrics(target.pulse),
+            algorithm_metrics: toJson(buildPulseAlgorithmMetrics(target.pulse)),
             snapshot_calculated_at: target.pulse?.calculated_at ?? null,
             created_by: user.id,
           });
         if (insertError) throw insertError;
 
-        const algoOverall = pulseStatusToOverall(algorithmStatus as any);
+        const algoOverall = pulseStatusToOverall(algorithmStatus);
         const historyContent = [
           `בדיקת דופק — שינוי ידני: ${overallStatusLabel(algoOverall)} → ${overallStatusLabel(overrideStatus)}`,
           `הסבר: ${trimmedReason}`,
@@ -136,7 +138,7 @@ export function PulseStatusOverrideDialog({
           user_id: user.id,
           content: historyContent,
           update_type: "pulse_override",
-        } as any);
+        });
       }
 
       toast.success(
@@ -146,8 +148,8 @@ export function PulseStatusOverrideDialog({
       );
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.message || "שגיאה בשמירה");
+    } catch (err) {
+      toast.error(errorMessageOf(err) || "שגיאה בשמירה");
     } finally {
       setSaving(false);
     }
@@ -157,7 +159,7 @@ export function PulseStatusOverrideDialog({
     if (!target.activeOverride?.id || !user?.id) return;
     setSaving(true);
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("campaign_pulse_overrides")
         .update({ cleared_at: new Date().toISOString(), cleared_by: user.id })
         .eq("id", target.activeOverride.id)
@@ -166,8 +168,8 @@ export function PulseStatusOverrideDialog({
       toast.success("הוחזר לחישוב אוטומטי");
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.message || "שגיאה בהחזרה");
+    } catch (err) {
+      toast.error(errorMessageOf(err) || "שגיאה בהחזרה");
     } finally {
       setSaving(false);
     }

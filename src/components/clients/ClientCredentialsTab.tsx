@@ -14,6 +14,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface ClientCredentialsTabProps {
   clientId: string;
@@ -122,7 +123,7 @@ export function ClientCredentialsTab({
   const { data: credentials = [] } = useQuery({
     queryKey: ["client-credentials", clientId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("client_credentials")
         .select("*")
         .eq("client_id", clientId)
@@ -137,25 +138,23 @@ export function ClientCredentialsTab({
     setVisiblePasswords((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = (text: string | null, label: string) => {
+    navigator.clipboard.writeText(text ?? "");
     toast.success(`${label} הועתק`);
   };
 
   const handleAdd = async () => {
     if (!newCred.service_name.trim()) return;
     try {
-      const { error } = await (supabase as any)
-        .from("client_credentials")
-        .insert({
-          client_id: clientId,
-          tenant_id: tenantId,
-          service_name: newCred.service_name.trim(),
-          username: newCred.username.trim() || null,
-          password: newCred.password.trim() || null,
-          url: newCred.url.trim() || null,
-          notes: newCred.notes.trim() || null,
-        });
+      const { error } = await supabase.from("client_credentials").insert({
+        client_id: clientId,
+        tenant_id: tenantId,
+        service_name: newCred.service_name.trim(),
+        username: newCred.username.trim() || null,
+        password: newCred.password.trim() || null,
+        url: newCred.url.trim() || null,
+        notes: newCred.notes.trim() || null,
+      });
       if (error) throw error;
       toast.success("פרטי גישה נוספו");
       setAdding(false);
@@ -169,7 +168,7 @@ export function ClientCredentialsTab({
     }
   };
 
-  const handleEdit = (cred: any) => {
+  const handleEdit = (cred: Tables<"client_credentials">) => {
     setEditingId(cred.id);
     setEditCred({
       service_name: cred.service_name || "",
@@ -183,7 +182,7 @@ export function ClientCredentialsTab({
   const handleUpdate = async () => {
     if (!editingId || !editCred.service_name.trim()) return;
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("client_credentials")
         .update({
           service_name: editCred.service_name.trim(),
@@ -208,7 +207,7 @@ export function ClientCredentialsTab({
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("client_credentials")
         .delete()
         .eq("id", id);
@@ -255,7 +254,7 @@ export function ClientCredentialsTab({
 
       {credentials.length > 0 ? (
         <div className="space-y-2">
-          {credentials.map((cred: any) =>
+          {credentials.map((cred) =>
             editingId === cred.id ? (
               <CredForm
                 key={cred.id}

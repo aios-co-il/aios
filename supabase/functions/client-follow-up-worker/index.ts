@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database } from "../_shared/database.types.ts";
+import { asObject } from "../_shared/lead-json.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import { isFollowUpDue } from "./schedule.ts";
 import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
 
@@ -72,7 +75,9 @@ async function invokeNotification(
   if (body?.success === true) {
     const delivered =
       Array.isArray(body.results) &&
-      body.results.some((result: any) => result?.success === true);
+      body.results.some(
+        (result: unknown) => asObject(result)?.success === true,
+      );
     return { delivered, body };
   }
   throw new Error(
@@ -83,7 +88,7 @@ async function invokeNotification(
 }
 
 async function claimMarker(
-  supabase: ReturnType<typeof createClient>,
+  supabase: DbClient,
   clientId: string,
   marker: "follow_up_campaigner_notified_at" | "follow_up_manager_notified_at",
 ) {
@@ -100,7 +105,7 @@ async function claimMarker(
 }
 
 async function releaseMarker(
-  supabase: ReturnType<typeof createClient>,
+  supabase: DbClient,
   clientId: string,
   marker: "follow_up_campaigner_notified_at" | "follow_up_manager_notified_at",
   claimedAt: string,
@@ -112,10 +117,7 @@ async function releaseMarker(
     .eq(marker, claimedAt);
 }
 
-async function fetchClient(
-  supabase: ReturnType<typeof createClient>,
-  clientId: string,
-) {
+async function fetchClient(supabase: DbClient, clientId: string) {
   const { data, error } = await supabase
     .from("clients")
     .select(
@@ -128,7 +130,7 @@ async function fetchClient(
 }
 
 async function getActiveCampaigners(
-  supabase: ReturnType<typeof createClient>,
+  supabase: DbClient,
   clientId: string,
 ): Promise<Recipient[]> {
   const today = new Date().toISOString().slice(0, 10);
@@ -143,7 +145,7 @@ async function getActiveCampaigners(
   const recipients: Recipient[] = [];
   const seenPhones = new Set<string>();
   for (const row of data || []) {
-    const campaigner = (row as any).campaigners;
+    const campaigner = row.campaigners;
     if (!campaigner?.active || !campaigner?.phone) continue;
     const phone = String(campaigner.phone).trim();
     if (!phone || seenPhones.has(phone)) continue;
@@ -158,7 +160,7 @@ async function getActiveCampaigners(
 }
 
 async function getManagers(
-  supabase: ReturnType<typeof createClient>,
+  supabase: DbClient,
   client: ClientRow,
 ): Promise<Recipient[]> {
   if (!client.tenant_id) return [];
@@ -181,8 +183,7 @@ async function getManagers(
   if (managedError) throw managedError;
 
   const managerUserIds = new Set<string>();
-  for (const row of roleRows || [])
-    managerUserIds.add(String((row as any).user_id));
+  for (const row of roleRows || []) managerUserIds.add(String(row.user_id));
 
   const { data: teamManagerRoles, error: teamManagerError } = await supabase
     .from("user_roles")
@@ -191,10 +192,10 @@ async function getManagers(
     .eq("role", "team_manager");
   if (teamManagerError) throw teamManagerError;
   const managedUserIds = new Set(
-    (managedRows || []).map((row: any) => String(row.user_id)),
+    (managedRows || []).map((row) => String(row.user_id)),
   );
   for (const row of teamManagerRoles || []) {
-    const userId = String((row as any).user_id);
+    const userId = String(row.user_id);
     if (managedUserIds.has(userId)) managerUserIds.add(userId);
   }
 
@@ -209,12 +210,12 @@ async function getManagers(
   const recipients: Recipient[] = [];
   const seenPhones = new Set<string>();
   for (const profile of profiles || []) {
-    const phone = String((profile as any).phone || "").trim();
+    const phone = String(profile.phone || "").trim();
     if (!phone || seenPhones.has(phone)) continue;
     seenPhones.add(phone);
     recipients.push({
-      id: (profile as any).id,
-      full_name: String((profile as any).full_name || ""),
+      id: profile.id,
+      full_name: String(profile.full_name || ""),
       phone,
     });
   }
@@ -222,7 +223,7 @@ async function getManagers(
 }
 
 async function notifyRecipients(
-  supabase: ReturnType<typeof createClient>,
+  supabase: DbClient,
   client: ClientRow,
   triggerType: NotificationType,
   marker: "follow_up_campaigner_notified_at" | "follow_up_manager_notified_at",
@@ -286,10 +287,7 @@ async function notifyRecipients(
   return results;
 }
 
-async function processClient(
-  supabase: ReturnType<typeof createClient>,
-  client: ClientRow,
-) {
+async function processClient(supabase: DbClient, client: ClientRow) {
   if (!client.follow_up_date) return [];
   if (!["active", "onboarding"].includes(client.status)) return [];
   if (!isFollowUpDue(client.follow_up_date)) return [];
@@ -338,7 +336,10 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient<Database>(
+    SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY,
+  );
   const results: unknown[] = [];
   const errors: Array<{ client_id: string; error: string }> = [];
 

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,9 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveUpdateAuthorName } from "@/lib/updateAuthor";
 import { useTenantMemberNames } from "@/hooks/useTenantMemberNames";
 import { ensureLeadHomeAgency } from "@/lib/resolveTenantAgencyDb";
+import { toTaskDetail } from "@/lib/taskDetail";
+
+type DialogTask = ComponentProps<typeof TaskDetailDialog>["task"];
 
 interface LeadUpdatesTabProps {
   leadId: string;
@@ -45,7 +48,7 @@ type DateFilter = "week" | "month" | "all";
 
 export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("month");
-  const [editingTask, setEditingTask] = useState<any>(null);
+  const [editingTask, setEditingTask] = useState<DialogTask>(null);
   const [newUpdate, setNewUpdate] = useState("");
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
@@ -316,7 +319,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
             <h3 className="font-semibold">היסטוריית עדכונים</h3>
           </div>
           <div className="space-y-2">
-            {updates.map((update: any) => {
+            {updates.map((update) => {
               const isEditing = editingUpdateId === update.id;
               const isOwner = user?.id === update.user_id;
 
@@ -456,7 +459,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
                   isCompleted={false}
                   compact
                   tintByPriority
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,
@@ -497,7 +500,7 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
                   isCompleted
                   compact
                   tintByPriority
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toTaskDetail(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,

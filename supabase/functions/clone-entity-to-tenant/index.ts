@@ -7,6 +7,11 @@
 // - Cloned automations/pipelines are created INACTIVE (safety: never auto-run).
 // - Reports integrations referenced by the entity that are missing in the target,
 //   so the user knows what to connect before activating.
+import {
+  asObject,
+  thrownMessage,
+  type UnknownObject,
+} from "../_shared/lead-json.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -40,6 +45,15 @@ const INTEGRATION_TOKENS: Array<{ token: RegExp; type: string }> = [
 function newId(): string {
   return crypto.randomUUID();
 }
+
+type CloneResult = {
+  tenant_id: string;
+  success: boolean;
+  error?: unknown;
+  new_id?: string | null;
+  already_exists?: boolean;
+  missing_integrations?: string[];
+};
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -108,13 +122,17 @@ serve(async (req: Request) => {
       .select("role, tenant_id")
       .eq("user_id", user.id);
     const isSuperAdmin = (roles || []).some(
-      (r: any) => r.role === "super_admin",
+      (r: unknown) => asObject(r)?.role === "super_admin",
     );
     const hasSourceAdmin =
       isSuperAdmin ||
-      (roles || []).some(
-        (r: any) => r.tenant_id === sourceTenantId && ADMIN_ROLES.has(r.role),
-      );
+      (roles || []).some((r: unknown) => {
+        const role = asObject(r);
+        return (
+          role?.tenant_id === sourceTenantId &&
+          ADMIN_ROLES.has(String(role.role))
+        );
+      });
     if (!hasSourceAdmin)
       return json({ error: "No permission on source entity" }, 403);
 
@@ -123,7 +141,7 @@ serve(async (req: Request) => {
       .select("tenant_id")
       .eq("user_id", user.id);
     const memberTenantIds = new Set(
-      (memberships || []).map((m: any) => m.tenant_id),
+      (memberships || []).map((m: unknown) => asObject(m)?.tenant_id),
     );
 
     // Integration types active in source (used to flag what the target is missing).
@@ -133,11 +151,11 @@ serve(async (req: Request) => {
       .eq("tenant_id", sourceTenantId)
       .eq("is_active", true);
     const sourceActiveTypes = new Set(
-      (srcInteg || []).map((r: any) => r.integration_type),
+      (srcInteg || []).map((r: unknown) => asObject(r)?.integration_type),
     );
 
     // Pre-load children once (same for every target).
-    let childSteps: any[] = [];
+    let childSteps: UnknownObject[] = [];
     if (entityType === "automation") {
       const { data } = await admin
         .from("automation_flow_steps")
@@ -160,10 +178,12 @@ serve(async (req: Request) => {
     }
     // For an agent there is little JSON to scan, so fall back to its tenant's active set.
     if (entityType === "agent") {
-      for (const t of sourceActiveTypes) referencedTypes.add(t as string);
+      for (const t of sourceActiveTypes) {
+        if (typeof t === "string") referencedTypes.add(t);
+      }
     }
 
-    const results: any[] = [];
+    const results: CloneResult[] = [];
     for (const targetTenantId of targetTenantIds) {
       try {
         if (targetTenantId === sourceTenantId) {
@@ -190,7 +210,7 @@ serve(async (req: Request) => {
           .eq("tenant_id", targetTenantId)
           .eq("is_active", true);
         const targetActiveTypes = new Set(
-          (tgtInteg || []).map((r: any) => r.integration_type),
+          (tgtInteg || []).map((r: unknown) => asObject(r)?.integration_type),
         );
         const missingIntegrations = [...referencedTypes].filter(
           (t) => !targetActiveTypes.has(t),
@@ -278,7 +298,7 @@ serve(async (req: Request) => {
           if (error) throw error;
 
           // Deep-copy flow steps, remapping self-referential parent_step_id.
-          const idMap = new Map<string, string>();
+          const idMap = new Map<unknown, string>();
           for (const st of childSteps) idMap.set(st.id, newId());
           const rows = childSteps.map((st) => ({
             id: idMap.get(st.id),
@@ -323,7 +343,7 @@ serve(async (req: Request) => {
           });
           if (error) throw error;
 
-          const idMap = new Map<string, string>();
+          const idMap = new Map<unknown, string>();
           for (const st of childSteps) idMap.set(st.id, newId());
           const rows = childSteps.map((st) => ({
             id: idMap.get(st.id),
@@ -356,18 +376,18 @@ serve(async (req: Request) => {
           already_exists: alreadyExists,
           missing_integrations: missingIntegrations,
         });
-      } catch (e: any) {
+      } catch (e) {
         results.push({
           tenant_id: targetTenantId,
           success: false,
-          error: e?.message || "שגיאה לא ידועה",
+          error: thrownMessage(e) || "שגיאה לא ידועה",
         });
       }
     }
 
     return json({ results });
-  } catch (error: any) {
+  } catch (error) {
     console.error("clone-entity-to-tenant error:", error);
-    return json({ error: error?.message || "Internal error" }, 500);
+    return json({ error: thrownMessage(error) || "Internal error" }, 500);
   }
 });

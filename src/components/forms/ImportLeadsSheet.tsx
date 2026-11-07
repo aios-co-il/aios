@@ -39,12 +39,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 interface ImportLeadsSheetProps {
   trigger?: React.ReactNode;
 }
 
 type Step = "input" | "mapping" | "preview" | "importing";
+
+type SheetCell = string | number | boolean | null;
+
+const toSheetCell = (value: unknown): SheetCell =>
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean"
+    ? value
+    : null;
+
+const toSheetRows = (value: unknown): SheetCell[][] =>
+  Array.isArray(value)
+    ? value.map((row: unknown) =>
+        Array.isArray(row) ? row.map(toSheetCell) : [],
+      )
+    : [];
 
 interface FieldMapping {
   sheetColumn: string;
@@ -150,7 +167,7 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
 
   // Mapping state
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
-  const [sheetData, setSheetData] = useState<any[]>([]);
+  const [sheetData, setSheetData] = useState<SheetCell[][]>([]);
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
   const [importResult, setImportResult] = useState<{
     imported: number;
@@ -231,7 +248,7 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
       if (data.error) throw new Error(data.error);
 
       const headers = data.headers || [];
-      const rows = data.previewRows || [];
+      const rows = toSheetRows(data.previewRows);
 
       if (headers.length === 0) {
         throw new Error("לא נמצאו עמודות בגיליון");
@@ -252,9 +269,9 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
       setSheetData(rows);
       setMappings(autoMappings);
       setStep("mapping");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Fetch headers error:", error);
-      toast.error(error.message || "שגיאה בטעינת הגיליון");
+      toast.error(errorMessageOf(error) || "שגיאה בטעינת הגיליון");
     } finally {
       setIsLoading(false);
     }
@@ -275,7 +292,7 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
     if (sheetData.length === 0) return [];
 
     return sheetData.slice(0, 5).map((row) => {
-      const mapped: Record<string, any> = {};
+      const mapped: Record<string, SheetCell> = {};
       mappings.forEach((m, idx) => {
         if (m.systemField) {
           mapped[m.systemField] = row[idx];
@@ -338,9 +355,9 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
 
       queryClient.invalidateQueries({ queryKey: ["leads", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["lead-updates", tenantId] });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Import error:", error);
-      toast.error(error.message || "שגיאה בייבוא הנתונים");
+      toast.error(errorMessageOf(error) || "שגיאה בייבוא הנתונים");
       setStep("mapping");
     } finally {
       setIsLoading(false);

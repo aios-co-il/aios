@@ -7,11 +7,59 @@ import {
   selectCampaignsForShutdown,
   ShutdownCampaignRow,
 } from "./client-campaign-shutdown.ts";
+import { z } from "npm:zod@3.25.76";
+import type { DbClient } from "./supabase-clients.ts";
+
+const adAccountSettingsSchema = z
+  .object({
+    ad_account_id: z.unknown(),
+    account_id: z.unknown(),
+    meta_account_id: z.unknown(),
+  })
+  .catch({});
+
+const graphCampaignListSchema = z.object({
+  error: z.unknown(),
+  data: z.array(z.unknown()),
+});
+
+const graphCampaignSchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  name: z.unknown(),
+  effective_status: z.unknown(),
+});
+
+const pauseResponseSchema = z
+  .object({ error: z.unknown(), message: z.unknown() })
+  .catch({});
+
+/** The campaigns of a Graph /campaigns response; items without an id are skipped. null = no list. */
+export function liveCampaignsFromGraph(
+  body: unknown,
+): ShutdownCampaignRow[] | null {
+  const parsed = graphCampaignListSchema.safeParse(body);
+  if (!parsed.success || parsed.data.error) {
+    return null;
+  }
+  return parsed.data.data.flatMap((item) => {
+    const campaign = graphCampaignSchema.safeParse(item);
+    if (!campaign.success) {
+      return [];
+    }
+    return [
+      {
+        campaign_id: String(campaign.data.id),
+        campaign_name: String(campaign.data.name || ""),
+        effective_status: String(campaign.data.effective_status || ""),
+      },
+    ];
+  });
+}
 
 const FB_GRAPH_VERSION = "v21.0";
 
 async function fbGetToken(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<string | null> {
   let { data: integ } = await supabase
@@ -35,7 +83,7 @@ async function fbGetToken(
 }
 
 async function fbResolveClientAdAccount(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   clientId: string,
 ): Promise<string | null> {
@@ -54,7 +102,7 @@ async function fbResolveClientAdAccount(
     .in("integration_type", ["facebook_insights", "facebook_ecommerce"])
     .limit(5);
   for (const t of tables || []) {
-    const s = t?.integration_settings || {};
+    const s = adAccountSettingsSchema.parse(t?.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
     if (acc) return String(acc).replace(/^act_/, "");
   }
@@ -62,7 +110,7 @@ async function fbResolveClientAdAccount(
 }
 
 async function fbLiveCampaignList(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   clientId: string,
 ): Promise<ShutdownCampaignRow[] | null> {
@@ -80,20 +128,18 @@ async function fbLiveCampaignList(
     if (!acct || !token) return null;
     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/campaigns?fields=id,name,effective_status&limit=300&access_token=${token}`;
     const r = await fetch(url);
-    const j = await r.json();
-    if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
-    return j.data.map((c: any) => ({
-      campaign_id: String(c.id),
-      campaign_name: String(c.name || ""),
-      effective_status: String(c.effective_status || ""),
-    }));
+    const body: unknown = await r.json();
+    if (!r.ok) {
+      return null;
+    }
+    return liveCampaignsFromGraph(body);
   } catch {
     return null;
   }
 }
 
 export async function resolveClientForShutdownJob(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   job: CampaignShutdownJob,
 ): Promise<{ id: string; name: string } | null> {
@@ -115,7 +161,7 @@ export async function resolveClientForShutdownJob(
     .limit(5);
   if (!rows?.length) return null;
   const exact = rows.find(
-    (r: any) => String(r.name).toLowerCase() === search.toLowerCase(),
+    (r) => String(r.name).toLowerCase() === search.toLowerCase(),
   );
   return { id: (exact || rows[0]).id, name: (exact || rows[0]).name };
 }
@@ -141,15 +187,15 @@ async function pauseCampaign(
       confirmed: true,
     }),
   });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || j?.error) {
-    return { ok: false, error: String(j?.error || j?.message || r.status) };
+  const j = pauseResponseSchema.parse(await r.json().catch(() => ({})));
+  if (!r.ok || j.error) {
+    return { ok: false, error: String(j.error || j.message || r.status) };
   }
   return { ok: true };
 }
 
 export async function runClientCampaignShutdownJob(
-  supabase: any,
+  supabase: DbClient,
   opts: {
     tenantId: string;
     job: CampaignShutdownJob;

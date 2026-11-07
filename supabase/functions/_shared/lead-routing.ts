@@ -1,3 +1,5 @@
+import type { DbClient } from "./supabase-clients.ts";
+
 const CONTACT_FIELD_NAMES = new Set([
   "full_name",
   "first_name",
@@ -142,7 +144,7 @@ export function buildFacebookFields(
 }
 
 export async function resolveLeadClient(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   clientId: unknown,
 ): Promise<LeadClientContext | null> {

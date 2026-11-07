@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,20 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+type AgencyListItem = Pick<
+  Tables<"agencies">,
+  | "id"
+  | "name"
+  | "status"
+  | "contact_name"
+  | "phone"
+  | "email"
+  | "start_date"
+  | "notes"
+  | "created_at"
+  | "is_default"
+> & { is_owned: boolean };
+
 export default function Agencies() {
   const { userId, isOwner } = useUserRole();
   const { userAgencyIds } = useUserAgencies();
@@ -45,13 +60,17 @@ export default function Agencies() {
   const { t } = useTerminology();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editingAgency, setEditingAgency] = useState<any | null>(null);
-  const [deletingAgency, setDeletingAgency] = useState<any | null>(null);
+  const [editingAgency, setEditingAgency] = useState<AgencyListItem | null>(
+    null,
+  );
+  const [deletingAgency, setDeletingAgency] = useState<AgencyListItem | null>(
+    null,
+  );
 
   const { data: agencies, isLoading } = useQuery({
     queryKey: ["agencies-list", tenantId, userId, userAgencyIds],
-    queryFn: async () => {
-      if (!tenantId) return [] as any[];
+    queryFn: async (): Promise<AgencyListItem[]> => {
+      if (!tenantId) return [];
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -99,8 +118,8 @@ export default function Agencies() {
         .map((a) => ({ ...a, is_owned: false }));
 
       // Combine and remove duplicates
-      const combined = [...markedOwned, ...shared];
-      const uniqueMap = new Map();
+      const combined: AgencyListItem[] = [...markedOwned, ...shared];
+      const uniqueMap = new Map<string, AgencyListItem>();
       combined.forEach((agency) => {
         if (agency && agency.id && !uniqueMap.has(agency.id)) {
           uniqueMap.set(agency.id, agency);
@@ -108,7 +127,7 @@ export default function Agencies() {
       });
 
       return Array.from(uniqueMap.values()).sort(
-        (a: any, b: any) =>
+        (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
     },

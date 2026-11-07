@@ -20,6 +20,7 @@
 // }
 // Output: { tenant, owner_status, invited_email?, shared: {...}, warnings[] }
 
+import { asObject, thrownMessage } from "../_shared/lead-json.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -102,7 +103,7 @@ serve(async (req: Request) => {
       .eq("user_id", user.id);
 
     const isSuperAdmin = (userRoles || []).some(
-      (r: any) => r.role === "super_admin",
+      (r: unknown) => asObject(r)?.role === "super_admin",
     );
 
     const body = await req.json().catch(() => ({}));
@@ -149,9 +150,13 @@ serve(async (req: Request) => {
     const ADMIN_ROLES = new Set(["owner", "team_manager", "agency_owner"]);
     const hasAccess =
       isSuperAdmin ||
-      (userRoles || []).some(
-        (r: any) => r.tenant_id === sourceTenantId && ADMIN_ROLES.has(r.role),
-      );
+      (userRoles || []).some((r: unknown) => {
+        const role = asObject(r);
+        return (
+          role?.tenant_id === sourceTenantId &&
+          ADMIN_ROLES.has(String(role.role))
+        );
+      });
     if (!hasAccess) return json({ error: "Insufficient permissions" }, 403);
 
     const { data: sourceTenant } = await admin
@@ -358,13 +363,16 @@ serve(async (req: Request) => {
           );
         } else {
           copiedClientId = newClient.id;
-          const contactRows = (contacts || []).map((c: any) => ({
-            client_id: newClient.id,
-            contact_name: c.contact_name,
-            email: c.email,
-            phone: c.phone,
-            is_primary: !!c.is_primary,
-          }));
+          const contactRows = (contacts || []).map((c: unknown) => {
+            const contact = asObject(c);
+            return {
+              client_id: newClient.id,
+              contact_name: contact?.contact_name,
+              email: contact?.email,
+              phone: contact?.phone,
+              is_primary: !!contact?.is_primary,
+            };
+          });
           if (contactRows.length) {
             const { error: contactsErr } = await admin
               .from("client_contacts")
@@ -455,8 +463,8 @@ serve(async (req: Request) => {
       if (pagesLoadErr)
         warnings.push("social_pages load: " + pagesLoadErr.message);
 
-      const pageRows = (socialPages || []).map((p: any) => ({
-        social_page_id: p.id,
+      const pageRows = (socialPages || []).map((p: unknown) => ({
+        social_page_id: asObject(p)?.id,
         tenant_id: targetTenantId,
         shared_by: user.id,
       }));
@@ -486,8 +494,8 @@ serve(async (req: Request) => {
       if (sitesLoadErr)
         warnings.push("wordpress_sites load: " + sitesLoadErr.message);
 
-      const siteRows = (wpSites || []).map((s: any) => ({
-        site_id: s.id,
+      const siteRows = (wpSites || []).map((s: unknown) => ({
+        site_id: asObject(s)?.id,
         tenant_id: targetTenantId,
         shared_by: user.id,
       }));
@@ -518,8 +526,8 @@ serve(async (req: Request) => {
       if (tablesLoadErr)
         warnings.push("crm_tables load: " + tablesLoadErr.message);
 
-      const tableRows = (tables || []).map((t: any) => ({
-        crm_table_id: t.id,
+      const tableRows = (tables || []).map((t: unknown) => ({
+        crm_table_id: asObject(t)?.id,
         tenant_id: targetTenantId,
         shared_by: user.id,
       }));
@@ -537,7 +545,7 @@ serve(async (req: Request) => {
     }
 
     // ── Clone Carmen + selected automations ───────────────────────────────────
-    const cloneResults: any[] = [];
+    const cloneResults: unknown[] = [];
     if (clone_carmen) {
       const { data: sourceAgent } = await admin
         .from("ai_agents")
@@ -615,8 +623,8 @@ serve(async (req: Request) => {
       clone_results: cloneResults,
       warnings,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("create-org-for-client error:", err);
-    return json({ error: err?.message || "Internal server error" }, 500);
+    return json({ error: thrownMessage(err) || "Internal server error" }, 500);
   }
 });

@@ -114,7 +114,7 @@ export function LeadFilterPresetTabs({
         onPresetSelect(null);
       }
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה במחיקת פריסט",
         description: error.message,

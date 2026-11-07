@@ -1,3 +1,4 @@
+import { thrownMessage } from "../_shared/lead-json.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -127,17 +128,17 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in update-user-agencies function:", error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: thrownMessage(error),
       }),
       {
         status:
-          error.message === "Unauthorized" ||
-          error.message ===
+          thrownMessage(error) === "Unauthorized" ||
+          thrownMessage(error) ===
             "Only owners and agency owners can update user agencies"
             ? 403
             : 500,

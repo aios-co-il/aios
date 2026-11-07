@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,10 +44,12 @@ Deno.serve(async (req) => {
     }
 
     // Update all messages from this sender_phone to the new contact
-    const updateData: any =
+    const updateData: TablesUpdate<"chat_messages"> =
       contactType === "group"
         ? { group_id: contactId }
-        : { [contactType === "client" ? "client_id" : "lead_id"]: contactId };
+        : contactType === "client"
+          ? { client_id: contactId }
+          : { lead_id: contactId };
 
     const { data, error } = await supabaseClient
       .from("chat_messages")

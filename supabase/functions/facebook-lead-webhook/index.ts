@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { TablesUpdate } from "../_shared/database.types.ts";
+import { asJsonObject, asObject } from "../_shared/lead-json.ts";
+import {
+  nonEmptyStringOrNull,
+  salesPersonIdsOf,
+} from "../_shared/lead-form-mapping.ts";
 import {
   buildLeadRoutingPayload,
   resolveLeadClient,
@@ -23,6 +29,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+/** A leads row built from a Facebook lead; form field mappings add columns. */
+interface FacebookLeadRecord {
+  [column: string]: string | null | Record<string, string> | undefined;
+  company_name: string;
+  notes: string;
+  contact_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  source?: string;
+  status?: string;
+  agency_id?: string | null;
+  client_id?: string | null;
+  sales_person_id?: string | null;
+}
 
 // Normalize phone for comparison
 function normalizePhone(phone: string | null | undefined): string | null {
@@ -123,8 +144,8 @@ serve(async (req) => {
                   .eq("integration_type", "facebook_lead_ads")
                   .eq("is_active", true);
                 for (const pi of pageInts ?? []) {
-                  const s = (pi.settings as any) ?? {};
-                  if (s?.page_subscriptions?.[pageId]) {
+                  const s = asJsonObject(pi.settings) ?? {};
+                  if (asJsonObject(s.page_subscriptions)?.[pageId]) {
                     await supabase
                       .from("tenant_integrations")
                       .update({
@@ -154,9 +175,9 @@ serve(async (req) => {
 
               // Find matching integration by form_id in form_mappings first, then by page_id
               const integration = integrations?.find((i) => {
-                const settings = i.settings as any;
+                const settings = asJsonObject(i.settings);
                 // Check if form_id exists in form_mappings
-                if (settings?.form_mappings?.[formId]) {
+                if (asJsonObject(settings?.form_mappings)?.[formId]) {
                   return true;
                 }
                 return false;
@@ -179,7 +200,7 @@ serve(async (req) => {
                 const processedTenants = new Set<string>();
 
                 for (const flowStep of flowSteps) {
-                  const stepConfig = flowStep.configuration as any;
+                  const stepConfig = asObject(flowStep.configuration);
                   const flowTenantId = flowStep.tenant_id;
                   const fbIntegrationId = stepConfig?.facebook_integration_id;
 
@@ -293,7 +314,7 @@ serve(async (req) => {
                   const flowClient = await resolveLeadClient(
                     supabase,
                     flowTenantId,
-                    stepConfig.client_id,
+                    stepConfig?.client_id,
                   );
                   const flowRoutingPayload = buildLeadRoutingPayload(
                     flowClient,
@@ -347,7 +368,7 @@ serve(async (req) => {
                   }
 
                   // Build lead record
-                  const flowLeadRecord: Record<string, any> = {
+                  const flowLeadRecord: FacebookLeadRecord = {
                     company_name:
                       mappedName || flowFieldData.company || "Facebook Lead",
                     contact_name: mappedName || null,
@@ -356,7 +377,7 @@ serve(async (req) => {
                     source: "paid_ads",
                     status: "new",
                     tenant_id: flowTenantId,
-                    agency_id: stepConfig.agency_id || null,
+                    agency_id: nonEmptyStringOrNull(stepConfig?.agency_id),
                     client_id: flowClient?.client_id || null,
                     facebook_form_id: formId,
                     facebook_leadgen_id: leadgenId,
@@ -495,17 +516,14 @@ serve(async (req) => {
               }
 
               let accessToken = integration.api_key;
-              const settings = integration.settings as any;
+              const settings = asJsonObject(integration.settings);
 
               // If this is a shared integration, get the token from the source
-              if (
-                (integration as any).shared_from_integration_id &&
-                !accessToken
-              ) {
+              if (integration.shared_from_integration_id && !accessToken) {
                 const { data: sourceIntegration } = await supabase
                   .from("tenant_integrations")
                   .select("api_key")
-                  .eq("id", (integration as any).shared_from_integration_id)
+                  .eq("id", integration.shared_from_integration_id)
                   .eq("is_active", true)
                   .maybeSingle();
 
@@ -541,19 +559,19 @@ serve(async (req) => {
               }
 
               // Get form mappings from settings
-              const formMappings = settings?.form_mappings?.[formId] || {};
-              const fieldMappings = formMappings.field_mappings || {
+              const formMappings =
+                asJsonObject(asJsonObject(settings?.form_mappings)?.[formId]) ??
+                {};
+              const fieldMappings = asJsonObject(
+                formMappings.field_mappings,
+              ) ?? {
                 full_name: "contact_name",
                 email: "email",
                 phone_number: "phone",
               };
 
               // Support both legacy single and new multi-select
-              const salesPersonIds: string[] =
-                formMappings.sales_person_ids ||
-                (formMappings.sales_person_id
-                  ? [formMappings.sales_person_id]
-                  : []);
+              const salesPersonIds = salesPersonIdsOf(formMappings);
               const routedClient = await resolveLeadClient(
                 supabase,
                 integration.tenant_id,
@@ -606,7 +624,7 @@ serve(async (req) => {
               }
 
               // Map fields to lead record
-              const leadRecord: Record<string, any> = {
+              const leadRecord: FacebookLeadRecord = {
                 company_name:
                   fieldData.company ||
                   fieldData.full_name ||
@@ -615,7 +633,7 @@ serve(async (req) => {
                 source: "paid_ads",
                 status: "new",
                 tenant_id: integration.tenant_id,
-                agency_id: formMappings.agency_id || null,
+                agency_id: nonEmptyStringOrNull(formMappings.agency_id),
                 client_id: routedClient?.client_id || null,
                 sales_person_id:
                   salesPersonIds.length > 0 ? salesPersonIds[0] : null,
@@ -636,7 +654,7 @@ serve(async (req) => {
               // Apply field mappings
               for (const [fbField, dbField] of Object.entries(fieldMappings)) {
                 if (fieldData[fbField]) {
-                  leadRecord[dbField as string] = fieldData[fbField];
+                  leadRecord[String(dbField)] = fieldData[fbField];
                 }
               }
 
@@ -759,7 +777,7 @@ serve(async (req) => {
 
               // If existing lead found - update with new info if available
               if (existingLead) {
-                const updates: Record<string, any> = {};
+                const updates: TablesUpdate<"leads"> = {};
                 let hasUpdates = false;
 
                 // Only update fields that are empty in existing lead but have values in new lead

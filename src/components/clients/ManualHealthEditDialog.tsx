@@ -27,6 +27,8 @@ import {
   type FlagKey,
   type OverallStatus,
 } from "@/lib/healthScore";
+import { isClientMoodStatus } from "@/lib/crmEnums";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 const ALL_FLAGS: FlagKey[] = [
   "sensitive",
@@ -92,21 +94,23 @@ export function ManualHealthEditDialog({
     setSaving(true);
     try {
       const overall = computeStatus(score);
+      if (!isClientMoodStatus(mood))
+        throw new Error(`Invalid mood status: ${mood}`);
       const { error } = await supabase
         .from("clients")
         .update({
           health_score: score,
           overall_status: overall,
-          active_flags: flags as any,
-          mood_status: mood as any,
+          active_flags: flags,
+          mood_status: mood,
         })
         .eq("id", clientId);
       if (error) throw error;
       toast.success("עודכן בהצלחה");
       onSaved();
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error("שגיאה בשמירה: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה בשמירה: " + errorMessageOf(err));
     } finally {
       setSaving(false);
     }

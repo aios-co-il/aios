@@ -2,41 +2,62 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   applyTagToLead,
   getExistingLead,
-  type LeadDb,
+  type LeadLookup,
+  type TagDb,
   returningLeadStatusUpdate,
 } from "./returning-lead.ts";
 
 type Call = { table: string; op: string; args: unknown[] };
+type FakeLead = { id: string; phone: string | null; email: string | null };
+type IdRow = { id: string };
 
-/** Fake client: each query resolves to the next queued result for its table. */
-function fakeDb(results: Record<string, unknown[]>) {
-  const calls: Call[] = [];
-  const db: LeadDb = {
-    from(table: string) {
-      const result = () => ({ data: results[table]?.shift() ?? null });
-      const chain: Record<string, unknown> = {
-        then: (resolve: (v: unknown) => void) => resolve(result()),
-        maybeSingle: async () => result(),
-        single: async () => result(),
-      };
-      for (const op of [
-        "select",
-        "eq",
-        "in",
-        "not",
-        "order",
-        "limit",
-        "insert",
-        "upsert",
-      ]) {
-        chain[op] = (...args: unknown[]) => {
-          calls.push({ table, op, args });
-          return chain;
-        };
-      }
-      return chain;
-    },
+/** Fake lead queries: each call resolves to the next queued result and is recorded. */
+function fakeLeads(results: FakeLead[][]) {
+  const calls: string[] = [];
+  const next = (name: string) => {
+    calls.push(name);
+    return Promise.resolve({ data: results.shift() ?? null });
   };
+  const leads: LeadLookup<FakeLead> = {
+    byPhones: () => next("byPhones"),
+    recentWithPhone: () => next("recentWithPhone"),
+  };
+  return { leads, calls };
+}
+
+interface FakeChain {
+  select(...args: unknown[]): FakeChain;
+  match(...args: unknown[]): FakeChain;
+  insert(...args: unknown[]): FakeChain;
+  upsert(...args: unknown[]): Promise<unknown>;
+  maybeSingle(): Promise<{ data: IdRow | null }>;
+  single(): Promise<{ data: IdRow | null }>;
+}
+
+/** Fake tag client: lookups resolve to the next queued chat_tags row. */
+function fakeTagDb(tags: (IdRow | null)[]) {
+  const calls: Call[] = [];
+  const chainFor = (table: string): FakeChain => {
+    const record =
+      (op: string) =>
+      (...args: unknown[]) => {
+        calls.push({ table, op, args });
+        return chain;
+      };
+    const nextTag = async () => ({ data: tags.shift() ?? null });
+    const chain: FakeChain = {
+      select: record("select"),
+      match: record("match"),
+      insert: record("insert"),
+      upsert: async (...args: unknown[]) => {
+        calls.push({ table, op: "upsert", args });
+      },
+      maybeSingle: nextTag,
+      single: nextTag,
+    };
+    return chain;
+  };
+  const db: TagDb = { from: (table: string) => chainFor(table) };
   return { db, calls };
 }
 
@@ -44,13 +65,13 @@ Deno.test(
   "returns the exact-phone match without the fallback scan",
   async () => {
     const lead = { id: "1", phone: "0547970059", email: "a@mail.com" };
-    const { db, calls } = fakeDb({ leads: [[lead]] });
-    const found = await getExistingLead(db, "t1", {
+    const { leads, calls } = fakeLeads([[lead]]);
+    const found = await getExistingLead(leads, "t1", {
       phone: "+972547970059",
       email: "a@mail.com",
     });
     assertStrictEquals(found, lead);
-    assertStrictEquals(calls.filter((c) => c.op === "not").length, 0);
+    assertEquals(calls, ["byPhones"]);
   },
 );
 
@@ -58,16 +79,18 @@ Deno.test(
   "falls back to the recent-leads scan for other phone spellings",
   async () => {
     const lead = { id: "2", phone: "054-797-0059", email: null };
-    const { db } = fakeDb({ leads: [[], [lead]] });
-    const found = await getExistingLead(db, "t1", { phone: "0547970059" });
+    const { leads } = fakeLeads([[], [lead]]);
+    const found = await getExistingLead(leads, "t1", {
+      phone: "0547970059",
+    });
     assertStrictEquals(found, lead);
   },
 );
 
 Deno.test("a shared email with a different phone finds no lead", async () => {
   const other = { id: "3", phone: "972534327783", email: "aaaaa@gmail.com" };
-  const { db } = fakeDb({ leads: [[], [other]] });
-  const found = await getExistingLead(db, "t1", {
+  const { leads } = fakeLeads([[], [other]]);
+  const found = await getExistingLead(leads, "t1", {
     phone: "+972547970059",
     email: "aaaaa@gmail.com",
   });
@@ -75,9 +98,9 @@ Deno.test("a shared email with a different phone finds no lead", async () => {
 });
 
 Deno.test("no phone skips the lookup entirely", async () => {
-  const { db, calls } = fakeDb({});
+  const { leads, calls } = fakeLeads([]);
   assertStrictEquals(
-    await getExistingLead(db, "t1", { email: "a@mail.com" }),
+    await getExistingLead(leads, "t1", { email: "a@mail.com" }),
     null,
   );
   assertStrictEquals(calls.length, 0);
@@ -102,8 +125,12 @@ Deno.test("a decided lead keeps its stage", () => {
 });
 
 Deno.test("tag: reuses an existing tag and upserts the link", async () => {
-  const { db, calls } = fakeDb({ chat_tags: [{ id: "tag1" }] });
+  const { db, calls } = fakeTagDb([{ id: "tag1" }]);
   await applyTagToLead(db, "t1", "lead1", " ליד חוזר ");
+  assertEquals(calls.find((c) => c.op === "match")?.args[0], {
+    tenant_id: "t1",
+    name: "ליד חוזר",
+  });
   assertStrictEquals(calls.filter((c) => c.op === "insert").length, 0);
   const upsert = calls.find((c) => c.op === "upsert");
   assertEquals(upsert?.args[0], {
@@ -119,7 +146,7 @@ Deno.test("tag: reuses an existing tag and upserts the link", async () => {
 });
 
 Deno.test("tag: creates a missing tag before linking", async () => {
-  const { db, calls } = fakeDb({ chat_tags: [null, { id: "tag2" }] });
+  const { db, calls } = fakeTagDb([null, { id: "tag2" }]);
   await applyTagToLead(db, "t1", "lead1", "ליד חוזר");
   const insert = calls.find((c) => c.op === "insert");
   assertEquals(insert?.args[0], {
