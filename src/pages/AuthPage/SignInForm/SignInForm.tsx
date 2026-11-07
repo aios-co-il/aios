@@ -5,7 +5,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useSignIn } from "./useSignIn";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 
-import type { NavigateToApp } from "./types";
+import type { NavigateToApp } from "../types";
 
 type Props = {
   email: string;
@@ -14,6 +14,7 @@ type Props = {
   onPasswordSignInStart: () => void;
   navigateToApp: NavigateToApp;
 };
+/** Keep sign-in drafts and mutation state within the sign-in screen. */
 export function SignInForm({
   email,
   setEmail,

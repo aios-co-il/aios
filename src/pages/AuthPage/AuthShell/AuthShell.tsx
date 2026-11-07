@@ -6,6 +6,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 
+/** Provide the common auth layout and optional invitation context. */
 export function AuthShell({
   children,
   inviteBanner,

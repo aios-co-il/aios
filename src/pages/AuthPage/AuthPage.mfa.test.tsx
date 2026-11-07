@@ -4,12 +4,12 @@ import {
   requireMfa,
   session,
   signIn,
-} from "./authTestHarness";
+} from "./testUtils/authTestHarness";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-describe("Auth MFA boundary", () => {
+describe("AuthPage MFA boundary", () => {
   it.each(["password", "restored"])(
     "requires TOTP before navigation for %s sessions",
     async (mode) => {
@@ -109,4 +109,24 @@ describe("Auth MFA boundary", () => {
     expect(auth.home).not.toHaveBeenCalled();
     expect(auth.invoke).not.toHaveBeenCalled();
   });
+
+  it.each(["currentLevel", "nextLevel"])(
+    "rejects an unsupported %s without navigating",
+    async (field) => {
+      auth.getAuthenticatorAssuranceLevel.mockResolvedValue({
+        data: {
+          currentLevel: "aal1",
+          nextLevel: "aal1",
+          [field]: "unsupported",
+        },
+        error: null,
+      });
+      renderAuth();
+      await signIn();
+      await waitFor(() => expect(auth.toast).toHaveBeenCalled());
+      expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled();
+      expect(auth.home).not.toHaveBeenCalled();
+      expect(auth.invoke).not.toHaveBeenCalled();
+    },
+  );
 });

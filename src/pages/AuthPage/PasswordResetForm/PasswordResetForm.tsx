@@ -9,6 +9,7 @@ type Props = {
   setEmail: Dispatch<SetStateAction<string>>;
   onBack: () => void;
 };
+/** Collect the shared email and submit a recovery request. */
 export function PasswordResetForm({ email, setEmail, onBack }: Props) {
   const { loading, handleResetPassword } = usePasswordReset(email, onBack);
   return (

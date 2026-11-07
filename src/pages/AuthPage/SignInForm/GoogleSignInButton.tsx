@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { isNonProduction, resolveFrontendAppEnv } from "@/lib/appEnv";
 
+/** Present the Google redirect action with environment-specific guidance. */
 export function GoogleSignInButton({
   loading,
   onClick,

@@ -1,8 +1,14 @@
-import { renderSdkAuth, state, testToken, user } from "./authSdkTestHarness";
+import {
+  renderSdkAuth,
+  state,
+  testToken,
+  user,
+} from "./testUtils/authSdkTestHarness";
 import { screen } from "@testing-library/react";
 import { supabase } from "@/integrations/supabase/client";
 import { describe, expect, it } from "vitest";
 
+/** Persist a synthetic session with a verified TOTP factor for remount coverage. */
 async function seedMfaSession(level: "aal1" | "aal2") {
   user.factors = [
     {
@@ -21,7 +27,7 @@ async function seedMfaSession(level: "aal1" | "aal2") {
   state.fetch.mockClear();
 }
 
-describe("Auth restored sessions with the persistent installed SDK", () => {
+describe("AuthPage restored sessions with the persistent installed SDK", () => {
   it("resumes required MFA after unmount/remount without processing invitations", async () => {
     await seedMfaSession("aal1");
     const first = renderSdkAuth();

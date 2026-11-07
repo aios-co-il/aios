@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, vi } from "vitest";
-import Auth from "../Auth";
+import { withTestQuery } from "@/test/withTestQuery";
+import AuthPage from "../AuthPage";
 
 type Session = { user: { id: string }; access_token: string };
 const auth = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const auth = vi.hoisted(() => ({
   home: vi.fn(),
   toast: vi.fn(),
   unsubscribe: vi.fn(),
+  invitationError: null as Error | null,
   invitation: null as null | {
     email: string;
     metadata: object;
@@ -58,7 +60,10 @@ vi.mock("@/integrations/supabase/client", () => ({
         select: () => query,
         eq: () => query,
         gt: () => query,
-        maybeSingle: async () => ({ data: auth.invitation, error: null }),
+        maybeSingle: async () => ({
+          data: auth.invitation,
+          error: auth.invitationError,
+        }),
       };
       return query;
     },
@@ -70,6 +75,7 @@ beforeEach(() => {
   auth.session = null;
   auth.listener = null;
   auth.invitation = null;
+  auth.invitationError = null;
   auth.getSession.mockImplementation(async () => ({
     data: { session: auth.session },
     error: null,
@@ -99,16 +105,20 @@ beforeEach(() => {
     return { error: null };
   });
 });
+/** Render the real auth page with an isolated query cache and local routes. */
 export function renderAuth(path = "/auth") {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/t/test/home" element={<p>Home route</p>} />
-      </Routes>
-    </MemoryRouter>,
+    withTestQuery(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/t/test/home" element={<p>Home route</p>} />
+        </Routes>
+      </MemoryRouter>,
+    ),
   );
 }
+/** Submit the real password form using user-level interactions. */
 export async function signIn() {
   const user = userEvent.setup();
   await user.type(await screen.findByLabelText("אימייל"), "user@example.test");
@@ -116,6 +126,7 @@ export async function signIn() {
   await user.click(screen.getByRole("button", { name: "התחבר" }));
   return user;
 }
+/** Configure the SDK boundary to require TOTP before navigation. */
 export function requireMfa() {
   auth.getAuthenticatorAssuranceLevel.mockResolvedValue({
     data: { currentLevel: "aal1", nextLevel: "aal2" },

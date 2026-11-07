@@ -5,7 +5,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import Auth from "../Auth";
+import { withTestQuery } from "@/test/withTestQuery";
+import AuthPage from "../AuthPage";
 
 const state = vi.hoisted(() => ({
   fetch: vi.fn<typeof fetch>(),
@@ -41,11 +42,13 @@ export const user: User = {
 
 /** Encode a synthetic JWT for the SDK's local session reader, never a service. */
 export function testToken(level: "aal1" | "aal2" = "aal1") {
-  const encode = (value: object) =>
-    btoa(JSON.stringify(value))
+  /** Encode one JWT segment using base64url. */
+  function encode(value: object) {
+    return btoa(JSON.stringify(value))
       .replace(/=/g, "")
       .replace(/\+/g, "-")
       .replace(/\//g, "_");
+  }
   return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
     aal: level,
     sub: user.id,
@@ -105,13 +108,16 @@ export async function submitPassword(type = "invite") {
 
 export { state };
 
+/** Render the auth page against the installed SDK and an isolated query cache. */
 export function renderSdkAuth(path = "/auth") {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/t/test/home" element={<p>Existing home route</p>} />
-      </Routes>
-    </MemoryRouter>,
+    withTestQuery(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/t/test/home" element={<p>Existing home route</p>} />
+        </Routes>
+      </MemoryRouter>,
+    ),
   );
 }

@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AuthShell } from "./auth/AuthShell";
-import { SignInForm } from "./auth/SignInForm";
-import { MfaForm } from "./auth/MfaForm";
-import { PasswordResetForm } from "./auth/PasswordResetForm";
-import { PasswordSetupForm } from "./auth/PasswordSetupForm";
-import { useAuthNavigation } from "./auth/useAuthNavigation";
-import { useAuthSession } from "./auth/useAuthSession";
-import { useInvitationContext } from "./auth/useInvitationContext";
-import { useMfa } from "./auth/useMfa";
+import { AuthShell } from "./AuthShell/AuthShell";
+import { SignInForm } from "./SignInForm/SignInForm";
+import { MfaForm } from "./MfaForm/MfaForm";
+import { PasswordResetForm } from "./PasswordResetForm/PasswordResetForm";
+import { PasswordSetupForm } from "./PasswordSetupForm/PasswordSetupForm";
+import { useAuthNavigation } from "./useAuthNavigation/useAuthNavigation";
+import { useAuthSession } from "./useAuthSession/useAuthSession";
+import { useInvitationContext } from "./useInvitationContext/useInvitationContext";
+import { useMfa } from "./useMfa/useMfa";
 
-export default function Auth() {
+export default function AuthPage() {
   const [searchParams] = useSearchParams();
   const [resetMode, setResetMode] = useState(false);
   const navigateToApp = useAuthNavigation();
