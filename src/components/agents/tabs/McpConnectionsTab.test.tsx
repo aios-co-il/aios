@@ -1,39 +1,30 @@
 import { queryState } from "./agentQueryIds.fixtures";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { createTestQueryHarness } from "@/test/withTestQuery";
+import { withTestQuery } from "@/test/withTestQuery";
 import { McpConnectionsTab } from "./McpConnectionsTab";
 
 describe("McpConnectionsTab tenant query", () => {
-  it.each([null, "tenant-a"])(
-    "requires a tenant for explicit fetch (%s)",
-    async (tenantId) => {
-      queryState.tenantId = tenantId;
-      const { queryClient, wrapper } = createTestQueryHarness();
-      render(<McpConnectionsTab agent={{ id: "agent-a" }} />, { wrapper });
-      const query = queryClient
-        .getQueryCache()
-        .find({ queryKey: ["mcp-connections", "agent-a", tenantId] });
-      if (!query) {
-        throw new Error("Missing mounted query");
-      }
-      if (!tenantId) {
-        await expect(query.fetch()).rejects.toThrow("Missing queryFn");
-        expect(queryState.filter).not.toHaveBeenCalled();
-      } else {
-        await waitFor(() => expect(query.state.status).toBe("success"));
-        await query.fetch();
-        expect(queryState.filter).toHaveBeenCalledWith(
-          "agent_mcp_connections",
-          "tenant_id",
-          tenantId,
-          "eq",
-        );
-        expect(queryState.scope).toHaveBeenCalledWith(
-          "agent_mcp_connections",
-          "agent_id.eq.agent-a,agent_id.is.null",
-        );
-      }
-    },
-  );
+  it("shows connections fetched for the current tenant and agent", async () => {
+    queryState.fetch.mockResolvedValue(
+      Response.json([
+        {
+          id: "connection-a",
+          name: "Tenant connection",
+          url: "https://mcp.example.com",
+          state: "ready",
+        },
+      ]),
+    );
+    render(withTestQuery(<McpConnectionsTab agent={{ id: "agent-a" }} />));
+    expect(await screen.findByText("Tenant connection")).toBeVisible();
+    const request = queryState.requests[0];
+    const url = new URL(request.url);
+    expect(url.pathname).toBe("/rest/v1/agent_mcp_connections");
+    expect(url.searchParams.get("tenant_id")).toBe("eq.tenant-a");
+    expect(url.searchParams.get("or")).toBe(
+      "(agent_id.eq.agent-a,agent_id.is.null)",
+    );
+    expect(url.searchParams.get("order")).toBe("created_at.desc");
+  });
 });

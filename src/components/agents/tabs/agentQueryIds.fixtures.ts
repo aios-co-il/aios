@@ -1,73 +1,37 @@
 import { beforeEach, vi } from "vitest";
+import type { Database } from "@/integrations/supabase/types";
 
-type QueryFixture = {
-  tenantId: string | null;
-  rows: Record<string, Array<unknown>>;
-  filter: ReturnType<
-    typeof vi.fn<
-      (table: string, column: string, value: unknown, operator?: string) => void
-    >
-  >;
-  exclude: ReturnType<
-    typeof vi.fn<(table: string, column: string, value: string) => void>
-  >;
-  scope: ReturnType<typeof vi.fn<(table: string, expression: string) => void>>;
-};
-
-const queryState = vi.hoisted((): QueryFixture => ({
-  tenantId: "tenant-a",
-  rows: {},
-  filter:
-    vi.fn<
-      (table: string, column: string, value: unknown, operator?: string) => void
-    >(),
-  exclude: vi.fn<(table: string, column: string, value: string) => void>(),
-  scope: vi.fn<(table: string, expression: string) => void>(),
-}));
+const queryState = vi.hoisted(() => {
+  const state: {
+    tenantId: string | null;
+    requests: Array<Request>;
+    fetch: ReturnType<typeof vi.fn<typeof fetch>>;
+  } = { tenantId: "tenant-a", requests: [], fetch: vi.fn<typeof fetch>() };
+  return state;
+});
 
 export { queryState };
 
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenantId: queryState.tenantId }),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: tableQuery },
-}));
+vi.mock("@/integrations/supabase/client", async () => {
+  const { createClient } = await import("@supabase/supabase-js");
+  return {
+    supabase: createClient<Database>("https://example.com", "test-key", {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => {
+          queryState.requests.push(new Request(input, init));
+          return queryState.fetch(input, init);
+        },
+      },
+    }),
+  };
+});
 
 beforeEach(() => {
   queryState.tenantId = "tenant-a";
-  queryState.rows = {};
+  queryState.requests = [];
+  queryState.fetch.mockReset().mockResolvedValue(Response.json([]));
 });
-
-/** Record query filters while exercising the actual component and cache. */
-function tableQuery(table: string) {
-  const query = {
-    select: () => query,
-    eq: (column: string, value: unknown) => {
-      queryState.filter(table, column, value);
-      return query;
-    },
-    filter: (column: string, operator: string, value: unknown) => {
-      queryState.filter(table, column, value, operator);
-      return query;
-    },
-    neq: (column: string, value: string) => {
-      queryState.exclude(table, column, value);
-      return query;
-    },
-    or: (expression: string) => {
-      queryState.scope(table, expression);
-      return query;
-    },
-    order: () => query,
-    limit: () => query,
-    then: (
-      resolve: (value: { data: Array<unknown>; error: null }) => unknown,
-    ) =>
-      Promise.resolve({ data: queryState.rows[table] ?? [], error: null }).then(
-        resolve,
-      ),
-  };
-  return query;
-}
