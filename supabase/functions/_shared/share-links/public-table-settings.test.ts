@@ -16,6 +16,7 @@ const SHARED_PAGE_KEYS = [
   "linkedGscLangFilter",
   "manual_roi",
   "pulse_campaign_goals",
+  "operational_campaign_states",
 ];
 
 const SECRET_VALUES = {
@@ -54,6 +55,19 @@ function storedSettings(): Record<string, unknown> {
     linkedGscLangFilter: "he",
     manual_roi: { closures: 4, revenue: 12000, note: "SECRET-roi-19" },
     pulse_campaign_goals: { "123": "ecommerce", "Brand search": "leads" },
+    operational_campaign_states: {
+      "45606969": {
+        id: "45606969",
+        name: "SECRET-campaign-name-21",
+        status: "PAUSED",
+        primary_status: "PAUSED",
+        primary_status_reasons: ["CAMPAIGN_PAUSED"],
+      },
+      "24171383033": { status: "ENABLED" },
+      "24311435943": { status: "ENABLED", primary_status: "ENDED" },
+      "24382550293": { status: "ENABLED", primary_status: "SECRET-free-23" },
+      odd: { status: "SECRET-free-text-22" },
+    },
     ad_account_id: "act_1",
     customer_id: "111-222-3333",
     linkedGaTableId: "ga-table",
@@ -109,6 +123,12 @@ Deno.test("public settings keep exactly the keys the shared pages read", () => {
     linkedGscLangFilter: "he",
     manual_roi: { closures: 4, revenue: 12000 },
     pulse_campaign_goals: { "123": "ecommerce", "Brand search": "leads" },
+    operational_campaign_states: {
+      "45606969": { status: "PAUSED" },
+      "24171383033": { status: "ENABLED" },
+      "24311435943": { status: "ENABLED", primary_status: "ENDED" },
+      "24382550293": { status: "ENABLED" },
+    },
   });
   assertEquals(legacy, { sharedTabs: { monthly_work: true } });
 });

@@ -1,3 +1,8 @@
+import { CampaignContinentsTab } from "@/components/dynamic-tables/CampaignContinents/CampaignContinentsTab";
+import {
+  googleCampaignNames,
+  namesCampaignsByDestination,
+} from "@/components/dynamic-tables/CampaignContinents/continentSections";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
@@ -36,6 +41,7 @@ import {
 import {
   Facebook,
   FileSpreadsheet,
+  Globe,
   TrendingUp,
   BarChart3,
   RefreshCw,
@@ -112,6 +118,7 @@ type PlatformFilter =
   | "weekly"
   | "facebook"
   | "google_ads"
+  | "continents"
   | "google_analytics"
   | "woocommerce"
   | "seo";
@@ -486,6 +493,18 @@ export default function SharedDashboard({
     return platforms;
   }, [tables, hasWooCommerce, hasSeo, hasVisibleAnalyticsData]);
 
+  // Travel accounts name each campaign by its destination; they get a tab per continent.
+  const hasContinentsTab = useMemo(
+    () => namesCampaignsByDestination(googleCampaignNames(records)),
+    [records],
+  );
+  // A period whose campaigns stop naming destinations drops the tab; leave it too.
+  useEffect(() => {
+    if (platformFilter === "continents" && !hasContinentsTab) {
+      setPlatformFilter("google_ads");
+    }
+  }, [platformFilter, hasContinentsTab]);
+
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
     if (
@@ -511,6 +530,13 @@ export default function SharedDashboard({
         label: "Google Ads",
         iconNode: getIntegrationIcon("google_ads"),
       });
+      if (hasContinentsTab) {
+        items.push({
+          value: "continents",
+          label: "לפי יבשות",
+          iconNode: <Globe className="h-4 w-4 text-sky-600" />,
+        });
+      }
     }
     if (availablePlatforms.includes("google_analytics")) {
       items.push({
@@ -534,7 +560,7 @@ export default function SharedDashboard({
       });
     }
     return items;
-  }, [availablePlatforms]);
+  }, [availablePlatforms, hasContinentsTab]);
 
   const seoTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [
@@ -1091,7 +1117,14 @@ export default function SharedDashboard({
       )}
 
       {/* Analytics Tab → Full GoogleAnalyticsDashboard */}
-      {platformFilter === "weekly" ? (
+      {platformFilter === "continents" ? (
+        <CampaignContinentsTab
+          campaigns={googleAdsSummary.campaigns}
+          formatCurrency={formatCurrency}
+          formatNumber={formatNumber}
+          formatUnitCost={formatUnitCost}
+        />
+      ) : platformFilter === "weekly" ? (
         <WeeklyCampaignComparison
           records={weeklyRecords}
           currency={getCurrencySymbol(dashboardCurrency)}

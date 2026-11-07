@@ -1,3 +1,8 @@
+import { CampaignContinentsTab } from "@/components/dynamic-tables/CampaignContinents/CampaignContinentsTab";
+import {
+  googleCampaignNames,
+  namesCampaignsByDestination,
+} from "@/components/dynamic-tables/CampaignContinents/continentSections";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
@@ -165,6 +170,7 @@ type PlatformFilter =
   | "weekly"
   | "facebook"
   | "google_ads"
+  | "continents"
   | "google_analytics"
   | "seo"
   | "woocommerce";
@@ -617,6 +623,18 @@ export default function DashboardView() {
     return platforms;
   }, [tables, hasSeoReports, hasWooCommerce]);
 
+  // Travel accounts name each campaign by its destination; they get a tab per continent.
+  const hasContinentsTab = useMemo(
+    () => namesCampaignsByDestination(googleCampaignNames(displayAllRecords)),
+    [displayAllRecords],
+  );
+  // A period whose campaigns stop naming destinations drops the tab; leave it too.
+  useEffect(() => {
+    if (platformFilter === "continents" && !hasContinentsTab) {
+      setPlatformFilter("google_ads");
+    }
+  }, [platformFilter, hasContinentsTab]);
+
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
     if (
@@ -642,6 +660,13 @@ export default function DashboardView() {
         label: "Google Ads",
         iconNode: getIntegrationIcon("google_ads"),
       });
+      if (hasContinentsTab) {
+        items.push({
+          value: "continents",
+          label: "לפי יבשות",
+          iconNode: <Globe className="h-4 w-4 text-sky-600" />,
+        });
+      }
     }
     if (availablePlatforms.includes("google_analytics")) {
       items.push({
@@ -665,7 +690,7 @@ export default function DashboardView() {
       });
     }
     return items;
-  }, [availablePlatforms]);
+  }, [availablePlatforms, hasContinentsTab]);
 
   // Filter records by platform tab AND only use daily aggregate records for Analytics
   // IMPORTANT: Use only report_type='daily' for aggregation (KPI, charts).
@@ -1101,7 +1126,7 @@ export default function DashboardView() {
   const googleAdsSummary = useMemo(
     () =>
       summarizeGoogleAdsCampaigns(
-        platformFilter === "google_ads"
+        platformFilter === "google_ads" || platformFilter === "continents"
           ? displayAllRecords.filter(
               (r: { _source?: string }) => r._source === "google_ads",
             )
@@ -1636,7 +1661,14 @@ export default function DashboardView() {
             </Tabs>
           )}
 
-          {platformFilter === "weekly" ? (
+          {platformFilter === "continents" ? (
+            <CampaignContinentsTab
+              campaigns={googleAdsSummary.campaigns}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+              formatUnitCost={formatUnitCost}
+            />
+          ) : platformFilter === "weekly" ? (
             <WeeklyCampaignComparison
               records={weeklyRecords}
               currency={getCurrencySymbol(dashboardCurrency)}
