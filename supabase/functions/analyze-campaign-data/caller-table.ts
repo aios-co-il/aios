@@ -9,6 +9,7 @@ import { isRecord } from "../_shared/ads-sync/is-record.ts";
 /** The table row as the caller's read returns it. */
 type CallerTableRow = {
   id: string;
+  tenant_id: string;
   integration_type: string | null;
   integration_settings: unknown;
   category: string | null;
@@ -22,10 +23,13 @@ export type LoadCallerTable = (tableId: string) => PromiseLike<{
 
 /** The columns the caller's read selects. */
 export const CALLER_TABLE_COLUMNS =
-  "id, integration_type, integration_settings, category";
+  "id, tenant_id, integration_type, integration_settings, category";
+
+/** The table the caller may open, with the tenant its rows are stored under. */
+export type CallerTable = CampaignGoalTable & { tenant_id: string };
 
 export type CallerTableResult =
-  | { ok: true; table: CampaignGoalTable }
+  | { ok: true; table: CallerTable }
   | { ok: false; status: 404 | 500; error: string };
 
 /**

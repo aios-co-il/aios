@@ -4,6 +4,7 @@ import { readCallerTable, type LoadCallerTable } from "./caller-table.ts";
 
 const row = {
   id: "t1",
+  tenant_id: "tenant-a",
   integration_type: "facebook_insights",
   integration_settings: { currency: "ILS" },
   category: null,
