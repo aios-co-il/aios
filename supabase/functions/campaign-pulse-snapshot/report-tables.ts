@@ -7,7 +7,9 @@ import {
   fetchCampaignLevelRecords,
   type RecordsClient,
 } from "../_shared/ads-sync/campaign-records.ts";
+import { isRecord } from "../_shared/ads-sync/is-record.ts";
 import { getSpendFromData } from "../_shared/campaign-goal/ads-metrics.ts";
+import { reportCampaignKey } from "../_shared/campaign-goal/campaign-goals.ts";
 import type { OffReportSpend } from "../_shared/pulse/report-off-spending.ts";
 import { recordsThrough } from "./client-windows.ts";
 
@@ -54,13 +56,17 @@ export function splitReportTables<T extends PulseReportTable>(
 /**
  * Each switched-off table's campaign-level spend from `window.start` through
  * `window.end` (Israel days, the last 3 full days), only for tables that
- * spent. Throws on a read error (fetchCampaignLevelRecords) so the caller
- * logs it instead of reporting no spend.
+ * spent. A campaign an active table of the client also reports in the window
+ * (an old report switched off, a new one on the same account) is left out:
+ * the active report already covers it. Throws on a read error
+ * (fetchCampaignLevelRecords) so the caller logs it instead of reporting no
+ * spend.
  */
 export async function loadOffReportSpend(
   client: RecordsClient,
   offTables: Array<PulseReportTable>,
   window: { start: string; end: string },
+  activeRecords: Array<{ data?: unknown }>,
 ): Promise<Array<OffReportSpend>> {
   if (!offTables.length) {
     return [];
@@ -69,10 +75,12 @@ export async function loadOffReportSpend(
     tableIds: offTables.map((table) => table.id),
     sinceYmd: window.start,
   });
+  const covered = campaignKeysInWindow(activeRecords, window);
   const spendByTable = new Map<string, number>();
-  // Today's partial day is left out in code, like recordsThrough: a stored
-  // date may carry a time, which a string bound on the query would misplace.
-  for (const row of recordsThrough(records, window.end)) {
+  for (const row of inWindow(records, window)) {
+    if (row.data && covered.has(reportCampaignKey(row.data))) {
+      continue;
+    }
     spendByTable.set(
       row.table_id,
       (spendByTable.get(row.table_id) || 0) + getSpendFromData(row.data),
@@ -93,5 +101,32 @@ export async function loadOffReportSpend(
         window_end: window.end,
       },
     ];
+  });
+}
+
+/** The campaign keys (id, else name: reportCampaignKey) of rows in the window. */
+function campaignKeysInWindow(
+  rows: Array<{ data?: unknown }>,
+  window: { start: string; end: string },
+): Set<string> {
+  return new Set(
+    inWindow(rows, window).flatMap((row) =>
+      isRecord(row.data) ? [reportCampaignKey(row.data)] : [],
+    ),
+  );
+}
+
+/**
+ * Rows dated in the window. Today's partial day is left out in code, like
+ * recordsThrough: a stored date may carry a time, which a string bound on the
+ * query would misplace.
+ */
+function inWindow<T extends { data?: unknown }>(
+  rows: Array<T>,
+  window: { start: string; end: string },
+): Array<T> {
+  return recordsThrough(rows, window.end).filter((row) => {
+    const date = isRecord(row.data) ? row.data.date : undefined;
+    return typeof date === "string" && date.slice(0, 10) >= window.start;
   });
 }

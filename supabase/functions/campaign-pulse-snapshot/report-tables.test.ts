@@ -115,7 +115,7 @@ Deno.test("loadOffReportSpend", async (t) => {
         },
         { id: "4", table_id: "t-off", data: { date: "2026-11-07", spend: 50 } },
       ]);
-      const spend = await loadOffReportSpend(client, [ARCHI_OFF], WINDOW);
+      const spend = await loadOffReportSpend(client, [ARCHI_OFF], WINDOW, []);
       assertEquals(spend, [
         {
           table_id: "t-off",
@@ -133,12 +133,74 @@ Deno.test("loadOffReportSpend", async (t) => {
     const { client } = fakeRecords([
       { id: "1", table_id: "t-off", data: { date: "2026-11-05", spend: 0 } },
     ]);
-    assertEquals(await loadOffReportSpend(client, [ARCHI_OFF], WINDOW), []);
+    assertEquals(await loadOffReportSpend(client, [ARCHI_OFF], WINDOW, []), []);
   });
+
+  await t.step(
+    "a campaign an active table also reports in the window is left out",
+    async () => {
+      const { client } = fakeRecords([
+        // The new active report took over campaign 1 on the same account.
+        {
+          id: "1",
+          table_id: "t-off",
+          data: { date: "2026-11-05", campaign_id: "1", spend: 300 },
+        },
+        // Campaign 2 has no id; its name matches the active report's row.
+        {
+          id: "2",
+          table_id: "t-off",
+          data: { date: "2026-11-05", campaign_name: "KM 3", spend: 200 },
+        },
+        // Campaign 3 is reported by the switched-off table alone.
+        {
+          id: "3",
+          table_id: "t-off",
+          data: { date: "2026-11-06", campaign_id: "3", spend: 25 },
+        },
+      ]);
+      const activeRecords = [
+        { data: { date: "2026-11-06", campaign_id: "1", spend: 300 } },
+        { data: { date: "2026-11-04", campaign_name: "KM 3", spend: 200 } },
+        // Before the window: an active report that covered 3 long ago does not count.
+        { data: { date: "2026-10-20", campaign_id: "3", spend: 10 } },
+      ];
+      const spend = await loadOffReportSpend(
+        client,
+        [ARCHI_OFF],
+        WINDOW,
+        activeRecords,
+      );
+      assertEquals(
+        spend.map((item) => item.spend_3d),
+        [25],
+      );
+    },
+  );
+
+  await t.step(
+    "no spend left once the active table covers every campaign",
+    async () => {
+      const { client } = fakeRecords([
+        {
+          id: "1",
+          table_id: "t-off",
+          data: { date: "2026-11-05", campaign_id: "1", spend: 300 },
+        },
+      ]);
+      const activeRecords = [
+        { data: { date: "2026-11-05", campaign_id: "1", spend: 300 } },
+      ];
+      assertEquals(
+        await loadOffReportSpend(client, [ARCHI_OFF], WINDOW, activeRecords),
+        [],
+      );
+    },
+  );
 
   await t.step("no switched-off table reads nothing", async () => {
     const { client, calls } = fakeRecords([]);
-    assertEquals(await loadOffReportSpend(client, [], WINDOW), []);
+    assertEquals(await loadOffReportSpend(client, [], WINDOW, []), []);
     assertEquals(calls.length, 0);
   });
 
@@ -147,7 +209,7 @@ Deno.test("loadOffReportSpend", async (t) => {
     async () => {
       const { client } = fakeRecords([], true);
       await assertRejects(() =>
-        loadOffReportSpend(client, [ARCHI_OFF], WINDOW),
+        loadOffReportSpend(client, [ARCHI_OFF], WINDOW, []),
       );
     },
   );

@@ -4,7 +4,9 @@
  * last 3 full days, the window the alert gate calls "still spending"
  * (`pulse/alert-gate.ts`). The pulse raises one instant alert per client and
  * table so someone decides whether to stop those campaigns. The table never
- * feeds the campaign alerts: its rows are read apart from the active tables'.
+ * feeds the campaign alerts: its rows are read apart from the active tables',
+ * and its finding is no snapshot flag (the digest counts flags and the
+ * connection_lost rule matches them by text).
  */
 import type { PulseInstantAlertCandidate } from "../pulse-instant-alerts.ts";
 
@@ -75,10 +77,13 @@ export function reportOffSpendingCandidates(
 }
 
 /**
- * The table's text, "דוח "X" כבוי אבל הוציא ₪283 ב-3 הימים האחרונים": the
- * alert line after the client name, and the snapshot flag the dashboard shows.
+ * The alert line after the client name, "דוח "X" כבוי אבל הוציא ₪283 ב-3
+ * הימים האחרונים". The table name is typed by people: line breaks and runs of
+ * spaces collapse and a double quote becomes ״, so it cannot break the line or
+ * its quoting.
  */
-export function offReportSpendText(item: OffReportSpend): string {
+function offReportSpendText(item: OffReportSpend): string {
   const spend = Math.round(Number(item.spend_3d)).toLocaleString("he-IL");
-  return `דוח "${item.table_name}" כבוי אבל הוציא ₪${spend} ב-3 הימים האחרונים`;
+  const name = item.table_name.replace(/\s+/g, " ").trim().replace(/"/g, "״");
+  return `דוח "${name}" כבוי אבל הוציא ₪${spend} ב-3 הימים האחרונים`;
 }

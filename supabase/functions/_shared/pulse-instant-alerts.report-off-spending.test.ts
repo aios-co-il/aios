@@ -9,6 +9,7 @@ import {
   assertStrictEquals,
   assertStringIncludes,
 } from "jsr:@std/assert@1";
+import { clientPerformance } from "./campaign-pulse.ts";
 import {
   evaluatePulseInstantAlerts,
   type PulseSnapshotAlertInput,
@@ -155,6 +156,54 @@ Deno.test(
       assertStrictEquals(sends.length, 0);
       assertStrictEquals(result.held, 1);
     });
+
+    await t.step(
+      "a table named like a connection issue raises no connection_lost",
+      () => {
+        const candidates = evaluatePulseInstantAlerts(
+          [
+            offSpending([
+              {
+                ...ARCHI_SALT,
+                table_name: "קמפיין נעצר · סנכרון ישן · אין טבלת קמפיין",
+              },
+            ]),
+          ],
+          [],
+          NO_CONTACT_OFF,
+          WEDNESDAY.getTime(),
+        );
+        assertEquals(
+          candidates.map((candidate) => candidate.rule_type),
+          ["report_off_spending"],
+        );
+      },
+    );
+
+    await t.step("the table name cannot break the line or its quotes", () => {
+      const [candidate] = evaluatePulseInstantAlerts(
+        [offSpending([{ ...ARCHI_SALT, table_name: ' KM 3\n"חרדים"  ' }])],
+        [],
+        NO_CONTACT_OFF,
+        WEDNESDAY.getTime(),
+      );
+      assertStrictEquals(
+        candidate.line,
+        'Acme — דוח "KM 3 ״חרדים״" כבוי אבל הוציא ₪283 ב-3 הימים האחרונים',
+      );
+    });
+
+    await t.step(
+      "a client with only a sync flag stays healthy in the digest counts",
+      () => {
+        const performance = clientPerformance({
+          ...offSpending(),
+          status: "warning",
+          flags: ["סנכרון ישן או חסר: Meta"],
+        });
+        assertStrictEquals(performance.status, "healthy");
+      },
+    );
 
     await t.step(
       "its spend raises only this rule, never a campaign exception",

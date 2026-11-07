@@ -49,10 +49,7 @@ import { reportCampaignGoalOf } from "../_shared/campaign-goal/campaign-goals.ts
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
-import {
-  type OffReportSpend,
-  offReportSpendText,
-} from "../_shared/pulse/report-off-spending.ts";
+import type { OffReportSpend } from "../_shared/pulse/report-off-spending.ts";
 import { loadOffReportSpend, splitReportTables } from "./report-tables.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -450,7 +447,9 @@ Deno.serve(async (req) => {
     // and its prior week never include today's partial day.
     const windows = pulseClientWindows(now);
     const snapshots: any[] = [];
-    // Switched-off tables that still spend, for report_off_spending (AIO-501).
+    // Switched-off tables that still spend, read by report_off_spending alone
+    // (AIO-501): never a snapshot flag, which the digest counts and the
+    // connection_lost rule matches by text.
     const offReportSpendByClient = new Map<string, Array<OffReportSpend>>();
     for (const client of reportableClients) {
       try {
@@ -655,6 +654,7 @@ Deno.serve(async (req) => {
           supabase,
           reportTables.offByClient.get(client.id) || [],
           { start: windows.current3Start, end: windows.end },
+          records,
         ).catch((offSpendError) => {
           console.error(
             "[campaign-pulse] switched-off report spend unavailable",
@@ -674,8 +674,6 @@ Deno.serve(async (req) => {
                 (campaign: any) =>
                   `${campaign.campaign_name}: ${campaign.status_reason}`,
               ),
-            // Last, so it never displaces a campaign's reason in the digest.
-            ...offReportSpend.map(offReportSpendText),
           ]),
         );
         const stalePlatforms = Array.from(
