@@ -18775,6 +18775,7 @@ export type Database = {
           workshop_edit: boolean;
         }[];
       };
+      workshop_narration_take: { Args: { p_item_id: string }; Returns: Json };
       workshop_pending_artifact: {
         Args: {
           p_item_id: string;

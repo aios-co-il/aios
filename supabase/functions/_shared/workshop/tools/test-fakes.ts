@@ -69,6 +69,11 @@ export function fakeDb(script: Record<string, unknown> = {}) {
           calls.push({ table, op, value: v });
           return builder;
         },
+        upsert(v: unknown, options?: unknown) {
+          op = "upsert";
+          calls.push({ table, op, value: { rows: v, options } });
+          return builder;
+        },
         select: () => builder,
         eq: () => builder,
         match: () => builder,
