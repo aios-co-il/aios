@@ -53,9 +53,60 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Tables } from "@/integrations/supabase/types";
+import { z } from "zod";
+import {
+  listOf,
+  optionalTextSchema,
+} from "@/components/automations/automationStepConfig";
+import { triggerFilterSource } from "@/lib/automationFormHelpers";
+
+const testRunItemSchema = z.object({
+  automation_name: optionalTextSchema,
+  error: optionalTextSchema,
+  success: z.boolean(),
+});
+
+const testRunResponseSchema = z.object({
+  error: optionalTextSchema,
+  automations_found: optionalTextSchema,
+  results: z.array(testRunItemSchema),
+});
+
+type TestRunResponse = z.infer<typeof testRunResponseSchema>;
+
+export function parseTestRunResponse(value: unknown): TestRunResponse {
+  return testRunResponseSchema.parse(value);
+}
+
+/** The lead, client or task data trigger-automation runs the test with. */
+type TestRunData = {
+  test: true;
+  automation_name: string;
+  timestamp: string;
+  id?: string;
+  lead_id?: string;
+  client_id?: string;
+  task_id?: string;
+  contact_name?: string | null;
+  company_name?: string | null;
+  phone?: string | null;
+  old_status?: string;
+  status?: string;
+  new_status?: string;
+  status_kind?: string;
+  task_title?: string;
+  task_status?: string;
+  priority?: number | null;
+  client_name?: string | null;
+  campaigner_name?: string | null;
+  meeting_date?: string;
+  meeting_time?: string;
+  meeting_location?: string;
+};
 
 interface TestAutomationDialogProps {
-  automation: any;
+  automation: Tables<"automations">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -90,7 +141,7 @@ export function TestAutomationDialog({
   const [meetingTime, setMeetingTime] = useState("10:00");
   const [meetingLocation, setMeetingLocation] = useState("משרד ראשי");
 
-  const [testResult, setTestResult] = useState<any>(null);
+  const [testResult, setTestResult] = useState<TestRunResponse | null>(null);
 
   // Fetch leads
   const { data: leads = [] } = useQuery({
@@ -157,7 +208,7 @@ export function TestAutomationDialog({
   // Test mutation
   const testMutation = useMutation({
     mutationFn: async () => {
-      const testData: any = {
+      const testData: TestRunData = {
         test: true,
         automation_name: automation.name,
         timestamp: new Date().toISOString(),
@@ -169,7 +220,7 @@ export function TestAutomationDialog({
         }
         if (selectedLeadId) {
           testData.lead_id = selectedLeadId;
-          const selectedLead = leads.find((l: any) => l.id === selectedLeadId);
+          const selectedLead = leads.find((l) => l.id === selectedLeadId);
           testData.contact_name =
             selectedLead?.contact_name || selectedLead?.company_name;
           testData.company_name = selectedLead?.company_name;
@@ -177,9 +228,7 @@ export function TestAutomationDialog({
         }
         if (selectedClientId) {
           testData.client_id = selectedClientId;
-          const selectedClient = clients.find(
-            (c: any) => c.id === selectedClientId,
-          );
+          const selectedClient = clients.find((c) => c.id === selectedClientId);
           testData.contact_name =
             selectedClient?.contact_name || selectedClient?.name;
           testData.company_name = selectedClient?.name;
@@ -188,15 +237,16 @@ export function TestAutomationDialog({
 
         // For lead_status_changed automations, include the new_status from conditions
         // so the automation's conditions will be met during test
+        const conditions = triggerFilterSource(automation.conditions);
         if (
           automation.trigger_type === "lead_status_changed" &&
-          automation.conditions?.new_status
+          conditions?.new_status
         ) {
           testData.id = selectedLeadId;
-          testData.new_status = automation.conditions.new_status;
-          testData.status = automation.conditions.new_status;
-          if (automation.conditions.status_kind) {
-            testData.status_kind = automation.conditions.status_kind;
+          testData.new_status = conditions.new_status;
+          testData.status = conditions.new_status;
+          if (conditions.status_kind) {
+            testData.status_kind = conditions.status_kind;
           }
         }
       } else if (testMode === "task") {
@@ -204,7 +254,7 @@ export function TestAutomationDialog({
           throw new Error("יש לבחור משימה לבדיקה");
         }
         testData.task_id = selectedTaskId;
-        const selectedTask = tasks.find((t: any) => t.id === selectedTaskId);
+        const selectedTask = tasks.find((t) => t.id === selectedTaskId);
         testData.task_title = selectedTask?.title;
         testData.task_status = selectedTask?.status;
         testData.priority = selectedTask?.priority;
@@ -220,7 +270,7 @@ export function TestAutomationDialog({
         }
         testData.id = selectedLeadId;
         testData.lead_id = selectedLeadId;
-        const selectedLead = leads.find((l: any) => l.id === selectedLeadId);
+        const selectedLead = leads.find((l) => l.id === selectedLeadId);
         testData.contact_name =
           selectedLead?.contact_name || selectedLead?.company_name;
         testData.company_name = selectedLead?.company_name;
@@ -241,7 +291,7 @@ export function TestAutomationDialog({
       }
 
       // Determine trigger type based on test mode
-      let triggerType = automation.trigger_type;
+      let triggerType: string = automation.trigger_type;
       if (testMode === "status") {
         triggerType = "lead_status_changed";
       } else if (testMode === "task") {
@@ -257,17 +307,17 @@ export function TestAutomationDialog({
       });
 
       if (response.error) throw response.error;
-      return response.data;
+      return parseTestRunResponse(response.data);
     },
-    onSuccess: (data) => {
-      setTestResult(data);
+    onSuccess: (data: unknown) => {
+      setTestResult(parseTestRunResponse(data));
       toast({
         title: "בדיקה הושלמה",
         description: "בדוק את התוצאות למטה",
       });
     },
-    onError: (error: any) => {
-      setTestResult({ error: error.message });
+    onError: (error: Error) => {
+      setTestResult({ error: error.message, results: [] });
       toast({
         title: "שגיאה בבדיקה",
         description: error.message,
@@ -286,10 +336,11 @@ export function TestAutomationDialog({
     onOpenChange(false);
   };
 
-  const selectedLead = leads.find((l: any) => l.id === selectedLeadId);
-  const selectedClient = clients.find((c: any) => c.id === selectedClientId);
-  const selectedTask = tasks.find((t: any) => t.id === selectedTaskId);
+  const selectedLead = leads.find((l) => l.id === selectedLeadId);
+  const selectedClient = clients.find((c) => c.id === selectedClientId);
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId);
   const isMeetingTrigger = automation?.trigger_type === "meeting_created";
+  const resultItems = testResult?.results ?? [];
 
   const canRunTest = () => {
     if (testMode === "contact") {
@@ -317,7 +368,11 @@ export function TestAutomationDialog({
           {/* Test Mode Tabs */}
           <Tabs
             value={testMode}
-            onValueChange={(v) => setTestMode(v as any)}
+            onValueChange={(v) => {
+              if (v === "contact" || v === "task" || v === "status") {
+                setTestMode(v);
+              }
+            }}
             className="w-full"
           >
             <TabsList className="grid grid-cols-3 w-full">
@@ -361,7 +416,7 @@ export function TestAutomationDialog({
                       <CommandList>
                         <CommandEmpty>לא נמצאו לידים</CommandEmpty>
                         <CommandGroup>
-                          {leads.map((lead: any) => (
+                          {leads.map((lead) => (
                             <CommandItem
                               key={lead.id}
                               value={`${lead.company_name} ${lead.contact_name || ""}`}
@@ -427,7 +482,7 @@ export function TestAutomationDialog({
                       <CommandList>
                         <CommandEmpty>לא נמצאו לקוחות</CommandEmpty>
                         <CommandGroup>
-                          {clients.map((client: any) => (
+                          {clients.map((client) => (
                             <CommandItem
                               key={client.id}
                               value={`${client.name} ${client.contact_name || ""}`}
@@ -485,7 +540,7 @@ export function TestAutomationDialog({
                       <CommandList>
                         <CommandEmpty>לא נמצאו משימות</CommandEmpty>
                         <CommandGroup>
-                          {tasks.map((task: any) => (
+                          {tasks.map((task) => (
                             <CommandItem
                               key={task.id}
                               value={task.title}
@@ -546,7 +601,7 @@ export function TestAutomationDialog({
                       <CommandList>
                         <CommandEmpty>לא נמצאו לידים</CommandEmpty>
                         <CommandGroup>
-                          {leads.map((lead: any) => (
+                          {leads.map((lead) => (
                             <CommandItem
                               key={lead.id}
                               value={`${lead.company_name} ${lead.contact_name || ""}`}
@@ -671,23 +726,21 @@ export function TestAutomationDialog({
                   </div>
                 ) : (
                   <>
-                    {testResult.results
-                      ?.filter((result: any) => result !== null)
-                      .map((result: any, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          {result?.success ? (
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-destructive" />
-                          )}
-                          <span>{result?.automation_name || "אוטומציה"}</span>
-                          {result?.error && (
-                            <span className="text-xs text-destructive">
-                              ({result.error})
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                    {resultItems.map((result, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        {result.success ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        )}
+                        <span>{result.automation_name || "אוטומציה"}</span>
+                        {result.error && (
+                          <span className="text-xs text-destructive">
+                            ({result.error})
+                          </span>
+                        )}
+                      </div>
+                    ))}
                     {testResult.automations_found !== undefined && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <AlertCircle className="h-4 w-4" />
@@ -696,10 +749,8 @@ export function TestAutomationDialog({
                         </span>
                       </div>
                     )}
-                    {testResult.results?.length > 0 &&
-                      testResult.results
-                        .filter((r: any) => r !== null)
-                        .every((r: any) => r?.success) && (
+                    {resultItems.length > 0 &&
+                      resultItems.every((r) => r.success) && (
                         <div className="flex items-center gap-2 text-green-600 font-medium pt-2 border-t">
                           <CheckCircle className="h-5 w-5" />
                           <span>האוטומציה הופעלה בהצלחה!</span>

@@ -47,7 +47,7 @@ export async function authorizeDirectAutomationRun(
   supabase: Pick<DbClient, "auth" | "rpc">,
   token: string,
   serviceKey: string,
-  automationTenantId: string,
+  automationTenantId: string | null,
 ): Promise<DirectRunDecision> {
   if (isServiceKey(token, serviceKey)) {
     return { allowed: true, caller: SERVICE_CALLER };

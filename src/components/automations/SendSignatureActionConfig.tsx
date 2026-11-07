@@ -1,4 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  cfgText,
+  type StepConfig,
+  type StepConfigChange,
+} from "./automationStepConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,9 +16,9 @@ import {
 import { Input } from "@/components/ui/input";
 
 interface SendSignatureActionConfigProps {
-  tenantId: string;
-  configuration: Record<string, any>;
-  onConfigChange: (key: string, value: any) => void;
+  tenantId?: string;
+  configuration: StepConfig;
+  onConfigChange: StepConfigChange;
 }
 
 export default function SendSignatureActionConfig({
@@ -24,6 +29,7 @@ export default function SendSignatureActionConfig({
   const { data: templates = [] } = useQuery({
     queryKey: ["signature-templates", tenantId],
     queryFn: async () => {
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("signature_documents")
         .select("id, title, template_name, document_type")
@@ -47,7 +53,7 @@ export default function SendSignatureActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">תבנית חתימה *</Label>
         <Select
-          value={configuration?.template_document_id || ""}
+          value={cfgText(configuration?.template_document_id) || ""}
           onValueChange={(v) => onConfigChange("template_document_id", v)}
         >
           <SelectTrigger className="text-right">
@@ -72,7 +78,7 @@ export default function SendSignatureActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">שם החותם (שדה מהטריגר)</Label>
         <Input
-          value={configuration?.recipient_name_field || "contact_name"}
+          value={cfgText(configuration?.recipient_name_field) || "contact_name"}
           onChange={(e) =>
             onConfigChange("recipient_name_field", e.target.value)
           }
@@ -85,7 +91,7 @@ export default function SendSignatureActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">אימייל החותם (שדה מהטריגר)</Label>
         <Input
-          value={configuration?.recipient_email_field || "email"}
+          value={cfgText(configuration?.recipient_email_field) || "email"}
           onChange={(e) =>
             onConfigChange("recipient_email_field", e.target.value)
           }
@@ -98,7 +104,7 @@ export default function SendSignatureActionConfig({
       <div className="space-y-2">
         <Label className="text-right block">שם המסמך (אופציונלי)</Label>
         <Input
-          value={configuration?.document_title_template || ""}
+          value={cfgText(configuration?.document_title_template) || ""}
           onChange={(e) =>
             onConfigChange("document_title_template", e.target.value)
           }
