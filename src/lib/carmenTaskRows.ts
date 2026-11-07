@@ -33,7 +33,8 @@ type CarmenTaskRowSource =
   | { source: "agent_tasks"; raw: AgentTaskSourceRow }
   | { source: "goals"; raw: GoalSourceRow }
   | { source: "dev_tasks"; raw: DevTaskSourceRow }
-  | { source: "cron_job"; raw: CronJobSourceRow };
+  | { source: "cron_job"; raw: CronJobSourceRow }
+  | { source: "automation"; raw: { automation_key: string; enabled: boolean } };
 
 export type CarmenTaskRow = CarmenTaskRowSource & {
   key: string;
