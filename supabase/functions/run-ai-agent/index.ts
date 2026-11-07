@@ -14,6 +14,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { defaultGatewayLine, integrationTypesFor } from "./whatsapp-lines.ts";
 import {
+  canStreamCompletion,
+  readStreamedCompletion,
+} from "./stream-completion.ts";
+import {
   brainDenied,
   internalBrainDenied,
 } from "../_shared/carmen/brain-guard.ts";
@@ -15862,6 +15866,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         if (temp !== undefined) payload.temperature = temp;
         if (llm.maxTokens) payload.max_tokens = llm.maxTokens;
         if (cappedTools.length > 0) payload.tools = cappedTools;
+        // A chat that shows the reply live gets the text as the model writes it (AIO-509).
+        const streamThisRound = !!emit && canStreamCompletion(llm);
+        if (streamThisRound) {
+          payload.stream = true;
+          payload.stream_options = { include_usage: true };
+        }
         if (
           round === 0 &&
           isStoredPulseRequest &&
@@ -15954,7 +15964,23 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         throw new Error(`AI error: ${res.status} ${err}`);
       }
 
-      const data = await res.json();
+      let streamedText = "";
+      const data =
+        res.headers.get("content-type")?.includes("text/event-stream") &&
+        res.body
+          ? await readStreamedCompletion(res.body, (delta) => {
+              // Same separation as emitText: a new text after earlier ones starts apart.
+              const lead =
+                !streamedText && emittedTexts.length > 0 ? "\n\n" : "";
+              streamedText += delta;
+              emit?.({ type: "token", content: lead + delta });
+            }).then(({ message, usage }) => ({
+              usage,
+              choices: [{ message }],
+            }))
+          : await res.json();
+      // Text already streamed counts as sent, so emitText does not send it again.
+      if (streamedText.trim()) emittedTexts.push(streamedText.trim());
       if (data?.usage) {
         usageTokensIn +=
           data.usage.prompt_tokens ?? data.usage.input_tokens ?? 0;
