@@ -50,7 +50,7 @@ export function UIModeProvider({ children }: { children: ReactNode }) {
     // Optimistic update
     queryClient.setQueryData(["ui-mode", userId], newMode);
 
-    await (supabase as any)
+    await supabase
       .from("profiles")
       .update({ ui_mode: newMode })
       .eq("id", userId);

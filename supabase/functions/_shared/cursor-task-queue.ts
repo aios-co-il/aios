@@ -5,6 +5,10 @@ import {
   cursorSessionDisplayName,
   trackCursorTaskSession,
 } from "./cursor-session-tracker.ts";
+import type { Json } from "./database.types.ts";
+import { jsonField } from "./json-fields.ts";
+import type { DbClient } from "./supabase-clients.ts";
+import type { UntypedSchemaClient } from "./untyped-schema-client.ts";
 
 export const CURSOR_ASSIGNEE_NAMES = [
   "cursor",
@@ -39,7 +43,7 @@ export function extractHumanTaskId(
 }
 
 export async function countInProgressCursorTasks(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<number> {
   const { data, error } = await supabase
@@ -54,7 +58,7 @@ export async function countInProgressCursorTasks(
 }
 
 export async function claimNextOpenCursorTask(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<HumanTaskRow | null> {
   const { data: open, error } = await supabase
@@ -128,16 +132,17 @@ export async function mcpRequestDevTask(
   const text = await resp.text();
   if (!resp.ok)
     throw new Error(`cursor-mcp ${resp.status}: ${text.slice(0, 400)}`);
-  let parsed: any = {};
+  let parsed: Json = {};
   try {
     parsed = JSON.parse(text);
   } catch {
     /* sse fallback below */
   }
-  const content = parsed?.result?.content;
+  const result = jsonField(parsed, "result");
+  const content = jsonField(result, "content");
   const flat = Array.isArray(content)
-    ? content.map((c: any) => c?.text ?? "").join("\n")
-    : String(parsed?.result ?? text);
+    ? content.map((c) => jsonField(c, "text") ?? "").join("\n")
+    : String(result ?? text);
   const urlMatch = flat.match(
     /https:\/\/cursor\.com\/agents\/(bc-[a-z0-9-]+)/i,
   );
@@ -149,8 +154,22 @@ export async function mcpRequestDevTask(
   };
 }
 
+/** task_updates has no tenant_id column in the generated schema. */
+function insertAgentTaskUpdate(
+  supabase: UntypedSchemaClient,
+  row: {
+    task_id: string;
+    tenant_id: string;
+    user_id: null;
+    content: string;
+    update_type: string;
+  },
+) {
+  return supabase.from("task_updates").insert(row);
+}
+
 export async function completeHumanCursorTask(
-  supabase: any,
+  supabase: DbClient,
   args: { tenantId: string; taskId: string; summary?: string },
 ): Promise<{ ok: boolean; advanced?: boolean }> {
   const { tenantId, taskId, summary } = args;
@@ -169,7 +188,7 @@ export async function completeHumanCursorTask(
     .eq("id", taskId)
     .eq("tenant_id", tenantId);
 
-  await supabase.from("task_updates").insert({
+  await insertAgentTaskUpdate(supabase, {
     task_id: taskId,
     tenant_id: tenantId,
     user_id: null,
@@ -193,7 +212,7 @@ export async function completeHumanCursorTask(
 }
 
 export async function claimAndDispatchCursorTask(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<{
   taskId: string;

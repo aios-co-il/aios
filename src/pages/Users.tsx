@@ -66,6 +66,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isPresent } from "@/lib/typeGuards";
 
 // Role labels are now dynamic via useTerminology hook
 // Mapping from role key to terminology key
@@ -165,7 +166,7 @@ export default function Users() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies-for-invite", tenantId, currentUserId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -203,18 +204,18 @@ export default function Users() {
       // Extract shared agencies
       const shared = (sharedAccess || [])
         .map((s) => s.agencies)
-        .filter(Boolean);
+        .filter(isPresent);
 
       // Combine and remove duplicates
       const combined = [...(ownedAgencies || []), ...shared];
-      const uniqueMap = new Map();
+      const uniqueMap = new Map<string, (typeof combined)[number]>();
       combined.forEach((agency) => {
         if (agency && agency.id && !uniqueMap.has(agency.id)) {
           uniqueMap.set(agency.id, agency);
         }
       });
 
-      return Array.from(uniqueMap.values()).sort((a: any, b: any) =>
+      return Array.from(uniqueMap.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
       );
     },
@@ -224,7 +225,7 @@ export default function Users() {
   const { data: campaigners } = useQuery({
     queryKey: ["campaigners-for-invite", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("campaigners")
         .select("id, full_name")
@@ -240,7 +241,7 @@ export default function Users() {
   const { data: salesPeople } = useQuery({
     queryKey: ["sales-people-for-invite", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name")
@@ -256,7 +257,7 @@ export default function Users() {
   const { data: salesPeopleWithAgencies } = useQuery({
     queryKey: ["sales-people-with-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("sales_people")
         .select(
@@ -273,12 +274,12 @@ export default function Users() {
 
       if (error) throw error;
 
-      return data.map((sp: any) => ({
+      return data.map((sp) => ({
         id: sp.id,
         full_name: sp.full_name,
         agencies: sp.sales_person_agencies
-          .map((spa: any) => spa.agencies)
-          .filter(Boolean),
+          .map((spa) => spa.agencies)
+          .filter(isPresent),
       }));
     },
     enabled: !!tenantId,
@@ -325,14 +326,14 @@ export default function Users() {
         .select("tenant_id, tenants(id, name)")
         .eq("user_id", currentUserId);
       if (error) throw error;
-      return (data || []).map((row: any) => row.tenants).filter(Boolean);
+      return (data || []).map((row) => row.tenants).filter(isPresent);
     },
     enabled: !!currentUserId && !isSuperAdmin,
   });
 
   const inviteTenantOptions = isSuperAdmin
     ? (tenants || []).map((t) => ({ id: t.id, name: t.name }))
-    : (ownerTenants || []).map((t: any) => ({ id: t.id, name: t.name }));
+    : (ownerTenants || []).map((t) => ({ id: t.id, name: t.name }));
 
   const showMultiTenantInvite = inviteTenantOptions.length > 1 || isSuperAdmin;
 
@@ -394,7 +395,7 @@ export default function Users() {
         .from("sales_person_agencies")
         .select("sales_person_id, agency_id");
 
-      return profiles.map((profile: any) => {
+      return profiles.map((profile) => {
         const userRoleRecords = (userRoles || []).filter(
           (r) => r.user_id === profile.id,
         );
@@ -431,7 +432,7 @@ export default function Users() {
     },
   });
 
-  const tenantAgencyIdSet = new Set((agencies || []).map((a: any) => a.id));
+  const tenantAgencyIdSet = new Set((agencies || []).map((a) => a.id));
 
   const organizationUsers = (users || []).map((user) => ({
     ...user,
@@ -1457,7 +1458,7 @@ export default function Users() {
               <Card className="p-6 text-center">טוען...</Card>
             ) : isMobile ? (
               <div className="space-y-4">
-                {filteredUsers?.map((user: any) => (
+                {filteredUsers?.map((user) => (
                   <Card key={user.id} className="p-4">
                     <div className="space-y-3">
                       <div className="flex justify-between items-start">
@@ -1519,7 +1520,10 @@ export default function Users() {
                               <SelectContent className="bg-background z-50">
                                 {Object.entries(roleLabels)
                                   .filter(
-                                    ([value]) => !user.roles?.includes(value),
+                                    ([value]) =>
+                                      !user.roles?.some(
+                                        (role) => role === value,
+                                      ),
                                   )
                                   .map(([value, label]) => (
                                     <SelectItem key={value} value={value}>
@@ -1738,7 +1742,7 @@ export default function Users() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredUsers?.map((user: any) => (
+                      {filteredUsers?.map((user) => (
                         <TableRow key={user.id}>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -1804,7 +1808,10 @@ export default function Users() {
                                 <SelectContent className="bg-background z-50">
                                   {Object.entries(roleLabels)
                                     .filter(
-                                      ([value]) => !user.roles?.includes(value),
+                                      ([value]) =>
+                                        !user.roles?.some(
+                                          (role) => role === value,
+                                        ),
                                     )
                                     .map(([value, label]) => (
                                       <SelectItem key={value} value={value}>
@@ -2087,7 +2094,7 @@ export default function Users() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {tenants.map((tenant: any) => (
+                      {tenants.map((tenant) => (
                         <TableRow key={tenant.id}>
                           <TableCell className="font-medium">
                             {tenant.name}
@@ -2127,7 +2134,7 @@ export default function Users() {
           {userListFilters}
           {isMobile ? (
             <div className="space-y-4">
-              {filteredUsers?.map((user: any) => (
+              {filteredUsers?.map((user) => (
                 <Card key={user.id} className="p-4">
                   <div className="space-y-3">
                     <div className="flex justify-between items-start">
@@ -2271,7 +2278,10 @@ export default function Users() {
                           </SelectTrigger>
                           <SelectContent>
                             {Object.entries(roleLabels)
-                              .filter(([value]) => !user.roles?.includes(value))
+                              .filter(
+                                ([value]) =>
+                                  !user.roles?.some((role) => role === value),
+                              )
                               .map(([value, label]) => (
                                 <SelectItem key={value} value={value}>
                                   {label}
@@ -2338,7 +2348,7 @@ export default function Users() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsers?.map((user: any) => (
+                    {filteredUsers?.map((user) => (
                       <TableRow key={user.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -2404,7 +2414,10 @@ export default function Users() {
                               <SelectContent className="bg-background z-50">
                                 {Object.entries(roleLabels)
                                   .filter(
-                                    ([value]) => !user.roles?.includes(value),
+                                    ([value]) =>
+                                      !user.roles?.some(
+                                        (role) => role === value,
+                                      ),
                                   )
                                   .map(([value, label]) => (
                                     <SelectItem key={value} value={value}>
@@ -2614,7 +2627,10 @@ export default function Users() {
                                 <SelectContent>
                                   {Object.entries(roleLabels)
                                     .filter(
-                                      ([value]) => !user.roles?.includes(value),
+                                      ([value]) =>
+                                        !user.roles?.some(
+                                          (role) => role === value,
+                                        ),
                                     )
                                     .map(([value, label]) => (
                                       <SelectItem key={value} value={value}>

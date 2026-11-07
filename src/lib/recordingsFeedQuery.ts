@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 
 /** Full feed select — disambiguated FKs (see #162). */
 export const RECORDINGS_FEED_SELECT =
@@ -6,7 +7,17 @@ export const RECORDINGS_FEED_SELECT =
 
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 
-async function markStaleProcessing(list: any[]) {
+type StaleCheckRow = Pick<
+  Tables<"zoom_recordings">,
+  | "id"
+  | "transcription"
+  | "transcription_status"
+  | "transcription_error"
+  | "created_at"
+  | "updated_at"
+>;
+
+async function markStaleProcessing(list: StaleCheckRow[]) {
   const stale = list.filter(
     (r) =>
       r.transcription_status === "processing" &&
@@ -21,7 +32,7 @@ async function markStaleProcessing(list: any[]) {
     .update({
       transcription_status: "failed",
       transcription_error: "תהליך התמלול נתקע (timeout)",
-    } as any)
+    })
     .in(
       "id",
       stale.map((r) => r.id),

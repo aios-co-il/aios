@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { isQueryResolving } from "@/lib/queryUi";
@@ -14,7 +15,8 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTerminology } from "@/hooks/useTerminology";
 
 export default function Suppliers() {
-  const [editingSupplier, setEditingSupplier] = useState<any>(null);
+  const [editingSupplier, setEditingSupplier] =
+    useState<Tables<"suppliers"> | null>(null);
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const { t } = useTerminology();

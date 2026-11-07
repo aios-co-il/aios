@@ -30,7 +30,7 @@ interface Goal {
   description: string | null;
   parent_goal_id: string | null;
   status: string;
-  progress_percent: number;
+  progress_percent: number | null;
   due_date: string | null;
   owner_type: string;
   owner_id: string | null;
@@ -46,13 +46,15 @@ export function GoalTree() {
   const { data: goals = [], isLoading } = useQuery({
     queryKey: ["goals", tenantId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      if (!tenantId) return [];
+      const { data, error } = await supabase
         .from("goals")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as Goal[];
+      const rows: Goal[] = data || [];
+      return rows;
     },
     enabled: !!tenantId,
   });
@@ -63,12 +65,12 @@ export function GoalTree() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("goal_id, status" as any)
+        .select("goal_id, status")
         .eq("tenant_id", tenantId!)
-        .not("goal_id" as any, "is", null);
+        .not("goal_id", "is", null);
       if (error) return {};
       const counts: Record<string, { total: number; done: number }> = {};
-      (data as any[])?.forEach((t: any) => {
+      data?.forEach((t) => {
         if (!t.goal_id) return;
         if (!counts[t.goal_id]) counts[t.goal_id] = { total: 0, done: 0 };
         counts[t.goal_id].total++;
@@ -82,7 +84,7 @@ export function GoalTree() {
   const createGoalMutation = useMutation({
     mutationFn: async (parentId?: string) => {
       if (!newGoalTitle.trim() || !tenantId) return;
-      const { error } = await (supabase as any).from("goals").insert({
+      const { error } = await supabase.from("goals").insert({
         tenant_id: tenantId,
         title: newGoalTitle.trim(),
         parent_goal_id: parentId || null,
@@ -106,7 +108,7 @@ export function GoalTree() {
       goalId: string;
       status: string;
     }) => {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("goals")
         .update({ status })
         .eq("id", goalId);

@@ -144,7 +144,7 @@ export function LinkPhoneDialog({
       onOpenChange(false);
       form.reset();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Link phone error:", error);
       toast.error(error.message || "שגיאה בעדכון הטלפון");
     },
@@ -157,7 +157,10 @@ export function LinkPhoneDialog({
   };
 
   const isLoading = clientsLoading || leadsLoading;
-  const contactList = selectedType === "client" ? clients : leads;
+  const contactList =
+    selectedType === "client"
+      ? clients.map((c) => ({ ...c, label: c.name }))
+      : leads.map((l) => ({ ...l, label: l.company_name }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,7 +177,8 @@ export function LinkPhoneDialog({
             <Label>סוג איש קשר</Label>
             <Select
               value={selectedType}
-              onValueChange={(value: any) => {
+              onValueChange={(value) => {
+                if (value !== "client" && value !== "lead") return;
                 setSelectedType(value);
                 form.setValue("type", value);
                 form.setValue("contact_id", "");
@@ -227,14 +231,10 @@ export function LinkPhoneDialog({
                       לא נמצאו אנשי קשר
                     </div>
                   ) : (
-                    contactList.map((contact: any) => (
+                    contactList.map((contact) => (
                       <SelectItem key={contact.id} value={contact.id}>
                         <div className="flex flex-col items-start">
-                          <span className="font-medium">
-                            {selectedType === "client"
-                              ? contact.name
-                              : contact.company_name}
-                          </span>
+                          <span className="font-medium">{contact.label}</span>
                           {contact.phone && (
                             <span className="text-xs text-muted-foreground">
                               טלפון נוכחי: {contact.phone}

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -62,7 +63,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 interface EditSalesPersonDialogProps {
-  salesPerson: any;
+  salesPerson: Tables<"sales_people">;
 }
 
 export function EditSalesPersonDialog({
@@ -108,7 +109,7 @@ export function EditSalesPersonDialog({
       });
       setOpen(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה בעדכון איש מכירות",
         description: error.message,

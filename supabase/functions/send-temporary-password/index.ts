@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { unknownField } from "../_shared/json-fields.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -129,12 +130,12 @@ const handler = async (req: Request): Promise<Response> => {
         headers: { "Content-Type": "application/json", ...corsHeaders },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in send-temporary-password function:", error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || "שגיאה בשליחת סיסמה זמנית",
+        error: unknownField(error, "message") || "שגיאה בשליחת סיסמה זמנית",
       }),
       {
         status: 500,

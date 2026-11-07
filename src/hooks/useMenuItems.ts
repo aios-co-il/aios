@@ -55,7 +55,7 @@ export function useMenuItems() {
         .select("org_type, is_premium")
         .eq("id", tenantId)
         .single();
-      return data as any;
+      return data;
     },
     enabled: !!tenantId,
   });

@@ -9,9 +9,19 @@ import {
   monthUtcBounds,
   redactSecretsFromText,
 } from "./openai-billing.ts";
+import type { Json } from "./database.types.ts";
+import { jsonField, unknownField } from "./json-fields.ts";
+import type { DbClient } from "./supabase-clients.ts";
+
+type AdminGetResult = {
+  ok: boolean;
+  status: number;
+  json: Json;
+  error?: string;
+};
 
 export async function resolveOpenAiAdminKey(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
 ): Promise<{ key: string | null; source: string | null }> {
   const fromEnv =
@@ -29,11 +39,11 @@ export async function resolveOpenAiAdminKey(
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const s = (data?.settings || {}) as Record<string, string>;
+    const s = data?.settings;
     const fromSettings =
-      s.openai_admin_api_key ||
-      s.openai_admin_key ||
-      s.openai_organization_admin_key;
+      jsonField(s, "openai_admin_api_key") ||
+      jsonField(s, "openai_admin_key") ||
+      jsonField(s, "openai_organization_admin_key");
     if (fromSettings && String(fromSettings).trim()) {
       return {
         key: String(fromSettings).trim(),
@@ -49,7 +59,7 @@ export async function resolveOpenAiAdminKey(
 async function openaiAdminGet(
   pathWithQuery: string,
   adminKey: string,
-): Promise<{ ok: boolean; status: number; json: any; error?: string }> {
+): Promise<AdminGetResult> {
   try {
     const res = await fetch(`https://api.openai.com/v1${pathWithQuery}`, {
       method: "GET",
@@ -59,7 +69,7 @@ async function openaiAdminGet(
       },
     });
     const text = await res.text();
-    let json: any = null;
+    let json: Json = null;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
@@ -67,23 +77,26 @@ async function openaiAdminGet(
     }
     if (!res.ok) {
       const msg = redactSecretsFromText(
-        json?.error?.message || json?.message || text || `HTTP ${res.status}`,
+        jsonField(jsonField(json, "error"), "message") ||
+          jsonField(json, "message") ||
+          text ||
+          `HTTP ${res.status}`,
       );
       return { ok: false, status: res.status, json, error: msg };
     }
     return { ok: true, status: res.status, json };
-  } catch (e: any) {
+  } catch (e) {
     return {
       ok: false,
       status: 0,
       json: null,
-      error: redactSecretsFromText(e?.message || String(e)),
+      error: redactSecretsFromText(unknownField(e, "message") || String(e)),
     };
   }
 }
 
 export async function fetchOpenAiBillingStatus(args: {
-  supabase: { from: (t: string) => any };
+  supabase: DbClient;
   tenantId: string;
   includeTokens?: boolean;
 }): Promise<Record<string, unknown>> {
@@ -113,12 +126,7 @@ export async function fetchOpenAiBillingStatus(args: {
   const costsQs = `start_time=${period.start_time}&end_time=${period.end_time}&bucket_width=1d&limit=31`;
   const costsRes = await openaiAdminGet(`/organization/costs?${costsQs}`, key);
 
-  let usageRes: {
-    ok: boolean;
-    status: number;
-    json: any;
-    error?: string;
-  } | null = null;
+  let usageRes: AdminGetResult | null = null;
   if (includeTokens) {
     usageRes = await openaiAdminGet(
       `/organization/usage/completions?${costsQs}`,

@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Json, Tables } from "../_shared/database.types.ts";
+import { asJsonObject, unknownField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,7 +128,7 @@ Deno.serve(async (req) => {
 
     const aiData = await aiResp.json();
     const call = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    let extracted: any = {};
+    let extracted: Json = {};
     if (call?.function?.arguments) {
       try {
         extracted = JSON.parse(call.function.arguments);
@@ -135,52 +137,60 @@ Deno.serve(async (req) => {
       }
     }
 
-    const update: any = {
+    const fields = asJsonObject(extracted) ?? {};
+    const update = {
       status: "processed",
       raw_extraction: extracted,
-      vendor_name: extracted.vendor_name ?? null,
-      invoice_number: extracted.invoice_number ?? null,
-      invoice_date: extracted.invoice_date ?? null,
-      total_amount: extracted.total_amount ?? null,
-      vat_amount: extracted.vat_amount ?? null,
-      currency: extracted.currency ?? "ILS",
-      description:
-        extracted.description ?? extracted.suggested_category ?? null,
+      vendor_name: fields.vendor_name ?? null,
+      invoice_number: fields.invoice_number ?? null,
+      invoice_date: fields.invoice_date ?? null,
+      total_amount: fields.total_amount ?? null,
+      vat_amount: fields.vat_amount ?? null,
+      currency: fields.currency ?? "ILS",
+      description: fields.description ?? fields.suggested_category ?? null,
       error_message: null,
     };
+    let supplierId: string | undefined;
 
     // Try to auto-link a supplier by fuzzy name match
-    if (extracted.vendor_name) {
+    if (fields.vendor_name) {
       const { data: matchedSupplier } = await admin
         .from("suppliers")
         .select("id, name")
         .eq("tenant_id", row.tenant_id);
       if (matchedSupplier?.length) {
-        const lower = extracted.vendor_name.toLowerCase();
+        const lower = String(fields.vendor_name).toLowerCase();
         const hit = matchedSupplier.find(
-          (s: any) =>
+          (s: Pick<Tables<"suppliers">, "id" | "name">) =>
             s.name &&
             (s.name.toLowerCase().includes(lower) ||
               lower.includes(s.name.toLowerCase())),
         );
-        if (hit) update.supplier_id = hit.id;
+        if (hit) supplierId = hit.id;
       }
     }
 
     const { error: updErr } = await admin
       .from("invoice_uploads")
-      .update(update)
+      .update(
+        supplierId !== undefined
+          ? { ...update, supplier_id: supplierId }
+          : update,
+      )
       .eq("id", invoice_id);
     if (updErr) throw updErr;
 
     return new Response(JSON.stringify({ success: true, extracted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ error: e?.message || "unknown" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: unknownField(e, "message") || "unknown" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

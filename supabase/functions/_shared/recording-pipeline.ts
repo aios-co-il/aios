@@ -8,6 +8,7 @@ import { dispatchMeetingSummaryToCursor } from "./meeting-summary-cursor.ts";
 import { matchRecordingToClient } from "./recording-match.ts";
 import { enrichRecordingFromCalendar } from "./calendar-recording-match.ts";
 import { resolveOpenAIKey } from "./ai.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export interface RecordingRow {
   id: string;
@@ -18,7 +19,7 @@ export interface RecordingRow {
   lead_id?: string | null;
   agency_id?: string | null;
   campaigner_ids?: string[] | null;
-  summary_scope?: "auto" | "client" | "lead" | "campaigner" | "agency" | null;
+  summary_scope?: string | null;
   meeting_topic: string | null;
   start_time: string | null;
   duration: number | null;
@@ -34,9 +35,8 @@ export interface RunRecordingPipelineOpts {
   skipTranscribe?: boolean;
 }
 
-// deno-lint-ignore no-explicit-any
 export async function runRecordingPipeline(
-  admin: any,
+  admin: DbClient,
   opts: RunRecordingPipelineOpts,
 ): Promise<void> {
   const { recording, createdByUserId, briefSource, skipTranscribe } = opts;

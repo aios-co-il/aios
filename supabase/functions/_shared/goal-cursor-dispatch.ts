@@ -3,7 +3,9 @@
  * Does NOT use tenant-wide cursor_sticky_agents (that stays for general Carmen dev work).
  */
 
+import type { Json } from "./database.types.ts";
 import { getRepoUrl } from "./github-repo.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export type GoalCursorFireResult = {
   cursorAgentId: string;
@@ -60,7 +62,7 @@ function parseAgentResponse(raw: string): { url: string; id: string } {
 }
 
 export async function getPlanStepCursorAgent(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   planStepId: string,
 ): Promise<{ cursorAgentId: string; sessionUrl: string } | null> {
   const { data } = await supabase
@@ -79,7 +81,7 @@ export async function getPlanStepCursorAgent(
 }
 
 export async function savePlanStepCursorAgent(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   planStepId: string,
   cursorAgentId: string,
   sessionUrl: string,
@@ -97,7 +99,7 @@ export async function savePlanStepCursorAgent(
 }
 
 export async function getGoalCursorAgent(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   goalId: string,
 ): Promise<{ cursorAgentId: string; sessionUrl: string } | null> {
   const { data } = await supabase
@@ -116,7 +118,7 @@ export async function getGoalCursorAgent(
 }
 
 export async function saveGoalCursorAgent(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   goalId: string,
   cursorAgentId: string,
   sessionUrl: string,
@@ -217,11 +219,11 @@ async function createGoalCursorAgent(
 export function buildGoalTechnicalPrompt(args: {
   goalId: string;
   goalTitle: string;
-  objective?: string;
+  objective?: string | null;
   stepTitle: string;
   stepDescription?: string;
   acceptanceCriteria?: string;
-  constraints?: Record<string, unknown>;
+  constraints?: Json;
   subProjectLabel?: string;
   subProjectKey?: string;
 }): string {
@@ -254,16 +256,16 @@ export function buildGoalTechnicalPrompt(args: {
 
 /** Dispatch technical work to the goal's sticky Cursor agent (create or follow-up). */
 export async function dispatchToGoalCursor(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
     goalTitle: string;
-    objective?: string;
+    objective?: string | null;
     stepTitle: string;
     stepDescription?: string;
     acceptanceCriteria?: string;
-    constraints?: Record<string, unknown>;
+    constraints?: Json;
     startingRef?: string;
     planStepId?: string;
     subProjectKey?: string;

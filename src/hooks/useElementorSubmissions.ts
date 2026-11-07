@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { JsonObject } from "@/lib/typeGuards";
 
 export interface ElementorSubmission {
   id: string | number;
@@ -22,7 +23,7 @@ export interface ElementorSubmission {
   utm_source: string | null;
   utm_campaign: string | null;
   ip: string | null;
-  raw_fields: Record<string, any>;
+  raw_fields: JsonObject;
 }
 
 export interface PerFormStat {

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useAgencies, useCampaigners } from "@/hooks/useEntityLists";
 import { toast } from "sonner";
@@ -50,7 +51,7 @@ const formSchema = z.object({
 });
 
 interface EditSupplierDialogProps {
-  supplier: any;
+  supplier: Tables<"suppliers">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -117,7 +118,7 @@ export function EditSupplierDialog({
       queryClient.invalidateQueries({ queryKey: ["suppliers", tenantId] });
       onOpenChange(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error("שגיאה בעדכון הספק: " + error.message);
     },
   });

@@ -73,7 +73,7 @@ interface MenuItem {
 interface SortableMenuItemProps {
   item: MenuItem;
   editingItems: Record<string, string>;
-  updateMutation: any;
+  updateMutation: { isPending: boolean };
   onLabelChange: (id: string, value: string) => void;
   onSaveLabel: (item: MenuItem) => void;
   onResetLabel: (item: MenuItem) => void;
@@ -226,7 +226,7 @@ interface MenuGroupProps {
   items: MenuItem[];
   children: MenuItem[];
   editingItems: Record<string, string>;
-  updateMutation: any;
+  updateMutation: { isPending: boolean };
   onLabelChange: (id: string, value: string) => void;
   onSaveLabel: (item: MenuItem) => void;
   onResetLabel: (item: MenuItem) => void;
@@ -395,7 +395,7 @@ export default function MenuManagement() {
         .select("org_type, is_premium")
         .eq("id", tenantId)
         .single();
-      return data as any;
+      return data;
     },
     enabled: !!tenantId,
   });

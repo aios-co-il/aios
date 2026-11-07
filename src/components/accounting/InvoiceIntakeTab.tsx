@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
+import { errorMessage } from "@/lib/typeGuards";
 
-type Invoice = any;
+type Invoice = Tables<"invoice_uploads">;
 
 export function InvoiceIntakeTab() {
   const { tenantId } = useCurrentTenant();
@@ -137,9 +139,9 @@ export function InvoiceIntakeTab() {
       }
       toast.success("החשבוניות הועלו ונשלחו לזיהוי");
       qc.invalidateQueries({ queryKey: ["invoice-uploads", tenantId] });
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e?.message || "שגיאה בהעלאה");
+      toast.error(errorMessage(e) || "שגיאה בהעלאה");
     } finally {
       setUploading(false);
     }
@@ -246,9 +248,9 @@ function InvoiceCard({
   onChanged,
 }: {
   invoice: Invoice;
-  suppliers: any[];
-  clients: any[];
-  agencies: any[];
+  suppliers: Pick<Tables<"suppliers">, "id" | "name">[];
+  clients: Pick<Tables<"clients">, "id" | "name" | "agency_id">[];
+  agencies: Pick<Tables<"agencies">, "id" | "name">[];
   tenantId: string;
   onChanged: () => void;
 }) {
@@ -356,9 +358,9 @@ function InvoiceCard({
 
       toast.success("נשמר כהוצאה");
       onChanged();
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e?.message || "שגיאה בשמירה");
+      toast.error(errorMessage(e) || "שגיאה בשמירה");
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,5 @@
 // Recall.ai Meeting Bot API helpers (Zoom, Google Meet, Teams).
+import { unknownField } from "./json-fields.ts";
 import { detectMeetingPlatform } from "./meeting-url.ts";
 
 const BOT_NAME = "כרמן AI — מסייעת תמלול";
@@ -329,8 +330,26 @@ export async function retrieveRecallBot(
   return await res.json();
 }
 
-// deno-lint-ignore no-explicit-any
-export function extractRecallDownloads(bot: Record<string, any>): {
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function downloadUrl(shortcuts: unknown, kind: string): string | null {
+  return stringOrNull(
+    unknownField(
+      unknownField(unknownField(shortcuts, kind), "data"),
+      "download_url",
+    ),
+  );
+}
+
+function timeMs(value: unknown): number {
+  return typeof value === "string" || typeof value === "number"
+    ? new Date(value).getTime()
+    : NaN;
+}
+
+export function extractRecallDownloads(bot: unknown): {
   videoUrl: string | null;
   audioUrl: string | null;
   transcriptUrl: string | null;
@@ -344,25 +363,28 @@ export function extractRecallDownloads(bot: Record<string, any>): {
     transcriptStatus: null,
     durationSeconds: null,
   };
-  const recordings = Array.isArray(bot.recordings) ? bot.recordings : [];
-  const rec = recordings[0];
+  const recordings = unknownField(bot, "recordings");
+  const rec: unknown = Array.isArray(recordings) ? recordings[0] : undefined;
   if (!rec) return empty;
 
-  const shortcuts = rec.media_shortcuts || {};
-  const videoUrl = shortcuts?.video_mixed?.data?.download_url ?? null;
-  const audioUrl = shortcuts?.audio_mixed?.data?.download_url ?? null;
-  const transcriptUrl = shortcuts?.transcript?.data?.download_url ?? null;
-  const transcriptStatus = shortcuts?.transcript?.status?.code ?? null;
+  const shortcuts = unknownField(rec, "media_shortcuts") || {};
+  const videoUrl = downloadUrl(shortcuts, "video_mixed");
+  const audioUrl = downloadUrl(shortcuts, "audio_mixed");
+  const transcriptUrl = downloadUrl(shortcuts, "transcript");
+  const transcriptStatus = stringOrNull(
+    unknownField(
+      unknownField(unknownField(shortcuts, "transcript"), "status"),
+      "code",
+    ),
+  );
 
   let durationSeconds: number | null = null;
-  if (rec.started_at && rec.completed_at) {
+  const startedAt = unknownField(rec, "started_at");
+  const completedAt = unknownField(rec, "completed_at");
+  if (startedAt && completedAt) {
     durationSeconds = Math.max(
       1,
-      Math.round(
-        (new Date(rec.completed_at).getTime() -
-          new Date(rec.started_at).getTime()) /
-          1000,
-      ),
+      Math.round((timeMs(completedAt) - timeMs(startedAt)) / 1000),
     );
   }
 
@@ -383,10 +405,32 @@ interface RecallWord {
   start_timestamp?: { relative?: number };
 }
 
+interface RecallParticipant {
+  id?: number;
+  name?: string;
+}
+
 interface RecallParticipantSegment {
-  participant?: { id?: number; name?: string };
+  participant?: RecallParticipant;
   words?: RecallWord[];
 }
+
+interface RecallUtterance {
+  participant?: RecallParticipant;
+  words?: RecallWord[];
+  start?: number;
+}
+
+/** Recall transcript download shapes (provider JSON, described rather than validated). */
+export type RecallTranscriptPayload =
+  | RecallParticipantSegment[]
+  | {
+      participants?: RecallParticipant[];
+      utterances?: RecallUtterance[];
+      words?: (RecallWord & { participant?: RecallParticipant })[];
+      text?: string;
+    }
+  | null;
 
 /**
  * Recall's v1.11 transcript download is a top-level array of per-participant
@@ -440,12 +484,10 @@ function participantSegmentsToLines(
 }
 
 /** Convert Recall transcript JSON to our speaker-timeline text format. */
-// deno-lint-ignore no-explicit-any
-export function recallTranscriptToText(data: any): string {
-  const participants: { id?: number; name?: string }[] = Array.isArray(
-    data?.participants,
-  )
-    ? data.participants
+export function recallTranscriptToText(data: RecallTranscriptPayload): string {
+  const obj = Array.isArray(data) ? null : data;
+  const participants: RecallParticipant[] = Array.isArray(obj?.participants)
+    ? obj.participants
     : [];
   const nameById = new Map<number, string>();
   for (const p of participants) {
@@ -454,23 +496,20 @@ export function recallTranscriptToText(data: any): string {
 
   // v1.11 download schema: top-level array of { participant, words }.
   if (Array.isArray(data)) {
-    return participantSegmentsToLines(
-      data as RecallParticipantSegment[],
-      nameById,
-    )
+    return participantSegmentsToLines(data, nameById)
       .sort((a, b) => a.at - b.at)
       .map((l) => l.line)
       .join("\n");
   }
 
   // Newer schema: array of utterances with participant + words
-  if (Array.isArray(data?.utterances) && data.utterances.length > 0) {
+  if (Array.isArray(obj?.utterances) && obj.utterances.length > 0) {
     const lines: { at: number; line: string }[] = [];
-    for (const u of data.utterances) {
+    for (const u of obj.utterances) {
       const speaker =
-        u.participant?.name || nameById.get(u.participant?.id) || "משתתף";
+        u.participant?.name || nameById.get(u.participant?.id ?? -1) || "משתתף";
       const text = (u.words || [])
-        .map((w: { text?: string }) => w.text)
+        .map((w) => w.text)
         .filter(Boolean)
         .join(" ");
       if (!text.trim()) continue;
@@ -491,9 +530,9 @@ export function recallTranscriptToText(data: any): string {
     text?: string;
     participant?: { id?: number; name?: string };
     start_timestamp?: { relative?: number };
-  }[] = Array.isArray(data?.words) ? data.words : [];
+  }[] = Array.isArray(obj?.words) ? obj.words : [];
 
-  if (words.length === 0 && typeof data?.text === "string") return data.text;
+  if (words.length === 0 && typeof obj?.text === "string") return obj.text;
 
   const segments: { at: number; speaker: string; text: string }[] = [];
   let current: { at: number; speaker: string; parts: string[] } | null = null;

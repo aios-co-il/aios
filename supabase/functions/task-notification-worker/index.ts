@@ -4,6 +4,7 @@ import {
   taskOverdueNotifyAt,
   taskReminderAt,
 } from "./schedule.ts";
+import { unknownField } from "../_shared/json-fields.ts";
 import { postTriggerAutomation } from "./post-trigger-automation.ts";
 import { releaseHeldTaskNotifications } from "./release-held.ts";
 import { shabbatHeldResponse } from "../_shared/shabbat/held-response.ts";
@@ -75,7 +76,9 @@ async function invokeNotification(
   if (body?.success === true) {
     const delivered =
       Array.isArray(body.results) &&
-      body.results.some((result: any) => result?.success === true);
+      body.results.some(
+        (result: unknown) => unknownField(result, "success") === true,
+      );
     return { delivered, body };
   }
   throw new Error(

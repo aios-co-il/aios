@@ -236,7 +236,6 @@ Deno.serve(async (req) => {
 
     // Determine API endpoint based on file type
     let endpoint: string;
-    let body: any;
 
     const mimeType = file.type;
     const fileName = file.name;

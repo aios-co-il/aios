@@ -1,4 +1,11 @@
+import type { Tables } from "./database.types.ts";
+
 const AIOS_APP_URL = "https://aios.co.il";
+
+export type TaskNotificationTask = Pick<
+  Tables<"tasks">,
+  "id" | "title" | "notes" | "priority" | "due_date" | "due_time"
+>;
 
 /** Deep link into the tasks board. Always tenant-scoped so the recipient can open it. */
 export function buildTaskAppLink(
@@ -61,7 +68,7 @@ export type TaskNotificationExtras = {
 
 export function formatTaskNotificationMessage(
   notificationType: string,
-  task: any,
+  task: TaskNotificationTask,
   clientName: string,
   assigneeName: string,
   recipientName: string,

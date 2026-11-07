@@ -14,13 +14,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Hash, Loader2, MessageSquare } from "lucide-react";
+import type { Json } from "@/integrations/supabase/types";
+import { errorMessage, isJsonObject } from "@/lib/typeGuards";
 
 export default function ChatInvite() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [invite, setInvite] = useState<any>(null);
+  const [invite, setInvite] = useState<Json | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -107,9 +109,9 @@ export default function ChatInvite() {
 
       toast.success(`הצטרפת בהצלחה לערוץ ${result.channelName || ""}`);
       navigate(`/t/${result.tenantSlug}/team-chat`);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Process invite error:", err);
-      toast.error(err.message || "שגיאה בעיבוד ההזמנה");
+      toast.error(errorMessage(err) || "שגיאה בעיבוד ההזמנה");
       setProcessing(false);
     }
   };
@@ -123,8 +125,8 @@ export default function ChatInvite() {
         password,
       });
       if (error) throw error;
-    } catch (err: any) {
-      toast.error(err.message || "שגיאה בהתחברות");
+    } catch (err) {
+      toast.error(errorMessage(err) || "שגיאה בהתחברות");
     } finally {
       setAuthLoading(false);
     }
@@ -166,9 +168,9 @@ export default function ChatInvite() {
 
       toast.success(`הצטרפת בהצלחה לערוץ ${result.channelName || ""}`);
       navigate(`/t/${result.tenantSlug}/team-chat`);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Signup error:", err);
-      toast.error(err.message || "שגיאה בהרשמה");
+      toast.error(errorMessage(err) || "שגיאה בהרשמה");
       setProcessing(false);
     } finally {
       setAuthLoading(false);
@@ -184,8 +186,8 @@ export default function ChatInvite() {
         },
       });
       if (error) throw error;
-    } catch (err: any) {
-      toast.error(err.message || "שגיאה בהתחברות עם Google");
+    } catch (err) {
+      toast.error(errorMessage(err) || "שגיאה בהתחברות עם Google");
     }
   };
 
@@ -238,8 +240,14 @@ export default function ChatInvite() {
     );
   }
 
-  const channelName = (invite as any)?.team_channels?.name || "ערוץ";
-  const channelColor = (invite as any)?.team_channels?.color || "#3B82F6";
+  const channel =
+    isJsonObject(invite) && isJsonObject(invite.team_channels)
+      ? invite.team_channels
+      : undefined;
+  const channelName =
+    (typeof channel?.name === "string" && channel.name) || "ערוץ";
+  const channelColor =
+    (typeof channel?.color === "string" && channel.color) || "#3B82F6";
 
   return (
     <div

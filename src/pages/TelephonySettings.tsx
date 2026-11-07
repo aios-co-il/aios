@@ -19,6 +19,7 @@ import { Phone, Settings, Save, Loader2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
+import { jsonField } from "@/lib/typeGuards";
 
 export default function TelephonySettings() {
   const { tenantId } = useCurrentTenant();
@@ -71,12 +72,14 @@ export default function TelephonySettings() {
     setIsInitialized(true);
   }
 
+  const paycallApiKey = jsonField(paycallIntegration?.settings, "api_key");
   if (
     paycallIntegration &&
     !apiKey &&
-    (paycallIntegration as any).settings?.api_key
+    typeof paycallApiKey === "string" &&
+    paycallApiKey
   ) {
-    setApiKey((paycallIntegration as any).settings.api_key);
+    setApiKey(paycallApiKey);
   }
 
   const saveSettingsMutation = useMutation({
@@ -126,7 +129,7 @@ export default function TelephonySettings() {
         queryKey: ["paycall-integration", tenantId],
       });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("שגיאה בשמירת הגדרות", { description: err.message });
     },
   });

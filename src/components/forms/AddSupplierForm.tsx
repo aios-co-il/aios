@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isSupplierType } from "@/lib/supplierType";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -64,10 +65,15 @@ export function AddSupplierForm() {
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!isSupplierType(values.type)) {
+        throw new Error(
+          `invalid input value for enum supplier_type: "${values.type}"`,
+        );
+      }
 
       const { error } = await supabase.from("suppliers").insert({
         name: values.name,
-        type: values.type as any,
+        type: values.type,
         phone: values.phone || null,
         email: values.email || null,
         folder_link: values.folder_link || null,

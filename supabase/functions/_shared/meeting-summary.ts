@@ -7,6 +7,7 @@ import {
   MEETING_SUMMARY_SYSTEM_PROMPT,
   prepareDetailedSummarySource,
 } from "./meeting-summary-prompts.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export class AiHttpError extends Error {
   status: number;
@@ -100,8 +101,7 @@ export interface SaveSummaryOptions {
 }
 
 export async function saveSummaryForTarget(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   opts: SaveSummaryOptions,
 ): Promise<{ fileUrl: string; fileName: string }> {
   const {
@@ -166,8 +166,8 @@ export async function saveSummaryForTarget(
       .eq("id", target_id)
       .maybeSingle();
 
-    // deno-lint-ignore no-explicit-any
-    const currentAttachments = (targetData?.attachments as any[]) || [];
+    const attachments = targetData?.attachments;
+    const currentAttachments = Array.isArray(attachments) ? attachments : [];
     const { error: updateError } = await admin
       .from(table)
       .update({ attachments: [...currentAttachments, newAttachment] })
@@ -183,12 +183,11 @@ export async function saveSummaryForTarget(
   if (recording_id) {
     await admin
       .from("zoom_recordings")
-      // deno-lint-ignore no-explicit-any
       .update({
         summary_file_url: fileUrl,
         summary_md: summary,
         summary_generated_at: new Date().toISOString(),
-      } as any)
+      })
       .eq("id", recording_id);
   }
 
@@ -207,8 +206,7 @@ export interface MarketingBriefOptions {
 }
 
 export async function maybeCreateMarketingBrief(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   openaiKey: string,
   opts: MarketingBriefOptions,
 ): Promise<{ created: boolean; workItemId: string | null }> {

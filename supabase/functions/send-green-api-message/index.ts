@@ -3,6 +3,8 @@ import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { claimIdenticalWhatsAppSend } from "../_shared/facebook-lead-dedup.ts";
+import type { Tables } from "../_shared/database.types.ts";
+import { jsonField } from "../_shared/json-fields.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
 import { sendLine } from "../_shared/report-sender/text-line.ts";
@@ -83,9 +85,7 @@ Deno.serve(async (req) => {
             auth: { persistSession: false, autoRefreshToken: false },
           },
     );
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const admin = serviceClient();
     const {
       clientId,
       leadId,
@@ -173,7 +173,8 @@ Deno.serve(async (req) => {
       admin
         .from("tenant_users")
         .select("user_id")
-        .eq("tenant_id", tenantId)
+        // Unresolved tenant is still sent as "undefined" and matches nothing.
+        .eq("tenant_id", String(tenantId))
         .eq("user_id", userId)
         .maybeSingle(),
       admin.rpc("is_super_admin", { _user_id: userId }),
@@ -315,7 +316,11 @@ Deno.serve(async (req) => {
     // Send message via Green API
     const greenApiUrl = `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`;
 
-    const messageBody: any = {
+    const messageBody: {
+      chatId: string;
+      message: string;
+      quotedMessageId?: string;
+    } = {
       chatId: chatId,
       message: message,
     };
