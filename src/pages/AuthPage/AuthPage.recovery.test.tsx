@@ -1,9 +1,14 @@
-import { auth, renderAuth, requireMfa, session } from "./authTestHarness";
+import {
+  auth,
+  renderAuth,
+  requireMfa,
+  session,
+} from "./testUtils/authTestHarness";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-describe("Auth recovery and invitations", () => {
+describe("AuthPage recovery and invitations", () => {
   it.each([false, true])(
     "requests a recovery link using the same email; failure=%s",
     async (failure) => {
@@ -86,5 +91,17 @@ describe("Auth recovery and invitations", () => {
     await user.click(screen.getByRole("button", { name: "אמת" }));
     expect(await screen.findByText("Home route")).toBeInTheDocument();
     expect(auth.invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows invitation query failures without prefilling an email", async () => {
+    auth.invitationError = new Error("Invitation unavailable");
+    renderAuth("/auth?token=invitation");
+    await waitFor(() =>
+      expect(auth.toast).toHaveBeenCalledWith(
+        expect.objectContaining({ description: "Invitation unavailable" }),
+      ),
+    );
+    expect(await screen.findByLabelText("אימייל")).toHaveValue("");
+    expect(auth.home).not.toHaveBeenCalled();
   });
 });

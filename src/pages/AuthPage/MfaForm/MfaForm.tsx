@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { useMfaVerification, type MfaVerification } from "./useMfaVerification";
 
 type Props = MfaVerification & { backToSignIn: () => void };
+/** Keep verification state local to the active TOTP challenge. */
 export function MfaForm({ backToSignIn, ...verification }: Props) {
   const { loading, mfaCode, setMfaCode, handleMFAVerify } =
     useMfaVerification(verification);

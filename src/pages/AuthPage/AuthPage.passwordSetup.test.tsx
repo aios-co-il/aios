@@ -3,12 +3,12 @@ import {
   user,
   testToken,
   submitPassword,
-} from "./auth/authSdkTestHarness";
+} from "./testUtils/authSdkTestHarness";
 import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { supabase } from "@/integrations/supabase/client";
 
-describe("Auth password setup with the installed SDK", () => {
+describe("AuthPage password setup with the installed SDK", () => {
   it.each(["invite", "recovery"])(
     "processes pending invitations before navigation for %s",
     async (type) => {

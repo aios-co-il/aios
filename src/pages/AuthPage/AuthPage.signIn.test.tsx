@@ -1,9 +1,9 @@
-import { auth, renderAuth, session, signIn } from "./authTestHarness";
+import { auth, renderAuth, session, signIn } from "./testUtils/authTestHarness";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-describe("Auth sign-in actions", () => {
+describe("AuthPage sign-in actions", () => {
   it("signs in once despite the SDK SIGNED_IN event and processes invitations first", async () => {
     renderAuth();
     await signIn();
@@ -49,7 +49,8 @@ describe("Auth sign-in actions", () => {
       const button = await screen.findByRole("button", {
         name: "התחבר עם Google",
       });
-      await userEvent.click(button);
+      const user = userEvent.setup();
+      await user.click(button);
       expect(auth.signInWithOAuth).toHaveBeenCalledWith({
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth` },
@@ -62,6 +63,34 @@ describe("Auth sign-in actions", () => {
       } else {
         expect(button).toBeDisabled();
       }
+    },
+  );
+
+  it.each(["password", "google"])(
+    "restores controls after a rejected %s mutation without retrying",
+    async (provider) => {
+      const request =
+        provider === "password"
+          ? auth.signInWithPassword
+          : auth.signInWithOAuth;
+      request.mockRejectedValue(new Error("Network rejected"));
+      renderAuth();
+      if (provider === "password") {
+        await signIn();
+      } else {
+        const user = userEvent.setup();
+        await user.click(
+          await screen.findByRole("button", { name: "התחבר עם Google" }),
+        );
+      }
+      await waitFor(() =>
+        expect(auth.toast).toHaveBeenCalledWith(
+          expect.objectContaining({ description: "Network rejected" }),
+        ),
+      );
+      expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled();
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(auth.home).not.toHaveBeenCalled();
     },
   );
 });

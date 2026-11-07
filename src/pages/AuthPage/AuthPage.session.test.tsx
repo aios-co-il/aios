@@ -1,8 +1,8 @@
-import { auth, renderAuth, session } from "./authTestHarness";
+import { auth, renderAuth, session } from "./testUtils/authTestHarness";
 import { act, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-describe("Auth session bootstrap", () => {
+describe("AuthPage session bootstrap", () => {
   it.each(["aal1", "aal2"])(
     "restores %s sessions that need no extra MFA",
     async (level) => {
@@ -69,5 +69,18 @@ describe("Auth session bootstrap", () => {
     );
     expect(await screen.findByText("Home route")).toBeInTheDocument();
     errorLog.mockRestore();
+  });
+
+  it("shows session query errors and restores usable sign-in controls", async () => {
+    auth.getSession.mockResolvedValue({
+      data: { session: null },
+      error: new Error("Session unavailable"),
+    });
+    renderAuth();
+    expect(await screen.findByRole("button", { name: "התחבר" })).toBeEnabled();
+    expect(auth.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "Session unavailable" }),
+    );
+    expect(auth.home).not.toHaveBeenCalled();
   });
 });
