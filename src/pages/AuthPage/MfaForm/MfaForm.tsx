@@ -4,10 +4,12 @@ import { Label } from "@/components/ui/label";
 import { useMfaVerification, type MfaVerification } from "./useMfaVerification";
 
 type Props = MfaVerification & { backToSignIn: () => void };
+
 /** Keep verification state local to the active TOTP challenge. */
 export function MfaForm({ backToSignIn, ...verification }: Props) {
   const { loading, mfaCode, setMfaCode, handleMFAVerify } =
     useMfaVerification(verification);
+
   return (
     <form onSubmit={handleMFAVerify} className="space-y-4">
       <div className="space-y-2 text-center">
@@ -16,6 +18,7 @@ export function MfaForm({ backToSignIn, ...verification }: Props) {
           הזן את הקוד בן 6 הספרות מאפליקציית ה-Authenticator שלך
         </p>
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="mfa-code">קוד אימות</Label>
         <Input
@@ -31,6 +34,7 @@ export function MfaForm({ backToSignIn, ...verification }: Props) {
           disabled={loading}
         />
       </div>
+
       <Button
         type="submit"
         className="w-full"
@@ -38,6 +42,7 @@ export function MfaForm({ backToSignIn, ...verification }: Props) {
       >
         {loading ? "מאמת..." : "אמת"}
       </Button>
+
       <Button
         type="button"
         variant="ghost"

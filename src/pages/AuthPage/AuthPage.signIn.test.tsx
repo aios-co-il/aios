@@ -45,6 +45,7 @@ describe("AuthPage sign-in actions", () => {
           error: new Error("OAuth failed"),
         });
       }
+
       renderAuth();
       const button = await screen.findByRole("button", {
         name: "התחבר עם Google",
@@ -55,6 +56,7 @@ describe("AuthPage sign-in actions", () => {
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth` },
       });
+
       if (failure) {
         expect(button).toBeEnabled();
         expect(auth.toast).toHaveBeenCalledWith(
@@ -75,6 +77,7 @@ describe("AuthPage sign-in actions", () => {
           : auth.signInWithOAuth;
       request.mockRejectedValue(new Error("Network rejected"));
       renderAuth();
+
       if (provider === "password") {
         await signIn();
       } else {
@@ -83,6 +86,7 @@ describe("AuthPage sign-in actions", () => {
           await screen.findByRole("button", { name: "התחבר עם Google" }),
         );
       }
+
       await waitFor(() =>
         expect(auth.toast).toHaveBeenCalledWith(
           expect.objectContaining({ description: "Network rejected" }),

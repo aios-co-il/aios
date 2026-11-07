@@ -22,6 +22,7 @@ export function useMfaVerification({
   const [mfaCode, setMfaCode] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const mutation = useMutation({
     mutationFn: verifyCode,
     onMutate: onVerificationStart,
@@ -31,19 +32,23 @@ export function useMfaVerification({
     retry: false,
     gcTime: 0,
   });
+
   return { loading: mutation.isPending, mfaCode, setMfaCode, handleMFAVerify };
 
   /** Create a fresh challenge for every explicit verification attempt. */
   async function verifyCode(code: string) {
     const challenge = await supabase.auth.mfa.challenge({ factorId });
+
     if (challenge.error) {
       throw challenge.error;
     }
+
     const { error } = await supabase.auth.mfa.verify({
       factorId,
       challengeId: challenge.data.id,
       code,
     });
+
     if (error) {
       throw error;
     }
@@ -53,9 +58,11 @@ export function useMfaVerification({
   async function finishVerification() {
     toast({ title: "הצלחה!", description: "התחברת בהצלחה" });
     const session = await queryClient.fetchQuery(authSessionQueryOptions);
+
     if (!session) {
       throw new Error("לא נמצאה התחברות פעילה");
     }
+
     await navigateToApp(session.user.id, session.access_token);
   }
 
@@ -72,14 +79,19 @@ export function useMfaVerification({
   /** Reject incomplete codes before creating a challenge. */
   function handleMFAVerify(event: FormEvent) {
     event.preventDefault();
+
     if (!mfaCode || mfaCode.length !== 6) {
       showError(new Error("נא להזין קוד בן 6 ספרות"));
+
       return;
     }
+
     if (!factorId) {
       showError(new Error("לא נמצא מזהה גורם"));
+
       return;
     }
+
     mutation.mutate(mfaCode);
   }
 }

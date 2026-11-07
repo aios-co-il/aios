@@ -17,9 +17,11 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/appHomePath", () => ({ resolveAppHomePath: state.home }));
+
 vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: state.toast }),
 }));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: createClient<Database>("https://auth.test", "test-key", {
     auth: {
@@ -49,6 +51,7 @@ export function testToken(level: "aal1" | "aal2" = "aal1") {
       .replace(/\+/g, "-")
       .replace(/\//g, "_");
   }
+
   return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
     aal: level,
     sub: user.id,
@@ -63,8 +66,10 @@ beforeEach(async () => {
   state.updateStatus = 200;
   state.toast.mockReset();
   state.home.mockReset().mockResolvedValue("/t/test/home");
+
   state.fetch.mockReset().mockImplementation(async (input, init) => {
     const request = new Request(input, init);
+
     if (
       new URL(request.url).pathname === "/functions/v1/process-user-invitation"
     ) {
@@ -72,9 +77,11 @@ beforeEach(async () => {
         headers: { "content-type": "application/json" },
       });
     }
+
     expect(new URL(request.url).pathname).toBe("/auth/v1/user");
     const status =
       request.method === "PUT" ? state.updateStatus : state.userStatus;
+
     return new Response(
       JSON.stringify(
         status === 200
@@ -84,6 +91,7 @@ beforeEach(async () => {
       { status, headers: { "content-type": "application/json" } },
     );
   });
+
   const { error } = await supabase.auth.setSession({
     access_token: testToken(),
     refresh_token: "synthetic-refresh-token",

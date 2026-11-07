@@ -10,6 +10,7 @@ export function useMfa(navigateToApp: NavigateToApp) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const verifying = useRef(false);
+
   const { mutateAsync } = useMutation({
     mutationFn: checkReadiness,
     onSuccess: selectFactor,
@@ -17,11 +18,13 @@ export function useMfa(navigateToApp: NavigateToApp) {
     retry: false,
     gcTime: 0,
   });
+
   const completeSignIn: NavigateToApp = useCallback(
     async (userId, accessToken) => {
       if (verifying.current) {
         return false;
       }
+
       try {
         return (await mutateAsync({ userId, accessToken })).navigated;
       } catch {
@@ -31,6 +34,7 @@ export function useMfa(navigateToApp: NavigateToApp) {
     },
     [mutateAsync],
   );
+
   return {
     factorId,
     completeSignIn,
@@ -44,6 +48,7 @@ export function useMfa(navigateToApp: NavigateToApp) {
     const requiredFactor = await queryClient.fetchQuery(
       mfaReadinessQueryOptions(userId),
     );
+
     return {
       factorId: requiredFactor,
       navigated: requiredFactor

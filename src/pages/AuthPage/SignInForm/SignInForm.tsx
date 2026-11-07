@@ -14,6 +14,7 @@ type Props = {
   onPasswordSignInStart: () => void;
   navigateToApp: NavigateToApp;
 };
+
 /** Keep sign-in drafts and mutation state within the sign-in screen. */
 export function SignInForm({
   email,
@@ -24,6 +25,7 @@ export function SignInForm({
 }: Props) {
   const { loading, password, setPassword, handleSignIn, handleGoogleSignIn } =
     useSignIn({ email, navigateToApp, onPasswordSignInStart });
+
   return (
     <form onSubmit={handleSignIn} className="space-y-4">
       <div className="space-y-2">
@@ -37,6 +39,7 @@ export function SignInForm({
           disabled={loading}
         />
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="password-signin">סיסמה</Label>
         <Input
@@ -48,6 +51,7 @@ export function SignInForm({
           disabled={loading}
         />
       </div>
+
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "מתחבר..." : "התחבר"}
       </Button>

@@ -14,13 +14,17 @@ describe("AuthPage MFA boundary", () => {
     "requires TOTP before navigation for %s sessions",
     async (mode) => {
       requireMfa();
+
       if (mode === "restored") {
         auth.session = session;
       }
+
       renderAuth();
+
       if (mode === "password") {
         await signIn();
       }
+
       const code = await screen.findByLabelText("קוד אימות");
       expect(auth.home).not.toHaveBeenCalled();
       expect(auth.invoke).not.toHaveBeenCalled();
@@ -45,13 +49,17 @@ describe("AuthPage MFA boundary", () => {
         data: null,
         error: new Error("MFA unavailable"),
       });
+
       if (mode === "restored") {
         auth.session = session;
       }
+
       renderAuth();
+
       if (mode === "password") {
         await signIn();
       }
+
       await waitFor(() =>
         expect(auth.toast).toHaveBeenCalledWith(
           expect.objectContaining({ description: "MFA unavailable" }),

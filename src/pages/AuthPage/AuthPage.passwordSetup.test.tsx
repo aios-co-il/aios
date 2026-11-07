@@ -68,6 +68,7 @@ describe("AuthPage password setup with the installed SDK", () => {
       } else {
         state.userStatus = 401;
       }
+
       await submitPassword();
       await waitFor(() =>
         expect(
@@ -86,6 +87,7 @@ describe("AuthPage password setup with the installed SDK", () => {
       const result = await supabase.auth.getUser();
       expect(Object.keys(result.data)).toEqual(["user"]);
       expect(result.data).not.toHaveProperty("session");
+
       if (status === 200) {
         expect(result.data.user?.id).toBe(user.id);
       } else {

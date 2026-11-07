@@ -9,9 +9,11 @@ type Props = {
   setEmail: Dispatch<SetStateAction<string>>;
   onBack: () => void;
 };
+
 /** Collect the shared email and submit a recovery request. */
 export function PasswordResetForm({ email, setEmail, onBack }: Props) {
   const { loading, handleResetPassword } = usePasswordReset(email, onBack);
+
   return (
     <form onSubmit={handleResetPassword} className="space-y-4">
       <div className="space-y-2">
@@ -29,9 +31,11 @@ export function PasswordResetForm({ email, setEmail, onBack }: Props) {
           placeholder="הכנס את כתובת המייל שלך"
         />
       </div>
+
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "שולח..." : "שלח קישור לאיפוס סיסמה"}
       </Button>
+
       <Button type="button" variant="ghost" className="w-full" onClick={onBack}>
         חזור להתחברות
       </Button>
