@@ -757,6 +757,9 @@ const LLM_FALLBACK_ORDER = [
   "anthropic/claude-sonnet-4-6",
 ];
 
+// The chat's fast lane: quick models that stream, first one the tenant has a key for.
+const FAST_LANE_MODELS = LLM_FALLBACK_ORDER.slice(0, 2);
+
 function providerOf(fullId: string): LLMProvider {
   const l = (fullId || "").toLowerCase();
   if (l.startsWith("google/") || l.includes("gemini")) return "google";
@@ -13660,6 +13663,15 @@ import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 import { runTenantDenied } from "./run-tenant-access.ts";
+import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
+import { fastLaneFits } from "./fast-lane/eligibility.ts";
+import { fastLaneInstructions } from "./fast-lane/instructions.ts";
+import {
+  answerFast,
+  type ChatTurn,
+  type FastTarget,
+} from "./fast-lane/answer.ts";
+import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -13972,6 +13984,43 @@ async function handleRunAgent(
         emit({ type: "conversation_id", id: serverConversationId });
     }
 
+    // A quick model answers small talk and what the org brief already covers before the full
+    // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
+    if (
+      emit &&
+      serverConversationId &&
+      callerUserId &&
+      fastLaneFits({
+        message: String(command_text),
+        streaming: true,
+        appChatTurn,
+        isCarmen: isCarmenAgent,
+        pinned: Boolean(
+          brainEngine ||
+          modelOverride ||
+          pinSkillsOnly ||
+          inWorkshopRequest ||
+          task_mode ||
+          (Array.isArray(task_skills) && task_skills.length > 0),
+        ),
+      })
+    ) {
+      const fastReply = await tryFastLane(supabase, emit, {
+        tenantId: resolvedTenantId,
+        userId: callerUserId,
+        callerName,
+        agentId: agent_id,
+        agentName: agent.name || "כרמן",
+        conversationId: serverConversationId,
+        history: serverConversationHistory,
+        message: String(command_text),
+        surface,
+      });
+      if (fastReply) {
+        return fastReply;
+      }
+    }
+
     // ─── 2.7. Code-level instruction capture (cross-channel learning) ───
     // Don't depend on the model deciding to call save_memory. Whenever the user
     // says a learning trigger, persist the FULL surrounding sentence to ai_memory
@@ -13981,9 +14030,7 @@ async function handleRunAgent(
     let instructionCaptured: string | null = null;
     try {
       const cmdRaw = String(command_text || "").trim();
-      const TRIGGER_RE =
-        /(תזכרי|זכרי|תזכור|שמרי|תרשמי|מעכשיו|מהיום והלאה|תמיד|לעולם|אל\s*תעני|אל\s*תעשי|אל\s*תכתבי|אל\s*תשכחי|שימי\s*לב|תכניסי\s*לזיכרון|הוסיפי\s*לזיכרון|גם\s*בזיכרון|תזכרי\s*גם|remember|from\s*now\s*on|always|never|note\s*that|learn\s*this)/i;
-      const m = cmdRaw.match(TRIGGER_RE);
+      const m = cmdRaw.match(INSTRUCTION_TRIGGER_RE);
       const looksLikeInstruction =
         !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
       // A workshop message is a creative brief ("פיצריה שתמיד פתוחה"), not a standing instruction,
@@ -16256,26 +16303,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const executionTime = Date.now() - startTime;
 
     if (serverConversationId && callerUserId) {
-      const persistedMessages = [
-        ...serverConversationHistory,
-        { role: "user", content: String(command_text) },
-        { role: "assistant", content: String(finalOutput || "") },
-      ].slice(-60);
-      const { error: conversationSaveError } = await supabase
-        .from("ai_conversations")
-        .update({
-          messages: persistedMessages,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", serverConversationId)
-        .eq("user_id", callerUserId)
-        .eq("tenant_id", resolvedTenantId);
-      if (conversationSaveError) {
-        console.error(
-          "[AGENT] conversation persistence failed:",
-          conversationSaveError.message,
-        );
-      }
+      await saveConversationTurn(supabase, {
+        tenantId: resolvedTenantId,
+        userId: callerUserId,
+        conversationId: serverConversationId,
+        history: serverConversationHistory,
+        message: String(command_text),
+        answer: String(finalOutput || ""),
+      });
     }
 
     // 6. Log to automation_logs
@@ -16385,6 +16420,148 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         status: 400,
       },
     );
+  }
+}
+
+/** A chat turn the fast lane may answer, with what it needs to save the reply. */
+type FastLaneRequest = {
+  tenantId: string;
+  userId: string;
+  callerName: string | null;
+  agentId: string;
+  agentName: string;
+  conversationId: string;
+  history: Array<ChatTurn>;
+  message: string;
+  surface: Surface;
+};
+
+/**
+ * Lets a quick model answer the turn (fast-lane/). Returns the run's response when it answered,
+ * or null when it handed the turn over, failed or has no model, so the full brain runs.
+ */
+async function tryFastLane(
+  supabase: AgentDatabaseClient,
+  emit: (obj: unknown) => void,
+  turn: FastLaneRequest,
+): Promise<Response | null> {
+  const startedAt = Date.now();
+  const [target, brief, addressLine] = await Promise.all([
+    fastLaneTarget(supabase, turn.tenantId),
+    loadOrgBrief(supabase, turn.tenantId),
+    callerAddressLine(supabase, turn.userId, turn.callerName),
+  ]);
+  if (!target) {
+    return null;
+  }
+  const answer = await answerFast({
+    target,
+    instructions: fastLaneInstructions({
+      agentName: turn.agentName,
+      addressLine,
+      brief,
+      now: new Date(),
+    }),
+    history: turn.history,
+    message: turn.message,
+    onText: (content) => emit({ type: "token", content }),
+  });
+  const durationMs = Date.now() - startedAt;
+  if (answer.kind === "escalate") {
+    console.log(
+      `[AGENT] fast lane handed over (${answer.reason}) after ${durationMs}ms`,
+    );
+    // Words it already showed stay; the full answer starts on its own paragraph.
+    if (answer.shown) {
+      emit({ type: "token", content: "\n\n" });
+    }
+    return null;
+  }
+  console.log(
+    `[AGENT] fast lane answered in ${durationMs}ms (${target.label})`,
+  );
+  await saveConversationTurn(supabase, { ...turn, answer: answer.text });
+  const tokensIn = answer.usage?.prompt_tokens ?? 0;
+  const tokensOut = answer.usage?.completion_tokens ?? 0;
+  const { error } = await supabase.from("agent_action_log").insert({
+    tenant_id: turn.tenantId,
+    agent_id: turn.agentId,
+    action_type: "agent_turn",
+    status: "success",
+    action_details: {
+      surface: turn.surface,
+      fast_lane: true,
+      command_preview: turn.message.slice(0, 240),
+      tools_used: [],
+      tool_count: 0,
+      output_preview: answer.text.slice(0, 600),
+    },
+    user_id: turn.userId,
+    tool_calls: 0,
+    model: target.label,
+    duration_ms: durationMs,
+    tokens_in: tokensIn || null,
+    tokens_out: tokensOut || null,
+    cost_usd: estimateLLMCostUSD(target.label, tokensIn, tokensOut),
+  });
+  if (error) {
+    console.error("[AGENT] action_log insert failed:", error.message);
+  }
+  return new Response(
+    JSON.stringify({
+      success: true,
+      output: answer.text,
+      agent_name: turn.agentName,
+      model: target.label,
+      execution_time_ms: durationMs,
+      tools_used: [],
+      tool_log: [],
+      conversation_id: turn.conversationId,
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+/** The first fast model the tenant has a key for that can stream, or null. */
+async function fastLaneTarget(
+  supabase: AgentDatabaseClient,
+  tenantId: string,
+): Promise<(FastTarget & { label: string }) | null> {
+  for (const label of FAST_LANE_MODELS) {
+    try {
+      return { ...(await resolveLLMTarget(supabase, tenantId, label)), label };
+    } catch {
+      /* no key for this provider: try the next */
+    }
+  }
+  return null;
+}
+
+/** Saves the user's message and the answer to the conversation (last 60 messages). */
+async function saveConversationTurn(
+  supabase: AgentDatabaseClient,
+  turn: {
+    tenantId: string;
+    userId: string;
+    conversationId: string;
+    history: Array<ChatTurn>;
+    message: string;
+    answer: string;
+  },
+): Promise<void> {
+  const messages = [
+    ...turn.history,
+    { role: "user", content: turn.message },
+    { role: "assistant", content: turn.answer },
+  ].slice(-60);
+  const { error } = await supabase
+    .from("ai_conversations")
+    .update({ messages, updated_at: new Date().toISOString() })
+    .eq("id", turn.conversationId)
+    .eq("user_id", turn.userId)
+    .eq("tenant_id", turn.tenantId);
+  if (error) {
+    console.error("[AGENT] conversation persistence failed:", error.message);
   }
 }
 
