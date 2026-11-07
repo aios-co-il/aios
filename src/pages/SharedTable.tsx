@@ -88,6 +88,11 @@ import {
   filterRecordsByEntityLevel,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
+import {
+  type AdsReportView,
+  useContinentsReportView,
+} from "@/components/dynamic-tables/CampaignContinents/useContinentsReportView";
+import { TableContinentsView } from "@/components/dynamic-tables/CampaignContinents/TableContinentsView";
 
 // Date filter options — shared with DynamicTableView week windows via dashboardDateFilters.
 const DATE_FILTERS = SHARED_TABLE_DATE_FILTERS;
@@ -167,9 +172,6 @@ export default function SharedTable() {
   const [adsEntityLevel, setAdsEntityLevel] =
     useState<AdsEntityLevel>("campaign");
   const [monthlyWorkFullPage, setMonthlyWorkFullPage] = useState(false);
-  const [adsReportView, setAdsReportView] = useState<"summary" | "weekly">(
-    "summary",
-  );
   const queryClient = useQueryClient();
 
   const dateQueryKey = seoShareLocked
@@ -183,6 +185,7 @@ export default function SharedTable() {
   const {
     data: coreData,
     isLoading,
+    isFetching: coreFetching,
     error,
   } = useQuery({
     queryKey: ["shared-table", shareToken, dateQueryKey, "core"],
@@ -257,6 +260,16 @@ export default function SharedTable() {
   }, [coreData?.table?.integration_type]);
 
   const integrationType = data?.table?.integration_type;
+
+  const {
+    view: adsReportView,
+    setView: setAdsReportView,
+    hasContinentsTab,
+  } = useContinentsReportView({
+    integrationType,
+    records: data?.records || [],
+    ready: coreData !== undefined && !coreFetching,
+  });
   const isIntegrationTable =
     isAdsPlatform(integrationType || "") ||
     isAnalyticsPlatform(integrationType || "");
@@ -652,22 +665,30 @@ export default function SharedTable() {
         {isAdsPlatform(integrationType || "") && (
           <Tabs
             value={adsReportView}
-            onValueChange={(value) =>
-              setAdsReportView(value as "summary" | "weekly")
-            }
+            onValueChange={(value) => setAdsReportView(value as AdsReportView)}
           >
             <ResponsiveTabsList
               items={[
                 { value: "summary", label: "הדוח" },
                 { value: "weekly", label: "השוואה שבועית", icon: BarChart3 },
+                ...(hasContinentsTab
+                  ? [{ value: "continents", label: "לפי יבשות", icon: Globe }]
+                  : []),
               ]}
               value={adsReportView}
               onValueChange={(value) =>
-                setAdsReportView(value as "summary" | "weekly")
+                setAdsReportView(value as AdsReportView)
               }
               mobileLabel="בחר תצוגה"
             />
           </Tabs>
+        )}
+
+        {hasContinentsTab && adsReportView === "continents" && data?.table && (
+          <TableContinentsView
+            records={data.records || []}
+            table={data.table}
+          />
         )}
 
         {isAdsPlatform(integrationType || "") && adsReportView === "weekly" && (
