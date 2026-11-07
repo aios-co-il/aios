@@ -214,10 +214,10 @@ export function ProfileTab({
       </Card>
 
       {/* ===== Mood ===== */}
-      <MoodCard agent={agent} />
+      <MoodCard agent={agent} tenantId={tenantId} />
 
       {/* ===== Voice ===== */}
-      <VoiceCard agent={agent} />
+      <VoiceCard agent={agent} tenantId={tenantId} />
 
       {/* ===== System Prompt override ===== */}
       <Card className="p-5">
@@ -456,7 +456,14 @@ const MOOD_OPTIONS: {
   },
 ];
 
-function MoodCard({ agent }: { agent: Tables<"ai_agents"> }) {
+/** Save mood independently and invalidate the parent's tenant-scoped agent list. */
+function MoodCard({
+  agent,
+  tenantId,
+}: {
+  agent: Tables<"ai_agents">;
+  tenantId: string | null;
+}) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const current = agent.mood || "none";
@@ -537,7 +544,14 @@ const VOICE_OPTIONS: { value: string; label: string }[] = [
   { value: "onyx", label: "🎙️ Onyx — גברי, עמוק" },
 ];
 
-function VoiceCard({ agent }: { agent: Tables<"ai_agents"> }) {
+/** Save voice independently and invalidate the parent's tenant-scoped agent list. */
+function VoiceCard({
+  agent,
+  tenantId,
+}: {
+  agent: Tables<"ai_agents">;
+  tenantId: string | null;
+}) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const current = agent.voice || "none";
