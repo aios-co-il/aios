@@ -16,8 +16,16 @@ const LINE_END_PAUSE_S = 0.3;
  */
 const PAUSE = /[,;:—–]|[.!?…]+(?=\s)|\s-(?=\s)/gu;
 
-/** How the pace is stated to Carmen: the same rule maxWords checks (the save tool refuses past it). */
-export const PACE_GUIDE = `בכל שורה עד (השניות פחות ${LINE_END_PAUSE_S}) כפול ${WORDS_PER_SECOND} מילים, וכל פסיק, נקודה, סימן שאלה או מקף בתוך השורה מוריד עוד ${BREAK_PAUSE_S} שניות (שורה של 2.5 שניות: עד ${maxWords(2.5)} מילים; 3 שניות: עד ${maxWords(3)}; 5 שניות: עד ${maxWords(5)}). רשימה של מילים עם פסיקים ארוכה בקול ממה שנראה.`;
+/**
+ * The least of its time the narration must fill. The edit cuts the scenes to the take, so a short
+ * narration makes a short film: a 15-second brief scripted at 11 seconds of speech came out 13.2
+ * (Staging, 5 Nov). Measured against what the beats can hold in whole words (maxWords), not their
+ * length, so a script filled to its maxWords always saves (tools/script-fill.ts).
+ */
+export const MIN_FILL = 0.85;
+
+/** How the pace is stated to Carmen: the same rules maxWords and MIN_FILL check (the save tool refuses past them). */
+export const PACE_GUIDE = `בכל שורה עד (השניות פחות ${LINE_END_PAUSE_S}) כפול ${WORDS_PER_SECOND} מילים, וכל פסיק, נקודה, סימן שאלה או מקף בתוך השורה מוריד עוד ${BREAK_PAUSE_S} שניות (שורה של 2.5 שניות: עד ${maxWords(2.5)} מילים; 3 שניות: עד ${maxWords(3)}; 5 שניות: עד ${maxWords(5)}). רשימה של מילים עם פסיקים ארוכה בקול ממה שנראה. ומלאי את השורות עד המקסימום שלהן (מילה אחת פחות בשורה קצרה כבר יכולה להוריד מתחת לסף): הסרט נחתך לפי הקריינות, וקריינות קצרה יוצרת סרט קצר מהמתוכנן. קריינות שנאמרת בפחות מ-${Math.round(MIN_FILL * 100)}% ממה שהשורות שלה יכולות להכיל לא תישמר.`;
 
 /** Words in a spoken line (punctuation alone is not a word). */
 export const spokenWords = (text: string) =>
@@ -46,7 +54,7 @@ export function spokenSeconds(text: string): number {
 }
 
 /** The pauses in a line: one at each pause inside it (PAUSE) and one at its end. */
-function pausesSeconds(text: string): number {
+export function pausesSeconds(text: string): number {
   const inner = text.trim().replace(/[\s,;:.!?…—–-]+$/u, "");
   return (inner.match(PAUSE) ?? []).length * BREAK_PAUSE_S + LINE_END_PAUSE_S;
 }

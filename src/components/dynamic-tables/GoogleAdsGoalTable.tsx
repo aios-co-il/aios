@@ -4,7 +4,7 @@ import {
   CAMPAIGN_GOAL_TOTAL_LABELS,
 } from "@/lib/campaignGoals";
 import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleReportGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 
 type Metrics = {
   impressions: number;
@@ -22,7 +22,7 @@ export type GoogleAdsGoalTableRow = Metrics & {
 };
 
 type Props = {
-  goal: GoogleCampaignGoal;
+  goal: GoogleReportGoal;
   rows: GoogleAdsGoalTableRow[];
   entityColumnLabel: string;
   currency: string;
@@ -37,7 +37,9 @@ type Props = {
 
 /**
  * One goal of a Google Ads report table: sales campaigns with conversion value
- * and ROAS, lead campaigns with cost per lead. Totals are of this goal only.
+ * and ROAS, lead campaigns with cost per lead, and campaigns set to pay for
+ * exposure with clicks and cost per click only (AIO-496). Totals are of this
+ * goal only.
  */
 export function GoogleAdsGoalTable({
   goal,
@@ -48,6 +50,7 @@ export function GoogleAdsGoalTable({
   wooTotals,
 }: Props) {
   const isEcommerce = goal === "ecommerce";
+  const isTraffic = goal === "traffic";
   const woo = isEcommerce ? wooTotals : null;
   const sum = (key: keyof Metrics) =>
     rows.reduce((total, row) => total + row[key], 0);
@@ -79,10 +82,13 @@ export function GoogleAdsGoalTable({
             <th className="p-2 text-right font-medium">{entityColumnLabel}</th>
             {header("חשיפות")}
             {header("קליקים")}
-            {header(woo ? "המרות (GA)" : isEcommerce ? "המרות" : "לידים")}
+            {!isTraffic &&
+              header(woo ? "המרות (GA)" : isEcommerce ? "המרות" : "לידים")}
             {header("עלות")}
             {isEcommerce && header(woo ? "ערך (GA)" : "ערך המרות")}
-            {header(isEcommerce ? "ROAS" : "עלות לליד")}
+            {header(
+              isTraffic ? "עלות לקליק" : isEcommerce ? "ROAS" : "עלות לליד",
+            )}
           </tr>
         </thead>
         <tbody>
@@ -94,7 +100,7 @@ export function GoogleAdsGoalTable({
               </td>
               <MetricCells
                 m={row}
-                isEcommerce={isEcommerce}
+                goal={goal}
                 currency={currency}
                 isTotal={false}
               />
@@ -104,12 +110,7 @@ export function GoogleAdsGoalTable({
         <tfoot className="bg-primary/10 font-bold">
           <tr>
             <td className="p-2 text-right">{totalLabel}</td>
-            <MetricCells
-              m={totals}
-              isEcommerce={isEcommerce}
-              currency={currency}
-              isTotal
-            />
+            <MetricCells m={totals} goal={goal} currency={currency} isTotal />
           </tr>
         </tfoot>
       </table>
@@ -117,18 +118,37 @@ export function GoogleAdsGoalTable({
   );
 }
 
-/** Metric cells of a row or of the total row; sales and leads differ. */
+/** Metric cells of a row or of the total row; each goal has its own result columns. */
 function MetricCells({
   m,
-  isEcommerce,
+  goal,
   currency,
   isTotal,
 }: {
   m: Metrics;
-  isEcommerce: boolean;
+  goal: GoogleReportGoal;
   currency: string;
   isTotal: boolean;
 }) {
+  const cost = (
+    <td className="p-2 text-center">
+      {currency}
+      {formatReportNumber(m.cost)}
+    </td>
+  );
+  if (goal === "traffic") {
+    return (
+      <>
+        <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
+        <td className="p-2 text-center">{formatReportNumber(m.clicks)}</td>
+        {cost}
+        <td className={resultCellClass("text-blue-600", isTotal)}>
+          {currency}
+          {formatReportNumber(ratio(m.cost, m.clicks), 2)}
+        </td>
+      </>
+    );
+  }
   return (
     <>
       <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
@@ -136,11 +156,8 @@ function MetricCells({
       <td className={resultCellClass("text-green-600", isTotal)}>
         {formatReportNumber(Math.round(m.conversions))}
       </td>
-      <td className="p-2 text-center">
-        {currency}
-        {formatReportNumber(m.cost)}
-      </td>
-      {isEcommerce ? (
+      {cost}
+      {goal === "ecommerce" ? (
         <>
           <td className={resultCellClass("text-purple-600", isTotal)}>
             {currency}

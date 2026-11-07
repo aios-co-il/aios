@@ -15,10 +15,17 @@ describe("googleGoalPresence", () => {
     expect(googleGoalPresence(["leads", "leads"], "ecommerce")).toEqual({
       hasEcommerce: false,
       hasLeads: true,
+      hasTraffic: false,
     });
     expect(googleGoalPresence([], "ecommerce")).toEqual({
       hasEcommerce: true,
       hasLeads: false,
+      hasTraffic: false,
+    });
+    expect(googleGoalPresence(["traffic"], "leads")).toEqual({
+      hasEcommerce: false,
+      hasLeads: false,
+      hasTraffic: true,
     });
   });
 });

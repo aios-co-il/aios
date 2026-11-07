@@ -8,6 +8,7 @@ import {
 import { synthesizeGeminiSpeech } from "../providers/geminiTts.ts";
 import { synthesizeOpenRouterSpeech } from "../providers/openrouterTts.ts";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.ts";
+import { stripNikud } from "./nikud.ts";
 import { spokenAlignment } from "./spoken-alignment.ts";
 
 /**
@@ -109,10 +110,14 @@ export async function speakScript({
 }
 
 /**
- * The characters ElevenLabs billed: its character-cost header, else the length of the pointed
- * text it was sent (the plain script is shorter and would under-count).
+ * The characters ElevenLabs billed: its character-cost header, else the length of the text it was
+ * sent without its nikud. ElevenLabs does not bill the vowel points (Staging, 5 Nov: a 96-character
+ * script sent with nikud was billed 66), so the pointed length would over-count.
  */
 const billedCharacters = (header: number | null, sent: string) =>
   header === null
-    ? { characters: sent.length, characters_basis: "sent_text" }
+    ? {
+        characters: stripNikud(sent).length,
+        characters_basis: "sent_text_without_nikud",
+      }
     : { characters: header, characters_basis: "character_cost_header" };

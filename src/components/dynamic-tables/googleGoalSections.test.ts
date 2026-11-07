@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { googleGoalSections } from "./googleGoalSections";
 
 const row = (

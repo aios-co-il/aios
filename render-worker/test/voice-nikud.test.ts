@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { stripNikud } from "../src/jobs/nikud.ts";
 import { generateVoice } from "../src/jobs/sound.ts";
 import {
   clearVocalizedCache,
@@ -96,10 +97,10 @@ describe("the voice run", () => {
     expect(meta.text).toBe(PLAIN);
     expect(meta.alignment.characters.join("")).toBe(PLAIN);
     expect(run.output.audio_meta.nikud).toBe("added");
-    // Billed on the pointed text it was sent, not the shorter plain script.
-    expect(run.output.audio_meta.characters).toBe(POINTED.length);
+    // Without the header: the text it was sent, without the vowel points ElevenLabs does not bill.
+    expect(run.output.audio_meta.characters).toBe(stripNikud(POINTED).length);
     expect(result.costUsd).toBe(
-      Math.round((POINTED.length / 1000) * 0.12 * 10000) / 10000,
+      Math.round((stripNikud(POINTED).length / 1000) * 0.12 * 10000) / 10000,
     );
   });
 
@@ -124,8 +125,8 @@ describe("the voice run", () => {
     expect(finished.audio_meta).toMatchObject({
       provider: "elevenlabs",
       nikud: "added",
-      characters: POINTED.length,
-      characters_basis: "sent_text",
+      characters: stripNikud(POINTED).length,
+      characters_basis: "sent_text_without_nikud",
     });
   });
 

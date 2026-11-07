@@ -101,7 +101,7 @@ function AssociateSignature({
   tenantId,
 }: {
   doc: SignedDoc;
-  tenantId?: string;
+  tenantId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
@@ -238,7 +238,7 @@ export function SignedSignatureReview({
 }: {
   doc: SignedDoc;
   signers: Signer[];
-  tenantId?: string;
+  tenantId?: string | null;
 }) {
   return (
     <div className="space-y-5">

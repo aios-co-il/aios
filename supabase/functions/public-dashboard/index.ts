@@ -8,6 +8,11 @@ import {
   filterWooOrdersForRevenue,
 } from "../_shared/wooRevenue.ts";
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
+import {
+  EVENT_REPORT_TYPES,
+  fetchEventTotals,
+  withFullEventTotals,
+} from "./event-totals.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -230,7 +235,24 @@ Deno.serve(async (req) => {
         if (rows.length < pageSize) break;
       }
 
-      const filteredRecords = tableRecords.filter((r: any) => {
+      // The site events tab sums the per-event rows, which can pass the cap.
+      const readRecords = isAnalytics
+        ? withFullEventTotals(
+            tableRecords,
+            await fetchEventTotals((from, to) => {
+              let query = supabase
+                .from("crm_records")
+                .select("id, data, created_at")
+                .eq("table_id", table.id)
+                .in("data->>report_type", EVENT_REPORT_TYPES);
+              if (startDate) query = query.gte("data->>date", startDate);
+              if (endDate) query = query.lte("data->>date", endDate);
+              return query.order("id").range(from, to);
+            }),
+          )
+        : tableRecords;
+
+      const filteredRecords = readRecords.filter((r: any) => {
         const recordDate = r.data?.date || r.data?.date_start;
         // Keep aggregated / summary rows (no date) — needed for GA channel rolls etc.
         if (!recordDate) return true;

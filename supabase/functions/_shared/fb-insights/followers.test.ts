@@ -52,3 +52,20 @@ Deno.test("countNewFollowers", async (t) => {
     assertEquals(countNewFollowers(countOfRow({ link_click: 30 })), 0);
   });
 });
+
+Deno.test("countNewFollowers with the Instagram follows metric", async (t) => {
+  await t.step("counts the metric when actions carry no follows", () => {
+    assertEquals(countNewFollowers(countOfRow({ link_click: 30 }), 381), 381);
+  });
+
+  await t.step("the metric and the action keys are one count", () => {
+    assertEquals(
+      countNewFollowers(countOfRow({ instagram_profile_follow: 7 }), 9),
+      9,
+    );
+  });
+
+  await t.step("Facebook follows still add to the metric", () => {
+    assertEquals(countNewFollowers(countOfRow({ like: 2 }), 5), 7);
+  });
+});

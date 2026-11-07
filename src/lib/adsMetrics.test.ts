@@ -2,11 +2,9 @@ import { expect, test } from "vitest";
 import {
   aggregateFacebookCampaignsFromRecords,
   effectiveFacebookCampaignType,
-  facebookTableUsesMixedRows,
   getLeadsFromData,
   getMessagingLeadsFromData,
   isFacebookMessagingLeadRecord,
-  groupFacebookCampaigns,
   isFacebookEcommerceCampaign,
   preferFacebookCampaignType,
   getAddToCartFromData,
@@ -201,14 +199,6 @@ test("aggregateFacebookCampaignsFromRecords ignores adset/ad rows to avoid tripl
   expect(rows[0].leads).toBe(5);
 });
 
-test("mixed Facebook table is detected when campaign_type is unset", () => {
-  expect(facebookTableUsesMixedRows("facebook_insights", {})).toBe(true);
-  expect(
-    facebookTableUsesMixedRows("facebook_insights", { campaign_type: "leads" }),
-  ).toBe(false);
-  expect(facebookTableUsesMixedRows("facebook_ecommerce", {})).toBe(false);
-});
-
 test("sales campaign with pixel leads and zero purchases stays in the ecommerce table", () => {
   expect(
     isFacebookEcommerceCampaign({
@@ -244,70 +234,6 @@ test("preferFacebookCampaignType keeps a sales label over a later lead day", () 
   expect(preferFacebookCampaignType("lead", "ecommerce")).toBe("ecommerce");
   expect(preferFacebookCampaignType("other", "lead")).toBe("lead");
   expect(preferFacebookCampaignType("traffic", "lead")).toBe("lead");
-});
-
-test("a dashboard without a mixed table keeps traffic in its own table", () => {
-  const campaigns = [
-    {
-      name: "מכירות אוגוסט 2",
-      impressions: 1000,
-      clicks: 50,
-      spend: 572,
-      leads: 0,
-      purchases: 6,
-      purchase_value: 2903,
-      add_to_cart: 10,
-      campaign_type: "ecommerce",
-    },
-    {
-      name: "לידים דרושים",
-      impressions: 2000,
-      clicks: 80,
-      spend: 400,
-      leads: 36,
-      purchases: 0,
-      purchase_value: 0,
-      add_to_cart: 0,
-      campaign_type: "lead",
-    },
-    {
-      name: "תנועה אוגוסט",
-      impressions: 5000,
-      clicks: 250,
-      spend: 539,
-      leads: 0,
-      purchases: 0,
-      purchase_value: 0,
-      add_to_cart: 0,
-      campaign_type: "traffic",
-    },
-    {
-      name: "מודעות פתחנו",
-      impressions: 800,
-      clicks: 20,
-      spend: 280,
-      leads: 0,
-      purchases: 0,
-      purchase_value: 0,
-      add_to_cart: 0,
-      campaign_type: "other",
-    },
-  ];
-
-  // Ecommerce-only reports keep known lead campaigns (by objective) in the leads table.
-  const singleEcom = groupFacebookCampaigns(campaigns, {
-    singleTableMode: "ecommerce",
-  });
-  expect(singleEcom.ecommerce.length).toBe(2);
-  expect(singleEcom.leads.length).toBe(1);
-  expect(singleEcom.traffic.length).toBe(1);
-
-  const singleLeads = groupFacebookCampaigns(campaigns, {
-    singleTableMode: "leads",
-  });
-  expect(singleLeads.ecommerce.length).toBe(0);
-  expect(singleLeads.leads.length).toBe(3);
-  expect(singleLeads.traffic.length).toBe(1);
 });
 
 test("WhatsApp campaigns stored as traffic render as leads (אלהם פארמה pattern)", () => {
@@ -354,38 +280,6 @@ test("Meta objective decides the Facebook campaign kind over stale stored types"
       optimization_goal: "CONVERSATIONS",
     }),
   ).toBe("lead");
-});
-
-test("ecommerce-only report still lists its lead campaigns as leads", () => {
-  const grouped = groupFacebookCampaigns(
-    [
-      {
-        name: "מכירות",
-        impressions: 0,
-        clicks: 0,
-        spend: 500,
-        leads: 0,
-        purchases: 5,
-        purchase_value: 900,
-        add_to_cart: 0,
-        campaign_type: "ecommerce",
-      },
-      {
-        name: "דרושים | לידים",
-        impressions: 0,
-        clicks: 0,
-        spend: 100,
-        leads: 20,
-        purchases: 0,
-        purchase_value: 0,
-        add_to_cart: 0,
-        campaign_type: "lead",
-      },
-    ],
-    { singleTableMode: "ecommerce" },
-  );
-  expect(grouped.ecommerce.map((c) => c.name)).toStrictEqual(["מכירות"]);
-  expect(grouped.leads.map((c) => c.name)).toStrictEqual(["דרושים | לידים"]);
 });
 
 test("aggregateFacebookCampaignsFromRecords types a campaign by its Meta setup", () => {

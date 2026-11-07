@@ -1,12 +1,18 @@
-/**
- * Campaign goals of the reports in display order: sales, leads, traffic. Each
- * goal gets its own table and metrics. A new goal also needs classifier rules
- * and the per-goal tables that each report and page lists by hand.
- */
-export const REPORT_CAMPAIGN_GOALS = ["ecommerce", "leads", "traffic"] as const;
+import {
+  REPORT_CAMPAIGN_GOALS,
+  type ReportCampaignGoal,
+} from "../../supabase/functions/_shared/campaign-goal/report-goals.ts";
 
-/** A campaign's goal in the reports (pulse has its own goals in pulseDashboard). */
-export type ReportCampaignGoal = (typeof REPORT_CAMPAIGN_GOALS)[number];
+// The goals live with the pulse, so the reports and the pulse share one list.
+export { REPORT_CAMPAIGN_GOALS, type ReportCampaignGoal };
+// Each record's campaign goal as its table's report shows it.
+export {
+  reportCampaignGoalOf,
+  reportCampaignKey,
+  type CampaignGoalRecord,
+  type CampaignGoalTable,
+  type CampaignGoalVerdict,
+} from "../../supabase/functions/_shared/campaign-goal/campaign-goals.ts";
 
 /** Title of each goal's campaign table. */
 export const CAMPAIGN_GOAL_TITLES: Record<ReportCampaignGoal, string> = {
@@ -27,7 +33,7 @@ export const CAMPAIGN_GOAL_TOTAL_LABELS: Record<ReportCampaignGoal, string> = {
  * rows. Every goal is in the order list, so no row can drop out of the tables.
  */
 export function groupRowsByCampaignGoal<G extends ReportCampaignGoal, T>(
-  rows: T[],
+  rows: Array<T>,
   goalOf: (row: T) => G,
 ): Array<{ goal: G; rows: T[] }> {
   return REPORT_CAMPAIGN_GOALS.flatMap((goal) => {

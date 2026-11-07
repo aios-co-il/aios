@@ -1,3 +1,5 @@
+import type { Json } from "@/integrations/supabase/types";
+
 /**
  * Client-safe helpers for tenant_integrations rows.
  *
@@ -27,7 +29,8 @@ const SENSITIVE_SETTINGS_KEYS = [
 export const CLIENT_INTEGRATION_COLUMNS =
   "id, tenant_id, user_id, integration_type, is_active, settings, display_name, connection_visibility, shared_from_integration_id, auto_sync_enabled, last_sync_at, created_at, updated_at, instance_id, company_id, api_token_last_4";
 
-export const CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY = `${CLIENT_INTEGRATION_COLUMNS}, api_key`;
+export const CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY =
+  `${CLIENT_INTEGRATION_COLUMNS}, api_key` as const;
 
 export type TenantIntegrationRow = {
   id: string;
@@ -36,7 +39,7 @@ export type TenantIntegrationRow = {
   integration_type: string;
   is_active?: boolean | null;
   api_key?: string | null;
-  settings?: Record<string, unknown> | null;
+  settings?: Json;
   display_name?: string | null;
   connection_visibility?: string | null;
   shared_from_integration_id?: string | null;
@@ -57,7 +60,8 @@ export type ClientIntegration = Omit<TenantIntegrationRow, "api_key"> & {
   _sharedByName?: string | null;
 };
 
-export function getClientIntegrationSelect(integrationType: string): string {
+/** Keep projection literals so Supabase can infer the selected row. */
+export function getClientIntegrationSelect(integrationType: string) {
   return GOOGLE_INTEGRATION_TYPES.has(integrationType)
     ? CLIENT_INTEGRATION_COLUMNS
     : CLIENT_INTEGRATION_COLUMNS_WITH_API_KEY;
@@ -65,7 +69,11 @@ export function getClientIntegrationSelect(integrationType: string): string {
 
 export function integrationHasCredential(row: TenantIntegrationRow): boolean {
   const settings =
-    row.settings && typeof row.settings === "object" ? row.settings : null;
+    row.settings &&
+    typeof row.settings === "object" &&
+    !Array.isArray(row.settings)
+      ? row.settings
+      : null;
 
   if (GOOGLE_INTEGRATION_TYPES.has(row.integration_type)) {
     return !!(

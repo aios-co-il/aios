@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import {
   googleLeadCampaignRecords,
   googleManualRoiFigures,
@@ -58,6 +58,17 @@ describe("googleManualRoiFigures", () => {
     expect(googleManualRoiFigures([record("shop", "ecommerce")], table)).toBe(
       null,
     );
+  });
+
+  it("hides the card on a table in the איקומרס category (AIO-494)", () => {
+    const categoryTable = {
+      ...table,
+      integration_settings: {},
+      category: "איקומרס",
+    };
+    expect(
+      googleManualRoiFigures([record("search", "leads")], categoryTable),
+    ).toBe(null);
   });
 
   it("hides the card on a sales table or an empty range without saved figures", () => {

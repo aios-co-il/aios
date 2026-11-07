@@ -1,5 +1,6 @@
 package co.il.aios.carmen
 
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
@@ -26,7 +27,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private lateinit var voice: CarmenVoice
     private lateinit var account: AiosAccount
     private var engine: WakeWordEngine? = null
-    private var conversation: RealtimeConversation? = null
+    private var conversation: LiveConversation? = null
     private var talkWhenReady = false
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -138,10 +139,32 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
             handler.postDelayed(endSessionOnTimeout, SIGNED_OUT_SESSION_MS)
             return
         }
-        conversation = RealtimeConversation(this, account, log, conversationListener, activatedAt).also { it.start() }
+        conversation = newConversation(activatedAt).also { it.start() }
     }
 
-    private val conversationListener = object : RealtimeConversation.Listener {
+    /** The provider the voice picker chose; ElevenLabs hands over to OpenAI when unavailable. */
+    private fun newConversation(activatedAt: Long): LiveConversation {
+        val preference = VoicePreference(this)
+        if (preference.usesOpenAi) return openAiConversation(activatedAt)
+        lateinit var elevenLabs: ElevenLabsConversation
+        elevenLabs = ElevenLabsConversation(
+            this, account, log, conversationListener, activatedAt, preference.selected?.id,
+            onUnavailable = {
+                handler.post {
+                    // Only if this activation is still waiting on that conversation.
+                    if (gate.state == ActivationGate.State.ACTIVE && conversation === elevenLabs) {
+                        conversation = openAiConversation(activatedAt).also { it.start() }
+                    }
+                }
+            },
+        )
+        return elevenLabs
+    }
+
+    private fun openAiConversation(activatedAt: Long) =
+        RealtimeConversation(this, account, log, conversationListener, activatedAt)
+
+    private val conversationListener = object : LiveConversation.Listener {
         override fun onState(state: CarmenSession.State) = CarmenSession.setState(state)
         override fun onTranscript(line: String) = CarmenSession.addLine(line)
         override fun onEnded(reason: String) {
@@ -157,9 +180,11 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     }
 
     private fun showCarmen() {
+        val screenOffOrLocked = !getSystemService(PowerManager::class.java).isInteractive ||
+            getSystemService(KeyguardManager::class.java).isKeyguardLocked
         getSystemService(NotificationManager::class.java)
-            .notify(Notifications.WAKE_ID, Notifications.wake(this))
-        // Opens directly when the app is visible; otherwise the full-screen notification does.
+            .notify(Notifications.WAKE_ID, Notifications.activation(this, screenOffOrLocked))
+        // Opens directly when the app is visible; over the lock screen the full-screen notification does.
         startActivity(Intent(this, CarmenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 

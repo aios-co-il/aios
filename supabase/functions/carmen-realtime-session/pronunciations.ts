@@ -1,4 +1,5 @@
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { BUILT_IN_PRONUNCIATIONS } from "./built-in-pronunciations.ts";
 
 /** One entry of an org's pronunciation dictionary: how Carmen says a term. */
 export type Pronunciation = { term: string; spoken: string };
@@ -50,22 +51,27 @@ export async function loadPronunciations(
 }
 
 /**
- * The voice instructions for pronunciation: the org's dictionary as short bullets (OpenAI's
- * realtime prompting guide: phonetic bullets work best) and when to save a correction.
+ * The voice instructions for pronunciation: the org's dictionary, then the built-in marketing
+ * terms it does not override, as short bullets (OpenAI's realtime prompting guide: phonetic
+ * bullets work best), and when to save a correction.
  */
 export function pronunciationInstructions(
   entries: Array<Pronunciation>,
 ): string {
-  const rules = [
+  const own = new Set(entries.map(({ term }) => termKey(term)));
+  const all = [
+    ...entries,
+    ...BUILT_IN_PRONUNCIATIONS.filter(({ term }) => !own.has(termKey(term))),
+  ];
+  return [
     "=== הגייה ===",
     'כשהמשתמש מתקן איך אמרת מילה ("זה נהגה...", "לא X אלא Y"), קראי מיד ל-save_pronunciation עם המילה וההגייה הנכונה, אמרי שתזכרי, והגי אותה נכון מעכשיו.',
-  ];
-  if (entries.length === 0) {
-    return rules.join("\n");
-  }
-  return [
-    ...rules,
     "הגי את המילים האלה בדיוק כך:",
-    ...entries.map(({ term, spoken }) => `- ${term} ← ${spoken}`),
+    ...all.map(({ term, spoken }) => `- ${term.trim()} ← ${spoken.trim()}`),
   ].join("\n");
+}
+
+/** The same term however it was typed, as carmen_pronunciations.term_key stores it. */
+function termKey(term: string): string {
+  return term.trim().toLowerCase();
 }

@@ -11,11 +11,7 @@ import {
   roundUsd,
   voiceEstimate,
 } from "./cost-scene.ts";
-import {
-  NIKUD_CHARACTER_FACTOR,
-  VOICE_USD_PER_1000_CHARS,
-  voiceCharacters,
-} from "./clip-prices.ts";
+import { VOICE_USD_PER_1000_CHARS, voiceCharacters } from "./clip-prices.ts";
 import { type SceneEngine } from "./scene-engine.ts";
 
 const scenes = [
@@ -56,34 +52,22 @@ Deno.test("voice and music prices match the app", () => {
 });
 
 Deno.test(
-  "a line with one plain word or only maqafs is quoted with nikud, like the worker sends it",
+  "a line is quoted at its length without nikud: ElevenLabs does not bill the points",
   () => {
-    // Maqaf is punctuation, not a point: the worker still adds nikud to this line.
-    assertStrictEquals(voiceCharacters("א־ב־ג־ד"), Math.ceil(7 * 1.7));
-    // One plain word (פה) is enough for the worker to ask Dicta.
-    const partly = "שֶׁלָּנוּ פה";
-    assertStrictEquals(voiceCharacters(partly), Math.ceil(partly.length * 1.7));
-    const full = "שֶׁלָּנוּ פֹּה";
-    assertStrictEquals(voiceCharacters(full), full.length);
-  },
-);
-
-Deno.test(
-  "a plain Hebrew line is quoted at the length of its pointed text",
-  () => {
-    const line = "הקפה שלנו נקלה בכל בוקר מחדש ונשלח אליכם תוך יומיים";
-    assertStrictEquals(voiceCharacters(line), Math.ceil(line.length * 1.7));
-    assertStrictEquals(NIKUD_CHARACTER_FACTOR, 1.7);
-    // English and an already pointed line are sent as they are.
-    assertStrictEquals(voiceCharacters("Fresh coffee"), 12);
-    const pointed = "הַקָּפֶה שֶׁלָּנוּ";
-    assertStrictEquals(voiceCharacters(pointed), pointed.length);
-    const plain = voiceEstimate([{ duration_s: 5, voiceover_text: line }]);
+    // Staging, 5 Nov: this 96-character script was sent with nikud and billed 66 characters.
+    const line =
+      "קמפיין הוא מהלך אחד. ולעסק יש חמישה. קופי, מדיה, מכירות. ודאטה, שמחברת הכול. כרמן מנהלת את הכול.";
+    assertStrictEquals(voiceCharacters(line), 96);
+    // A pointed line costs what its plain letters cost; maqaf is punctuation and counts.
     assertStrictEquals(
-      plain.usd,
-      roundUsd(
-        (Math.ceil(line.length * 1.7) / 1000) * VOICE_USD_PER_1000_CHARS,
-      ),
+      voiceCharacters("הַקָּפֶה שֶׁלָּנוּ"),
+      "הקפה שלנו".length,
+    );
+    assertStrictEquals(voiceCharacters("א־ב־ג־ד"), 7);
+    assertStrictEquals(voiceCharacters(" Fresh coffee "), 12);
+    assertStrictEquals(
+      voiceEstimate([{ duration_s: 5, voiceover_text: line }]).usd,
+      roundUsd((96 / 1000) * VOICE_USD_PER_1000_CHARS),
     );
   },
 );

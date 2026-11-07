@@ -3,8 +3,8 @@
 
 /**
  * Vowel points, dagesh, shin/sin dots and cantillation; maqaf (U+05BE), paseq (U+05C0) and sof
- * pasuq (U+05C3) stay. The edge quote keeps a copy of these classes and the per-word rule
- * (supabase/functions/_shared/workshop/clip-prices.ts voiceCharacters); change both together.
+ * pasuq (U+05C3) stay. The edge quote keeps a copy of these classes (supabase/functions/_shared/
+ * workshop/clip-prices.ts voiceCharacters, which prices a line without them); change both together.
  */
 const POINTS = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g;
 const LETTER = /[\u05D0-\u05EA]/;

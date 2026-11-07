@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useCurrentUser } from "./useCurrentUser";
 
 export function useIntegrationPermissions(integrationId: string | undefined) {
   const queryClient = useQueryClient();
+  const { userId: grantorId, isLoading: isGrantorLoading } = useCurrentUser();
 
   // Fetch permissions for an integration
   const { data: permissions, isLoading } = useQuery({
@@ -43,12 +45,16 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
     mutationFn: async ({ userId }: { userId: string }) => {
       if (!integrationId) throw new Error("No integration ID");
 
+      if (isGrantorLoading || !grantorId) {
+        throw new Error("יש להתחבר מחדש כדי להעניק הרשאה");
+      }
+
       const { error } = await supabase
         .from("integration_user_permissions")
         .insert({
           integration_id: integrationId,
           user_id: userId,
-          granted_by: (await supabase.auth.getUser()).data.user?.id,
+          granted_by: grantorId,
         });
 
       if (error) throw error;

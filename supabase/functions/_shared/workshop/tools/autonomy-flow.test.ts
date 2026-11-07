@@ -44,7 +44,7 @@ const beats = [
   },
   {
     duration_s: 3,
-    narration: "כרמן כבר שם.",
+    narration: "כרמן כבר שם ומחכה לכם.",
     on_screen: "כרמן",
     visual: "מחשב",
   },
