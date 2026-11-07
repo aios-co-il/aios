@@ -772,16 +772,19 @@ async function buildLLMChain(
   };
   add(primaryFullId);
   for (const m of LLM_FALLBACK_ORDER) add(m);
-  const chain: LLMTarget[] = [];
-  for (const full of ordered) {
-    try {
-      const t = await resolveLLMTarget(supabase, tenantId, full); // throws if that provider's key is missing
-      chain.push({ ...t, label: full, provider: providerOf(full) });
-    } catch {
-      /* provider key not configured → skip it in the chain */
-    }
-  }
-  return chain;
+  // All models at once (each resolve is a key lookup); the order is kept, and a model whose
+  // provider key is missing is skipped (resolveLLMTarget throws for it).
+  const resolved = await Promise.all(
+    ordered.map(async (full) => {
+      try {
+        const t = await resolveLLMTarget(supabase, tenantId, full);
+        return { ...t, label: full, provider: providerOf(full) };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return resolved.filter((t): t is LLMTarget => t !== null);
 }
 
 // OpenAI's Chat Completions API hard-caps the tools array at 128 functions per
