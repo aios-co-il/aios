@@ -2,6 +2,8 @@
 // Input: { tenant_id, message_id?, media_url?, mime_type?, client_id?, lead_id?, caption?, tags? }
 // If message_id given, pulls media URL from chat_messages.raw_provider_data; otherwise uses media_url directly.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { thrownMessage } from "../_shared/json-narrow.ts";
+import { pickMediaFromRaw } from "./raw-media.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,34 +20,6 @@ const SUPPORTED_AD_MIME = new Set([
   "video/mp4",
   "video/quicktime",
 ]);
-
-function pickMediaFromRaw(raw: any): {
-  url?: string;
-  mime?: string;
-  caption?: string;
-} {
-  if (!raw || typeof raw !== "object") return {};
-  // Manus/Green API common shapes
-  const candidates = [
-    raw?.media_url,
-    raw?.mediaUrl,
-    raw?.url,
-    raw?.file_url,
-    raw?.fileUrl,
-    raw?.message?.imageMessage?.url,
-    raw?.message?.videoMessage?.url,
-    raw?.downloadUrl,
-    raw?.downloadURL,
-  ].filter(Boolean);
-  const url = candidates[0];
-  const mime =
-    raw?.mime_type ||
-    raw?.mimeType ||
-    raw?.message?.imageMessage?.mimetype ||
-    raw?.message?.videoMessage?.mimetype;
-  const caption = raw?.caption || raw?.message?.caption || raw?.text;
-  return { url, mime, caption };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -194,10 +168,10 @@ Deno.serve(async (req) => {
       }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("[carmen-save-media]", err);
     return new Response(
-      JSON.stringify({ error: String(err?.message || err) }),
+      JSON.stringify({ error: String(thrownMessage(err) || err) }),
       { status: 500, headers: corsHeaders },
     );
   }

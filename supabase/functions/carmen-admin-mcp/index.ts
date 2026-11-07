@@ -9,6 +9,8 @@
 //
 // Auth: Authorization: Bearer == CLAUDE_MCP_BEARER.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { McpRpcMessage } from "../_shared/mcp-streamable-http.ts";
+import { asRecord, thrownMessage } from "../_shared/json-narrow.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -104,7 +106,7 @@ async function resolveTenant(
       .eq("state", "ready")
       .filter("oauth_tokens->>bearer", "eq", bearer);
     const tenants = Array.from(
-      new Set((data || []).map((r: any) => r.tenant_id).filter(Boolean)),
+      new Set((data || []).map((r) => r.tenant_id).filter(Boolean)),
     );
     return tenants.length === 1 ? (tenants[0] as string) : fallback;
   } catch {
@@ -113,8 +115,8 @@ async function resolveTenant(
 }
 
 async function handleToolCall(
-  name: string,
-  args: Record<string, any>,
+  name: unknown,
+  args: Record<string, unknown>,
   tenantId: string | null,
 ): Promise<string> {
   if (name === "fix_campaigner_access") {
@@ -151,7 +153,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  let msg: any;
+  let msg: McpRpcMessage;
   try {
     msg = await req.json();
   } catch {
@@ -185,15 +187,18 @@ Deno.serve(async (req) => {
       case "tools/list":
         return rpcResult(id, { tools: TOOLS });
       case "tools/call": {
-        const name = params?.name as string;
-        const args = (params?.arguments ?? {}) as Record<string, any>;
+        const name = params?.name;
+        const rawArgs = params?.arguments ?? {};
+        const args = asRecord(rawArgs);
         try {
           const tenantId = await resolveTenant(bearerFrom(req));
           const text = await handleToolCall(name, args, tenantId);
           return rpcResult(id, { content: [{ type: "text", text }] });
-        } catch (e: any) {
+        } catch (e) {
           return rpcResult(id, {
-            content: [{ type: "text", text: `❌ ${String(e?.message ?? e)}` }],
+            content: [
+              { type: "text", text: `❌ ${String(thrownMessage(e) ?? e)}` },
+            ],
             isError: true,
           });
         }
@@ -201,8 +206,12 @@ Deno.serve(async (req) => {
       default:
         return rpcError(id, -32601, `Method not found: ${method}`);
     }
-  } catch (e: any) {
-    console.error("[carmen-admin-mcp]", e?.message ?? e);
-    return rpcError(id, -32603, `Internal error: ${String(e?.message ?? e)}`);
+  } catch (e) {
+    console.error("[carmen-admin-mcp]", thrownMessage(e) ?? e);
+    return rpcError(
+      id,
+      -32603,
+      `Internal error: ${String(thrownMessage(e) ?? e)}`,
+    );
   }
 });
