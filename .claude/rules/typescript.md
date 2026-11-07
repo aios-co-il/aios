@@ -9,6 +9,7 @@ paths:
 - **The main flow reads as named steps**: `const existingLead = await getExistingLead(...)`. Request parsing, auth and each multi-step block get a named function; the handler or component body stays a short sequence of intents.
 - **The entry point comes first**: `Deno.serve`, the exported component or the main export at the top, helpers below it (function declarations hoist).
 - **Code lives beside its only caller**: a helper used by one module sits in that module's folder with its test, and a new file in `supabase/functions/_shared/` or `src/lib/` with one importer moves next to that importer.
+- **Named functions** follow `func-style` in `eslint.config.js`: use function declarations for helpers and handlers; inline API callbacks remain callbacks.
 - **Direct form**: return the boolean expression (`return !(a && b)`), and leave a blank line between test cases and type declarations.
 - **Use domain types for known payloads.** Prefer explicit named types over `JsonObject`, generic `Json`, or `Record<string, unknown>` for known application data. Keep generic JSON types at storage or untrusted-input boundaries and validate reads before exposing domain models.
 - **Narrow types to fit.** Use `instanceof` (for example `FunctionsHttpError`), a type guard, `requireTenantId` (`src/lib/requireTenantId.ts`) or a corrected type wherever the code would reach for `as unknown as`, `as never` or `String(x)` on a string. Removing `: any` means giving the real type.
