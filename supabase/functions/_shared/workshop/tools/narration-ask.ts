@@ -23,7 +23,7 @@ export type ReviewContext = Pick<
 >;
 
 const CARMEN_NEXT =
-  'הקריינות מחכה לאישור המשתמש (מצב חצי אוטומטי). say_to_user נשלח למשתמש כמו שהוא; עצרי. אישר (בכפתור, או במילים כמו "מאשר"): קראי שוב ל-workshop_produce_video, ובאישור במילים עם narration_approved=true. מילה נשמעת לא נכון: workshop_save_pronunciation ואז workshop_produce_video, שמקליט מחדש. ביקש הקלטה חדשה בלי תיקון: workshop_produce_video עם redo_narration=true.';
+  'הקריינות מחכה לאישור המשתמש (מצב חצי אוטומטי). say_to_user נשלח למשתמש כמו שהוא; עצרי. אישר (בכפתור, או במילים כמו "מאשר"): קראי שוב ל-workshop_produce_video, ובאישור במילים עם narration_approved=true. מילה נשמעת לא נכון: workshop_save_pronunciation ואז workshop_produce_video, שמקליט מחדש. ביקש הקלטה חדשה בלי תיקון: workshop_produce_video עם redo_narration=true. קשה לו להסביר מה לא נשמע נכון: הציעי להקליט את הקריינות בקול שלו בכפתור "הקלטה בקול שלי" בעמוד הקריינות; כשההודעה שלו מתחילה ב-"הקלטתי את הקריינות בקול שלי:", קראי ל-workshop_produce_video (הקול מוחלף לקול הנבחר, והתוצאה נשאלת שוב).';
 
 /**
  * Waits for the voice run `runId` and asks about its take once it is on the board, or says why it
