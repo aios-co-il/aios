@@ -43,6 +43,11 @@ import {
 } from "lucide-react";
 import { ShareIntegrationTenantsDialog } from "@/components/forms/ShareIntegrationTenantsDialog";
 import { IntegrationVisibilitySelector } from "@/components/forms/IntegrationVisibilitySelector";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import {
+  integrationSettingsObject,
+  readManusWaSettings,
+} from "@/lib/manusIntegrationSettings";
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || "";
 
@@ -58,7 +63,7 @@ type Integration = {
   id: string;
   display_name: string | null;
   api_key: string | null;
-  settings: any;
+  settings: Json | null;
   is_active: boolean;
   created_at: string;
 };
@@ -100,7 +105,7 @@ export default function ManusWhatsAppSettings({
   });
 
   const instanceIds = integrations
-    .map((i) => i.settings?.instance_id as string | undefined)
+    .map((i) => readManusWaSettings(i.settings).instance_id)
     .filter((id): id is string => !!id);
 
   // Outbound works with just instance id + API key; inbound needs the webhook configured
@@ -155,7 +160,7 @@ export default function ManusWhatsAppSettings({
   };
 
   const openEdit = (i: Integration) => {
-    const s = i.settings || {};
+    const s = readManusWaSettings(i.settings);
     setEditingId(i.id);
     setForm({
       displayName: i.display_name || "",
@@ -177,8 +182,8 @@ export default function ManusWhatsAppSettings({
       const existing = editingId
         ? integrations.find((i) => i.id === editingId)
         : null;
-      const existingSettings = (existing?.settings as any) || {};
-      const payload: any = {
+      const existingSettings = integrationSettingsObject(existing?.settings);
+      const payload: TablesInsert<"tenant_integrations"> = {
         tenant_id: tenantId,
         user_id: userId,
         integration_type: "manus_wa",
@@ -275,7 +280,7 @@ export default function ManusWhatsAppSettings({
 
   const resyncSecretMutation = useMutation({
     mutationFn: async (i: Integration) => {
-      const cur = (i.settings as any) || {};
+      const cur = integrationSettingsObject(i.settings);
       const merged = { ...cur, webhook_secret: "" };
       const { error } = await supabase
         .from("tenant_integrations")
@@ -444,9 +449,9 @@ export default function ManusWhatsAppSettings({
       ) : (
         <div className="grid gap-4">
           {integrations.map((i) => {
-            const s = i.settings || {};
-            const status = s.status as string | undefined;
-            const phone = s.phone_number as string | undefined;
+            const s = readManusWaSettings(i.settings);
+            const status = s.status;
+            const phone = s.phone_number;
             const isConnected = status === "CONNECTED";
             const lastInbound = s.instance_id
               ? lastInboundByInstance[s.instance_id]
@@ -577,7 +582,7 @@ export default function ManusWhatsAppSettings({
                             size="icon"
                             className="h-7 w-7"
                             onClick={() =>
-                              copy(s.webhook_secret, "Webhook Secret")
+                              copy(s.webhook_secret ?? "", "Webhook Secret")
                             }
                           >
                             <Copy className="h-3 w-3" />

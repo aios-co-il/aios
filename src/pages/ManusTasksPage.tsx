@@ -28,6 +28,7 @@ import {
   CheckCircle,
   XCircle,
   Play,
+  type LucideIcon,
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,10 +36,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import type { Tables } from "@/integrations/supabase/types";
+import { manusOutputText } from "@/lib/manusIntegrationSettings";
 
 const statusConfig: Record<
   string,
-  { label: string; color: string; icon: any }
+  { label: string; color: string; icon: LucideIcon }
 > = {
   pending: { label: "ממתין", color: "bg-yellow-500", icon: Clock },
   running: { label: "פועל", color: "bg-blue-500", icon: Play },
@@ -53,7 +56,8 @@ export default function ManusTasksPage() {
   const [prompt, setPrompt] = useState("");
   const [agentProfile, setAgentProfile] = useState("manus-1.6");
   const [taskMode, setTaskMode] = useState("agent");
-  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [selectedTask, setSelectedTask] =
+    useState<Tables<"manus_tasks"> | null>(null);
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ["manus-tasks", currentTenantId],
@@ -111,22 +115,9 @@ export default function ManusTasksPage() {
         queryKey: ["manus-tasks", currentTenantId],
       });
       toast.success("הסטטוס עודכן");
-    } catch (err: any) {
-      toast.error(`שגיאה: ${err.message}`);
+    } catch (err) {
+      toast.error(`שגיאה: ${err instanceof Error ? err.message : String(err)}`);
     }
-  };
-
-  const getOutputText = (output: any) => {
-    if (!output || !Array.isArray(output)) return null;
-    const texts: string[] = [];
-    for (const item of output) {
-      if (item.content && Array.isArray(item.content)) {
-        for (const c of item.content) {
-          if (c.type === "output_text" && c.text) texts.push(c.text);
-        }
-      }
-    }
-    return texts.length > 0 ? texts.join("\n\n") : null;
   };
 
   return (
@@ -229,10 +220,10 @@ export default function ManusTasksPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {tasks.map((task: any) => {
+          {tasks.map((task) => {
             const status = statusConfig[task.status] || statusConfig.pending;
             const StatusIcon = status.icon;
-            const outputText = getOutputText(task.output);
+            const outputText = manusOutputText(task.output);
 
             return (
               <Card key={task.id} className="hover:shadow-md transition-shadow">
@@ -327,7 +318,7 @@ export default function ManusTasksPage() {
             {selectedTask?.output && (
               <div className="prose prose-sm max-w-none dark:prose-invert">
                 <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg overflow-x-auto">
-                  {getOutputText(selectedTask.output) ||
+                  {manusOutputText(selectedTask.output) ||
                     JSON.stringify(selectedTask.output, null, 2)}
                 </pre>
               </div>
