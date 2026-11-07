@@ -340,9 +340,9 @@ export async function workshopProduceVideo(ctx: ToolContext) {
       message:
         engine === "mock"
           ? estimate.totalUsd > 0
-            ? `הסצנות יונפשו במנוע התצוגה החינמי (תנועה פשוטה על התמונות); הקריינות והסאונד יעלו עד כ-$${estimate.totalUsd}. אשר/י והתחל.`
-            : "הסרט יופק במנוע התצוגה החינמי (תנועה פשוטה על התמונות), בלי עלות. אשר/י והתחל."
-          : `ההפקה במנוע ${ENGINE_LABEL[engine]} תעלה עד כ-$${estimate.totalUsd}. אשר/י והתחל.`,
+            ? `הסצנות יונפשו במנוע התצוגה החינמי (תנועה פשוטה על התמונות); הקריינות והסאונד יעלו עד כ-$${estimate.totalUsd}. מאשרים ומתחילים?`
+            : "הסרט יופק במנוע התצוגה החינמי (תנועה פשוטה על התמונות), בלי עלות. מאשרים ומתחילים?"
+          : `ההפקה במנוע ${ENGINE_LABEL[engine]} תעלה עד כ-$${estimate.totalUsd}. מאשרים ומתחילים?`,
     },
   );
   if ("stop" in gate) return gate.stop;
