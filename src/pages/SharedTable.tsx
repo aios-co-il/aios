@@ -88,6 +88,8 @@ import {
   filterRecordsByEntityLevel,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
+import { namesCampaignsByDestination } from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import { TableContinentsView } from "@/components/dynamic-tables/CampaignContinents/TableContinentsView";
 
 // Date filter options — shared with DynamicTableView week windows via dashboardDateFilters.
 const DATE_FILTERS = SHARED_TABLE_DATE_FILTERS;
@@ -167,9 +169,9 @@ export default function SharedTable() {
   const [adsEntityLevel, setAdsEntityLevel] =
     useState<AdsEntityLevel>("campaign");
   const [monthlyWorkFullPage, setMonthlyWorkFullPage] = useState(false);
-  const [adsReportView, setAdsReportView] = useState<"summary" | "weekly">(
-    "summary",
-  );
+  const [adsReportView, setAdsReportView] = useState<
+    "summary" | "weekly" | "continents"
+  >("summary");
   const queryClient = useQueryClient();
 
   const dateQueryKey = seoShareLocked
@@ -257,6 +259,26 @@ export default function SharedTable() {
   }, [coreData?.table?.integration_type]);
 
   const integrationType = data?.table?.integration_type;
+
+  // Travel accounts name each Google campaign by its destination; they get a tab per continent.
+  const hasContinentsTab = useMemo(
+    () =>
+      integrationType === "google_ads" &&
+      namesCampaignsByDestination(
+        (data?.records || [])
+          .map((record: { data?: Record<string, unknown> | null }) =>
+            String(record.data?.campaign_name ?? ""),
+          )
+          .filter(Boolean),
+      ),
+    [integrationType, data?.records],
+  );
+  // A period whose campaigns stop naming destinations drops the tab; leave it too.
+  useEffect(() => {
+    if (adsReportView === "continents" && !hasContinentsTab) {
+      setAdsReportView("summary");
+    }
+  }, [adsReportView, hasContinentsTab]);
   const isIntegrationTable =
     isAdsPlatform(integrationType || "") ||
     isAnalyticsPlatform(integrationType || "");
@@ -653,21 +675,31 @@ export default function SharedTable() {
           <Tabs
             value={adsReportView}
             onValueChange={(value) =>
-              setAdsReportView(value as "summary" | "weekly")
+              setAdsReportView(value as "summary" | "weekly" | "continents")
             }
           >
             <ResponsiveTabsList
               items={[
                 { value: "summary", label: "הדוח" },
                 { value: "weekly", label: "השוואה שבועית", icon: BarChart3 },
+                ...(hasContinentsTab
+                  ? [{ value: "continents", label: "לפי יבשות", icon: Globe }]
+                  : []),
               ]}
               value={adsReportView}
               onValueChange={(value) =>
-                setAdsReportView(value as "summary" | "weekly")
+                setAdsReportView(value as "summary" | "weekly" | "continents")
               }
               mobileLabel="בחר תצוגה"
             />
           </Tabs>
+        )}
+
+        {hasContinentsTab && adsReportView === "continents" && data?.table && (
+          <TableContinentsView
+            records={data.records || []}
+            table={data.table}
+          />
         )}
 
         {isAdsPlatform(integrationType || "") && adsReportView === "weekly" && (
