@@ -85,9 +85,10 @@ beforeEach(() => {
     updates.push({ url, patch });
     if (
       rejectUpdate ||
-      !Constants.public.Enums.marketing_item_status.some(
-        (value) => value === patch.status,
-      )
+      (patch.status !== undefined &&
+        !Constants.public.Enums.marketing_item_status.some(
+          (value) => value === patch.status,
+        ))
     ) {
       return response({ message: "status update rejected" }, 400);
     }
@@ -135,6 +136,37 @@ describe("SocialContentGantt approval persistence", () => {
     expect(screen.getByText("טיוטה")).toBeInTheDocument();
     expect(state.success).not.toHaveBeenCalled();
     expect(row.status).toBe("draft");
+  });
+
+  it("saves a date-only patch and refreshes the scheduled date", async () => {
+    const user = await showList();
+    await user.click(screen.getByRole("button", { name: "Approval post" }));
+    await user.type(
+      within(screen.getByRole("dialog")).getByDisplayValue(""),
+      "2026-11-18",
+    );
+    await user.click(screen.getByRole("button", { name: "שמור שינויים" }));
+    await waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0]?.patch).toEqual({ scheduled_date: "2026-11-18" });
+    expect(updates[0]?.url.searchParams.get("id")).toBe("eq.post-1");
+    expect(await screen.findByText("18/11/2026")).toBeInTheDocument();
+    expect(state.success).toHaveBeenCalledWith("עודכן");
+    expect(state.error).not.toHaveBeenCalled();
+  });
+
+  it("saves a payload-only copy edit while preserving existing payload fields", async () => {
+    const user = await showList();
+    await user.click(screen.getByTitle("ערוך קופי"));
+    await user.type(screen.getByRole("textbox"), "Updated copy");
+    await user.tab();
+    await waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0]?.patch).toEqual({
+      payload: { channel: "instagram", copy_text: "Updated copy" },
+    });
+    expect(updates[0]?.url.searchParams.get("id")).toBe("eq.post-1");
+    expect(await screen.findByText("Updated copy")).toBeInTheDocument();
+    expect(state.success).toHaveBeenCalledWith("עודכן");
+    expect(state.error).not.toHaveBeenCalled();
   });
 
   it("rejects a synthetic invalid selector payload locally without writing", async () => {
