@@ -4,6 +4,7 @@ import {
   namesCampaignsByDestination,
 } from "@/components/dynamic-tables/CampaignContinents/continentSections";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
+import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -57,6 +58,7 @@ import {
   RefreshCw,
   Building2,
   Globe,
+  MousePointerClick,
   User,
   Calendar as CalendarIcon,
 } from "lucide-react";
@@ -172,6 +174,7 @@ type PlatformFilter =
   | "google_ads"
   | "continents"
   | "google_analytics"
+  | "site_events"
   | "seo"
   | "woocommerce";
 
@@ -673,6 +676,11 @@ export default function DashboardView() {
         value: "google_analytics",
         label: "Analytics",
         iconNode: getIntegrationIcon("google_analytics"),
+      });
+      items.push({
+        value: "site_events",
+        label: "אירועים באתר",
+        iconNode: <MousePointerClick className="h-4 w-4 text-indigo-600" />,
       });
     }
     if (availablePlatforms.includes("seo")) {
@@ -1661,7 +1669,16 @@ export default function DashboardView() {
             </Tabs>
           )}
 
-          {platformFilter === "continents" ? (
+          {platformFilter === "site_events" ? (
+            <DashboardTrackedEvents
+              records={displayAllRecords}
+              settings={dashboard?.settings}
+              adsSpend={globalAdsMetrics.spend}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+              editableDashboardId={dashboardId}
+            />
+          ) : platformFilter === "continents" ? (
             <CampaignContinentsTab
               campaigns={googleAdsSummary.campaigns}
               formatCurrency={formatCurrency}

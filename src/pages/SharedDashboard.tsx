@@ -4,6 +4,8 @@ import {
   namesCampaignsByDestination,
 } from "@/components/dynamic-tables/CampaignContinents/continentSections";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
+import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
+import { parseTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/trackedEvents";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -42,6 +44,7 @@ import {
   Facebook,
   FileSpreadsheet,
   Globe,
+  MousePointerClick,
   TrendingUp,
   BarChart3,
   RefreshCw,
@@ -120,6 +123,7 @@ type PlatformFilter =
   | "google_ads"
   | "continents"
   | "google_analytics"
+  | "site_events"
   | "woocommerce"
   | "seo";
 
@@ -505,6 +509,10 @@ export default function SharedDashboard({
     }
   }, [platformFilter, hasContinentsTab]);
 
+  // A dashboard that follows site events gets their tab; no picker on a share link.
+  const hasTrackedEvents =
+    parseTrackedEvents(data?.dashboard?.settings).length > 0;
+
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
     if (
@@ -545,6 +553,13 @@ export default function SharedDashboard({
         iconNode: getIntegrationIcon("google_analytics"),
       });
     }
+    if (hasTrackedEvents) {
+      items.push({
+        value: "site_events",
+        label: "אירועים באתר",
+        iconNode: <MousePointerClick className="h-4 w-4 text-indigo-600" />,
+      });
+    }
     if (availablePlatforms.includes("woocommerce")) {
       items.push({
         value: "woocommerce",
@@ -560,7 +575,7 @@ export default function SharedDashboard({
       });
     }
     return items;
-  }, [availablePlatforms, hasContinentsTab]);
+  }, [availablePlatforms, hasContinentsTab, hasTrackedEvents]);
 
   const seoTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [
@@ -1117,7 +1132,15 @@ export default function SharedDashboard({
       )}
 
       {/* Analytics Tab → Full GoogleAnalyticsDashboard */}
-      {platformFilter === "continents" ? (
+      {platformFilter === "site_events" ? (
+        <DashboardTrackedEvents
+          records={records}
+          settings={data?.dashboard?.settings}
+          adsSpend={globalAdsMetrics.spend}
+          formatCurrency={formatCurrency}
+          formatNumber={formatNumber}
+        />
+      ) : platformFilter === "continents" ? (
         <CampaignContinentsTab
           campaigns={googleAdsSummary.campaigns}
           formatCurrency={formatCurrency}
