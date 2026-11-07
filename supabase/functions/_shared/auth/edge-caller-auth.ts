@@ -65,7 +65,7 @@ export function isServiceRoleRequest(
  * JWT's signature, and the function's env key can differ from the
  * service-role JWT the crons send from Vault (AIO-503). Never use it where
  * verify_jwt is false: the role claim is read without a signature check
- * (gateway-service-role.test.ts fails then).
+ * (edge-caller-auth.test.ts fails then).
  */
 export function isGatewayServiceRoleRequest(
   authorization: string | null | undefined,
