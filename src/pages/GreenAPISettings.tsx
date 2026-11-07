@@ -217,10 +217,8 @@ export default function GreenAPISettings({
       if (!userId) {
         throw new Error("משתמש לא מחובר");
       }
-      const writeTenantId = requireTenantId(tenantId);
-
       const integrationData = {
-        tenant_id: writeTenantId,
+        tenant_id: requireTenantId(tenantId),
         user_id: userId,
         integration_type: "green_api",
         api_key: apiToken,
