@@ -54,4 +54,35 @@ describe("GoogleAdsCampaignSection", () => {
     // ROAS card counts only the sales campaign: 500 / 100.
     expect(screen.getAllByText("5.00").length).toBeGreaterThan(0);
   });
+
+  it("shows a Display campaign that pays per impression in its own table, without results (AIO-496)", () => {
+    const display = row({
+      campaign_id: "media",
+      campaign_name: "מדיה",
+      campaign_channel_type: "DISPLAY",
+      bidding_strategy_type: "MANUAL_CPM",
+      cost: 40,
+      clicks: 8,
+      conversions: 0,
+    });
+    const summary = summarizeGoogleAdsCampaigns([...records, display], [table]);
+    expect(summary.traffic).toMatchObject({ spend: 40, clicks: 8 });
+    // The display spend stays out of the lead and sales totals.
+    expect(summary.leads.spend).toBe(60);
+    expect(summary.ecommerce.spend).toBe(100);
+    render(
+      <GoogleAdsCampaignSection
+        summary={summary}
+        icon={null}
+        formatCurrency={format}
+        formatNumber={format}
+        formatUnitCost={format}
+      />,
+    );
+    expect(screen.getByText("קמפייני תנועה - Google Ads")).toBeTruthy();
+    const trafficTable = screen.getAllByRole("table")[2];
+    expect(within(trafficTable).getByText("מדיה")).toBeTruthy();
+    expect(within(trafficTable).queryByText("המרות")).toBeNull();
+    expect(within(trafficTable).queryByText("עלות להמרה")).toBeNull();
+  });
 });

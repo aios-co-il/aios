@@ -129,3 +129,90 @@ Deno.test("classifyGoogleCampaignRow", async (t) => {
     assertEquals(verdict, { goal: "leads", source: "explicit_mapping" });
   });
 });
+
+Deno.test(
+  "a Google campaign set to pay for exposure is traffic (AIO-496)",
+  async (t) => {
+    await t.step(
+      "Display on manual CPM is traffic, whatever it converts on",
+      () => {
+        // גוטשטיין קרמיקה "מדיה" on Production, 2026-11-07.
+        assertEquals(
+          classifyGoogleCampaignGoal(
+            {
+              campaign_name: "מדיה",
+              campaign_channel_type: "DISPLAY",
+              bidding_strategy_type: "MANUAL_CPM",
+              conversion_goal: "leads",
+            },
+            noHints,
+          ),
+          { goal: "traffic", source: "platform_goal" },
+        );
+      },
+    );
+
+    await t.step("Display on Maximize Conversions keeps its goal", () => {
+      // סטודיו נושקה "תעודת זהות".
+      assertEquals(
+        classifyGoogleCampaignGoal(
+          {
+            campaign_name: "תעודת זהות",
+            campaign_channel_type: "DISPLAY",
+            bidding_strategy_type: "MAXIMIZE_CONVERSIONS",
+          },
+          noHints,
+        ).goal,
+        "leads",
+      );
+    });
+
+    await t.step("Video on CPV and Demand Gen on clicks are traffic", () => {
+      for (const data of [
+        { campaign_channel_type: "VIDEO", bidding_strategy_type: "TARGET_CPV" },
+        {
+          campaign_channel_type: "DEMAND_GEN",
+          bidding_strategy_type: "MAXIMIZE_CLICKS",
+        },
+      ]) {
+        assertStrictEquals(
+          classifyGoogleCampaignGoal(data, noHints).goal,
+          "traffic",
+        );
+      }
+    });
+
+    await t.step(
+      "a Search campaign on manual CPC stays on its conversion goal",
+      () => {
+        assertStrictEquals(
+          classifyGoogleCampaignGoal(
+            {
+              campaign_channel_type: "SEARCH",
+              bidding_strategy_type: "MANUAL_CPC",
+            },
+            noHints,
+          ).goal,
+          "leads",
+        );
+      },
+    );
+
+    await t.step("a manual per-campaign goal still wins", () => {
+      assertEquals(
+        classifyGoogleCampaignRow(
+          {
+            campaign_id: "88",
+            campaign_channel_type: "DISPLAY",
+            bidding_strategy_type: "MANUAL_CPM",
+          },
+          {
+            integration_type: "google_ads",
+            integration_settings: { pulse_campaign_goals: { 88: "leads" } },
+          },
+        ),
+        { goal: "leads", source: "explicit_mapping" },
+      );
+    });
+  },
+);

@@ -100,3 +100,28 @@ Deno.test("every Meta sales and lead objective decides the report goal", () => {
     assertStrictEquals(goalOf(objective), "leads");
   }
 });
+
+Deno.test(
+  "reportCampaignGoalOf gives a Google campaign that pays for exposure the traffic goal (AIO-496)",
+  () => {
+    const media = {
+      table_id: "g",
+      data: {
+        campaign_id: "5",
+        campaign_name: "מדיה",
+        campaign_channel_type: "DISPLAY",
+        bidding_strategy_type: "MANUAL_CPM",
+        cost: 10,
+      },
+    };
+    const google = {
+      id: "g",
+      integration_type: "google_ads",
+      integration_settings: {},
+    };
+    assertEquals(reportCampaignGoalOf([media], [google])(media), {
+      goal: "traffic",
+      source: "platform_goal",
+    });
+  },
+);

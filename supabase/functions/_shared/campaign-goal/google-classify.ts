@@ -2,8 +2,15 @@ import { campaignGoalOverride } from "./override.ts";
 import { campaignNameGoal, legacyCampaignTypeGoal } from "./row-hints.ts";
 import { isEcommerceReportTable, type GoalReportTable } from "./table-goal.ts";
 
-/** What a Google Ads campaign is measured on: sales (ROAS) or leads (cost per lead). */
+/** What a Google Ads campaign converts on: sales (ROAS) or leads (cost per lead). */
 export type GoogleCampaignGoal = "ecommerce" | "leads";
+
+/**
+ * What a Google Ads campaign is measured on in the reports: its conversion
+ * goal, or traffic (exposure and engagement) for a campaign set to pay for
+ * impressions or clicks (AIO-496).
+ */
+export type GoogleReportGoal = GoogleCampaignGoal | "traffic";
 
 type PulseGoal = GoogleCampaignGoal | "engagement";
 
@@ -23,7 +30,7 @@ export type GoogleGoalHints = {
 };
 
 export type GoogleGoalClassification = {
-  goal: PulseGoal;
+  goal: PulseGoal | "traffic";
   source: "platform_goal" | "explicit_mapping" | "table_report_type";
 };
 
@@ -56,6 +63,9 @@ export function classifyGoogleCampaignGoal(
   data: Record<string, unknown>,
   hints: GoogleGoalHints,
 ): GoogleGoalClassification {
+  if (paysForExposure(data)) {
+    return { goal: "traffic", source: "platform_goal" };
+  }
   const stamped = stampedConversionGoal(data.conversion_goal);
   if (stamped) {
     return { goal: stamped, source: "platform_goal" };
@@ -87,6 +97,37 @@ export function classifyGoogleCampaignGoal(
 function stampedConversionGoal(value: unknown): GoogleCampaignGoal | null {
   const goal = typeof value === "string" ? value.trim().toLowerCase() : "";
   return goal === "ecommerce" || goal === "leads" ? goal : null;
+}
+
+/** Campaign types that can be set to pay for impressions or clicks rather than conversions. */
+const EXPOSURE_CHANNELS: ReadonlySet<string> = new Set([
+  "DISPLAY",
+  "VIDEO",
+  "DEMAND_GEN",
+  "DISCOVERY",
+]);
+
+/** Bid strategies that pay for impressions, views or clicks; conversion strategies are not here. */
+const EXPOSURE_BIDDING: ReadonlySet<string> = new Set([
+  "MANUAL_CPM",
+  "TARGET_CPM",
+  "MANUAL_CPV",
+  "TARGET_CPV",
+  "MANUAL_CPC",
+  "TARGET_SPEND",
+  "MAXIMIZE_CLICKS",
+]);
+
+/**
+ * A Display, Video or Demand Gen campaign set to pay for impressions or
+ * clicks: what it buys is exposure, so it is measured on spend, impressions
+ * and clicks, not conversions (David, AIO-496). Search campaigns with manual
+ * CPC stay on their conversion goal: they are how lead accounts buy searches.
+ */
+function paysForExposure(data: Record<string, unknown>): boolean {
+  const channel = String(data.campaign_channel_type ?? "").toUpperCase();
+  const bidding = String(data.bidding_strategy_type ?? "").toUpperCase();
+  return EXPOSURE_CHANNELS.has(channel) && EXPOSURE_BIDDING.has(bidding);
 }
 
 /** Shopping campaigns only sell products. */

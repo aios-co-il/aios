@@ -83,12 +83,12 @@ export function sharedCampaignTables(
     });
   }
   if (integrationType === "google_ads") {
-    const { ecommerce, leads } = googleCampaignRowsByGoal(
+    const { ecommerce, leads, traffic } = googleCampaignRowsByGoal(
       records,
       level,
       tableGoals.goalOf ?? (() => tableMode),
     );
-    return finish({ ecommerce, leads, traffic: [] });
+    return finish({ ecommerce, leads, traffic });
   }
   return finish({ ecommerce: [], leads: [], traffic: [] });
 }
