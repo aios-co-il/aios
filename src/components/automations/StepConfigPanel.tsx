@@ -1,3 +1,4 @@
+import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { FacebookDeliveryModeSection } from "@/components/automations/FacebookDeliveryModeSection";
 import { TriggerTestPanel } from "./TriggerTestPanel";
@@ -94,7 +95,7 @@ import {
 } from "../../../supabase/functions/_shared/automation-status.ts";
 
 // Trigger options organized by category for the Flow Builder
-export const TRIGGER_CATEGORIES = [
+const ALL_TRIGGER_CATEGORIES = [
   {
     label: "👤 לידים",
     options: [
@@ -195,6 +196,13 @@ export const TRIGGER_CATEGORIES = [
     options: [{ value: "manual_command", label: "פקודה ידנית (צ'אט)" }],
   },
 ];
+
+export const TRIGGER_CATEGORIES = ALL_TRIGGER_CATEGORIES.map((category) => ({
+  ...category,
+  options: category.options.filter((option) =>
+    isAutomationTrigger(option.value),
+  ),
+})).filter((category) => category.options.length > 0);
 
 // Flat list for backward compat
 const TRIGGER_OPTIONS = TRIGGER_CATEGORIES.flatMap((c) => c.options);

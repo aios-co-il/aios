@@ -64,18 +64,20 @@ import { triggerFilterSource } from "@/lib/automationFormHelpers";
 const testRunItemSchema = z.object({
   automation_name: optionalTextSchema,
   error: optionalTextSchema,
-  success: z.unknown(),
+  success: z.boolean(),
 });
 
 const testRunResponseSchema = z.object({
   error: optionalTextSchema,
   automations_found: optionalTextSchema,
-  results: z
-    .unknown()
-    .transform((value) => listOf(testRunItemSchema, value) ?? []),
+  results: z.array(testRunItemSchema),
 });
 
 type TestRunResponse = z.infer<typeof testRunResponseSchema>;
+
+export function parseTestRunResponse(value: unknown): TestRunResponse {
+  return testRunResponseSchema.parse(value);
+}
 
 /** The lead, client or task data trigger-automation runs the test with. */
 type TestRunData = {
@@ -305,11 +307,10 @@ export function TestAutomationDialog({
       });
 
       if (response.error) throw response.error;
-      return response.data;
+      return parseTestRunResponse(response.data);
     },
     onSuccess: (data: unknown) => {
-      const parsed = testRunResponseSchema.safeParse(data);
-      setTestResult(parsed.success ? parsed.data : null);
+      setTestResult(parseTestRunResponse(data));
       toast({
         title: "בדיקה הושלמה",
         description: "בדוק את התוצאות למטה",

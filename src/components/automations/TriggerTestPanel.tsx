@@ -97,16 +97,14 @@ function toPickerEntities(
   return listOf(pickerEntitySchema, rows ?? []) ?? [];
 }
 
-const testResponseSchema = z
-  .object({
-    success: z.unknown(),
-    error: optionalTextSchema,
-    steps: z.unknown().transform(parseFlowStepResults),
-    agent_output: optionalTextSchema,
-  })
-  .catch({ steps: [] });
+const testResponseSchema = z.object({
+  success: z.boolean(),
+  error: optionalTextSchema,
+  steps: z.unknown().transform(parseFlowStepResults),
+  agent_output: optionalTextSchema,
+});
 
-function toTestResult(data: unknown): TestResult {
+export function toTestResult(data: unknown): TestResult {
   return { ...testResponseSchema.parse(data), raw: data };
 }
 

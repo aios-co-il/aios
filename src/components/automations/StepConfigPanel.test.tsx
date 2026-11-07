@@ -118,3 +118,29 @@ beforeEach(() => {
     },
   ];
 });
+
+it("offers only triggers that can be persisted", async () => {
+  const { TRIGGER_CATEGORIES } = await import("./StepConfigPanel");
+  const { isAutomationTrigger } = await import("@/lib/automationTriggers");
+  const options = TRIGGER_CATEGORIES.flatMap((category) => category.options);
+  expect(options.length).toBeGreaterThan(0);
+  expect(options.every((option) => isAutomationTrigger(option.value))).toBe(
+    true,
+  );
+  expect(options.some((option) => option.value === "task_created")).toBe(false);
+});
+
+it("rejects malformed automation test replies and preserves an explicit failure", async () => {
+  const { toTestResult } = await import("./TriggerTestPanel");
+  const { parseTestRunResponse } =
+    await import("../forms/TestAutomationDialog");
+  for (const response of [undefined, null, {}, { success: "yes" }]) {
+    expect(() => toTestResult(response)).toThrow();
+  }
+  expect(toTestResult({ success: false, error: "failed" }).success).toBe(false);
+  expect(() => parseTestRunResponse({})).toThrow();
+  expect(() => parseTestRunResponse(null)).toThrow();
+  expect(
+    parseTestRunResponse({ automations_found: 0, results: [] }).results,
+  ).toEqual([]);
+});
