@@ -81,8 +81,21 @@ export function namesCampaignsByDestination(names: Iterable<string>): boolean {
 export function googleCampaignNames(
   records: Array<{ _source?: string; data?: Record<string, unknown> | null }>,
 ): Array<string> {
+  return recordCampaignNames(
+    records.filter((record) => record._source === "google_ads"),
+  );
+}
+
+/**
+ * Each record's campaign name, as the Google Ads summary shows it:
+ * `campaign_name`, else `campaign`.
+ */
+export function recordCampaignNames(
+  records: Array<{ data?: Record<string, unknown> | null }>,
+): Array<string> {
   return records
-    .filter((record) => record._source === "google_ads")
-    .map((record) => String(record.data?.campaign_name ?? ""))
+    .map((record) =>
+      String(record.data?.campaign_name || record.data?.campaign || ""),
+    )
     .filter(Boolean);
 }
