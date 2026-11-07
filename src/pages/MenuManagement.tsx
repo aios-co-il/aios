@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -528,11 +529,12 @@ export default function MenuManagement() {
 
   const addMutation = useMutation({
     mutationFn: async (item: typeof newItem) => {
+      const writeTenantId = requireTenantId(tenantId);
       const maxOrder = menuItems
         ? Math.max(...menuItems.map((i) => i.sort_order), 0) + 1
         : 0;
       const { error } = await supabase.from("menu_items").insert({
-        tenant_id: tenantId,
+        tenant_id: writeTenantId,
         menu_key:
           item.menu_key ||
           item.original_label.toLowerCase().replace(/\s+/g, "-"),
