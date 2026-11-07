@@ -3,6 +3,7 @@ import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import { parseTrackedEvents } from "./tracked-events.ts";
 import { resolveDashboard } from "./access.ts";
 import { gaReport, readGaConnection } from "./ga-api.ts";
+import { requestDates } from "./request-dates.ts";
 import { freshGaToken } from "./ga-token.ts";
 import { funnelRequest, usersRequest } from "./ga-requests.ts";
 import {
@@ -11,8 +12,6 @@ import {
   usersByEvent,
   usersBySource,
 } from "./reports.ts";
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * People per followed site event, by source and in total, with each step's
@@ -26,8 +25,6 @@ Deno.serve(async (req) => {
   }
   try {
     const body = await req.json().catch(() => ({}));
-    const startDate = isoDate(body.start_date) ?? "2020-01-01";
-    const endDate = isoDate(body.end_date) ?? "today";
     const db = serviceClient();
     const access = await resolveDashboard(body, {
       shared: (token) =>
@@ -47,12 +44,13 @@ Deno.serve(async (req) => {
     if (!access.ok) {
       return json({ error: access.error }, access.status);
     }
-    const { tenant_id, client_id, settings } = access.dashboard;
+    const { client_id, settings } = access.dashboard;
     const steps = parseTrackedEvents(settings);
     if (steps.length === 0 || !client_id) {
       return json({ error: "No events" }, 404);
     }
-    const ga = await readGaConnection(db, { tenant_id, client_id });
+    const { startDate, endDate } = requestDates(body);
+    const ga = await readGaConnection(db, client_id);
     if (!ga) {
       return json({ error: "No Google Analytics" }, 404);
     }
@@ -93,11 +91,6 @@ Deno.serve(async (req) => {
     return json({ error: "Failed to read Google Analytics" }, 500);
   }
 });
-
-/** A yyyy-mm-dd string, else null. */
-function isoDate(value: unknown): string | null {
-  return typeof value === "string" && ISO_DATE.test(value) ? value : null;
-}
 
 /** A JSON response with CORS headers. */
 function json(payload: unknown, status: number): Response {
