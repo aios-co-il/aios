@@ -1,4 +1,10 @@
-import { isRecord } from "../../../../supabase/functions/_shared/ads-sync/is-record.ts";
+import {
+  parseTrackedEvents,
+  TRACKED_EVENTS_SETTING,
+  type TrackedEvent,
+} from "../../../../supabase/functions/ga-event-users/tracked-events.ts";
+
+export { parseTrackedEvents, TRACKED_EVENTS_SETTING, type TrackedEvent };
 
 /**
  * Site events a dashboard follows by their Google Analytics name, such as
@@ -6,9 +12,6 @@ import { isRecord } from "../../../../supabase/functions/_shared/ads-sync/is-rec
  * dashboard's settings (`tracked_events`), in funnel order, so each client
  * picks its own events and labels without new code.
  */
-
-/** One followed event: its GA name and the label the dashboard shows. */
-export type TrackedEvent = { event: string; label: string };
 
 /** A GA record as the dashboard receives it. */
 export type TrackedEventRecord = {
@@ -35,39 +38,6 @@ export type TrackedEventsSummary = {
   events: Array<TrackedEventFigures>;
   days: Array<TrackedEventsDay>;
 };
-
-/** The dashboard settings key that holds the followed events. */
-export const TRACKED_EVENTS_SETTING = "tracked_events";
-
-/**
- * The followed events from a dashboard's settings, in order. Entries without
- * an event name are dropped, a missing label falls back to the event name,
- * and a repeated event keeps its first entry.
- */
-export function parseTrackedEvents(settings: unknown): Array<TrackedEvent> {
-  const raw = isRecord(settings) ? settings[TRACKED_EVENTS_SETTING] : null;
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  const seen = new Set<string>();
-  const events: Array<TrackedEvent> = [];
-  for (const entry of raw) {
-    if (!isRecord(entry) || typeof entry.event !== "string") {
-      continue;
-    }
-    const event = entry.event.trim();
-    if (!event || seen.has(event)) {
-      continue;
-    }
-    seen.add(event);
-    const label =
-      typeof entry.label === "string" && entry.label.trim()
-        ? entry.label.trim()
-        : event;
-    events.push({ event, label });
-  }
-  return events;
-}
 
 /**
  * Each followed event's count, cost and step rate, plus a row per day for the

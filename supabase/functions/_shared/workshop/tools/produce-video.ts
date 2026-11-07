@@ -21,36 +21,43 @@ import { stillsStep } from "./stills-approval.ts";
 export async function workshopProduceVideo(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const { project } = loaded;
   const scenes = await loadScenes(supabase, tenantId, itemId);
-  if (scenes.length === 0)
+  if (scenes.length === 0) {
     return { error: "אין סטוריבורד. קודם workshop_storyboard." };
+  }
   const noStill = scenes.filter(
     (scene) => !scene.still_asset_id && !hasOwnClip(scene),
   ).length;
-  if (noStill > 0)
+  if (noStill > 0) {
     return {
       error: `לא לכל הסצנות יש תמונה (${noStill} חסרות). קודם workshop_make_stills.`,
       missing_stills: noStill,
     };
+  }
 
   const video = asRecord(project.payload.video);
   // produce_video queues nothing while a production runs: no quote, no second charge.
   const production = asRecord(video.production);
-  if (productionRunning(production))
+  if (productionRunning(production)) {
     return runningReply(
       production.provider,
       project.client_id,
       (await pendingFilm(ctx, itemId))?.data,
     );
+  }
 
   const linked = await linkStage(ctx, itemId, project);
   if ("error" in linked) {
@@ -78,11 +85,12 @@ export async function workshopProduceVideo(ctx: ToolContext) {
   });
   const { withVoice, talking, voiceId, estimate } = quote;
   // Narration needs a voice the user chose after hearing it.
-  if ((withVoice || talking) && !voiceId)
+  if ((withVoice || talking) && !voiceId) {
     return await chooseVoice(
       {},
       voiceHelpers(supabase, tenantId, itemId, project.payload, deps),
     );
+  }
   // Semi-automatic: the user hears the narration before anything is animated (narration-review.ts).
   const review = await narrationStep(ctx, itemId, project.payload, {
     narrated: withVoice,
@@ -103,7 +111,9 @@ export async function workshopProduceVideo(ctx: ToolContext) {
     scenes: scenes.length,
     quote,
   });
-  if ("stop" in gate) return gate.stop;
+  if ("stop" in gate) {
+    return gate.stop;
+  }
 
   return await startProduction(ctx, {
     itemId,

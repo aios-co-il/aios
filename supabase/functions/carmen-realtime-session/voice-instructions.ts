@@ -22,10 +22,12 @@ export interface VoiceAgentProfile {
  * identity the chat would use for that agent (V1 or V2), then writing style and mood.
  * Only the speaking rules and the `ask_carmen` hand-off are specific to voice. Without a
  * profile (no tenant or no Carmen agent) she uses the V1 identity, the chat's default.
+ * `addressLine` is the chat's user-address line (`callerAddressLine`), so the caller is
+ * addressed by their profile gender, or in the plural, in voice as in text.
  */
 export function buildVoiceInstructions(
   profile: VoiceAgentProfile | null,
-  callerName: string | null,
+  addressLine: string,
 ): string {
   const tenantName = profile?.tenantName ?? "";
   const identity = profile?.useV2Prompt
@@ -37,9 +39,7 @@ export function buildVoiceInstructions(
     profile?.moodPrompt ?? "",
     "=== שיחה קולית ===",
     "זו שיחה קולית חיה: דברי עברית ישראלית טבעית, חמה וסמכותית, במשפטים קצרים שנוח לשמוע. בלי רשימות, טבלאות או סימני עיצוב.",
-    callerName
-      ? `את מדברת עכשיו עם ${callerName}. פני אליו/ה בשמו/ה כשזה טבעי.`
-      : "",
+    addressLine.trim(),
     "בתחילת השיחה המתיני שהמשתמש יגיד מה הוא רוצה. אל תפעילי כלים ואל תחזרי לבקשות משיחות קודמות בלי שביקשו ממך עכשיו. אם לא הבנת מה נאמר (רעש, מילה חלקית), שאלי בקצרה מה הוא צריך במקום לנחש.",
     "עני לכל מה שמבקשים ממך: להציג את עצמך, שאלות כלליות, רעיונות ועצות, וכל עניין של העבודה. כשזה מועיל, קשרי את התשובה לשיווק ולמכירות של העסק.",
     'ask_carmen הוא המוח שלך — אותו מוח, אותם נתונים ואותו זיכרון של כרמן בכל המערכת. לכל שאלה על נתונים (לקוחות, לידים, משימות, קמפיינים, כספים, דוחות, זיכרון) או בקשה לבצע פעולה, קראי לו מיד עם הבקשה המלאה וענִי רק לפי מה שחזר. אל תמציאי נתונים ואל תציגי את זה כ"בדיקה מול מערכת אחרת" — זו את.',

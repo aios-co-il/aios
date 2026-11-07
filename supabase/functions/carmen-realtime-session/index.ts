@@ -16,7 +16,7 @@ import { chooseRealtimeVoice } from "./voice-choice.ts";
 import { elevenLabsReply } from "./elevenlabs-reply.ts";
 import { SAVE_PRONUNCIATION_TOOL } from "./pronunciations.ts";
 import {
-  loadCallerName,
+  loadCallerAddress,
   loadSessionContext,
   sessionInstructions,
 } from "./session-context.ts";
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
           model: REALTIME_MODEL,
           instructions: sessionInstructions(
             context,
-            await loadCallerName(caller.id),
+            await loadCallerAddress(caller.id),
           ),
           audio: {
             input: {

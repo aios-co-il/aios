@@ -1132,6 +1132,8 @@ export default function SharedDashboard({
           adsSpend={globalAdsMetrics.spend}
           formatCurrency={formatCurrency}
           formatNumber={formatNumber}
+          source={shareToken ? { shareToken } : null}
+          dateFilter={dateFilter}
         />
       ) : platformFilter === "continents" ? (
         <CampaignContinentsTab
