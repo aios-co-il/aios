@@ -62,23 +62,19 @@ export function noResultsFindingReason(reason: string, days: unknown): string {
  * The no-results status of a campaign, or null when the rule does not apply.
  * It alerts when the client's window spent with 0 results; a window shorter
  * than 7 days also alerts on 7 days of 0 results (the longer streak includes
- * the shorter). A longer window holds 7 days of 0 results as a yellow watch.
+ * the shorter), with the 7-day reason. A longer window holds 7 days of 0
+ * results as a yellow watch.
  */
 export function noResultsStatus(
   days: number,
   window: WindowTotals,
   current7: WindowTotals,
 ): PulseCampaignStatus | null {
-  if (
-    spentWithoutResults(window) ||
-    (days < DEFAULT_NO_RESULTS_DAYS && spentWithoutResults(current7))
-  ) {
-    return {
-      status: "critical",
-      tier: "exception",
-      reason: noResultsReason(days),
-      alertEligible: true,
-    };
+  if (spentWithoutResults(window)) {
+    return exception(noResultsReason(days));
+  }
+  if (days < DEFAULT_NO_RESULTS_DAYS && spentWithoutResults(current7)) {
+    return exception(noResultsReason(DEFAULT_NO_RESULTS_DAYS));
   }
   if (spentWithoutResults(current7)) {
     return {
@@ -89,6 +85,38 @@ export function noResultsStatus(
     };
   }
   return null;
+}
+
+/** The client's window as the client-level status reads it: its days and results. */
+export type ClientNoResultsWindow = { days: number; outcomes: number };
+
+/**
+ * Whether the client-level "spend without leads / purchases" over 7 days is
+ * held back: the client waits longer than 7 days and its window still has
+ * results, as its campaign rows hold it (noResultsStatus). A shorter window
+ * keeps the client-level 7-day check; its campaign rows alert on their own.
+ */
+export function clientNoResultsHeld(
+  window: ClientNoResultsWindow | undefined,
+): boolean {
+  return (
+    window !== undefined &&
+    window.days > DEFAULT_NO_RESULTS_DAYS &&
+    window.outcomes > 0
+  );
+}
+
+/** The client-level flag of a 7-day streak held back until the client's days. */
+export function clientNoResultsHeldFlag(
+  outcomeWord: string,
+  days: number,
+): string {
+  return `7 ימים בלי ${outcomeWord}; התראה אחרי ${days} ימים`;
+}
+
+/** An alerting no-results exception with this reason. */
+function exception(reason: string): PulseCampaignStatus {
+  return { status: "critical", tier: "exception", reason, alertEligible: true };
 }
 
 /** Spend with a result count of exactly 0 (a missing count is not 0). */

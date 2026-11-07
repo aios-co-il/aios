@@ -49,6 +49,10 @@ import { reportCampaignGoalOf } from "../_shared/campaign-goal/campaign-goals.ts
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
+import {
+  clientNoResultsWindow,
+  noResultsDaysByClientOf,
+} from "./client-no-results.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
@@ -517,9 +521,7 @@ Deno.serve(async (req) => {
           // Same cost thresholds the dashboard reads (pulse_alert_rules.manager.cost).
           alertRules: setting.pulse_alert_rules,
           // The client's full days without results before an alert (AIO-502).
-          noResultsDaysByClient: {
-            [client.id]: client.pulse_no_results_days,
-          },
+          noResultsDaysByClient: noResultsDaysByClientOf(client),
         });
         const recent = records.filter(
           (row: any) =>
@@ -599,6 +601,12 @@ Deno.serve(async (req) => {
           cplChangePct: leadMetrics.changePct,
           stoppedCampaignCount: goalMode !== "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
+          noResultsWindow: clientNoResultsWindow(
+            client,
+            leadRecords,
+            "leads",
+            windows.end,
+          ),
         });
         const ecommerceClassification = classifyCampaignPulseStatus({
           activeTables: ecommerceTables,
@@ -619,6 +627,12 @@ Deno.serve(async (req) => {
           cplChangePct: null,
           stoppedCampaignCount: goalMode === "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
+          noResultsWindow: clientNoResultsWindow(
+            client,
+            ecommerceRecords,
+            "ecommerce",
+            windows.end,
+          ),
         });
         const leadStatus =
           goalMode === "ecommerce" ? null : leadClassification.status;

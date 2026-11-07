@@ -79,9 +79,14 @@ Deno.test("noResultsStatus", async (t) => {
     "a short window also alerts on 7 days without results, as before",
     () => {
       const noSpendInWindow = { spend: 0, outcomes: 0 };
+      const status = noResultsStatus(1, noSpendInWindow, zero);
+      assertStrictEquals(status?.alertEligible, true);
+      // Only the 7-day streak is known, so the reason says 7 days, and the
+      // fingerprint stays the default's.
+      assertStrictEquals(status?.reason, noResultsReason(7));
       assertStrictEquals(
-        noResultsStatus(1, noSpendInWindow, zero)?.alertEligible,
-        true,
+        noResultsFindingReason(String(status?.reason), 1),
+        noResultsReason(7),
       );
     },
   );
