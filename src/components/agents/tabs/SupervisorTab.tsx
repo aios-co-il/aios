@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSupervisorCandidates } from "./agentReadQueries";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -25,18 +26,7 @@ export function SupervisorTab({ agent }: { agent: any }) {
   const [hint, setHint] = useState("");
   const [goal, setGoal] = useState("");
 
-  const { data: allAgents } = useQuery({
-    queryKey: ["ai-agents", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_agents")
-        .select("id, name, talent")
-        .filter("tenant_id", "eq", tenantId)
-        .neq("id", agent.id);
-      return data ?? [];
-    },
-    enabled: !!tenantId,
-  });
+  const { data: allAgents } = useSupervisorCandidates(agent.id, tenantId);
 
   const { data: links } = useQuery({
     queryKey: ["agent-supervisors", agent.id],
