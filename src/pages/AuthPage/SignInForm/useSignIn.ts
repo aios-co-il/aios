@@ -21,6 +21,7 @@ export function useSignIn({
   const [password, setPassword] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const passwordMutation = useMutation({
     mutationFn: authenticate,
     onMutate: onPasswordSignInStart,
@@ -28,6 +29,7 @@ export function useSignIn({
     retry: false,
     gcTime: 0,
   });
+
   const googleMutation = useMutation({
     mutationFn: startGoogleOAuth,
     onError: showError,
@@ -52,13 +54,17 @@ export function useSignIn({
     password: string;
   }) {
     const { error } = await supabase.auth.signInWithPassword(credentials);
+
     if (error) {
       throw error;
     }
+
     const session = await queryClient.fetchQuery(authSessionQueryOptions);
+
     if (!session) {
       throw new Error("לא נמצאה התחברות פעילה");
     }
+
     await navigateToApp(session.user.id, session.access_token);
   }
 
@@ -68,6 +74,7 @@ export function useSignIn({
       provider: "google",
       options: { redirectTo: AUTH_REDIRECT },
     });
+
     if (error) {
       throw error;
     }

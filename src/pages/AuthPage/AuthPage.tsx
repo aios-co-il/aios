@@ -20,6 +20,7 @@ export default function AuthPage() {
   const mfa = useMfa(navigateToApp);
   const { checkingSession, updatePasswordMode, onPasswordSignInStart } =
     useAuthSession(searchParams, mfa.completeSignIn);
+
   if (checkingSession && !updatePasswordMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0A1526] p-4">

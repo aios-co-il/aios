@@ -7,6 +7,7 @@ import { AUTH_REDIRECT } from "../authRedirect";
 /** Submit recovery requests once and let the mutation own pending/error state. */
 export function usePasswordReset(email: string, onComplete: () => void) {
   const { toast } = useToast();
+
   const mutation = useMutation({
     mutationFn: requestReset,
     onSuccess: showConfirmation,
@@ -14,6 +15,7 @@ export function usePasswordReset(email: string, onComplete: () => void) {
     retry: false,
     gcTime: 0,
   });
+
   return { loading: mutation.isPending, handleResetPassword };
 
   /** Pass the recovery mode through the emailed redirect URL. */
@@ -24,6 +26,7 @@ export function usePasswordReset(email: string, onComplete: () => void) {
         redirectTo: `${AUTH_REDIRECT}?type=recovery`,
       },
     );
+
     if (error) {
       throw error;
     }

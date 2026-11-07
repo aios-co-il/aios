@@ -11,6 +11,7 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const mutation = useMutation({
     mutationFn: updatePassword,
     onSuccess: finishSetup,
@@ -18,6 +19,7 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
     retry: false,
     gcTime: 0,
   });
+
   return {
     loading: mutation.isPending,
     newPassword,
@@ -30,6 +32,7 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
   /** Update only the submitted password. */
   async function updatePassword(password: string) {
     const { error } = await supabase.auth.updateUser({ password });
+
     if (error) {
       throw error;
     }
@@ -39,9 +42,11 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
   async function finishSetup() {
     toast({ title: "הסיסמה עודכנה", description: "הסיסמה שלך עודכנה בהצלחה" });
     const session = await queryClient.fetchQuery(authSessionQueryOptions);
+
     if (!session) {
       throw new Error("לא נמצאה התחברות פעילה");
     }
+
     const user = await queryClient.fetchQuery({
       queryKey: ["authPage", "user", session.user.id],
       queryFn: readUser,
@@ -65,14 +70,19 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
   /** Validate drafts before starting a mutation. */
   function handleUpdatePassword(event: FormEvent) {
     event.preventDefault();
+
     if (newPassword !== confirmPassword) {
       showError(new Error("הסיסמאות אינן תואמות"));
+
       return;
     }
+
     if (newPassword.length < 6) {
       showError(new Error("הסיסמה חייבת להכיל לפחות 6 תווים"));
+
       return;
     }
+
     mutation.mutate(newPassword);
   }
 }
@@ -80,11 +90,14 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
 /** Validate the current user through the SDK before completing setup. */
 async function readUser() {
   const { data, error } = await supabase.auth.getUser();
+
   if (error) {
     throw error;
   }
+
   if (!data.user) {
     throw new Error("לא נמצא משתמש מחובר");
   }
+
   return data.user;
 }

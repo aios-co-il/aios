@@ -17,6 +17,7 @@ describe("AuthPage recovery and invitations", () => {
           error: new Error("Reset failed"),
         });
       }
+
       renderAuth();
       const user = userEvent.setup();
       await user.type(
@@ -32,6 +33,7 @@ describe("AuthPage recovery and invitations", () => {
         "user@example.test",
         { redirectTo: `${window.location.origin}/auth?type=recovery` },
       );
+
       if (failure) {
         expect(
           screen.getByRole("button", { name: "שלח קישור לאיפוס סיסמה" }),
@@ -39,6 +41,7 @@ describe("AuthPage recovery and invitations", () => {
       } else {
         expect(await screen.findByLabelText("סיסמה")).toBeInTheDocument();
       }
+
       expect(auth.home).not.toHaveBeenCalled();
     },
   );

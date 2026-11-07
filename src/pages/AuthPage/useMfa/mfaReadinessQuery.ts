@@ -16,9 +16,11 @@ export function mfaReadinessQueryOptions(userId: string) {
 async function readRequiredFactor() {
   const { data, error } =
     await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
   if (error) {
     throw error;
   }
+
   if (
     !data ||
     !isKnownAssurance(data.currentLevel) ||
@@ -26,17 +28,23 @@ async function readRequiredFactor() {
   ) {
     throw new Error("לא ניתן לבדוק את מצב האימות הדו-שלבי");
   }
+
   if (data.nextLevel !== "aal2" || data.currentLevel === "aal2") {
     return null;
   }
+
   const factors = await supabase.auth.mfa.listFactors();
+
   if (factors.error) {
     throw factors.error;
   }
+
   const factor = factors.data?.totp[0];
+
   if (!factor) {
     throw new Error("לא נמצא גורם אימות נתמך");
   }
+
   return factor.id;
 }
 

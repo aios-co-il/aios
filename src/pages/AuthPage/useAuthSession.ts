@@ -21,21 +21,26 @@ export function useAuthSession(
   const [checkingSession, setCheckingSession] = useState(!needsPasswordSetup);
   const [updatePasswordMode, setUpdatePasswordMode] =
     useState(needsPasswordSetup);
+
   const sessionQuery = useQuery({
     ...authSessionQueryOptions,
     enabled: !needsPasswordSetup && !updatePasswordMode,
   });
+
   const onPasswordSignInStart = useCallback(() => {
     passwordSignInOwned.current = true;
   }, []);
+
   const goToApp = useCallback(
     async (session: Session) => {
       if (navigating.current || passwordSignInOwned.current) {
         return;
       }
+
       navigating.current = true;
       setCheckingSession(true);
       const ok = await navigateToApp(session.user.id, session.access_token);
+
       if (!ok) {
         navigating.current = false;
         setCheckingSession(false);
@@ -46,6 +51,7 @@ export function useAuthSession(
 
   useEffect(() => {
     const spinnerTimeout = setTimeout(() => setCheckingSession(false), 4000);
+
     return () => clearTimeout(spinnerTimeout);
   }, []);
 
@@ -53,6 +59,7 @@ export function useAuthSession(
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(handleAuthEvent);
+
     return () => subscription.unsubscribe();
 
     /** SDK events update the session query; only the page effect initiates routing. */
@@ -63,11 +70,14 @@ export function useAuthSession(
       if (event === "PASSWORD_RECOVERY" || needsPasswordSetup) {
         setUpdatePasswordMode(true);
         setCheckingSession(false);
+
         return;
       }
+
       if (passwordSignInOwned.current) {
         return;
       }
+
       if (
         (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
         session?.user
@@ -100,6 +110,7 @@ export function useAuthSession(
     ) {
       return;
     }
+
     if (sessionQuery.error) {
       toast({
         title: "שגיאה",

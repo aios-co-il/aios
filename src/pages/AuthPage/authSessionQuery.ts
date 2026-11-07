@@ -14,8 +14,10 @@ export const authSessionQueryOptions = queryOptions({
 /** Read the SDK session without retaining auth tokens after the page unmounts. */
 async function readSession() {
   const { data, error } = await supabase.auth.getSession();
+
   if (error) {
     throw error;
   }
+
   return data.session;
 }

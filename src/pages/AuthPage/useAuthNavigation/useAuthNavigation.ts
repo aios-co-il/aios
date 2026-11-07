@@ -11,6 +11,7 @@ export function useAuthNavigation() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const { mutateAsync } = useMutation({
     mutationFn: resolveDestination,
     onSuccess: enterHome,
@@ -18,6 +19,7 @@ export function useAuthNavigation() {
     retry: false,
     gcTime: 0,
   });
+
   const navigateToApp: NavigateToApp = useCallback(
     async (userId, accessToken) => {
       try {
@@ -29,6 +31,7 @@ export function useAuthNavigation() {
     },
     [mutateAsync],
   );
+
   return navigateToApp;
 
   /** Invitation failure remains non-blocking, as tracked in AIO-479. */
@@ -36,6 +39,7 @@ export function useAuthNavigation() {
     if (accessToken) {
       await processPendingInvitation(accessToken);
     }
+
     return queryClient.fetchQuery({
       queryKey: ["authPage", "home", userId],
       queryFn: () => resolveAppHomePath(userId),
@@ -49,8 +53,10 @@ export function useAuthNavigation() {
   function enterHome(homePath: string | null) {
     if (homePath) {
       navigate(homePath, { replace: true });
+
       return;
     }
+
     showError(new Error("לא נמצא ארגון עבור המשתמש. נא לפנות לתמיכה."));
   }
 
@@ -72,6 +78,7 @@ async function processPendingInvitation(accessToken: string) {
       "process-user-invitation",
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
+
     if (error) {
       console.error("Error processing invitation:", error);
     }

@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 export function useInvitationContext(inviteToken: string | null) {
   const [email, setEmail] = useState("");
   const { toast } = useToast();
+
   const { data, error } = useQuery({
     queryKey: ["authPage", "invitation", inviteToken],
     queryFn: inviteToken ? () => loadInvitation(inviteToken) : skipToken,
@@ -15,11 +16,13 @@ export function useInvitationContext(inviteToken: string | null) {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+
   useEffect(() => {
     if (data?.email) {
       setEmail(data.email);
     }
   }, [data]);
+
   useEffect(() => {
     if (error) {
       toast({
@@ -29,6 +32,7 @@ export function useInvitationContext(inviteToken: string | null) {
       });
     }
   }, [error, toast]);
+
   return { email, setEmail, inviteBanner: data?.banner ?? null };
 }
 
@@ -41,12 +45,15 @@ async function loadInvitation(inviteToken: string) {
     .eq("used", false)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
+
   if (error) {
     throw error;
   }
+
   if (!data) {
     return null;
   }
+
   const orgName =
     (data.tenants as { name?: string } | null)?.name ||
     (data.metadata as { tenant_name?: string } | null)?.tenant_name;
@@ -56,5 +63,6 @@ async function loadInvitation(inviteToken: string) {
     : invitedName
       ? `שלום ${invitedName}, הוזמנת להצטרף ל${orgName}. בדוק את המייל שלך לקישור ההתחברות, או התחבר אם כבר הגדרת סיסמה.`
       : `הוזמנת להצטרף ל${orgName}. בדוק את המייל שלך לקישור ההתחברות, או התחבר אם כבר הגדרת סיסמה.`;
+
   return { email: data.email, banner };
 }

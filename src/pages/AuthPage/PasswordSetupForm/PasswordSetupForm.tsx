@@ -6,6 +6,7 @@ import { usePasswordSetup } from "./usePasswordSetup";
 import type { NavigateToApp } from "../types";
 
 type Props = { navigateToApp: NavigateToApp; authType: string | null };
+
 /** Collect a matching password pair for invite or recovery setup. */
 export function PasswordSetupForm({ navigateToApp, authType }: Props) {
   const {
@@ -16,6 +17,7 @@ export function PasswordSetupForm({ navigateToApp, authType }: Props) {
     setConfirmPassword,
     handleUpdatePassword,
   } = usePasswordSetup(navigateToApp);
+
   return (
     <form onSubmit={handleUpdatePassword} className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -36,6 +38,7 @@ export function PasswordSetupForm({ navigateToApp, authType }: Props) {
           placeholder="לפחות 6 תווים"
         />
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="confirm-password">אימות סיסמה</Label>
         <Input
@@ -49,6 +52,7 @@ export function PasswordSetupForm({ navigateToApp, authType }: Props) {
           placeholder="הקלד שוב את הסיסמה"
         />
       </div>
+
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "מעדכן..." : "הגדר סיסמה"}
       </Button>
