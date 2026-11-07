@@ -4,13 +4,6 @@
   "config": "tsconfig.app.json",
   "diagnostics": [
     {
-      "file": "src/components/agents/tabs/AgentLearningTab.tsx",
-      "code": 2339,
-      "message": "Property 'subcategory' does not exist on type '{ name: string; count: number; }'.",
-      "source": "subcategory",
-      "count": 4
-    },
-    {
       "file": "src/components/agents/tabs/EvalsTab.tsx",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[]'.",
