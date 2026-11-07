@@ -5,6 +5,7 @@
  */
 import { hasRepeatedSyncFailures } from "./ads-sync/freshness.ts";
 import { getSpendFromData } from "./campaign-goal/ads-metrics.ts";
+import { clientGoalModeOf } from "./campaign-goal/client-goal-mode.ts";
 import { adsRowOutcomes, goalResultCount } from "./campaign-goal/outcomes.ts";
 import {
   isEcommerceReportTable,
@@ -539,19 +540,37 @@ export function isPulseDeliveryExcludedPhone(
 
 export { isEcommerceReportTable, reportTableGoal };
 
-/** A client's goal mode from its active report tables' own goals (reportTableGoal). */
+/**
+ * The active tables a goal's status reads: those whose report is set to the
+ * goal, and those that hold its campaigns (a plain Meta table can run sales
+ * campaigns, AIO-494).
+ */
+export function goalTables<T extends CampaignTableLike>(
+  tables: Array<T>,
+  goal: CampaignGoal,
+  goalRecords: Array<{ table_id: string }>,
+): Array<T> {
+  const holding = new Set(goalRecords.map((row) => row.table_id));
+  return tables.filter(
+    (table) =>
+      reportTableGoal(table) === goal ||
+      (table.id !== undefined && holding.has(table.id)),
+  );
+}
+
+/**
+ * A client's goal mode when no campaign rows were read: its active report
+ * tables' own goals (clientGoalModeOf's fallback).
+ */
 export function detectCampaignGoalMode(
-  tables: CampaignTableLike[],
+  tables: Array<CampaignTableLike>,
 ): CampaignGoalMode {
-  const goals = new Set<CampaignGoal>();
-  for (const table of tables) {
-    if (table.campaign_active === false) continue;
-    const goal = reportTableGoal(table);
-    if (goal) goals.add(goal);
-  }
-  if (goals.has("leads") && goals.has("ecommerce")) return "hybrid";
-  if (goals.has("ecommerce")) return "ecommerce";
-  return "leads";
+  return clientGoalModeOf({
+    records: [],
+    goalOf: () => undefined,
+    tables,
+    sinceYmd: "",
+  });
 }
 
 export type GoalMetricBundle = {

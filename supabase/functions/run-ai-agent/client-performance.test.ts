@@ -58,12 +58,12 @@ describe("clientPerformanceEntry", () => {
         cpl: 10,
         purchases: 2,
         ecommerceSpend: 100,
-        isEcommerce: false,
+        isEcommerce: true,
       },
     );
   });
 
-  it("is ecommerce by its report tables, as the pulse snapshot sets is_ecommerce", () => {
+  it("is ecommerce when a sales campaign spent, as the pulse snapshot sets is_ecommerce", () => {
     const entry = clientPerformanceEntry({
       client,
       records: [

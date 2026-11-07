@@ -5,6 +5,7 @@ import {
 } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import { hasManualRoiData } from "@/lib/manualRoi";
+import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
 
 /**
  * Spend and leads behind a Google Ads report's manual ROI card, or null to
@@ -17,7 +18,7 @@ export function googleManualRoiFigures(
   }>,
   table: GoogleReportTable,
 ): { spend: number; leads: number } | null {
-  if (table.integration_settings?.campaign_type === "ecommerce") {
+  if (isEcommerceReportTable(table)) {
     return null;
   }
   const leadRecords = googleLeadCampaignRecords(records, table);
