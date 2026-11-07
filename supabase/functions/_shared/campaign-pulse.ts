@@ -574,6 +574,32 @@ export function goalTables<T extends CampaignTableLike>(
 }
 
 /**
+ * How many recent rows a goal's status counts as data: its own campaigns'
+ * rows, plus the traffic (exposure) rows of the tables it reads. A table that
+ * spends only on exposure campaigns is synced, so it must not read as stale or
+ * missing (AIO-496); rows of the other goal still do not count.
+ */
+export function goalRecentRecordCount<
+  T extends { table_id: string; data?: Record<string, unknown> | null },
+>(input: {
+  records: Array<T>;
+  goal: CampaignGoal;
+  tables: Array<CampaignTableLike>;
+  goalOf: (record: T) => string | undefined;
+  sinceYmd: string;
+}): number {
+  const tableIds = new Set(input.tables.map((table) => table.id));
+  return input.records.filter((record) => {
+    const goal = input.goalOf(record);
+    return (
+      String(record.data?.date ?? "") >= input.sinceYmd &&
+      tableIds.has(record.table_id) &&
+      (goal === input.goal || goal === "traffic")
+    );
+  }).length;
+}
+
+/**
  * A client's goal mode when no campaign rows were read: its active report
  * tables' own goals (clientGoalModeOf's fallback).
  */

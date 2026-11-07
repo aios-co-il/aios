@@ -121,7 +121,12 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
       integrationType: "facebook_insights",
       level: "campaign",
       integrationSettings: {},
-      tableGoals: { goalOf: null, hasEcommerce: false, hasLeads: true },
+      tableGoals: {
+        goalOf: null,
+        hasEcommerce: false,
+        hasLeads: true,
+        hasTraffic: false,
+      },
       tableMode: "leads",
     }).summary;
     const summary = dashboardGoalsOf(facebookRecords);

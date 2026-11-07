@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
-import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/campaign-goal/google-classify.ts";
+import type { GoogleReportGoal } from "../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -3784,7 +3784,7 @@ export default function DynamicTableView({
                       string,
                       {
                         name: string;
-                        goal: GoogleCampaignGoal;
+                        goal: GoogleReportGoal;
                         impressions: number;
                         clicks: number;
                         conversions: number;

@@ -19,10 +19,10 @@ type GoalRecord = { table_id?: string; data?: Record<string, unknown> | null };
 
 /**
  * The goals of the client's campaigns that spent since `sinceYmd`, plus the
- * own goal of each active table none of whose campaigns spent then. So a
- * plain Meta table running sales campaigns makes the client ecommerce, and a
- * table whose sync died keeps its goal, so its missing data still raises
- * the stale-sync flag. Hybrid with both goals, ecommerce with sales only,
+ * own goal of each active table none of whose lead or sales campaigns spent
+ * then. So a plain Meta table running sales campaigns makes the client
+ * ecommerce, and a table whose sync died keeps its goal, so its missing data
+ * still raises the stale-sync flag. Hybrid with both goals, ecommerce with sales only,
  * leads otherwise.
  */
 export function clientGoalModeOf<T extends GoalRecord>(input: {
@@ -38,12 +38,14 @@ export function clientGoalModeOf<T extends GoalRecord>(input: {
     if (date < input.sinceYmd || getSpendFromData(record.data) <= 0) {
       continue;
     }
-    if (record.table_id) {
-      spendingTables.add(record.table_id);
-    }
     const goal = input.goalOf(record);
     if (goal) {
       goals.add(goal);
+    }
+    // Only a lead or sales campaign decides its table's goal: a table that
+    // spends on exposure campaigns alone keeps its own goal (AIO-496).
+    if (record.table_id && (goal === "leads" || goal === "ecommerce")) {
+      spendingTables.add(record.table_id);
     }
   }
   for (const table of input.tables) {
