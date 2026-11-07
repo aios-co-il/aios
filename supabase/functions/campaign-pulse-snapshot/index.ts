@@ -49,6 +49,11 @@ import { reportCampaignGoalOf } from "../_shared/campaign-goal/campaign-goals.ts
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
+import {
+  type OffReportSpend,
+  offReportSpendText,
+} from "../_shared/pulse/report-off-spending.ts";
+import { loadOffReportSpend, splitReportTables } from "./report-tables.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
@@ -360,7 +365,7 @@ Deno.serve(async (req) => {
       ? await supabase
           .from("crm_tables")
           .select(
-            "id, client_id, integration_type, category, integration_settings, campaign_active, last_sync_at",
+            "id, client_id, name, integration_type, category, integration_settings, campaign_active, last_sync_at",
           )
           .in("client_id", clientIds)
           .in("integration_type", [...CAMPAIGN_TABLE_TYPES])
@@ -387,21 +392,21 @@ Deno.serve(async (req) => {
     for (const update of callUpdateResult.data || []) {
       latestCallByClient.set(update.client_id, update);
     }
-    const activeTablesByClient = new Map<string, any[]>();
-    for (const table of tableResult.data || []) {
-      const client = campaignClients.find(
-        (item: any) => item.id === table.client_id,
-      );
-      if (
-        !client ||
-        !tableMatchesServices(table, clientCampaignServices(client))
-      )
-        continue;
-      if (table.campaign_active === false) continue;
-      const tables = activeTablesByClient.get(table.client_id) || [];
-      tables.push(table);
-      activeTablesByClient.set(table.client_id, tables);
-    }
+    // Switched-off tables never feed the numbers or the campaign alerts; only
+    // their recent spend is read, for report_off_spending (AIO-501).
+    const reportTables = splitReportTables(
+      tableResult.data || [],
+      (table: any) => {
+        const client = campaignClients.find(
+          (item: any) => item.id === table.client_id,
+        );
+        return (
+          !!client &&
+          tableMatchesServices(table, clientCampaignServices(client))
+        );
+      },
+    );
+    const activeTablesByClient = reportTables.activeByClient;
     // Critical alerts (stopped campaigns, disapproved ads) are only reported for
     // clients that still have an active campaign table.
     const alertResult = await supabase
@@ -445,6 +450,8 @@ Deno.serve(async (req) => {
     // and its prior week never include today's partial day.
     const windows = pulseClientWindows(now);
     const snapshots: any[] = [];
+    // Switched-off tables that still spend, for report_off_spending (AIO-501).
+    const offReportSpendByClient = new Map<string, Array<OffReportSpend>>();
     for (const client of reportableClients) {
       try {
         const activeTables = activeTablesByClient.get(client.id) || [];
@@ -642,6 +649,21 @@ Deno.serve(async (req) => {
               campaignStatus,
             )
           : legacyStatus;
+        // A failed read must not turn the client's row into no_data: it is
+        // logged and the run raises no report_off_spending for this client.
+        const offReportSpend = await loadOffReportSpend(
+          supabase,
+          reportTables.offByClient.get(client.id) || [],
+          { start: windows.current3Start, end: windows.end },
+        ).catch((offSpendError) => {
+          console.error(
+            "[campaign-pulse] switched-off report spend unavailable",
+            client.id,
+            offSpendError,
+          );
+          return [];
+        });
+        offReportSpendByClient.set(client.id, offReportSpend);
         const flags = Array.from(
           new Set([
             ...(goalMode !== "ecommerce" ? leadClassification.flags : []),
@@ -652,6 +674,8 @@ Deno.serve(async (req) => {
                 (campaign: any) =>
                   `${campaign.campaign_name}: ${campaign.status_reason}`,
               ),
+            // Last, so it never displaces a campaign's reason in the digest.
+            ...offReportSpend.map(offReportSpendText),
           ]),
         );
         const stalePlatforms = Array.from(
@@ -839,7 +863,10 @@ Deno.serve(async (req) => {
           tenantSlug,
           orgName: tenantRow?.name || tenantSlug,
           reportRecipients: report.recipients,
-          snapshots,
+          snapshots: snapshots.map((snapshot) => ({
+            ...snapshot,
+            off_report_spend: offReportSpendByClient.get(snapshot.client_id),
+          })),
           criticalIssues,
           disconnects: openDisconnects.disconnects,
           rules: setting.pulse_alert_rules,
