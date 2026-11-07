@@ -3,8 +3,8 @@
  * and the checks that refuse a call before any work (AIO-238).
  */
 import { isNonProductionAppEnv } from "../_shared/app-env.ts";
+import { isGatewayServiceRoleRequest } from "../_shared/auth/edge-caller-auth.ts";
 import { asRecord } from "../_shared/reconcile/json.ts";
-import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import { MAX_DEFERRED } from "./chain.ts";
 
 /** Calls one nightly chain may queue after the first. */
@@ -29,13 +29,15 @@ export type WorkerRequest = {
   chain: boolean;
 };
 
-/** True when the caller presents the service-role key. */
+/**
+ * True when the caller is the service role: the env key, or the cron's Vault
+ * service-role JWT, which the gateway verified (verify_jwt = true, AIO-503).
+ */
 export function isServiceRequest(req: Request, serviceKey: string): boolean {
-  const bearer = (req.headers.get("Authorization") || "").replace(
-    /^Bearer\s+/i,
-    "",
+  return isGatewayServiceRoleRequest(
+    req.headers.get("Authorization"),
+    serviceKey,
   );
-  return isServiceKey(bearer, serviceKey);
 }
 
 /** The JSON body, or an empty object when there is none. */

@@ -58,6 +58,25 @@ export function isServiceRoleRequest(
   );
 }
 
+/**
+ * True when the caller is the service role, in a function behind the JWT
+ * gateway (`verify_jwt = true` in supabase/config.toml): the exact env key, or
+ * a JWT whose role is service_role. The gateway has already checked that
+ * JWT's signature, and the function's env key can differ from the
+ * service-role JWT the crons send from Vault (AIO-503). Never use it where
+ * verify_jwt is false: the role claim is read without a signature check
+ * (edge-caller-auth.test.ts fails then).
+ */
+export function isGatewayServiceRoleRequest(
+  authorization: string | null | undefined,
+  serviceRoleKey: string | null | undefined,
+): boolean {
+  if (isServiceRoleRequest(authorization, serviceRoleKey)) {
+    return true;
+  }
+  return jwtRole(bearerFrom(authorization)) === "service_role";
+}
+
 /** The token of an `Authorization: Bearer <token>` header, or null. Unlike
  * automation-run-auth's bearerToken it requires the `Bearer` prefix, so a
  * header without it is never read as a token. */

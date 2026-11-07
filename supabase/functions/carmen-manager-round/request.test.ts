@@ -1,10 +1,11 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { fakeJwt } from "../_shared/auth/jwt-test-fixtures.ts";
 import { isServiceCaller, parseRoundRequest } from "./request.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const CLIENT = "22222222-2222-4222-8222-222222222222";
 
-Deno.test("isServiceCaller accepts only the service-role key", () => {
+Deno.test("isServiceCaller accepts only the service role", () => {
   const req = (auth?: string) =>
     new Request("http://x", {
       method: "POST",
@@ -13,6 +14,11 @@ Deno.test("isServiceCaller accepts only the service-role key", () => {
   assertEquals(isServiceCaller(req("Bearer service-key"), "service-key"), true);
   assertEquals(isServiceCaller(req("bearer service-key"), "service-key"), true);
   assertEquals(isServiceCaller(req("Bearer user-jwt"), "service-key"), false);
+  // The cron sends Vault's service-role JWT, not the env key (AIO-503).
+  const vaultJwt = fakeJwt({ role: "service_role", iss: "supabase" });
+  assertEquals(isServiceCaller(req(`Bearer ${vaultJwt}`), "service-key"), true);
+  const userJwt = fakeJwt({ role: "authenticated", sub: "u1" });
+  assertEquals(isServiceCaller(req(`Bearer ${userJwt}`), "service-key"), false);
   assertEquals(isServiceCaller(req(), "service-key"), false);
   assertEquals(isServiceCaller(req("Bearer "), ""), false);
 });

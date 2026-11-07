@@ -1,6 +1,40 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
-import { parseWorkerRequest, rejectInvalidRequest } from "./request.ts";
+import { fakeJwt } from "../_shared/auth/jwt-test-fixtures.ts";
+import {
+  isServiceRequest,
+  parseWorkerRequest,
+  rejectInvalidRequest,
+} from "./request.ts";
+
+describe("isServiceRequest", () => {
+  const req = (auth: string) =>
+    new Request("http://x", {
+      method: "POST",
+      headers: { Authorization: auth },
+    });
+
+  it("accepts the env key and the cron's Vault service-role JWT (AIO-503)", () => {
+    const vaultJwt = fakeJwt({ role: "service_role", iss: "supabase" });
+    assertStrictEquals(
+      isServiceRequest(req("Bearer env-key"), "env-key"),
+      true,
+    );
+    assertStrictEquals(
+      isServiceRequest(req(`Bearer ${vaultJwt}`), "env-key"),
+      true,
+    );
+  });
+
+  it("refuses a user JWT or another key", () => {
+    const userJwt = fakeJwt({ role: "authenticated", sub: "u1" });
+    assertStrictEquals(
+      isServiceRequest(req(`Bearer ${userJwt}`), "env-key"),
+      false,
+    );
+    assertStrictEquals(isServiceRequest(req("Bearer other"), "env-key"), false);
+  });
+});
 
 describe("parseWorkerRequest", () => {
   it("defaults an empty body to the nightly tables walk", () => {
