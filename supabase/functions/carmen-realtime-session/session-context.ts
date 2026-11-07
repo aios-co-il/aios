@@ -1,7 +1,10 @@
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 import { loadVoiceAgent, type VoiceAgent } from "./agent-profile.ts";
-import { loadOrgBrief, type OrgBrief } from "./org-brief.ts";
+import {
+  loadOrgBrief,
+  type OrgBrief,
+} from "../_shared/carmen/org-brief/brief.ts";
 import { orgBriefInstructions } from "./org-brief-text.ts";
 import {
   loadPronunciations,
