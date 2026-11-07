@@ -96,6 +96,23 @@ describe("summarizeTrackedEvents", () => {
     expect(events.every((item) => item.cost === null)).toBe(true);
   });
 
+  it("keeps a day with GA data where no followed event fired, at zero", () => {
+    const { days } = summarizeTrackedEvents(
+      [
+        ga("2026-11-01", "sign_up", 2),
+        ga("2026-11-02", "page_view", 300),
+        ga("2026-11-03", "sign_up", 4),
+      ],
+      [{ event: "sign_up", label: "הרשמה" }],
+      0,
+    );
+    expect(days).toStrictEqual([
+      { date: "2026-11-01", sign_up: 2 },
+      { date: "2026-11-02", sign_up: 0 },
+      { date: "2026-11-03", sign_up: 4 },
+    ]);
+  });
+
   it("lays out one row per day with every followed event", () => {
     const { days } = summarizeTrackedEvents(records, SWAPTIX, 400);
     expect(days).toStrictEqual([

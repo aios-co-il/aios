@@ -28,9 +28,9 @@ const LINE_COLORS = [
   "#db2777",
 ];
 
-/** Each followed event's daily count, one line per event. */
+/** Each followed event's daily count, one line per event; a single day shows as dots. */
 export function TrackedEventsChart({ events, days }: Props) {
-  if (days.length < 2) {
+  if (days.length === 0) {
     return null;
   }
   return (
@@ -54,7 +54,7 @@ export function TrackedEventsChart({ events, days }: Props) {
                 name={item.label}
                 stroke={LINE_COLORS[index % LINE_COLORS.length]}
                 strokeWidth={2}
-                dot={false}
+                dot={days.length === 1}
                 isAnimationActive={false}
               />
             ))}

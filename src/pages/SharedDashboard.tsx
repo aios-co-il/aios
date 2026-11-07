@@ -3,6 +3,7 @@ import {
   googleCampaignNames,
   namesCampaignsByDestination,
 } from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
 import { parseTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/trackedEvents";
@@ -116,17 +117,6 @@ const PLATFORM_CONFIG: Record<string, { name: string; color: string }> = {
   google_analytics: { name: "Analytics", color: "text-orange-500" },
 };
 
-type PlatformFilter =
-  | "all"
-  | "weekly"
-  | "facebook"
-  | "google_ads"
-  | "continents"
-  | "google_analytics"
-  | "site_events"
-  | "woocommerce"
-  | "seo";
-
 const hasMeaningfulAnalyticsMetrics = (data: any) =>
   getSessionsFromData(data) > 0 ||
   getUsersFromData(data) > 0 ||
@@ -143,7 +133,7 @@ const normalizePlatformKey = (s: string) =>
 
 const matchesPlatformFilter = (
   integrationType: string,
-  filter: PlatformFilter,
+  filter: DashboardPlatformFilter,
 ): boolean => {
   if (filter === "all") return true;
   if (filter === "facebook") return isFacebookPlatform(integrationType);
@@ -214,7 +204,8 @@ export default function SharedDashboard({
   const shareToken = shareTokenOverride ?? params.shareToken;
   const queryClient = useQueryClient();
   const [dateFilter, setDateFilter] = useState(initialDateFilter);
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
+  const [platformFilter, setPlatformFilter] =
+    useState<DashboardPlatformFilter>("all");
   const [seoActiveTab, setSeoActiveTab] = useState("seo");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -486,7 +477,7 @@ export default function SharedDashboard({
     tables.forEach((t: any) => {
       if (t?.integration_type) set.add(t.integration_type);
     });
-    const platforms: PlatformFilter[] = [];
+    const platforms: DashboardPlatformFilter[] = [];
     if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
       platforms.push("facebook");
     if (set.has("google_ads")) platforms.push("google_ads");
@@ -1117,15 +1108,17 @@ export default function SharedDashboard({
       </div>
 
       {/* Platform Tabs */}
-      {availablePlatforms.length > 0 && (
+      {platformTabItems.length > 1 && (
         <Tabs
           value={platformFilter}
-          onValueChange={(v) => setPlatformFilter(v as PlatformFilter)}
+          onValueChange={(v) => setPlatformFilter(v as DashboardPlatformFilter)}
         >
           <ResponsiveTabsList
             items={platformTabItems}
             value={platformFilter}
-            onValueChange={(v) => setPlatformFilter(v as PlatformFilter)}
+            onValueChange={(v) =>
+              setPlatformFilter(v as DashboardPlatformFilter)
+            }
             mobileLabel="בחר פלטפורמה"
           />
         </Tabs>

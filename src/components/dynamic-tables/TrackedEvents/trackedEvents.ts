@@ -83,13 +83,15 @@ export function summarizeTrackedEvents(
   const totals = new Map<string, number>();
   const byDay = new Map<string, Map<string, number>>();
   for (const { event, date, count } of dailyEventCounts(records)) {
+    // Any GA event marks the day as synced, so a followed event that did not
+    // fire that day shows a zero instead of a line jumping over the day.
+    const day = byDay.get(date) ?? new Map<string, number>();
+    byDay.set(date, day);
     if (!followed.has(event)) {
       continue;
     }
     totals.set(event, (totals.get(event) ?? 0) + count);
-    const day = byDay.get(date) ?? new Map<string, number>();
     day.set(event, (day.get(event) ?? 0) + count);
-    byDay.set(date, day);
   }
   const events = tracked.map((item, index): TrackedEventFigures => {
     const count = totals.get(item.event) ?? 0;
