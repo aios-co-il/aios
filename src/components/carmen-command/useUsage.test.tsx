@@ -16,11 +16,21 @@ vi.mock("@/integrations/supabase/client", () => ({
         gte: () => query,
         limit: () => query,
         maybeSingle: () => query,
-        then(resolve: (value: { data: never[] | { settings: { monthly_budget_usd: number } }; error: null }) => unknown) {
+        then(
+          resolve: (value: {
+            data: never[] | { settings: { monthly_budget_usd: number } };
+            error: null;
+          }) => unknown,
+        ) {
           return Promise.resolve({
-            data: table === "tenant_integrations"
-              ? { settings: { monthly_budget_usd: tenant === "tenant-a" ? 100 : 9000 } }
-              : [],
+            data:
+              table === "tenant_integrations"
+                ? {
+                    settings: {
+                      monthly_budget_usd: tenant === "tenant-a" ? 100 : 9000,
+                    },
+                  }
+                : [],
             error: null,
           }).then(resolve);
         },
