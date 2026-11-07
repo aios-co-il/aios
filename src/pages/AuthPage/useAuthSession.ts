@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { NavigateToApp } from "../types";
+import type { NavigateToApp } from "./types";
 import { authSessionQueryOptions } from "./authSessionQuery";
 
 /** Combine a fresh session query with the SDK's ongoing auth-event subscription. */
