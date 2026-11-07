@@ -1,4 +1,4 @@
--- The pulse's report_off_spending alert (20261107100000_pulse_report_off_spending_rule):
+-- The pulse's report_off_spending alert (20261107110000_pulse_report_off_spending_rule):
 -- its log row is accepted, since that row is the alert's dedupe, and an unknown
 -- rule is still refused. A synthetic tenant inside one transaction that is rolled back.
 BEGIN;
