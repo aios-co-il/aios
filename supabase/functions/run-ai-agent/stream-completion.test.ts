@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   canStreamCompletion,
+  messagesForProvider,
   readStreamedCompletion,
 } from "./stream-completion.ts";
 
@@ -102,6 +103,49 @@ Deno.test("tool-call fragments join into whole calls by index", async () => {
   assertEquals(result.message.content, "");
 });
 
+Deno.test(
+  "a Gemini thought signature stays on its tool call for the next round",
+  async () => {
+    const signature = { google: { thought_signature: "sig-abc" } };
+    const sse =
+      line({
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_1",
+                  function: { name: "list_leads", arguments: "" },
+                  extra_content: signature,
+                },
+              ],
+            },
+          },
+        ],
+      }) +
+      line({
+        choices: [
+          {
+            delta: {
+              tool_calls: [{ index: 0, function: { arguments: "{}" } }],
+            },
+          },
+        ],
+      }) +
+      "data: [DONE]\n\n";
+    const result = await readStreamedCompletion(bodyOf([sse]), () => {});
+    assertEquals(result.message.tool_calls, [
+      {
+        id: "call_1",
+        type: "function",
+        function: { name: "list_leads", arguments: "{}" },
+        extra_content: signature,
+      },
+    ]);
+  },
+);
+
 Deno.test("only built-in OpenAI and Google models stream", () => {
   assertEquals(canStreamCompletion({ provider: "openai" }), true);
   assertEquals(canStreamCompletion({ provider: "google" }), true);
@@ -111,3 +155,29 @@ Deno.test("only built-in OpenAI and Google models stream", () => {
     false,
   );
 });
+
+Deno.test(
+  "Gemini gets its tool-call extras back; other providers get the calls without them",
+  () => {
+    const call = {
+      id: "call_1",
+      type: "function" as const,
+      function: { name: "list_leads", arguments: "{}" },
+      extra_content: { google: { thought_signature: "sig" } },
+    };
+    const messages = [
+      { role: "user", content: "כמה לידים?" },
+      { role: "assistant", content: "", tool_calls: [call] },
+    ];
+    assertEquals(messagesForProvider(messages, "google"), messages);
+    const plainCall = {
+      id: call.id,
+      type: call.type,
+      function: call.function,
+    };
+    assertEquals(messagesForProvider(messages, "openai"), [
+      messages[0],
+      { role: "assistant", content: "", tool_calls: [plainCall] },
+    ]);
+  },
+);

@@ -15,6 +15,7 @@ import { resolveModelId } from "../_shared/models.ts";
 import { defaultGatewayLine, integrationTypesFor } from "./whatsapp-lines.ts";
 import {
   canStreamCompletion,
+  messagesForProvider,
   readStreamedCompletion,
 } from "./stream-completion.ts";
 import {
@@ -56,6 +57,10 @@ import {
   appendCarmenPulseRules,
   carmenPulseRulesVersion,
 } from "./pulse-refresh/rules-block.ts";
+import {
+  agencyDataRulesVersion,
+  appendAgencyDataRules,
+} from "./agency-data/rules-block.ts";
 import {
   executeRefreshCampaignPulse,
   REFRESH_CAMPAIGN_PULSE_TOOL,
@@ -1226,7 +1231,8 @@ const ALL_TOOLS = [
   },
   {
     name: "list_leads",
-    description: "רשימת לידים",
+    description:
+      "רשימת הלידים של הסוכנות עצמה (לקוחות פוטנציאליים של הסוכנות). לא הלידים של לקוחות הסוכנות: אלה מגיעים מהדוחות (get_latest_campaign_pulse, get_facebook_campaign_data).",
     parameters: {
       type: "object",
       properties: { status: { type: "string" }, limit: { type: "integer" } },
@@ -14292,7 +14298,7 @@ async function handleRunAgent(
     // Keeps V1 behavior as default; zero risk to existing agents
     let systemPrompt: string;
     console.log(
-      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })}`,
+      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })} agency_data_rules=${agencyDataRulesVersion({ isCarmen, pinSkillsOnly })}`,
     );
     if (shouldUseV2Prompt(agent)) {
       // Build V2 prompt using the new modular builder
@@ -15447,6 +15453,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         console.error("[AGENT] pinned skin tools failed (non-fatal):", e);
       }
     }
+    // Leads belong to the agency; a client's leads come from its reports (AIO-510). After
+    // every skin, before the pulse block, which stays the prompt's last rule.
+    systemPrompt = appendAgencyDataRules(systemPrompt, {
+      isCarmen,
+      pinSkillsOnly,
+    });
     // Versioned pulse rules (AIO-237) come after the V1/V2 prompt and every
     // skin's text, so a tenant pulse skin that says not to refresh cannot
     // override them. On WhatsApp and scheduled tasks the block also keeps the
@@ -15909,7 +15921,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       let res!: Response;
       while (true) {
         const cappedTools = capToolsForTarget(llm, toolsForAPI);
-        const payload: any = { model: llm.model, messages };
+        const payload: any = {
+          model: llm.model,
+          messages: messagesForProvider(messages, llm.provider),
+        };
         const temp = safeTemp ?? llm.temperature;
         if (temp !== undefined) payload.temperature = temp;
         if (llm.maxTokens) payload.max_tokens = llm.maxTokens;
