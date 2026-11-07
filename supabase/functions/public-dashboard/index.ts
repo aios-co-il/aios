@@ -8,7 +8,11 @@ import {
   filterWooOrdersForRevenue,
 } from "../_shared/wooRevenue.ts";
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
-import { fetchEventTotals, withFullEventTotals } from "./event-totals.ts";
+import {
+  EVENT_REPORT_TYPES,
+  fetchEventTotals,
+  withFullEventTotals,
+} from "./event-totals.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -231,7 +235,7 @@ Deno.serve(async (req) => {
         if (rows.length < pageSize) break;
       }
 
-      // The site events tab sums the daily per-event rows, which can pass the cap.
+      // The site events tab sums the per-event rows, which can pass the cap.
       const readRecords = isAnalytics
         ? withFullEventTotals(
             tableRecords,
@@ -240,7 +244,7 @@ Deno.serve(async (req) => {
                 .from("crm_records")
                 .select("id, data, created_at")
                 .eq("table_id", table.id)
-                .eq("data->>report_type", "event_total");
+                .in("data->>report_type", EVENT_REPORT_TYPES);
               if (startDate) query = query.gte("data->>date", startDate);
               if (endDate) query = query.lte("data->>date", endDate);
               return query.order("id").range(from, to);

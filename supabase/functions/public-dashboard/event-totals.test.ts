@@ -51,12 +51,21 @@ Deno.test(
   "the full event read replaces the capped one, keeping other rows",
   () => {
     const merged = withFullEventTotals(
-      [row("a", "daily"), row("b", "event_total"), row("c", "top_pages")],
-      [row("b", "event_total"), row("d", "event_total")],
+      [
+        row("a", "daily"),
+        row("b", "event_total"),
+        row("c", "top_pages"),
+        row("e", "event_source"),
+      ],
+      [
+        row("b", "event_total"),
+        row("d", "event_total"),
+        row("e", "event_source"),
+      ],
     );
     assertEquals(
       merged.map((r) => r.id),
-      ["a", "c", "b", "d"],
+      ["a", "c", "b", "d", "e"],
     );
   },
 );

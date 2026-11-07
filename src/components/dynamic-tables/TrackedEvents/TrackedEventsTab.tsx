@@ -1,12 +1,16 @@
 import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import type { EventSourcesTable } from "./eventSources";
+import { TrackedEventSources } from "./TrackedEventSources";
 import { TrackedEventsChart } from "./TrackedEventsChart";
 import { TrackedEventsFunnel } from "./TrackedEventsFunnel";
 import type { TrackedEventsSummary } from "./trackedEvents";
 
 type Props = {
   summary: TrackedEventsSummary;
+  /** Where each event came from; null until the sync has collected sources. */
+  sources?: EventSourcesTable;
   formatCurrency: (value: number) => string;
   formatNumber: (value: number) => string;
   /** Opens the event picker; the shared dashboard leaves it out. */
@@ -15,10 +19,12 @@ type Props = {
 
 /**
  * The "אירועים באתר" tab: a card per followed site event with its count and
- * cost per event, the funnel between them, and a daily chart.
+ * cost per event, the funnel between them, a daily chart and, once the sync
+ * has collected them, each event's sources.
  */
 export function TrackedEventsTab({
   summary,
+  sources = null,
   formatCurrency,
   formatNumber,
   onEdit,
@@ -65,6 +71,13 @@ export function TrackedEventsTab({
         formatNumber={formatNumber}
       />
       <TrackedEventsChart events={summary.events} days={summary.days} />
+      {sources && (
+        <TrackedEventSources
+          table={sources}
+          events={summary.events}
+          formatNumber={formatNumber}
+        />
+      )}
     </div>
   );
 }

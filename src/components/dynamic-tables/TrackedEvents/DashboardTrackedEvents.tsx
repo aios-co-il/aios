@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { summarizeEventSources } from "./eventSources";
 import { TrackedEventsEditor } from "./TrackedEventsEditor";
 import { TrackedEventsTab } from "./TrackedEventsTab";
 import {
@@ -39,10 +40,15 @@ export function DashboardTrackedEvents({
     [records, tracked, adsSpend],
   );
   const available = useMemo(() => availableEventNames(records), [records]);
+  const sources = useMemo(
+    () => summarizeEventSources(records, tracked),
+    [records, tracked],
+  );
   return (
     <>
       <TrackedEventsTab
         summary={summary}
+        sources={sources}
         formatCurrency={formatCurrency}
         formatNumber={formatNumber}
         onEdit={editableDashboardId ? () => setEditing(true) : undefined}
