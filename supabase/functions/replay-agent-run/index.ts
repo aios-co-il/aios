@@ -1,6 +1,7 @@
 // replay-agent-run — creates a fresh run from an existing run's goal & context.
 // Body: { run_id, tenant_id, user_id? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { errorMessage } from "../_shared/error-message.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +12,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-function jsonResponse(body: any, status = 200) {
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -57,8 +58,8 @@ Deno.serve(async (req) => {
     }
 
     return jsonResponse({ ok: true, ...invokeData });
-  } catch (e: any) {
-    console.error("[replay-agent-run]", e?.message);
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+  } catch (e) {
+    console.error("[replay-agent-run]", errorMessage(e));
+    return jsonResponse({ error: String(errorMessage(e) ?? e) }, 500);
   }
 });

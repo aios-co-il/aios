@@ -6,6 +6,17 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+type HeartbeatAction =
+  | {
+      type: "overdue_worker_nudged";
+      task_id: string;
+      task_title: string;
+      ok: boolean;
+    }
+  | { type: "overdue_worker_failed"; task_id: string; error: string }
+  | { type: "stale_task_released"; task_id: string; task_title: string }
+  | { type: "daily_digest_sent"; to: string | null; anomalies: number };
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -53,7 +64,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const actionsLog: any[] = [];
+      const actionsLog: HeartbeatAction[] = [];
       let tasksReviewed = 0;
 
       // 1. Find overdue tasks
