@@ -39,6 +39,17 @@ describe("SupervisorTab child tenant readiness", () => {
         );
         expect(operationState.insert).not.toHaveBeenCalled();
         expect(toast.success).not.toHaveBeenCalled();
+        operationState.tenantId = "tenant-a";
+        view.rerender(
+          cloneElement(
+            wrapped,
+            undefined,
+            <SupervisorTab agent={{ id: "agent-a", name: "Supervisor" }} />,
+          ),
+        );
+        await waitFor(() =>
+          expect(screen.getByRole("combobox")).toHaveTextContent("Child"),
+        );
       } else if (failure) {
         await waitFor(() =>
           expect(toast.error).toHaveBeenCalledWith("Write rejected"),

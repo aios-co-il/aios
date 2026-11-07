@@ -23,6 +23,9 @@ describe("EvalsTab tenant readiness", () => {
         screen.getByPlaceholderText("לדוגמה: זיהוי לקוחות בסיכון"),
         "Quality",
       );
+      if (!tenantId) {
+        await user.clear(screen.getByDisplayValue(/מה הסטטוס של לקוח X/));
+      }
       await user.click(screen.getByRole("button", { name: "צור" }));
       if (!tenantId) {
         await waitFor(() =>
