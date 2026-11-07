@@ -73,12 +73,7 @@ Deno.test(
       [],
     );
     assertEquals(parseRunAgentRequest({ direct_tool: true }).direct_tool, {
-      action: undefined,
-      caller: undefined,
-      approval_id: undefined,
-      approved_by: undefined,
-      name: undefined,
-      args: undefined,
+      args: {},
     });
     assertStrictEquals(
       parseRunAgentRequest({ direct_tool: 0 }).direct_tool,

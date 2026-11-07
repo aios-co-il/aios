@@ -144,3 +144,9 @@ const errorStackSchema = z.object({ stack: z.unknown() }).catch({});
 export function readErrorStack(error: unknown): unknown {
   return errorStackSchema.parse(error).stack;
 }
+
+export function isChatCompletionMessage(
+  value: unknown,
+): value is ChatCompletionMessage {
+  return chatCompletionMessageSchema.safeParse(value).success;
+}

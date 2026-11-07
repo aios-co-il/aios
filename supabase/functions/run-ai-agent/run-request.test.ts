@@ -54,21 +54,19 @@ Deno.test(
   },
 );
 
-Deno.test("a partial WhatsApp target is kept as sent", () => {
-  const body = parseRunAgentRequest({
-    wa_notify: { surface: "whatsapp", chat_id: "972501234567@c.us", x: 1 },
-  });
-  assertEquals(body.wa_notify, {
-    surface: "whatsapp",
-    chat_id: "972501234567@c.us",
-    x: 1,
-  });
-  assertStrictEquals(
-    parseRunAgentRequest({ wa_notify: "x" }).wa_notify,
-    undefined,
-  );
-  assertStrictEquals(parseRunAgentRequest({ wa_notify: null }).wa_notify, null);
-});
+Deno.test(
+  "partial WhatsApp targets retain scope without a delivery target",
+  () => {
+    const body = parseRunAgentRequest({
+      wa_notify: { surface: "whatsapp", chat_id: "972501234567@c.us", x: 1 },
+    });
+    assertStrictEquals(body.wa_notify, null);
+    assertEquals(body.wa_chat_scope, {
+      chat_id: "972501234567@c.us",
+      is_group: null,
+    });
+  },
+);
 
 Deno.test(
   "a truthy automation_id of any type still marks an automation run",
