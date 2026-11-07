@@ -1671,6 +1671,10 @@ export default function DashboardView() {
               adsSpend={globalAdsMetrics.spend}
               formatCurrency={formatCurrency}
               formatNumber={formatNumber}
+              source={dashboardId ? { dashboardId } : null}
+              dateFilter={dateFilter}
+              customFrom={customFromStr}
+              customTo={customToStr}
               editableDashboardId={dashboardId}
             />
           ) : platformFilter === "continents" ? (
