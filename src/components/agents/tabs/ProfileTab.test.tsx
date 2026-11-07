@@ -129,7 +129,7 @@ function settingSelector(label: string) {
 
 /** Keep both tenants' lists active; only the saved tenant should refetch. */
 function AgentList({ tenantId }: { tenantId: string }) {
-  const { data } = useQuery({
+  useQuery({
     queryKey: ["ai-agents", tenantId],
     queryFn: async () => {
       state.reads.push(tenantId);
@@ -137,7 +137,7 @@ function AgentList({ tenantId }: { tenantId: string }) {
     },
     staleTime: Infinity,
   });
-  return <output>{data}</output>;
+  return null;
 }
 
 /** Wait for both initial cached lists before checking save-triggered refetches. */
