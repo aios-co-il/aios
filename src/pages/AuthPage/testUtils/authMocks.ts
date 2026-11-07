@@ -1,3 +1,4 @@
+import type { Json } from "@/integrations/supabase/types";
 import { beforeEach, vi } from "vitest";
 
 type Session = { user: { id: string }; access_token: string };
@@ -22,8 +23,8 @@ const auth = vi.hoisted(() => ({
   invitationError: null as Error | null,
   invitation: null as null | {
     email: string;
-    metadata: object;
-    tenants: object;
+    metadata: Json;
+    tenants: { name: string } | null;
   },
 }));
 

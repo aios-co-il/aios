@@ -7,14 +7,15 @@ import { PasswordResetForm } from "./PasswordResetForm/PasswordResetForm";
 import { PasswordSetupForm } from "./PasswordSetupForm/PasswordSetupForm";
 import { useAuthNavigation } from "./useAuthNavigation/useAuthNavigation";
 import { useAuthSession } from "./useAuthSession";
-import { useInvitationContext } from "./useInvitationContext";
+import { useInvitationDetails } from "./useInvitationDetails";
 import { useMfa } from "./useMfa/useMfa";
+import { parseAuthType } from "./types";
 
 export default function AuthPage() {
   const [searchParams] = useSearchParams();
   const [resetMode, setResetMode] = useState(false);
   const navigateToApp = useAuthNavigation();
-  const { email, setEmail, inviteBanner } = useInvitationContext(
+  const { email, setEmail, inviteBanner } = useInvitationDetails(
     searchParams.get("token"),
   );
   const mfa = useMfa(navigateToApp);
@@ -34,7 +35,7 @@ export default function AuthPage() {
       {updatePasswordMode && !mfa.factorId ? (
         <PasswordSetupForm
           navigateToApp={mfa.completeSignIn}
-          authType={searchParams.get("type")}
+          authType={parseAuthType(searchParams.get("type"))}
         />
       ) : mfa.factorId ? (
         <MfaForm

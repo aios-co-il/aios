@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { NavigateToApp } from "./types";
+import { parseAuthType, type NavigateToApp } from "./types";
 import { authSessionQueryOptions } from "./authSessionQuery";
 
 /** Combine a fresh session query with the SDK's ongoing auth-event subscription. */
@@ -15,7 +15,7 @@ export function useAuthSession(
   const queryClient = useQueryClient();
   const passwordSignInOwned = useRef(false);
   const navigating = useRef(false);
-  const authType = searchParams.get("type");
+  const authType = parseAuthType(searchParams.get("type"));
   const needsPasswordSetup = authType === "recovery" || authType === "invite";
   const hasOAuthCode = !!searchParams.get("code");
   const [checkingSession, setCheckingSession] = useState(!needsPasswordSetup);

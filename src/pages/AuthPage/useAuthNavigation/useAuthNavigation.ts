@@ -12,6 +12,7 @@ export function useAuthNavigation() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Callers await completion to preserve pending state and invitation/navigation order.
   const { mutateAsync } = useMutation({
     mutationFn: resolveDestination,
     onSuccess: enterHome,

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
+import type { Json } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 /** Share the email draft across forms and fetch invitation context only with a token. */
-export function useInvitationContext(inviteToken: string | null) {
+export function useInvitationDetails(inviteToken: string | null) {
   const [email, setEmail] = useState("");
   const { toast } = useToast();
 
@@ -55,9 +56,8 @@ async function loadInvitation(inviteToken: string) {
   }
 
   const orgName =
-    (data.tenants as { name?: string } | null)?.name ||
-    (data.metadata as { tenant_name?: string } | null)?.tenant_name;
-  const invitedName = (data.metadata as { fullName?: string } | null)?.fullName;
+    data.tenants?.name || readMetadataString(data.metadata, "tenant_name");
+  const invitedName = readMetadataString(data.metadata, "fullName");
   const banner = !orgName
     ? null
     : invitedName
@@ -65,4 +65,15 @@ async function loadInvitation(inviteToken: string) {
       : `הוזמנת להצטרף ל${orgName}. בדוק את המייל שלך לקישור ההתחברות, או התחבר אם כבר הגדרת סיסמה.`;
 
   return { email: data.email, banner };
+}
+
+/** Narrow the JSON storage boundary instead of assuming metadata field types. */
+function readMetadataString(metadata: Json, field: "tenant_name" | "fullName") {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+
+  const value = metadata[field];
+
+  return typeof value === "string" ? value : undefined;
 }

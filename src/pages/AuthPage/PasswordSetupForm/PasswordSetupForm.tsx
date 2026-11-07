@@ -3,9 +3,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePasswordSetup } from "./usePasswordSetup";
 
-import type { NavigateToApp } from "../types";
+import type { AuthType, NavigateToApp } from "../types";
 
-type Props = { navigateToApp: NavigateToApp; authType: string | null };
+type Props = { navigateToApp: NavigateToApp; authType: AuthType };
 
 /** Collect a matching password pair for invite or recovery setup. */
 export function PasswordSetupForm({ navigateToApp, authType }: Props) {

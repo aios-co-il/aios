@@ -3,16 +3,16 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { supabase } from "@/integrations/supabase/client";
 import { createTestQueryHarness } from "@/test/withTestQuery";
-import { useInvitationContext } from "./useInvitationContext";
+import { useInvitationDetails } from "./useInvitationDetails";
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("useInvitationContext query state", () => {
+describe("useInvitationDetails query state", () => {
   it("skips missing tokens and preserves an edited email on rerender", async () => {
     const from = vi.spyOn(supabase, "from");
     const { wrapper } = createTestQueryHarness();
     const { result, rerender } = renderHook(
-      ({ token }) => useInvitationContext(token),
+      ({ token }) => useInvitationDetails(token),
       {
         initialProps: { token: null as string | null },
         wrapper,
@@ -48,7 +48,7 @@ describe("useInvitationContext query state", () => {
       tenants: { name: "First Org" },
     };
     const { result, rerender, unmount } = renderHook(
-      ({ token }) => useInvitationContext(token),
+      ({ token }) => useInvitationDetails(token),
       {
         initialProps: { token: "first" },
         wrapper,

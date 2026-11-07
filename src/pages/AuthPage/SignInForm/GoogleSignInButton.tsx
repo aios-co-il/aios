@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { isNonProduction, resolveFrontendAppEnv } from "@/lib/appEnv";
 
-/** Present the Google redirect action with environment-specific guidance. */
+/** Present the Google redirect action. */
 export function GoogleSignInButton({
   loading,
   onClick,
@@ -9,8 +8,6 @@ export function GoogleSignInButton({
   loading: boolean;
   onClick: () => void;
 }) {
-  const isDevEnv = isNonProduction(resolveFrontendAppEnv());
-
   return (
     <>
       <div className="relative my-4">
@@ -50,14 +47,6 @@ export function GoogleSignInButton({
         </svg>
         התחבר עם Google
       </Button>
-
-      {isDevEnv && (
-        <p className="text-xs text-muted-foreground text-center leading-relaxed">
-          Preview/Staging: קודם התחבר ל-Vercel כשהדפדפן מבקש, ואז Google. אם
-          Google נכשל עם redirect_uri_mismatch — הוסף ב-Google Cloud את
-          ה-Callback URL של Supabase Staging (ראה docs/ENVIRONMENTS.md).
-        </p>
-      )}
     </>
   );
 }

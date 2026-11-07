@@ -1,5 +1,5 @@
 import { auth, renderAuth, session, signIn } from "./testUtils/authTestHarness";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -97,4 +97,33 @@ describe("AuthPage sign-in actions", () => {
       expect(auth.home).not.toHaveBeenCalled();
     },
   );
+
+  it("keeps the form pending until awaited navigation finishes", async () => {
+    let finishHome: ((path: string | null) => void) | undefined;
+    auth.home.mockImplementation(
+      () =>
+        new Promise<string | null>((resolve) => {
+          finishHome = resolve;
+        }),
+    );
+    renderAuth();
+
+    await signIn();
+    await waitFor(() => expect(auth.home).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByRole("button", { name: "מתחבר..." })).toBeDisabled();
+
+    await act(async () => {
+      finishHome?.(null);
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled(),
+    );
+    expect(auth.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: "לא נמצא ארגון עבור המשתמש. נא לפנות לתמיכה.",
+      }),
+    );
+  });
 });

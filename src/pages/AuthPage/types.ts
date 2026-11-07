@@ -7,3 +7,10 @@ export interface AuthDestination {
   userId: string;
   accessToken?: string;
 }
+
+export type AuthType = "invite" | "recovery" | null;
+
+/** Normalize untrusted URL parameters before passing auth modes to forms. */
+export function parseAuthType(value: string | null): AuthType {
+  return value === "invite" || value === "recovery" ? value : null;
+}
