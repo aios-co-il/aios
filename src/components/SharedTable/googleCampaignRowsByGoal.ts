@@ -6,26 +6,32 @@ import type {
   GoogleAdsRowData,
   GoogleReportRecord,
 } from "@/lib/googleCampaignGoals";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
+import type { GoogleReportGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 
 /**
  * A shared Google Ads table's rows at one level (campaign, ad set or ad), split
- * by their campaign's goal: sales rows and lead rows show in separate tables.
+ * by their campaign's goal: sales, lead and exposure (traffic, AIO-496) rows
+ * show in separate tables.
  */
 export function googleCampaignRowsByGoal(
   records: GoogleReportRecord[],
   level: AdsEntityLevel,
-  goalOf: (data?: GoogleAdsRowData | null) => GoogleCampaignGoal,
+  goalOf: (data?: GoogleAdsRowData | null) => GoogleReportGoal,
 ) {
-  const ecommerce = sharedTableGoogleRows(
-    records.filter((record) => goalOf(record.data) === "ecommerce"),
-    level,
-  );
-  const leads = sharedTableGoogleRows(
-    records.filter((record) => goalOf(record.data) !== "ecommerce"),
-    level,
-  );
-  return { ecommerce, leads, all: [...ecommerce, ...leads] };
+  const rowsOf = (goal: GoogleReportGoal) =>
+    sharedTableGoogleRows(
+      records.filter((record) => goalOf(record.data) === goal),
+      level,
+    );
+  const ecommerce = rowsOf("ecommerce");
+  const leads = rowsOf("leads");
+  const traffic = rowsOf("traffic");
+  return {
+    ecommerce,
+    leads,
+    traffic,
+    all: [...ecommerce, ...leads, ...traffic],
+  };
 }
 
 /** One row per entity with the columns the shared table shows. */

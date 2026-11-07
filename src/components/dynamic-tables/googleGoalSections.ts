@@ -1,8 +1,11 @@
 import { groupRowsByCampaignGoal } from "@/lib/campaignGoals";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
+import type {
+  GoogleCampaignGoal,
+  GoogleReportGoal,
+} from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 
 type GoogleGoalRow = {
-  goal: GoogleCampaignGoal;
+  goal: GoogleReportGoal;
   conversions: number;
   conversions_value: number;
 };
@@ -10,7 +13,7 @@ type GoogleGoalRow = {
 /** A Google Ads report's rows as one table per goal, and what the page shows around them. */
 export type GoogleGoalSections<T extends GoogleGoalRow> = {
   /** One table per goal, sales first; an empty report keeps one table of its own goal. */
-  sections: Array<{ goal: GoogleCampaignGoal; rows: T[] }>;
+  sections: Array<{ goal: GoogleReportGoal; rows: Array<T> }>;
   /** Both goals present: each table gets a title and the report a spend line across goals. */
   mixedGoals: boolean;
   /** Only sales rows, or an empty report whose own goal is sales. */

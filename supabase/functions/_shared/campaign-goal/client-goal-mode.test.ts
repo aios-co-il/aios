@@ -83,6 +83,16 @@ Deno.test("clientGoalModeOf", async (t) => {
   );
 
   await t.step(
+    "a sales table spending only on exposure campaigns keeps its own goal (AIO-496)",
+    () => {
+      assertStrictEquals(
+        modeOf([row("g", "traffic", "2026-11-01", 40)], [googleSales]),
+        "ecommerce",
+      );
+    },
+  );
+
+  await t.step(
     "rows without spend or before the window, and traffic, do not decide",
     () => {
       assertStrictEquals(
