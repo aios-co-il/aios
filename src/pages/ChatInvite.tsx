@@ -1,3 +1,4 @@
+import { MicrosoftSignInButton } from "@/components/auth/MicrosoftSignInButton";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -291,6 +292,11 @@ export default function ChatInvite() {
             </svg>
             המשך עם Google
           </Button>
+
+          <MicrosoftSignInButton
+            redirectTo={`https://aios.co.il/chat-invite/${token}`}
+            label="המשך עם Microsoft"
+          />
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

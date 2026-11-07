@@ -1,3 +1,4 @@
+import { MicrosoftSignInButton } from "@/components/auth/MicrosoftSignInButton";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -557,11 +558,16 @@ export default function Auth() {
                 התחבר עם Google
               </Button>
 
+              <MicrosoftSignInButton
+                redirectTo={AUTH_REDIRECT}
+                disabled={loading}
+              />
+
               {isDevEnv && (
                 <p className="text-xs text-muted-foreground text-center leading-relaxed">
-                  Preview/Staging: קודם התחבר ל-Vercel כשהדפדפן מבקש, ואז
-                  Google. אם Google נכשל עם redirect_uri_mismatch — הוסף
-                  ב-Google Cloud את ה-Callback URL של Supabase Staging (ראה
+                  Preview/Staging: קודם התחבר ל-Vercel כשהדפדפן מבקש, ואז Google
+                  או Microsoft. אם מתקבל redirect_uri_mismatch — הוסף ב-Google
+                  Cloud או ב-Azure את ה-Callback URL של Supabase Staging (ראה
                   docs/ENVIRONMENTS.md).
                 </p>
               )}
