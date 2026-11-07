@@ -19,12 +19,22 @@ vi.mock("@/integrations/supabase/client", () => ({
         gte: () => query,
         maybeSingle: () => query,
         is(column: string, value: unknown) {
-          if (table === "campaign_alerts" && column === "resolved_at" && value === null) {
+          if (
+            table === "campaign_alerts" &&
+            column === "resolved_at" &&
+            value === null
+          ) {
             state.campaignFilter = true;
           }
           return query;
         },
-        then(resolve: (value: { data: never[]; count: number; error: null }) => unknown) {
+        then(
+          resolve: (value: {
+            data: never[];
+            count: number;
+            error: null;
+          }) => unknown,
+        ) {
           return Promise.resolve({
             data: [],
             count: table === "campaign_alerts" && state.campaignFilter ? 2 : 0,
@@ -44,7 +54,9 @@ describe("visual workspace campaign alerts", () => {
     const { result } = renderHook(() => useVisualWorkspaceData(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(state.campaignFilter).toBe(true);
-    const marketing = result.current.data?.islands.find(island => island.id === "marketing");
+    const marketing = result.current.data?.islands.find(
+      (island) => island.id === "marketing",
+    );
     expect(marketing?.alerts).toBe(2);
     expect(marketing?.status).toBe("watch");
   });
