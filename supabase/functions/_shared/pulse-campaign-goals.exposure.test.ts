@@ -27,13 +27,13 @@ const lastWeek = [
 ];
 
 Deno.test(
-  "a Google Display campaign that pays per impression is traffic and never alerts (AIO-496)",
+  "a Google Display campaign that pays per impression and measures no conversions is traffic and never alerts (AIO-496)",
   () => {
-    // גוטשטיין קרמיקה "מדיה": Display, manual CPM, spending with 0 conversions.
+    // A Display campaign on manual CPM that measures no conversion goal, spending.
     const records = lastWeek.map((date) =>
       googleRow("g", date, {
         campaign_id: "9",
-        campaign_name: "מדיה",
+        campaign_name: "באנרים",
         campaign_channel_type: "DISPLAY",
         bidding_strategy_type: "MANUAL_CPM",
         cost: 12,

@@ -58,7 +58,7 @@ describe("GoogleAdsCampaignSection", () => {
   it("shows a Display campaign that pays per impression in its own table, without results (AIO-496)", () => {
     const display = row({
       campaign_id: "media",
-      campaign_name: "מדיה",
+      campaign_name: "באנרים",
       campaign_channel_type: "DISPLAY",
       bidding_strategy_type: "MANUAL_CPM",
       cost: 40,
@@ -81,7 +81,7 @@ describe("GoogleAdsCampaignSection", () => {
     );
     expect(screen.getByText("קמפייני תנועה - Google Ads")).toBeTruthy();
     const trafficTable = screen.getAllByRole("table")[2];
-    expect(within(trafficTable).getByText("מדיה")).toBeTruthy();
+    expect(within(trafficTable).getByText("באנרים")).toBeTruthy();
     expect(within(trafficTable).queryByText("המרות")).toBeNull();
     expect(within(trafficTable).queryByText("עלות להמרה")).toBeNull();
   });

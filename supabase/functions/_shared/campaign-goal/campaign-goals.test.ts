@@ -108,7 +108,7 @@ Deno.test(
       table_id: "g",
       data: {
         campaign_id: "5",
-        campaign_name: "מדיה",
+        campaign_name: "באנרים",
         campaign_channel_type: "DISPLAY",
         bidding_strategy_type: "MANUAL_CPM",
         cost: 10,

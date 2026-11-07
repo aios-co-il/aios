@@ -63,12 +63,14 @@ export function classifyGoogleCampaignGoal(
   data: Record<string, unknown>,
   hints: GoogleGoalHints,
 ): GoogleGoalClassification {
-  if (paysForExposure(data)) {
-    return { goal: "traffic", source: "platform_goal" };
-  }
   const stamped = stampedConversionGoal(data.conversion_goal);
   if (stamped) {
     return { goal: stamped, source: "platform_goal" };
+  }
+  // Only a campaign that measures no conversion goal can be exposure: while it
+  // measures leads or sales, it shows leads or sales (David, AIO-496).
+  if (paysForExposure(data)) {
+    return { goal: "traffic", source: "platform_goal" };
   }
 
   if (hints.legacyGoal === "ecommerce" || hints.legacyGoal === "leads") {
@@ -125,9 +127,10 @@ const EXPOSURE_BIDDING: ReadonlySet<string> = new Set([
 
 /**
  * A Display, Video or Demand Gen campaign set to pay for impressions or
- * clicks: what it buys is exposure, so it is measured on spend, impressions
- * and clicks, not conversions (David, AIO-496). Search campaigns with manual
- * CPC stay on their conversion goal: they are how lead accounts buy searches.
+ * clicks. With no conversion goal measured (the sync stamps none), what it
+ * buys is exposure, so it is measured on spend, impressions and clicks
+ * (David, AIO-496). Search campaigns stay on their goal: lead accounts buy
+ * searches on manual CPC or Maximize clicks.
  */
 function paysForExposure(data: Record<string, unknown>): boolean {
   const channel = String(data.campaign_channel_type ?? "").toUpperCase();

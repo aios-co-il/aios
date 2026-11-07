@@ -134,9 +134,27 @@ Deno.test(
   "a Google campaign set to pay for exposure is traffic (AIO-496)",
   async (t) => {
     await t.step(
-      "Display on manual CPM is traffic, whatever it converts on",
+      "Display on manual CPM with no conversion goal is traffic",
       () => {
-        // גוטשטיין קרמיקה "מדיה" on Production, 2026-11-07.
+        assertEquals(
+          classifyGoogleCampaignGoal(
+            {
+              campaign_name: "באנרים",
+              campaign_channel_type: "DISPLAY",
+              bidding_strategy_type: "MANUAL_CPM",
+            },
+            noHints,
+          ),
+          { goal: "traffic", source: "platform_goal" },
+        );
+      },
+    );
+
+    await t.step(
+      "a campaign that measures leads shows leads, whatever it pays for",
+      () => {
+        // גוטשטיין קרמיקה "מדיה" on Production: Display, manual CPM, and the
+        // sync stamps a leads conversion goal, so it stays a lead campaign.
         assertEquals(
           classifyGoogleCampaignGoal(
             {
@@ -147,7 +165,7 @@ Deno.test(
             },
             noHints,
           ),
-          { goal: "traffic", source: "platform_goal" },
+          { goal: "leads", source: "platform_goal" },
         );
       },
     );
