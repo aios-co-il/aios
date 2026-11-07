@@ -1,6 +1,5 @@
 import { z } from "npm:zod@3.25.76";
 import type { Json } from "../_shared/database.types.ts";
-import type { compareReportToMeta } from "../_shared/report-meta-verify.mjs";
 
 /** Graph `me/adaccounts` entry field that MetaNode does not declare. */
 const adAccountDisableReasonSchema = z
@@ -79,14 +78,6 @@ export function readGoogleCalendarEvents(
 ): GoogleCalendarEventItem[] {
   return googleCalendarEventsSchema.parse(payload).items ?? [];
 }
-
-export type ReportMetaCheck = Partial<
-  ReturnType<typeof compareReportToMeta>
-> & {
-  client: string | null;
-  agency?: string | null;
-  error?: string;
-};
 
 export interface AdAccountHealthIssue {
   client_id: string;
