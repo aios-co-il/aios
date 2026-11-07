@@ -7,50 +7,69 @@ import { withTestQuery } from "@/test/withTestQuery";
 import { EvalsTab } from "./EvalsTab";
 
 describe("EvalsTab tenant readiness", () => {
+  it("rejects a missing tenant before parsing the dataset", async () => {
+    operationState.tenantId = null;
+    const user = await openEvalForm();
+    await user.clear(screen.getByDisplayValue(/מה הסטטוס של לקוח X/));
+    await user.click(screen.getByRole("button", { name: "צור" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("לא נבחר ארגון (tenant)"),
+    );
+    expect(operationState.insert).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("creates an eval with the selected tenant and dataset", async () => {
+    const user = await openEvalForm();
+    await user.click(screen.getByRole("button", { name: "צור" }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Eval נוצר"),
+    );
+    expect(operationState.insert).toHaveBeenCalledWith("agent_evals", {
+      tenant_id: "tenant-a",
+      agent_id: "agent-a",
+      name: "Quality",
+      dataset: [{ input: "מה הסטטוס של לקוח X?", expected: "…" }],
+    });
+  });
+
+  it("reports a backend rejection without success feedback", async () => {
+    operationState.failure = new Error("Write rejected");
+    const user = await openEvalForm();
+    await user.click(screen.getByRole("button", { name: "צור" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Write rejected"),
+    );
+    expect(operationState.insert).toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
   it.each([
-    { tenantId: null, failure: null },
-    { tenantId: "tenant-a", failure: null },
-    { tenantId: "tenant-a", failure: new Error("Write rejected") },
+    { value: "", message: "JSON לא תקין" },
+    { value: "{}", message: "ה-dataset חייב להיות מערך" },
   ])(
-    "handles tenant $tenantId with failure $failure",
-    async ({ tenantId, failure }) => {
-      operationState.failure = failure;
-      operationState.tenantId = tenantId;
-      const user = userEvent.setup();
-      render(withTestQuery(<EvalsTab agent={{ id: "agent-a" }} />));
-      await user.click(screen.getByRole("button", { name: "Eval חדש" }));
-      await user.type(
-        screen.getByPlaceholderText("לדוגמה: זיהוי לקוחות בסיכון"),
-        "Quality",
-      );
-      if (!tenantId) {
-        await user.clear(screen.getByDisplayValue(/מה הסטטוס של לקוח X/));
-      }
+    "rejects invalid dataset '$value' before writing",
+    async ({ value, message }) => {
+      const user = await openEvalForm();
+      await user.clear(screen.getByDisplayValue(/מה הסטטוס של לקוח X/));
+      await user.paste(value);
       await user.click(screen.getByRole("button", { name: "צור" }));
-      if (!tenantId) {
-        await waitFor(() =>
-          expect(toast.error).toHaveBeenCalledWith("לא נבחר ארגון (tenant)"),
-        );
-        expect(operationState.insert).not.toHaveBeenCalled();
-        expect(screen.getByRole("dialog")).toBeInTheDocument();
-        expect(toast.success).not.toHaveBeenCalled();
-      } else if (failure) {
-        await waitFor(() =>
-          expect(toast.error).toHaveBeenCalledWith("Write rejected"),
-        );
-        expect(operationState.insert).toHaveBeenCalled();
-        expect(toast.success).not.toHaveBeenCalled();
-      } else {
-        await waitFor(() =>
-          expect(toast.success).toHaveBeenCalledWith("Eval נוצר"),
-        );
-        expect(operationState.insert).toHaveBeenCalledWith("agent_evals", {
-          tenant_id: tenantId,
-          agent_id: "agent-a",
-          name: "Quality",
-          dataset: [{ input: "מה הסטטוס של לקוח X?", expected: "…" }],
-        });
-      }
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
+      expect(operationState.insert).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
     },
   );
 });
+
+/** Open the real eval editor with a named eval ready to submit. */
+async function openEvalForm() {
+  const user = userEvent.setup();
+  render(withTestQuery(<EvalsTab agent={{ id: "agent-a" }} />));
+  await user.click(screen.getByRole("button", { name: "Eval חדש" }));
+  await user.type(
+    screen.getByPlaceholderText("לדוגמה: זיהוי לקוחות בסיכון"),
+    "Quality",
+  );
+  return user;
+}

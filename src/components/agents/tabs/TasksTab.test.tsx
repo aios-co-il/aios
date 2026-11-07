@@ -7,44 +7,46 @@ import { withTestQuery } from "@/test/withTestQuery";
 import { TasksTab } from "./TasksTab";
 
 describe("TasksTab reminder tenant readiness", () => {
-  it.each([
-    { tenantId: null, failure: null },
-    { tenantId: "tenant-a", failure: null },
-    { tenantId: "tenant-a", failure: new Error("Write rejected") },
-  ])(
-    "handles reminder tenant $tenantId with failure $failure",
-    async ({ tenantId, failure }) => {
-      operationState.failure = failure;
-      operationState.tenantId = tenantId;
-      const user = userEvent.setup();
-      render(withTestQuery(<TasksTab agent={{ id: "agent-a" }} />));
-      await user.click(screen.getByRole("button", { name: "בדיקה (2 ד׳)" }));
-      if (!tenantId) {
-        await waitFor(() =>
-          expect(toast.error).toHaveBeenCalledWith("לא נבחר ארגון (tenant)"),
-        );
-        expect(operationState.insert).not.toHaveBeenCalled();
-        expect(operationState.auth).not.toHaveBeenCalled();
-        expect(toast.success).not.toHaveBeenCalled();
-      } else if (failure) {
-        await waitFor(() =>
-          expect(toast.error).toHaveBeenCalledWith("Write rejected"),
-        );
-        expect(operationState.insert).toHaveBeenCalled();
-        expect(toast.success).not.toHaveBeenCalled();
-      } else {
-        await waitFor(() => expect(toast.success).toHaveBeenCalled());
-        expect(operationState.insert).toHaveBeenCalledWith(
-          "agent_tasks",
-          expect.objectContaining({
-            tenant_id: tenantId,
-            agent_id: "agent-a",
-            created_by: "user-a",
-            schedule_type: "once",
-            status: "scheduled",
-          }),
-        );
-      }
-    },
-  );
+  it("rejects a missing tenant before auth lookup or writing", async () => {
+    operationState.tenantId = null;
+    await scheduleReminder();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("לא נבחר ארגון (tenant)"),
+    );
+    expect(operationState.insert).not.toHaveBeenCalled();
+    expect(operationState.auth).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("schedules the reminder with the current tenant and user", async () => {
+    await scheduleReminder();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(operationState.insert).toHaveBeenCalledWith(
+      "agent_tasks",
+      expect.objectContaining({
+        tenant_id: "tenant-a",
+        agent_id: "agent-a",
+        created_by: "user-a",
+        schedule_type: "once",
+        status: "scheduled",
+      }),
+    );
+  });
+
+  it("reports a backend rejection without success feedback", async () => {
+    operationState.failure = new Error("Write rejected");
+    await scheduleReminder();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Write rejected"),
+    );
+    expect(operationState.insert).toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
 });
+
+/** Trigger reminder scheduling through the actual tab action. */
+async function scheduleReminder() {
+  const user = userEvent.setup();
+  render(withTestQuery(<TasksTab agent={{ id: "agent-a" }} />));
+  await user.click(screen.getByRole("button", { name: "בדיקה (2 ד׳)" }));
+}

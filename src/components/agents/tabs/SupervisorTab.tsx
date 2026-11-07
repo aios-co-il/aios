@@ -55,9 +55,8 @@ export function SupervisorTab({ agent }: { agent: any }) {
   const addChild = useMutation({
     mutationFn: async () => {
       if (!childId) throw new Error("בחר סוכן");
-      const writeTenantId = requireTenantId(tenantId);
       const { error } = await supabase.from("agent_supervisors").insert({
-        tenant_id: writeTenantId,
+        tenant_id: requireTenantId(tenantId),
         supervisor_agent_id: agent.id,
         child_agent_id: childId,
         routing_hint: hint || null,

@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { requireTenantId } from "@/lib/requireTenantId";
+import { parseEvalDataset } from "./parseEvalDataset";
 
 export function EvalsTab({ agent }: { agent: any }) {
   const qc = useQueryClient();
@@ -68,20 +69,13 @@ export function EvalsTab({ agent }: { agent: any }) {
 
   const createEval = useMutation({
     mutationFn: async () => {
-      const writeTenantId = requireTenantId(tenantId);
-      let dataset: any;
-      try {
-        dataset = JSON.parse(datasetStr);
-      } catch {
-        throw new Error("JSON לא תקין");
-      }
-      if (!Array.isArray(dataset)) throw new Error("ה-dataset חייב להיות מערך");
-      const { error } = await supabase.from("agent_evals").insert({
-        tenant_id: writeTenantId,
+      const payload = {
+        tenant_id: requireTenantId(tenantId),
+        dataset: parseEvalDataset(datasetStr),
         agent_id: agent.id,
         name,
-        dataset,
-      });
+      };
+      const { error } = await supabase.from("agent_evals").insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
