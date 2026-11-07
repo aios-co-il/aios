@@ -1,4 +1,7 @@
-import { NEW_FOLLOWERS_LABEL } from "../../supabase/functions/_shared/fb-insights/followers.ts";
+import {
+  isProfileTraffic,
+  NEW_FOLLOWERS_LABEL,
+} from "../../supabase/functions/_shared/fb-insights/followers.ts";
 
 /**
  * A campaign's ad-attributed new followers. Only rows synced with a follower
@@ -101,30 +104,7 @@ function mergeFollowerTotals(
   };
 }
 
-/**
- * A row that sends people to a Facebook Page or Instagram profile. Rows synced
- * before destination_type was stored still match on their optimization goal.
- */
+/** A stored row that sends people to a Facebook Page or Instagram profile. */
 function isFacebookProfileTraffic(data: Record<string, unknown>): boolean {
-  return (
-    PROFILE_DESTINATION_TYPES.has(String(data.destination_type ?? "")) ||
-    PROFILE_OPTIMIZATION_GOALS.has(String(data.optimization_goal ?? ""))
-  );
+  return isProfileTraffic(data.destination_type, data.optimization_goal);
 }
-
-/** Ad set destinations of Meta's profile visit ads (Traffic objective). */
-const PROFILE_DESTINATION_TYPES = new Set([
-  "FACEBOOK_PAGE",
-  "INSTAGRAM_PROFILE",
-  "INSTAGRAM_PROFILE_AND_FACEBOOK_PAGE",
-]);
-
-/**
- * Optimization goals of profile visit ads. Meta's profile visit ad guides set
- * PROFILE_VISIT on Traffic campaigns; its field catalog lists
- * VISIT_INSTAGRAM_PROFILE ("Instagram profile visits").
- */
-const PROFILE_OPTIMIZATION_GOALS = new Set([
-  "PROFILE_VISIT",
-  "VISIT_INSTAGRAM_PROFILE",
-]);

@@ -1,5 +1,5 @@
 import { TableCell, TableRow } from "@/components/ui/table";
-import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { ratio } from "@/lib/reportNumber";
 import type {
   GoogleAdsFormatters,
@@ -8,7 +8,7 @@ import type {
 } from "./types";
 
 type Props = GoogleAdsFormatters & {
-  goal: GoogleCampaignGoal;
+  goal: GoogleReportGoal;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;
 };
@@ -33,7 +33,7 @@ export function GoogleAdsCampaignTotalsRow({
       <TableCell>{totalCtr.toFixed(2)}%</TableCell>
       <TableCell>{totalCpc > 0 ? formatUnitCost(totalCpc) : "-"}</TableCell>
       <TableCell>{formatCurrency(groupTotals.spend)}</TableCell>
-      {goal === "ecommerce" ? (
+      {goal === "traffic" ? null : goal === "ecommerce" ? (
         <>
           <TableCell className="text-green-600">
             {formatNumber(store.purchases)}

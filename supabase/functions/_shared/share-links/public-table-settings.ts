@@ -6,8 +6,9 @@
  *
  * The keys come from src/pages/SharedDashboard.tsx, src/pages/SharedTable.tsx
  * and the helpers they call:
- * - campaign_type: getCampaignType, facebookTableUsesMixedRows,
- *   isFacebookLeadsOnlyTable, resolveAnalyticsReportMode, SharedTable mode
+ * - campaign_type: reportCampaignGoalOf (isFacebookLeadsOnlyTable,
+ *   isEcommerceReportTable, googleReportFallbackGoal),
+ *   weeklySourceModesForTables, resolveAnalyticsReportMode, SharedTable mode
  * - currency: resolveDashboardCurrency, SharedTable currency formatting
  * - default_report_mode: resolveAnalyticsReportMode
  * - use_woo_google_attribution: shouldUseGoogleWooAttributionOverlay
@@ -18,6 +19,9 @@
  * - pulse_campaign_goals: per-campaign goal overrides (short goal labels).
  *   Nothing on develop reads them yet; they are for the shared dashboard's
  *   Google Ads goal split (AIO-217).
+ * - operational_campaign_states: reportOffLookup marks a paused, removed or ended
+ *   campaign "כבוי". Only each campaign's status is kept; its name and the
+ *   status reasons stay private.
  *
  * Left out on purpose because no shared page reads them: last_sync_at,
  * last_sync_outcome (its error text can quote credentials) and labels.
@@ -27,6 +31,11 @@
  * helpers decide the same with the filtered settings as with the stored ones,
  * and that no file the shared pages import reads a key missing from this list.
  */
+
+import {
+  campaignStatuses,
+  type PublicCampaignStates,
+} from "./public-campaign-states.ts";
 
 type PublicSettingScalar = string | number | boolean | null;
 
@@ -45,6 +54,7 @@ type PublicTableSettingValues = {
   linkedGscLangFilter: PublicSettingScalar;
   manual_roi: { closures?: RoiAmount; revenue?: RoiAmount };
   pulse_campaign_goals: Record<string, string>;
+  operational_campaign_states: PublicCampaignStates;
 };
 
 type PublicTableSettings = Partial<PublicTableSettingValues>;
@@ -98,6 +108,7 @@ const PUBLIC_SETTING_FILTERS: {
   linkedGscLangFilter: scalar,
   manual_roi: manualRoi,
   pulse_campaign_goals: entriesWhere(isGoal),
+  operational_campaign_states: campaignStatuses,
 };
 
 /** Every `integration_settings` key a share link may return. */

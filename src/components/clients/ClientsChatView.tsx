@@ -128,7 +128,14 @@ const MOOD_CONFIG: Record<string, { emoji: string; text: string }> = {
   not_progressing: { emoji: "😔", text: "לא מתקדם" },
 };
 
-const CLIENT_TAB_OPTIONS = [
+interface ClientTabOption {
+  value: string;
+  label: string;
+  icon: typeof FileText;
+  financeOnly?: boolean;
+}
+
+const CLIENT_TAB_OPTIONS: ReadonlyArray<ClientTabOption> = [
   { value: "details", label: "פרטי לקוח", icon: FileText },
   { value: "connections", label: "חיבורים", icon: Link },
   {

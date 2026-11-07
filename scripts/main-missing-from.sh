@@ -12,8 +12,11 @@ git fetch --no-tags origin main
 missing=$(git cherry "$ref" origin/main | awk '$1 == "+" { print $2 }')
 [ -z "$missing" ] && exit 0
 
-base=$(git merge-base "$ref" origin/main)
-ref_ids=$(git log --no-merges --format=%H "$base..$ref" | while read -r c; do
+# A port can sit before the merge base once a release merge brings it into main too, so
+# compare against every commit in <ref> since the oldest missing main commit was written.
+oldest=$(echo "$missing" | tail -n1)
+since=$(git log -1 --format=%cI "$oldest")
+ref_ids=$(git log --no-merges --since="$since" --format=%H "$ref" | while read -r c; do
   git show "$c" | git patch-id --stable
 done | awk '{ print $1 }')
 
@@ -23,8 +26,8 @@ run=""
 check_run() {
   [ -z "$run" ] && return 0
   local first last id
-  first=$(echo "$run" | sed '/^$/d' | head -n1)
-  last=$(echo "$run" | sed '/^$/d' | tail -n1)
+  first=$(sed -n '/./{p;q;}' <<<"$run")
+  last=$(sed '/^$/d' <<<"$run" | sed -n '$p')
   id=$(git diff "$first^" "$last" | git patch-id --stable | awk '{ print $1 }')
   if [ -z "$id" ] || ! grep -qxF "$id" <<<"$ref_ids"; then
     still="${still}${run}"$'\n'

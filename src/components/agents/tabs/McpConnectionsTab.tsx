@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMcpConnections } from "./agentReadQueries";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,19 +35,7 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
   const [url, setUrl] = useState("");
   const [bearer, setBearer] = useState("");
 
-  const { data: conns } = useQuery({
-    queryKey: ["mcp-connections", agent.id, tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("agent_mcp_connections")
-        .select("*")
-        .filter("tenant_id", "eq", tenantId)
-        .or(`agent_id.eq.${agent.id},agent_id.is.null`)
-        .order("created_at", { ascending: false });
-      return data ?? [];
-    },
-    enabled: !!tenantId,
-  });
+  const { data: conns } = useMcpConnections(agent.id, tenantId);
 
   const connect = useMutation({
     mutationFn: async () => {

@@ -28,7 +28,12 @@ describe("sharedCampaignTables", () => {
       {
         integrationType: "facebook_ads",
         level: "campaign",
-        tableGoals: { goalOf: null, hasEcommerce: false, hasLeads: true },
+        tableGoals: {
+          goalOf: null,
+          hasEcommerce: false,
+          hasLeads: true,
+          hasTraffic: false,
+        },
         tableMode: "leads",
       },
       {

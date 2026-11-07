@@ -1,5 +1,9 @@
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  unvaluedPurchaseCost,
+  type DashboardCombinedSales,
+} from "@/lib/dashboardCombinedFigures";
 
 const TONES = {
   good: "from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900",
@@ -10,9 +14,30 @@ const TONES = {
 /**
  * The "ROAS משולב" card of the internal and shared dashboards
  * (combinedDashboardSales). A dash, not a red 0.00, when no spend can be set
- * against the revenue.
+ * against the revenue. When the purchases carry no value it shows their cost
+ * instead (unvaluedPurchaseCost).
  */
-export function CombinedRoasCard({ roas }: { roas: number | null }) {
+export function CombinedRoasCard({
+  sales,
+  formatCurrency,
+}: {
+  sales: DashboardCombinedSales;
+  formatCurrency: (value: number) => string;
+}) {
+  const purchaseCost = unvaluedPurchaseCost(sales);
+  if (purchaseCost !== null) {
+    return (
+      <Card className={`h-full bg-gradient-to-br ${TONES.none}`}>
+        <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
+          <p className="text-sm text-muted-foreground">עלות לרכישה</p>
+          <p className="text-3xl font-bold mt-2">
+            {formatCurrency(purchaseCost)}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const { roas } = sales;
   const tone = roas === null ? "none" : roas >= 1 ? "good" : "bad";
   return (
     <Card className={`h-full bg-gradient-to-br ${TONES[tone]}`}>

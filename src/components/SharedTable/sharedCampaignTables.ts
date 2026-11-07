@@ -11,7 +11,7 @@ import {
 } from "@/lib/campaignGoals";
 import type { FacebookFollowerTotals } from "@/lib/facebookFollowers";
 import type { GoogleAdsRowData } from "@/lib/googleCampaignGoals";
-import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { googleCampaignRowsByGoal } from "./googleCampaignRowsByGoal";
 import type { SharedTableGoals } from "./useSharedTableGoals";
 
@@ -83,12 +83,12 @@ export function sharedCampaignTables(
     });
   }
   if (integrationType === "google_ads") {
-    const { ecommerce, leads } = googleCampaignRowsByGoal(
+    const { ecommerce, leads, traffic } = googleCampaignRowsByGoal(
       records,
       level,
       tableGoals.goalOf ?? (() => tableMode),
     );
-    return finish({ ecommerce, leads, traffic: [] });
+    return finish({ ecommerce, leads, traffic });
   }
   return finish({ ecommerce: [], leads: [], traffic: [] });
 }

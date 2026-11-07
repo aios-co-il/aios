@@ -3,6 +3,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2228,7 +2229,7 @@ function MemberNotifyRow({
   onSettingsChange,
 }: {
   member: ChannelMember;
-  profile?: { full_name: string; email: string; avatar_url?: string };
+  profile?: Pick<Tables<"profiles">, "full_name" | "email" | "avatar_url">;
   settings: {
     notify_enabled: boolean;
     notify_override_phone: string;
@@ -3991,7 +3992,7 @@ export default function TeamChat() {
         .from("team_channel_members")
         .select("channel_id")
         .eq("user_id", userId!)
-        .eq("tenant_id", tenantId);
+        .filter("tenant_id", "eq", tenantId);
       if (memError) throw memError;
 
       const channelIds = (memberships || []).map((m: any) => m.channel_id);

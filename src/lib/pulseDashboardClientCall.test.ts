@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyClientCallToPulseSnapshot,
-  expandPulseToPlatformGoalRows,
-  getPulsePeriodBounds,
   type PulseSnapshotRow,
 } from "./pulseDashboard";
 
@@ -73,41 +71,5 @@ describe("applyClientCallToPulseSnapshot", () => {
     expect(next.status).toBe("healthy");
     expect(next.lead_goal_status).toBe("healthy");
     expect(next.flags).toEqual([]);
-  });
-});
-
-describe("expandPulseToPlatformGoalRows", () => {
-  it("a legacy call flag does not turn a platform row yellow", () => {
-    const rows = expandPulseToPlatformGoalRows({
-      snapshot: snapshot({ status: "warning", flags: [LEGACY_FLAG] }),
-      services: ["ppc_meta"],
-      tables: [
-        {
-          id: "table-1",
-          client_id: "client-1",
-          integration_type: "facebook_insights",
-          category: null,
-          campaign_active: true,
-          last_sync_at: new Date().toISOString(),
-          integration_settings: {},
-        },
-      ],
-      records: [
-        {
-          table_id: "table-1",
-          data: {
-            date: new Date(Date.now() - 24 * 60 * 60 * 1000)
-              .toISOString()
-              .slice(0, 10),
-            spend: 100,
-            leads: 2,
-          },
-        },
-      ],
-      bounds: getPulsePeriodBounds("last_7_days"),
-    });
-    expect(rows).toHaveLength(1);
-    expect(rows[0].status).toBe("healthy");
-    expect(rows[0].flags).not.toContain(LEGACY_FLAG);
   });
 });

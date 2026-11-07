@@ -224,4 +224,10 @@ describe("weeklySourceModesForTable", () => {
       expect(week.groups.map((group) => group.kind)).toStrictEqual(["leads"]);
     }
   });
+  it("a Google table in the איקומרס category falls back to sales (AIO-494)", () => {
+    expect(weeklySourceModesForTable({}, "איקומרס").google_ads).toBe(
+      "ecommerce",
+    );
+    expect(weeklySourceModesForTable({}).google_ads).toBe("leads");
+  });
 });

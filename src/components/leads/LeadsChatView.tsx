@@ -110,9 +110,10 @@ interface LeadsChatViewProps {
   loadedCount?: number;
 }
 
+/** Read the configured color from this view's status options. */
 function getStatusColor(
   statusKey: string | null,
-  statuses: Array<{ status_key: string; color: string; label?: string }>,
+  statuses: LeadsChatViewProps["leadStatuses"],
 ) {
   return findLeadStatus(statusKey, statuses)?.color;
 }

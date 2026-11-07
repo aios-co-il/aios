@@ -4,9 +4,8 @@
  */
 import type { TableReconcileResult } from "../_shared/reconcile/run-summary.ts";
 import type { ListedTable } from "../_shared/reconcile/types.ts";
-import { facebookReportType } from "../_shared/report-meta-verify.mjs";
 import { legacyMismatches } from "./legacy-mismatches.ts";
-import { reportTypeIssue } from "./report-type-issue.ts";
+import { facebookReportType, reportTypeIssue } from "./report-type-issue.ts";
 
 /** One table's answer: an error line, a not-compared note, or totals and mismatches. */
 export function toVerifyResult(
@@ -44,8 +43,8 @@ export function toVerifyResult(
     table.integration_type,
     table.integration_settings || {},
   );
-  const { typeIssue, spendByObjective } = reportTypeIssue(
-    spendByCampaign(result, pending),
+  const { typeIssue, spendByGoal } = reportTypeIssue(
+    (result.platform_rows || []).filter((row) => !pending.has(row.date)),
     reportType,
   );
   const totals = summary.totals || {
@@ -61,30 +60,10 @@ export function toVerifyResult(
     ok: result.status === "ok" && !typeIssue,
     meta_spend: totals.platform.spend,
     aios_spend: totals.aios.spend,
-    spend_by_objective: spendByObjective,
+    spend_by_goal: spendByGoal,
     report_type: reportType,
     type_issue: typeIssue,
     ...(pendingDates.length ? { not_yet_synced: pendingDates } : {}),
     mismatches: legacyMismatches(result.findings),
   };
-}
-
-/** Meta's spend per campaign over the compared days, with the campaign's objective. */
-function spendByCampaign(
-  result: TableReconcileResult,
-  pending: Set<string>,
-): Array<{ objective: unknown; spend: number }> {
-  const byCampaign = new Map<string, { objective: unknown; spend: number }>();
-  for (const row of result.platform_rows || []) {
-    if (pending.has(row.date)) {
-      continue;
-    }
-    const entry = byCampaign.get(row.campaign_id) || {
-      objective: row.data.campaign_objective,
-      spend: 0,
-    };
-    entry.spend += Number(row.data.spend) || 0;
-    byCampaign.set(row.campaign_id, entry);
-  }
-  return [...byCampaign.values()];
 }

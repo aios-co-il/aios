@@ -1,4 +1,4 @@
-import type { GoogleCampaignGoal } from "../_shared/pulse/google-campaign-goal.ts";
+import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
 
 export type ConversionGoalInput = {
   /** The conversion goal categories the campaign bids on (campaign_conversion_goal). */

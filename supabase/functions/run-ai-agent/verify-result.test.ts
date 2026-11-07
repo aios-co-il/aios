@@ -61,6 +61,25 @@ describe("toVerifyResult", () => {
       out.type_issue,
       "הדוח מוגדר לידים בלבד אבל יש קמפייני מכירה במטא (₪400)",
     );
+    assertEquals(out.spend_by_goal, { ecommerce: 400, leads: 0, traffic: 0 });
+  });
+
+  it("leaves days Meta has not finished out of the spend by goal", () => {
+    const out = toVerifyResult(
+      table,
+      okResult({
+        summary: {
+          timezone: "Asia/Jerusalem",
+          pending_dates: ["2026-10-20"],
+          totals: {
+            aios: { spend: 0, revenue: 0 },
+            platform: { spend: 0, revenue: 0 },
+          },
+        },
+      }),
+    );
+    assertEquals(out.spend_by_goal, { ecommerce: 0, leads: 0, traffic: 0 });
+    assertStrictEquals(out.type_issue, null);
   });
 
   it("reads a failed run as an error line, a missing token in Hebrew", () => {

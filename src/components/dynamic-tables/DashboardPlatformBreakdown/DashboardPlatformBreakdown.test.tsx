@@ -71,7 +71,7 @@ function renderBreakdown(
 
 const headers = () =>
   screen.getAllByRole("columnheader").map((cell) => cell.textContent);
-const cellsOf = (rowName: string) =>
+const cellsOf = (rowName: string | RegExp) =>
   [...(screen.getByText(rowName).closest("tr")?.querySelectorAll("td") ?? [])]
     .slice(1)
     .map((cell) => cell.textContent);
@@ -158,6 +158,7 @@ describe("DashboardPlatformBreakdown", () => {
       "עלות לקליק",
       "הוספה לעגלה",
       "רכישות",
+      "עלות לרכישה",
       "הכנסות",
       "ROAS",
       "לידים",
@@ -166,6 +167,7 @@ describe("DashboardPlatformBreakdown", () => {
     expect(cellsOf("Facebook - קמפייני מכירות").slice(4)).toStrictEqual([
       "9",
       "4",
+      "₪25",
       "₪500",
       "5.00",
       "-",
@@ -178,21 +180,42 @@ describe("DashboardPlatformBreakdown", () => {
       "-",
       "-",
       "-",
+      "-",
       "4",
       "₪50",
     ]);
     expect(cellsOf("Facebook - קמפייני תנועה").slice(4)).toStrictEqual(
-      Array(6).fill("-"),
+      Array(7).fill("-"),
     );
-    // WooCommerce revenue over the ₪450 spent outside lead campaigns; the
-    // lead campaigns' ₪600 over their 5 leads.
-    expect(cellsOf('סה"כ').slice(4)).toStrictEqual([
+    // Each goal under its own heading with its own subtotal: WooCommerce
+    // revenue over the ₪450 spent outside lead campaigns, and the lead
+    // campaigns' ₪600 over their 5 leads. The last row adds up only what
+    // every goal shares.
+    expect(screen.getByText("קמפייני מכירות")).toBeTruthy();
+    expect(cellsOf(/^סה״כ מכירות/).slice(4)).toStrictEqual([
       "30",
       "12",
+      "₪38",
       "₪2250",
       "5.00",
+      "-",
+      "-",
+    ]);
+    expect(cellsOf("סה״כ לידים").slice(4)).toStrictEqual([
+      "-",
+      "-",
+      "-",
+      "-",
+      "-",
       "5",
       "₪120",
+    ]);
+    expect(cellsOf('סה"כ כל הקמפיינים')).toStrictEqual([
+      "₪1050",
+      "4000",
+      "200",
+      "₪5.25",
+      ...Array(7).fill("-"),
     ]);
     expect(
       screen.getByText("הכנסות WooCommerce / הוצאות פרסום ללא קמפייני לידים"),
@@ -212,13 +235,41 @@ describe("DashboardPlatformBreakdown", () => {
       { purchases: 2, revenue: 500, addToCart: 0, source: "WooCommerce" },
     );
     // All ₪200 went to lead campaigns, so the store's ₪500 has no spend.
-    expect(cellsOf('סה"כ').slice(4)).toStrictEqual([
+    expect(cellsOf(/^סה״כ מכירות/).slice(4)).toStrictEqual([
       "-",
       "2",
+      "-",
       "₪500",
       "-",
-      "4",
-      "₪50",
+      "-",
+      "-",
     ]);
+    expect(cellsOf("סה״כ לידים").slice(-2)).toStrictEqual(["4", "₪50"]);
+  });
+
+  it("a sales row whose purchases carry no value shows its cost per purchase, not a ROAS of 0", () => {
+    renderBreakdown(
+      {
+        facebook: {
+          ecommerce: [
+            fbCampaign("FB gift course", { spend: 336, purchases: 15 }),
+          ],
+          leads: [],
+          traffic: [],
+        },
+        google: [],
+      },
+      null,
+    );
+    // Measured like leads: by cost per purchase, with no revenue or ROAS
+    // column at all.
+    expect(headers()).not.toContain("הכנסות");
+    expect(headers()).not.toContain("ROAS");
+    expect(cellsOf("Facebook - קמפייני מכירות").slice(4)).toStrictEqual([
+      "-",
+      "15",
+      "₪22",
+    ]);
+    expect(screen.getByText(/נמדד בעלות לרכישה ולא ב-ROAS/)).toBeTruthy();
   });
 });
