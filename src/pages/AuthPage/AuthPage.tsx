@@ -6,8 +6,8 @@ import { MfaForm } from "./MfaForm/MfaForm";
 import { PasswordResetForm } from "./PasswordResetForm/PasswordResetForm";
 import { PasswordSetupForm } from "./PasswordSetupForm/PasswordSetupForm";
 import { useAuthNavigation } from "./useAuthNavigation/useAuthNavigation";
-import { useAuthSession } from "./useAuthSession/useAuthSession";
-import { useInvitationContext } from "./useInvitationContext/useInvitationContext";
+import { useAuthSession } from "./useAuthSession";
+import { useInvitationContext } from "./useInvitationContext";
 import { useMfa } from "./useMfa/useMfa";
 
 export default function AuthPage() {
