@@ -3,6 +3,8 @@ import { toPng } from "html-to-image";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { namesCampaignsByDestination } from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import { TableContinentsView } from "@/components/dynamic-tables/CampaignContinents/TableContinentsView";
 import { googleCampaignGoalOf } from "@/lib/googleCampaignGoals";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
@@ -254,9 +256,9 @@ export default function DynamicTableView({
   const [campaignSearch, setCampaignSearch] = useState("");
   const [adsEntityLevel, setAdsEntityLevel] =
     useState<AdsEntityLevel>("campaign");
-  const [adsReportView, setAdsReportView] = useState<"summary" | "weekly">(
-    "summary",
-  );
+  const [adsReportView, setAdsReportView] = useState<
+    "summary" | "weekly" | "continents"
+  >("summary");
   const [isCloning, setIsCloning] = useState(false);
   const cellInputRef = useRef<HTMLInputElement>(null);
 
@@ -563,6 +565,24 @@ export default function DynamicTableView({
     table?.integration_type === "facebook_insights" ||
     table?.integration_type === "facebook_ecommerce" ||
     table?.integration_type === "google_ads";
+
+  // Travel accounts name each Google campaign by its destination; they get a tab per continent.
+  const hasContinentsTab = useMemo(
+    () =>
+      table?.integration_type === "google_ads" &&
+      namesCampaignsByDestination(
+        displayRecords
+          .map((record) => String(record.data?.campaign_name ?? ""))
+          .filter(Boolean),
+      ),
+    [table?.integration_type, displayRecords],
+  );
+  // A period whose campaigns stop naming destinations drops the tab; leave it too.
+  useEffect(() => {
+    if (adsReportView === "continents" && !hasContinentsTab) {
+      setAdsReportView("summary");
+    }
+  }, [adsReportView, hasContinentsTab]);
 
   const { data: weeklyRecords = [], isPending: weeklyRecordsPending } =
     useQuery({
@@ -3110,15 +3130,22 @@ export default function DynamicTableView({
         <Tabs
           value={adsReportView}
           onValueChange={(value) =>
-            setAdsReportView(value as "summary" | "weekly")
+            setAdsReportView(value as "summary" | "weekly" | "continents")
           }
           className="mb-4"
         >
           <TabsList dir="rtl">
             <TabsTrigger value="summary">הדוח</TabsTrigger>
             <TabsTrigger value="weekly">השוואה שבועית</TabsTrigger>
+            {hasContinentsTab && (
+              <TabsTrigger value="continents">לפי יבשות</TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
+      )}
+
+      {hasContinentsTab && adsReportView === "continents" && table && (
+        <TableContinentsView records={displayRecords} table={table} />
       )}
 
       {isAdsReportTable && adsReportView === "weekly" && (
