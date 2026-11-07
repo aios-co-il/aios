@@ -295,7 +295,7 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
           {selectedId && detailLoading && (
             <Loader2 className="h-4 w-4 animate-spin" />
           )}
-          {detail?.goal && (
+          {selectedId && detail?.goal && (
             <GoalDetailView
               key={selectedId}
               goal={detail.goal as ExecutionGoal}
