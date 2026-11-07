@@ -205,7 +205,9 @@ describe("MenuManagement SDK read contract", () => {
       const { queryClient } = renderMenu();
       expect(menuRequests("GET")).toHaveLength(0);
       await act(async () => {
-        await queryClient.fetchQuery({ queryKey: ["menu-items", tenantId] });
+        await expect(
+          queryClient.fetchQuery({ queryKey: ["menu-items", tenantId] }),
+        ).resolves.toEqual([]);
       });
       await expectMenuRead(tenantId);
     },

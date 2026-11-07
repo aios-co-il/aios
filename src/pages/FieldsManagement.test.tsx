@@ -102,9 +102,11 @@ describe("FieldsManagement SDK read contract", () => {
       const { queryClient } = renderFields();
       expect(state.fetch).not.toHaveBeenCalled();
       await act(async () => {
-        await queryClient.fetchQuery({
-          queryKey: ["custom-fields", tenantId, "task"],
-        });
+        await expect(
+          queryClient.fetchQuery({
+            queryKey: ["custom-fields", tenantId, "task"],
+          }),
+        ).resolves.toEqual([]);
       });
       expect(state.fetch).toHaveBeenCalledOnce();
       await expectFieldRead(tenantId);
