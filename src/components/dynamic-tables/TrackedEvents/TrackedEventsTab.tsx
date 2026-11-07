@@ -1,16 +1,22 @@
 import { Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { EventSourcesTable } from "./eventSources";
-import { TrackedEventSources } from "./TrackedEventSources";
+import type { EventUsersResult } from "../../../../supabase/functions/ga-event-users/reports.ts";
+import { EventUsersTable } from "./EventUsersTable";
 import { TrackedEventsChart } from "./TrackedEventsChart";
-import { TrackedEventsFunnel } from "./TrackedEventsFunnel";
 import type { TrackedEventsSummary } from "./trackedEvents";
+
+/** The live GA people-per-source answer and its loading state. */
+export type EventUsersState = {
+  result: EventUsersResult | undefined;
+  loading: boolean;
+  failed: boolean;
+};
 
 type Props = {
   summary: TrackedEventsSummary;
-  /** Where each event came from; null until the sync has collected sources. */
-  sources?: EventSourcesTable;
+  /** People per event and source from GA; left out when not asked for. */
+  eventUsers?: EventUsersState;
   formatCurrency: (value: number) => string;
   formatNumber: (value: number) => string;
   /** Opens the event picker; the shared dashboard leaves it out. */
@@ -19,12 +25,12 @@ type Props = {
 
 /**
  * The "אירועים באתר" tab: a card per followed site event with its count and
- * cost per event, the funnel between them, a daily chart and, once the sync
- * has collected them, each event's sources.
+ * cost per event, the people who did each by traffic source with the
+ * conversion between steps, and a daily chart.
  */
 export function TrackedEventsTab({
   summary,
-  sources = null,
+  eventUsers,
   formatCurrency,
   formatNumber,
   onEdit,
@@ -66,18 +72,10 @@ export function TrackedEventsTab({
           </Card>
         ))}
       </div>
-      <TrackedEventsFunnel
-        events={summary.events}
-        formatNumber={formatNumber}
-      />
-      <TrackedEventsChart events={summary.events} days={summary.days} />
-      {sources && (
-        <TrackedEventSources
-          table={sources}
-          events={summary.events}
-          formatNumber={formatNumber}
-        />
+      {eventUsers && (
+        <EventUsersTable {...eventUsers} formatNumber={formatNumber} />
       )}
+      <TrackedEventsChart events={summary.events} days={summary.days} />
     </div>
   );
 }
