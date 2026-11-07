@@ -17,7 +17,8 @@ import { CARMEN_PULSE_TOOL_NAMES } from "../../../../supabase/functions/_shared/
 export function ToolsTab({
   agent,
 }: {
-  agent: Pick<Tables<"ai_agents">, "id" | "allowed_tools">;
+  agent: Pick<Tables<"ai_agents">, "id" | "name" | "allowed_tools"> &
+    Partial<Pick<Tables<"ai_agents">, "disabled_tools">>;
 }) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
