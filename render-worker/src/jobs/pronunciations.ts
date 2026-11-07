@@ -12,7 +12,7 @@ import { stripNikud } from "./nikud.ts";
  * Hebrew prefix letters a script word may carry before the named word (ו, ה, ב, כ, ל, מ, ש).
  * Change together with plainWord and EDGE below: the edge's plainWord in
  * supabase/functions/_shared/workshop/tools/save-pronunciation.ts stores the words this matches,
- * and workshop_narration_take (migration 20261105220000_workshop_narration_review) keys the
+ * and workshop_narration_take (migration 20261107120000_workshop_narration_review) keys the
  * dictionary and finds its terms in a take's script with the same prefix and edge rule.
  */
 const PREFIXES = new Set(["ו", "ה", "ב", "כ", "ל", "מ", "ש"]);

@@ -120,7 +120,7 @@ function parseEntries(
 /**
  * The word as the worker matches it: without nikud or the punctuation around it. Change together
  * with render-worker/src/jobs/pronunciations.ts (plainWord, PREFIXES, EDGE) and
- * workshop_narration_take (migration 20261105220000_workshop_narration_review), which key the
+ * workshop_narration_take (migration 20261107120000_workshop_narration_review), which key the
  * dictionary's terms and match them in a script the same way.
  */
 export const plainWord = (text: string) =>

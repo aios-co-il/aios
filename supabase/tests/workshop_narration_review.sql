@@ -1,4 +1,4 @@
--- The narration review (20261105220000_workshop_narration_review): synthetic rows inside one
+-- The narration review (20261107120000_workshop_narration_review): synthetic rows inside one
 -- transaction that is rolled back, signed in as a tenant member (authenticated role). The
 -- dictionary's own RLS is tested in carmen_pronunciations.sql. workshop_narration_take reads Carmen's
 -- dictionary (carmen_pronunciations): a pronunciation saved after the newest take's voice run
