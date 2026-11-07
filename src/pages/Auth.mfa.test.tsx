@@ -1,12 +1,17 @@
 import { AuthApiError, createClient } from "@supabase/supabase-js";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockReadinessFailure } from "./Auth.mfa.failures.test-fixture";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import Auth from "./Auth";
-import { user, sessionResponse, authResponse } from "./Auth.mfa.test-fixture";
+import {
+  user,
+  authResponse,
+  restoreSession,
+  renderAuth,
+  signIn,
+} from "./Auth.mfa.test-fixture";
 
 const state = vi.hoisted(() => ({
   fetch: vi.fn<typeof fetch>(),
@@ -51,115 +56,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Restore a valid session through the real SDK, including its SIGNED_IN event. */
-async function restoreSession() {
-  await supabase.auth.setSession({
-    access_token: sessionResponse().access_token,
-    refresh_token: "synthetic-refresh",
-  });
-}
-
-/** Mount the same Auth entry route used for password and restored sessions. */
-function renderAuth() {
-  render(
-    <MemoryRouter initialEntries={["/auth"]}>
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/t/test/home" element={<p>Protected home</p>} />
-      </Routes>
-    </MemoryRouter>,
-  );
-}
-
-/** Submit the actual form while keeping the SDK's SIGNED_IN event observable. */
-async function signIn() {
-  const interaction = userEvent.setup();
-  const { data } = supabase.auth.onAuthStateChange((event) => {
-    state.events.push(event);
-  });
-  renderAuth();
-  await interaction.type(
-    await screen.findByLabelText("אימייל"),
-    "user@example.test",
-  );
-  await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
-  await interaction.click(screen.getByRole("button", { name: "התחבר" }));
-  data.subscription.unsubscribe();
-  expect(state.events).toContain("SIGNED_IN");
-  return interaction;
-}
-
 describe("Auth password MFA readiness", () => {
   it.each([
     "assurance",
     "factors",
     "missing factor",
+    "null factors",
+    "null assurance",
+    "unsupported current",
+    "unsupported next",
     "current level",
     "next level",
     "session",
   ])(
     "blocks navigation and restores the form after %s failure",
     async (failure) => {
-      state.needsMfa = failure === "factors" || failure === "missing factor";
-      const error = new AuthApiError(
-        `Unavailable ${failure}`,
-        503,
-        "unexpected_failure",
+      state.needsMfa = ["factors", "missing factor", "null factors"].includes(
+        failure,
       );
-      let finishAssurance: () => void = () => undefined;
-      if (failure === "assurance") {
-        vi.spyOn(
-          supabase.auth.mfa,
-          "getAuthenticatorAssuranceLevel",
-        ).mockImplementation(
-          () =>
-            new Promise((resolve) => {
-              finishAssurance = () =>
-                resolve({
-                  data: null,
-                  error,
-                });
-            }),
-        );
-      } else if (failure === "factors") {
-        vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
-          data: null,
-          error,
-        });
-      } else if (failure === "missing factor") {
-        vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
-          data: { all: [], totp: [], phone: [], webauthn: [] },
-          error: null,
-        });
-      } else if (failure === "session") {
-        const assurance = supabase.auth.mfa.getAuthenticatorAssuranceLevel.bind(
-          supabase.auth.mfa,
-        );
-        vi.spyOn(
-          supabase.auth.mfa,
-          "getAuthenticatorAssuranceLevel",
-        ).mockImplementation(async () => {
-          const result = await assurance();
-          vi.spyOn(supabase.auth, "getSession").mockResolvedValueOnce({
-            data: { session: null },
-            error,
-          });
-          return result;
-        });
-      } else {
-        vi.spyOn(
-          supabase.auth.mfa,
-          "getAuthenticatorAssuranceLevel",
-        ).mockResolvedValue({
-          data: {
-            currentLevel: failure === "current level" ? null : "aal1",
-            nextLevel: failure === "next level" ? null : "aal1",
-            currentAuthenticationMethods: [],
-          },
-          error: null,
-        });
-      }
-      await signIn();
+      const finishAssurance = mockReadinessFailure(failure);
+      await signIn(state.events);
       if (failure === "assurance") {
         expect(screen.getByRole("button", { name: "מתחבר..." })).toBeDisabled();
         expect(state.home).not.toHaveBeenCalled();
@@ -171,6 +87,23 @@ describe("Auth password MFA readiness", () => {
       expect(state.toast).toHaveBeenCalledWith(
         expect.objectContaining({ title: "שגיאה", variant: "destructive" }),
       );
+      if (
+        [
+          "null assurance",
+          "unsupported current",
+          "unsupported next",
+          "null factors",
+        ].includes(failure)
+      ) {
+        expect(state.toast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            description:
+              failure === "null factors"
+                ? "לא נמצא גורם אימות נתמך. נא לפנות לתמיכה."
+                : "לא ניתן לאמת את רמת האימות. נא לנסות להתחבר שוב.",
+          }),
+        );
+      }
       expect(state.home).not.toHaveBeenCalled();
       expect(state.requests.some((r) => r.url.includes("/functions/"))).toBe(
         false,
@@ -181,11 +114,30 @@ describe("Auth password MFA readiness", () => {
     },
   );
 
+  it("allows a later restored session after password authentication rejects", async () => {
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: new AuthApiError(
+        "Invalid credentials",
+        400,
+        "invalid_credentials",
+      ),
+    });
+    await signIn(state.events, false);
+    expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled();
+    expect(state.toast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "Invalid credentials" }),
+    );
+    await restoreSession();
+    expect(await screen.findByText("Protected home")).toBeInTheDocument();
+    expect(state.home).toHaveBeenCalledExactlyOnceWith(user.id);
+  });
+
   it.each(["password", "restored session"])(
     "keeps %s navigation and processes invitations once",
     async (entry) => {
       if (entry === "password") {
-        await signIn();
+        await signIn(state.events);
       } else {
         await restoreSession();
         renderAuth();
@@ -198,52 +150,67 @@ describe("Auth password MFA readiness", () => {
     },
   );
 
-  it("cancels an older bootstrap navigation when password MFA fails", async () => {
-    let releaseHome: (path: string) => void = () => undefined;
-    state.home.mockReturnValue(
-      new Promise((resolve) => {
-        releaseHome = resolve;
-      }),
-    );
-    await restoreSession();
-    vi.useFakeTimers();
-    renderAuth();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(4100);
-    });
-    vi.useRealTimers();
-    expect(state.home).toHaveBeenCalledTimes(1);
-    vi.spyOn(
-      supabase.auth.mfa,
-      "getAuthenticatorAssuranceLevel",
-    ).mockResolvedValue({
-      data: null,
-      error: new AuthApiError(
-        "Assurance unavailable",
-        503,
-        "unexpected_failure",
-      ),
-    });
-    const interaction = userEvent.setup();
-    await interaction.type(
-      screen.getByLabelText("אימייל"),
-      "user@example.test",
-    );
-    await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
-    await interaction.click(screen.getByRole("button", { name: "התחבר" }));
-    expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled();
-    await act(async () => {
-      releaseHome("/t/test/home");
-    });
-    expect(screen.queryByText("Protected home")).not.toBeInTheDocument();
-    expect(state.toast).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: "destructive" }),
-    );
-  });
+  it.each(["home", "invitation"])(
+    "cancels older bootstrap %s work when password MFA fails",
+    async (pending) => {
+      let releasePending: () => void = () => undefined;
+      if (pending === "home") {
+        state.home.mockReturnValue(
+          new Promise((resolve) => {
+            releasePending = () => resolve("/t/test/home");
+          }),
+        );
+      } else {
+        state.fetch.mockImplementation(async (input, init) => {
+          if (new Request(input, init).url.includes("/functions/")) {
+            await new Promise<void>((resolve) => {
+              releasePending = resolve;
+            });
+          }
+          return authResponse(input, init, state.needsMfa, state.requests);
+        });
+      }
+      await restoreSession();
+      vi.useFakeTimers();
+      renderAuth();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4100);
+      });
+      vi.useRealTimers();
+      expect(state.home).toHaveBeenCalledTimes(pending === "home" ? 1 : 0);
+      vi.spyOn(
+        supabase.auth.mfa,
+        "getAuthenticatorAssuranceLevel",
+      ).mockResolvedValue({
+        data: null,
+        error: new AuthApiError(
+          "Assurance unavailable",
+          503,
+          "unexpected_failure",
+        ),
+      });
+      const interaction = userEvent.setup();
+      await interaction.type(
+        screen.getByLabelText("אימייל"),
+        "user@example.test",
+      );
+      await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
+      await interaction.click(screen.getByRole("button", { name: "התחבר" }));
+      expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled();
+      await act(async () => {
+        releasePending();
+      });
+      expect(state.home).toHaveBeenCalledTimes(pending === "home" ? 1 : 0);
+      expect(screen.queryByText("Protected home")).not.toBeInTheDocument();
+      expect(state.toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive" }),
+      );
+    },
+  );
 
   it("waits for TOTP verification before navigating", async () => {
     state.needsMfa = true;
-    const interaction = await signIn();
+    const interaction = await signIn(state.events);
     expect(await screen.findByText("אימות דו-שלבי")).toBeInTheDocument();
     expect(state.home).not.toHaveBeenCalled();
     expect(state.requests.some((r) => r.url.includes("/functions/"))).toBe(

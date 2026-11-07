@@ -60,8 +60,14 @@ export default function Auth() {
       accessToken?: string,
       isCurrent: () => boolean = () => true,
     ) => {
+      if (!isCurrent()) {
+        return false;
+      }
       if (accessToken) {
         await processPendingInvitation(accessToken);
+      }
+      if (!isCurrent()) {
+        return false;
       }
 
       const homePath = await resolveAppHomePath(userId);
@@ -196,6 +202,7 @@ export default function Auth() {
       password,
     });
     if (error) {
+      passwordSignInStarted.current = false;
       toast({
         title: "שגיאה",
         description: error.message,
@@ -211,7 +218,10 @@ export default function Auth() {
       if (assuranceError) {
         throw assuranceError;
       }
-      if (!data.currentLevel || !data.nextLevel) {
+      if (
+        (data?.currentLevel !== "aal1" && data?.currentLevel !== "aal2") ||
+        (data?.nextLevel !== "aal1" && data?.nextLevel !== "aal2")
+      ) {
         throw new Error("לא ניתן לאמת את רמת האימות. נא לנסות להתחבר שוב.");
       }
       const { currentLevel, nextLevel } = data;
@@ -222,7 +232,7 @@ export default function Auth() {
         if (factorsError) {
           throw factorsError;
         }
-        const factor = factors.totp[0];
+        const factor = factors?.totp[0];
         if (!factor) {
           throw new Error("לא נמצא גורם אימות נתמך. נא לפנות לתמיכה.");
         }

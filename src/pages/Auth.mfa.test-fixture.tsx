@@ -1,3 +1,9 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { expect } from "vitest";
+import { supabase } from "@/integrations/supabase/client";
+import Auth from "./Auth";
 import type { User } from "@supabase/supabase-js";
 
 export const user: User = {
@@ -59,4 +65,44 @@ export async function authResponse(
   return new Response(JSON.stringify(body), {
     headers: { "content-type": "application/json" },
   });
+}
+
+/** Restore a valid session through the real SDK, including its SIGNED_IN event. */
+export async function restoreSession() {
+  await supabase.auth.setSession({
+    access_token: sessionResponse().access_token,
+    refresh_token: "synthetic-refresh",
+  });
+}
+
+/** Mount the same Auth entry route used for password and restored sessions. */
+export function renderAuth() {
+  render(
+    <MemoryRouter initialEntries={["/auth"]}>
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/t/test/home" element={<p>Protected home</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** Submit the actual form while keeping the SDK's SIGNED_IN event observable. */
+export async function signIn(events: Array<string>, expectSignedIn = true) {
+  const interaction = userEvent.setup();
+  const { data } = supabase.auth.onAuthStateChange((event) => {
+    events.push(event);
+  });
+  renderAuth();
+  await interaction.type(
+    await screen.findByLabelText("אימייל"),
+    "user@example.test",
+  );
+  await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
+  await interaction.click(screen.getByRole("button", { name: "התחבר" }));
+  data.subscription.unsubscribe();
+  if (expectSignedIn) {
+    expect(events).toContain("SIGNED_IN");
+  }
+  return interaction;
 }
