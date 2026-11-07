@@ -53,9 +53,23 @@ export type TenantIntegrationRow = {
   [key: string]: unknown;
 };
 
-export type ClientIntegration = Omit<TenantIntegrationRow, "api_key"> & {
+type KnownTenantIntegrationFields = {
+  [
+    K in keyof TenantIntegrationRow as string extends K
+      ? never
+      : number extends K
+        ? never
+        : K
+  ]: TenantIntegrationRow[K];
+};
+export type ClientIntegration = Omit<
+  KnownTenantIntegrationFields,
+  "api_key" | "settings"
+> & {
+  [key: string]: unknown;
+  settings?: unknown;
   has_credential: boolean;
-  api_key?: TenantIntegrationRow["api_key"];
+  api_key?: string | null;
   _isOwn?: boolean;
   _sharedByName?: string | null;
 };
@@ -111,6 +125,9 @@ export function toClientIntegration<T extends TenantIntegrationRow>(
   const { api_key: _discardedApiKey, ...rest } = row;
   const result: ClientIntegration = {
     ...rest,
+    id: row.id,
+    tenant_id: row.tenant_id,
+    integration_type: row.integration_type,
     has_credential,
     settings: sanitizeIntegrationSettings(
       row.settings as Record<string, unknown> | null | undefined,
@@ -131,4 +148,23 @@ export function isGoogleIntegrationConnected(
     { is_active?: boolean | null; has_credential?: boolean } | null | undefined,
 ): boolean {
   return !!(integration?.is_active && integration?.has_credential);
+}
+
+import { isJsonObject } from "./jsonFields.ts";
+const isNullableString = (value: unknown) =>
+  value === undefined || value === null || typeof value === "string";
+
+export function isTenantIntegrationRow(
+  value: unknown,
+): value is TenantIntegrationRow {
+  if (!isJsonObject(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.tenant_id === "string" &&
+    typeof value.integration_type === "string" &&
+    isNullableString(value.user_id) &&
+    (value.settings === undefined ||
+      value.settings === null ||
+      isJsonObject(value.settings))
+  );
 }

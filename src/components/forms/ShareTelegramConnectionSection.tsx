@@ -38,13 +38,17 @@ export function ShareTelegramConnectionSection({
         .select(`tenant_id, tenants:tenant_id ( id, name, slug )`)
         .eq("user_id", user.id);
       if (error) throw error;
-      return (data || [])
-        .filter((tu) => tu.tenant_id !== currentTenantId && tu.tenants)
-        .map((tu) => ({
-          id: (tu.tenants as any).id,
-          name: (tu.tenants as any).name,
-          slug: (tu.tenants as any).slug,
-        }));
+      return (data || []).flatMap((tu) =>
+        tu.tenant_id !== currentTenantId && tu.tenants
+          ? [
+              {
+                id: tu.tenants.id,
+                name: tu.tenants.name,
+                slug: tu.tenants.slug,
+              },
+            ]
+          : [],
+      );
     },
     enabled: !!user?.id && !!currentTenantId,
   });

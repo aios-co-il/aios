@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,14 +33,18 @@ import {
   Hand,
   DoorOpen,
   ChevronLeft,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { errorMessage } from "@/components/broadcast/templateUtils";
+import { jsonString } from "@/lib/jsonFields";
+import { type BoardStage, type BoardWorkItem } from "@/types/marketingPipeline";
 
 // ─── Stage identity config ────────────────────────────────────────────────────
 const STAGE_CONFIG: Record<
   string,
   {
-    icon: any;
+    icon: LucideIcon;
     label: string;
     gradient: string;
     dotColor: string;
@@ -107,7 +112,7 @@ const STAGE_CONFIG: Record<
 
 const APPROVAL_CONFIG: Record<
   string,
-  { icon: any; label: string; color: string }
+  { icon: LucideIcon; label: string; color: string }
 > = {
   auto: {
     icon: Zap,
@@ -126,21 +131,27 @@ const APPROVAL_CONFIG: Record<
   },
 };
 
-const STATUS_COLORS: Record<string, string> = {
+type ItemStatus = Enums<"marketing_item_status">;
+
+const STATUS_COLORS: Partial<Record<ItemStatus, string>> = {
   draft: "bg-gray-100 text-gray-600",
   in_progress: "bg-blue-100 text-blue-700",
-  awaiting_approval: "bg-amber-100 text-amber-700",
-  completed: "bg-emerald-100 text-emerald-700",
+  waiting_approval: "bg-amber-100 text-amber-700",
+  approved: "bg-emerald-100 text-emerald-700",
+  published: "bg-emerald-100 text-emerald-700",
   failed: "bg-red-100 text-red-700",
 };
 
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Partial<Record<ItemStatus, string>> = {
   draft: "טיוטה",
   in_progress: "בעבודה",
-  awaiting_approval: "ממתין לאישור",
-  completed: "הושלם",
+  waiting_approval: "ממתין לאישור",
+  approved: "אושר",
+  published: "פורסם",
   failed: "נכשל",
 };
+
+const DONE_STATUSES: ItemStatus[] = ["approved", "published"];
 
 // ─── WorkItem card (compact, inside department) ───────────────────────────────
 function WorkItemCard({
@@ -150,7 +161,7 @@ function WorkItemCard({
   onRun,
   running,
 }: {
-  item: any;
+  item: BoardWorkItem;
   stageId: string;
   onSelect?: () => void;
   onRun: (stageId: string) => void;
@@ -158,7 +169,8 @@ function WorkItemCard({
 }) {
   const statusColor = STATUS_COLORS[item.status] ?? STATUS_COLORS.draft;
   const statusLabel = STATUS_LABELS[item.status] ?? item.status;
-  const imageUrl = item.payload?.image_url;
+  const imageUrl = jsonString(item.payload, "image_url");
+  const copyText = jsonString(item.payload, "copy_text");
 
   return (
     <div
@@ -192,9 +204,9 @@ function WorkItemCard({
             📅 {new Date(item.scheduled_date).toLocaleDateString("he-IL")}
           </div>
         )}
-        {item.payload?.copy_text && (
+        {copyText && (
           <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
-            {item.payload.copy_text}
+            {copyText}
           </p>
         )}
       </div>
@@ -218,11 +230,13 @@ function WorkItemCard({
 }
 
 // ─── Status bar ───────────────────────────────────────────────────────────────
-function StatusBar({ items }: { items: any[] }) {
-  const running = items.filter((i) => i.status === "in_progress").length;
-  const waiting = items.filter((i) => i.status === "awaiting_approval").length;
-  const done = items.filter((i) => i.status === "completed").length;
-  const draft = items.filter((i) => i.status === "draft").length;
+function StatusBar({ items }: { items: BoardWorkItem[] }) {
+  const countStatus = (...statuses: ItemStatus[]) =>
+    items.filter((i) => statuses.includes(i.status)).length;
+  const running = countStatus("in_progress");
+  const waiting = countStatus("waiting_approval");
+  const done = countStatus(...DONE_STATUSES);
+  const draft = countStatus("draft");
 
   if (items.length === 0) return null;
 
@@ -284,10 +298,10 @@ function DepartmentCard({
   running,
   onRun,
 }: {
-  stage: any;
-  items: any[];
-  onOpenConfig: (stage: any) => void;
-  onOpenWorkspace: (stage: any) => void;
+  stage: BoardStage;
+  items: BoardWorkItem[];
+  onOpenConfig: (stage: BoardStage) => void;
+  onOpenWorkspace: (stage: BoardStage) => void;
   onNewItem: (stageId: string) => void;
   running: string | null;
   onRun: (stageId: string) => void;
@@ -410,7 +424,7 @@ export function MarketingPipelineBoard({
 }: Props) {
   const queryClient = useQueryClient();
   const [openStageId, setOpenStageId] = useState<string | null>(null);
-  const [workspaceStage, setWorkspaceStage] = useState<any | null>(null);
+  const [workspaceStage, setWorkspaceStage] = useState<BoardStage | null>(null);
   const [running, setRunning] = useState<string | null>(null);
 
   const { data: stages, refetch: refetchStages } = useQuery({
@@ -420,7 +434,7 @@ export function MarketingPipelineBoard({
       const { data, error } = await supabase
         .from("marketing_pipeline_stages")
         .select(
-          "id, name, stage_type, sort_order, approval_mode, agent_id, configuration, ai_agents(id, name)",
+          "id, name, stage_type, sort_order, approval_mode, agent_id, configuration, pipeline_id, ai_agents(id, name)",
         )
         .eq("pipeline_id", pipelineId)
         .order("sort_order");
@@ -450,14 +464,13 @@ export function MarketingPipelineBoard({
   });
 
   // Group items by current_stage_id
-  const itemsByStage: Record<string, any[]> = {};
-  (items ?? []).forEach((item: any) => {
+  const itemsByStage: Record<string, BoardWorkItem[]> = {};
+  (items ?? []).forEach((item) => {
     const sid = item.current_stage_id ?? "__unassigned__";
     (itemsByStage[sid] ??= []).push(item);
   });
 
-  const openStage =
-    (stages ?? []).find((s: any) => s.id === openStageId) ?? null;
+  const openStage = (stages ?? []).find((s) => s.id === openStageId) ?? null;
 
   const handleNewItem = async (stageId: string) => {
     const { data, error } = await supabase
@@ -505,10 +518,10 @@ export function MarketingPipelineBoard({
       queryClient.invalidateQueries({
         queryKey: ["marketing-assets", item.id, tenantId],
       });
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה בהרצה",
-        description: e.message,
+        description: errorMessage(e) || undefined,
         variant: "destructive",
       });
     } finally {
@@ -536,7 +549,7 @@ export function MarketingPipelineBoard({
             </div>
           </div>
         )}
-        {stageList.map((stage: any, i: number) => {
+        {stageList.map((stage, i) => {
           const stageItems = itemsByStage[stage.id] ?? [];
           const hasRunning = stageItems.some(
             (item) => item.status === "in_progress",
@@ -560,7 +573,7 @@ export function MarketingPipelineBoard({
 
       {/* Stage config dialog */}
       <StageConfigDialog
-        stage={openStage as any}
+        stage={openStage}
         tenantId={tenantId}
         clientId={clientId}
         track={track}

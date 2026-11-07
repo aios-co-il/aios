@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizePhone } from "../_shared/telephony/phone.ts";
+import type { TablesInsert } from "../_shared/database.types.ts";
+import { mergeJsonStringParams } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +23,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
 
     // Collect params from query and body
-    const params: Record<string, any> = {};
+    const params: Record<string, string> = {};
     url.searchParams.forEach((v, k) => {
       params[k] = v;
     });
@@ -60,7 +62,7 @@ Deno.serve(async (req) => {
       const ct = req.headers.get("content-type") || "";
       try {
         if (ct.includes("application/json"))
-          Object.assign(params, await req.json());
+          mergeJsonStringParams(params, await req.json());
         else if (ct.includes("form")) {
           const fd = await req.formData();
           fd.forEach((v, k) => {
@@ -69,7 +71,7 @@ Deno.serve(async (req) => {
         } else {
           const text = await req.text();
           if (text.trim().startsWith("{"))
-            Object.assign(params, JSON.parse(text));
+            mergeJsonStringParams(params, JSON.parse(text));
           else if (text.includes("=")) {
             const bodyParams = new URLSearchParams(text);
             bodyParams.forEach((v, k) => {
@@ -259,7 +261,9 @@ Deno.serve(async (req) => {
     if (params.event) noteParts.push(`event=${params.event}`);
     if (recording) noteParts.push(`recording=${recording}`);
 
-    const payload: any = {
+    const payload: Omit<TablesInsert<"call_logs">, "to_number"> & {
+      to_number: string | null;
+    } = {
       tenant_id,
       provider: "maskyoo",
       provider_call_id: uniqueid,

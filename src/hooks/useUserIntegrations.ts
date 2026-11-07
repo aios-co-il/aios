@@ -8,6 +8,7 @@ import {
   getClientIntegrationSelect,
   toClientIntegration,
   type ClientIntegration,
+  type TenantIntegrationRow,
 } from "@/lib/tenantIntegrationsClient";
 import { isReportTenantScopedIntegration } from "@/lib/reportIntegrationTypes";
 
@@ -118,7 +119,7 @@ export function useUserIntegrations(
         (p) => p.integration_id,
       );
 
-      let sharedIntegrations: any[] = [];
+      let sharedIntegrations: TenantIntegrationRow[] = [];
       if (sharedIntegrationIds.length > 0) {
         const { data: shared, error: sharedError } = await selectIntegrations()
           .in("tenant_id", tenantIds)

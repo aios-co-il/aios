@@ -30,6 +30,7 @@ import {
   Send,
 } from "lucide-react";
 import { toast } from "sonner";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ interface PublishResult {
 interface Props {
   workItemId: string;
   tenantId: string;
-  clientId: string;
+  clientId: string | null;
   copyText?: string;
   title?: string;
 }
@@ -110,7 +111,12 @@ export function SEOPublishPanel({
       const credentials = btoa(`${site.username}:${site.app_password}`);
       const wpUrl = `${site.site_url.replace(/\/$/, "")}/wp-json/wp/v2/posts`;
 
-      const body: Record<string, any> = {
+      const body: {
+        title: string;
+        content: string;
+        status: "draft" | "publish";
+        meta?: Record<string, string>;
+      } = {
         title: postTitle,
         content: postContent,
         status: postStatus,
@@ -166,8 +172,8 @@ export function SEOPublishPanel({
           ? "המאמר פורסם בהצלחה!"
           : "הטיוטה נשמרה ב-WordPress",
       );
-    } catch (err: any) {
-      const msg = err.message ?? "שגיאה לא ידועה";
+    } catch (err) {
+      const msg = errorMessage(err) || "שגיאה לא ידועה";
       setResult({ success: false, error: msg });
       toast.error(msg);
     } finally {
@@ -322,7 +328,12 @@ export function SEOPublishPanel({
 
       {/* Status + publish button */}
       <div className="flex gap-2">
-        <Select value={postStatus} onValueChange={(v: any) => setPostStatus(v)}>
+        <Select
+          value={postStatus}
+          onValueChange={(v) => {
+            if (v === "draft" || v === "publish") setPostStatus(v);
+          }}
+        >
           <SelectTrigger className="w-36">
             <SelectValue />
           </SelectTrigger>

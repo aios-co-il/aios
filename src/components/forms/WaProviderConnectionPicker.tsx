@@ -7,12 +7,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import type { Json } from "@/integrations/supabase/types";
+import { jsonString } from "@/lib/jsonFields";
 import { Label } from "@/components/ui/label";
 
 interface Integration {
   id: string;
   integration_type: string;
-  settings?: any;
+  settings?: Json;
   display_name?: string | null;
   owner_name?: string | null;
 }
@@ -125,16 +127,16 @@ export function WaProviderConnectionPicker({
             ) : (
               filtered.map((i) => {
                 const idShort =
-                  i.settings?.idInstance?.slice(-4) ||
-                  i.settings?.instance_id?.slice(-4) ||
-                  i.settings?.instanceId?.slice(-4) ||
+                  jsonString(i.settings, "idInstance")?.slice(-4) ||
+                  jsonString(i.settings, "instance_id")?.slice(-4) ||
+                  jsonString(i.settings, "instanceId")?.slice(-4) ||
                   "";
                 const providerLabel =
                   i.integration_type === "manus_wa" ? "Manus" : "Green API";
                 const name =
                   (i.display_name && String(i.display_name).trim()) ||
-                  i.settings?.instance_name ||
-                  i.settings?.connection_name ||
+                  jsonString(i.settings, "instance_name") ||
+                  jsonString(i.settings, "connection_name") ||
                   i.owner_name ||
                   providerLabel;
                 return (

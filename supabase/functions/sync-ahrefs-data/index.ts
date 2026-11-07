@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  getArray,
+  getObject,
+  getPath,
+  getString,
+} from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +18,7 @@ interface AhrefsConfig {
   dataType:
     "site_explorer" | "backlinks" | "organic_traffic" | "referring_domains";
   country?: string;
-  limit?: number;
+  limit?: number | string;
 }
 
 serve(async (req) => {
@@ -86,7 +92,8 @@ serve(async (req) => {
       config?: AhrefsConfig;
     };
     // Accept snake_case as well
-    if (!tableId && (body as any).table_id) tableId = (body as any).table_id;
+    const bodyTableId = getString(body, "table_id");
+    if (!tableId && bodyTableId) tableId = bodyTableId;
 
     if (!tableId) {
       return new Response(JSON.stringify({ error: "Missing tableId" }), {
@@ -108,22 +115,28 @@ serve(async (req) => {
       });
     }
 
-    const settings: any = tableRow.integration_settings || {};
+    const settings = getObject(tableRow.integration_settings) ?? {};
 
     // Fallback: if config or target wasn't provided, load it from the table's integration_settings
     if (!config || !config.target) {
+      const settingsLimit = settings.limit;
       config = {
         target:
           config?.target ||
-          settings.targetDomain ||
-          settings.target ||
-          settings.domain,
+          getString(settings, "targetDomain") ||
+          getString(settings, "target") ||
+          getString(settings, "domain"),
         dataType: (config?.dataType ||
-          settings.reportType ||
-          settings.dataType ||
+          getString(settings, "reportType") ||
+          getString(settings, "dataType") ||
           "site_explorer") as AhrefsConfig["dataType"],
-        country: config?.country || settings.country,
-        limit: config?.limit || settings.limit,
+        country: config?.country || getString(settings, "country"),
+        limit:
+          config?.limit ||
+          (typeof settingsLimit === "number" ||
+          typeof settingsLimit === "string"
+            ? settingsLimit
+            : undefined),
       };
     }
 
@@ -178,51 +191,60 @@ serve(async (req) => {
         .replace(/^https?:\/\//, "")
         .replace(/^www\./, "")
         .replace(/\/.*$/, "");
-      const matchedReports = (reports || []).filter((report: any) => {
-        const reportDomain = String(report.domain || "")
-          .replace(/^https?:\/\//, "")
-          .replace(/^www\./, "")
-          .replace(/\/.*$/, "");
-        return !targetForFilter || reportDomain === targetForFilter;
-      });
+      const matchedReports = (reports || []).filter(
+        (report: { domain?: unknown }) => {
+          const reportDomain = String(report.domain || "")
+            .replace(/^https?:\/\//, "")
+            .replace(/^www\./, "")
+            .replace(/\/.*$/, "");
+          return !targetForFilter || reportDomain === targetForFilter;
+        },
+      );
 
       const reportsToUse =
         matchedReports.length > 0 ? matchedReports : reports || [];
-      const recordsToInsert: any[] = [];
+      const reportRows: unknown[] = reportsToUse;
+      const recordsToInsert: {
+        table_id: string;
+        tenant_id: string;
+        data: object;
+      }[] = [];
 
-      for (const report of reportsToUse as any[]) {
-        const rd = report.report_data || {};
-        const snapshot = rd.snapshot || {};
-        const reportDate = report.report_date || report.received_at;
-        const organicKeywords = Array.isArray(rd.organic_keywords)
-          ? rd.organic_keywords
-          : [];
-        const trackedKeywords = Array.isArray(rd.tracked_keywords)
-          ? rd.tracked_keywords
-          : [];
-        const allKeywords = [...organicKeywords, ...trackedKeywords];
+      for (const report of reportRows) {
+        const rd = getPath(report, "report_data") || {};
+        const snapshot = getPath(rd, "snapshot") || {};
+        const snap = (key: string) => getPath(snapshot, key);
+        const reportDate =
+          getPath(report, "report_date") || getPath(report, "received_at");
+        const reportDomain = getPath(report, "domain");
+        const allKeywords = [
+          ...getArray(rd, "organic_keywords"),
+          ...getArray(rd, "tracked_keywords"),
+        ];
 
         if (allKeywords.length > 0) {
           for (const kw of allKeywords) {
+            const position = getPath(kw, "position");
+            const positionPrevMonth = getPath(kw, "position_prev_month");
             recordsToInsert.push({
               table_id: tableId,
               tenant_id: tableRow.tenant_id,
               data: {
-                keyword: String(kw.keyword || ""),
-                position: kw.position ?? null,
-                position_prev_month: kw.position_prev_month ?? null,
+                keyword: String(getPath(kw, "keyword") || ""),
+                position: position ?? null,
+                position_prev_month: positionPrevMonth ?? null,
                 position_change:
-                  kw.position_prev_month != null && kw.position != null
-                    ? kw.position_prev_month - kw.position
+                  positionPrevMonth != null && position != null
+                    ? Number(positionPrevMonth) - Number(position)
                     : null,
-                traffic: kw.traffic ?? 0,
-                traffic_prev_month: kw.traffic_prev_month ?? 0,
-                volume: kw.volume ?? 0,
-                kd: kw.kd ?? null,
-                cpc: kw.cpc ?? null,
-                url: kw.url ?? "",
-                domain: report.domain,
-                dr: snapshot.dr,
+                traffic: getPath(kw, "traffic") ?? 0,
+                traffic_prev_month: getPath(kw, "traffic_prev_month") ?? 0,
+                volume: getPath(kw, "volume") ?? 0,
+                kd: getPath(kw, "kd") ?? null,
+                cpc: getPath(kw, "cpc") ?? null,
+                url: getPath(kw, "url") ?? "",
+                domain: reportDomain,
+                dr: snap("dr"),
                 report_date: reportDate,
               },
             });
@@ -232,15 +254,15 @@ serve(async (req) => {
             table_id: tableId,
             tenant_id: tableRow.tenant_id,
             data: {
-              domain: report.domain,
-              dr: snapshot.dr,
-              org_traffic: snapshot.org_traffic,
-              org_keywords_top3: snapshot.org_keywords_top3,
-              org_keywords_top10: snapshot.org_keywords_top10,
-              org_keywords_total: snapshot.org_keywords_total,
-              referring_domains: snapshot.referring_domains,
-              backlinks_live: snapshot.backlinks_live,
-              backlinks_all_time: snapshot.backlinks_all_time,
+              domain: reportDomain,
+              dr: snap("dr"),
+              org_traffic: snap("org_traffic"),
+              org_keywords_top3: snap("org_keywords_top3"),
+              org_keywords_top10: snap("org_keywords_top10"),
+              org_keywords_total: snap("org_keywords_total"),
+              referring_domains: snap("referring_domains"),
+              backlinks_live: snap("backlinks_live"),
+              backlinks_all_time: snap("backlinks_all_time"),
               report_date: reportDate,
             },
           });
@@ -378,7 +400,7 @@ serve(async (req) => {
     const apiData = await response.json();
 
     // Determine the data array from response
-    let records: any[] = [];
+    let records: unknown[] = [];
     if (apiData.keywords) {
       records = apiData.keywords;
     } else if (apiData.backlinks) {

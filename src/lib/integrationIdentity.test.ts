@@ -13,7 +13,7 @@ describe("integration selector identities", () => {
       integration_type: "google_search_console",
       has_credential: false,
     };
-    const malformed: ClientIntegration = {
+    const malformed = {
       ...valid,
       id: 42,
       settings: { private_note: "must not appear in diagnostics" },

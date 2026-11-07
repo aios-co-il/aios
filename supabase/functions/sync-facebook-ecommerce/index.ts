@@ -19,6 +19,30 @@ import {
   resolveAdsSyncWindow,
   toDateString,
 } from "../_shared/report-sync-window.ts";
+import {
+  getArray,
+  getPath,
+  getString,
+  isJsonObject,
+} from "../_shared/provider-json.ts";
+
+interface AdsetRow {
+  id?: string;
+  campaign_id?: string;
+  optimization_goal?: string;
+  promoted_object?: unknown;
+}
+
+function adsetRows(payload: unknown): AdsetRow[] {
+  return getArray(payload, "data")
+    .filter(isJsonObject)
+    .map((row) => ({
+      id: getString(row, "id"),
+      campaign_id: getString(row, "campaign_id"),
+      optimization_goal: getString(row, "optimization_goal"),
+      promoted_object: row.promoted_object,
+    }));
+}
 import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
 import { redactSyncError } from "../_shared/ads-sync/redact.ts";
 import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
@@ -432,14 +456,16 @@ Deno.serve(async (req) => {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in sync-facebook-ecommerce:", error);
     await recordFailure?.(
       error instanceof Error ? error.message : String(error),
     );
     // Upstream errors can print the request URL, Meta access token included.
     return new Response(
-      JSON.stringify({ error: redactSyncError(error?.message ?? error) }),
+      JSON.stringify({
+        error: redactSyncError(getPath(error, "message") ?? error),
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

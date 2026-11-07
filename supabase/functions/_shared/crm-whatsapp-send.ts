@@ -1,8 +1,10 @@
 /** CRM WhatsApp send for meeting reminders. Keep pick order in sync with src/lib/crmWhatsappRoute.ts. */
 
-type AdminClient = {
-  from: (table: string) => any;
-};
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { asRecord, asRecords, optString } from "./provider-json.ts";
+import { type IntegrationRow, integrationRows } from "./crm-whatsapp-rows.ts";
+
+type AdminClient = SupabaseClient;
 
 export type CrmWaProvider =
   "green_api" | "manus_wa" | "meta_whatsapp" | "manychat";
@@ -16,11 +18,7 @@ const WA_ORDER: CrmWaProvider[] = [
 
 export function pickCrmWhatsappIntegration(
   preferred: string | null | undefined,
-  integrations: Array<{
-    id: string;
-    integration_type: string;
-    user_id?: string | null;
-  }>,
+  integrations: IntegrationRow[],
 ): { id: string; type: CrmWaProvider; user_id: string | null } | null {
   if (!integrations.length) return null;
   if (preferred) {
@@ -55,7 +53,7 @@ async function loadTenantWhatsappIntegrations(
   admin: AdminClient,
   tenantId: string,
 ) {
-  const [{ data: owned }, { data: grants }] = await Promise.all([
+  const [ownedResult, grantsResult] = await Promise.all([
     admin
       .from("tenant_integrations")
       .select("id, integration_type, user_id")
@@ -67,29 +65,25 @@ async function loadTenantWhatsappIntegrations(
       .select("integration_id")
       .eq("accessing_tenant_id", tenantId),
   ]);
-  const grantedIds = (grants || []).map(
-    (row: { integration_id: string }) => row.integration_id,
-  );
-  let shared: Array<{
-    id: string;
-    integration_type: string;
-    user_id?: string | null;
-  }> = [];
+  const owned: unknown = ownedResult.data;
+  const grants: unknown = grantsResult.data;
+  const grantedIds = asRecords(grants).flatMap((row) => {
+    const id = optString(row.integration_id);
+    return id === undefined ? [] : [id];
+  });
+  let shared: IntegrationRow[] = [];
   if (grantedIds.length > 0) {
-    const { data } = await admin
+    const { data }: { data: unknown } = await admin
       .from("tenant_integrations")
       .select("id, integration_type, user_id")
       .in("id", grantedIds)
       .eq("is_active", true)
       .in("integration_type", WA_ORDER);
-    shared = data || [];
+    shared = integrationRows(data);
   }
-  const unique = new Map<
-    string,
-    { id: string; integration_type: string; user_id?: string | null }
-  >();
-  for (const row of [...(owned || []), ...shared]) {
-    if (row?.id) unique.set(row.id, row);
+  const unique = new Map<string, IntegrationRow>();
+  for (const row of [...integrationRows(owned), ...shared]) {
+    unique.set(row.id, row);
   }
   return Array.from(unique.values());
 }
@@ -101,21 +95,26 @@ export async function sendCrmWhatsappToLeadAdmin(input: {
   leadId: string;
   message: string;
 }): Promise<{ ok: boolean; skipped?: string; error?: string }> {
-  const { data: lead, error: leadError } = await input.admin
+  const {
+    data: leadData,
+    error: leadError,
+  }: { data: unknown; error: { message: string } | null } = await input.admin
     .from("leads")
     .select("id, phone, tenant_id, active_chat_provider")
     .eq("id", input.leadId)
     .maybeSingle();
   if (leadError) return { ok: false, error: leadError.message };
-  if (!lead?.phone) return { ok: false, skipped: "no_phone" };
-  if (!lead.tenant_id) return { ok: false, skipped: "no_tenant" };
+  const lead = asRecord(leadData);
+  if (!lead.phone) return { ok: false, skipped: "no_phone" };
+  const tenantId = optString(lead.tenant_id);
+  if (!tenantId) return { ok: false, skipped: "no_tenant" };
 
   const integrations = await loadTenantWhatsappIntegrations(
     input.admin,
-    lead.tenant_id,
+    tenantId,
   );
   const picked = pickCrmWhatsappIntegration(
-    lead.active_chat_provider,
+    optString(lead.active_chat_provider),
     integrations,
   );
   if (!picked || picked.type === "manychat") {
@@ -142,11 +141,18 @@ export async function sendCrmWhatsappToLeadAdmin(input: {
       body: JSON.stringify(body),
     },
   );
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result?.error) {
+  const result: unknown = await response.json().catch(() => ({}));
+  const resultError = asRecord(result).error;
+  if (!response.ok || resultError) {
+    const errorText =
+      typeof resultError === "string"
+        ? resultError
+        : resultError
+          ? JSON.stringify(resultError)
+          : "";
     return {
       ok: false,
-      error: result?.error || `send failed (${response.status})`,
+      error: errorText || `send failed (${response.status})`,
     };
   }
   return { ok: true };

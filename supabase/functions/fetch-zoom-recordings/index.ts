@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { asRecords, optNumber, optString } from "../_shared/provider-json.ts";
 import {
   chooseCalendarRecordingMatch,
   loadCalendarMatchContext,
@@ -110,7 +111,7 @@ Deno.serve(async (req) => {
     const toDate = to_date || now.toISOString().split("T")[0];
 
     // Fetch recordings - paginate through all results
-    let allMeetings: any[] = [];
+    let allMeetings: Record<string, unknown>[] = [];
     let nextPageToken = "";
 
     do {
@@ -138,7 +139,7 @@ Deno.serve(async (req) => {
       }
 
       const data = await recordingsResponse.json();
-      allMeetings = allMeetings.concat(data.meetings || []);
+      allMeetings = allMeetings.concat(asRecords(data.meetings));
       nextPageToken = data.next_page_token || "";
     } while (nextPageToken);
 
@@ -161,13 +162,13 @@ Deno.serve(async (req) => {
     // Process and upsert recordings
     let savedCount = 0;
     for (const meeting of allMeetings) {
-      const recordingFiles = meeting.recording_files || [];
+      const recordingFiles = asRecords(meeting.recording_files);
       const meetingId = String(meeting.id || meeting.uuid || "");
       const calendarMatch = chooseCalendarRecordingMatch(
         {
-          start_time: meeting.start_time || null,
-          duration: meeting.duration || null,
-          meeting_topic: meeting.topic || null,
+          start_time: optString(meeting.start_time) || null,
+          duration: optNumber(meeting.duration) || null,
+          meeting_topic: optString(meeting.topic) || null,
           source: "zoom",
         },
         calendarContext.events,

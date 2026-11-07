@@ -3,8 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { ListKind } from "@/lib/broadcastListKind";
+import type { AudienceFilter } from "@/hooks/useBroadcasts";
 import { requireTenantId } from "@/lib/requireTenantId";
 import { normalizePhone } from "../../supabase/functions/_shared/broadcast/template/template-vars.ts";
+
+type ListSourceMeta = { sync_automation_id?: string; auto_sync?: boolean };
+
+/** crm_filter lists hold a leads/clients AudienceFilter; other lists only metadata. */
+export type BroadcastListSourceConfig = ListSourceMeta &
+  ({ source?: undefined } | (AudienceFilter & { source: "leads" | "clients" }));
 
 export interface BroadcastList {
   id: string;
@@ -15,7 +22,7 @@ export interface BroadcastList {
   kind: ListKind;
   source: "manual" | "csv" | "google_sheet" | "crm_filter";
   /** crm_filter lists: the AudienceFilter (source leads | clients). */
-  source_config: any;
+  source_config: BroadcastListSourceConfig;
   auto_sync_enabled: boolean;
   last_synced_at: string | null;
   last_sync_status: string | null;
@@ -122,7 +129,7 @@ export function useBroadcastLists() {
     }: Partial<BroadcastList> & { id: string }) => {
       const { error } = await supabase
         .from("broadcast_lists")
-        .update(patch as any)
+        .update(patch)
         .eq("id", id);
       if (error) throw error;
     },
@@ -275,10 +282,16 @@ export function useBroadcastLists() {
     });
 
   const addRule = useMutation({
-    mutationFn: async ({ listId, filter }: { listId: string; filter: any }) => {
+    mutationFn: async ({
+      listId,
+      filter,
+    }: {
+      listId: string;
+      filter: ListRule["filter"];
+    }) => {
       const { error } = await supabase.from("broadcast_list_rules").insert({
         list_id: listId,
-        tenant_id: tenantId,
+        tenant_id: requireTenantId(tenantId),
         trigger: "lead_created",
         filter,
         enabled: true,

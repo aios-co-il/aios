@@ -1,5 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asRecord } from "../_shared/provider-json.ts";
+
+type CapiEvent = {
+  event_name: unknown;
+  event_time: number;
+  action_source: string;
+  user_data: Record<string, string[]>;
+  event_source_url?: unknown;
+  custom_data?: unknown;
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,8 +76,8 @@ serve(async (req) => {
       );
     }
 
-    const settings = integration.settings as any;
-    const pixelId = settings?.pixel_id;
+    const settings = asRecord(integration.settings);
+    const pixelId = settings.pixel_id;
     const accessToken = integration.api_key;
 
     if (!pixelId || !accessToken) {
@@ -81,7 +91,7 @@ serve(async (req) => {
     }
 
     // Build user data with hashing
-    const hashedUserData: Record<string, any> = {};
+    const hashedUserData: Record<string, string[]> = {};
 
     if (user_data?.email) {
       hashedUserData.em = [await sha256Hash(user_data.email)];
@@ -105,7 +115,7 @@ serve(async (req) => {
     }
 
     // Build event data
-    const eventData: any = {
+    const eventData: CapiEvent = {
       event_name,
       event_time: Math.floor(Date.now() / 1000),
       action_source: "website",
@@ -126,12 +136,12 @@ serve(async (req) => {
     }
 
     // Build request body
-    const requestBody: any = {
+    const requestBody: { data: CapiEvent[]; test_event_code?: unknown } = {
       data: [eventData],
     };
 
     // Add test_event_code if provided or from settings
-    const effectiveTestCode = test_event_code || settings?.test_event_code;
+    const effectiveTestCode = test_event_code || settings.test_event_code;
     if (effectiveTestCode) {
       requestBody.test_event_code = effectiveTestCode;
     }

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getPath } from "../_shared/provider-json.ts";
 
 const TELEGRAM_API = "https://api.telegram.org";
 const MAX_RUNTIME_MS = 55_000;
@@ -74,22 +75,25 @@ Deno.serve(async () => {
           break;
         }
 
-        const updates = data.result ?? [];
+        const updates: unknown[] = data.result ?? [];
         if (updates.length === 0) continue;
 
         const rows = updates
-          .filter((u: any) => u.message)
-          .map((u: any) => ({
+          .filter((u) => getPath(u, "message"))
+          .map((u) => ({
             tenant_id: bot.tenant_id,
-            update_id: u.update_id,
-            chat_id: u.message.chat.id,
-            text: u.message.text ?? null,
+            update_id: getPath(u, "update_id"),
+            chat_id: getPath(u, "message", "chat", "id"),
+            text: getPath(u, "message", "text") ?? null,
             direction: "inbound",
             sender_name:
-              [u.message.from?.first_name, u.message.from?.last_name]
+              [
+                getPath(u, "message", "from", "first_name"),
+                getPath(u, "message", "from", "last_name"),
+              ]
                 .filter(Boolean)
                 .join(" ") || null,
-            sender_username: u.message.from?.username ?? null,
+            sender_username: getPath(u, "message", "from", "username") ?? null,
             raw_update: u,
           }));
 
@@ -127,7 +131,8 @@ Deno.serve(async () => {
           }
         }
 
-        const newOffset = Math.max(...updates.map((u: any) => u.update_id)) + 1;
+        const newOffset =
+          Math.max(...updates.map((u) => Number(getPath(u, "update_id")))) + 1;
         const { error: offsetErr } = await supabase
           .from("telegram_bot_state")
           .update({

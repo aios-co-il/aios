@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { parseManyChatTags } from "@/lib/manychatTags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,7 +44,7 @@ export function ManyChatControls({
         },
       );
       if (error) throw error;
-      return data?.tags || [];
+      return parseManyChatTags(data);
     },
     enabled: !!tenantId,
   });
@@ -166,7 +167,7 @@ export function ManyChatControls({
                 <SelectValue placeholder="בחר טאג..." />
               </SelectTrigger>
               <SelectContent>
-                {tags.map((tag: any) => (
+                {tags.map((tag) => (
                   <SelectItem key={tag.id} value={tag.id.toString()}>
                     {tag.name}
                   </SelectItem>

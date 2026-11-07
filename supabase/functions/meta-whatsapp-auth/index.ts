@@ -4,6 +4,14 @@ import {
   isCoexistenceFinishEvent,
   type MetaWhatsAppSessionInfo,
 } from "../_shared/meta-whatsapp.ts";
+import {
+  getArray,
+  getObject,
+  getPath,
+  getString,
+  isJsonObject,
+  type JsonObject,
+} from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,7 +34,7 @@ const graphJson = async (
   token: string,
   init?: RequestInit,
   graphVersion = DEFAULT_META_GRAPH_VERSION,
-) => {
+): Promise<JsonObject> => {
   const response = await fetch(
     `https://graph.facebook.com/${graphVersion}/${path}`,
     {
@@ -39,17 +47,18 @@ const graphJson = async (
     },
   );
   const text = await response.text();
-  let data: any = {};
+  let parsed: unknown = {};
   try {
-    data = text ? JSON.parse(text) : {};
+    parsed = text ? JSON.parse(text) : {};
   } catch {
-    data = { raw: text };
+    parsed = { raw: text };
   }
-  if (!response.ok || data?.error) {
-    const error = data?.error ?? {};
+  const data: JsonObject = isJsonObject(parsed) ? parsed : {};
+  if (!response.ok || data.error) {
+    const error = getObject(data, "error") ?? {};
     const err = new Error(
-      error.error_user_msg ||
-        error.message ||
+      getString(error, "error_user_msg") ||
+        getString(error, "message") ||
         `Meta Graph API error (${response.status})`,
     );
     (err as Error & { metaError?: Record<string, unknown> }).metaError = error;
@@ -68,6 +77,14 @@ const SMB_COEXISTENCE_REGISTER_GUIDANCE =
 const unique = (values: string[]) =>
   values.filter((value, index) => value && values.indexOf(value) === index);
 
+const isString = (value: unknown): value is string => typeof value === "string";
+
+/** Non-empty string ids from a Graph `{ data: [{ id }] }` list payload. */
+const listIds = (payload: unknown): string[] =>
+  getArray(payload, "data")
+    .map((entry) => getPath(entry, "id"))
+    .filter((id): id is string => isString(id) && Boolean(id));
+
 type TokenDebug = { type: string; scopes: string[]; wabaIds: string[] };
 
 /** Reads the token metadata Meta exposes, including the assets it was granted. */
@@ -83,19 +100,19 @@ const inspectToken = async (
       undefined,
       graphVersion,
     );
-    const granular = debug?.data?.granular_scopes ?? [];
+    const granular = getArray(debug, "data", "granular_scopes");
     return {
-      type: String(debug?.data?.type ?? ""),
-      scopes: debug?.data?.scopes ?? [],
+      type: String(getPath(debug, "data", "type") ?? ""),
+      scopes: getArray(debug, "data", "scopes").filter(isString),
       wabaIds: unique(
         granular
-          .filter((entry: any) =>
+          .filter((entry) =>
             [
               "whatsapp_business_management",
               "whatsapp_business_messaging",
-            ].includes(entry?.scope),
+            ].includes(getString(entry, "scope") ?? ""),
           )
-          .flatMap((entry: any) => entry?.target_ids ?? []),
+          .flatMap((entry) => getArray(entry, "target_ids").filter(isString)),
       ),
     };
   } catch {
@@ -133,9 +150,7 @@ const discoverWabas = async (
           undefined,
           graphVersion,
         );
-        const ids = (accounts?.data ?? [])
-          .map((account: any) => account?.id)
-          .filter(Boolean);
+        const ids = listIds(accounts);
         found.push(...ids);
         steps.push({ source: `${source}:${edge}`, found: ids });
       } catch (error) {
@@ -158,9 +173,7 @@ const discoverWabas = async (
         undefined,
         graphVersion,
       );
-      const ids = (businesses?.data ?? [])
-        .map((business: any) => business?.id)
-        .filter(Boolean);
+      const ids = listIds(businesses);
       steps.push({ source: "me/businesses", found: ids });
       for (const businessId of ids)
         await readBusiness(businessId, `me/businesses/${businessId}`);
@@ -193,9 +206,7 @@ const discoverWabas = async (
             undefined,
             graphVersion,
           );
-          const ids = (payload?.data ?? [])
-            .map((entry: any) => entry?.id)
-            .filter(Boolean);
+          const ids = listIds(payload);
           if (edge === "assigned_whatsapp_business_accounts")
             found.push(...ids);
           else
@@ -234,7 +245,7 @@ const listPhoneNumbers = async (
     undefined,
     graphVersion,
   );
-  return (payload.data ?? []) as any[];
+  return getArray(payload, "data").filter(isJsonObject);
 };
 
 Deno.serve(async (request) => {
@@ -338,9 +349,11 @@ Deno.serve(async (request) => {
         );
         whatsappProduct = {
           ok: true,
-          objects: (subscribed?.data ?? []).map((entry: any) => ({
-            object: entry?.object,
-            fields: (entry?.fields ?? []).map((field: any) => field?.name),
+          objects: getArray(subscribed, "data").map((entry) => ({
+            object: getPath(entry, "object"),
+            fields: getArray(entry, "fields").map((field) =>
+              getPath(field, "name"),
+            ),
           })),
         };
       } catch (error) {
@@ -574,7 +587,7 @@ Deno.serve(async (request) => {
           ...unique(suppliedRedirects),
         ];
 
-        let lastError: any = null;
+        let lastError: unknown = null;
         for (const redirectUri of redirectCandidates) {
           const tokenUrl = new URL(
             `https://graph.facebook.com/${graphVersion}/oauth/access_token`,
@@ -599,9 +612,9 @@ Deno.serve(async (request) => {
             break;
         }
         if (!businessToken && !suppliedToken) {
-          const metaMessage = lastError?.message ?? "";
+          const metaMessage = getPath(lastError, "message") ?? "";
           const hint =
-            lastError?.error_subcode === 36008
+            getPath(lastError, "error_subcode") === 36008
               ? " Meta דחתה את הקוד. בדקו ש-aios.co.il מופיע ב-Allowed Domains for the JavaScript SDK וב-Valid OAuth Redirect URIs, ושה-Configuration הוא זרימת WhatsApp Embedded Signup. לחלופין חברו את המספר במסלול הידני עם Access Token."
               : "";
           return reply(
@@ -705,7 +718,9 @@ Deno.serve(async (request) => {
           .eq("integration_type", "meta_whatsapp");
       if (knownIntegrationsError) throw knownIntegrationsError;
       const knownWabaIds = (knownIntegrations ?? [])
-        .map((integration: any) => integration?.settings?.waba_id)
+        .map((integration: { settings: unknown }) =>
+          getPath(integration.settings, "waba_id"),
+        )
         .filter(
           (value: unknown): value is string =>
             typeof value === "string" && Boolean(value),
@@ -796,15 +811,17 @@ Deno.serve(async (request) => {
           ]);
           accounts.push({
             waba_id: wabaId,
-            name: (details as any)?.name ?? null,
+            name: getPath(details, "name") ?? null,
             subscribed_apps: subscribed
-              ? ((subscribed as any).data ?? []).map((entry: any) => ({
+              ? getArray(subscribed, "data").map((entry) => ({
                   id: String(
-                    entry?.whatsapp_business_api_data?.id ?? entry?.id ?? "",
+                    getPath(entry, "whatsapp_business_api_data", "id") ??
+                      getPath(entry, "id") ??
+                      "",
                   ),
                   name:
-                    entry?.whatsapp_business_api_data?.name ??
-                    entry?.name ??
+                    getPath(entry, "whatsapp_business_api_data", "name") ??
+                    getPath(entry, "name") ??
                     null,
                 }))
               : null,
@@ -869,9 +886,7 @@ Deno.serve(async (request) => {
         graphVersion,
       );
       const phones = requestedPhoneIds.size
-        ? allPhones.filter((phone: any) =>
-            requestedPhoneIds.has(String(phone.id)),
-          )
+        ? allPhones.filter((phone) => requestedPhoneIds.has(String(phone.id)))
         : allPhones;
       // A multi-WABA batch may select numbers from only some accounts. Accounts
       // without a selected phone are not errors; continue to the selected ones.
@@ -949,8 +964,9 @@ Deno.serve(async (request) => {
                 graphVersion,
               );
               if (syncType === "history")
-                historySyncRequestId = sync.request_id ?? null;
-              else contactsSyncRequestId = sync.request_id ?? null;
+                historySyncRequestId = getString(sync, "request_id") ?? null;
+              else
+                contactsSyncRequestId = getString(sync, "request_id") ?? null;
             } catch (error) {
               warnings.push(
                 `${phone.display_phone_number || phone.id}: ${syncType} sync failed: ${

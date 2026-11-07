@@ -99,7 +99,7 @@ export function LinkCampaignerDialog({
       onOpenChange(false);
       setSelectedCampaignerId("");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Link to campaigner error:", error);
       toast.error(error.message || `שגיאה בשיוך ל${t("role_campaigner")}`);
     },

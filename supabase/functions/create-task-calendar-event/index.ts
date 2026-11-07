@@ -4,7 +4,11 @@
 // Route: POST /functions/v1/create-task-calendar-event
 // Body:  { task_id: string }
 // Auth:  Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,9 +17,9 @@ const corsHeaders = {
 };
 
 async function refreshCalendarToken(
-  supabase: any,
+  supabase: SupabaseClient,
   userId: string,
-  tokenData: any,
+  tokenData: { refresh_token: string },
 ): Promise<string> {
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
@@ -32,21 +36,24 @@ async function refreshCalendarToken(
       grant_type: "refresh_token",
     }),
   });
-  const j = await r.json();
-  if (!j.access_token)
+  const j = asRecord(await r.json());
+  const refreshedToken = j.access_token;
+  if (!refreshedToken || typeof refreshedToken !== "string")
     throw new Error("Failed to refresh Google Calendar token");
 
-  const newExpiresAt = new Date(Date.now() + (j.expires_in ?? 3600) * 1000);
+  const newExpiresAt = new Date(
+    Date.now() + Number(j.expires_in ?? 3600) * 1000,
+  );
   await supabase
     .from("calendar_tokens")
     .update({
-      access_token: j.access_token,
+      access_token: refreshedToken,
       expires_at: newExpiresAt.toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", userId);
 
-  return j.access_token;
+  return refreshedToken;
 }
 
 Deno.serve(async (req) => {
@@ -256,10 +263,10 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("[create-task-calendar-event] Error:", err);
     return new Response(
-      JSON.stringify({ error: err?.message ?? "Unknown error" }),
+      JSON.stringify({ error: errorMessage(err) ?? "Unknown error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

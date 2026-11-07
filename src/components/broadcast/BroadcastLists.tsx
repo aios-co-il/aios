@@ -206,9 +206,10 @@ function ListDetailDialog({
       const res = await sheetHeaders(sheetUrl.trim());
       setHeaders(res.headers);
       setMap(res.suggestedMap || {});
-    } catch (e: any) {
+    } catch (e) {
       toast.error(
-        "שגיאה בטעינת הגיליון: " + (e?.message || "ודא שהגיליון משותף לצפייה"),
+        "שגיאה בטעינת הגיליון: " +
+          (errorMessage(e) || "ודא שהגיליון משותף לצפייה"),
       );
     } finally {
       setLoadingHeaders(false);
