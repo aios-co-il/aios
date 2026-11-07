@@ -4,27 +4,6 @@
   "config": "tsconfig.app.json",
   "diagnostics": [
     {
-      "file": "src/components/agents/tabs/EvalsTab.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; dataset?: Json | undefined; description?: string | null | undefined; id?: string | undefined; name: string; pass_threshold?: number | undefined; tenant_id: string; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "tenant_id",
-      "count": 1
-    },
-    {
-      "file": "src/components/agents/tabs/SupervisorTab.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ child_agent_id: string; created_at?: string | undefined; enabled?: boolean | undefined; id?: string | undefined; priority?: number | undefined; routing_hint?: string | null | undefined; supervisor_agent_id: string; tenant_id: string; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ child_agent_id: string; created_at?: string | undefined; enabled?: boolean | undefined; id?: string | undefined; priority?: number | undefined; routing_hint?: string | null | undefined; supervisor_agent_id: string; tenant_id: string; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ child_agent_id: string; created_at?: string | undefined; enabled?: boolean | undefined; id?: string | undefined; priority?: number | undefined; routing_hint?: string | null | undefined; supervisor_agent_id: string; tenant_id: string; }, { ...; }>[]'.",
-      "source": "tenant_id",
-      "count": 1
-    },
-    {
-      "file": "src/components/agents/tabs/TasksTab.tsx",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ agent_id: string; batch_id?: string | null | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | ... 1 more ... | undefined; ... 24 more ...; updated_at?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ agent_id: string; batch_id?: string | null | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | ... 1 more ... | undefined; ... 24 more ...; updated_at?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'tenant_id' does not exist in type 'RejectExcessProperties<{ agent_id: string; batch_id?: string | null | undefined; completed_at?: string | null | undefined; created_at?: string | undefined; created_by?: string | null | undefined; cron_expression?: string | ... 1 more ... | undefined; ... 24 more ...; updated_at?: string | undefined; }, { ...; }>[]'.",
-      "source": "tenant_id",
-      "count": 1
-    },
-    {
       "file": "src/components/campaigners/CampaignersChatView.tsx",
       "code": 2345,
       "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; id?: string | undefined; ... 5 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
