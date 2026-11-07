@@ -1,109 +1,16 @@
-import { createClient, type User } from "@supabase/supabase-js";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Database } from "@/integrations/supabase/types";
+import {
+  state,
+  user,
+  testToken,
+  submitPassword,
+} from "./auth/authSdkTestHarness";
+import { screen, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { supabase } from "@/integrations/supabase/client";
-import Auth from "./Auth";
-
-const state = vi.hoisted(() => ({
-  fetch: vi.fn<typeof fetch>(),
-  home: vi.fn<(userId: string) => Promise<string | null>>(),
-  toast: vi.fn(),
-  userStatus: 200,
-  updateStatus: 200,
-}));
-
-vi.mock("@/lib/appHomePath", () => ({ resolveAppHomePath: state.home }));
-vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({ toast: state.toast }),
-}));
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: createClient<Database>("https://auth.test", "test-key", {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-    global: { fetch: (...args) => state.fetch(...args) },
-  }),
-}));
-
-const user: User = {
-  id: "11111111-1111-1111-1111-111111111111",
-  aud: "authenticated",
-  app_metadata: {},
-  user_metadata: {},
-  email: "user@example.test",
-  created_at: "2026-01-01T00:00:00Z",
-};
-
-/** Encode a synthetic JWT for the SDK's local session reader, never a service. */
-function testToken() {
-  const encode = (value: object) =>
-    btoa(JSON.stringify(value))
-      .replace(/=/g, "")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_");
-  return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
-    sub: user.id,
-    exp: 4102444800,
-    iat: 1704067200,
-  })}.c2lnbmF0dXJl`;
-}
-
-beforeEach(async () => {
-  state.userStatus = 200;
-  state.updateStatus = 200;
-  state.toast.mockReset();
-  state.home.mockReset().mockResolvedValue("/t/test/home");
-  state.fetch.mockReset().mockImplementation(async (input, init) => {
-    const request = new Request(input, init);
-    expect(new URL(request.url).pathname).toBe("/auth/v1/user");
-    const status =
-      request.method === "PUT" ? state.updateStatus : state.userStatus;
-    return new Response(
-      JSON.stringify(
-        status === 200
-          ? user
-          : { msg: "user request failed", code: "user_not_found" },
-      ),
-      { status, headers: { "content-type": "application/json" } },
-    );
-  });
-  const { error } = await supabase.auth.setSession({
-    access_token: testToken(),
-    refresh_token: "synthetic-refresh-token",
-  });
-  expect(error).toBeNull();
-  state.fetch.mockClear();
-});
-
-afterEach(cleanup);
-
-/** Submit the actual password-setup form with user-level interactions. */
-async function submitPassword(type = "invite") {
-  const session = userEvent.setup();
-  render(
-    <MemoryRouter initialEntries={[`/auth?type=${type}`]}>
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/t/test/home" element={<p>Existing home route</p>} />
-      </Routes>
-    </MemoryRouter>,
-  );
-  await session.type(
-    await screen.findByLabelText("סיסמה חדשה"),
-    "updated-password",
-  );
-  await session.type(screen.getByLabelText("אימות סיסמה"), "updated-password");
-  await session.click(screen.getByRole("button", { name: "הגדר סיסמה" }));
-}
 
 describe("Auth password setup with the installed SDK", () => {
   it.each(["invite", "recovery"])(
-    "keeps navigation and skipped invitation processing for %s",
+    "processes pending invitations before navigation for %s",
     async (type) => {
       await submitPassword(type);
       expect(
@@ -116,7 +23,11 @@ describe("Auth password setup with the installed SDK", () => {
       const requests = state.fetch.mock.calls.map(
         ([input, init]) => new Request(input, init),
       );
-      expect(requests.map((request) => request.method)).toEqual(["PUT", "GET"]);
+      expect(requests.map((request) => request.method)).toEqual([
+        "PUT",
+        "GET",
+        "POST",
+      ]);
       expect(await requests[0].text()).toBe(
         JSON.stringify({
           password: "updated-password",
@@ -127,10 +38,11 @@ describe("Auth password setup with the installed SDK", () => {
       expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
         "/auth/v1/user",
         "/auth/v1/user",
+        "/functions/v1/process-user-invitation",
       ]);
       expect(
         requests.map((request) => request.headers.get("authorization")),
-      ).toEqual([`Bearer ${testToken()}`, `Bearer ${testToken()}`]);
+      ).toEqual(Array(3).fill(`Bearer ${testToken()}`));
       expect(await requests[1].text()).toBe("");
     },
   );
@@ -145,7 +57,7 @@ describe("Auth password setup with the installed SDK", () => {
     expect(state.toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "שגיאה" }),
     );
-    expect(state.fetch).toHaveBeenCalledTimes(2);
+    expect(state.fetch).toHaveBeenCalledTimes(3);
   });
 
   it.each(["update", "lookup"])(
