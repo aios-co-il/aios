@@ -30,9 +30,17 @@ import { isPulseAlertHeldForShabbat } from "./pulse/instant-alert-shabbat.ts";
 import { sendRunMessages } from "./pulse/instant-alert-send.ts";
 import { resolveInstantAlertRecipients } from "./pulse/instant-alert-recipients.ts";
 import { planInstantAlerts } from "./pulse/plan-instant-alerts.ts";
+import {
+  type OffReportSpend,
+  reportOffSpendingCandidates,
+} from "./pulse/report-off-spending.ts";
 
 export type PulseAlertRuleType =
-  "no_contact" | "cpl_spike" | "connection_lost" | "campaign_exception";
+  | "no_contact"
+  | "cpl_spike"
+  | "connection_lost"
+  | "campaign_exception"
+  | "report_off_spending";
 
 export type PulseAlertRules = {
   instant_wa_enabled?: boolean;
@@ -41,6 +49,8 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  /** A switched-off report whose campaigns still spend (AIO-501). */
+  report_off_spending_enabled?: boolean;
 };
 
 export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
@@ -50,6 +60,7 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   cpl_spike_enabled: true,
   cpl_spike_pct: 50,
   disconnected_enabled: true,
+  report_off_spending_enabled: true,
 };
 
 export type PulseInstantAlertCandidate = {
@@ -102,6 +113,8 @@ export type PulseSnapshotAlertInput = {
     data_fresh_through?: string | null;
     last_change_at?: string | null;
   }> | null;
+  /** Switched-off report tables that spent in the last 3 full days (AIO-501). */
+  off_report_spend?: Array<OffReportSpend> | null;
 };
 
 type CriticalIssueLike = {
@@ -135,6 +148,7 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    report_off_spending_enabled: input.report_off_spending_enabled !== false,
   };
 }
 
@@ -214,6 +228,10 @@ export function evaluatePulseInstantAlerts(
           exceptionFiguresText(campaign),
         ].join(" — "),
       });
+    }
+
+    if (rules.report_off_spending_enabled) {
+      candidates.push(...reportOffSpendingCandidates(snapshot, clientName));
     }
 
     if (rules.no_contact_enabled) {
