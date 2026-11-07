@@ -16,6 +16,11 @@ import {
   isLegacyClientCallFlag,
   pulseRowHasNoRecentClientCall,
 } from "./pulse/client-call.ts";
+import {
+  clientNoResultsHeld,
+  clientNoResultsHeldFlag,
+  type ClientNoResultsWindow,
+} from "./pulse/no-results-window.ts";
 
 export const CAMPAIGN_SERVICES = new Set(["ppc_meta", "ppc_google"]);
 export const CAMPAIGN_TABLE_TYPES = [
@@ -394,6 +399,8 @@ export type ClassifyPulseInput = {
   /** Open `campaign_stopped` alerts attributed to this client's active tables. */
   stoppedCampaignCount?: number;
   nowMs?: number;
+  /** The client's no-results days and the goal's results in them (AIO-502); missing means 7. */
+  noResultsWindow?: ClientNoResultsWindow;
 };
 
 function applyStoppedCampaigns(
@@ -450,8 +457,13 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
   }
 
   let status: PulseStatus = "healthy";
+  const held = clientNoResultsHeld(input.noResultsWindow);
+  const heldDays = input.noResultsWindow?.days ?? 0;
   if (input.isEcommerce) {
-    if (input.spend7 > 0 && input.purchases7 === 0) {
+    if (input.spend7 > 0 && input.purchases7 === 0 && held) {
+      status = "warning";
+      flags.push(clientNoResultsHeldFlag("רכישות", heldDays));
+    } else if (input.spend7 > 0 && input.purchases7 === 0) {
       status = "critical";
       flags.push("הוצאה ללא רכישות");
     } else if (input.roas !== null && input.roas < 1) {
@@ -461,6 +473,9 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
       status = "warning";
       flags.push("ROAS נמוך");
     }
+  } else if (input.spend7 > 0 && input.leads7 === 0 && held) {
+    status = "warning";
+    flags.push(clientNoResultsHeldFlag("לידים", heldDays));
   } else if (input.spend7 > 0 && input.leads7 === 0) {
     status = "critical";
     flags.push("הוצאה ללא לידים");
