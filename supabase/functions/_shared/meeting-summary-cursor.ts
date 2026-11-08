@@ -62,11 +62,21 @@ export async function dispatchMeetingSummaryToCursor(
   if (!route || route.provider !== "cursor")
     return { ok: false, reason: "no_route" };
 
-  const userId = await resolveSummaryUserId(
-    admin,
-    args.tenantId,
-    args.userId || args.createdBy,
-  );
+  let userId: string | null;
+  try {
+    userId = await resolveSummaryUserId(
+      admin,
+      args.tenantId,
+      args.userId || args.createdBy,
+    );
+  } catch (error) {
+    console.error("[meeting-summary] summary owner resolution failed", error);
+    return {
+      ok: false,
+      reason: "error",
+      detail: "Meeting summary owner lookup failed",
+    };
+  }
   if (!userId) return { ok: false, reason: "no_user" };
 
   const carmen = route.agent_id
