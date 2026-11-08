@@ -7,7 +7,6 @@ import {
 import {
   adAccountDisableReason,
   automationStepArg,
-  automationStepConfig,
   parallelTaskArgs,
   providerErrorMessage,
   readGoogleAdsCampaignRow,
@@ -120,29 +119,22 @@ Deno.test(
 Deno.test(
   "automation steps read LLM fields and still reject null entries",
   () => {
-    assertEquals<unknown>(
-      automationStepArg({ type: "agent", config: { a: 1 } }),
+    assertEquals(
+      automationStepArg({
+        type: "agent",
+        config: { message_template: "hello" },
+      }),
       {
         type: "agent",
-        config: { a: 1 },
+        config: { message_template: "hello" },
       },
     );
-    assertStrictEquals(automationStepArg("step").type, undefined);
-    assertStrictEquals(automationStepArg(["agent"]).type, undefined);
+    assertThrows(() => automationStepArg("step"));
+    assertThrows(() => automationStepArg(["agent"]));
     assertThrows(() => automationStepArg(null), TypeError);
     assertThrows(() => automationStepArg(undefined), TypeError);
   },
 );
-
-Deno.test("automation step config keeps JSON objects and arrays only", () => {
-  assertEquals<unknown>(automationStepConfig({ a: [1, null] }), {
-    a: [1, null],
-  });
-  assertEquals<unknown>(automationStepConfig([1]), [1]);
-  for (const value of [null, undefined, "x", 3, true]) {
-    assertEquals<unknown>(automationStepConfig(value), {});
-  }
-});
 
 Deno.test("success criteria keep valid entries with their extra fields", () => {
   assertEquals<unknown>(
@@ -200,5 +192,38 @@ Deno.test(
     assertStrictEquals(readAdAccountId("act_123"), "act_123");
     assertStrictEquals(readAdAccountId(123), 123);
     assertStrictEquals(readAdAccountId({ id: "123" }), undefined);
+  },
+);
+
+Deno.test(
+  "known provider fields reject object values instead of passing them downstream",
+  () => {
+    assertStrictEquals(
+      providerErrorMessage({ error: { message: { bad: true } } }),
+      undefined,
+    );
+    const campaign = readGoogleAdsCampaignRow({
+      campaign: { id: { bad: true }, name: "valid" },
+      metrics: { clicks: { bad: true } },
+    });
+    assertStrictEquals(campaign.campaign.id, undefined);
+    assertStrictEquals(campaign.campaign.name, "valid");
+    assertStrictEquals(campaign.metrics.clicks, undefined);
+    assertEquals(
+      parallelTaskArgs([{ title: { bad: true }, prompt: "work" }]),
+      [],
+    );
+  },
+);
+
+Deno.test(
+  "unsupported automation configuration is refused before approval",
+  () => {
+    assertThrows(() =>
+      automationStepArg({
+        type: "action",
+        config: { arbitrary: { bad: true } },
+      }),
+    );
   },
 );

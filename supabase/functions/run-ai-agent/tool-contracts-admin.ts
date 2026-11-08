@@ -1,40 +1,45 @@
+import { automationStepConfigurationSchema } from "./automation-step-configuration.ts";
 import { z } from "npm:zod@3.25.76";
-import type { Json } from "../_shared/database.types.ts";
-import { jsonSchema } from "./run-request.ts";
+
+const optionalText = z.string().optional().catch(undefined);
+const optionalMetric = z
+  .union([z.number().finite(), z.string().regex(/^-?\d+(\.\d+)?$/)])
+  .optional()
+  .catch(undefined);
 
 /** Graph `me/adaccounts` entry field that MetaNode does not declare. */
 const adAccountDisableReasonSchema = z
-  .object({ disable_reason: z.unknown() })
+  .object({ disable_reason: z.number().optional().catch(undefined) })
   .catch({});
 
-export function adAccountDisableReason(account: unknown): unknown {
+export function adAccountDisableReason(account: unknown): number | undefined {
   return adAccountDisableReasonSchema.parse(account).disable_reason;
 }
 
 /** `payload?.error?.message` for untrusted provider/HTTP JSON bodies. */
 const providerErrorSchema = z
   .object({
-    error: z.object({ message: z.unknown() }).catch({}),
+    error: z.object({ message: optionalText }).catch({}),
   })
   .catch({ error: {} });
 
-export function providerErrorMessage(payload: unknown): unknown {
+export function providerErrorMessage(payload: unknown): string | undefined {
   return providerErrorSchema.parse(payload).error.message;
 }
 
-/** Google Ads `googleAds:search` campaign row; leaves stay unknown until read. */
+/** Google Ads `googleAds:search` campaign row with validated identifiers and numeric metrics. */
 const googleAdsCampaignRowSchema = z
   .object({
     campaign: z
-      .object({ id: z.unknown(), name: z.unknown(), status: z.unknown() })
+      .object({ id: optionalText, name: optionalText, status: optionalText })
       .catch({}),
-    campaignBudget: z.object({ amountMicros: z.unknown() }).catch({}),
+    campaignBudget: z.object({ amountMicros: optionalMetric }).catch({}),
     metrics: z
       .object({
-        costMicros: z.unknown(),
-        clicks: z.unknown(),
-        impressions: z.unknown(),
-        conversions: z.unknown(),
+        costMicros: optionalMetric,
+        clicks: optionalMetric,
+        impressions: optionalMetric,
+        conversions: optionalMetric,
       })
       .catch({}),
   })
@@ -47,23 +52,33 @@ export function readGoogleAdsCampaignRow(row: unknown): GoogleAdsCampaignRow {
 }
 
 const calendarTimeSchema = z
-  .object({ dateTime: z.unknown(), date: z.unknown() })
+  .object({ dateTime: optionalText, date: optionalText })
   .catch({});
 
 /** Google Calendar `events.list` item; conference fields pass through for extractConferenceUrl. */
 const googleCalendarEventSchema = z
   .object({
-    id: z.unknown(),
-    summary: z.unknown(),
-    htmlLink: z.unknown(),
+    id: optionalText,
+    summary: optionalText,
+    htmlLink: optionalText,
     start: calendarTimeSchema,
     end: calendarTimeSchema,
     attendees: z
-      .array(z.object({ email: z.unknown() }).catch({}))
+      .array(z.object({ email: optionalText }).catch({}))
       .nullish()
       .catch(null),
   })
-  .passthrough()
+  .extend({
+    hangoutLink: optionalText,
+    description: optionalText,
+    location: optionalText,
+    conferenceData: z
+      .object({
+        entryPoints: z.array(z.object({ uri: optionalText })).optional(),
+      })
+      .optional()
+      .catch(undefined),
+  })
   .catch({ start: {}, end: {} });
 
 export type GoogleCalendarEventItem = z.infer<typeof googleCalendarEventSchema>;
@@ -97,10 +112,10 @@ export interface AdAccountHealthIssue {
 /** LLM-supplied `delegate_parallel` entry; only entries with a truthy title and prompt are kept. */
 const parallelTaskArgSchema = z
   .object({
-    title: z.unknown(),
-    prompt: z.unknown(),
-    task_skills: z.unknown(),
-    side_effects: z.unknown(),
+    title: z.string().min(1),
+    prompt: z.string().min(1),
+    task_skills: z.array(z.string()).optional().catch(undefined),
+    side_effects: z.boolean().optional().catch(undefined),
   })
   .refine((task) => Boolean(task.title) && Boolean(task.prompt));
 
@@ -113,16 +128,14 @@ export function parallelTaskArgs(items: unknown[]): ParallelTaskArg[] {
   });
 }
 
-const automationStepArgSchema = z
-  .object({
-    type: z.unknown(),
-    skin: z.unknown(),
-    instruction: z.unknown(),
-    action_type: z.unknown(),
-    config: z.unknown(),
-    label: z.unknown(),
-  })
-  .catch({});
+const automationStepArgSchema = z.object({
+  type: optionalText,
+  skin: optionalText,
+  instruction: optionalText,
+  action_type: optionalText,
+  config: automationStepConfigurationSchema.optional(),
+  label: optionalText,
+});
 
 export type AutomationStepArg = z.infer<typeof automationStepArgSchema>;
 
@@ -132,15 +145,6 @@ export function automationStepArg(value: unknown): AutomationStepArg {
     throw new TypeError(`Cannot read properties of ${value} (reading 'type')`);
   }
   return automationStepArgSchema.parse(value);
-}
-
-/** A step's JSON object or array config; anything else is `{}`. */
-const automationStepConfigSchema = z
-  .union([z.record(jsonSchema), z.array(jsonSchema)])
-  .catch({});
-
-export function automationStepConfig(config: unknown): Json {
-  return automationStepConfigSchema.parse(config);
 }
 
 export function readField(value: unknown, key: string): unknown {
