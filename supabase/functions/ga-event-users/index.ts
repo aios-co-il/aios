@@ -4,6 +4,8 @@ import { parseTrackedEvents, type TrackedEvent } from "./tracked-events.ts";
 import { resolveDashboard } from "./access.ts";
 import { gaReport, readGaConnection } from "./ga-api.ts";
 import { requestDates } from "./request-dates.ts";
+import { pairStepsOf, pairUsers } from "./pair-funnel.ts";
+import { parseTrackedRatio } from "./tracked-ratio.ts";
 import { freshGaToken } from "./ga-token.ts";
 import { funnelRequest, usersRequest } from "./ga-requests.ts";
 import {
@@ -61,33 +63,44 @@ Deno.serve(async (req) => {
     const token = await freshGaToken(db, ga.integration);
     const run = (method: string, request: unknown) =>
       gaReport(token, ga.propertyId, method, request);
-    const [total, bySource, funnelTotal, funnelBySource] = await Promise.all([
-      run("v1beta:runReport", usersRequest(steps, startDate, endDate, false)),
-      run("v1beta:runReport", usersRequest(steps, startDate, endDate, true)),
-      run(
-        "v1alpha:runFunnelReport",
-        funnelRequest(steps, startDate, endDate, false),
-      ),
-      run(
-        "v1alpha:runFunnelReport",
-        funnelRequest(steps, startDate, endDate, true),
-      ),
-    ]);
+    const pairSteps = pairStepsOf(steps, parseTrackedRatio(settings, steps));
+    const [total, bySource, funnelTotal, funnelBySource, pair] =
+      await Promise.all([
+        run("v1beta:runReport", usersRequest(steps, startDate, endDate, false)),
+        run("v1beta:runReport", usersRequest(steps, startDate, endDate, true)),
+        run(
+          "v1alpha:runFunnelReport",
+          funnelRequest(steps, startDate, endDate, false),
+        ),
+        run(
+          "v1alpha:runFunnelReport",
+          funnelRequest(steps, startDate, endDate, true),
+        ),
+        pairSteps
+          ? run(
+              "v1alpha:runFunnelReport",
+              funnelRequest(pairSteps, startDate, endDate, false),
+            )
+          : null,
+      ]);
     if (!total.ok || !bySource.ok) {
       return json({ error: "Google Analytics report failed" }, 502);
     }
     return json(
-      buildEventUsers({
-        steps,
-        totalUsers: usersByEvent(total.rows),
-        sourceUsers: usersBySource(bySource.rows),
-        totalFunnel: funnelTotal.ok
-          ? funnelStepUsers(funnelTotal.rows, steps, false)
-          : null,
-        sourceFunnel: funnelBySource.ok
-          ? funnelStepUsers(funnelBySource.rows, steps, true)
-          : null,
-      }),
+      {
+        ...buildEventUsers({
+          steps,
+          totalUsers: usersByEvent(total.rows),
+          sourceUsers: usersBySource(bySource.rows),
+          totalFunnel: funnelTotal.ok
+            ? funnelStepUsers(funnelTotal.rows, steps, false)
+            : null,
+          sourceFunnel: funnelBySource.ok
+            ? funnelStepUsers(funnelBySource.rows, steps, true)
+            : null,
+        }),
+        pair: pairSteps && pair?.ok ? pairUsers(pair.rows, pairSteps) : null,
+      },
       200,
     );
   } catch (error) {

@@ -11,10 +11,14 @@ import {
   mixProfile,
   musicLoops,
 } from "./music-bed.ts";
+import type { Span, Timeline } from "./types.ts";
 import { musicEnvelope } from "./workshop-edit.ts";
 
+/** The timeline fields the ffmpeg edit's levels read. */
+type MixTimeline = Pick<Timeline, "voiceLufs" | "soundDesign" | "effects">;
+
 const STEREO = "aformat=sample_rates=48000:channel_layouts=stereo";
-const round3 = (value) => Math.round(value * 1000) / 1000;
+const round3 = (value: number) => Math.round(value * 1000) / 1000;
 /** The ffmpeg edit's music level for a film without sound design (unchanged). */
 const MUSIC_STEADY = 0.18;
 
@@ -22,9 +26,12 @@ const MUSIC_STEADY = 0.18;
  * An ffmpeg `volume` expression of t that follows the envelope's keyframes (frames at `fps`),
  * straight lines between them: the ffmpeg counterpart of the Remotion bed's level.
  */
-export function envelopeExpression({ frames, volumes }, fps) {
+export function envelopeExpression(
+  { frames, volumes }: { frames: Array<number>; volumes: Array<number> },
+  fps: number,
+) {
   const times = frames.map((frame) => round3(frame / fps));
-  const parts = [];
+  const parts: Array<string> = [];
   for (let i = 0; i + 1 < times.length; i++) {
     const [from, to] = [times[i], times[i + 1]];
     const [a, b] = [volumes[i], volumes[i + 1]];
@@ -52,6 +59,13 @@ export function musicBedFilters({
   filmS,
   volume,
   fps = 25,
+}: {
+  input: number;
+  musicS: number;
+  bodyS?: number | null;
+  filmS: number;
+  volume: number | string;
+  fps?: number;
 }) {
   const loops = musicLoops(Math.floor(musicS * fps), Math.ceil(filmS * fps), {
     bodyFrames: bodyS ? Math.floor(bodyS * fps) : undefined,
@@ -59,7 +73,7 @@ export function musicBedFilters({
     endFade: Math.round(MUSIC_END_FADE_S * fps),
     outro: Math.round(MUSIC_OUTRO_S * fps),
   });
-  const filters = [];
+  const filters: Array<string> = [];
   if (loops.length > 1) {
     const copies = loops.map((_, i) => `[mloop${i}]`);
     filters.push(
@@ -95,15 +109,23 @@ export function musicBedFilters({
 }
 
 /** Spoken spans in seconds as frames at `fps`. */
-const spanFrames = (spans, fps) =>
-  spans.map(([start, end]) => [Math.round(start * fps), Math.round(end * fps)]);
+const spanFrames = (spans: Array<Span>, fps: number) =>
+  spans.map(([start, end]): Span => [
+    Math.round(start * fps),
+    Math.round(end * fps),
+  ]);
 
 /**
  * The effects' level in the ffmpeg edit, an expression of t: the trailer mix's effect gains on
  * the same envelope as the Remotion edit's effects (up with the bed between lines, down under
  * every spoken span). Effects play only in a trailer.
  */
-export function effectsVolume(timeline, spans, filmS, fps) {
+export function effectsVolume(
+  timeline: Partial<MixTimeline>,
+  spans: Array<Span>,
+  filmS: number,
+  fps: number,
+) {
   const mix = mixProfile({
     trailer: true,
     voiceLufs: timeline.voiceLufs ?? null,
@@ -120,7 +142,12 @@ export function effectsVolume(timeline, spans, filmS, fps) {
  * The bed's level in the ffmpeg edit: the trailer mix ducks it under every spoken span like the
  * Remotion edit; an ordinary film keeps its steady level under the voice.
  */
-export function bedVolume(timeline, spans, filmS, fps) {
+export function bedVolume(
+  timeline: Partial<MixTimeline>,
+  spans: Array<Span>,
+  filmS: number,
+  fps: number,
+) {
   const mix = mixProfile({
     trailer: isTrailer(timeline),
     voiceLufs: timeline.voiceLufs ?? null,

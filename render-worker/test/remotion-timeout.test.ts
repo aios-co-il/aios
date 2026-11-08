@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { assembleWithRemotion } from "../src/compose/remotion.ts";
+import { sceneOf, timelineOf } from "./fakes.ts";
 
 /** A render job that never ends, and starts a helper of its own as Remotion starts a browser. */
 const HANGING_JOB = `
@@ -15,7 +16,7 @@ setInterval(() => {}, 1000);
 `;
 
 /** The process no longer runs: it is gone, or a zombie (killed, not yet reaped by its parent). */
-const gone = (pid) => {
+const gone = (pid: number) => {
   try {
     process.kill(pid, 0);
   } catch {
@@ -28,7 +29,7 @@ const gone = (pid) => {
   }
 };
 
-const waitUntil = async (check, ms = 3000) => {
+const waitUntil = async (check: () => boolean, ms = 3000) => {
   const end = Date.now() + ms;
   while (!check() && Date.now() < end)
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -44,10 +45,10 @@ test("a render that runs past its time limit is stopped, with the processes it s
     await writeFile(join(remotionDir, "render-job.mjs"), HANGING_JOB);
     const still = join(dir, "still.png");
     await writeFile(still, new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
-    const timeline = {
+    const timeline = timelineOf({
       aspect: "9:16",
       scenes: [
-        {
+        sceneOf({
           id: "a",
           clipPath: still,
           stillPath: still,
@@ -55,9 +56,9 @@ test("a render that runs past its time limit is stopped, with the processes it s
           durationS: 1,
           overlayText: "",
           voiceoverText: "",
-        },
+        }),
       ],
-    };
+    });
     await expect(
       assembleWithRemotion(timeline, join(dir, "film.mp4"), dir, {
         probeFile: async () => ({ duration: 1, hasAudio: false }),

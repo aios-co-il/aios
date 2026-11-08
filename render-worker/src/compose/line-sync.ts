@@ -4,8 +4,9 @@
  * in order (render.ts), so counting words finds where each line begins. Returns null when a
  * scene has no line or the words do not add up; the caller then stretches the scenes evenly.
  */
+import type { FramedWord } from "./types.ts";
 
-const wordCount = (text) =>
+const wordCount = (text: unknown) =>
   String(text ?? "")
     .split(/\s+/)
     .filter(Boolean).length;
@@ -14,13 +15,18 @@ const wordCount = (text) =>
  * lines: each scene's narration text, in film order. words: the take's framed words.
  * minFrames: each scene's own shortest length. takeFrames: the take's length with its tail.
  */
-export function lineFrames(lines, words, minFrames, takeFrames) {
+export function lineFrames(
+  lines: Array<unknown>,
+  words: Array<FramedWord>,
+  minFrames: Array<number>,
+  takeFrames: number,
+) {
   if (!lines.length || !words.length) return null;
   const counts = lines.map(wordCount);
   if (counts.some((count) => count === 0)) return null;
   if (counts.reduce((sum, count) => sum + count, 0) !== words.length)
     return null;
-  const starts = [];
+  const starts: Array<number> = [];
   let at = 0;
   for (const count of counts) {
     starts.push(at === 0 ? 0 : words[at].startFrame);

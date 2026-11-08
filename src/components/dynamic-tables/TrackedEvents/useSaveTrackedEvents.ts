@@ -1,17 +1,24 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { TRACKED_RATIO_SETTING, type TrackedRatio } from "./siteKpis";
 import { TRACKED_EVENTS_SETTING, type TrackedEvent } from "./trackedEvents";
 
 /**
- * Saves a dashboard's followed events into its settings, keeping every other
+ * Saves a dashboard's followed events and conversion pair into its settings, keeping every other
  * setting: the current settings are read first, since the page may hold an
  * older copy.
  */
 export function useSaveTrackedEvents(dashboardId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (events: Array<TrackedEvent>) => {
+    mutationFn: async ({
+      events,
+      ratio,
+    }: {
+      events: Array<TrackedEvent>;
+      ratio: TrackedRatio | null;
+    }) => {
       if (!dashboardId) {
         throw new Error("No dashboard");
       }
@@ -32,7 +39,11 @@ export function useSaveTrackedEvents(dashboardId: string | undefined) {
       const { error: updateError } = await supabase
         .from("crm_dashboards")
         .update({
-          settings: { ...current, [TRACKED_EVENTS_SETTING]: events } as Json,
+          settings: {
+            ...current,
+            [TRACKED_EVENTS_SETTING]: events,
+            [TRACKED_RATIO_SETTING]: ratio,
+          } as Json,
         })
         .eq("id", dashboardId);
       if (updateError) {

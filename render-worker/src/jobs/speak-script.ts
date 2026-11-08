@@ -10,6 +10,8 @@ import { synthesizeOpenRouterSpeech } from "../providers/openrouterTts.ts";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.ts";
 import { stripNikud } from "./nikud.ts";
 import { spokenAlignment } from "./spoken-alignment.ts";
+import type { VideoRun } from "./types.ts";
+import type { Vocalized } from "./vocalize.ts";
 
 /**
  * One take of the script through the first engine that can speak it: ElevenLabs, then
@@ -24,6 +26,14 @@ export async function speakScript({
   googleKey,
   resolveOpenRouterKey,
   log,
+}: {
+  run: Pick<VideoRun, "id" | "input">;
+  script: string;
+  voiced: Vocalized;
+  apiKey?: string | null;
+  googleKey?: string | null;
+  resolveOpenRouterKey: () => Promise<string | null | undefined>;
+  log: (line: string) => void;
 }) {
   if (apiKey) {
     try {
