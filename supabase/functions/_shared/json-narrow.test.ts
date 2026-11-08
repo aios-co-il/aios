@@ -63,3 +63,13 @@ Deno.test("textOr mirrors value || fallback", () => {
     assertStrictEquals(textOr(value, "fallback"), "fallback");
   }
 });
+
+Deno.test("optional undefined JSON members do not erase valid siblings", () => {
+  const value = {
+    message: "hi",
+    optional: undefined,
+    nested: { keep: 1, optional: undefined },
+  };
+  assertEquals(jsonObject(value), value);
+  assertEquals(asRecord(value), value);
+});

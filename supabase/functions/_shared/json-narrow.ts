@@ -11,11 +11,13 @@ export const jsonValueSchema: z.ZodType<Json> = z.lazy(() =>
     z.boolean(),
     z.null(),
     z.array(jsonValueSchema),
-    z.record(z.string(), jsonValueSchema),
+    z.record(z.string(), jsonValueSchema.optional()),
   ]),
 );
 
-const jsonObjectSchema = z.record(z.string(), jsonValueSchema).catch({});
+const jsonObjectSchema = z
+  .record(z.string(), jsonValueSchema.optional())
+  .catch({});
 
 /** Persisted/request JSON as an object for key reads; non-objects become `{}`. */
 export function jsonObject(value: Json | undefined): JsonObject {
