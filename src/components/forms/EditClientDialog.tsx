@@ -417,7 +417,7 @@ export function EditClientDialog({
   });
   const savedAdLinks = useClientAdLinks(client?.id);
   useEffect(() => {
-    if (savedAdLinks.loading) {
+    if (!savedAdLinks.loaded) {
       return;
     }
     // A field the user is editing keeps its unsaved value.
@@ -428,7 +428,7 @@ export function EditClientDialog({
         });
       }
     }
-  }, [form, savedAdLinks.loading, savedAdLinks.links]);
+  }, [form, savedAdLinks.loaded, savedAdLinks.links]);
 
   const { canViewFinance, canEditFinance } = useUserPermissions();
   const showFinanceFields = canViewFinance();
@@ -560,9 +560,10 @@ export function EditClientDialog({
           services: values.services || [],
           meta_ads_account_id: values.meta_ads_account_id || null,
           google_ads_account_id: values.google_ads_account_id || null,
-          // Saved only once the stored links were loaded, so an edit made
-          // before they arrive never blanks them.
-          ...(savedAdLinks.loading
+          // Saved only once the stored links were read successfully, so an
+          // edit made before they arrive, or after a failed read, never blanks
+          // them.
+          ...(!savedAdLinks.loaded
             ? {}
             : {
                 google_ads_url: values.google_ads_url?.trim() || null,
