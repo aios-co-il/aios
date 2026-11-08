@@ -17429,7 +17429,7 @@ export type Database = {
         Args: { p_user: string };
         Returns: string;
       };
-      client_update_documents_phone_call: {
+      client_update_reports_contact: {
         Args: { p_content: string };
         Returns: boolean;
       };
@@ -18100,6 +18100,10 @@ export type Database = {
           monthday?: number;
           weekday?: number;
         };
+        Returns: string;
+      };
+      normalize_client_update_type: {
+        Args: { p_type: string };
         Returns: string;
       };
       normalize_google_customer_id: { Args: { raw: string }; Returns: string };
