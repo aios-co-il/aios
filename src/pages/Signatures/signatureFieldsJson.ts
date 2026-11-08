@@ -2,12 +2,15 @@ import type { Json } from "@/integrations/supabase/types";
 import type { SignaturePosition } from "@/components/signatures/SignatureFieldPlacer";
 import type { DocumentField } from "@/components/signatures/signatureFieldTypes";
 
-export const signaturePositionToJson = (position: SignaturePosition): Json => ({
-  ...position,
-});
+/** Persist the named signature position fields as a JSON column value. */
+export function signaturePositionToJson(position: SignaturePosition): Json {
+  return { ...position };
+}
 
-export const documentFieldsToJson = (fields: Array<DocumentField>): Json =>
-  fields.map((field) => ({
+/** Persist document fields with their concrete positions in the signature template. */
+export function documentFieldsToJson(fields: Array<DocumentField>): Json {
+  return fields.map((field) => ({
     ...field,
     position: { ...field.position },
   }));
+}
