@@ -5,7 +5,8 @@
  * (client_complaint) and unlinked groups that look like a client's
  * (unlinked_group), from the client threads on the lines of the tenant's
  * members (connections.ts): groups linked to a client, and direct chats with
- * a phone on a client card, never a chat with any other number. It only
+ * a phone on a client card, never a chat with any other number; plus the
+ * groups of the tenant's Carmen line that no member's line reads. It only
  * reads, only for the kinds the tenant has not turned off, and only messages inside the read window
  * (scope.ts) and after the kinds' notify_since, so nothing older is ever
  * raised. A wait that staff answered (reply or completed call) is closed as
@@ -53,13 +54,15 @@ async function collectChat(
   }
   const lines = await src.lines();
   const skipped = lines.skipped ? [`lines_not_monitored:${lines.skipped}`] : [];
-  if (!lines.ids.length) {
+  const readLines = [...new Set([...lines.ids, ...lines.carmenIds])];
+  if (!readLines.length) {
     return idle(ctx, kinds, skipped[0] ?? "no_monitored_line");
   }
   // Each read starts where its own kinds need it (scope.ts).
   const query = (forKinds: FindingKind[]) => ({
     tenantId: ctx.tenantId,
     connectionIds: lines.ids,
+    carmenConnectionIds: lines.carmenIds,
     since: readSince(ctx, forKinds),
     clientIds: ctx.clientIds,
   });
@@ -81,7 +84,7 @@ async function collectChat(
   const notes = [...skipped, ...chat.notes];
   return {
     candidates: [...chat.candidates, ...unlinked],
-    watermark: { read_lines: readsThreads ? lines.ids : [] },
+    watermark: { read_lines: readsThreads ? readLines : [] },
     coverage: { complete: chat.complete, clientIds: ctx.clientIds, kinds },
     resolved: chat.resolved,
     llm: chat.llm,

@@ -59,6 +59,9 @@ export async function chooseVoice(
       voice_id: picked.id,
       voice: picked.name,
       message: `הקול נשמר: ${picked.name}. הקריינות של הסרט תהיה בקול הזה.`,
+      carmen_next: helpers.auto
+        ? "המשיכי להפקה (workshop_produce_video)."
+        : "המשיכי מיד ל-workshop_produce_video: במצב חצי אוטומטי הוא מקליט קודם רק את הקריינות ומחזיר שאלת אישור למשתמש.",
     };
   }
   if (helpers.auto) {

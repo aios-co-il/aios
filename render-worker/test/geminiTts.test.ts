@@ -6,6 +6,7 @@ import {
   speechFile,
   synthesizeGeminiSpeech,
 } from "../src/providers/geminiTts.ts";
+import { headerOf } from "./fakes.ts";
 
 test("a starter-plan refusal is recognized", () => {
   expect(
@@ -31,10 +32,9 @@ test("raw PCM from Gemini is wrapped as a WAV at the rate it states", async () =
     apiKey: "g",
     text: "שלום",
     fetchImpl: async (_url, init) => {
-      expect(init.headers["x-goog-api-key"]).toBe("g");
-      return {
-        ok: true,
-        json: async () => ({
+      expect(headerOf(init, "x-goog-api-key")).toBe("g");
+      return new Response(
+        JSON.stringify({
           candidates: [
             {
               content: {
@@ -51,7 +51,7 @@ test("raw PCM from Gemini is wrapped as a WAV at the rate it states", async () =
           ],
           usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 25 },
         }),
-      };
+      );
     },
   });
   expect(speech.contentType).toBe("audio/wav");

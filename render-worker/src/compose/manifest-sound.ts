@@ -3,11 +3,26 @@ import { wordsFromAlignment } from "./captions.ts";
 import { TAIL_FRAMES, extension, lastEnd, seconds } from "./manifest-media.ts";
 import { musicLoops } from "./music-bed.ts";
 import { MIX, effectCues, speaks, speechSpans } from "./workshop-edit.ts";
+import type { MusicLoop } from "./music-bed.ts";
+import type { FramedWord, Span, TimedWord, Timeline } from "./types.ts";
+import type {
+  CutCue,
+  ManifestScene,
+  PickedScene,
+  StagedFile,
+} from "./manifest-types.ts";
 
 /** The film's one narration take, staged in `files`, with its words and length. */
-export function stageNarration(timeline, files, fps) {
-  let narration = null;
-  let narrationWords = [];
+export function stageNarration(
+  timeline: Pick<
+    Timeline,
+    "narrationPath" | "narrationAlignment" | "narrationDurationS"
+  >,
+  files: Array<StagedFile>,
+  fps: number,
+) {
+  let narration: string | null = null;
+  let narrationWords: Array<TimedWord> = [];
   let narrationS = 0;
   if (timeline.narrationPath) {
     narration = `narration.${extension(timeline.narrationPath)}`;
@@ -28,7 +43,13 @@ export function stageNarration(timeline, files, fps) {
  * Sets each scene's clip volume from the speech under the whole film, and returns that speech
  * and whether clips play their own sound.
  */
-export function setClipVolumes(scenes, picked, timeline, framed, spans) {
+export function setClipVolumes(
+  scenes: Array<ManifestScene>,
+  picked: Array<PickedScene>,
+  timeline: Pick<Timeline, "clipAudio">,
+  framed: Array<FramedWord>,
+  spans: Array<Span>,
+) {
   for (const word of framed) spans.push([word.startFrame, word.endFrame]);
   const speech = speechSpans(spans);
   const clipAudio = timeline.clipAudio !== false;
@@ -47,9 +68,14 @@ export function setClipVolumes(scenes, picked, timeline, framed, spans) {
 }
 
 /** The music bed staged in `files`, and its loops when the track is shorter than the film. */
-export function stageMusic(timeline, files, totalFrames, fps) {
-  let music = null;
-  let loops = [];
+export function stageMusic(
+  timeline: Pick<Timeline, "musicPath" | "musicDurationS" | "musicBodyS">,
+  files: Array<StagedFile>,
+  totalFrames: number,
+  fps: number,
+) {
+  let music: string | null = null;
+  let loops: Array<MusicLoop> = [];
   if (timeline.musicPath) {
     music = `music.${extension(timeline.musicPath)}`;
     files.push({ from: timeline.musicPath, to: music });
@@ -69,19 +95,27 @@ export function stageMusic(timeline, files, totalFrames, fps) {
  * own sound (the timeline's plan, transition-sounds.ts); a file two cuts share is staged once.
  */
 export function stageEffects(
-  timeline,
-  files,
-  scenes,
-  { fps, totalFrames, endCard },
+  timeline: Pick<Timeline, "effects">,
+  files: Array<StagedFile>,
+  scenes: Array<ManifestScene>,
+  {
+    fps,
+    totalFrames,
+    endCard,
+  }: {
+    fps: number;
+    totalFrames: number;
+    endCard: { startFrame: number } | null;
+  },
 ) {
   const fx = timeline.effects;
-  const stage = (path, name) => {
+  const stage = (path: string | null, name: string) => {
     if (!path) return null;
     const to = `${name}.${extension(path)}`;
     files.push({ from: path, to });
     return to;
   };
-  const staged = new Map();
+  const staged = new Map<string, CutCue>();
   const cutSounds = (fx?.cuts ?? []).slice(0, scenes.length - 1).map((cut) => {
     if (!staged.has(cut.path))
       staged.set(cut.path, {
@@ -96,7 +130,7 @@ export function stageEffects(
         fps,
         totalFrames,
         impact,
-        impactFrames: Math.ceil(seconds(fx.impactDurationS) * fps),
+        impactFrames: Math.ceil(seconds(fx?.impactDurationS) * fps),
         endCardStart: endCard?.startFrame ?? null,
         cutSounds,
       })

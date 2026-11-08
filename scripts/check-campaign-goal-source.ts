@@ -47,17 +47,9 @@ const TABLE_TYPE_RULE =
   "a table's goal read from campaign_type (use isEcommerceReportTable)";
 
 /**
- * Rules a file may skip, each with its reason. Report code that still decides
- * on its own changes a client's report when moved, so AIO-494 tracks it.
+ * Rules a file may skip, each with its reason.
  */
 export const KNOWN_GAPS = new Map<string, Array<string>>([
-  // AIO-494: report-side table checks that ignore the "איקומרס" category.
-  ["src/lib/dashboardCombinedFigures.ts", [TABLE_TYPE_RULE]],
-  [
-    "src/components/dynamic-tables/googleLeadCampaignRecords.ts",
-    [TABLE_TYPE_RULE],
-  ],
-  ["src/pages/DynamicTableView.tsx", [TABLE_TYPE_RULE]],
   // Writer: picks which Google metrics a Make blueprint syncs per table type.
   ["supabase/functions/make-api/index.ts", [TABLE_TYPE_RULE]],
 ]);

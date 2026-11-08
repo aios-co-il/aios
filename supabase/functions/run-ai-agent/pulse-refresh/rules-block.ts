@@ -5,9 +5,10 @@
 // override it. Bump CARMEN_PULSE_RULES_VERSION whenever the rules or their
 // place in the prompt change.
 import { pulseSurfacePrefersWhatsAppDigest } from "../../_shared/campaign-pulse.ts";
+import { DEFAULT_NO_RESULTS_DAYS } from "../../_shared/pulse/no-results-window.ts";
 import { PULSE_REFRESH_MIN_INTERVAL_SECONDS } from "./snapshot.ts";
 
-export const CARMEN_PULSE_RULES_VERSION = "2026-10-27.1";
+export const CARMEN_PULSE_RULES_VERSION = "2026-11-07.1";
 
 /** Which run gets the block: Carmen, outside isolated pin_skills_only sessions. */
 type PulseRulesRun = { isCarmen?: boolean; pinSkillsOnly?: boolean };
@@ -48,6 +49,7 @@ export function buildCarmenPulseRulesBlock({
     '• כל שינוי בקמפיין — תקציב, כיבוי או הדלקה, יצירה, שכפול, החלפת טופס, תזמון — רק אחרי אישור מפורש של המשתמש על הסיכום (pending_approval ואז "כן"). סקירה לא מחליפה אישור.',
     "• כל מספר מגיע מפלט הכלי. אסור להשלים נתונים מהזיכרון, ואסור להריץ analyze_campaign_performance במקום הדופק.",
     "• אם אין בדיקת דופק שמורה — אמרי זאת והציעי לרענן.",
+    `• קמפיין לידים או מכירות שמוציא בלי תוצאות הופך לחריגה אחרי מספר הימים המלאים שנקבע ללקוח — no_results_days בשורת הקמפיין (ברירת מחדל ${DEFAULT_NO_RESULTS_DAYS}). כשמסבירים את הכלל או את החריגה, נקבי במספר של הלקוח.`,
   ];
   if (pulseSurfacePrefersWhatsAppDigest(surface)) {
     lines.push(
