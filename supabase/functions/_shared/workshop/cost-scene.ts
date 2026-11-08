@@ -11,11 +11,14 @@ import {
   KLING_USD_PER_5S,
   MUSIC_USD_PER_MINUTE,
   OPENROUTER_USD_PER_SECOND,
+  SPEECH_TO_SPEECH_USD_PER_MINUTE,
   VOICE_USD_PER_1000_CHARS,
   musicQuoteSeconds,
   voiceCharacters,
 } from "./clip-prices.ts";
+import { GUIDE_MAX_SECONDS } from "./narration-guide.ts";
 import { type SceneEngine, sceneClipSeconds } from "./scene-engine.ts";
+import { spokenSeconds } from "./script-pace.ts";
 import { talkingMeta } from "./talking.ts";
 
 export interface CostScene {
@@ -99,6 +102,31 @@ export function voiceEstimate(scenes: CostScene[]): Estimate {
     credits: 0,
   };
 }
+
+/**
+ * A user's own recording of the narration, voiced again in the project's voice (narration-guide.ts),
+ * billed by its length. The recording is not measured before it is queued, so the quote takes the
+ * narration's spoken length with GUIDE_HEADROOM for a person reading it aloud (a slower pace, the
+ * silence before and after), up to the longest recording the board takes.
+ */
+export function guideEstimate(scenes: Array<CostScene>): Estimate {
+  const seconds = Math.min(
+    GUIDE_MAX_SECONDS,
+    scenes.reduce(
+      (sum, scene) => sum + spokenSeconds(scene.voiceover_text),
+      0,
+    ) * GUIDE_HEADROOM,
+  );
+  return {
+    usd: Math.max(
+      0.01,
+      roundUsd((seconds / 60) * SPEECH_TO_SPEECH_USD_PER_MINUTE),
+    ),
+    credits: 0,
+  };
+}
+
+const GUIDE_HEADROOM = 1.5;
 
 /** The music bed, priced for the film it will cover (musicQuoteSeconds in clip-prices.ts). */
 export function musicEstimate(scenes: CostScene[]): Estimate {

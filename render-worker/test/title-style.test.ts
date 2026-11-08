@@ -7,6 +7,8 @@ import {
   titleStyleOf,
 } from "../src/compose/title-style.ts";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
+import type { SourceScene } from "../src/compose/types.ts";
+import type { FilmPayload } from "../src/jobs/types.ts";
 
 test("only known text styles and sizes reach the film", () => {
   expect(titleStyleOf("slide")).toBe("slide");
@@ -33,7 +35,7 @@ test("only known key-word emphases reach the film", () => {
 });
 
 test("a scene's own emphasis wins over the film's on its way to the manifest", () => {
-  const scene = (id, extra = {}) => ({
+  const scene = (id: string, extra: Partial<SourceScene> = {}) => ({
     id,
     position: 1,
     clipPath: `/tmp/${id}.mp4`,
@@ -59,7 +61,7 @@ test("a scene's own emphasis wins over the film's on its way to the manifest", (
 });
 
 test("the film's emphasis is read from its work item, an unknown one is dropped", async () => {
-  const settingsWith = (video) =>
+  const settingsWith = (video: FilmPayload) =>
     loadFilmSettings(
       { select: async () => [{ payload: { video } }] },
       { id: "r1", tenant_id: "t1", item_id: "i1" },

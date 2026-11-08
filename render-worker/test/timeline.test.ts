@@ -55,7 +55,7 @@ test("buildTimeline keeps approved clips in storyboard order", () => {
   expect(narrated.scenes[0].voicePath).toBe(null);
 });
 
-const media = (args) => {
+const media = (args: Array<string>) => {
   const result = spawnSync("ffmpeg", args, { stdio: "ignore" });
   if (result.status !== 0)
     throw new Error(`ffmpeg fixture failed: ${args.join(" ")}`);

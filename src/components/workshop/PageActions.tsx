@@ -1,22 +1,32 @@
 import { CheckCircle2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  NarrationRecorder,
+  type NarrationRecorderProps,
+} from "./NarrationRecorder/NarrationRecorder";
 import { isEditablePage } from "./pageEdit";
 import type { WorkshopArtifact } from "./workshopFeedModel";
 
 /**
  * A concept or script page's own buttons: edit it by hand, and approve a concept (the chat sends
  * "קונספט: <name>", which the server saves as the brief's concept). The script is approved only
- * with the button under it in the chat, so it has no second approval here.
+ * with the button under it in the chat, so it has no second approval here. A narration page
+ * offers recording the narration in the user's own voice (`recording`, when a project is open).
  */
 export function PageActions({
   artifact,
   onEdit,
   onApproveConcept,
+  recording,
 }: {
   artifact: WorkshopArtifact;
   onEdit: () => void;
   onApproveConcept: () => void;
+  recording?: NarrationRecorderProps;
 }) {
+  if (artifact.kind === "narration") {
+    return recording ? <NarrationRecorder {...recording} /> : null;
+  }
   if (!isEditablePage(artifact)) {
     return null;
   }

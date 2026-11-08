@@ -56,7 +56,10 @@ export const openRouterClipSeconds = (seconds: unknown, model = MODEL()) => {
 };
 
 /** Veo takes 16:9 and 9:16 only; Kling and Seedance also take 1:1. */
-export const openRouterAspect = (aspect: string, model = MODEL()) => {
+export const openRouterAspect = (
+  aspect: string | undefined,
+  model = MODEL(),
+) => {
   if (aspect === "16:9") return "16:9";
   if (aspect === "1:1" && family(model) !== "veo") return "1:1";
   return "9:16";
@@ -194,7 +197,10 @@ export function openRouterProvider({
           ...(Number.isFinite(cost) && cost > 0 ? { costUsd: cost } : {}),
         };
       }
-      if (["failed", "cancelled", "canceled", "expired"].includes(data.status))
+      if (
+        data.status &&
+        ["failed", "cancelled", "canceled", "expired"].includes(data.status)
+      )
         return {
           status: "failed",
           error:
@@ -209,5 +215,6 @@ export function openRouterProvider({
 
 /** The OpenRouter engine, which also starts jobs from a ready body (HeyGen lip sync). */
 export interface OpenRouterProvider extends VideoProvider {
+  talkingModel: string;
   submitBody(body: object): Promise<SubmitResult>;
 }

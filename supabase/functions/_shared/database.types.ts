@@ -5566,6 +5566,7 @@ export type Database = {
           follow_up_manager_notified_at: string | null;
           ga_property_id: string | null;
           google_ads_account_id: string | null;
+          google_ads_url: string | null;
           gsc_site_url: string | null;
           health_score: number | null;
           id: string;
@@ -5574,6 +5575,7 @@ export type Database = {
           is_seo_client: boolean | null;
           manychat_subscriber_id: string | null;
           meta_ads_account_id: string | null;
+          meta_ads_url: string | null;
           monthly_budget: number | null;
           monthly_fixed_expense: number | null;
           mood_status: Database["public"]["Enums"]["client_mood_status"] | null;
@@ -5612,6 +5614,7 @@ export type Database = {
           follow_up_manager_notified_at?: string | null;
           ga_property_id?: string | null;
           google_ads_account_id?: string | null;
+          google_ads_url?: string | null;
           gsc_site_url?: string | null;
           health_score?: number | null;
           id?: string;
@@ -5620,6 +5623,7 @@ export type Database = {
           is_seo_client?: boolean | null;
           manychat_subscriber_id?: string | null;
           meta_ads_account_id?: string | null;
+          meta_ads_url?: string | null;
           monthly_budget?: number | null;
           monthly_fixed_expense?: number | null;
           mood_status?:
@@ -5659,6 +5663,7 @@ export type Database = {
           follow_up_manager_notified_at?: string | null;
           ga_property_id?: string | null;
           google_ads_account_id?: string | null;
+          google_ads_url?: string | null;
           gsc_site_url?: string | null;
           health_score?: number | null;
           id?: string;
@@ -5667,6 +5672,7 @@ export type Database = {
           is_seo_client?: boolean | null;
           manychat_subscriber_id?: string | null;
           meta_ads_account_id?: string | null;
+          meta_ads_url?: string | null;
           monthly_budget?: number | null;
           monthly_fixed_expense?: number | null;
           mood_status?:
@@ -17423,7 +17429,7 @@ export type Database = {
         Args: { p_user: string };
         Returns: string;
       };
-      client_update_documents_phone_call: {
+      client_update_reports_contact: {
         Args: { p_content: string };
         Returns: boolean;
       };
@@ -18096,6 +18102,10 @@ export type Database = {
         };
         Returns: string;
       };
+      normalize_client_update_type: {
+        Args: { p_type: string };
+        Returns: string;
+      };
       normalize_google_customer_id: { Args: { raw: string }; Returns: string };
       normalize_meta_ad_account_id: { Args: { raw: string }; Returns: string };
       offboard_tenant_member: {
@@ -18159,6 +18169,46 @@ export type Database = {
           report_tables: number;
           shared_with_tenants: string[];
         }[];
+      };
+      queue_narration_guide: {
+        Args: {
+          p_estimate?: Json;
+          p_guide: Json;
+          p_item_id: string;
+          p_stage_id?: string;
+          p_voice_id: string;
+        };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       queue_video_clips: {
         Args: {

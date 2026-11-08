@@ -22,12 +22,12 @@ export const SCENE_TRANSITIONS = [
 export const END_CARD_STYLES = ["classic", "bold", "minimal", "split"];
 
 /** A transition Carmen can choose, or null. */
-export const sceneTransitionOf = (value) =>
-  SCENE_TRANSITIONS.includes(value) ? value : null;
+export const sceneTransitionOf = (value: unknown) =>
+  typeof value === "string" && SCENE_TRANSITIONS.includes(value) ? value : null;
 
 /** A known end-card design, or null. */
-export const endCardStyleOf = (value) =>
-  END_CARD_STYLES.includes(value) ? value : null;
+export const endCardStyleOf = (value: unknown) =>
+  typeof value === "string" && END_CARD_STYLES.includes(value) ? value : null;
 
 /**
  * What plays behind the closing card (Remotion workshop-end-card-backdrop.ts); a film without a
@@ -43,8 +43,10 @@ export const END_CARD_BACKGROUNDS = [
 ];
 
 /** A known end-card background, or null. */
-export const endCardBackgroundOf = (value) =>
-  END_CARD_BACKGROUNDS.includes(value) ? value : null;
+export const endCardBackgroundOf = (value: unknown) =>
+  typeof value === "string" && END_CARD_BACKGROUNDS.includes(value)
+    ? value
+    : null;
 
 /** Whether the closing card's logo and call to action sit on frosted glass: only a real true. */
-export const endCardGlassOf = (value) => value === true;
+export const endCardGlassOf = (value: unknown) => value === true;

@@ -3,14 +3,14 @@ import { runClipWithFallback } from "../src/clip-fallback.ts";
 
 const keys = { higgsfieldKeyId: "id", higgsfieldKeySecret: "secret" };
 const paidPlan = () => new Error("ElevenLabs 402 paid_plan_required");
-const afterSubmit = (message) =>
+const afterSubmit = (message: string) =>
   Object.assign(new Error(message), { submitted: true });
 
-function recorder(answers) {
-  const calls = [];
+function recorder(answers: Record<string, Error | undefined>) {
+  const calls: Array<[string, string | null]> = [];
   return {
     calls,
-    run: async (provider, fallbackFrom) => {
+    run: async (provider: string, fallbackFrom: string | null) => {
       calls.push([provider, fallbackFrom]);
       const answer = answers[provider];
       if (answer instanceof Error) throw answer;
