@@ -48,7 +48,26 @@ const ORG: Record<string, Array<Row>> = {
     { id: "u-noa", campaigner_id: "camp-noa" },
     { id: "u-viewer", campaigner_id: null },
   ],
-  client_team: [{ campaigner_id: "camp-noa", client_id: "c2" }],
+  client_team: [
+    {
+      campaigner_id: "camp-noa",
+      client_id: "c2",
+      start_date: null,
+      end_date: null,
+    },
+    {
+      campaigner_id: "camp-noa",
+      client_id: "c1",
+      start_date: null,
+      end_date: "2026-10-31",
+    },
+    {
+      campaigner_id: "camp-noa",
+      client_id: "c3",
+      start_date: "2026-12-01",
+      end_date: null,
+    },
+  ],
 };
 
 /** A read-only stand-in for the Supabase client that applies `eq` and `in` filters. */
@@ -92,6 +111,8 @@ async function briefFor(
   failing: Array<string> = [],
 ): Promise<OrgBrief> {
   const db = fakeDb(ORG, failing);
+  // A fixed day, so the assignment windows in ORG stay ended or upcoming.
+  caller = { today: "2026-11-08", ...caller };
   return loadOrgBrief(
     db,
     TENANT,
@@ -176,3 +197,22 @@ Deno.test("a failed assignment read shows no clients", async () => {
   );
   assertEquals(clientNames(brief), []);
 });
+
+Deno.test(
+  "an ended or not yet started assignment is not the campaigner's client",
+  async () => {
+    const caller = {
+      userId: "u-noa",
+      role: "campaigner",
+      managedAgencyIds: [],
+    };
+    assertEquals(
+      clientNames(await briefFor({ ...caller, today: "2026-11-08" })),
+      ["מוסך"],
+    );
+    assertEquals(
+      clientNames(await briefFor({ ...caller, today: "2026-10-15" })),
+      ["בית קפה", "מוסך"],
+    );
+  },
+);
