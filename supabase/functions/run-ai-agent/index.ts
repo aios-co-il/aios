@@ -1,3 +1,5 @@
+import { createRefreshClient } from "./pulse-refresh/refresh-client.ts";
+import { readPulsePayload } from "./pulse-refresh/result.ts";
 import type { WaNotifyTarget } from "./wa-notify.ts";
 import { successCriterionArgs } from "./goal-args.ts";
 import {
@@ -6208,9 +6210,10 @@ async function executeTool(
             surface,
             conversationId,
           );
-          return made?.image_url
-            ? { image_url: made.image_url as string }
-            : { error: String(made?.error ?? "לא התקבלה תמונה") };
+          const madeFields = readJsonRecord(made);
+          return typeof madeFields.image_url === "string"
+            ? { image_url: madeFields.image_url }
+            : { error: String(madeFields.error ?? "לא התקבלה תמונה") };
         },
         envOpenAiKey: Deno.env.get("OPENAI_API_KEY") ?? undefined,
         background: (work) => {
@@ -7053,11 +7056,11 @@ async function executeTool(
       return data;
     }
     case "add_client_update": {
-      await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
+      await assertCallerCanAccessClient(supabase, requireArgString(args, "client_id"), callerScope);
       // Tenant check, attribution and dedupe happen in record_client_card_entry.
       return await addClientUpdateFromCarmen(supabase, {
         tenantId,
-        clientId: args.client_id,
+        clientId: requireArgString(args, "client_id"),
         content: args.content,
         updateType: args.update_type,
         humanRequesterUserId,
@@ -7337,7 +7340,7 @@ async function executeTool(
       }
 
       // Campaign-level rows only, as the reports count them, paged past 1000 rows.
-      const records = await fetchCampaignLevelRecords(supabase, {
+      const records = await fetchCampaignLevelRecords({from: () => supabase.from("crm_records")}, {
         tableIds,
         sinceYmd: sinceDateStr,
         tenantIds: accessibleTenantIds,
@@ -7612,15 +7615,15 @@ async function executeTool(
         const cr = await fetch(
           `https://graph.facebook.com/${FB_GRAPH_VERSION}/${ad.campaign_id}?fields=id,name,status,effective_status,daily_budget,lifetime_budget&access_token=${token}`,
         );
-        const campaignResponse = await readMetaResponse(cr).catch(() => null);
-        campaign = campaignResponse?.error ? null : campaignResponse;
+        const campaignResponse = await readMetaResponse(cr).catch((error) => { console.warn("Campaign metadata lookup failed", error); return null; });
+        campaign = campaignResponse?.ok ? campaignResponse.value : null;
       }
       if (ad.adset_id) {
         const ar = await fetch(
           `https://graph.facebook.com/${FB_GRAPH_VERSION}/${ad.adset_id}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id&access_token=${token}`,
         );
-        const adsetResponse = await readMetaResponse(ar).catch(() => null);
-        adset = adsetResponse?.error ? null : adsetResponse;
+        const adsetResponse = await readMetaResponse(ar).catch((error) => { console.warn("Ad set metadata lookup failed", error); return null; });
+        adset = adsetResponse?.ok ? adsetResponse.value : null;
       }
       return {
         ...summary,
@@ -8244,7 +8247,7 @@ async function executeTool(
       return await executeRefreshCampaignPulse(
         {
           args,
-          supabase,
+          supabase: createRefreshClient(supabase),
           tenantId,
           surface,
           callerCampaignerId,
@@ -8255,10 +8258,10 @@ async function executeTool(
           supabaseUrl: SUPABASE_URL,
           serviceKey: SUPABASE_SERVICE_ROLE_KEY,
         },
-        (pulseArgs) =>
-          executeTool(
+        async (pulseArgs) =>
+          readPulsePayload(await executeTool(
             "get_latest_campaign_pulse",
-            pulseArgs,
+            readJsonRecord(pulseArgs),
             supabase,
             tenantId,
             userId,
@@ -8270,7 +8273,7 @@ async function executeTool(
             waNotify,
             surface,
             conversationId,
-          ),
+          )),
       );
     }
     case "analyze_campaign_performance": {
@@ -8415,7 +8418,7 @@ async function executeTool(
         // rows repeat the campaign's spend and results), paged past 1000 rows.
         let records: Array<CampaignGoalRecord>;
         try {
-          records = await fetchCampaignLevelRecords(supabase, {
+          records = await fetchCampaignLevelRecords({from: () => supabase.from("crm_records")}, {
             tableIds,
             sinceYmd: d30Str,
             tenantIds: accessibleTenantIds,
@@ -8528,8 +8531,8 @@ async function executeTool(
       // 1. Update mood_status on client
       await setClientMoodStatus(supabase, {
         tenantId,
-        clientId: args.client_id,
-        moodStatus: args.mood_status,
+        clientId: requireArgString(args, "client_id"),
+        moodStatus: requireInsertValue(argEnum(args, "mood_status", Constants.public.Enums.client_mood_status), "mood_status"),
       });
 
       // 2. Create communication_log entry
@@ -8555,9 +8558,9 @@ async function executeTool(
       // 3. Card entry as source carmen, so it never counts as client contact.
       const cardEntry = await recordHealthCardEntryAfterUpdate(supabase, {
         tenantId,
-        clientId: args.client_id,
-        note: args.note,
-        moodStatus: args.mood_status,
+        clientId: requireArgString(args, "client_id"),
+        note: requireArgString(args, "note"),
+        moodStatus: requireInsertValue(argEnum(args, "mood_status", Constants.public.Enums.client_mood_status), "mood_status"),
         requesterUserId: humanRequesterUserId,
         tool: "update_client_health",
       });
@@ -9083,21 +9086,21 @@ async function executeTool(
     case "update_marketing_work_item": {
       // The workshop's budget and project state are written only by its own server code.
       let droppedKeys: string[] = [];
-      let payloadPatch: Record<string, unknown> | null = null;
-      if (args.payload_patch && typeof args.payload_patch === "object") {
-        const safe = stripServerOnlyPayloadKeys(args.payload_patch);
+      let payloadPatch: JsonRecord | null = null;
+      if (isObject(args.payload_patch)) {
+        const safe = stripServerOnlyPayloadKeys(readJsonRecord(args.payload_patch));
         droppedKeys = safe.dropped;
-        payloadPatch = safe.patch;
+        payloadPatch = readJsonRecord(safe.patch);
       }
       // Merges the patch in SQL (payload || patch), so a concurrent workshop write survives.
       const { data: rows, error } = await supabase.rpc(
         "patch_marketing_work_item",
         {
-          p_item_id: args.item_id,
+          p_item_id: requireArgString(args, "item_id"),
           p_tenant_id: tenantId,
-          p_title: args.title != null ? String(args.title) : null,
-          p_status: args.status != null ? String(args.status) : null,
-          p_payload_patch: payloadPatch,
+          p_title: argString(args, "title") ?? undefined,
+          p_status: argString(args, "status") ?? undefined,
+          p_payload_patch: payloadPatch ?? undefined,
         },
       );
       if (error) throw error;
@@ -10369,9 +10372,7 @@ async function executeTool(
       let q = supabase
         .from("chat_messages")
         .select(
-          withChatScopeColumns(
-            "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
-          ),
+          "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name), client_id, lead_id, connection_user_id",
         )
         .in("tenant_id", accessibleTenantIds)
         .gte("created_at", since)
@@ -10853,16 +10854,16 @@ async function executeTool(
       if (args.entity_type === "client") {
         await assertCallerCanAccessClient(
           supabase,
-          args.entity_id,
+          requireArgString(args, "entity_id"),
           callerScope,
         );
       }
       return await listUpdates(supabase, {
         entityType: args.entity_type,
-        entityId: args.entity_id,
+        entityId: requireArgString(args, "entity_id"),
         tenantId,
         accessibleTenantIds,
-        limit: args.limit,
+        limit: argNumber(args, "limit") ?? undefined,
       });
     }
     // GOALS
@@ -11490,8 +11491,8 @@ async function executeTool(
       const days = Math.min(Math.max(Number(args.days) || 7, 1), 30);
       const tables = await listVerifyTables(supabase, {
         tenantIds: accessibleTenantIds,
-        clientId: args.client_id || null,
-        agencyName: args.agency_name || null,
+        clientId: argString(args, "client_id") || null,
+        agencyName: argString(args, "agency_name") || null,
       });
       if (!tables.length) {
         return {
@@ -11676,7 +11677,7 @@ async function executeTool(
       if (tableIds.length > 0) {
         // Campaign-level rows of the last 7 days, paged: one unfiltered request
         // stopped at 1000 rows of any level/date and missed real spend.
-        const recs = await fetchCampaignLevelRecords(supabase, {
+        const recs = await fetchCampaignLevelRecords({from: () => supabase.from("crm_records")}, {
           tableIds,
           sinceYmd: d7Str,
           tenantIds: accessibleTenantIds,
@@ -11819,8 +11820,7 @@ async function executeTool(
         )
         .in("tenant_id", accessibleTenantIds);
       if (args.type)
-        q = q.in("integration_type", integrationTypesFor(args.type));
-      if (args.only_active) q = q.eq("is_active", true);
+        q = q.{q = q.in("integration_type", integrationTypesFor(requireArgString(args, "type")));} if (args.only_active) q = q.eq("is_active", true);
       const { data, error } = await q.order("integration_type");
       if (error) throw error;
       return {
@@ -12301,7 +12301,7 @@ async function executeTool(
         waChatId: waNotify?.chat_id,
         phone: callerPhone,
       });
-      const approvals = pick.pickable.slice(0, args.limit || 10).map((r) => ({
+      const approvals = pick.pickable.slice(0, argNumber(args, "limit") || 10).map((r) => ({
         code: approvalDisplayCode(r, pick.pickable),
         id: r.id,
         title: r.title,

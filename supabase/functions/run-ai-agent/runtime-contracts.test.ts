@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database } from "../_shared/database.types.ts";
 import {
   assertEquals,
   assertRejects,
@@ -216,15 +218,7 @@ const isRetentionPulseRow = (value: unknown) =>
 Deno.test(
   "updates refuse an inaccessible parent or a failed scope lookup",
   async () => {
-    const db = (data: { id: string } | null, error: Error | null = null) => ({
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            in: () => ({ maybeSingle: async () => ({ data, error }) }),
-          }),
-        }),
-      }),
-    });
+    const db = (data: {id: string} | null, error: Error | null = null) => createClient<Database>("https://example.supabase.co", "key", {auth:{persistSession:false},global:{fetch:async()=>new Response(JSON.stringify(error ? {message:error.message,code:"42501"}:data),{status:error?403:200,headers:{"Content-Type":"application/json"}})}});
     await requireUpdateEntityScope(db({ id: "task-a" }), "tasks", "task-a", [
       "tenant-a",
     ]);
@@ -233,7 +227,7 @@ Deno.test(
       Error,
       "outside the accessible tenants",
     );
-    await assertRejects(
+    await assert.rejects(
       () =>
         requireUpdateEntityScope(
           db(null, new Error("read failed")),
@@ -241,8 +235,7 @@ Deno.test(
           "lead-a",
           ["tenant-a"],
         ),
-      Error,
-      "read failed",
+      { message: "read failed" },
     );
   },
 );

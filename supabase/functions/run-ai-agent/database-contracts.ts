@@ -17,31 +17,9 @@ export function requireInsertValue<Value>(
   return value;
 }
 
-/** The parent lookup needed before writing a lead or task update. */
-export interface UpdateEntityLookup {
-  from(table: "leads" | "tasks"): {
-    select(columns: "id"): {
-      eq(
-        column: "id",
-        id: string,
-      ): {
-        in(
-          column: "tenant_id",
-          tenantIds: string[],
-        ): {
-          maybeSingle(): PromiseLike<{
-            data: { id: string } | null;
-            error: { message: string } | null;
-          }>;
-        };
-      };
-    };
-  };
-}
-
 /** Update tables inherit tenant scope from their parent record. */
 export async function requireUpdateEntityScope(
-  db: UpdateEntityLookup,
+  db: AgentDatabaseClient,
   table: "leads" | "tasks",
   id: string,
   tenantIds: string[],

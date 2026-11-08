@@ -1,12 +1,14 @@
+import { z } from "npm:zod@3.25.76";
 import { buildPulseRefreshNote, type PulseRefreshStatus } from "./note.ts";
 
 /** get_latest_campaign_pulse's answer; the refresh reads these fields. */
-export type PulsePayload = {
-  count?: number;
-  freshness?: string | null;
-  instructions_to_agent?: string | null;
-  [field: string]: unknown;
-};
+const pulsePayloadSchema = z.object({count:z.number().optional(), freshness:z.string().nullish(), instructions_to_agent:z.string().nullish()}).passthrough();
+export type PulsePayload = z.infer<typeof pulsePayloadSchema>;
+/** Validate fields the refresh consumes while retaining the full pulse answer. */
+export function readPulsePayload(value: unknown): PulsePayload | null {
+ const parsed = pulsePayloadSchema.safeParse(value);
+ return parsed.success ? parsed.data : null;
+}
 
 /** How the refresh went, as the tool result's `refresh` field shows it. */
 export type RefreshRecord = {

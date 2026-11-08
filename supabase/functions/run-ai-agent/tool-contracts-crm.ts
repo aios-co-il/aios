@@ -1,3 +1,5 @@
+import type { clientPerformanceEntry } from "./client-performance.ts";
+import type { staleClientEntry } from "./stale-client-entry.ts";
 import type { Database, Json } from "../_shared/database.types.ts";
 import type {
   CampaignGoalMode,
@@ -82,33 +84,7 @@ export type PulseManualOverride = {
   corrected_at: string;
 };
 
-export type SyncedCampaignClient = {
-  client_id: string;
-  client_name: string;
-  agency_name: string | null;
-  is_ecommerce: boolean;
-  spend_7d: number;
-  spend_30d: number;
-  leads_7d: number;
-  leads_30d: number;
-  cpl_7d: number | null;
-  cpl_30d_avg: number | null;
-  purchases_7d: number;
-  purchases_30d: number;
-  revenue_7d: number;
-  revenue_30d: number;
-  cpp_7d: number | null;
-  cpp_change_pct: number | null;
-  roas_7d: number | null;
-  profit_7d: number;
-  spend_change_pct: number | null;
-  cpl_change_pct: number | null;
-  last_data_date: string | null;
-  last_campaign_update: string | number | null;
-  days_since_last_campaign_touch: number | null;
-  sync_status: "ok" | "stale_or_empty";
-  alert: string | null;
-};
+export type SyncedCampaignClient = ReturnType<typeof clientPerformanceEntry> | ReturnType<typeof staleClientEntry>;
 
 export type CampaignStatusSummary = {
   campaign_id: Json;

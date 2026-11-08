@@ -31,7 +31,7 @@ export function clientPerformanceEntry(input: {
   tables: Array<ReportGoalTable>;
   d7Str: string;
   now: Date;
-}): Record<string, unknown> {
+}) {
   const { client, records, d7Str, now } = input;
   const verdictOf = reportCampaignGoalOf(records, input.tables);
   const dateOf = (record: CampaignGoalRecord) =>
