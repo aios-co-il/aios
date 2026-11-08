@@ -11937,8 +11937,8 @@ async function executeTool(
         throw new Error("tasks (array of {title, prompt}) is required");
       if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
       const cleaned = parallelTaskArgs(items).map((it) => ({
-        title: String(it.title),
-        prompt: String(it.prompt),
+        title: it.title,
+        prompt: it.prompt,
         taskSkills: Array.isArray(it.task_skills) ? it.task_skills : undefined,
         // Routing: read-only subtasks (side_effects:false) run in parallel;
         // mutating ones (default) run one-at-a-time in the serial lane.
@@ -11989,12 +11989,12 @@ async function executeTool(
           .slice(0, 20)
           .map(automationStepArg)
           .map((s) => ({
-            type: String(s.type || "agent"),
-            skin: s.skin ? String(s.skin) : null,
-            instruction: s.instruction ? String(s.instruction) : null,
-            action_type: s.action_type ? String(s.action_type) : null,
+            type: s.type || "agent",
+            skin: s.skin || null,
+            instruction: s.instruction || null,
+            action_type: s.action_type || null,
             config: s.config && typeof s.config === "object" ? s.config : {},
-            label: s.label ? String(s.label) : null,
+            label: s.label || null,
           })),
       };
       const stepSummary = spec.steps
