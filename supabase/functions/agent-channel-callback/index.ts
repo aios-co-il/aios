@@ -2,7 +2,11 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { ingestChannelReply } from "../_shared/agent-channel/ingest.ts";
 import { resolveCallbackOrigin } from "../_shared/agent-channel/logic.ts";
 import { verifyCallbackToken } from "../_shared/agent-channel/hmac.ts";
-import { loadSession, serviceClient } from "../_shared/agent-channel/store.ts";
+import {
+  loadSession,
+  serviceClient,
+  SessionLookupError,
+} from "../_shared/agent-channel/store.ts";
 import type {
   CallbackPayload,
   ChannelProvider,
@@ -89,6 +93,9 @@ Deno.serve(async (req) => {
     return json(200, { ok: true, ...result });
   } catch (e) {
     console.error("[agent-channel-callback]", errorMessageOr(e));
+    if (e instanceof SessionLookupError) {
+      return json(503, { error: "Unable to load callback session" });
+    }
     return json(400, { error: String(errorMessageOr(e)) });
   }
 });

@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { loadSession } from "./store.ts";
+import { loadSession, SessionLookupError } from "./store.ts";
 import {
   assert,
   assertEquals,
@@ -259,12 +259,8 @@ Deno.test(
     } catch (error) {
       caught = error;
     }
-    assert(
-      caught &&
-        typeof caught === "object" &&
-        "code" in caught &&
-        caught.code === "42501",
-    );
+    assert(caught instanceof SessionLookupError);
+    assertEquals(caught.message, "Unable to load channel session");
     assertEquals(
       openChatLookupFailedMessage().includes("private database detail"),
       false,

@@ -437,6 +437,15 @@ export async function completeSession(
     .eq("id", sessionId);
 }
 
+/** A retryable session read failure whose message is safe at HTTP and MCP boundaries. */
+export class SessionLookupError extends Error {
+  /** Keep database details in server logs rather than caller-visible messages. */
+  constructor() {
+    super("Unable to load channel session");
+    this.name = "SessionLookupError";
+  }
+}
+
 /** Propagate lookup failures so callbacks can retry instead of treating them as missing sessions. */
 export async function loadSession(
   sb: SupabaseClient,
@@ -448,7 +457,8 @@ export async function loadSession(
     .eq("id", sessionId)
     .maybeSingle();
   if (error) {
-    throw error;
+    console.error("[agent-channel] session lookup failed", error);
+    throw new SessionLookupError();
   }
   return (data as ChannelSessionRow) || null;
 }
