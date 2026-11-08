@@ -1,9 +1,9 @@
-import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
+import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 
 export type GoogleAdsCampaignSummaryRow = {
   name: string;
   campaign_id: string;
-  goal: GoogleCampaignGoal;
+  goal: GoogleReportGoal;
   /** Paused, removed or its report switched off; shown only when it spent. */
   off: boolean;
   impressions: number;
@@ -23,8 +23,11 @@ export type GoogleAdsCampaignSummary = {
   totals: GoogleAdsTotals;
   ecommerce: GoogleAdsTotals;
   leads: GoogleAdsTotals;
+  /** Campaigns set to pay for exposure (AIO-496): spend, impressions and clicks only. */
+  traffic: GoogleAdsTotals;
   hasEcommerce: boolean;
   hasLeads: boolean;
+  hasTraffic: boolean;
 };
 
 /** Purchases, revenue and ROAS of the ecommerce campaigns, from WooCommerce when it overlays Google Ads. */

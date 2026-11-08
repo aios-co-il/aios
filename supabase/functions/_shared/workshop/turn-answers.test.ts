@@ -6,6 +6,11 @@ import {
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import { briefAnswersOf } from "./brief-answers.ts";
 import type { Db } from "./db.ts";
+import {
+  APPROVE_NARRATION,
+  NARRATION_COMING,
+  NARRATION_QUESTION,
+} from "./tools/narration-approval.ts";
 import { APPROVE_STILLS, STILLS_QUESTION } from "./tools/stills-approval.ts";
 import { saveTurnAnswers } from "./turn-answers.ts";
 
@@ -90,6 +95,57 @@ describe("saveTurnAnswers: a tapped approval of the pictures", () => {
       await save("הנה התמונות.", APPROVE_STILLS),
     ]) {
       assertStrictEquals(video(saved.payload).approved_stills, undefined);
+    }
+  });
+});
+
+describe("saveTurnAnswers: a tapped approval of the narration", () => {
+  const asked = {
+    project_type: "video",
+    video: {
+      asked_narration_run: "voice-run-1",
+      asked_narration_turn: "turn-1",
+      asked_narration_shown: true,
+    },
+  };
+  const save = (
+    lastAssistant: string,
+    userText: string,
+    payload: Record<string, unknown> = asked,
+    turnId = "turn-2",
+  ) =>
+    saveTurnAnswers(recordingDb().db, "tenant-1", "item-1", payload, {
+      userText,
+      lastAssistant,
+      turnId,
+    });
+  const approvedRun = (payload: Record<string, unknown>) =>
+    (payload.video as Record<string, unknown>).approved_narration_run;
+
+  it("keeps the narration's approval for the take it asked about", async () => {
+    const saved = await save(NARRATION_QUESTION, APPROVE_NARRATION);
+    assertStrictEquals(approvedRun(saved.payload), "voice-run-1");
+    assertMatch(saved.lines.join("\n"), /אישר עכשיו את הקריינות/);
+  });
+
+  it("keeps nothing on לתקן, in the turn it was asked, or without the question", async () => {
+    for (const saved of [
+      await save(NARRATION_QUESTION, "לתקן"),
+      await save(NARRATION_QUESTION, APPROVE_NARRATION, asked, "turn-1"),
+      await save("הנה הקול.", APPROVE_NARRATION),
+    ]) {
+      assertStrictEquals(approvedRun(saved.payload), undefined);
+    }
+  });
+
+  it("keeps no narration approval tapped while the take was still recording", async () => {
+    const recording = {
+      ...asked,
+      video: { ...asked.video, asked_narration_shown: false },
+    };
+    for (const lastAssistant of [NARRATION_COMING, NARRATION_QUESTION]) {
+      const saved = await save(lastAssistant, APPROVE_NARRATION, recording);
+      assertStrictEquals(approvedRun(saved.payload), undefined);
     }
   });
 });

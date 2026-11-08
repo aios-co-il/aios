@@ -2,18 +2,27 @@
 import { captionStyleOf } from "./motion-captions.ts";
 
 import { cutSoundPlan } from "./transition-sounds.ts";
+import type {
+  EffectFiles,
+  FilmBrand,
+  SourceScene,
+  Timeline,
+  TimelineEffects,
+  TimelineScene,
+} from "./types.ts";
 
-export const FRAME_SIZE = {
+export const FRAME_SIZE: Record<string, [number, number]> = {
   "16:9": [1280, 720],
   "9:16": [720, 1280],
   "1:1": [1080, 1080],
   "4:5": [1080, 1350],
 };
 
-export const frameSize = (aspect) => FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
+export const frameSize = (aspect: string) =>
+  FRAME_SIZE[aspect] ?? FRAME_SIZE["9:16"];
 
 /** A scene's planned seconds: the storyboard length, 3 s when unset, within 0.5–120 s. */
-export const sceneSeconds = (value) =>
+export const sceneSeconds = (value: unknown) =>
   Math.min(120, Math.max(0.5, Number(value) || 3));
 
 /**
@@ -21,11 +30,16 @@ export const sceneSeconds = (value) =>
  * transition sounds, a lone whooshPath being a set of one, and the semitones its round shifts
  * it by; cutSoundPlan, drawn from `seed`) and its impact.
  */
-function soundDesignEffects(effects, cuts) {
+function soundDesignEffects(
+  effects: EffectFiles | null,
+  cuts: number,
+): TimelineEffects | null {
   const transitionPaths = (
     effects?.transitionPaths ?? [effects?.whooshPath]
-  ).filter(Boolean);
-  if (!transitionPaths.length && !effects?.impactPath) return null;
+  ).filter((path): path is string => Boolean(path));
+  if (!effects || (!transitionPaths.length && !effects.impactPath)) {
+    return null;
+  }
   return {
     cuts: cutSoundPlan(
       transitionPaths.length,
@@ -41,7 +55,7 @@ function soundDesignEffects(effects, cuts) {
  * Duration is the scene length the editor saved, not the provider clip length.
  */
 export function buildTimeline(
-  scenes,
+  scenes: Array<SourceScene>,
   {
     aspect = "9:16",
     musicPath = null,
@@ -62,13 +76,15 @@ export function buildTimeline(
     endCardStyle = null,
     endCardBackground = null,
     endCardGlass = false,
-  } = {},
-) {
+  }: TimelineOptions = {},
+): Timeline {
   const narration = narrationPath || null;
   const frames = [...scenes]
-    .filter((scene) => scene.clipPath)
+    .flatMap(({ clipPath, ...scene }) =>
+      clipPath ? [{ ...scene, clipPath }] : [],
+    )
     .sort((a, b) => Number(a.position) - Number(b.position))
-    .map((scene) => ({
+    .map((scene): TimelineScene => ({
       id: scene.id,
       clipPath: scene.clipPath,
       stillPath: scene.stillPath || null,
@@ -154,4 +170,27 @@ export function buildTimeline(
     totalS: Math.round(totalS * 100) / 100,
     scenes: frames,
   };
+}
+
+/** The film's settings for buildTimeline; each is unset (null or off) when omitted. */
+export interface TimelineOptions {
+  aspect?: string;
+  musicPath?: string | null;
+  narrationPath?: string | null;
+  narrationAlignment?: unknown;
+  brand?: FilmBrand | null;
+  clipAudio?: boolean;
+  effects?: EffectFiles | null;
+  soundDesign?: boolean;
+  captionStyle?: string;
+  brandName?: string | null;
+  keepDesign?: boolean;
+  titleStyle?: string | null;
+  titleSize?: string | null;
+  titleEmphasis?: string | null;
+  font?: string | null;
+  sceneOverlay?: string | null;
+  endCardStyle?: string | null;
+  endCardBackground?: string | null;
+  endCardGlass?: boolean;
 }

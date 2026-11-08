@@ -20,19 +20,26 @@ import {
 } from "../providers/composed-motion.ts";
 import { textlessMotion } from "../providers/textless-motion.ts";
 import { publicStill } from "./still-image.ts";
+import { rowsOf } from "./rows.ts";
+import type { AssetRow, RunItem, SceneRow, VideoRun } from "./types.ts";
+import type { Estimate, VideoProvider } from "../providers/types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 const BUCKET = "creative-video";
 const POLL_EVERY_MS = () => Number(process.env.CLIP_POLL_MS) || 10_000;
 const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * The line an engine says in the clip itself: a talking scene on an engine that speaks (Veo 3.1,
  * Seedance 2.5). A line in the chosen voice is never spoken by the engine (its voice would not be
  * the chosen one); LIPSYNC_NATIVE=0 turns this off.
  */
-const nativeLine = (provider, scene) =>
+const nativeLine = (
+  provider: Pick<VideoProvider, "nativeSpeech">,
+  scene: SceneRow,
+) =>
   provider.nativeSpeech &&
   process.env.LIPSYNC_NATIVE !== "0" &&
   !speaksInChosenVoice(scene)
@@ -44,10 +51,20 @@ const nativeLine = (provider, scene) =>
  * scene: each is priced as it would make it, so a talking clip on an engine that speaks costs
  * its talking price. The scene is read for the run's tenant.
  */
-export async function withinApprovedPrice({ db, run, approved, replacement }) {
-  const scene = await loadRunScene(db, run, "id,voiceover_text,meta");
+export async function withinApprovedPrice({
+  db,
+  run,
+  approved,
+  replacement,
+}: {
+  db: Pick<SupabaseRest, "select">;
+  run: VideoRun;
+  approved: VideoProvider;
+  replacement: VideoProvider;
+}) {
+  const scene = await loadRunScene<SceneRow>(db, run, "id,voiceover_text,meta");
   const durationS = Number(run.input?.duration_s) || 5;
-  const price = (provider) =>
+  const price = (provider: VideoProvider) =>
     provider.estimate({
       durationS,
       talking: Boolean(nativeLine(provider, scene)),
@@ -56,12 +73,18 @@ export async function withinApprovedPrice({ db, run, approved, replacement }) {
 }
 
 /** <item folder>/<scene>/clip-v<n>.mp4, n = the next clip version of the scene. */
-export async function clipPath(db, run, folder) {
-  const rows = await db.select(
-    "marketing_assets",
-    `item_id=eq.${run.item_id}&type=eq.video_clip&meta->>scene_id=eq.${run.scene_id}&select=id`,
+export async function clipPath(
+  db: Pick<SupabaseRest, "select">,
+  run: Pick<VideoRun, "item_id" | "scene_id" | "tenant_id">,
+  folder: string,
+) {
+  const rows = rowsOf<{ id: string }>(
+    await db.select(
+      "marketing_assets",
+      `item_id=eq.${run.item_id}&type=eq.video_clip&meta->>scene_id=eq.${run.scene_id}&select=id`,
+    ),
   );
-  const version = (rows?.length ?? 0) + 1;
+  const version = rows.length + 1;
   return assertTenantPath(
     run.tenant_id,
     `${folder}/${safeSegment(run.scene_id)}/clip-v${version}.mp4`,
@@ -83,11 +106,21 @@ export async function generateClip({
   // The worker wraps the paid submit and the save of its job id, so a stop never requeues
   // the run in between (src/inflight.ts).
   submitting = (submit) => submit(),
+}: {
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "sign" | "update" | "rpc"
+  >;
+  run: VideoRun;
+  provider?: VideoProvider;
+  fallbackFrom?: string | null;
+  log?: (line: string) => void;
+  submitting?: <T>(submit: () => Promise<T>) => Promise<T>;
 }) {
   const input = run.input ?? {};
   if (!run.scene_id) throw finalError("clip run: scene_id is required");
   const item = await loadRunItem(db, run);
-  const scene = await loadRunScene(
+  const scene = await loadRunScene<SceneRow>(
     db,
     run,
     "id,still_asset_id,voiceover_text,visual_prompt,meta",
@@ -100,10 +133,12 @@ export async function generateClip({
     ? { line, speaker: String(scene.meta?.speaker ?? "").trim() || null }
     : null;
   const [still] = scene.still_asset_id
-    ? ((await db.select(
-        "marketing_assets",
-        `id=eq.${scene.still_asset_id}&tenant_id=eq.${run.tenant_id}&select=id,url`,
-      )) ?? [])
+    ? rowsOf<Pick<AssetRow, "id" | "url">>(
+        await db.select(
+          "marketing_assets",
+          `id=eq.${scene.still_asset_id}&tenant_id=eq.${run.tenant_id}&select=id,url`,
+        ),
+      )
     : [];
   if (!still?.url)
     throw finalError("clip run: the scene has no still (is required)");
@@ -117,7 +152,7 @@ export async function generateClip({
   const aspect = input.aspect || "9:16";
   const estimate = provider.estimate({ durationS, talking: Boolean(talking) });
 
-  let jobId =
+  let jobId: string | null =
     run.provider === provider.name && provider.name !== PREVIEW_PROVIDER
       ? run.provider_job_id
       : null;
@@ -126,7 +161,7 @@ export async function generateClip({
   } else {
     // A creative-video path, the user's own upload (workshop_edit_from_assets) or a media link.
     const imageBytes = await readMedia(db, run.tenant_id, still.url, BUCKET);
-    let imageUrl = null;
+    let imageUrl: string | null = null;
     if (provider.needsPublicImage) {
       // Stored stills can be expiring signed links; hand the provider a fresh one of a copy,
       // labelled with its real type (a WebP becomes a PNG).
@@ -138,8 +173,8 @@ export async function generateClip({
       await db.upload(BUCKET, source, copy.bytes, copy.contentType);
       imageUrl = await db.sign(BUCKET, source, 3600);
     }
-    await submitting(async () => {
-      ({ jobId } = await provider.submit({
+    jobId = await submitting(async () => {
+      const { jobId: submittedId } = await provider.submit({
         imageBytes,
         imageUrl,
         prompt: talking
@@ -150,20 +185,21 @@ export async function generateClip({
         aspect,
         generateAudio: Boolean(talking) || input.generate_audio === true,
         talking: Boolean(talking),
-      }));
+      });
       try {
         await db.update("marketing_runs", `id=eq.${run.id}`, {
           provider: provider.name,
-          provider_job_id: jobId,
+          provider_job_id: submittedId,
         });
       } catch (error) {
         // The provider already accepted (and charges for) the job: never submit it again.
         throw submitted(
           finalError(
-            `${provider.name} job ${jobId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
+            `${provider.name} job ${submittedId} was submitted but could not be saved (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
           ),
         );
       }
+      return submittedId;
     });
     log(`[clip] ${run.id} submitted ${provider.name} job ${jobId}`);
   }
@@ -209,6 +245,22 @@ async function finishClip({
   fallbackFrom,
   talking = null,
   log,
+}: {
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "sign" | "update" | "rpc"
+  >;
+  run: VideoRun;
+  provider: VideoProvider;
+  jobId: string;
+  item: RunItem;
+  still: Pick<AssetRow, "id">;
+  durationS: number;
+  aspect: string;
+  estimate: Estimate;
+  fallbackFrom: string | null;
+  talking?: { line: string; speaker: string | null } | null;
+  log: (line: string) => void;
 }) {
   const deadline = Date.now() + TIMEOUT_MS();
   let result = await provider.poll(jobId);
@@ -228,12 +280,14 @@ async function finishClip({
   }
 
   // The provider's own charge when it reports one (OpenRouter), else the estimate.
-  const costUsd = Number.isFinite(result.costUsd)
-    ? result.costUsd
-    : estimate.usd;
+  const costUsd =
+    result.costUsd !== undefined && Number.isFinite(result.costUsd)
+      ? result.costUsd
+      : estimate.usd;
   let bytes = result.bytes;
   if (!bytes) {
-    const response = await fetch(result.url);
+    // A succeeded job without bytes carries its link (fetch reads a missing one as "undefined").
+    const response = await fetch(String(result.url));
     if (!response.ok)
       throw new Error(
         `clip download ${response.status} (job ${jobId} kept for retry)`,
@@ -287,7 +341,13 @@ async function finishClip({
 }
 
 /** Called once a clip run will not be retried: the scene shows as failed in the strip. */
-export async function failClip({ db, run }) {
+export async function failClip({
+  db,
+  run,
+}: {
+  db: Pick<SupabaseRest, "update">;
+  run: Pick<VideoRun, "scene_id" | "tenant_id">;
+}) {
   if (!run.scene_id) return;
   await db.update(
     "marketing_video_scenes",

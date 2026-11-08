@@ -47,6 +47,7 @@ export function WorkshopFeed({
   onSelect,
   tenantId,
   projectId,
+  clientId,
   clientName,
   storyboard,
   openChat,
@@ -56,6 +57,8 @@ export function WorkshopFeed({
   hasProject: boolean;
   tenantId?: string;
   projectId?: string | null;
+  /** The project's client, whose folder the narration recording is stored in. */
+  clientId?: string | null;
   clientName?: string | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -240,6 +243,17 @@ export function WorkshopFeed({
                         openChat?.();
                         prefillComposer(`${approveConceptLine(artifact)}\n`);
                       }}
+                      recording={
+                        tenantId && projectId
+                          ? {
+                              tenantId,
+                              clientId: clientId ?? null,
+                              itemId: projectId,
+                              scenes: storyboard?.scenes ?? [],
+                              openChat,
+                            }
+                          : undefined
+                      }
                     />
                     {artifact.id === latestStoryboard && sceneCount > 0 ? (
                       <Button

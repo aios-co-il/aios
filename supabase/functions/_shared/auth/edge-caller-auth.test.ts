@@ -2,6 +2,8 @@ import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   authorizeSecretOrServiceRole,
   bearerFrom,
+  isGatewayServiceRoleRequest,
+  projectServiceRoleKeys,
   isServiceRoleRequest,
   jwtRole,
   trustedInternalCron,
@@ -100,3 +102,110 @@ Deno.test(
     );
   },
 );
+
+const LEGACY_KEY = "legacy-service-role-key";
+const SECRET_KEY = "sb_secret_staging_key";
+const KEYS = [LEGACY_KEY, SECRET_KEY];
+const VAULT_SERVICE_JWT = fakeJwt({ role: "service_role", iss: "supabase" });
+const FUNCTIONS_DIR = new URL("../../", import.meta.url);
+
+Deno.test("gateway service role: a project key or a service_role JWT", () => {
+  const allowed = (auth: string | null) =>
+    isGatewayServiceRoleRequest(auth, KEYS);
+  assertStrictEquals(allowed(bearer(LEGACY_KEY)), true);
+  // Staging's cron sends a new secret key from Vault (AIO-503).
+  assertStrictEquals(allowed(bearer(SECRET_KEY)), true);
+  // Production's cron sends a legacy JWT the env key does not equal.
+  assertStrictEquals(allowed(bearer(VAULT_SERVICE_JWT)), true);
+  assertStrictEquals(allowed(bearer(ANON_KEY)), false);
+  assertStrictEquals(
+    allowed(bearer(fakeJwt({ role: "authenticated" }))),
+    false,
+  );
+  assertStrictEquals(allowed(bearer("sb_secret_other")), false);
+  assertStrictEquals(allowed(null), false);
+  assertStrictEquals(allowed(SECRET_KEY), false);
+  assertStrictEquals(isGatewayServiceRoleRequest(bearer(""), []), false);
+});
+
+Deno.test(
+  "projectServiceRoleKeys reads the legacy and every secret key",
+  () => {
+    const env = (vars: Record<string, string>) => (name: string) => vars[name];
+    assertEquals(
+      projectServiceRoleKeys(
+        env({
+          SUPABASE_SERVICE_ROLE_KEY: LEGACY_KEY,
+          SUPABASE_SECRET_KEYS: JSON.stringify({
+            default: SECRET_KEY,
+            billing: "sb_secret_b",
+            bad: 3,
+          }),
+        }),
+      ),
+      [LEGACY_KEY, SECRET_KEY, "sb_secret_b"],
+    );
+    assertEquals(
+      projectServiceRoleKeys(env({ SUPABASE_SECRET_KEYS: "{not json" })),
+      [],
+    );
+    assertEquals(projectServiceRoleKeys(env({})), []);
+  },
+);
+
+Deno.test(
+  "every function using the gateway check has verify_jwt = true",
+  async () => {
+    const config = await Deno.readTextFile(
+      new URL("../config.toml", FUNCTIONS_DIR),
+    );
+    const users = await functionsImporting("isGatewayServiceRoleRequest");
+    assertEquals(users.length > 0, true);
+    const unverified = users.filter((name) => !verifiesJwt(config, name));
+    assertEquals(unverified, []);
+  },
+);
+
+/** Function folders (not _shared) whose non-test sources name `symbol`. */
+async function functionsImporting(symbol: string): Promise<Array<string>> {
+  const names: Array<string> = [];
+  for await (const entry of Deno.readDir(FUNCTIONS_DIR)) {
+    if (!entry.isDirectory || entry.name.startsWith("_")) {
+      continue;
+    }
+    if (await folderNames(new URL(`${entry.name}/`, FUNCTIONS_DIR), symbol)) {
+      names.push(entry.name);
+    }
+  }
+  return names.sort();
+}
+
+/** True when a non-test .ts file under `dir` contains `symbol`. */
+async function folderNames(dir: URL, symbol: string): Promise<boolean> {
+  for await (const entry of Deno.readDir(dir)) {
+    const url = new URL(entry.isDirectory ? `${entry.name}/` : entry.name, dir);
+    if (entry.isDirectory) {
+      if (await folderNames(url, symbol)) {
+        return true;
+      }
+    } else if (
+      entry.name.endsWith(".ts") &&
+      !entry.name.endsWith(".test.ts") &&
+      (await Deno.readTextFile(url)).includes(symbol)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** True when config.toml's [functions.<name>] section sets verify_jwt = true. */
+function verifiesJwt(config: string, name: string): boolean {
+  const start = config.indexOf(`[functions.${name}]`);
+  if (start < 0) {
+    return false;
+  }
+  const next = config.indexOf("\n[", start + 1);
+  const section = config.slice(start, next < 0 ? undefined : next);
+  return /^verify_jwt\s*=\s*true\s*$/m.test(section);
+}

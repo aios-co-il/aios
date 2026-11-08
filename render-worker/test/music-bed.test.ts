@@ -20,13 +20,14 @@ import {
 import { buildTimeline } from "../src/compose/timeline.ts";
 import { MIX, musicEnvelope } from "../src/compose/workshop-edit.ts";
 import { db, hasFfmpeg, media, meanDb } from "./media.ts";
+import type { Span } from "../src/compose/types.ts";
 
 test.skipIf(!hasFfmpeg)(
   "the ffmpeg edit loops a short bed under the scenes and the end card",
   async () => {
     const dir = await mkdtemp(join(tmpdir(), "bed-loop-"));
     try {
-      const clip = (name, color) => {
+      const clip = (name: string, color: string) => {
         const file = join(dir, `${name}.mp4`);
         media([
           "-f",
@@ -83,7 +84,7 @@ test("a track shorter than the film is looped with a crossfade at its musical en
   ]);
   // Every frame of the film has music; the hand-over overlaps by the crossfade only.
   const last = loops.at(-1);
-  expect(last.startFrame + last.frameCount).toBe(1563);
+  expect((last?.startFrame ?? 0) + (last?.frameCount ?? 0)).toBe(1563);
   expect(
     loops[0].frameCount - (loops[1].startFrame - loops[0].startFrame),
   ).toBe(45);
@@ -93,7 +94,10 @@ test("a track shorter than the film is looped with a crossfade at its musical en
   expect(musicLoops(10, 100_000).length).toBe(MAX_MUSIC_LOOPS);
   const many = musicLoops(300, 2000);
   expect(many.length).toBe(8);
-  expect(many.at(-1).startFrame + many.at(-1).frameCount).toBe(2000);
+  const lastOfMany = many.at(-1);
+  expect((lastOfMany?.startFrame ?? 0) + (lastOfMany?.frameCount ?? 0)).toBe(
+    2000,
+  );
   for (const [i, loop] of many.entries())
     if (i) expect(loop.startFrame).toBe(many[i - 1].startFrame + 300 - 45);
 });
@@ -113,7 +117,10 @@ test("a track that covers the film is one copy unless its music dies away before
   ]);
   // A short outro that ends inside the film's fade is not left to silence either.
   const short = musicLoops(60, 197, { bodyFrames: 54 });
-  expect(short.at(-1).startFrame + short.at(-1).frameCount).toBe(197);
+  const lastOfShort = short.at(-1);
+  expect((lastOfShort?.startFrame ?? 0) + (lastOfShort?.frameCount ?? 0)).toBe(
+    197,
+  );
   expect(short.every((loop) => loop.frameCount <= 60)).toBe(true);
   expect(musicLoops(0, 100)).toStrictEqual([]);
 });
@@ -167,7 +174,7 @@ test("an ordinary film keeps today's mix; a trailer brings the bed up and 13.5 d
 });
 
 test("the trailer bed holds down through short pauses and comes up in long ones", () => {
-  const spans = [
+  const spans: Array<Span> = [
     [30, 300],
     [315, 600],
     [700, 900],
@@ -180,7 +187,7 @@ test("the trailer bed holds down through short pauses and comes up in long ones"
     release,
     hold,
   });
-  const at = (frame) => {
+  const at = (frame: number) => {
     let i = 0;
     while (i < env.frames.length - 1 && env.frames[i + 1] <= frame) i += 1;
     return env.volumes[i];
@@ -244,7 +251,7 @@ test("the envelope becomes a piecewise volume expression of t", () => {
   expect(expr).toBe(
     "gte(t,0)*lt(t,1)*0.6+gte(t,1)*lt(t,2)*(0.6+-0.4*(t-1)/1)+gte(t,2)*lt(t,4)*0.2+gte(t,4)*0.2",
   );
-  const at = (t) =>
+  const at = (t: number) =>
     Function(
       "t",
       "gte",
@@ -252,8 +259,8 @@ test("the envelope becomes a piecewise volume expression of t", () => {
       `return ${expr};`,
     )(
       t,
-      (a, b) => (a >= b ? 1 : 0),
-      (a, b) => (a < b ? 1 : 0),
+      (a: number, b: number) => (a >= b ? 1 : 0),
+      (a: number, b: number) => (a < b ? 1 : 0),
     );
   expect(at(0.5)).toBeCloseTo(0.6);
   expect(at(1.5)).toBeCloseTo(0.4);

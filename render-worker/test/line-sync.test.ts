@@ -1,8 +1,9 @@
 import { expect, test } from "vitest";
 import { lineFrames } from "../src/compose/line-sync.ts";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
+import { sceneOf, timelineOf } from "./fakes.ts";
 
-const framed = (starts) =>
+const framed = (starts: Array<number>) =>
   starts.map((startFrame, index) => ({
     text: `w${index}`,
     startFrame,
@@ -28,39 +29,41 @@ test("a scene with no line or words that do not add up fall back to even stretch
 });
 
 test("the manifest cuts a narrated film at its line boundaries", () => {
-  const chars = (text, start, step) =>
+  const chars = (text: string, start: number, step: number) =>
     [...text].map((character, index) => ({
       character,
       start: start + index * step,
       end: start + (index + 1) * step,
     }));
   const one = chars("קפה טוב", 0, 0.3);
-  const two = chars(" מאפה", one.at(-1).end, 0.3);
+  const two = chars(" מאפה", one.at(-1)?.end ?? 0, 0.3);
   const all = [...one, ...two];
-  const { manifest } = buildWorkshopManifest({
-    narrationPath: "/tmp/n.mp3",
-    narrationAlignment: {
-      characters: all.map((c) => c.character),
-      character_start_times_seconds: all.map((c) => c.start),
-      character_end_times_seconds: all.map((c) => c.end),
-    },
-    scenes: [
-      {
-        id: "a",
-        clipPath: "/tmp/a.mp4",
-        clipProvider: "kling",
-        durationS: 5,
-        narrationText: "קפה טוב",
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      narrationPath: "/tmp/n.mp3",
+      narrationAlignment: {
+        characters: all.map((c) => c.character),
+        character_start_times_seconds: all.map((c) => c.start),
+        character_end_times_seconds: all.map((c) => c.end),
       },
-      {
-        id: "b",
-        clipPath: "/tmp/b.mp4",
-        clipProvider: "kling",
-        durationS: 5,
-        narrationText: "מאפה",
-      },
-    ],
-  });
+      scenes: [
+        sceneOf({
+          id: "a",
+          clipPath: "/tmp/a.mp4",
+          clipProvider: "kling",
+          durationS: 5,
+          narrationText: "קפה טוב",
+        }),
+        sceneOf({
+          id: "b",
+          clipPath: "/tmp/b.mp4",
+          clipProvider: "kling",
+          durationS: 5,
+          narrationText: "מאפה",
+        }),
+      ],
+    }),
+  );
   const [a, b] = manifest.scenes;
   // "מאפה" starts at 2.4 s (8 characters × 0.3 s): scene b starts there.
   expect(b.startFrame).toBe(Math.round(2.4 * manifest.fps));

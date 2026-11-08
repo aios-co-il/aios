@@ -3,7 +3,9 @@ import {
   googleCampaignNames,
   namesCampaignsByDestination,
 } from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
+import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -57,10 +59,12 @@ import {
   RefreshCw,
   Building2,
   Globe,
+  MousePointerClick,
   User,
   Calendar as CalendarIcon,
 } from "lucide-react";
 import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
+import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -165,16 +169,6 @@ const PLATFORM_CONFIG: Record<
   },
 };
 
-type PlatformFilter =
-  | "all"
-  | "weekly"
-  | "facebook"
-  | "google_ads"
-  | "continents"
-  | "google_analytics"
-  | "seo"
-  | "woocommerce";
-
 const isAdsPlatform = (source: string) =>
   ["facebook_insights", "facebook_ecommerce", "google_ads"].includes(source);
 const isAnalyticsPlatform = (source: string) => source === "google_analytics";
@@ -185,7 +179,7 @@ const normalizePlatformKey = (source: string) =>
 
 const matchesPlatformFilter = (
   integrationType: string,
-  filter: PlatformFilter,
+  filter: DashboardPlatformFilter,
 ): boolean => {
   if (filter === "all") return true;
   if (filter === "facebook") return isFacebookPlatform(integrationType);
@@ -260,7 +254,8 @@ export default function DashboardView() {
   const isCustomReady =
     dateFilter !== "custom" || (!!customFromStr && !!customToStr);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
+  const [platformFilter, setPlatformFilter] =
+    useState<DashboardPlatformFilter>("all");
   const didSetSeoDefaultRef = useRef(false);
   const isMobile = useIsMobile();
 
@@ -350,7 +345,14 @@ export default function DashboardView() {
     refetchOnMount: refetchOnMountIfEmpty,
   });
 
-  const adAccountLinks = useMemo(() => getAdAccountLinks(tables), [tables]);
+  const clientAdLinks = useClientAdLinks(dashboard?.client_id);
+  const adAccountLinks = useMemo(
+    () =>
+      clientAdLinks.loading
+        ? []
+        : getAdAccountLinks(tables, clientAdLinks.links),
+    [tables, clientAdLinks.loading, clientAdLinks.links],
+  );
 
   const dashboardLastSyncAt = useMemo(() => {
     const stamps = tables
@@ -613,7 +615,7 @@ export default function DashboardView() {
     tables.forEach((t: any) => {
       if (t.integration_type) set.add(t.integration_type);
     });
-    const platforms: PlatformFilter[] = [];
+    const platforms: DashboardPlatformFilter[] = [];
     if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
       platforms.push("facebook");
     if (set.has("google_ads")) platforms.push("google_ads");
@@ -673,6 +675,11 @@ export default function DashboardView() {
         value: "google_analytics",
         label: "Analytics",
         iconNode: getIntegrationIcon("google_analytics"),
+      });
+      items.push({
+        value: "site_events",
+        label: "אירועים באתר",
+        iconNode: <MousePointerClick className="h-4 w-4 text-indigo-600" />,
       });
     }
     if (availablePlatforms.includes("seo")) {
@@ -1650,18 +1657,35 @@ export default function DashboardView() {
           {availablePlatforms.length > 0 && (
             <Tabs
               value={platformFilter}
-              onValueChange={(v) => setPlatformFilter(v as PlatformFilter)}
+              onValueChange={(v) =>
+                setPlatformFilter(v as DashboardPlatformFilter)
+              }
             >
               <ResponsiveTabsList
                 items={platformTabItems}
                 value={platformFilter}
-                onValueChange={(v) => setPlatformFilter(v as PlatformFilter)}
+                onValueChange={(v) =>
+                  setPlatformFilter(v as DashboardPlatformFilter)
+                }
                 mobileLabel="בחר פלטפורמה"
               />
             </Tabs>
           )}
 
-          {platformFilter === "continents" ? (
+          {platformFilter === "site_events" ? (
+            <DashboardTrackedEvents
+              records={displayAllRecords}
+              settings={dashboard?.settings}
+              adsSpend={globalAdsMetrics.spend}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+              source={dashboardId ? { dashboardId } : null}
+              dateFilter={dateFilter}
+              customFrom={customFromStr}
+              customTo={customToStr}
+              editableDashboardId={dashboardId}
+            />
+          ) : platformFilter === "continents" ? (
             <CampaignContinentsTab
               campaigns={googleAdsSummary.campaigns}
               formatCurrency={formatCurrency}

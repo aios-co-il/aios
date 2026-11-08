@@ -75,6 +75,7 @@ import {
 import { SharedTrafficTable } from "@/components/SharedTable/SharedTrafficTable";
 import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
+import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { useQueryClient } from "@tanstack/react-query";
 import { SHARED_TABLE_DATE_FILTERS } from "@/lib/dashboardDateFilters";
@@ -87,6 +88,11 @@ import {
   filterRecordsByEntityLevel,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
+import {
+  type AdsReportView,
+  useContinentsReportView,
+} from "@/components/dynamic-tables/CampaignContinents/useContinentsReportView";
+import { TableContinentsView } from "@/components/dynamic-tables/CampaignContinents/TableContinentsView";
 
 // Date filter options — shared with DynamicTableView week windows via dashboardDateFilters.
 const DATE_FILTERS = SHARED_TABLE_DATE_FILTERS;
@@ -166,9 +172,6 @@ export default function SharedTable() {
   const [adsEntityLevel, setAdsEntityLevel] =
     useState<AdsEntityLevel>("campaign");
   const [monthlyWorkFullPage, setMonthlyWorkFullPage] = useState(false);
-  const [adsReportView, setAdsReportView] = useState<"summary" | "weekly">(
-    "summary",
-  );
   const queryClient = useQueryClient();
 
   const dateQueryKey = seoShareLocked
@@ -182,6 +185,7 @@ export default function SharedTable() {
   const {
     data: coreData,
     isLoading,
+    isFetching: coreFetching,
     error,
   } = useQuery({
     queryKey: ["shared-table", shareToken, dateQueryKey, "core"],
@@ -256,6 +260,16 @@ export default function SharedTable() {
   }, [coreData?.table?.integration_type]);
 
   const integrationType = data?.table?.integration_type;
+
+  const {
+    view: adsReportView,
+    setView: setAdsReportView,
+    hasContinentsTab,
+  } = useContinentsReportView({
+    integrationType,
+    records: data?.records || [],
+    ready: coreData !== undefined && !coreFetching,
+  });
   const isIntegrationTable =
     isAdsPlatform(integrationType || "") ||
     isAnalyticsPlatform(integrationType || "");
@@ -267,23 +281,15 @@ export default function SharedTable() {
   const formatTableUnitCost = (num: number) =>
     formatUnitCost(num, data?.table?.integration_settings?.currency);
 
-  // Deterministic table mode based on integration type + campaign_type setting
-  const tableCampaignType = String(
-    (data?.table?.integration_settings as any)?.campaign_type || "",
-  ).toLowerCase();
+  // The table's own mode, by the rule the internal report uses
+  // (isEcommerceReportTable reads the "איקומרס" category too, AIO-494). A
+  // Facebook Insights table splits per campaign, so its mode stays leads.
   const isGoogleAds = integrationType === "google_ads";
   const tableMode: "leads" | "ecommerce" =
-    integrationType === "facebook_ecommerce"
+    integrationType !== "facebook_insights" &&
+    isEcommerceReportTable(data?.table ?? {})
       ? "ecommerce"
-      : integrationType === "facebook_insights"
-        ? "leads"
-        : integrationType === "google_ads"
-          ? tableCampaignType === "ecommerce"
-            ? "ecommerce"
-            : "leads"
-          : tableCampaignType === "ecommerce"
-            ? "ecommerce"
-            : "leads";
+      : "leads";
   const tableGoals = useSharedTableGoals(
     data?.records,
     isGoogleAds ? data?.table : null,
@@ -659,22 +665,30 @@ export default function SharedTable() {
         {isAdsPlatform(integrationType || "") && (
           <Tabs
             value={adsReportView}
-            onValueChange={(value) =>
-              setAdsReportView(value as "summary" | "weekly")
-            }
+            onValueChange={(value) => setAdsReportView(value as AdsReportView)}
           >
             <ResponsiveTabsList
               items={[
                 { value: "summary", label: "הדוח" },
                 { value: "weekly", label: "השוואה שבועית", icon: BarChart3 },
+                ...(hasContinentsTab
+                  ? [{ value: "continents", label: "לפי יבשות", icon: Globe }]
+                  : []),
               ]}
               value={adsReportView}
               onValueChange={(value) =>
-                setAdsReportView(value as "summary" | "weekly")
+                setAdsReportView(value as AdsReportView)
               }
               mobileLabel="בחר תצוגה"
             />
           </Tabs>
+        )}
+
+        {hasContinentsTab && adsReportView === "continents" && data?.table && (
+          <TableContinentsView
+            records={data.records || []}
+            table={data.table}
+          />
         )}
 
         {isAdsPlatform(integrationType || "") && adsReportView === "weekly" && (
@@ -691,6 +705,7 @@ export default function SharedTable() {
             tables={data?.table ? [data.table] : undefined}
             sourceModes={weeklySourceModesForTable(
               data?.table?.integration_settings,
+              data?.table?.category,
             )}
           />
         )}

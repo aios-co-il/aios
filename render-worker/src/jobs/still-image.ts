@@ -4,21 +4,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { finalError } from "../guard.ts";
 
-const isJpeg = (b) => b?.[0] === 0xff && b?.[1] === 0xd8 && b?.[2] === 0xff;
-const isPng = (b) =>
+const isJpeg = (b: Uint8Array | null | undefined) =>
+  b?.[0] === 0xff && b?.[1] === 0xd8 && b?.[2] === 0xff;
+const isPng = (b: Uint8Array | null | undefined) =>
   b?.[0] === 0x89 && b?.[1] === 0x50 && b?.[2] === 0x4e && b?.[3] === 0x47;
 
 /**
  * A still as an engine fetches it from a link. JPEG and PNG keep their bytes and get their
  * real type. Anything else (a WebP from user materials) becomes a PNG, which every engine takes.
  */
-export async function publicStill(bytes, convert = toPng) {
+export async function publicStill(
+  bytes: Uint8Array,
+  convert: (bytes: Uint8Array) => Promise<Uint8Array> = toPng,
+) {
   if (isJpeg(bytes)) return { bytes, ext: "jpg", contentType: "image/jpeg" };
   if (isPng(bytes)) return { bytes, ext: "png", contentType: "image/png" };
   return { bytes: await convert(bytes), ext: "png", contentType: "image/png" };
 }
 
-async function toPng(bytes) {
+async function toPng(bytes: Uint8Array) {
   const dir = await mkdtemp(join(tmpdir(), "still-"));
   try {
     const input = join(dir, "still");

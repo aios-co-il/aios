@@ -23,6 +23,7 @@
  * "accounts" phase it is the last tenant whose Meta connections were fully
  * checked.
  */
+import { projectServiceRoleKeys } from "../_shared/auth/edge-caller-auth.ts";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
 import { CallBudget } from "../_shared/reconcile/budget.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
@@ -48,7 +49,12 @@ Deno.serve(async (req) => {
     return json({ error: "method not allowed" }, 405);
   }
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!isServiceRequest(req, serviceKey)) {
+  if (
+    !isServiceRequest(
+      req,
+      projectServiceRoleKeys((name) => Deno.env.get(name)),
+    )
+  ) {
     return json({ error: "unauthorized" }, 401);
   }
   const request = parseWorkerRequest(await readJson(req));

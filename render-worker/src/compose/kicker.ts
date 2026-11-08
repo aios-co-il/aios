@@ -12,7 +12,7 @@ export const KICKER_MAX_WORDS = 5;
 export const KICKER_MAX_CHARS = 32;
 
 /** Words for comparing a title with a spoken line: no niqqud, punctuation or case. */
-const plainWords = (text) =>
+const plainWords = (text: unknown) =>
   String(text ?? "")
     .normalize("NFC")
     .replace(/[\u0591-\u05C7]/g, "")
@@ -22,7 +22,7 @@ const plainWords = (text) =>
     .split(" ")
     .filter(Boolean);
 
-const contains = (outer, inner) =>
+const contains = (outer: Array<string>, inner: Array<string>) =>
   ` ${outer.join(" ")} `.includes(` ${inner.join(" ")} `);
 
 /**
@@ -31,7 +31,7 @@ const contains = (outer, inner) =>
  * spoken line again. A title that is most of the line, or the whole line, would only repeat
  * the captions under it.
  */
-export function kickerTitle(caption, line = "") {
+export function kickerTitle(caption: unknown, line: unknown = "") {
   const text = String(caption ?? "")
     .replace(/\s+/g, " ")
     .trim();

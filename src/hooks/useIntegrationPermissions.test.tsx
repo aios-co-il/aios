@@ -1,11 +1,18 @@
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { createTestQueryHarness } from "@/test/withTestQuery";
+import { useAuthSessionSync } from "./useAuthSessionSync";
 import { useCurrentUser } from "./useCurrentUser";
 import { useIntegrationPermissions } from "./useIntegrationPermissions";
+import {
+  grantor,
+  integrationId,
+  userId,
+  testToken,
+} from "./useIntegrationPermissions.test-fixture";
 
 const state = vi.hoisted(() => {
   const requests: Array<Request> = [];
@@ -15,7 +22,7 @@ const state = vi.hoisted(() => {
     error: vi.fn(),
     userStatus: 200,
     insertStatus: 201,
-    emptyUser: false,
+    granted: false,
     requests,
   };
 });
@@ -32,30 +39,6 @@ vi.mock("@/integrations/supabase/client", () => ({
   }),
 }));
 
-const grantor: User = {
-  id: "11111111-1111-1111-1111-111111111111",
-  aud: "authenticated",
-  app_metadata: {},
-  user_metadata: {},
-  created_at: "2026-01-01T00:00:00Z",
-};
-const integrationId = "22222222-2222-2222-2222-222222222222";
-const userId = "33333333-3333-3333-3333-333333333333";
-
-/** Encode only a local SDK session; no token or request reaches a service. */
-function testToken() {
-  const encode = (value: object) =>
-    btoa(JSON.stringify(value))
-      .replace(/=/g, "")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_");
-  return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
-    sub: grantor.id,
-    exp: 4102444800,
-    iat: 1704067200,
-  })}.c2lnbmF0dXJl`;
-}
-
 /** Prime the real SDK before introducing a failing fresh lookup. */
 async function authenticate() {
   const { error } = await supabase.auth.setSession({
@@ -68,26 +51,32 @@ async function authenticate() {
 
 /** Keep auth readiness and the query cache stable across mutation updates. */
 function mountHook(id: string | undefined) {
-  const { queryClient, wrapper } = createTestQueryHarness();
-  queryClient.setQueryData(["session-ready"], true);
+  const { wrapper } = createTestQueryHarness();
   return renderHook(
-    () => ({
-      permissions: useIntegrationPermissions(id),
-      cachedAuth: useCurrentUser(),
-    }),
+    () => {
+      useAuthSessionSync();
+      return {
+        permissions: useIntegrationPermissions(id),
+        cachedAuth: useCurrentUser(),
+      };
+    },
     { wrapper },
   );
 }
 
 /** Select captured permission writes without depending on read-query timing. */
 function writes() {
-  return state.requests.filter((request) => request.method === "POST");
+  return state.requests.filter(
+    (request) =>
+      request.method === "POST" &&
+      new URL(request.url).pathname === "/rest/v1/integration_user_permissions",
+  );
 }
 
 beforeEach(async () => {
   state.userStatus = 200;
   state.insertStatus = 201;
-  state.emptyUser = false;
+  state.granted = false;
   state.success.mockReset();
   state.error.mockReset();
   state.fetch.mockReset().mockImplementation(async (input, init) => {
@@ -101,12 +90,9 @@ beforeEach(async () => {
     let body: unknown = [];
     if (path === "/auth/v1/user") {
       status = state.userStatus;
-      body =
-        status !== 200
-          ? { msg: "auth unavailable" }
-          : state.emptyUser
-            ? { user: null }
-            : grantor;
+      body = status !== 200 ? { msg: "auth unavailable" } : grantor;
+    } else if (path === "/rest/v1/profiles") {
+      body = [{ id: userId, full_name: "Recipient", email: "test@aios.co.il" }];
     } else {
       expect(path).toBe("/rest/v1/integration_user_permissions");
       if (request.method === "POST") {
@@ -115,6 +101,15 @@ beforeEach(async () => {
           status === 201
             ? null
             : { code: "42501", message: "modeled insert rejection" };
+        state.granted = status === 201;
+      } else if (state.granted) {
+        body = [
+          {
+            integration_id: integrationId,
+            user_id: userId,
+            granted_by: grantor.id,
+          },
+        ];
       }
     }
     return new Response(JSON.stringify(body), {
@@ -134,79 +129,83 @@ afterEach(() => {
 });
 
 describe("permission granting user readiness", () => {
-  it("uses the fresh authenticated grantor and preserves the exact request", async () => {
-    await authenticate();
-    const { result } = mountHook(integrationId);
-    await waitFor(() =>
-      expect(result.current.permissions.isLoading).toBe(false),
-    );
-    await act(async () =>
-      result.current.permissions.grantPermission.mutateAsync({ userId }),
-    );
-    expect(writes()).toHaveLength(1);
-    expect(await writes()[0]?.json()).toEqual({
-      integration_id: integrationId,
-      user_id: userId,
-      granted_by: grantor.id,
-    });
-    expect(writes()[0]?.headers.get("authorization")).toBe(
-      `Bearer ${testToken()}`,
-    );
-    expect(state.success).toHaveBeenCalledOnce();
-    expect(state.error).not.toHaveBeenCalled();
-    await waitFor(() =>
+  it.each([200, 503])(
+    "uses the shared actor and refreshes permissions without a fresh lookup (endpoint status %i)",
+    async (userStatus) => {
+      await authenticate();
+      state.userStatus = userStatus;
+      const { result } = mountHook(integrationId);
+      await waitFor(() =>
+        expect(result.current.cachedAuth.isLoading).toBe(false),
+      );
+      await act(async () =>
+        result.current.permissions.grantPermission.mutateAsync({ userId }),
+      );
+      expect(writes()).toHaveLength(1);
+      expect(await writes()[0]?.json()).toEqual({
+        integration_id: integrationId,
+        user_id: userId,
+        granted_by: grantor.id,
+      });
+      expect(writes()[0]?.headers.get("authorization")).toBe(
+        `Bearer ${testToken()}`,
+      );
+      expect(state.success).toHaveBeenCalledOnce();
+      expect(state.error).not.toHaveBeenCalled();
       expect(
-        state.requests.filter(
-          (request) =>
-            request.method === "GET" &&
-            new URL(request.url).pathname ===
-              "/rest/v1/integration_user_permissions",
+        state.requests.some(
+          (request) => new URL(request.url).pathname === "/auth/v1/user",
         ),
-      ).toHaveLength(2),
-    );
-  });
+      ).toBe(false);
+      await waitFor(() =>
+        expect(result.current.permissions.permissions).toEqual([
+          expect.objectContaining({
+            user_id: userId,
+            granted_by: grantor.id,
+            profiles: expect.objectContaining({ full_name: "Recipient" }),
+          }),
+        ]),
+      );
+    },
+  );
 
   it("rejects without a session before sending a permission write", async () => {
     const { result } = mountHook(integrationId);
-    await act(async () => {
-      await expect(
-        result.current.permissions.grantPermission.mutateAsync({ userId }),
-      ).rejects.toMatchObject({ name: "AuthSessionMissingError" });
-    });
-    expect(writes()).toEqual([]);
-    expect(state.error).toHaveBeenCalledOnce();
-    expect(state.success).not.toHaveBeenCalled();
-  });
-
-  it("does not substitute cached auth when the fresh user lookup fails", async () => {
-    await authenticate();
-    const { result } = mountHook(integrationId);
     await waitFor(() =>
-      expect(result.current.cachedAuth.userId).toBe(grantor.id),
+      expect(result.current.cachedAuth.isLoading).toBe(false),
     );
-    state.userStatus = 503;
-    await act(async () => {
-      await expect(
-        result.current.permissions.grantPermission.mutateAsync({ userId }),
-      ).rejects.toMatchObject({ name: "AuthRetryableFetchError", status: 503 });
-    });
-    expect(writes()).toEqual([]);
-    expect(result.current.cachedAuth.userId).toBe(grantor.id);
-    const { data } = await supabase.auth.getSession();
-    expect(data.session?.user.id).toBe(grantor.id);
-    expect(state.error).toHaveBeenCalledOnce();
-    expect(state.success).not.toHaveBeenCalled();
-  });
-
-  it("rejects a synthetic empty-user HTTP response before insertion", async () => {
-    await authenticate();
-    state.emptyUser = true;
-    const { result } = mountHook(integrationId);
     await act(async () => {
       await expect(
         result.current.permissions.grantPermission.mutateAsync({ userId }),
       ).rejects.toThrow("יש להתחבר מחדש");
     });
+    expect(writes()).toEqual([]);
+    expect(state.error).toHaveBeenCalledOnce();
+    expect(state.success).not.toHaveBeenCalled();
+  });
+
+  it("rejects while the shared session is loading before insertion", async () => {
+    await authenticate();
+    const getSession = supabase.auth.getSession.bind(supabase.auth);
+    let releaseSession: () => void = () => undefined;
+    const pendingSession = new Promise<void>((resolve) => {
+      releaseSession = resolve;
+    });
+    vi.spyOn(supabase.auth, "getSession").mockImplementation(async () => {
+      await pendingSession;
+      return getSession();
+    });
+    const { result } = mountHook(integrationId);
+    expect(result.current.cachedAuth.isLoading).toBe(true);
+    try {
+      await act(async () => {
+        await expect(
+          result.current.permissions.grantPermission.mutateAsync({ userId }),
+        ).rejects.toThrow("יש להתחבר מחדש");
+      });
+    } finally {
+      await act(async () => releaseSession());
+    }
     expect(writes()).toEqual([]);
     expect(state.error).toHaveBeenCalledOnce();
     expect(state.success).not.toHaveBeenCalled();
@@ -228,6 +227,9 @@ describe("permission granting user readiness", () => {
     await authenticate();
     state.insertStatus = 403;
     const { result } = mountHook(integrationId);
+    await waitFor(() =>
+      expect(result.current.cachedAuth.isLoading).toBe(false),
+    );
     await act(async () => {
       await expect(
         result.current.permissions.grantPermission.mutateAsync({ userId }),
@@ -235,6 +237,29 @@ describe("permission granting user readiness", () => {
     });
     expect(writes()).toHaveLength(1);
     expect(await writes()[0]?.json()).toMatchObject({ granted_by: grantor.id });
+    expect(state.error).toHaveBeenCalledOnce();
+    expect(state.success).not.toHaveBeenCalled();
+  });
+
+  it("stops granting after the shared session observes sign-out", async () => {
+    await authenticate();
+    const { result } = mountHook(integrationId);
+    await waitFor(() =>
+      expect(result.current.cachedAuth.userId).toBe(grantor.id),
+    );
+    await act(async () => {
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      expect(error).toBeNull();
+    });
+    await waitFor(() =>
+      expect(result.current.cachedAuth.userId).toBeUndefined(),
+    );
+    await act(async () => {
+      await expect(
+        result.current.permissions.grantPermission.mutateAsync({ userId }),
+      ).rejects.toThrow("יש להתחבר מחדש");
+    });
+    expect(writes()).toEqual([]);
     expect(state.error).toHaveBeenCalledOnce();
     expect(state.success).not.toHaveBeenCalled();
   });

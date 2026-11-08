@@ -58,6 +58,55 @@ export function isServiceRoleRequest(
   );
 }
 
+/**
+ * True when the caller is the service role, in a function behind the JWT
+ * gateway (`verify_jwt = true` in supabase/config.toml): one of the project's
+ * service keys (projectServiceRoleKeys), or a JWT whose role is service_role.
+ * The crons send whichever key Vault holds: Production's is a legacy
+ * service-role JWT the gateway has already verified, Staging's a new secret
+ * key, and neither need equal SUPABASE_SERVICE_ROLE_KEY (AIO-503). Never use
+ * it where verify_jwt is false: the role claim is read without a signature
+ * check (edge-caller-auth.test.ts fails then).
+ */
+export function isGatewayServiceRoleRequest(
+  authorization: string | null | undefined,
+  serviceRoleKeys: Array<string>,
+): boolean {
+  const token = bearerFrom(authorization) ?? "";
+  if (serviceRoleKeys.some((key) => isServiceKey(token, key.trim()))) {
+    return true;
+  }
+  return jwtRole(token) === "service_role";
+}
+
+/**
+ * The project's service keys from a function's env: the legacy
+ * SUPABASE_SERVICE_ROLE_KEY and every named key in SUPABASE_SECRET_KEYS (a
+ * JSON object of new `sb_secret_` keys). An unreadable SUPABASE_SECRET_KEYS is
+ * logged and skipped, so the legacy key still works.
+ */
+export function projectServiceRoleKeys(
+  env: (name: string) => string | undefined,
+): Array<string> {
+  const keys = [env("SUPABASE_SERVICE_ROLE_KEY") ?? ""];
+  const secretKeys = env("SUPABASE_SECRET_KEYS");
+  if (secretKeys) {
+    try {
+      const parsed: unknown = JSON.parse(secretKeys);
+      if (parsed && typeof parsed === "object") {
+        for (const value of Object.values(parsed)) {
+          if (typeof value === "string") {
+            keys.push(value);
+          }
+        }
+      }
+    } catch {
+      console.error("[edge-caller-auth] SUPABASE_SECRET_KEYS is not JSON");
+    }
+  }
+  return keys.map((key) => key.trim()).filter(Boolean);
+}
+
 /** The token of an `Authorization: Bearer <token>` header, or null. Unlike
  * automation-run-auth's bearerToken it requires the `Bearer` prefix, so a
  * header without it is never read as a token. */

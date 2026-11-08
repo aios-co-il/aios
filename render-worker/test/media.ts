@@ -5,7 +5,7 @@ export const hasFfmpeg =
   spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0;
 
 /** Runs ffmpeg with `args` (quiet, overwriting), throwing on failure. */
-export const media = (args) => {
+export const media = (args: Array<string>) => {
   const result = spawnSync("ffmpeg", [
     "-hide_banner",
     "-loglevel",
@@ -17,7 +17,7 @@ export const media = (args) => {
 };
 
 /** Mean volume (dB) of `file` over [from, from + length] seconds; -91 when silent. */
-export const meanDb = (file, from, length) => {
+export const meanDb = (file: string, from: number, length: number) => {
   const out = spawnSync(
     "ffmpeg",
     [
@@ -39,4 +39,4 @@ export const meanDb = (file, from, length) => {
 };
 
 /** A gain as dB. */
-export const db = (gain) => 20 * Math.log10(gain);
+export const db = (gain: number) => 20 * Math.log10(gain);
