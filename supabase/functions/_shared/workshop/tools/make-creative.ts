@@ -93,7 +93,7 @@ export async function workshopMakeCreative(ctx: ToolContext) {
       formats,
       images: estimate.images,
       estimated_usd: estimate.usd,
-      message: `הפקה של ${estimate.images} תמונות (${formats.join(", ")}) תעלה עד כ-$${estimate.usd}. אשר/י והתחל.`,
+      message: `הפקה של ${estimate.images} תמונות (${formats.join(", ")}) תעלה עד כ-$${estimate.usd}. מאשרים ומתחילים?`,
     },
   );
   if ("stop" in gate) return gate.stop;

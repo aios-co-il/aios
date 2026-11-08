@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { summarizeEventSources } from "./eventSources";
 import { TrackedEventsEditor } from "./TrackedEventsEditor";
 import { TrackedEventsTab } from "./TrackedEventsTab";
 import {
@@ -8,6 +7,7 @@ import {
   summarizeTrackedEvents,
   type TrackedEventRecord,
 } from "./trackedEvents";
+import { type EventUsersSource, useEventUsers } from "./useEventUsers";
 import { useSaveTrackedEvents } from "./useSaveTrackedEvents";
 
 type Props = {
@@ -19,6 +19,12 @@ type Props = {
   adsSpend: number;
   formatCurrency: (value: number) => string;
   formatNumber: (value: number) => string;
+  /** Which dashboard GA's people counts are read for. */
+  source: EventUsersSource | null;
+  /** The dashboard's date filter, and its custom range when "custom". */
+  dateFilter: string;
+  customFrom?: string;
+  customTo?: string;
   /** Set on the internal dashboard, where the events can be edited. */
   editableDashboardId?: string;
 };
@@ -30,6 +36,10 @@ export function DashboardTrackedEvents({
   adsSpend,
   formatCurrency,
   formatNumber,
+  source,
+  dateFilter,
+  customFrom,
+  customTo,
   editableDashboardId,
 }: Props) {
   const [editing, setEditing] = useState(false);
@@ -40,15 +50,22 @@ export function DashboardTrackedEvents({
     [records, tracked, adsSpend],
   );
   const available = useMemo(() => availableEventNames(records), [records]);
-  const sources = useMemo(
-    () => summarizeEventSources(records, tracked),
-    [records, tracked],
-  );
+  const users = useEventUsers({
+    source,
+    tracked,
+    dateFilter,
+    customFrom,
+    customTo,
+  });
   return (
     <>
       <TrackedEventsTab
         summary={summary}
-        sources={sources}
+        eventUsers={{
+          result: users.data,
+          loading: users.isLoading,
+          failed: users.isError,
+        }}
         formatCurrency={formatCurrency}
         formatNumber={formatNumber}
         onEdit={editableDashboardId ? () => setEditing(true) : undefined}

@@ -1,8 +1,5 @@
-import {
-  jerusalemDayStartIso,
-  jerusalemYmd,
-} from "../_shared/calendarTimeZone.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import { jerusalemDayStartIso, jerusalemYmd } from "../../calendarTimeZone.ts";
+import type { DbClient } from "../../supabase-clients.ts";
 
 /** One agency and the names of its current clients. */
 export type BriefAgency = {
@@ -28,6 +25,17 @@ export type OrgBrief = {
   today: Array<string>;
 };
 
+/**
+ * Whose picture the brief shows. `org` is the whole org (managers, voice). A caller limited to
+ * some agencies or clients gets only those, and none of today's org-wide conversation summaries.
+ */
+export type BriefScope =
+  | { kind: "org" }
+  | { kind: "agencies"; agencyIds: Array<string> }
+  | { kind: "clients"; clientIds: Array<string> };
+
+const WHOLE_ORG: BriefScope = { kind: "org" };
+
 // Clients that are still worked with; "ended" ones stay out of the brief.
 const CURRENT_CLIENT_STATUSES = ["active", "onboarding", "paused"] as const;
 // Real orgs have up to ~200 clients and a dozen people; the caps keep the prompt short.
@@ -36,7 +44,7 @@ const MAX_TEAM = 60;
 const MAX_TODAY = 12;
 const MAX_SUMMARY_CHARS = 300;
 
-const LOG = "[carmen-realtime-session]";
+const LOG = "[carmen-org-brief]";
 
 /**
  * The tenant's brief, read with the service role and always filtered by the tenant (and the
@@ -47,6 +55,7 @@ export async function loadOrgBrief(
   db: DbClient,
   tenantId: string,
   now: Date = new Date(),
+  scope: BriefScope = WHOLE_ORG,
 ): Promise<OrgBrief> {
   const [ownAgencies, sharedAgencies, team, today] = await Promise.all([
     readRows("agencies", () =>
@@ -81,7 +90,7 @@ export async function loadOrgBrief(
         .limit(MAX_TODAY),
     ),
   ]);
-  const agencies = [
+  const orgAgencies = [
     ...ownAgencies.map((a) => ({ id: a.id, name: a.name, shared: false })),
     ...sharedAgencies.map((s) => ({
       id: s.agency_id,
@@ -89,20 +98,8 @@ export async function loadOrgBrief(
       shared: true,
     })),
   ];
-  const clients = await readRows("clients", () =>
-    db
-      .from("clients")
-      .select("name, agency_id")
-      .or(
-        clientScope(
-          tenantId,
-          agencies.filter((a) => a.shared),
-        ),
-      )
-      .in("status", CURRENT_CLIENT_STATUSES)
-      .order("name")
-      .limit(MAX_CLIENTS),
-  );
+  const clients = await readScopedClients(db, tenantId, orgAgencies, scope);
+  const agencies = agenciesInScope(orgAgencies, clients, scope);
   return {
     agencies: agencies.map(({ id, name, shared }) => ({
       name,
@@ -111,10 +108,61 @@ export async function loadOrgBrief(
     })),
     otherClients: clients.filter((c) => !c.agency_id).map((c) => c.name),
     team: team.map((m) => ({ name: m.full_name, roles: m.role ?? [] })),
-    today: today
+    today: (scope.kind === "org" ? today : [])
       .map((e) => firstLine(e.summary))
       .filter((s): s is string => Boolean(s)),
   };
+}
+
+/** The org's current clients the scope allows; a scope with no ids allows none. */
+function readScopedClients(
+  db: DbClient,
+  tenantId: string,
+  orgAgencies: Array<{ id: string; shared: boolean }>,
+  scope: BriefScope,
+): Promise<Array<{ name: string; agency_id: string | null }>> {
+  const ids =
+    scope.kind === "agencies"
+      ? scope.agencyIds
+      : scope.kind === "clients"
+        ? scope.clientIds
+        : null;
+  if (ids && ids.length === 0) {
+    return Promise.resolve([]);
+  }
+  return readRows("clients", () => {
+    const query = db
+      .from("clients")
+      .select("name, agency_id")
+      .or(
+        clientScope(
+          tenantId,
+          orgAgencies.filter((a) => a.shared),
+        ),
+      )
+      .in("status", CURRENT_CLIENT_STATUSES);
+    const scoped = ids
+      ? query.in(scope.kind === "agencies" ? "agency_id" : "id", ids)
+      : query;
+    return scoped.order("name").limit(MAX_CLIENTS);
+  });
+}
+
+/** The whole org's agencies, those the scope names, or those holding the scope's clients. */
+function agenciesInScope<A extends { id: string }>(
+  orgAgencies: Array<A>,
+  clients: Array<{ agency_id: string | null }>,
+  scope: BriefScope,
+): Array<A> {
+  if (scope.kind === "org") {
+    return orgAgencies;
+  }
+  const keep = new Set(
+    scope.kind === "agencies"
+      ? scope.agencyIds
+      : clients.map((c) => c.agency_id),
+  );
+  return orgAgencies.filter((a) => keep.has(a.id));
 }
 
 /** The org's own clients, plus the clients of agencies another org shared with it. */

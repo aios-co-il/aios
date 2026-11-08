@@ -143,6 +143,10 @@ import {
   getAdAccountLinks,
   getAdAccountUrl,
 } from "@/lib/adAccountUrl";
+import { useClientAdLinks } from "@/hooks/useClientAdLinks";
+
+/** A client table as the ads-account links read it. */
+type AdAccountTable = NonNullable<Parameters<typeof getAdAccountUrl>[0]>;
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
@@ -402,9 +406,12 @@ export default function DynamicTableView({
     table?.integration_settings?.clientId ||
     table?.integration_settings?.client_id ||
     null;
-  const adAccountUrl = getAdAccountUrl(table);
-  const { data: siblingAdLinks = [] } = useQuery({
-    queryKey: ["client-ad-account-links", tenantId, reportClientId],
+  const clientAdLinks = useClientAdLinks(isEmbed ? null : reportClientId);
+  const adAccountUrl = clientAdLinks.loading
+    ? null
+    : getAdAccountUrl(table, clientAdLinks.links);
+  const { data: siblingTables = [] } = useQuery<Array<AdAccountTable>>({
+    queryKey: ["client-ad-account-tables", tenantId, reportClientId],
     queryFn: async () => {
       const {
         data: { session },
@@ -415,16 +422,18 @@ export default function DynamicTableView({
         { method: "GET" },
       );
       if (response.error) return [];
-      return getAdAccountLinks(
-        Array.isArray(response.data) ? response.data : [],
-      );
+      return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && !!reportClientId && !adAccountUrl && !isEmbed,
-    ...reportQueryOptions<ReturnType<typeof getAdAccountLinks>>(),
+    ...reportQueryOptions<
+      NonNullable<Parameters<typeof getAdAccountLinks>[0]>
+    >(),
   });
   const adAccountLinks = adAccountUrl
     ? [{ url: adAccountUrl, label: "פתח חשבון מודעות" }]
-    : siblingAdLinks;
+    : clientAdLinks.loading
+      ? []
+      : getAdAccountLinks(siblingTables, clientAdLinks.links);
 
   const isGoogleAdsEcommerceReport =
     table?.integration_type === "google_ads" && isEcommerceReportTable(table);

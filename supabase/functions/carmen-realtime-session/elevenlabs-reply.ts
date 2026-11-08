@@ -7,7 +7,7 @@ import {
   ELEVENLABS_VOICES,
 } from "./elevenlabs-voices.ts";
 import {
-  loadCallerName,
+  loadCallerAddress,
   loadSessionContext,
   sessionInstructions,
 } from "./session-context.ts";
@@ -42,7 +42,7 @@ export async function elevenLabsReply(
   const context = await loadSessionContext(callerId, request.tenant_id);
   const result = await mintElevenLabsSession(
     elevenLabsConfig((name) => Deno.env.get(name)),
-    sessionInstructions(context, await loadCallerName(callerId)),
+    sessionInstructions(context, await loadCallerAddress(callerId)),
     chooseElevenLabsVoice(request.voice, context.agent?.voice ?? null),
   );
   return result.ok

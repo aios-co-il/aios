@@ -3710,6 +3710,50 @@ export type Database = {
           },
         ];
       };
+      carmen_caller_policies: {
+        Row: {
+          allowed_topics: string[];
+          caller_kind: string;
+          forbidden_topics: string[];
+          instructions: string;
+          may_book_meeting: boolean;
+          may_take_message: boolean;
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          allowed_topics?: string[];
+          caller_kind: string;
+          forbidden_topics?: string[];
+          instructions?: string;
+          may_book_meeting?: boolean;
+          may_take_message?: boolean;
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          allowed_topics?: string[];
+          caller_kind?: string;
+          forbidden_topics?: string[];
+          instructions?: string;
+          may_book_meeting?: boolean;
+          may_take_message?: boolean;
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_caller_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_chat_thread_reviews: {
         Row: {
           cost_usd: number | null;
@@ -5522,6 +5566,7 @@ export type Database = {
           follow_up_manager_notified_at: string | null;
           ga_property_id: string | null;
           google_ads_account_id: string | null;
+          google_ads_url: string | null;
           gsc_site_url: string | null;
           health_score: number | null;
           id: string;
@@ -5530,6 +5575,7 @@ export type Database = {
           is_seo_client: boolean | null;
           manychat_subscriber_id: string | null;
           meta_ads_account_id: string | null;
+          meta_ads_url: string | null;
           monthly_budget: number | null;
           monthly_fixed_expense: number | null;
           mood_status: Database["public"]["Enums"]["client_mood_status"] | null;
@@ -5568,6 +5614,7 @@ export type Database = {
           follow_up_manager_notified_at?: string | null;
           ga_property_id?: string | null;
           google_ads_account_id?: string | null;
+          google_ads_url?: string | null;
           gsc_site_url?: string | null;
           health_score?: number | null;
           id?: string;
@@ -5576,6 +5623,7 @@ export type Database = {
           is_seo_client?: boolean | null;
           manychat_subscriber_id?: string | null;
           meta_ads_account_id?: string | null;
+          meta_ads_url?: string | null;
           monthly_budget?: number | null;
           monthly_fixed_expense?: number | null;
           mood_status?:
@@ -5615,6 +5663,7 @@ export type Database = {
           follow_up_manager_notified_at?: string | null;
           ga_property_id?: string | null;
           google_ads_account_id?: string | null;
+          google_ads_url?: string | null;
           gsc_site_url?: string | null;
           health_score?: number | null;
           id?: string;
@@ -5623,6 +5672,7 @@ export type Database = {
           is_seo_client?: boolean | null;
           manychat_subscriber_id?: string | null;
           meta_ads_account_id?: string | null;
+          meta_ads_url?: string | null;
           monthly_budget?: number | null;
           monthly_fixed_expense?: number | null;
           mood_status?:
@@ -10713,6 +10763,7 @@ export type Database = {
           deleted_at: string | null;
           email: string;
           full_name: string | null;
+          gender: string | null;
           id: string;
           leads_default_view: string | null;
           notification_group_link: string | null;
@@ -10730,6 +10781,7 @@ export type Database = {
           deleted_at?: string | null;
           email: string;
           full_name?: string | null;
+          gender?: string | null;
           id: string;
           leads_default_view?: string | null;
           notification_group_link?: string | null;
@@ -10747,6 +10799,7 @@ export type Database = {
           deleted_at?: string | null;
           email?: string;
           full_name?: string | null;
+          gender?: string | null;
           id?: string;
           leads_default_view?: string | null;
           notification_group_link?: string | null;
@@ -18113,6 +18166,46 @@ export type Database = {
           shared_with_tenants: string[];
         }[];
       };
+      queue_narration_guide: {
+        Args: {
+          p_estimate?: Json;
+          p_guide: Json;
+          p_item_id: string;
+          p_stage_id?: string;
+          p_voice_id: string;
+        };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       queue_video_clips: {
         Args: {
           p_aspect?: string;
@@ -18775,6 +18868,7 @@ export type Database = {
           workshop_edit: boolean;
         }[];
       };
+      workshop_narration_take: { Args: { p_item_id: string }; Returns: Json };
       workshop_pending_artifact: {
         Args: {
           p_item_id: string;

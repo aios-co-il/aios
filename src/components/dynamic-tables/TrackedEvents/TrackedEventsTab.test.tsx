@@ -20,7 +20,7 @@ const ga = (date: string, event_name: string, event_count: number) =>
   }) satisfies TrackedEventRecord;
 
 describe("TrackedEventsTab", () => {
-  it("shows each event's count, cost per event and funnel step", () => {
+  it("shows each event's count and cost per event", () => {
     const summary = summarizeTrackedEvents(
       [ga("2026-11-01", "ticket_upload", 200), ga("2026-11-01", "sign_up", 50)],
       [
@@ -33,7 +33,6 @@ describe("TrackedEventsTab", () => {
     expect(screen.getAllByText("העלאת כרטיס").length).toBeGreaterThan(0);
     expect(screen.getByText("עלות לאירוע: $2.50")).toBeTruthy();
     expect(screen.getByText("עלות לאירוע: $10.00")).toBeTruthy();
-    expect(screen.getByText("50 · 25.0% מהשלב הקודם")).toBeTruthy();
     expect(screen.queryByText("עריכת אירועים")).toBeNull();
   });
 

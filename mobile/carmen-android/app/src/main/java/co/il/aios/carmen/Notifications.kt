@@ -16,6 +16,7 @@ object Notifications {
 
     private const val CHANNEL_LISTENING = "listening"
     private const val CHANNEL_WAKE = "wake"
+    private const val CHANNEL_ACTIVE = "active"
     private const val CHANNEL_RESUME = "resume"
 
     fun createChannels(context: Context) {
@@ -24,6 +25,7 @@ object Notifications {
             listOf(
                 NotificationChannel(CHANNEL_LISTENING, "Carmen listening", NotificationManager.IMPORTANCE_LOW),
                 NotificationChannel(CHANNEL_WAKE, "Carmen activation", NotificationManager.IMPORTANCE_HIGH),
+                NotificationChannel(CHANNEL_ACTIVE, "Carmen conversation", NotificationManager.IMPORTANCE_LOW),
                 NotificationChannel(CHANNEL_RESUME, "Resume listening", NotificationManager.IMPORTANCE_DEFAULT),
             ),
         )
@@ -57,6 +59,23 @@ object Notifications {
             .setAutoCancel(true)
             .build()
     }
+
+    /**
+     * The activation notification for this moment: full-screen when the screen is off or locked,
+     * so Carmen's screen opens over the lock screen; otherwise a quiet one (AIO-508), because on an
+     * unlocked phone in use Android shows a full-screen notification as a heads-up popup.
+     */
+    fun activation(context: Context, screenOffOrLocked: Boolean): Notification =
+        if (screenOffOrLocked) wake(context) else active(context)
+
+    /** Quiet notification while Carmen talks on a phone in use: no popup or sound; a tap opens her screen. */
+    fun active(context: Context): Notification =
+        NotificationCompat.Builder(context, CHANNEL_ACTIVE)
+            .setSmallIcon(R.drawable.ic_carmen)
+            .setContentTitle(context.getString(R.string.carmen_listening))
+            .setContentIntent(activity(context, CarmenActivity::class.java, 2))
+            .setAutoCancel(true)
+            .build()
 
     /** After reboot Android does not let an app start the microphone by itself; ask for one tap. */
     fun resume(context: Context): Notification =

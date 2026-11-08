@@ -1,6 +1,10 @@
 import { serviceClient } from "../_shared/supabase-clients.ts";
+import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 import { loadVoiceAgent, type VoiceAgent } from "./agent-profile.ts";
-import { loadOrgBrief, type OrgBrief } from "./org-brief.ts";
+import {
+  loadOrgBrief,
+  type OrgBrief,
+} from "../_shared/carmen/org-brief/brief.ts";
 import { orgBriefInstructions } from "./org-brief-text.ts";
 import {
   loadPronunciations,
@@ -36,10 +40,10 @@ export async function loadSessionContext(
 /** The session's instructions: persona and voice rules, org brief, pronunciations. */
 export function sessionInstructions(
   context: SessionContext,
-  callerName: string | null,
+  addressLine: string,
 ): string {
   return [
-    buildVoiceInstructions(context.agent?.profile ?? null, callerName),
+    buildVoiceInstructions(context.agent?.profile ?? null, addressLine),
     context.orgBrief ? orgBriefInstructions(context.orgBrief) : "",
     pronunciationInstructions(context.pronunciations),
   ]
@@ -47,26 +51,10 @@ export function sessionInstructions(
     .join("\n");
 }
 
-/** The caller's name, so Carmen greets them by it; null when it cannot be read. */
-export async function loadCallerName(userId: string): Promise<string | null> {
-  try {
-    const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const pr = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/rest/v1/profiles?id=eq.${userId}&select=full_name`,
-      { headers: { apikey: service, Authorization: `Bearer ${service}` } },
-    );
-    if (pr.ok) {
-      return (await pr.json())?.[0]?.full_name ?? null;
-    }
-    console.error(
-      "[carmen-realtime-session] caller name read failed",
-      pr.status,
-    );
-  } catch (e) {
-    console.error(
-      "[carmen-realtime-session] caller name read failed",
-      e instanceof Error ? e.message : e,
-    );
-  }
-  return null;
+/**
+ * How Carmen addresses the caller: their profile name and gender (Hebrew verbs carry gender),
+ * the plural when the gender is unknown or the profile can't be read.
+ */
+export function loadCallerAddress(userId: string): Promise<string> {
+  return callerAddressLine(serviceClient(), userId, null);
 }

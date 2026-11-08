@@ -1,5 +1,6 @@
 package co.il.aios.carmen
 
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
@@ -179,9 +180,11 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     }
 
     private fun showCarmen() {
+        val screenOffOrLocked = !getSystemService(PowerManager::class.java).isInteractive ||
+            getSystemService(KeyguardManager::class.java).isKeyguardLocked
         getSystemService(NotificationManager::class.java)
-            .notify(Notifications.WAKE_ID, Notifications.wake(this))
-        // Opens directly when the app is visible; otherwise the full-screen notification does.
+            .notify(Notifications.WAKE_ID, Notifications.activation(this, screenOffOrLocked))
+        // Opens directly when the app is visible; over the lock screen the full-screen notification does.
         startActivity(Intent(this, CarmenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 

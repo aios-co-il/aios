@@ -64,6 +64,7 @@ import {
   Calendar as CalendarIcon,
 } from "lucide-react";
 import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
+import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -344,7 +345,14 @@ export default function DashboardView() {
     refetchOnMount: refetchOnMountIfEmpty,
   });
 
-  const adAccountLinks = useMemo(() => getAdAccountLinks(tables), [tables]);
+  const clientAdLinks = useClientAdLinks(dashboard?.client_id);
+  const adAccountLinks = useMemo(
+    () =>
+      clientAdLinks.loading
+        ? []
+        : getAdAccountLinks(tables, clientAdLinks.links),
+    [tables, clientAdLinks.loading, clientAdLinks.links],
+  );
 
   const dashboardLastSyncAt = useMemo(() => {
     const stamps = tables
@@ -1671,6 +1679,10 @@ export default function DashboardView() {
               adsSpend={globalAdsMetrics.spend}
               formatCurrency={formatCurrency}
               formatNumber={formatNumber}
+              source={dashboardId ? { dashboardId } : null}
+              dateFilter={dateFilter}
+              customFrom={customFromStr}
+              customTo={customToStr}
               editableDashboardId={dashboardId}
             />
           ) : platformFilter === "continents" ? (
