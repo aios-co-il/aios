@@ -71,6 +71,7 @@ Deno.test("voice applies the agent's mood and the manager guidance", () => {
   );
   assertStringIncludes(text, "מצב רוח: בדיקה");
   assertStringIncludes(text, "הציגי החלטה או צעד ניהולי הבא");
+  assertStringIncludes(text, "עד שניים-שלושה משפטים קצרים");
 });
 
 Deno.test(
