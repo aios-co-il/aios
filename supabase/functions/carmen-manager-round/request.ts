@@ -6,9 +6,8 @@
  * always make the call a dry run: nothing is written or sent.
  */
 import { isNonProductionAppEnv } from "../_shared/app-env.ts";
-import { bearerToken } from "../_shared/automation-run-auth.ts";
+import { isGatewayServiceRoleRequest } from "../_shared/auth/edge-caller-auth.ts";
 import type { Json } from "../_shared/database.types.ts";
-import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 
 export type RoundRequest = {
@@ -25,14 +24,17 @@ export type ParsedRequest =
   | { ok: false; status: 400 | 403; error: string };
 
 /**
- * True when the Authorization header carries the service-role key
- * (constant-time compare). Like every caller of bearerToken, the key is
- * accepted with or without the "Bearer " prefix.
+ * True when the caller is the service role: one of the project's service keys
+ * or the cron's Vault key, which the gateway verified (verify_jwt = true,
+ * AIO-503).
  */
-export function isServiceCaller(req: Request, serviceKey: string): boolean {
-  return isServiceKey(
-    bearerToken(req.headers.get("Authorization")),
-    serviceKey,
+export function isServiceCaller(
+  req: Request,
+  serviceKeys: Array<string>,
+): boolean {
+  return isGatewayServiceRoleRequest(
+    req.headers.get("Authorization"),
+    serviceKeys,
   );
 }
 

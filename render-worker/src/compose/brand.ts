@@ -4,25 +4,30 @@
  * client_website). Returns null when the payload carries no brand at all.
  */
 
+import type { FilmBrand } from "./types.ts";
+
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const FONT = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 
-const record = (value) =>
-  value && typeof value === "object" && !Array.isArray(value) ? value : {};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const text = (value, max) =>
+const record = (value: unknown): Record<string, unknown> =>
+  isRecord(value) ? value : {};
+
+const text = (value: unknown, max: number) =>
   typeof value === "string" && value.trim()
     ? value.trim().replace(/\s+/g, " ").slice(0, max)
     : null;
 
-export const brandColor = (value) =>
+export const brandColor = (value: unknown) =>
   typeof value === "string" && HEX.test(value.trim()) ? value.trim() : null;
 
-export const brandFont = (value) =>
+export const brandFont = (value: unknown) =>
   typeof value === "string" && FONT.test(value.trim()) ? value.trim() : null;
 
 /** A display form of the website: no scheme, no trailing slash. */
-const displayUrl = (value) => {
+const displayUrl = (value: unknown) => {
   const raw = text(value, 120);
   if (!raw) return null;
   return raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "") || null;
@@ -32,7 +37,7 @@ const displayUrl = (value) => {
  * The brand's name on the work item (brand_book.name, brand_name or client_name), for the key
  * words of motion captions; null when none is set.
  */
-export function brandNameFromPayload(payload) {
+export function brandNameFromPayload(payload: unknown) {
   const data = record(payload);
   const book = record(data.brand_book);
   return (
@@ -43,14 +48,15 @@ export function brandNameFromPayload(payload) {
   );
 }
 
-export function brandFromPayload(payload) {
+/** The brand kit on the work item payload, or null when it sets nothing. */
+export function brandFromPayload(payload: unknown): FilmBrand | null {
   const data = record(payload);
   const book = record(data.brand_book);
   const colors = (Array.isArray(book.colors) ? book.colors : [])
     .map(brandColor)
-    .filter(Boolean);
-  const fonts = Array.isArray(book.fonts) ? book.fonts : [];
-  const brand = {
+    .filter((color): color is string => Boolean(color));
+  const fonts: Array<unknown> = Array.isArray(book.fonts) ? book.fonts : [];
+  const brand: FilmBrand = {
     primaryColor: colors[0] ?? null,
     secondaryColor: colors[1] ?? null,
     logoUrl: text(data.logo_url, 2000) ?? text(book.logoUrl, 2000),

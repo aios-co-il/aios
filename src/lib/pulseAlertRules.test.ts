@@ -28,6 +28,7 @@ describe("mergePulseAlertRules", () => {
       cpl_spike_enabled: true,
       cpl_spike_pct: 50,
       disconnected_enabled: true,
+      report_off_spending_enabled: true,
       unanswered_reply_hours: 3,
       future_flag: "kept",
       manager: {
@@ -50,6 +51,7 @@ describe("mergePulseAlertRules", () => {
       cpl_spike_enabled: true,
       cpl_spike_pct: 50,
       disconnected_enabled: true,
+      report_off_spending_enabled: true,
       unanswered_reply_hours: 3,
     });
     expect(

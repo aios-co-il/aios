@@ -18,17 +18,17 @@ import {
   motionCaptions,
 } from "./motion-captions.ts";
 import { isTrailer, mixProfile } from "./music-bed.ts";
+import type { Timeline } from "./types.ts";
+import type { StagedFile } from "./manifest-types.ts";
 import { musicEnvelope } from "./workshop-edit.ts";
 
 export const WORKSHOP_SCHEMA = 3;
 
-/**
- * @returns {{ manifest: object, files: { from: string, to: string }[] }}
- */
-export function buildWorkshopManifest(timeline) {
+/** The Remotion manifest of the film, and the files to stage next to it. */
+export function buildWorkshopManifest(timeline: Timeline) {
   const fps = WORKSHOP_FPS;
   const [width, height] = workshopFrameSize(timeline.aspect);
-  const files = [];
+  const files: Array<StagedFile> = [];
   const picked = pickScenes(timeline, files, fps);
   const { narration, narrationWords, narrationS, narrationFrames } =
     stageNarration(timeline, files, fps);

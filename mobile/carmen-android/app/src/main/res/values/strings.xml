@@ -36,6 +36,13 @@
     <string name="counters">זיהויים: %1$d · הפעלות שווא שסומנו: %2$d · זיהויים שנחסמו (כפולים): %3$d\nהתראה במסך מלא מותרת: %4$s</string>
     <string name="yes">כן</string>
     <string name="no">לא — יש לאשר בהגדרות</string>
+    <string name="voice_title">הקול של כרמן</string>
+    <string name="voice_default">קול: ברירת המחדל של כרמן</string>
+    <string name="voice_current">קול: %1$s</string>
+    <string name="voice_openai">OpenAI (הקול הקודם)</string>
+    <string name="voice_loading">טוענת קולות…</string>
+    <string name="voice_load_failed">לא הצלחתי לטעון את הקולות: %1$s</string>
+    <string name="voice_saved">מהשיחה הבאה כרמן תדבר בקול: %1$s</string>
     <string name="battery_settings">הגדרות חיסכון בסוללה</string>
     <string name="full_screen_settings">אישור הצגה על מסך נעול</string>
     <string name="full_screen_not_needed">לא נדרש בגרסת Android זו</string>

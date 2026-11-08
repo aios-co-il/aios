@@ -38,8 +38,8 @@ export function summarizeSharedTableRecords(
     integrationType: string;
     /** Goal of a record's campaign; null when the table has a single goal. */
     goalOf: ((data: RecordData) => ReportCampaignGoal) | null;
-    /** Goals the table shows; a goal it does not show has its totals zeroed. */
-    goals: GoogleGoalPresence;
+    /** Goals the table shows; a goal it does not show has its totals zeroed. Traffic has no totals to zero. */
+    goals: Pick<GoogleGoalPresence, "hasEcommerce" | "hasLeads">;
   },
 ): SharedTableSummary {
   const { integrationType, goalOf, goals } = options;

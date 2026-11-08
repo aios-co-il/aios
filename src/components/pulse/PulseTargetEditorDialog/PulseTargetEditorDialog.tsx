@@ -20,6 +20,7 @@ import {
 import { isPulseTargetGoal } from "../../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 import { resolvePulseTargetAcross } from "../../../../supabase/functions/_shared/pulse/targets/resolve.ts";
 import { CampaignTargetList } from "./CampaignTargetList";
+import { NoResultsDaysField } from "./NoResultsDaysField";
 import { PlatformTargetRow } from "./PlatformTargetRow";
 import { useCampaignTargetRows } from "./useCampaignTargetRows";
 
@@ -115,6 +116,7 @@ export function PulseTargetEditorDialog({
 
         {context ? (
           <div className="space-y-4 py-1" key={openedAt}>
+            <NoResultsDaysField clientId={context.clientId} />
             {platformTableIds.length > 0 && platformGoal ? (
               <PlatformTargetRow
                 context={context}

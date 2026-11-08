@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useState, useEffect } from "react";
 import { MFASettings } from "@/components/MFASettings";
+import { AddressGenderSettings } from "@/components/AddressGenderSettings";
 import { PersonalApiKeyCard } from "@/components/carmen-command/PersonalApiKeyCard";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { CalendarIframeSettings } from "@/components/CalendarIframeSettings";
@@ -317,6 +318,8 @@ export default function MyProfile() {
       <MFASettings />
 
       <PersonalApiKeyCard />
+
+      <AddressGenderSettings />
 
       <CalendarIframeSettings />
 

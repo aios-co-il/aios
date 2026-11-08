@@ -4,12 +4,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { probe } from "../ffmpeg.ts";
 import { assertTenantPath, finalError, safeSegment } from "../guard.ts";
+import type { LipsyncProvider } from "../providers/types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
+import { rowsOf } from "./rows.ts";
+import type {
+  LipsyncSource,
+  MediaAsset,
+  RunItem,
+  SceneRow,
+  VideoRun,
+} from "./types.ts";
 
 export const BUCKET = "creative-video";
 const POLL_EVERY_MS = () => Number(process.env.CLIP_POLL_MS) || 10_000;
 const TIMEOUT_MS = () => Number(process.env.CLIP_TIMEOUT_MS) || 15 * 60_000;
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Polls the provider's job to its end, stores the lip-synced clip and attaches it to the scene. */
 export async function finishLipsync({
@@ -26,6 +36,20 @@ export async function finishLipsync({
   durationS,
   aspect,
   log,
+}: {
+  db: Pick<SupabaseRest, "select" | "upload" | "rpc">;
+  run: VideoRun;
+  item: Pick<RunItem, "folder">;
+  provider: LipsyncProvider;
+  jobId: string;
+  line: string;
+  scene: SceneRow;
+  voice: Pick<MediaAsset, "id">;
+  source: LipsyncSource | null;
+  motionClipId?: string | null;
+  durationS: number;
+  aspect: string;
+  log: (line: string) => void;
 }) {
   const deadline = Date.now() + TIMEOUT_MS();
   let result = await provider.poll(jobId);
@@ -41,7 +65,8 @@ export async function finishLipsync({
     );
   let bytes = result.bytes;
   if (!bytes) {
-    const response = await fetch(result.url);
+    // A succeeded job without bytes carries its link (fetch reads a missing one as "undefined").
+    const response = await fetch(String(result.url));
     if (!response.ok)
       throw new Error(
         `lipsync download ${response.status} (job ${jobId} kept for retry)`,
@@ -50,9 +75,10 @@ export async function finishLipsync({
   }
   const seconds = (await videoSeconds(bytes)) ?? durationS;
   // What the provider charged when it says (OpenRouter), else the planning price.
-  const cost = Number.isFinite(result.costUsd)
-    ? { usd: result.costUsd, credits: 0 }
-    : provider.estimate({ durationS: seconds });
+  const cost =
+    result.costUsd !== undefined && Number.isFinite(result.costUsd)
+      ? { usd: result.costUsd, credits: 0 }
+      : provider.estimate({ durationS: seconds });
   const path = await lipsyncPath(db, run, item.folder);
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {
@@ -94,19 +120,25 @@ export async function finishLipsync({
 }
 
 /** <item folder>/<scene>/lipsync-v<n>.mp4, n = the next lip-synced clip of the scene. */
-export async function lipsyncPath(db, run, folder) {
-  const rows = await db.select(
-    "marketing_assets",
-    `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&type=eq.video_clip&meta->>scene_id=eq.${run.scene_id}&meta->>lipsync=eq.true&select=id`,
+export async function lipsyncPath(
+  db: Pick<SupabaseRest, "select">,
+  run: Pick<VideoRun, "item_id" | "tenant_id" | "scene_id">,
+  folder: string,
+) {
+  const rows = rowsOf<{ id: string }>(
+    await db.select(
+      "marketing_assets",
+      `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&type=eq.video_clip&meta->>scene_id=eq.${run.scene_id}&meta->>lipsync=eq.true&select=id`,
+    ),
   );
   return assertTenantPath(
     run.tenant_id,
-    `${folder}/${safeSegment(run.scene_id)}/lipsync-v${(rows?.length ?? 0) + 1}.mp4`,
+    `${folder}/${safeSegment(run.scene_id)}/lipsync-v${rows.length + 1}.mp4`,
   );
 }
 
 /** Length of the stored MP4, so the film gives the whole line its time. null without ffprobe. */
-async function videoSeconds(bytes) {
+async function videoSeconds(bytes: Uint8Array) {
   const dir = await mkdtemp(join(tmpdir(), "lipsync-"));
   try {
     const file = join(dir, "clip.mp4");

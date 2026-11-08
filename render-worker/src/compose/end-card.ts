@@ -4,6 +4,7 @@
  * at most three balanced lines and its size follows the longest line. Both the Remotion card
  * (manifest brand.ctaLines) and the ffmpeg card below use these lines.
  */
+import type { FilmBrand } from "./types.ts";
 
 export const MAX_CTA_CHARS = 120;
 export const MAX_CTA_LINES = 3;
@@ -14,20 +15,20 @@ export const END_CARD_S = 2.5;
  * Seconds the card stays on screen: one more second for each extra line of the call to
  * action, so a three-line sentence can be read to the end (Remotion and ffmpeg alike).
  */
-export const endCardSeconds = (lines) =>
+export const endCardSeconds = (lines: unknown) =>
   END_CARD_S + Math.max(0, (Array.isArray(lines) ? lines.length : 0) - 1);
 /** Width of a bold Hebrew glyph, in ems, on average (Heebo / DejaVu Sans Bold). */
 const GLYPH_EM = 0.56;
 
-const words = (text) =>
+const words = (text: unknown) =>
   String(text ?? "")
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
     .filter(Boolean);
 
-function wrap(list, width) {
-  const lines = [];
+function wrap(list: Array<string>, width: number) {
+  const lines: Array<string> = [];
   let line = "";
   for (const word of list) {
     if (line && line.length + 1 + word.length > width) {
@@ -43,7 +44,7 @@ function wrap(list, width) {
  * The call to action in reading order, one entry per line: one line when short, else the
  * narrowest wrap that fits in two or three lines, so the lines come out about even.
  */
-export function ctaLines(text) {
+export function ctaLines(text: unknown) {
   const list = words(String(text ?? "").slice(0, MAX_CTA_CHARS));
   if (!list.length) return [];
   const total = list.join(" ").length;
@@ -64,7 +65,7 @@ export function ctaLines(text) {
 const DASH = /^[—–-]$/;
 
 /** The narrowest wrap of the words into at most `count` lines. */
-function balanced(list, count) {
+function balanced(list: Array<string>, count: number) {
   const total = list.join(" ").length;
   const longest = Math.max(...list.map((word) => word.length));
   for (
@@ -83,8 +84,13 @@ function balanced(list, count) {
  * longest line grows, so every line fits within `widthShare` of the frame.
  */
 export function ctaFontPx(
-  lines,
-  { width, height, widthShare = 0.8, maxShare = 0.058 },
+  lines: Array<string>,
+  {
+    width,
+    height,
+    widthShare = 0.8,
+    maxShare = 0.058,
+  }: { width: number; height: number; widthShare?: number; maxShare?: number },
 ) {
   const unit = Math.min(width, height);
   const longest = Math.max(1, ...lines.map((line) => line.length));
@@ -93,9 +99,11 @@ export function ctaFontPx(
 }
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-const color = (value, fallback) =>
-  HEX.test(String(value ?? "")) ? `0x${expand(value.slice(1))}` : fallback;
-const expand = (hex) =>
+const color = (value: unknown, fallback: string) =>
+  typeof value === "string" && HEX.test(value)
+    ? `0x${expand(value.slice(1))}`
+    : fallback;
+const expand = (hex: string) =>
   hex.length === 3
     ? hex
         .split("")
@@ -116,6 +124,15 @@ export function endCardTextFilters({
   accent,
   fontFile,
   centreShare = 0.58,
+}: {
+  lineFiles: Array<string>;
+  urlFile?: string | null;
+  fontPx: number;
+  width: number;
+  height: number;
+  accent: unknown;
+  fontFile: string;
+  centreShare?: number;
 }) {
   const step = Math.round(fontPx * 1.45);
   const top = Math.round(height * centreShare - (lineFiles.length * step) / 2);
@@ -148,11 +165,14 @@ export function endCardTextFilters({
 }
 
 /** The ffmpeg card's background colour: the brand's second colour, else the film's navy. */
-export const endCardBackground = (brand) =>
-  color(brand?.secondaryColor, "0x07111c");
+export const endCardBackground = (
+  brand: Partial<Pick<FilmBrand, "secondaryColor">> | null | undefined,
+) => color(brand?.secondaryColor, "0x07111c");
 
 /** True when the film closes on a card: a brand with a logo or a call to action. */
-export const hasEndCard = (brand) =>
+export const hasEndCard = (
+  brand: Partial<FilmBrand> | null | undefined,
+): brand is Partial<FilmBrand> =>
   Boolean(
     brand &&
     brand.endCard !== false &&
