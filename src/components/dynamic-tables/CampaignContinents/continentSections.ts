@@ -20,6 +20,8 @@ export type ContinentSection = {
   totals: GoogleAdsTotals;
   ecommerce: GoogleAdsTotals;
   leads: GoogleAdsTotals;
+  /** Campaigns set to pay for exposure: their spend stays out of lead and sales totals (AIO-496). */
+  traffic: GoogleAdsTotals;
 };
 
 /**
@@ -42,15 +44,13 @@ export function continentSections(
         totals: emptyTotals(),
         ecommerce: emptyTotals(),
         leads: emptyTotals(),
+        traffic: emptyTotals(),
       };
       byContinent.set(continent, section);
     }
     section.campaigns.push(row);
     addTotals(section.totals, row);
-    addTotals(
-      row.goal === "ecommerce" ? section.ecommerce : section.leads,
-      row,
-    );
+    addTotals(section[row.goal], row);
   }
   return [...byContinent.values()].sort(
     (a, b) =>
@@ -81,8 +81,21 @@ export function namesCampaignsByDestination(names: Iterable<string>): boolean {
 export function googleCampaignNames(
   records: Array<{ _source?: string; data?: Record<string, unknown> | null }>,
 ): Array<string> {
+  return recordCampaignNames(
+    records.filter((record) => record._source === "google_ads"),
+  );
+}
+
+/**
+ * Each record's campaign name, as the Google Ads summary shows it:
+ * `campaign_name`, else `campaign`.
+ */
+export function recordCampaignNames(
+  records: Array<{ data?: Record<string, unknown> | null }>,
+): Array<string> {
   return records
-    .filter((record) => record._source === "google_ads")
-    .map((record) => String(record.data?.campaign_name ?? ""))
+    .map((record) =>
+      String(record.data?.campaign_name || record.data?.campaign || ""),
+    )
     .filter(Boolean);
 }

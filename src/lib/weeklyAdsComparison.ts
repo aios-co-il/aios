@@ -1,4 +1,4 @@
-import type { GoogleCampaignGoal } from "../../supabase/functions/_shared/campaign-goal/google-classify.ts";
+import type { GoogleReportGoal } from "../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import {
   addFacebookGoalRecord,
   emptyFacebookGoalInputs,
@@ -154,7 +154,7 @@ export function getSundayStart(date: Date): Date {
 function campaignKind(
   campaign: WeekCampaign,
   sourceModes: WeeklySourceModes,
-  googleGoal?: GoogleCampaignGoal,
+  googleGoal?: GoogleReportGoal,
 ): ReportCampaignGoal {
   if (campaign.source === "google_ads") {
     return (
@@ -182,7 +182,7 @@ export function buildWeeklyCampaignSections(
     defaultSource?: WeeklyAdsSource;
     sourceModes?: WeeklySourceModes;
     /** Goal per Google campaign id (name when missing), from the report's rules. */
-    googleCampaignGoals?: Map<string, GoogleCampaignGoal>;
+    googleCampaignGoals?: Map<string, GoogleReportGoal>;
     /** Whether a record's report is switched off (`reportOffLookup`). */
     isReportOff?: (record: WeeklyAdsRecord) => boolean;
   } = {},

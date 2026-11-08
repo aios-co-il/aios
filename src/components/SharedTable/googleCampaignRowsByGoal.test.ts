@@ -25,4 +25,15 @@ describe("googleCampaignRowsByGoal", () => {
       ["lead", 40],
     ]);
   });
+
+  it("puts a campaign that pays for exposure in its own traffic table (AIO-496)", () => {
+    const rows = googleCampaignRowsByGoal(
+      [record("lead", 40), record("media", 12)],
+      "campaign",
+      (data) => (data?.campaign_id === "media" ? "traffic" : "leads"),
+    );
+    expect(rows.leads.map((row) => row.name)).toEqual(["lead"]);
+    expect(rows.traffic.map((row) => row.name)).toEqual(["media"]);
+    expect(rows.all.map((row) => row.name)).toEqual(["lead", "media"]);
+  });
 });

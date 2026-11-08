@@ -8,6 +8,7 @@ const singleGoal: SharedTableGoals = {
   goalOf: null,
   hasEcommerce: false,
   hasLeads: true,
+  hasTraffic: false,
 };
 
 const facebook = (name: string, data: Record<string, unknown>) => ({
@@ -54,7 +55,11 @@ describe("sharedIntegrationReport", () => {
     expect(names(report.campaigns.ecommerce)).toStrictEqual(["sales"]);
     expect(names(report.campaigns.leads)).toStrictEqual(["lead"]);
     expect(names(report.campaigns.traffic)).toStrictEqual(["traffic"]);
-    expect(report.goals).toStrictEqual({ hasEcommerce: true, hasLeads: true });
+    expect(report.goals).toStrictEqual({
+      hasEcommerce: true,
+      hasLeads: true,
+      hasTraffic: true,
+    });
     // The table's single-goal settings would zero the purchases.
     expect(report.summary).toMatchObject({
       spend: 170,

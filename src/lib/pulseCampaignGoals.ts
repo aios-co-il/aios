@@ -42,6 +42,8 @@ export type PulseCampaignGoalRow = {
     "normal" | "watch" | "exception" | "missing_data" | "needs_classification";
   status_reason: string;
   alert_eligible: boolean;
+  /** The client's full days without results before the exception (clients.pulse_no_results_days); older snapshots lack it. */
+  no_results_days?: number;
   target_value: number | null;
   target_kind: string | null;
   target_source?: PulseTargetSource | null;
@@ -107,6 +109,8 @@ export const buildPulseCampaignRows = buildRows as (input: {
   nowYmd: string;
   /** tenant_heartbeat_settings.pulse_alert_rules — same value the snapshot uses. */
   alertRules?: unknown;
+  /** Each client's clients.pulse_no_results_days, by client id; missing means 7. */
+  noResultsDaysByClient?: Record<string, number | null | undefined>;
 }) => Array<PulseCampaignGoalRow>;
 
 export const pulseTrendWindows = trendWindows;

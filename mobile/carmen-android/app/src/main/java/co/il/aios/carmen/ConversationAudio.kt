@@ -15,11 +15,16 @@ import java.util.concurrent.LinkedBlockingQueue
 import kotlin.concurrent.thread
 
 /**
- * Two-way call audio for the live conversation: 24 kHz mono PCM16 in and out (the Realtime
- * API's default), voice-communication mode so the phone's echo canceller keeps Carmen from
+ * Two-way call audio for the live conversation: mono PCM16 in and out at [sampleRate] (24 kHz
+ * for OpenAI Realtime, 16 kHz for ElevenLabs), voice-communication mode so the phone's echo canceller keeps Carmen from
  * hearing herself, routed to a headset when one is connected and to the loudspeaker otherwise.
  */
-class ConversationAudio(context: Context, private val onMicChunk: (ByteArray) -> Unit) {
+class ConversationAudio(
+    context: Context,
+    private val sampleRate: Int = OPENAI_SAMPLE_RATE,
+    private val onMicChunk: (ByteArray) -> Unit,
+) {
+    private val chunkBytes = sampleRate / 25 * 2 // 40 ms of 16-bit mono
 
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private val playQueue = LinkedBlockingQueue<ByteArray>()
@@ -35,7 +40,7 @@ class ConversationAudio(context: Context, private val onMicChunk: (ByteArray) ->
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
         routeOutput()
         val recorder = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate, AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT, bufferSize(),
         )
         record = recorder
@@ -51,7 +56,7 @@ class ConversationAudio(context: Context, private val onMicChunk: (ByteArray) ->
                     .build(),
             )
             .setAudioFormat(
-                AudioFormat.Builder().setSampleRate(SAMPLE_RATE)
+                AudioFormat.Builder().setSampleRate(sampleRate)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build(),
             )
@@ -97,7 +102,7 @@ class ConversationAudio(context: Context, private val onMicChunk: (ByteArray) ->
     }
 
     private fun captureLoop(recorder: AudioRecord) {
-        val chunk = ByteArray(CHUNK_BYTES)
+        val chunk = ByteArray(chunkBytes)
         while (running) {
             val read = recorder.read(chunk, 0, chunk.size)
             if (read > 0) onMicChunk(chunk.copyOf(read))
@@ -139,14 +144,14 @@ class ConversationAudio(context: Context, private val onMicChunk: (ByteArray) ->
     }
 
     private fun bufferSize() = maxOf(
-        AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT),
-        CHUNK_BYTES * 4,
+        AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT),
+        chunkBytes * 4,
     )
 
-    private companion object {
-        const val SAMPLE_RATE = 24_000
-        const val CHUNK_BYTES = SAMPLE_RATE / 25 * 2 // 40 ms of 16-bit mono
-        val HEADSET_TYPES = setOf(
+    companion object {
+        const val OPENAI_SAMPLE_RATE = 24_000
+        const val ELEVENLABS_SAMPLE_RATE = 16_000
+        private val HEADSET_TYPES = setOf(
             AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_WIRED_HEADSET,
             AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_USB_HEADSET,
         )

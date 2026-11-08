@@ -113,4 +113,14 @@ Deno.test("buildCarmenPulseRulesBlock", async (t) => {
   await t.step("the block names the 10-minute refresh limit", () => {
     assertMatch(buildCarmenPulseRulesBlock(), /פעם ב-10 דקות לארגון/);
   });
+
+  await t.step(
+    "the block points to the client's no-results days, default 7",
+    () => {
+      assertMatch(
+        buildCarmenPulseRulesBlock(),
+        /no_results_days בשורת הקמפיין \(ברירת מחדל 7\)/,
+      );
+    },
+  );
 });

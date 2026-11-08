@@ -1,6 +1,7 @@
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import type { Database } from "@/integrations/supabase/types";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { useBroadcastDomains } from "./useBroadcastDomains";
 
 type CapturedRequest = {
@@ -23,31 +24,29 @@ vi.mock("@/hooks/useCurrentUser", () => ({
 vi.mock("@/integrations/supabase/client", async () => {
   const { createClient } = await import("@supabase/supabase-js");
   return {
-    supabase: createClient("https://example.com", "test-key", {
+    supabase: createClient<Database>("https://example.com", "test-key", {
       global: { fetch: (...args) => environment.fetch(...args) },
       auth: { persistSession: false, autoRefreshToken: false },
     }),
   };
 });
 
-let current: ReturnType<typeof useBroadcastDomains>;
+let current: { current: ReturnType<typeof useBroadcastDomains> };
+let rerender: () => void;
 let requests: Array<CapturedRequest>;
 let failRequest: (request: CapturedRequest) => boolean;
-
-/** Exercise the production hook inside a real React Query provider. */
-function DomainConsumer() {
-  current = useBroadcastDomains();
-  return <output>{current.list.status}</output>;
-}
 
 /** Wait for the enabled query, or verify that null tenants remain disabled. */
 async function mountDomains(tenantId: string | null) {
   environment.tenantId = tenantId;
-  render(withTestQuery(<DomainConsumer />));
+  const { wrapper } = createTestQueryHarness();
+  const hook = renderHook(() => useBroadcastDomains(), { wrapper });
+  current = hook.result;
+  rerender = hook.rerender;
   if (tenantId) {
-    await waitFor(() => expect(current.list.isSuccess).toBe(true));
+    await waitFor(() => expect(current.current.list.isSuccess).toBe(true));
   } else {
-    expect(current.list.fetchStatus).toBe("idle");
+    expect(current.current.list.fetchStatus).toBe("idle");
     expect(requests).toEqual([]);
   }
 }
@@ -105,7 +104,7 @@ describe.each(["tenant-1", null])(
       await mountDomains(tenantId);
       requests = [];
       await act(async () => {
-        await current.list.refetch({ throwOnError: true });
+        await current.current.list.refetch({ throwOnError: true });
       });
       expect(requests).toHaveLength(1);
       const url = expectTenantRequest("GET", "", tenantId);
@@ -115,39 +114,11 @@ describe.each(["tenant-1", null])(
       );
     });
 
-    it("clears defaults then inserts the unchanged creation payload", async () => {
-      await mountDomains(tenantId);
-      requests = [];
-      await act(async () => {
-        await current.add.mutateAsync({
-          domain: "example.com",
-          is_default: true,
-        });
-      });
-      expectTenantRequest(
-        "PATCH",
-        JSON.stringify({ is_default: false }),
-        tenantId,
-      );
-      expect(requests.find((entry) => entry.method === "POST")?.body).toBe(
-        JSON.stringify({
-          tenant_id: tenantId,
-          created_by: "user-1",
-          domain: "example.com",
-          from_name: null,
-          default_local: "noreply",
-          is_default: true,
-        }),
-      );
-      expect(requests[0].method).toBe("PATCH");
-      expect(requests[1].method).toBe("POST");
-    });
-
     it("retains the ID and tenant filters on updates", async () => {
       await mountDomains(tenantId);
       requests = [];
       await act(async () => {
-        await current.update.mutateAsync({
+        await current.current.update.mutateAsync({
           id: "domain-1",
           domain: "example.com",
         });
@@ -169,7 +140,7 @@ describe.each(["tenant-1", null])(
       await mountDomains(tenantId);
       requests = [];
       await act(async () => {
-        await current.setDefault.mutateAsync("domain-1");
+        await current.current.setDefault.mutateAsync("domain-1");
       });
       expectTenantRequest(
         "PATCH",
@@ -196,7 +167,7 @@ describe("production domain errors", () => {
     failRequest = () => true;
     await act(async () => {
       await expect(
-        current.list.refetch({ throwOnError: true }),
+        current.current.list.refetch({ throwOnError: true }),
       ).rejects.toMatchObject({ message: "query failed" });
     });
   });
@@ -204,20 +175,20 @@ describe("production domain errors", () => {
   it.each(["add", "update", "setDefault"] as const)(
     "returns %s write errors to callers",
     async (operation) => {
-      await mountDomains(null);
+      await mountDomains("tenant-1");
       failRequest = (request) =>
         request.method === "POST" ||
         request.body !== JSON.stringify({ is_default: false });
       await act(async () => {
         const pending =
           operation === "add"
-            ? current.add.mutateAsync({ domain: "example.com" })
+            ? current.current.add.mutateAsync({ domain: "example.com" })
             : operation === "update"
-              ? current.update.mutateAsync({
+              ? current.current.update.mutateAsync({
                   id: "domain-1",
                   domain: "example.com",
                 })
-              : current.setDefault.mutateAsync("domain-1");
+              : current.current.setDefault.mutateAsync("domain-1");
         await expect(pending).rejects.toMatchObject({
           message: "query failed",
         });
@@ -225,3 +196,74 @@ describe("production domain errors", () => {
     },
   );
 });
+
+describe("tenant readiness for creation", () => {
+  it("clears defaults then inserts the unchanged creation payload", async () => {
+    await mountDomains("tenant-1");
+    requests = [];
+    await act(async () => {
+      await current.current.add.mutateAsync({
+        domain: "example.com",
+        is_default: true,
+      });
+    });
+    expectTenantRequest(
+      "PATCH",
+      JSON.stringify({ is_default: false }),
+      "tenant-1",
+    );
+    expect(requests.find((entry) => entry.method === "POST")?.body).toBe(
+      JSON.stringify({
+        tenant_id: "tenant-1",
+        created_by: "user-1",
+        domain: "example.com",
+        from_name: null,
+        default_local: "noreply",
+        is_default: true,
+      }),
+    );
+    expect(requests[0].method).toBe("PATCH");
+    expect(requests[1].method).toBe("POST");
+  });
+
+  it("rejects creation without a tenant before either write", async () => {
+    await mountDomains(null);
+    await expectUnavailableCreation();
+  });
+
+  it("stops writes while unavailable, permits the ready tenant, then stops again", async () => {
+    await mountDomains(null);
+    await expectUnavailableCreation();
+    environment.tenantId = "tenant-2";
+    rerender();
+    await waitFor(() => expect(current.current.list.isSuccess).toBe(true));
+    requests = [];
+    await act(async () => {
+      await current.current.add.mutateAsync({
+        domain: "example.com",
+        is_default: true,
+      });
+    });
+    expectTenantRequest("PATCH", '{"is_default":false}', "tenant-2");
+    expect(
+      requests.find((request) => request.method === "POST")?.body,
+    ).toContain('"tenant_id":"tenant-2"');
+    environment.tenantId = null;
+    rerender();
+    requests = [];
+    await expectUnavailableCreation();
+  });
+});
+
+/** Rejection must precede both default clearing and tenant-scoped insertion. */
+async function expectUnavailableCreation() {
+  await act(async () => {
+    await expect(
+      current.current.add.mutateAsync({
+        domain: "example.com",
+        is_default: true,
+      }),
+    ).rejects.toThrow("לא נבחר ארגון (tenant)");
+  });
+  expect(requests).toEqual([]);
+}
