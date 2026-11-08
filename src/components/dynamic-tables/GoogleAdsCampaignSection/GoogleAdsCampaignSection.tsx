@@ -17,7 +17,8 @@ type Props = GoogleAdsFormatters & {
 /**
  * Google Ads tab of a client dashboard. Each campaign is shown by its own goal:
  * ecommerce campaigns with purchases, revenue and ROAS, lead campaigns with
- * conversions and cost per conversion. Mixed accounts get one table per goal.
+ * conversions and cost per conversion, and campaigns set to pay for exposure
+ * with spend, impressions and clicks only. Mixed accounts get one table per goal.
  */
 export function GoogleAdsCampaignSection({
   summary,
@@ -26,9 +27,12 @@ export function GoogleAdsCampaignSection({
   ...formats
 }: Props) {
   const store = googleStoreTotals(summary.ecommerce, woo);
-  const mixed = summary.hasEcommerce && summary.hasLeads;
+  const mixed =
+    [summary.hasEcommerce, summary.hasLeads, summary.hasTraffic].filter(Boolean)
+      .length > 1;
   const ecommerceRows = summary.campaigns.filter((c) => c.goal === "ecommerce");
   const leadRows = summary.campaigns.filter((c) => c.goal === "leads");
+  const trafficRows = summary.campaigns.filter((c) => c.goal === "traffic");
   const tableProps = { store, mixed, icon, ...formats };
 
   return (
@@ -56,6 +60,14 @@ export function GoogleAdsCampaignSection({
           rows={leadRows}
           goal="leads"
           groupTotals={summary.leads}
+          {...tableProps}
+        />
+      )}
+      {trafficRows.length > 0 && (
+        <GoogleAdsCampaignTable
+          rows={trafficRows}
+          goal="traffic"
+          groupTotals={summary.traffic}
           {...tableProps}
         />
       )}

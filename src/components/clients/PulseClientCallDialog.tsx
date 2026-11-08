@@ -25,10 +25,7 @@ import {
   formatLastClientCall,
   type PulseSnapshotRow,
 } from "@/lib/pulseDashboard";
-import {
-  isClientCallUpdate,
-  resolveClientUpdateType,
-} from "@/lib/clientUpdateType";
+import { isClientCallUpdate } from "@/lib/clientUpdateType";
 import { errorMessageOf } from "@/lib/errorMessage";
 import { CONTACT_COUNTING_SOURCES } from "../../../supabase/functions/_shared/client-card/sources.ts";
 
@@ -88,18 +85,13 @@ export function PulseClientCallDialog({
         // Only human or Carmen-confirmed rows can count as contact; filtering here
         // keeps automatic report rows from crowding real calls out of the 30.
         .in("source", [...CONTACT_COUNTING_SOURCES])
-        .or("update_type.in.(call,weekly_update),counts_as_contact.is.true")
+        .or("update_type.eq.call,counts_as_contact.is.true")
         .order("created_at", { ascending: false })
         .limit(30);
       if (error) throw error;
       // Same rule as the pulse (get_latest_client_call_updates).
       return (data ?? []).filter((row) =>
-        isClientCallUpdate(
-          row.update_type,
-          row.content ?? "",
-          row.source,
-          row.counts_as_contact,
-        ),
+        isClientCallUpdate(row.update_type, row.source, row.counts_as_contact),
       );
     },
     enabled: open && !!target?.clientId,
@@ -121,7 +113,6 @@ export function PulseClientCallDialog({
 
     setSaving(true);
     try {
-      const updateType = resolveClientUpdateType("call", trimmed);
       const { data: inserted, error } = await supabase
         .from("client_updates")
         .insert({
@@ -129,7 +120,7 @@ export function PulseClientCallDialog({
           tenant_id: tenantId,
           user_id: user.id,
           content: trimmed,
-          update_type: updateType,
+          update_type: "call",
         })
         .select("id, created_at")
         .single();

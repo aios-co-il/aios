@@ -7,7 +7,8 @@
  * it matters and drafts one card line. A material digest becomes a
  * card_stale_group finding holding the draft; an approval ("אשר <code>") or,
  * in team mode with card_write on, Carmen writes it. Otherwise only the
- * watermark advances. Groups only, from the monitored lines; another
+ * watermark advances. Groups only, from the monitored lines (the tenant's
+ * Carmen line included, AIO-515); another
  * tenant's copy is never read, and a group shared across tenants is read by
  * one of them.
  */
@@ -71,7 +72,9 @@ export async function collectGroupUpdates(
   );
   return {
     candidates: candidates(digests, keptDrafts(drafts, entries, ctx.now)),
-    watermark: watermarkJson(advance(watermark, marks(gated), ctx.now), lines),
+    watermark: watermarkJson(advance(watermark, marks(gated), ctx.now), [
+      ...new Set([...lines.green, ...lines.carmen]),
+    ]),
     coverage: { complete: true, clientIds: ctx.clientIds },
     llm,
   };

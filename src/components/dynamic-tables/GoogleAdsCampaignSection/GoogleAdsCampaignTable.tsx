@@ -9,8 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { GoogleCampaignGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
+import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { GoogleAdsCampaignTotalsRow } from "./GoogleAdsCampaignTotalsRow";
+import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import { ratio } from "@/lib/reportNumber";
 import type {
   GoogleAdsCampaignSummaryRow,
@@ -21,7 +22,7 @@ import type {
 
 type Props = GoogleAdsFormatters & {
   rows: GoogleAdsCampaignSummaryRow[];
-  goal: GoogleCampaignGoal;
+  goal: GoogleReportGoal;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;
   mixed: boolean;
@@ -43,13 +44,8 @@ export function GoogleAdsCampaignTable({
 }: Props) {
   const { formatCurrency, formatNumber, formatUnitCost } = formats;
   const isEcommerce = goal === "ecommerce";
-  const title =
-    titleOverride ??
-    (!mixed
-      ? "סיכום קמפיינים - Google Ads"
-      : isEcommerce
-        ? "קמפייני מכירות - Google Ads"
-        : "קמפייני לידים - Google Ads");
+  const isTraffic = goal === "traffic";
+  const title = titleOverride ?? (mixed ? GOAL_TITLES[goal] : SINGLE_TITLE);
   return (
     <Card>
       <CardHeader>
@@ -57,6 +53,9 @@ export function GoogleAdsCampaignTable({
           {icon}
           {title}
         </CardTitle>
+        {isTraffic && (
+          <p className="text-sm text-muted-foreground">{GOOGLE_TRAFFIC_NOTE}</p>
+        )}
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -69,7 +68,7 @@ export function GoogleAdsCampaignTable({
                 <TableHead className="text-right">CTR</TableHead>
                 <TableHead className="text-right">CPC</TableHead>
                 <TableHead className="text-right">הוצאה</TableHead>
-                {isEcommerce ? (
+                {isTraffic ? null : isEcommerce ? (
                   <>
                     <TableHead className="text-right">רכישות</TableHead>
                     <TableHead className="text-right">הכנסות</TableHead>
@@ -103,7 +102,7 @@ export function GoogleAdsCampaignTable({
                     </TableCell>
                     <TableCell>{cpc > 0 ? formatUnitCost(cpc) : "-"}</TableCell>
                     <TableCell>{formatCurrency(c.spend)}</TableCell>
-                    {isEcommerce ? (
+                    {isTraffic ? null : isEcommerce ? (
                       <>
                         <TableCell className={good(c.conversions)}>
                           {formatNumber(c.conversions)}
@@ -144,6 +143,19 @@ export function GoogleAdsCampaignTable({
     </Card>
   );
 }
+
+const SINGLE_TITLE = "סיכום קמפיינים - Google Ads";
+
+/** Each goal's table title when the report shows more than one goal. */
+const GOAL_TITLES: Record<GoogleReportGoal, string> = {
+  ecommerce: `${CAMPAIGN_GOAL_TITLES.ecommerce} - Google Ads`,
+  leads: `${CAMPAIGN_GOAL_TITLES.leads} - Google Ads`,
+  traffic: `${CAMPAIGN_GOAL_TITLES.traffic} - Google Ads`,
+};
+
+/** Why an exposure table has no result columns. */
+const GOOGLE_TRAFFIC_NOTE =
+  "קמפיין שמשלם על חשיפות או קליקים — נמדד בהוצאה, בחשיפות ובקליקים בלבד";
 
 /** Green text for a positive result. */
 function good(value: number): string {

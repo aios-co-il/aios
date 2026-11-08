@@ -11,6 +11,11 @@ import {
 } from "../providers/index.ts";
 import { finishLipsync } from "./lipsync-finish.ts";
 import { NO_LIPSYNC_PROVIDER, submitLipsync } from "./lipsync-submit.ts";
+import type { LipsyncJob } from "./lipsync-submit.ts";
+import { asset, motionClipOf } from "./lipsync-assets.ts";
+import type { SceneRow, VideoRun } from "./types.ts";
+import type { LipsyncProvider, ProviderKeys } from "../providers/types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 /**
  * Makes a talking scene's character mouth its own voice line. Reads the scene, its voice
@@ -27,10 +32,21 @@ export async function generateLipsync({
   log = console.log,
   // Wraps the paid submit and the save of its job id (src/inflight.ts).
   submitting = (submit) => submit(),
+}: {
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "sign" | "update" | "rpc"
+  >;
+  run: VideoRun;
+  keys?: ProviderKeys;
+  providerFor?: (name: string, keys: ProviderKeys) => LipsyncProvider;
+  env?: NodeJS.ProcessEnv;
+  log?: (line: string) => void;
+  submitting?: <T>(submit: () => Promise<T>) => Promise<T>;
 }) {
   if (!run.scene_id) throw finalError("lipsync run: scene_id is required");
   const item = await loadRunItem(db, run);
-  const scene = await loadRunScene(
+  const scene = await loadRunScene<SceneRow>(
     db,
     run,
     "id,still_asset_id,clip_asset_id,voice_asset_id,voiceover_text,duration_s,motion_prompt,meta",
@@ -62,17 +78,17 @@ export async function generateLipsync({
   const durationS = Number(scene.duration_s) || 5;
   const aspect = run.input?.aspect || clip?.meta?.aspect || "9:16";
 
-  let provider = null;
-  let jobId = null;
-  let source = null;
+  let job: LipsyncJob;
   if (run.provider_job_id && names.length === 1 && run.provider === names[0]) {
-    provider = providerFor(names[0], keys);
-    jobId = run.provider_job_id;
-    source = run.output?.lipsync_source ?? null;
-    log(`[lipsync] ${run.id} resumes ${provider.name} job ${jobId}`);
+    job = {
+      provider: providerFor(names[0], keys),
+      jobId: run.provider_job_id,
+      source: run.output?.lipsync_source ?? null,
+    };
+    log(`[lipsync] ${run.id} resumes ${job.provider.name} job ${job.jobId}`);
   } else {
-    await submitting(async () => {
-      ({ provider, jobId, source } = await submitLipsync({
+    job = await submitting(() =>
+      submitLipsync({
         db,
         run,
         item,
@@ -88,10 +104,11 @@ export async function generateLipsync({
         durationS,
         aspect,
         log,
-      }));
-    });
-    log(`[lipsync] ${run.id} submitted ${provider.name} job ${jobId}`);
+      }),
+    );
+    log(`[lipsync] ${run.id} submitted ${job.provider.name} job ${job.jobId}`);
   }
+  const { provider, jobId, source } = job;
 
   try {
     return await finishLipsync({
@@ -117,31 +134,6 @@ export async function generateLipsync({
   } catch (error) {
     throw submitted(error);
   }
-}
-
-const asset = async (db, run, id, type) => {
-  if (!id) return null;
-  const [row] =
-    (await db.select(
-      "marketing_assets",
-      `id=eq.${encodeURIComponent(id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&type=eq.${type}&select=id,url,meta`,
-    )) ?? [];
-  return row?.url ? row : null;
-};
-
-/**
- * The scene's animated clip, which carries its own movement (motion_prompt): the current clip, or
- * the one an earlier lip sync of the scene was made over, so a new line keeps the movement. A clip
- * that talks (a one-shot talking clip, or a lip sync with no clip behind it) has none to keep.
- */
-export async function motionClipOf(db, run, clip) {
-  if (!clip) return null;
-  if (clip.meta?.lipsync !== true) return clip;
-  const id =
-    clip.meta?.motion_clip_asset_id ||
-    (clip.meta?.source_kind === "clip" ? clip.meta?.source_asset_id : null);
-  const earlier = await asset(db, run, id, "video_clip");
-  return earlier && earlier.meta?.lipsync !== true ? earlier : null;
 }
 
 const submitted = (error: unknown) => {

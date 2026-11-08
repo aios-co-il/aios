@@ -20,6 +20,7 @@ import {
 import { PulseCostRulesSection } from "@/components/pulse/PulseCostRulesSection";
 import { CardLogSystemSendsSwitch } from "./CardLogSystemSendsSwitch";
 import { UnansweredReplyHoursField } from "./UnansweredReplyHoursField";
+import { PulseRuleSwitch } from "./PulseRuleSwitch";
 import { ManagerModeSection } from "./manager-round/ManagerModeSection";
 import { useManagerSettingsDraft } from "./manager-round/useManagerSettingsDraft";
 
@@ -146,21 +147,21 @@ export function PulseAlertRulesDialog({
 
           <PulseCostRulesSection rules={rules} onChange={setRules} />
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-            <div>
-              <Label className="text-sm">ניתוק / חשבון לא פעיל</Label>
-              <p className="text-xs text-muted-foreground">
-                חיבור שנותק (Google וכו׳), דוח מנותק, סנכרון ישן, קמפיין שנעצר
-                או מודעה חסומה
-              </p>
-            </div>
-            <Switch
-              checked={rules.disconnected_enabled !== false}
-              onCheckedChange={(checked) =>
-                setRules((prev) => ({ ...prev, disconnected_enabled: checked }))
-              }
-            />
-          </div>
+          <PulseRuleSwitch
+            rule="disconnected_enabled"
+            label="ניתוק / חשבון לא פעיל"
+            description="חיבור שנותק (Google וכו׳), דוח מנותק, סנכרון ישן, קמפיין שנעצר או מודעה חסומה"
+            rules={rules}
+            onChange={setRules}
+          />
+
+          <PulseRuleSwitch
+            rule="report_off_spending_enabled"
+            label="דוח כבוי שעדיין מוציא"
+            description="דוח שסומן כבוי אבל הקמפיינים שלו הוציאו כסף ב-3 הימים האחרונים"
+            rules={rules}
+            onChange={setRules}
+          />
 
           {manager.section && <ManagerModeSection {...manager.section} />}
           {manager.cardLog && <CardLogSystemSendsSwitch {...manager.cardLog} />}

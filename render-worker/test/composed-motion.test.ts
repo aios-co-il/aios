@@ -10,12 +10,15 @@ import {
 import { higgsfieldClipBody } from "../src/providers/higgsfield.ts";
 import { clipPrompt, talkingPrompt } from "../src/providers/index.ts";
 import { textlessMotion } from "../src/providers/textless-motion.ts";
+import { runOf } from "./fakes.ts";
+import type { SceneRow } from "../src/jobs/types.ts";
+import type { MediaInput, VideoProvider } from "../src/providers/types.ts";
 
 /** The run's item, `scene` and still for tenant t1, as the clip job's guard reads them. */
-function fakeDb(scene = {}) {
+function fakeDb(scene: Partial<SceneRow> = {}) {
   return {
     download: async () => new Uint8Array([1]),
-    select: async (table, query) => {
+    select: async (table: string, query: string) => {
       if (table === "marketing_work_items") {
         return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
       }
@@ -28,30 +31,31 @@ function fakeDb(scene = {}) {
       return [];
     },
     upload: async () => {},
-    sign: async (_bucket, path) => `https://p.supabase.co/sign/${path}`,
+    sign: async (_bucket: string, path: string) =>
+      `https://p.supabase.co/sign/${path}`,
     rpc: async () => {},
     update: async () => {},
   };
 }
 
 /** What a clip run of `motion` on `scene` sends its engine (the job then fails at the first poll). */
-async function submitted(motion, scene = {}) {
-  const submits = [];
-  const provider = {
+async function submitted(motion: string, scene: Partial<SceneRow> = {}) {
+  const submits: Array<MediaInput> = [];
+  const provider: VideoProvider = {
     name: "kling",
     model: "m",
     estimate: () => ({ credits: 0, usd: 0 }),
     submit: async (input) => (submits.push(input), { jobId: "job-1" }),
     poll: async () => ({ status: "failed", error: "stop" }),
   };
-  const run = {
+  const run = runOf({
     id: "run-1",
     tenant_id: "t1",
     item_id: "i1",
     scene_id: "s1",
     kind: "clip",
     input: { motion_prompt: motion, duration_s: 5, aspect: "9:16" },
-  };
+  });
   await generateClip({ db: fakeDb(scene), run, provider, log: () => {} }).catch(
     () => {},
   );

@@ -1,6 +1,8 @@
 package co.il.aios.carmen
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrainStreamTest {
@@ -41,5 +43,17 @@ class BrainStreamTest {
     fun `ignores keep-alives and broken lines`() {
         val stream = parse(": ping", "data: {broken", "")
         assertEquals("לא נמצאה תשובה.", stream.answer())
+    }
+
+    @Test
+    fun `progress shows until the answer text arrives`() {
+        val stream = BrainStream()
+        assertTrue(stream.accept("""data: {"type":"status","content":"בודקת את הלקוחות"}"""))
+        assertEquals("בודקת את הלקוחות", stream.partial())
+        assertTrue(stream.accept("""data: {"type":"tool_call","tool":"list_clients"}"""))
+        assertEquals("בודקת במערכת…", stream.partial())
+        assertTrue(stream.accept("""data: {"type":"token","content":"יש לך 3 לקוחות"}"""))
+        assertEquals("יש לך 3 לקוחות", stream.partial())
+        assertFalse(stream.accept("""data: {"type":"done","success":true}"""))
     }
 }

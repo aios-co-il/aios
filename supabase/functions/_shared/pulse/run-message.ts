@@ -13,6 +13,7 @@ export const PULSE_RUN_SECTION_MAX_LINES = 8;
 const SECTIONS: Array<{ rule: PulseAlertRuleType; title: string }> = [
   { rule: "campaign_exception", title: "🔴 חריגות קמפיין" },
   { rule: "connection_lost", title: "🔴 חיבור / קמפיין נעצר" },
+  { rule: "report_off_spending", title: "🟠 דוח כבוי שעדיין מוציא" },
   { rule: "no_contact", title: "🟡 אין עדכון קשר" },
   // Only legacy snapshots, which have no campaign evidence, raise it.
   { rule: "cpl_spike", title: "🔴 עליית CPL" },

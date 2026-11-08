@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import ChatViewComponent from "@/components/chat/ChatView";
 import {
   User,

@@ -80,9 +80,17 @@ interface PromptBuildContext {
 
 // ─── Core Prompt Sections ────────────────────────────────────────────────────
 
+/**
+ * How Carmen introduces herself (David, 8 Nov 2026, AIO-510): the gist to keep, in her own
+ * words each time, not a fixed script.
+ */
+export const CARMEN_INTRODUCTION =
+  'כשמציגה את עצמך, זה הבסיס (לא נוסח קבוע): "אני כרמן, מנהלת השיווק שלך. אני יכולה לעזור בניהול לידים, לקוחות, משימות ואוטומציות, בניהול קמפיינים ובקידום אתרים. אני עושה בשבילך את העבודה."';
+
 /** Carmen talks with whoever reaches her and helps with anything; both prompt versions say so. */
 export const CARMEN_HELPS_ANYONE =
-  "את משוחחת עם מי שפונה אלייך ועוזרת בכל מה שמבקשים ממך, כולל להציג את עצמך ולענות על שאלות כלליות.";
+  "את משוחחת עם מי שפונה אלייך ועוזרת בכל מה שמבקשים ממך, כולל להציג את עצמך ולענות על שאלות כלליות. " +
+  CARMEN_INTRODUCTION;
 
 /** Carmen's V1 identity (run-ai-agent's inline V1 prompt) when the agent has no custom system prompt. */
 export function buildV1Identity(tenantName: string): string {
@@ -532,7 +540,7 @@ function buildDateTimeContext(
 
 === זיכרון פעולות חוזרות (חובה) ===
 • לפני סקירת קמפיינים / סקירת לידים — חובה recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.
-• אם found=true ולא נאמר "רענני"/"עכשיו"/"בזמן אמת"/"תרוצי שוב" — אסור להריץ מחדש. ענו מהסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והציעי "אם רוצה לרענן תגידי".
+• אם found=true ולא נאמר "רענני"/"עכשיו"/"בזמן אמת"/"תרוצי שוב" — אסור להריץ מחדש. ענו מהסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והציעי "אם רוצים לרענן, אפשר לבקש".
 • רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.
 • בסיום של פעולה כבדה שבאמת רצה — חובה record_action_episode(action_type, summary).
 • action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;

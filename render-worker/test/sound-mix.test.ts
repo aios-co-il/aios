@@ -11,6 +11,8 @@ import { buildTimeline } from "../src/compose/timeline.ts";
 import { cutSoundPlan } from "../src/compose/transition-sounds.ts";
 import { effectCues } from "../src/compose/workshop-edit.ts";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
+import { defined, sceneOf, timelineOf } from "./fakes.ts";
+import type { Span, TimelineScene } from "../src/compose/types.ts";
 
 const ITEM = "22222222-2222-2222-2222-222222222222";
 
@@ -60,21 +62,22 @@ test("cues: an impact on the title and the end card, a whoosh into every cut", (
   ]);
 });
 
-const still = (id, extra = {}) => ({
-  id,
-  clipPath: `/tmp/${id}.mp4`,
-  stillPath: `/tmp/${id}.png`,
-  clipProvider: "mock",
-  overlayText: id,
-  durationS: 3,
-  ...extra,
-});
+const still = (id: string, extra: Partial<TimelineScene> = {}) =>
+  sceneOf({
+    id,
+    clipPath: `/tmp/${id}.mp4`,
+    stillPath: `/tmp/${id}.png`,
+    clipProvider: "mock",
+    overlayText: id,
+    durationS: 3,
+    ...extra,
+  });
 
 test("the Remotion edit plays a different transition sound at each cut and ducks them under the voice", () => {
   // Three sounds, five cuts: the second round plays them shifted (sound-prep makes the files).
   const plan = cutSoundPlan(3, 5, ITEM);
   const lengths = [1, 0.6, 1.2];
-  const timeline = {
+  const timeline = timelineOf({
     aspect: "9:16",
     brand: { ctaText: "הירשמו", endCard: true },
     effects: {
@@ -96,46 +99,49 @@ test("the Remotion edit plays a different transition sound at each cut and ducks
       }),
       ...["b", "c", "d", "e", "f"].map((id) => still(id)),
     ],
-  };
+  });
   const { manifest, files } = buildWorkshopManifest(timeline);
-  const cuts = manifest.effects.filter((cue) => cue.file !== "sfx-impact.mp3");
+  const effects = defined(manifest.effects, "effects");
+  const cuts = effects.filter((cue) => cue.file !== "sfx-impact.mp3");
   // Every cut its own file, each lasting its own sound.
   expect(cuts.length).toBe(5);
   expect(new Set(cuts.map((cue) => cue.file)).size).toBe(5);
   const staging = Object.fromEntries(files.map((f) => [f.to, f.from]));
   for (const [cut, cue] of cuts.entries()) {
-    expect(staging[cue.file]).toBe(timeline.effects.cuts[cut].path);
+    expect(staging[cue.file]).toBe(timeline.effects?.cuts[cut].path);
     expect(cue.frameCount).toBe([30, 18, 36][plan[cut].sound]);
   }
   // Only the sounds the film plays are staged; the same film renders the same sounds again.
   const staged = files.map((f) => f.to).filter((to) => to.startsWith("sfx-"));
   expect(new Set(staged)).toStrictEqual(
-    new Set(manifest.effects.map((cue) => cue.file)),
+    new Set(effects.map((cue) => cue.file)),
   );
   expect(buildWorkshopManifest(timeline).manifest.effects).toStrictEqual(
     manifest.effects,
   );
-  const impacts = manifest.effects.filter(
-    (cue) => cue.file === "sfx-impact.mp3",
-  );
+  const impacts = effects.filter((cue) => cue.file === "sfx-impact.mp3");
+  const endCard = defined(manifest.endCard, "end card");
   expect(impacts.map((cue) => cue.startFrame)).toStrictEqual([
     0,
-    manifest.endCard.startFrame - 6,
+    endCard.startFrame - 6,
   ]);
-  const level = (frame) => {
-    const { frames, volumes } = manifest.effectsEnvelope;
+  const level = (frame: number) => {
+    const { frames, volumes } = defined(
+      manifest.effectsEnvelope,
+      "effects envelope",
+    );
     let at = 0;
     while (at < frames.length - 1 && frames[at + 1] <= frame) at += 1;
     return volumes[at];
   };
   // Under the opening line the effects dip; between lines they come back up, on the bed's
   // ramps.
-  expect(manifest.effectsEnvelope.frames).toStrictEqual(
+  expect(manifest.effectsEnvelope?.frames).toStrictEqual(
     manifest.musicEnvelope.frames,
   );
   const mix = mixProfile({ trailer: true });
   expect(level(20)).toBe(mix.effectsDucked);
-  expect(level(manifest.endCard.startFrame)).toBe(mix.effects);
+  expect(level(endCard.startFrame)).toBe(mix.effects);
   expect(mix.effectsDucked).toBeLessThan(mix.effects);
   // The timeline plans each cut's sound from the film's id: a film from before the set (one
   // whoosh) plays it at every cut, each a few semitones off the one before.
@@ -153,14 +159,16 @@ test("the Remotion edit plays a different transition sound at each cut and ducks
   const set = buildTimeline(sceneRows, {
     effects: { transitionPaths: ["/a", "/b", "/c"], seed: ITEM },
   });
-  expect(set.effects.cuts).toStrictEqual(
+  expect(set.effects?.cuts).toStrictEqual(
     plan.map(({ sound, pitch }) => ({
       path: ["/a", "/b", "/c"][sound],
       pitch,
     })),
   );
   // A film without sound design keeps its manifest as it was.
-  const plain = buildWorkshopManifest({ aspect: "9:16", scenes: [still("a")] });
+  const plain = buildWorkshopManifest(
+    timelineOf({ aspect: "9:16", scenes: [still("a")] }),
+  );
   expect("effects" in plain.manifest).toBe(false);
 });
 
@@ -200,7 +208,7 @@ test("the ffmpeg edit lays each cut's own sound as a delayed copy on the effects
 });
 
 /** An ffmpeg `volume` expression of t (envelopeExpression) as a function of t. */
-const levelAt = (expression) =>
+const levelAt = (expression: string | number) =>
   new Function(
     "t",
     `const gte = (a, b) => (a >= b ? 1 : 0); const lt = (a, b) => (a < b ? 1 : 0); return ${expression};`,
@@ -208,7 +216,7 @@ const levelAt = (expression) =>
 
 test("a transition rises only with the bed: in a short pause it stays far under her voice", () => {
   const filmS = 8;
-  const db = (gain) => 20 * Math.log10(gain);
+  const db = (gain: number) => 20 * Math.log10(gain);
   const ramps = TRAILER.attack + TRAILER.release + TRAILER.hold;
   // The ffmpeg edit runs at 25 fps, the Remotion edit at 30; the ramps are in frames.
   for (const fps of [25, 30])
@@ -216,7 +224,7 @@ test("a transition rises only with the bed: in a short pause it stays far under 
       const mix = mixProfile({ trailer: true, voiceLufs: voice });
       for (const pauseS of [0.5, 0.73, 0.77, 0.9, 1, 1.05, 1.25, 1.5, 3]) {
         // Two lines with a pause between them.
-        const spans = [
+        const spans: Array<Span> = [
           [0.5, 2.5],
           [2.5 + pauseS, 5.5],
         ];

@@ -55,18 +55,30 @@ interface McpConnRow {
   state: string;
   oauth_tokens: any;
   available_tools: any;
+  updated_at?: string | null;
+}
+
+// A connection's tool list rarely changes; reusing the stored list for a few minutes saves a
+// live tools/list round trip per connection on every Carmen message (AIO-509).
+export const MCP_TOOLS_FRESH_MS = 10 * 60 * 1000;
+
+/** Whether the stored tool list is recent enough to use without asking the server again. */
+export function storedToolsAreFresh(
+  conn: Pick<McpConnRow, "available_tools" | "updated_at">,
+  now: number = Date.now(),
+): boolean {
+  if (
+    !Array.isArray(conn.available_tools) ||
+    conn.available_tools.length === 0
+  ) {
+    return false;
+  }
+  const updated = conn.updated_at ? Date.parse(conn.updated_at) : NaN;
+  return Number.isFinite(updated) && now - updated < MCP_TOOLS_FRESH_MS;
 }
 
 function sanitizeToolName(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
-}
-
-function toolNames(list: any[]): string {
-  return (list || [])
-    .map((t) => t?.name)
-    .filter(Boolean)
-    .sort()
-    .join(",");
 }
 
 async function callMcpWithResync(
@@ -106,14 +118,22 @@ async function callMcpWithResync(
   }
 }
 
+/**
+ * A connection's tools: the stored list while it is fresh, else a live tools/list (stored
+ * list as the fallback). `live` says whether the server answered, so only a real answer
+ * refreshes the stored copy and its timestamp.
+ */
 async function toolsForConnection(
   supabase: any,
   tenantId: string,
   conn: McpConnRow,
-): Promise<any[]> {
+): Promise<{ tools: any[]; live: boolean }> {
   const cached = Array.isArray(conn.available_tools)
     ? conn.available_tools
     : [];
+  if (storedToolsAreFresh(conn)) {
+    return { tools: cached, live: false };
+  }
   try {
     const { resp } = await callMcpWithResync(
       supabase,
@@ -122,14 +142,16 @@ async function toolsForConnection(
       "tools/list",
     );
     const live = resp?.result?.tools;
-    if (Array.isArray(live) && live.length > 0) return live;
+    if (Array.isArray(live) && live.length > 0) {
+      return { tools: live, live: true };
+    }
   } catch (e) {
     console.warn(
       `[mcp-tools] tools/list failed for ${conn.name}:`,
       (e as any)?.message ?? e,
     );
   }
-  return cached;
+  return { tools: cached, live: false };
 }
 
 export async function loadMcpTools(
@@ -150,7 +172,7 @@ export async function loadMcpTools(
 
   let q = supabase
     .from("agent_mcp_connections")
-    .select("id, name, url, state, oauth_tokens, available_tools")
+    .select("id, name, url, state, oauth_tokens, available_tools, updated_at")
     .eq("tenant_id", tenantId)
     .eq("state", "ready");
   // Include tenant-wide (agent_id null) + this agent's
@@ -165,17 +187,22 @@ export async function loadMcpTools(
   const toolDefs: McpLoaded["toolDefs"] = [];
   const executors = new Map<string, (args: any) => Promise<any>>();
 
-  for (const conn of data as McpConnRow[]) {
-    // Access control: skip integrations turned OFF for this agent.
-    if (disabledSet.has(conn.name)) continue;
-    const tools = await toolsForConnection(supabase, tenantId, conn);
+  // Access control: skip integrations turned OFF for this agent.
+  const connections = (data as McpConnRow[]).filter(
+    (conn) => !disabledSet.has(conn.name),
+  );
+  // Every connection's tool list at once, not one round trip after another.
+  const toolLists = await Promise.all(
+    connections.map((conn) => toolsForConnection(supabase, tenantId, conn)),
+  );
+
+  for (const [index, conn] of connections.entries()) {
+    const { tools, live } = toolLists[index];
     const bearer = conn.oauth_tokens?.bearer as string | undefined;
     const connSlug = sanitizeToolName(conn.name || conn.id.slice(0, 6));
 
-    if (
-      toolNames(tools) !==
-      toolNames(Array.isArray(conn.available_tools) ? conn.available_tools : [])
-    ) {
+    // A live answer refreshes the stored list and its timestamp, changed or not.
+    if (live) {
       try {
         await supabase
           .from("agent_mcp_connections")

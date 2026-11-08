@@ -21,7 +21,7 @@ const SUBTLE =
  * (compose/transition-sounds.ts), and one soft low impact on the opening title and the end
  * card. Each is made once per film; the mix keeps them gentle (compose/music-bed.ts).
  */
-export const SOUND_EFFECTS = {
+export const SOUND_EFFECTS: Record<string, SoundEffect> = {
   air: {
     kind: "transition",
     text: `Soft airy whoosh transition: a gentle breath of air that sweeps past and fades. ${SUBTLE}`,
@@ -73,10 +73,13 @@ export const TRANSITION_NAMES = SOUND_EFFECT_NAMES.filter(
 );
 
 /** Version 1's effects (effect name to kind), stored by films made before this set. */
-export const LEGACY_EFFECTS = { whoosh: "transition", impact: "impact" };
+export const LEGACY_EFFECTS: Record<string, string> = {
+  whoosh: "transition",
+  impact: "impact",
+};
 
 /** What ElevenLabs charges for these effects, in USD. */
-export const soundEffectsCostUsd = (names) =>
+export const soundEffectsCostUsd = (names: Array<string>) =>
   Math.round(
     names.reduce(
       (sum, name) =>
@@ -89,10 +92,18 @@ export const soundEffectsCostUsd = (names) =>
   ) / 10000;
 
 /** Why the film has no effects, in words Carmen passes on. */
-export function soundEffectsError(error) {
+export function soundEffectsError(error: unknown) {
   if (isPaidPlanError(error))
     return "אפקטי הסאונד של ElevenLabs דורשים תוכנית בתשלום";
   if (isRejectedKeyError(error)) return "מפתח ה-ElevenLabs לא תקין לאפקטים";
   const message = error instanceof Error ? error.message : String(error);
   return `יצירת אפקטי הסאונד נכשלה: ${message.slice(0, 120)}`;
+}
+
+/** One effect of the set: its kind, what it is asked as, its length and how closely it follows. */
+export interface SoundEffect {
+  kind: "transition" | "impact";
+  text: string;
+  durationS: number;
+  promptInfluence: number;
 }

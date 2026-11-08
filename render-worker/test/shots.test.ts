@@ -28,7 +28,7 @@ test("very busy edits are merged down to maxShots", () => {
   const shots = buildShots(cuts, 41, { maxShots: 10 });
   expect(shots.length).toBe(10);
   expect(shots[0].start).toBe(0);
-  expect(shots.at(-1).end).toBe(41);
+  expect(shots.at(-1)?.end).toBe(41);
   expect(Math.round(shots.reduce((sum, shot) => sum + shot.duration, 0))).toBe(
     41,
   );
@@ -40,14 +40,27 @@ test("transcript words are assigned to the shot they start in", () => {
     { text: " ", start: 0.5, type: "spacing" },
     { text: "לכולם", start: 2.1, type: "word" },
   ];
-  expect(shotTranscript(words, { start: 0, end: 2 })).toBe("שלום");
-  expect(shotTranscript(words, { start: 2, end: 4 })).toBe("לכולם");
+  const shot = (start: number, end: number) => ({
+    index: 1,
+    start,
+    end,
+    duration: end - start,
+  });
+  expect(shotTranscript(words, shot(0, 2))).toBe("שלום");
+  expect(shotTranscript(words, shot(2, 4))).toBe("לכולם");
 });
 
 test("proposal frames follow the reference shots and drop studio names", () => {
   const shots = [
-    { index: 1, duration: 2.5, shot_type: "Close-up", motion: "push in" },
-    { index: 2, duration: 4 },
+    {
+      index: 1,
+      start: 0,
+      end: 2.5,
+      duration: 2.5,
+      shot_type: "Close-up",
+      motion: "push in",
+    },
+    { index: 2, start: 2.5, end: 6.5, duration: 4 },
   ];
   const frames = normalizeFrames(
     [{ title: "פתיחה", visualPrompt: "A Pixar style fox" }],

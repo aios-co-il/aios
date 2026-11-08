@@ -3,6 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import { EditClientDialog } from "./EditClientDialog";
+import {
+  client,
+  db,
+  resetHarness,
+  setPersona,
+  toast,
+  waitForFinanceAccess,
+  writesTo,
+} from "./__tests__/editClientDialogHarness";
 
 describe("EditClientDialog finance fields", () => {
   it("lets a team manager without a grant save the client with no financial write and no error", async () => {
@@ -90,67 +99,62 @@ describe("EditClientDialog finance fields", () => {
   });
 });
 
-type Write = {
-  table: string;
-  op: string;
-  payload?: unknown;
-  options?: unknown;
-};
+describe("EditClientDialog ad-account links", () => {
+  it("writes only the link field that was edited", async () => {
+    setPersona({ isOwner: true }, { read: false, write: false });
+    db.adLinks = {
+      google_ads_url: null,
+      meta_ads_url: "https://business.facebook.com/saved",
+    };
+    const user = userEvent.setup();
+    const { onOpenChange } = renderDialog();
+    await waitForFinanceAccess();
 
-const db = vi.hoisted(() => ({
-  access: { read: false, write: false },
-  accessError: null as null | { message: string },
-  financialRow: null as null | { retainer: number; monthly_budget: number },
-  writes: [] as Write[],
-  rpcCalls: [] as { name: string; args: unknown }[],
-}));
+    // The saved links must have loaded, or the old dialog would skip them too.
+    await waitFor(() =>
+      expect(screen.getByLabelText("קישור ישיר לחשבון META")).toHaveValue(
+        "https://business.facebook.com/saved",
+      ),
+    );
+    const google = screen.getByLabelText("קישור ישיר לחשבון Google Ads");
+    await user.type(google, "https://ads.google.com/aw/overview?ocid=1");
+    await user.click(screen.getByRole("button", { name: "שמור שינויים" }));
 
-const role = vi.hoisted(() => ({
-  isOwner: false,
-  isSuperAdmin: false,
-  isCampaigner: false,
-  isTeamManager: false,
-  isAgencyOwner: false,
-  userId: "user-1",
-}));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    const [update] = writesTo("clients");
+    expect(update.payload).toMatchObject({
+      google_ads_url: "https://ads.google.com/aw/overview?ocid=1",
+    });
+    expect(update.payload).not.toHaveProperty("meta_ads_url");
+  });
 
-const toast = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  info: vi.fn(),
-}));
+  it("leaves both links out when neither field was edited", async () => {
+    setPersona({ isOwner: true }, { read: false, write: false });
+    db.adLinks = {
+      google_ads_url: "https://ads.google.com/aw/overview?ocid=1",
+      meta_ads_url: null,
+    };
+    const user = userEvent.setup();
+    const { onOpenChange } = renderDialog();
+    await waitForFinanceAccess();
 
-const client = {
-  id: "client-1",
-  name: "לקוח בדיקה",
-  agency_id: "agency-1",
-  status: "active" as const,
-  retainer: null,
-  monthly_budget: null,
-};
+    await waitFor(() =>
+      expect(screen.getByLabelText("קישור ישיר לחשבון Google Ads")).toHaveValue(
+        "https://ads.google.com/aw/overview?ocid=1",
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "שמור שינויים" }));
 
-beforeEach(() => {
-  db.access = { read: false, write: false };
-  db.accessError = null;
-  db.financialRow = null;
-  db.writes = [];
-  db.rpcCalls = [];
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    const [update] = writesTo("clients");
+    expect(update.payload).not.toHaveProperty("google_ads_url");
+    expect(update.payload).not.toHaveProperty("meta_ads_url");
+  });
 });
 
-function setPersona(
-  flags: Partial<typeof role>,
-  access: { read: boolean; write: boolean },
-) {
-  Object.assign(role, {
-    isOwner: false,
-    isSuperAdmin: false,
-    isTeamManager: false,
-    isAgencyOwner: false,
-    ...flags,
-  });
-  db.access = access;
-}
+beforeEach(resetHarness);
 
+/** Renders the dialog for the test client. */
 function renderDialog() {
   const onOpenChange = vi.fn();
   const { wrapper } = createTestQueryHarness();
@@ -161,70 +165,17 @@ function renderDialog() {
   return { onOpenChange };
 }
 
-async function waitForFinanceAccess() {
-  await waitFor(() => expect(db.rpcCalls).toHaveLength(2));
-}
+vi.mock("@/integrations/supabase/client", async () =>
+  (await import("./__tests__/editClientDialogHarness")).supabaseModule(),
+);
 
-function writesTo(table: string) {
-  return db.writes.filter((write) => write.table === table);
-}
-
-vi.mock("@/integrations/supabase/client", () => {
-  /** What the database returns for one finished query. */
-  const resultFor = (table: string, op: string, single: boolean) => {
-    if (table === "clients" && op === "update") {
-      return { data: [{ id: "client-1" }], error: null };
-    }
-    if (table === "client_tenant_financial_data" && op === "select") {
-      return { data: db.financialRow, error: null };
-    }
-    return { data: single || op !== "select" ? null : [], error: null };
-  };
-
-  /** A chainable PostgREST stand-in that records writes and resolves when awaited. */
-  const from = (table: string) => {
-    let op = "select";
-    let single = false;
-    const builder: Record<string, unknown> = {};
-    const chain = () => builder;
-    for (const name of ["select", "eq", "in", "not", "is", "or", "order"]) {
-      builder[name] = chain;
-    }
-    for (const kind of ["insert", "update", "upsert", "delete"]) {
-      builder[kind] = (payload?: unknown, options?: unknown) => {
-        op = kind;
-        db.writes.push({ table, op: kind, payload, options });
-        return builder;
-      };
-    }
-    builder.maybeSingle = () => {
-      single = true;
-      return builder;
-    };
-    builder.then = (
-      resolve: (value: unknown) => unknown,
-      reject: (reason: unknown) => unknown,
-    ) => Promise.resolve(resultFor(table, op, single)).then(resolve, reject);
-    return builder;
-  };
-
-  const rpc = async (name: string, args: unknown) => {
-    db.rpcCalls.push({ name, args });
-    if (db.accessError) {
-      return { data: null, error: db.accessError };
-    }
-    const allowed =
-      name === "has_finance_write_permission"
-        ? db.access.write
-        : db.access.read;
-    return { data: allowed, error: null };
-  };
-
-  return { supabase: { from, rpc } };
+vi.mock("sonner", async () => ({
+  toast: (await import("./__tests__/editClientDialogHarness")).toast,
+}));
+vi.mock("@/hooks/useUserRole", async () => {
+  const { role } = await import("./__tests__/editClientDialogHarness");
+  return { useUserRole: () => role };
 });
-
-vi.mock("sonner", () => ({ toast }));
-vi.mock("@/hooks/useUserRole", () => ({ useUserRole: () => role }));
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenantId: "tenant-1" }),
 }));
