@@ -67,6 +67,7 @@ function isCarmenName(name: string) {
   return n.includes("carmen") || name?.includes("כרמן");
 }
 
+/** Render memory tab from its typed view data. */
 export function MemoryTab({ agent }: { agent: { id: string; name: string } }) {
   return (
     <div className="space-y-3">

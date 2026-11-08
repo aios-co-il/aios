@@ -3,8 +3,9 @@ import { readLegacyMessageRow, readLegacyTaskRow } from "./legacy-rows.ts";
 Deno.test(
   "memory rows reject malformed identities before constructing pointers",
   () => {
-    for (const value of [null, 3, { id: 3 }, {}])
-      assertThrows(() => readLegacyTaskRow(value));
+    for (const value of [null, 3, { id: 3 }, {}]) {
+      assertEquals(readLegacyTaskRow(value), null);
+    }
   },
 );
 Deno.test("task payload validates fields independently", () => {
@@ -14,9 +15,9 @@ Deno.test("task payload validates fields independently", () => {
     status: "open",
     assigned_to_campaigner_id: "u",
   });
-  assertEquals(task.title, undefined);
-  assertEquals(task.status, "open");
-  assertEquals(task.assigned_to_campaigner_id, "u");
+  assertEquals(task?.title, undefined);
+  assertEquals(task?.status, "open");
+  assertEquals(task?.assigned_to_campaigner_id, "u");
 });
 Deno.test("message payload keeps supported legacy text fields", () => {
   const message = readLegacyMessageRow({
@@ -25,6 +26,6 @@ Deno.test("message payload keeps supported legacy text fields", () => {
     provider: "whatsapp",
     lead_id: null,
   });
-  assertEquals(message.body, "hello");
-  assertEquals(message.lead_id, null);
+  assertEquals(message?.body, "hello");
+  assertEquals(message?.lead_id, null);
 });

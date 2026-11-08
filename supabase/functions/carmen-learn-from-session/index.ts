@@ -150,6 +150,7 @@ function buildSchema() {
   };
 }
 
+/** Analyze the accepted session history for durable learning. */
 async function analyze(
   history: unknown[],
   apiKey: string | null,

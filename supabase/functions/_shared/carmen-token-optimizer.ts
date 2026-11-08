@@ -101,6 +101,7 @@ export function toolSig(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+/** Create any missing tool embeddings before semantic selection. */
 export async function ensureToolEmbeddings(
   supabase: DbClient,
   toolDefs: ToolDef[],
@@ -174,6 +175,7 @@ export function fuseRankedToolNames(rankedLists: string[][]): string[] {
     .map(([name]) => name);
 }
 
+/** Rank available tool names by their semantic match to the message. */
 export async function matchToolNamesSemantic(
   supabase: DbClient,
   queryText: string,
@@ -323,6 +325,7 @@ function markFullSchema(
   for (const n of names) fullSchemaNames.add(n);
 }
 
+/** Select the tool subset relevant to the agent message. */
 export async function selectRelevantToolsForMessage(
   supabase: DbClient,
   userText: string,
@@ -436,6 +439,7 @@ export function buildToolApiEntries(
   return tools.map((t) => buildToolApiEntry(t, promoted, compactMode));
 }
 
+/** Search the persisted tool index for matching capabilities. */
 export async function searchToolsFromIndex(
   supabase: DbClient,
   query: string,

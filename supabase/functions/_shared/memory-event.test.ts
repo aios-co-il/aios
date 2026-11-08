@@ -29,7 +29,7 @@ Deno.test(
     });
     assertEquals(
       c.messages.map((m) => m.content),
-      ["hello", undefined],
+      ["hello"],
     );
   },
 );

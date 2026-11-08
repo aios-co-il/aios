@@ -3,6 +3,7 @@ import { aiEmbed } from "./ai.ts";
 import type { TablesInsert } from "./database.types.ts";
 import { type DbClient, serviceClient } from "./supabase-clients.ts";
 
+/** Create the service-role client used by memory indexing. */
 export function svc(): DbClient {
   return serviceClient();
 }
@@ -23,6 +24,7 @@ type PointerWriter = {
   };
 };
 
+/** Persist the memory pointer for its tenant and source identity. */
 export async function upsertPointer(
   supabase: PointerWriter,
   p: {
@@ -62,6 +64,7 @@ export async function upsertPointer(
   });
 }
 
+/** Bound the text retained in a memory pointer. */
 export function shortText(s: unknown, n = 240): string {
   if (!s) return "";
   const t = String(s).replace(/\s+/g, " ").trim();

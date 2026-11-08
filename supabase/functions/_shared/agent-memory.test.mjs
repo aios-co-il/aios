@@ -99,6 +99,9 @@ Deno.test(
       "42",
       '["T","S"]',
       '{"title":"T"}',
+      '{"title":{},"summary":"S"}',
+      '{"title":"T","summary":["S"]}',
+      '{"title":7,"summary":true}',
     ]) {
       chatContent = content;
       const client = fakeClient();

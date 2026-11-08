@@ -12,6 +12,7 @@ const historyEntrySchema = z
 
 export type HistoryEntry = z.infer<typeof historyEntrySchema>;
 
+/** Validate the history text used to learn from a completed session. */
 export function readHistoryEntry(raw: unknown): HistoryEntry {
   return historyEntrySchema.parse(raw);
 }

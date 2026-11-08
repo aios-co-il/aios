@@ -90,6 +90,7 @@ const SYSTEM_MAP_ENTRIES = [
   ["finance", "תנועות כספיות (income/expense) פר לקוח."],
 ];
 
+/** Seed memory pointers for the supported system map entries. */
 async function seedSystemMap(supabase: DbClient, tenant_id: string) {
   let n = 0;
   for (const [name, desc] of SYSTEM_MAP_ENTRIES) {
@@ -110,6 +111,7 @@ async function seedSystemMap(supabase: DbClient, tenant_id: string) {
   return n;
 }
 
+/** Backfill memory pointers for tenant clients. */
 async function seedClients(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("clients")
@@ -145,6 +147,7 @@ async function seedClients(supabase: DbClient, tenant_id: string) {
   return n;
 }
 
+/** Backfill memory pointers for tenant team members. */
 async function seedTeam(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("campaigners")
@@ -192,6 +195,7 @@ async function seedTeam(supabase: DbClient, tenant_id: string) {
   return n;
 }
 
+/** Backfill memory pointers for tenant tasks. */
 async function seedTasks(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("tasks")
@@ -202,6 +206,10 @@ async function seedTasks(supabase: DbClient, tenant_id: string) {
   let n = 0;
   for (const raw of rows) {
     const t = readLegacyTaskRow(raw);
+    if (!t) {
+      console.warn("[memory-backfill] invalid task row skipped");
+      continue;
+    }
     const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
     if (!assignee) continue;
     await upsertPointer(supabase, {
@@ -225,6 +233,7 @@ async function seedTasks(supabase: DbClient, tenant_id: string) {
   return n;
 }
 
+/** Backfill memory pointers from supported legacy message rows. */
 async function seedMessages(
   supabase: DbClient,
   tenant_id: string,
@@ -244,7 +253,11 @@ async function seedMessages(
   let n = 0;
   for (const raw of rows) {
     const m = readLegacyMessageRow(raw);
-    const body = m.message_text ?? m.message ?? m.body ?? m.text ?? "";
+    if (!m) {
+      console.warn("[memory-backfill] invalid message row skipped");
+      continue;
+    }
+    const body = m.message_text ?? "";
     if (!body || body.trim().length < 2) continue;
     const date = (m.created_at ?? "").slice(0, 10);
     const channel = m.provider ?? "unknown";
@@ -272,6 +285,7 @@ async function seedMessages(
   return n;
 }
 
+/** Backfill memory pointers from supported conversation rows. */
 async function seedConversations(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("ai_conversations")

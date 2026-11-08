@@ -202,6 +202,7 @@ export function KnowledgeTab({ agentId }: { agentId: string }) {
   );
 }
 
+/** Render item dialog from its typed view data. */
 function ItemDialog({
   folderId,
   onSubmit,

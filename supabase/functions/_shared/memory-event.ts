@@ -48,11 +48,20 @@ export const chatMemorySchema = z.object({
   group_id: text,
   created_at: text,
 });
-const messageSchema = z.object({ role: text, content: text }).catch({});
+const messageSchema = z.object({ role: z.string(), content: z.string() });
+const messagesSchema = z
+  .array(z.unknown())
+  .catch([])
+  .transform((entries) =>
+    entries.flatMap((entry) => {
+      const parsed = messageSchema.safeParse(entry);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  );
 export const conversationMemorySchema = z.object({
   ...identity,
   title: text,
-  messages: z.array(messageSchema).catch([]),
+  messages: messagesSchema,
   created_at: text,
   updated_at: text,
   user_id: text,
@@ -64,5 +73,5 @@ export type ChatMemory = z.infer<typeof chatMemorySchema>;
 export type ConversationMemory = z.infer<typeof conversationMemorySchema>;
 /** Read stored conversation messages without exposing arbitrary JSON keys. */
 export function readMemoryMessages(value: unknown) {
-  return z.array(messageSchema).catch([]).parse(value);
+  return messagesSchema.parse(value);
 }

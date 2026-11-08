@@ -282,6 +282,7 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
   );
 }
 
+/** Render agent learning tab from its typed view data. */
 export function AgentLearningTab({
   agent,
 }: {

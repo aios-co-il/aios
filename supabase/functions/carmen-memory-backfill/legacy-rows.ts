@@ -6,9 +6,11 @@ export type {
 } from "../_shared/memory-event.ts";
 /** Validate task identifiers and the nullable text fields used by indexing. */
 export function readLegacyTaskRow(value: unknown) {
-  return taskMemorySchema.parse(value);
+  const parsed = taskMemorySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 /** Validate message identifiers and the nullable text fields used by indexing. */
 export function readLegacyMessageRow(value: unknown) {
-  return chatMemorySchema.parse(value);
+  const parsed = chatMemorySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }

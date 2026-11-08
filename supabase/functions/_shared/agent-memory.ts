@@ -11,17 +11,19 @@ const embeddingText = (emb: number[] | null) =>
   emb ? JSON.stringify(emb) : null;
 
 const memorySummarySchema = z.object({
-  title: z.unknown(),
-  summary: z.unknown(),
+  title: z.string().optional().catch(undefined),
+  summary: z.string().optional().catch(undefined),
   category: z.unknown(),
   importance: z.unknown(),
 });
 
+/** Validate the model-generated memory title and summary. */
 function readMemorySummary(raw: unknown) {
   const parsed = memorySummarySchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
 
+/** Summarize the exchange and persist its validated memory and embedding. */
 export async function summarizeAndStoreAgentMemory(opts: {
   supabase: DbClient;
   tenant_id: string;
@@ -67,6 +69,7 @@ export async function summarizeAndStoreAgentMemory(opts: {
   }
 }
 
+/** Recall the relevant persisted memories for the current agent query. */
 export async function recallAgentMemory(
   supabase: DbClient,
   agent_id: string,

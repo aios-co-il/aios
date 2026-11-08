@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
   );
 });
 
+/** Dispatch the memory-indexing event to its source-specific handler. */
 async function processEvent(
   supabase: DbClient,
   row: Tables<"carmen_memory_outbox">,
@@ -127,6 +128,7 @@ async function processEvent(
   }
 }
 
+/** Refresh the memory pointer for the client record. */
 async function indexClient(
   supabase: DbClient,
   tenant_id: string,
@@ -160,6 +162,7 @@ async function indexClient(
   });
 }
 
+/** Refresh the memory pointer for the campaigner record. */
 async function indexCampaigner(
   supabase: DbClient,
   tenant_id: string,
@@ -205,6 +208,7 @@ async function indexCampaigner(
   }
 }
 
+/** Refresh the memory pointer for the task record. */
 async function indexTask(supabase: DbClient, tenant_id: string, t: TaskMemory) {
   const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
   if (!assignee) return;
@@ -238,6 +242,7 @@ async function indexTask(supabase: DbClient, tenant_id: string, t: TaskMemory) {
   }
 }
 
+/** Refresh the memory pointer for the stored chat message. */
 async function indexChatMessage(
   supabase: DbClient,
   tenant_id: string,
@@ -296,6 +301,7 @@ async function indexChatMessage(
   }
 }
 
+/** Refresh the memory pointer for the AI conversation. */
 async function indexAiConversation(
   supabase: DbClient,
   tenant_id: string,
