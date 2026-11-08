@@ -97,12 +97,58 @@ type Write = {
   options?: unknown;
 };
 
+describe("EditClientDialog ad-account links", () => {
+  it("writes only the link field that was edited", async () => {
+    setPersona({ isOwner: true }, { read: false, write: false });
+    db.adLinks = {
+      google_ads_url: null,
+      meta_ads_url: "https://business.facebook.com/saved",
+    };
+    const user = userEvent.setup();
+    const { onOpenChange } = renderDialog();
+    await waitForFinanceAccess();
+
+    const google = await screen.findByLabelText("קישור ישיר לחשבון Google Ads");
+    await user.type(google, "https://ads.google.com/aw/overview?ocid=1");
+    await user.click(screen.getByRole("button", { name: "שמור שינויים" }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    const [update] = writesTo("clients");
+    expect(update.payload).toMatchObject({
+      google_ads_url: "https://ads.google.com/aw/overview?ocid=1",
+    });
+    expect(update.payload).not.toHaveProperty("meta_ads_url");
+  });
+
+  it("leaves both links out when neither field was edited", async () => {
+    setPersona({ isOwner: true }, { read: false, write: false });
+    db.adLinks = {
+      google_ads_url: "https://ads.google.com/aw/overview?ocid=1",
+      meta_ads_url: null,
+    };
+    const user = userEvent.setup();
+    const { onOpenChange } = renderDialog();
+    await waitForFinanceAccess();
+
+    await user.click(screen.getByRole("button", { name: "שמור שינויים" }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    const [update] = writesTo("clients");
+    expect(update.payload).not.toHaveProperty("google_ads_url");
+    expect(update.payload).not.toHaveProperty("meta_ads_url");
+  });
+});
+
 const db = vi.hoisted(() => ({
   access: { read: false, write: false },
   accessError: null as null | { message: string },
   financialRow: null as null | { retainer: number; monthly_budget: number },
   writes: [] as Write[],
   rpcCalls: [] as { name: string; args: unknown }[],
+  adLinks: null as null | {
+    google_ads_url: string | null;
+    meta_ads_url: string | null;
+  },
 }));
 
 const role = vi.hoisted(() => ({
@@ -135,6 +181,7 @@ beforeEach(() => {
   db.financialRow = null;
   db.writes = [];
   db.rpcCalls = [];
+  db.adLinks = null;
 });
 
 function setPersona(
@@ -174,6 +221,9 @@ vi.mock("@/integrations/supabase/client", () => {
   const resultFor = (table: string, op: string, single: boolean) => {
     if (table === "clients" && op === "update") {
       return { data: [{ id: "client-1" }], error: null };
+    }
+    if (table === "clients" && op === "select" && single) {
+      return { data: db.adLinks, error: null };
     }
     if (table === "client_tenant_financial_data" && op === "select") {
       return { data: db.financialRow, error: null };
