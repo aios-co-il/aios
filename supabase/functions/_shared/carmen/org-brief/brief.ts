@@ -1,8 +1,5 @@
-import {
-  jerusalemDayStartIso,
-  jerusalemYmd,
-} from "../_shared/calendarTimeZone.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
+import { jerusalemDayStartIso, jerusalemYmd } from "../../calendarTimeZone.ts";
+import type { DbClient } from "../../supabase-clients.ts";
 
 /** One agency and the names of its current clients. */
 export type BriefAgency = {
@@ -36,7 +33,7 @@ const MAX_TEAM = 60;
 const MAX_TODAY = 12;
 const MAX_SUMMARY_CHARS = 300;
 
-const LOG = "[carmen-realtime-session]";
+const LOG = "[carmen-org-brief]";
 
 /**
  * The tenant's brief, read with the service role and always filtered by the tenant (and the

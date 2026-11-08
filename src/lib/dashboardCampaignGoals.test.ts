@@ -35,9 +35,8 @@ const resultsOf = (
 
 /**
  * Each campaign's goal and results as its own table's report shows them, by
- * the rule reportCampaignGoalOf and the pulse use. The internal report's
- * legacy single-table Facebook Ecommerce view still lists every campaign
- * under sales.
+ * the rule reportCampaignGoalOf and the pulse use. The internal report shows
+ * Facebook Ecommerce tables through the same grouping (AIO-494).
  */
 function reportVerdicts(clientId: string): Map<string, Verdict> {
   const verdicts = new Map<string, Verdict>();

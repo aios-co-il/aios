@@ -8,7 +8,7 @@ import {
   musicCostUsd,
   quotedMusicMs,
 } from "../src/jobs/music-length.ts";
-import { generateMusic } from "../src/jobs/sound.ts";
+import { generateMusic } from "../src/jobs/music.ts";
 import { musicDb, run, stubMusic } from "./music-fixtures.ts";
 
 test("the music run asks ElevenLabs for the film's length and pays once", async () => {
