@@ -56,12 +56,14 @@ export function DashboardTrackedEvents({
     () => parseTrackedRatio(settings, tracked),
     [settings, tracked],
   );
+
   const users = useEventUsers({
     source,
     tracked,
     dateFilter,
     customFrom,
     customTo,
+    ratio: pair,
   });
   const ratio = pair
     ? ratioFigures(
