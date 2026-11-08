@@ -5566,6 +5566,7 @@ export type Database = {
           follow_up_manager_notified_at: string | null;
           ga_property_id: string | null;
           google_ads_account_id: string | null;
+          google_ads_url: string | null;
           gsc_site_url: string | null;
           health_score: number | null;
           id: string;
@@ -5574,6 +5575,7 @@ export type Database = {
           is_seo_client: boolean | null;
           manychat_subscriber_id: string | null;
           meta_ads_account_id: string | null;
+          meta_ads_url: string | null;
           monthly_budget: number | null;
           monthly_fixed_expense: number | null;
           mood_status: Database["public"]["Enums"]["client_mood_status"] | null;
@@ -5612,6 +5614,7 @@ export type Database = {
           follow_up_manager_notified_at?: string | null;
           ga_property_id?: string | null;
           google_ads_account_id?: string | null;
+          google_ads_url?: string | null;
           gsc_site_url?: string | null;
           health_score?: number | null;
           id?: string;
@@ -5620,6 +5623,7 @@ export type Database = {
           is_seo_client?: boolean | null;
           manychat_subscriber_id?: string | null;
           meta_ads_account_id?: string | null;
+          meta_ads_url?: string | null;
           monthly_budget?: number | null;
           monthly_fixed_expense?: number | null;
           mood_status?:
@@ -5659,6 +5663,7 @@ export type Database = {
           follow_up_manager_notified_at?: string | null;
           ga_property_id?: string | null;
           google_ads_account_id?: string | null;
+          google_ads_url?: string | null;
           gsc_site_url?: string | null;
           health_score?: number | null;
           id?: string;
@@ -5667,6 +5672,7 @@ export type Database = {
           is_seo_client?: boolean | null;
           manychat_subscriber_id?: string | null;
           meta_ads_account_id?: string | null;
+          meta_ads_url?: string | null;
           monthly_budget?: number | null;
           monthly_fixed_expense?: number | null;
           mood_status?:

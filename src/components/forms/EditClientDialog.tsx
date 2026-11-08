@@ -66,6 +66,21 @@ import { useMeetingScheduler } from "@/hooks/useMeetingScheduler";
 import { useAgencies } from "@/hooks/useEntityLists";
 import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssignmentPicker";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
+import { type ClientAdLinks, isAdAccountLink } from "@/lib/adAccountUrl";
+import { useClientAdLinks } from "@/hooks/useClientAdLinks";
+/** An optional link to that platform's ads account, as saved on the client. */
+const directLink = (field: keyof ClientAdLinks) =>
+  z
+    .string()
+    .trim()
+    .refine((value) => value === "" || isAdAccountLink(field, value), {
+      message:
+        field === "google_ads_url"
+          ? "קישור צריך להיות לכתובת https://ads.google.com"
+          : "קישור צריך להיות לכתובת https של Facebook",
+    })
+    .optional();
+
 const formSchema = z.object({
   name: z.string().min(1, "שם הלקוח נדרש"),
   contact_name: z.string().optional(),
@@ -86,6 +101,8 @@ const formSchema = z.object({
   services: z.array(z.string()).default([]),
   meta_ads_account_id: z.string().optional(),
   google_ads_account_id: z.string().optional(),
+  google_ads_url: directLink("google_ads_url"),
+  meta_ads_url: directLink("meta_ads_url"),
 });
 
 interface EditClientDialogProps {
@@ -393,8 +410,25 @@ export function EditClientDialog({
       services: client.services || [],
       meta_ads_account_id: client.meta_ads_account_id || "",
       google_ads_account_id: client.google_ads_account_id || "",
+      // The clients list does not carry these; the lookup below fills them.
+      google_ads_url: "",
+      meta_ads_url: "",
     },
   });
+  const savedAdLinks = useClientAdLinks(client?.id);
+  useEffect(() => {
+    if (!savedAdLinks.loaded) {
+      return;
+    }
+    // A field the user is editing keeps its unsaved value.
+    for (const field of ["google_ads_url", "meta_ads_url"] as const) {
+      if (!form.getFieldState(field).isDirty) {
+        form.resetField(field, {
+          defaultValue: savedAdLinks.links?.[field] ?? "",
+        });
+      }
+    }
+  }, [form, savedAdLinks.loaded, savedAdLinks.links]);
 
   const { canViewFinance, canEditFinance } = useUserPermissions();
   const showFinanceFields = canViewFinance();
@@ -526,6 +560,15 @@ export function EditClientDialog({
           services: values.services || [],
           meta_ads_account_id: values.meta_ads_account_id || null,
           google_ads_account_id: values.google_ads_account_id || null,
+          // Saved only once the stored links were read successfully, so an
+          // edit made before they arrive, or after a failed read, never blanks
+          // them.
+          ...(!savedAdLinks.loaded
+            ? {}
+            : {
+                google_ads_url: values.google_ads_url?.trim() || null,
+                meta_ads_url: values.meta_ads_url?.trim() || null,
+              }),
         })
         .eq("id", client.id)
         .select("id");
@@ -559,6 +602,9 @@ export function EditClientDialog({
     onSuccess: () => {
       toast.success("הלקוח עודכן בהצלחה");
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
+      queryClient.invalidateQueries({
+        queryKey: ["client-ad-links", client.id],
+      });
       queryClient.invalidateQueries({
         queryKey: ["client-tenant-financial-data", tenantId],
       });
@@ -1234,6 +1280,32 @@ export function EditClientDialog({
                             placeholder="מזהה חשבון Google Ads"
                             {...field}
                           />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="meta_ads_url"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>קישור ישיר לחשבון META</FormLabel>
+                        <FormControl>
+                          <Input dir="ltr" placeholder="https://" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="google_ads_url"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>קישור ישיר לחשבון Google Ads</FormLabel>
+                        <FormControl>
+                          <Input dir="ltr" placeholder="https://" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
