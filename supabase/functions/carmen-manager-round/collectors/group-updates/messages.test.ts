@@ -44,7 +44,13 @@ Deno.test("loadGroupHistories", async (t) => {
       const { db, calls } = recordingClient(() => [row]);
       const [history] = await loadGroupHistories(
         db,
-        { tenantId: "t1", connectionIds: ["line"], since, clientIds: [CLIENT] },
+        {
+          tenantId: "t1",
+          connectionIds: ["line"],
+          carmenConnectionIds: [],
+          since,
+          clientIds: [CLIENT],
+        },
         "group_updates",
       );
       assertEquals(
@@ -68,9 +74,69 @@ Deno.test("loadGroupHistories", async (t) => {
     },
   );
 
+  await t.step(
+    "adds Carmen's groups no Green line read, without her own sends (AIO-515)",
+    async () => {
+      const group = (id: string, messages: Array<unknown>) => ({
+        client_id: CLIENT,
+        client_name: "א",
+        group_id: id,
+        group_name: "ג",
+        messages,
+      });
+      const msg = (id: string, out: boolean, sentBy: string | null = null) => ({
+        id,
+        at: `2026-11-01T09:0${id.length}:00Z`,
+        out,
+        sent_by: sentBy,
+        key: out ? null : "521111111",
+        text: id,
+      });
+      const { db } = recordingClient(({ body }) =>
+        body &&
+        typeof body === "object" &&
+        "p_provider" in body &&
+        body.p_provider === "manus_wa"
+          ? [
+              group("shared", [msg("dup", false)]),
+              group("carmen", [
+                msg("c", false),
+                msg("carmen", true),
+                msg("person", true, "u1"),
+              ]),
+            ]
+          : [group("shared", [msg("g", false)])],
+      );
+      const histories = await loadGroupHistories(
+        db,
+        {
+          tenantId: "t1",
+          connectionIds: ["line"],
+          carmenConnectionIds: ["carmen-line"],
+          since,
+          clientIds: null,
+        },
+        "group_updates",
+      );
+      assertEquals(
+        histories.map((h) => [h.group_id, h.messages.map((m) => m.id)]),
+        [
+          ["shared", ["g"]],
+          ["carmen", ["c", "person"]],
+        ],
+      );
+    },
+  );
+
   await t.step("no monitored line: no read", async () => {
     const { db, calls } = recordingClient(() => []);
-    const query = { tenantId: "t1", connectionIds: [], since, clientIds: null };
+    const query = {
+      tenantId: "t1",
+      connectionIds: [],
+      carmenConnectionIds: [],
+      since,
+      clientIds: null,
+    };
     assertEquals(await loadGroupHistories(db, query, "group_updates"), []);
     assertEquals(calls, []);
   });

@@ -121,6 +121,10 @@ describe("the voice run with pronunciations", () => {
         return [{ id: "s1", voiceover_text: "מדיה מכירות", meta: {} }];
       },
       async upload() {},
+      // Only a run with the user's recording reads a stored file (guide-take.ts).
+      async download() {
+        return new Uint8Array();
+      },
       async update(_t: string, _f: string, patch: { output: RunOutput }) {
         run.output = patch.output;
       },
@@ -165,6 +169,10 @@ describe("the voice run with pronunciations", () => {
         return [{ id: "s1", voiceover_text: "מדיה מכירות", meta: {} }];
       },
       async upload() {},
+      // Only a run with the user's recording reads a stored file (guide-take.ts).
+      async download() {
+        return new Uint8Array();
+      },
       async update() {},
       async rpc() {},
     };

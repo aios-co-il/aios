@@ -2,6 +2,7 @@ import { finalError, loadRunItem, loadRunScene } from "../guard.ts";
 import { isTalkingScene, spokenLine, talkingLine } from "../narration.ts";
 import { SPEECH_MODEL } from "../providers/elevenlabsSound.ts";
 import { BUCKET, alreadyGenerated, assetPath } from "./audio-store.ts";
+import { guideTake } from "./guide-take.ts";
 import { vocalizeForSpeech } from "./vocalize.ts";
 import { narrationLines, newTake } from "./voice-take.ts";
 import type { SceneRow, VideoRun } from "./types.ts";
@@ -10,7 +11,10 @@ import type { SupabaseRest } from "../supabaseRest.ts";
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
 const VOICE_USD_PER_1000_CHARS = 0.12;
 
-/** Speaks the storyboard as one continuous narration, or one scene for an older voice run. */
+/**
+ * Speaks the storyboard as one continuous narration, or one scene for an older voice run. A run
+ * with the user's own recording (input.guide_audio) voices that recording instead (guide-take.ts).
+ */
 export async function generateVoice({
   db,
   run,
@@ -21,7 +25,7 @@ export async function generateVoice({
   log = console.log,
   submitting,
 }: {
-  db: Pick<SupabaseRest, "select" | "upload" | "update" | "rpc">;
+  db: Pick<SupabaseRest, "select" | "download" | "upload" | "update" | "rpc">;
   run: VideoRun;
   apiKey?: string | null;
   googleKey?: string | null;
@@ -53,16 +57,26 @@ export async function generateVoice({
   ).replace(/\.mp3$/, ".audio");
   const meta = alreadyGenerated(run, path)
     ? (run.output?.audio_meta ?? {})
-    : await newTake({
-        db,
-        run,
-        path,
-        submitting,
-        script: text,
-        vocalize,
-        engines: { apiKey, googleKey, resolveOpenRouterKey },
-        log,
-      });
+    : continuous && run.input?.guide_audio
+      ? await guideTake({
+          db,
+          run,
+          path,
+          submitting,
+          script: text,
+          apiKey,
+          log,
+        })
+      : await newTake({
+          db,
+          run,
+          path,
+          submitting,
+          script: text,
+          vocalize,
+          engines: { apiKey, googleKey, resolveOpenRouterKey },
+          log,
+        });
   const provider = meta.provider || "elevenlabs";
   const model = meta.model || SPEECH_MODEL();
   if (spoken) {
@@ -82,6 +96,8 @@ export async function generateVoice({
         lines: spoken.lines,
         // The tenant pronunciations this take used (workshop_narration_take compares them).
         pronunciations: meta.pronunciations ?? {},
+        // "guide": voiced from the user's recording, which no pronunciation applies to.
+        ...(meta.source ? { source: meta.source, guide: meta.guide } : {}),
       },
       p_run_id: run.id,
       p_lines: spoken.lines,
@@ -119,10 +135,13 @@ export async function generateVoice({
     provider,
     credits: 0,
     // ElevenLabs bills characters (meta.characters: what it counted for the pointed text; the
-    // script's length only for audio made before that was recorded). Gemini's price comes from
-    // its token counts; OpenRouter's is what it charged when its generation record had the price.
+    // script's length only for audio made before that was recorded), and a voice changed from the
+    // user's recording by its length (guide-take.ts). Gemini's price comes from its token counts;
+    // OpenRouter's is what it charged when its generation record had the price.
     costUsd:
-      provider === "gemini" || provider === "openrouter"
+      provider === "gemini" ||
+      provider === "openrouter" ||
+      meta.source === "guide"
         ? Number(meta.cost_usd) || 0
         : Math.round(
             ((Number(meta.characters) || text.length) / 1000) *

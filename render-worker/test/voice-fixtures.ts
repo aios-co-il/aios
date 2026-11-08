@@ -35,6 +35,10 @@ export function voiceFixture(
       return [{ id: "s1", voiceover_text: PLAIN, meta: sceneMeta }];
     },
     async upload() {},
+    // Only a run with the user's recording reads a stored file (guide-take.ts).
+    async download() {
+      return new Uint8Array();
+    },
     async update(
       _table: string,
       _filter: string,

@@ -27,6 +27,8 @@ export interface RunInput {
   duration_s?: number;
   generate_audio?: boolean;
   goal?: string;
+  /** The user's own recording to voice (jobs/guide-take.ts); checked before it is read. */
+  guide_audio?: { bucket?: unknown; path?: unknown } | null;
   motion_prompt?: string | null;
   music_length_ms?: number;
   path?: string;

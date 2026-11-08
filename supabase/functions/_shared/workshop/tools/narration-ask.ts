@@ -16,6 +16,7 @@ import {
   NARRATION_QUESTION,
 } from "./narration-approval.ts";
 import { waitForTake } from "./narration-take-state.ts";
+import { RECORDED_GUIDE } from "./narration-take.ts";
 
 export type ReviewContext = Pick<
   ToolContext,
@@ -23,7 +24,7 @@ export type ReviewContext = Pick<
 >;
 
 const CARMEN_NEXT =
-  'הקריינות מחכה לאישור המשתמש (מצב חצי אוטומטי). say_to_user נשלח למשתמש כמו שהוא; עצרי. אישר (בכפתור, או במילים כמו "מאשר"): קראי שוב ל-workshop_produce_video, ובאישור במילים עם narration_approved=true. מילה נשמעת לא נכון: workshop_save_pronunciation ואז workshop_produce_video, שמקליט מחדש. ביקש הקלטה חדשה בלי תיקון: workshop_produce_video עם redo_narration=true.';
+  'הקריינות מחכה לאישור המשתמש (מצב חצי אוטומטי). say_to_user נשלח למשתמש כמו שהוא; עצרי. אישר (בכפתור, או במילים כמו "מאשר"): קראי שוב ל-workshop_produce_video, ובאישור במילים עם narration_approved=true. מילה נשמעת לא נכון: workshop_save_pronunciation ואז workshop_produce_video, שמקליט מחדש. ביקש הקלטה חדשה בלי תיקון: workshop_produce_video עם redo_narration=true. קשה לו להסביר מה לא נשמע נכון: הציעי להקליט את הקריינות בקול שלו בכפתור "הקלטה בקול שלי" בעמוד הקריינות; כשההודעה שלו מתחילה ב-"הקלטתי את הקריינות בקול שלי:", קראי ל-workshop_produce_video (הקול מוחלף לקול הנבחר, והתוצאה נשאלת שוב).';
 
 /**
  * Waits for the voice run `runId` and asks about its take once it is on the board, or says why it
@@ -50,7 +51,9 @@ export async function awaitTake(
   }
   if (settled?.last_run_status === "failed" && settled.last_run_id === runId) {
     await saveAsked(ctx, itemId, payload, runId, null);
-    return { stop: failedStop(settled.last_run_error) };
+    return {
+      stop: failedStop(settled.last_run_error, asRecord(payload.video)),
+    };
   }
   return await askAbout(ctx, itemId, payload, runId, NARRATION_COMING);
 }
@@ -99,12 +102,27 @@ async function saveAsked(
   });
 }
 
-/** What produce_video answers when the narration recording failed: say why, record again only on request. */
-export const failedStop = (error: string | null) => ({
-  needs_input: true,
-  missing: ["narration"],
-  narration: "failed",
-  error: error ?? "הקלטת הקריינות נכשלה",
-  carmen_next:
-    "הקלטת הקריינות נכשלה. אמרי למשתמש במשפט אחד למה (error) ושאלי אם לנסות שוב. רק אם ביקש: workshop_produce_video עם redo_narration=true.",
-});
+/**
+ * What produce_video answers when the narration recording failed: say why, record again only on
+ * request. A failed voice change of the user's own recording (RECORDED_GUIDE) is retried from the
+ * same recording (narration-guide-step.ts retriedGuide), or they record again on the board.
+ */
+export function failedStop(
+  error: string | null,
+  video: Record<string, unknown>,
+) {
+  const guide = typeof video[RECORDED_GUIDE] === "string";
+  return {
+    needs_input: true,
+    missing: ["narration"],
+    narration: "failed",
+    error: error ?? (guide ? GUIDE_FAILED : "הקלטת הקריינות נכשלה"),
+    carmen_next: guide ? GUIDE_FAILED_NEXT : FAILED_NEXT,
+  };
+}
+
+const FAILED_NEXT =
+  "הקלטת הקריינות נכשלה. אמרי למשתמש במשפט אחד למה (error) ושאלי אם לנסות שוב. רק אם ביקש: workshop_produce_video עם redo_narration=true.";
+const GUIDE_FAILED = "החלפת הקול בהקלטה שלך נכשלה";
+const GUIDE_FAILED_NEXT =
+  'החלפת הקול בהקלטה של המשתמש נכשלה. אמרי לו במשפט אחד למה (error) ושאלי אם לנסות שוב עם אותה הקלטה, או להקליט מחדש בכפתור "הקלטה בקול שלי" בעמוד הקריינות. רק אם ביקש לנסות שוב: workshop_produce_video עם redo_narration=true (אותה הקלטה). הקליט מחדש: ההודעה החדשה שלו מביאה נתיב חדש, קראי ל-workshop_produce_video.';
