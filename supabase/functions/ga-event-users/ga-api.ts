@@ -8,24 +8,26 @@ import type { GaRow } from "./reports.ts";
 /**
  * The client's GA property and its connection, or null without one. The GA
  * table may sit under another tenant than the dashboard (as in
- * public-dashboard), so it is found by the authorized dashboard's client and
- * the connection is read under that table's own tenant.
+ * public-dashboard), so it is found by the authorized dashboard's client,
+ * preferring the dashboard tenant's own table and else the oldest, and the
+ * connection is read under that table's own tenant.
  */
 export async function readGaConnection(
   db: ReturnType<typeof serviceClient>,
-  clientId: string,
+  dashboard: { tenant_id: string; client_id: string },
 ) {
-  const { data: table, error } = await db
+  const { data: tables, error } = await db
     .from("crm_tables")
     .select("tenant_id, integration_settings")
-    .eq("client_id", clientId)
+    .eq("client_id", dashboard.client_id)
     .eq("integration_type", "google_analytics")
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
   if (error) {
     console.error("[ga-event-users] GA table read failed:", error.message);
     return null;
   }
+  const table =
+    tables?.find((row) => row.tenant_id === dashboard.tenant_id) ?? tables?.[0];
   const settings = table?.integration_settings as Record<
     string,
     unknown

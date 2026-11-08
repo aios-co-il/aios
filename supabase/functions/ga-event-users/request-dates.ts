@@ -5,14 +5,15 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * The period to read. A share link sends its date filter and gets the same
  * dates as the link's other reports; the signed-in dashboard sends the dates
- * it computed. Missing dates mean all time.
+ * it computed. Missing dates mean all time. Null when the period is empty,
+ * as "this month" is on its first day (it ends yesterday).
  */
 export function requestDates(body: {
   share_token?: unknown;
   date_filter?: unknown;
   start_date?: unknown;
   end_date?: unknown;
-}): { startDate: string; endDate: string } {
+}): { startDate: string; endDate: string } | null {
   const range =
     typeof body.share_token === "string"
       ? sharedDashboardDateRange(
@@ -24,6 +25,9 @@ export function requestDates(body: {
           startDate: isoDate(body.start_date),
           endDate: isoDate(body.end_date),
         };
+  if (range.startDate && range.endDate && range.startDate > range.endDate) {
+    return null;
+  }
   return {
     startDate: range.startDate ?? "2020-01-01",
     endDate: range.endDate ?? "today",

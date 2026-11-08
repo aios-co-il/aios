@@ -1,6 +1,6 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
-import { parseTrackedEvents } from "./tracked-events.ts";
+import { parseTrackedEvents, type TrackedEvent } from "./tracked-events.ts";
 import { resolveDashboard } from "./access.ts";
 import { gaReport, readGaConnection } from "./ga-api.ts";
 import { requestDates } from "./request-dates.ts";
@@ -44,13 +44,17 @@ Deno.serve(async (req) => {
     if (!access.ok) {
       return json({ error: access.error }, access.status);
     }
-    const { client_id, settings } = access.dashboard;
+    const { tenant_id, client_id, settings } = access.dashboard;
     const steps = parseTrackedEvents(settings);
     if (steps.length === 0 || !client_id) {
       return json({ error: "No events" }, 404);
     }
-    const { startDate, endDate } = requestDates(body);
-    const ga = await readGaConnection(db, client_id);
+    const dates = requestDates(body);
+    if (!dates) {
+      return json(emptyEventUsers(steps), 200);
+    }
+    const { startDate, endDate } = dates;
+    const ga = await readGaConnection(db, { tenant_id, client_id });
     if (!ga) {
       return json({ error: "No Google Analytics" }, 404);
     }
@@ -91,6 +95,17 @@ Deno.serve(async (req) => {
     return json({ error: "Failed to read Google Analytics" }, 500);
   }
 });
+
+/** The table for an empty period: no people and no rates, without asking GA. */
+function emptyEventUsers(steps: Array<TrackedEvent>) {
+  return buildEventUsers({
+    steps,
+    totalUsers: {},
+    sourceUsers: new Map(),
+    totalFunnel: new Map(),
+    sourceFunnel: new Map(),
+  });
+}
 
 /** A JSON response with CORS headers. */
 function json(payload: unknown, status: number): Response {
