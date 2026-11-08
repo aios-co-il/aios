@@ -34,9 +34,11 @@ describe("AuthPage installed SDK bootstrap races", () => {
       await restoreSession();
       vi.useFakeTimers();
       renderAuth();
+      // Flush queued SDK/Query bootstrap notifications before the fallback.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
       });
+      // Cross the auth page's four-second spinner fallback to allow a retry.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(4100);
       });

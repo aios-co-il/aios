@@ -5,12 +5,28 @@ import { describe, expect, it, vi } from "vitest";
 import { supabase } from "@/integrations/supabase/client";
 import {
   user,
+  authResponse,
   restoreSession,
   renderAuth,
   signIn,
 } from "./testUtils/sdkMfaHarness";
 
 describe("AuthPage installed SDK completion", () => {
+  it("waits for SIGNED_IN when the SDK token response is delayed", async () => {
+    state.fetch.mockImplementation(async (input, init) => {
+      if (new URL(new Request(input, init).url).pathname === "/auth/v1/token") {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+
+      return authResponse(input, init, state.needsMfa, state.requests);
+    });
+
+    await signIn(state.events);
+
+    expect(state.events).toContain("SIGNED_IN");
+    expect(await screen.findByText("Protected home")).toBeInTheDocument();
+  });
+
   it("allows a later restored session after password authentication rejects", async () => {
     vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValueOnce({
       data: { user: null, session: null },

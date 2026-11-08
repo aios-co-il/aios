@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { expect } from "vitest";
@@ -99,16 +99,22 @@ export async function signIn(events: Array<string>, expectSignedIn = true) {
   const { data } = supabase.auth.onAuthStateChange((event) => {
     events.push(event);
   });
-  renderAuth();
-  await interaction.type(
-    await screen.findByLabelText("אימייל"),
-    "user@example.test",
-  );
-  await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
-  await interaction.click(screen.getByRole("button", { name: "התחבר" }));
-  data.subscription.unsubscribe();
-  if (expectSignedIn) {
-    expect(events).toContain("SIGNED_IN");
+
+  try {
+    renderAuth();
+    await interaction.type(
+      await screen.findByLabelText("אימייל"),
+      "user@example.test",
+    );
+    await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
+    await interaction.click(screen.getByRole("button", { name: "התחבר" }));
+
+    if (expectSignedIn) {
+      await waitFor(() => expect(events).toContain("SIGNED_IN"));
+    }
+
+    return interaction;
+  } finally {
+    data.subscription.unsubscribe();
   }
-  return interaction;
 }

@@ -41,6 +41,7 @@ export function mockReadinessFailure(failure: string) {
       failure === "null factors"
         ? "listFactors"
         : "getAuthenticatorAssuranceLevel";
+    // Register the original method so restoreAllMocks can undo the override.
     vi.spyOn(supabase.auth.mfa, method);
     // Deliberately malformed SDK results cannot inhabit its declared response union.
     Object.defineProperty(supabase.auth.mfa, method, {
