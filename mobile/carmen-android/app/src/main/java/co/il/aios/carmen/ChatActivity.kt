@@ -1,13 +1,18 @@
 package co.il.aios.carmen
 
+import android.graphics.Outline
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
 
@@ -41,41 +46,80 @@ class ChatActivity : AppCompatActivity() {
         input.text.clear()
         val history = CarmenChat.history()
         addBubble(CarmenChat.add(CarmenChat.Role.USER, text))
-        val typing = addBubble(CarmenChat.Message(CarmenChat.Role.CARMEN, getString(R.string.chat_typing)))
+        val typing = addTypingRow()
         CarmenChat.busy = true
         send.isEnabled = false
         val brain = CarmenChat.brain(this)
         thread(name = "carmen-chat") {
-            val answer = brain.ask(text, history)
+            val answer = brain.ask(text, history) { partial ->
+                if (partial.isNotBlank()) runOnUiThread { typing.bubble.text = partial }
+            }
             runOnUiThread {
                 CarmenChat.busy = false
                 send.isEnabled = true
-                list.removeView(typing)
+                typing.video.stopPlayback()
+                list.removeView(typing.row)
                 addBubble(CarmenChat.add(CarmenChat.Role.CARMEN, answer))
             }
         }
     }
 
+    /** Carmen's reply while it is written: her small working loop beside a bubble that fills in live. */
+    private class TypingRow(val row: LinearLayout, val video: VideoView, val bubble: TextView)
+
+    private fun addTypingRow(): TypingRow {
+        val density = resources.displayMetrics.density
+        val size = (44 * density).toInt()
+        val video = VideoView(this).apply {
+            setVideoURI(Uri.parse("android.resource://$packageName/${resources.getIdentifier("carmen_working", "raw", packageName)}"))
+            setOnPreparedListener { player ->
+                player.isLooping = true
+                player.setVolume(0f, 0f)
+                start()
+            }
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) = outline.setOval(0, 0, view.width, view.height)
+            }
+            clipToOutline = true
+        }
+        val bubble = bubbleView(getString(R.string.chat_typing), mine = false).apply {
+            maxWidth = resources.displayMetrics.widthPixels * 3 / 4
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(video, LinearLayout.LayoutParams(size, size).apply { marginEnd = (8 * density).toInt() })
+            addView(bubble, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+        list.addView(row, rowParams(mine = false))
+        scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
+        return TypingRow(row, video, bubble)
+    }
+
     private fun addBubble(message: CarmenChat.Message): TextView {
         val mine = message.role == CarmenChat.Role.USER
-        val bubble = TextView(this).apply {
-            text = message.text
-            textSize = 15f
-            setTextIsSelectable(true)
-            setTextColor(getColor(if (mine) R.color.carmen_background else R.color.carmen_text))
-            setBackgroundResource(if (mine) R.drawable.bubble_user else R.drawable.bubble_carmen)
-            val pad = (12 * resources.displayMetrics.density).toInt()
-            setPadding(pad, pad * 3 / 4, pad, pad * 3 / 4)
-        }
-        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+        val bubble = bubbleView(message.text, mine)
+        list.addView(bubble, rowParams(mine))
+        scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
+        return bubble
+    }
+
+    private fun bubbleView(text: String, mine: Boolean): TextView = TextView(this).apply {
+        this.text = text
+        textSize = 15f
+        setTextIsSelectable(true)
+        setTextColor(getColor(if (mine) R.color.carmen_background else R.color.carmen_text))
+        setBackgroundResource(if (mine) R.drawable.bubble_user else R.drawable.bubble_carmen)
+        val pad = (12 * resources.displayMetrics.density).toInt()
+        setPadding(pad, pad * 3 / 4, pad, pad * 3 / 4)
+    }
+
+    private fun rowParams(mine: Boolean) =
+        LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
             // RTL screen: the user's messages sit on the right, Carmen's on the left.
             gravity = if (mine) Gravity.START else Gravity.END
             topMargin = (8 * resources.displayMetrics.density).toInt()
         }
-        list.addView(bubble, params)
-        scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
-        return bubble
-    }
 }
 
 /** The typed conversation, kept for the app's lifetime so leaving the chat screen loses nothing. */

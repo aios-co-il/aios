@@ -40,6 +40,11 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import {
+  loadFacebookSdk,
+  type FacebookLoginResponse,
+  type FacebookWindow,
+} from "./MetaWhatsAppSettings/facebookSdk";
 
 type SignupMode = "new_number" | "coexistence";
 
@@ -65,28 +70,6 @@ type MetaAsset = {
     platform_type: string | null;
     is_on_biz_app: boolean;
   }>;
-};
-
-type FacebookLoginResponse = {
-  authResponse?: { code?: string; accessToken?: string };
-};
-
-type FacebookSdk = {
-  init: (options: {
-    appId: string;
-    cookie: boolean;
-    xfbml: boolean;
-    version: string;
-  }) => void;
-  login: (
-    callback: (response: FacebookLoginResponse) => void,
-    options: Record<string, unknown>,
-  ) => void;
-};
-
-type FacebookWindow = Window & {
-  FB?: FacebookSdk;
-  fbAsyncInit?: () => void;
 };
 
 type Integration = {
@@ -190,31 +173,6 @@ async function invokeMetaAuth(body: Record<string, unknown>) {
     );
   }
   throw error;
-}
-
-function loadFacebookSdk(appId: string, version: string) {
-  return new Promise<void>((resolve, reject) => {
-    const win = window as FacebookWindow;
-    if (win.FB) {
-      win.FB.init({ appId, cookie: true, xfbml: false, version });
-      resolve();
-      return;
-    }
-    win.fbAsyncInit = () => {
-      win.FB.init({ appId, cookie: true, xfbml: false, version });
-      resolve();
-    };
-    const existing = document.getElementById("facebook-jssdk");
-    if (existing) return;
-    const script = document.createElement("script");
-    script.id = "facebook-jssdk";
-    script.async = true;
-    script.defer = true;
-    script.crossOrigin = "anonymous";
-    script.src = "https://connect.facebook.net/en_US/sdk.js";
-    script.onerror = () => reject(new Error("לא ניתן לטעון את Meta SDK"));
-    document.body.appendChild(script);
-  });
 }
 
 export type MetaWhatsAppSettingsProps = {

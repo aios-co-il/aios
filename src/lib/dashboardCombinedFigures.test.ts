@@ -121,7 +121,12 @@ describe("combinedDashboardSales and combinedDashboardLeads", () => {
       integrationType: "facebook_insights",
       level: "campaign",
       integrationSettings: {},
-      tableGoals: { goalOf: null, hasEcommerce: false, hasLeads: true },
+      tableGoals: {
+        goalOf: null,
+        hasEcommerce: false,
+        hasLeads: true,
+        hasTraffic: false,
+      },
       tableMode: "leads",
     }).summary;
     const summary = dashboardGoalsOf(facebookRecords);
@@ -213,5 +218,17 @@ describe("dashboardCampaignMode", () => {
     const empty = dashboardGoalsOf([]);
     expect(dashboardCampaignMode(empty, null, salesTable)).toBe("ecommerce");
     expect(dashboardCampaignMode(empty, null, [])).toBe("leads");
+  });
+
+  it("a table in the איקומרס category is a sales table, as in the pulse (AIO-494)", () => {
+    const empty = dashboardGoalsOf([]);
+    const categoryTable = [
+      {
+        integration_type: "google_ads",
+        integration_settings: {},
+        category: "איקומרס",
+      },
+    ];
+    expect(dashboardCampaignMode(empty, null, categoryTable)).toBe("ecommerce");
   });
 });

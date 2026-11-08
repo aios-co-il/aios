@@ -1,0 +1,48 @@
+import {
+  isExplicitDevTaskApproval,
+  isExplicitDevTaskDecline,
+} from "../../_shared/dev-task-approval-words.ts";
+import { parseApprovalReply } from "../approvals/reply.ts";
+import { INSTRUCTION_TRIGGER_RE } from "../instruction-trigger.ts";
+
+/** What decides whether a chat turn may try the fast lane. */
+export type FastLaneTurn = {
+  message: string;
+  /** The answer streams to an open chat. */
+  streaming: boolean;
+  /** A signed-in user typing in an AIOS chat, not a service call or automation. */
+  appChatTurn: boolean;
+  isCarmen: boolean;
+  /** Anything that pins the run to a model, skills or a special flow. */
+  pinned: boolean;
+};
+
+// A long message is usually a brief or a pasted document; the full brain handles it.
+const MAX_FAST_MESSAGE_CHARS = 600;
+
+/**
+ * Whether a quick model may answer this turn before Carmen's full setup (memory, skills, tools).
+ * It may only answer; anything else goes to the full brain. Turns that the full path reads in
+ * code are never sent to it: a yes or no to an approval or a dev task, and a standing instruction.
+ */
+export function fastLaneFits(turn: FastLaneTurn): boolean {
+  const message = turn.message.trim();
+  if (
+    !turn.streaming ||
+    !turn.appChatTurn ||
+    !turn.isCarmen ||
+    turn.pinned ||
+    message.length === 0 ||
+    message.length > MAX_FAST_MESSAGE_CHARS
+  ) {
+    return false;
+  }
+  const approval = parseApprovalReply(message);
+  return !(
+    approval.approve ||
+    approval.reject ||
+    isExplicitDevTaskApproval(message) ||
+    isExplicitDevTaskDecline(message) ||
+    INSTRUCTION_TRIGGER_RE.test(message)
+  );
+}

@@ -2,7 +2,7 @@ import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { agentMoodPrompt } from "./agent-mood.ts";
 
 Deno.test("agentMoodPrompt returns the tone for a fixed mood", () => {
-  assertStringIncludes(agentMoodPrompt("focused", "a") ?? "", "רציני ויעיל");
+  assertStringIncludes(agentMoodPrompt("focused", "a") ?? "", "מקצועית ויעילה");
 });
 
 Deno.test("agentMoodPrompt returns null without a known mood", () => {
