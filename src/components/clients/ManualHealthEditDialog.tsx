@@ -110,7 +110,7 @@ export function ManualHealthEditDialog({
       onSaved();
       onOpenChange(false);
     } catch (err) {
-      toast.error("שגיאה בשמירה: " + errorMessageOf(err));
+      toast.error("שגיאה בשמירה: " + (errorMessageOf(err) || "שגיאה לא ידועה"));
     } finally {
       setSaving(false);
     }

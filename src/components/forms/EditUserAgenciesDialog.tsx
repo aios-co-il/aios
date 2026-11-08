@@ -230,7 +230,9 @@ export function EditUserAgenciesDialog({
         updateAgenciesMutation.mutate(selectedAgencies);
       }
     } catch (error) {
-      toast.error("שגיאה בעדכון סוכנויות: " + errorMessageOf(error));
+      toast.error(
+        "שגיאה בעדכון סוכנויות: " + (errorMessageOf(error) || "שגיאה לא ידועה"),
+      );
     }
   };
 

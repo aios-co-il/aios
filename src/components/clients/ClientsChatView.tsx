@@ -367,7 +367,9 @@ export function ClientsChatView({
       setSelectedClientId(next?.id || null);
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
     } catch (error) {
-      toast.error("שגיאה במחיקת לקוח: " + errorMessageOf(error));
+      toast.error(
+        "שגיאה במחיקת לקוח: " + (errorMessageOf(error) || "שגיאה לא ידועה"),
+      );
     } finally {
       setPendingDeleteId(null);
     }
@@ -423,7 +425,9 @@ export function ClientsChatView({
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
     } catch (error) {
-      toast.error("שגיאה במחיקה: " + errorMessageOf(error));
+      toast.error(
+        "שגיאה במחיקה: " + (errorMessageOf(error) || "שגיאה לא ידועה"),
+      );
     } finally {
       setBulkActionLoading(false);
       setConfirmingBulkDelete(false);
@@ -445,7 +449,9 @@ export function ClientsChatView({
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
     } catch (error) {
-      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
+      toast.error(
+        "שגיאה בעדכון: " + (errorMessageOf(error) || "שגיאה לא ידועה"),
+      );
     } finally {
       setBulkActionLoading(false);
     }
@@ -466,7 +472,9 @@ export function ClientsChatView({
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
     } catch (error) {
-      toast.error("שגיאה בעדכון: " + errorMessageOf(error));
+      toast.error(
+        "שגיאה בעדכון: " + (errorMessageOf(error) || "שגיאה לא ידועה"),
+      );
     } finally {
       setBulkActionLoading(false);
     }
@@ -1831,7 +1839,8 @@ export function ClientsChatView({
                                     ],
                                   });
                                 } catch (err) {
-                                  const message = errorMessageOf(err);
+                                  const message =
+                                    errorMessageOf(err) || "שגיאה לא ידועה";
                                   toast.error(
                                     message
                                       ? `שגיאה בהוספת איש קשר: ${message}`
@@ -1948,7 +1957,9 @@ export function ClientsChatView({
                                             ],
                                           });
                                         } catch (err) {
-                                          const message = errorMessageOf(err);
+                                          const message =
+                                            errorMessageOf(err) ||
+                                            "שגיאה לא ידועה";
                                           toast.error(
                                             message
                                               ? `שגיאה בעדכון איש קשר: ${message}`
@@ -1983,7 +1994,9 @@ export function ClientsChatView({
                                             ],
                                           });
                                         } catch (err) {
-                                          const message = errorMessageOf(err);
+                                          const message =
+                                            errorMessageOf(err) ||
+                                            "שגיאה לא ידועה";
                                           toast.error(
                                             message
                                               ? `שגיאה במחיקה: ${message}`
