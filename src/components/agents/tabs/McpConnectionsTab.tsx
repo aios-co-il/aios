@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMcpConnections } from "./agentReadQueries";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { readMcpTools } from "../agentUiModels";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +29,12 @@ import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { mcpPresetFunctionUrl } from "@/lib/mcpPresetUrl";
 
-export function McpConnectionsTab({ agent }: { agent: any }) {
+/** Render mcp connections tab from its typed view data. */
+export function McpConnectionsTab({
+  agent,
+}: {
+  agent: Pick<Tables<"ai_agents">, "id">;
+}) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const [open, setOpen] = useState(false);
@@ -62,7 +69,7 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
       setUrl("");
       setBearer("");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const resync = useMutation({
@@ -87,7 +94,7 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
         queryKey: ["mcp-connections", agent.id, tenantId],
       });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const disconnect = useMutation({
@@ -221,7 +228,7 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
       </div>
 
       <div className="space-y-2">
-        {(conns ?? []).map((c: any) => (
+        {(conns ?? []).map((c) => (
           <Card key={c.id} className="p-3">
             <div className="flex items-center gap-3">
               {c.state === "ready" ? (
@@ -248,7 +255,7 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
               </Badge>
               <Badge variant="outline">
                 <Wrench className="h-3 w-3 me-1" />
-                {(c.available_tools ?? []).length}
+                {readMcpTools(c.available_tools).length}
               </Badge>
               {c.url?.includes(".supabase.co/functions/v1/") && (
                 <Button
@@ -271,15 +278,22 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
-            {c.state === "ready" && (c.available_tools ?? []).length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1 ps-8">
-                {(c.available_tools as any[]).slice(0, 12).map((t: any) => (
-                  <Badge key={t.name} variant="secondary" className="text-xs">
-                    {t.name}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            {c.state === "ready" &&
+              readMcpTools(c.available_tools).length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1 ps-8">
+                  {readMcpTools(c.available_tools)
+                    .slice(0, 12)
+                    .map((t) => (
+                      <Badge
+                        key={t.name}
+                        variant="secondary"
+                        className="text-xs"
+                      >
+                        {t.name}
+                      </Badge>
+                    ))}
+                </div>
+              )}
           </Card>
         ))}
         {!conns?.length && (

@@ -1,3 +1,4 @@
+import { readHeartbeatActions } from "./agentUiModels";
 import {
   skipToken,
   useMutation,
@@ -356,7 +357,7 @@ export function HeartbeatSettingsPanel() {
           </p>
         ) : (
           <div className="space-y-2">
-            {heartbeatLogs.map((log: any) => (
+            {heartbeatLogs.map((log) => (
               <div
                 key={log.id}
                 className="border rounded-lg p-3 bg-background text-xs space-y-1"
@@ -372,18 +373,18 @@ export function HeartbeatSettingsPanel() {
                 <p className="text-muted-foreground whitespace-pre-wrap break-words">
                   {log.summary}
                 </p>
-                {log.actions_taken &&
-                  (log.actions_taken as any[]).length > 0 && (
-                    <div className="mt-1 pt-1 border-t">
-                      {(log.actions_taken as any[]).map(
-                        (action: any, i: number) => (
+                {readHeartbeatActions(log.actions_taken).length > 0 && (
+                  <div className="mt-1 pt-1 border-t">
+                    {readHeartbeatActions(log.actions_taken).map(
+                      (action, i) => {
+                        return (
                           <div
                             key={i}
                             className="flex items-center gap-1 text-[11px]"
                           >
-                            {action.type === "reminder_sent" ? (
+                            {action?.type === "reminder_sent" ? (
                               <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
-                            ) : action.type === "stale_task_released" ? (
+                            ) : action?.type === "stale_task_released" ? (
                               <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
                             ) : (
                               <XCircle className="h-3 w-3 text-red-500 shrink-0" />
@@ -392,10 +393,11 @@ export function HeartbeatSettingsPanel() {
                               {action.task_title || action.type}
                             </span>
                           </div>
-                        ),
-                      )}
-                    </div>
-                  )}
+                        );
+                      },
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
