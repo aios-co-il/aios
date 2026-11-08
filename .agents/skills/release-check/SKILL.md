@@ -9,7 +9,7 @@ The release is every commit in `git log origin/main..origin/develop`. Production
 
 ## 1. Pin the release
 
-`git fetch origin main develop`, then record the commit list, `git diff --stat origin/main...origin/develop`, and the migrations and edge functions it touches.
+`git fetch origin main develop` (add `--unshallow` when `git rev-parse --is-shallow-repository` prints `true`; the patch-equivalence check needs full history), then record the commit list, `git diff --stat origin/main...origin/develop`, and the migrations and edge functions it touches.
 
 Done when `bash scripts/main-missing-from.sh origin/develop` exits 0 (every Production hotfix is on `develop`) and the range is non-empty. A missing hotfix is a BLOCKER: port it to `develop` first (`docs/agents/releases.md`).
 
