@@ -29,7 +29,7 @@ export function fixtureSources(
     return parsed ? [groupHistory(parsed)] : [];
   });
   return {
-    lines: () => Promise.resolve([]),
+    lines: () => Promise.resolve({ green: [], carmen: [] }),
     histories: () => Promise.resolve(histories),
     staff: () =>
       Promise.resolve({

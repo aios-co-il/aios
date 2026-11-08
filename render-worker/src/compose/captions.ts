@@ -1,10 +1,11 @@
 /** Word timings for karaoke captions, from an ElevenLabs alignment or a word list. */
+import type { FramedWord, TimedWord } from "./types.ts";
 
 const MAX_WORDS = 5;
 const MAX_GAP_S = 0.5;
 const HOLD_S = 0.4;
 
-const num = (value) => {
+const num = (value: unknown) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 };
@@ -14,25 +15,33 @@ const num = (value) => {
  * ({ characters, character_start_times_seconds, character_end_times_seconds }) or a
  * Scribe-style list ({ words: [{ text|word, start, end }] }). Returns [] for anything else.
  */
-export function wordsFromAlignment(alignment) {
+export function wordsFromAlignment(alignment: unknown): Array<TimedWord> {
   if (!alignment || typeof alignment !== "object") return [];
-  if (Array.isArray(alignment.words)) {
-    return alignment.words
+  const listed: unknown = Reflect.get(alignment, "words");
+  if (Array.isArray(listed)) {
+    const entries: Array<AlignmentWord | null | undefined> = listed;
+    return entries
       .map((word) => ({
         text: String(word?.text ?? word?.word ?? "").trim(),
         start: num(word?.start ?? word?.start_s),
         end: num(word?.end ?? word?.end_s),
       }))
-      .filter((w) => w.text && w.start !== null && w.end !== null)
-      .map((w) => ({ ...w, end: Math.max(w.start, w.end) }));
+      .flatMap(({ text, start, end }) =>
+        text && start !== null && end !== null
+          ? [{ text, start, end: Math.max(start, end) }]
+          : [],
+      );
   }
-  const chars = alignment.characters;
-  const starts = alignment.character_start_times_seconds;
-  const ends = alignment.character_end_times_seconds;
+  const chars: unknown = Reflect.get(alignment, "characters");
+  const starts: unknown = Reflect.get(
+    alignment,
+    "character_start_times_seconds",
+  );
+  const ends: unknown = Reflect.get(alignment, "character_end_times_seconds");
   if (!Array.isArray(chars) || !Array.isArray(starts) || !Array.isArray(ends))
     return [];
-  const words = [];
-  let current = null;
+  const words: Array<TimedWord> = [];
+  let current: TimedWord | null = null;
   for (let i = 0; i < chars.length; i++) {
     const ch = String(chars[i] ?? "");
     const start = num(starts[i]);
@@ -53,7 +62,11 @@ export function wordsFromAlignment(alignment) {
 }
 
 /** Seconds to film frames, shifted by `offsetFrames` (a scene voice starts at its scene). */
-export const wordsToFrames = (words, fps, offsetFrames = 0) =>
+export const wordsToFrames = (
+  words: Array<TimedWord>,
+  fps: number,
+  offsetFrames = 0,
+): Array<FramedWord> =>
   words.map((word) => {
     const startFrame = offsetFrames + Math.round(word.start * fps);
     return {
@@ -70,7 +83,11 @@ export const wordsToFrames = (words, fps, offsetFrames = 0) =>
  * Captions for a line we know but have no word timings for (a talking clip speaks it): the words
  * share the span by length, so each shows roughly while it is said.
  */
-export function spreadWords(text, startFrame, endFrame) {
+export function spreadWords(
+  text: unknown,
+  startFrame: number,
+  endFrame: number,
+): Array<FramedWord> {
   const words = String(text ?? "")
     .split(/\s+/)
     .filter(Boolean)
@@ -95,12 +112,16 @@ export function spreadWords(text, startFrame, endFrame) {
  * Groups framed words into short caption lines: at most five words, a new line after a
  * pause or a sentence end. A line holds on screen briefly after its last word.
  */
-export function captionChunks(words, fps, endFrame = Infinity) {
+export function captionChunks(
+  words: Array<FramedWord>,
+  fps: number,
+  endFrame = Infinity,
+) {
   const sorted = [...words]
     .filter((w) => w.startFrame < endFrame)
     .sort((a, b) => a.startFrame - b.startFrame);
-  const chunks = [];
-  let current = [];
+  const chunks: Array<Array<FramedWord>> = [];
+  let current: Array<FramedWord> = [];
   const flush = () => {
     if (current.length) chunks.push(current);
     current = [];
@@ -128,4 +149,14 @@ export function captionChunks(words, fps, endFrame = Infinity) {
       words: list,
     };
   });
+}
+
+/** One word of a Scribe-style list; each field may be missing or of another type. */
+interface AlignmentWord {
+  text?: unknown;
+  word?: unknown;
+  start?: unknown;
+  start_s?: unknown;
+  end?: unknown;
+  end_s?: unknown;
 }

@@ -3,6 +3,7 @@
  * workshop-overlays.ts draws them). A scene's own choice (meta.scene_overlay) wins over the
  * film's (payload.video.scene_overlay); "none" on a scene turns the film's off there.
  */
+import type { Timeline, TimelineScene } from "./types.ts";
 
 export const SCENE_OVERLAYS = [
   "none",
@@ -14,11 +15,14 @@ export const SCENE_OVERLAYS = [
 ];
 
 /** A known overlay, or null. */
-export const sceneOverlayOf = (value) =>
-  SCENE_OVERLAYS.includes(value) ? value : null;
+export const sceneOverlayOf = (value: unknown) =>
+  typeof value === "string" && SCENE_OVERLAYS.includes(value) ? value : null;
 
 /** The manifest field of a scene's overlay: its own, else the film's; nothing for "none". */
-export function overlayFieldOf(scene, timeline) {
+export function overlayFieldOf(
+  scene: Pick<TimelineScene, "sceneOverlay">,
+  timeline: Pick<Timeline, "sceneOverlay">,
+) {
   const overlay = scene.sceneOverlay || timeline.sceneOverlay || "none";
   return overlay === "none" ? {} : { overlay };
 }

@@ -79,9 +79,8 @@ describe("vocalizeForSpeech", () => {
     const vocalizer = nakdanVocalizer(
       (_url, init) =>
         new Promise<Response>((_resolve, reject) => {
-          init.signal.addEventListener("abort", () =>
-            reject(init.signal.reason),
-          );
+          const signal = init?.signal;
+          signal?.addEventListener("abort", () => reject(signal.reason));
         }),
     );
     expect(await vocalizeForSpeech(PLAIN, { vocalizer, log })).toStrictEqual({

@@ -9,23 +9,30 @@ import {
   seconds,
 } from "./manifest-media.ts";
 import { PREVIEW_PROVIDER } from "../providers/index.ts";
+import type { TimedWord, Timeline } from "./types.ts";
+import type { PickedScene, StagedFile } from "./manifest-types.ts";
 import { fitScenes } from "./workshop-edit.ts";
 
 /**
  * The scenes that have a picture or clip, each with its files staged in `files` and its shortest
  * length in frames.
  */
-export function pickScenes(timeline, files, fps) {
-  const picked = [];
+export function pickScenes(
+  timeline: Pick<Timeline, "scenes">,
+  files: Array<StagedFile>,
+  fps: number,
+): Array<PickedScene> {
+  const picked: Array<PickedScene> = [];
   for (const [index, scene] of timeline.scenes.entries()) {
     const provider = scene.clipProvider || PREVIEW_PROVIDER;
-    const useStill =
-      provider === PREVIEW_PROVIDER && scene.stillPath && !scene.lipsync;
+    const useStill = Boolean(
+      provider === PREVIEW_PROVIDER && scene.stillPath && !scene.lipsync,
+    );
     const source = useStill ? scene.stillPath : scene.clipPath;
     if (!source) continue;
     const name = `${useStill ? "still" : "clip"}-${index}.${extension(source)}`;
     files.push({ from: source, to: name });
-    let voice = null;
+    let voice: string | null = null;
     if (scene.voicePath) {
       voice = `voice-${index}.${extension(scene.voicePath)}`;
       files.push({ from: scene.voicePath, to: voice });
@@ -51,12 +58,16 @@ export function pickScenes(timeline, files, fps) {
         ? Math.floor(seconds(scene.moveClipDurationS) * fps)
         : 0;
     const moveFrames = moveBeatFrames(base, clipFrames, moveClipFrames);
-    let move = null;
-    if (moveFrames) {
+    let move: string | null = null;
+    // moveFrames is only set for a talking clip with a move clip (moveBeatFrames).
+    if (moveFrames && scene.moveClipPath) {
       move = `move-${index}.${extension(scene.moveClipPath)}`;
       files.push({ from: scene.moveClipPath, to: move });
     }
-    const frames = Math.max(base, (moveFrames && clipFrames + moveFrames) || 0);
+    const frames = Math.max(
+      base,
+      (moveFrames && (clipFrames ?? 0) + moveFrames) || 0,
+    );
     picked.push({
       index,
       scene,
@@ -83,7 +94,11 @@ export function pickScenes(timeline, files, fps) {
 export const MOVE_MIN_FRAMES = 36;
 
 /** Frames of the move beat after a talking clip of `clipFrames`, or 0 without one. */
-export function moveBeatFrames(baseFrames, clipFrames, moveClipFrames) {
+export function moveBeatFrames(
+  baseFrames: number,
+  clipFrames: number | null,
+  moveClipFrames: number,
+) {
   if (!clipFrames || !moveClipFrames) return 0;
   return Math.min(
     moveClipFrames,
@@ -96,7 +111,17 @@ export function moveBeatFrames(baseFrames, clipFrames, moveClipFrames) {
  * voice (plus a short tail) or its lip-synced clip.
  */
 export function sceneMinFrames(
-  { durationS = 0, voiceS = 0, clipFrames = null, lipsync = false },
+  {
+    durationS = 0,
+    voiceS = 0,
+    clipFrames = null,
+    lipsync = false,
+  }: {
+    durationS?: number;
+    voiceS?: number;
+    clipFrames?: number | null;
+    lipsync?: boolean;
+  },
   fps = WORKSHOP_FPS,
 ) {
   return Math.max(
@@ -113,8 +138,18 @@ export function sceneMinFrames(
  * sizes the bed with the same rule (jobs/music-length.ts).
  */
 export function narratedSceneFrames(
-  minFrames,
-  { lines = [], words = [], narrationS = 0, fps = WORKSHOP_FPS } = {},
+  minFrames: Array<number>,
+  {
+    lines = [],
+    words = [],
+    narrationS = 0,
+    fps = WORKSHOP_FPS,
+  }: {
+    lines?: Array<unknown>;
+    words?: Array<TimedWord>;
+    narrationS?: number;
+    fps?: number;
+  } = {},
 ) {
   const takeFrames =
     narrationS > 0 ? Math.ceil(narrationS * fps) + TAIL_FRAMES : 0;

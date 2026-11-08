@@ -36,6 +36,10 @@ function reportClientTotals(): Map<string, GoalTotals> {
     if (table.integration_type === "google_ads") {
       for (const campaign of summarizeGoogleAdsCampaigns(rows, [table])
         .campaigns) {
+        // Only the sales and lead tables, as for Meta: traffic has no results.
+        if (campaign.goal === "traffic") {
+          continue;
+        }
         add(
           `${table.client_id}:${campaign.goal}`,
           campaign.spend,

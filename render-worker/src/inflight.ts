@@ -5,19 +5,23 @@
  * A run inside a paid submit is waited for: requeued before its job id is saved, it would be
  * submitted and paid for again.
  */
+import type { VideoRun } from "./jobs/types.ts";
+import type { SupabaseRest } from "./supabaseRest.ts";
+
 export function createInFlight({
   maxAttempts = Infinity,
   now = Date.now,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep = (ms: number): Promise<unknown> =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
 } = {}) {
-  const held = new Map();
-  const claims = new Set();
+  const held = new Map<string, HeldRun>();
+  const claims = new Set<Promise<unknown>>();
   let closed = false;
   const busy = () =>
     claims.size > 0 || [...held.values()].some((entry) => entry.submitting > 0);
   return {
     /** Wraps the claim call, so a stop also waits for a run already being claimed. */
-    async claim(promise) {
+    async claim<T>(promise: Promise<T>): Promise<T> {
       claims.add(promise);
       try {
         return await promise;
@@ -25,15 +29,20 @@ export function createInFlight({
         claims.delete(promise);
       }
     },
-    hold(db, run) {
+    hold(db: Pick<SupabaseRest, "update">, run: HeldRun["run"]) {
       held.set(run.id, { db, run, submitting: 0 });
     },
-    release(run) {
+    release(run: Pick<VideoRun, "id">) {
       held.delete(run.id);
     },
     /** Runs a paid submit and the save of its job id. After a stop no new submit starts. */
-    async submitting(run, submit) {
-      if (closed) return new Promise(() => {});
+    async submitting<T>(
+      run: Pick<VideoRun, "id">,
+      submit: () => Promise<T>,
+    ): Promise<T> {
+      if (closed) {
+        return new Promise<T>(() => {});
+      }
       const entry = held.get(run.id);
       if (entry) entry.submitting += 1;
       try {
@@ -73,4 +82,11 @@ export function createInFlight({
         .map(({ run }) => run.id);
     },
   };
+}
+
+/** A run this worker holds, the client to requeue it with, and its paid submits in progress. */
+interface HeldRun {
+  db: Pick<SupabaseRest, "update">;
+  run: Pick<VideoRun, "id" | "attempts">;
+  submitting: number;
 }

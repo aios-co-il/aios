@@ -238,6 +238,7 @@ export function CampaignPulseDashboard({
         .select(
           `
           id, name, status, agency_id, is_seo_client, services, mood_status,
+          pulse_no_results_days,
           agencies ( name ),
           client_team (
             campaigner_id,
@@ -473,6 +474,15 @@ export function CampaignPulseDashboard({
     };
   }, [pulseCampaignTables, pulseCampaignRecords]);
 
+  // Each client's full days without results before an alert, as the snapshot reads them (AIO-502).
+  const noResultsDaysByClient = useMemo(
+    () =>
+      Object.fromEntries(
+        rawClients.map((client) => [client.id, client.pulse_no_results_days]),
+      ),
+    [rawClients],
+  );
+
   const campaignGoalRows = useMemo(() => {
     if (pulseCampaignRecords.length > 0) {
       return buildPulseCampaignRows({
@@ -480,6 +490,7 @@ export function CampaignPulseDashboard({
         tables: pulseCampaignTables,
         nowYmd: jerusalemYmd(),
         alertRules: pulseAlertRules,
+        noResultsDaysByClient,
       });
     }
     return rehydrateCampaignBreakdownRows(
@@ -493,6 +504,7 @@ export function CampaignPulseDashboard({
     deliveryHints,
     pulseCampaignRecords,
     pulseAlertRules,
+    noResultsDaysByClient,
   ]);
 
   const pulseInitialLoading =

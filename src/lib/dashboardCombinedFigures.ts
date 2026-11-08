@@ -7,6 +7,8 @@ import type {
   DashboardGoalMetrics,
   DashboardGoalSummary,
 } from "@/lib/dashboardGoalSummary";
+import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
+import type { GoalReportTable } from "../../supabase/functions/_shared/campaign-goal/table-goal.ts";
 
 /** The store's sales figures in the range. */
 export type DashboardStoreSales = {
@@ -141,10 +143,7 @@ export function combinedDashboardLeads(summary: DashboardGoalSummary): {
 export function dashboardCampaignMode(
   summary: DashboardGoalSummary,
   store: DashboardStore | null,
-  tables: Array<{
-    integration_type?: string | null;
-    integration_settings?: Record<string, unknown> | null;
-  }>,
+  tables: Array<GoalReportTable>,
 ): "ecommerce" | "leads" {
   if (summary.hasEcommerce || (store && nonLeadSpend(summary) > 0)) {
     return "ecommerce";
@@ -152,12 +151,7 @@ export function dashboardCampaignMode(
   if (summary.rows.length > 0) {
     return "leads";
   }
-  const salesTable = tables.some(
-    (table) =>
-      table.integration_type === "facebook_ecommerce" ||
-      table.integration_settings?.campaign_type === "ecommerce",
-  );
-  return salesTable ? "ecommerce" : "leads";
+  return tables.some(isEcommerceReportTable) ? "ecommerce" : "leads";
 }
 
 /** Revenue over spend; null when the purchases carry no value. */

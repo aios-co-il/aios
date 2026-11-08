@@ -18,6 +18,8 @@ const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
   cpl_spike: 7 * 24,
   connection_lost: 24,
   campaign_exception: 7 * 24,
+  // A table that keeps spending while switched off is named again weekly.
+  report_off_spending: 7 * 24,
 };
 
 /**

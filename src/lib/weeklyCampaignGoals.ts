@@ -5,6 +5,7 @@ import {
 } from "@/lib/campaignGoals";
 import { costPerFollower, sumFacebookFollowers } from "@/lib/facebookFollowers";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
+import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
 import { weeklyRoas } from "@/lib/weeklyAdsRevenue";
 import type {
   WeeklyCampaignRow,
@@ -44,16 +45,19 @@ export function groupWeeklyRowsByGoal(
  */
 export function weeklySourceModesForTable(
   integrationSettings?: Record<string, unknown> | null,
+  category?: string | null,
 ): WeeklySourceModes {
-  const campaignType = String(
-    integrationSettings?.campaign_type || "",
-  ).toLowerCase();
+  // Google's fallback reads the "איקומרס" category too, as the report does (AIO-494).
+  const googleSales = isEcommerceReportTable({
+    integration_settings: integrationSettings,
+    category,
+  });
   return {
     facebook_insights: isFacebookLeadsOnlyTable(integrationSettings)
       ? "leads"
       : undefined,
     facebook_ecommerce: "ecommerce",
-    google_ads: campaignType === "ecommerce" ? "ecommerce" : "leads",
+    google_ads: googleSales ? "ecommerce" : "leads",
   };
 }
 

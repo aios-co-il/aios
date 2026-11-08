@@ -4,7 +4,10 @@
  */
 import { RoundBudget } from "../budget.ts";
 import type { FindingKind } from "../../_shared/manager-round/kinds.ts";
-import type { ActivityRow } from "../collectors/chat/activity.ts";
+import type {
+  ActivityQuery,
+  ActivityRow,
+} from "../collectors/chat/activity.ts";
 import type { LiveChatFinding } from "../collectors/chat/gate.ts";
 import type { CachedReview } from "../collectors/chat/review-cache.ts";
 import { THREAD_KINDS } from "../collectors/chat/scope.ts";
@@ -37,6 +40,8 @@ export function chatContext(
 
 export type FakeChatFields = {
   lines?: string[];
+  /** The tenant's Carmen (Manus) lines. */
+  carmenLines?: Array<string>;
   live?: LiveChatFinding[];
   closed?: string[];
   /** Verdicts the review cache holds, by thread key. */
@@ -56,13 +61,22 @@ export function fakeChatSources(
 ) {
   const asked: string[] = [];
   const reads: string[] = [];
+  const queries: Array<ActivityQuery> = [];
   const read = <T>(name: string, value: T) => {
     reads.push(name);
     return Promise.resolve(value);
   };
   const fake: ChatSources = {
-    lines: () => read("lines", { ids: fields.lines ?? ["owner"], skipped: 0 }),
-    activity: () => read("activity", { rows, complete: !fields.capped }),
+    lines: () =>
+      read("lines", {
+        ids: fields.lines ?? ["owner"],
+        carmenIds: fields.carmenLines ?? [],
+        skipped: 0,
+      }),
+    activity: (query) => {
+      queries.push(query);
+      return read("activity", { rows, complete: !fields.capped });
+    },
     unlinked: () =>
       read("unlinked", [
         {
@@ -91,7 +105,7 @@ export function fakeChatSources(
       },
     },
   };
-  return { fake, asked, reads };
+  return { fake, asked, reads, queries };
 }
 
 /** threadFindings over `rows` for `kinds` in the 7-day read, with the prompts the model was asked. */
@@ -104,6 +118,7 @@ export async function findInThreads(
   const query = {
     tenantId: TENANT,
     connectionIds: ["owner"],
+    carmenConnectionIds: [],
     since: new Date(NOW.getTime() - 7 * 86_400_000),
     clientIds: null,
   };
