@@ -144,3 +144,31 @@ it("rejects malformed automation test replies and preserves an explicit failure"
     parseTestRunResponse({ automations_found: 0, results: [] }).results,
   ).toEqual([]);
 });
+
+it("shows nested executions, skipped rows, failed automations and holds", async () => {
+  const { toTestResult } = await import("./TriggerTestPanel");
+  const { parseTestRunResponse } =
+    await import("../forms/TestAutomationDialog");
+  expect(
+    toTestResult({
+      success: true,
+      results: [
+        {
+          response: {
+            steps: [
+              { step_id: "s", success: true, response: { output: "hello" } },
+            ],
+          },
+        },
+      ],
+    }).steps[0].response?.output,
+  ).toBe("hello");
+  expect(
+    parseTestRunResponse({
+      results: [null, { error: "failed" }, { success: true }],
+    }).results.map((item) => item.success),
+  ).toEqual([false, true]);
+  expect(
+    toTestResult({ held: true, reason: "shabbat_quiet_hours" }),
+  ).toMatchObject({ success: false, held: true, error: "shabbat_quiet_hours" });
+});

@@ -251,7 +251,10 @@ export const FlowNodeRF = memo(function FlowNodeRF({
 
   const isMerge = nodeData.step_type === "merge";
   const config = nodeData.configuration;
-  const mergeInputCount = Number(config?.input_count) || 2;
+  const mergeInputCount = Math.min(
+    20,
+    Math.max(1, Math.floor(Number(config?.input_count) || 2)),
+  );
   const delayValue = cfgText(config?.delay_value);
   const loopField = cfgText(config?.loop_field);
   const code = cfgString(config?.code);

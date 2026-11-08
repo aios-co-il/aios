@@ -18,7 +18,11 @@ import {
   FORM_TRIGGER_VALUES,
   isAutomationTrigger,
 } from "@/lib/automationTriggers";
-import { flowStepRowToNodeData, storedFlowStepConfig } from "./flowStepRow";
+import {
+  flowStepRowToNodeData,
+  storedFlowStepConfig,
+  updateFlowNode,
+} from "./flowStepRow";
 import { migrateLegacyRecipients } from "./RecipientsListEditor";
 import { migrateLegacyEmailRecipients } from "./EmailRecipientsListEditor";
 import { toStoredRecipients } from "./storedRecipients";
@@ -271,5 +275,28 @@ describe("flow editor persistence", () => {
         configuration: { ...node.configuration, agent_id: "b" },
       }),
     ).toEqual({ agent_id: "b", future: { enabled: true } });
+  });
+});
+
+describe("node kind reset", () => {
+  it("does not restore old raw settings or switch handles after a kind change", () => {
+    const node = {
+      id: "n",
+      step_type: "switch",
+      action_type: "old",
+      configuration: { message_template: "old" },
+      stored_configuration: { message_template: "old", extension: 1 },
+      switch_branches: ["old"],
+      position_x: 0,
+      position_y: 0,
+      sort_order: 0,
+    };
+    const next = updateFlowNode(node, {
+      step_type: "agent",
+      action_type: "agent",
+      configuration: {},
+    });
+    expect(storedFlowStepConfig(next)).toEqual({});
+    expect(next.switch_branches).toBeUndefined();
   });
 });

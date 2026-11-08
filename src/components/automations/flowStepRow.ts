@@ -35,3 +35,22 @@ export function storedFlowStepConfig(
     ...(node.switch_branches ? { switch_branches: node.switch_branches } : {}),
   };
 }
+
+/** Reset stored settings and switch handles when selecting a different node kind. */
+export function updateFlowNode(
+  node: FlowNodeData,
+  updates: Partial<FlowNodeData>,
+): FlowNodeData {
+  const typeChanged =
+    ("step_type" in updates && updates.step_type !== node.step_type) ||
+    ("action_type" in updates && updates.action_type !== node.action_type);
+  return typeChanged
+    ? {
+        ...node,
+        ...updates,
+        configuration: updates.configuration ?? {},
+        stored_configuration: {},
+        switch_branches: updates.switch_branches,
+      }
+    : { ...node, ...updates };
+}

@@ -81,3 +81,13 @@ describe("status sources", () => {
     expect(actionStatusSource(null)).toBeNull();
   });
 });
+
+it("retains all structured status filters while editing", () => {
+  const filters = [
+    { value: "new", kind: "response_status" },
+    { value: "won", kind: "pipeline_stage" },
+  ];
+  expect(
+    triggerFilterSource({ filter_statuses: filters })?.filter_statuses,
+  ).toEqual(filters);
+});

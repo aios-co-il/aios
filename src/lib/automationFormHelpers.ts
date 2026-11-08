@@ -1,3 +1,4 @@
+import { readStatusFilters } from "../../supabase/functions/_shared/automation-status.ts";
 import { z, type ZodType } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 import {
@@ -61,8 +62,16 @@ export function parseConditionsObject(
 }
 
 const triggerFilterSourceSchema = z.object({
-  filter_statuses: z.array(z.string()).optional().catch(undefined),
-  new_statuses: z.array(z.string()).optional().catch(undefined),
+  filter_statuses: z
+    .array(z.unknown())
+    .transform((filter_statuses) => readStatusFilters({ filter_statuses }))
+    .optional()
+    .catch(undefined),
+  new_statuses: z
+    .array(z.unknown())
+    .transform((new_statuses) => readStatusFilters({ new_statuses }))
+    .optional()
+    .catch(undefined),
   filter_status: optionalTextSchema,
   filter_status_kind: optionalStringSchema,
   new_status: optionalTextSchema,

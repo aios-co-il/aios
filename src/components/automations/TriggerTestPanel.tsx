@@ -55,7 +55,8 @@ import {
 } from "./automationStepConfig";
 import {
   parseFlowStepResults,
-  type FlowStepResult,
+  firstFlowRunResponse,
+  type FlowStepDisplayResult,
 } from "./automationRunResults";
 
 interface TriggerTestPanelProps {
@@ -68,9 +69,10 @@ interface TriggerTestPanelProps {
 }
 
 interface TestResult {
-  success?: unknown;
+  success?: boolean;
+  held?: boolean;
   error?: string;
-  steps: FlowStepResult[];
+  steps: Array<FlowStepDisplayResult>;
   agent_output?: string;
   raw: unknown;
 }
@@ -104,8 +106,31 @@ const testResponseSchema = z.object({
   agent_output: optionalTextSchema,
 });
 
+/** Normalize the trigger endpoint's nested execution or explicit hold response. */
 export function toTestResult(data: unknown): TestResult {
-  return { ...testResponseSchema.parse(data), raw: data };
+  const hold = z
+    .object({ held: z.literal(true), reason: z.string() })
+    .safeParse(data);
+  if (hold.success) {
+    return {
+      success: false,
+      held: true,
+      error: hold.data.reason,
+      steps: [],
+      raw: data,
+    };
+  }
+  const parsed = testResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error("תגובה לא תקינה מהפעלת הטריגר");
+  }
+  const flow = firstFlowRunResponse(data);
+  return {
+    ...parsed.data,
+    steps: flow?.steps ?? parsed.data.steps,
+    agent_output: flow?.agent_output ?? parsed.data.agent_output,
+    raw: data,
+  };
 }
 
 // ─── Helper: build default payload per trigger type ──────────────────────────
@@ -734,14 +759,18 @@ export function TriggerTestPanel({
 
       const success = result.success !== false && !result.error;
       toast({
-        title: success ? "הטריגר הופעל בהצלחה" : "הטריגר נכשל",
+        title: result.held
+          ? "ההפעלה בהמתנה"
+          : success
+            ? "הטריגר הופעל בהצלחה"
+            : "הטריגר נכשל",
         description: success
           ? `האוטומציה "${automationName}" הורצה`
           : result.error || "שגיאה לא ידועה",
         variant: success ? "default" : "destructive",
       });
     } catch (err) {
-      const message = errorMessage(err);
+      const message = errorMessage(err) || "שגיאה לא ידועה";
       setTestResult({ error: message, steps: [], raw: { error: message } });
       toast({
         title: "שגיאה בהפעלת הטריגר",
@@ -968,7 +997,7 @@ export function TriggerTestPanel({
                   <>
                     <XCircle className="h-5 w-5 text-destructive shrink-0" />
                     <span className="text-sm font-medium text-destructive">
-                      נכשל
+                      {testResult.held ? "בהמתנה" : "נכשל"}
                     </span>
                   </>
                 ) : (

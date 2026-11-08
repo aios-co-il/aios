@@ -127,7 +127,7 @@ export const stepConfigSchema = z.object({
   group_id_field: z.string().nullish().catch(undefined),
   inactive_days: z.number().nullish().catch(undefined),
   include_context: z.boolean().optional().catch(undefined),
-  input_count: z.number().nullish().catch(undefined),
+  input_count: z.number().int().min(1).max(20).nullish().catch(undefined),
   integration_id: z.string().nullish().catch(undefined),
   keyword: z.string().nullish().catch(undefined),
   lead_source: z.string().nullish().catch(undefined),

@@ -1,3 +1,5 @@
+import { readGreenApiConfig } from "./green-api-config.ts";
+import type { FlowStepResult } from "../_shared/automation-flow-result.ts";
 // redeploy trigger: Carmen sessions keyed by chat JID only; never speaker-phone fallback (2026-08-27b)
 import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import { summarizeExecution } from "./execution-summary.ts";
@@ -789,20 +791,14 @@ type CarmenTriggerStep = Pick<
   "automation_id" | "configuration"
 >;
 type FlowStep = Tables<"automation_flow_steps">;
-type FlowStepResult = {
-  step_id: string;
-  action_type: string | null;
-  success: boolean;
-  response?: unknown;
-  error?: unknown;
-};
+
 /** Body posted to run-ai-agent by a flow's agent step (key order is the wire order). */
 type AgentRequestBody = {
-  agent_id: Json | undefined;
+  agent_id: string;
   command_text: string;
   temperature: number | undefined;
   automation_id: string;
-  user_name: unknown;
+  user_name: string;
   lead_data: RunData;
   task_skills?: Json[];
   conversation_history?: unknown[];
@@ -2823,6 +2819,9 @@ Deno.serve(async (req) => {
                 // ── REGULAR ACTIONS ─────────────────────────────────────────
                 if (effectiveActionType === "agent") {
                   const agentId = stepConfig.agent_id;
+                  if (agentId != null && typeof agentId !== "string") {
+                    throw new Error("Agent step requires a string agent_id");
+                  }
                   if (agentId) {
                     // CARMEN SESSION: detect from trigger step config OR legacy automation.configuration
                     // Trigger step config takes priority (new Flow Builder approach)
@@ -3144,7 +3143,10 @@ Deno.serve(async (req) => {
                       command_text: commandText,
                       temperature: agentTemperature,
                       automation_id: automation.id,
-                      user_name: payloadData?.user_name || "מערכת",
+                      user_name:
+                        typeof payloadData?.user_name === "string"
+                          ? payloadData.user_name
+                          : "מערכת",
                       lead_data: {
                         lead_id: stepData.lead_id,
                         contact_name: stepData.contact_name,
@@ -3843,7 +3845,10 @@ Deno.serve(async (req) => {
                       payloadData?.text ||
                       "הפעל את האוטומציה",
                     automation_id: automation.id,
-                    user_name: payloadData?.user_name || "מערכת",
+                    user_name:
+                      typeof payloadData?.user_name === "string"
+                        ? payloadData.user_name
+                        : "מערכת",
                     lead_data: {
                       lead_id: payloadData?.lead_id,
                       contact_name: payloadData?.contact_name,
@@ -6248,10 +6253,11 @@ async function executeMetaWhatsappMessage(
 
 async function executeGreenApiMessage(
   supabase: DbClient,
-  config: JsonObject,
+  rawConfig: JsonObject,
   data: RunData,
   tenantId: string,
 ) {
+  const config = readGreenApiConfig(rawConfig);
   const {
     message_template,
     send_to_type,

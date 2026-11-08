@@ -20,3 +20,12 @@ describe("parseFacebookFormFields", () => {
     expect(parseFacebookFormFields({ key: "x" })).toBeUndefined();
   });
 });
+
+it("drops entries without a real field key", () => {
+  expect(
+    parseFacebookFormFields([
+      { label: "missing" },
+      { key: 7, label: "number" },
+    ]),
+  ).toEqual([{ key: "7", label: "number" }]);
+});

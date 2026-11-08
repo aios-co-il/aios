@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { listOf, optionalTextSchema } from "./automationStepConfig";
+import { listOf, optionalTextSchema, textSchema } from "./automationStepConfig";
 
 const facebookFormFieldSchema = z.object({
-  key: optionalTextSchema,
+  key: textSchema,
   label: optionalTextSchema,
   type: optionalTextSchema,
 });

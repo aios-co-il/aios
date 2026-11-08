@@ -38,7 +38,11 @@ import {
   Zap,
 } from "lucide-react";
 import { FlowNodeRF, FlowNodeData, type RFNodeData } from "./FlowNode";
-import { flowStepRowToNodeData, storedFlowStepConfig } from "./flowStepRow";
+import {
+  flowStepRowToNodeData,
+  storedFlowStepConfig,
+  updateFlowNode,
+} from "./flowStepRow";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { AddStepMenu } from "./AddStepMenu";
 import { InsertableEdge, type InsertableEdgeData } from "./InsertableEdge";
@@ -564,7 +568,10 @@ export default function FlowEditor({
   const updateNode = useCallback(
     (nodeId: string, updates: Partial<FlowNodeData>) => {
       setNodeDataMap((prev) => {
-        const updated = { ...prev, [nodeId]: { ...prev[nodeId], ...updates } };
+        const updated = {
+          ...prev,
+          [nodeId]: updateFlowNode(prev[nodeId], updates),
+        };
         syncRFNodes(updated);
         return updated;
       });

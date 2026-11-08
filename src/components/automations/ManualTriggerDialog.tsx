@@ -151,7 +151,7 @@ export function ManualTriggerDialog({
         ]);
       }
     } catch (err) {
-      const message = errorMessage(err);
+      const message = errorMessage(err) || "שגיאה לא ידועה";
       toast({
         title: "שגיאה בהפעלת הסוכן",
         description: message,

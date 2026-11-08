@@ -1,3 +1,4 @@
+import type { FlowStepResult } from "../../../supabase/functions/_shared/automation-flow-result.ts";
 import { z } from "zod";
 import {
   listOf,
@@ -23,7 +24,10 @@ const flowStepResultSchema = z.object({
   response: stepResponseSchema.optional().catch(undefined),
 });
 
-export type FlowStepResult = z.infer<typeof flowStepResultSchema>;
+export type FlowStepDisplayResult = Partial<
+  Pick<FlowStepResult, "step_id" | "action_type" | "success">
+> &
+  z.infer<typeof flowStepResultSchema>;
 
 const stringRecordSchema = z
   .record(z.unknown())
@@ -45,7 +49,9 @@ const facebookPreviewLeadSchema = z.object({
 
 export type FacebookPreviewLead = z.infer<typeof facebookPreviewLeadSchema>;
 
-export function parseFlowStepResults(value: unknown): FlowStepResult[] {
+export function parseFlowStepResults(
+  value: unknown,
+): Array<FlowStepDisplayResult> {
   return listOf(flowStepResultSchema, value) ?? [];
 }
 

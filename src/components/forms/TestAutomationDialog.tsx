@@ -64,19 +64,30 @@ import { triggerFilterSource } from "@/lib/automationFormHelpers";
 const testRunItemSchema = z.object({
   automation_name: optionalTextSchema,
   error: optionalTextSchema,
-  success: z.boolean(),
+  success: z.boolean().catch(false),
 });
 
 const testRunResponseSchema = z.object({
   error: optionalTextSchema,
   automations_found: optionalTextSchema,
-  results: z.array(testRunItemSchema),
+  results: z
+    .array(z.unknown())
+    .transform((results) =>
+      results
+        .filter((entry) => entry !== null)
+        .map((entry) => testRunItemSchema.parse(entry)),
+    ),
 });
 
 type TestRunResponse = z.infer<typeof testRunResponseSchema>;
 
+/** Keep executed failures and omit legitimate condition-skipped null entries. */
 export function parseTestRunResponse(value: unknown): TestRunResponse {
-  return testRunResponseSchema.parse(value);
+  const parsed = testRunResponseSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error("תגובה לא תקינה מבדיקת האוטומציה");
+  }
+  return parsed.data;
 }
 
 /** The lead, client or task data trigger-automation runs the test with. */
@@ -309,8 +320,8 @@ export function TestAutomationDialog({
       if (response.error) throw response.error;
       return parseTestRunResponse(response.data);
     },
-    onSuccess: (data: unknown) => {
-      setTestResult(parseTestRunResponse(data));
+    onSuccess: (data) => {
+      setTestResult(data);
       toast({
         title: "בדיקה הושלמה",
         description: "בדוק את התוצאות למטה",

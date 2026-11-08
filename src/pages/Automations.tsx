@@ -510,7 +510,7 @@ export default function Automations() {
         (agentsList || []).find((a) => /כרמן|carmen/i.test(a.name || "")) ||
         (agentsList || [])[0];
       if (!carmen) throw new Error("לא נמצא סוכן פעיל (כרמן). צרי סוכן תחילה.");
-      // Pre-existing bug: scheduled_daily is not an automation_trigger enum value, so this always fails.
+      // Campaign Pulse requires a supported scheduling trigger (AIO-87).
       if (!isAutomationTrigger(CAMPAIGN_PULSE_TRIGGER)) {
         throw new Error(
           `Unsupported automation trigger: ${CAMPAIGN_PULSE_TRIGGER}`,
@@ -1022,28 +1022,30 @@ export default function Automations() {
       )}
 
       {/* Campaign Pulse template */}
-      <div className="flex items-center gap-3 p-4 rounded-lg border bg-gradient-to-l from-orange-500/10 to-transparent">
-        <div className="p-2 rounded-full bg-orange-500/20">
-          <Zap className="h-5 w-5 text-orange-500" />
+      {isAutomationTrigger(CAMPAIGN_PULSE_TRIGGER) && (
+        <div className="flex items-center gap-3 p-4 rounded-lg border bg-gradient-to-l from-orange-500/10 to-transparent">
+          <div className="p-2 rounded-full bg-orange-500/20">
+            <Zap className="h-5 w-5 text-orange-500" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">תבנית: Campaign Pulse</p>
+            <p className="text-xs text-muted-foreground">
+              סריקת בוקר יומית עם סקינז — קמפיינרית ← SEO ← אנליסטית ← דוח.
+              נוצרת כבויה לעריכה.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-orange-500 text-orange-600 hover:bg-orange-50"
+            onClick={() => createCampaignPulseMutation.mutate()}
+            disabled={createCampaignPulseMutation.isPending}
+          >
+            <Plus className="h-4 w-4 ml-2" />
+            צור תבנית
+          </Button>
         </div>
-        <div className="flex-1">
-          <p className="font-semibold text-sm">תבנית: Campaign Pulse</p>
-          <p className="text-xs text-muted-foreground">
-            סריקת בוקר יומית עם סקינז — קמפיינרית ← SEO ← אנליסטית ← דוח. נוצרת
-            כבויה לעריכה.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="shrink-0 border-orange-500 text-orange-600 hover:bg-orange-50"
-          onClick={() => createCampaignPulseMutation.mutate()}
-          disabled={createCampaignPulseMutation.isPending}
-        >
-          <Plus className="h-4 w-4 ml-2" />
-          צור תבנית
-        </Button>
-      </div>
+      )}
 
       {/* Meta WhatsApp lead welcome template */}
       <div className="flex items-center gap-3 p-4 rounded-lg border bg-gradient-to-l from-emerald-500/10 to-transparent">
