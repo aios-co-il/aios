@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSupervisorCandidates } from "./agentReadQueries";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -17,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Crown, Trash2, Plus, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 
 export function SupervisorTab({
   agent,
@@ -29,18 +31,7 @@ export function SupervisorTab({
   const [hint, setHint] = useState("");
   const [goal, setGoal] = useState("");
 
-  const { data: allAgents } = useQuery({
-    queryKey: ["ai-agents", tenantId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_agents")
-        .select("id, name, talent")
-        .filter("tenant_id", "eq", tenantId)
-        .neq("id", agent.id);
-      return data ?? [];
-    },
-    enabled: !!tenantId,
-  });
+  const { data: allAgents } = useSupervisorCandidates(agent.id, tenantId);
 
   const { data: links } = useQuery({
     queryKey: ["agent-supervisors", agent.id],
@@ -60,7 +51,7 @@ export function SupervisorTab({
     mutationFn: async () => {
       if (!childId) throw new Error("בחר סוכן");
       const { error } = await supabase.from("agent_supervisors").insert({
-        tenant_id: tenantId,
+        tenant_id: requireTenantId(tenantId),
         supervisor_agent_id: agent.id,
         child_agent_id: childId,
         routing_hint: hint || null,

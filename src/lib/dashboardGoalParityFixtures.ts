@@ -76,6 +76,14 @@ const GOOGLE_LEADS = reportTable(
       conversions: 1,
       conversions_value: 400,
     },
+    {
+      campaign_id: "g-display",
+      campaign_name: "באנרים",
+      campaign_channel_type: "DISPLAY",
+      bidding_strategy_type: "MANUAL_CPM",
+      cost: 30,
+      conversions: 0,
+    },
   ],
 );
 

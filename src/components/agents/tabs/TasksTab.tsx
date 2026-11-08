@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { asJsonObject, isOneOf, thrownMessage } from "../agentUiHelpers";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -137,19 +138,21 @@ export function TasksTab({
   });
   const testReminder = useMutation({
     mutationFn: async () => {
-      const when = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+      const payload = {
+        tenant_id: requireTenantId(tenantId),
+        scheduled_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+      };
       const {
         data: { user },
       } = await supabase.auth.getUser();
       const { error } = await supabase.from("agent_tasks").insert({
-        tenant_id: tenantId,
+        ...payload,
         agent_id: agent.id,
         title: "🧪 בדיקת תזכורת (2 דקות)",
         description:
           "זוהי בדיקה אוטומטית של מנגנון התזכורות. שלחי הודעת WhatsApp למשתמש שיצר את הבדיקה: 'בדיקת תזכורת עובדת ✅'. השתמשי ב-send_whatsapp_via_gateway או send_message.",
         schedule_type: "once",
         status: "scheduled",
-        scheduled_at: when,
         created_by: user?.id ?? null,
       });
       if (error) throw error;
