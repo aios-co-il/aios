@@ -13678,6 +13678,7 @@ import {
   type FastTarget,
 } from "./fast-lane/answer.ts";
 import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
+import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -14021,6 +14022,11 @@ async function handleRunAgent(
         history: serverConversationHistory,
         message: String(command_text),
         surface,
+        caller: {
+          userId: callerUserId,
+          role: callerRole,
+          managedAgencyIds: callerManagedAgencyIds,
+        },
       });
       if (fastReply) {
         return fastReply;
@@ -16449,6 +16455,7 @@ type FastLaneRequest = {
   history: Array<ChatTurn>;
   message: string;
   surface: Surface;
+  caller: FastLaneCaller;
 };
 
 /**
@@ -16463,7 +16470,9 @@ async function tryFastLane(
   const startedAt = Date.now();
   const [target, brief, addressLine] = await Promise.all([
     fastLaneTarget(supabase, turn.tenantId),
-    loadOrgBrief(supabase, turn.tenantId),
+    fastLaneBriefScope(supabase, turn.caller).then((scope) =>
+      loadOrgBrief(supabase, turn.tenantId, new Date(), scope),
+    ),
     callerAddressLine(supabase, turn.userId, turn.callerName),
   ]);
   if (!target) {
