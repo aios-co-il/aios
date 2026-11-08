@@ -12,7 +12,7 @@
  */
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { measureLoudness, normalizeAudio } from "../ffmpeg.ts";
+import { measureLoudness, normalizeAudio } from "../loudness.ts";
 import {
   EFFECT_LUFS,
   IMPACT_LUFS,
@@ -20,35 +20,9 @@ import {
   isTrailer,
 } from "./music-bed.ts";
 import { pitchAudio } from "./sound-pitch.ts";
-
-/** Peaks stay under this (dBTP); the limiter takes at most LIMITER_DB above it. */
-const CEILING_DB = -1;
-const LIMITER_DB = 6;
-
-/**
- * The gain (dB) that brings `measured` to `target`, at most +12 dB and -30 dB. A peak that would
- * pass the ceiling turns the limiter on; a boost the limiter could not hold is cut back.
- * Returns null when there is nothing to measure.
- */
-export function levelGain({ measured, target, peak = null }) {
-  if (!Number.isFinite(measured) || !Number.isFinite(target)) return null;
-  let gainDb = Math.min(12, Math.max(-30, target - measured));
-  const top = Number.isFinite(peak) ? peak : 0;
-  if (top + gainDb > CEILING_DB + LIMITER_DB)
-    gainDb = CEILING_DB + LIMITER_DB - top;
-  return {
-    gainDb: Math.round(gainDb * 100) / 100,
-    limit: top + gainDb > CEILING_DB,
-  };
-}
-
-const mean = (values) => {
-  const heard = values.filter(Number.isFinite);
-  if (!heard.length) return null;
-  return (
-    Math.round((heard.reduce((sum, v) => sum + v, 0) / heard.length) * 10) / 10
-  );
-};
+import type { CutSound, Timeline } from "./types.ts";
+import { levelGain, mean } from "./sound-level.ts";
+import type { Gain, Loudness } from "./sound-level.ts";
 
 /**
  * Returns the timeline with its music and effects levelled into `dir` (WAV), each cut's sound
@@ -56,17 +30,22 @@ const mean = (values) => {
  * where a loop hands over) and the narration's loudness (voiceLufs).
  */
 export async function prepareSound(
-  timeline,
-  dir,
+  timeline: Timeline,
+  dir: string,
   {
     measure = measureLoudness,
     normalize = normalizeAudio,
     vary = pitchAudio,
     log = console.log,
+  }: {
+    measure?: (file: string) => Promise<Loudness>;
+    normalize?: (file: string, out: string, gain: Gain) => Promise<unknown>;
+    vary?: (file: string, out: string, semitones: number) => Promise<unknown>;
+    log?: (line: string) => void;
   } = {},
-) {
+): Promise<Timeline> {
   await mkdir(dir, { recursive: true });
-  const read = async (file) => {
+  const read = async (file: string | null | undefined) => {
     if (!file) return null;
     try {
       return await measure(file);
@@ -78,7 +57,7 @@ export async function prepareSound(
     }
   };
   /** The levelled copy of `file`, or `file` itself when it cannot be levelled. */
-  const levelled = async (file, name, gain) => {
+  const levelled = async (file: string, name: string, gain: Gain | null) => {
     if (!gain) return file;
     const out = join(dir, `${name}-levelled.wav`);
     try {
@@ -96,7 +75,7 @@ export async function prepareSound(
   const trailer = isTrailer(timeline);
   const music = await read(timeline.musicPath);
   const musicPath =
-    music && trailer
+    music && trailer && timeline.musicPath
       ? await levelled(
           timeline.musicPath,
           "music",
@@ -109,7 +88,7 @@ export async function prepareSound(
       : (timeline.musicPath ?? null);
 
   /** A one-shot is levelled by its hit (the loudest 400 ms), not by its decaying tail. */
-  const levelHit = async (path, name, target) => {
+  const levelHit = async (path: string, name: string, target: number) => {
     const loudness = await read(path);
     if (!loudness) return path;
     return levelled(
@@ -123,7 +102,7 @@ export async function prepareSound(
     );
   };
   /** `file` shifted by `pitch` semitones, or `file` itself when it cannot be. */
-  const pitched = async (file, name, pitch) => {
+  const pitched = async (file: string, name: string, pitch: number) => {
     if (!pitch) return file;
     const out = join(dir, `${name}-pitched.wav`);
     try {
@@ -139,8 +118,8 @@ export async function prepareSound(
   let effects = timeline.effects ?? null;
   if (effects) {
     // Each sound at each pitch is made once, however many cuts play it.
-    const made = new Map();
-    const cuts = [];
+    const made = new Map<string, string>();
+    const cuts: Array<CutSound> = [];
     for (const { path, pitch = 0 } of effects.cuts ?? []) {
       const key = `${pitch}|${path}`;
       if (!made.has(key)) {
@@ -150,7 +129,7 @@ export async function prepareSound(
           await levelHit(await pitched(path, name, pitch), name, EFFECT_LUFS),
         );
       }
-      cuts.push({ path: made.get(key) });
+      cuts.push({ path: made.get(key) ?? path });
     }
     effects = {
       ...effects,
@@ -166,7 +145,9 @@ export async function prepareSound(
     ? []
     : timeline.narrationPath
       ? [timeline.narrationPath]
-      : timeline.scenes.map((scene) => scene.voicePath).filter(Boolean);
+      : timeline.scenes
+          .map((scene) => scene.voicePath)
+          .filter((file): file is string => Boolean(file));
   const voiceLufs = mean(
     await Promise.all(
       voices.map(async (file) => (await read(file))?.integrated ?? null),

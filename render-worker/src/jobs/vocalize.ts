@@ -55,8 +55,9 @@ export async function vocalizeForSpeech(
 
 /** Keeps a pointed script, dropping the oldest once the cache is full. */
 function remember(script: string, pointed: string) {
-  if (cache.size >= CACHE_LIMIT) {
-    cache.delete(cache.keys().next().value);
+  const oldest = cache.keys().next();
+  if (cache.size >= CACHE_LIMIT && !oldest.done) {
+    cache.delete(oldest.value);
   }
   cache.set(script, pointed);
 }

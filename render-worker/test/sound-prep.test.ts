@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { EFFECT_LUFS, IMPACT_LUFS } from "../src/compose/music-bed.ts";
-import { levelGain, prepareSound } from "../src/compose/sound-prep.ts";
-import { measureLoudness, parseLoudness } from "../src/ffmpeg.ts";
+import { prepareSound } from "../src/compose/sound-prep.ts";
+import { levelGain } from "../src/compose/sound-level.ts";
+import { measureLoudness, parseLoudness } from "../src/loudness.ts";
 import { hasFfmpeg, media } from "./media.ts";
 
 test.skipIf(!hasFfmpeg)(

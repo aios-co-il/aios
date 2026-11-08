@@ -34,13 +34,21 @@ import {
   talkingLine,
 } from "../narration.ts";
 import { AUDIO_DRIVEN_LIPSYNC } from "../providers/index.ts";
-import { inList, metaOf } from "./rows.ts";
-import type { AssetRow } from "./types.ts";
+import { inList, metaOf, rowsOf } from "./rows.ts";
+import type {
+  AssetRow,
+  PayloadRow,
+  RowMeta,
+  SceneRow,
+  VideoRun,
+} from "./types.ts";
 import { effectsByKind, filmSoundEffects } from "./sound-effects.ts";
+import type { EffectFiles, SourceScene } from "../compose/types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 const BUCKET = "creative-video";
 
-const sniffExt = (bytes) => {
+const sniffExt = (bytes: Uint8Array) => {
   if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "jpg";
   if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46)
@@ -62,7 +70,12 @@ const sniffExt = (bytes) => {
   return "bin";
 };
 
-async function materialize(db, tenantId, path, fileBase) {
+async function materialize(
+  db: Pick<SupabaseRest, "download">,
+  tenantId: string,
+  path: string,
+  fileBase: string,
+) {
   // A private upload (an entity-attachments link, such as the logo or the user's own picture) is
   // read with the worker's key, like the film's own files, from the tenant's folder only.
   const bytes = await readMedia(db, tenantId, path, BUCKET);
@@ -76,60 +89,72 @@ async function materialize(db, tenantId, path, fileBase) {
  * in order with their current clip and voice, and the newest music bed. run.input only
  * says the aspect, so a hand-written run cannot point the worker at other files.
  */
-export async function loadFilmSources(db, run) {
-  const scenes =
-    (await db.select(
+export async function loadFilmSources(
+  db: Pick<SupabaseRest, "select">,
+  run: Pick<VideoRun, "item_id" | "tenant_id">,
+) {
+  const scenes = rowsOf<SceneRow>(
+    await db.select(
       "marketing_video_scenes",
       `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&clip_asset_id=not.is.null&select=id,position,overlay_text,voiceover_text,duration_s,clip_asset_id,voice_asset_id,still_asset_id,meta&order=position`,
-    )) ?? [];
+    ),
+  );
   const assetIds = scenes
     .flatMap((scene) => [
       scene.clip_asset_id,
       scene.voice_asset_id,
       scene.still_asset_id,
     ])
-    .filter(Boolean);
-  const assetsByIds = async (ids) =>
+    .filter((id): id is string => Boolean(id));
+  const assetsByIds = async (ids: Array<string>) =>
     ids.length
-      ? ((await db.select(
-          "marketing_assets",
-          `id=in.${inList(ids)}&tenant_id=eq.${run.tenant_id}&select=id,type,url,meta`,
-        )) ?? [])
+      ? rowsOf<AssetRow>(
+          await db.select(
+            "marketing_assets",
+            `id=in.${inList(ids)}&tenant_id=eq.${run.tenant_id}&select=id,type,url,meta`,
+          ),
+        )
       : [];
   const assets = new Map<string, AssetRow>(
     (await assetsByIds(assetIds)).map((asset) => [asset.id, asset]),
   );
+  /** The asset behind an id a row points at, if the film has it. */
+  const assetOf = (id: string | null | undefined) =>
+    id ? assets.get(id) : undefined;
   // A lip sync of the still keeps the scene's animated clip (jobs/lipsync.ts), and the voice
   // line that drove its lips: the move after the line, and the line's word timings.
   const lipsyncedFrom = scenes
-    .map((scene) => metaOf(assets.get(scene.clip_asset_id)))
+    .map((scene) => metaOf(assetOf(scene.clip_asset_id)))
     .filter((meta) => meta.lipsync === true)
     .flatMap((meta) => [meta.motion_clip_asset_id, meta.voice_asset_id])
-    .filter((id) => id && !assets.has(id));
+    .filter((id): id is string => Boolean(id) && !assets.has(String(id)));
   for (const asset of await assetsByIds([...new Set(lipsyncedFrom)]))
     assets.set(asset.id, asset);
-  const [music] =
-    (await db.select(
+  const [music] = rowsOf<Pick<AssetRow, "url">>(
+    await db.select(
       "marketing_assets",
       `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&type=eq.music&url=not.is.null&select=url&order=created_at.desc&limit=1`,
-    )) ?? [];
-  const [narration] =
-    (await db.select(
+    ),
+  );
+  const [narration] = rowsOf<Pick<AssetRow, "url"> & { meta?: RowMeta | null }>(
+    await db.select(
       "marketing_assets",
       `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&type=eq.narration&url=not.is.null&select=url,meta&order=created_at.desc&limit=1`,
-    )) ?? [];
-  const scriptRows =
-    (await db.select(
+    ),
+  );
+  const scriptRows = rowsOf<SceneRow>(
+    await db.select(
       "marketing_video_scenes",
       `item_id=eq.${run.item_id}&tenant_id=eq.${run.tenant_id}&select=id,voiceover_text,clip_asset_id,meta&order=position`,
-    )) ?? [];
+    ),
+  );
   // A talking scene speaks from its own clip. One narration take laid across the film would
   // talk over it, so a storyboard with a talking scene is narrated scene by scene.
   const hasTalking = scriptRows.some(isTalkingScene);
   const script = joinNarration(scriptRows.map(narrationLine));
   const filmed = new Set(
     scenes
-      .filter((scene) => assets.get(scene.clip_asset_id)?.url)
+      .filter((scene) => assetOf(scene.clip_asset_id)?.url)
       .map((scene) => scene.id),
   );
   // One take spans the whole storyboard: laid over a film missing a spoken scene it would drift.
@@ -144,15 +169,15 @@ export async function loadFilmSources(db, run) {
       ? narration.url
       : null;
   /** The scene's own voiceover file, only when it speaks exactly this line. */
-  const ownVoice = (scene, line) => {
-    const voice = assets.get(scene.voice_asset_id);
+  const ownVoice = (scene: SceneRow, line: string) => {
+    const voice = assetOf(scene.voice_asset_id);
     return voice?.url &&
       voice.type === "voiceover" &&
       String(metaOf(voice).text ?? "") === line
       ? voice.url
       : null;
   };
-  const voicePathOf = (scene, clipTalks) => {
+  const voicePathOf = (scene: SceneRow, clipTalks: boolean) => {
     // A talking clip carries the line. One that does not (its lip sync failed) still plays
     // the line as a voiceover.
     if (clipTalks) return null;
@@ -162,12 +187,12 @@ export async function loadFilmSources(db, run) {
     if (!line || narrationPath) return null;
     if (hasTalking) return ownVoice(scene, line);
     // Only a scene's own voiceover. A continuous narration linked here is the whole script.
-    const voice = assets.get(scene.voice_asset_id);
+    const voice = assetOf(scene.voice_asset_id);
     return voice?.type === "voiceover" ? voice.url || null : null;
   };
   const mapped = scenes
-    .map((scene) => {
-      const clip = assets.get(scene.clip_asset_id);
+    .map((scene): SourceScene => {
+      const clip = assetOf(scene.clip_asset_id);
       const clipMeta = metaOf(clip);
       // A clip that speaks (one-shot talking clip or a lip-sync pass) carries its own line.
       // The manifest then keeps the camera still, plays the clip audio, ducks the music and
@@ -182,7 +207,7 @@ export async function loadFilmSources(db, run) {
       // speaks in its engine's own voice), and the animated clip the lip sync was made beside.
       const lineVoice =
         clipTalks && clipMeta.source_kind
-          ? assets.get(clipMeta.voice_asset_id)
+          ? assetOf(clipMeta.voice_asset_id)
           : null;
       const spokenAlignment =
         lineVoice?.type === "voiceover" &&
@@ -192,14 +217,14 @@ export async function loadFilmSources(db, run) {
           ? metaOf(lineVoice).alignment || null
           : null;
       const motionClip = clipTalks
-        ? assets.get(clipMeta.motion_clip_asset_id)
+        ? assetOf(clipMeta.motion_clip_asset_id)
         : null;
-      const voice = voicePath ? assets.get(scene.voice_asset_id) : null;
-      const still = assets.get(scene.still_asset_id);
+      const voice = voicePath ? assetOf(scene.voice_asset_id) : null;
+      const still = assetOf(scene.still_asset_id);
       const sceneMeta = metaOf(scene);
       // Which picture the scene shows, by its source (a material keeps its asset id across
       // scenes), and the skin it wears: two scenes in a row in other skins are a skin switch.
-      const source = (asset) =>
+      const source = (asset: AssetRow | undefined) =>
         asset?.url ? metaOf(asset).asset_id || asset.url : null;
       const skinRef =
         typeof sceneMeta.reference_url === "string" &&
@@ -239,7 +264,9 @@ export async function loadFilmSources(db, run) {
         muteClip: spokeOldLine,
       };
     })
-    .filter((scene) => scene.clipPath);
+    .filter((scene): scene is SourceScene & { clipPath: string } =>
+      Boolean(scene.clipPath),
+    );
   const missingNarration = mapped.some(
     (scene) =>
       spokenLine(scene.voiceoverText) && !narrationPath && !scene.voicePath,
@@ -270,12 +297,16 @@ export async function loadFilmSources(db, run) {
  * production). Every other render, and a production quoted without them (the Video Studio's
  * own plan), is free (0).
  */
-export async function loadFilmSettings(db, run) {
-  const [row] =
-    (await db.select(
+export async function loadFilmSettings(
+  db: Pick<SupabaseRest, "select">,
+  run: Pick<VideoRun, "id" | "item_id" | "tenant_id">,
+) {
+  const [row] = rowsOf<PayloadRow>(
+    await db.select(
       "marketing_work_items",
-      `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=payload`,
-    )) ?? [];
+      `id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=payload`,
+    ),
+  );
   const production = row?.payload?.video?.production;
   return {
     brand: brandFromPayload(row?.payload),
@@ -303,7 +334,10 @@ export async function loadFilmSettings(db, run) {
 }
 
 /** The brand kit on the run's work item (colors, font, logo, CTA), read for the run's tenant. */
-export async function loadFilmBrand(db, run) {
+export async function loadFilmBrand(
+  db: Pick<SupabaseRest, "select">,
+  run: Pick<VideoRun, "id" | "item_id" | "tenant_id">,
+) {
   return (await loadFilmSettings(db, run)).brand;
 }
 
@@ -314,13 +348,19 @@ export async function renderFilm({
   resolveElevenLabsKey = async () => null,
   makeEffects = filmSoundEffects,
   log = console.log,
+}: {
+  db: SupabaseRest;
+  run: VideoRun;
+  resolveElevenLabsKey?: () => Promise<string | null | undefined>;
+  makeEffects?: typeof filmSoundEffects;
+  log?: (line: string) => void;
 }) {
   const item = await loadRunItem(db, run);
   const sources = await loadFilmSources(db, run);
   if (!sources.scenes.length) throw finalError("render: no approved clips");
   const dir = await mkdtemp(join(tmpdir(), "promo-"));
   try {
-    const local = [];
+    const local: Array<SourceScene> = [];
     for (const [index, scene] of sources.scenes.entries()) {
       local.push({
         ...scene,
@@ -398,7 +438,7 @@ export async function renderFilm({
         }))
       : null;
     const stored = effectsByKind(effects?.paths);
-    const fetchEffect = async (name, path) => {
+    const fetchEffect = async (name: string, path: string) => {
       try {
         return await materialize(
           db,
@@ -414,7 +454,7 @@ export async function renderFilm({
       }
     };
     // The film's id draws which transition sound plays at which cut, the same every render.
-    const effectFiles = {
+    const effectFiles: EffectFiles & { transitionPaths: Array<string> } = {
       transitionPaths: [],
       impactPath: null,
       seed: run.item_id,
@@ -425,7 +465,7 @@ export async function renderFilm({
     }
     if (stored.impact)
       effectFiles.impactPath = await fetchEffect("impact", stored.impact);
-    let logoPath = null;
+    let logoPath: string | null = null;
     if (brand?.logoUrl) {
       try {
         const file = await materialize(
@@ -484,11 +524,13 @@ export async function renderFilm({
       `${item.folder}/render/film-${run.id}.mp4`,
     );
     await db.upload(BUCKET, path, bytes, "video/mp4");
-    const existing = await db.select(
-      "marketing_assets",
-      `run_id=eq.${run.id}&type=eq.render&select=id`,
+    const existing = rowsOf<{ id: string }>(
+      await db.select(
+        "marketing_assets",
+        `run_id=eq.${run.id}&type=eq.render&select=id`,
+      ),
     );
-    if (!existing?.length)
+    if (!existing.length)
       await db.insert("marketing_assets", {
         tenant_id: run.tenant_id,
         item_id: run.item_id,

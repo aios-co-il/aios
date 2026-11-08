@@ -11,6 +11,22 @@ import {
   musicLengthMs,
   quotedMusicMs,
 } from "./music-length.ts";
+import { rowsOf } from "./rows.ts";
+import type { VideoRun } from "./types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
+
+/** The bed's length in ms and how it was found. */
+interface BedLength {
+  ms: number;
+  basis: string;
+}
+
+/** Sizes the bed to the film that will be rendered (music-length.ts musicLengthMs). */
+type SizeMusic = (options: {
+  db: SupabaseRest;
+  run: VideoRun;
+  log: (line: string) => void;
+}) => Promise<BedLength & { filmS: number }>;
 
 /** One music bed for the whole film. */
 export async function generateMusic({
@@ -20,6 +36,13 @@ export async function generateMusic({
   sizeMusic = musicLengthMs,
   log = console.log,
   submitting,
+}: {
+  db: SupabaseRest;
+  run: VideoRun;
+  apiKey?: string | null;
+  sizeMusic?: SizeMusic;
+  log?: (line: string) => void;
+  submitting?: <T>(work: () => Promise<T>) => Promise<T>;
 }) {
   const item = await loadRunItem(db, run);
   const prompt = String(run.input?.prompt ?? "").trim();
@@ -61,11 +84,13 @@ export async function generateMusic({
       }
     },
   });
-  const existing = await db.select(
-    "marketing_assets",
-    `run_id=eq.${run.id}&type=eq.music&select=id`,
+  const existing = rowsOf<{ id: string }>(
+    await db.select(
+      "marketing_assets",
+      `run_id=eq.${run.id}&type=eq.music&select=id`,
+    ),
   );
-  if (!existing?.length) {
+  if (!existing.length) {
     await db.insert("marketing_assets", {
       tenant_id: run.tenant_id,
       item_id: run.item_id,
@@ -98,7 +123,19 @@ export async function generateMusic({
  * and never longer than the run's quote pays for (quotedMusicMs). A bed already paid for keeps
  * the length it was made at.
  */
-async function bedLength({ db, run, path, sizeMusic, log }) {
+async function bedLength({
+  db,
+  run,
+  path,
+  sizeMusic,
+  log,
+}: {
+  db: SupabaseRest;
+  run: VideoRun;
+  path: string;
+  sizeMusic: SizeMusic;
+  log: (line: string) => void;
+}): Promise<BedLength> {
   const planned = Math.min(
     MUSIC_MAX_MS,
     Math.max(MUSIC_MIN_MS, Number(run.input?.music_length_ms) || 0),
