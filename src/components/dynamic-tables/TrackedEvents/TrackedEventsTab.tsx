@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { EventUsersResult } from "../../../../supabase/functions/ga-event-users/reports.ts";
 import { EventUsersTable } from "./EventUsersTable";
+import { SiteKpiCards } from "./SiteKpiCards";
+import type { RatioFigures } from "./siteKpis";
 import { TrackedEventsChart } from "./TrackedEventsChart";
 import type { TrackedEventsSummary } from "./trackedEvents";
 
@@ -15,6 +17,10 @@ export type EventUsersState = {
 
 type Props = {
   summary: TrackedEventsSummary;
+  /** Purchase revenue for the period; zero hides its card. */
+  revenue?: number;
+  /** The chosen conversion pair's figures, if the dashboard names one. */
+  ratio?: RatioFigures | null;
   /** People per event and source from GA; left out when not asked for. */
   eventUsers?: EventUsersState;
   formatCurrency: (value: number) => string;
@@ -24,12 +30,15 @@ type Props = {
 };
 
 /**
- * The "אירועים באתר" tab: a card per followed site event with its count and
+ * The "אירועים באתר" tab: purchase revenue and the chosen conversion, a card
+ * per followed site event with its count and
  * cost per event, the people who did each by traffic source with the
  * conversion between steps, and a daily chart.
  */
 export function TrackedEventsTab({
   summary,
+  revenue = 0,
+  ratio = null,
   eventUsers,
   formatCurrency,
   formatNumber,
@@ -55,6 +64,12 @@ export function TrackedEventsTab({
           </Button>
         </div>
       )}
+      <SiteKpiCards
+        revenue={revenue}
+        ratio={ratio}
+        formatCurrency={formatCurrency}
+        formatNumber={formatNumber}
+      />
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {summary.events.map((item) => (
           <Card key={item.event}>
