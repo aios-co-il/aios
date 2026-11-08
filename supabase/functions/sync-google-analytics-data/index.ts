@@ -928,8 +928,11 @@ Deno.serve(async (req) => {
       eventsData = await eventsResponse.json();
       aggregateEventsData = await aggregateEventsResponse.json();
       eventSourcesData = await eventSourcesResponse.json();
-      if (getPath(eventSourcesData,"error")) {
-        console.error("Event sources report error:", getPath(eventSourcesData,"error"));
+      if (getPath(eventSourcesData, "error")) {
+        console.error(
+          "Event sources report error:",
+          getPath(eventSourcesData, "error"),
+        );
         eventSourcesData = { rows: [] };
       }
       if (getPath(eventsData, "error")) {
@@ -1026,7 +1029,7 @@ Deno.serve(async (req) => {
     }
 
     // Events by source / medium; the other GA columns stay empty, as on event rows.
-    for (const data of eventSourceRows(eventSourcesData.rows)) {
+    for (const data of eventSourceRows(getPath(eventSourcesData, "rows"))) {
       records.push({
         table_id: tableId,
         tenant_id: table.tenant_id,

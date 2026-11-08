@@ -1,3 +1,4 @@
+import { numericMetric, type KeywordMetrics } from "./keyword-metrics.ts";
 // Fetch a fresh Ahrefs snapshot (overview + organic keywords) for a given
 // domain and persist it via the ahrefs-webhook so all downstream side-effects
 // (SEO crm_table auto-creation, crm_records seeding) happen in one place.
@@ -14,13 +15,11 @@ type OrganicRow = {
   keyword: unknown;
   position: unknown;
   traffic: unknown;
-  volume: unknown;
-  kd: unknown;
-  cpc: unknown;
+  volume: number | null;
+  kd: number | null;
+  cpc: number | null;
   url: unknown;
 };
-
-type KeywordMetrics = { volume: unknown; kd: unknown; cpc: unknown };
 
 /** Keyword rows from keywords-explorer/overview (`keywords` or `metrics`). */
 const overviewKeywordRows = (json: unknown) => {
@@ -312,9 +311,9 @@ Deno.serve(async (req) => {
         position_prev_month: k.position_prev ?? k.best_position_prev ?? null,
         traffic: k.traffic ?? 0,
         traffic_prev_month: k.traffic_prev ?? 0,
-        volume: k.volume ?? 0,
-        kd: k.keyword_difficulty ?? null,
-        cpc: k.cost_per_click ?? null,
+        volume: numericMetric(k.volume ?? 0),
+        kd: numericMetric(k.keyword_difficulty ?? null),
+        cpc: numericMetric(k.cost_per_click ?? null),
         url: k.url ?? "",
         country: k.country ?? null,
         location: k.location ?? null,
@@ -678,9 +677,9 @@ Deno.serve(async (req) => {
         keyword: k.keyword,
         position: k.best_position ?? k.position ?? null,
         traffic: k.sum_traffic ?? k.traffic ?? 0,
-        volume: k.volume,
-        kd: k.keyword_difficulty,
-        cpc: k.cpc,
+        volume: numericMetric(k.volume),
+        kd: numericMetric(k.keyword_difficulty),
+        cpc: numericMetric(k.cpc),
         url: k.best_position_url ?? k.url ?? "",
       }));
 
@@ -818,9 +817,9 @@ Deno.serve(async (req) => {
         keyword: k.keyword,
         position: k.position ?? k.best_position ?? null,
         traffic: k.traffic ?? 0,
-        volume: k.volume ?? null,
-        kd: k.kd ?? null,
-        cpc: k.cpc ?? null,
+        volume: numericMetric(k.volume ?? null),
+        kd: numericMetric(k.kd ?? null),
+        cpc: numericMetric(k.cpc ?? null),
         url: k.url ?? "",
       }));
     }
@@ -863,9 +862,9 @@ Deno.serve(async (req) => {
         if (!key) continue;
         if (k.volume != null) {
           haveVolume.set(key, {
-            volume: k.volume ?? null,
-            kd: k.kd ?? null,
-            cpc: k.cpc ?? null,
+            volume: numericMetric(k.volume ?? null),
+            kd: numericMetric(k.kd ?? null),
+            cpc: numericMetric(k.cpc ?? null),
           });
         }
       }
@@ -927,9 +926,9 @@ Deno.serve(async (req) => {
               const key = norm(r.keyword);
               if (!key) continue;
               gsc_keyword_metrics[key] = {
-                volume: r.volume ?? null,
-                kd: r.difficulty ?? r.keyword_difficulty ?? null,
-                cpc: r.cpc ?? null,
+                volume: numericMetric(r.volume ?? null),
+                kd: numericMetric(r.difficulty ?? r.keyword_difficulty ?? null),
+                cpc: numericMetric(r.cpc ?? null),
               };
             }
             continue;
@@ -939,9 +938,9 @@ Deno.serve(async (req) => {
             const key = norm(r.keyword);
             if (!key) continue;
             gsc_keyword_metrics[key] = {
-              volume: r.volume ?? null,
-              kd: r.difficulty ?? r.keyword_difficulty ?? null,
-              cpc: r.cpc ?? null,
+              volume: numericMetric(r.volume ?? null),
+              kd: numericMetric(r.difficulty ?? r.keyword_difficulty ?? null),
+              cpc: numericMetric(r.cpc ?? null),
             };
           }
         }

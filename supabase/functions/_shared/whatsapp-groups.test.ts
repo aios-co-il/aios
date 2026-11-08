@@ -1,5 +1,5 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   propagateWhatsappGroupInviteLink,
   resolveWhatsappGroupInviteLink,
@@ -8,9 +8,13 @@ import {
 const GROUP = "120363@g.us";
 const LINK = "https://chat.whatsapp.com/abc";
 
-function recordingClient(selectRows = []) {
-  const requests = [];
-  const fetch = async (input, init = {}) => {
+function recordingClient(selectRows: Array<{ invite_link: string }> = []) {
+  const requests: Array<{
+    method: string;
+    path: string;
+    params: URLSearchParams;
+  }> = [];
+  const fetch: typeof globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
     const method = init.method ?? "GET";
     requests.push({ method, path: url.pathname, params: url.searchParams });

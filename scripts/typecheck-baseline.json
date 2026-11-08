@@ -4,34 +4,6 @@
   "config": "tsconfig.app.json",
   "diagnostics": [
     {
-      "file": "src/components/campaigners/CampaignersChatView.tsx",
-      "code": 2345,
-      "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; id?: string | undefined; ... 5 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
-      "count": 1
-    },
-    {
-      "file": "src/components/campaigners/CampaignerTasksTab.tsx",
-      "code": 2322,
-      "message": "Type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }' is not assignable to type 'EntityTask'.\n  Type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }' is missing the following properties from type '{ id: string; title: string; priority: number; due_date?: string | null | undefined; notes?: string | null | undefined; }': id, title, priority",
-      "source": "task",
-      "count": 2
-    },
-    {
-      "file": "src/components/campaigners/CampaignerTasksTab.tsx",
-      "code": 2339,
-      "message": "Property 'id' does not exist on type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }'.",
-      "source": "id",
-      "count": 4
-    },
-    {
-      "file": "src/components/campaigners/CampaignerTasksTab.tsx",
-      "code": 2339,
-      "message": "Property 'status' does not exist on type '{ created_by?: string | null | undefined; } & { creator_name: string | null; }'.",
-      "source": "status",
-      "count": 3
-    },
-    {
       "file": "src/components/chat/ConvertContactDialog.tsx",
       "code": 2322,
       "message": "Type 'string | null' is not assignable to type 'string'.\n  Type 'null' is not assignable to type 'string'.",
@@ -65,13 +37,6 @@
       "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
       "source": "style[\"--slider-color\" as any]",
       "count": 2
-    },
-    {
-      "file": "src/hooks/useBroadcastLists.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'list_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[]'.",
-      "source": "insert",
-      "count": 1
     },
     {
       "file": "src/hooks/useSyncProfileTeamMember.ts",
@@ -123,13 +88,6 @@
       "count": 6
     },
     {
-      "file": "src/pages/GoogleAnalyticsSettings.tsx",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<string | null>'.",
-      "source": "integ.user_id",
-      "count": 1
-    },
-    {
       "file": "src/pages/SalesDashboard.tsx",
       "code": 7006,
       "message": "Parameter 'p' implicitly has an 'any' type.",
@@ -170,13 +128,6 @@
       "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, string>'.",
       "source": "roleLabels[user.role]",
       "count": 1
-    },
-    {
-      "file": "src/pages/WordPressSettings.tsx",
-      "code": 2339,
-      "message": "Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\"> | SelectQueryError<\"Invalid RelationName cannot infer result type\">'.\n  Property 'id' does not exist on type 'SelectQueryError<\"Invalid Relationships cannot infer result type\">'.",
-      "source": "id",
-      "count": 2
     }
   ]
 }

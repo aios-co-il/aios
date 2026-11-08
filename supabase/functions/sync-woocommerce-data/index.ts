@@ -1,16 +1,10 @@
+import { mapProductRow } from "./product-row.ts";
+import { mapCustomerRow } from "./customer-row.ts";
+import type { Database } from "../_shared/database.types.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getPath } from "../_shared/provider-json.ts";
-import { mapOrderRow, toFloat } from "./order-row.ts";
-
-interface UpsertClient {
-  from(table: string): {
-    upsert(
-      rows: object[],
-      options: { onConflict: string },
-    ): PromiseLike<{ error: unknown }>;
-  };
-}
+import { getPath, getString } from "../_shared/provider-json.ts";
+import { mapOrderRow } from "./order-row.ts";
 
 interface SiteSummary {
   site_id: unknown;
@@ -88,16 +82,16 @@ async function fetchAllPages(
   return results;
 }
 
-async function upsertChunks(
-  supabase: UpsertClient,
-  table: string,
-  rows: object[],
-  onConflict: string,
+/** Persist typed batches through the table-specific writer chosen by the caller. */
+async function upsertChunks<Row>(
+  rows: Array<Row>,
+  write: (rows: Array<Row>) => PromiseLike<{ error: unknown }>,
 ) {
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
-    const chunk = rows.slice(i, i + UPSERT_CHUNK);
-    const { error } = await supabase.from(table).upsert(chunk, { onConflict });
-    if (error) throw error;
+    const { error } = await write(rows.slice(i, i + UPSERT_CHUNK));
+    if (error) {
+      throw error;
+    }
   }
 }
 
@@ -115,7 +109,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -296,11 +290,10 @@ serve(async (req) => {
         const orderRows = allOrders.map((order) =>
           mapOrderRow(tenant_id, siteId, order),
         );
-        await upsertChunks(
-          supabase,
-          "woocommerce_orders",
-          orderRows,
-          "site_id,woo_order_id",
+        await upsertChunks(orderRows, (chunk) =>
+          supabase
+            .from("woocommerce_orders")
+            .upsert(chunk, { onConflict: "site_id,woo_order_id" }),
         );
         ordersCount = orderRows.length;
 
@@ -314,31 +307,13 @@ serve(async (req) => {
             modified_after: modifiedAfter,
           },
         );
-        const productRows = products.map((product) => ({
-          tenant_id,
-          site_id: siteId,
-          woo_product_id: getPath(product, "id"),
-          name: getPath(product, "name"),
-          slug: getPath(product, "slug"),
-          status: getPath(product, "status"),
-          type: getPath(product, "type"),
-          sku: getPath(product, "sku") || null,
-          price: toFloat(getPath(product, "price")) || null,
-          regular_price: toFloat(getPath(product, "regular_price")) || null,
-          sale_price: toFloat(getPath(product, "sale_price")) || null,
-          stock_quantity: getPath(product, "stock_quantity") ?? null,
-          stock_status: getPath(product, "stock_status"),
-          total_sales: getPath(product, "total_sales") || 0,
-          categories: getPath(product, "categories") || [],
-          images: getPath(product, "images") || [],
-          synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
-        await upsertChunks(
-          supabase,
-          "woocommerce_products",
-          productRows,
-          "site_id,woo_product_id",
+        const productRows = products.map((value) =>
+          mapProductRow(tenant_id, siteId, value),
+        );
+        await upsertChunks(productRows, (chunk) =>
+          supabase
+            .from("woocommerce_products")
+            .upsert(chunk, { onConflict: "site_id,woo_product_id" }),
         );
         productsCount = productRows.length;
 
@@ -353,28 +328,13 @@ serve(async (req) => {
           { orderby: "registered_date", order: "desc" },
           customerMaxPages,
         );
-        const customerRows = customers.map((customer) => ({
-          tenant_id,
-          site_id: siteId,
-          woo_customer_id: getPath(customer, "id"),
-          email: getPath(customer, "email"),
-          first_name: getPath(customer, "first_name"),
-          last_name: getPath(customer, "last_name"),
-          username: getPath(customer, "username"),
-          role: getPath(customer, "role"),
-          orders_count: getPath(customer, "orders_count") || 0,
-          total_spent: toFloat(getPath(customer, "total_spent")) || 0,
-          avatar_url: getPath(customer, "avatar_url") || null,
-          billing: getPath(customer, "billing") || {},
-          shipping: getPath(customer, "shipping") || {},
-          synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
-        await upsertChunks(
-          supabase,
-          "woocommerce_customers",
-          customerRows,
-          "site_id,woo_customer_id",
+        const customerRows = customers.map((value) =>
+          mapCustomerRow(tenant_id, siteId, value),
+        );
+        await upsertChunks(customerRows, (chunk) =>
+          supabase
+            .from("woocommerce_customers")
+            .upsert(chunk, { onConflict: "site_id,woo_customer_id" }),
         );
         customersCount = customerRows.length;
 
@@ -410,7 +370,8 @@ serve(async (req) => {
         });
       } catch (siteError) {
         console.error(`Error syncing site ${siteId}:`, siteError);
-        const siteErrorMessage = getPath(siteError, "message");
+        const siteErrorMessage =
+          getString(siteError, "message") || "WooCommerce sync failed";
         if (logId) {
           await supabase
             .from("woocommerce_sync_log")

@@ -1,4 +1,8 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertStrictEquals,
+  assertThrows,
+} from "jsr:@std/assert@1";
 import { mapOrderRow } from "./order-row.ts";
 
 const order = {
@@ -47,3 +51,11 @@ Deno.test("mapOrderRow falls back to the id and empty values", () => {
   assertEquals(row.line_items, []);
   assertStrictEquals(row.attribution, null);
 });
+
+Deno.test(
+  "malformed order scalar fields are rejected before a database write",
+  () => {
+    assertThrows(() => mapOrderRow("t", "s", { id: { bad: true } }));
+    assertThrows(() => mapOrderRow("t", "s", { id: 1, status: { bad: true } }));
+  },
+);
