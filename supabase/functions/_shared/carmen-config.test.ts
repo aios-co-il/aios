@@ -83,3 +83,17 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "the editor private_only scope survives parsing and the effective scope guard",
+  () => {
+    const cfg = readCarmenConfig({ carmen_scope_mode: "private_only" });
+    assertEquals(cfg.carmen_scope_mode, "private_only");
+    assertEquals(
+      isValidCarmenScopeMode(
+        mergeCarmenScopeConfig(cfg, null, [], { isGroup: false }).scopeMode,
+      ),
+      true,
+    );
+  },
+);

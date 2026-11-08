@@ -1,6 +1,7 @@
 import { z } from "npm:zod@3.25.76";
 export const CARMEN_SCOPE_MODES = [
   "all",
+  "private_only",
   "specific_group",
   "specific_phone",
 ] as const;
