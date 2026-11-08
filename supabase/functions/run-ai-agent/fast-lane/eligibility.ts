@@ -5,13 +5,17 @@ import {
 import { parseApprovalReply } from "../approvals/reply.ts";
 import { INSTRUCTION_TRIGGER_RE } from "../instruction-trigger.ts";
 
+/**
+ * Where a fast answer may go: a signed-in user's AIOS chat (streamed), or a team member's private
+ * WhatsApp chat with Carmen. Groups, clients and unknown senders never take the fast lane.
+ */
+export type FastLaneChannel = "app_chat" | "whatsapp_staff";
+
 /** What decides whether a chat turn may try the fast lane. */
 export type FastLaneTurn = {
   message: string;
-  /** The answer streams to an open chat. */
-  streaming: boolean;
-  /** A signed-in user typing in an AIOS chat, not a service call or automation. */
-  appChatTurn: boolean;
+  /** Null when the turn comes from anywhere else. */
+  channel: FastLaneChannel | null;
   isCarmen: boolean;
   /** Anything that pins the run to a model, skills or a special flow. */
   pinned: boolean;
@@ -28,8 +32,7 @@ const MAX_FAST_MESSAGE_CHARS = 600;
 export function fastLaneFits(turn: FastLaneTurn): boolean {
   const message = turn.message.trim();
   if (
-    !turn.streaming ||
-    !turn.appChatTurn ||
+    !turn.channel ||
     !turn.isCarmen ||
     turn.pinned ||
     message.length === 0 ||

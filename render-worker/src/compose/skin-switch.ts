@@ -4,14 +4,28 @@
  * remotion workshop-transition.ts) with the cut's whoosh at its peak. Every other cut keeps the
  * transitions of workshop-edit.ts.
  */
+import type { TimelineScene } from "./types.ts";
 import { sceneTransition, transitionFrames } from "./workshop-edit.ts";
+
+/** The scene fields that tell its picture and skin. */
+type SkinScene = Partial<
+  Pick<
+    TimelineScene,
+    | "pictureKey"
+    | "stillPath"
+    | "clipPath"
+    | "skinSwitch"
+    | "transition"
+    | "skinRef"
+  >
+>;
 
 /** A skin switch's overlap in frames; one with less room than MIN_SKIN_FRAMES is not made. */
 export const SKIN_FRAMES = 10;
 const MIN_SKIN_FRAMES = 6;
 
 /** The scene's picture: its source (asset or skin reference), else its file. */
-const pictureOf = (scene) =>
+const pictureOf = (scene: SkinScene) =>
   scene.pictureKey || scene.stillPath || scene.clipPath || null;
 
 /**
@@ -20,7 +34,11 @@ const pictureOf = (scene) =>
  * differ and either the film has trailer sound design or both scenes have their own skin
  * reference and the references differ. A scene that asked for another transition keeps it.
  */
-export function isSkinSwitch(previous, current, { soundDesign = false } = {}) {
+export function isSkinSwitch(
+  previous: SkinScene | null | undefined,
+  current: SkinScene | null | undefined,
+  { soundDesign = false } = {},
+) {
   if (!previous || !current) return false;
   if (current.skinSwitch === true || current.transition === "skin") return true;
   if (current.skinSwitch === false || current.transition) return false;
@@ -41,8 +59,8 @@ export function isSkinSwitch(previous, current, { soundDesign = false } = {}) {
  * sceneTransition's choice.
  */
 export function sceneTransitionFor(
-  index,
-  requested,
+  index: number,
+  requested: string | null | undefined,
   { skin = false, previousFrames = 0, frames = 0 } = {},
 ) {
   if (index > 0 && skin) {

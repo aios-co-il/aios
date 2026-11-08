@@ -4,6 +4,14 @@ import { kickerTitle } from "./kicker.ts";
 import { TAIL_FRAMES } from "./manifest-media.ts";
 import { overlayFieldOf } from "./scene-overlay.ts";
 import { isSkinSwitch, sceneTransitionFor } from "./skin-switch.ts";
+import type {
+  FramedWord,
+  Span,
+  TimedWord,
+  Timeline,
+  TimelineScene,
+} from "./types.ts";
+import type { ManifestScene, PickedScene } from "./manifest-types.ts";
 
 export const WORKSHOP_MOVES = [
   "push",
@@ -19,18 +27,34 @@ export const WORKSHOP_MOVES = [
  * scenes end.
  */
 export function placeScenes(
-  picked,
-  counts,
-  timeline,
-  { narration, narrationWords, narrationFrames },
-  fps,
+  picked: Array<PickedScene>,
+  counts: Array<number>,
+  timeline: Pick<
+    Timeline,
+    | "soundDesign"
+    | "keepDesign"
+    | "titleStyle"
+    | "titleSize"
+    | "titleEmphasis"
+    | "sceneOverlay"
+  >,
+  {
+    narration,
+    narrationWords,
+    narrationFrames,
+  }: {
+    narration: string | null;
+    narrationWords: Array<TimedWord>;
+    narrationFrames: number;
+  },
+  fps: number,
 ) {
   let cursor = 0;
-  let framed = wordsToFrames(narrationWords, fps);
-  const spans = [];
+  let framed: Array<FramedWord> = wordsToFrames(narrationWords, fps);
+  const spans: Array<Span> = [];
   if (narration && !narrationWords.length && narrationFrames)
     spans.push([0, narrationFrames - TAIL_FRAMES]);
-  const scenes = picked.map((p, order) => {
+  const scenes = picked.map((p, order): ManifestScene => {
     const frameCount = counts[order];
     const startFrame = cursor;
     cursor += frameCount;
@@ -128,7 +152,10 @@ export function placeScenes(
  * A scene's text style, size and key-word emphasis for the manifest: its own, else the film's,
  * else none.
  */
-function titleLookOf(scene, timeline) {
+function titleLookOf(
+  scene: Pick<TimelineScene, "titleStyle" | "titleSize" | "titleEmphasis">,
+  timeline: Pick<Timeline, "titleStyle" | "titleSize" | "titleEmphasis">,
+) {
   const titleStyle = scene.titleStyle || timeline.titleStyle || null;
   const titleSize = scene.titleSize || timeline.titleSize || null;
   const titleEmphasis = scene.titleEmphasis || timeline.titleEmphasis || null;

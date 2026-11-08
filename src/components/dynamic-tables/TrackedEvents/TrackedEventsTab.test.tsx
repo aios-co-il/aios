@@ -64,6 +64,7 @@ describe("TrackedEventsEditor", () => {
           { event: "ticket_upload", count: 40 },
           { event: "sign_up", count: 20 },
         ]}
+        currentRatio={null}
         onSave={onSave}
         saving={false}
       />,
@@ -72,9 +73,35 @@ describe("TrackedEventsEditor", () => {
     const labels = screen.getAllByPlaceholderText("שם בעברית");
     await user.type(labels[2], "העלאת כרטיס");
     await user.click(screen.getByText("שמירה"));
-    expect(onSave).toHaveBeenCalledWith([
-      { event: "sign_up", label: "הרשמה" },
-      { event: "ticket_upload", label: "העלאת כרטיס" },
-    ]);
+    expect(onSave).toHaveBeenCalledWith(
+      [
+        { event: "sign_up", label: "הרשמה" },
+        { event: "ticket_upload", label: "העלאת כרטיס" },
+      ],
+      null,
+    );
+  });
+
+  it("keeps the conversion pair while both events stay followed", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <TrackedEventsEditor
+        open
+        onOpenChange={() => {}}
+        current={[
+          { event: "ticket_valuation", label: "הערכה" },
+          { event: "ticket_sold", label: "מכירה" },
+        ]}
+        available={[]}
+        currentRatio={{ from: "ticket_valuation", to: "ticket_sold" }}
+        onSave={onSave}
+        saving={false}
+      />,
+    );
+    await userEvent.setup().click(screen.getByText("שמירה"));
+    expect(onSave).toHaveBeenCalledWith(expect.any(Array), {
+      from: "ticket_valuation",
+      to: "ticket_sold",
+    });
   });
 });

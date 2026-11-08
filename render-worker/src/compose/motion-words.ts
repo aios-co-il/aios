@@ -14,7 +14,7 @@ const NIQQUD = /[֑-ׇ]/g;
  * browser orders its parts. Consecutive LTR words are drawn as one LTR run, so "Carmen
  * Marketing OS" keeps its order inside the right-to-left line.
  */
-export const isLtrWord = (text) =>
+export const isLtrWord = (text: string) =>
   LATIN_OR_DIGIT.test(text) && !HEBREW.test(text);
 
 /**
@@ -22,7 +22,7 @@ export const isLtrWord = (text) =>
  * brackets around it; "?" and "!" stay, and so does punctuation inside ("ה-AI", "24/7").
  * A word with no letter or digit left (a dash) is not shown.
  */
-export function displayWord(text) {
+export function displayWord(text: unknown) {
   const shown = String(text ?? "")
     .normalize("NFC")
     .trim()
@@ -34,7 +34,7 @@ export function displayWord(text) {
 }
 
 /** A word for comparing: no niqqud, punctuation or case. */
-export const plain = (text) =>
+export const plain = (text: unknown) =>
   String(text ?? "")
     .normalize("NFC")
     .replace(NIQQUD, "")
@@ -42,11 +42,11 @@ export const plain = (text) =>
     .replace(/[^\p{L}\p{N}]+/gu, "");
 
 /** The word without one Hebrew prefix letter (ו, ה, ב, ל, מ, ש, כ). */
-const unprefixed = (word) =>
+const unprefixed = (word: string) =>
   word.length > 3 && /^[והבלמשכ]/.test(word) ? word.slice(1) : word;
 
 /** Two words are the same word, also with one prefix letter on either ("ובגוגל", "גוגל"). */
-const sameWord = (a, b) =>
+const sameWord = (a: string, b: string) =>
   a.length > 2 &&
   b.length > 2 &&
   (a === b || unprefixed(a) === b || a === unprefixed(b));
@@ -66,7 +66,7 @@ const EMPHATIC = new Set(
   ).split(" "),
 );
 
-const isNumber = (word, shown) =>
+const isNumber = (word: string, shown: string) =>
   /\p{N}/u.test(shown) ||
   NUMBER_WORDS.has(word) ||
   NUMBER_WORDS.has(unprefixed(word));
@@ -76,7 +76,13 @@ const isNumber = (word, shown) =>
  * brand (4), a word of the scene's title (3), a Latin term in a Hebrew line (2), an emphatic
  * word or one said with "!" or "?" (1).
  */
-export function keyScore(text, { title = [], brand = [] } = {}) {
+export function keyScore(
+  text: unknown,
+  {
+    title = [],
+    brand = [],
+  }: { title?: Array<string>; brand?: Array<string> } = {},
+) {
   const shown = displayWord(text);
   const word = plain(shown);
   if (!word) return 0;
@@ -90,7 +96,7 @@ export function keyScore(text, { title = [], brand = [] } = {}) {
 }
 
 /** Words of a title or a brand name, for keyScore. */
-export const wordsOf = (text) =>
+export const wordsOf = (text: unknown) =>
   String(text ?? "")
     .split(/\s+/)
     .map(plain)
@@ -101,4 +107,5 @@ const LEANING = new Set(
   "של את עם על אל כמו גם אם כי או בין לפני אחרי עד בלי וגם אבל כל".split(" "),
 );
 
-export const leansOnNext = (text) => LEANING.has(plain(displayWord(text)));
+export const leansOnNext = (text: unknown) =>
+  LEANING.has(plain(displayWord(text)));

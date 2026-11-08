@@ -4,11 +4,34 @@
  */
 
 import { assertTenantPath, finalError, safeSegment } from "../guard.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
+import type { AudioMeta, VideoRun } from "./types.ts";
+
+/** The audio a sound job's paid call returns. */
+export interface GeneratedAudio {
+  bytes: Uint8Array;
+  contentType?: string;
+  meta?: AudioMeta;
+}
+
+/** What generateOnce needs: the run, where its audio goes and the paid call that makes it. */
+interface GenerateOnceOptions {
+  db: Pick<SupabaseRest, "upload" | "update">;
+  run: Pick<VideoRun, "id" | "output">;
+  path: string;
+  generate: () => Promise<GeneratedAudio>;
+  submitting?: <T>(work: () => Promise<T>) => Promise<T>;
+}
 
 export const BUCKET = "creative-video";
 
 /** <item folder>/<scene or music>/<kind>-<run>.mp3: one file per run, stable across retries. */
-export const assetPath = (run, folder, kind, fallback = "music") =>
+export const assetPath = (
+  run: Pick<VideoRun, "tenant_id" | "scene_id" | "id">,
+  folder: string,
+  kind: string,
+  fallback = "music",
+) =>
   assertTenantPath(
     run.tenant_id,
     `${folder}/${safeSegment(run.scene_id, fallback)}/${kind}-${safeSegment(run.id)}.mp3`,
@@ -25,9 +48,9 @@ export async function generateOnce({
   path,
   generate,
   submitting = (work) => work(),
-}) {
+}: GenerateOnceOptions): Promise<AudioMeta> {
   if (alreadyGenerated(run, path)) {
-    return run.output.audio_meta ?? {};
+    return run.output?.audio_meta ?? {};
   }
   // The paid call and the save of its file run inside the worker's submit guard, so a stop
   // never puts the run back to queued between the payment and the save (src/inflight.ts).
@@ -35,7 +58,12 @@ export async function generateOnce({
 }
 
 /** Makes the audio, stores its file and records its path on the run. */
-async function generateAndStore({ db, run, path, generate }) {
+async function generateAndStore({
+  db,
+  run,
+  path,
+  generate,
+}: Omit<GenerateOnceOptions, "submitting">) {
   const result = await generate();
   try {
     await db.upload(
@@ -63,4 +91,5 @@ async function generateAndStore({ db, run, path, generate }) {
 }
 
 /** True when an earlier attempt of this run already stored its audio at `path`. */
-export const alreadyGenerated = (run, path) => run.output?.audio_path === path;
+export const alreadyGenerated = (run: Pick<VideoRun, "output">, path: string) =>
+  run.output?.audio_path === path;

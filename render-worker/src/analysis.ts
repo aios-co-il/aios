@@ -1,5 +1,6 @@
 // Model calls for reference analysis: transcript, shot descriptions, storyboard proposal.
 import { responseJson } from "./providers/json.ts";
+import type { Shot } from "./shots.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const VISION_MODEL = process.env.REFERENCE_VISION_MODEL || "gpt-4o-mini";
@@ -17,7 +18,13 @@ export const costOfUsage = (usage: ChatUsage | null | undefined) =>
     : 0;
 
 /** Word-level transcript. ElevenLabs Scribe when a key exists, otherwise Whisper. */
-export async function transcribe(audioBytes, { elevenLabsKey, openaiKey }) {
+export async function transcribe(
+  audioBytes: Uint8Array,
+  {
+    elevenLabsKey,
+    openaiKey,
+  }: { elevenLabsKey?: string | null; openaiKey?: string | null },
+): Promise<Transcript> {
   if (elevenLabsKey) {
     const form = new FormData();
     form.append(
@@ -91,7 +98,12 @@ export async function transcribe(audioBytes, { elevenLabsKey, openaiKey }) {
   };
 }
 
-async function chatJson(openaiKey, model, messages) {
+/** One JSON-mode chat call; `Answer` names the keys the prompt asks for (not checked). */
+async function chatJson<Answer>(
+  openaiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: unknown }>,
+) {
   const response = await fetch(OPENAI_URL, {
     method: "POST",
     headers: {
@@ -110,14 +122,16 @@ async function chatJson(openaiKey, model, messages) {
       `${model} ${response.status}: ${(await response.text()).slice(0, 300)}`,
     );
   const data = await responseJson<ChatResponse>(response);
-  return {
-    value: JSON.parse(data.choices?.[0]?.message?.content ?? "{}"),
-    usage: data.usage ?? null,
-  };
+  const value: Answer = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
+  return { value, usage: data.usage ?? null };
 }
 
 /** One vision call over all keyframes: what each shot shows and how it moves. */
-export async function describeShots(openaiKey, shots, keyframes) {
+export async function describeShots(
+  openaiKey: string,
+  shots: Array<Shot>,
+  keyframes: Array<Uint8Array>,
+) {
   const content = [
     {
       type: "text",
@@ -140,10 +154,14 @@ export async function describeShots(openaiKey, shots, keyframes) {
       ])
       .flat(),
   ];
-  const { value, usage } = await chatJson(openaiKey, VISION_MODEL, [
-    { role: "user", content },
-  ]);
-  const described = Array.isArray(value.shots) ? value.shots : [];
+  const { value, usage } = await chatJson<{ shots?: unknown }>(
+    openaiKey,
+    VISION_MODEL,
+    [{ role: "user", content }],
+  );
+  const described: Array<DescribedShot> = Array.isArray(value.shots)
+    ? value.shots
+    : [];
   return {
     shots: shots.map((shot, index) => ({
       ...shot,
@@ -161,7 +179,10 @@ export async function describeShots(openaiKey, shots, keyframes) {
  * language, with original content for this client. Never copies characters, brands,
  * logos or dialogue from the reference.
  */
-export async function proposeStoryboard(openaiKey, { shots, brief }) {
+export async function proposeStoryboard(
+  openaiKey: string,
+  { shots, brief }: { shots: Array<ReferenceShot>; brief: string },
+) {
   const system = [
     "You are Carmen, a creative director. You turn a reference ad's STRUCTURE into an ORIGINAL storyboard for a different client.",
     "Keep: number of shots, each shot's duration, rhythm, shot types and camera movement.",
@@ -179,7 +200,10 @@ export async function proposeStoryboard(openaiKey, { shots, brief }) {
     ),
     'Return JSON: {"concept":{"name":"","bigIdea":""},"frames":[{"title":"","shot":"","visualPrompt":"","motionPrompt":"","overlayText":"","voiceover":"","duration":3}]} with exactly one frame per reference shot, in order, each duration equal to that shot.',
   ].join("\n");
-  const { value, usage } = await chatJson(openaiKey, PLAN_MODEL, [
+  const { value, usage } = await chatJson<{
+    concept?: unknown;
+    frames?: unknown;
+  }>(openaiKey, PLAN_MODEL, [
     { role: "system", content: system },
     { role: "user", content: user },
   ]);
@@ -193,11 +217,13 @@ export async function proposeStoryboard(openaiKey, { shots, brief }) {
 const STUDIOS = /\b(pixar|disney|dreamworks|illumination|ghibli)\b/gi;
 
 /** Clamp the model's frames to the reference shots: same count, same durations, no studio names. */
-export function normalizeFrames(frames, shots) {
-  const list = Array.isArray(frames) ? frames : [];
+export function normalizeFrames(frames: unknown, shots: Array<ReferenceShot>) {
+  const list: Array<ProposedFrame | null | undefined> = Array.isArray(frames)
+    ? frames
+    : [];
   return shots.map((shot, index) => {
     const frame = list[index] ?? {};
-    const clean = (value) =>
+    const clean = (value: unknown) =>
       String(value ?? "")
         .replace(STUDIOS, "animated feature")
         .trim();
@@ -212,6 +238,36 @@ export function normalizeFrames(frames, shots) {
       referenceShot: shot.index,
     };
   });
+}
+
+/** A word-level transcript and the engine that made it (null: no key to transcribe with). */
+export interface Transcript {
+  provider: string | null;
+  language: string | null;
+  text: string;
+  words: Array<{ text: string; start: number; end: number; type?: string }>;
+}
+
+/** What the vision model says about one shot (all model output, so nothing is checked). */
+interface DescribedShot {
+  index?: unknown;
+  shot_type?: string;
+  description?: string;
+  motion?: string;
+  on_screen_text?: string;
+}
+
+/** A reference shot with what the model saw in it and the words spoken over it. */
+export type ReferenceShot = Shot & DescribedShot & { transcript?: string };
+
+/** A storyboard frame as the planning model returns it. */
+interface ProposedFrame {
+  title?: unknown;
+  shot?: unknown;
+  visualPrompt?: unknown;
+  motionPrompt?: unknown;
+  overlayText?: unknown;
+  voiceover?: unknown;
 }
 
 /** OpenAI token counts for one call. */
