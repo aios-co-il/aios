@@ -6,9 +6,32 @@ import {
 import {
   asCursorSessionId,
   cursorSessionUrl,
+  type CursorSessionQuery,
+  type CursorSessionReader,
   missingCursorDirectSessionError,
   resolveCursorDirectSession,
 } from "./cursor-direct-session.ts";
+
+function mockReader(
+  single: (table: string) => unknown,
+  rows: unknown = [],
+): CursorSessionReader {
+  return {
+    from(table) {
+      const chain: CursorSessionQuery = {
+        match: () => chain,
+        not: () => chain,
+        order: () => chain,
+        limit: () => chain,
+        maybeSingle: async () => ({ data: single(table) }),
+        then(resolve, reject) {
+          return Promise.resolve({ data: rows }).then(resolve, reject);
+        },
+      };
+      return { select: () => chain };
+    },
+  };
+}
 
 Deno.test("asCursorSessionId accepts bc- ids only", () => {
   assertStrictEquals(asCursorSessionId("bc-abc"), "bc-abc");
@@ -36,40 +59,14 @@ Deno.test(
 Deno.test(
   "resolveCursorDirectSession falls back to cursor_sticky_agents",
   async () => {
-    const sb = {
-      from(table: string) {
-        const chain: any = {
-          select() {
-            return chain;
-          },
-          eq() {
-            return chain;
-          },
-          not() {
-            return chain;
-          },
-          order() {
-            return chain;
-          },
-          limit() {
-            return chain;
-          },
-          maybeSingle: async () =>
-            table === "cursor_sticky_agents"
-              ? {
-                  data: {
-                    cursor_agent_id: "bc-sticky-db",
-                    session_url: "https://cursor.com/agents/bc-sticky-db",
-                  },
-                }
-              : { data: null },
-          then(resolve: (v: { data: unknown }) => unknown) {
-            return Promise.resolve({ data: [] }).then(resolve);
-          },
-        };
-        return chain;
-      },
-    };
+    const sb = mockReader((table) =>
+      table === "cursor_sticky_agents"
+        ? {
+            cursor_agent_id: "bc-sticky-db",
+            session_url: "https://cursor.com/agents/bc-sticky-db",
+          }
+        : null,
+    );
     const session = await resolveCursorDirectSession(sb, {
       tenantId: "t1",
       env: {},
@@ -80,34 +77,25 @@ Deno.test(
 );
 
 Deno.test(
+  "resolveCursorDirectSession falls back to the latest cursor channel session",
+  async () => {
+    const sb = mockReader(() => null, [{ external_session_id: "bc-last" }]);
+    const session = await resolveCursorDirectSession(sb, {
+      tenantId: "t1",
+      env: {},
+    });
+    assertEquals(session, {
+      sessionId: "bc-last",
+      sessionUrl: cursorSessionUrl("bc-last"),
+      source: "db:agent_channel_sessions",
+    });
+  },
+);
+
+Deno.test(
   "resolveCursorDirectSession returns null when nothing configured",
   async () => {
-    const sb = {
-      from() {
-        const chain: any = {
-          select() {
-            return chain;
-          },
-          eq() {
-            return chain;
-          },
-          not() {
-            return chain;
-          },
-          order() {
-            return chain;
-          },
-          limit() {
-            return chain;
-          },
-          maybeSingle: async () => ({ data: null }),
-          then(resolve: (v: { data: unknown }) => unknown) {
-            return Promise.resolve({ data: [] }).then(resolve);
-          },
-        };
-        return chain;
-      },
-    };
+    const sb = mockReader(() => null);
     const session = await resolveCursorDirectSession(sb, {
       tenantId: "t1",
       env: {},

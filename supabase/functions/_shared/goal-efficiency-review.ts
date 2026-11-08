@@ -2,6 +2,7 @@
  * Post-iteration efficiency review — Carmen measures resource use and asks Cursor to optimize.
  */
 
+import type { Json } from "./database.types.ts";
 import { dispatchToGoalCursor } from "./goal-cursor-dispatch.ts";
 import { modelRouterJSON } from "./model-router.ts";
 import { buildEfficiencyReviewBrainPrompt } from "./goal-brain-apply.ts";
@@ -10,6 +11,7 @@ import {
   goalBrainApiFallbackEnabled,
   queueBrainRequest,
 } from "./goal-cursor-brain.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export type GoalResourceMetrics = {
   goal_id: string;
@@ -27,8 +29,9 @@ export type GoalResourceMetrics = {
   plan_steps_pending: number;
 };
 
+/** Collect the resource usage used by goal efficiency review. */
 export async function collectGoalResourceMetrics(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
   goalId: string,
   iterationId: string,
@@ -76,18 +79,9 @@ export async function collectGoalResourceMetrics(
       (a: { status: string }) => a.status === "failed",
     ).length,
     model_calls: modelRows.length,
-    tokens_in: modelRows.reduce(
-      (s: number, r: { tokens_in?: number }) => s + (r.tokens_in || 0),
-      0,
-    ),
-    tokens_out: modelRows.reduce(
-      (s: number, r: { tokens_out?: number }) => s + (r.tokens_out || 0),
-      0,
-    ),
-    cost_usd: modelRows.reduce(
-      (s: number, r: { cost_usd?: number }) => s + Number(r.cost_usd || 0),
-      0,
-    ),
+    tokens_in: modelRows.reduce((s, r) => s + (r.tokens_in || 0), 0),
+    tokens_out: modelRows.reduce((s, r) => s + (r.tokens_out || 0), 0),
+    cost_usd: modelRows.reduce((s, r) => s + Number(r.cost_usd || 0), 0),
     stuck_score: stuckScore,
     cursor_dispatches: actionRows.filter(
       (a: { action_type?: string }) => a.action_type === "cursor",
@@ -151,8 +145,9 @@ Metrics: ${JSON.stringify(metrics, null, 2)}`;
   };
 }
 
+/** Review resource efficiency after the completed goal iteration. */
 export async function runPostIterationEfficiencyReview(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
@@ -161,7 +156,7 @@ export async function runPostIterationEfficiencyReview(
     iterationId: string;
     iterationNumber: number;
     stuckScore: number;
-    constraints?: Record<string, unknown>;
+    constraints?: Json;
   },
 ): Promise<{
   metrics: GoalResourceMetrics;

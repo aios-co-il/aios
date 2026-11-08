@@ -21,6 +21,7 @@ import { PersonalApiKeyCard } from "@/components/carmen-command/PersonalApiKeyCa
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { CalendarIframeSettings } from "@/components/CalendarIframeSettings";
 import { CalendarSharingSettings } from "@/components/CalendarSharingSettings";
+import { isPresent } from "@/lib/typeGuards";
 
 export default function MyProfile() {
   const { userId } = useCurrentUser();
@@ -132,7 +133,7 @@ export default function MyProfile() {
         )
         .eq("sales_person_id", profile.sales_person_id);
       if (error) throw error;
-      return (data || []).map((row: any) => row.agencies).filter(Boolean);
+      return (data || []).map((row) => row.agencies).filter(isPresent);
     },
     enabled: !!profile?.sales_person_id,
   });
@@ -155,7 +156,7 @@ export default function MyProfile() {
         .eq("campaigner_id", profile.campaigner_id);
 
       if (error) throw error;
-      return data?.map((item) => item.agencies).filter(Boolean) || [];
+      return data?.map((item) => item.agencies).filter(isPresent) || [];
     },
     enabled: !!profile?.campaigner_id,
   });
@@ -177,16 +178,16 @@ export default function MyProfile() {
         )
         .eq("user_id", userId);
       if (error) throw error;
-      return data?.map((item: any) => item.agencies).filter(Boolean) || [];
+      return data?.map((item) => item.agencies).filter(isPresent) || [];
     },
     enabled: !!userId,
   });
 
   // Merge agencies from campaigner links and managed agencies
   const mergedAgencies = (() => {
-    const map = new Map<string, any>();
-    (agencies || []).forEach((a: any) => a && map.set(a.id, a));
-    (managedAgencies || []).forEach((a: any) => a && map.set(a.id, a));
+    const map = new Map<string, { id: string; name: string }>();
+    (agencies || []).forEach((a) => map.set(a.id, a));
+    (managedAgencies || []).forEach((a) => map.set(a.id, a));
     return Array.from(map.values());
   })();
 
@@ -377,7 +378,7 @@ export default function MyProfile() {
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">סוכנויות</h3>
               <div className="flex flex-wrap gap-2">
-                {mergedAgencies.map((agency: any) => (
+                {mergedAgencies.map((agency) => (
                   <Badge key={agency.id} variant="outline">
                     {agency.name}
                   </Badge>
@@ -393,7 +394,7 @@ export default function MyProfile() {
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg">סוכנויות</h3>
                 <div className="flex flex-wrap gap-2">
-                  {salesPersonAgencies.map((agency: any) => (
+                  {salesPersonAgencies.map((agency) => (
                     <Badge key={agency.id} variant="outline">
                       {agency.name}
                     </Badge>

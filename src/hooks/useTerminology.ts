@@ -36,7 +36,7 @@ export function useTerminology() {
       if (!tenantId) return {};
 
       const { data, error } = await supabase
-        .from("tenant_terminology" as any)
+        .from("tenant_terminology")
         .select("term_key, singular, plural")
         .eq("tenant_id", tenantId);
 
@@ -44,7 +44,7 @@ export function useTerminology() {
 
       // Convert to map for easy lookup
       const termsMap: Record<string, { singular: string; plural: string }> = {};
-      (data as any)?.forEach((term: any) => {
+      data?.forEach((term) => {
         termsMap[term.term_key] = {
           singular: term.singular,
           plural: term.plural,

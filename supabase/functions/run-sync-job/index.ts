@@ -1,4 +1,18 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
+import type { Json } from "../_shared/database.types.ts";
+import { asJsonObject, jsonField } from "../_shared/json-fields.ts";
+import { readSyncProgress, type SyncResult } from "./sync-progress.ts";
+
+/** ManyChat custom field id as stored in settings or returned by the API. */
+type ManyChatFieldId = string | number;
+
+/** Read the supported provider custom-field identifier. */
+function asFieldId(value: Json | undefined): ManyChatFieldId | null {
+  return typeof value === "string" || typeof value === "number" ? value : null;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,7 +107,8 @@ function getPhoneLookupCandidates(phone: string): string[] {
   );
 }
 
-async function safeJson(res: Response): Promise<any> {
+/** Decode a provider response while retaining bounded failure diagnostics. */
+async function safeJson(res: Response): Promise<Json> {
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
   if (!contentType.includes("application/json")) {
@@ -124,11 +139,12 @@ async function triggerNextRun(
   });
 }
 
+/** Resolve the ManyChat custom field used for phone lookups. */
 async function getPhoneNumberFieldId(
   apiKey: string,
-  supabase: any,
+  supabase: SupabaseClient,
   tenantId: string,
-): Promise<number | null> {
+): Promise<ManyChatFieldId | null> {
   const { data: integration } = await supabase
     .from("tenant_integrations")
     .select("settings")
@@ -136,9 +152,10 @@ async function getPhoneNumberFieldId(
     .eq("integration_type", "manychat")
     .single();
 
-  const settings = (integration?.settings as Record<string, any>) || {};
-  if (settings.phone_number_field_id) {
-    return settings.phone_number_field_id;
+  const settings = asJsonObject(integration?.settings) ?? {};
+  const storedFieldId = asFieldId(settings.phone_number_field_id);
+  if (storedFieldId) {
+    return storedFieldId;
   }
 
   const res = await fetch("https://api.manychat.com/fb/page/getCustomFields", {
@@ -149,19 +166,22 @@ async function getPhoneNumberFieldId(
   });
 
   const data = await safeJson(res);
-  if (data?.status === "success" && Array.isArray(data?.data)) {
-    const phoneField = data.data.find(
-      (f: any) => f.name?.toLowerCase() === "phone_number",
-    );
-    if (phoneField?.id) {
+  const fields = jsonField(data, "data");
+  if (jsonField(data, "status") === "success" && Array.isArray(fields)) {
+    const phoneField = fields.find((f) => {
+      const name = jsonField(f, "name");
+      return typeof name === "string" && name.toLowerCase() === "phone_number";
+    });
+    const phoneFieldId = asFieldId(jsonField(phoneField, "id"));
+    if (phoneFieldId) {
       await supabase
         .from("tenant_integrations")
         .update({
-          settings: { ...settings, phone_number_field_id: phoneField.id },
+          settings: { ...settings, phone_number_field_id: phoneFieldId },
         })
         .eq("tenant_id", tenantId)
         .eq("integration_type", "manychat");
-      return phoneField.id;
+      return phoneFieldId;
     }
   }
   return null;
@@ -184,8 +204,9 @@ async function findSubscriberByPhone(
       continue;
     }
     const data = await safeJson(res);
-    if (data?.status === "success" && data?.data?.id) {
-      return String(data.data.id);
+    const subscriberId = jsonField(jsonField(data, "data"), "id");
+    if (jsonField(data, "status") === "success" && subscriberId) {
+      return String(subscriberId);
     }
   }
   return null;
@@ -208,15 +229,17 @@ async function findSubscriberByEmail(
     return null;
   }
   const data = await safeJson(res);
-  if (data?.status === "success" && data?.data?.id) {
-    return String(data.data.id);
+  const subscriberId = jsonField(jsonField(data, "data"), "id");
+  if (jsonField(data, "status") === "success" && subscriberId) {
+    return String(subscriberId);
   }
   return null;
 }
 
+/** Find the ManyChat subscriber matching the selected custom field. */
 async function findSubscriberByCustomField(
   apiKey: string,
-  fieldId: number,
+  fieldId: ManyChatFieldId,
   candidates: string[],
 ): Promise<string | null> {
   for (const candidate of candidates) {
@@ -232,17 +255,19 @@ async function findSubscriberByCustomField(
       continue;
     }
     const data = await safeJson(res);
-    if (data?.status === "success" && data?.data?.id) {
-      return String(data.data.id);
+    const subscriberId = jsonField(jsonField(data, "data"), "id");
+    if (jsonField(data, "status") === "success" && subscriberId) {
+      return String(subscriberId);
     }
   }
   return null;
 }
 
+/** Write a supported value to the provider custom field. */
 async function setCustomField(
   apiKey: string,
   subscriberId: string,
-  fieldId: number,
+  fieldId: ManyChatFieldId,
   value: string,
 ): Promise<boolean> {
   const res = await fetch(
@@ -261,16 +286,7 @@ async function setCustomField(
     },
   );
   const data = await safeJson(res);
-  return data?.status === "success";
-}
-
-interface SyncResult {
-  leadId: string;
-  leadName: string;
-  success: boolean;
-  subscriberId?: string;
-  error?: string;
-  skipped?: boolean;
+  return jsonField(data, "status") === "success";
 }
 
 Deno.serve(async (req) => {
@@ -360,10 +376,14 @@ Deno.serve(async (req) => {
     }
 
     const tenantId = job.tenant_id;
-    const settings = job.settings as { tagId?: number; delayMs?: number };
+    const settings = job.settings as {
+      tagId?: number;
+      delayMs?: number;
+      batchSize?: number;
+    };
     const tagId = settings.tagId || 79380109;
     const delayMs = settings.delayMs || 1000;
-    const batchSize = (job.settings as any)?.batchSize ?? DEFAULT_BATCH_SIZE;
+    const batchSize = settings.batchSize ?? DEFAULT_BATCH_SIZE;
 
     // Get ManyChat integration
     const { data: integration } = await supabase
@@ -401,13 +421,12 @@ Deno.serve(async (req) => {
     let processedThisRun = 0;
 
     // Process leads in a loop until done/stopped OR we hit our batch/runtime limits
-    let processedTotal = (job.progress as any)?.processed || 0;
-    let failedTotal = (job.progress as any)?.failed || 0;
-    let conflictsTotal = (job.progress as any)?.conflicts || 0;
-    const totalLeads = (job.progress as any)?.total || 0;
-    const allResults: SyncResult[] = (
-      (job.progress as any)?.results || []
-    ).slice(-50); // Keep last 50 results
+    const storedProgress = readSyncProgress(job.progress);
+    let processedTotal = storedProgress.processed;
+    let failedTotal = storedProgress.failed;
+    let conflictsTotal = storedProgress.conflicts;
+    const totalLeads = storedProgress.total;
+    const allResults: SyncResult[] = storedProgress.results.slice(-50); // Keep last 50 results
 
     while (true) {
       // Stop if we are close to runtime limits
@@ -495,8 +514,9 @@ Deno.serve(async (req) => {
           );
 
           const createData = await safeJson(createRes);
-          if (createData.status === "success" && createData.data?.id) {
-            subscriberId = createData.data.id;
+          const createdId = jsonField(jsonField(createData, "data"), "id");
+          if (jsonField(createData, "status") === "success" && createdId) {
+            subscriberId = String(createdId);
           } else if (
             JSON.stringify(createData).toLowerCase().includes("already exists")
           ) {

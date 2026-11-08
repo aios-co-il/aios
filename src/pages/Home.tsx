@@ -34,6 +34,7 @@ import {
   ShieldCheck,
   BarChart2,
   Home as HomeIcon,
+  type LucideIcon,
 } from "lucide-react";
 
 // ─── Module definitions ───────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ type ModuleItem = {
   label: string;
   description: string;
   route: string;
-  icon: any;
+  icon: LucideIcon;
   permission?: string;
   color: string;
 };
@@ -50,7 +51,7 @@ type ModuleItem = {
 type Category = {
   id: string;
   label: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
   modules: ModuleItem[];
 };
@@ -350,7 +351,7 @@ export default function Home() {
 
   const canAccess = (permission?: string) => {
     if (!permission) return true;
-    return hasPermission(permission as any);
+    return hasPermission(permission);
   };
 
   const handleNavigate = (route: string) => {

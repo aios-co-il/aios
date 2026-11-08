@@ -15,10 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { User, Target } from "lucide-react";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface UploadedFile {
   id: string;
@@ -84,7 +86,7 @@ export function LinkFileToEntityDialog({
     }
     setSaving(true);
     try {
-      const updates: any = {};
+      const updates: TablesUpdate<"team_chat_files"> = {};
       if (clientId && clientId !== "none") updates.client_id = clientId;
       if (leadId && leadId !== "none") updates.lead_id = leadId;
 
@@ -97,8 +99,8 @@ export function LinkFileToEntityDialog({
       toast.success(`${files.length} קבצים שויכו בהצלחה`);
       onLinked();
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -133,7 +135,7 @@ export function LinkFileToEntityDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">ללא</SelectItem>
-                {clients.map((c: any) => (
+                {clients.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>
@@ -158,7 +160,7 @@ export function LinkFileToEntityDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">ללא</SelectItem>
-                {leads.map((l: any) => (
+                {leads.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     {l.company_name || l.contact_name}
                   </SelectItem>

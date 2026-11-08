@@ -1,4 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Tables } from "../_shared/database.types.ts";
+import { asJsonObject } from "../_shared/json-fields.ts";
+
+type IntegrationStatusRow = Pick<
+  Tables<"tenant_integrations">,
+  "is_active" | "settings" | "created_at" | "updated_at"
+> &
+  Partial<Pick<Tables<"tenant_integrations">, "api_key">>;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,7 +92,7 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       // Get integration status - check for dataforseo first, fallback to serpapi for backwards compatibility
-      let integration = null;
+      let integration: IntegrationStatusRow | null = null;
 
       const { data: dataforSeoIntegration } = await supabase
         .from("tenant_integrations")
@@ -106,13 +114,12 @@ Deno.serve(async (req) => {
         integration = serpIntegration;
       }
 
-      const settings = integration?.settings as Record<string, any> | null;
+      const settings = asJsonObject(integration?.settings);
       return new Response(
         JSON.stringify({
           connected: !!integration?.is_active,
           has_credentials:
-            !!(settings?.email && settings?.password) ||
-            !!(integration as any)?.api_key,
+            !!(settings?.email && settings?.password) || !!integration?.api_key,
           created_at: integration?.created_at,
           updated_at: integration?.updated_at,
         }),
@@ -266,10 +273,7 @@ Deno.serve(async (req) => {
         .eq("is_active", true)
         .single();
 
-      const settings = dataforSeoIntegration?.settings as Record<
-        string,
-        any
-      > | null;
+      const settings = asJsonObject(dataforSeoIntegration?.settings);
 
       if (dataforSeoIntegration && settings?.email && settings?.password) {
         // Get fresh data from DataForSEO

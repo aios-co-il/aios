@@ -9,9 +9,17 @@ import {
   mcpJsonRpc,
   resyncInternalMcpBearer,
 } from "./mcp-bearer.ts";
+import type { Json, Tables } from "./database.types.ts";
+import {
+  asJsonObject,
+  jsonField,
+  type JsonObject,
+  thrownMessage,
+} from "./json-fields.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 /** Coding-agent dispatch tools that often outlive a short HTTP wait. */
-function isCodingAgentDispatchTool(remoteName: string): boolean {
+function isCodingAgentDispatchTool(remoteName: Json): boolean {
   const n = String(remoteName || "").toLowerCase();
   return (
     n === "request_dev_task" ||
@@ -25,7 +33,7 @@ function isCodingAgentDispatchTool(remoteName: string): boolean {
 /** Soft result so Carmen does not tell David "Cursor didn't receive" on client abort. */
 export function codingAgentDispatchTimeoutResult(
   connName: string,
-  remoteName: string,
+  remoteName: Json,
 ): Record<string, unknown> {
   return {
     ok: false,
@@ -43,19 +51,26 @@ export function codingAgentDispatchTimeoutResult(
 }
 
 export interface McpLoaded {
-  toolDefs: Array<{ name: string; description?: string; parameters: any }>;
-  executors: Map<string, (args: any) => Promise<any>>;
+  toolDefs: Array<{ name: string; description?: string; parameters: Json }>;
+  executors: Map<string, (args: JsonObject) => Promise<unknown>>;
   connectionsCount: number;
 }
 
-interface McpConnRow {
-  id: string;
-  name: string;
-  url: string;
-  state: string;
-  oauth_tokens: any;
-  available_tools: any;
-  updated_at?: string | null;
+type McpConnRow = Pick<
+  Tables<"agent_mcp_connections">,
+  | "id"
+  | "name"
+  | "url"
+  | "state"
+  | "oauth_tokens"
+  | "available_tools"
+  | "updated_at"
+>;
+
+/** Resolve the bearer credential from a stored MCP connection. */
+function bearerOf(conn: McpConnRow): string | undefined {
+  const bearer = jsonField(conn.oauth_tokens, "bearer");
+  return typeof bearer === "string" ? bearer : undefined;
 }
 
 // A connection's tool list rarely changes; reusing the stored list for a few minutes saves a
@@ -81,15 +96,25 @@ function sanitizeToolName(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
 }
 
+/** Read the available MCP tool names from the provider response. */
+function toolNames(list: Json[]): string {
+  return (list || [])
+    .map((t) => jsonField(t, "name"))
+    .filter(Boolean)
+    .sort()
+    .join(",");
+}
+
+/** Retry an MCP request after refreshing stale internal credentials. */
 async function callMcpWithResync(
-  supabase: any,
+  supabase: DbClient,
   conn: McpConnRow,
   tenantId: string,
   method: string,
-  params: any = {},
+  params: Json = {},
   id = 1,
-): Promise<{ resp: any; bearer: string | undefined }> {
-  let bearer = conn.oauth_tokens?.bearer as string | undefined;
+): Promise<{ resp: Json; bearer: string | undefined }> {
+  let bearer = bearerOf(conn);
   try {
     return {
       resp: await mcpJsonRpc(conn.url, bearer, method, params, id),
@@ -124,10 +149,10 @@ async function callMcpWithResync(
  * refreshes the stored copy and its timestamp.
  */
 async function toolsForConnection(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   conn: McpConnRow,
-): Promise<{ tools: any[]; live: boolean }> {
+): Promise<{ tools: Json[]; live: boolean }> {
   const cached = Array.isArray(conn.available_tools)
     ? conn.available_tools
     : [];
@@ -141,21 +166,21 @@ async function toolsForConnection(
       tenantId,
       "tools/list",
     );
-    const live = resp?.result?.tools;
-    if (Array.isArray(live) && live.length > 0) {
+    const live = jsonField(jsonField(resp, "result"), "tools");
+    if (Array.isArray(live) && live.length > 0)
       return { tools: live, live: true };
-    }
   } catch (e) {
     console.warn(
       `[mcp-tools] tools/list failed for ${conn.name}:`,
-      (e as any)?.message ?? e,
+      thrownMessage(e),
     );
   }
   return { tools: cached, live: false };
 }
 
+/** Load the connected MCP tools used by the agent. */
 export async function loadMcpTools(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   agentId?: string | null,
   disabledIntegrations: string[] = [],
@@ -185,12 +210,10 @@ export async function loadMcpTools(
   if (error || !data?.length) return empty;
 
   const toolDefs: McpLoaded["toolDefs"] = [];
-  const executors = new Map<string, (args: any) => Promise<any>>();
+  const executors: McpLoaded["executors"] = new Map();
 
   // Access control: skip integrations turned OFF for this agent.
-  const connections = (data as McpConnRow[]).filter(
-    (conn) => !disabledSet.has(conn.name),
-  );
+  const connections = data.filter((conn) => !disabledSet.has(conn.name));
   // Every connection's tool list at once, not one round trip after another.
   const toolLists = await Promise.all(
     connections.map((conn) => toolsForConnection(supabase, tenantId, conn)),
@@ -198,7 +221,7 @@ export async function loadMcpTools(
 
   for (const [index, conn] of connections.entries()) {
     const { tools, live } = toolLists[index];
-    const bearer = conn.oauth_tokens?.bearer as string | undefined;
+    const bearer = bearerOf(conn);
     const connSlug = sanitizeToolName(conn.name || conn.id.slice(0, 6));
 
     // A live answer refreshes the stored list and its timestamp, changed or not.
@@ -214,28 +237,31 @@ export async function loadMcpTools(
           .eq("id", conn.id)
           .eq("tenant_id", tenantId);
       } catch (e) {
-        console.warn(
-          "[mcp-tools] cache refresh failed:",
-          (e as any)?.message ?? e,
-        );
+        console.warn("[mcp-tools] cache refresh failed:", thrownMessage(e));
       }
     }
 
-    for (const t of tools) {
-      if (!t?.name) continue;
-      const prefixed = sanitizeToolName(`mcp_${connSlug}__${t.name}`);
+    for (const tool of tools) {
+      const t = asJsonObject(tool);
+      const remoteName = t?.name;
+      if (typeof remoteName !== "string" || !remoteName) {
+        console.warn("[mcp-tools] skipped invalid tool name", {
+          connectionId: conn.id,
+        });
+        continue;
+      }
+      const prefixed = sanitizeToolName(`mcp_${connSlug}__${remoteName}`);
       if (executors.has(prefixed)) continue;
       toolDefs.push({
         name: prefixed,
-        description: `[MCP:${conn.name}] ${t.description || t.name}`.slice(
+        description: `[MCP:${conn.name}] ${t.description || remoteName}`.slice(
           0,
           1000,
         ),
         parameters: t.inputSchema ||
           t.input_schema || { type: "object", properties: {} },
       });
-      const remoteName = t.name as string;
-      executors.set(prefixed, async (args: any) => {
+      executors.set(prefixed, async (args) => {
         try {
           const { resp } = await callMcpWithResync(
             supabase,
@@ -247,20 +273,21 @@ export async function loadMcpTools(
               arguments: args ?? {},
             },
           );
-          if (resp?.error) {
+          const rpcError = jsonField(resp, "error");
+          if (rpcError) {
             throw new Error(
-              `MCP ${conn.name}/${remoteName}: ${resp.error.message || JSON.stringify(resp.error)}`,
+              `MCP ${conn.name}/${remoteName}: ${jsonField(rpcError, "message") || JSON.stringify(rpcError)}`,
             );
           }
-          const content = resp?.result?.content;
+          const content = jsonField(jsonField(resp, "result"), "content");
           // Flatten common content shapes to plain text/json for the model.
           if (Array.isArray(content)) {
             const parts = content
-              .map((c: any) => c?.text ?? c?.data ?? c)
+              .map((c) => jsonField(c, "text") ?? jsonField(c, "data") ?? c)
               .filter(Boolean);
             return parts.length === 1 ? parts[0] : parts;
           }
-          return resp?.result ?? resp;
+          return jsonField(resp, "result") ?? resp;
         } catch (e) {
           if (isMcpTimeoutError(e) && isCodingAgentDispatchTool(remoteName)) {
             console.warn(

@@ -1,4 +1,9 @@
-import { lazy, type ComponentType, type LazyExoticComponent } from "react";
+import {
+  lazy,
+  type ComponentProps,
+  type ComponentType,
+  type LazyExoticComponent,
+} from "react";
 import { isChunkLoadError } from "./chunkErrors";
 
 const RETRY_KEY = "aios-lazy-chunk-reload";
@@ -7,7 +12,7 @@ const RETRY_KEY = "aios-lazy-chunk-reload";
  * lazy() that reloads once on a stale-chunk miss instead of throwing into
  * the full-page error boundary.
  */
-export function lazyWithRetry<T extends ComponentType<any>>(
+export function lazyWithRetry<T extends ComponentType<ComponentProps<T>>>(
   factory: () => Promise<{ default: T }>,
 ): LazyExoticComponent<T> {
   return lazy(async () => {

@@ -110,7 +110,7 @@ export function ConvertMessageToTaskDialog({
         .select("campaigner_id, campaigners(id, full_name)")
         .eq("agency_id", selectedAgencyId);
 
-      return data?.map((ca: any) => ca.campaigners).filter(Boolean) || [];
+      return data?.map((ca) => ca.campaigners).filter((c) => c != null) || [];
     },
     enabled: !!tenantId && !!selectedAgencyId && open,
   });
@@ -144,7 +144,7 @@ export function ConvertMessageToTaskDialog({
       onOpenChange(false);
       form.reset();
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Create task error:", error);
       toast.error("שגיאה ביצירת המשימה");
     },
@@ -216,7 +216,7 @@ export function ConvertMessageToTaskDialog({
                 <SelectValue placeholder="בחר קמפיינר" />
               </SelectTrigger>
               <SelectContent>
-                {campaigners.map((campaigner: any) => (
+                {campaigners.map((campaigner) => (
                   <SelectItem key={campaigner.id} value={campaigner.id}>
                     {campaigner.full_name}
                   </SelectItem>

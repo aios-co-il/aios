@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,12 +63,20 @@ import {
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTerminology } from "@/hooks/useTerminology";
 
+type EditableTimeEntry = Pick<
+  Tables<"time_entries">,
+  "id" | "start_time" | "end_time"
+>;
+type BreakPeriod = Pick<Tables<"time_entry_breaks">, "start_time" | "end_time">;
+
 export default function TimeTracking() {
   const { tenantId } = useCurrentTenant();
   const { t } = useTerminology();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedCampaigner, setSelectedCampaigner] = useState<string>("me");
-  const [editingEntry, setEditingEntry] = useState<any>(null);
+  const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(
+    null,
+  );
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
   const [filterStartDate, setFilterStartDate] = useState<Date | undefined>(
@@ -435,7 +444,7 @@ export default function TimeTracking() {
     },
   });
 
-  const handleEditClick = (entry: any) => {
+  const handleEditClick = (entry: EditableTimeEntry) => {
     setEditingEntry(entry);
     setEditStartTime(format(new Date(entry.start_time), "yyyy-MM-dd'T'HH:mm"));
     setEditEndTime(
@@ -468,7 +477,7 @@ export default function TimeTracking() {
   };
 
   // Calculate total break time for a given list of breaks
-  const calculateBreakTime = (breaks: any[]) => {
+  const calculateBreakTime = (breaks: BreakPeriod[]) => {
     if (!breaks || breaks.length === 0) return 0;
     return breaks.reduce((acc, brk) => {
       if (!brk.end_time) {
@@ -493,7 +502,7 @@ export default function TimeTracking() {
   const calculateNetWorkTime = (
     start: string,
     end: string | null,
-    breaks: any[],
+    breaks: BreakPeriod[],
   ) => {
     const startDate = new Date(start);
     const endDate = end ? new Date(end) : currentTime;

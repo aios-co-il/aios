@@ -10,6 +10,16 @@ export type ChannelProvider =
   | "parliament"
   /** A chat-model brain connected from Carmen settings (carmen_brain_connections). */
   | "model";
+export const CHANNEL_PROVIDERS: readonly ChannelProvider[] = [
+  "cursor",
+  "grok",
+  "codex",
+  "claude",
+  "chatgpt",
+  "internal",
+  "parliament",
+  "model",
+];
 export type CloudDirectProvider = "cursor" | "grok";
 export type WorkspaceProvider = "chatgpt" | "codex";
 export type ConversationStatus =
@@ -129,7 +139,7 @@ export type CallbackPayload = {
   tenant_id?: string;
   conversation_id: string;
   session_id?: string;
-  origin: ChannelProvider;
+  origin?: ChannelProvider;
   content: string;
   event_type?: MessageEventType;
   speaker?: string;

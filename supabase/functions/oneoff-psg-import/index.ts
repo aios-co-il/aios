@@ -1,6 +1,7 @@
 // One-off import for tenant פ.ד פסגות. Safe to leave; idempotent via DELETE+INSERT for empty tenant only when ?reset=1.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import leads from "./leads.json" with { type: "json" };
+import { unknownField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
     const tagLinks: { lead_id: string; tag_id: string }[] = [];
 
     for (let i = 0; i < leads.length; i += BATCH) {
-      const batch = leads.slice(i, i + BATCH).map((l: any) => {
+      const batch = leads.slice(i, i + BATCH).map((l) => {
         const id = crypto.randomUUID();
         const company =
           l.name || (l.email ? l.email.split("@")[0] : `ליד ${l.phone}`);
@@ -88,8 +89,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ error: unknownField(e, "message") }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

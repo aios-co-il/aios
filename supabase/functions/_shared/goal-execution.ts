@@ -3,7 +3,10 @@
  * No Cursor concurrency limits — priority, dedup, status, links, reporting only.
  */
 
+import type { TablesInsert } from "./database.types.ts";
 import { titleSimilarity } from "./dev-tasks.ts";
+import { toJson } from "./json-fields.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export const EXECUTION_GOAL_STATUSES = [
   "active",
@@ -73,8 +76,9 @@ export type UnifiedGoalCreateArgs = {
   agentId?: string | null;
 };
 
+/** Persist an event in the goal execution audit trail. */
 export async function logGoalEvent(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     goalId: string;
     tenantId: string;
@@ -90,12 +94,13 @@ export async function logGoalEvent(
     event_type: args.eventType,
     actor: args.actor ?? "system",
     actor_user_id: args.actorUserId ?? null,
-    detail: args.detail ?? {},
+    detail: toJson(args.detail ?? {}),
   });
 }
 
+/** Find candidate goals before creating another execution goal. */
 export async function findDuplicateGoals(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
   title: string,
   threshold = 0.5,
@@ -110,8 +115,8 @@ export async function findDuplicateGoals(
     .limit(40);
   if (error) throw error;
   return (data || [])
-    .map((row: ExecutionGoalRow) => ({
-      goal: row,
+    .map((row) => ({
+      goal: row as ExecutionGoalRow,
       score: titleSimilarity(title, row.title),
     }))
     .filter((x) => x.score >= threshold)
@@ -133,12 +138,13 @@ export function isAutonomousSchemaError(error: unknown): boolean {
   );
 }
 
+/** Build the persisted goal insert from its validated inputs. */
 function buildExecutionGoalRow(
   args: UnifiedGoalCreateArgs,
   autonomous: boolean,
   now: string,
-): Record<string, unknown> {
-  const row: Record<string, unknown> = {
+): TablesInsert<"goals"> {
+  const row: TablesInsert<"goals"> = {
     tenant_id: args.tenantId,
     title: args.title.trim(),
     description: args.description ?? null,
@@ -159,8 +165,8 @@ function buildExecutionGoalRow(
     autonomous_mode: true,
     objective: args.objective?.trim() || args.title.trim(),
     engine_status: "PLANNING",
-    constraints: args.constraints ?? {},
-    scope: args.scope ?? {},
+    constraints: toJson(args.constraints ?? {}),
+    scope: toJson(args.scope ?? {}),
     risk_level: args.riskLevel ?? "READ",
     agent_id: args.agentId ?? null,
     next_run_at: now,
@@ -170,7 +176,7 @@ function buildExecutionGoalRow(
 
 /** Single entry point for Command Center goals — manual execution or autonomous engine. */
 export async function createUnifiedGoal(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: UnifiedGoalCreateArgs,
 ): Promise<{
   goal: ExecutionGoalRow;
@@ -252,8 +258,9 @@ export async function createUnifiedGoal(
   };
 }
 
+/** Create the goal execution record and its initial context. */
 export async function createExecutionGoal(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: Omit<UnifiedGoalCreateArgs, "autonomous">,
 ): Promise<ExecutionGoalRow> {
   const { goal } = await createUnifiedGoal(supabase, {
@@ -263,8 +270,9 @@ export async function createExecutionGoal(
   return goal;
 }
 
+/** Persist a milestone for the goal. */
 export async function addGoalMilestone(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
@@ -299,8 +307,9 @@ export async function addGoalMilestone(
   return data;
 }
 
+/** Persist a blocker that prevents goal progress. */
 export async function addGoalBlocker(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
@@ -336,8 +345,9 @@ export async function addGoalBlocker(
   return data;
 }
 
+/** Associate a task with the goal it advances. */
 export async function linkTaskToGoal(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
@@ -363,8 +373,9 @@ export async function linkTaskToGoal(
   return data;
 }
 
+/** Load the execution summary and activity for a goal. */
 export async function getGoalExecutionReport(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
   goalId: string,
   sinceHours = 24,

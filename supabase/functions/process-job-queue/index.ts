@@ -7,6 +7,11 @@ const corsHeaders = {
 };
 
 import { requireAuth } from "../_shared/security.ts";
+import { unknownField } from "../_shared/json-fields.ts";
+
+type JobResult =
+  | { job_id: string; status: "circuit_open" }
+  | { job_id: string; type: string; success: boolean; error: unknown };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -30,7 +35,7 @@ Deno.serve(async (req) => {
     const jobTypes = body.job_types || null;
     const maxJobs = Math.min(body.max_jobs || 10, 50); // Process up to 50 jobs per invocation
 
-    const results: any[] = [];
+    const results: JobResult[] = [];
 
     for (let i = 0; i < maxJobs; i++) {
       // Atomically claim next job
@@ -168,18 +173,19 @@ Deno.serve(async (req) => {
         });
 
         results.push({ job_id: job.id, type: job.job_type, success, error });
-      } catch (jobError: any) {
+      } catch (jobError) {
         console.error(`Error processing job ${job.id}:`, jobError);
+        const jobErrorMessage = unknownField(jobError, "message");
         await supabase.rpc("complete_job", {
           p_job_id: job.id,
           p_success: false,
-          p_error: jobError.message || "Unknown error",
+          p_error: jobErrorMessage || "Unknown error",
         });
         results.push({
           job_id: job.id,
           type: job.job_type,
           success: false,
-          error: jobError.message,
+          error: jobErrorMessage,
         });
       }
     }
@@ -188,11 +194,14 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, processed: results.length, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in process-job-queue:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({ error: unknownField(error, "message") }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      },
+    );
   }
 });

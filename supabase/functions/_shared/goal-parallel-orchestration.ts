@@ -2,6 +2,9 @@
  * Parallel sub-project orchestration — multiple Cursor agents per goal (one per department/track).
  */
 
+import type { Json } from "./database.types.ts";
+import type { DbClient } from "./supabase-clients.ts";
+
 export type ParallelPlanStep = {
   id: string;
   title: string;
@@ -14,7 +17,7 @@ export type ParallelPlanStep = {
   sub_project_label?: string | null;
   cursor_agent_id?: string | null;
   cursor_session_url?: string | null;
-  metadata: Record<string, unknown>;
+  metadata: Json;
 };
 
 export const MAX_PARALLEL_CURSOR_DISPATCH = 6;
@@ -60,13 +63,9 @@ export function selectNextSequentialStep(
     .sort((a, b) => a.priority - b.priority || a.sort_order - b.sort_order)[0];
 }
 
+/** Send the staging-ready notification through the configured database RPC. */
 export async function notifyDavidStagingReady(
-  supabase: {
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ error?: unknown }>;
-  },
+  supabase: DbClient,
   args: {
     tenantId: string;
     goalId: string;
@@ -100,9 +99,23 @@ export async function notifyDavidStagingReady(
   try {
     await supabase.rpc("claude_notify_david", {
       p_message: message.slice(0, 3500),
-      p_tenant_id: args.tenantId,
+      p_tenant: args.tenantId,
     });
   } catch (e) {
     console.warn("[goal-parallel] notify david failed:", e);
   }
+}
+
+/** Await every sibling before surfacing a dispatch failure and releasing the goal lock. */
+export async function settleParallelSteps<Value>(
+  pending: Array<Promise<Value>>,
+): Promise<Array<Value>> {
+  const results = await Promise.allSettled(pending);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed?.status === "rejected") {
+    throw failed.reason;
+  }
+  return results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
 }

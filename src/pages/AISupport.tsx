@@ -31,13 +31,14 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ReactMarkdown from "react-markdown";
 import { invalidateAIEntityQueries } from "@/lib/aiInvalidation";
+import { errorMessage } from "@/lib/typeGuards";
 
 interface Message {
   role: "user" | "assistant" | "tool_call";
   content?: string;
   tool?: string;
-  args?: any;
-  result?: any;
+  args?: unknown;
+  result?: unknown;
   timestamp: string;
 }
 
@@ -128,10 +129,10 @@ export default function AISupport() {
         queryKey: ["ai-conversations", tenantId],
       });
       toast({ title: "השיחה נמחקה" });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה",
-        description: err.message,
+        description: errorMessage(err),
         variant: "destructive",
       });
     }
@@ -262,11 +263,11 @@ export default function AISupport() {
           }
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending message:", error);
       toast({
         title: "שגיאה",
-        description: error.message || "שגיאה בשליחת ההודעה",
+        description: errorMessage(error) || "שגיאה בשליחת ההודעה",
         variant: "destructive",
       });
       setIsStreaming(false);

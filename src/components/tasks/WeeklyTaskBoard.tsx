@@ -1,3 +1,24 @@
+interface RawCalendarEvent {
+  id: string;
+  summary?: string;
+  start?: { dateTime?: string };
+  end?: { dateTime?: string };
+  colorId?: string;
+  calendarId?: string;
+}
+
+type TimedCalendarEvent = RawCalendarEvent & {
+  start: { dateTime: string };
+  end: { dateTime: string };
+};
+
+/** Distinguish timed calendar events from date-only entries. */
+function isTimedCalendarEvent(
+  event: RawCalendarEvent,
+): event is TimedCalendarEvent {
+  return !!(event.start?.dateTime && event.end?.dateTime);
+}
+
 import type { Task } from "./taskTypes";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -5,6 +26,7 @@ import { markLinkedTaskDoneForCalendarEvent } from "@/lib/taskCalendarSync";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   DndContext,
   DragEndEvent,
@@ -411,8 +433,8 @@ export function WeeklyTaskBoard() {
         // Transform to our CalendarEvent format
         // Only include timed events (with dateTime), skip all-day events (with date only)
         const events = (data?.events || [])
-          .filter((event: any) => event.start?.dateTime && event.end?.dateTime)
-          .map((event: any) => ({
+          .filter((event: RawCalendarEvent) => isTimedCalendarEvent(event))
+          .map((event: TimedCalendarEvent) => ({
             id: event.id,
             title: event.summary || "ללא כותרת",
             start: event.start.dateTime,
@@ -963,7 +985,7 @@ export function WeeklyTaskBoard() {
       const validDate =
         date instanceof Date && !isNaN(date.getTime()) ? date : null;
 
-      const insertData: any = {
+      const insertData: TablesInsert<"tasks"> = {
         title,
         status: "open",
         priority: 5,
@@ -1021,6 +1043,7 @@ export function WeeklyTaskBoard() {
       );
 
       let newTask: { id: string } | null = null;
+      let createdTask: Task | null = null;
       if (fanOut) {
         const payloads = assigneeIds.map((campaignerId) => ({
           ...insertData,
@@ -1041,6 +1064,7 @@ export function WeeklyTaskBoard() {
           .single();
         if (error) throw error;
         newTask = created;
+        createdTask = created as Task;
 
         const uniqueCollaborators = Array.from(
           new Set(
@@ -1096,26 +1120,16 @@ export function WeeklyTaskBoard() {
         }
       }
 
-      return fanOut ? { fanOutCount: assigneeIds.length, newTask } : newTask;
+      return { fanOutCount: fanOut ? assigneeIds.length : null, createdTask };
     },
-    onSuccess: (result) => {
-      const fanOutCount =
-        result && typeof result === "object" && "fanOutCount" in result
-          ? (result as { fanOutCount: number }).fanOutCount
-          : null;
-      const newTask =
-        result && typeof result === "object" && "newTask" in result
-          ? (result as { newTask: typeof result }).newTask
-          : result;
-
+    onSuccess: ({ fanOutCount, createdTask }) => {
       // Optimistic add so the user sees it immediately even if filters are restrictive
-      if (newTask && typeof newTask === "object" && "id" in newTask) {
-        setLocalTasks((prev) => {
-          if (!newTask) return prev;
-          return prev.some((t) => t.id === (newTask as any).id)
+      if (createdTask) {
+        setLocalTasks((prev) =>
+          prev.some((t) => t.id === createdTask.id)
             ? prev
-            : [newTask as any, ...prev];
-        });
+            : [createdTask, ...prev],
+        );
       }
 
       queryClient.invalidateQueries({ queryKey: ["tasks", tenantId] });
@@ -1130,7 +1144,7 @@ export function WeeklyTaskBoard() {
     },
     onError: (error) => {
       console.error("[addTask] failed", error);
-      const msg = (error as any)?.message as string | undefined;
+      const msg: string | undefined = error?.message;
       if (msg === "TENANT_NOT_READY") {
         toast.error("המערכת עדיין נטענת, נסי שוב בעוד רגע");
         return;
@@ -1336,7 +1350,7 @@ export function WeeklyTaskBoard() {
     onMutate: async ({ taskId, clientId }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
       const client = clientsList?.find((c) => c.id === clientId) ?? null;
-      const patch = (t: any) =>
+      const patch = (t: Task): Task =>
         t?.id === taskId
           ? {
               ...t,
@@ -1347,7 +1361,7 @@ export function WeeklyTaskBoard() {
                 : null,
             }
           : t;
-      queryClient.setQueriesData<any[]>({ queryKey: ["tasks"] }, (old) => {
+      queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (old) => {
         if (!Array.isArray(old)) return old;
         return old.map(patch);
       });
@@ -1382,7 +1396,7 @@ export function WeeklyTaskBoard() {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
       const campaignerName =
         campaignersList?.find((c) => c.id === campaignerId)?.full_name ?? null;
-      const patch = (t: any) =>
+      const patch = (t: Task): Task =>
         t?.id === taskId
           ? {
               ...t,
@@ -1392,7 +1406,7 @@ export function WeeklyTaskBoard() {
                 : null,
             }
           : t;
-      queryClient.setQueriesData<any[]>({ queryKey: ["tasks"] }, (old) => {
+      queryClient.setQueriesData<Task[]>({ queryKey: ["tasks"] }, (old) => {
         if (!Array.isArray(old)) return old;
         return old.map(patch);
       });

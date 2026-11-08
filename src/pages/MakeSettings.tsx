@@ -277,7 +277,7 @@ export default function MakeSettings() {
         ]);
 
       // If a race condition happened and the row was created between lookup and insert, fall back to update.
-      if (insertError && (insertError as any)?.code === "23505") {
+      if (insertError?.code === "23505") {
         const { data: rowAfterConflict, error: conflictLookupError } =
           await supabase
             .from("tenant_integrations")

@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { jsonField } from "@/lib/typeGuards";
 
 export type GreenAPISettingsProps = {
   /** Render inside a host screen (e.g. Carmen's side panel): no page chrome, no navigation. */
@@ -87,8 +88,10 @@ export default function GreenAPISettings({
       if (error) throw error;
 
       if (data?.settings) {
-        const settings = data.settings as any;
-        setInstanceId(settings.instance_id || "");
+        const savedInstanceId = jsonField(data.settings, "instance_id");
+        setInstanceId(
+          typeof savedInstanceId === "string" ? savedInstanceId : "",
+        );
       }
 
       return data;
@@ -176,7 +179,7 @@ export default function GreenAPISettings({
 
       if (profilesError) throw profilesError;
 
-      return (profilesData || []).map((p: any) => ({
+      return (profilesData || []).map((p) => ({
         id: p.id,
         name: p.full_name || p.email || "משתמש",
         email: p.email,
@@ -454,7 +457,7 @@ export default function GreenAPISettings({
               יש לך גישה לאינטגרציות של משתמשים אחרים לשימוש באוטומציות:
             </strong>
             <ul className="mt-2 list-disc list-inside">
-              {permittedIntegrations.map((perm: any) => (
+              {permittedIntegrations.map((perm) => (
                 <li key={perm.id}>
                   Green API של {perm.owner_name}
                   {perm.is_active && (
@@ -702,7 +705,7 @@ export default function GreenAPISettings({
                       <SelectValue placeholder="בחר משתמש..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {tenantUsers.map((user: any) => (
+                      {tenantUsers.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name} {user.email && `(${user.email})`}
                         </SelectItem>

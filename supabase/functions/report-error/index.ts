@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { unknownField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,10 +87,10 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, error_id: errorLog.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("report-error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: unknownField(error, "message") }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,

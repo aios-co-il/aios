@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { unknownField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -266,7 +267,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         tenantSlug: tenant?.slug,
-        channelName: (invite as any).team_channels?.name,
+        channelName: invite.team_channels?.name,
         // For signup flow - return credentials so frontend can sign in
         ...(action === "signup" ? { autoLogin: true } : {}),
       }),
@@ -275,11 +276,14 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("process-chat-invite error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: unknownField(error, "message") }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

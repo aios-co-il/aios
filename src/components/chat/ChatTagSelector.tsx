@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { removeContactTag } from "./removeContactTag";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
@@ -116,7 +117,7 @@ export function ChatTagSelector({
         });
       } else {
         // Add tag
-        const insertData: any = {
+        const insertData: TablesInsert<"chat_contact_tags"> = {
           tag_id: tagId,
           user_id: user.id,
           tenant_id: tenantId,

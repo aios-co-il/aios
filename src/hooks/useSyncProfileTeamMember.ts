@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 
 /**
  * סנכרון נתוני פרופיל ↔ campaigner / sales_person
@@ -31,7 +32,7 @@ export async function syncProfileToTeamMember(userId: string): Promise<void> {
       .maybeSingle();
 
     if (campaigner) {
-      const patch: Record<string, any> = {};
+      const patch: TablesUpdate<"campaigners"> = {};
       if ((!campaigner.email || campaigner.email === "") && profile.email) {
         patch.email = profile.email;
       }
@@ -61,7 +62,7 @@ export async function syncProfileToTeamMember(userId: string): Promise<void> {
       .maybeSingle();
 
     if (sp) {
-      const patch: Record<string, any> = {};
+      const patch: TablesUpdate<"sales_people"> = {};
       if ((!sp.email || sp.email === "") && profile.email) {
         patch.email = profile.email;
       }

@@ -1,4 +1,6 @@
 /** Idempotency for Carmen task WhatsApp — one row per task + type + recipient. */
+import type { DbClient } from "./supabase-clients.ts";
+
 export function taskNotificationRecipientKey(input: {
   notifyCampaignerId?: string | null;
   campaignerId?: string | null;
@@ -22,8 +24,9 @@ export function taskUpdateEventKey(content: string): string {
   return hash.toString(16);
 }
 
+/** Claim a task notification before delivering it. */
 export async function claimTaskNotificationDelivery(
-  supabase: any,
+  supabase: DbClient,
   input: {
     taskId: string;
     notificationType: string;
@@ -40,8 +43,9 @@ export async function claimTaskNotificationDelivery(
   return "claimed";
 }
 
+/** Release the failed task-notification claim for retry. */
 export async function releaseTaskNotificationDelivery(
-  supabase: any,
+  supabase: DbClient,
   input: {
     taskId: string;
     notificationType: string;

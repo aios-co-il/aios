@@ -3,7 +3,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +92,7 @@ import { he } from "date-fns/locale";
 import { useAgency } from "@/contexts/AgencyContext";
 import { LinkFileToEntityDialog } from "@/components/chat/LinkFileToEntityDialog";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
+import { isJsonObject, jsonField, errorMessage } from "@/lib/typeGuards";
 
 const getPublicOrigin = () => {
   // Use the app's own origin in the browser; fall back to the canonical domain.
@@ -131,6 +132,18 @@ interface TeamAttachment {
   type: "file" | "link" | "image";
   size?: number;
 }
+
+const isTeamAttachment = (value: unknown): value is TeamAttachment =>
+  isJsonObject(value) &&
+  typeof value.name === "string" &&
+  typeof value.url === "string" &&
+  (value.type === "file" || value.type === "link" || value.type === "image") &&
+  (value.size === undefined || typeof value.size === "number");
+
+const parseTeamAttachments = (value: Json): TeamAttachment[] | undefined =>
+  Array.isArray(value)
+    ? value.flatMap((item) => (isTeamAttachment(item) ? [item] : []))
+    : undefined;
 
 interface TeamMessage {
   id: string;
@@ -185,13 +198,13 @@ function CreateChannelDialog({
         .eq("tenant_id", tenantId);
       if (!tuData || tuData.length === 0) return [];
 
-      const userIds = tuData.map((tu: any) => tu.user_id);
+      const userIds = tuData.map((tu) => tu.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url")
         .in("id", userIds);
 
-      return (profiles || []).map((p: any) => ({ profiles: p }));
+      return (profiles || []).map((p) => ({ profiles: p }));
     },
     enabled: !!tenantId && open,
   });
@@ -269,7 +282,7 @@ function CreateChannelDialog({
 
   const createChannel = useMutation({
     mutationFn: async () => {
-      const insertData: any = {
+      const insertData: TablesInsert<"team_channels"> = {
         tenant_id: tenantId,
         name,
         description: description || null,
@@ -326,7 +339,7 @@ function CreateChannelDialog({
       setSelectedCategoryId("");
       onCreated();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const colors = [
@@ -430,7 +443,7 @@ function CreateChannelDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">ללא שיוך</SelectItem>
-                {agencies.map((a: any) => (
+                {agencies.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {a.name}
                   </SelectItem>
@@ -456,7 +469,7 @@ function CreateChannelDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">ללא שיוך</SelectItem>
-                {clients.map((c: any) => (
+                {clients.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>
@@ -482,7 +495,7 @@ function CreateChannelDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">ללא שיוך</SelectItem>
-                {leads.map((l: any) => (
+                {leads.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     {l.company_name || l.contact_name}
                   </SelectItem>
@@ -505,7 +518,7 @@ function CreateChannelDialog({
           <div>
             <Label>הזמן חברים</Label>
             <div className="max-h-40 overflow-y-auto mt-1 space-y-1">
-              {tenantUsers?.map((tu: any) => {
+              {tenantUsers?.map((tu) => {
                 const profile = tu.profiles;
                 if (!profile || profile.id === userId) return null;
                 const selected = selectedMembers.includes(profile.id);
@@ -586,7 +599,7 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
       });
       toast.success("קטגוריה נוספה");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const updateCategory = useMutation({
@@ -612,7 +625,7 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
       });
       toast.success("קטגוריה עודכנה");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const deleteCategory = useMutation({
@@ -629,7 +642,7 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
       });
       toast.success("קטגוריה נמחקה");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const icons = [
@@ -802,15 +815,28 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
 }
 
 // =================== ManageTeamMembersDialog ===================
+type TeamMemberProfile = Pick<
+  Tables<"profiles">,
+  | "id"
+  | "full_name"
+  | "email"
+  | "phone"
+  | "avatar_url"
+  | "notification_group_link"
+>;
+
 function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
   const [open, setOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<TeamMemberProfile | null>(
+    null,
+  );
   const [editPhone, setEditPhone] = useState("");
   const [editNotifLink, setEditNotifLink] = useState("");
   const [uploading, setUploading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [deleteConfirmUser, setDeleteConfirmUser] = useState<any>(null);
+  const [deleteConfirmUser, setDeleteConfirmUser] =
+    useState<TeamMemberProfile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -824,7 +850,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
         .eq("tenant_id", tenantId);
       if (!tuData || tuData.length === 0) return [];
 
-      const userIds = tuData.map((tu: any) => tu.user_id);
+      const userIds = tuData.map((tu) => tu.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
         .select(
@@ -832,12 +858,12 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
         )
         .in("id", userIds);
 
-      return (profiles || []) as any[];
+      return profiles || [];
     },
     enabled: !!tenantId && open,
   });
 
-  const startEdit = (member: any) => {
+  const startEdit = (member: TeamMemberProfile) => {
     setEditingUser(member);
     setEditPhone(member.phone || "");
     setEditNotifLink(member.notification_group_link || "");
@@ -888,8 +914,8 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       toast.success("התמונה עודכנה");
       refetchMembers();
       setEditingUser({ ...editingUser, avatar_url: urlData.signedUrl });
-    } catch (err: any) {
-      toast.error("שגיאה בהעלאה: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה בהעלאה: " + errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -919,8 +945,8 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
         refetchMembers();
         setEditingUser({ ...editingUser, avatar_url: data.avatar_url });
       }
-    } catch (err: any) {
-      toast.error("שגיאה ביצירת אווטר: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה ביצירת אווטר: " + errorMessage(err));
     } finally {
       setGeneratingAi(false);
     }
@@ -946,7 +972,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
     const deletedId = deleteConfirmUser.id;
     const membersQueryKey = ["team-members-manage", tenantId] as const;
     try {
-      queryClient.setQueryData<any[]>(
+      queryClient.setQueryData<TeamMemberProfile[]>(
         membersQueryKey,
         (old) => old?.filter((member) => member.id !== deletedId) ?? old,
       );
@@ -962,9 +988,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       }
       setDeleteConfirmUser(null);
       queryClient.invalidateQueries({ queryKey: membersQueryKey });
-    } catch (err: any) {
+    } catch (err) {
       queryClient.invalidateQueries({ queryKey: membersQueryKey });
-      toast.error("שגיאה במחיקה: " + err.message);
+      toast.error("שגיאה במחיקה: " + errorMessage(err));
     }
   };
 
@@ -990,7 +1016,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-2 p-1">
-              {teamMembers.map((member: any) => (
+              {teamMembers.map((member) => (
                 <div
                   key={member.id}
                   className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
@@ -1864,8 +1890,8 @@ function TeamMessageInput({
           if (result.text) {
             setText((prev) => (prev ? prev + " " + result.text : result.text));
           }
-        } catch (err: any) {
-          toast.error("שגיאה בתמלול: " + err.message);
+        } catch (err) {
+          toast.error("שגיאה בתמלול: " + errorMessage(err));
         } finally {
           setIsTranscribing(false);
         }
@@ -1873,8 +1899,8 @@ function TeamMessageInput({
 
       mediaRecorder.start();
       setIsRecording(true);
-    } catch (err: any) {
-      toast.error("לא ניתן לגשת למיקרופון: " + err.message);
+    } catch (err) {
+      toast.error("לא ניתן לגשת למיקרופון: " + errorMessage(err));
     }
   };
 
@@ -1956,11 +1982,15 @@ function TeamMessageInput({
         ...newFileRecords,
       ];
       toast.success(`${Array.from(files).length} קבצים הועלו בהצלחה`);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Upload error details:", err);
       toast.error(
         "שגיאה בהעלאת הקובץ: " +
-          (err.message || err.statusCode || JSON.stringify(err)),
+          String(
+            errorMessage(err) ||
+              jsonField(err, "statusCode") ||
+              JSON.stringify(err),
+          ),
       );
     } finally {
       setUploading(false);
@@ -2018,14 +2048,16 @@ function TeamMessageInput({
 
   const sendMessage = useMutation({
     mutationFn: async () => {
-      const insertData: any = {
+      const insertData: TablesInsert<"team_messages"> = {
         channel_id: channelId,
         tenant_id: tenantId,
         sender_id: userId!,
         content: text.trim(),
       };
       if (attachments.length > 0) {
-        insertData.attachments = attachments;
+        insertData.attachments = attachments.map((attachment) => ({
+          ...attachment,
+        }));
       }
       const { data: msg, error } = await supabase
         .from("team_messages")
@@ -2055,7 +2087,7 @@ function TeamMessageInput({
       uploadedFileIdsRef.current = [];
       onSent();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -2305,6 +2337,7 @@ function MemberNotifyRow({
 }
 
 // =================== MemberRow (with inline name edit) ===================
+/** Render member row from its typed view data. */
 function MemberRow({
   member,
   profile,
@@ -2317,7 +2350,7 @@ function MemberRow({
   onNameUpdated,
 }: {
   member: ChannelMember;
-  profile: any;
+  profile?: Pick<Tables<"profiles">, "full_name" | "email" | "avatar_url">;
   role?: string;
   isCreator: boolean;
   isAdmin: boolean;
@@ -2342,8 +2375,8 @@ function MemberRow({
       toast.success("השם עודכן בהצלחה");
       setEditing(false);
       onNameUpdated();
-    } catch (err: any) {
-      toast.error("שגיאה בעדכון: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה בעדכון: " + errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -2491,7 +2524,7 @@ function ManageChannelMembersDialog({
         .eq("channel_id", channel.id)
         .then(({ data }) => {
           if (data) {
-            data.forEach((m: any) => {
+            data.forEach((m) => {
               settings[m.user_id] = {
                 notify_enabled: m.notify_enabled !== false,
                 notify_override_phone: m.notify_override_phone || "",
@@ -2543,7 +2576,7 @@ function ManageChannelMembersDialog({
       queryClient.invalidateQueries({ queryKey: ["team-channels", tenantId] });
       onChanged();
     },
-    onError: (err: any) => toast.error("שגיאה בשמירה: " + err.message),
+    onError: (err: Error) => toast.error("שגיאה בשמירה: " + err.message),
   });
 
   // Fetch existing invite link
@@ -2591,7 +2624,7 @@ function ManageChannelMembersDialog({
       });
       toast.success("קישור הזמנה נוצר בהצלחה");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const copyInviteLink = () => {
@@ -2613,13 +2646,13 @@ function ManageChannelMembersDialog({
         .eq("tenant_id", tenantId);
       if (!tuData || tuData.length === 0) return [];
 
-      const userIds = tuData.map((tu: any) => tu.user_id);
+      const userIds = tuData.map((tu) => tu.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url")
         .in("id", userIds);
 
-      return (profiles || []).map((p: any) => ({ profiles: p }));
+      return (profiles || []).map((p) => ({ profiles: p }));
     },
     enabled: !!tenantId && open,
   });
@@ -2641,7 +2674,7 @@ function ManageChannelMembersDialog({
 
   const memberUserIds = new Set(members.map((m) => m.user_id));
   const nonMembers = tenantUsers.filter(
-    (tu: any) => tu.profiles && !memberUserIds.has(tu.profiles.id),
+    (tu) => tu.profiles && !memberUserIds.has(tu.profiles.id),
   );
 
   const addMember = useMutation({
@@ -2664,7 +2697,7 @@ function ManageChannelMembersDialog({
       });
       onChanged();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const removeMember = useMutation({
@@ -2686,11 +2719,11 @@ function ManageChannelMembersDialog({
       });
       onChanged();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const getMemberProfile = (userId: string) =>
-    memberProfiles.find((p: any) => p.id === userId);
+    memberProfiles.find((p) => p.id === userId);
   const getMemberRole = (userId: string) =>
     members.find((m) => m.user_id === userId)?.role;
 
@@ -2755,7 +2788,7 @@ function ManageChannelMembersDialog({
             <div>
               <Label className="text-sm font-medium">הוסף חברים</Label>
               <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                {nonMembers.map((tu: any) => {
+                {nonMembers.map((tu) => {
                   const profile = tu.profiles;
                   return (
                     <button
@@ -2959,8 +2992,8 @@ function ChannelAvatarDialog({
       toast.success("האווטר עודכן בהצלחה");
       onUpdated();
       setOpen(false);
-    } catch (err: any) {
-      toast.error("שגיאה בהעלאה: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה בהעלאה: " + errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -2982,8 +3015,8 @@ function ChannelAvatarDialog({
       toast.success("האווטר נוצר בהצלחה!");
       onUpdated();
       setOpen(false);
-    } catch (err: any) {
-      toast.error("שגיאה ביצירת אווטר: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה ביצירת אווטר: " + errorMessage(err));
     } finally {
       setGenerating(false);
     }
@@ -3207,7 +3240,7 @@ function EditChannelDialog({
       onUpdated();
       setOpen(false);
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const addWaLink = useMutation({
@@ -3220,7 +3253,7 @@ function EditChannelDialog({
       chatId?: string;
       displayName?: string;
     }) => {
-      const insertData: any = {
+      const insertData: TablesInsert<"team_channel_whatsapp_links"> = {
         channel_id: channel.id,
         tenant_id: tenantId,
         display_name: displayName || null,
@@ -3242,7 +3275,7 @@ function EditChannelDialog({
       setNewDisplayName("");
       refetchLinks();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const removeWaLink = useMutation({
@@ -3257,7 +3290,7 @@ function EditChannelDialog({
       toast.success("שיוך הוסר");
       refetchLinks();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const deleteChannel = async () => {
@@ -3283,8 +3316,8 @@ function EditChannelDialog({
       toast.success("הערוץ נמחק בהצלחה");
       onDeleted();
       setOpen(false);
-    } catch (err: any) {
-      toast.error("שגיאה במחיקה: " + err.message);
+    } catch (err) {
+      toast.error("שגיאה במחיקה: " + errorMessage(err));
     } finally {
       setDeleting(false);
     }
@@ -3294,13 +3327,9 @@ function EditChannelDialog({
 
   // Groups not yet linked
   const linkedGroupIds = new Set(
-    waLinks
-      .filter((l: any) => l.whatsapp_group_id)
-      .map((l: any) => l.whatsapp_group_id),
+    waLinks.filter((l) => l.whatsapp_group_id).map((l) => l.whatsapp_group_id),
   );
-  const availableGroups = waGroups.filter(
-    (g: any) => !linkedGroupIds.has(g.id),
-  );
+  const availableGroups = waGroups.filter((g) => !linkedGroupIds.has(g.id));
 
   return (
     <>
@@ -3371,9 +3400,9 @@ function EditChannelDialog({
               {/* Existing links */}
               {waLinks.length > 0 && (
                 <div className="space-y-1">
-                  {waLinks.map((link: any) => {
+                  {waLinks.map((link) => {
                     const group = waGroups.find(
-                      (g: any) => g.id === link.whatsapp_group_id,
+                      (g) => g.id === link.whatsapp_group_id,
                     );
                     return (
                       <div
@@ -3410,7 +3439,7 @@ function EditChannelDialog({
                     הוסף קבוצת וואטסאפ
                   </Label>
                   <div className="space-y-1 max-h-32 overflow-y-auto mt-1">
-                    {availableGroups.map((g: any) => (
+                    {availableGroups.map((g) => (
                       <button
                         key={g.id}
                         className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-muted transition-colors text-xs"
@@ -3620,16 +3649,17 @@ function ThreadDialog({
         .order("created_at", { ascending: true });
       if (error) throw error;
 
-      const senderIds = [...new Set(data.map((m: any) => m.sender_id))];
+      const senderIds = [...new Set(data.map((m) => m.sender_id))];
       if (senderIds.length === 0) return [];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url")
         .in("id", senderIds);
 
-      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
-      return data.map((m: any) => ({
+      const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      return data.map((m) => ({
         ...m,
+        attachments: parseTeamAttachments(m.attachments),
         sender_profile: profileMap.get(m.sender_id),
       })) as TeamMessage[];
     },
@@ -3682,7 +3712,7 @@ function ThreadDialog({
         queryKey: ["team-messages", tenantId, channelId],
       });
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   if (!parentMessage) return null;
@@ -3836,7 +3866,7 @@ function NotifyTargetDialog({
           const campMap = new Map(campaigners.map((c) => [c.id, c.phone]));
           profiles.forEach((p) => {
             if (!p.phone && p.campaigner_id && campMap.has(p.campaigner_id)) {
-              (p as any).phone = campMap.get(p.campaigner_id);
+              p.phone = campMap.get(p.campaigner_id) ?? null;
             }
           });
         }
@@ -3849,7 +3879,7 @@ function NotifyTargetDialog({
   // Check all group link sources: channel level, member override, profile level
   const memberHasOverrideGroup = members.some((m) => m.notify_override_group);
   const profileHasGroupLink = memberProfiles.some(
-    (p) => (p as any).notification_group_link,
+    (p) => p.notification_group_link,
   );
   const hasAnyGroupLink =
     channelHasGroupLink || memberHasOverrideGroup || profileHasGroupLink;
@@ -3995,7 +4025,7 @@ export default function TeamChat() {
         .filter("tenant_id", "eq", tenantId);
       if (memError) throw memError;
 
-      const channelIds = (memberships || []).map((m: any) => m.channel_id);
+      const channelIds = (memberships || []).map((m) => m.channel_id);
       if (channelIds.length === 0) return [];
 
       const { data, error } = await supabase
@@ -4039,25 +4069,26 @@ export default function TeamChat() {
         .limit(500);
       if (error) throw error;
 
-      const senderIds = [...new Set(allMsgs.map((m: any) => m.sender_id))];
+      const senderIds = [...new Set(allMsgs.map((m) => m.sender_id))];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url")
         .in("id", senderIds);
 
-      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
 
       // Count replies per parent message
       const replyCounts: Record<string, number> = {};
-      allMsgs.forEach((m: any) => {
+      allMsgs.forEach((m) => {
         if (m.parent_message_id) {
           replyCounts[m.parent_message_id] =
             (replyCounts[m.parent_message_id] || 0) + 1;
         }
       });
 
-      return allMsgs.map((m: any) => ({
+      return allMsgs.map((m) => ({
         ...m,
+        attachments: parseTeamAttachments(m.attachments),
         sender_profile: profileMap.get(m.sender_id),
         reply_count: replyCounts[m.id] || 0,
       })) as TeamMessage[];
@@ -4108,9 +4139,13 @@ export default function TeamChat() {
   // Play notification gong sound
   const playGongSound = useCallback(() => {
     try {
-      const audioCtx = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )();
+      const webkitWindow: Window & {
+        webkitAudioContext?: typeof AudioContext;
+      } = window;
+      const AudioContextCtor =
+        window.AudioContext || webkitWindow.webkitAudioContext;
+      if (!AudioContextCtor) return;
+      const audioCtx = new AudioContextCtor();
 
       // Main tone
       const osc = audioCtx.createOscillator();
@@ -4165,7 +4200,7 @@ export default function TeamChat() {
           table: "team_messages",
           filter: `tenant_id=eq.${tenantId}`,
         },
-        (payload: any) => {
+        (payload) => {
           queryClient.invalidateQueries({
             queryKey: ["team-unread-counts", tenantId, userId],
           });
@@ -4192,7 +4227,7 @@ export default function TeamChat() {
       if (error) throw error;
     },
     onSuccess: () => refetchMessages(),
-    onError: (err: any) => toast.error("שגיאה בעריכת ההודעה: " + err.message),
+    onError: (err: Error) => toast.error("שגיאה בעריכת ההודעה: " + err.message),
   });
 
   // Delete message mutation
@@ -4208,7 +4243,7 @@ export default function TeamChat() {
       refetchMessages();
       toast.success("ההודעה נמחקה");
     },
-    onError: (err: any) => toast.error("שגיאה במחיקת ההודעה: " + err.message),
+    onError: (err: Error) => toast.error("שגיאה במחיקת ההודעה: " + err.message),
   });
 
   // Notify target dialog state
@@ -4253,7 +4288,7 @@ export default function TeamChat() {
         toast.info(data?.reason || "לא נמצאו יעדים לשליחת התראה");
       }
     },
-    onError: (err: any) =>
+    onError: (err: Error) =>
       toast.error("שגיאה בשליחת התראה: " + (err?.message || err)),
   });
 
@@ -4298,7 +4333,7 @@ export default function TeamChat() {
     ],
     queryFn: async () => {
       const readMap = new Map(
-        readStatuses.map((r: any) => [r.channel_id, r.last_read_at]),
+        readStatuses.map((r) => [r.channel_id, r.last_read_at]),
       );
 
       // Run all per-channel count queries in parallel instead of sequentially

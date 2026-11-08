@@ -21,6 +21,7 @@ import {
   type MeetingSummaryJob,
   type MeetingSummaryTargetType,
 } from "./meeting-summary-prompts.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export type SummaryDispatch =
   | {
@@ -35,9 +36,9 @@ export type SummaryDispatch =
       detail?: string;
     };
 
+/** Dispatch the meeting-summary request to its Cursor session. */
 export async function dispatchMeetingSummaryToCursor(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   args: {
     tenantId: string;
     userId?: string | null;
@@ -61,11 +62,21 @@ export async function dispatchMeetingSummaryToCursor(
   if (!route || route.provider !== "cursor")
     return { ok: false, reason: "no_route" };
 
-  const userId = await resolveSummaryUserId(
-    admin,
-    args.tenantId,
-    args.userId || args.createdBy,
-  );
+  let userId: string | null;
+  try {
+    userId = await resolveSummaryUserId(
+      admin,
+      args.tenantId,
+      args.userId || args.createdBy,
+    );
+  } catch (error) {
+    console.error("[meeting-summary] summary owner resolution failed", error);
+    return {
+      ok: false,
+      reason: "error",
+      detail: "Meeting summary owner lookup failed",
+    };
+  }
   if (!userId) return { ok: false, reason: "no_user" };
 
   const carmen = route.agent_id
@@ -164,9 +175,9 @@ export async function dispatchMeetingSummaryToCursor(
 
 const MANUAL_RESEND_WINDOW_MS = 90_000;
 
+/** Claim a meeting-summary delivery before sending it. */
 async function claimSummarySend(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   args: {
     tenantId: string;
     conversationId: string;
@@ -206,9 +217,9 @@ async function claimSummarySend(
   return !duplicate;
 }
 
+/** Persist the reply produced for a meeting summary. */
 export async function persistMeetingSummaryReply(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   metadata: unknown,
   summary: string,
 ): Promise<boolean> {
@@ -254,19 +265,23 @@ export async function persistMeetingSummaryReply(
   return true;
 }
 
+/** Resolve the user identity associated with the meeting summary. */
 async function resolveSummaryUserId(
-  // deno-lint-ignore no-explicit-any
-  admin: any,
+  admin: DbClient,
   tenantId: string,
   preferred?: string | null,
 ): Promise<string | null> {
   if (preferred) return preferred;
-  const { data } = await admin
+  const { data, error } = await admin
     .from("user_roles")
     .select("user_id")
     .eq("tenant_id", tenantId)
-    .in("role", ["owner", "admin"])
+    .eq("role", "owner")
     .limit(1)
     .maybeSingle();
+  if (error) {
+    console.error("[meeting-summary] owner lookup failed", error);
+    throw new Error("Meeting summary owner lookup failed");
+  }
   return data?.user_id ?? null;
 }

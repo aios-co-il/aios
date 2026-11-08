@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { Json } from "../_shared/database.types.ts";
+import { jsonArray, jsonField } from "../_shared/json-fields.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,22 +21,27 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
     });
-    const data = await res.json();
+    const data: Json = await res.json();
 
     // Extract modules
     let bp = data;
-    if (bp.response?.blueprint) bp = bp.response.blueprint;
-    else if (bp.blueprint) bp = bp.blueprint;
+    const responseBlueprint = jsonField(jsonField(bp, "response"), "blueprint");
+    const blueprint = jsonField(bp, "blueprint");
+    if (responseBlueprint) bp = responseBlueprint;
+    else if (blueprint) bp = blueprint;
 
-    const modules = (bp.flow || []).map((m: any) => ({
-      id: m.id,
-      module: m.module,
-      mapper_keys: m.mapper ? Object.keys(m.mapper) : [],
-      mapper_sample: m.mapper ? JSON.stringify(m.mapper).slice(0, 500) : null,
-    }));
+    const modules = jsonArray(jsonField(bp, "flow")).map((m) => {
+      const mapper = jsonField(m, "mapper");
+      return {
+        id: jsonField(m, "id"),
+        module: jsonField(m, "module"),
+        mapper_keys: mapper ? Object.keys(mapper) : [],
+        mapper_sample: mapper ? JSON.stringify(mapper).slice(0, 500) : null,
+      };
+    });
 
     return new Response(
-      JSON.stringify({ modules, raw_keys: Object.keys(bp) }),
+      JSON.stringify({ modules, raw_keys: Object.keys(bp ?? {}) }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
