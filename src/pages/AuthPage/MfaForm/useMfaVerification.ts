@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,15 @@ export function useMfaVerification({
   const [mfaCode, setMfaCode] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const active = useRef(true);
+
+  useEffect(() => {
+    active.current = true;
+
+    return () => {
+      active.current = false;
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: verifyCode,
@@ -56,8 +65,16 @@ export function useMfaVerification({
 
   /** Route using the SDK session updated by successful MFA verification. */
   async function finishVerification() {
+    if (!active.current) {
+      return;
+    }
+
     toast({ title: "הצלחה!", description: "התחברת בהצלחה" });
     const session = await queryClient.fetchQuery(authSessionQueryOptions);
+
+    if (!active.current) {
+      return;
+    }
 
     if (!session) {
       throw new Error("לא נמצאה התחברות פעילה");

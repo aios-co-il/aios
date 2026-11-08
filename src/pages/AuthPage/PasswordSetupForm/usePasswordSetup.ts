@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,15 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const active = useRef(true);
+
+  useEffect(() => {
+    active.current = true;
+
+    return () => {
+      active.current = false;
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: updatePassword,
@@ -40,8 +49,16 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
 
   /** Obtain the real session token before MFA and pending-invitation processing. */
   async function finishSetup() {
+    if (!active.current) {
+      return;
+    }
+
     toast({ title: "הסיסמה עודכנה", description: "הסיסמה שלך עודכנה בהצלחה" });
     const session = await queryClient.fetchQuery(authSessionQueryOptions);
+
+    if (!active.current) {
+      return;
+    }
 
     if (!session) {
       throw new Error("לא נמצאה התחברות פעילה");
@@ -54,7 +71,9 @@ export function usePasswordSetup(navigateToApp: NavigateToApp) {
       gcTime: 0,
       retry: false,
     });
-    await navigateToApp(user.id, session.access_token);
+    if (active.current) {
+      await navigateToApp(user.id, session.access_token);
+    }
   }
 
   /** Leave controls usable when the write or post-write lookup fails. */
