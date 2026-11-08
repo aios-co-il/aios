@@ -1,3 +1,4 @@
+import { safeJson } from "../_shared/manychat/response.ts";
 import {
   createClient,
   type SupabaseClient,
@@ -116,20 +117,8 @@ function getPhoneLookupCandidates(phone: string): string[] {
   );
 }
 
-async function safeJson(res: Response): Promise<unknown> {
-  const contentType = res.headers.get("content-type") || "";
-  const text = await res.text();
-  if (!contentType.includes("application/json")) {
-    return { __nonJson: true, status: res.status, text: text.slice(0, 500) };
-  }
-  try {
-    return JSON.parse(text);
-  } catch (_e) {
-    return { __parseError: true, status: res.status, text: text.slice(0, 500) };
-  }
-}
-
 // Helper: Get phone_number custom field ID from ManyChat or cache
+/** Resolve the ManyChat custom field used for phone lookups. */
 async function getPhoneNumberFieldId(
   apiKey: string,
   supabase: SupabaseClient<Database>,
@@ -440,6 +429,9 @@ Deno.serve(async (req) => {
 
     const lead = leads[0];
     leadId = lead.id;
+    if (!lead.phone) {
+      throw new Error("Selected lead has no phone to sync");
+    }
     const formattedPhone = formatPhoneForManyChat(lead.phone);
     const phoneCandidates = getPhoneLookupCandidates(lead.phone);
     leadName = lead.contact_name || lead.company_name || "Unknown";

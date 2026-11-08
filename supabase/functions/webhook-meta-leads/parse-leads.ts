@@ -88,6 +88,7 @@ const unifiedLeadSchema = z.object({
     .catch(undefined),
 });
 
+/** Read the lead items from a supported webhook envelope. */
 export function extractLeads(rawBody: unknown): ParsedLead[] {
   const leads: ParsedLead[] = [];
 
@@ -150,6 +151,7 @@ export function extractLeads(rawBody: unknown): ParsedLead[] {
   return leads;
 }
 
+/** Normalize a supported webhook lead into the intake contract. */
 export function parseUnifiedLead(rawItem: unknown): ParsedLead {
   const item = unifiedLeadSchema.catch({}).parse(rawItem);
   return {
@@ -162,6 +164,7 @@ export function parseUnifiedLead(rawItem: unknown): ParsedLead {
   };
 }
 
+/** Validate one webhook lead before intake processing. */
 export function parseLeadItem(rawItem: unknown): ParsedLead {
   const item = leadItemSchema.parse(rawItem);
   return {
@@ -183,6 +186,7 @@ export function parseLeadItem(rawItem: unknown): ParsedLead {
   };
 }
 
+/** Build the persisted notes from the accepted lead fields. */
 export function buildLeadNotes(lead: ParsedLead): string {
   const parts: string[] = ["מקור: Meta Lead Ads"];
   if (lead.form_name) parts.push(`טופס: ${lead.form_name}`);

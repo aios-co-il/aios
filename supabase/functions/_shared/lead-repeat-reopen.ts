@@ -53,6 +53,7 @@ export function withoutNewLeadOriginColumns(
   return next;
 }
 
+/** Apply the lead update together with repeat-intake reopening rules. */
 export async function updateLeadWithRepeatReopen(
   supabase: DbClient,
   leadId: string,

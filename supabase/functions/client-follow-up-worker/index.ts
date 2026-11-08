@@ -87,6 +87,7 @@ async function invokeNotification(
   );
 }
 
+/** Claim the follow-up marker before delivering notifications. */
 async function claimMarker(
   supabase: DbClient,
   clientId: string,
@@ -104,6 +105,7 @@ async function claimMarker(
   return data ? claimedAt : null;
 }
 
+/** Release a failed follow-up claim for a later retry. */
 async function releaseMarker(
   supabase: DbClient,
   clientId: string,
@@ -117,6 +119,7 @@ async function releaseMarker(
     .eq(marker, claimedAt);
 }
 
+/** Load the client fields needed by the follow-up worker. */
 async function fetchClient(supabase: DbClient, clientId: string) {
   const { data, error } = await supabase
     .from("clients")
@@ -129,6 +132,7 @@ async function fetchClient(supabase: DbClient, clientId: string) {
   return data as ClientRow | null;
 }
 
+/** Resolve the active campaigners eligible for follow-up notifications. */
 async function getActiveCampaigners(
   supabase: DbClient,
   clientId: string,
@@ -159,6 +163,7 @@ async function getActiveCampaigners(
   return recipients;
 }
 
+/** Resolve the managers eligible for the client notification. */
 async function getManagers(
   supabase: DbClient,
   client: ClientRow,
@@ -222,6 +227,7 @@ async function getManagers(
   return recipients;
 }
 
+/** Deliver the follow-up notification to its resolved recipients. */
 async function notifyRecipients(
   supabase: DbClient,
   client: ClientRow,
@@ -287,6 +293,7 @@ async function notifyRecipients(
   return results;
 }
 
+/** Process one client follow-up and its delivery claims. */
 async function processClient(supabase: DbClient, client: ClientRow) {
   if (!client.follow_up_date) return [];
   if (!["active", "onboarding"].includes(client.status)) return [];

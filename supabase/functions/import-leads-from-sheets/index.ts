@@ -194,6 +194,7 @@ const FILL_IF_EMPTY_FIELDS = [
   "folder_link",
 ] as const;
 
+/** Copy a supported sheet field into the typed lead insert. */
 function copyLeadField<K extends keyof ImportedLead>(
   to: Partial<ImportedLead>,
   from: ImportedLead,

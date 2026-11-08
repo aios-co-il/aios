@@ -90,6 +90,7 @@ function isUniqueViolation(
   );
 }
 
+/** Claim the lead intake dedupe key before processing the event. */
 export async function claimFacebookLeadIntake(
   supabase: FacebookLeadDedupDb,
   params: { tenantId: string; leadgenId: unknown; formId?: unknown },
@@ -123,6 +124,7 @@ export async function claimFacebookLeadIntake(
   return { duplicate: false, inserted: true };
 }
 
+/** Check whether the Facebook lead intake was already claimed. */
 export async function wasFacebookLeadIntakeClaimed(
   supabase: FacebookLeadDedupDb,
   params: { tenantId: string; leadgenId: unknown },
@@ -143,6 +145,7 @@ export async function wasFacebookLeadIntakeClaimed(
   return Boolean(data?.id);
 }
 
+/** Claim the dedupe key for a Facebook lead automation run. */
 export async function claimFacebookLeadAutomationRun(
   supabase: FacebookLeadDedupDb,
   params: {
@@ -176,6 +179,7 @@ export async function claimFacebookLeadAutomationRun(
   return { duplicate: false, inserted: true };
 }
 
+/** Claim a Facebook lead WhatsApp delivery before sending. */
 export async function claimFacebookLeadWhatsAppSend(
   supabase: FacebookLeadDedupDb,
   params: { tenantId: string; chatId: string; leadgenId: unknown },
@@ -212,6 +216,7 @@ export async function claimFacebookLeadWhatsAppSend(
   return { duplicate: false, inserted: true };
 }
 
+/** Claim an identical WhatsApp message before delivering it again. */
 export async function claimIdenticalWhatsAppSend(
   supabase: FacebookLeadDedupDb,
   params: {
@@ -256,6 +261,7 @@ export async function claimIdenticalWhatsAppSend(
   return { duplicate: false, inserted: true };
 }
 
+/** Release a failed Facebook lead delivery claim so it can retry. */
 export async function releaseFacebookLeadWhatsAppSend(
   supabase: FacebookLeadDedupDb,
   params: { tenantId: string; chatId: string; leadgenId: unknown },
@@ -281,6 +287,7 @@ export async function releaseFacebookLeadWhatsAppSend(
   }
 }
 
+/** Release the automation claim after a failed attempt. */
 export async function releaseFacebookLeadAutomationRun(
   supabase: FacebookLeadDedupDb,
   params: { tenantId: string; automationId: string; leadgenId: unknown },
@@ -302,6 +309,7 @@ export async function releaseFacebookLeadAutomationRun(
   }
 }
 
+/** Check the existing claim for a Facebook lead automation. */
 export async function wasFacebookLeadAutomationClaimed(
   supabase: FacebookLeadDedupDb,
   params: { tenantId: string; automationId: string; leadgenId: unknown },
@@ -335,6 +343,7 @@ export function facebookTriggerAutomationSucceeded(body: unknown): boolean {
   );
 }
 
+/** Find the CRM lead that already represents this provider event. */
 export async function findExistingFacebookLead(
   supabase: FacebookLeadDedupDb,
   params: { tenantId: string; leadgenId: unknown },
@@ -381,6 +390,7 @@ export function shouldCreateCrmLeadForFacebookFlowConfig(
   return hasCreateLeadActionStep;
 }
 
+/** Decide whether the Facebook flow needs a CRM lead record. */
 export async function shouldCreateCrmLeadForFacebookFlow(
   supabase: FacebookLeadDedupDb,
   automationId: string,

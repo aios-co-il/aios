@@ -143,6 +143,7 @@ export function buildFacebookFields(
   );
 }
 
+/** Resolve the client assigned to a lead intake. */
 export async function resolveLeadClient(
   supabase: DbClient,
   tenantId: string,

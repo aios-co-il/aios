@@ -1,3 +1,4 @@
+import { safeJson } from "../_shared/manychat/response.ts";
 import {
   createClient,
   type SupabaseClient,
@@ -46,20 +47,8 @@ function getPhoneCandidates(phone: string): string[] {
   );
 }
 
-async function safeJson(res: Response): Promise<unknown> {
-  const contentType = res.headers.get("content-type") || "";
-  const text = await res.text();
-  if (!contentType.includes("application/json")) {
-    return { __nonJson: true, status: res.status, text: text.slice(0, 500) };
-  }
-  try {
-    return JSON.parse(text);
-  } catch (_e) {
-    return { __parseError: true, status: res.status, text: text.slice(0, 500) };
-  }
-}
-
 // Get phone_number custom field ID
+/** Resolve the ManyChat field that stores the lead phone. */
 async function getPhoneFieldId(
   apiKey: string,
   supabase: SupabaseClient<Database>,
@@ -153,6 +142,7 @@ async function findByCustomField(
 }
 
 // Get subscriber info by ID
+/** Read the provider subscriber response at the sync boundary. */
 async function getSubscriberInfo(
   apiKey: string,
   subscriberId: string,

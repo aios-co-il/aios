@@ -212,6 +212,7 @@ function readShutdownScope(value: unknown): CampaignShutdownScope {
   return { mode: "name_includes", terms };
 }
 
+/** Read a valid shutdown job from the action payload. */
 export function extractCampaignShutdownJob(task: {
   title?: string | null;
   description?: string | null;

@@ -1,5 +1,6 @@
 import type { Json } from "@/integrations/supabase/types";
 
+/** Check JSON-serializable values before admitting them to a storage contract. */
 export function isJson(value: unknown): value is Json {
   if (
     value === null ||

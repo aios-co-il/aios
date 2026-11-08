@@ -1,3 +1,4 @@
+import { safeJson } from "../_shared/manychat/response.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   isManyChatSuccess,
@@ -40,19 +41,6 @@ function getPhoneLookupCandidates(phone: string): string[] {
   return [`+${withCountry}`, withCountry, `0${cleaned}`, cleaned].filter(
     Boolean,
   );
-}
-
-async function safeJson(res: Response): Promise<unknown> {
-  const contentType = res.headers.get("content-type") || "";
-  const text = await res.text();
-  if (!contentType.includes("application/json")) {
-    return { __nonJson: true, status: res.status, text: text.slice(0, 500) };
-  }
-  try {
-    return JSON.parse(text);
-  } catch (_e) {
-    return { __parseError: true, status: res.status, text: text.slice(0, 500) };
-  }
 }
 
 async function findSubscriberIdByPhone(

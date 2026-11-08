@@ -106,6 +106,7 @@ export interface LeadValueFilterQuery<Q> {
   or(filters: string): Q;
 }
 
+/** Apply the selected lead-stage predicates to a query. */
 export function applyLeadStageQuery<Q extends LeadValueFilterQuery<Q>>(
   query: Q,
   selected: readonly string[],

@@ -1,16 +1,68 @@
 import { z } from "zod";
+import { isJson } from "./json";
+import { Constants } from "@/integrations/supabase/types";
+import type { Json } from "@/integrations/supabase/types";
 import type {
   LeadRelationsRow,
   LeadsKanbanCache,
   LeadsPageLead,
 } from "../types/leadsPage.ts";
 
-const leadIdSchema = z.object({ id: z.string() });
-
-/** A JSON row the page treats as a lead: an object with a string id. */
-export const leadsPageLeadSchema = z.custom<LeadsPageLead>(
-  (value) => leadIdSchema.safeParse(value).success,
-);
+/** Scalars every stage RPC row must provide before it enters the lead-page cache. */
+export const leadsPageLeadSchema: z.ZodType<LeadsPageLead> = z.object({
+  id: z.string(),
+  tenant_id: z.string().nullable(),
+  contact_name: z.string().nullable(),
+  company_name: z.string(),
+  phone: z.string().nullable(),
+  email: z.string().nullable(),
+  status: z.string(),
+  response_status: z.string().nullable(),
+  source: z.string(),
+  campaign_name: z.string().nullable(),
+  industry: z.string().nullable(),
+  estimated_deal_value: z.number().nullable(),
+  folder_link: z.string().nullable(),
+  notes: z.string().nullable(),
+  agency_id: z.string().nullable(),
+  sales_person_id: z.string().nullable(),
+  follow_up_date: z.string().nullable(),
+  won_date: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  archived_at: z.string().nullish(),
+  archived_by: z.string().nullish(),
+  client_id: z.string().nullish(),
+  closing_date: z.string().nullish(),
+  facebook_form_id: z.string().nullish(),
+  facebook_leadgen_id: z.string().nullish(),
+  first_created_at: z.string().nullish(),
+  first_source: z.string().nullish(),
+  form_qa_summary: z.string().nullish(),
+  general_status: z.string().nullish(),
+  itai_meeting_date: z.string().nullish(),
+  lost_reason: z.string().nullish(),
+  manychat_subscriber_id: z.string().nullish(),
+  meeting_date: z.string().nullish(),
+  meeting_location: z.string().nullish(),
+  meeting_reminder_day_after_sent_at: z.string().nullish(),
+  meeting_reminder_same_day_sent_at: z.string().nullish(),
+  meeting_set_date: z.string().nullish(),
+  meeting_time: z.string().nullish(),
+  products: z.string().nullish(),
+  proposal_date: z.string().nullish(),
+  proposal_sent_date: z.string().nullish(),
+  sale_date: z.string().nullish(),
+  whatsapp_avatar_url: z.string().nullish(),
+  monthly_budget: z.number().nullish(),
+  three_month_budget: z.number().nullish(),
+  active_chat_provider: z.enum(Constants.public.Enums.chat_provider).nullish(),
+  attachments: z.custom<Json>(isJson).optional(),
+  folder_links: z.custom<Json>(isJson).optional(),
+  form_data: z.custom<Json>(isJson).optional(),
+  agencies: z.object({ name: z.string().nullable() }).nullish(),
+  sales_people: z.object({ full_name: z.string().nullable() }).nullish(),
+});
 
 const stageLeadListSchema = z
   .array(z.unknown())
@@ -49,6 +101,7 @@ const stagePayloadSchema = z
 
 const stageEntries = (data: unknown) => stagePayloadSchema.parse(data);
 
+/** Validate stage RPC rows before placing them in the kanban cache. */
 export function parseStageBuckets(data: unknown): LeadsKanbanCache {
   const stageMap: LeadsKanbanCache = {};
   for (const [stageKey, stageData] of stageEntries(data)) {
@@ -60,6 +113,7 @@ export function parseStageBuckets(data: unknown): LeadsKanbanCache {
   return stageMap;
 }
 
+/** Read supported numeric counts from stage RPC buckets. */
 export function parseStageCounts(data: unknown): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const [stageKey, stageData] of stageEntries(data)) {

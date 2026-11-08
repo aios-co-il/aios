@@ -263,6 +263,7 @@ export function leadExportMatchesPageScope(
   return !!(lead.agency_id && filters.userAgencyIds?.includes(lead.agency_id));
 }
 
+/** Apply the active lead filters to the export query. */
 function applyLeadExportFilters<Q extends LeadExportFilterQuery<Q>>(
   query: Q,
   filters: LeadExportFilters,

@@ -473,6 +473,7 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
   );
 }
 
+/** Render stat card from its typed view data. */
 function StatCard({
   icon: Icon,
   label,

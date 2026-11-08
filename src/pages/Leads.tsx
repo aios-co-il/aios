@@ -294,6 +294,7 @@ function getStatusColor(statusKey: string | null, statuses: LeadStatus[]) {
   return findLeadStatus(statusKey, statuses)?.color || undefined;
 }
 
+/** Render droppable stage from its typed view data. */
 function DroppableStage({
   stage,
   leadCount,
@@ -353,6 +354,7 @@ function DroppableStage({
 }
 
 // Pure UI component - no drag logic
+/** Render lead card content from its typed view data. */
 function LeadCardContent({
   lead,
   onStatusChange,
@@ -665,6 +667,7 @@ function LeadCardContent({
 }
 
 // Sortable wrapper component - adds drag functionality
+/** Render sortable lead card from its typed view data. */
 function SortableLeadCard({
   lead,
   onStatusChange,
@@ -743,6 +746,7 @@ function SortableLeadCard({
   );
 }
 
+/** Render leads group table from its typed view data. */
 function LeadsGroupTable({
   label,
   leads,
@@ -905,6 +909,7 @@ type FacebookSyncResult = {
   error?: string;
 };
 
+/** Validate the sync result fields shown by the leads page. */
 function readFacebookSyncResult(data: unknown): FacebookSyncResult {
   if (typeof data !== "object" || data === null) {
     return { success: false, synced: 0, skipped: 0 };
@@ -959,6 +964,7 @@ const playBubbleAnimation = () => {
     ticks: 80,
   };
 
+  /** Emit one confetti burst with its share of the total particles. */
   function fire(particleRatio: number, opts: confetti.Options) {
     confetti({
       ...defaults,
@@ -4118,6 +4124,7 @@ function leadTableOptionalWidth(key: string): number {
   return 160;
 }
 
+/** Render table with sticky scroll from its typed view data. */
 function TableWithStickyScroll({
   stageLeads,
   totalLeadsCount,

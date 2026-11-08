@@ -58,6 +58,7 @@ export function liveCampaignsFromGraph(
 
 const FB_GRAPH_VERSION = "v21.0";
 
+/** Resolve the active Facebook token for campaign shutdown. */
 async function fbGetToken(
   supabase: DbClient,
   tenantId: string,
@@ -82,6 +83,7 @@ async function fbGetToken(
   return integ?.api_key || null;
 }
 
+/** Resolve the client account used by the shutdown job. */
 async function fbResolveClientAdAccount(
   supabase: DbClient,
   tenantId: string,
@@ -109,6 +111,7 @@ async function fbResolveClientAdAccount(
   return null;
 }
 
+/** Load the live campaigns used by the shutdown job. */
 async function fbLiveCampaignList(
   supabase: DbClient,
   tenantId: string,
@@ -138,6 +141,7 @@ async function fbLiveCampaignList(
   }
 }
 
+/** Resolve the client identified by a persisted shutdown job. */
 export async function resolveClientForShutdownJob(
   supabase: DbClient,
   tenantId: string,
@@ -187,13 +191,19 @@ async function pauseCampaign(
       confirmed: true,
     }),
   });
-  const j = pauseResponseSchema.parse(await r.json().catch(() => ({})));
+  const j = pauseResponseSchema.parse(
+    await r.json().catch((error: unknown) => {
+      console.warn("[client-campaign-shutdown] invalid pause response", error);
+      return {};
+    }),
+  );
   if (!r.ok || j.error) {
     return { ok: false, error: String(j.error || j.message || r.status) };
   }
   return { ok: true };
 }
 
+/** Run a campaign shutdown job and record its outcome. */
 export async function runClientCampaignShutdownJob(
   supabase: DbClient,
   opts: {

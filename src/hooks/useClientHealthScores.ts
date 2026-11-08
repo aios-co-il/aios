@@ -31,6 +31,7 @@ export interface ClientHealthScore extends HealthResult {
 
 const COMMUNICATION_STATUSES = ["normal", "sensitive", "complaint"] as const;
 
+/** Narrow the stored communication status before displaying health data. */
 function toCommunicationStatus(
   status: string | null | undefined,
 ): HealthInput["communicationStatus"] {

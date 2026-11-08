@@ -1,3 +1,4 @@
+import { safeJson } from "../_shared/manychat/response.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { asJsonObject } from "../_shared/lead-json.ts";
 import {
@@ -105,21 +106,10 @@ function getPhoneLookupCandidates(phone: string): string[] {
 }
 
 // Safe JSON parsing helper
-async function safeJson(res: Response): Promise<unknown> {
-  const contentType = res.headers.get("content-type") || "";
-  const text = await res.text();
-  if (!contentType.includes("application/json")) {
-    return { __nonJson: true, status: res.status, text: text.slice(0, 500) };
-  }
-  try {
-    return JSON.parse(text);
-  } catch (_e) {
-    return { __parseError: true, status: res.status, text: text.slice(0, 500) };
-  }
-}
 
 // Get Custom Field ID from ManyChat API
 // This is required because findByCustomField needs field_id (numeric), not field_name
+/** Resolve the ManyChat custom field used for phone lookups. */
 async function getPhoneNumberFieldId(
   apiKey: string,
   supabase: DbClient,
