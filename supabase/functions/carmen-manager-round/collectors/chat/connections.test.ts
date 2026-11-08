@@ -7,7 +7,10 @@ Deno.test("monitoredLines", async (t) => {
   await t.step(
     "every member's own Green lines, a campaigner's included, and org-wide lines",
     async () => {
-      const { db, calls } = recordingClient(({ path }) => {
+      const { db, calls } = recordingClient(({ path, query }) => {
+        if (query.get("integration_type") === "eq.manus_wa") {
+          return [{ user_id: "carmen-owner" }, { user_id: null }];
+        }
         if (path === "user_roles") {
           return [{ user_id: "owner" }, { user_id: "agency-owner" }];
         }
@@ -26,6 +29,7 @@ Deno.test("monitoredLines", async (t) => {
       });
       assertEquals(await monitoredLines(db, TENANT), {
         ids: ["owner", "agency-owner", "campaigner", "office"],
+        carmenIds: ["carmen-owner"],
         skipped: 2,
       });
       const lines = calls.find((c) => c.path === "tenant_integrations");
@@ -36,6 +40,13 @@ Deno.test("monitoredLines", async (t) => {
           lines?.query.get("is_active"),
         ],
         [`eq.${TENANT}`, "eq.green_api", "eq.true"],
+      );
+      const carmen = calls.find(
+        (c) => c.query.get("integration_type") === "eq.manus_wa",
+      );
+      assertEquals(
+        [carmen?.query.get("tenant_id"), carmen?.query.get("is_active")],
+        [`eq.${TENANT}`, "eq.true"],
       );
       for (const path of ["user_roles", "tenant_users"]) {
         const members = calls.find((c) => c.path === path);
