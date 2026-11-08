@@ -2,13 +2,15 @@
  * Messages of the WhatsApp groups linked to one client each, through the
  * service-role function get_client_group_digest_messages: groups only, as
  * stored by the monitored lines, one reader per group_chat_id, senders as
- * phone match keys (never raw phones).
+ * phone match keys (never raw phones). The tenant's Carmen line adds the
+ * groups no Green line read, without Carmen's own sends (AIO-515).
  */
 import type { Database, Json } from "../../../_shared/database.types.ts";
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
 import { jsonObject } from "../../../_shared/pulse/json.ts";
-import { MONITORED_PROVIDER } from "../chat/activity.ts";
+import { CARMEN_PROVIDER, MONITORED_PROVIDER } from "../chat/activity.ts";
+import { carmenOnlyGroups } from "../chat/carmen-line.ts";
 
 type GroupRow =
   Database["public"]["Functions"]["get_client_group_digest_messages"]["Returns"][number];
@@ -44,36 +46,70 @@ export const PER_GROUP = 60;
 
 export type HistoryQuery = {
   tenantId: string;
-  /** chat_messages.connection_user_id of the monitored lines (chat/connections.ts). */
+  /** chat_messages.connection_user_id of the members' Green lines (chat/connections.ts). */
   connectionIds: string[];
+  /** The tenant's Carmen (Manus) lines. */
+  carmenConnectionIds: Array<string>;
   since: Date;
   clientIds: string[] | null;
 };
 
 /**
  * Every linked group's messages after `since`, optionally for some clients
- * only. `collectorId` lets the function leave a shared group to the client's
- * own tenant when that tenant's run reads it.
+ * only: the Green lines' groups, then Carmen's groups no Green line read.
+ * `collectorId` lets the function leave a shared group to the client's own
+ * tenant when that tenant's run reads it.
  */
 export async function loadGroupHistories(
   db: DbClient,
   query: HistoryQuery,
   collectorId: string,
-): Promise<GroupHistory[]> {
-  if (!query.connectionIds.length) {
+): Promise<Array<GroupHistory>> {
+  const read = (lines: Array<string>, provider: Provider) =>
+    readHistories(db, query, { lines, provider, collectorId });
+  const [green, carmen] = await Promise.all([
+    read(query.connectionIds, MONITORED_PROVIDER),
+    read(query.carmenConnectionIds, CARMEN_PROVIDER),
+  ]);
+  return [...green, ...carmenOnlyGroups(carmen, green).map(withoutCarmenSends)];
+}
+
+type Provider = typeof MONITORED_PROVIDER | typeof CARMEN_PROVIDER;
+
+/** One provider's linked groups as stored by `lines`. */
+async function readHistories(
+  db: DbClient,
+  query: HistoryQuery,
+  read: { lines: Array<string>; provider: Provider; collectorId: string },
+): Promise<Array<GroupHistory>> {
+  if (!read.lines.length) {
     return [];
   }
   const { data, error } = await db.rpc("get_client_group_digest_messages", {
     p_tenant_id: query.tenantId,
-    p_connection_user_ids: query.connectionIds,
+    p_connection_user_ids: read.lines,
     p_since: query.since.toISOString(),
-    p_collector: collectorId,
-    p_provider: MONITORED_PROVIDER,
+    p_collector: read.collectorId,
+    p_provider: read.provider,
     p_client_ids: query.clientIds ?? undefined,
     p_per_group: PER_GROUP,
   });
   throwIf(error, "get_client_group_digest_messages");
   return (data ?? []).map(groupHistory);
+}
+
+/**
+ * A Carmen-line group without what Carmen's line sent itself: those are
+ * Carmen's words, neither the staff's nor the client's. A send a person made
+ * from AIOS (sentBy) stays.
+ */
+function withoutCarmenSends(history: GroupHistory): GroupHistory {
+  return {
+    ...history,
+    messages: history.messages.filter(
+      (message) => !message.out || message.sentBy !== null,
+    ),
+  };
 }
 
 /** A row with its messages parsed; malformed messages are dropped. */

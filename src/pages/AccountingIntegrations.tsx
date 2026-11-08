@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAgency } from "@/contexts/AgencyContext";
@@ -342,8 +343,9 @@ export default function AccountingIntegrations() {
       payment_month: string;
       notes?: string;
     }) => {
+      const writeTenantId = requireTenantId(currentTenantId);
       const { error } = await supabase.from("one_time_incomes").insert({
-        tenant_id: currentTenantId,
+        tenant_id: writeTenantId,
         client_id: data.client_id,
         product_name: data.product_name,
         amount: data.amount,

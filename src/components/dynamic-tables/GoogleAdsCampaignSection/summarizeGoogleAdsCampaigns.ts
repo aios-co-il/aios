@@ -21,10 +21,11 @@ import type {
 } from "./types";
 
 /**
- * Google Ads campaigns of a report with each campaign's own goal (ecommerce or
- * leads). One account can run both, so totals are kept per goal: purchases and
- * ROAS only from ecommerce campaigns, conversions and cost per conversion only
- * from lead campaigns. Only campaign-level rows count: the sync also stores
+ * Google Ads campaigns of a report with each campaign's own goal (ecommerce,
+ * leads, or traffic for a campaign set to pay for exposure). One account can
+ * run several, so totals are kept per goal: purchases and ROAS only from
+ * ecommerce campaigns, conversions and cost per conversion only from lead
+ * campaigns, and traffic spend in neither. Only campaign-level rows count: the sync also stores
  * ad group and ad rows under the same campaign id.
  */
 export function summarizeGoogleAdsCampaigns(
@@ -70,15 +71,17 @@ export function summarizeGoogleAdsCampaigns(
   const totals = emptyTotals();
   const ecommerce = emptyTotals();
   const leads = emptyTotals();
+  const traffic = emptyTotals();
+  const byGoal = { ecommerce, leads, traffic };
   for (const row of campaigns) {
     addTotals(totals, row);
-    addTotals(row.goal === "ecommerce" ? ecommerce : leads, row);
+    addTotals(byGoal[row.goal], row);
   }
   const presence = googleGoalPresence(
     campaigns.map((row) => row.goal),
     fallbackGoal,
   );
-  return { campaigns, totals, ecommerce, leads, ...presence };
+  return { campaigns, totals, ecommerce, leads, traffic, ...presence };
 }
 
 /** A record's campaign name, as the table shows it. */

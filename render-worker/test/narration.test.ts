@@ -2,6 +2,8 @@ import { expect, test } from "vitest";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
 import { loadFilmSources } from "../src/jobs/render.ts";
 import { joinNarration, spokenLine } from "../src/narration.ts";
+import { runOf, sceneOf, timelineOf } from "./fakes.ts";
+import { fakeDb } from "./film-fixtures.ts";
 
 test("joinNarration makes one continuous script and skips blank lines", () => {
   expect(joinNarration(["  כרמן יושבת  ", "", "   ", "ועובדת ליד המחשב"])).toBe(
@@ -17,23 +19,7 @@ test("spokenLine trims the same characters the database trims", () => {
   expect(spokenLine(null)).toBe("");
 });
 
-/** Answers loadFilmSources' reads from the table name and query. */
-function fakeDb({ scenes, assets, narration }) {
-  return {
-    async select(table, query) {
-      if (table === "marketing_video_scenes")
-        return query.includes("clip_asset_id=not.is.null")
-          ? scenes.filter((scene) => scene.clip_asset_id)
-          : scenes;
-      if (query.includes("type=eq.narration"))
-        return narration ? [narration] : [];
-      if (query.includes("type=eq.music")) return [];
-      return assets;
-    },
-  };
-}
-
-const run = { item_id: "item-1", tenant_id: "tenant-1" };
+const run = runOf({ item_id: "item-1", tenant_id: "tenant-1" });
 
 test("the continuous narration is used only when every spoken scene is in the film", async () => {
   const assets = [
@@ -108,7 +94,12 @@ test("a continuous narration linked to each scene is never replayed as one scene
     { id: "clip-3", url: "t/clip-3.mp4", meta: {} },
     narration,
   ];
-  const scene = (id, position, text, clip) => ({
+  const scene = (
+    id: string,
+    position: number,
+    text: string,
+    clip: string | null,
+  ) => ({
     id,
     position,
     voiceover_text: text,
@@ -178,19 +169,24 @@ test("a talking clip made for an older line is muted and the new line plays as a
   const [talking] = sources.scenes;
   expect(talking.lipsync).toBe(false);
   expect(talking.voicePath).toBe("t/v1.mp3");
-  const { manifest } = buildWorkshopManifest({
-    aspect: "9:16",
-    scenes: [
-      {
-        ...talking,
-        clipPath: "/tmp/talk.mp4",
-        voicePath: "/tmp/v1.mp3",
-        clipHasAudio: true,
-        clipDurationS: 5,
-        voiceDurationS: 2,
-      },
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      aspect: "9:16",
+      scenes: [
+        sceneOf({
+          id: talking.id,
+          lipsync: talking.lipsync,
+          muteClip: talking.muteClip,
+          spokenText: talking.spokenText,
+          clipPath: "/tmp/talk.mp4",
+          voicePath: "/tmp/v1.mp3",
+          clipHasAudio: true,
+          clipDurationS: 5,
+          voiceDurationS: 2,
+        }),
+      ],
+    }),
+  );
   expect(manifest.scenes[0].clipVolume).toBe(0);
 
   // The clip of the current line still speaks it.

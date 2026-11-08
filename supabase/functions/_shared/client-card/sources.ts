@@ -23,20 +23,62 @@ export const CONTACT_COUNTING_SOURCES: readonly ClientCardSource[] = [
   "carmen_confirmed",
 ];
 
-/** The update types Carmen's add_client_update tool accepts. */
-export const CARMEN_CLIENT_UPDATE_TYPES = [
-  "note",
+/**
+ * The four client card update types a person or Carmen gives an entry
+ * (AIO-516). The database owns the stored value: normalize_client_update_type
+ * maps older names onto these, and kinds other flows write (mood_status,
+ * pulse_override, report and send kinds, group digests) keep their name.
+ */
+export const CLIENT_UPDATE_TYPES = [
   "call",
-  "meeting",
-  "complaint",
   "weekly_update",
+  "general",
+  "red_flag",
 ] as const;
 
-export type CarmenClientUpdateType =
-  (typeof CARMEN_CLIENT_UPDATE_TYPES)[number];
+export type ClientUpdateType = (typeof CLIENT_UPDATE_TYPES)[number];
 
-/** Types that claim the client was actually contacted. */
-export const CONTACT_UPDATE_TYPES: readonly CarmenClientUpdateType[] = [
+/** Hebrew labels of the four types. */
+export const CLIENT_UPDATE_TYPE_LABELS: Record<ClientUpdateType, string> = {
+  call: "פגישה / שיחה",
+  weekly_update: "עדכון שבועי",
+  general: "עדכון כללי",
+  red_flag: "דגל אדום",
+};
+
+/** Older names a writer may still send, as normalize_client_update_type stores them. */
+const CLIENT_UPDATE_TYPE_ALIASES: Record<string, ClientUpdateType> = {
+  meeting: "call",
+  note: "general",
+  other: "general",
+  whatsapp: "general",
+  email: "general",
+  import: "general",
+  complaint: "red_flag",
+};
+
+/** One of the four types for a type name or an older alias; null otherwise. */
+export function clientUpdateTypeOf(value: unknown): ClientUpdateType | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const name = value.trim().toLowerCase();
+  const direct = CLIENT_UPDATE_TYPES.find((type) => type === name);
+  return direct ?? CLIENT_UPDATE_TYPE_ALIASES[name] ?? null;
+}
+
+/** The update types Carmen's add_client_update tool offers. */
+export const CARMEN_CLIENT_UPDATE_TYPES = CLIENT_UPDATE_TYPES;
+
+/**
+ * A type a Carmen flow may write: one of the four, or `meeting`, which the
+ * group-update contact drafts keep to word their message ("פגישה"). The
+ * database stores `meeting` as `call`.
+ */
+export type CarmenClientUpdateType = ClientUpdateType | "meeting";
+
+/** Kinds that report a held call or meeting with the client. */
+export const CONTACT_UPDATE_TYPES: ReadonlyArray<CarmenClientUpdateType> = [
   "call",
   "meeting",
 ];
@@ -76,11 +118,13 @@ export function clientCardSourceCanCountAsContact(value: unknown): boolean {
   );
 }
 
-/** Whether a value is one of the types Carmen's add_client_update accepts. */
+/** Whether a value is a type a Carmen flow may write (the four, or meeting). */
 export function isCarmenClientUpdateType(
   value: unknown,
 ): value is CarmenClientUpdateType {
-  return CARMEN_CLIENT_UPDATE_TYPES.some((type) => type === value);
+  return (
+    value === "meeting" || CARMEN_CLIENT_UPDATE_TYPES.some((t) => t === value)
+  );
 }
 
 /** The chip label for a source; null for a person's own note. */
