@@ -14,7 +14,7 @@
 
 import type { TablesInsert } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
-import { asJsonObject, taskResultOutput } from "./agent-task-result.ts";
+import { readTaskCheckpoint, taskResultOutput } from "./agent-task-result.ts";
 import { errorMessage } from "./error-message.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -364,7 +364,7 @@ export async function getBatchResults(
 
   const rows = data || [];
   const tasks: SubagentResultPayload[] = rows.map((row) => {
-    const result = asJsonObject(row.result);
+    const result = readTaskCheckpoint(row.result);
     const status = row.status;
     const output = taskResultOutput(result);
     return {
@@ -428,7 +428,7 @@ export async function getSubagentResult(
   if (error) throw new Error(`getSubagentResult: ${error.message}`);
   if (!data) throw new Error(`subagent task not found: ${subTaskId}`);
 
-  const result = asJsonObject(data.result);
+  const result = readTaskCheckpoint(data.result);
   const status = data.status;
   const done = status === "completed" || status === "failed";
 

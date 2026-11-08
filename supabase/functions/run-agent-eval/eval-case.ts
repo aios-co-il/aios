@@ -1,10 +1,9 @@
 import { z } from "npm:zod@3.25.76";
-import { jsonValueSchema } from "../_shared/agent-task-result.ts";
 
 const evalCaseSchema = z
   .object({
-    input: jsonValueSchema.optional().catch(undefined),
-    expected: jsonValueSchema.optional().catch(undefined),
+    input: z.string().optional().catch(undefined),
+    expected: z.string().optional().catch(undefined),
   })
   .catch({});
 

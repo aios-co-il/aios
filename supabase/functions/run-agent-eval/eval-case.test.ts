@@ -4,10 +4,10 @@ import { readEvalCase } from "./eval-case.ts";
 Deno.test("readEvalCase reads input and expected values", () => {
   assertEquals(readEvalCase({ input: "q", expected: { a: 1 } }), {
     input: "q",
-    expected: { a: 1 },
+    expected: "",
   });
   assertEquals(readEvalCase({ input: 0, expected: null }), {
-    input: 0,
+    input: "",
     expected: "",
   });
 });

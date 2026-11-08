@@ -1,7 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  asJsonObject,
-  jsonObjectOrNull,
+  readTaskCheckpoint,
+  readNotifyEnvelope,
   readWhatsAppNotify,
   type WhatsAppNotify,
   taskResultOutput,
@@ -17,15 +17,21 @@ const notify: WhatsAppNotify = {
   is_group: true,
 };
 
-Deno.test("asJsonObject keeps objects and reads anything else as empty", () => {
-  assertEquals(asJsonObject({ a: 1, b: [null, { c: true }] }), {
-    a: 1,
-    b: [null, { c: true }],
+Deno.test("checkpoint reads validate named fields independently", () => {
+  const result = readTaskCheckpoint({
+    final_output: "done",
+    total_tool_calls: "3",
+    conversation_history: [
+      null,
+      { role: "assistant", content: "hello" },
+      { role: "user", content: { bad: true } },
+    ],
   });
-  assertEquals(asJsonObject(null), {});
-  assertEquals(asJsonObject(["x"]), {});
-  assertEquals(asJsonObject("x"), {});
-  assertStrictEquals(jsonObjectOrNull(3), null);
+  assertEquals(result.final_output, "done");
+  assertEquals(result.total_tool_calls, undefined);
+  assertEquals(result.conversation_history, [
+    { role: "assistant", content: "hello" },
+  ]);
 });
 
 Deno.test(
@@ -82,7 +88,7 @@ Deno.test(
     });
     assertStrictEquals(loose?.connection_user_id, null);
     assertStrictEquals(loose?.automation_id, null);
-    assertStrictEquals(loose?.is_group, true);
+    assertStrictEquals(loose?.is_group, false);
   },
 );
 
@@ -100,5 +106,16 @@ Deno.test(
     );
     assertStrictEquals(readWhatsAppNotify(null), null);
     assertStrictEquals(readWhatsAppNotify([notify]), null);
+  },
+);
+
+Deno.test(
+  "invalid WhatsApp checkpoints retain their delivery surface for refusal",
+  () => {
+    const checkpoint = readTaskCheckpoint({
+      notify: { surface: "whatsapp", chat_id: 42 },
+    });
+    assertEquals(readNotifyEnvelope(checkpoint.notify).surface, "whatsapp");
+    assertEquals(readWhatsAppNotify(checkpoint.notify), null);
   },
 );

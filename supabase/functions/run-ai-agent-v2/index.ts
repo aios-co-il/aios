@@ -8,9 +8,11 @@ import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
 import type { Database, Json, Tables } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
-  asJsonObject,
-  jsonObjectOrNull,
-} from "../_shared/agent-task-result.ts";
+  readToolAction,
+  readMcpOAuth,
+  readMcpTool,
+  readMcpResult,
+} from "./tool-contracts.ts";
 import { readChatCompletion, readToolCall } from "./llm-response.ts";
 import { errorMessage } from "../_shared/error-message.ts";
 
@@ -43,7 +45,7 @@ type RunRow = Tables<"agent_runs">;
 type ChatMessage =
   | { role: "system" | "user"; content: string }
   | { role: "assistant"; content: string | null; tool_calls: Json[] }
-  | { role: "tool"; tool_call_id: Json | undefined; content: string };
+  | { role: "tool"; tool_call_id: string | undefined; content: string };
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -65,7 +67,7 @@ async function logStep(
     | "approval_pending",
   details: {
     thought?: string;
-    tool_name?: Json;
+    tool_name?: string;
     tool_input?: Json;
     observation?: Json;
     status?: "success" | "error" | "pending";
@@ -137,7 +139,7 @@ async function reconstructMessages(
     .order("step_index", { ascending: true });
   for (const row of log ?? []) {
     if (row.step_kind === "tool") {
-      const actionDetails = asJsonObject(row.action_details);
+      const actionDetails = readToolAction(row.action_details);
       const toolName = actionDetails.tool_name;
       const toolInput = actionDetails.tool_input ?? {};
       const callId = `call_${row.step_index}`;
@@ -203,7 +205,9 @@ async function executeTool(
   if (tool.handler_kind === "edge" && tool.handler_ref) {
     const { data, error } = await supabase.functions.invoke(tool.handler_ref, {
       body: {
-        ...asJsonObject(input),
+        ...(input && typeof input === "object" && !Array.isArray(input)
+          ? input
+          : {}),
         _run_id: run.id,
         _tenant_id: run.tenant_id,
         _agent_id: run.agent_id,
@@ -224,7 +228,7 @@ async function executeTool(
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
     };
-    const bearer = asJsonObject(conn.oauth_tokens).bearer;
+    const bearer = readMcpOAuth(conn.oauth_tokens).bearer;
     if (bearer) headers["Authorization"] = `Bearer ${bearer}`;
     const resp = await fetch(conn.url, {
       method: "POST",
@@ -249,7 +253,7 @@ async function executeTool(
       if (parsed === null) {
         return { ok: true, raw: text.slice(0, 500) };
       }
-      return jsonObjectOrNull(parsed)?.result ?? parsed;
+      return readMcpResult(parsed);
     } catch {
       return { ok: true, raw: text.slice(0, 500) };
     }
@@ -429,7 +433,9 @@ Deno.serve(async (req) => {
     for (const c of mcpConns ?? []) {
       const list = Array.isArray(c.available_tools) ? c.available_tools : [];
       for (const listed of list) {
-        const t = asJsonObject(listed);
+        const descriptor = readMcpTool(listed);
+        if (!descriptor.success) continue;
+        const t = descriptor.data;
         mcpTools.push({
           id: `mcp_${c.id}_${t.name}`,
           name: `mcp__${c.id.replace(/-/g, "")}__${t.name}`.slice(0, 64),

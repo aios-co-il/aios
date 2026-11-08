@@ -8,8 +8,10 @@ import {
 import type { Database, Json, Tables } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
-  asJsonObject,
-  type JsonObject,
+  readTaskCheckpoint,
+  readNotifyEnvelope,
+  readAgentExecution,
+  type TaskCheckpoint,
   readWhatsAppNotify,
   type WhatsAppNotify,
 } from "../_shared/agent-task-result.ts";
@@ -18,7 +20,7 @@ import { errorMessage } from "../_shared/error-message.ts";
 type AgentTaskRow = Tables<"agent_tasks">;
 
 function surfaceIsWhatsApp(notify: Json | undefined): boolean {
-  return asJsonObject(notify).surface === "whatsapp";
+  return readNotifyEnvelope(notify).surface === "whatsapp";
 }
 
 /** The stored notify target, only when it is pinned to a valid originating WhatsApp chat. */
@@ -121,12 +123,12 @@ async function maybeSendBatchReport(
   }
   const preservedNotify = originatingNotify(storedNotify);
   if (!preservedNotify) {
-    const raw = asJsonObject(storedNotify);
+    const raw = readNotifyEnvelope(storedNotify);
     console.error(
       "[run-agent-task] refusing batch WA report — notify is not pinned to a valid originating chat",
       {
-        chat_id: raw.chat_id,
-        is_group: raw.is_group,
+        chat_id: raw?.chat_id,
+        is_group: raw?.is_group,
       },
     );
     return;
@@ -265,7 +267,7 @@ Deno.serve(async (req) => {
       .eq("id", task_id);
 
     // Load checkpoint from result if resuming
-    const checkpoint = asJsonObject(task.result);
+    const checkpoint = readTaskCheckpoint(task.result);
     const previousHistory = Array.isArray(checkpoint.conversation_history)
       ? checkpoint.conversation_history
       : [];
@@ -288,7 +290,7 @@ Deno.serve(async (req) => {
     // originating chat (including a group chat id) is persisted when Carmen
     // creates the task. Deliver directly and only mark the task completed
     // after the provider action step confirms success.
-    const reminderMessage = asJsonObject(checkpoint.reminder_delivery).message;
+    const reminderMessage = checkpoint.reminder_delivery?.message;
     if (reminderMessage && surfaceIsWhatsApp(checkpoint.notify)) {
       const reminderNotify = originatingNotify(checkpoint.notify);
       if (!reminderNotify) {
@@ -634,7 +636,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const result = await response.json();
+    const result = readAgentExecution(await response.json());
     console.log(
       `[run-agent-task] run-ai-agent completed in ${elapsed}ms, tools: ${result.tools_used?.length || 0}`,
     );
@@ -660,7 +662,7 @@ Deno.serve(async (req) => {
     const previousToolLog = Array.isArray(checkpoint.tool_log)
       ? checkpoint.tool_log
       : [];
-    const updatedCheckpoint: JsonObject = {
+    const updatedCheckpoint: TaskCheckpoint = {
       conversation_history: [
         ...previousHistory,
         { role: "user", content: commandText },
@@ -729,13 +731,13 @@ Deno.serve(async (req) => {
     if (surfaceIsWhatsApp(preservedNotify)) {
       const notifyTarget = originatingNotify(preservedNotify);
       if (!notifyTarget) {
-        const raw = asJsonObject(preservedNotify);
+        const raw = readNotifyEnvelope(preservedNotify);
         console.error(
           "[run-agent-task] refusing WA notify — not pinned to originating chat",
           {
             task_id,
-            chat_id: raw.chat_id,
-            is_group: raw.is_group,
+            chat_id: raw?.chat_id,
+            is_group: raw?.is_group,
           },
         );
       } else if (task.batch_id) {
