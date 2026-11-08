@@ -5,13 +5,13 @@ import type { Dispatch, SetStateAction } from "react";
 import { useSignIn } from "./useSignIn";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 
-import type { NavigateToApp } from "../types";
+import type { NavigateToApp, PasswordSignInAttempt } from "../types";
 
 type Props = {
   email: string;
   setEmail: Dispatch<SetStateAction<string>>;
   onResetPassword: () => void;
-  onPasswordSignInStart: () => void;
+  onPasswordSignInStart: () => PasswordSignInAttempt;
   navigateToApp: NavigateToApp;
 };
 

@@ -14,3 +14,8 @@ export type AuthType = "invite" | "recovery" | null;
 export function parseAuthType(value: string | null): AuthType {
   return value === "invite" || value === "recovery" ? value : null;
 }
+
+export interface PasswordSignInAttempt {
+  release: () => void;
+  isCurrent: () => boolean;
+}

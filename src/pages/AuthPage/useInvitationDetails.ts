@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import type { Json } from "@/integrations/supabase/types";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -55,9 +55,9 @@ async function loadInvitation(inviteToken: string) {
     return null;
   }
 
-  const orgName =
-    data.tenants?.name || readMetadataString(data.metadata, "tenant_name");
-  const invitedName = readMetadataString(data.metadata, "fullName");
+  const metadata = metadataSchema.parse(data.metadata);
+  const orgName = data.tenants?.name || metadata.tenant_name;
+  const invitedName = metadata.fullName;
   const banner = !orgName
     ? null
     : invitedName
@@ -67,13 +67,10 @@ async function loadInvitation(inviteToken: string) {
   return { email: data.email, banner };
 }
 
-/** Narrow the JSON storage boundary instead of assuming metadata field types. */
-function readMetadataString(metadata: Json, field: "tenant_name" | "fullName") {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return undefined;
-  }
-
-  const value = metadata[field];
-
-  return typeof value === "string" ? value : undefined;
-}
+// Optional display metadata tolerates invalid fields independently.
+const metadataSchema = z
+  .object({
+    tenant_name: z.string().optional().catch(undefined),
+    fullName: z.string().optional().catch(undefined),
+  })
+  .catch({});

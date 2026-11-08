@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AuthShell } from "./AuthShell/AuthShell";
 import { SignInForm } from "./SignInForm/SignInForm";
@@ -11,16 +11,34 @@ import { useInvitationDetails } from "./useInvitationDetails";
 import { useMfa } from "./useMfa/useMfa";
 import { parseAuthType } from "./types";
 
+/** Compose local forms and shared session transitions. */
 export default function AuthPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [resetMode, setResetMode] = useState(false);
-  const navigateToApp = useAuthNavigation();
+  const { navigateToApp, cancelPending } = useAuthNavigation();
   const { email, setEmail, inviteBanner } = useInvitationDetails(
     searchParams.get("token"),
   );
   const mfa = useMfa(navigateToApp);
-  const { checkingSession, updatePasswordMode, onPasswordSignInStart } =
-    useAuthSession(searchParams, mfa.completeSignIn);
+  const resetMfa = mfa.backToSignIn;
+
+  const resetForms = useCallback(() => {
+    cancelPending();
+    resetMfa();
+    setResetMode(false);
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete("type");
+
+        return next;
+      },
+      { replace: true },
+    );
+  }, [cancelPending, resetMfa, setSearchParams]);
+
+  const session = useAuthSession(searchParams, mfa.completeSignIn, resetForms);
+  const { checkingSession, updatePasswordMode } = session;
 
   if (checkingSession && !updatePasswordMode) {
     return (
@@ -41,7 +59,7 @@ export default function AuthPage() {
         <MfaForm
           factorId={mfa.factorId}
           navigateToApp={navigateToApp}
-          backToSignIn={mfa.backToSignIn}
+          backToSignIn={backToSignIn}
           onVerificationStart={mfa.onVerificationStart}
           onVerificationEnd={mfa.onVerificationEnd}
         />
@@ -62,4 +80,19 @@ export default function AuthPage() {
       )}
     </AuthShell>
   );
+
+  /** Explicit exit also clears the URL mode so future events cannot restore setup. */
+  function backToSignIn() {
+    session.exitPasswordSetup();
+    resetForms();
+  }
+
+  /** A new password attempt supersedes any older bootstrap completion. */
+  function onPasswordSignInStart() {
+    const attempt = session.onPasswordSignInStart();
+    cancelPending();
+    resetMfa();
+
+    return attempt;
+  }
 }

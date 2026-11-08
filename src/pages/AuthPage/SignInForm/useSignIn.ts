@@ -2,14 +2,14 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { NavigateToApp } from "../types";
+import type { NavigateToApp, PasswordSignInAttempt } from "../types";
 import { AUTH_REDIRECT } from "../authRedirect";
 import { authSessionQueryOptions } from "../authSessionQuery";
 
 interface SignInActions {
   navigateToApp: NavigateToApp;
   email: string;
-  onPasswordSignInStart: () => void;
+  onPasswordSignInStart: () => PasswordSignInAttempt;
 }
 
 /** Own password drafts and mutation lifecycles for both sign-in methods. */
@@ -24,7 +24,6 @@ export function useSignIn({
 
   const passwordMutation = useMutation({
     mutationFn: authenticate,
-    onMutate: onPasswordSignInStart,
     onError: showError,
     retry: false,
     gcTime: 0,
@@ -49,17 +48,34 @@ export function useSignIn({
   };
 
   /** Route only after the password mutation has established its session. */
-  async function authenticate(credentials: {
+  async function authenticate({
+    email,
+    password,
+    attempt,
+  }: {
     email: string;
     password: string;
+    attempt: PasswordSignInAttempt;
   }) {
-    const { error } = await supabase.auth.signInWithPassword(credentials);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (!attempt.isCurrent()) {
+      return;
+    }
 
     if (error) {
+      attempt.release();
       throw error;
     }
 
     const session = await queryClient.fetchQuery(authSessionQueryOptions);
+
+    if (!attempt.isCurrent()) {
+      return;
+    }
 
     if (!session) {
       throw new Error("לא נמצאה התחברות פעילה");
@@ -92,7 +108,8 @@ export function useSignIn({
   /** Capture the submitted credentials rather than a later draft. */
   function handleSignIn(event: FormEvent) {
     event.preventDefault();
-    passwordMutation.mutate({ email, password });
+    const attempt = onPasswordSignInStart();
+    passwordMutation.mutate({ email, password, attempt });
   }
 
   /** Keep the OAuth mutation's variables independent of the form event. */

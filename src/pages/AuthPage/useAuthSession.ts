@@ -1,26 +1,38 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import type { Session } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
 import { parseAuthType, type NavigateToApp } from "./types";
 import { authSessionQueryOptions } from "./authSessionQuery";
+import {
+  authSessionReducer,
+  type AuthSessionControls,
+} from "./authSessionState";
+import { useAuthSessionEvents } from "./useAuthSessionEvents";
 
-/** Combine a fresh session query with the SDK's ongoing auth-event subscription. */
+/** Keep rendered session modes in a reducer and synchronous SDK ownership in refs. */
 export function useAuthSession(
   searchParams: URLSearchParams,
   navigateToApp: NavigateToApp,
+  onSignedOut?: () => void,
 ) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const passwordSignInOwned = useRef(false);
-  const navigating = useRef(false);
   const authType = parseAuthType(searchParams.get("type"));
-  const needsPasswordSetup = authType === "recovery" || authType === "invite";
+  const needsPasswordSetup = authType !== null;
   const hasOAuthCode = !!searchParams.get("code");
-  const [checkingSession, setCheckingSession] = useState(!needsPasswordSetup);
-  const [updatePasswordMode, setUpdatePasswordMode] =
-    useState(needsPasswordSetup);
+  const [view, dispatch] = useReducer(
+    authSessionReducer,
+    needsPasswordSetup ? "passwordSetup" : "checking",
+  );
+  // SDK events can arrive before React commits a state update.
+  const controls = useRef<AuthSessionControls>({
+    manual: false,
+    navigating: false,
+    version: 0,
+  });
+
+  const updatePasswordMode = view === "passwordSetup";
 
   const sessionQuery = useQuery({
     ...authSessionQueryOptions,
@@ -28,84 +40,72 @@ export function useAuthSession(
   });
 
   const onPasswordSignInStart = useCallback(() => {
-    passwordSignInOwned.current = true;
+    controls.current.manual = true;
+    controls.current.navigating = false;
+    const version = ++controls.current.version;
+    void queryClient.cancelQueries({
+      queryKey: authSessionQueryOptions.queryKey,
+      exact: true,
+    });
+
+    /** Release only a rejected attempt that still owns completion. */
+    function release() {
+      if (version === controls.current.version) {
+        controls.current.manual = false;
+      }
+    }
+
+    return {
+      release,
+      isCurrent: function isCurrent() {
+        return version === controls.current.version;
+      },
+    };
+  }, [queryClient]);
+
+  const exitPasswordSetup = useCallback(() => {
+    controls.current.manual = true;
+    controls.current.navigating = false;
+    controls.current.version++;
+    dispatch("signIn");
   }, []);
 
   const goToApp = useCallback(
     async (session: Session) => {
-      if (navigating.current || passwordSignInOwned.current) {
+      if (controls.current.navigating || controls.current.manual) {
         return;
       }
 
-      navigating.current = true;
-      setCheckingSession(true);
+      const version = controls.current.version;
+      controls.current.navigating = true;
+      dispatch("checking");
       const ok = await navigateToApp(session.user.id, session.access_token);
 
+      if (version !== controls.current.version || controls.current.manual) {
+        return;
+      }
+
       if (!ok) {
-        navigating.current = false;
-        setCheckingSession(false);
+        controls.current.navigating = false;
+        dispatch("checked");
       }
     },
     [navigateToApp],
   );
 
-  useEffect(() => {
-    const spinnerTimeout = setTimeout(() => setCheckingSession(false), 4000);
-
-    return () => clearTimeout(spinnerTimeout);
-  }, []);
+  useAuthSessionEvents(hasOAuthCode, controls, dispatch, onSignedOut);
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(handleAuthEvent);
-
-    return () => subscription.unsubscribe();
-
-    /** SDK events update the session query; only the page effect initiates routing. */
-    async function handleAuthEvent(
-      event: AuthChangeEvent,
-      session: Session | null,
-    ) {
-      if (event === "PASSWORD_RECOVERY" || needsPasswordSetup) {
-        setUpdatePasswordMode(true);
-        setCheckingSession(false);
-
-        return;
-      }
-
-      if (passwordSignInOwned.current) {
-        return;
-      }
-
-      if (
-        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
-        session?.user
-      ) {
-        await queryClient.cancelQueries({
-          queryKey: authSessionQueryOptions.queryKey,
-          exact: true,
-        });
-        queryClient.setQueryData(authSessionQueryOptions.queryKey, session);
-      } else if (
-        (event === "INITIAL_SESSION" && !hasOAuthCode) ||
-        event === "SIGNED_OUT"
-      ) {
-        await queryClient.cancelQueries({
-          queryKey: authSessionQueryOptions.queryKey,
-          exact: true,
-        });
-        queryClient.setQueryData(authSessionQueryOptions.queryKey, null);
-        setCheckingSession(false);
-      }
+    if (authType) {
+      dispatch("passwordSetup");
     }
-  }, [hasOAuthCode, needsPasswordSetup, queryClient]);
+  }, [authType]);
 
   useEffect(() => {
     if (
       needsPasswordSetup ||
       updatePasswordMode ||
-      passwordSignInOwned.current ||
+      controls.current.manual ||
       sessionQuery.isFetching
     ) {
       return;
@@ -117,11 +117,11 @@ export function useAuthSession(
         description: sessionQuery.error.message,
         variant: "destructive",
       });
-      setCheckingSession(false);
+      dispatch("checked");
     } else if (sessionQuery.data?.user) {
       void goToApp(sessionQuery.data);
     } else if (sessionQuery.isSuccess && !hasOAuthCode) {
-      setCheckingSession(false);
+      dispatch("checked");
     }
   }, [
     needsPasswordSetup,
@@ -136,5 +136,10 @@ export function useAuthSession(
     toast,
   ]);
 
-  return { checkingSession, updatePasswordMode, onPasswordSignInStart };
+  return {
+    checkingSession: view === "checking",
+    updatePasswordMode,
+    onPasswordSignInStart,
+    exitPasswordSetup,
+  };
 }

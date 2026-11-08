@@ -1,5 +1,5 @@
 import { auth, session } from "../testUtils/authMocks";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import { useMfa } from "./useMfa";
@@ -32,5 +32,40 @@ describe("useMfa query freshness", () => {
     expect(auth.getAuthenticatorAssuranceLevel).toHaveBeenCalledTimes(2);
     expect(result.current.factorId).toBe("factor-id");
     expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not restore a challenge after a pending lookup is cancelled by leaving the flow", async () => {
+    let release: (() => void) | undefined;
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    auth.getAuthenticatorAssuranceLevel.mockImplementation(async () => {
+      await waiting;
+
+      return { data: { currentLevel: "aal1", nextLevel: "aal2" }, error: null };
+    });
+    const { wrapper } = createTestQueryHarness();
+    const navigate = vi.fn().mockResolvedValue(true);
+    const { result } = renderHook(() => useMfa(navigate), { wrapper });
+    let pending: Promise<boolean> | undefined;
+
+    act(() => {
+      pending = result.current.completeSignIn(
+        session.user.id,
+        session.access_token,
+      );
+    });
+    await waitFor(() =>
+      expect(auth.getAuthenticatorAssuranceLevel).toHaveBeenCalledTimes(1),
+    );
+    act(() => result.current.backToSignIn());
+
+    await act(async () => {
+      release?.();
+      await pending;
+    });
+
+    expect(result.current.factorId).toBeNull();
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

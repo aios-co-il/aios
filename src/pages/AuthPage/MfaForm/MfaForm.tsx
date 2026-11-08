@@ -48,6 +48,7 @@ export function MfaForm({ backToSignIn, ...verification }: Props) {
         variant="ghost"
         className="w-full"
         onClick={backToSignIn}
+        disabled={loading}
       >
         חזור להתחברות
       </Button>

@@ -7,7 +7,7 @@ paths:
 # TypeScript
 
 - **The main flow reads as named steps**: `const existingLead = await getExistingLead(...)`. Request parsing, auth and each multi-step block get a named function; the handler or component body stays a short sequence of intents.
-- **Prefer TanStack `mutate`** for callback-driven mutations and expose completion callbacks when consumers need them. Use `mutateAsync` only when callers must await the result to preserve sequencing or pending state; do not wrap `mutate` in a Promise just to recreate it. Reads use `useQuery` or `queryClient.fetchQuery`.
+- **Prefer TanStack `mutate`** for callback-driven mutations and expose completion callbacks when consumers need them. Use `mutateAsync` only when callers must await the result to preserve sequencing or pending state; do not wrap `mutate` in a Promise just to recreate it. For frontend server-state reads under `src/**`, use `useQuery` or `queryClient.fetchQuery`.
 - **The entry point comes first**: `Deno.serve`, the exported component or the main export at the top, helpers below it (function declarations hoist).
 - **Code lives beside its only caller**: a helper used by one module sits in that module's folder with its test, and a new file in `supabase/functions/_shared/` or `src/lib/` with one importer moves next to that importer.
 - **Direct form**: return the boolean expression (`return !(a && b)`), and leave a blank line between test cases and type declarations.

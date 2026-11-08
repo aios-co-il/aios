@@ -10,6 +10,13 @@ export function useMfa(navigateToApp: NavigateToApp) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const verifying = useRef(false);
+  const version = useRef(0);
+
+  const backToSignIn = useCallback(() => {
+    version.current++;
+    verifying.current = false;
+    setFactorId(null);
+  }, []);
 
   const completeSignIn: NavigateToApp = useCallback(
     async (userId, accessToken) => {
@@ -17,16 +24,27 @@ export function useMfa(navigateToApp: NavigateToApp) {
         return false;
       }
 
+      const attempt = version.current;
+
       try {
         const requiredFactor = await queryClient.fetchQuery(
           mfaReadinessQueryOptions(userId),
         );
+
+        if (attempt !== version.current) {
+          return false;
+        }
+
         setFactorId(requiredFactor);
 
         return requiredFactor
           ? false
           : await navigateToApp(userId, accessToken);
       } catch (error: unknown) {
+        if (attempt !== version.current) {
+          return false;
+        }
+
         toast({
           title: "שגיאה",
           description:
@@ -49,11 +67,6 @@ export function useMfa(navigateToApp: NavigateToApp) {
     onVerificationStart,
     onVerificationEnd,
   };
-
-  /** Leaving the challenge unmounts its local code draft. */
-  function backToSignIn() {
-    setFactorId(null);
-  }
 
   /** Ignore SDK navigation while explicit verification owns completion. */
   function onVerificationStart() {

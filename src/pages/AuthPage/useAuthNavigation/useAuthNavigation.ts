@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,11 +6,19 @@ import { useToast } from "@/hooks/use-toast";
 import { resolveAppHomePath } from "@/lib/appHomePath";
 import type { AuthDestination, NavigateToApp } from "../types";
 
+interface NavigationRequest extends AuthDestination {
+  version: number;
+}
+
 /** Complete invitation side effects once, then resolve and enter the user's home. */
 export function useAuthNavigation() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const version = useRef(0);
+  const cancelPending = useCallback(() => {
+    version.current++;
+  }, []);
 
   // Callers await completion to preserve pending state and invitation/navigation order.
   const { mutateAsync } = useMutation({
@@ -23,8 +31,12 @@ export function useAuthNavigation() {
 
   const navigateToApp: NavigateToApp = useCallback(
     async (userId, accessToken) => {
+      const request = { userId, accessToken, version: version.current };
+
       try {
-        return Boolean(await mutateAsync({ userId, accessToken }));
+        const homePath = await mutateAsync(request);
+
+        return request.version === version.current && Boolean(homePath);
       } catch {
         // The mutation's onError reports the failure; callers need a routing result.
         return false;
@@ -33,12 +45,22 @@ export function useAuthNavigation() {
     [mutateAsync],
   );
 
-  return navigateToApp;
+  return { navigateToApp, cancelPending };
 
   /** Invitation failure remains non-blocking, as tracked in AIO-479. */
-  async function resolveDestination({ userId, accessToken }: AuthDestination) {
+  async function resolveDestination(request: NavigationRequest) {
+    const { userId, accessToken } = request;
+
+    if (request.version !== version.current) {
+      return null;
+    }
+
     if (accessToken) {
       await processPendingInvitation(accessToken);
+    }
+
+    if (request.version !== version.current) {
+      return null;
     }
 
     return queryClient.fetchQuery({
@@ -51,7 +73,11 @@ export function useAuthNavigation() {
   }
 
   /** Keep the missing-organization case on the auth page. */
-  function enterHome(homePath: string | null) {
+  function enterHome(homePath: string | null, request: NavigationRequest) {
+    if (request.version !== version.current) {
+      return;
+    }
+
     if (homePath) {
       navigate(homePath, { replace: true });
 
@@ -62,7 +88,11 @@ export function useAuthNavigation() {
   }
 
   /** Show routing failures while letting the caller release its pending state. */
-  function showError(error: unknown) {
+  function showError(error: unknown, request?: NavigationRequest) {
+    if (request && request.version !== version.current) {
+      return;
+    }
+
     toast({
       title: "שגיאה",
       description:

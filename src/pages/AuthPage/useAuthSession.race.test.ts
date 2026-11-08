@@ -73,7 +73,9 @@ describe("useAuthSession event races", () => {
 
     await waitFor(() => expect(result.current.checkingSession).toBe(false));
 
-    act(() => result.current.onPasswordSignInStart());
+    act(() => {
+      result.current.onPasswordSignInStart();
+    });
     await act(async () => {
       await auth.listener?.("SIGNED_IN", session);
     });

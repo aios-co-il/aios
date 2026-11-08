@@ -58,4 +58,23 @@ describe("useInvitationDetails metadata boundary", () => {
     expect(result.current.inviteBanner).toContain("Guest");
     expect(result.current.email).toBe("invite@example.test");
   });
+
+  it("keeps a valid fallback field when another metadata field is invalid", async () => {
+    auth.invitation = {
+      email: "invite@example.test",
+      metadata: { tenant_name: "Fallback Org", fullName: 42 },
+      tenants: null,
+    };
+    const { wrapper } = createTestQueryHarness();
+    const { result } = renderHook(() => useInvitationDetails("invitation"), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current.inviteBanner).toContain("Fallback Org"),
+    );
+
+    expect(result.current.inviteBanner).not.toContain("42");
+    expect(auth.toast).not.toHaveBeenCalled();
+  });
 });
