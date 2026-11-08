@@ -437,15 +437,19 @@ export async function completeSession(
     .eq("id", sessionId);
 }
 
+/** Propagate lookup failures so callbacks can retry instead of treating them as missing sessions. */
 export async function loadSession(
   sb: SupabaseClient,
   sessionId: string,
 ): Promise<ChannelSessionRow | null> {
-  const { data } = await sb
+  const { data, error } = await sb
     .from("agent_channel_sessions")
     .select("*")
     .eq("id", sessionId)
     .maybeSingle();
+  if (error) {
+    throw error;
+  }
   return (data as ChannelSessionRow) || null;
 }
 

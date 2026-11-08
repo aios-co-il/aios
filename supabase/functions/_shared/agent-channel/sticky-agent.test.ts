@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { loadSession } from "./store.ts";
 import {
   assert,
   assertEquals,
@@ -230,7 +232,42 @@ Deno.test(
           env: { CURSOR_DIRECT_STICKY: "true" },
         }),
       Error,
-      openChatLookupFailedMessage("permission denied"),
+      openChatLookupFailedMessage(),
+    );
+  },
+);
+
+Deno.test(
+  "returned session query errors propagate instead of looking like a missing session",
+  async () => {
+    const sb = createClient("https://example.invalid", "test-key", {
+      auth: { persistSession: false },
+      global: {
+        fetch: async () =>
+          new Response(
+            JSON.stringify({
+              code: "42501",
+              message: "private database detail",
+            }),
+            { status: 403, headers: { "Content-Type": "application/json" } },
+          ),
+      },
+    });
+    let caught: unknown;
+    try {
+      await loadSession(sb, "session");
+    } catch (error) {
+      caught = error;
+    }
+    assert(
+      caught &&
+        typeof caught === "object" &&
+        "code" in caught &&
+        caught.code === "42501",
+    );
+    assertEquals(
+      openChatLookupFailedMessage().includes("private database detail"),
+      false,
     );
   },
 );

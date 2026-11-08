@@ -11,10 +11,14 @@ describe("stored-records", () => {
       filePath: "src/a.ts",
       newCode: "x",
     });
-    assertEquals(readProposedFix({ file_path: "a.json", new_code: 1 }), {
-      filePath: "a.json",
-      newCode: "1",
-    });
+    assertStrictEquals(
+      readProposedFix({ file_path: "a.json", new_code: 1 }),
+      null,
+    );
+    assertStrictEquals(
+      readProposedFix({ file_path: {}, new_code: "code" }),
+      null,
+    );
   });
 
   it("readProposedFix rejects missing details", () => {

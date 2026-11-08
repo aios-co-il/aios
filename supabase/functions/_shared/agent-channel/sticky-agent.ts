@@ -113,8 +113,8 @@ export function missingOpenChatMessage(provider: OpenChatProvider): string {
 }
 
 /** Build the user-facing message for a failed open-chat lookup. */
-export function openChatLookupFailedMessage(reason: string): string {
-  return `לא הצלחתי לקרוא את הצ'אטים הפתוחים של Cursor: ${reason}`;
+export function openChatLookupFailedMessage(): string {
+  return "לא הצלחתי לקרוא את הצ'אטים הפתוחים של Cursor";
 }
 
 export function busyOpenChatMessage(
@@ -171,7 +171,7 @@ export async function collectOpenChatIds(
       provider: args.provider,
       error: error.message,
     });
-    throw new Error(openChatLookupFailedMessage(error.message));
+    throw new Error(openChatLookupFailedMessage());
   }
   for (const row of openChatSessionRowsSchema.parse(sessions)) {
     ids.push(...uniqueCloudAgentIds(row.external_session_id));
