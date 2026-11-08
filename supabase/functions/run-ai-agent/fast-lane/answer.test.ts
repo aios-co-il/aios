@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { answerFast } from "./answer.ts";
+import { answerFast, chatTurns } from "./answer.ts";
 
 const target = { url: "https://llm.test/v1/chat", key: "k", model: "fast" };
 
@@ -82,4 +82,21 @@ Deno.test("a failed request hands over", async () => {
     reason: "TypeError",
     shown: false,
   });
+});
+
+Deno.test("history keeps only user and assistant text", () => {
+  assertEquals(
+    chatTurns([
+      { role: "user", content: "היי" },
+      { role: "system", content: "x" },
+      { role: "assistant", content: 3 },
+      null,
+      { role: "assistant", content: "שלום" },
+    ]),
+    [
+      { role: "user", content: "היי" },
+      { role: "assistant", content: "שלום" },
+    ],
+  );
+  assertEquals(chatTurns("nope"), []);
 });

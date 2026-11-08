@@ -13670,10 +13670,11 @@ import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 import { runTenantDenied } from "./run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
-import { fastLaneFits } from "./fast-lane/eligibility.ts";
+import { type FastLaneChannel, fastLaneFits } from "./fast-lane/eligibility.ts";
 import { fastLaneInstructions } from "./fast-lane/instructions.ts";
 import {
   answerFast,
+  chatTurns,
   type ChatTurn,
   type FastTarget,
 } from "./fast-lane/answer.ts";
@@ -13992,14 +13993,20 @@ async function handleRunAgent(
 
     // A quick model answers small talk and what the org brief already covers before the full
     // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
+    const fastLaneChannel: FastLaneChannel | null =
+      emit && appChatTurn && serverConversationId && callerUserId
+        ? "app_chat"
+        : // A team member (matched by the service-only caller phone) writing to Carmen 1:1.
+          surface === "whatsapp" &&
+            wa_notify &&
+            !isGroupChat(wa_notify) &&
+            callerCampaignerId
+          ? "whatsapp_staff"
+          : null;
     if (
-      emit &&
-      serverConversationId &&
-      callerUserId &&
       fastLaneFits({
         message: String(command_text),
-        streaming: true,
-        appChatTurn,
+        channel: fastLaneChannel,
         isCarmen: isCarmenAgent,
         pinned: Boolean(
           brainEngine ||
@@ -14007,6 +14014,10 @@ async function handleRunAgent(
           pinSkillsOnly ||
           inWorkshopRequest ||
           task_mode ||
+          automationRun ||
+          bodyJson.carmen_automation ||
+          findingDraftReply.shortCode ||
+          findingDraftReply.approveCode ||
           (Array.isArray(task_skills) && task_skills.length > 0),
         ),
       })
@@ -14018,7 +14029,10 @@ async function handleRunAgent(
         agentId: agent_id,
         agentName: agent.name || "כרמן",
         conversationId: serverConversationId,
-        history: serverConversationHistory,
+        history:
+          fastLaneChannel === "app_chat"
+            ? serverConversationHistory
+            : chatTurns(conversation_history),
         message: String(command_text),
         surface,
       });
@@ -16441,11 +16455,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 /** A chat turn the fast lane may answer, with what it needs to save the reply. */
 type FastLaneRequest = {
   tenantId: string;
-  userId: string;
+  userId: string | null;
   callerName: string | null;
   agentId: string;
   agentName: string;
-  conversationId: string;
+  /** The AIOS chat's conversation; WhatsApp keeps its own history. */
+  conversationId: string | null;
   history: Array<ChatTurn>;
   message: string;
   surface: Surface;
@@ -16457,7 +16472,7 @@ type FastLaneRequest = {
  */
 async function tryFastLane(
   supabase: AgentDatabaseClient,
-  emit: (obj: unknown) => void,
+  emit: Emit,
   turn: FastLaneRequest,
 ): Promise<Response | null> {
   const startedAt = Date.now();
@@ -16479,7 +16494,7 @@ async function tryFastLane(
     }),
     history: turn.history,
     message: turn.message,
-    onText: (content) => emit({ type: "token", content }),
+    onText: (content) => emit?.({ type: "token", content }),
   });
   const durationMs = Date.now() - startedAt;
   if (answer.kind === "escalate") {
@@ -16488,14 +16503,21 @@ async function tryFastLane(
     );
     // Words it already showed stay; the full answer starts on its own paragraph.
     if (answer.shown) {
-      emit({ type: "token", content: "\n\n" });
+      emit?.({ type: "token", content: "\n\n" });
     }
     return null;
   }
   console.log(
     `[AGENT] fast lane answered in ${durationMs}ms (${target.label})`,
   );
-  await saveConversationTurn(supabase, { ...turn, answer: answer.text });
+  if (turn.conversationId && turn.userId) {
+    await saveConversationTurn(supabase, {
+      ...turn,
+      userId: turn.userId,
+      conversationId: turn.conversationId,
+      answer: answer.text,
+    });
+  }
   const tokensIn = answer.usage?.prompt_tokens ?? 0;
   const tokensOut = answer.usage?.completion_tokens ?? 0;
   const { error } = await supabase.from("agent_action_log").insert({
