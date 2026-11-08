@@ -119,6 +119,7 @@ const graphAdAccountsPageSchema = z
   })
   .catch({});
 
+/** Validate the account page returned by the Graph API. */
 export function readGraphAdAccountsPage(value: unknown) {
   return graphAdAccountsPageSchema.parse(value);
 }
@@ -132,6 +133,7 @@ const metaLeadQuestionInputSchema = z
 
 export type MetaLeadQuestionInput = z.infer<typeof metaLeadQuestionInputSchema>;
 
+/** Validate the lead-question fields accepted by the Meta tool. */
 export function readMetaLeadQuestionInput(
   value: unknown,
 ): MetaLeadQuestionInput {

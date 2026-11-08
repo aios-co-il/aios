@@ -5996,6 +5996,7 @@ async function devTaskApprovalRefusal(
       };
 }
 
+/** Dispatch an allowed tool using the resolved caller and tenant scope. */
 async function executeTool(
   name: string,
   args: Record<string, any>,
@@ -13830,6 +13831,7 @@ import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 // In non-streaming mode it's a no-op.
 type Emit = ((obj: unknown) => void) | undefined;
 
+/** Run an agent turn with the authenticated caller context and selected tools. */
 async function handleRunAgent(
   bodyJson: RunAgentRequest,
   surface: Surface,
@@ -16790,6 +16792,7 @@ async function saveConversationTurn(
 // Same executeTool, same role scoping and per-tool approval gates; tools that would
 // act immediately but are sensitive are queued for approval instead (see
 // _shared/carmen-direct-tools.mjs). Service-role callers only.
+/** Handle a service-authorized direct tool request without starting a model loop. */
 async function handleDirectTool(bodyJson: RunAgentRequest): Promise<Response> {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -16953,6 +16956,7 @@ async function handleDirectTool(bodyJson: RunAgentRequest): Promise<Response> {
   }
 }
 
+/** Resolve the caller identity and roles used by direct tool execution. */
 async function resolveDirectCaller(
   supabase: AgentDatabaseClient,
   tenantId: string,

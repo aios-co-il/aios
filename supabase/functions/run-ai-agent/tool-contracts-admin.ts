@@ -12,6 +12,7 @@ const adAccountDisableReasonSchema = z
   .object({ disable_reason: z.number().optional().catch(undefined) })
   .catch({});
 
+/** Read a supported disable reason from a provider account record. */
 export function adAccountDisableReason(account: unknown): number | undefined {
   return adAccountDisableReasonSchema.parse(account).disable_reason;
 }
@@ -23,6 +24,7 @@ const providerErrorSchema = z
   })
   .catch({ error: {} });
 
+/** Extract a readable provider error without trusting its response shape. */
 export function providerErrorMessage(payload: unknown): string | undefined {
   return providerErrorSchema.parse(payload).error.message;
 }
@@ -47,6 +49,7 @@ const googleAdsCampaignRowSchema = z
 
 export type GoogleAdsCampaignRow = z.infer<typeof googleAdsCampaignRowSchema>;
 
+/** Validate the campaign fields consumed by the Google Ads tool. */
 export function readGoogleAdsCampaignRow(row: unknown): GoogleAdsCampaignRow {
   return googleAdsCampaignRowSchema.parse(row);
 }
@@ -89,6 +92,7 @@ const googleCalendarEventsSchema = z
   })
   .catch({});
 
+/** Validate Calendar event entries independently at the provider boundary. */
 export function readGoogleCalendarEvents(
   payload: unknown,
 ): GoogleCalendarEventItem[] {
@@ -121,6 +125,7 @@ const parallelTaskArgSchema = z
 
 export type ParallelTaskArg = z.infer<typeof parallelTaskArgSchema>;
 
+/** Validate the titled task entries passed to parallel execution. */
 export function parallelTaskArgs(items: unknown[]): ParallelTaskArg[] {
   return items.flatMap((item) => {
     const parsed = parallelTaskArgSchema.safeParse(item);
