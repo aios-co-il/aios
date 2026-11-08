@@ -1,11 +1,12 @@
 import { z } from "npm:zod@3.25.76";
 const text = z.string().nullish();
+const identifier = z.union([z.string(), z.number().finite()]).nullish();
 const recipient = z.object({
   type: z.string(),
   field: text,
-  phone: text,
-  group_id: text,
-  id: text,
+  phone: identifier,
+  group_id: identifier,
+  id: identifier,
   entity: text,
 });
 const greenApiConfig = z.object({
@@ -25,7 +26,19 @@ const greenApiConfig = z.object({
   media_url: text,
   media_mime_type: text,
   media_filename: text,
-  recipients: z.array(recipient).nullish(),
+  recipients: z
+    .array(z.unknown())
+    .transform((entries) =>
+      entries.map((entry, index) => {
+        const parsed = recipient.safeParse(entry);
+        if (parsed.success) {
+          return parsed.data;
+        }
+        console.warn("[automation] skipped invalid recipient", { index });
+        return null;
+      }),
+    )
+    .nullish(),
 });
 /** Validate known WhatsApp action settings before recipient resolution or sending. */
 export function readGreenApiConfig(value: unknown) {

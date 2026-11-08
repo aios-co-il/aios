@@ -36,6 +36,7 @@ export interface FlowNodeData {
   label?: string;
   configuration: StepConfig;
   stored_configuration?: Json;
+  configuration_patch?: StepConfig;
   position_x: number;
   position_y: number;
   sort_order: number;

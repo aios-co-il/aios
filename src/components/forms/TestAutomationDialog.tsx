@@ -70,13 +70,22 @@ const testRunItemSchema = z.object({
 const testRunResponseSchema = z.object({
   error: optionalTextSchema,
   automations_found: optionalTextSchema,
-  results: z
-    .array(z.unknown())
-    .transform((results) =>
-      results
-        .filter((entry) => entry !== null)
-        .map((entry) => testRunItemSchema.parse(entry)),
-    ),
+  results: z.array(z.unknown()).transform((results, ctx) =>
+    results.flatMap((entry) => {
+      if (entry === null) {
+        return [];
+      }
+      const parsed = testRunItemSchema.safeParse(entry);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid automation result",
+        });
+        return [];
+      }
+      return [parsed.data];
+    }),
+  ),
 });
 
 type TestRunResponse = z.infer<typeof testRunResponseSchema>;

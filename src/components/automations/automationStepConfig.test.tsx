@@ -272,7 +272,7 @@ describe("flow editor persistence", () => {
     expect(
       storedFlowStepConfig({
         ...node,
-        configuration: { ...node.configuration, agent_id: "b" },
+        configuration_patch: { agent_id: "b" },
       }),
     ).toEqual({ agent_id: "b", future: { enabled: true } });
   });
@@ -298,5 +298,51 @@ describe("node kind reset", () => {
     });
     expect(storedFlowStepConfig(next)).toEqual({});
     expect(next.switch_branches).toBeUndefined();
+  });
+});
+
+describe("explicit configuration patches", () => {
+  it("preserves legacy values until edited and clears only the requested key", () => {
+    const node = {
+      id: "n",
+      step_type: "action",
+      position_x: 0,
+      position_y: 0,
+      sort_order: 0,
+      configuration: parseStepConfig({
+        task_priority: "1",
+        message_template: "old",
+      }),
+      stored_configuration: {
+        task_priority: "1",
+        message_template: "old",
+        future: 4,
+      },
+    };
+    const edited = updateFlowNode(node, {
+      configuration_patch: { message_template: "new" },
+    });
+    expect(storedFlowStepConfig(edited)).toEqual({
+      task_priority: "1",
+      message_template: "new",
+      future: 4,
+    });
+    expect(
+      storedFlowStepConfig(
+        updateFlowNode(edited, {
+          configuration_patch: { message_template: undefined },
+        }),
+      ),
+    ).toEqual({ task_priority: "1", future: 4 });
+    expect(
+      storedFlowStepConfig(
+        updateFlowNode(edited, { switch_branches: ["yes"] }),
+      ),
+    ).toEqual({
+      task_priority: "1",
+      message_template: "new",
+      future: 4,
+      switch_branches: ["yes"],
+    });
   });
 });

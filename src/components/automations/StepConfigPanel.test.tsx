@@ -34,7 +34,7 @@ describe("StepConfigPanel Green API connection choices", () => {
     ).not.toBeInTheDocument();
     await user.click(ownedConnection);
     expect(onUpdate).toHaveBeenCalledWith(node.id, {
-      configuration: { connection_user_id: "u2" },
+      configuration_patch: { connection_user_id: "u2" },
     });
   });
 
@@ -140,6 +140,9 @@ it("rejects malformed automation test replies and preserves an explicit failure"
   expect(toTestResult({ success: false, error: "failed" }).success).toBe(false);
   expect(() => parseTestRunResponse({})).toThrow();
   expect(() => parseTestRunResponse(null)).toThrow();
+  expect(() => parseTestRunResponse({ results: [7] })).toThrow(
+    "תגובה לא תקינה",
+  );
   expect(
     parseTestRunResponse({ automations_found: 0, results: [] }).results,
   ).toEqual([]);

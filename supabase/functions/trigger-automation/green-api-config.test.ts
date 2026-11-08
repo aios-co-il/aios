@@ -14,10 +14,21 @@ Deno.test(
     assertThrows(() =>
       readGreenApiConfig({ message_template: { text: "hello" } }),
     );
-    assertThrows(() =>
+    assertEquals(
       readGreenApiConfig({
-        recipients: [{ type: "phone_manual", phone: { value: "x" } }],
-      }),
+        recipients: [
+          null,
+          { type: "phone_manual", phone: 9725 },
+          { type: "group_lookup", group_id: 42 },
+          { type: "phone_manual", phone: { value: "x" } },
+        ],
+      }).recipients,
+      [
+        null,
+        { type: "phone_manual", phone: 9725 },
+        { type: "group_lookup", group_id: 42 },
+        null,
+      ],
     );
   },
 );

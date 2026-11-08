@@ -474,13 +474,13 @@ export function StepConfigPanel({
 
   const handleConfigChange: StepConfigChange = (key, value) => {
     onUpdate(node.id, {
-      configuration: { ...node.configuration, [key]: value },
+      configuration_patch: { [key]: value },
     });
   };
 
   const handleBulkConfigChange = (updates: StepConfig) => {
     onUpdate(node.id, {
-      configuration: { ...node.configuration, ...updates },
+      configuration_patch: updates,
     });
   };
 
