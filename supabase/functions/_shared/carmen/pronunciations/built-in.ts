@@ -1,4 +1,4 @@
-import type { Pronunciation } from "./pronunciations.ts";
+import type { Pronunciation } from "./dictionary.ts";
 
 /**
  * Terms every org's Carmen meets in marketing work, with how to say them in Israeli Hebrew.
