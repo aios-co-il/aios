@@ -21,10 +21,19 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Loader2, Search } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { z } from "zod";
-import { cfgObjectArray, errorMessage } from "./automationStepConfig";
+import { errorMessage } from "./automationStepConfig";
 
 const cloneResponseSchema = z
-  .object({ results: z.unknown().transform(cfgObjectArray) })
+  .object({
+    results: z
+      .array(
+        z.object({
+          success: z.boolean(),
+          error: z.string().optional().catch(undefined),
+        }),
+      )
+      .catch([]),
+  })
   .transform(({ results }) => results ?? [])
   .catch([]);
 

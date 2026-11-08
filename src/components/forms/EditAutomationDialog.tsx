@@ -40,9 +40,9 @@ import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMult
 import type { Tables } from "@/integrations/supabase/types";
 import {
   cfgNumeric,
-  cfgObject,
+  parseStepConfig,
   cfgText,
-  type JsonObject,
+  type WebhookPayload,
 } from "@/components/automations/automationStepConfig";
 import {
   FORM_TRIGGER_OPTIONS,
@@ -166,8 +166,8 @@ export function EditAutomationDialog({
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
 
-  const config = cfgObject(automation.configuration);
-  const fieldMapping = cfgObject(config?.field_mapping);
+  const config = parseStepConfig(automation.configuration);
+  const fieldMapping = config.field_mapping;
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -342,7 +342,7 @@ export function EditAutomationDialog({
 
   const updateAutomationMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const conditions: JsonObject = values.conditions
+      const conditions: WebhookPayload = values.conditions
         ? parseConditionsObject(values.conditions, "JSON לא תקין בתנאים")
         : {};
 

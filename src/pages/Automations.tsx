@@ -1,3 +1,4 @@
+import { readAutomationResponse } from "@/components/automations/automationProviderContracts";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -60,7 +61,7 @@ import {
 import { MAILING_ACTION_LABELS } from "@/components/automations/mailingActions";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import {
-  cfgObject,
+  parseStepConfig,
   cfgStringArray,
   cfgText,
 } from "@/components/automations/automationStepConfig";
@@ -964,7 +965,7 @@ export default function Automations() {
 
       {/* Carmen WhatsApp Session Banner - shown when no carmen automation exists */}
       {!automations?.some(
-        (a) => cfgObject(a.configuration)?.carmen_session_mode === true,
+        (a) => parseStepConfig(a.configuration)?.carmen_session_mode === true,
       ) && (
         <div className="rounded-xl border border-purple-500/30 bg-gradient-to-l from-purple-500/5 to-transparent p-4 flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
@@ -1100,7 +1101,7 @@ export default function Automations() {
       <div className="grid gap-3 md:gap-4 grid-cols-1 lg:grid-cols-2">
         {automations?.map((automation) => {
           const isMirror = automation._isSharedMirror === true;
-          const config = cfgObject(automation.configuration);
+          const config = parseStepConfig(automation.configuration);
           const isCarmenMode = config?.carmen_session_mode === true;
           const isFlow = automation.is_flow;
           const configuredTriggers =
@@ -1511,7 +1512,7 @@ export default function Automations() {
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-xs">
                       {log.error_message ||
-                        cfgText(cfgObject(log.response)?.statusText) ||
+                        readAutomationResponse(log.response).statusText ||
                         "OK"}
                     </TableCell>
                   </TableRow>

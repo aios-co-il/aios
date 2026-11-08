@@ -50,7 +50,7 @@ import {
   jsonObjectTextSchema,
   listOf,
   optionalTextSchema,
-  type JsonObject,
+  type WebhookPayload,
   type StepConfig,
 } from "./automationStepConfig";
 import {
@@ -110,7 +110,7 @@ export function toTestResult(data: unknown): TestResult {
 
 // ─── Helper: build default payload per trigger type ──────────────────────────
 
-function getDefaultPayload(triggerType: string): JsonObject {
+function getDefaultPayload(triggerType: string): WebhookPayload {
   switch (triggerType) {
     case "lead_created":
     case "lead_updated":
@@ -575,7 +575,7 @@ export function TriggerTestPanel({
   const { tenantId } = useCurrentTenant();
   const { toast } = useToast();
 
-  const [payload, setPayload] = useState<JsonObject>(() =>
+  const [payload, setPayload] = useState<WebhookPayload>(() =>
     getDefaultPayload(triggerType),
   );
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -676,7 +676,7 @@ export function TriggerTestPanel({
   const handleSelectEntity = (entity: PickerEntity) => {
     setSelectedEntityId(entity.id);
     // Pre-fill payload from entity
-    const newPayload: JsonObject = {
+    const newPayload: WebhookPayload = {
       ...getDefaultPayload(triggerType),
     };
     if (isLeadTrigger) {
@@ -710,7 +710,7 @@ export function TriggerTestPanel({
     try {
       // Build the final payload
       // trigger-automation reads the test flag from the payload, not the body.
-      const finalPayload: JsonObject = { ...payload, test: true };
+      const finalPayload: WebhookPayload = { ...payload, test: true };
       // Remove internal keys
       delete finalPayload._raw_json;
 

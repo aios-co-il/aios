@@ -45,7 +45,7 @@ import { startOfDay, subDays, format } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
 import { z } from "zod";
 import {
-  cfgObject,
+  parseStepConfig,
   cfgText,
   errorMessage,
   type StepConfig,
@@ -301,7 +301,8 @@ export function TestFlowWithLeadDialog({
     triggerStep?.action_type === "whatsapp_message_received";
 
   const triggerConfig: StepConfig =
-    cfgObject(triggerStep?.configuration || automation?.configuration) || {};
+    parseStepConfig(triggerStep?.configuration || automation?.configuration) ||
+    {};
 
   const dateFilter = getDateFilter(dateRange, customFrom, customTo);
 

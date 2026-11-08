@@ -5,13 +5,10 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 import { z } from "zod";
 import {
   cfgNumeric,
-  cfgObject,
-  cfgObjectArray,
   cfgStringArray,
   cfgText,
   cfgTextArray,
   errorMessage,
-  isJsonObject,
   jsonObjectTextSchema,
   listOf,
   parseStepConfig,
@@ -21,19 +18,19 @@ import {
   FORM_TRIGGER_VALUES,
   isAutomationTrigger,
 } from "@/lib/automationTriggers";
-import { flowStepRowToNodeData } from "./flowStepRow";
+import { flowStepRowToNodeData, storedFlowStepConfig } from "./flowStepRow";
 import { migrateLegacyRecipients } from "./RecipientsListEditor";
 import { migrateLegacyEmailRecipients } from "./EmailRecipientsListEditor";
 import { toStoredRecipients } from "./storedRecipients";
 
 describe("parseStepConfig", () => {
-  it("returns objects as-is, keeping unknown keys", () => {
+  it("exposes only validated configuration fields", () => {
     const config = { url: "https://x", carmen_extra: { a: 1 } };
-    expect(parseStepConfig(config)).toBe(config);
+    expect(parseStepConfig(config)).toEqual({ url: "https://x" });
   });
 
   it("parses JSON object strings and rejects other shapes", () => {
-    expect(parseStepConfig('{"a":1}')).toEqual({ a: 1 });
+    expect(parseStepConfig('{"agent_id":"a"}')).toEqual({ agent_id: "a" });
     expect(parseStepConfig("[1]")).toEqual({});
     expect(parseStepConfig("not json")).toEqual({});
     expect(parseStepConfig(null)).toEqual({});
@@ -196,23 +193,8 @@ describe("migrateLegacyEmailRecipients", () => {
 });
 
 describe("jsonObjectSchema helpers", () => {
-  it("isJsonObject accepts plain objects only", () => {
-    expect(isJsonObject({ a: 1 })).toBe(true);
-    expect(isJsonObject([])).toBe(false);
-    expect(isJsonObject(null)).toBe(false);
-    expect(isJsonObject("x")).toBe(false);
-  });
-
-  it("cfgObject keeps the same object", () => {
-    const value = { a: 1 };
-    expect(cfgObject(value)).toBe(value);
-    expect(cfgObject([1])).toBeUndefined();
-  });
-
-  it("cfgObjectArray and cfgTextArray drop unsupported items", () => {
-    expect(cfgObjectArray([{ a: 1 }, null, [2], "x"])).toEqual([{ a: 1 }]);
-    expect(cfgTextArray(["a", 2, true, null, {}])).toEqual(["a", "2", "true"]);
-    expect(cfgTextArray("a")).toBeUndefined();
+  it("cfgTextArray drops unsupported items", () => {
+    expect(cfgTextArray(["x", {}, 3])).toEqual(["x", "3"]);
   });
 
   it("listOf keeps items matching the schema", () => {
@@ -244,5 +226,50 @@ describe("migrateLegacyRecipients schemas", () => {
       },
       { type: "group_lookup", group_id: "12", extra: "x" },
     ]);
+  });
+});
+
+describe("step configuration domain contracts", () => {
+  it("rejects malformed known fields independently", () => {
+    expect(
+      parseStepConfig({
+        agent_id: "a",
+        session_timeout_minutes: { bad: true },
+        carmen_open_member_groups: "true",
+      }),
+    ).toEqual({
+      agent_id: "a",
+      session_timeout_minutes: undefined,
+      carmen_open_member_groups: undefined,
+    });
+  });
+  it("does not expose arbitrary object fields as configuration", () => {
+    expect(
+      parseStepConfig({ message_template: "hello", arbitrary: { x: true } }),
+    ).toEqual({ message_template: "hello" });
+  });
+});
+
+describe("flow editor persistence", () => {
+  it("preserves opaque extensions without exposing them to typed UI configuration", () => {
+    const node = {
+      id: "s",
+      step_type: "agent",
+      position_x: 0,
+      position_y: 0,
+      sort_order: 0,
+      configuration: parseStepConfig({
+        agent_id: "a",
+        future: { enabled: true },
+      }),
+      stored_configuration: { agent_id: "a", future: { enabled: true } },
+    };
+    expect(node.configuration).toEqual({ agent_id: "a" });
+    expect(
+      storedFlowStepConfig({
+        ...node,
+        configuration: { ...node.configuration, agent_id: "b" },
+      }),
+    ).toEqual({ agent_id: "b", future: { enabled: true } });
   });
 });

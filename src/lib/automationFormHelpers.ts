@@ -5,7 +5,7 @@ import {
   listOf,
   optionalStringSchema,
   optionalTextSchema,
-  type JsonObject,
+  type WebhookPayload,
 } from "@/components/automations/automationStepConfig";
 
 const manyChatTagSchema = z.object({
@@ -54,15 +54,15 @@ export function parseOrUndefined<T>(
 export function parseConditionsObject(
   text: string,
   invalidMessage: string,
-): JsonObject {
+): WebhookPayload {
   const result = jsonObjectTextSchema.safeParse(text);
   if (!result.success) throw new Error(invalidMessage);
   return result.data;
 }
 
 const triggerFilterSourceSchema = z.object({
-  filter_statuses: z.custom<Json | undefined>(),
-  new_statuses: z.custom<Json | undefined>(),
+  filter_statuses: z.array(z.string()).optional().catch(undefined),
+  new_statuses: z.array(z.string()).optional().catch(undefined),
   filter_status: optionalTextSchema,
   filter_status_kind: optionalStringSchema,
   new_status: optionalTextSchema,

@@ -12,11 +12,26 @@ export function flowStepRowToNodeData(
     action_type: s.action_type ?? undefined,
     label: s.label ?? undefined,
     configuration,
+    stored_configuration: s.configuration,
     position_x: Number.isFinite(s.position_x) ? s.position_x : 400,
     position_y: Number.isFinite(s.position_y) ? s.position_y : 80,
     sort_order: s.sort_order ?? 0,
     parent_step_id: s.parent_step_id,
     condition_branch: s.condition_branch,
     switch_branches: cfgStringArray(configuration.switch_branches),
+  };
+}
+
+/** Preserve opaque stored extensions only when serializing the validated editor model. */
+export function storedFlowStepConfig(
+  node: FlowNodeData,
+): Tables<"automation_flow_steps">["configuration"] {
+  const value = node.stored_configuration;
+  const stored =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    ...stored,
+    ...node.configuration,
+    ...(node.switch_branches ? { switch_branches: node.switch_branches } : {}),
   };
 }

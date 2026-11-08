@@ -7,7 +7,7 @@ import { Copy, Loader2, Webhook, RefreshCw, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { cfgObject, errorMessage } from "./automationStepConfig";
+import { errorMessage } from "./automationStepConfig";
 
 const pageSubscriptionSchema = z.object({
   status: z.string().optional().catch(undefined),
@@ -76,7 +76,11 @@ export function FacebookDeliveryModeSection({
       .select("settings")
       .eq("id", integrationId)
       .maybeSingle();
-    const s = cfgObject(data?.settings) ?? {};
+    const stored = data?.settings;
+    const s =
+      stored && typeof stored === "object" && !Array.isArray(stored)
+        ? stored
+        : {};
     await supabase
       .from("tenant_integrations")
       .update({ settings: { ...s, delivery_mode: newMode } })

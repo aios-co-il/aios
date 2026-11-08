@@ -1,3 +1,7 @@
+import {
+  readAutomationIntegrationSettings,
+  readMetaTemplates,
+} from "./automationProviderContracts";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { FacebookDeliveryModeSection } from "@/components/automations/FacebookDeliveryModeSection";
@@ -63,15 +67,12 @@ import {
 import { FlowNodeData } from "./FlowNode";
 import {
   cfgBool,
-  cfgObject,
-  cfgObjectArray,
   cfgStringArray,
   cfgText,
   cfgTextArray,
   type StepConfig,
   type StepConfigBulkChange,
   type StepConfigChange,
-  type StepConfigValue,
 } from "./automationStepConfig";
 import { parseFacebookFormFields } from "./facebookFormFields";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -471,7 +472,7 @@ export function StepConfigPanel({
     onUpdate(node.id, { label: value });
   };
 
-  const handleConfigChange = (key: string, value: StepConfigValue) => {
+  const handleConfigChange: StepConfigChange = (key, value) => {
     onUpdate(node.id, {
       configuration: { ...node.configuration, [key]: value },
     });
@@ -1916,7 +1917,7 @@ function ManyChatWhatsAppActionConfig({
   const phoneMode =
     cfgText(configuration?.phone_mode) ||
     (configuration?.phone_field ? "field" : "contact");
-  const customFields = cfgObjectArray(configuration?.custom_fields) ?? [];
+  const customFields = configuration.custom_fields ?? [];
 
   const { data: tags = [], isLoading: loadingTags } = useQuery({
     queryKey: ["manychat-tags-for-flow", tenantId],
@@ -2182,14 +2183,10 @@ function MetaWhatsAppActionConfig({
         },
       );
       if (error) throw error;
-      const payload = cfgObject(data);
-      if (payload?.error) throw new Error(String(payload.error));
-      const rows =
-        cfgObjectArray(payload?.templates) ??
-        cfgObjectArray(payload?.data) ??
-        [];
-      return rows.filter(
-        (row) => String(row.status || "").toUpperCase() === "APPROVED",
+      const payload = readMetaTemplates(data);
+      if (payload.error) throw new Error(payload.error);
+      return (payload.templates ?? payload.data ?? []).filter(
+        (row) => row.status?.toUpperCase() === "APPROVED",
       );
     },
   });
@@ -2260,7 +2257,10 @@ function MetaWhatsAppActionConfig({
             <SelectContent>
               {integrations.map((row) => (
                 <SelectItem key={row.id} value={row.id}>
-                  {cfgText(cfgObject(row.settings)?.display_phone_number) ||
+                  {cfgText(
+                    readAutomationIntegrationSettings(row.settings)
+                      ?.display_phone_number,
+                  ) ||
                     row.display_name ||
                     row.id}
                 </SelectItem>
@@ -2646,7 +2646,9 @@ function GreenAPIActionConfig({
               </SelectTrigger>
               <SelectContent>
                 {filteredIntegrations.map((integration) => {
-                  const settings = cfgObject(integration.settings);
+                  const settings = readAutomationIntegrationSettings(
+                    integration.settings,
+                  );
                   const providerLabel =
                     integration.integration_type === "manus_wa"
                       ? "Manus WA"
@@ -3575,7 +3577,7 @@ function CarmenSessionConfig({
 
   // Helper label for connection
   const getConnectionLabel = (c: NonNullable<typeof waConnections>[number]) => {
-    const settings = cfgObject(c.settings);
+    const settings = readAutomationIntegrationSettings(c.settings);
     const displayName =
       c.display_name ||
       cfgText(settings?.display_name) ||
@@ -4376,8 +4378,10 @@ function WhatsAppTriggerConfig({
               <SelectItem value="all">כל החיבורים</SelectItem>
               {selectableIntegrations.map((int) => (
                 <SelectItem key={int.id} value={int.user_id}>
-                  {cfgText(cfgObject(int.settings)?.display_name) ||
-                    `חיבור ${int.instance_id}`}
+                  {cfgText(
+                    readAutomationIntegrationSettings(int.settings)
+                      ?.display_name,
+                  ) || `חיבור ${int.instance_id}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -5052,7 +5056,8 @@ function FacebookFormSelectionDialog({
                   {fbIntegrations.map((integration) => {
                     const name =
                       cfgText(
-                        cfgObject(integration.settings)?.connection_name,
+                        readAutomationIntegrationSettings(integration.settings)
+                          ?.connection_name,
                       ) || "Facebook Lead Ads";
                     return (
                       <SelectItem key={integration.id} value={integration.id}>

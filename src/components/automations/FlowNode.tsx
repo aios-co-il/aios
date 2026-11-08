@@ -1,3 +1,4 @@
+import type { Json } from "@/integrations/supabase/types";
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import {
@@ -34,6 +35,7 @@ export interface FlowNodeData {
   action_type?: string;
   label?: string;
   configuration: StepConfig;
+  stored_configuration?: Json;
   position_x: number;
   position_y: number;
   sort_order: number;

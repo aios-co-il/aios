@@ -38,7 +38,7 @@ import {
   Zap,
 } from "lucide-react";
 import { FlowNodeRF, FlowNodeData, type RFNodeData } from "./FlowNode";
-import { flowStepRowToNodeData } from "./flowStepRow";
+import { flowStepRowToNodeData, storedFlowStepConfig } from "./flowStepRow";
 import { isAutomationTrigger } from "@/lib/automationTriggers";
 import { AddStepMenu } from "./AddStepMenu";
 import { InsertableEdge, type InsertableEdgeData } from "./InsertableEdge";
@@ -647,10 +647,7 @@ export default function FlowEditor({
         step_type: n.step_type,
         action_type: n.action_type || null,
         label: n.label || null,
-        configuration: {
-          ...n.configuration,
-          ...(n.switch_branches ? { switch_branches: n.switch_branches } : {}),
-        },
+        configuration: storedFlowStepConfig(n),
         position_x: Math.round(rfNodePositions[n.id]?.x ?? n.position_x),
         position_y: Math.round(rfNodePositions[n.id]?.y ?? n.position_y),
         sort_order: idx,

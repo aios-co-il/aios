@@ -40,9 +40,9 @@ export default function StatusFilterTriggerConfig({
       onBulkConfigChange(updates);
       return;
     }
-    for (const [key, value] of Object.entries(updates)) {
-      onConfigChange(key, value);
-    }
+    onConfigChange("filter_statuses", updates.filter_statuses);
+    onConfigChange("filter_status", updates.filter_status);
+    onConfigChange("filter_status_kind", updates.filter_status_kind);
   };
 
   return (

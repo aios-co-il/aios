@@ -41,7 +41,7 @@ import {
   StatusStageSelect,
 } from "@/components/automations/StatusStageSelect";
 import { TriggerTypeMultiSelect } from "@/components/automations/TriggerTypeMultiSelect";
-import type { JsonObject } from "@/components/automations/automationStepConfig";
+import type { WebhookPayload } from "@/components/automations/automationStepConfig";
 import {
   FORM_TRIGGER_OPTIONS,
   FORM_TRIGGER_VALUES,
@@ -303,7 +303,7 @@ export function AddAutomationForm() {
       if (!tenantId) throw new Error("No tenant selected");
 
       // Parse conditions if provided
-      let conditions: JsonObject = {};
+      let conditions: WebhookPayload = {};
       if (values.conditions?.trim()) {
         conditions = parseConditionsObject(
           values.conditions,
