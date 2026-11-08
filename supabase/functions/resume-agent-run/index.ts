@@ -4,6 +4,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { requireAuth } from "../_shared/security.ts";
 import { authorizeRunDecision } from "./authorize.ts";
+import { errorMessage } from "../_shared/error-message.ts";
+import { reportsFailure } from "./execution-result.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -58,7 +60,7 @@ Deno.serve(async (req) => {
 
     const { reviewerId } = gate;
 
-    let executionResult: any = null;
+    let executionResult: unknown = null;
 
     if (decision === "approved" && approval.tool_name) {
       // Look up the tool handler
@@ -86,8 +88,8 @@ Deno.serve(async (req) => {
           );
           if (error) throw error;
           executionResult = data ?? { ok: true };
-        } catch (e: any) {
-          executionResult = { ok: false, error: String(e?.message ?? e) };
+        } catch (e) {
+          executionResult = { ok: false, error: String(errorMessage(e) ?? e) };
         }
       } else {
         executionResult = {
@@ -110,7 +112,7 @@ Deno.serve(async (req) => {
         status:
           decision !== "approved"
             ? "rejected"
-            : executionResult?.ok === false
+            : reportsFailure(executionResult)
               ? "failed"
               : "executed",
         approved_by: reviewerId,
@@ -139,7 +141,7 @@ Deno.serve(async (req) => {
           .update({
             step_kind: "tool",
             observation: executionResult,
-            status: executionResult?.ok === false ? "error" : "success",
+            status: reportsFailure(executionResult) ? "error" : "success",
             action_type: "tool",
           })
           .eq("id", pendingLog.id);
@@ -180,18 +182,21 @@ Deno.serve(async (req) => {
         tool_name: approval.tool_name,
         result: executionResult,
       },
-      status: executionResult?.ok === false ? "error" : "success",
+      status: reportsFailure(executionResult) ? "error" : "success",
     });
 
     return new Response(JSON.stringify({ ok: true, executionResult }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    console.error("[resume-agent-run] error:", e?.message);
-    return new Response(JSON.stringify({ error: String(e?.message ?? e) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (e) {
+    console.error("[resume-agent-run] error:", errorMessage(e));
+    return new Response(
+      JSON.stringify({ error: String(errorMessage(e) ?? e) }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
 
