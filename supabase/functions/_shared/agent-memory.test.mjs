@@ -141,3 +141,18 @@ Deno.test("saveAgentMemory stores the embedding as JSON text", async () => {
   assertStrictEquals(typeof row.summary_embedding, "string");
   assertEquals(JSON.parse(row.summary_embedding), EMBEDDING);
 });
+
+Deno.test(
+  "malformed memory categories retain the conversation default",
+  async () => {
+    chatContent = JSON.stringify({
+      title: "T",
+      summary: "S",
+      category: { kind: "fact" },
+    });
+    embeddingOk = false;
+    const client = fakeClient();
+    await summarizeAndStoreAgentMemory(storeOpts(client));
+    assertStrictEquals(client.calls.inserts[0].category, "conversation");
+  },
+);

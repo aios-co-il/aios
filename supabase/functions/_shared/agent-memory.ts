@@ -13,7 +13,7 @@ const embeddingText = (emb: number[] | null) =>
 const memorySummarySchema = z.object({
   title: z.string().optional().catch(undefined),
   summary: z.string().optional().catch(undefined),
-  category: z.unknown(),
+  category: z.string().optional().catch(undefined),
   importance: z.unknown(),
 });
 
@@ -57,7 +57,7 @@ export async function summarizeAndStoreAgentMemory(opts: {
     await supabase.from("agent_memory").insert({
       tenant_id,
       agent_id,
-      category: parsed.category ? String(parsed.category) : "conversation",
+      category: parsed.category ? parsed.category : "conversation",
       title: String(parsed.title).slice(0, 200),
       summary: String(parsed.summary).slice(0, 2000),
       summary_embedding: embeddingText(emb),
