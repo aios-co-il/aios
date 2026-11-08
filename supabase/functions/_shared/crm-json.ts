@@ -65,3 +65,19 @@ export function jsonToDate(value: Json): Date {
   }
   return new Date(String(value));
 }
+
+/** Normalize numeric provider metrics without admitting arrays or objects. */
+export function jsonFiniteNumber(value: Json | undefined): number {
+  const number =
+    typeof value === "number" || typeof value === "string"
+      ? Number(value)
+      : NaN;
+  return Number.isFinite(number) ? number : 0;
+}
+/** Keep raw database failures in server logs, outside the public error payload. */
+export function crmFailureResponse(headers: HeadersInit): Response {
+  return new Response(JSON.stringify({ error: "CRM request failed" }), {
+    status: 500,
+    headers,
+  });
+}

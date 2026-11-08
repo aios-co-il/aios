@@ -178,7 +178,7 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     settings,
     client: clientRow,
     tableName: t.name,
-    latestReportDomain: readString(latestReportRow, "domain"),
+    latestReportDomain: readString(latestReportRow?.[0], "domain"),
   });
 
   const normalizeDomain = (value?: string) =>
@@ -327,7 +327,7 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
     settings,
     client: clientRow,
     tableName: t.name,
-    latestReportDomain: readString(latestReportRow, "domain"),
+    latestReportDomain: readString(latestReportRow?.[0], "domain"),
   });
 
   const { data: body, error } = await supabase.functions.invoke(

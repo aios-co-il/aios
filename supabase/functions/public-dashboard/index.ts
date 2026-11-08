@@ -13,6 +13,7 @@ import {
   asJsonObject,
   firstTruthyText,
   jsonField,
+  jsonFiniteNumber,
   jsonToDate,
 } from "../_shared/crm-json.ts";
 
@@ -47,8 +48,8 @@ function mapGscPeriodRow(row: Json) {
   const position = jsonField(row, "position");
   return {
     keyword: (Array.isArray(keys) ? keys[0] : undefined) || "",
-    clicks: jsonField(row, "clicks") || 0,
-    impressions: jsonField(row, "impressions") || 0,
+    clicks: jsonFiniteNumber(jsonField(row, "clicks")),
+    impressions: jsonFiniteNumber(jsonField(row, "impressions")),
     ctr: ctr ? Math.round(Number(ctr) * 10000) / 100 : 0,
     position: position ? Math.round(Number(position) * 10) / 10 : 0,
   };

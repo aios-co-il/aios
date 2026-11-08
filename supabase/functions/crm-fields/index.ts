@@ -1,7 +1,7 @@
+import { crmFailureResponse } from "../_shared/crm-json.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database, TablesUpdate } from "../_shared/database.types.ts";
-import { thrownMessage } from "../_shared/crm-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -265,15 +265,10 @@ serve(async (req) => {
         });
     }
   } catch (error) {
-    console.error("Error in crm-fields function:", error);
-    const errorMessage =
-      thrownMessage(error) || String(error) || "Unknown error";
-    return new Response(
-      JSON.stringify({ error: errorMessage, details: error }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    console.error("crm-fields request failed", error);
+    return crmFailureResponse({
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    });
   }
 });

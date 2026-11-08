@@ -1,5 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  crmFailureResponse,
+  jsonFiniteNumber,
   asJsonObject,
   firstTruthyText,
   isJsonObject,
@@ -70,3 +72,20 @@ Deno.test(
     assertStrictEquals(thrownMessage(null), undefined);
   },
 );
+
+Deno.test(
+  "GSC metrics normalize finite numeric strings without serializing objects",
+  () => {
+    assertEquals(
+      ["12", 3, null, {}, [], "bad", Infinity].map((value) =>
+        jsonFiniteNumber(value),
+      ),
+      [12, 3, 0, 0, 0, 0, 0],
+    );
+  },
+);
+Deno.test("CRM failures use a stable public payload", async () => {
+  const response = crmFailureResponse({ "Content-Type": "application/json" });
+  assertEquals(response.status, 500);
+  assertEquals(await response.json(), { error: "CRM request failed" });
+});

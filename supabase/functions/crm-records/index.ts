@@ -1,7 +1,8 @@
+import { crmFailureResponse } from "../_shared/crm-json.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { aggregateGscQueryRows } from "../_shared/gscPosition.ts";
 import type { Database, Json, Tables } from "../_shared/database.types.ts";
-import { asJsonObject, jsonField, thrownMessage } from "../_shared/crm-json.ts";
+import { asJsonObject, jsonField } from "../_shared/crm-json.ts";
 
 type RecordSlice = Pick<Tables<"crm_records">, "id" | "data">;
 
@@ -561,9 +562,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: thrownMessage(error) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error("crm-records request failed", error);
+    return crmFailureResponse({
+      ...corsHeaders,
+      "Content-Type": "application/json",
     });
   }
 });

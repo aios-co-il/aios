@@ -222,8 +222,14 @@ serve(async (req) => {
           );
           tenantId = fallbackTenantId;
         }
-        // Same filter text as passing tenantId directly (a null tenant renders "eq.null").
-        const tenantFilter = String(tenantId);
+        if (!tenantId) {
+          console.warn("[crm-tables] caller has no tenant");
+          return new Response(JSON.stringify({ error: "Tenant not found" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const tenantFilter = tenantId;
 
         // Foreign agencies shared into our tenant
         const { data: sharedAgencies } = await supabase

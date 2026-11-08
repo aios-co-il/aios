@@ -1452,9 +1452,11 @@ export default function DynamicTables() {
                     <CardContent>
                       <p className="text-sm text-muted-foreground">
                         נוצר{" "}
-                        {new Date(
-                          dashboard.created_at ?? "",
-                        ).toLocaleDateString("he-IL")}
+                        {dashboard.created_at
+                          ? new Date(dashboard.created_at).toLocaleDateString(
+                              "he-IL",
+                            )
+                          : "—"}
                       </p>
                     </CardContent>
                   </Card>
