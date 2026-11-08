@@ -49,7 +49,13 @@ Deno.serve(async (req) => {
   if (!token) return json(401, { error: "Missing callback token" });
 
   const sb = serviceClient();
-  const session = sessionId ? await loadSession(sb, sessionId) : null;
+  let session: Awaited<ReturnType<typeof loadSession>> = null;
+  try {
+    session = sessionId ? await loadSession(sb, sessionId) : null;
+  } catch (error) {
+    console.error("[agent-channel-callback] session read failed", error);
+    return json(503, { error: "Unable to load callback session" });
+  }
   const origin = resolveCallbackOrigin(body.origin, session?.provider);
   const tenantId = String(body.tenant_id || session?.tenant_id || "").trim();
   if (!tenantId || !sessionId)

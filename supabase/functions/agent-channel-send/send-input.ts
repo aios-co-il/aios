@@ -1,15 +1,10 @@
 import { z } from "npm:zod@3.25.76";
-import type { ChannelAttachment } from "./types.ts";
+import { INPUT_MODES } from "../_shared/agent-channel/types.ts";
+import type { ChannelAttachment } from "../_shared/agent-channel/types.ts";
 
-const inputModeSchema = z
-  .enum([
-    "typed",
-    "realtime_voice",
-    "transcribe_only",
-    "external_channel_callback",
-  ])
-  .catch("typed");
+const inputModeSchema = z.enum(INPUT_MODES).catch("typed");
 
+/** Validate composer input modes against the shared channel contract. */
 export function parseInputMode(raw: unknown) {
   return inputModeSchema.parse(raw);
 }
@@ -34,7 +29,7 @@ const conversationHistorySchema = z
   );
 
 /** Object entries keep their role/content as text, the way the direct prompt renders them. */
-export function parseConversationHistory(raw: unknown): HistoryMessage[] {
+export function parseConversationHistory(raw: unknown): Array<HistoryMessage> {
   return conversationHistorySchema.parse(raw);
 }
 
@@ -58,7 +53,7 @@ const attachmentSchema = z
   .refine((a) => a.name && a.url.startsWith("http"));
 
 /** Up to MAX_ATTACHMENTS attachments with a name and an http(s) url; malformed items are skipped. */
-export function parseAttachments(raw: unknown): ChannelAttachment[] {
+export function parseAttachments(raw: unknown): Array<ChannelAttachment> {
   if (!Array.isArray(raw)) {
     return [];
   }

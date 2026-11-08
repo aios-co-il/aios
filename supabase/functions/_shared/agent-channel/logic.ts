@@ -1,4 +1,5 @@
 import { z } from "npm:zod@3.25.76";
+import { MESSAGE_EVENT_TYPES } from "./types.ts";
 import type { Database, Json } from "../database.types.ts";
 import type {
   AdapterCapabilities,
@@ -365,8 +366,8 @@ export function resolveCallbackOrigin(
 }
 
 const callbackEventTypeSchema = z.preprocess(
-  (raw) => raw || "message",
-  z.enum(["message", "progress", "approval_request", "system"]),
+  (raw) => (raw === undefined ? "message" : raw),
+  z.enum(MESSAGE_EVENT_TYPES),
 );
 
 /** Absent event_type is "message"; any other value must be a known type, else null. */

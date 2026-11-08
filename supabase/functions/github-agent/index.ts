@@ -157,6 +157,7 @@ Deno.serve(async (req: Request) => {
 // ==========================================
 // Get GitHub token from secure storage
 // ==========================================
+/** Resolve the stored GitHub credential for the caller. */
 async function getGithubToken(
   supabase: DbClient,
   tenantId: string,
@@ -174,6 +175,7 @@ async function getGithubToken(
 // ==========================================
 // Chat Support - understands user requests
 // ==========================================
+/** Handle the GitHub support-chat request with its caller context. */
 async function handleChatSupport(
   supabase: DbClient,
   request: AgentRequest,
@@ -282,6 +284,7 @@ ${JSON.stringify(userContext, null, 2)}
 // ==========================================
 // Analyze Error
 // ==========================================
+/** Analyze the reported repository error through the GitHub agent. */
 async function handleAnalyzeError(
   supabase: DbClient,
   request: AgentRequest,
@@ -382,6 +385,7 @@ Return JSON:
 // ==========================================
 // Fix Code - creates PR on GitHub
 // ==========================================
+/** Prepare the requested code fix using the resolved repository context. */
 async function handleFixCode(
   supabase: DbClient,
   request: AgentRequest,
@@ -556,6 +560,7 @@ async function handleFixCode(
 // ==========================================
 // Check user permissions
 // ==========================================
+/** Check the GitHub permissions needed by the requested operation. */
 async function handleCheckPermissions(
   supabase: DbClient,
   request: AgentRequest,
@@ -573,6 +578,7 @@ async function handleCheckPermissions(
 // ==========================================
 // Handle approval/rejection
 // ==========================================
+/** Apply the requested GitHub-agent approval action. */
 async function handleApproval(
   supabase: DbClient,
   request: AgentRequest,
@@ -623,6 +629,7 @@ async function handleApproval(
 // ==========================================
 // Helpers
 // ==========================================
+/** Resolve the caller context used by GitHub-agent actions. */
 async function getUserContext(
   supabase: DbClient,
   userId: string,

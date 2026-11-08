@@ -28,6 +28,7 @@ const profileSchema = z
   .object({ display_name: z.unknown(), email: z.unknown() })
   .catch({});
 
+/** Validate the stored profile fields consumed by the GitHub agent. */
 export function readProfile(raw: unknown): {
   display_name: string;
   email: string;

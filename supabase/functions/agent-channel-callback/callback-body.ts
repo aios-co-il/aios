@@ -23,6 +23,7 @@ const callbackBodySchema = unknownRecordSchema.catch({}).pipe(
 
 export type CallbackBody = z.infer<typeof callbackBodySchema>;
 
+/** Validate callback fields before resolving or updating a channel session. */
 export function parseCallbackBody(raw: unknown): CallbackBody {
   return callbackBodySchema.parse(raw);
 }

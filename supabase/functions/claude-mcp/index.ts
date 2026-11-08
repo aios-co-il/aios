@@ -365,6 +365,7 @@ function dispatchedReply(url: string): string {
   return `✅ Dispatched the dev task to Claude Code. Claude is now working on it and will open a pull request when finished.\nSession: ${url}`;
 }
 
+/** Dispatch the named MCP tool using its validated arguments. */
 async function handleToolCall(
   name: string,
   args: UnknownRecord,

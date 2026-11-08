@@ -299,6 +299,7 @@ export async function onParliamentCallback(args: {
   }
 }
 
+/** Rebuild the parliament conversation context from its current state. */
 async function rebuildCtx(
   run: ParliamentRun,
   conversationId: string,
@@ -452,6 +453,7 @@ export async function cancelParliament(conversationId: string): Promise<void> {
   });
 }
 
+/** Load the active parliament state for the channel session. */
 async function loadRunningParliament(conversationId: string): Promise<{
   sb: ReturnType<typeof serviceClient>;
   run: ParliamentRun | null;

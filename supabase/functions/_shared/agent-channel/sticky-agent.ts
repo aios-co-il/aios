@@ -112,6 +112,7 @@ export function missingOpenChatMessage(provider: OpenChatProvider): string {
   );
 }
 
+/** Build the user-facing message for a failed open-chat lookup. */
 export function openChatLookupFailedMessage(reason: string): string {
   return `לא הצלחתי לקרוא את הצ'אטים הפתוחים של Cursor: ${reason}`;
 }
@@ -127,6 +128,7 @@ export function busyOpenChatMessage(
   );
 }
 
+/** Collect supported open conversation identifiers from stored results. */
 export async function collectOpenChatIds(
   sb: OpenChatClient,
   args: {

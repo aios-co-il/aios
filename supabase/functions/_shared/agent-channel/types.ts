@@ -17,10 +17,20 @@ export type ConversationStatus =
 export type SessionStatus =
   "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type MessageRole = "user" | "assistant" | "system" | "tool";
-export type MessageEventType =
-  "message" | "progress" | "approval_request" | "system";
-export type InputMode =
-  "typed" | "realtime_voice" | "transcribe_only" | "external_channel_callback";
+export const MESSAGE_EVENT_TYPES = [
+  "message",
+  "progress",
+  "approval_request",
+  "system",
+] as const;
+export type MessageEventType = (typeof MESSAGE_EVENT_TYPES)[number];
+export const INPUT_MODES = [
+  "typed",
+  "realtime_voice",
+  "transcribe_only",
+  "external_channel_callback",
+] as const;
+export type InputMode = (typeof INPUT_MODES)[number];
 
 export type AdapterCapabilities = {
   streaming_reply: boolean;

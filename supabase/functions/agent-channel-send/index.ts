@@ -22,7 +22,7 @@ import {
   parseAttachments,
   parseConversationHistory,
   parseInputMode,
-} from "../_shared/agent-channel/send-input.ts";
+} from "./send-input.ts";
 import {
   asRecord,
   errorMessageOr,

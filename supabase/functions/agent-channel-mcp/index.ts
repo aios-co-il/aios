@@ -116,6 +116,7 @@ function bearerFrom(req: Request): string | undefined {
   return m ? m[1].trim() : undefined;
 }
 
+/** Dispatch the supported agent-channel MCP action. */
 async function handleTool(name: string, args: UnknownRecord): Promise<string> {
   const conversationId = String(
     args?.conversation_id ?? args?.conversationId ?? "",
