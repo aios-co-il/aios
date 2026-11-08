@@ -1,3 +1,4 @@
+import { dataOrEmpty } from "./taskQueryResult";
 import { useQuery } from "@tanstack/react-query";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,26 +52,6 @@ async function selectWithFallback<T>(attempts: SelectAttempt<T>[]) {
       break;
   }
   throw lastError;
-}
-
-/** Failed optional system-job reads are logged; ordinary task queries propagate errors. */
-async function dataOrEmpty<T>(
-  query: PromiseLike<{ data: T[] | null; error: unknown }>,
-  optional = false,
-): Promise<T[]> {
-  try {
-    const result = await query;
-    if (result.error) {
-      throw result.error;
-    }
-    return result.data ?? [];
-  } catch (error) {
-    if (!optional) {
-      throw error;
-    }
-    console.warn("[carmen-tasks] optional system jobs unavailable", error);
-    return [];
-  }
 }
 
 export const carmenTasksKey = (tenantId: string | null) =>
