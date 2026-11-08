@@ -10,12 +10,15 @@ import {
   countStoppedCampaignsByClient,
   computeGoalMetricsFromRecords,
   detectCampaignGoalMode,
+  goalRecentRecordCount,
+  goalTables,
   isPulseDeliveryExcludedPhone,
   reportTableGoal,
   selectPulseCriticalAlerts,
   tableMatchesServices,
   worstPulseStatus,
 } from "../_shared/campaign-pulse.ts";
+import { clientGoalModeOf } from "../_shared/campaign-goal/client-goal-mode.ts";
 import { resolveNoRecentClientCall } from "../_shared/pulse/client-call.ts";
 import {
   cachedLastMetaActivity,
@@ -47,6 +50,12 @@ import { reportCampaignGoalOf } from "../_shared/campaign-goal/campaign-goals.ts
 import { loadPulseSettings } from "../_shared/pulse-settings.mjs";
 import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 import { pulseClientWindows, recordsThrough } from "./client-windows.ts";
+import {
+  clientNoResultsWindow,
+  noResultsDaysByClientOf,
+} from "./client-no-results.ts";
+import type { OffReportSpend } from "../_shared/pulse/report-off-spending.ts";
+import { loadOffReportSpend, splitReportTables } from "./report-tables.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
@@ -268,7 +277,7 @@ Deno.serve(async (req) => {
     const { data: clients, error: clientsError } = await supabase
       .from("clients")
       .select(
-        "id, name, tenant_id, agency_id, is_ecommerce, services, agencies(name)",
+        "id, name, tenant_id, agency_id, is_ecommerce, services, pulse_no_results_days, agencies(name)",
       )
       .in(
         "agency_id",
@@ -358,7 +367,7 @@ Deno.serve(async (req) => {
       ? await supabase
           .from("crm_tables")
           .select(
-            "id, client_id, integration_type, category, integration_settings, campaign_active, last_sync_at",
+            "id, client_id, name, integration_type, category, integration_settings, campaign_active, last_sync_at",
           )
           .in("client_id", clientIds)
           .in("integration_type", [...CAMPAIGN_TABLE_TYPES])
@@ -385,21 +394,21 @@ Deno.serve(async (req) => {
     for (const update of callUpdateResult.data || []) {
       latestCallByClient.set(update.client_id, update);
     }
-    const activeTablesByClient = new Map<string, any[]>();
-    for (const table of tableResult.data || []) {
-      const client = campaignClients.find(
-        (item: any) => item.id === table.client_id,
-      );
-      if (
-        !client ||
-        !tableMatchesServices(table, clientCampaignServices(client))
-      )
-        continue;
-      if (table.campaign_active === false) continue;
-      const tables = activeTablesByClient.get(table.client_id) || [];
-      tables.push(table);
-      activeTablesByClient.set(table.client_id, tables);
-    }
+    // Switched-off tables never feed the numbers or the campaign alerts; only
+    // their recent spend is read, for report_off_spending (AIO-501).
+    const reportTables = splitReportTables(
+      tableResult.data || [],
+      (table: any) => {
+        const client = campaignClients.find(
+          (item: any) => item.id === table.client_id,
+        );
+        return (
+          !!client &&
+          tableMatchesServices(table, clientCampaignServices(client))
+        );
+      },
+    );
+    const activeTablesByClient = reportTables.activeByClient;
     // Critical alerts (stopped campaigns, disapproved ads) are only reported for
     // clients that still have an active campaign table.
     const alertResult = await supabase
@@ -443,6 +452,10 @@ Deno.serve(async (req) => {
     // and its prior week never include today's partial day.
     const windows = pulseClientWindows(now);
     const snapshots: any[] = [];
+    // Switched-off tables that still spend, read by report_off_spending alone
+    // (AIO-501): never a snapshot flag, which the digest counts and the
+    // connection_lost rule matches by text.
+    const offReportSpendByClient = new Map<string, Array<OffReportSpend>>();
     for (const client of reportableClients) {
       try {
         const activeTables = activeTablesByClient.get(client.id) || [];
@@ -514,12 +527,21 @@ Deno.serve(async (req) => {
           nowYmd: jerusalemYmd(now),
           // Same cost thresholds the dashboard reads (pulse_alert_rules.manager.cost).
           alertRules: setting.pulse_alert_rules,
+          // The client's full days without results before an alert (AIO-502).
+          noResultsDaysByClient: noResultsDaysByClientOf(client),
         });
         const recent = records.filter(
           (row: any) =>
             row.data?.date && row.data.date >= windows.recent30Start,
         );
-        const goalMode = detectCampaignGoalMode(activeTables);
+        // Which goals the client's running campaigns have in their reports
+        // (David, AIO-494): one sales campaign makes its ROAS count.
+        const goalMode = clientGoalModeOf({
+          records,
+          goalOf: (row) => verdictOf(row)?.goal,
+          tables: activeTables,
+          sinceYmd: windows.recent30Start,
+        });
         const leadMetrics = computeGoalMetricsFromRecords(
           recordsThrough(leadRecords, windows.end),
           "leads",
@@ -561,21 +583,26 @@ Deno.serve(async (req) => {
           now.getTime(),
         );
         const stoppedCount = stoppedByClient.get(client.id) || 0;
-        const leadTables = activeTables.filter(
-          (table: any) => reportTableGoal(table) === "leads",
-        );
-        const ecommerceTables = activeTables.filter(
-          (table: any) => reportTableGoal(table) === "ecommerce",
+        const leadTables = goalTables(activeTables, "leads", leadRecords);
+        const ecommerceTables = goalTables(
+          activeTables,
+          "ecommerce",
+          ecommerceRecords,
         );
         const leadClassification = classifyCampaignPulseStatus({
           activeTables: leadTables,
-          hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) => reportTableGoal(table) === "leads",
-          ),
-          recentRecordCount: leadRecords.filter(
-            (row: any) =>
-              row.data?.date && row.data.date >= windows.recent30Start,
-          ).length,
+          hasConfiguredCampaignTable:
+            leadTables.length > 0 ||
+            configuredForClient.some(
+              (table: any) => reportTableGoal(table) === "leads",
+            ),
+          recentRecordCount: goalRecentRecordCount({
+            records,
+            goal: "leads",
+            tables: leadTables,
+            goalOf: (row) => verdictOf(row)?.goal,
+            sinceYmd: windows.recent30Start,
+          }),
           isEcommerce: false,
           spend7: leadMetrics.spend,
           leads7: leadMetrics.outcomes,
@@ -584,16 +611,27 @@ Deno.serve(async (req) => {
           cplChangePct: leadMetrics.changePct,
           stoppedCampaignCount: goalMode !== "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
+          noResultsWindow: clientNoResultsWindow(
+            client,
+            leadRecords,
+            "leads",
+            windows.end,
+          ),
         });
         const ecommerceClassification = classifyCampaignPulseStatus({
           activeTables: ecommerceTables,
-          hasConfiguredCampaignTable: configuredForClient.some(
-            (table: any) => reportTableGoal(table) === "ecommerce",
-          ),
-          recentRecordCount: ecommerceRecords.filter(
-            (row: any) =>
-              row.data?.date && row.data.date >= windows.recent30Start,
-          ).length,
+          hasConfiguredCampaignTable:
+            ecommerceTables.length > 0 ||
+            configuredForClient.some(
+              (table: any) => reportTableGoal(table) === "ecommerce",
+            ),
+          recentRecordCount: goalRecentRecordCount({
+            records,
+            goal: "ecommerce",
+            tables: ecommerceTables,
+            goalOf: (row) => verdictOf(row)?.goal,
+            sinceYmd: windows.recent30Start,
+          }),
           isEcommerce: true,
           spend7: ecommerceMetrics.spend,
           leads7: 0,
@@ -602,6 +640,12 @@ Deno.serve(async (req) => {
           cplChangePct: null,
           stoppedCampaignCount: goalMode === "ecommerce" ? stoppedCount : 0,
           nowMs: now.getTime(),
+          noResultsWindow: clientNoResultsWindow(
+            client,
+            ecommerceRecords,
+            "ecommerce",
+            windows.end,
+          ),
         });
         const leadStatus =
           goalMode === "ecommerce" ? null : leadClassification.status;
@@ -629,6 +673,22 @@ Deno.serve(async (req) => {
               campaignStatus,
             )
           : legacyStatus;
+        // A failed read must not turn the client's row into no_data: it is
+        // logged and the run raises no report_off_spending for this client.
+        const offReportSpend = await loadOffReportSpend(
+          supabase,
+          reportTables.offByClient.get(client.id) || [],
+          { start: windows.current3Start, end: windows.end },
+          records,
+        ).catch((offSpendError) => {
+          console.error(
+            "[campaign-pulse] switched-off report spend unavailable",
+            client.id,
+            offSpendError,
+          );
+          return [];
+        });
+        offReportSpendByClient.set(client.id, offReportSpend);
         const flags = Array.from(
           new Set([
             ...(goalMode !== "ecommerce" ? leadClassification.flags : []),
@@ -826,7 +886,10 @@ Deno.serve(async (req) => {
           tenantSlug,
           orgName: tenantRow?.name || tenantSlug,
           reportRecipients: report.recipients,
-          snapshots,
+          snapshots: snapshots.map((snapshot) => ({
+            ...snapshot,
+            off_report_spend: offReportSpendByClient.get(snapshot.client_id),
+          })),
           criticalIssues,
           disconnects: openDisconnects.disconnects,
           rules: setting.pulse_alert_rules,

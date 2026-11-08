@@ -13,6 +13,14 @@ import {
 } from "../src/providers/kling.ts";
 import { clipPrompt, getVideoProvider } from "../src/providers/index.ts";
 import { kenBurnsClip, mockProvider } from "../src/providers/mock.ts";
+import { dbCalls, fakeFetch, headerOf, runOf } from "./fakes.ts";
+import type { SceneRow, VideoRun } from "../src/jobs/types.ts";
+import type {
+  MediaInput,
+  PollResult,
+  VideoProvider,
+} from "../src/providers/types.ts";
+import type { RpcArgs, RunPatch } from "./fakes.ts";
 
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
@@ -44,11 +52,15 @@ function stillPng() {
 test("klingToken is an HS256 JWT signed with the secret key", () => {
   const token = klingToken("ak", "sk", 1000);
   const [header, payload, signature] = token.split(".");
-  expect(JSON.parse(Buffer.from(header, "base64url"))).toStrictEqual({
-    alg: "HS256",
-    typ: "JWT",
-  });
-  expect(JSON.parse(Buffer.from(payload, "base64url"))).toStrictEqual({
+  expect(JSON.parse(Buffer.from(header, "base64url").toString())).toStrictEqual(
+    {
+      alg: "HS256",
+      typ: "JWT",
+    },
+  );
+  expect(
+    JSON.parse(Buffer.from(payload, "base64url").toString()),
+  ).toStrictEqual({
     iss: "ak",
     exp: 2800,
     nbf: 995,
@@ -78,10 +90,10 @@ test("Kling durations round to the 5 s and 10 s clips the API offers, and cost f
 test("Kling signs with the tenant's own key pair before the env pair", async () => {
   const realFetch = globalThis.fetch;
   let auth = "";
-  globalThis.fetch = async (_url, init) => {
-    auth = init.headers.Authorization;
+  globalThis.fetch = fakeFetch(async (_url, init) => {
+    auth = headerOf(init, "Authorization") ?? "";
     return new Response(JSON.stringify({ code: 0, data: { task_id: "t1" } }));
-  };
+  });
   try {
     const provider = getVideoProvider("kling", {
       klingAccessKey: "tenant-ak",
@@ -147,16 +159,24 @@ test.skipIf(!hasFfmpeg)(
 );
 
 /** In-memory stand-in for supabaseRest: records uploads, attaches and updates. */
-function fakeDb({ still, stillUrl = "t1/c1/i1/still.png", scene = {} }) {
-  const calls = { uploads: [], rpcs: [], updates: [], downloads: [] };
+function fakeDb({
+  still,
+  stillUrl = "t1/c1/i1/still.png",
+  scene = {},
+}: {
+  still: Uint8Array;
+  stillUrl?: string;
+  scene?: Partial<SceneRow>;
+}) {
+  const calls = dbCalls();
   return {
     calls,
-    download: async (bucket, path) => {
+    download: async (bucket: string, path: string) => {
       calls.downloads.push({ bucket, path });
       return still;
     },
     // The run's item, scene and still, as the guard reads them for the run's tenant.
-    select: async (table, query) => {
+    select: async (table: string, query: string) => {
       if (!query.includes("tenant_id=eq.t1")) return [];
       if (table === "marketing_work_items")
         return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
@@ -168,7 +188,12 @@ function fakeDb({ still, stillUrl = "t1/c1/i1/still.png", scene = {} }) {
         return [{ id: "still-1", url: stillUrl }];
       return [];
     },
-    upload: async (bucket, path, bytes, contentType) =>
+    upload: async (
+      bucket: string,
+      path: string,
+      bytes: Uint8Array,
+      contentType: string,
+    ) =>
       calls.uploads.push({
         bucket,
         path,
@@ -176,38 +201,40 @@ function fakeDb({ still, stillUrl = "t1/c1/i1/still.png", scene = {} }) {
         bytes,
         contentType,
       }),
-    sign: async (bucket, path) => `https://p.supabase.co/sign/${path}`,
-    rpc: async (name, args) => calls.rpcs.push({ name, args }),
-    update: async (table, query, patch) =>
+    sign: async (bucket: string, path: string) =>
+      `https://p.supabase.co/sign/${path}`,
+    rpc: async (name: string, args: RpcArgs) => calls.rpcs.push({ name, args }),
+    update: async (table: string, query: string, patch: RunPatch) =>
       calls.updates.push({ table, query, patch }),
   };
 }
 
-const clipRun = (sceneId, extra = {}) => ({
-  id: `run-${sceneId}`,
-  tenant_id: "t1",
-  item_id: "i1",
-  scene_id: sceneId,
-  kind: "clip",
-  input: {
-    still_url: "t1/c1/i1/still.png",
-    client_id: "c1",
-    motion_prompt: "Slow push in",
-    duration_s: 1,
-    aspect: "1:1",
-  },
-  ...extra,
-});
+const clipRun = (sceneId: string, extra: Partial<VideoRun> = {}) =>
+  runOf({
+    id: `run-${sceneId}`,
+    tenant_id: "t1",
+    item_id: "i1",
+    scene_id: sceneId,
+    kind: "clip",
+    input: {
+      still_url: "t1/c1/i1/still.png",
+      client_id: "c1",
+      motion_prompt: "Slow push in",
+      duration_s: 1,
+      aspect: "1:1",
+    },
+    ...extra,
+  });
 
 test.skipIf(!hasFfmpeg)(
   "seven clips run in parallel and one failure leaves the other six",
   async () => {
     const db = fakeDb({ still: stillPng() });
     const mock = mockProvider();
-    const failing = {
+    const failing: VideoProvider = {
       ...mock,
       submit: async (input) => {
-        if (input.prompt.startsWith("BROKEN"))
+        if (input.prompt?.startsWith("BROKEN"))
           throw new Error("provider rejected the image");
         return mock.submit(input);
       },
@@ -226,7 +253,10 @@ test.skipIf(!hasFfmpeg)(
       ),
     );
     expect(results.filter((r) => r.status === "fulfilled").length).toBe(6);
-    expect(results[3].reason.message).toMatch(/rejected the image/);
+    const broken = results[3];
+    expect(broken.status === "rejected" && broken.reason.message).toMatch(
+      /rejected the image/,
+    );
     expect(db.calls.uploads.length).toBe(6);
     expect(
       db.calls.uploads.every(
@@ -236,10 +266,10 @@ test.skipIf(!hasFfmpeg)(
       ),
     ).toBeTruthy();
     const attach = db.calls.rpcs.find((call) => call.args.p_scene_id === "s0");
-    expect(attach.name).toBe("attach_video_scene_asset");
-    expect(attach.args.p_kind).toBe("clip");
-    expect(attach.args.p_meta.provider).toBe("mock");
-    expect(attach.args.p_run_id).toBe("run-s0");
+    expect(attach?.name).toBe("attach_video_scene_asset");
+    expect(attach?.args.p_kind).toBe("clip");
+    expect(attach?.args.p_meta?.provider).toBe("mock");
+    expect(attach?.args.p_run_id).toBe("run-s0");
 
     await failClip({ db, run: runs[3] });
     expect(db.calls.updates.at(-1)).toStrictEqual({
@@ -277,15 +307,14 @@ test("a fallback engine is priced as it would make this scene: a talking clip at
 test("a retried run resumes its provider job instead of paying twice", async () => {
   const db = fakeDb({ still: new Uint8Array([1]) });
   let submits = 0;
-  const provider = {
+  const provider: VideoProvider = {
     name: "kling",
     model: "kling-v3",
     estimate: () => ({ credits: 5100, usd: 0.85 }),
     submit: async () => (submits++, { jobId: "new" }),
-    poll: async (jobId) => ({
+    poll: async () => ({
       status: "succeeded",
       bytes: new Uint8Array([0, 0, 0, 0]),
-      jobId,
     }),
   };
   const result = await generateClip({
@@ -327,7 +356,7 @@ test("worker guards keep paths in the tenant folder and fetches on media hosts",
 test("a clip run for a scene outside the run's tenant is refused before any provider call", async () => {
   const db = fakeDb({ still: new Uint8Array([1]) });
   let submitted = false;
-  const provider = {
+  const provider: VideoProvider = {
     name: "kling",
     model: "m",
     estimate: () => ({ credits: 0, usd: 0 }),
@@ -346,19 +375,23 @@ test("a clip run for a scene outside the run's tenant is refused before any prov
 });
 
 /** A provider that records what it is sent and answers each poll with `answer`. */
-function recordingProvider(answer, extra = {}) {
-  const seen = { submits: [], polls: 0 };
-  return {
-    seen,
-    provider: {
-      name: "openrouter",
-      model: "m",
-      estimate: () => ({ credits: 0, usd: 0 }),
-      submit: async (input) => (seen.submits.push(input), { jobId: "job-1" }),
-      poll: async () => (seen.polls++, answer),
-      ...extra,
-    },
+function recordingProvider(
+  answer: PollResult,
+  extra: Partial<VideoProvider> = {},
+) {
+  const seen: { submits: Array<MediaInput>; polls: number } = {
+    submits: [],
+    polls: 0,
   };
+  const provider: VideoProvider = {
+    name: "openrouter",
+    model: "m",
+    estimate: () => ({ credits: 0, usd: 0 }),
+    submit: async (input) => (seen.submits.push(input), { jobId: "job-1" }),
+    poll: async () => (seen.polls++, answer),
+    ...extra,
+  };
+  return { seen, provider };
 }
 
 test("a provider job that failed is final, so a retry does not poll the dead job again", async () => {
@@ -391,10 +424,13 @@ test("a failed free-preview clip may be retried, since a retry renders a new one
   );
 });
 
-const done = { status: "succeeded", bytes: new Uint8Array([0, 0, 0, 0]) };
+const done: PollResult = {
+  status: "succeeded",
+  bytes: new Uint8Array([0, 0, 0, 0]),
+};
 
 /** An upload's link to the project's private entity-attachments bucket, as the app stores it. */
-const attachmentLink = (path) =>
+const attachmentLink = (path: string) =>
   `https://p.supabase.co/storage/v1/object/public/entity-attachments/${path}`;
 
 test("a still the user uploaded is read from its private bucket with the worker's key", async () => {
@@ -414,7 +450,7 @@ test("a still the user uploaded is read from its private bucket with the worker'
     expect(db.calls.downloads).toStrictEqual([
       { bucket: "entity-attachments", path: "t1/workshop/i1/campaigner.png" },
     ]);
-    expect([...seen.submits[0].imageBytes]).toStrictEqual([1]);
+    expect([...(seen.submits[0].imageBytes ?? [])]).toStrictEqual([1]);
 
     // Another tenant's upload is refused before any provider call.
     const other = fakeDb({
@@ -475,16 +511,18 @@ test.skipIf(!webp.length)(
     const [copy] = db.calls.uploads;
     expect(copy.path).toBe("t1/c1/i1/s1/still-source-run-s1.png");
     expect(copy.contentType).toBe("image/png");
-    expect([...copy.bytes.slice(0, 4)]).toStrictEqual([0x89, 0x50, 0x4e, 0x47]);
+    expect([...(copy.bytes?.slice(0, 4) ?? [])]).toStrictEqual([
+      0x89, 0x50, 0x4e, 0x47,
+    ]);
   },
 );
 
 test("the paid submit and the save of its job id run inside the worker's submit guard", async () => {
   const db = fakeDb({ still: new Uint8Array([1]) });
   let inside = false;
-  const seen = [];
+  const seen: Array<[string, boolean]> = [];
   const update = db.update;
-  db.update = async (table, query, patch) => {
+  db.update = async (table: string, query: string, patch: RunPatch) => {
     seen.push(["save", inside]);
     return update(table, query, patch);
   };

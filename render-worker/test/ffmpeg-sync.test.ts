@@ -8,7 +8,7 @@ import { buildTimeline } from "../src/compose/timeline.ts";
 import { hasFfmpeg, media } from "./media.ts";
 
 /** Where sound starts in `file` (seconds), after at least 0.1 s of silence. */
-const onsets = (file) => {
+const onsets = (file: string) => {
   const out = spawnSync(
     "ffmpeg",
     [
@@ -30,7 +30,7 @@ const onsets = (file) => {
 };
 
 /** When the picture cuts (seconds): frames that differ from the one before. */
-const cuts = (file) => {
+const cuts = (file: string) => {
   const out = spawnSync(
     "ffmpeg",
     [

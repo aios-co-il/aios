@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
+import { eventSourceRows, eventSourcesRequest } from "./event-sources.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -845,33 +846,54 @@ Deno.serve(async (req) => {
 
     let eventsData: any = { rows: [] };
     let aggregateEventsData: any = { rows: [] };
+    let eventSourcesData: any = { rows: [] };
     try {
-      const [eventsResponse, aggregateEventsResponse] = await Promise.all([
-        fetch(
-          `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
+      const [eventsResponse, aggregateEventsResponse, eventSourcesResponse] =
+        await Promise.all([
+          fetch(
+            `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(eventsRequest),
             },
-            body: JSON.stringify(eventsRequest),
-          },
-        ),
-        fetch(
-          `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
+          ),
+          fetch(
+            `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(aggregateEventsRequest),
             },
-            body: JSON.stringify(aggregateEventsRequest),
-          },
-        ),
-      ]);
+          ),
+          // REPORT 7b: events by day and source / medium (event-sources.ts).
+          fetch(
+            `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(
+                eventSourcesRequest(actualStartDate, actualEndDate),
+              ),
+            },
+          ),
+        ]);
       eventsData = await eventsResponse.json();
       aggregateEventsData = await aggregateEventsResponse.json();
+      eventSourcesData = await eventSourcesResponse.json();
+      if (eventSourcesData.error) {
+        console.error("Event sources report error:", eventSourcesData.error);
+        eventSourcesData = { rows: [] };
+      }
       if (eventsData.error) {
         console.error("Events report error:", eventsData.error);
         eventsData = { rows: [] };
@@ -961,6 +983,30 @@ Deno.serve(async (req) => {
           },
         });
       }
+    }
+
+    // Events by source / medium; the other GA columns stay empty, as on event rows.
+    for (const data of eventSourceRows(eventSourcesData.rows)) {
+      records.push({
+        table_id: tableId,
+        tenant_id: table.tenant_id,
+        agency_id: table.agency_id,
+        data: {
+          ...data,
+          channel_group: null,
+          page_path: null,
+          sessions: null,
+          users: null,
+          new_users: null,
+          pageviews: null,
+          bounce_rate: null,
+          avg_session_duration: null,
+          conversions: null,
+          add_to_cart: null,
+          purchases: null,
+          purchase_value: null,
+        },
+      });
     }
 
     // ====== REPORT 8: Monthly organic traffic history (24 months) ======

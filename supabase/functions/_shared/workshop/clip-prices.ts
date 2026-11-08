@@ -10,6 +10,12 @@ export const HIGGSFIELD_USD_PER_SECOND = 0.1;
 export const OPENROUTER_USD_PER_SECOND = 0.084;
 export const VOICE_USD_PER_1000_CHARS = 0.12;
 export const MUSIC_USD_PER_MINUTE = 0.5;
+/**
+ * ElevenLabs speech to speech (Voice Changer) bills by the minute of audio, 1,000 credits a minute,
+ * the credits of 1,000 characters of speech: the narration's character rate, per minute. The
+ * render worker keeps a copy (src/jobs/guide-take.ts), checked by its test.
+ */
+export const SPEECH_TO_SPEECH_USD_PER_MINUTE = 0.12;
 
 /**
  * The music bed is made for the film that will be rendered, not the planned scenes

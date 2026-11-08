@@ -13,20 +13,23 @@ import {
   soundEffectsCostUsd,
 } from "../src/jobs/sound-effects.ts";
 import { renderFilm } from "../src/jobs/render.ts";
+import { defined, runOf } from "./fakes.ts";
+import type { AssetRow, WorkItemPayload } from "../src/jobs/types.ts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const ITEM = "22222222-2222-2222-2222-222222222222";
-const run = () => ({
-  id: "run-1",
-  tenant_id: TENANT,
-  item_id: ITEM,
-  stage_id: "stage-1",
-  output: {},
-});
+const run = () =>
+  runOf({
+    id: "run-1",
+    tenant_id: TENANT,
+    item_id: ITEM,
+    stage_id: "stage-1",
+    output: {},
+  });
 
 const hasFfmpeg =
   spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0;
-const media = (args) => {
+const media = (args: Array<string>) => {
   const result = spawnSync("ffmpeg", [
     "-hide_banner",
     "-loglevel",
@@ -36,12 +39,12 @@ const media = (args) => {
   ]);
   if (result.status !== 0) throw new Error(String(result.stderr));
 };
-const colorClip = (file, color) => {
+const colorClip = (file: string, color: string) => {
   const picture = `color=c=${color}:s=320x240:d=2`;
   media(["-f", "lavfi", "-i", picture, "-pix_fmt", "yuv420p", file]);
   return file;
 };
-const loudness = (file, from, length) => {
+const loudness = (file: string, from: number, length: number) => {
   const out = spawnSync(
     "ffmpeg",
     [
@@ -67,7 +70,8 @@ test.skipIf(!hasFfmpeg)(
   async () => {
     const dir = await mkdtemp(join(tmpdir(), "sfx-"));
     try {
-      const clip = (name, color) => colorClip(join(dir, `${name}.mp4`), color);
+      const clip = (name: string, color: string) =>
+        colorClip(join(dir, `${name}.mp4`), color);
       const whoosh = join(dir, "whoosh.wav");
       const impact = join(dir, "impact.wav");
       media(["-f", "lavfi", "-i", "anoisesrc=d=0.6:c=pink:a=0.6", whoosh]);
@@ -136,7 +140,7 @@ test.skipIf(!hasFfmpeg)(
 );
 
 /** Mean level (dB) of `file` over [from, from + length] in a narrow band around `hz`. */
-const bandDb = (file, from, length, hz) => {
+const bandDb = (file: string, from: number, length: number, hz: number) => {
   const out = spawnSync(
     "ffmpeg",
     [
@@ -178,7 +182,8 @@ test.skipIf(!hasFfmpeg)(
         ]);
         return file;
       });
-      const clip = (name, color) => colorClip(join(dir, `${name}.mp4`), color);
+      const clip = (name: string, color: string) =>
+        colorClip(join(dir, `${name}.mp4`), color);
       const colors = ["red", "blue", "green", "white", "yellow", "black"];
       const scenes = colors.map((color, index) => ({
         id: color,
@@ -217,14 +222,21 @@ test.skipIf(!hasFfmpeg)(
  * A database for one render: two scenes with clips in the tenant's folder, and the film's
  * stored sound effects (`sounds`, marketing_assets rows).
  */
-function renderDb(dir, payload, sounds = []) {
-  const stored = new Map();
-  const calls = { uploads: [], inserts: [] };
-  const clipPath = (id) => `${TENANT}/general/${ITEM}/${id}.mp4`;
+function renderDb(
+  dir: string,
+  payload: WorkItemPayload,
+  sounds: Array<Pick<AssetRow, "url" | "meta">> = [],
+) {
+  const stored = new Map<string, Uint8Array>();
+  const calls: {
+    uploads: Array<string>;
+    inserts: Array<{ table: string; row: object }>;
+  } = { uploads: [], inserts: [] };
+  const clipPath = (id: string) => `${TENANT}/general/${ITEM}/${id}.mp4`;
   return {
     calls,
     stored,
-    async select(table, query) {
+    async select(table: string, query: string) {
       if (table === "marketing_work_items")
         return query.includes("select=payload")
           ? [{ payload }]
@@ -253,16 +265,21 @@ function renderDb(dir, payload, sounds = []) {
         }));
       return [];
     },
-    async download(_bucket, path) {
-      if (stored.has(path)) return stored.get(path);
-      return new Uint8Array(await readFile(join(dir, path.split("/").pop())));
+    async download(_bucket: string, path: string) {
+      const kept = stored.get(path);
+      if (kept) {
+        return kept;
+      }
+      return new Uint8Array(
+        await readFile(join(dir, path.split("/").at(-1) ?? "")),
+      );
     },
-    async upload(_bucket, path, bytes) {
+    async upload(_bucket: string, path: string, bytes: Uint8Array) {
       stored.set(path, new Uint8Array(bytes));
       calls.uploads.push(path);
     },
     async update() {},
-    async insert(table, row) {
+    async insert(table: string, row: object) {
       calls.inserts.push({ table, row });
     },
   };
@@ -301,12 +318,12 @@ test.skipIf(!hasFfmpeg)(
         log: () => {},
       });
       expect(done.output.sound_effects_error).toBe(null);
-      expect(Object.keys(done.output.sound_effects)).toStrictEqual(
-        SOUND_EFFECT_NAMES,
-      );
+      expect(
+        Object.keys(defined(done.output.sound_effects, "effects")),
+      ).toStrictEqual(SOUND_EFFECT_NAMES);
       expect(done.costUsd).toBe(soundEffectsCostUsd(SOUND_EFFECT_NAMES));
       const film = join(dir, "film.mp4");
-      await writeFile(film, db.stored.get(done.output.path));
+      await writeFile(film, defined(db.stored.get(done.output.path), "film"));
       expect(loudness(film, 1.65, 0.3)).toBeGreaterThan(-40);
 
       const keyless = renderDb(dir, {
@@ -427,7 +444,7 @@ test.skipIf(!hasFfmpeg)(
       });
       expect(generated).toBe(4);
       expect(older.costUsd).toBeLessThanOrEqual(0.05);
-      expect(older.output.sound_effects.impact).toMatch(/impact-v1\.wav$/);
+      expect(older.output.sound_effects?.impact).toMatch(/impact-v1\.wav$/);
       expect(older.output.sound_effects_error).toBe(OVER_QUOTE);
 
       let asked = 0;

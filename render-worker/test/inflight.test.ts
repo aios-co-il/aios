@@ -2,8 +2,11 @@ import { expect, test } from "vitest";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
+import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { createInFlight } from "../src/inflight.ts";
+import type { RunPatch } from "./fakes.ts";
+import { runOf } from "./fakes.ts";
 
 const REQUEUED = {
   status: "queued",
@@ -12,10 +15,10 @@ const REQUEUED = {
 const tick = (ms = 10) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function fakeDb() {
-  const updates = [];
+  const updates: Array<{ table: string; query: string; patch: RunPatch }> = [];
   return {
     updates,
-    update: async (table, query, patch) => {
+    update: async (table: string, query: string, patch: RunPatch) => {
       updates.push({ table, query, patch });
       return [{}];
     },
@@ -25,8 +28,8 @@ function fakeDb() {
 test("a stop puts held runs back to queued and leaves their provider job alone", async () => {
   const db = fakeDb();
   const inFlight = createInFlight();
-  inFlight.hold(db, { id: "r1" });
-  inFlight.hold(db, { id: "r2" });
+  inFlight.hold(db, runOf({ id: "r1" }));
+  inFlight.hold(db, runOf({ id: "r2" }));
   inFlight.release({ id: "r2" });
   expect(await inFlight.requeue()).toStrictEqual(["r1"]);
   expect(db.updates).toStrictEqual([
@@ -41,12 +44,12 @@ test("a stop puts held runs back to queued and leaves their provider job alone",
 test("a stop waits for a paid submit to save its job id, and no submit starts after it", async () => {
   const db = fakeDb();
   const inFlight = createInFlight();
-  const run = { id: "r1" };
+  const run = runOf({ id: "r1" });
   inFlight.hold(db, run);
-  const order = [];
-  let finish;
+  const order: Array<string> = [];
+  let finish = () => {};
   inFlight.submitting(run, async () => {
-    await new Promise((resolve) => (finish = resolve));
+    await new Promise<void>((resolve) => (finish = resolve));
     order.push("saved");
   });
   const stop = inFlight.requeue({ waitMs: 2000 });
@@ -66,7 +69,7 @@ test("a stop waits for a paid submit to save its job id, and no submit starts af
 test("a run still inside its submit when the wait ends stays running", async () => {
   const db = fakeDb();
   const inFlight = createInFlight();
-  const run = { id: "r1" };
+  const run = runOf({ id: "r1" });
   inFlight.hold(db, run);
   inFlight.submitting(run, () => new Promise(() => {}));
   expect(await inFlight.requeue({ waitMs: 100 })).toStrictEqual([]);
@@ -77,16 +80,16 @@ test("a run being claimed when the stop comes is queued again too", async () => 
   const db = fakeDb();
   const inFlight = createInFlight();
   inFlight
-    .claim(tick(30).then(() => [{ id: "r3" }]))
+    .claim(tick(30).then(() => [runOf({ id: "r3" })]))
     .then(([run]) => inFlight.hold(db, run));
   expect(await inFlight.requeue()).toStrictEqual(["r3"]);
 });
 
 test("on SIGTERM the worker queues its run again and exits", async () => {
-  const patches = [];
+  const patches: Array<{ url: string | undefined; body: unknown }> = [];
   let claims = 0;
-  let working;
-  const inJob = new Promise((resolve) => (working = resolve));
+  let working = () => {};
+  const inJob = new Promise<void>((resolve) => (working = resolve));
   const server = createServer((request, response) => {
     let body = "";
     request.on("data", (chunk) => (body += chunk));
@@ -120,7 +123,7 @@ test("on SIGTERM the worker queues its run again and exits", async () => {
     {
       env: {
         PATH: process.env.PATH,
-        SUPABASE_URL: `http://127.0.0.1:${server.address().port}`,
+        SUPABASE_URL: `http://127.0.0.1:${portOf(server)}`,
         SUPABASE_SERVICE_ROLE_KEY: "test-key",
         CONCURRENCY: "1",
         POLL_MS: "50",
@@ -160,3 +163,12 @@ test("a run out of attempts is left running so it fails instead of looping", asy
     "id=eq.early&status=eq.running&attempts=eq.1",
   ]);
 });
+
+/** The port a listening test server took. */
+function portOf(server: Server) {
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("the server is not listening on a port");
+  }
+  return address.port;
+}

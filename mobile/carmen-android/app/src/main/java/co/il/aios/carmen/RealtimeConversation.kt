@@ -25,22 +25,13 @@ class RealtimeConversation(
     context: Context,
     private val account: AiosAccount,
     private val log: EventLog,
-    private val listener: Listener,
+    private val listener: LiveConversation.Listener,
     /** When the wake word or the talk button fired; the first audio logs the delay from it. */
     private val activatedAt: Long,
-) {
-    interface Listener {
-        fun onState(state: CarmenSession.State)
-        fun onTranscript(line: String)
-        fun onEnded(reason: String)
-    }
-
-    private val brain = CarmenBrain(account)
+) : LiveConversation {
+    private val toolbox = ConversationTools(context, account, log)
     private val memory = VoiceMemory(account, log)
-    private val pronunciations = Pronunciations(account)
-    private val whatsApp = WhatsAppSend(account)
     private val transcript = VoiceTranscript()
-    private val phone = PhoneTools(context)
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private val tools = Executors.newSingleThreadExecutor()
     private val responses = ResponseGate()
@@ -55,7 +46,7 @@ class RealtimeConversation(
     @Volatile private var afterConversation: (() -> Unit)? = null
     @Volatile private var finishAfterNextResponse = false
 
-    fun start() {
+    override fun start() {
         listener.onState(CarmenSession.State.CONNECTING)
         worker.execute {
             try {
@@ -72,7 +63,7 @@ class RealtimeConversation(
         }
     }
 
-    fun stop(reason: String) = end(reason)
+    override fun stop(reason: String) = end(reason)
 
     private fun mintSession(): Pair<String, String> =
         account.callFunction("carmen-realtime-session", JSONObject()).use { response ->
@@ -153,8 +144,7 @@ class RealtimeConversation(
     /** Appends the phone's own tools to the ones the server gave the session (ask_carmen). */
     private fun addPhoneTools(session: JSONObject) {
         val tools = session.optJSONArray("tools") ?: JSONArray()
-        phone.definitions().forEach { tools.put(it) }
-        tools.put(whatsApp.definition())
+        toolbox.phoneDefinitions().forEach { tools.put(it) }
         send(
             JSONObject().put("type", "session.update").put(
                 "session",
@@ -166,57 +156,14 @@ class RealtimeConversation(
     private fun maybeCallTool(item: JSONObject) {
         if (item.optString("type") != "function_call") return
         val name = item.optString("name")
-        if (phone.handles(name)) {
-            runPhoneTool(item, name)
-            return
-        }
-        if (name == Pronunciations.TOOL) {
-            savePronunciation(item)
-            return
-        }
-        if (name == WhatsAppSend.TOOL) {
-            sendWhatsApp(item)
-            return
-        }
-        if (name != "ask_carmen") return
-        val question = runCatching { JSONObject(item.optString("arguments")).optString("question") }.getOrDefault("")
-        listener.onState(CarmenSession.State.THINKING)
-        log.record(EventLog.Event.BRAIN_CALLED, question.take(80))
+        if (!toolbox.handles(name)) return
+        val args = runCatching { JSONObject(item.optString("arguments")) }.getOrDefault(JSONObject())
+        if (name == ConversationTools.ASK_CARMEN) listener.onState(CarmenSession.State.THINKING)
         toolRunning = true
         tools.execute {
             // The call so far, so the brain's conversation starts with what was already said.
-            val answer = brain.ask(question, transcript.turns())
+            val result = toolbox.run(name, args, transcript.turns())
             toolRunning = false
-            if (ended) return@execute
-            answerTool(item.optString("call_id"), answer)
-        }
-    }
-
-    private fun savePronunciation(item: JSONObject) {
-        val args = runCatching { JSONObject(item.optString("arguments")) }.getOrDefault(JSONObject())
-        log.record(EventLog.Event.PHONE_TOOL, Pronunciations.TOOL)
-        tools.execute {
-            val result = pronunciations.save(args.optString("term"), args.optString("spoken"))
-            if (ended) return@execute
-            answerTool(item.optString("call_id"), result)
-        }
-    }
-
-    private fun sendWhatsApp(item: JSONObject) {
-        val args = runCatching { JSONObject(item.optString("arguments")) }.getOrDefault(JSONObject())
-        log.record(EventLog.Event.PHONE_TOOL, WhatsAppSend.TOOL)
-        tools.execute {
-            val result = whatsApp.run(args)
-            if (ended) return@execute
-            answerTool(item.optString("call_id"), result)
-        }
-    }
-
-    private fun runPhoneTool(item: JSONObject, name: String) {
-        val args = runCatching { JSONObject(item.optString("arguments")) }.getOrDefault(JSONObject())
-        log.record(EventLog.Event.PHONE_TOOL, name)
-        tools.execute {
-            val result = phone.run(name, args)
             if (ended) return@execute
             result.afterConversation?.let { afterConversation = it }
             answerTool(item.optString("call_id"), result.output)
@@ -297,7 +244,7 @@ class RealtimeConversation(
         worker.shutdown()
         tools.shutdownNow()
         log.record(EventLog.Event.CONVERSATION_ENDED, reason)
-        thread(name = "carmen-memory") { memory.save(transcript, brain.conversationId) }
+        thread(name = "carmen-memory") { memory.save(transcript, toolbox.brain.conversationId) }
         listener.onEnded(reason)
     }
 

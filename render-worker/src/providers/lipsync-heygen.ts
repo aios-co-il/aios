@@ -31,7 +31,8 @@ export function heygenLipsyncBody({
     prompt: line,
     resolution: "1080p",
     // Avatar IV renders 16:9, 9:16 and 1:1.
-    aspect_ratio: ["16:9", "9:16", "1:1"].includes(aspect) ? aspect : "9:16",
+    aspect_ratio:
+      aspect && ["16:9", "9:16", "1:1"].includes(aspect) ? aspect : "9:16",
     input_references: [
       { type: "image_url", image_url: { url: imageUrl } },
       { type: "audio_url", audio_url: { url: audioUrl } },
