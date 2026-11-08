@@ -1,12 +1,22 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { GUIDE_MAX_SECONDS } from "../src/jobs/guide-length.ts";
 import {
   SPEECH_TO_SPEECH_USD_PER_MINUTE,
   guideCostUsd,
 } from "../src/jobs/guide-take.ts";
+import { recordingSeconds } from "../src/jobs/recording-length.ts";
 import { generateVoice } from "../src/jobs/sound.ts";
 
-afterEach(() => vi.unstubAllGlobals());
+// The fixtures' recording is three bytes; ffmpeg's measurement is tested in recording-length.test.ts.
+vi.mock("../src/jobs/recording-length.ts", () => ({
+  recordingSeconds: vi.fn(async () => 12),
+}));
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.mocked(recordingSeconds).mockImplementation(async () => 12);
+});
 
 const SCRIPT = "קופי, מדיה. כרמן מנהלת.";
 const GUIDE = "t1/c1/item1/narration/guide-1700000000000.webm";
@@ -160,6 +170,30 @@ describe("the narration from the user's recording", () => {
         voice(guideRun({ guide_audio: { bucket: "creative-video", path } })),
       ).rejects.toThrow();
     }
+  });
+
+  test("a recording longer than the board's recorder makes, or with no audio, is refused before paying", async () => {
+    for (const measured of [
+      async () => GUIDE_MAX_SECONDS + 5,
+      async () => null,
+      async () => {
+        throw new Error("ffmpeg exited 1: Invalid data found");
+      },
+    ]) {
+      const calls: Array<string> = [];
+      stubElevenLabs(calls);
+      vi.mocked(recordingSeconds).mockImplementation(measured);
+      const fixture = guideRun();
+      await expect(voice(fixture)).rejects.toMatchObject({ final: true });
+      expect(calls).toHaveLength(0);
+      expect(fixture.uploads).toHaveLength(0);
+    }
+    // The recorder stops on a timer: a second over still counts as the full three minutes.
+    stubElevenLabs([]);
+    vi.mocked(recordingSeconds).mockImplementation(
+      async () => GUIDE_MAX_SECONDS + 0.4,
+    );
+    await voice(guideRun());
   });
 
   test("the quote prices it at the same rate", () => {

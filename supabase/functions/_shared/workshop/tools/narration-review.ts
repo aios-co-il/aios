@@ -20,7 +20,12 @@ import {
   NARRATION_QUESTION,
   narrationApprovedNow,
 } from "./narration-approval.ts";
-import { guideRecording, recordFromGuide } from "./narration-guide-step.ts";
+import {
+  guideAwaitsApproval,
+  guideRecording,
+  recordFromGuide,
+  retriedGuide,
+} from "./narration-guide-step.ts";
 import {
   askAbout,
   awaitTake,
@@ -41,7 +46,8 @@ import { loadTake, type NarrationTake } from "./narration-take-state.ts";
  * about a take on the board, or why the last recording failed. Automatic mode, a film with no
  * narration and a talking film (narrated scene by scene, nothing on the board to hear) pass. A
  * take that cannot be read stops with the error: production never goes on with an unheard take.
- * A recording of the user's own handed in this call is voiced and asked about first.
+ * A recording of the user's own handed in this call is voiced and asked about first, and its take
+ * is reviewed in automatic mode too until the user approves it (guideAwaitsApproval).
  */
 export async function narrationStep(
   ctx: ReviewContext,
@@ -52,18 +58,21 @@ export async function narrationStep(
   { stop: Record<string, unknown> } | { payload: Record<string, unknown> }
 > {
   const video = asRecord(payload.video);
-  const guide = guideRecording(ctx, itemId, video);
-  if ((isAutoMode(payload) && !guide) || !plan.narrated) {
+  const given = guideRecording(ctx, itemId, video);
+  const reviewed =
+    !isAutoMode(payload) || given !== null || guideAwaitsApproval(video);
+  if (!reviewed || !plan.narrated) {
     return { payload };
   }
-  if (guide && "error" in guide) {
-    return { stop: guide };
+  if (given && "error" in given) {
+    return { stop: given };
   }
   const loaded = await loadTake(ctx.supabase, itemId);
   if ("error" in loaded) {
     return { stop: { error: loaded.error } };
   }
   const take = loaded.take;
+  const guide = given ?? retriedGuide(ctx, video, take);
   if (guide) {
     return await recordFromGuide(ctx, itemId, payload, plan, take, guide);
   }
@@ -81,7 +90,7 @@ export async function narrationStep(
     !changedSinceRecording(take, video, plan) &&
     ctx.args.redo_narration !== true
   ) {
-    return { stop: failedStop(take.last_run_error) };
+    return { stop: failedStop(take.last_run_error, video) };
   }
   const recorded = await recordNarration(ctx, itemId, payload, plan);
   if ("error" in recorded || "stop" in recorded) {

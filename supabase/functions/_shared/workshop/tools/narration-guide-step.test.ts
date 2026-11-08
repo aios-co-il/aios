@@ -2,9 +2,12 @@ import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { guideLine } from "../narration-guide.ts";
 import { NARRATION_QUESTION } from "./narration-approval.ts";
 import {
+  NO_TAKE,
   RECORDED,
   RECORDING,
+  SCRIPT,
   TAKE,
+  TAPPED,
   VOICE,
   film,
   produce,
@@ -98,5 +101,82 @@ Deno.test(
       ),
     );
     assertStrictEquals(rpc(talking, "queue_narration_guide").length, 0);
+  },
+);
+
+/** The guide take voice-run-1 was asked about in turn-1. */
+const GUIDE_ASKED = {
+  recorded_narration_guide: PATH,
+  asked_narration_run: "voice-run-1",
+  asked_narration_turn: "turn-1",
+  asked_narration_shown: true,
+};
+
+Deno.test(
+  "automatic mode: the answer about a guide take is read, not taken as a go",
+  async () => {
+    const change = fakeDb(film(TAKE, GUIDE_ASKED, "auto"));
+    const reply = await produce(change, { ...TAPPED, userText: "לתקן" });
+    assertStrictEquals(reply.say_to_user, NARRATION_QUESTION);
+    assertStrictEquals(rpc(change, "produce_video").length, 0);
+    const approved = fakeDb(film(TAKE, GUIDE_ASKED, "auto"));
+    assertStrictEquals((await produce(approved, TAPPED)).started, true);
+    // Once approved, automatic mode goes straight on.
+    const after = fakeDb(
+      film(
+        TAKE,
+        { ...GUIDE_ASKED, approved_narration_run: "voice-run-1" },
+        "auto",
+      ),
+    );
+    assertStrictEquals((await produce(after)).started, true);
+  },
+);
+
+/** The voice change of the recording, run voice-run-3, failed after it was announced. */
+const GUIDE_FAILED_TAKE = {
+  ...NO_TAKE,
+  last_run_id: "voice-run-3",
+  last_run_status: "failed",
+  last_run_error: "elevenlabs speech to speech 500",
+};
+const GUIDE_FAILED_VIDEO = {
+  recorded_narration_guide: PATH,
+  asked_narration_run: "voice-run-3",
+  asked_narration_turn: "turn-1",
+  recorded_narration_script: SCRIPT,
+};
+
+Deno.test(
+  "a retry after the voice change failed voices the same recording again",
+  async () => {
+    const stopped = fakeDb(film(GUIDE_FAILED_TAKE, GUIDE_FAILED_VIDEO));
+    const reply = (await produce(stopped)) as Record<string, unknown>;
+    assertStrictEquals(reply.narration, "failed");
+    assert(String(reply.carmen_next).includes("אותה הקלטה"));
+    assertStrictEquals(rpc(stopped, "queue_narration_guide").length, 0);
+
+    const db = fakeDb({
+      ...film(GUIDE_FAILED_TAKE, GUIDE_FAILED_VIDEO),
+      ...GUIDE_REPLY,
+    });
+    takesInTurn(db, [GUIDE_FAILED_TAKE, RECORDED]);
+    await produce(db, { userText: "נסי שוב" }, { redo_narration: true });
+    const queued = rpc(db, "queue_narration_guide")[0]?.value as Record<
+      string,
+      unknown
+    >;
+    assertEquals(queued?.p_guide, { bucket: "creative-video", path: PATH });
+    assertStrictEquals(rpc(db, "queue_video_sound").length, 0);
+  },
+);
+
+Deno.test(
+  "a redo after a guide take that worked records the narrator's reading",
+  async () => {
+    const db = fakeDb({ ...film(TAKE, GUIDE_ASKED), ...GUIDE_REPLY });
+    await produce(db, { userText: "תקליטי שוב" }, { redo_narration: true });
+    assertStrictEquals(rpc(db, "queue_narration_guide").length, 0);
+    assertStrictEquals(rpc(db, "queue_video_sound").length, 1);
   },
 );

@@ -15,10 +15,13 @@ export interface GuideTarget {
 
 /**
  * Uploads the user's recording to the project's narration folder in the private creative-video
- * bucket (its insert policy allows a member's own tenant folder) and resolves its path, which the
- * chat line carries to Carmen.
+ * bucket (its insert policy allows a member's own tenant folder) and hands its path, which the
+ * chat line carries to Carmen, to `onSent`.
  */
-export function useSendGuideRecording(target: GuideTarget) {
+export function useSendGuideRecording(
+  target: GuideTarget,
+  onSent: (path: string) => void,
+) {
   return useMutation({
     mutationFn: async (recording: NarrationRecording) => {
       const file = recordingFile(recording.mimeType);
@@ -32,5 +35,8 @@ export function useSendGuideRecording(target: GuideTarget) {
       }
       return path;
     },
+    onSuccess: onSent,
   });
 }
+
+export type SendGuideRecording = ReturnType<typeof useSendGuideRecording>;

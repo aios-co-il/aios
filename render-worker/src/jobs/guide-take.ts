@@ -15,6 +15,7 @@ import {
 } from "../providers/elevenlabsVoiceChange.ts";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.ts";
 import { BUCKET, generateOnce } from "./audio-store.ts";
+import { assertGuideLength } from "./guide-length.ts";
 import { spokenAlignment } from "./spoken-alignment.ts";
 
 /**
@@ -51,6 +52,7 @@ export async function guideTake({
   }
   const guide = guideOf(run);
   const recording = await db.download(BUCKET, guide.path);
+  await assertGuideLength(recording);
   return generateOnce({
     db,
     run,

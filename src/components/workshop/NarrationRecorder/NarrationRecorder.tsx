@@ -18,6 +18,7 @@ import { clockOf, narrationScript } from "./recording";
 import { useNarrationRecorder } from "./useNarrationRecorder";
 import {
   type GuideTarget,
+  type SendGuideRecording,
   useSendGuideRecording,
 } from "./useSendGuideRecording";
 
@@ -32,9 +33,20 @@ export interface NarrationRecorderProps extends GuideTarget {
  * The narration page's "הקלטה בקול שלי": the user reads the narration aloud, listens back, and
  * sends it; Carmen keeps the recording's delivery and changes only the voice to the project's
  * narrator (narration-guide.ts). Sending uploads the file and puts its line in Carmen's chat.
+ * The upload lives here, not in the dialog, and the dialog cannot be closed while it runs, so the
+ * line always reaches the chat once the file is stored.
  */
-export function NarrationRecorder(props: NarrationRecorderProps) {
+export function NarrationRecorder({
+  scenes,
+  openChat,
+  ...target
+}: NarrationRecorderProps) {
   const [open, setOpen] = useState(false);
+  const send = useSendGuideRecording(target, (path) => {
+    setOpen(false);
+    openChat?.();
+    prefillComposer(`${guideLine(path)}\n`);
+  });
   return (
     <>
       <Button
@@ -50,10 +62,15 @@ export function NarrationRecorder(props: NarrationRecorderProps) {
         <Mic className="h-3 w-3" />
         הקלטה בקול שלי
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        {open ? (
-          <RecorderPanel {...props} onDone={() => setOpen(false)} />
-        ) : null}
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (next || !send.isPending) {
+            setOpen(next);
+          }
+        }}
+      >
+        {open ? <RecorderPanel scenes={scenes} send={send} /> : null}
       </Dialog>
     </>
   );
@@ -62,24 +79,17 @@ export function NarrationRecorder(props: NarrationRecorderProps) {
 /** The dialog's content: the script, the recorder's controls and the send button. */
 function RecorderPanel({
   scenes,
-  openChat,
-  onDone,
-  ...target
-}: NarrationRecorderProps & { onDone: () => void }) {
+  send,
+}: {
+  scenes: Array<StoryboardScene>;
+  send: SendGuideRecording;
+}) {
   const recorder = useNarrationRecorder(GUIDE_MAX_SECONDS);
-  const send = useSendGuideRecording(target);
   const script = narrationScript(scenes);
   const sendRecording = () => {
-    if (!recorder.recording) {
-      return;
+    if (recorder.recording) {
+      send.mutate(recorder.recording);
     }
-    send.mutate(recorder.recording, {
-      onSuccess: (path) => {
-        onDone();
-        openChat?.();
-        prefillComposer(`${guideLine(path)}\n`);
-      },
-    });
   };
   return (
     <DialogContent
