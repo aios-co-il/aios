@@ -1,6 +1,10 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { NOW } from "./fake-deps.ts";
-import { type RefreshRecord, withRefreshNote } from "./result.ts";
+import {
+  type RefreshRecord,
+  withRefreshNote,
+  readPulsePayload,
+} from "./result.ts";
 
 const REFRESHED: RefreshRecord = {
   status: "refreshed",
@@ -57,3 +61,14 @@ Deno.test("withRefreshNote", async (t) => {
     },
   );
 });
+
+Deno.test(
+  "pulse payload reader validates the refresh fields and keeps diagnostics",
+  () => {
+    assertEquals(
+      readPulsePayload({ count: 2, freshness: "now", whatsapp_digest: "kept" }),
+      { count: 2, freshness: "now", whatsapp_digest: "kept" },
+    );
+    assertStrictEquals(readPulsePayload({ count: { value: 2 } }), null);
+  },
+);

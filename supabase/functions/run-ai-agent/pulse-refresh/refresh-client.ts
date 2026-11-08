@@ -1,3 +1,4 @@
+import type { AgentDatabaseClient } from "../database-contracts.ts";
 import type { Database, Tables } from "../../_shared/database.types.ts";
 
 type ClaimRefreshRpc =
@@ -31,3 +32,21 @@ export type RefreshClient = {
     args: ClaimRefreshRpc["Args"],
   ): PromiseLike<{ data: ClaimRefreshRpc["Returns"] | null; error: unknown }>;
 };
+
+/** Bind only the two concrete tables and one RPC used by pulse refreshes. */
+export function createRefreshClient(db: AgentDatabaseClient): RefreshClient {
+  function from(table: "clients"): {
+    select(columns: "id"): RefreshRead<Pick<Tables<"clients">, "id">>;
+  };
+  function from(table: "campaign_pulse_snapshots"): {
+    select(
+      columns: "calculated_at",
+    ): RefreshRead<Pick<Tables<"campaign_pulse_snapshots">, "calculated_at">>;
+  };
+  function from(table: "clients" | "campaign_pulse_snapshots") {
+    return table === "clients"
+      ? db.from("clients")
+      : db.from("campaign_pulse_snapshots");
+  }
+  return { from, rpc: (name, args) => db.rpc(name, args) };
+}

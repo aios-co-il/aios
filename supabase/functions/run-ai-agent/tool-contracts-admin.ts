@@ -152,6 +152,12 @@ export function automationStepArg(value: unknown): AutomationStepArg {
   return automationStepArgSchema.parse(value);
 }
 
+export function readField(value: unknown, key: string): unknown {
+  return value !== null && typeof value === "object" && key in value
+    ? Reflect.get(value, key)
+    : undefined;
+}
+
 /** A Meta ad account identifier from stored integration settings. */
 export function readAdAccountId(value: unknown): string | number | undefined {
   const parsed = z.union([z.string(), z.number()]).safeParse(value);

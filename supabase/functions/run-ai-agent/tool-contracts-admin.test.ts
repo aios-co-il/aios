@@ -12,6 +12,12 @@ import {
   readGoogleAdsCampaignRow,
   readGoogleCalendarEvents,
 } from "./tool-contracts-admin.ts";
+import { successCriterionArgs } from "./goal-args.ts";
+import {
+  googleAdsCredentials,
+  googleAdsRefreshToken,
+} from "./google-ads-config.ts";
+import { financeEntries, relationName } from "./tool-contracts-crm.ts";
 
 Deno.test("ad account disable_reason is read from objects only", () => {
   assertStrictEquals(adAccountDisableReason({ id: "1", disable_reason: 3 }), 3);
@@ -36,7 +42,11 @@ Deno.test("Google Ads campaign rows keep leaves as sent", () => {
     campaignBudget: { amountMicros: "5000000" },
     metrics: { costMicros: "1000", clicks: "4" },
   });
-  assertEquals(row.campaign, { id: "12", name: "Brand", status: "ENABLED" });
+  assertEquals<unknown>(row.campaign, {
+    id: "12",
+    name: "Brand",
+    status: "ENABLED",
+  });
   assertStrictEquals(row.campaignBudget.amountMicros, "5000000");
   assertStrictEquals(row.metrics.clicks, "4");
   assertStrictEquals(row.metrics.impressions, undefined);
@@ -69,7 +79,7 @@ Deno.test(
     assertStrictEquals(event.id, "e1");
     assertStrictEquals(event.start.dateTime, "2026-10-29T10:00:00+03:00");
     assertStrictEquals(event.end.date, "2026-10-29");
-    assertEquals(event.attendees, [{ email: "a@b.co" }, {}]);
+    assertEquals<unknown>(event.attendees, [{ email: "a@b.co" }, {}]);
     assertStrictEquals(
       Reflect.get(event, "hangoutLink"),
       "https://meet.google.com/abc",
@@ -81,7 +91,7 @@ Deno.test(
   "Google Calendar payloads without an items array have no events",
   () => {
     for (const value of [null, {}, { items: "x" }, { error: { code: 401 } }]) {
-      assertEquals(readGoogleCalendarEvents(value), []);
+      assertEquals<unknown>(readGoogleCalendarEvents(value), []);
     }
     const [event] = readGoogleCalendarEvents({ items: [null] });
     assertStrictEquals(event.start.dateTime, undefined);
@@ -100,7 +110,7 @@ Deno.test(
       "task",
       ["a", "b"],
     ];
-    assertEquals(parallelTaskArgs(tasks), [
+    assertEquals<unknown>(parallelTaskArgs(tasks), [
       { title: "a", prompt: "b", task_skills: ["x"] },
     ]);
   },
@@ -123,6 +133,56 @@ Deno.test(
     assertThrows(() => automationStepArg(["agent"]));
     assertThrows(() => automationStepArg(null), TypeError);
     assertThrows(() => automationStepArg(undefined), TypeError);
+  },
+);
+
+Deno.test("success criteria keep valid entries with their extra fields", () => {
+  assertEquals<unknown>(
+    successCriterionArgs([
+      { description: "done", required: true, verification_config: { a: 1 } },
+      { description: 3 },
+      { key: "k" },
+      "text",
+    ]),
+    [{ description: "done", required: true, verification_config: { a: 1 } }],
+  );
+  assertStrictEquals(successCriterionArgs(undefined), undefined);
+  assertStrictEquals(successCriterionArgs({ description: "x" }), undefined);
+});
+
+Deno.test("embedded relation names and finance entries", () => {
+  assertStrictEquals(relationName({ name: "Acme" }), "Acme");
+  assertStrictEquals(relationName(null), undefined);
+  assertEquals<unknown>(
+    financeEntries([{ id: "f1", clients: { name: "Acme" } }, null, "x"]),
+    [{ id: "f1", clients: { name: "Acme" }, client_name: "Acme" }],
+  );
+});
+
+Deno.test(
+  "Google Ads credentials prefer settings over additional_config",
+  () => {
+    assertEquals<unknown>(
+      googleAdsCredentials({
+        additional_config: { refresh_token: "old", mcc_id: "1-2" },
+        settings: { refresh_token: "new" },
+        api_key: "key",
+      }),
+      { refreshToken: "new", loginCustomerId: "1-2" },
+    );
+    assertEquals<unknown>(
+      googleAdsCredentials({ api_key: "key", settings: "x" }),
+      {
+        refreshToken: "key",
+        loginCustomerId: undefined,
+      },
+    );
+    assertEquals<unknown>(googleAdsCredentials(null), {
+      refreshToken: undefined,
+      loginCustomerId: undefined,
+    });
+    assertStrictEquals(googleAdsRefreshToken({ refresh_token: "t" }), "t");
+    assertStrictEquals(googleAdsRefreshToken(null), undefined);
   },
 );
 

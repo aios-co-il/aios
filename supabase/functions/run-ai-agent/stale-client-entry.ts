@@ -5,7 +5,7 @@ import type { PerformanceClient } from "./client-performance.ts";
 export function staleClientEntry(
   client: PerformanceClient,
   readFailed = false,
-): Record<string, unknown> {
+) {
   return {
     client_id: client.id,
     client_name: client.name,
