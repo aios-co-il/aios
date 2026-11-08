@@ -15,4 +15,6 @@ export const providerValue: z.ZodType<Json> = z.lazy(() =>
 export const providerObject = z.record(providerValue);
 export const text = z.string().nullish();
 export const amount = z.union([z.string(), z.number().finite()]).optional();
-export const address = providerObject.optional().default({});
+export const address = providerObject
+  .nullish()
+  .transform((value) => value ?? {});

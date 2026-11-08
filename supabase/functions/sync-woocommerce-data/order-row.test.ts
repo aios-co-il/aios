@@ -59,3 +59,13 @@ Deno.test(
     assertThrows(() => mapOrderRow("t", "s", { id: 1, status: { bad: true } }));
   },
 );
+
+Deno.test(
+  "null WooCommerce addresses retain the empty address fallback",
+  () => {
+    const row = mapOrderRow("t", "s", { id: 1, billing: null, shipping: null });
+    assertEquals(row.billing, {});
+    assertEquals(row.shipping, {});
+    assertEquals(row.customer_email, null);
+  },
+);
