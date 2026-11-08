@@ -38,14 +38,19 @@ export function ratioFigures(
 ): RatioFigures {
   const label = (event: string) =>
     tracked.find((item) => item.event === event)?.label ?? event;
-  const of = pair ? pair.from : (counts[ratio.from] ?? 0);
-  const done = pair ? pair.to : (counts[ratio.to] ?? 0);
+  // Counts for a different pair (saved by someone else meanwhile) are ignored.
+  const funnel =
+    pair && pair.fromEvent === ratio.from && pair.toEvent === ratio.to
+      ? pair
+      : null;
+  const of = funnel ? funnel.from : (counts[ratio.from] ?? 0);
+  const done = funnel ? funnel.to : (counts[ratio.to] ?? 0);
   return {
     label: `${label(ratio.from)} ← ${label(ratio.to)}`,
     done,
     of,
     rate: of > 0 ? done / of : null,
-    basis: pair ? "people" : "events",
+    basis: funnel ? "people" : "events",
   };
 }
 

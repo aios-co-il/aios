@@ -36,7 +36,12 @@ Deno.test(
         [row("1. ticket_valuation", "27"), row("2. ticket_sold", "6")],
         pair,
       ),
-      { from: 27, to: 6 },
+      {
+        fromEvent: "ticket_valuation",
+        toEvent: "ticket_sold",
+        from: 27,
+        to: 6,
+      },
     );
   },
 );

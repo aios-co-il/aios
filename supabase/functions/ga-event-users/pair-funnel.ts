@@ -23,6 +23,8 @@ export function pairUsers(
 ): PairUsers {
   const users = funnelStepUsers(rows, pairSteps, false).get("") ?? {};
   return {
+    fromEvent: pairSteps[0].event,
+    toEvent: pairSteps[1].event,
     from: users[pairSteps[0].event] ?? 0,
     to: users[pairSteps[1].event] ?? 0,
   };

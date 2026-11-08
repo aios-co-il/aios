@@ -36,7 +36,12 @@ describe("ratioFigures", () => {
         pair,
         tracked,
         { ticket_valuation: 54, ticket_sold: 9 },
-        { from: 27, to: 6 },
+        {
+          fromEvent: "ticket_valuation",
+          toEvent: "ticket_sold",
+          from: 27,
+          to: 6,
+        },
       ),
     ).toEqual({
       label: "הערכה ← מכירה",
@@ -51,6 +56,19 @@ describe("ratioFigures", () => {
     const figures = ratioFigures(pair, tracked, { ticket_sold: 2 }, undefined);
     expect(figures.basis).toBe("events");
     expect(figures.rate).toBeNull();
+  });
+});
+
+describe("ratioFigures with another pair's funnel", () => {
+  it("ignores counts that belong to a different pair", () => {
+    const figures = ratioFigures(
+      { from: "ticket_valuation", to: "ticket_sold" },
+      tracked,
+      { ticket_valuation: 54, ticket_sold: 9 },
+      { fromEvent: "ticket_upload", toEvent: "ticket_sold", from: 80, to: 9 },
+    );
+    expect(figures.basis).toBe("events");
+    expect(figures.of).toBe(54);
   });
 });
 

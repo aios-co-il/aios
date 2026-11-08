@@ -33,8 +33,16 @@ export type EventUsersResult = {
   pair?: PairUsers | null;
 };
 
-/** People at the pair's first event and, of them, at its second. */
-export type PairUsers = { from: number; to: number };
+/**
+ * People at the pair's first event and, of them, at its second, with the
+ * pair's event names so a caller can tell which pair the counts belong to.
+ */
+export type PairUsers = {
+  fromEvent: string;
+  toEvent: string;
+  from: number;
+  to: number;
+};
 
 /** One GA report row as the Data API returns it. */
 export type GaRow = {
