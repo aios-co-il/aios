@@ -23,8 +23,15 @@ export function SignInForm({
   onPasswordSignInStart,
   navigateToApp,
 }: Props) {
-  const { loading, password, setPassword, handleSignIn, handleGoogleSignIn } =
-    useSignIn({ email, navigateToApp, onPasswordSignInStart });
+  const {
+    loading,
+    password,
+    setPassword,
+    handleSignIn,
+    handleGoogleSignIn,
+    credentialError,
+    clearCredentialError,
+  } = useSignIn({ email, navigateToApp, onPasswordSignInStart });
 
   return (
     <form onSubmit={handleSignIn} className="space-y-4">
@@ -34,7 +41,12 @@ export function SignInForm({
           id="email-signin"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            clearCredentialError();
+            setEmail(e.target.value);
+          }}
+          aria-invalid={credentialError || undefined}
+          aria-describedby={credentialError ? "signin-error" : undefined}
           required
           disabled={loading}
         />
@@ -46,11 +58,22 @@ export function SignInForm({
           id="password-signin"
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            clearCredentialError();
+            setPassword(e.target.value);
+          }}
+          aria-invalid={credentialError || undefined}
+          aria-describedby={credentialError ? "signin-error" : undefined}
           required
           disabled={loading}
         />
       </div>
+
+      {credentialError && (
+        <p id="signin-error" role="alert" className="text-sm text-destructive">
+          האימייל או הסיסמה שגויים. נסה שוב.
+        </p>
+      )}
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "מתחבר..." : "התחבר"}

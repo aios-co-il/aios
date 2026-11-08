@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { isAuthApiError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { NavigateToApp, PasswordSignInAttempt } from "../types";
@@ -24,7 +25,7 @@ export function useSignIn({
 
   const passwordMutation = useMutation({
     mutationFn: authenticate,
-    onError: showError,
+    onError: showPasswordError,
     retry: false,
     gcTime: 0,
   });
@@ -41,6 +42,8 @@ export function useSignIn({
       passwordMutation.isPending ||
       googleMutation.isPending ||
       googleMutation.isSuccess,
+    credentialError: isCredentialError(passwordMutation.error),
+    clearCredentialError: passwordMutation.reset,
     password,
     setPassword,
     handleSignIn,
@@ -96,6 +99,13 @@ export function useSignIn({
     }
   }
 
+  /** Invalid credentials stay visible in the form; other failures use a toast. */
+  function showPasswordError(error: unknown) {
+    if (!isCredentialError(error)) {
+      showError(error);
+    }
+  }
+
   /** Mutations restore pending state after SDK and unexpected failures alike. */
   function showError(error: unknown) {
     toast({
@@ -116,4 +126,9 @@ export function useSignIn({
   function handleGoogleSignIn() {
     googleMutation.mutate();
   }
+}
+
+/** Use the SDK code rather than matching its English error message. */
+function isCredentialError(error: unknown) {
+  return isAuthApiError(error) && error.code === "invalid_credentials";
 }
