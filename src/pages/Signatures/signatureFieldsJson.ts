@@ -6,7 +6,7 @@ export const signaturePositionToJson = (position: SignaturePosition): Json => ({
   ...position,
 });
 
-export const documentFieldsToJson = (fields: DocumentField[]): Json =>
+export const documentFieldsToJson = (fields: Array<DocumentField>): Json =>
   fields.map((field) => ({
     ...field,
     position: { ...field.position },

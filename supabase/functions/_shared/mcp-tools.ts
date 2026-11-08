@@ -58,9 +58,16 @@ export interface McpLoaded {
 
 type McpConnRow = Pick<
   Tables<"agent_mcp_connections">,
-  "id" | "name" | "url" | "state" | "oauth_tokens" | "available_tools" | "updated_at"
+  | "id"
+  | "name"
+  | "url"
+  | "state"
+  | "oauth_tokens"
+  | "available_tools"
+  | "updated_at"
 >;
 
+/** Resolve the bearer credential from a stored MCP connection. */
 function bearerOf(conn: McpConnRow): string | undefined {
   const bearer = jsonField(conn.oauth_tokens, "bearer");
   return typeof bearer === "string" ? bearer : undefined;
@@ -89,6 +96,7 @@ function sanitizeToolName(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
 }
 
+/** Read the available MCP tool names from the provider response. */
 function toolNames(list: Json[]): string {
   return (list || [])
     .map((t) => jsonField(t, "name"))
@@ -97,6 +105,7 @@ function toolNames(list: Json[]): string {
     .join(",");
 }
 
+/** Retry an MCP request after refreshing stale internal credentials. */
 async function callMcpWithResync(
   supabase: DbClient,
   conn: McpConnRow,
@@ -143,7 +152,7 @@ async function toolsForConnection(
   supabase: DbClient,
   tenantId: string,
   conn: McpConnRow,
-): Promise<{tools: Json[]; live: boolean}> {
+): Promise<{ tools: Json[]; live: boolean }> {
   const cached = Array.isArray(conn.available_tools)
     ? conn.available_tools
     : [];
@@ -158,7 +167,8 @@ async function toolsForConnection(
       "tools/list",
     );
     const live = jsonField(jsonField(resp, "result"), "tools");
-    if (Array.isArray(live) && live.length > 0) return {tools:live,live:true};
+    if (Array.isArray(live) && live.length > 0)
+      return { tools: live, live: true };
   } catch (e) {
     console.warn(
       `[mcp-tools] tools/list failed for ${conn.name}:`,
@@ -168,6 +178,7 @@ async function toolsForConnection(
   return { tools: cached, live: false };
 }
 
+/** Load the connected MCP tools used by the agent. */
 export async function loadMcpTools(
   supabase: DbClient,
   tenantId: string,
@@ -202,9 +213,7 @@ export async function loadMcpTools(
   const executors: McpLoaded["executors"] = new Map();
 
   // Access control: skip integrations turned OFF for this agent.
-  const connections = data.filter(
-    (conn) => !disabledSet.has(conn.name),
-  );
+  const connections = data.filter((conn) => !disabledSet.has(conn.name));
   // Every connection's tool list at once, not one round trip after another.
   const toolLists = await Promise.all(
     connections.map((conn) => toolsForConnection(supabase, tenantId, conn)),

@@ -150,6 +150,7 @@ interface Task {
   recurrence_monthday?: number | null;
 }
 
+/** Read supported task attachment entries from stored data. */
 function toTaskAttachments(value: unknown): TaskAttachment[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isJsonObject).map((item) => ({

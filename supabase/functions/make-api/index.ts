@@ -121,6 +121,7 @@ const GOOGLE_ADS_APP_NAMES = [
   "google-ads-reports",
 ];
 
+/** Identify a Make connection configured for Google Ads. */
 function isGoogleAdsConnection(connection: unknown): boolean {
   const appName = String(
     unknownField(connection, "accountName") ||
@@ -131,6 +132,7 @@ function isGoogleAdsConnection(connection: unknown): boolean {
   return GOOGLE_ADS_APP_NAMES.some((name) => appName.includes(name));
 }
 
+/** Identify the Google Ads module in a Make flow. */
 function isGoogleAdsFlowModule(flowModule: unknown): boolean {
   const moduleName = unknownField(flowModule, "module");
   return (

@@ -2337,6 +2337,7 @@ function MemberNotifyRow({
 }
 
 // =================== MemberRow (with inline name edit) ===================
+/** Render member row from its typed view data. */
 function MemberRow({
   member,
   profile,

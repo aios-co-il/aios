@@ -330,10 +330,12 @@ export async function retrieveRecallBot(
   return await res.json();
 }
 
+/** Read string values without coercing other provider data. */
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+/** Resolve a supported Recall download URL. */
 function downloadUrl(shortcuts: unknown, kind: string): string | null {
   return stringOrNull(
     unknownField(
@@ -343,12 +345,14 @@ function downloadUrl(shortcuts: unknown, kind: string): string | null {
   );
 }
 
+/** Normalize a supported provider timestamp to milliseconds. */
 function timeMs(value: unknown): number {
   return typeof value === "string" || typeof value === "number"
     ? new Date(value).getTime()
     : NaN;
 }
 
+/** Read the available recording and transcript download locations. */
 export function extractRecallDownloads(bot: unknown): {
   videoUrl: string | null;
   audioUrl: string | null;

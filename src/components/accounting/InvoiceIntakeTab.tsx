@@ -239,6 +239,7 @@ export function InvoiceIntakeTab() {
   );
 }
 
+/** Render invoice card from its typed view data. */
 function InvoiceCard({
   invoice,
   suppliers,

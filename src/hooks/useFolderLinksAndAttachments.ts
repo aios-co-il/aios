@@ -12,6 +12,7 @@ interface EntityWithFiles {
 const optionalString = (value: unknown) =>
   typeof value === "string" ? value : undefined;
 
+/** Read supported folder links from a stored JSON column. */
 function toFolderLinks(value: unknown): FolderLink[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isJsonObject).map((item) => ({
@@ -21,6 +22,7 @@ function toFolderLinks(value: unknown): FolderLink[] {
   }));
 }
 
+/** Read supported attachment records from a stored JSON column. */
 function toAttachments(value: unknown): Attachment[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isJsonObject).map((item) => ({

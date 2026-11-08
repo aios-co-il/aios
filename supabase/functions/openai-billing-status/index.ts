@@ -19,6 +19,7 @@ const cors = {
 /** Mirrored from src/components/carmen-command/access.ts — owners who see org billing. */
 const COMMAND_CENTER_BILLING_EMAILS = new Set(["david.castelnuovo@gmail.com"]);
 
+/** Check whether the authenticated caller may inspect billing data. */
 async function callerMayViewBilling(
   supabase: DbClient,
   userId: string,

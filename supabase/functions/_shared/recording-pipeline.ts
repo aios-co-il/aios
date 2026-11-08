@@ -35,6 +35,7 @@ export interface RunRecordingPipelineOpts {
   skipTranscribe?: boolean;
 }
 
+/** Process the recording through its transcription and summary stages. */
 export async function runRecordingPipeline(
   admin: DbClient,
   opts: RunRecordingPipelineOpts,

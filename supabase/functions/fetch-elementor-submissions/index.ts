@@ -76,6 +76,7 @@ function extractSlug(referer: string | null): string {
   }
 }
 
+/** Read the supported provider form name as display text. */
 function stringifyFormName(name: Json | undefined, fallback: string): string {
   if (!name) return fallback;
   if (typeof name === "string") return name;
@@ -142,6 +143,7 @@ function classifySource(referer: string | null): ParsedSubmission["source"] {
   return "direct";
 }
 
+/** Resolve an email address from the submitted form fields. */
 function extractEmail(fields: Json): string | null {
   if (!fields) return null;
   // Elementor submissions API returns "values" as an array of {key, value, type, ...}
@@ -177,6 +179,7 @@ function extractEmail(fields: Json): string | null {
   return null;
 }
 
+/** Normalize accepted Elementor fields into the form record. */
 function fieldsToRecord(fields: Json): Json {
   if (!fields) return {};
   if (Array.isArray(fields)) {
@@ -191,6 +194,7 @@ function fieldsToRecord(fields: Json): Json {
   return fields;
 }
 
+/** Normalize supported submission timestamps for ordering. */
 function toTime(value: string | number): number {
   return new Date(value).getTime();
 }

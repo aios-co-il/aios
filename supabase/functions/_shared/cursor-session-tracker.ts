@@ -42,6 +42,7 @@ export function cursorSessionDisplayName(args: {
   return `AIOS · ${tool}`.slice(0, 100);
 }
 
+/** Read the human task title used to label a coding session. */
 export async function fetchHumanTaskTitle(
   supabase: DbClient,
   tenantId: string,
@@ -60,6 +61,7 @@ export async function fetchHumanTaskTitle(
   }
 }
 
+/** Persist the Cursor session associated with a task. */
 export async function trackCursorTaskSession(
   supabase: CursorSessionsClient,
   input: TrackCursorSessionInput,
@@ -104,6 +106,7 @@ export async function trackCursorTaskSession(
   );
 }
 
+/** Record activity on the tracked Cursor task session. */
 export async function touchCursorTaskSession(
   supabase: CursorSessionsClient,
   tenantId: string,
@@ -122,6 +125,7 @@ export async function touchCursorTaskSession(
     .eq("cursor_agent_id", id);
 }
 
+/** Attach the Cursor session to the development task. */
 export async function linkCursorSessionToDevTask(
   supabase: CursorSessionsClient,
   args: { tenantId: string; cursorAgentId: string; devTaskId: string },
@@ -133,6 +137,7 @@ export async function linkCursorSessionToDevTask(
     .eq("tenant_id", args.tenantId);
 }
 
+/** Load Cursor sessions active since the requested timestamp. */
 export function listRecentCursorSessionsSince(
   supabase: CursorSessionsClient,
   tenantId: string,
@@ -149,6 +154,7 @@ export function listRecentCursorSessionsSince(
     .limit(25);
 }
 
+/** Mark the tracked Cursor sessions for a completed task. */
 export async function completeCursorSessionsForTask(
   supabase: CursorSessionsClient,
   tenantId: string,
@@ -185,6 +191,7 @@ export type CursorTaskSessionRow = {
   last_seen_at: string;
 };
 
+/** Load the tracked coding sessions associated with a task. */
 export async function listCursorTaskSessions(
   supabase: CursorSessionsClient,
   tenantId: string,
@@ -207,6 +214,7 @@ export async function listCursorTaskSessions(
   return (data || []) as CursorTaskSessionRow[];
 }
 
+/** Resolve the tracked Cursor session for a task. */
 export async function findCursorSessionForTask(
   supabase: CursorSessionsClient,
   tenantId: string,

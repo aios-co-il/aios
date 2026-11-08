@@ -70,6 +70,7 @@ async function fetchMediaIfSmallEnough(
   return { blob, tooLarge: false };
 }
 
+/** Persist the final meeting-bot outcome and linked recording state. */
 export async function finalizeMeetingBotSession(
   admin: DbClient,
   session: MeetingBotSession,

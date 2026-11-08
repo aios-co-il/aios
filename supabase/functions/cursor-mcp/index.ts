@@ -28,11 +28,13 @@ import {
 import type { Database, Json } from "../_shared/database.types.ts";
 import { jsonField, thrownMessage } from "../_shared/json-fields.ts";
 
+/** Resolve the application origin used by tool replies. */
 function replyOrigin(raw: unknown): ChannelProvider | undefined {
   const stated = raw || "cursor";
   return CHANNEL_PROVIDERS.find((p) => p === stated);
 }
 
+/** Reject arrays and primitive values before reading MCP arguments. */
 function isArgsObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1010,6 +1012,7 @@ async function executeDirectSessionReply(args: {
   return `✅ direct_session_reply — נשלח לצ׳אט Cursor הישיר (${args.session.source}) ${followed.url}`;
 }
 
+/** Dispatch the named MCP tool using its validated arguments. */
 async function handleToolCall(
   name: string,
   args: Record<string, unknown>,

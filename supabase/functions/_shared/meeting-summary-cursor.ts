@@ -36,6 +36,7 @@ export type SummaryDispatch =
       detail?: string;
     };
 
+/** Dispatch the meeting-summary request to its Cursor session. */
 export async function dispatchMeetingSummaryToCursor(
   admin: DbClient,
   args: {
@@ -164,6 +165,7 @@ export async function dispatchMeetingSummaryToCursor(
 
 const MANUAL_RESEND_WINDOW_MS = 90_000;
 
+/** Claim a meeting-summary delivery before sending it. */
 async function claimSummarySend(
   admin: DbClient,
   args: {
@@ -205,6 +207,7 @@ async function claimSummarySend(
   return !duplicate;
 }
 
+/** Persist the reply produced for a meeting summary. */
 export async function persistMeetingSummaryReply(
   admin: DbClient,
   metadata: unknown,
@@ -252,6 +255,7 @@ export async function persistMeetingSummaryReply(
   return true;
 }
 
+/** Resolve the user identity associated with the meeting summary. */
 async function resolveSummaryUserId(
   admin: DbClient,
   tenantId: string,

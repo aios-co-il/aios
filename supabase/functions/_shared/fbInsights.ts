@@ -57,6 +57,7 @@ interface FbPromotedObject {
   pixel_rule: unknown;
 }
 
+/** Read supported promoted-object fields from a Meta payload. */
 function promotedObjectFields(value: unknown): FbPromotedObject {
   return {
     custom_conversion_id: unknownField(value, "custom_conversion_id"),
@@ -533,6 +534,7 @@ function extractPixelRuleEvent(pixelRule: unknown): string | null {
   }
 }
 
+/** Resolve the Meta action types counted as lead results. */
 export function resolveResultLeadTypes(
   promotedObject: unknown,
   optimizationGoal?: string | null,

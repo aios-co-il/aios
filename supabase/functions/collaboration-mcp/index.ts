@@ -1,5 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import type { TablesUpdate } from "../_shared/database.types.ts";
+// This collaboration table is not present in the generated schema snapshot.
+// Keep its narrow write contract explicit until generated types include it (AIO-91).
+type CollaborationAgentUpdate = {
+  current_task_id?: string | null;
+  status?: "online" | "busy";
+  last_seen_at?: string;
+};
 import {
   compactToolsForGrok,
   grokCompatibleInitializeResult,
@@ -260,7 +266,7 @@ async function callTool(
 ): Promise<string> {
   const client = sb();
   const updateScopedAgent = (
-    values: TablesUpdate<"agent_collaboration_agents">,
+    values: CollaborationAgentUpdate,
     agent: string,
   ) => {
     const scoped = client

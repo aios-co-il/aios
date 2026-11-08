@@ -1069,6 +1069,7 @@ function KPI({
   );
 }
 
+/** Render drill content from its typed view data. */
 function DrillContent({
   agencyId,
   selectedMonth,

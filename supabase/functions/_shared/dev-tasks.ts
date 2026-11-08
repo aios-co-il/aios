@@ -181,6 +181,7 @@ export async function reconcileDevTaskCursorDelivery(
   return null;
 }
 
+/** Reconcile one persisted Cursor delivery attempt for a development task. */
 async function tryReconcileDevTaskCursorDeliveryOnce(
   supabase: DbClient,
   args: {
@@ -343,6 +344,7 @@ export function buildDevTaskPrompt(task: DevTaskRow): {
   };
 }
 
+/** Persist an event in the development-task audit trail. */
 export async function logDevTaskEvent(
   supabase: DbClient,
   args: {
@@ -364,6 +366,7 @@ export async function logDevTaskEvent(
   });
 }
 
+/** Find candidate development tasks before creating another copy. */
 export async function findDuplicateDevTasks(
   supabase: DbClient,
   tenantId: string,
@@ -387,6 +390,7 @@ export async function findDuplicateDevTasks(
     .sort((a, b) => b.score - a.score);
 }
 
+/** Create the development task with its execution context. */
 export async function createDevTask(
   supabase: DbClient,
   args: {
@@ -441,6 +445,7 @@ export async function createDevTask(
   return data as DevTaskRow;
 }
 
+/** Record approval for the pending development task. */
 export async function approveDevTask(
   supabase: DbClient,
   tenantId: string,
@@ -626,6 +631,7 @@ export class DevTaskNotApprovedError extends Error {
   }
 }
 
+/** Dispatch an approved development task through its selected agent. */
 export async function dispatchDevTask(
   supabase: DbClient,
   args: { tenantId: string; taskId: string; actorUserId?: string | null },
@@ -959,6 +965,7 @@ export async function completeDevTaskFromAgentReply(
   return { completed: true, devTaskId: task.id };
 }
 
+/** Record the completed development-task outcome. */
 export async function completeDevTaskById(
   supabase: DbClient,
   args: {
@@ -1009,6 +1016,7 @@ export async function completeDevTaskById(
   return updated as DevTaskRow;
 }
 
+/** Attach the external coding session to the development task. */
 export async function attachDevTaskSession(
   supabase: DbClient,
   args: {

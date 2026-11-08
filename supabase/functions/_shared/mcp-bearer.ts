@@ -114,6 +114,7 @@ export function isMcpTimeoutError(err: unknown): boolean {
   );
 }
 
+/** Send an authenticated MCP JSON-RPC request. */
 export async function mcpJsonRpc(
   url: string,
   bearer: string | undefined,
@@ -182,6 +183,7 @@ export function isMcpAuthError(err: unknown): boolean {
   );
 }
 
+/** Refresh the stored credentials for an internal MCP connection. */
 export async function resyncInternalMcpBearer(
   supabase: McpConnectionsWriter,
   conn: { id: string; name: string; url: string; tenant_id?: string | null },

@@ -20,6 +20,7 @@ type AdminGetResult = {
   error?: string;
 };
 
+/** Resolve the configured key used for OpenAI organization billing. */
 export async function resolveOpenAiAdminKey(
   supabase: DbClient,
   tenantId: string,
@@ -56,6 +57,7 @@ export async function resolveOpenAiAdminKey(
   return { key: null, source: null };
 }
 
+/** Read an OpenAI administration endpoint with the configured key. */
 async function openaiAdminGet(
   pathWithQuery: string,
   adminKey: string,
@@ -95,6 +97,7 @@ async function openaiAdminGet(
   }
 }
 
+/** Load and normalize the supported OpenAI billing status fields. */
 export async function fetchOpenAiBillingStatus(args: {
   supabase: DbClient;
   tenantId: string;

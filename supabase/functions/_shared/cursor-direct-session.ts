@@ -57,6 +57,7 @@ function fromEnv(
   };
 }
 
+/** Resolve the Cursor session used for a direct-channel conversation. */
 export async function resolveCursorDirectSession(
   sb: CursorSessionReader | null | undefined,
   args: {

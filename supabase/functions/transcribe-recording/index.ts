@@ -49,6 +49,7 @@ function looksLikeTextContent(header: Uint8Array): boolean {
 
 // ── DB status helpers ─────────────────────────────────────────
 
+/** Persist the recording transcription state. */
 async function setTranscriptionStatus(
   supabase: DbClient,
   recordingId: string,
@@ -388,6 +389,7 @@ function formatClock(totalSeconds: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+/** Transcribe the available channel segments and combine their results. */
 async function transcribeChannelParts(
   supabase: DbClient,
   recordingId: string,
@@ -556,6 +558,7 @@ async function transcribeChannelParts(
 // ask a vision model to read the active-speaker name label (Zoom/Meet
 // highlight). Works when participant tiles are visible; during screen-share
 // stretches there may be no usable frame — the guest keeps its numeric label.
+/** Resolve display names for the transcript speakers. */
 async function resolveSpeakerNames(
   supabase: DbClient,
   sysFullPath: string,
@@ -633,6 +636,7 @@ async function resolveSpeakerNames(
 
 // Bump updated_at while a multi-chunk transcription runs so the UI's
 // stale-processing detector (3 min without change → mark failed) stays quiet.
+/** Record progress for the active recording-processing attempt. */
 async function touchProcessing(supabase: DbClient, recordingId: string) {
   await supabase
     .from("zoom_recordings")
@@ -643,6 +647,7 @@ async function touchProcessing(supabase: DbClient, recordingId: string) {
     .eq("id", recordingId);
 }
 
+/** Submit the recording audio to the selected transcription provider. */
 async function transcribeBlob(
   supabase: DbClient,
   recordingId: string,
@@ -759,6 +764,7 @@ async function splitWav(blob: Blob): Promise<Blob[] | null> {
 }
 
 // ── Helper: download media from Zoom ──────────────────────────────────
+/** Download recording media using the available Zoom credentials. */
 async function downloadZoomMedia(
   supabase: DbClient,
   recording: ZoomRecordingRow,

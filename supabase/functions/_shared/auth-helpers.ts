@@ -77,6 +77,7 @@ export async function assertCallerCanAccessClient(
 
 // Resolve the owning client_id for an entity that a scoped tool receives by id,
 // so we can run assertCallerCanAccessClient on it. Returns null if not found.
+/** Read the supported client identifier from the request value. */
 async function clientIdFrom(
   supabase: DbClient,
   table: ClientOwnedTable,

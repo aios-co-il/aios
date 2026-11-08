@@ -100,6 +100,7 @@ export interface SaveSummaryOptions {
   created_by?: string | null;
 }
 
+/** Persist the meeting summary against its resolved target. */
 export async function saveSummaryForTarget(
   admin: DbClient,
   opts: SaveSummaryOptions,
@@ -205,6 +206,7 @@ export interface MarketingBriefOptions {
   source: string; // e.g. 'zoom_meeting' | 'chrome_extension'
 }
 
+/** Create a marketing brief when the summary requests one. */
 export async function maybeCreateMarketingBrief(
   admin: DbClient,
   openaiKey: string,

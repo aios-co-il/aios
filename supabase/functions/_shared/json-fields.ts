@@ -44,6 +44,7 @@ export function thrownMessage(e: unknown): unknown {
  */
 export function toJson(value: object): Json;
 export function toJson(value: object | undefined): Json | undefined;
+/** Convert serializable data into a JSON storage value. */
 export function toJson(value: object | undefined): Json | undefined {
   const text = JSON.stringify(value);
   return text === undefined ? undefined : JSON.parse(text);

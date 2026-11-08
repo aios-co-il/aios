@@ -39,6 +39,7 @@ interface ResizableTableProps<Row> {
   columnWidthStorageKey?: string;
 }
 
+/** Render resizable table from its typed view data. */
 export function ResizableTable<Row>({
   columns: initialColumns,
   data,

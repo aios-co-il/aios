@@ -11,6 +11,7 @@ export interface MatchResult {
   campaignerIds: string[];
 }
 
+/** Resolve the CRM client associated with a recording. */
 export async function matchRecordingToClient(
   admin: DbClient,
   openaiKey: string,

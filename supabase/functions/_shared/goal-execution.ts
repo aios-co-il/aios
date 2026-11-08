@@ -76,6 +76,7 @@ export type UnifiedGoalCreateArgs = {
   agentId?: string | null;
 };
 
+/** Persist an event in the goal execution audit trail. */
 export async function logGoalEvent(
   supabase: DbClient,
   args: {
@@ -97,6 +98,7 @@ export async function logGoalEvent(
   });
 }
 
+/** Find candidate goals before creating another execution goal. */
 export async function findDuplicateGoals(
   supabase: DbClient,
   tenantId: string,
@@ -136,6 +138,7 @@ export function isAutonomousSchemaError(error: unknown): boolean {
   );
 }
 
+/** Build the persisted goal insert from its validated inputs. */
 function buildExecutionGoalRow(
   args: UnifiedGoalCreateArgs,
   autonomous: boolean,
@@ -255,6 +258,7 @@ export async function createUnifiedGoal(
   };
 }
 
+/** Create the goal execution record and its initial context. */
 export async function createExecutionGoal(
   supabase: DbClient,
   args: Omit<UnifiedGoalCreateArgs, "autonomous">,
@@ -266,6 +270,7 @@ export async function createExecutionGoal(
   return goal;
 }
 
+/** Persist a milestone for the goal. */
 export async function addGoalMilestone(
   supabase: DbClient,
   args: {
@@ -302,6 +307,7 @@ export async function addGoalMilestone(
   return data;
 }
 
+/** Persist a blocker that prevents goal progress. */
 export async function addGoalBlocker(
   supabase: DbClient,
   args: {
@@ -339,6 +345,7 @@ export async function addGoalBlocker(
   return data;
 }
 
+/** Associate a task with the goal it advances. */
 export async function linkTaskToGoal(
   supabase: DbClient,
   args: {
@@ -366,6 +373,7 @@ export async function linkTaskToGoal(
   return data;
 }
 
+/** Load the execution summary and activity for a goal. */
 export async function getGoalExecutionReport(
   supabase: DbClient,
   tenantId: string,

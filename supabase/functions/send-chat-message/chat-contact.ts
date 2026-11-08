@@ -15,6 +15,7 @@ export interface ChatContact {
   tenant_id: string;
 }
 
+/** Validate the stored contact fields consumed by the send path. */
 export function isChatContact(value: unknown): value is ChatContact {
   return chatContactSchema.safeParse(value).success;
 }

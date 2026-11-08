@@ -407,6 +407,7 @@ export async function aiTranscribeVerbose(
 // Vision chat (gpt-4o-mini) returning parsed JSON. Images are inlined as
 // base64 data URLs. Used e.g. to read speaker name labels off meeting
 // screenshots. Returns null on any failure.
+/** Request a vision response and parse the returned JSON payload. */
 export async function aiVisionJSON(
   prompt: string,
   images: Blob[],

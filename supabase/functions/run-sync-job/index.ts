@@ -9,6 +9,7 @@ import { readSyncProgress, type SyncResult } from "./sync-progress.ts";
 /** ManyChat custom field id as stored in settings or returned by the API. */
 type ManyChatFieldId = string | number;
 
+/** Read the supported provider custom-field identifier. */
 function asFieldId(value: Json | undefined): ManyChatFieldId | null {
   return typeof value === "string" || typeof value === "number" ? value : null;
 }
@@ -106,6 +107,7 @@ function getPhoneLookupCandidates(phone: string): string[] {
   );
 }
 
+/** Decode a provider response while retaining bounded failure diagnostics. */
 async function safeJson(res: Response): Promise<Json> {
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
@@ -137,6 +139,7 @@ async function triggerNextRun(
   });
 }
 
+/** Resolve the ManyChat custom field used for phone lookups. */
 async function getPhoneNumberFieldId(
   apiKey: string,
   supabase: SupabaseClient,
@@ -233,6 +236,7 @@ async function findSubscriberByEmail(
   return null;
 }
 
+/** Find the ManyChat subscriber matching the selected custom field. */
 async function findSubscriberByCustomField(
   apiKey: string,
   fieldId: ManyChatFieldId,
@@ -259,6 +263,7 @@ async function findSubscriberByCustomField(
   return null;
 }
 
+/** Write a supported value to the provider custom field. */
 async function setCustomField(
   apiKey: string,
   subscriberId: string,

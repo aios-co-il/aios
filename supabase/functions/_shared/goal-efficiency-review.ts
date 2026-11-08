@@ -29,6 +29,7 @@ export type GoalResourceMetrics = {
   plan_steps_pending: number;
 };
 
+/** Collect the resource usage used by goal efficiency review. */
 export async function collectGoalResourceMetrics(
   supabase: DbClient,
   tenantId: string,
@@ -144,6 +145,7 @@ Metrics: ${JSON.stringify(metrics, null, 2)}`;
   };
 }
 
+/** Review resource efficiency after the completed goal iteration. */
 export async function runPostIterationEfficiencyReview(
   supabase: DbClient,
   args: {

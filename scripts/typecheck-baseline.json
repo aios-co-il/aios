@@ -46,45 +46,10 @@
       "count": 1
     },
     {
-      "file": "src/components/tasks/WeeklyTaskBoard.tsx",
-      "code": 2352,
-      "message": "Conversion of type '{ fanOutCount: number; newTask: { id: string; }; }' to type '{ newTask: { fanOutCount: number; newTask: { id: string; }; }; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.\n  Types of property 'newTask' are incompatible.\n    Type '{ id: string; }' is missing the following properties from type '{ fanOutCount: number; newTask: { id: string; }; }': fanOutCount, newTask",
-      "source": "result as { newTask: typeof result }",
-      "count": 1
-    },
-    {
-      "file": "src/components/ui/slider.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
-      "source": "style?.[\"--slider-color\" as any]",
-      "count": 2
-    },
-    {
-      "file": "src/components/ui/slider.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'CSSProperties'.",
-      "source": "style[\"--slider-color\" as any]",
-      "count": 2
-    },
-    {
       "file": "src/hooks/useBroadcastLists.ts",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>, options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Type 'string | null' is not assignable to type 'string'.\n      Type 'null' is not assignable to type 'string'.\n  Overload 2 of 2, '(values: RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[], options?: { ...; } | undefined): PostgrestFilterBuilder<...>', gave the following error.\n    Object literal may only specify known properties, and 'list_id' does not exist in type 'RejectExcessProperties<{ created_at?: string | undefined; created_by?: string | null | undefined; enabled?: boolean | undefined; filter?: Json | undefined; id?: string | undefined; list_id: string; tenant_id: string; trigger?: string | undefined; }, { ...; }>[]'.",
       "source": "insert",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useSyncProfileTeamMember.ts",
-      "code": 2345,
-      "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; agency_id?: string | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; ... 4 more ...; updated_at?: string | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
-      "count": 1
-    },
-    {
-      "file": "src/hooks/useSyncProfileTeamMember.ts",
-      "code": 2345,
-      "message": "Argument of type 'Record<string, any>' is not assignable to parameter of type 'RejectExcessProperties<{ active?: boolean | undefined; created_at?: string | undefined; email?: string | null | undefined; folder_link?: string | null | undefined; full_name?: string | undefined; id?: string | undefined; ... 5 more ...; whatsapp_group_id?: string | ... 1 more ... | undefined; }, Record<...>>'.\n  Type 'Record<string, any>' is not assignable to type '{ [x: string]: never; }'.\n    'string' index signatures are incompatible.\n      Type 'any' is not assignable to type 'never'.",
-      "source": "patch",
       "count": 1
     },
     {
@@ -148,27 +113,6 @@
       "code": 7006,
       "message": "Parameter 'b' implicitly has an 'any' type.",
       "source": "b",
-      "count": 1
-    },
-    {
-      "file": "src/pages/Users.tsx",
-      "code": 7006,
-      "message": "Parameter 'a' implicitly has an 'any' type.",
-      "source": "a",
-      "count": 2
-    },
-    {
-      "file": "src/pages/Users.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, string>'.",
-      "source": "roleBadgeColors[user.role]",
-      "count": 1
-    },
-    {
-      "file": "src/pages/Users.tsx",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, string>'.",
-      "source": "roleLabels[user.role]",
       "count": 1
     },
     {

@@ -80,7 +80,7 @@ import { jsonField } from "@/lib/typeGuards";
 import {
   documentFieldsToJson,
   signaturePositionToJson,
-} from "@/lib/signatureFieldsJson";
+} from "./Signatures/signatureFieldsJson";
 
 type SignatureDocumentRow = Tables<"signature_documents">;
 type SignatureDocumentRef = Pick<SignatureDocumentRow, "id" | "title"> &

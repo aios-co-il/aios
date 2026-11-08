@@ -66,6 +66,7 @@ const chatProviderDataSchema = nested({
   }),
 });
 
+/** Validate the provider metadata displayed by the chat UI. */
 export function parseChatProviderData(
   value: unknown,
 ): ChatProviderData | undefined {

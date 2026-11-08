@@ -314,6 +314,7 @@ export async function createAutonomousGoal(
   };
 }
 
+/** Load the goal and execution state needed by the next iteration. */
 export async function loadGoalState(
   supabase: SupabaseLike,
   tenantId: string,

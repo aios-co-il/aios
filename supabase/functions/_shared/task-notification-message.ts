@@ -66,6 +66,7 @@ export type TaskNotificationExtras = {
   updaterName?: string | null;
 };
 
+/** Build the notification text from the task event fields. */
 export function formatTaskNotificationMessage(
   notificationType: string,
   task: TaskNotificationTask,

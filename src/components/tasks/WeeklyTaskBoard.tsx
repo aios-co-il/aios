@@ -12,6 +12,7 @@ type TimedCalendarEvent = RawCalendarEvent & {
   end: { dateTime: string };
 };
 
+/** Distinguish timed calendar events from date-only entries. */
 function isTimedCalendarEvent(
   event: RawCalendarEvent,
 ): event is TimedCalendarEvent {

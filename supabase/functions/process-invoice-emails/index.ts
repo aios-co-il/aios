@@ -35,6 +35,7 @@ interface InvoiceEmailResult {
   matchedSupplierName?: string | null;
 }
 
+/** Refresh the mailbox access token when its credentials expire. */
 async function refreshTokenIfNeeded(
   supabaseService: SupabaseClient,
   tokenData: GmailTokenRow,

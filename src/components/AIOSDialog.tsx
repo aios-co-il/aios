@@ -55,6 +55,7 @@ import {
 import type { Json, Tables } from "@/integrations/supabase/types";
 import { errorMessage, isJsonObject } from "@/lib/typeGuards";
 
+/** Read the most recent assistant text from conversation messages. */
 function lastAssistantContent(history: Json[]): string {
   for (let i = history.length - 1; i >= 0; i--) {
     const m = history[i];

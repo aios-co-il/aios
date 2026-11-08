@@ -44,11 +44,13 @@ import {
 import type { Json, Tables } from "../_shared/database.types.ts";
 import { jsonField, thrownMessage } from "../_shared/json-fields.ts";
 
+/** Resolve the application origin used by tool replies. */
 function replyOrigin(raw: unknown): ChannelProvider | undefined {
   const stated = raw || "grok";
   return CHANNEL_PROVIDERS.find((p) => p === stated);
 }
 
+/** Reject arrays and primitive values before reading MCP arguments. */
 function isArgsObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -777,6 +779,7 @@ function teachingBlock(tenantId: string | null): string {
   );
 }
 
+/** Dispatch the named MCP tool using its validated arguments. */
 async function handleToolCall(
   name: string,
   args: Record<string, unknown>,

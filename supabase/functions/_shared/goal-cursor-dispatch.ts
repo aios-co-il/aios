@@ -61,6 +61,7 @@ function parseAgentResponse(raw: string): { url: string; id: string } {
   return { url, id: id || url };
 }
 
+/** Resolve the Cursor agent selected for a plan step. */
 export async function getPlanStepCursorAgent(
   supabase: DbClient,
   planStepId: string,
@@ -80,6 +81,7 @@ export async function getPlanStepCursorAgent(
   };
 }
 
+/** Persist the Cursor agent chosen for a plan step. */
 export async function savePlanStepCursorAgent(
   supabase: DbClient,
   planStepId: string,
@@ -98,6 +100,7 @@ export async function savePlanStepCursorAgent(
     .eq("id", planStepId);
 }
 
+/** Resolve the Cursor agent selected for the goal. */
 export async function getGoalCursorAgent(
   supabase: DbClient,
   goalId: string,
@@ -117,6 +120,7 @@ export async function getGoalCursorAgent(
   };
 }
 
+/** Persist the Cursor agent chosen for the goal. */
 export async function saveGoalCursorAgent(
   supabase: DbClient,
   goalId: string,
@@ -216,6 +220,7 @@ async function createGoalCursorAgent(
   };
 }
 
+/** Build the technical execution prompt from the goal context. */
 export function buildGoalTechnicalPrompt(args: {
   goalId: string;
   goalTitle: string;

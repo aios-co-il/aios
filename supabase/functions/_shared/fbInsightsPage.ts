@@ -54,6 +54,7 @@ const fbInsightRowSchema = lenient({
   action_values: actionStats,
 });
 
+/** Validate the insight fields used by downstream report calculations. */
 export function readFbInsightRow(value: unknown): FbInsightRow {
   return fbInsightRowSchema.parse(value);
 }

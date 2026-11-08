@@ -20,6 +20,7 @@ const recordingsListSchema = z.object({ meetings: z.array(z.unknown()) });
 
 const url = z.string().min(1);
 
+/** Read the supported media locations from a Zoom recording entry. */
 function urlsOf(file: z.infer<typeof recordingFileSchema>): string[] {
   return [file.download_url, file.play_url].flatMap((value) => {
     const parsed = url.safeParse(value);

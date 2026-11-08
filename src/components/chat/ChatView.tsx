@@ -66,6 +66,7 @@ const INDICATOR_PROVIDERS = [
 ] as const;
 
 // ChatProviderIndicator renders any unrecognised provider as Green API.
+/** Narrow the chat provider used by the presence indicator. */
 function toIndicatorProvider(
   value: string | null | undefined,
 ): (typeof INDICATOR_PROVIDERS)[number] | null {

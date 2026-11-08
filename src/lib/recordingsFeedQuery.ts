@@ -17,6 +17,7 @@ type StaleCheckRow = Pick<
   | "updated_at"
 >;
 
+/** Mark recording processing attempts that exceeded their active window. */
 async function markStaleProcessing(list: StaleCheckRow[]) {
   const stale = list.filter(
     (r) =>

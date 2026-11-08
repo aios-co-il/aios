@@ -63,6 +63,7 @@ export function selectNextSequentialStep(
     .sort((a, b) => a.priority - b.priority || a.sort_order - b.sort_order)[0];
 }
 
+/** Send the staging-ready notification through the configured database RPC. */
 export async function notifyDavidStagingReady(
   supabase: DbClient,
   args: {

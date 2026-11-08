@@ -42,6 +42,7 @@ export function extractHumanTaskId(
   return m ? m[1] : null;
 }
 
+/** Count human Cursor tasks currently occupying the queue. */
 export async function countInProgressCursorTasks(
   supabase: DbClient,
   tenantId: string,
@@ -57,6 +58,7 @@ export async function countInProgressCursorTasks(
   ).length;
 }
 
+/** Claim the next eligible human Cursor task. */
 export async function claimNextOpenCursorTask(
   supabase: DbClient,
   tenantId: string,
@@ -168,6 +170,7 @@ function insertAgentTaskUpdate(
   return supabase.from("task_updates").insert(row);
 }
 
+/** Complete the human task and update its coding-session state. */
 export async function completeHumanCursorTask(
   supabase: DbClient,
   args: { tenantId: string; taskId: string; summary?: string },
@@ -211,6 +214,7 @@ export async function completeHumanCursorTask(
   return { ok: true, advanced: Boolean(next) };
 }
 
+/** Claim a queued human task before dispatching it to Cursor. */
 export async function claimAndDispatchCursorTask(
   supabase: DbClient,
   tenantId: string,

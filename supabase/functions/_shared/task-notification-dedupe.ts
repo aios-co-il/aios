@@ -24,6 +24,7 @@ export function taskUpdateEventKey(content: string): string {
   return hash.toString(16);
 }
 
+/** Claim a task notification before delivering it. */
 export async function claimTaskNotificationDelivery(
   supabase: DbClient,
   input: {
@@ -42,6 +43,7 @@ export async function claimTaskNotificationDelivery(
   return "claimed";
 }
 
+/** Release the failed task-notification claim for retry. */
 export async function releaseTaskNotificationDelivery(
   supabase: DbClient,
   input: {

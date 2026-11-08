@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { isSupplierType } from "@/lib/supplierType";
+import { isSupplierType } from "./AddSupplierForm/supplierType";
 import { toast } from "sonner";
 import {
   Dialog,
