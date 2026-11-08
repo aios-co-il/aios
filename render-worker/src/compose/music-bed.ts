@@ -41,10 +41,11 @@ export const TRAILER = {
  * True for a film that gets the trailer mix: the brief asked for sound design
  * (video.sound_design), or the film has its effects.
  */
-export const isTrailer = (timeline) =>
-  timeline?.soundDesign === true || Boolean(timeline?.effects);
+export const isTrailer = (
+  timeline: { soundDesign?: unknown; effects?: unknown } | null | undefined,
+) => timeline?.soundDesign === true || Boolean(timeline?.effects);
 
-const dbGain = (db) => Math.round(10 ** (db / 20) * 1000) / 1000;
+const dbGain = (db: number) => Math.round(10 ** (db / 20) * 1000) / 1000;
 
 /**
  * The film's mix: today's MIX for an ordinary film, the trailer profile when the film has
@@ -54,13 +55,17 @@ const dbGain = (db) => Math.round(10 ** (db / 20) * 1000) / 1000;
  * EFFECT_LUFS, the level each transition sound arrives at; `fx` is their envelope options, on
  * the bed's ramps, so a pause too short to bring the bed up keeps the effects down too.
  */
-export function mixProfile({ trailer = false, voiceLufs = null } = {}) {
+export function mixProfile({
+  trailer = false,
+  voiceLufs = null,
+}: { trailer?: boolean; voiceLufs?: number | null } = {}) {
   const ramps = trailer
     ? { attack: TRAILER.attack, release: TRAILER.release, hold: TRAILER.hold }
     : { attack: 8, release: 14, hold: 0 };
-  const voice = Number.isFinite(voiceLufs)
-    ? Math.min(-12, Math.max(-30, voiceLufs))
-    : VOICE_LUFS;
+  const voice =
+    voiceLufs !== null && Number.isFinite(voiceLufs)
+      ? Math.min(-12, Math.max(-30, voiceLufs))
+      : VOICE_LUFS;
   const music = trailer ? dbGain(TRAILER.bedLufs - MUSIC_LUFS) : MIX.music;
   const musicDucked = trailer
     ? Math.min(music, dbGain(voice - TRAILER.underVoiceDb - MUSIC_LUFS))
@@ -111,8 +116,8 @@ export const MAX_MUSIC_LOOPS = 50;
  * end card never play over a fading tail.
  */
 export function musicLoops(
-  musicFrames,
-  totalFrames,
+  musicFrames: number,
+  totalFrames: number,
   {
     bodyFrames = musicFrames,
     crossfade = MUSIC_CROSSFADE,
@@ -127,7 +132,7 @@ export function musicLoops(
   );
   const fade = Math.max(0, Math.min(crossfade, Math.floor(body / 3)));
   const ending = Math.min(outro, musicFrames - body);
-  const loops = [];
+  const loops: Array<MusicLoop> = [];
   let start = 0;
   for (;;) {
     // The last copy reaches the film's fade with its body (or a short outro) and lasts to the
@@ -147,4 +152,12 @@ export function musicLoops(
     if (last) return loops;
     start += body - fade;
   }
+}
+
+/** One copy of the music track in the bed, in film frames. */
+export interface MusicLoop {
+  startFrame: number;
+  frameCount: number;
+  fadeInFrames: number;
+  fadeOutFrames: number;
 }

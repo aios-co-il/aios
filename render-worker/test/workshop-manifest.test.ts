@@ -1,30 +1,34 @@
 import { expect, test } from "vitest";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
+import { defined, sceneOf, timelineOf } from "./fakes.ts";
+import type { TimelineScene } from "../src/compose/types.ts";
 
 test("a mock clip is edited from its still and a real clip stays video", () => {
-  const { manifest, files } = buildWorkshopManifest({
-    aspect: "1:1",
-    narrationPath: "/tmp/narration.mp3",
-    musicPath: "/tmp/music.mp3",
-    scenes: [
-      {
-        id: "a",
-        clipPath: "/tmp/a.mp4",
-        stillPath: "/tmp/a.png",
-        clipProvider: "mock",
-        overlayText: "שלום",
-        durationS: 3,
-      },
-      {
-        id: "b",
-        clipPath: "/tmp/b.mp4",
-        stillPath: "/tmp/b.jpg",
-        clipProvider: "higgsfield",
-        overlayText: "עולם",
-        durationS: 4,
-      },
-    ],
-  });
+  const { manifest, files } = buildWorkshopManifest(
+    timelineOf({
+      aspect: "1:1",
+      narrationPath: "/tmp/narration.mp3",
+      musicPath: "/tmp/music.mp3",
+      scenes: [
+        sceneOf({
+          id: "a",
+          clipPath: "/tmp/a.mp4",
+          stillPath: "/tmp/a.png",
+          clipProvider: "mock",
+          overlayText: "שלום",
+          durationS: 3,
+        }),
+        sceneOf({
+          id: "b",
+          clipPath: "/tmp/b.mp4",
+          stillPath: "/tmp/b.jpg",
+          clipProvider: "higgsfield",
+          overlayText: "עולם",
+          durationS: 4,
+        }),
+      ],
+    }),
+  );
   expect(manifest.schemaVersion).toBe(3);
   expect(manifest.composition).toBe("WorkshopFilm");
   expect([manifest.width, manifest.height]).toStrictEqual([1080, 1080]);
@@ -49,15 +53,16 @@ test("a mock clip is edited from its still and a real clip stays video", () => {
   ]);
 });
 
-const scene = (id, extra = {}) => ({
-  id,
-  clipPath: `/tmp/${id}.mp4`,
-  stillPath: `/tmp/${id}.png`,
-  clipProvider: "mock",
-  overlayText: id,
-  durationS: 2,
-  ...extra,
-});
+const scene = (id: string, extra: Partial<TimelineScene> = {}) =>
+  sceneOf({
+    id,
+    clipPath: `/tmp/${id}.mp4`,
+    stillPath: `/tmp/${id}.png`,
+    clipProvider: "mock",
+    overlayText: id,
+    durationS: 2,
+    ...extra,
+  });
 
 // "שלום עולם" spoken over 0–1 s: the ElevenLabs /with-timestamps character alignment.
 const alignment = {
@@ -67,17 +72,19 @@ const alignment = {
 };
 
 test("transitions vary by default, overlap at most a third, and honour the manifest", () => {
-  const { manifest } = buildWorkshopManifest({
-    aspect: "9:16",
-    scenes: [
-      scene("a"),
-      scene("b"),
-      scene("c"),
-      scene("d"),
-      scene("e", { transition: "wipe" }),
-      scene("f", { durationS: 0.5 }),
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      aspect: "9:16",
+      scenes: [
+        scene("a"),
+        scene("b"),
+        scene("c"),
+        scene("d"),
+        scene("e", { transition: "wipe" }),
+        scene("f", { durationS: 0.5 }),
+      ],
+    }),
+  );
   expect(manifest.scenes.map((s) => s.transition)).toStrictEqual([
     "cut",
     "crossfade",
@@ -96,34 +103,40 @@ test("transitions vary by default, overlap at most a third, and honour the manif
 });
 
 test("scenes stretch so a longer narration is never cut", () => {
-  const { manifest } = buildWorkshopManifest({
-    aspect: "1:1",
-    narrationPath: "/tmp/n.mp3",
-    narrationDurationS: 9,
-    scenes: [scene("a", { durationS: 2 }), scene("b", { durationS: 4 })],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      aspect: "1:1",
+      narrationPath: "/tmp/n.mp3",
+      narrationDurationS: 9,
+      scenes: [scene("a", { durationS: 2 }), scene("b", { durationS: 4 })],
+    }),
+  );
   // 9 s of speech plus a 15-frame tail, split 1:2 like the storyboard.
   expect(manifest.totalFrames).toBe(285);
   expect(manifest.scenes.map((s) => s.frameCount)).toStrictEqual([95, 190]);
   expect(manifest.scenes[1].startFrame).toBe(95);
   // No word timings: the bed ducks for the whole narration.
   expect(manifest.musicEnvelope.volumes[0]).toBe(0.06);
-  const short = buildWorkshopManifest({
-    narrationPath: "/tmp/n.mp3",
-    narrationDurationS: 1,
-    scenes: [scene("a", { durationS: 3 })],
-  }).manifest;
+  const short = buildWorkshopManifest(
+    timelineOf({
+      narrationPath: "/tmp/n.mp3",
+      narrationDurationS: 1,
+      scenes: [scene("a", { durationS: 3 })],
+    }),
+  ).manifest;
   expect(short.totalFrames).toBe(90);
 });
 
 test("word timings become karaoke captions and duck the music", () => {
-  const { manifest } = buildWorkshopManifest({
-    narrationPath: "/tmp/n.mp3",
-    narrationAlignment: alignment,
-    musicPath: "/tmp/m.mp3",
-    captionStyle: "karaoke",
-    scenes: [scene("a", { durationS: 3 })],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      narrationPath: "/tmp/n.mp3",
+      narrationAlignment: alignment,
+      musicPath: "/tmp/m.mp3",
+      captionStyle: "karaoke",
+      scenes: [scene("a", { durationS: 3 })],
+    }),
+  );
   expect(manifest.captionStyle).toBe("karaoke");
   expect(manifest.captions.length).toBe(1);
   expect("line" in manifest.captions[0].words[0]).toBe(false);
@@ -149,19 +162,21 @@ test("a workshop film gets motion captions by default: phrases cut at scenes, ti
       { text: "כרמן!", start: 2.5, end: 2.9 },
     ],
   };
-  const { manifest } = buildWorkshopManifest({
-    aspect: "9:16",
-    narrationPath: "/tmp/n.mp3",
-    narrationAlignment: words,
-    scenes: [
-      scene("a", { durationS: 2, overlayText: "עולם" }),
-      scene("b", { durationS: 2, overlayText: "פתיחה" }),
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      aspect: "9:16",
+      narrationPath: "/tmp/n.mp3",
+      narrationAlignment: words,
+      scenes: [
+        scene("a", { durationS: 2, overlayText: "עולם" }),
+        scene("b", { durationS: 2, overlayText: "פתיחה" }),
+      ],
+    }),
+  );
   expect(manifest.captionStyle).toBe("motion");
   expect(
     manifest.captions.map((c) =>
-      c.words.map((w) => `${w.key ? "*" : ""}${w.text}`),
+      c.words.map((w) => `${"key" in w && w.key ? "*" : ""}${w.text}`),
     ),
   ).toStrictEqual([
     ["שלום", "*עולם"],
@@ -171,19 +186,23 @@ test("a workshop film gets motion captions by default: phrases cut at scenes, ti
   expect(manifest.captions[0].endFrame).toBeLessThanOrEqual(
     manifest.scenes[1].startFrame,
   );
-  expect(manifest.captions[1].words.every((w) => w.line === 0)).toBe(true);
+  expect(
+    manifest.captions[1].words.every((w) => "line" in w && w.line === 0),
+  ).toBe(true);
 });
 
 test("clip audio plays alone, sits under speech, and a lip-synced clip stays loud and still", () => {
   const real = { clipProvider: "kling", stillPath: null };
-  const { manifest } = buildWorkshopManifest({
-    scenes: [
-      scene("a", { ...real, voicePath: "/tmp/v.mp3", voiceDurationS: 1 }),
-      scene("b", real),
-      scene("c", { ...real, clipHasAudio: false }),
-      scene("d", { clipProvider: "mock", lipsync: true, clipDurationS: 5 }),
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      scenes: [
+        scene("a", { ...real, voicePath: "/tmp/v.mp3", voiceDurationS: 1 }),
+        scene("b", real),
+        scene("c", { ...real, clipHasAudio: false }),
+        scene("d", { clipProvider: "mock", lipsync: true, clipDurationS: 5 }),
+      ],
+    }),
+  );
   const [a, b, c, d] = manifest.scenes;
   expect(a.voice).toBe("voice-0.mp3");
   expect(a.clipVolume).toBe(0.15);
@@ -193,26 +212,30 @@ test("clip audio plays alone, sits under speech, and a lip-synced clip stays lou
   expect(d.move).toBe("static");
   expect(d.clipVolume).toBe(1);
   expect(d.frameCount).toBe(150);
-  const muted = buildWorkshopManifest({
-    clipAudio: false,
-    scenes: [scene("b", real)],
-  }).manifest;
+  const muted = buildWorkshopManifest(
+    timelineOf({
+      clipAudio: false,
+      scenes: [scene("b", real)],
+    }),
+  ).manifest;
   expect(muted.clipAudio).toBe(false);
   expect(muted.scenes[0].clipVolume).toBe(0);
 });
 
 test("a brand with a logo or CTA adds an end card and stages the logo", () => {
-  const { manifest, files } = buildWorkshopManifest({
-    scenes: [scene("a")],
-    brand: {
-      primaryColor: "#FF3366",
-      secondaryColor: "red",
-      logoPath: "/tmp/logo.png",
-      fontFamily: "Assistant",
-      ctaText: "הזמינו עכשיו",
-      ctaUrl: "example.co.il",
-    },
-  });
+  const { manifest, files } = buildWorkshopManifest(
+    timelineOf({
+      scenes: [scene("a")],
+      brand: {
+        primaryColor: "#FF3366",
+        secondaryColor: "red",
+        logoPath: "/tmp/logo.png",
+        fontFamily: "Assistant",
+        ctaText: "הזמינו עכשיו",
+        ctaUrl: "example.co.il",
+      },
+    }),
+  );
   expect(manifest.brand).toStrictEqual({
     primaryColor: "#FF3366",
     secondaryColor: null,
@@ -225,26 +248,30 @@ test("a brand with a logo or CTA adds an end card and stages the logo", () => {
   expect(manifest.endCard).toStrictEqual({ startFrame: 60, frameCount: 75 });
   expect(manifest.totalFrames).toBe(135);
   expect(files.some((f) => f.to === "logo.png")).toBeTruthy();
-  const colorsOnly = buildWorkshopManifest({
-    scenes: [scene("a")],
-    brand: { primaryColor: "#123456" },
-  }).manifest;
+  const colorsOnly = buildWorkshopManifest(
+    timelineOf({
+      scenes: [scene("a")],
+      brand: { primaryColor: "#123456" },
+    }),
+  ).manifest;
   expect(colorsOnly.endCard).toBe(null);
   expect(colorsOnly.totalFrames).toBe(60);
 });
 
 test("a talking clip's line is captioned across its speech", () => {
-  const { manifest } = buildWorkshopManifest({
-    scenes: [
-      scene("t", {
-        clipProvider: "openrouter",
-        stillPath: null,
-        lipsync: true,
-        clipDurationS: 4,
-        spokenText: "מחכה לכם לקפה של בוקר",
-      }),
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      scenes: [
+        scene("t", {
+          clipProvider: "openrouter",
+          stillPath: null,
+          lipsync: true,
+          clipDurationS: 4,
+          spokenText: "מחכה לכם לקפה של בוקר",
+        }),
+      ],
+    }),
+  );
   const words = manifest.captions.flatMap((chunk) => chunk.words);
   expect(words.map((w) => w.text)).toStrictEqual([
     "מחכה",
@@ -261,27 +288,33 @@ test("a talking clip's line is captioned across its speech", () => {
 });
 
 test("a talking clip shorter than its scene is captioned only while it speaks", () => {
-  const { manifest } = buildWorkshopManifest({
-    scenes: [
-      scene("t", {
-        clipProvider: "openrouter",
-        stillPath: null,
-        lipsync: true,
-        clipDurationS: 4,
-        durationS: 8,
-        spokenText: "בואו לבקר אותנו",
-      }),
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      scenes: [
+        scene("t", {
+          clipProvider: "openrouter",
+          stillPath: null,
+          lipsync: true,
+          clipDurationS: 4,
+          durationS: 8,
+          spokenText: "בואו לבקר אותנו",
+        }),
+      ],
+    }),
+  );
   const words = manifest.captions.flatMap((chunk) => chunk.words);
-  expect(words.at(-1).endFrame <= 4 * manifest.fps).toBeTruthy();
+  expect(
+    defined(words.at(-1), "word").endFrame <= 4 * manifest.fps,
+  ).toBeTruthy();
 });
 
 test("an ending without a closing card leaves the end card out", () => {
-  const { manifest } = buildWorkshopManifest({
-    scenes: [scene("a")],
-    brand: { logoPath: "/tmp/logo.png", ctaText: "בואו", endCard: false },
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      scenes: [scene("a")],
+      brand: { logoPath: "/tmp/logo.png", ctaText: "בואו", endCard: false },
+    }),
+  );
   expect(manifest.endCard).toBe(null);
 });
 
@@ -295,16 +328,18 @@ test("a line lip-synced on the still is followed by the skin's own move", () => 
     moveClipPath: "/tmp/move.mp4",
     moveClipDurationS: 5,
   };
-  const { manifest, files } = buildWorkshopManifest({
-    scenes: [
-      // Planned as long as its line: the move adds MOVE_MIN_FRAMES (1.2 s).
-      scene("a", { ...talking, durationS: 3 }),
-      // Planned longer than its line: the move fills the rest, up to the animated clip's length.
-      scene("b", { ...talking, durationS: 5 }),
-      // No animated clip kept (a clip that talked by itself): no move.
-      scene("c", { ...talking, moveClipPath: null, durationS: 3 }),
-    ],
-  });
+  const { manifest, files } = buildWorkshopManifest(
+    timelineOf({
+      scenes: [
+        // Planned as long as its line: the move adds MOVE_MIN_FRAMES (1.2 s).
+        scene("a", { ...talking, durationS: 3 }),
+        // Planned longer than its line: the move fills the rest, up to the animated clip's length.
+        scene("b", { ...talking, durationS: 5 }),
+        // No animated clip kept (a clip that talked by itself): no move.
+        scene("c", { ...talking, moveClipPath: null, durationS: 3 }),
+      ],
+    }),
+  );
   const [a, b, c] = manifest.scenes;
   expect(a.moveClip).toBe("move-0.mp4");
   expect(a.moveFrom).toBe(90);
@@ -322,24 +357,28 @@ test("a line lip-synced on the still is followed by the skin's own move", () => 
   const words = manifest.captions
     .flatMap((chunk) => chunk.words)
     .filter((word) => word.startFrame < a.frameCount);
-  expect(words.at(-1).endFrame <= a.moveFrom).toBeTruthy();
+  expect(
+    defined(words.at(-1), "word").endFrame <= defined(a.moveFrom, "move"),
+  ).toBeTruthy();
 });
 
 test("a lip-synced line is captioned on its own voice's word timings", () => {
-  const { manifest } = buildWorkshopManifest({
-    scenes: [
-      scene("a", { durationS: 2 }),
-      scene("t", {
-        clipProvider: "elevenlabs",
-        stillPath: null,
-        lipsync: true,
-        clipDurationS: 2,
-        durationS: 2,
-        spokenText: "שלום עולם",
-        spokenAlignment: alignment,
-      }),
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      scenes: [
+        scene("a", { durationS: 2 }),
+        scene("t", {
+          clipProvider: "elevenlabs",
+          stillPath: null,
+          lipsync: true,
+          clipDurationS: 2,
+          durationS: 2,
+          spokenText: "שלום עולם",
+          spokenAlignment: alignment,
+        }),
+      ],
+    }),
+  );
   const t = manifest.scenes[1];
   // The talking clip starts with the scene's transition, and so does its speech.
   const clipStart = t.startFrame - t.transitionFrames;
@@ -353,32 +392,41 @@ test("a lip-synced line is captioned on its own voice's word timings", () => {
 });
 
 test("a finished design is shown whole in the frame, any other picture fills it", () => {
-  const designed = buildWorkshopManifest({
-    aspect: "9:16",
-    keepDesign: true,
-    scenes: [scene("poster"), scene("filmed", { clipProvider: "openrouter" })],
-  });
+  const designed = buildWorkshopManifest(
+    timelineOf({
+      aspect: "9:16",
+      keepDesign: true,
+      scenes: [
+        scene("poster"),
+        scene("filmed", { clipProvider: "openrouter" }),
+      ],
+    }),
+  );
   // A 4:5 poster in a 9:16 film keeps its sides (Staging, 2 Nov: its headline was cut).
   expect(designed.manifest.scenes[0].fit).toBe("contain");
   // A real video clip is never boxed in.
   expect(designed.manifest.scenes[1].fit).toBeUndefined();
-  const plain = buildWorkshopManifest({
-    aspect: "9:16",
-    scenes: [scene("photo")],
-  });
+  const plain = buildWorkshopManifest(
+    timelineOf({
+      aspect: "9:16",
+      scenes: [scene("photo")],
+    }),
+  );
   expect(plain.manifest.scenes[0].fit).toBeUndefined();
 });
 
 test("a scene's own text style and size win over the film's", () => {
-  const { manifest } = buildWorkshopManifest({
-    aspect: "9:16",
-    titleStyle: "pop",
-    titleSize: "large",
-    scenes: [
-      scene("own", { titleStyle: "typewriter", titleSize: "huge" }),
-      scene("film"),
-    ],
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      aspect: "9:16",
+      titleStyle: "pop",
+      titleSize: "large",
+      scenes: [
+        scene("own", { titleStyle: "typewriter", titleSize: "huge" }),
+        scene("film"),
+      ],
+    }),
+  );
   expect(manifest.scenes[0]).toMatchObject({
     titleStyle: "typewriter",
     titleSize: "huge",
@@ -387,6 +435,8 @@ test("a scene's own text style and size win over the film's", () => {
     titleStyle: "pop",
     titleSize: "large",
   });
-  const plain = buildWorkshopManifest({ aspect: "9:16", scenes: [scene("x")] });
+  const plain = buildWorkshopManifest(
+    timelineOf({ aspect: "9:16", scenes: [scene("x")] }),
+  );
   expect(plain.manifest.scenes[0].titleStyle).toBeUndefined();
 });

@@ -10,43 +10,31 @@ import {
 import { detectCuts, extractAudio, extractFrame, probe } from "../ffmpeg.ts";
 import { assertTenantPath, loadRunItem } from "../guard.ts";
 import { buildShots, keyframeTime, shotTranscript } from "../shots.ts";
+import type { Transcript } from "../analysis.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
+import { loadBrief } from "./reference-brief.ts";
+import type { VideoRun } from "./types.ts";
 
 const MAX_SECONDS = 180;
-
-/** Reads the project brief the proposal should be written for. */
-async function loadBrief(db, run) {
-  // Scoped to the run's tenant: run rows are written by tenant members.
-  const [item] = await db.select(
-    "marketing_work_items",
-    `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=title,client_id,payload`,
-  );
-  if (!item)
-    throw new Error("run item is not in the run's tenant (is required)");
-  const payload = item?.payload ?? {};
-  let client = null;
-  if (item?.client_id) {
-    [client] = await db.select(
-      "clients",
-      `id=eq.${encodeURIComponent(item.client_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=name,industry,website`,
-    );
-  }
-  return [
-    client &&
-      `Client: ${client.name}${client.industry ? ` (${client.industry})` : ""}${client.website ? ` · ${client.website}` : ""}`,
-    item?.title && `Project: ${item.title}`,
-    payload.brief_text && `Brief: ${payload.brief_text}`,
-    payload.copy_text && `Copy: ${String(payload.copy_text).slice(0, 2000)}`,
-    run.input?.goal && `Goal: ${run.input.goal}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
 
 /**
  * Reference video → shots (ffmpeg scene cuts), keyframes, transcript, shot descriptions
  * and a proposed storyboard that copies pace and structure, not content.
  */
-export async function analyzeReference({ db, run, keys, log = console.log }) {
+export async function analyzeReference({
+  db,
+  run,
+  keys,
+  log = console.log,
+}: {
+  db: Pick<SupabaseRest, "select" | "download" | "upload">;
+  run: VideoRun;
+  keys: {
+    openaiKey: string;
+    elevenLabsKey?: string | null;
+  };
+  log?: (line: string) => void;
+}) {
   // Only the studio bucket, only inside this run's own project folder.
   const bucket = "creative-video";
   const item = await loadRunItem(db, run);
@@ -77,8 +65,8 @@ export async function analyzeReference({ db, run, keys, log = console.log }) {
     );
 
     const framesDir = posix.join(posix.dirname(path), "frames");
-    const keyframes = [];
-    const keyframePaths = [];
+    const keyframes: Array<Uint8Array> = [];
+    const keyframePaths: Array<string> = [];
     for (const shot of shots) {
       const out = join(dir, `shot-${shot.index}.jpg`);
       await extractFrame(videoFile, keyframeTime(shot), out);
@@ -89,7 +77,12 @@ export async function analyzeReference({ db, run, keys, log = console.log }) {
       keyframePaths.push(storagePath);
     }
 
-    let transcript = { provider: null, language: null, text: "", words: [] };
+    let transcript: Transcript = {
+      provider: null,
+      language: null,
+      text: "",
+      words: [],
+    };
     if (info.hasAudio) {
       const audioFile = join(dir, "audio.mp3");
       await extractAudio(videoFile, audioFile);

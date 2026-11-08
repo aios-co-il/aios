@@ -6,12 +6,14 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { privateStorageObject } from "../src/guard.ts";
 import { renderFilm } from "../src/jobs/render.ts";
 import { hasFfmpeg, media } from "./media.ts";
+import { runOf } from "./fakes.ts";
+import type { WorkItemPayload } from "../src/jobs/types.ts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const OTHER = "33333333-3333-3333-3333-333333333333";
 const ITEM = "22222222-2222-2222-2222-222222222222";
 const PROJECT = "https://proj.supabase.co";
-const attachment = (path) =>
+const attachment = (path: string) =>
   `${PROJECT}/storage/v1/object/public/entity-attachments/${path}`;
 
 test("a link to the project's entity-attachments bucket reads as its bucket and path", () => {
@@ -46,7 +48,7 @@ test("a link to the project's entity-attachments bucket reads as its bucket and 
 });
 
 /** The mean colour [r, g, b] of a small box at (x, y) as shares of the frame, at `atS`. */
-const colourAt = (file, atS, x, y) => {
+const colourAt = (file: string, atS: number, x: number, y: number) => {
   const out = spawnSync(
     "ffmpeg",
     [
@@ -72,14 +74,14 @@ const colourAt = (file, atS, x, y) => {
 };
 
 /** One render's database: two scenes with clips, the item's payload, and every download. */
-function renderDb(dir, payload) {
-  const stored = new Map();
-  const downloads = [];
-  const clipPath = (id) => `${TENANT}/general/${ITEM}/${id}.mp4`;
+function renderDb(dir: string, payload: WorkItemPayload) {
+  const stored = new Map<string, Uint8Array>();
+  const downloads: Array<{ bucket: string; path: string }> = [];
+  const clipPath = (id: string) => `${TENANT}/general/${ITEM}/${id}.mp4`;
   return {
     stored,
     downloads,
-    async select(table, query) {
+    async select(table: string, query: string) {
       if (table === "marketing_work_items")
         return query.includes("select=payload")
           ? [{ payload }]
@@ -103,11 +105,13 @@ function renderDb(dir, payload) {
         }));
       return [];
     },
-    async download(bucket, path) {
+    async download(bucket: string, path: string) {
       downloads.push({ bucket, path });
-      return new Uint8Array(await readFile(join(dir, path.split("/").pop())));
+      return new Uint8Array(
+        await readFile(join(dir, path.split("/").at(-1) ?? "")),
+      );
     },
-    async upload(_bucket, path, bytes) {
+    async upload(_bucket: string, path: string, bytes: Uint8Array) {
       stored.set(path, new Uint8Array(bytes));
     },
     async update() {},
@@ -115,7 +119,7 @@ function renderDb(dir, payload) {
   };
 }
 
-const saved = {};
+const saved: Record<string, string | undefined> = {};
 beforeEach(() => {
   for (const name of ["SUPABASE_URL", "REMOTION_DISABLE"])
     saved[name] = process.env[name];
@@ -155,25 +159,29 @@ test.skipIf(!hasFfmpeg)(
         "1",
         join(dir, "logo.png"),
       ]);
-      const render = async (label, logoPath) => {
+      const render = async (label: string, logoPath: string) => {
         const db = renderDb(dir, {
           logo_url: attachment(logoPath),
           cta_text: "הירשמו",
         });
         const done = await renderFilm({
           db,
-          run: {
+          run: runOf({
             id: "run-1",
             tenant_id: TENANT,
             item_id: ITEM,
             stage_id: "stage-1",
             input: { aspect: "9:16" },
             output: {},
-          },
+          }),
           log: () => {},
         });
         const film = join(dir, `film-${label}.mp4`);
-        await writeFile(film, db.stored.get(done.output.path));
+        const bytes = db.stored.get(done.output.path);
+        if (!bytes) {
+          throw new Error(`no film stored at ${done.output.path}`);
+        }
+        await writeFile(film, bytes);
         return { db, film, done };
       };
 

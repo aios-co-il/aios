@@ -102,6 +102,20 @@ export async function answerFast(
   }
 }
 
+/** User and assistant messages from a request's history; anything else is dropped. */
+export function chatTurns(raw: unknown): Array<ChatTurn> {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.flatMap((m) =>
+    m &&
+    (m.role === "user" || m.role === "assistant") &&
+    typeof m.content === "string"
+      ? [{ role: m.role, content: m.content }]
+      : [],
+  );
+}
+
 /** The streamed Chat Completions request: instructions, recent history, the message, one tool. */
 function requestBody({
   target,

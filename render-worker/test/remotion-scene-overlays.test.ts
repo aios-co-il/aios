@@ -180,7 +180,7 @@ describe("a scene's overlay through the render worker", () => {
     expect(settings.sceneOverlay).toBe("bubbles");
     const sources = await loadFilmSources(
       {
-        async select(table) {
+        async select(table: string) {
           if (table === "marketing_video_scenes") {
             return [
               {
