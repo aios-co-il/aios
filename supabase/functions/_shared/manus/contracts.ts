@@ -102,7 +102,7 @@ export function readManusRpc(value: unknown) {
 const notifySchema = z.object({
   tenant_id: z.string().trim(),
   message: z.string().trim(),
-  chat_id: optionalString,
+  chat_id: z.string().optional(),
 });
 /** Invalid notification requests must fail before recipient lookup. */
 export function readNotifyRequest(value: unknown) {

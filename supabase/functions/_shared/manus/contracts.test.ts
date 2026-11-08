@@ -79,3 +79,28 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "explicit malformed chat destinations cannot select a default recipient",
+  () => {
+    for (const chat_id of [null, 42, {}, []]) {
+      assertEquals(
+        readNotifyRequest({ tenant_id: "t", message: "hello", chat_id })
+          .success,
+        false,
+      );
+    }
+    assertEquals(
+      readNotifyRequest({ tenant_id: "t", message: "hello" }).success,
+      true,
+    );
+    assertEquals(
+      readNotifyRequest({
+        tenant_id: "t",
+        message: "hello",
+        chat_id: "123@c.us",
+      }).success,
+      true,
+    );
+  },
+);
