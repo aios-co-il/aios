@@ -20,7 +20,7 @@ Deno.test("invalid routing scopes and group flags cannot enable access", () => {
   });
   assertEquals(cfg.carmen_scope_mode, "invalid");
   assertEquals(cfg.carmen_open_member_groups, false);
-  assertEquals(cfg.carmen_allowed_group_ids, undefined);
+  assertEquals(cfg.carmen_allowed_group_ids, []);
 });
 Deno.test("step overrides retain base fields and normalize LID aliases", () => {
   assertEquals(
@@ -39,5 +39,19 @@ Deno.test(
     assertStrictEquals(isPermanentError({ permanent: true }), true);
     assertStrictEquals(isPermanentError({ permanent: "false" }), false);
     assertStrictEquals(policyEntriesAreParsed([{ phone: "123" }]), true);
+  },
+);
+
+Deno.test(
+  "mixed routing lists preserve valid phones, groups and keywords",
+  () => {
+    const config = readCarmenConfig({
+      carmen_allowed_phones: ["9725", 4, null],
+      carmen_allowed_group_ids: [{}, "1@g.us"],
+      trigger_keywords: ["Carmen", false],
+    });
+    assertEquals(config.carmen_allowed_phones, ["9725"]);
+    assertEquals(config.carmen_allowed_group_ids, ["1@g.us"]);
+    assertEquals(config.trigger_keywords, ["Carmen"]);
   },
 );

@@ -17,7 +17,13 @@ const lidAliasesSchema = z
   });
 
 const optionalText = z.string().nullish().catch(undefined);
-const optionalPhones = z.array(z.string()).optional().catch(undefined);
+const optionalPhones = z
+  .array(z.unknown())
+  .transform((entries) =>
+    entries.filter((entry): entry is string => typeof entry === "string"),
+  )
+  .optional()
+  .catch(undefined);
 const configSchema = z
   .object({
     agent_id: optionalText,
