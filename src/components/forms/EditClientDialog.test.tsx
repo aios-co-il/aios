@@ -110,7 +110,13 @@ describe("EditClientDialog ad-account links", () => {
     const { onOpenChange } = renderDialog();
     await waitForFinanceAccess();
 
-    const google = await screen.findByLabelText("קישור ישיר לחשבון Google Ads");
+    // The saved links must have loaded, or the old dialog would skip them too.
+    await waitFor(() =>
+      expect(screen.getByLabelText("קישור ישיר לחשבון META")).toHaveValue(
+        "https://business.facebook.com/saved",
+      ),
+    );
+    const google = screen.getByLabelText("קישור ישיר לחשבון Google Ads");
     await user.type(google, "https://ads.google.com/aw/overview?ocid=1");
     await user.click(screen.getByRole("button", { name: "שמור שינויים" }));
 
@@ -132,6 +138,11 @@ describe("EditClientDialog ad-account links", () => {
     const { onOpenChange } = renderDialog();
     await waitForFinanceAccess();
 
+    await waitFor(() =>
+      expect(screen.getByLabelText("קישור ישיר לחשבון Google Ads")).toHaveValue(
+        "https://ads.google.com/aw/overview?ocid=1",
+      ),
+    );
     await user.click(screen.getByRole("button", { name: "שמור שינויים" }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
