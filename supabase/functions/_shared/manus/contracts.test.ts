@@ -104,3 +104,31 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "unusable explicit destinations report chat_id rather than choosing a fallback",
+  () => {
+    for (const chat_id of ["", "   ", "not-a-phone", "120363000000@g.us"]) {
+      const result = readNotifyRequest({
+        tenant_id: "t",
+        message: "hello",
+        chat_id,
+      });
+      assertEquals(result.success, false);
+      if (!result.success) {
+        assertEquals(
+          result.error.issues.map((issue) => issue.path),
+          [["chat_id"]],
+        );
+      }
+    }
+    assertEquals(
+      readNotifyRequest({
+        tenant_id: "t",
+        message: "hello",
+        chat_id: " +972-50-123-4567@c.us ",
+      }).success,
+      true,
+    );
+  },
+);

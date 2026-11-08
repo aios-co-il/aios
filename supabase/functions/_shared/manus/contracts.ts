@@ -1,3 +1,7 @@
+import {
+  isGroupChatId,
+  normalizeNotifyPhone,
+} from "../carmen-notify-target.ts";
 import { z } from "npm:zod@3.25.76";
 import type { Json } from "../database.types.ts";
 
@@ -102,7 +106,15 @@ export function readManusRpc(value: unknown) {
 const notifySchema = z.object({
   tenant_id: z.string().trim(),
   message: z.string().trim(),
-  chat_id: z.string().optional(),
+  chat_id: z
+    .string()
+    .trim()
+    .refine(
+      (chatId) =>
+        !isGroupChatId(chatId) && normalizeNotifyPhone(chatId) !== null,
+      { message: "chat_id must identify a private phone" },
+    )
+    .optional(),
 });
 /** Invalid notification requests must fail before recipient lookup. */
 export function readNotifyRequest(value: unknown) {

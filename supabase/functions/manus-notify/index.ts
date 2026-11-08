@@ -166,8 +166,11 @@ Deno.serve(async (req) => {
     return json({ error: "bad json" }, 400);
   }
   const parsed = readNotifyRequest(rawBody);
-  if (!parsed.success)
-    return json({ error: "tenant_id and message must be strings" }, 400);
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((issue) => issue.path.join("."));
+    console.warn("[manus-notify] invalid request fields", fields);
+    return json({ error: "Invalid notification request", fields }, 400);
+  }
   const { tenant_id: tenantId, message } = parsed.data;
   const explicitChatId = parsed.data.chat_id?.trim() || null;
 
