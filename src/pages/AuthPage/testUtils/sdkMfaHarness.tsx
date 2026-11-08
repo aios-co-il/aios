@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { expect } from "vitest";
 import { supabase } from "@/integrations/supabase/client";
-import Auth from "./Auth";
+import AuthPage from "../AuthPage";
+import { withTestQuery } from "@/test/withTestQuery";
 import type { User } from "@supabase/supabase-js";
 
 export const user: User = {
@@ -16,11 +17,14 @@ export const user: User = {
 
 /** Keep SDK session parsing and auth events real without contacting Auth. */
 export function sessionResponse(aal = "aal1", needsMfa = false) {
-  const encode = (value: object) =>
-    btoa(JSON.stringify(value))
+  /** Encode a synthetic JWT segment for the installed SDK. */
+  function encode(value: object) {
+    return btoa(JSON.stringify(value))
       .replace(/=/g, "")
       .replace(/\+/g, "-")
       .replace(/\//g, "_");
+  }
+
   return {
     access_token: `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ sub: user.id, aal, exp: 4102444800 })}.c2lnbmF0dXJl`,
     refresh_token: "synthetic-refresh",
@@ -78,12 +82,14 @@ export async function restoreSession() {
 /** Mount the same Auth entry route used for password and restored sessions. */
 export function renderAuth() {
   render(
-    <MemoryRouter initialEntries={["/auth"]}>
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/t/test/home" element={<p>Protected home</p>} />
-      </Routes>
-    </MemoryRouter>,
+    withTestQuery(
+      <MemoryRouter initialEntries={["/auth"]}>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/t/test/home" element={<p>Protected home</p>} />
+        </Routes>
+      </MemoryRouter>,
+    ),
   );
 }
 

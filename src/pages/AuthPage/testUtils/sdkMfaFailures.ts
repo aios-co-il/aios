@@ -9,7 +9,7 @@ export function mockReadinessFailure(failure: string) {
     503,
     "unexpected_failure",
   );
-  let finishAssurance: () => void = () => undefined;
+  let finishAssurance: (() => void) | undefined;
   if (failure === "assurance") {
     vi.spyOn(
       supabase.auth.mfa,
@@ -63,20 +63,17 @@ export function mockReadinessFailure(failure: string) {
       error: null,
     });
   } else if (failure === "session") {
-    const assurance = supabase.auth.mfa.getAuthenticatorAssuranceLevel.bind(
-      supabase.auth.mfa,
+    const signIn = supabase.auth.signInWithPassword.bind(supabase.auth);
+    vi.spyOn(supabase.auth, "signInWithPassword").mockImplementation(
+      async (credentials) => {
+        const result = await signIn(credentials);
+        vi.spyOn(supabase.auth, "getSession").mockResolvedValueOnce({
+          data: { session: null },
+          error,
+        });
+        return result;
+      },
     );
-    vi.spyOn(
-      supabase.auth.mfa,
-      "getAuthenticatorAssuranceLevel",
-    ).mockImplementation(async () => {
-      const result = await assurance();
-      vi.spyOn(supabase.auth, "getSession").mockResolvedValueOnce({
-        data: { session: null },
-        error,
-      });
-      return result;
-    });
   } else {
     vi.spyOn(
       supabase.auth.mfa,
@@ -90,5 +87,5 @@ export function mockReadinessFailure(failure: string) {
       error: null,
     });
   }
-  return () => finishAssurance();
+  return () => finishAssurance?.();
 }
