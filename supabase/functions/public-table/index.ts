@@ -1000,6 +1000,8 @@ Deno.serve(async (req) => {
           id: table.id,
           name: table.name,
           integration_type: table.integration_type,
+          // The report's goal reads the "איקומרס" category too (AIO-494).
+          category: table.category ?? null,
           integration_settings: toPublicTableSettings(
             table.integration_settings,
           ),
@@ -1100,6 +1102,8 @@ Deno.serve(async (req) => {
           id: table.id,
           name: table.name,
           integration_type: table.integration_type,
+          // The report's goal reads the "איקומרס" category too (AIO-494).
+          category: table.category ?? null,
           integration_settings: toPublicTableSettings(
             table.integration_settings,
           ),

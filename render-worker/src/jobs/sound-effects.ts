@@ -28,7 +28,9 @@ import {
   soundEffectsCostUsd,
   soundEffectsError,
 } from "./sound-effects-catalog.ts";
-import { metaOf } from "./rows.ts";
+import { metaOf, rowsOf } from "./rows.ts";
+import type { AssetRow, RunItem, VideoRun } from "./types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 export { SOUND_EFFECTS, soundEffectsCostUsd, soundEffectsError };
 
@@ -49,7 +51,7 @@ const tenThousandths = (usd: unknown) => Math.round((Number(usd) || 0) * 10000);
  * What this run paid for its effects, across its attempts (output.sound_effects_cost_usd),
  * including an earlier attempt's version 1 whoosh.
  */
-const paidByRun = (run) =>
+const paidByRun = (run: Pick<VideoRun, "output">) =>
   Object.values<unknown>(
     run.output?.sound_effects_cost_usd ?? {},
   ).reduce<number>((sum, usd) => sum + tenThousandths(usd), 0) / 10000;
@@ -65,17 +67,23 @@ const LEGACY_TRANSITIONS = Object.keys(LEGACY_EFFECTS).filter(
  */
 export function effectsByKind(paths: Record<string, unknown> = {}) {
   return {
-    transitions: [...TRANSITION_NAMES, ...LEGACY_TRANSITIONS]
-      .filter((name) => typeof paths[name] === "string")
-      .map((name) => ({ name, path: paths[name] })),
+    transitions: [...TRANSITION_NAMES, ...LEGACY_TRANSITIONS].flatMap(
+      (name) => {
+        const path = paths[name];
+        return typeof path === "string" ? [{ name, path }] : [];
+      },
+    ),
     impact: typeof paths.impact === "string" ? paths.impact : null,
   };
 }
 
 /** The set's effects, with version 1's whoosh or impact standing in for a kind it lacks. */
-function withLegacy(paths, legacy) {
+function withLegacy(
+  paths: Record<string, string>,
+  legacy: Record<string, string>,
+) {
   const out = { ...paths };
-  const has = (kind) =>
+  const has = (kind: string) =>
     NAMES.some((name) => out[name] && SOUND_EFFECTS[name].kind === kind);
   for (const [name, kind] of Object.entries(LEGACY_EFFECTS))
     if (legacy[name] && !has(kind)) out[name] = legacy[name];
@@ -98,31 +106,49 @@ export async function filmSoundEffects({
   generate = generateSoundEffect,
   quotedUsd = 0,
   log = console.log,
-}) {
-  const paths = {};
-  const legacy = {};
-  const rows =
-    (await db.select(
+}: {
+  db: Pick<SupabaseRest, "select" | "update" | "insert" | "upload">;
+  run: VideoRun;
+  item: Pick<RunItem, "folder">;
+  resolveKey?: () => Promise<string | null | undefined>;
+  generate?: typeof generateSoundEffect;
+  quotedUsd?: number;
+  log?: (line: string) => void;
+}): Promise<FilmEffects> {
+  // Rows are read with url=not.is.null, so every path below is a stored file's.
+  const paths: Record<string, string> = {};
+  const legacy: Record<string, string> = {};
+  const rows = rowsOf<Pick<AssetRow, "url" | "meta">>(
+    await db.select(
       "marketing_assets",
-      `item_id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&type=eq.sound_effect&url=not.is.null&select=url,meta&order=created_at.desc`,
-    )) ?? [];
+      `item_id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&type=eq.sound_effect&url=not.is.null&select=url,meta&order=created_at.desc`,
+    ),
+  );
   for (const row of rows) {
     const meta = metaOf(row);
-    if (meta.version === SOUND_EFFECTS_VERSION && NAMES.includes(meta.effect)) {
-      if (!paths[meta.effect]) paths[meta.effect] = row.url;
-    } else if (meta.version === 1 && LEGACY_EFFECTS[meta.effect])
-      legacy[meta.effect] ??= row.url;
+    const effect = String(meta.effect);
+    const url = String(row.url);
+    if (meta.version === SOUND_EFFECTS_VERSION && NAMES.includes(effect)) {
+      if (!paths[effect]) {
+        paths[effect] = url;
+      }
+    } else if (meta.version === 1 && LEGACY_EFFECTS[effect]) {
+      legacy[effect] ??= url;
+    }
   }
-  const done = (error) => ({
+  const done = (error: string | null) => ({
     paths: withLegacy(paths, legacy),
     costUsd: paidByRun(run),
     error,
   });
   // An earlier attempt of this run already stored some: never pay for them twice.
   const earlier = run.output?.sound_effects ?? {};
-  for (const name of NAMES)
-    if (!paths[name] && typeof earlier[name] === "string")
-      paths[name] = earlier[name];
+  for (const name of NAMES) {
+    const stored = earlier[name];
+    if (!paths[name] && typeof stored === "string") {
+      paths[name] = stored;
+    }
+  }
   let missing = NAMES.filter((name) => !paths[name]);
   if (missing.length === 0) return done(null);
   // A failure after the provider charged (or a refusal) is final for the run.
@@ -131,8 +157,8 @@ export async function filmSoundEffects({
   if (!(Number(quotedUsd) > 0)) return done(NOT_IN_PRODUCTION);
   const apiKey = await resolveKey().catch(() => null);
   if (!apiKey) return done("אין מפתח ElevenLabs לאפקטי סאונד");
-  const made = [];
-  let error = null;
+  const made: Array<string> = [];
+  let error: string | null = null;
   let overQuote = false;
   for (const name of missing) {
     const effect = SOUND_EFFECTS[name];
@@ -145,7 +171,7 @@ export async function filmSoundEffects({
       overQuote = true;
       continue;
     }
-    let bytes;
+    let bytes: Uint8Array;
     try {
       bytes = await generate({
         apiKey,
@@ -229,4 +255,11 @@ export async function filmSoundEffects({
       `[render] ${run.id} sound effects past the quote: ${missing.join(", ")}`,
     );
   return done(missing.length ? error || (overQuote ? OVER_QUOTE : null) : null);
+}
+
+/** The film's effects by name, what this run paid for them, and why some are missing. */
+export interface FilmEffects {
+  paths: Record<string, string>;
+  costUsd: number;
+  error: string | null;
 }

@@ -19,13 +19,19 @@ import {
   narrationLine,
   talkingLine,
 } from "../narration.ts";
-import { inList, metaOf } from "./rows.ts";
-import type { AssetRow } from "./types.ts";
+import { inList, metaOf, rowsOf } from "./rows.ts";
+import type { AssetRow, PayloadRow, SceneRow, VideoRun } from "./types.ts";
+import type { TimedWord } from "../compose/types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 const BUCKET = "creative-video";
 
 /** Seconds of a stored narration without word timings: downloaded and probed. */
-async function probeStored(db, tenantId, path) {
+async function probeStored(
+  db: Pick<SupabaseRest, "download">,
+  tenantId: string,
+  path: unknown,
+) {
   const dir = await mkdtemp(join(tmpdir(), "music-length-"));
   try {
     const file = join(dir, "narration.audio");
@@ -41,25 +47,28 @@ async function probeStored(db, tenantId, path) {
 
 /** What the film is made of now: its scenes, the narration take, scene voices, pending voices. */
 export async function readFilm(
-  db,
-  run,
-  probeNarration = (path) => probeStored(db, run.tenant_id, path),
-) {
-  const item = `item_id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}`;
-  const scenes =
-    (await db.select(
+  db: Pick<SupabaseRest, "select" | "download">,
+  run: Pick<VideoRun, "item_id" | "tenant_id">,
+  probeNarration: (path: unknown) => Promise<number> = (path) =>
+    probeStored(db, run.tenant_id, path),
+): Promise<FilmNow> {
+  const item = `item_id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}`;
+  const scenes = rowsOf<SceneRow>(
+    await db.select(
       "marketing_video_scenes",
       `${item}&select=id,position,duration_s,voiceover_text,voice_asset_id,meta&order=position`,
-    )) ?? [];
+    ),
+  );
   const talking = scenes.some(isTalkingScene);
   const script = joinNarration(scenes.map(narrationLine));
-  let narration = null;
+  let narration: FilmNow["narration"] = null;
   if (script && !talking) {
-    const [take] =
-      (await db.select(
+    const [take] = rowsOf<Pick<AssetRow, "url" | "meta">>(
+      await db.select(
         "marketing_assets",
         `${item}&type=eq.narration&url=not.is.null&select=url,meta&order=created_at.desc&limit=1`,
-      )) ?? [];
+      ),
+    );
     // Only the take of this script; an older one would size a different film.
     if (take && String(metaOf(take).text ?? "") === script) {
       const words = wordsFromAlignment(metaOf(take).alignment);
@@ -72,18 +81,23 @@ export async function readFilm(
   // Scene voices only time a talking film, which is narrated scene by scene; any other film
   // is cut to its continuous take (or still waits for it).
   const voiceIds = talking
-    ? scenes.map((scene) => scene.voice_asset_id).filter(Boolean)
+    ? scenes
+        .map((scene) => scene.voice_asset_id)
+        .filter((id): id is string => Boolean(id))
     : [];
-  const voices = new Map();
+  const voices = new Map<string, number>();
   if (voiceIds.length) {
-    const rows =
-      (await db.select(
+    const rows = rowsOf<AssetRow>(
+      await db.select(
         "marketing_assets",
         `id=in.${inList(voiceIds)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=id,type,meta`,
-      )) ?? [];
+      ),
+    );
     const byId = new Map<string, AssetRow>(rows.map((row) => [row.id, row]));
     for (const scene of scenes) {
-      const voice = byId.get(scene.voice_asset_id);
+      const voice = scene.voice_asset_id
+        ? byId.get(scene.voice_asset_id)
+        : undefined;
       const line = isTalkingScene(scene)
         ? talkingLine(scene)
         : narrationLine(scene);
@@ -98,11 +112,12 @@ export async function readFilm(
       if (seconds > 0) voices.set(scene.id, seconds);
     }
   }
-  const pending =
-    (await db.select(
+  const pending = rowsOf<{ id: string }>(
+    await db.select(
       "marketing_runs",
       `${item}&kind=eq.voice&status=in.(queued,running)&select=id&limit=1`,
-    )) ?? [];
+    ),
+  );
   return {
     scenes,
     narration,
@@ -114,14 +129,29 @@ export async function readFilm(
 }
 
 /** Seconds the end card adds after the scenes (end-card.ts), from the item's brand kit. */
-export async function endCardS(db, run) {
-  const [row] =
-    (await db.select(
+export async function endCardS(
+  db: Pick<SupabaseRest, "select">,
+  run: Pick<VideoRun, "item_id" | "tenant_id">,
+) {
+  const [row] = rowsOf<PayloadRow>(
+    await db.select(
       "marketing_work_items",
-      `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=payload`,
-    )) ?? [];
+      `id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=payload`,
+    ),
+  );
   const brand = brandFromPayload(row?.payload);
   return brand && hasEndCard({ ...brand, logoPath: brand.logoUrl })
     ? endCardSeconds(ctaLines(brand.ctaText))
     : 0;
+}
+
+/** The film as it stands while the production runs (readFilm). */
+export interface FilmNow {
+  scenes: Array<SceneRow>;
+  /** The narration take of the current script: its words and length. */
+  narration: { words: Array<TimedWord>; seconds: number } | null;
+  /** Seconds of each talking scene's own voice, by scene id. */
+  voices: Map<string, number>;
+  expectsNarration: boolean;
+  pending: boolean;
 }

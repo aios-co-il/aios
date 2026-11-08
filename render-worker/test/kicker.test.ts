@@ -3,6 +3,8 @@ import { kickerTitle } from "../src/compose/kicker.ts";
 import { mixProfile } from "../src/compose/music-bed.ts";
 import { MIX } from "../src/compose/workshop-edit.ts";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
+import { sceneOf, timelineOf } from "./fakes.ts";
+import type { TimelineScene } from "../src/compose/types.ts";
 
 test("a short scene title becomes a kicker unless it repeats the line", () => {
   expect(kickerTitle("אנליסטית", "היא קוראת את הנתונים")).toBe("אנליסטית");
@@ -28,16 +30,17 @@ test("a short scene title becomes a kicker unless it repeats the line", () => {
   expect(kickerTitle("!!!", "")).toBe(null);
 });
 
-const still = (id, extra = {}) => ({
-  id,
-  clipPath: `/tmp/${id}.mp4`,
-  stillPath: `/tmp/${id}.png`,
-  clipProvider: "mock",
-  durationS: 2,
-  ...extra,
-});
+const still = (id: string, extra: Partial<TimelineScene> = {}) =>
+  sceneOf({
+    id,
+    clipPath: `/tmp/${id}.mp4`,
+    stillPath: `/tmp/${id}.png`,
+    clipProvider: "mock",
+    durationS: 2,
+    ...extra,
+  });
 
-const spoken = (text, from, to) => {
+const spoken = (text: string, from: number, to: number) => {
   const chars = [...text];
   const step = (to - from) / chars.length;
   return {
@@ -48,7 +51,7 @@ const spoken = (text, from, to) => {
 };
 
 test("the manifest loops a short bed, mixes a trailer and sets kickers over karaoke", () => {
-  const timeline = {
+  const timeline = timelineOf({
     aspect: "16:9",
     narrationPath: "/tmp/n.mp3",
     narrationAlignment: spoken("שלום לכולם ותודה", 0, 3),
@@ -70,16 +73,17 @@ test("the manifest loops a short bed, mixes a trailer and sets kickers over kara
         narrationText: "ותודה",
       }),
     ],
-  };
+  });
   const { manifest } = buildWorkshopManifest(timeline);
   expect(manifest.scenes.map((s) => s.kicker)).toStrictEqual([
     "אנליסטית",
     null,
   ]);
   const loops = manifest.musicLoops;
-  expect(loops.length).toBeGreaterThan(1);
-  expect(loops[0]).toMatchObject({ startFrame: 0, frameCount: 54 });
-  expect(loops.at(-1).startFrame + loops.at(-1).frameCount).toBe(
+  expect(loops?.length).toBeGreaterThan(1);
+  expect(loops?.[0]).toMatchObject({ startFrame: 0, frameCount: 54 });
+  const last = loops?.at(-1);
+  expect((last?.startFrame ?? 0) + (last?.frameCount ?? 0)).toBe(
     manifest.totalFrames,
   );
   const trailer = mixProfile({ trailer: true, voiceLufs: -19 });

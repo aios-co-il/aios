@@ -27,7 +27,7 @@ export const elevenLabsClipSeconds = (seconds: unknown) => {
   return 8;
 };
 
-export const elevenLabsAspect = (aspect: string) =>
+export const elevenLabsAspect = (aspect: string | undefined) =>
   aspect === "16:9" ? "16:9" : "9:16";
 
 export const elevenLabsBaseUrl = BASE;
@@ -128,7 +128,7 @@ export function elevenLabsProvider({
 /** The Flows video request (https://elevenlabs.io/docs/api-reference/flows/video/create). */
 interface ElevenLabsVideoBody {
   model_id: string;
-  prompt: string;
+  prompt?: string;
   aspect_ratio: string;
   duration_secs: number;
   generate_audio: boolean;

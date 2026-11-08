@@ -22,6 +22,18 @@ const row = (
 });
 
 describe("continentSections", () => {
+  it("keeps an exposure campaign's spend out of the lead totals (AIO-496)", () => {
+    const [section] = continentSections([
+      row("טיול לסין - Pmax", 250, 2),
+      { ...row("טיול לסין - באנרים", 50), goal: "traffic" },
+    ]);
+    expect([
+      section.totals.spend,
+      section.leads.spend,
+      section.traffic.spend,
+    ]).toStrictEqual([300, 250, 50]);
+  });
+
   it("groups campaigns by continent, biggest spend first and general last", () => {
     const sections = continentSections([
       row("טיולי חורף - Pmax", 900),
