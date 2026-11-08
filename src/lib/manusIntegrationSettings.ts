@@ -34,7 +34,10 @@ export function mergeManusSettings(
     settings && typeof settings === "object" && !Array.isArray(settings)
       ? settings
       : {};
-  return { ...stored, ...patch };
+  const definedPatch = Object.fromEntries(
+    Object.entries(patch).filter(([, field]) => field !== undefined),
+  );
+  return { ...stored, ...definedPatch };
 }
 
 const manusOutputSchema = z.array(z.unknown());

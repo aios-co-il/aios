@@ -66,3 +66,16 @@ Deno.test("error fields must be strings", () => {
   assertEquals(thrownMessage({ message: "pg" }), "pg");
   assertEquals(thrownName({ name: [] }), undefined);
 });
+
+Deno.test(
+  "status patches cannot erase stored values when gateway fields are absent",
+  () => {
+    assertEquals(
+      mergeManusSettings(
+        { status: "connected", phone_number: "123" },
+        { status: undefined, phone_number: undefined },
+      ),
+      { status: "connected", phone_number: "123" },
+    );
+  },
+);

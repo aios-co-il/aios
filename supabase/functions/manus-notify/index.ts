@@ -46,6 +46,7 @@ type SendMessageBody = {
   phoneNumber?: string;
 };
 
+/** Serialize a Manus notification response. */
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -53,6 +54,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
+/** Send a notification through the configured action step. */
 async function sendViaActionStep(
   sb: DbClient,
   args: {

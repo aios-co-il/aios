@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
   mergeManusSettings,
   manusOutputText,
@@ -72,5 +72,20 @@ describe("Manus domain parsing", () => {
     expect(
       mergeManusSettings({ extension: { enabled: true } }, { webhook_id: "w" }),
     ).toEqual({ extension: { enabled: true }, webhook_id: "w" });
+  });
+});
+
+describe("settings update preservation", () => {
+  it("keeps extensions and existing fields when a parsed patch omits them", () => {
+    expect(
+      mergeManusSettings(
+        { extension: { enabled: true }, status: "connected", api_key: "old" },
+        { api_key: "new", status: undefined },
+      ),
+    ).toEqual({
+      extension: { enabled: true },
+      status: "connected",
+      api_key: "new",
+    });
   });
 });

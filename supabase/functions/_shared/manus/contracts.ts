@@ -28,7 +28,10 @@ export function mergeManusSettings(
 ): Json {
   const stored =
     value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  return { ...stored, ...patch };
+  const definedPatch = Object.fromEntries(
+    Object.entries(patch).filter(([, field]) => field !== undefined),
+  );
+  return { ...stored, ...definedPatch };
 }
 
 /** Keep raw gateway data opaque until its specific response schema is applied. */

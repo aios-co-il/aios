@@ -24,8 +24,12 @@ import { useTenant } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { readManusWaSettings } from "@/lib/manusIntegrationSettings";
+import {
+  readManusWaSettings,
+  mergeManusSettings,
+} from "@/lib/manusIntegrationSettings";
 
+/** Read a displayable error message from a failed settings request. */
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -65,7 +69,9 @@ export default function ManusSettings() {
         const { error } = await supabase
           .from("tenant_integrations")
           .update({
-            settings: { ...settings, api_key: apiKey.trim() },
+            settings: mergeManusSettings(integration.settings, {
+              api_key: apiKey.trim(),
+            }),
             is_active: true,
           })
           .eq("id", integration.id);

@@ -417,6 +417,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
 
 // ─── Tool handlers ────────────────────────────────────────────────────────────
 
+/** Dispatch the named MCP tool using its validated arguments. */
 async function handleToolCall(
   name: string,
   args: ManusToolArgs,
