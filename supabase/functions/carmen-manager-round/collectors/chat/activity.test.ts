@@ -7,9 +7,16 @@ import { loadThreadActivity, loadUnlinkedGroups } from "./activity.ts";
 const query = {
   tenantId: TENANT,
   connectionIds: ["owner"],
+  carmenConnectionIds: [],
   since: NOW,
   clientIds: null,
 };
+
+/** The provider a request body names. */
+const providerOf = (body: unknown) =>
+  body && typeof body === "object" && "p_provider" in body
+    ? body.p_provider
+    : undefined;
 
 /** `count` rows of thread `key`. */
 const rows = (key: string, count: number) =>
@@ -22,6 +29,69 @@ const afterKey = (body: unknown) =>
     : undefined;
 
 Deno.test("loadThreadActivity", async (t) => {
+  await t.step(
+    "adds Carmen's groups no Green line read, without her own sends (AIO-515)",
+    async () => {
+      const green = [row({ thread_key: "group:shared" })];
+      const carmen = [
+        row({ thread_key: "group:shared", message_id: "dup" }),
+        row({ thread_key: "group:carmen-only", message_id: "client" }),
+        row({
+          thread_key: "group:carmen-only",
+          message_id: "carmen-send",
+          direction: "outbound",
+          sent_by_user_id: null,
+        }),
+        row({
+          thread_key: "group:carmen-only",
+          message_id: "person-send",
+          direction: "outbound",
+          sent_by_user_id: "u1",
+        }),
+        row({ thread_key: "dm:x:972", thread_kind: "dm", message_id: "dm" }),
+      ];
+      const { db, calls } = recordingClient(({ body }) =>
+        providerOf(body) === "manus_wa" ? carmen : green,
+      );
+      const read = await loadThreadActivity(
+        db,
+        { ...query, carmenConnectionIds: ["carmen-line"] },
+        "chat_sla",
+      );
+      assertEquals(
+        read.rows.map((r) => [r.thread_key, r.message_id]),
+        [
+          ["group:shared", green[0].message_id],
+          ["group:carmen-only", "client"],
+          ["group:carmen-only", "person-send"],
+        ],
+      );
+      assertEquals(
+        calls.map((c) => [
+          providerOf(c.body),
+          c.body &&
+          typeof c.body === "object" &&
+          "p_connection_user_ids" in c.body
+            ? c.body.p_connection_user_ids
+            : null,
+        ]),
+        [
+          ["green_api", ["owner"]],
+          ["manus_wa", ["carmen-line"]],
+        ],
+      );
+    },
+  );
+
+  await t.step("no Carmen line: no Manus read", async () => {
+    const { db, calls } = recordingClient(() => [row()]);
+    await loadThreadActivity(db, query, "chat_sla");
+    assertEquals(
+      calls.map((c) => providerOf(c.body)),
+      ["green_api"],
+    );
+  });
+
   await t.step(
     "names the tenant, the lines, the provider, the collector and a person's sends",
     async () => {
@@ -102,4 +172,24 @@ Deno.test("loadUnlinkedGroups", async (t) => {
       p_provider: "green_api",
     });
   });
+
+  await t.step(
+    "adds Carmen's unlinked groups once, beside the Green lines' (AIO-515)",
+    async () => {
+      const group = (id: string) => ({ group_id: id, group_name: id });
+      const { db } = recordingClient(({ body }) =>
+        providerOf(body) === "manus_wa"
+          ? [group("both"), group("carmen")]
+          : [group("both")],
+      );
+      const found = await loadUnlinkedGroups(db, {
+        ...query,
+        carmenConnectionIds: ["carmen-line"],
+      });
+      assertEquals(
+        found.map((g) => g.group_id),
+        ["both", "carmen"],
+      );
+    },
+  );
 });
