@@ -9931,16 +9931,14 @@ async function executeTool(
       ]);
       const normalizedQuestions = questions.map((input): MetaLeadQuestion => {
         const question = readMetaLeadQuestionInput(input);
-        const type = String(question.type || "")
-          .trim()
-          .toUpperCase();
+        const type = (question.type || "").trim().toUpperCase();
         if (!allowedQuestionTypes.has(type))
           throw new Error(`סוג שדה Meta אינו נתמך: ${type || "ריק"}`);
-        if (type === "CUSTOM" && !String(question.label || "").trim()) {
+        if (type === "CUSTOM" && !(question.label || "").trim()) {
           throw new Error("שדה CUSTOM חייב לכלול label");
         }
         return question.label
-          ? { type, label: String(question.label).trim() }
+          ? { type, label: question.label.trim() }
           : { type };
       });
       const privacyUrl = assertHttpsUrl(

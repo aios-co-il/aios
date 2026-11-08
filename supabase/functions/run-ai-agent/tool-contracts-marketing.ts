@@ -93,47 +93,51 @@ export type PrioritizedTaskRow = Pick<
   campaigners: Pick<AgentRow<"campaigners">, "full_name"> | null;
 };
 
-const graphAdAccountSchema = z
-  .object({
-    id: z.unknown(),
-    name: z.unknown(),
-    account_status: z.unknown(),
-    currency: z.unknown(),
-  })
-  .catch({});
-
+const graphAdAccountSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().nullish(),
+  account_status: z.number().int().nullish(),
+  currency: z.string().nullish(),
+});
 export type GraphAdAccount = z.infer<typeof graphAdAccountSchema>;
-
-/** Graph `me/adaccounts` page; account fields are passed through unvalidated. */
 const graphAdAccountsPageSchema = z
   .object({
-    data: z.array(graphAdAccountSchema).nullish().catch(null),
-    error: z
-      .object({ message: z.unknown() })
-      .nullish()
-      .catch({ message: undefined }),
-    paging: z
-      .object({ next: z.string().nullish().catch(null) })
-      .nullish()
-      .catch(null),
+    data: z.array(graphAdAccountSchema).optional(),
+    error: z.object({ message: z.string() }).nullish(),
+    paging: z.object({ next: z.string().nullish() }).nullish(),
   })
-  .catch({});
-
-/** Validate the account page returned by the Graph API. */
+  .superRefine((page, ctx) => {
+    if (!page.error && page.data === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Missing accounts data",
+      });
+    }
+  });
+/** Reject malformed pages before callers can mistake them for an empty account list. */
 export function readGraphAdAccountsPage(value: unknown) {
-  return graphAdAccountsPageSchema.parse(value);
+  const result = graphAdAccountsPageSchema.safeParse(value);
+  if (!result.success) {
+    console.warn(
+      "[facebook] invalid accounts page",
+      result.error.issues.map((issue) => issue.path),
+    );
+    throw new Error("Facebook API returned invalid accounts data");
+  }
+  return result.data;
 }
 
 export type MetaLeadQuestion = { type: string; label?: string };
 
 /** LLM-supplied lead form question; only `type` and `label` are read. */
-const metaLeadQuestionInputSchema = z
-  .object({ type: z.unknown(), label: z.unknown() })
-  .catch({});
+const metaLeadQuestionInputSchema = z.object({
+  type: z.string().nullish(),
+  label: z.string().nullish(),
+});
 
 export type MetaLeadQuestionInput = z.infer<typeof metaLeadQuestionInputSchema>;
 
-/** Validate the lead-question fields accepted by the Meta tool. */
+/** Validate question fields before constructing a Meta API request. */
 export function readMetaLeadQuestionInput(
   value: unknown,
 ): MetaLeadQuestionInput {
