@@ -18166,6 +18166,46 @@ export type Database = {
           shared_with_tenants: string[];
         }[];
       };
+      queue_narration_guide: {
+        Args: {
+          p_estimate?: Json;
+          p_guide: Json;
+          p_item_id: string;
+          p_stage_id?: string;
+          p_voice_id: string;
+        };
+        Returns: {
+          attempts: number;
+          cost_usd: number;
+          created_at: string;
+          created_by: string | null;
+          credits: number | null;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          input: Json;
+          item_id: string;
+          kind: string | null;
+          model: string | null;
+          output: Json;
+          provider: string | null;
+          provider_job_id: string | null;
+          scene_id: string | null;
+          stage_id: string;
+          started_at: string | null;
+          status: string;
+          tenant_id: string;
+          tokens_in: number;
+          tokens_out: number;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "marketing_runs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       queue_video_clips: {
         Args: {
           p_aspect?: string;
