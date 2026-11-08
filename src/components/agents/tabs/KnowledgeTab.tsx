@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   useAgentKnowledge,
   useAgentKnowledgeMutations,
+  type KnowledgeItem,
 } from "@/hooks/useAgentKnowledge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,10 +33,11 @@ import {
   Link as LinkIcon,
   FileText,
   StickyNote,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const KIND_ICON: Record<string, any> = {
+const KIND_ICON: Record<string, LucideIcon> = {
   note: StickyNote,
   document: FileText,
   link: LinkIcon,
@@ -200,13 +202,14 @@ export function KnowledgeTab({ agentId }: { agentId: string }) {
   );
 }
 
+/** Render item dialog from its typed view data. */
 function ItemDialog({
   folderId,
   onSubmit,
   submitting,
 }: {
   folderId: string | null;
-  onSubmit: (input: any) => Promise<void>;
+  onSubmit: (input: Partial<KnowledgeItem>) => Promise<void>;
   submitting: boolean;
 }) {
   const [title, setTitle] = useState("");
