@@ -8,6 +8,7 @@ import {
   END_CARD_STYLES,
   END_CARD_STYLE_HELP,
 } from "./film-look.ts";
+import { GUIDE_LINE } from "./narration-guide.ts";
 import { SCENE_OVERLAYS, SCENE_OVERLAY_HELP } from "./scene-overlays.ts";
 import { TITLE_EMPHASES, TITLE_EMPHASIS_HELP } from "./title-emphasis.ts";
 import {
@@ -59,6 +60,10 @@ export const PRODUCE_VIDEO_TOOL = {
         type: "boolean",
         description:
           "true רק כשהמשתמש ביקש הקלטה חדשה של הקריינות בלי שינוי בטקסט, בקול או בהגייה (למשל נשמע לא טבעי), או לנסות שוב אחרי הקלטה שנכשלה. עולה כמה סנטים.",
+      },
+      guide_recording: {
+        type: "string",
+        description: `נתיב ההקלטה של המשתמש מההודעה "${GUIDE_LINE}: <נתיב>" (כפתור "הקלטה בקול שלי" בעמוד הקריינות). הקריינות נוצרת מההקלטה: הקצב, האינטונציה וההגייה שלה נשמרים, והקול מוחלף לקול שנבחר לפרויקט; התוצאה נשאלת שוב לאישור. השרת קורא את הנתיב גם מההודעה עצמה. עולה כמה סנטים, לפי אורך ההקלטה.`,
       },
       music: { type: "boolean", description: "false רק אם ביקשו בלי מוזיקה" },
       sound_design: {
