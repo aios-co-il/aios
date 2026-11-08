@@ -120,7 +120,16 @@ function RecorderPanel({
             עצירה ({clockOf(recorder.seconds)} / {clockOf(GUIDE_MAX_SECONDS)})
           </Button>
         ) : recorder.state === "recorded" ? (
-          <Button type="button" variant="outline" onClick={recorder.reset}>
+          <Button
+            type="button"
+            variant="outline"
+            // Not while sending: the sent take would close the dialog and drop the new one.
+            disabled={send.isPending}
+            onClick={() => {
+              send.reset();
+              recorder.reset();
+            }}
+          >
             <RotateCcw className="h-4 w-4" />
             הקלטה מחדש
           </Button>

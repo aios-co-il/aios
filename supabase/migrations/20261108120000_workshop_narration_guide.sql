@@ -158,7 +158,9 @@ as $$
      limit 1
   ),
   last_run as (
-    select run.id, run.status, run.error, run.created_at
+    select run.id, run.status, run.error, run.created_at,
+           -- guide: the run voices the user's recording.
+           run.input ? 'guide_audio' as guide
       from public.marketing_runs as run
       join item on item.id = run.item_id and item.tenant_id = run.tenant_id
      where run.kind = 'voice' and run.scene_id is null
@@ -199,6 +201,8 @@ as $$
     'pronunciations_since_last_run', coalesce((
       select exists (select 1 from entry where entry.updated_at > last_run.created_at)
         from last_run
+       -- guide: a recording reads no pronunciation, so a new one is no reason to record again.
+       where not last_run.guide
     ), false)
   )
   from item;

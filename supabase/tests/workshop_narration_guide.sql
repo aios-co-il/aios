@@ -114,6 +114,23 @@ BEGIN
   IF (v_take->>'guide')::boolean OR NOT (v_take->>'pronunciations_changed')::boolean THEN
     RAISE EXCEPTION 'the narrator''s take changes with a pronunciation it lacks (%)', v_take;
   END IF;
+
+  -- A recording whose voice change failed: a pronunciation saved after it is no reason to record
+  -- the narrator instead (the review still answers about the failure).
+  RESET ROLE;
+  UPDATE public.marketing_runs SET created_at = now() - interval '2 hours' WHERE id = v_run.id;
+  INSERT INTO public.marketing_runs (tenant_id, item_id, stage_id, kind, status, error, input, created_at)
+  SELECT v_tenant, v_item, stage_id, 'voice', 'failed', 'refused',
+         jsonb_build_object('guide_audio', jsonb_build_object('bucket', 'creative-video', 'path', v_path)),
+         now() - interval '1 minute'
+    FROM public.marketing_runs WHERE id = v_run.id;
+  -- The pronunciation saved earlier in this test (updated_at = now()) is newer than that run.
+  SET LOCAL ROLE authenticated;
+  v_take := public.workshop_narration_take(v_item);
+  IF v_take->>'last_run_status' <> 'failed'
+     OR (v_take->>'pronunciations_since_last_run')::boolean THEN
+    RAISE EXCEPTION 'a failed recording is not replaced by a pronunciation saved after it (%)', v_take;
+  END IF;
   RESET ROLE;
   RAISE NOTICE 'workshop_narration_guide: all checks passed';
 END;

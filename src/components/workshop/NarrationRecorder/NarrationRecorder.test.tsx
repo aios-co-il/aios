@@ -96,4 +96,38 @@ describe("NarrationRecorder", () => {
 
     expect(screen.queryByText(/ההקלטה לא נשלחה/)).toBeNull();
   });
+
+  test("re-recording is blocked while sending and clears a failed send", async () => {
+    let refuse: (value: { error: Error }) => void = () => {};
+    upload.mockReturnValue(
+      new Promise((resolve) => {
+        refuse = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    render(
+      withTestQuery(
+        <NarrationRecorder
+          tenantId="tenant-1"
+          clientId={null}
+          itemId="item-1"
+          scenes={scenes}
+          openChat={vi.fn()}
+        />,
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: /הקלטה בקול שלי/ }));
+    await user.click(screen.getByRole("button", { name: /התחלת הקלטה/ }));
+    await act(async () => media.grant());
+    await user.click(await screen.findByRole("button", { name: /עצירה/ }));
+    await user.click(screen.getByRole("button", { name: /שליחה לכרמן/ }));
+    const redo = screen.getByRole("button", { name: /הקלטה מחדש/ });
+    expect((redo as HTMLButtonElement).disabled).toBe(true);
+
+    await act(async () => refuse({ error: new Error("network") }));
+    expect(await screen.findByText(/ההקלטה לא נשלחה/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /הקלטה מחדש/ }));
+
+    expect(screen.queryByText(/ההקלטה לא נשלחה/)).toBeNull();
+  });
 });
