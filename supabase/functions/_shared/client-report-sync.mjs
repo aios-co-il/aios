@@ -282,33 +282,39 @@ export async function buildGoogleCustomerClientMap(supabase, tenantIds) {
   /** @type {Map<string, { id: string, name: string }>} */
   const map = new Map();
 
-  const { data: linkedClients } = await supabase
+  const { data: linkedClients, error: linkedClientsError } = await supabase
     .from("clients")
     .select("id, name, google_ads_account_id")
     .in("tenant_id", tenantIds)
     .not("google_ads_account_id", "is", null);
+
+  if (linkedClientsError) throw linkedClientsError;
 
   for (const c of linkedClients || []) {
     const cid = normalizeGoogleCustomerId(c.google_ads_account_id);
     if (cid) map.set(cid, { id: c.id, name: c.name });
   }
 
-  const { data: gTables } = await supabase
+  const { data: gTables, error: tablesError } = await supabase
     .from("crm_tables")
     .select("client_id, integration_settings")
     .eq("integration_type", "google_ads")
     .not("client_id", "is", null);
+
+  if (tablesError) throw tablesError;
 
   const tableClientIds = [
     ...new Set((gTables || []).map((t) => t.client_id).filter(Boolean)),
   ];
   if (tableClientIds.length === 0) return map;
 
-  const { data: tableClients } = await supabase
+  const { data: tableClients, error: clientsError } = await supabase
     .from("clients")
     .select("id, name, tenant_id")
     .in("id", tableClientIds)
     .in("tenant_id", tenantIds);
+
+  if (clientsError) throw clientsError;
 
   const clientById = new Map((tableClients || []).map((c) => [c.id, c]));
 

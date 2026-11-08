@@ -395,6 +395,7 @@ import type {
   OnboardingListRow,
   PrioritizedTaskRow,
 } from "./tool-contracts-marketing.ts";
+import { completeAccessibleTask } from "./complete-task.ts";
 import { loadKbLiveRow } from "./kb-live-row.ts";
 import {
   argBoolean,
@@ -2412,7 +2413,13 @@ const ALL_TOOLS = [
     description: "רשימת תהליכי קליטת לקוחות",
     parameters: {
       type: "object",
-      properties: { status: { type: "string" }, limit: { type: "integer" } },
+      properties: {
+        status: {
+          type: "string",
+          enum: Constants.public.Enums.onboarding_status,
+        },
+        limit: { type: "integer" },
+      },
     },
   },
   {
@@ -3345,7 +3352,12 @@ const ALL_TOOLS = [
     description: "רשימת יעדים עם אחוז התקדמות",
     parameters: {
       type: "object",
-      properties: { status: { type: "string" }, limit: { type: "integer" } },
+      properties: {
+        status: {
+          type: "string",
+        },
+        limit: { type: "integer" },
+      },
     },
   },
   {
@@ -10183,10 +10195,18 @@ async function executeTool(
         };
         const table = tableMap[String(ptr.entity_type)] ?? ptr.entity_type;
         if (table) {
-          live = await loadKbLiveRow(supabase, table, ptr.entity_id);
+          live = await loadKbLiveRow(
+            supabase,
+            table,
+            ptr.entity_id,
+            accessibleTenantIds,
+          );
         }
-      } catch (_) {
-        /* ignore */
+      } catch (error) {
+        console.warn("KB live source lookup failed", {
+          pointerId: ptr.id,
+          error,
+        });
       }
       // Bump access count async
       supabase
@@ -11268,14 +11288,7 @@ async function executeTool(
       }
       // Optionally mark as complete
       if (args.mark_complete) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ status: "done", assigned_agent: null })
-          .eq("id", taskId)
-          .in("tenant_id", accessibleTenantIds);
-        if (error) {
-          throw error;
-        }
+        await completeAccessibleTask(supabase, taskId, accessibleTenantIds);
       }
       return {
         success: true,

@@ -9,6 +9,7 @@ export async function loadKbLiveRow(
   supabase: AgentDatabaseClient,
   table: string,
   id: string | null,
+  tenantIds: Array<string>,
 ): Promise<unknown> {
   switch (table) {
     case "clients":
@@ -17,6 +18,8 @@ export async function loadKbLiveRow(
           .from("clients")
           .select("*")
           .filter("id", "eq", id)
+          .in("tenant_id", tenantIds)
+          .throwOnError()
           .maybeSingle()
       ).data;
     case "campaigners":
@@ -25,6 +28,8 @@ export async function loadKbLiveRow(
           .from("campaigners")
           .select("*")
           .filter("id", "eq", id)
+          .in("tenant_id", tenantIds)
+          .throwOnError()
           .maybeSingle()
       ).data;
     case "tasks":
@@ -33,6 +38,8 @@ export async function loadKbLiveRow(
           .from("tasks")
           .select("*")
           .filter("id", "eq", id)
+          .in("tenant_id", tenantIds)
+          .throwOnError()
           .maybeSingle()
       ).data;
     case "chat_messages":
@@ -41,6 +48,8 @@ export async function loadKbLiveRow(
           .from("chat_messages")
           .select("*")
           .filter("id", "eq", id)
+          .in("tenant_id", tenantIds)
+          .throwOnError()
           .maybeSingle()
       ).data;
     case "leads":
@@ -49,6 +58,8 @@ export async function loadKbLiveRow(
           .from("leads")
           .select("*")
           .filter("id", "eq", id)
+          .in("tenant_id", tenantIds)
+          .throwOnError()
           .maybeSingle()
       ).data;
     default:
