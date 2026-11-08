@@ -2,7 +2,7 @@
 // Carmen Memory Backfill — seed knowledge kingdom from existing data
 // Idempotent. Run per-tenant or for all tenants.
 import { svc, upsertPointer, shortText } from "../_shared/carmen-memory.ts";
-import { jsonObject, jsonText } from "../_shared/json-object.ts";
+import { readMemoryMessages } from "../_shared/memory-event.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { readLegacyMessageRow, readLegacyTaskRow } from "./legacy-rows.ts";
 
@@ -195,9 +195,7 @@ async function seedTeam(supabase: DbClient, tenant_id: string) {
 async function seedTasks(supabase: DbClient, tenant_id: string) {
   const { data } = await supabase
     .from("tasks")
-    .select(
-      "id,title,description,status,due_date,created_at,client_id,campaigner_id,assigned_to_campaigner_id",
-    )
+    .select("id,title,notes,status,due_date,created_at,client_id,campaigner_id")
     .eq("tenant_id", tenant_id)
     .limit(2000);
   const rows: unknown[] = data ?? [];
@@ -212,14 +210,14 @@ async function seedTasks(supabase: DbClient, tenant_id: string) {
       subcategory: "tasks",
       path: `team/${assignee}/tasks`,
       entity_type: "task",
-      entity_id: jsonText(t.id),
+      entity_id: t.id ?? null,
       title: shortText(t.title, 100),
-      summary: shortText(t.description, 200),
-      ref_date: jsonText(t.due_date ?? t.created_at),
+      summary: shortText(t.description ?? t.notes, 200),
+      ref_date: t.due_date ?? t.created_at ?? null,
       importance: t.status === "open" ? 70 : 30,
       metadata: {
-        status: jsonText(t.status),
-        client_id: jsonText(t.client_id),
+        status: t.status ?? null,
+        client_id: t.client_id ?? null,
       },
     });
     n++;
@@ -236,7 +234,7 @@ async function seedMessages(
   const { data } = await supabase
     .from("chat_messages")
     .select(
-      "id,message,body,text,provider,direction,sender_name,sender_phone,client_id,lead_id,group_id,created_at",
+      "id,message_text,provider,direction,sender_name,sender_phone,client_id,lead_id,group_id,created_at",
     )
     .eq("tenant_id", tenant_id)
     .gte("created_at", since)
@@ -246,27 +244,27 @@ async function seedMessages(
   let n = 0;
   for (const raw of rows) {
     const m = readLegacyMessageRow(raw);
-    const body = m.message ?? m.body ?? m.text ?? "";
-    if (!body || String(body).trim().length < 2) continue;
-    const date = (jsonText(m.created_at) ?? "").slice(0, 10);
-    const channel = jsonText(m.provider) ?? "unknown";
+    const body = m.message_text ?? m.message ?? m.body ?? m.text ?? "";
+    if (!body || body.trim().length < 2) continue;
+    const date = (m.created_at ?? "").slice(0, 10);
+    const channel = m.provider ?? "unknown";
     await upsertPointer(supabase, {
       tenant_id,
       category: "messages",
       subcategory: channel,
       path: `messages/${date}/${channel}`,
       entity_type: "chat_message",
-      entity_id: jsonText(m.id),
+      entity_id: m.id ?? null,
       title:
         `${m.direction ?? ""} ${m.sender_name ?? m.sender_phone ?? ""}`.trim(),
       summary: shortText(body, 200),
-      ref_date: jsonText(m.created_at),
+      ref_date: m.created_at ?? null,
       importance: 30,
       metadata: {
-        direction: jsonText(m.direction),
-        client_id: jsonText(m.client_id),
-        lead_id: jsonText(m.lead_id),
-        sender_phone: jsonText(m.sender_phone),
+        direction: m.direction ?? null,
+        client_id: m.client_id ?? null,
+        lead_id: m.lead_id ?? null,
+        sender_phone: m.sender_phone ?? null,
       },
     });
     n++;
@@ -282,11 +280,11 @@ async function seedConversations(supabase: DbClient, tenant_id: string) {
     .limit(500);
   let n = 0;
   for (const c of data ?? []) {
-    const messages = Array.isArray(c.messages) ? c.messages : [];
+    const messages = readMemoryMessages(c.messages);
     const summary = messages
       .slice(-4)
       .map((raw) => {
-        const m = jsonObject(raw);
+        const m = raw;
         return `${m.role}: ${shortText(m.content, 80)}`;
       })
       .join("\n");

@@ -5,10 +5,17 @@ import { svc, upsertPointer, shortText } from "../_shared/carmen-memory.ts";
 import type { Tables } from "../_shared/database.types.ts";
 import { errorMessage } from "../_shared/error-message.ts";
 import {
-  type JsonObject,
-  jsonObject,
-  jsonText,
-} from "../_shared/json-object.ts";
+  clientMemorySchema,
+  campaignerMemorySchema,
+  taskMemorySchema,
+  chatMemorySchema,
+  conversationMemorySchema,
+  type ClientMemory,
+  type CampaignerMemory,
+  type TaskMemory,
+  type ChatMemory,
+  type ConversationMemory,
+} from "../_shared/memory-event.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
@@ -92,22 +99,38 @@ async function processEvent(
 
   switch (entity_type) {
     case "client":
-      return indexClient(supabase, tenant_id, jsonObject(payload));
+      return indexClient(
+        supabase,
+        tenant_id,
+        clientMemorySchema.parse(payload),
+      );
     case "campaigner":
-      return indexCampaigner(supabase, tenant_id, jsonObject(payload));
+      return indexCampaigner(
+        supabase,
+        tenant_id,
+        campaignerMemorySchema.parse(payload),
+      );
     case "task":
-      return indexTask(supabase, tenant_id, jsonObject(payload));
+      return indexTask(supabase, tenant_id, taskMemorySchema.parse(payload));
     case "chat_message":
-      return indexChatMessage(supabase, tenant_id, jsonObject(payload));
+      return indexChatMessage(
+        supabase,
+        tenant_id,
+        chatMemorySchema.parse(payload),
+      );
     case "ai_conversation":
-      return indexAiConversation(supabase, tenant_id, jsonObject(payload));
+      return indexAiConversation(
+        supabase,
+        tenant_id,
+        conversationMemorySchema.parse(payload),
+      );
   }
 }
 
 async function indexClient(
   supabase: DbClient,
   tenant_id: string,
-  c: JsonObject,
+  c: ClientMemory,
 ) {
   const summary = [
     c.industry && `תעשייה: ${c.industry}`,
@@ -125,8 +148,8 @@ async function indexClient(
     subcategory: null,
     path: `clients/${c.id}`,
     entity_type: "client",
-    entity_id: jsonText(c.id),
-    title: jsonText(c.name) ?? "לקוח",
+    entity_id: c.id ?? null,
+    title: c.name ?? "לקוח",
     summary,
     importance: c.tier === "premium" ? 80 : 60,
     metadata: {
@@ -140,7 +163,7 @@ async function indexClient(
 async function indexCampaigner(
   supabase: DbClient,
   tenant_id: string,
-  c: JsonObject,
+  c: CampaignerMemory,
 ) {
   await upsertPointer(supabase, {
     tenant_id,
@@ -148,8 +171,8 @@ async function indexCampaigner(
     subcategory: null,
     path: `team/${c.id}`,
     entity_type: "campaigner",
-    entity_id: jsonText(c.id),
-    title: jsonText(c.full_name) ?? "חבר צוות",
+    entity_id: c.id ?? null,
+    title: c.full_name ?? "חבר צוות",
     summary: [
       c.role && `תפקיד: ${Array.isArray(c.role) ? c.role.join(", ") : c.role}`,
       c.phone && `טלפון: ${c.phone}`,
@@ -164,7 +187,7 @@ async function indexCampaigner(
   const { data: links } = await supabase
     .from("client_team")
     .select("client_id, clients!inner(name)")
-    .eq("campaigner_id", String(c.id));
+    .eq("campaigner_id", c.id);
   if (links?.length) {
     for (const l of links) {
       await upsertPointer(supabase, {
@@ -182,7 +205,7 @@ async function indexCampaigner(
   }
 }
 
-async function indexTask(supabase: DbClient, tenant_id: string, t: JsonObject) {
+async function indexTask(supabase: DbClient, tenant_id: string, t: TaskMemory) {
   const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
   if (!assignee) return;
   await upsertPointer(supabase, {
@@ -191,10 +214,10 @@ async function indexTask(supabase: DbClient, tenant_id: string, t: JsonObject) {
     subcategory: "tasks",
     path: `team/${assignee}/tasks`,
     entity_type: "task",
-    entity_id: jsonText(t.id),
+    entity_id: t.id ?? null,
     title: shortText(t.title, 100),
-    summary: shortText(t.description, 200),
-    ref_date: jsonText(t.due_date ?? t.created_at),
+    summary: shortText(t.description ?? t.notes, 200),
+    ref_date: t.due_date ?? t.created_at ?? null,
     importance: t.status === "open" ? 70 : 30,
     metadata: { status: t.status, client_id: t.client_id },
   });
@@ -206,9 +229,9 @@ async function indexTask(supabase: DbClient, tenant_id: string, t: JsonObject) {
       subcategory: "updates",
       path: `clients/${t.client_id}/updates`,
       entity_type: "task",
-      entity_id: jsonText(t.id),
+      entity_id: t.id ?? null,
       title: shortText(t.title, 100),
-      ref_date: jsonText(t.due_date ?? t.created_at),
+      ref_date: t.due_date ?? t.created_at ?? null,
       importance: 50,
       metadata: { task_status: t.status },
     });
@@ -218,17 +241,15 @@ async function indexTask(supabase: DbClient, tenant_id: string, t: JsonObject) {
 async function indexChatMessage(
   supabase: DbClient,
   tenant_id: string,
-  m: JsonObject,
+  m: ChatMemory,
 ) {
   // Skip noise: very short or empty messages
-  const body = m.message ?? m.body ?? m.text ?? "";
-  if (!body || String(body).trim().length < 2) return;
+  const body =
+    m.message_text ?? m.message_text ?? m.message ?? m.body ?? m.text ?? "";
+  if (!body || body.trim().length < 2) return;
 
-  const date = (jsonText(m.created_at) ?? new Date().toISOString()).slice(
-    0,
-    10,
-  );
-  const channel = jsonText(m.provider) ?? "unknown";
+  const date = (m.created_at ?? new Date().toISOString()).slice(0, 10);
+  const channel = m.provider ?? "unknown";
 
   // 1. Date-indexed entry
   await upsertPointer(supabase, {
@@ -237,11 +258,11 @@ async function indexChatMessage(
     subcategory: channel,
     path: `messages/${date}/${channel}`,
     entity_type: "chat_message",
-    entity_id: jsonText(m.id),
+    entity_id: m.id ?? null,
     title:
       `${m.direction ?? ""} ${m.sender_name ?? m.sender_phone ?? ""}`.trim(),
     summary: shortText(body, 200),
-    ref_date: jsonText(m.created_at),
+    ref_date: m.created_at ?? null,
     importance: 30,
     metadata: {
       direction: m.direction,
@@ -265,10 +286,10 @@ async function indexChatMessage(
       subcategory: "communications",
       path,
       entity_type: "chat_message",
-      entity_id: jsonText(m.id),
+      entity_id: m.id ?? null,
       title: `${channel} · ${m.direction}`,
       summary: shortText(body, 200),
-      ref_date: jsonText(m.created_at),
+      ref_date: m.created_at ?? null,
       importance: 40,
       metadata: { channel, direction: m.direction },
     });
@@ -278,32 +299,29 @@ async function indexChatMessage(
 async function indexAiConversation(
   supabase: DbClient,
   tenant_id: string,
-  c: JsonObject,
+  c: ConversationMemory,
 ) {
   // Index as episode pointer
   const messages = Array.isArray(c.messages) ? c.messages : [];
   const summary = messages
     .slice(-4)
     .map((raw) => {
-      const m = jsonObject(raw);
+      const m = raw;
       return `${m.role}: ${shortText(m.content, 80)}`;
     })
     .join("\n");
-  const month = (jsonText(c.created_at) ?? new Date().toISOString()).slice(
-    0,
-    7,
-  );
-  const topic = jsonText(c.title) ?? "שיחה";
+  const month = (c.created_at ?? new Date().toISOString()).slice(0, 7);
+  const topic = c.title ?? "שיחה";
   await upsertPointer(supabase, {
     tenant_id,
     category: "conversations",
     subcategory: month,
     path: `conversations/${topic}/${month}`,
     entity_type: "ai_conversation",
-    entity_id: jsonText(c.id),
+    entity_id: c.id ?? null,
     title: shortText(topic, 100),
     summary: shortText(summary, 400),
-    ref_date: jsonText(c.updated_at ?? c.created_at),
+    ref_date: c.updated_at ?? c.created_at ?? null,
     importance: 50,
     metadata: { user_id: c.user_id, message_count: messages.length },
   });

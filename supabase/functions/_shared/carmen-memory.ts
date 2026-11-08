@@ -1,6 +1,6 @@
 // Shared helpers for Carmen Memory Kingdom
 import { aiEmbed } from "./ai.ts";
-import type { Json, TablesInsert } from "./database.types.ts";
+import type { TablesInsert } from "./database.types.ts";
 import { type DbClient, serviceClient } from "./supabase-clients.ts";
 
 export function svc(): DbClient {
@@ -36,7 +36,7 @@ export async function upsertPointer(
     summary?: string | null;
     ref_date?: string | null;
     importance?: number;
-    metadata?: { [key: string]: Json | undefined };
+    metadata?: TablesInsert<"carmen_memory_pointers">["metadata"];
     withEmbedding?: boolean;
   },
 ) {

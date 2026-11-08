@@ -3,7 +3,11 @@ import { readHistoryEntry } from "./history-entry.ts";
 
 Deno.test("readHistoryEntry keeps the entry fields of object entries", () => {
   const entry = { role: "user", content: "hi", text: 3 };
-  assertEquals(readHistoryEntry(entry), entry);
+  assertEquals(readHistoryEntry(entry), {
+    role: "user",
+    content: "hi",
+    text: undefined,
+  });
   assertEquals(readHistoryEntry({ direction: "in", extra: 1 }), {
     direction: "in",
   });

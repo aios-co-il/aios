@@ -34,6 +34,7 @@ type LearnSession = {
   id: string;
   tenant_id: string;
   conversation_history: Json | null;
+  user_id?: string | null;
   sender_name: string | null;
   phone: string | null;
   chat_id: string | null;
