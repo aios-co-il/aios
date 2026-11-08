@@ -43,6 +43,8 @@ BEGIN
       RAISE EXCEPTION 'card types: % stored as %, expected %', r.given, v_type, r.stored;
     END IF;
   END LOOP;
+  -- The meeting above is now a contact; clear the rows so the pulse checks below start empty.
+  DELETE FROM public.client_updates WHERE client_id = v_client;
 
   -- 2. The text rule.
   FOR r IN
