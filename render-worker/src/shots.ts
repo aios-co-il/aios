@@ -1,8 +1,8 @@
 // Pure helpers for turning ffmpeg scene-change times into shots.
 
 /** pts_time values from ffmpeg `showinfo` output (one per selected frame). */
-export function parseShowinfoTimes(stderr) {
-  const times = [];
+export function parseShowinfoTimes(stderr: string) {
+  const times: Array<number> = [];
   for (const match of stderr.matchAll(/pts_time:\s*([0-9]+(?:\.[0-9]+)?)/g)) {
     times.push(Number(match[1]));
   }
@@ -14,10 +14,10 @@ export function parseShowinfoTimes(stderr) {
  * (flashes, fades) are dropped so every shot is long enough to read.
  */
 export function buildShots(
-  cuts,
-  duration,
+  cuts: Array<number>,
+  duration: number,
   { minShot = 0.6, maxShots = 24 } = {},
-) {
+): Array<Shot> {
   const end =
     Number.isFinite(duration) && duration > 0 ? duration : Math.max(0, ...cuts);
   const boundaries = [0];
@@ -58,10 +58,14 @@ export function buildShots(
 }
 
 /** Midpoint of a shot, where a representative keyframe is taken. */
-export const keyframeTime = (shot) => round(shot.start + shot.duration / 2);
+export const keyframeTime = (shot: Shot) =>
+  round(shot.start + shot.duration / 2);
 
 /** Transcript words that fall inside a shot, joined. */
-export function shotTranscript(words, shot) {
+export function shotTranscript(
+  words: Array<{ type?: string; start: number; text: string }>,
+  shot: Shot,
+) {
   return words
     .filter(
       (word) =>
@@ -75,4 +79,12 @@ export function shotTranscript(words, shot) {
     .trim();
 }
 
-const round = (value) => Math.round(value * 100) / 100;
+const round = (value: number) => Math.round(value * 100) / 100;
+
+/** One shot of a reference video, in seconds; `index` counts from 1. */
+export interface Shot {
+  index: number;
+  start: number;
+  end: number;
+  duration: number;
+}

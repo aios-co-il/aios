@@ -162,7 +162,7 @@ test("the trailer mix keeps the effects gentle: over the bed between lines, far 
 });
 
 /** The main frequency of `file` (Hz), from its zero crossings, and its length (seconds). */
-const toneOf = (file) => {
+const toneOf = (file: string) => {
   const pcm = spawnSync(
     "ffmpeg",
     ["-v", "error", "-i", file, "-ac", "1", "-ar", "48000", "-f", "s16le", "-"],

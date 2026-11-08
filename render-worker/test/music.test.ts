@@ -31,7 +31,7 @@ test("the music run asks ElevenLabs for the film's length and pays once", async 
     expect(done.costUsd).toBe(musicCostUsd(asked));
     expect(done.costUsd).toBeCloseTo((asked / 60_000) * 0.5, 4);
     expect(done.costUsd).toBeLessThan(0.5);
-    expect(r.output.audio_meta).toStrictEqual({
+    expect(r.output?.audio_meta).toStrictEqual({
       music_length_ms: asked,
       music_basis: "narration",
     });
@@ -81,7 +81,7 @@ test("the bed never costs more than its quote; the render loops the rest", async
       log: () => {},
     });
     expect(bodies[0].music_length_ms).toBe(20_400);
-    expect(quoted.output.audio_meta.music_basis).toBe("quote");
+    expect(quoted.output?.audio_meta?.music_basis).toBe("quote");
     expect(done.costUsd).toBe(0.17);
     // A run without a quote (queued before the bed was sized) asks for its planned length.
     const old = run();
@@ -128,7 +128,7 @@ test("the quote prices what the worker may ask for, at the same rate", () => {
     ),
     "utf8",
   );
-  const constant = (name) =>
+  const constant = (name: string) =>
     Number(new RegExp(`export const ${name} = ([0-9.]+);`).exec(prices)?.[1]);
   expect(constant("MUSIC_USD_PER_MINUTE")).toBe(MUSIC_USD_PER_MINUTE);
   expect(constant("MUSIC_HEADROOM")).toBe(PLANNED_HEADROOM);

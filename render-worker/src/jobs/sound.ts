@@ -5,6 +5,8 @@ import { BUCKET, alreadyGenerated, assetPath } from "./audio-store.ts";
 import { guideTake } from "./guide-take.ts";
 import { vocalizeForSpeech } from "./vocalize.ts";
 import { narrationLines, newTake } from "./voice-take.ts";
+import type { SceneRow, VideoRun } from "./types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 /** ElevenLabs multilingual TTS list price; matches the studio's estimate. */
 const VOICE_USD_PER_1000_CHARS = 0.12;
@@ -22,20 +24,30 @@ export async function generateVoice({
   vocalize = vocalizeForSpeech,
   log = console.log,
   submitting,
+}: {
+  db: Pick<SupabaseRest, "select" | "download" | "upload" | "update" | "rpc">;
+  run: VideoRun;
+  apiKey?: string | null;
+  googleKey?: string | null;
+  resolveOpenRouterKey?: () => Promise<string | null | undefined>;
+  vocalize?: typeof vocalizeForSpeech;
+  log?: (line: string) => void;
+  submitting?: <T>(work: () => Promise<T>) => Promise<T>;
 }) {
   const continuous = run.input?.continuous === true || !run.scene_id;
   const item = await loadRunItem(db, run);
-  // The text comes from the scene rows, so the voice matches what the storyboard shows.
+  // The text comes from the scene rows, so the voice matches what the storyboard shows: the
+  // storyboard's narration, or one scene's line for an older voice run.
   const spoken = continuous ? await narrationLines(db, run) : null;
-  const scene = continuous
+  const scene = spoken
     ? null
-    : await loadRunScene(db, run, "id,voiceover_text,meta");
+    : await loadRunScene<SceneRow>(db, run, "id,voiceover_text,meta");
   // A talking scene's own line (its dialogue) is what its lip-sync pass needs.
-  const text = continuous
+  const text = spoken
     ? spoken.text
     : isTalkingScene(scene)
       ? talkingLine(scene)
-      : spokenLine(scene.voiceover_text);
+      : spokenLine(scene?.voiceover_text);
   if (!text) throw finalError("voice run: voiceover_text is required");
   const path = assetPath(
     run,
@@ -44,7 +56,7 @@ export async function generateVoice({
     continuous ? "narration" : "music",
   ).replace(/\.mp3$/, ".audio");
   const meta = alreadyGenerated(run, path)
-    ? (run.output.audio_meta ?? {})
+    ? (run.output?.audio_meta ?? {})
     : continuous && run.input?.guide_audio
       ? await guideTake({
           db,
@@ -67,7 +79,7 @@ export async function generateVoice({
         });
   const provider = meta.provider || "elevenlabs";
   const model = meta.model || SPEECH_MODEL();
-  if (continuous) {
+  if (spoken) {
     await db.rpc("attach_video_narration", {
       p_item_id: run.item_id,
       p_url: path,

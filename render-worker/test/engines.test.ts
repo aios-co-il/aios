@@ -12,6 +12,7 @@ import {
 } from "../src/providers/higgsfield.ts";
 import { musicBody, speechBody } from "../src/providers/elevenlabsSound.ts";
 import { getVideoProvider } from "../src/providers/index.ts";
+import { fakeFetch, headerOf, jsonBodyOf } from "./fakes.ts";
 
 test("ElevenLabs snaps Veo durations and only uses the two aspects Veo accepts", () => {
   expect(elevenLabsClipSeconds(3)).toBe(4);
@@ -30,8 +31,8 @@ test("ElevenLabs snaps Veo durations and only uses the two aspects Veo accepts",
   expect(body.model_id).toBe("veo-3.1-fast-generate-001");
   expect(body.duration_secs).toBe(4);
   expect(body.generate_audio).toBe(false);
-  expect(body.start_frame.mime_type).toBe("image/png");
-  expect(body.start_frame.type).toBe("inline_base64");
+  expect(body.start_frame?.mime_type).toBe("image/png");
+  expect(body.start_frame?.type).toBe("inline_base64");
 });
 
 test("Higgsfield sends the signed still and keeps the scene length", () => {
@@ -73,48 +74,41 @@ test("the worker can build every scene engine and sound request", () => {
 });
 
 test("ElevenLabs and Higgsfield poll until the provider finishes", async () => {
-  const elevenCalls = [];
+  const elevenCalls: Array<{
+    url: string;
+    body: { model_id?: string } | null;
+  }> = [];
   const eleven = elevenLabsProvider({
     apiKey: "xi",
-    fetchImpl: async (url, init) => {
-      elevenCalls.push({ url, body: init.body ? JSON.parse(init.body) : null });
-      if (init.method === "POST")
-        return {
-          ok: true,
-          json: async () => ({ id: "gen-1", status: "pending" }),
-        };
-      return {
-        ok: true,
-        json: async () => ({
-          status: "completed",
-          content_url: "https://files.example/clip.mp4",
-        }),
-      };
-    },
+    fetchImpl: fakeFetch(async (url, init) => {
+      elevenCalls.push({ url, body: init.body ? jsonBodyOf(init) : null });
+      if (init.method === "POST") {
+        return Response.json({ id: "gen-1", status: "pending" });
+      }
+      return Response.json({
+        status: "completed",
+        content_url: "https://files.example/clip.mp4",
+      });
+    }),
   });
   expect(
     (await eleven.submit({ prompt: "go", durationS: 5, aspect: "16:9" })).jobId,
   ).toBe("gen-1");
   expect((await eleven.poll("gen-1")).status).toBe("succeeded");
-  expect(elevenCalls[0].body.model_id).toBe("veo-3.1-fast-generate-001");
+  expect(elevenCalls[0].body?.model_id).toBe("veo-3.1-fast-generate-001");
 
   const higgs = higgsfieldProvider({
     keyId: "id",
     keySecret: "secret",
-    fetchImpl: async (url, init) => {
-      if (init.method === "POST")
-        return {
-          ok: true,
-          json: async () => ({ request_id: "req-1", status: "queued" }),
-        };
-      return {
-        ok: true,
-        json: async () => ({
-          status: "completed",
-          video: { url: "https://files.example/hf.mp4" },
-        }),
-      };
-    },
+    fetchImpl: fakeFetch(async (_url, init) => {
+      if (init.method === "POST") {
+        return Response.json({ request_id: "req-1", status: "queued" });
+      }
+      return Response.json({
+        status: "completed",
+        video: { url: "https://files.example/hf.mp4" },
+      });
+    }),
   });
   expect(
     (
@@ -134,12 +128,13 @@ test("a secret that already contains id:secret is not prefixed again", async () 
   const higgs = higgsfieldProvider({
     keyId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     keySecret: copied,
-    fetchImpl: async (_url, init) => {
-      authorization = init.headers.Authorization;
-      if (init.method === "POST")
-        return { ok: true, json: async () => ({ request_id: "req-2" }) };
-      return { ok: true, json: async () => ({ status: "queued" }) };
-    },
+    fetchImpl: fakeFetch(async (_url, init) => {
+      authorization = headerOf(init, "Authorization") ?? "";
+      if (init.method === "POST") {
+        return Response.json({ request_id: "req-2" });
+      }
+      return Response.json({ status: "queued" });
+    }),
   });
   await higgs.submit({
     prompt: "go",
