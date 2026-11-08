@@ -66,6 +66,15 @@ import { useMeetingScheduler } from "@/hooks/useMeetingScheduler";
 import { useAgencies } from "@/hooks/useEntityLists";
 import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssignmentPicker";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
+/** An optional https link to an ads account, as saved on the client. */
+const directLink = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || /^https:\/\/\S+$/.test(value), {
+    message: "קישור צריך להתחיל ב-https://",
+  })
+  .optional();
+
 const formSchema = z.object({
   name: z.string().min(1, "שם הלקוח נדרש"),
   contact_name: z.string().optional(),
@@ -86,6 +95,8 @@ const formSchema = z.object({
   services: z.array(z.string()).default([]),
   meta_ads_account_id: z.string().optional(),
   google_ads_account_id: z.string().optional(),
+  google_ads_url: directLink,
+  meta_ads_url: directLink,
 });
 
 interface EditClientDialogProps {
@@ -393,6 +404,8 @@ export function EditClientDialog({
       services: client.services || [],
       meta_ads_account_id: client.meta_ads_account_id || "",
       google_ads_account_id: client.google_ads_account_id || "",
+      google_ads_url: client.google_ads_url || "",
+      meta_ads_url: client.meta_ads_url || "",
     },
   });
 
@@ -526,6 +539,8 @@ export function EditClientDialog({
           services: values.services || [],
           meta_ads_account_id: values.meta_ads_account_id || null,
           google_ads_account_id: values.google_ads_account_id || null,
+          google_ads_url: values.google_ads_url?.trim() || null,
+          meta_ads_url: values.meta_ads_url?.trim() || null,
         })
         .eq("id", client.id)
         .select("id");
@@ -559,6 +574,9 @@ export function EditClientDialog({
     onSuccess: () => {
       toast.success("הלקוח עודכן בהצלחה");
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
+      queryClient.invalidateQueries({
+        queryKey: ["client-ad-links", client.id],
+      });
       queryClient.invalidateQueries({
         queryKey: ["client-tenant-financial-data", tenantId],
       });
@@ -1234,6 +1252,32 @@ export function EditClientDialog({
                             placeholder="מזהה חשבון Google Ads"
                             {...field}
                           />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="meta_ads_url"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>קישור ישיר לחשבון META</FormLabel>
+                        <FormControl>
+                          <Input dir="ltr" placeholder="https://" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="google_ads_url"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>קישור ישיר לחשבון Google Ads</FormLabel>
+                        <FormControl>
+                          <Input dir="ltr" placeholder="https://" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

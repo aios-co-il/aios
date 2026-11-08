@@ -49,6 +49,7 @@ import {
   getReportSyncProblem,
 } from "@/lib/reportQueryOptions";
 import { getAdAccountUrl } from "@/lib/adAccountUrl";
+import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import {
   buildDefaultReportRecipientEmails,
@@ -181,6 +182,8 @@ export function ClientReportPanel({
   const [screenshotBlob, setScreenshotBlob] = useState<Blob | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pendingManualCapture, setPendingManualCapture] = useState(false);
+
+  const clientAdLinks = useClientAdLinks(clientId);
 
   // Fetch client data
   const { data: client } = useQuery({
@@ -764,7 +767,7 @@ export function ClientReportPanel({
           יצוא PDF
         </Button>
         {(() => {
-          const adUrl = getAdAccountUrl(table);
+          const adUrl = getAdAccountUrl(table, clientAdLinks);
           if (!adUrl) return null;
           return (
             <Button

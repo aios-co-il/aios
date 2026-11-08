@@ -64,6 +64,7 @@ import {
   Calendar as CalendarIcon,
 } from "lucide-react";
 import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
+import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -344,7 +345,11 @@ export default function DashboardView() {
     refetchOnMount: refetchOnMountIfEmpty,
   });
 
-  const adAccountLinks = useMemo(() => getAdAccountLinks(tables), [tables]);
+  const clientAdLinks = useClientAdLinks(dashboard?.client_id);
+  const adAccountLinks = useMemo(
+    () => getAdAccountLinks(tables, clientAdLinks),
+    [tables, clientAdLinks],
+  );
 
   const dashboardLastSyncAt = useMemo(() => {
     const stamps = tables

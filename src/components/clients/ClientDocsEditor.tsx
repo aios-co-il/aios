@@ -5,7 +5,7 @@ import { FolderLinksField } from "@/components/forms/FolderLinksField";
 import { AttachmentsField } from "@/components/forms/AttachmentsField";
 import { ClientLinkedFiles } from "@/components/clients/ClientLinkedFiles";
 import { useFolderLinksAndAttachments } from "@/hooks/useFolderLinksAndAttachments";
-import { FileText, Copy } from "lucide-react";
+import { FileText, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ClientDocsEditorProps {
@@ -81,6 +81,23 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
+                {client.meta_ads_url && (
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                  >
+                    <a
+                      href={client.meta_ads_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="פתיחת החשבון"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </Button>
+                )}
               </div>
             )}
             {client.google_ads_account_id && (
@@ -107,6 +124,23 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
+                {client.google_ads_url && (
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                  >
+                    <a
+                      href={client.google_ads_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="פתיחת החשבון"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </Button>
+                )}
               </div>
             )}
           </div>
