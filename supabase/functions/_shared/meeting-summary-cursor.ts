@@ -262,13 +262,16 @@ async function resolveSummaryUserId(
   preferred?: string | null,
 ): Promise<string | null> {
   if (preferred) return preferred;
-  const { data } = await admin
+  const { data, error } = await admin
     .from("user_roles")
     .select("user_id")
     .eq("tenant_id", tenantId)
-    // "admin" is not an app_role value; kept as the original query sent it.
-    .filter("role", "in", "(owner,admin)")
+    .eq("role", "owner")
     .limit(1)
     .maybeSingle();
+  if (error) {
+    console.error("[meeting-summary] owner lookup failed", error);
+    throw new Error("Meeting summary owner lookup failed");
+  }
   return data?.user_id ?? null;
 }

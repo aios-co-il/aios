@@ -244,7 +244,12 @@ export async function loadMcpTools(
     for (const tool of tools) {
       const t = asJsonObject(tool);
       const remoteName = t?.name;
-      if (!t || !remoteName) continue;
+      if (typeof remoteName !== "string" || !remoteName) {
+        console.warn("[mcp-tools] skipped invalid tool name", {
+          connectionId: conn.id,
+        });
+        continue;
+      }
       const prefixed = sanitizeToolName(`mcp_${connSlug}__${remoteName}`);
       if (executors.has(prefixed)) continue;
       toolDefs.push({

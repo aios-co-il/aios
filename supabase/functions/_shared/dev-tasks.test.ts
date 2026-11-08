@@ -1,3 +1,6 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database } from "./database.types.ts";
+import { z } from "npm:zod@3.25.76";
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import {
   approveOnSend,
@@ -123,17 +126,22 @@ Deno.test(
   },
 );
 
-/** A client whose dev_tasks read returns this row; any write fails the test. */
+/** Return a generated client whose reads provide the fixture and whose writes fail. */
 function taskDb(row: Record<string, unknown>) {
-  const builder: Record<string, unknown> = {
-    select: () => builder,
-    eq: () => builder,
-    single: () => Promise.resolve({ data: row, error: null }),
-    update: () => {
-      throw new Error("a refused task must not be written");
+  return createClient<Database>("https://example.invalid", "test-key", {
+    auth: { persistSession: false },
+    global: {
+      fetch: async (_input, init) => {
+        if (init?.method && init.method !== "GET") {
+          throw new Error("a refused task must not be written");
+        }
+        return new Response(JSON.stringify(row), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
     },
-  };
-  return { from: () => builder };
+  });
 }
 
 const DRAFT = {
@@ -200,22 +208,32 @@ Deno.test(
   },
 );
 
-/** Records dev_tasks updates; reads return this row. */
+/** Record HTTP writes while exercising the generated Supabase client contract. */
 function recordingDb(row: Record<string, unknown>) {
-  const updates: Record<string, unknown>[] = [];
-  const builder: Record<string, unknown> = {
-    select: () => builder,
-    eq: () => builder,
-    insert: () => Promise.resolve({ data: null, error: null }),
-    update: (patch: Record<string, unknown>) => {
-      updates.push(patch);
-      return builder;
+  const updates: Array<Record<string, unknown>> = [];
+  const db = createClient<Database>("https://example.invalid", "test-key", {
+    auth: { persistSession: false },
+    global: {
+      fetch: async (input, init) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+        );
+        if (init?.method === "PATCH") {
+          updates.push(
+            z.record(z.unknown()).parse(JSON.parse(String(init.body))),
+          );
+        }
+        const data = url.pathname.endsWith("/dev_tasks")
+          ? { ...row, ...updates.at(-1) }
+          : null;
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
     },
-    maybeSingle: () => Promise.resolve({ data: row, error: null }),
-    single: () =>
-      Promise.resolve({ data: { ...row, ...updates.at(-1) }, error: null }),
-  };
-  return { updates, db: { from: () => builder } };
+  });
+  return { updates, db };
 }
 
 Deno.test(

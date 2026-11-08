@@ -1,4 +1,5 @@
 import {
+  settleParallelSteps,
   isParallelCursorStep,
   selectParallelDispatchBatch,
   selectInProgressCursorTracks,
@@ -51,3 +52,40 @@ Deno.test("selectInProgressCursorTracks finds monitoring rows", () => {
   ]);
   if (rows.length !== 1) throw new Error("expected 1");
 });
+
+Deno.test(
+  "a failed parallel dispatch waits for its sibling before rejecting",
+  async () => {
+    /** Fail clearly if the promise gate was not installed. */
+    function missingGate(): void {
+      throw new Error("missing gate");
+    }
+    let release: () => void = missingGate;
+    const sibling = new Promise<string>((resolve) => {
+      release = () => resolve("done");
+    });
+    const failure = new Error("failed dispatch");
+    let finished = false;
+    const result = settleParallelSteps([Promise.reject(failure), sibling]).then(
+      () => {
+        throw new Error("expected rejection");
+      },
+      (error) => {
+        finished = true;
+        if (error !== failure) {
+          throw error;
+        }
+      },
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    if (finished) {
+      throw new Error("released lock while sibling pending");
+    }
+    release();
+    await result;
+    if (!finished) {
+      throw new Error("missing failure");
+    }
+  },
+);

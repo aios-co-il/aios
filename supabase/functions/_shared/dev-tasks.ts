@@ -480,7 +480,7 @@ export async function approveDevTask(
  * nothing.
  */
 export async function approveOnSend(
-  supabase: { from: (t: string) => any },
+  supabase: DbClient,
   tenantId: string,
   taskId: string,
   userId: string | null,

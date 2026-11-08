@@ -105,3 +105,17 @@ export async function notifyDavidStagingReady(
     console.warn("[goal-parallel] notify david failed:", e);
   }
 }
+
+/** Await every sibling before surfacing a dispatch failure and releasing the goal lock. */
+export async function settleParallelSteps<Value>(
+  pending: Array<Promise<Value>>,
+): Promise<Array<Value>> {
+  const results = await Promise.allSettled(pending);
+  const failed = results.find((result) => result.status === "rejected");
+  if (failed?.status === "rejected") {
+    throw failed.reason;
+  }
+  return results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
+}

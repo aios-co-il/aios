@@ -1050,6 +1050,7 @@ export async function runGoalIteration(
       selectParallelDispatchBatch,
       selectNextSequentialStep,
       selectInProgressCursorTracks,
+      settleParallelSteps,
     } = await import("./goal-parallel-orchestration.ts");
 
     const monitored = await monitorInProgressCursorSteps(supabase, freshState);
@@ -1057,7 +1058,7 @@ export async function runGoalIteration(
 
     const parallelBatch = selectParallelDispatchBatch(freshState.planSteps);
     if (parallelBatch.length >= 2) {
-      const results = await Promise.all(
+      const results = await settleParallelSteps(
         parallelBatch.map((s) =>
           executePlanStep(supabase, freshState, s, iterationId),
         ),
