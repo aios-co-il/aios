@@ -30,14 +30,14 @@ export function RatioPicker({ events, value, onChange }: Props) {
       <div className="flex items-center gap-2">
         <EventSelect
           label="מאירוע"
-          events={events}
+          events={events.filter((item) => item.event !== value.to)}
           value={value.from}
           onChange={(event) => pick("from", event)}
         />
         <span className="text-muted-foreground">←</span>
         <EventSelect
           label="לאירוע"
-          events={events}
+          events={events.filter((item) => item.event !== value.from)}
           value={value.to}
           onChange={(event) => pick("to", event)}
         />
@@ -58,8 +58,10 @@ function EventSelect({
   value: string | undefined;
   onChange: (event: string) => void;
 }) {
+  // A side whose event was unchecked shows "none", which is what saves.
+  const selected = events.some((item) => item.event === value) ? value : NONE;
   return (
-    <Select value={value || NONE} onValueChange={onChange}>
+    <Select value={selected} onValueChange={onChange}>
       <SelectTrigger className="w-48" aria-label={label}>
         <SelectValue placeholder={label} />
       </SelectTrigger>

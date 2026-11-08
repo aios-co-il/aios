@@ -29,7 +29,12 @@ export type EventUsersResult = {
   sources: Array<EventUsersRow>;
   /** False when GA's funnel report failed and the rates are missing. */
   funnelAvailable: boolean;
+  /** The dashboard's conversion pair as a closed funnel; null without one. */
+  pair?: PairUsers | null;
 };
+
+/** People at the pair's first event and, of them, at its second. */
+export type PairUsers = { from: number; to: number };
 
 /** One GA report row as the Data API returns it. */
 export type GaRow = {

@@ -34,3 +34,10 @@ describe("SiteKpiCards", () => {
     expect(container.textContent).toBe("");
   });
 });
+
+describe("SiteKpiCards revenue sign", () => {
+  it("still shows a net-negative revenue", () => {
+    render(<SiteKpiCards revenue={-120} ratio={null} {...format} />);
+    expect(screen.getByText("₪-120")).toBeTruthy();
+  });
+});

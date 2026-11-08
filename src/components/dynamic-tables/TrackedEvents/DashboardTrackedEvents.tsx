@@ -68,7 +68,7 @@ export function DashboardTrackedEvents({
         pair,
         tracked,
         Object.fromEntries(summary.events.map((e) => [e.event, e.count])),
-        users.data?.total.users,
+        users.data?.pair,
       )
     : null;
   return (

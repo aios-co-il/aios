@@ -30,13 +30,13 @@ describe("parseTrackedRatio", () => {
 describe("ratioFigures", () => {
   const pair = { from: "ticket_valuation", to: "ticket_sold" };
 
-  it("uses unique people once GA has them", () => {
+  it("uses GA's funnel for the pair once it is in", () => {
     expect(
       ratioFigures(
         pair,
         tracked,
         { ticket_valuation: 54, ticket_sold: 9 },
-        { ticket_valuation: 27, ticket_sold: 6 },
+        { from: 27, to: 6 },
       ),
     ).toEqual({
       label: "הערכה ← מכירה",

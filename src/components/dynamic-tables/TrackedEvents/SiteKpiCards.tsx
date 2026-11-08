@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { RatioFigures } from "./siteKpis";
 
 type Props = {
-  /** Purchase revenue for the period; the card hides at zero. */
+  /** Purchase revenue for the period, net of refunds; the card hides at zero. */
   revenue: number;
   /** The conversion pair's figures; the card hides without a pair. */
   ratio: RatioFigures | null;
@@ -17,12 +17,12 @@ export function SiteKpiCards({
   formatCurrency,
   formatNumber,
 }: Props) {
-  if (revenue <= 0 && !ratio) {
+  if (revenue === 0 && !ratio) {
     return null;
   }
   return (
     <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-      {revenue > 0 && (
+      {revenue !== 0 && (
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-sm text-muted-foreground">הכנסות מרכישות</p>
