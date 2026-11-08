@@ -29,12 +29,15 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { getRepoSlug } from "../_shared/github-repo.ts";
-import type { Database, Json } from "../_shared/database.types.ts";
+import type { Database } from "../_shared/database.types.ts";
 import {
-  asJsonObject,
-  type JsonObject,
+  readManusSettings,
+  readTaskResponse,
+  readManusRpc,
+  parseJsonOrRaw,
+  type ManusToolArgs,
   thrownMessage,
-} from "../_shared/manus/json.ts";
+} from "../_shared/manus/contracts.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -232,7 +235,7 @@ async function getManusApiKey(tenantId: string | null): Promise<string> {
       .eq("is_active", true)
       .limit(1)
       .maybeSingle();
-    const key = asJsonObject(data?.settings)?.api_key;
+    const key = readManusSettings(data?.settings).api_key;
     if (typeof key === "string" && key.length > 0) return key;
   } catch {
     /* fall through */
@@ -266,29 +269,14 @@ async function createManusTask(
   });
   const raw = await res.text();
   if (!res.ok) {
-    let detail: Json | undefined = raw.slice(0, 500);
-    try {
-      const parsed: Json = JSON.parse(raw);
-      const error = asJsonObject(parsed)?.error;
-      detail = asJsonObject(error)?.message || error || detail;
-    } catch {
-      /* keep raw */
-    }
-    throw new Error(`Manus API error [${res.status}]: ${detail}`);
+    throw new Error(`Manus API error [${res.status}]: ${raw.slice(0, 500)}`);
   }
-  let data: Json = {};
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  const top = asJsonObject(data);
-  const inner = asJsonObject(top?.data);
-  const taskId = String(inner?.task_id || top?.task_id || top?.id || "—");
-  const taskUrl = String(
-    inner?.task_url || top?.task_url || `https://manus.im/t/${taskId}`,
-  );
-  const shareUrl = String(inner?.share_url || top?.share_url || taskUrl);
+  const top = readTaskResponse(parseJsonOrRaw(raw));
+  const inner = top.data;
+  const taskId = inner?.task_id || top.task_id || top.id || "—";
+  const taskUrl =
+    inner?.task_url || top.task_url || `https://manus.im/t/${taskId}`;
+  const shareUrl = inner?.share_url || top.share_url || taskUrl;
   return { taskId, taskUrl, shareUrl };
 }
 
@@ -320,15 +308,9 @@ async function sendManusMessage(
     );
     return { taskId: "", taskUrl: "", shareUrl: "" }; // signal caller to retry with create
   }
-  let data: Json = {};
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  const inner = asJsonObject(asJsonObject(data)?.data);
-  const taskUrl = String(inner?.task_url || `https://manus.im/t/${taskId}`);
-  const shareUrl = String(inner?.share_url || taskUrl);
+  const inner = readTaskResponse(parseJsonOrRaw(raw)).data;
+  const taskUrl = inner?.task_url || `https://manus.im/t/${taskId}`;
+  const shareUrl = inner?.share_url || taskUrl;
   return { taskId, taskUrl, shareUrl };
 }
 
@@ -437,7 +419,7 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
 
 async function handleToolCall(
   name: string,
-  args: JsonObject,
+  args: ManusToolArgs,
   ctx: { tenantId: string | null; agentId: string | null },
 ): Promise<string> {
   if (!ctx.tenantId) {
@@ -459,10 +441,10 @@ async function handleToolCall(
     `Body: { "tenant_id": "${ctx.tenantId}", "message": "<your concise result summary with task link>" }`;
 
   if (name === "ask_manus") {
-    const request = String(args?.request ?? "").trim();
+    const request = (args.request ?? "").trim();
     if (!request) throw new Error("ask_manus requires a non-empty 'request'.");
-    const context = String(args?.context ?? "").trim();
-    const agentProfile = String(args?.agent_profile ?? "manus-1.6").trim();
+    const context = (args.context ?? "").trim();
+    const agentProfile = (args.agent_profile ?? "manus-1.6").trim();
 
     const prompt =
       `[Carmen → Manus · REQUEST]\n` +
@@ -527,10 +509,10 @@ async function handleToolCall(
   }
 
   if (name === "request_dev_task") {
-    const task = String(args?.task ?? "").trim();
+    const task = (args.task ?? "").trim();
     if (!task) throw new Error("request_dev_task requires a non-empty 'task'.");
-    const branch = String(args?.branch ?? "main").trim();
-    const context = String(args?.context ?? "").trim();
+    const branch = (args.branch ?? "main").trim();
+    const context = (args.context ?? "").trim();
 
     const prompt =
       `[Carmen → Manus · DEV TASK]\n` +
@@ -589,17 +571,17 @@ Deno.serve(async (req) => {
     );
   }
 
-  let msg: Json;
+  let msg: unknown;
   try {
     msg = await req.json();
   } catch {
     return rpcError(null, -32700, "Parse error");
   }
 
-  const rpc = asJsonObject(msg);
+  const rpc = readManusRpc(msg);
   const id = rpc?.id;
   const method = rpc?.method;
-  const params = asJsonObject(rpc?.params);
+  const params = rpc.params;
 
   // Bearer gate — MANUS_MCP_BEARER must match
   const requiredBearer = Deno.env.get("MANUS_MCP_BEARER");
@@ -632,8 +614,8 @@ Deno.serve(async (req) => {
         return rpcResult(id, { tools: TOOLS });
 
       case "tools/call": {
-        const name = String(params?.name);
-        const args = asJsonObject(params?.arguments) ?? {};
+        const name = params?.name ?? "";
+        const args = params?.arguments ?? {};
         try {
           const ctx = await resolveContext(bearerFrom(req));
           const text = await handleToolCall(name, args, ctx);

@@ -45,7 +45,7 @@ import { ShareIntegrationTenantsDialog } from "@/components/forms/ShareIntegrati
 import { IntegrationVisibilitySelector } from "@/components/forms/IntegrationVisibilitySelector";
 import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import {
-  integrationSettingsObject,
+  mergeManusSettings,
   readManusWaSettings,
 } from "@/lib/manusIntegrationSettings";
 
@@ -182,7 +182,6 @@ export default function ManusWhatsAppSettings({
       const existing = editingId
         ? integrations.find((i) => i.id === editingId)
         : null;
-      const existingSettings = integrationSettingsObject(existing?.settings);
       const payload: TablesInsert<"tenant_integrations"> = {
         tenant_id: tenantId,
         user_id: userId,
@@ -192,12 +191,11 @@ export default function ManusWhatsAppSettings({
         is_active: true,
         display_name: form.displayName.trim(),
         api_token_last_4: form.apiKey.slice(-4),
-        settings: {
-          ...existingSettings,
+        settings: mergeManusSettings(existing?.settings, {
           instance_id: form.instanceId,
           webhook_secret: secret,
           country_code: form.countryCode || "972",
-        },
+        }),
       };
       if (editingId) {
         const { error } = await supabase
@@ -280,8 +278,7 @@ export default function ManusWhatsAppSettings({
 
   const resyncSecretMutation = useMutation({
     mutationFn: async (i: Integration) => {
-      const cur = integrationSettingsObject(i.settings);
-      const merged = { ...cur, webhook_secret: "" };
+      const merged = mergeManusSettings(i.settings, { webhook_secret: "" });
       const { error } = await supabase
         .from("tenant_integrations")
         .update({ settings: merged })

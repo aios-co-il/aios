@@ -1,33 +1,13 @@
 import { z } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 
-export type JsonObject = { [key: string]: Json | undefined };
-
-const jsonValueSchema: z.ZodType<Json> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValueSchema),
-    z.record(z.string(), jsonValueSchema),
-  ]),
-);
-
-const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
-
-/** The settings object stored on a tenant_integrations row, or `{}` when it is not an object. */
-export function integrationSettingsObject(
-  settings: Json | null | undefined,
-): JsonObject {
-  const parsed = jsonObjectSchema.safeParse(settings);
-  return parsed.success ? parsed.data : {};
-}
-
 const optionalString = z.string().optional().catch(undefined);
 
 const manusWaSettingsSchema = z
   .object({
+    api_key: optionalString,
+    webhook_id: optionalString,
+    webhook_url: optionalString,
     instance_id: optionalString,
     webhook_secret: optionalString,
     country_code: optionalString,
@@ -45,11 +25,23 @@ export function readManusWaSettings(
   return manusWaSettingsSchema.parse(settings);
 }
 
+/** Preserve opaque storage fields only while writing validated Manus settings. */
+export function mergeManusSettings(
+  settings: Json | null | undefined,
+  patch: ManusWaSettings,
+): Json {
+  const stored =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? settings
+      : {};
+  return { ...stored, ...patch };
+}
+
 const manusOutputSchema = z.array(z.unknown());
 const manusOutputItemSchema = z.object({ content: z.array(z.unknown()) });
 const manusOutputTextPartSchema = z.object({
   type: z.literal("output_text"),
-  text: z.unknown(),
+  text: z.string(),
 });
 
 /** Concatenated `output_text` parts of a Manus task output, or null when there are none. */
@@ -69,7 +61,7 @@ export function manusOutputText(
     for (const rawPart of item.data.content) {
       const part = manusOutputTextPartSchema.safeParse(rawPart);
       if (part.success && part.data.text) {
-        texts.push(String(part.data.text));
+        texts.push(part.data.text);
       }
     }
   }

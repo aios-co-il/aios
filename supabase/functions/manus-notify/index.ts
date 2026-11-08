@@ -18,9 +18,12 @@ import {
   pickNotifyDelivery,
   resolveCarmenNotifyTarget,
 } from "../_shared/carmen-notify-target.ts";
-import type { Database, Json } from "../_shared/database.types.ts";
+import type { Database } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { asJsonObject } from "../_shared/manus/json.ts";
+import {
+  readNotifyStep,
+  readNotifyRequest,
+} from "../_shared/manus/contracts.ts";
 import { authorizeSecretOrServiceRole } from "../_shared/auth/edge-caller-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -37,7 +40,8 @@ type SendMessageBody = {
   tenantId: string;
   senderUserId: string;
   message: string;
-  integrationId?: Json;
+  integrationId?: string;
+  sendKind: "staff_alert";
   groupId?: string;
   phoneNumber?: string;
 };
@@ -87,7 +91,7 @@ async function sendViaActionStep(
   const step = steps?.[0];
   if (!step) return false;
 
-  const cfg = asJsonObject(step.configuration) ?? {};
+  const cfg = readNotifyStep(step.configuration);
   const integrationId =
     cfg.green_api_integration_id || cfg.integration_id || null;
 
@@ -153,17 +157,17 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  let rawBody: Json;
+  let rawBody: unknown;
   try {
     rawBody = await req.json();
   } catch {
     return json({ error: "bad json" }, 400);
   }
-  const body = asJsonObject(rawBody);
-
-  const tenantId = String(body?.tenant_id ?? "").trim();
-  const message = String(body?.message ?? "").trim();
-  const explicitChatId = body?.chat_id ? String(body.chat_id).trim() : null;
+  const parsed = readNotifyRequest(rawBody);
+  if (!parsed.success)
+    return json({ error: "tenant_id and message must be strings" }, 400);
+  const { tenant_id: tenantId, message } = parsed.data;
+  const explicitChatId = parsed.data.chat_id?.trim() || null;
 
   if (!tenantId || !message)
     return json({ error: "tenant_id and message are required" }, 400);

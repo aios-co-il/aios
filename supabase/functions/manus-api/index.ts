@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { asJsonObject } from "../_shared/manus/json.ts";
+import {
+  readManusSettings,
+  mergeManusSettings,
+} from "../_shared/manus/contracts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,6 +50,7 @@ serve(async (req) => {
           { global: { headers: { Authorization: authHeader } } },
         );
 
+    let authenticatedUserId: string | null = null;
     if (!isInternalCall) {
       const {
         data: { user },
@@ -58,6 +62,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      authenticatedUserId = user.id;
     }
 
     const body = await req.json();
@@ -92,7 +97,7 @@ serve(async (req) => {
       );
     }
 
-    const apiKey = asJsonObject(integration.settings)?.api_key;
+    const apiKey = readManusSettings(integration.settings).api_key;
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: "Manus API key not found" }),
@@ -104,7 +109,7 @@ serve(async (req) => {
     }
 
     const manusHeaders = {
-      API_KEY: String(apiKey),
+      API_KEY: apiKey,
       "Content-Type": "application/json",
       accept: "application/json",
     };
@@ -154,7 +159,7 @@ serve(async (req) => {
             status: "pending",
             task_url: data.task_url,
             share_url: data.share_url,
-            created_by: user.id,
+            created_by: authenticatedUserId,
           });
 
         if (insertError) {
@@ -248,15 +253,14 @@ serve(async (req) => {
         }
 
         // Save webhook_id in integration settings
-        const currentSettings = asJsonObject(integration.settings) ?? {};
+        const webhook = readManusSettings(data);
         await supabaseClient
           .from("tenant_integrations")
           .update({
-            settings: {
-              ...currentSettings,
-              webhook_id: data.webhook_id,
+            settings: mergeManusSettings(integration.settings, {
+              webhook_id: webhook.webhook_id,
               webhook_url: webhookUrl,
-            },
+            }),
           })
           .eq("tenant_id", tenantId)
           .eq("integration_type", "manus");

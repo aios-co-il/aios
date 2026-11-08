@@ -2,13 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { senderAccess, senderLine } from "./sender-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
-import type { Json, Tables } from "../_shared/database.types.ts";
 import {
-  asJsonObject,
+  readGatewayResponse,
   parseJsonOrRaw,
   thrownMessage,
   thrownName,
-} from "../_shared/manus/json.ts";
+} from "../_shared/manus/contracts.ts";
 import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
@@ -269,7 +268,7 @@ Deno.serve(async (req) => {
     const FETCH_TIMEOUT_MS = 60000; // was 25s — too short; Manus can take 30-40s on slow paths
     let res: Response | null = null;
     let respText = "";
-    let respData: Json = null;
+    let respData: ReturnType<typeof parseJsonOrRaw> = null;
     let lastErr: unknown = null;
     let abortedOnce = false;
 
@@ -296,11 +295,11 @@ Deno.serve(async (req) => {
         });
 
         // Manus-internal timeout in body (e.g. "timeout of 8000ms exceeded") => Manus itself reports failure, retry is safer.
-        const respError = asJsonObject(respData)?.error;
+        const respError = readGatewayResponse(respData).error;
         const isManusTimeout =
           typeof respError === "string" &&
           /timeout of \d+ms exceeded/i.test(respError);
-        if (res.ok && asJsonObject(respData)?.success !== false) {
+        if (res.ok && readGatewayResponse(respData).success !== false) {
           break;
         }
         if (!isManusTimeout && res.status < 500) {
@@ -355,7 +354,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const respObject = asJsonObject(respData);
+    const respObject = readGatewayResponse(respData);
     if (!res || !res.ok || respObject?.success === false) {
       throw (
         lastErr ||

@@ -1,7 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { syncManusGroupsForTenant } from "../_shared/manus-wa-sync-groups-core.mjs";
-import type { Json } from "../_shared/database.types.ts";
-import { asJsonObject, parseJsonOrRaw } from "../_shared/manus/json.ts";
+import {
+  readManusSettings,
+  mergeManusSettings,
+  readGatewayResponse,
+  parseJsonOrRaw,
+} from "../_shared/manus/contracts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,7 +98,7 @@ Deno.serve(async (req) => {
     }
 
     const { instanceId, apiKey, integrationId } = body;
-    let realInstanceId: Json | undefined = instanceId;
+    let realInstanceId: string | undefined = instanceId;
     let realApiKey = apiKey;
 
     if (!realApiKey && integrationId) {
@@ -106,7 +110,7 @@ Deno.serve(async (req) => {
       if (integ) {
         realApiKey = integ.api_key;
         realInstanceId =
-          asJsonObject(integ.settings)?.instance_id || realInstanceId;
+          readManusSettings(integ.settings).instance_id || realInstanceId;
       }
     }
 
@@ -130,7 +134,7 @@ Deno.serve(async (req) => {
 
     const text = await res.text();
     const data = parseJsonOrRaw(text);
-    const dataObject = asJsonObject(data);
+    const dataObject = readGatewayResponse(data);
 
     if (!res.ok) {
       return new Response(
@@ -157,11 +161,10 @@ Deno.serve(async (req) => {
         .select("settings")
         .eq("id", integrationId)
         .maybeSingle();
-      const merged = {
-        ...asJsonObject(cur?.settings),
+      const merged = mergeManusSettings(cur?.settings, {
         status: dataObject.status,
         phone_number: dataObject.phoneNumber,
-      };
+      });
       await supabaseSvc
         .from("tenant_integrations")
         .update({ settings: merged })

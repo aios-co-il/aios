@@ -24,7 +24,7 @@ import { useTenant } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { integrationSettingsObject } from "@/lib/manusIntegrationSettings";
+import { readManusWaSettings } from "@/lib/manusIntegrationSettings";
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -54,7 +54,7 @@ export default function ManusSettings() {
   });
 
   const isConnected = integration?.is_active;
-  const settings = integrationSettingsObject(integration?.settings);
+  const settings = readManusWaSettings(integration?.settings);
   const webhookId = settings.webhook_id;
 
   const saveMutation = useMutation({
@@ -194,7 +194,7 @@ export default function ManusSettings() {
             {webhookId ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CheckCircle className="h-4 w-4 text-green-500" />
-                Webhook רשום (ID: {String(webhookId)})
+                Webhook רשום (ID: {webhookId})
               </div>
             ) : (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
